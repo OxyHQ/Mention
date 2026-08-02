@@ -30,11 +30,11 @@ import {
   mentionTombstoneRecordSchema,
   PostVisibility,
 } from '@mention/shared-types';
-import { and, desc, eq, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, or } from 'drizzle-orm';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import { getDb } from '../../../db/postgres';
 import { mentionSignedRecords } from '../../../db/schema/mtn';
-import { Post } from '../../../models/Post';
+import { posts } from '../../../db/schema/posts';
 import { buildUserDid } from '../../../services/mtn/mentionDid';
 import { logger } from '../../../utils/logger';
 import {
@@ -236,16 +236,16 @@ async function filterPublicPublishedPosts(
   if (records.length === 0) return records;
 
   const postIds = records.map((record) => record.rkey);
-  const publicPosts = await Post.find(
-    {
-      _id: { $in: postIds },
-      oxyUserId,
-      status: 'published',
-      visibility: PostVisibility.PUBLIC,
-    },
-    { _id: 1 },
-  ).lean<Array<{ _id: unknown }>>();
-  const publicPostIds = new Set(publicPosts.map((post) => String(post._id)));
+  const publicPosts = await getDb()
+    .select({ id: posts.id })
+    .from(posts)
+    .where(and(
+      inArray(posts.id, postIds),
+      eq(posts.oxyUserId, oxyUserId),
+      eq(posts.status, 'published'),
+      eq(posts.visibility, PostVisibility.PUBLIC),
+    ));
+  const publicPostIds = new Set(publicPosts.map((post) => post.id));
   return records.filter((record) => publicPostIds.has(record.rkey));
 }
 

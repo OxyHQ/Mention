@@ -121,7 +121,10 @@ describe('each arm of the "carries media" disjunction', () => {
         variants: [{ source: 'author', text: 'remote photo' }],
         media: [{ id: 'media-remote', type: 'image' }],
       },
-      federation: { activityId: 'https://remote.example/notes/1' },
+      // `federation_activity_id` is globally UNIQUE, so a literal shared with
+      // another file is an insert that fails with 23505 in a parallel run — it
+      // did. Built from this file's own author, which is already its namespace.
+      federation: { activityId: `https://remote.example/${AUTHOR}/notes/1` },
     });
     expect(await admitted()).toEqual([federated]);
   });

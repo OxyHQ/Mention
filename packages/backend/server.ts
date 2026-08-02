@@ -10,6 +10,8 @@ import { config, validateEnvironment } from './src/config';
 import { isAllowedOrigin } from "./src/utils/allowedOrigins";
 import { assertMigrationsApplied, runMigrations } from "./src/migrations/runner";
 import { assertMongoTransactionalTopology } from "./src/utils/mongoTopology";
+import { closePostgres, connectPostgres, getPostgresClient } from "./src/db/postgres";
+import { assertPostgresMigrationsCurrent } from "./src/db/migrationLedger";
 import { leaderElection } from "./src/services/LeaderElection";
 import {
   markMigrationsComplete,
@@ -23,11 +25,16 @@ import {
   getRedisClient,
 } from './src/utils/redis';
 import { isRedisConnectionError } from './src/utils/redisHelpers';
+import {
+  startUserInvalidationSubscriber,
+  type UserInvalidationSubscriber,
+} from './src/services/userInvalidationSubscriber';
 import { DistributedPresenceService } from './src/services/DistributedPresenceService';
 import {
   registerSocketPresence,
   type AuthenticatedPresenceSocket as AuthenticatedSocket,
 } from './src/services/SocketPresenceLifecycle';
+import { registerContentRoomHandlers } from './src/services/ContentRoomLifecycle';
 import { engagementOutboxDispatcher } from './src/services/EngagementOutboxDispatcher';
 import { moderationOutboxDispatcher } from './src/services/moderation/ModerationOutboxDispatcher';
 
@@ -174,6 +181,7 @@ const io = new SocketIOServer(server, {
 setRuntimeSocketServer(io);
 
 let socketRedisClients: ReturnType<typeof createRedisPubSub> | null = null;
+let userInvalidationSubscriber: UserInvalidationSubscriber | null = null;
 
 // Setup Redis adapter for Socket.IO horizontal scaling
 // Note: @socket.io/redis-adapter v8+ supports node-redis
@@ -322,36 +330,6 @@ notificationsNamespace.on("connection", (socket: AuthenticatedSocket) => {
   });
 });
 
-function registerContentRoomHandlers(socket: AuthenticatedSocket): void {
-  socket.on("joinPost", socketRateLimiter.wrap(socket, 'joinPost', (postId: string) => {
-    if (!postId || typeof postId !== 'string') return;
-    socket.join(`post:${postId}`);
-  }));
-
-  socket.on("leavePost", socketRateLimiter.wrap(socket, 'leavePost', (postId: string) => {
-    if (!postId || typeof postId !== 'string') return;
-    socket.leave(`post:${postId}`);
-  }));
-
-  socket.on("joinFeed", socketRateLimiter.wrap(socket, 'joinFeed', (data: { feedType?: string }) => {
-    const feedType = data?.feedType;
-    if (feedType && typeof feedType === 'string') {
-      socket.join(`feed:${feedType}`);
-    }
-    const selfId = socket.user?.id;
-    if (selfId) socket.join(`feed:user:${selfId}`);
-  }));
-
-  socket.on("leaveFeed", socketRateLimiter.wrap(socket, 'leaveFeed', (data: { feedType?: string }) => {
-    const feedType = data?.feedType;
-    if (feedType && typeof feedType === 'string') {
-      socket.leave(`feed:${feedType}`);
-    }
-    const selfId = socket.user?.id;
-    if (selfId) socket.leave(`feed:user:${selfId}`);
-  }));
-}
-
 // Configure postsNamespace events
 postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
   logger.info('Client connected to posts namespace');
@@ -365,7 +343,7 @@ postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
   socket.on("error", (error: Error) => {
     logger.error("Posts socket error", error);
   });
-  registerContentRoomHandlers(socket);
+  registerContentRoomHandlers(socket, socketRateLimiter);
 
   socket.on("disconnect", (reason: DisconnectReason) => {
     socketRateLimiter.cleanup(socket.id);
@@ -421,7 +399,7 @@ io.on("connection", (socket: AuthenticatedSocket) => {
       socket.disconnect();
     }
   });
-  registerContentRoomHandlers(socket);
+  registerContentRoomHandlers(socket, socketRateLimiter);
 
   socket.on("disconnect", (reason: DisconnectReason, description?: unknown) => {
     socketRateLimiter.cleanup(socket.id);
@@ -606,6 +584,19 @@ function startSchedulers(): void {
   } catch (error) {
     logger.warn("Failed to start moderation reconciliation job", error);
   }
+
+  // Blocklist proposal sweep (leader-gated): reads the blocklists other
+  // instances publish and leaves newly corroborated domains in a review queue.
+  // It PROPOSES only — it cannot block anything, by construction (see
+  // services/federation/BlocklistProposalService). Due-ness lives in the run
+  // history, not in this timer, so a weekly sweep still happens on a service
+  // that redeploys daily.
+  try {
+    const { blocklistProposalScheduler } = require("./src/services/federation/BlocklistProposalScheduler");
+    blocklistProposalScheduler.start();
+  } catch (error) {
+    logger.warn("Failed to start blocklist proposal scheduler", error);
+  }
 }
 
 /**
@@ -673,6 +664,13 @@ function stopSchedulers(): void {
   } catch (error) {
     logger.warn("Failed to stop moderation reconciliation job", error);
   }
+
+  try {
+    const { blocklistProposalScheduler } = require("./src/services/federation/BlocklistProposalScheduler");
+    blocklistProposalScheduler.stop();
+  } catch (error) {
+    logger.warn("Failed to stop blocklist proposal scheduler", error);
+  }
 }
 
 // --- Server Listen ---
@@ -681,6 +679,11 @@ const bootServer = async () => {
   validateEnvironment();
   markRuntimeNotReady('booting');
   await connectToDatabase();
+  // Both stores open before anything can be asked to serve. `getDb()` throws
+  // until this resolves, and the port has moved most reads onto Postgres — a
+  // task that skipped this would answer the health check and then fail every
+  // query that is no longer Mongo's.
+  await connectPostgres();
 
   // Production migrations run as a deployment one-shot with the exact image
   // that will be rolled out. Web tasks never mutate schema during a scale-out;
@@ -688,9 +691,18 @@ const bootServer = async () => {
   // is the primary topology barrier; this startup check is defense in depth if
   // a task is launched outside the normal deployment workflow. It is not run in
   // the readiness endpoint, avoiding a Mongo command on every health probe.
+  //
+  // The Postgres half is the same posture against the same failure, and it is
+  // load-bearing during the cutover rather than defence in depth: the drizzle
+  // migrations are applied by the deploy's one-shot, and a task that boots
+  // against a database that one-shot never reached becomes ready and then
+  // fails every Postgres query — after traffic has been routed to it. Outside
+  // production the migrator is a developer command (`bun run db:migrate`), so
+  // there is nothing here to assert against.
   if (config.runtime.isProduction) {
     await assertMongoTransactionalTopology();
     await assertMigrationsApplied();
+    await assertPostgresMigrationsCurrent(getPostgresClient());
   } else {
     await runMigrations();
   }
@@ -699,6 +711,12 @@ const bootServer = async () => {
   // Setup Redis adapter before accepting connections to ensure
   // cross-instance broadcasts work from the first connection
   await setupRedisAdapter();
+
+  // Drop cached Oxy identity as soon as Oxy says it changed, instead of waiting
+  // out the user-summary TTL. Runs on EVERY task: the SDK response caches it
+  // sweeps are per-process, so a leader-only subscriber would leave the rest of
+  // the fleet stale. Inert (and non-fatal) when Redis is unavailable.
+  userInvalidationSubscriber = await startUserInvalidationSubscriber();
 
   // Start BullMQ federation queue workers on EVERY task (inbox + delivery
   // throughput should scale with the fleet; BullMQ delivers each job to exactly
@@ -795,6 +813,13 @@ const gracefulShutdown = (signal: string): void => {
       });
     });
 
+    const invalidationShutdown = async (): Promise<void> => {
+      if (!userInvalidationSubscriber) return;
+      const handle = userInvalidationSubscriber;
+      userInvalidationSubscriber = null;
+      await handle.stop();
+    };
+
     const pubSubShutdown = async (): Promise<void> => {
       if (!socketRedisClients) return;
       const { publisher, subscriber } = socketRedisClients;
@@ -819,13 +844,15 @@ const gracefulShutdown = (signal: string): void => {
     await Promise.allSettled([
       httpClosed,
       socketShutdown,
+      invalidationShutdown(),
       pubSubShutdown(),
       closeRedisConnection(),
       mongoose.disconnect(),
+      closePostgres(),
     ]);
 
     clearTimeout(hardTimeout);
-    logger.info('HTTP, sockets, queues, Redis, and MongoDB closed');
+    logger.info('HTTP, sockets, queues, Redis, MongoDB and PostgreSQL closed');
     process.exit(0);
   })();
 };

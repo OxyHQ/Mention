@@ -21,7 +21,10 @@
  */
 
 import type { User } from '@oxyhq/core';
-import { Post } from '../models/Post';
+import { and, isNull } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { activityIdUnderActor } from './activitypub/helpers';
+import { posts } from '../db/schema/posts';
 import type { FederatedActorRecord } from '../db/federation/actorRecord';
 import {
   findActorByOxyUserId,
@@ -218,12 +221,13 @@ class FederatedProfileSync {
           actor = await activityPubConnector.fetchRemoteActor(actorUri, false, acctHint);
 
           if (!actor) {
-            // The actor fetch is the ONLY place the instance domain policy is
-            // enforced (`isBlockedDomain` inside `fetchRemoteActor` — it rejects a
-            // configured blocked instance, our own AP domains, and the Oxy identity
-            // apex; `syncOutboxPostsDetailed` does not check it). Fabricating a
-            // minimal actor row with a guessed `<actorUri>/outbox` here therefore
-            // imported posts from an instance the policy had just refused. Guessing
+            // The actor fetch enforces the instance domain policy (`isBlockedDomain`
+            // inside `fetchRemoteActor` — it rejects a configured blocked instance,
+            // our own AP domains, and the Oxy identity apex). Fabricating a minimal
+            // actor row with a guessed `<actorUri>/outbox` here therefore used to
+            // import posts from an instance the policy had just refused —
+            // `syncOutboxPostsDetailed` now re-checks the policy itself, but the
+            // fabrication would still be wrong for the reason below. Guessing
             // that URL is also wrong on its own terms — the outbox has to come from
             // the actor's advertised `outbox` field, since non-Mastodon layouts
             // (PeerTube, Lemmy, some Pleroma) put it elsewhere. So a failed fetch is
@@ -312,20 +316,19 @@ class FederatedProfileSync {
           });
         }
 
-        // Backfill oxyUserId on any posts that were stored without it. The match is
-        // a `/`-terminated RANGE over `federation.activityId` (the same form the
-        // sibling read in `connectors.routes.ts` uses), never a `$regex` built from
-        // the actor URI: an unescaped prefix would let `@bob` claim `@bobsmith`'s
-        // orphaned posts, and any `.`/`*`/`+`/`(`/`?` surviving URL normalization
-        // would become a mongod-evaluated pattern over an unindexable scan.
+        // Backfill oxyUserId on any posts that were stored without it. The match
+        // is a `/`-terminated PREFIX over `federation.activity_id` — see
+        // `activityIdUnderActor`, which is also why it is not a range and not a
+        // pattern. `@bob` cannot claim `@bobsmith`'s orphaned posts because the
+        // prefix carries the separator.
         if (syncedCount > 0) {
-          await Post.updateMany(
-            {
-              'federation.activityId': { $gte: `${actor.uri}/`, $lt: `${actor.uri}/\uffff` },
-              oxyUserId: null,
-            },
-            { $set: { oxyUserId: syncUserId } },
-          );
+          await getDb()
+            .update(posts)
+            .set({ oxyUserId: syncUserId })
+            .where(and(
+              activityIdUnderActor(actor.uri),
+              isNull(posts.oxyUserId),
+            ));
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

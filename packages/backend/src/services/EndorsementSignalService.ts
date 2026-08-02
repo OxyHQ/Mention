@@ -21,8 +21,9 @@
  * leaves it `pending` with backoff for the drain job ({@link flushOutbox}).
  */
 
-import StarterPack from '../models/StarterPack';
-import AccountList from '../models/AccountList';
+import { asc, eq } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { accountListMembers, accountLists, starterPackMembers, starterPacks } from '../db/schema/lists';
 import EndorsementOutbox, {
   getEndorsementNextAttempt,
   type EndorsementSource,
@@ -49,17 +50,49 @@ export class EndorsementSignalService {
    */
   private async loadScopeState(source: EndorsementSource, sourceId: string): Promise<ScopeState | null> {
     if (source === 'starterPack') {
-      const pack = await StarterPack.findById(sourceId)
-        .select('ownerOxyUserId memberOxyUserIds')
-        .lean();
+      // Postgres, matching the account-list branch below and for the same
+      // reason: the Mongo `StarterPack` collection now has no writer at all —
+      // the atproto mirror was its last one and it writes `starter_packs`. A
+      // `null` here does not mean "unknown", it means DELETED, so the caller
+      // retracts the endorsements; a read that stopped moving would therefore
+      // have withdrawn signal for live packs rather than merely gone stale.
+      const [pack] = await getDb()
+        .select({ ownerOxyUserId: starterPacks.ownerOxyUserId })
+        .from(starterPacks)
+        .where(eq(starterPacks.id, sourceId))
+        .limit(1);
       if (!pack) return null;
-      return { ownerId: pack.ownerOxyUserId, memberIds: pack.memberOxyUserIds ?? [] };
+      const packMembers = await getDb()
+        .select({ oxyUserId: starterPackMembers.oxyUserId })
+        .from(starterPackMembers)
+        .where(eq(starterPackMembers.packId, sourceId))
+        .orderBy(asc(starterPackMembers.position));
+      return {
+        ownerId: pack.ownerOxyUserId,
+        memberIds: packMembers.map((member) => member.oxyUserId),
+      };
     }
-    const list = await AccountList.findById(sourceId)
-      .select('ownerOxyUserId memberOxyUserIds')
-      .lean();
+    // Postgres. The Mongo `AccountList` collection has no writer left, so this
+    // resolved every list created after the cutover as MISSING — and `null` here
+    // does not mean "unknown", it means "deleted", so the caller RETRACTS the
+    // endorsements instead of leaving them alone. A read that stopped moving
+    // therefore did not merely go stale: it actively withdrew signal for lists
+    // that were alive.
+    //
+    // Members come from the child table, ordered by `position` so the edge set
+    // is built in the list's own order rather than an arbitrary one.
+    const [list] = await getDb()
+      .select({ ownerOxyUserId: accountLists.ownerOxyUserId })
+      .from(accountLists)
+      .where(eq(accountLists.id, sourceId))
+      .limit(1);
     if (!list) return null;
-    return { ownerId: list.ownerOxyUserId, memberIds: list.memberOxyUserIds ?? [] };
+    const members = await getDb()
+      .select({ oxyUserId: accountListMembers.oxyUserId })
+      .from(accountListMembers)
+      .where(eq(accountListMembers.listId, sourceId))
+      .orderBy(asc(accountListMembers.position));
+    return { ownerId: list.ownerOxyUserId, memberIds: members.map((m) => m.oxyUserId) };
   }
 
   /**

@@ -48,7 +48,11 @@ vi.mock('../../services/UserPreferenceService', () => ({
   userPreferenceService: { recordInteraction: vi.fn(async () => undefined) },
 }));
 vi.mock('../../services/feedViewCounter', () => ({
-  recordDedupedView: vi.fn(async () => false),
+  // `null` is "no view counted", which is what sends `trackPostView` down the
+  // read-back branch these cases are about. It used to be `false`; the counter
+  // returns the post's new total now, so a falsy-but-not-null value would flow
+  // straight into the response as the count.
+  recordDedupedView: vi.fn(async () => null),
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => undefined),
@@ -323,6 +327,16 @@ describe('postsByType', () => {
   });
 });
 
+/**
+ * The tied pair, owned by this file. Only their relative ORDER matters — the
+ * test is about the `id` tiebreak deciding a full engagement+createdAt tie — so
+ * the values are free, and they must not be ones another suite inserts as a post
+ * id: files run in parallel against one database. `feedCursor.test.ts` inserts
+ * `888888888888888888888888`, which is what this pair used to use.
+ */
+const STATS_TIE_LOW_ID = '57a7c5000000000000000002';
+const STATS_TIE_HIGH_ID = '57a7c5000000000000000008';
+
 describe('topPosts', () => {
   it('ranks by engagement and drops shares from the emitted row', async () => {
     const userId = owner();
@@ -351,16 +365,13 @@ describe('topPosts', () => {
     // Inside the default 30-day window, or the `$match` excludes both rows and
     // the assertion below would compare two empty arrays.
     const tied = new Date(Date.now() - 60 * 60 * 1000);
-    for (const id of ['222222222222222222222222', '888888888888888888888888']) {
+    for (const id of [STATS_TIE_LOW_ID, STATS_TIE_HIGH_ID]) {
       await seedPost({ id, owner: userId, likes: 3, createdAt: tied });
     }
 
     const res = await call(getUserStatistics, { user: { id: userId }, query: {} });
     const top = (res.body as { topPosts: Array<{ postId: string }> }).topPosts;
-    expect(top.map((post) => post.postId)).toEqual([
-      '888888888888888888888888',
-      '222222222222222222222222',
-    ]);
+    expect(top.map((post) => post.postId)).toEqual([STATS_TIE_HIGH_ID, STATS_TIE_LOW_ID]);
   });
 });
 

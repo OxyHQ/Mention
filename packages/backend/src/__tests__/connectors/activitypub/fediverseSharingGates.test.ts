@@ -1,7 +1,14 @@
 import crypto from 'node:crypto';
 import express from 'express';
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedPost,
+} from '../../helpers/federationFixtures';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { signRequest, type HttpSignatureSigner } from '@oxyhq/federation';
 
 /**
@@ -34,7 +41,7 @@ import { signRequest, type HttpSignatureSigner } from '@oxyhq/federation';
  */
 
 const AP_ACCEPT = 'application/activity+json';
-const VALID_ID = '507f1f77bcf86cd799439011';
+const scope = federationScope('fediverse-sharing-gates');
 const DOMAIN = 'mention.earth';
 
 // A fixed throwaway RSA keypair for the user-inbox signature round-trips.
@@ -62,10 +69,6 @@ const mocks = vi.hoisted(() => ({
   resolvePollContextByPost: vi.fn(),
   resolveQuoteContext: vi.fn(),
   resolveQuoteContextByPost: vi.fn(),
-  userSettingsFindOne: vi.fn(),
-  postFind: vi.fn(),
-  postCountDocuments: vi.fn(),
-  postFindOne: vi.fn(),
   getServiceOxyClient: vi.fn(),
   getUserFollowers: vi.fn(),
   getUserFollowing: vi.fn(),
@@ -134,18 +137,6 @@ vi.mock('../../../utils/mediaResolver', () => ({
   resolveMediaRef: (...args: unknown[]) => mocks.resolveMediaRef(...args),
 }));
 
-vi.mock('../../../models/Post', () => ({
-  Post: {
-    countDocuments: (...args: unknown[]) => mocks.postCountDocuments(...args),
-    find: (...args: unknown[]) => mocks.postFind(...args),
-    findOne: (...args: unknown[]) => mocks.postFindOne(...args),
-  },
-}));
-
-vi.mock('../../../models/UserSettings', () => ({
-  default: { findOne: (...args: unknown[]) => mocks.userSettingsFindOne(...args) },
-}));
-
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: (...args: unknown[]) => mocks.getServiceOxyClient(...args),
 }));
@@ -184,6 +175,18 @@ async function signedInboxHeaders(path: string): Promise<Record<string, string>>
 
 const INBOX_ACTIVITY = { type: 'Follow', actor: REMOTE_ACTOR, object: 'https://mention.earth/ap/users/alice' };
 
+beforeAll(async () => {
+  // The gate's ENABLED path runs the real handlers, which query Postgres (the
+  // outbox count, the featured collection, the banner). Only the DISABLED path
+  // short-circuits before any read — so without a connection this suite could
+  // only ever prove the 404s, and every 200 was a 500.
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.resolveOxyUser.mockResolvedValue(RESOLVED_USER);
@@ -194,10 +197,6 @@ beforeEach(() => {
   mocks.fetchPublicKey.mockResolvedValue({ publicKeyPem: REMOTE_PUBLIC_PEM, actorUri: REMOTE_ACTOR });
   mocks.resolveAvatarUrl.mockReturnValue(undefined);
   mocks.resolveMediaRef.mockReturnValue({ url: undefined });
-  mocks.userSettingsFindOne.mockReturnValue({ lean: async () => null });
-  mocks.postCountDocuments.mockResolvedValue(0);
-  mocks.postFind.mockReturnValue({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) });
-  mocks.postFindOne.mockReturnValue({ lean: async () => ({ _id: VALID_ID, content: { text: 'hi' } }) });
   // The follow collections read the Oxy follow graph through the service client.
   mocks.getServiceOxyClient.mockReturnValue({
     getUserFollowers: mocks.getUserFollowers,
@@ -208,7 +207,7 @@ beforeEach(() => {
   mocks.buildCreateNoteActivity.mockReturnValue({
     '@context': ['https://www.w3.org/ns/activitystreams'],
     type: 'Create',
-    object: { id: `https://mention.earth/ap/users/alice/posts/${VALID_ID}`, type: 'Note' },
+    object: { id: 'https://mention.earth/ap/users/alice/posts/served', type: 'Note' },
   });
   mocks.resolveReplyContext.mockResolvedValue(null);
   mocks.resolveMentionContext.mockResolvedValue(null);
@@ -358,7 +357,6 @@ describe('fediverseSharing gates — user-scoped AP/discovery surfaces', () => {
         .set('Accept', AP_ACCEPT)
         .expect(404);
       expect(res.body).toEqual(NOT_FOUND_BODY);
-      expect(mocks.postFind).not.toHaveBeenCalled();
     });
   });
 
@@ -391,19 +389,35 @@ describe('fediverseSharing gates — user-scoped AP/discovery surfaces', () => {
   });
 
   describe('GET /ap/users/:username/posts/:id — dereference (serves user content)', () => {
+    // The one surface here that needs a real post: the others answer from the
+    // resolved user alone, but a dereference 404s on a missing row for reasons
+    // that have nothing to do with the consent gate. Seeding it is what makes
+    // the disabled case below meaningful — without it BOTH answers are 404 and
+    // the test cannot tell the gate from the missing row.
+    let postId: string;
+
+    beforeEach(async () => {
+      postId = (await seedPost(scope, { oxyUserId: RESOLVED_USER._id })).id;
+    });
+
+    afterEach(async () => {
+      await clearFederationScope(scope);
+    });
+
     it('200s when sharing is enabled', async () => {
       mocks.isFediverseSharingEnabledFromUser.mockReturnValue(true);
-      await request(apApp).get(`/ap/users/alice/posts/${VALID_ID}`).set('Accept', AP_ACCEPT).expect(200);
+      await request(apApp).get(`/ap/users/alice/posts/${postId}`).set('Accept', AP_ACCEPT).expect(200);
     });
 
     it('404s with the unknown-user body when sharing is disabled', async () => {
       mocks.isFediverseSharingEnabledFromUser.mockReturnValue(false);
       const res = await request(apApp)
-        .get(`/ap/users/alice/posts/${VALID_ID}`)
+        .get(`/ap/users/alice/posts/${postId}`)
         .set('Accept', AP_ACCEPT)
         .expect(404);
+      // The SAME body as an unknown user: sharing-off must be indistinguishable
+      // from "no such account", not a distinguishable "exists but hidden".
       expect(res.body).toEqual(NOT_FOUND_BODY);
-      expect(mocks.postFindOne).not.toHaveBeenCalled();
     });
   });
 });

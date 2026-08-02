@@ -1,7 +1,9 @@
 import UserBehavior, { IUserBehavior } from '../models/UserBehavior';
-import { Post } from '../models/Post';
-import Like from '../models/Like';
-import Bookmark from '../models/Bookmark';
+import { eq } from 'drizzle-orm';
+import { posts } from '../db/schema/posts';
+import { CHRONO_DESC, findPostRecords, loadPostRecord } from '../db/posts/postRepository';
+import { getDb } from '../db/postgres';
+import { bookmarks as bookmarksTable, likes as likesTable } from '../db/schema/engagement';
 import mongoose, { HydratedDocument } from 'mongoose';
 import { MtnConfig, isVideoSurface } from '@mention/shared-types';
 import { logger } from '../utils/logger';
@@ -25,7 +27,7 @@ export interface InteractionContext {
  * {@link UserPreferenceService['getCanonicalTopics']}'s tolerant reader.
  */
 interface InteractionPost {
-  oxyUserId?: string;
+  oxyUserId?: string | null;
   type?: string;
   language?: string;
   hashtags?: string[];
@@ -116,7 +118,7 @@ export class UserPreferenceService {
         type: interactionType,
       });
 
-      const post = await Post.findById(postId).lean();
+      const post = await loadPostRecord(postId);
       if (!post) {
         logger.warn('[UserPreference] post not found; skipping interaction');
         return;
@@ -653,23 +655,40 @@ export class UserPreferenceService {
         return;
       }
 
-      // Get all user's likes
-      const likes = await Like.find({ userId }).lean();
-      for (const like of likes) {
-        await this.recordInteraction(userId, like.postId.toString(), 'like');
+      // Postgres. These read the Mongo collections until now, which stopped
+      // receiving engagement when the command service moved — so a rebuild would
+      // have re-derived a user's affinity from whatever they had liked BEFORE
+      // the cutover and nothing since, getting quietly worse the longer the
+      // account stayed active.
+      //
+      // `value` is deliberately NOT filtered, which preserves the previous
+      // behaviour exactly: the Mongo read did not filter either. It is worth a
+      // second look on its own — `likes` is three-state (`1` up, `-1` down, no
+      // row) and a downvote being fed in as a `'like'` interaction is a
+      // pre-existing question this port is not the place to answer.
+      const likeRows = await getDb()
+        .select({ postId: likesTable.postId })
+        .from(likesTable)
+        .where(eq(likesTable.userId, userId));
+      for (const like of likeRows) {
+        await this.recordInteraction(userId, like.postId, 'like');
       }
 
-      // Get all user's bookmarks
-      const bookmarks = await Bookmark.find({ userId }).lean();
-      for (const bookmark of bookmarks) {
-        await this.recordInteraction(userId, bookmark.postId.toString(), 'save');
+      const bookmarkRows = await getDb()
+        .select({ postId: bookmarksTable.postId })
+        .from(bookmarksTable)
+        .where(eq(bookmarksTable.userId, userId));
+      for (const bookmark of bookmarkRows) {
+        await this.recordInteraction(userId, bookmark.postId, 'save');
       }
 
       // Get all user's posts (to infer preferences)
-      const userPosts = await Post.find({ oxyUserId: userId }).lean();
+      const userPosts = await findPostRecords(eq(posts.oxyUserId, userId), {
+        orderBy: CHRONO_DESC,
+      });
       for (const post of userPosts) {
         // User creating posts with certain hashtags = interest
-        if (post.hashtags && post.hashtags.length > 0) {
+        if (post.hashtags.length > 0) {
           for (const hashtag of post.hashtags) {
             this.updateTopicPreference(
               userBehavior,

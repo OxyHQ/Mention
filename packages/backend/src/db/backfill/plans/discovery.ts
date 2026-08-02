@@ -35,6 +35,7 @@ import {
   notifications,
   pushTokens,
   topicStats,
+  trendSummaries,
   trendBatches,
   trending,
 } from '../../schema/discovery';
@@ -347,9 +348,68 @@ const pushTokensPlan: CollectionPlan = {
 };
 
 /** Every discovery plan. */
+/**
+ * `trendsummaries` → `trend_summaries`.
+ *
+ * Arrived with the merge that brought `main`'s trending rewrite, which is why it
+ * is here rather than with the seven above: the table did not exist when this
+ * module was written, and the audit's completeness gate is what surfaced it —
+ * it refused the whole run naming this table, rather than copying the other 43
+ * collections and leaving one silently empty.
+ *
+ * Derived text with a Mongo TTL (`generatedAt`, `TREND_SUMMARY_TTL_SECONDS`), so
+ * it belongs to the same shrinking-source class as `trendings` and
+ * `notifications`: a document counted during discovery can be reaped before the
+ * stream reaches it, and the verifier coming out one or two short after a long
+ * run is the TTL doing its job rather than data loss.
+ *
+ * `generatedAt` is copied rather than defaulted for the reason the module
+ * docblock gives, and here it is load-bearing twice over: it is also what
+ * Postgres' own sweep (`db/expiry.ts`) reads to decide what to reap, so a
+ * defaulted value would hand every migrated summary a fresh lease and keep text
+ * alive that Mongo had already scheduled for deletion.
+ *
+ * The schema declares no `{ timestamps: true }` — the four fields below are the
+ * whole document, and the table matches.
+ */
+const trendSummariesPlan: CollectionPlan = {
+  collection: 'trendsummaries',
+  table: trendSummaries,
+  uniquenessAudits: [
+    // The identity of a summary, and what makes generation idempotent: the model
+    // declares this unique index for exactly that reason, so a duplicate here
+    // would mean the source violated its own constraint.
+    {
+      index: 'trend_summaries_term_run_started_at_key',
+      key: [
+        { path: 'term', normalize: 'exact' },
+        { path: 'runStartedAt', normalize: 'exact' },
+      ],
+    },
+  ],
+  transform: (doc, emit) => {
+    const id = ownId(doc);
+    emit(
+      trendSummaries,
+      buildRow(
+        trendSummaries,
+        {
+          id,
+          term: reqStr(doc, 'term'),
+          runStartedAt: reqDate(doc, 'runStartedAt'),
+          description: reqStr(doc, 'description'),
+          generatedAt: reqDate(doc, 'generatedAt'),
+        },
+        id
+      )
+    );
+  },
+};
+
 export const DISCOVERY_PLANS: readonly CollectionPlan[] = [
   trendingPlan,
   trendBatchesPlan,
+  trendSummariesPlan,
   topicStatsPlan,
   authorFollowerSnapshotsPlan,
   gifsPlan,

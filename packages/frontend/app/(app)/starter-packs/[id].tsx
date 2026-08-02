@@ -14,7 +14,7 @@ import { useAuth, FollowButton } from '@oxyhq/services/ui/client';
 import { useHaptics } from '@oxyhq/bloom/hooks';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
-import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types/post';
+import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { ProfileCard } from '@/components/ProfileCard';
 
 import { SEO } from '@/components/SEO';
@@ -128,7 +128,7 @@ export default function StarterPackDetailScreen() {
       {/* Hero section with grouped member avatars */}
       <View className="items-center px-6 pt-6 pb-4 gap-4">
         {avatarItems.length > 0 ? (
-          <AvatarGroup items={avatarItems} size={56} max={8} total={members.length} variant={MEDIA_VARIANT_VIDEO_POSTER} />
+          <AvatarGroup items={avatarItems} size={56} max={8} total={members.length} variant={MEDIA_VARIANT_AVATAR_LG} />
         ) : (
           <View className="w-16 h-16 rounded-2xl items-center justify-center bg-primary/20">
             <StarterPackIcon size={32} color={theme.colors.primary} />

@@ -1,23 +1,20 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services/ui/client';
 import { usePostsStore } from '@/stores/postsStore';
-import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { usePostSave } from '../usePostSave';
+
+/**
+ * What the hook itself owns, now that telling the read caches a list changed is
+ * `postsStore`'s job (see `stores/__tests__/engagementInvalidationWiring.test.ts`
+ * — it has to live there because `usePostVote` and the videos screen call the
+ * store without going through any of these hooks): the save/unsave choice, the
+ * attribution that rides along with a SAVE only, the re-entrancy guard, and
+ * swallowing a failure instead of surfacing it as an unhandled rejection.
+ */
 
 const mockSavePost = jest.fn();
 const mockUnsavePost = jest.fn();
-const mockInvalidateQueries = jest.fn();
 const mockLoggerError = jest.fn();
-
-jest.mock('@tanstack/react-query', () => ({
-  useQueryClient: jest.fn(),
-}));
-
-jest.mock('@oxyhq/services/ui/client', () => ({
-  useAuth: jest.fn(),
-}));
 
 jest.mock('@/stores/postsStore', () => ({
   usePostsStore: jest.fn(),
@@ -28,8 +25,6 @@ jest.mock('@oxyhq/core/logger', () => ({
   logger: { error: (...args: unknown[]) => mockLoggerError(...args) },
 }));
 
-const mockUseQueryClient = useQueryClient as jest.Mock;
-const mockUseAuth = useAuth as jest.Mock;
 const mockUsePostsStore = usePostsStore as unknown as jest.Mock;
 
 let toggleSave: (() => Promise<void>) | undefined;
@@ -45,7 +40,7 @@ function Probe({
   return null;
 }
 
-describe('usePostSave saved-query coherence', () => {
+describe('usePostSave', () => {
   beforeAll(() => {
     (
       globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -57,21 +52,34 @@ describe('usePostSave saved-query coherence', () => {
     toggleSave = undefined;
     mockSavePost.mockResolvedValue(undefined);
     mockUnsavePost.mockResolvedValue(undefined);
-    mockInvalidateQueries.mockResolvedValue(undefined);
-    mockUseQueryClient.mockReturnValue({
-      invalidateQueries: mockInvalidateQueries,
-    });
-    mockUseAuth.mockReturnValue({ user: { id: 'viewer-a' } });
     mockUsePostsStore.mockReturnValue({
       savePost: mockSavePost,
       unsavePost: mockUnsavePost,
     });
   });
 
-  it('revalidates every saved-list filter after a successful unsave', async () => {
+  it('saves with the originating feed as attribution', async () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<Probe isSaved />);
+      renderer = TestRenderer.create(<Probe isSaved={false} source="for_you" />);
+    });
+
+    await act(async () => {
+      await toggleSave?.();
+    });
+
+    expect(mockSavePost).toHaveBeenCalledWith({ postId: 'post-1' }, 'for_you');
+    expect(mockUnsavePost).not.toHaveBeenCalled();
+
+    act(() => {
+      renderer!.unmount();
+    });
+  });
+
+  it('unsaves without attribution — removing a bookmark carries no interest signal', async () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(<Probe isSaved source="for_you" />);
     });
 
     await act(async () => {
@@ -79,39 +87,46 @@ describe('usePostSave saved-query coherence', () => {
     });
 
     expect(mockUnsavePost).toHaveBeenCalledWith({ postId: 'post-1' });
-    expect(mockInvalidateQueries).toHaveBeenCalledWith({
-      queryKey: viewerQueryKeys.savedPostsRoot('viewer-a'),
-    });
+    expect(mockSavePost).not.toHaveBeenCalled();
 
     act(() => {
       renderer!.unmount();
     });
   });
 
-  it('revalidates saved lists after save and preserves attribution', async () => {
+  it('ignores a second press while the first write is in flight', async () => {
+    let release!: () => void;
+    mockSavePost.mockImplementationOnce(
+      () => new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+    );
+
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(
-        <Probe isSaved={false} source="for_you" />,
-      );
+      renderer = TestRenderer.create(<Probe isSaved={false} />);
     });
 
+    let firstPress!: Promise<void>;
+    act(() => {
+      firstPress = toggleSave!();
+    });
     await act(async () => {
       await toggleSave?.();
     });
+    expect(mockSavePost).toHaveBeenCalledTimes(1);
 
-    expect(mockSavePost).toHaveBeenCalledWith(
-      { postId: 'post-1' },
-      'for_you',
-    );
-    expect(mockInvalidateQueries).toHaveBeenCalledTimes(1);
+    release();
+    await act(async () => {
+      await firstPress;
+    });
 
     act(() => {
       renderer!.unmount();
     });
   });
 
-  it('does not revalidate a successful list state after a failed command', async () => {
+  it('logs a failed command instead of rejecting', async () => {
     mockUnsavePost.mockRejectedValueOnce(new Error('network'));
 
     let renderer: TestRenderer.ReactTestRenderer;
@@ -120,10 +135,9 @@ describe('usePostSave saved-query coherence', () => {
     });
 
     await act(async () => {
-      await toggleSave?.();
+      await expect(toggleSave?.()).resolves.toBeUndefined();
     });
 
-    expect(mockInvalidateQueries).not.toHaveBeenCalled();
     expect(mockLoggerError).toHaveBeenCalled();
 
     act(() => {

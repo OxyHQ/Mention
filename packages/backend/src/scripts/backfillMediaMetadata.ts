@@ -11,25 +11,23 @@
  *   bun packages/backend/dist/src/scripts/backfillMediaMetadata.js --dry-run
  */
 
-import mongoose from 'mongoose';
 import type { MediaItem } from '@mention/shared-types';
-import { Post } from '../models/Post';
+import { and, asc, gt, sql } from 'drizzle-orm';
+import { connectPostgres } from '../db/postgres';
+import { posts } from '../db/schema/posts';
+import { postMedia } from '../db/schema/postContent';
+import { findPostRecords, replacePostContent } from '../db/posts/postRepository';
 import { mediaMetadataService, isOxyFileId } from '../services/MediaMetadataService';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 
 const DEFAULT_PAGE_SIZE = 200;
-const BULK_CHUNK_SIZE = 200;
 
 export interface BackfillMediaMetadataResult {
   scanned: number;
   updated: number;
   skipped: number;
-}
-
-interface PostMediaRow {
-  _id: mongoose.Types.ObjectId;
-  content?: { media?: MediaItem[] };
 }
 
 function mediaNeedsEnrichment(items: MediaItem[]): boolean {
@@ -49,42 +47,29 @@ export async function backfillMediaMetadata(
   const pageSize = opts.batchSize ?? DEFAULT_PAGE_SIZE;
   const dryRun = opts.dryRun ?? false;
 
-  const baseFilter: Record<string, unknown> = {
-    'content.media.0': { $exists: true },
-  };
+  // "Has at least one media row", as an EXISTS over the child table — the
+  // analogue of Mongo's `content.media.0` existence probe on the embedded array.
+  const baseFilter = sql`exists (
+    select 1 from ${postMedia} where ${postMedia.postId} = ${posts.id}
+  )`;
 
   let scanned = 0;
   let updated = 0;
   let skipped = 0;
-  let lastId: mongoose.Types.ObjectId | null = null;
-  let pendingOps: mongoose.AnyBulkWriteOperation<typeof Post>[] = [];
-
-  const flush = async (): Promise<void> => {
-    if (pendingOps.length === 0 || dryRun) {
-      pendingOps = [];
-      return;
-    }
-    await Post.bulkWrite(pendingOps, { ordered: false });
-    pendingOps = [];
-  };
+  let lastId: string | null = null;
 
   for (;;) {
-    const pageFilter: Record<string, unknown> = lastId
-      ? { ...baseFilter, _id: { $gt: lastId } }
-      : baseFilter;
-
-    const rows: PostMediaRow[] = await Post.find(pageFilter)
-      .select({ 'content.media': 1 })
-      .sort({ _id: 1 })
-      .limit(pageSize)
-      .lean<PostMediaRow[]>();
+    const rows = await findPostRecords(
+      lastId ? and(baseFilter, gt(posts.id, lastId)) : baseFilter,
+      { orderBy: [asc(posts.id)], limit: pageSize },
+    );
 
     if (rows.length === 0) break;
 
     for (const row of rows) {
       scanned += 1;
-      lastId = row._id;
-      const current = row.content?.media;
+      lastId = row.id;
+      const current = row.content.media;
       if (!Array.isArray(current) || current.length === 0) {
         skipped += 1;
         continue;
@@ -115,42 +100,31 @@ export async function backfillMediaMetadata(
       updated += 1;
       if (dryRun) continue;
 
-      pendingOps.push({
-        updateOne: {
-          filter: { _id: row._id },
-          update: { $set: { 'content.media': enriched } },
-        },
-      });
-
-      if (pendingOps.length >= BULK_CHUNK_SIZE) {
-        await flush();
-      }
+      // The whole content graph: `post_media` rows carry a dense `position`, so
+      // the transactional delete-then-insert is the only write that keeps the
+      // gallery's order intact. `mentions` are re-supplied unchanged.
+      await replacePostContent(row.id, { ...row.content, media: enriched }, row.mentions);
     }
 
     if (rows.length < pageSize) break;
   }
 
-  await flush();
   return { scanned, updated, skipped };
 }
 
 async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
-  const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
-  if (!mongoUri) {
-    throw new Error('[backfillMediaMetadata] MONGODB_URI is required');
-  }
 
   try {
     assertAdminMutationAllowed({
       scriptName: 'backfillMediaMetadata',
       dryRun,
     });
-    await mongoose.connect(mongoUri);
+    await connectPostgres();
     const result = await backfillMediaMetadata({ dryRun });
     logger.info('[backfillMediaMetadata] complete', { dryRun, ...result });
   } finally {
-    await mongoose.disconnect();
+    await closeAdminScriptResources();
   }
 }
 

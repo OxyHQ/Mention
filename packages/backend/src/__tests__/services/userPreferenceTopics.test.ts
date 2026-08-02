@@ -1,17 +1,38 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Unit coverage for {@link UserPreferenceService} topic-preference learning off
- * the CANONICAL classified topics. The service must PREFER
+ * Coverage for {@link UserPreferenceService} topic-preference learning off the
+ * CANONICAL classified topics. The service must PREFER
  * `postClassification.topicRefs` (registry-linked), FALL BACK to the slug-only
  * `postClassification.topics`, and learn NO topic when neither is present.
  *
- * The Post and UserBehavior models are mocked (no DB). We drive a single positive
- * `like` interaction and assert the topic-preference entries written onto the
- * in-memory UserBehavior — specifically the topic `name`, the resolved `topicId`
- * (only `topicRefs` carries one), and that an absent relevance scales by the full
- * weight (factor 1).
+ * ## What changed with the Postgres port
+ *
+ * The two topic encodings are stored DIFFERENTLY now — `topics` is an array
+ * column on `posts`, `topicRefs` is a child table — and the preference rule that
+ * one wins over the other only means anything if both survive the round trip.
+ * The old suite mocked `models/Post` and handed the service a literal object
+ * carrying both, so it proved the service prefers one key of an object over
+ * another; it could not have noticed `topicRefs` failing to be written, or being
+ * read back in a different order than it was inserted. Every post here is a real
+ * row inserted through `insertPostRecord` and read back by the service itself.
+ *
+ * `UserBehavior` is still Mongoose and stays mocked: the accumulator it holds is
+ * what these tests are about, and it is not part of this port.
  */
+
+const mocks = vi.hoisted(() => ({ findOne: vi.fn() }));
+
+vi.mock('../../models/UserBehavior', () => ({
+  __esModule: true,
+  default: { findOne: (filter: unknown) => mocks.findOne(filter) },
+}));
+vi.mock('../../models/Like', () => ({ __esModule: true, default: { find: vi.fn() } }));
+vi.mock('../../models/Bookmark', () => ({ __esModule: true, default: { find: vi.fn() } }));
+
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
+import { userPreferenceService } from '../../services/UserPreferenceService';
 
 interface TopicPref {
   topic: string;
@@ -37,28 +58,12 @@ interface MockBehavior {
   save: () => Promise<void>;
 }
 
-const mocks = vi.hoisted(() => ({
-  findById: vi.fn(),
-  findOne: vi.fn(),
-}));
-
-vi.mock('../../models/Post', () => ({
-  Post: { findById: (id: string) => ({ lean: () => mocks.findById(id) }) },
-}));
-vi.mock('../../models/UserBehavior', () => ({
-  __esModule: true,
-  default: {
-    findOne: (filter: unknown) => mocks.findOne(filter),
-  },
-}));
-vi.mock('../../models/Like', () => ({ __esModule: true, default: { find: vi.fn() } }));
-vi.mock('../../models/Bookmark', () => ({ __esModule: true, default: { find: vi.fn() } }));
-
-import { userPreferenceService } from '../../services/UserPreferenceService';
+const scope = serviceScope('user-pref-topics');
+const VIEWER = scope.user('viewer');
 
 function makeBehavior(): MockBehavior {
   return {
-    oxyUserId: 'viewer-1',
+    oxyUserId: VIEWER,
     preferredAuthors: [],
     preferredTopics: [],
     preferredPostTypes: { text: 0, image: 0, video: 0, poll: 0 },
@@ -75,23 +80,32 @@ function makeBehavior(): MockBehavior {
 
 let behavior: MockBehavior;
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
+  await clearServiceScope(scope);
   behavior = makeBehavior();
   mocks.findOne.mockResolvedValue(behavior);
 });
 
+afterEach(async () => {
+  await clearServiceScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 function prefByTopic(name: string): TopicPref | undefined {
-  return behavior.preferredTopics.find(t => t.topic === name);
+  return behavior.preferredTopics.find((t) => t.topic === name);
 }
 
 describe('UserPreferenceService — canonical topic learning (topicRefs prefer / slug-topics fallback / neutral)', () => {
-  it('learns topics from postClassification.topicRefs with the resolved topicId', async () => {
-    mocks.findById.mockResolvedValue({
-      _id: 'p1',
-      oxyUserId: 'author-1',
-      type: 'text',
-      hashtags: [],
+  it('learns topics from the stored topicRefs rows, with their resolved topicId', async () => {
+    const post = await seedPost(scope, {
       postClassification: {
         status: 'classified',
         topics: ['basketball', 'lakers'],
@@ -102,26 +116,28 @@ describe('UserPreferenceService — canonical topic learning (topicRefs prefer /
       },
     });
 
-    await userPreferenceService.recordInteraction('viewer-1', 'p1', 'like');
+    // The refs are a child table: prove they came back before asserting on what
+    // the service did with them, so a write that never landed reads as a storage
+    // failure rather than a preference-learning one.
+    const stored = await readPost(post.id);
+    expect(stored?.postClassification.topicRefs?.map((ref) => ref.name)).toEqual([
+      'basketball',
+      'lakers',
+    ]);
+
+    await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
 
     expect(prefByTopic('basketball')?.topicId).toBe('topic-basketball');
     expect(prefByTopic('lakers')?.topicId).toBe('topic-lakers');
     expect(behavior.save).toHaveBeenCalledTimes(1);
   });
 
-  it('FALLS BACK to the slug-only postClassification.topics (name only, no topicId) when topicRefs is absent', async () => {
-    mocks.findById.mockResolvedValue({
-      _id: 'p2',
-      oxyUserId: 'author-1',
-      type: 'text',
-      hashtags: [],
-      postClassification: {
-        status: 'baseline',
-        topics: ['cooking'],
-      },
+  it('FALLS BACK to the slug-only postClassification.topics (name only, no topicId) when no topicRefs row exists', async () => {
+    const post = await seedPost(scope, {
+      postClassification: { status: 'baseline', topics: ['cooking'] },
     });
 
-    await userPreferenceService.recordInteraction('viewer-1', 'p2', 'like');
+    await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
 
     // The slug list is name-only: the preference is learned by name, with no
     // resolved topicId (only topicRefs carry one).
@@ -130,12 +146,8 @@ describe('UserPreferenceService — canonical topic learning (topicRefs prefer /
     expect(pref?.topicId).toBeUndefined();
   });
 
-  it('PREFERS topicRefs over the slug list when both are present', async () => {
-    mocks.findById.mockResolvedValue({
-      _id: 'p3',
-      oxyUserId: 'author-1',
-      type: 'text',
-      hashtags: [],
+  it('PREFERS topicRefs over the slug list when both are stored', async () => {
+    const post = await seedPost(scope, {
       postClassification: {
         status: 'classified',
         topics: ['basketball', 'cooking'],
@@ -143,46 +155,68 @@ describe('UserPreferenceService — canonical topic learning (topicRefs prefer /
       },
     });
 
-    await userPreferenceService.recordInteraction('viewer-1', 'p3', 'like');
+    await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
 
     // Only the canonical topicRefs topic is learned; the extra slug-only topic
-    // (`cooking`, present in `topics` but not `topicRefs`) is ignored.
-    expect(prefByTopic('basketball')).toBeDefined();
-    expect(prefByTopic('cooking')).toBeUndefined();
+    // (`cooking`, in the `topics` column but with no ref row) is ignored.
+    expect(behavior.preferredTopics.map((t) => t.topic)).toEqual(['basketball']);
   });
 
-  it('treats an absent relevance (slug-only topicRefs) as full weight (no zeroing)', async () => {
-    // topicRef without relevance → relevance factor 1 → a non-zero preference
-    // weight is accrued. A factor-0 bug would leave interactionCount at 0.
-    mocks.findById.mockResolvedValue({
-      _id: 'p4',
-      oxyUserId: 'author-1',
-      type: 'text',
-      hashtags: [],
+  it('treats an absent relevance (slug-only topicRef) as full weight (no zeroing)', async () => {
+    // A topicRef row whose `relevance` column is NULL → relevance factor 1 → a
+    // non-zero preference weight accrues. A factor-0 bug would leave
+    // interactionCount at 0.
+    const post = await seedPost(scope, {
       postClassification: {
         status: 'classified',
         topics: ['gardening'],
         topicRefs: [{ name: 'gardening', topicId: 'topic-gardening' }],
       },
     });
+    expect((await readPost(post.id))?.postClassification.topicRefs?.[0].relevance).toBeUndefined();
 
-    await userPreferenceService.recordInteraction('viewer-1', 'p4', 'like');
+    await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
 
     const pref = prefByTopic('gardening');
     expect(pref).toBeDefined();
-    expect(pref?.interactionCount).toBeGreaterThan(0);
+    expect(pref?.interactionCount).toBe(1);
+    expect(pref?.weight).toBeGreaterThan(0);
   });
 
-  it('learns NO classified topic when neither topicRefs nor postClassification.topics is present', async () => {
-    mocks.findById.mockResolvedValue({
-      _id: 'p5',
-      oxyUserId: 'author-1',
-      type: 'text',
-      hashtags: [],
+  it('scales the learned weight by a stored relevance', async () => {
+    // The relevance column is the whole reason `topicRefs` beats the slug list,
+    // so a ref stored low on the 1..10 scale must accrue proportionally less
+    // than a ref stored with none (which scales by the full weight). Two posts,
+    // one interaction each, same interaction type.
+    const weak = await seedPost(scope, {
+      postClassification: {
+        status: 'classified',
+        topicRefs: [{ name: 'chess', topicId: 'topic-chess', relevance: 2 }],
+      },
+    });
+    const full = await seedPost(scope, {
+      postClassification: {
+        status: 'classified',
+        topicRefs: [{ name: 'sailing', topicId: 'topic-sailing' }],
+      },
+    });
+
+    await userPreferenceService.recordInteraction(VIEWER, weak.id, 'like');
+    await userPreferenceService.recordInteraction(VIEWER, full.id, 'like');
+
+    const weakWeight = prefByTopic('chess')?.weight ?? 0;
+    const fullWeight = prefByTopic('sailing')?.weight ?? 0;
+    expect(weakWeight).toBeGreaterThan(0);
+    // `relevance / 10` is the factor the service applies, so 2 → one fifth.
+    expect(weakWeight).toBeCloseTo(fullWeight * 0.2, 6);
+  });
+
+  it('learns NO classified topic when the stored post carries neither encoding', async () => {
+    const post = await seedPost(scope, {
       postClassification: { status: 'baseline', topics: [] },
     });
 
-    await userPreferenceService.recordInteraction('viewer-1', 'p5', 'like');
+    await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
 
     expect(behavior.preferredTopics).toHaveLength(0);
     expect(behavior.save).toHaveBeenCalledTimes(1);

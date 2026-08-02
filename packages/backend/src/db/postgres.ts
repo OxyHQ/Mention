@@ -123,14 +123,22 @@ export function getDb(): Database {
 }
 
 /**
- * The raw `postgres.js` handle behind {@link getDb}.
+ * The raw `postgres.js` handle underneath the drizzle instance.
  *
- * Drizzle does not wrap `COPY` — it is a protocol-level operation with no
- * query-builder equivalent — so the backfill's bulk loader (`db/backfill/`)
- * needs the driver handle to stream a batch in, and `ANALYZE` after a bulk load
- * has no builder form either. Those are the only two callers, and both are
- * one-shot migration paths rather than request-path code: everything serving a
- * request goes through `getDb()` and the query builder.
+ * Narrow on purpose, and it has exactly TWO legitimate callers — both one-shot
+ * migration paths, never request-path code:
+ *
+ *  - the migration LEDGER, which lives in the `drizzle` schema and is
+ *    deliberately absent from `db/schema`. Drizzle owns those rows, so
+ *    modelling them here would invite application code to write to a table the
+ *    migrator treats as its own; reading them needs raw SQL.
+ *  - the backfill's bulk loader (`db/backfill/`), because drizzle does not wrap
+ *    `COPY` — it is a protocol-level operation with no query-builder equivalent
+ *    — and `ANALYZE` after a bulk load has no builder form either.
+ *
+ * Everything serving a request goes through {@link getDb}. A caller reaching
+ * for this to run ordinary SQL is bypassing the schema types and the casing
+ * configuration that keep queries and migrations agreeing on column names.
  *
  * @throws {Error} If called before `connectPostgres()` resolved — the same
  *   programming error {@link getDb} reports, for the same reason.

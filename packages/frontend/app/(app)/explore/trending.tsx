@@ -75,6 +75,14 @@ function topicToTrend(topic: TrendingTopic): Trend {
     id: topic.name,
     type: (topic.type || 'hashtag') as Trend['type'],
     text: topic.name,
+    // Same coalesce as the store's: a row from before labelling shows its term
+    // rather than nothing, and no renderer below here decides this again.
+    displayName: topic.displayName?.trim() || topic.name,
+    ...(topic.category ? { category: topic.category } : {}),
+    ...(topic.startedAt ? { startedAt: topic.startedAt } : {}),
+    ...(topic.status ? { status: topic.status } : {}),
+    ...(typeof topic.authorCount === 'number' ? { authorCount: topic.authorCount } : {}),
+    ...(topic.actors?.length ? { actors: topic.actors } : {}),
     hashtag: topic.type === 'hashtag' ? `#${topic.name}` : topic.name,
     description: topic.description || '',
     score: topic.score || 0,

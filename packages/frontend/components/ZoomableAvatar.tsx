@@ -25,7 +25,7 @@ import { useAuth } from '@oxyhq/services/ui/client';
 
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
 import { useImageUrl } from '@/hooks/useImageUrl';
-import { MEDIA_VARIANT_FULL, MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types/post';
+import { MEDIA_VARIANT_FULL, MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 
 interface ZoomableAvatarProps {
   source?: ImageSourcePropType | string | undefined | null;
@@ -88,9 +88,9 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   // image fills most of the screen, so it takes the 2048px rendition. BOTH pass
   // an explicit variant: the app resolver defaults a missing one to the 96px
   // avatar crop, which is what made the zoom look pixelated.
-  const resolvedThumb = imageResolver?.(fileId ?? '', MEDIA_VARIANT_VIDEO_POSTER);
+  const resolvedThumb = imageResolver?.(fileId ?? '', MEDIA_VARIANT_AVATAR_LG);
   const resolvedFull = imageResolver?.(fileId ?? '', MEDIA_VARIANT_FULL);
-  const asyncThumb = useImageUrl(errored ? undefined : fileId, MEDIA_VARIANT_VIDEO_POSTER, oxyServices);
+  const asyncThumb = useImageUrl(errored ? undefined : fileId, MEDIA_VARIANT_AVATAR_LG, oxyServices);
 
   const thumbUri = useMemo(() => {
     if (!source || errored) return undefined;

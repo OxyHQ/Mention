@@ -8,6 +8,7 @@ import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { useVideoPlayback } from '@/context/VideoPlaybackContext';
 import { useHlsPlayback } from '@/lib/hlsPlayback';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
+import { formatDuration } from '@/utils/formatDuration';
 
 interface VideoPlayerProps {
   src: string;
@@ -52,13 +53,6 @@ interface VideoPlayerProps {
    * expose video-track metadata there, and the HTML `<video>` auto-sizes instead.
    */
   onAspectRatio?: (ratio: number) => void;
-}
-
-function formatTime(seconds: number): string {
-  if (!isFinite(seconds) || seconds < 0) return '0:00';
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
 const CONTROLS_HIDE_DELAY = 3000;
@@ -415,7 +409,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
             <View style={styles.bottomBar}>
               {/* Time display */}
               <Text style={styles.timeText}>
-                {formatTime(currentTime)}
+                {formatDuration(currentTime)}
               </Text>
 
               {/* Progress bar */}
@@ -442,7 +436,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
               {/* Duration */}
               <Text style={styles.timeText}>
-                {formatTime(duration)}
+                {formatDuration(duration)}
               </Text>
 
               {/* Mute button */}

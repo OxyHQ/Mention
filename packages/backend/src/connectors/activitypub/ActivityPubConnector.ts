@@ -4,6 +4,7 @@ import type {
   NetworkId,
   NormalizedExternalActor,
   LocalNetworkEvent,
+  LocalPostEventPayload,
   ReceiveContext,
   FetchPostsOptions,
   FetchPostsResult,
@@ -36,6 +37,23 @@ export {
   type OutboxSyncOptions,
   type OutboxSyncFailureReason,
 };
+
+/**
+ * The app↔SDK id translation, in the ONE place the seam is crossed inbound.
+ *
+ * `@oxyhq/federation`'s event payloads still spell a post's id `_id` (they were
+ * written against Mongo documents and the package is shared with apps that have
+ * not been ported). Mention's post id is `posts.id`, a uuid v7 string, so every
+ * Mention-owned shape below this line — `NoteSourcePost` included — says `id`.
+ * Translating here rather than at each `followService` call keeps the foreign
+ * spelling from leaking into the Note builders, and leaves exactly one line to
+ * delete when the federation package renames the field.
+ */
+function toNoteSource(
+  post: LocalPostEventPayload<PostContent>,
+): NoteSourcePost & { visibility: string } {
+  return { ...post, id: String(post._id) };
+}
 
 /**
  * The ActivityPub (Mastodon/fediverse) network connector.
@@ -122,7 +140,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
   async deliver(event: LocalNetworkEvent<PostContent>): Promise<void> {
     switch (event.kind) {
       case 'post.create':
-        await followService.federateNewPost(event.post, event.actorOxyUserId, event.actorUsername);
+        await followService.federateNewPost(toNoteSource(event.post), event.actorOxyUserId, event.actorUsername);
         break;
       case 'post.boost':
         // A boost federates as an Announce of the original's canonical AP id,
@@ -135,12 +153,12 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
       case 'post.update':
         // An edit re-federates the Note as an Update (with an `updated` stamp),
         // preserving the reply enrichment via the shared Note builder.
-        await followService.federateUpdate(event.post, event.actorOxyUserId, event.actorUsername);
+        await followService.federateUpdate(toNoteSource(event.post), event.actorOxyUserId, event.actorUsername);
         break;
       case 'post.delete':
         // A deletion broadcasts a Delete(Tombstone) of the post's canonical AP id
         // to the deleter's followers.
-        await followService.federateDelete(event.post, event.actorOxyUserId, event.actorUsername);
+        await followService.federateDelete({ id: String(event.post._id) }, event.actorOxyUserId, event.actorUsername);
         break;
       case 'post.like':
         // A like of a FEDERATED post sends a Like to the origin author's inbox

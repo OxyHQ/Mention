@@ -1,43 +1,36 @@
 import React from 'react';
-import { usePathname, useLocalSearchParams, Slot } from 'expo-router';
+import { useLocalSearchParams, Slot } from 'expo-router';
 import NotFoundScreen from '@/components/NotFoundScreen';
-import ProfileScreen from '@/components/ProfileScreen';
-import type { ProfileTab } from '@/components/Profile/types';
 
+/**
+ * The `[username]` segment's navigator.
+ *
+ * It renders `<Slot />` — a navigator — for every profile URL, and the screen
+ * files in this directory render the surfaces themselves. That split is not
+ * cosmetic. A layout that swaps its navigator for a plain screen leaves the
+ * segment with no navigator in the navigation state, so a client-side push into
+ * one of its children has to mount one underneath a route the router already
+ * resolved without it. In the web build — where every route is an async chunk,
+ * so the incoming screen suspends before it can commit — that mount and the
+ * `usePathname()` it feeds chase each other until React aborts the render with
+ * "Maximum update depth exceeded" (minified React error #185). Tapping "Joined"
+ * on a profile did exactly that; so did every other link into `/about`,
+ * `/followers`, `/following`, `/who-may-know` and `/in-common`.
+ *
+ * The 404 below is the one branch that is not a navigator, and it is safe where
+ * a pathname-keyed branch is not: `[username]` doubles as the app's catch-all
+ * for unknown single-segment paths, and whether a handle is `@`-prefixed is
+ * fixed for the lifetime of a route instance. It cannot appear and disappear
+ * underneath a mounted child the way the pathname could.
+ */
 const UsernameLayout = () => {
     const { username } = useLocalSearchParams<{ username: string }>();
-    const pathname = usePathname();
 
-    // Determine tab from the current pathname
-    // pathname will be like '/@username' or '/@username/media'
-    const getTabFromPathname = (): ProfileTab => {
-        if (pathname?.endsWith('/media')) return 'media';
-        if (pathname?.endsWith('/videos')) return 'videos';
-        if (pathname?.endsWith('/replies')) return 'replies';
-        if (pathname?.endsWith('/likes')) return 'likes';
-        if (pathname?.endsWith('/boosts')) return 'boosts';
-        if (pathname?.endsWith('/feeds')) return 'feeds';
-        if (pathname?.endsWith('/starter_packs')) return 'starter_packs';
-        if (pathname?.endsWith('/lists')) return 'lists';
-        return 'posts'; // Default to posts
-    };
-
-    if (typeof username === 'string' && username.startsWith('@')) {
-        const isFollowersRoute = pathname?.endsWith('/followers');
-        const isFollowingRoute = pathname?.endsWith('/following');
-        const isWhoMayKnowRoute = pathname?.endsWith('/who-may-know');
-        const isInCommonRoute = pathname?.endsWith('/in-common');
-        const isAboutRoute = pathname?.endsWith('/about');
-
-        if (isFollowersRoute || isFollowingRoute || isWhoMayKnowRoute || isInCommonRoute || isAboutRoute) {
-            return <Slot />;
-        }
-
-        // Both local and federated profiles use the same ProfileScreen
-        return <ProfileScreen tab={getTabFromPathname()} />;
+    if (typeof username !== 'string' || !username.startsWith('@')) {
+        return <NotFoundScreen />;
     }
 
-    return <NotFoundScreen />;
+    return <Slot />;
 };
 
 export default UsernameLayout;

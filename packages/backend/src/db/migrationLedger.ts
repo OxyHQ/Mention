@@ -155,3 +155,47 @@ export async function readLastAppliedMillis(client: postgres.Sql): Promise<numbe
   // as no row at all.
   return createdAt === undefined || createdAt === null ? null : Number(createdAt);
 }
+
+/**
+ * Refuse to serve when the database is BEHIND the migrations in this image.
+ *
+ * The failure this exists to prevent lands after the point of no return. The
+ * deploy applies migrations in a one-shot task; if that one-shot did not run —
+ * or ran against the wrong database — the web tasks still start, still connect,
+ * still answer the ALB health check, and then fail every query against a schema
+ * that is not there. By then traffic has already been routed to them. A task
+ * that cannot serve correctly must not be able to say that it can, so this
+ * throws during boot: `bootServer`'s handler marks the runtime not-ready and
+ * exits, and the task never reaches `server.listen`.
+ *
+ * The comparison is `pendingEntries` — the SAME rule the migrator itself
+ * applies, from the same journal and the same ledger table. A gate that asked a
+ * different question than the apply path answers would eventually disagree with
+ * it, and the disagreement would surface as a task that refuses to boot against
+ * a database that is in fact current.
+ *
+ * The message NAMES the missing tags. "Schema is not current" sends whoever is
+ * holding a frozen deploy to go and diff two things by hand; the tags tell them
+ * immediately whether the one-shot never ran (all of them) or died partway
+ * (some of them).
+ *
+ * @param entries Defaults to the journal shipped in this image. Injectable so a
+ *   test can stage a ledger behind the image without writing to the ledger table
+ *   that every other test file in the run shares.
+ * @throws {Error} When any journal entry has no ledger row.
+ */
+export async function assertPostgresMigrationsCurrent(
+  client: postgres.Sql,
+  entries: JournalEntry[] = readJournal()
+): Promise<void> {
+  const pending = pendingEntries(entries, await readLastAppliedMillis(client));
+  if (pending.length === 0) return;
+
+  throw new Error(
+    `Postgres schema is not current: ${pending.length} migration(s) shipped in ` +
+    `this image have not been applied: ${pending.map((entry) => entry.tag).join(', ')}. ` +
+    'Apply them with the deployment migration one-shot ' +
+    '(`bun packages/backend/dist/src/db/migrate.js` against DATABASE_URL) ' +
+    'before this task can serve traffic.'
+  );
+}

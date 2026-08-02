@@ -75,6 +75,18 @@ const settingsOwners: string[] = [];
 const VIEWER = 'feedsrc-viewer';
 const FOLLOW = 'feedsrc-follow';
 const STRANGER = 'feedsrc-stranger';
+/**
+ * The two extremes this file needs, owned by this file.
+ *
+ * Only their ORDER matters — the fixture is "an older post carrying a larger
+ * id" — so the values are free, and they must not be values another suite also
+ * inserts as a post id: files run in parallel against one database and
+ * `posts.id` is the primary key. `feedCursor.test.ts` used to insert both of
+ * these, so whichever file got there second died on a duplicate key.
+ */
+const FEED_SOURCES_LOW_ID = '5e07ce0000000000000000a1';
+const FEED_SOURCES_HIGH_ID = '5e07cefffffffffffffffff1';
+
 const AUTHOR = 'feedsrc-author';
 
 /** See the module docblock — every fixture leads the corpus in `created_at`. */
@@ -497,6 +509,59 @@ describe('the authored source (the profile feed)', () => {
     expect(idsOf(gathered)).toEqual([typedMedia.id, withMediaRow.id, withAttachment.id]);
   });
 
+  /**
+   * The profile VIDEOS tab is deliberately narrower than the media tab and wider
+   * than the global videos feed.
+   *
+   * Narrower than `media`: only the two shapes `videoOnlyFilter.keep`
+   * recognizes, with no attachment branch — an attachment-only post would be
+   * fetched and then dropped by the filter, paying for a page that arrives
+   * short. Wider than `FeedQueryBuilder.buildVideosQuery`, which additionally
+   * gates on duration and orientation: a profile grid shows the author's videos,
+   * not a reel lane's selection of them, so a two-second landscape clip belongs
+   * here and not there.
+   */
+  it('keeps both video shapes on the videos tab, and no attachment, reply or boost', async () => {
+    const typedVideo = await create({ oxyUserId: AUTHOR, createdAt: at(0), type: PostType.VIDEO });
+    const withVideoRow = await create({
+      oxyUserId: AUTHOR,
+      createdAt: at(-1_000),
+      content: {
+        variants: [{ source: 'author', text: 'clip' }],
+        // Short and landscape on purpose: the reel lane would reject both, and
+        // the profile grid must not.
+        media: [{ id: 'feedsrc-video', type: 'video', width: 40, height: 20, durationSec: 2 }],
+      },
+    });
+    await create({
+      oxyUserId: AUTHOR,
+      createdAt: at(-2_000),
+      content: {
+        variants: [{ source: 'author', text: 'clip' }],
+        attachments: [{ type: 'media', id: 'feedsrc-video', mediaType: 'video' }],
+      },
+    });
+    await create({ oxyUserId: AUTHOR, createdAt: at(-3_000), type: PostType.IMAGE });
+    await create({
+      oxyUserId: AUTHOR,
+      type: PostType.VIDEO,
+      parentPostId: typedVideo.id,
+    });
+    await create({
+      oxyUserId: AUTHOR,
+      type: PostType.BOOST,
+      boostOf: typedVideo.id,
+      content: { variants: [] },
+    });
+
+    const gathered = await authoredSource.gather(
+      { currentUserId: VIEWER },
+      { authorId: AUTHOR, filter: 'videos' },
+      31,
+    );
+    expect(idsOf(gathered)).toEqual([typedVideo.id, withVideoRow.id]);
+  });
+
   it('degrades an unrecognized filter to the posts tab rather than erroring', async () => {
     const root = await create({ oxyUserId: AUTHOR, createdAt: at(0) });
     await create({ oxyUserId: AUTHOR, parentPostId: root.id });
@@ -524,12 +589,12 @@ describe('the authored source (the profile feed)', () => {
   it('sorts and pages on created_at even when the id order disagrees', async () => {
     const newer = await create({
       oxyUserId: AUTHOR,
-      id: '000000000000000000000001',
+      id: FEED_SOURCES_LOW_ID,
       createdAt: at(0),
     });
     const older = await create({
       oxyUserId: AUTHOR,
-      id: 'ffffffffffffffffffffffff',
+      id: FEED_SOURCES_HIGH_ID,
       createdAt: at(-60_000),
     });
 

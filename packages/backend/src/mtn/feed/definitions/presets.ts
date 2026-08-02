@@ -391,8 +391,8 @@ export const savedDefinition: FeedDefinition = {
 };
 
 /**
- * Author feed (the profile feed) — a single author's posts/replies/media/boosts
- * (chronological) or likes (ordered).
+ * Author feed (the profile feed) — a single author's
+ * posts/replies/media/videos/boosts (chronological) or likes (ordered).
  *
  * `hydrateMaxDepth: 1` on every variant is load-bearing: a boost has an
  * intentionally empty body and renders from its embedded `boostOf` original,
@@ -401,7 +401,11 @@ export const savedDefinition: FeedDefinition = {
  */
 export function authorDefinition(authorId: string, filter: AuthorFeedFilter): FeedDefinition {
   const isLikes = filter === 'likes';
-  const filters: ModuleRef[] = filter === 'media' ? [enabled('mediaOnly')] : [];
+  const filters: ModuleRef[] = filter === 'media'
+    ? [enabled('mediaOnly')]
+    : filter === 'videos'
+      ? [enabled('videoOnly')]
+      : [];
   return {
     id: `author|${authorId}${filter === 'posts' ? '' : `|${filter}`}`,
     title: 'Author',
@@ -423,6 +427,32 @@ export function hashtagDefinition(tag: string): FeedDefinition {
     title: `#${normalized}`,
     mode: 'chronological',
     sources: [enabled('keywords', { hashtags: [normalized] })],
+    signals: [],
+    filters: [enabled('safety')],
+    execution: { threadGrouping: true, replyContext: false, hydrateMaxDepth: 0 },
+  };
+}
+
+/**
+ * Trend feed — the posts behind one trending term (chronological).
+ *
+ * This is what makes a trend a destination rather than a label. Pressing a trend
+ * used to run a hashtag search, which found only the posts that spelled the term
+ * with a `#` — a strict subset of what made it trend, and empty for a trend
+ * detected purely from prose. The feed matches the term the same way detection
+ * counted it.
+ *
+ * `title` is the raw term on purpose: the human label lives on the trend row and
+ * the screen already has it, whereas this definition is reachable from a
+ * descriptor alone and must not invent a name it cannot know.
+ */
+export function trendDefinition(term: string): FeedDefinition {
+  const normalized = term.toLowerCase();
+  return {
+    id: `trend|${normalized}`,
+    title: normalized,
+    mode: 'chronological',
+    sources: [enabled('trendTerms', { term: normalized })],
     signals: [],
     filters: [enabled('safety')],
     execution: { threadGrouping: true, replyContext: false, hydrateMaxDepth: 0 },

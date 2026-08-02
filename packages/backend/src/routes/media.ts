@@ -8,14 +8,20 @@ import { SsrfRejection, assertSafePublicUrl } from '@oxyhq/core/server';
 import {
   UpstreamResult,
   contentTypeFamily,
+  contentTypeFamilyFromString,
   fetchUpstreamFollowingRedirects,
 } from '../utils/safeUpstreamFetch';
+import { MEDIA_VARIANT_AVATAR, MEDIA_VARIANT_FULL, MEDIA_VARIANT_THUMB } from '@mention/shared-types';
 import { extractPosterFrame } from '../utils/videoPoster';
 import { isHlsManifestBody, rewriteHlsManifest } from '../utils/hlsManifest';
 import { HLS_SIGNATURE_PARAM, isSignedHlsComponent, signHlsComponentUrl } from '../utils/hlsSignature';
 import { lookupCacheRow, bumpAccess, recordAccessAndMaybeEnqueue } from '../services/mediaCache/cacheStore';
 import { decideProxyServe } from '../services/mediaCache/policy';
-import { isAllowedMediaType, isHlsManifestType } from '../services/mediaCache/mediaTypes';
+import {
+  MEDIA_IMAGE_TYPE_PREFIX,
+  isAllowedMediaType,
+  isHlsManifestType,
+} from '../services/mediaCache/mediaTypes';
 import { isMediaCacheEnabled, resolveOxyDownloadUrl } from '../services/mediaCache/oxyMediaStore';
 import { isNegativelyCached, markNegativelyCached } from '../services/mediaCache/negativeCache';
 import { classifyUpstreamStatus } from './mediaProxyStatus';
@@ -50,6 +56,33 @@ const MAX_CONTENT_BYTES = 256 * 1024 * 1024; // 256 MiB
 
 /** Browser/CDN cache directive for successfully proxied media. */
 const MEDIA_CACHE_CONTROL = 'public, max-age=86400, immutable';
+
+/**
+ * The sized renders a caller may ask for via `?variant=`, and the ONLY values
+ * this route will ever forward to the Oxy CDN.
+ *
+ * Deliberately just the three the media resolver emits rather than Oxy's whole
+ * variant taxonomy: the value is appended to a `cloud.oxy.so` URL, so an
+ * unvalidated one would let any caller mint arbitrary query strings against our
+ * own CDN, and a variant nothing requests is a variant nothing should be able to
+ * make us generate.
+ */
+const ALLOWED_MEDIA_VARIANTS: ReadonlySet<string> = new Set([
+  MEDIA_VARIANT_THUMB,
+  MEDIA_VARIANT_FULL,
+  MEDIA_VARIANT_AVATAR,
+]);
+
+/**
+ * Cache directive for a variant request we could NOT satisfy — the bytes are not
+ * mirrored into Oxy yet, so we stream the full-size original in its place.
+ *
+ * Short and NOT `immutable`, unlike {@link MEDIA_CACHE_CONTROL}. The URL carries
+ * a `variant`, so caching the original under it for a day would pin every client
+ * to the full-size bytes long after the mirror lands and the sized render became
+ * available — turning a temporary miss into a persistent one.
+ */
+const MEDIA_UNSIZED_VARIANT_CACHE_CONTROL = 'public, max-age=300';
 
 /**
  * Root-relative path this router's proxy is mounted at, used to build the
@@ -520,20 +553,70 @@ async function serveRewrittenHlsManifest(
 }
 
 /**
+ * Read a caller-supplied `?variant=`, returning it only when it is one we are
+ * willing to forward ({@link ALLOWED_MEDIA_VARIANTS}). Anything else — absent,
+ * repeated, or unrecognised — yields `undefined`, which serves the media
+ * un-sized exactly as before rather than failing the request: a variant is an
+ * optimisation, and refusing to render a post over one would be a worse outcome
+ * than rendering it large.
+ */
+function readRequestedVariant(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  return ALLOWED_MEDIA_VARIANTS.has(raw) ? raw : undefined;
+}
+
+/**
+ * Attach the requested `variant` to a cached object's Oxy CDN URL so Oxy's own
+ * image pipeline serves a sized render instead of the original.
+ *
+ * Applied to IMAGES only. Oxy's variant taxonomy is an image one — asking for a
+ * `w320` of a video or audio object is meaningless, and the media resolver
+ * cannot tell the two apart because it resolves a bare reference with no type
+ * beside it. The content type recorded on the cache row can, so the guard lives
+ * here, where it is known.
+ */
+function withImageVariant(
+  oxyUrl: string,
+  variant: string | undefined,
+  cachedContentType: string | undefined,
+): string {
+  if (!variant) return oxyUrl;
+  if (!contentTypeFamilyFromString(cachedContentType).startsWith(MEDIA_IMAGE_TYPE_PREFIX)) {
+    return oxyUrl;
+  }
+  try {
+    const parsed = new URL(oxyUrl);
+    // `set`, not `append`, so a variant already on the resolved URL is replaced
+    // rather than duplicated.
+    parsed.searchParams.set('variant', variant);
+    return parsed.toString();
+  } catch {
+    // Unparseable CDN URL — serve it untouched rather than dropping the redirect.
+    return oxyUrl;
+  }
+}
+
+/**
  * Consult the federated-media cache for a (non-range) proxy request.
  *
  * Returns `true` when the request was fully handled by redirecting to the cached
- * Oxy object (our CDN then serves the bytes). Returns `false` when the caller
- * should fall through to the existing remote-stream behaviour; in that case this
+ * Oxy object (our CDN then serves the bytes, at `variant` size when one was
+ * asked for and the object is an image). Returns `false` when the caller should
+ * fall through to the existing remote-stream behaviour; in that case this
  * function has already recorded activity (bumping `lastAccessedAt` and enqueuing
  * a cache job when appropriate) WITHOUT blocking the response.
  *
  * Never throws: any cache-layer failure degrades to the remote-stream fallback,
  * preserving the proxy's current behaviour as the safety net.
  */
-async function tryServeFromCache(remoteUrl: string, res: Response): Promise<boolean> {
+async function tryServeFromCache(
+  remoteUrl: string,
+  variant: string | undefined,
+  res: Response,
+): Promise<boolean> {
   try {
-    const decision = decideProxyServe(await lookupCacheRow(remoteUrl));
+    const row = await lookupCacheRow(remoteUrl);
+    const decision = decideProxyServe(row);
 
     if (decision.action === 'serve-from-oxy') {
       const oxyUrl = await resolveOxyDownloadUrl(decision.oxyFileId);
@@ -541,7 +624,7 @@ async function tryServeFromCache(remoteUrl: string, res: Response): Promise<bool
       void bumpAccess(remoteUrl);
       setPublicMediaCors(res);
       res.setHeader('Cache-Control', MEDIA_CACHE_CONTROL);
-      res.redirect(HTTP_STATUS.FOUND, oxyUrl);
+      res.redirect(HTTP_STATUS.FOUND, withImageVariant(oxyUrl, variant, row?.contentType));
       return true;
     }
 
@@ -602,11 +685,21 @@ function shouldNegativeCacheClientError(status: number, hasRequestSpecificUpstre
 // --- Route ------------------------------------------------------------------
 
 /**
- * GET /media/proxy?url=<url-encoded absolute http(s) media URL>
+ * GET /media/proxy?url=<url-encoded absolute http(s) media URL>[&variant=<size>]
  *
  * Public, unauthenticated. Streams remote fediverse media (image/video/audio)
  * through our origin so the browser sees same-origin (CORS-safe), cacheable,
  * range-seekable bytes instead of hot-linking third-party CDNs.
+ *
+ * `variant` asks for a SIZED render of a remote image
+ * ({@link ALLOWED_MEDIA_VARIANTS}) so a feed card is not made to download a
+ * multi-megabyte original to fill a small box. We never resize here: the resize
+ * belongs to Oxy's existing image pipeline, so the variant is honoured by
+ * redirecting to the sized `cloud.oxy.so` render of the object once the remote
+ * bytes have been mirrored, and ignored (original streamed, briefly cached)
+ * until then. Doing it in-process instead would mean an ffmpeg/sharp pass per
+ * impression: nothing caches in front of this origin, so that cost would be paid
+ * again for every viewer of every post.
  *
  * SECURITY: the caller-supplied URL is validated by `assertSafePublicUrl` BEFORE
  * it can reach any side effect (see below), and every upstream request —
@@ -660,9 +753,14 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
     typeof req.headers['if-none-match'] === 'string' || typeof req.headers['if-modified-since'] === 'string';
   const hasRequestSpecificUpstreamHeaders = hasRange || hasConditionalHeader;
 
+  // An optional request for a SIZED render of the media (see
+  // {@link ALLOWED_MEDIA_VARIANTS}). Honoured only on the cached path below,
+  // where Oxy's variant pipeline can produce it; a miss streams the original.
+  const requestedVariant = readRequestedVariant(req.query.variant);
+
   if (isMediaCacheEnabled()) {
     if (!hasRange) {
-      const cacheServed = await tryServeFromCache(rawUrl, res);
+      const cacheServed = await tryServeFromCache(rawUrl, requestedVariant, res);
       if (cacheServed) return;
     } else {
       // Ranged request: still record activity so the entry stays warm / gets cached.
@@ -814,7 +912,13 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
 
   // --- Relay response headers (public, cacheable, range-aware) ---
   res.setHeader('Content-Type', response.headers['content-type'] ?? 'application/octet-stream');
-  res.setHeader('Cache-Control', MEDIA_CACHE_CONTROL);
+  // A variant was asked for and we are answering with the original, so this
+  // response must expire quickly instead of pinning the client to the full-size
+  // bytes under a URL that will start resolving to a sized render.
+  res.setHeader(
+    'Cache-Control',
+    requestedVariant ? MEDIA_UNSIZED_VARIANT_CACHE_CONTROL : MEDIA_CACHE_CONTROL,
+  );
   setPublicMediaCors(res);
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Content-Disposition', MEDIA_CONTENT_DISPOSITION);

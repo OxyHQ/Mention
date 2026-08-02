@@ -10,6 +10,22 @@ import {
 const scope = federationScope('hydration-orphan-bridgy');
 
 /**
+ * This file's own bridged author.
+ *
+ * `resolveUserSummaries` / `resolveOrphanFederatedAuthors` look an actor up by
+ * `oxy_user_id`, and suites share one database and run in parallel — so this
+ * literal must not be one another file also seeds. It was:
+ * `postHydrationFederatedRepair.test.ts` seeded a DIFFERENT actor (another
+ * handle, another instance) under the same id, and whichever row the lookup
+ * reached first won. That file failed roughly one run in three on its handle
+ * and instance assertions, and passed in isolation every time.
+ *
+ * ObjectId-shaped on purpose: these are pre-cutover author ids, and the shape is
+ * what the surrounding fixtures represent.
+ */
+const BRIDGED_OXY_ID = '6a38fbdd272930c46a785b20';
+
+/**
  * Legacy brid.gy/Bluesky "orphan" federated posts carry no `oxyUserId` AND no
  * `federation.actorUri` — only the wrapped AP object URL
  * (`https://bsky.brid.gy/convert/ap/at://<did>/app.bsky.feed.post/<rkey>`). Their
@@ -59,7 +75,6 @@ vi.mock('../../models/Post', () => ({ Post: { find: () => chainable([]), findOne
 vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/UserSettings', () => ({ UserSettings: { find: () => chainable([]), findOne: () => chainable([]) } }));
 vi.mock('../../models/StarterPack', () => ({
   StarterPack: { aggregate: async () => [] },
   default: { aggregate: async () => [] },
@@ -110,7 +125,7 @@ describe('resolveOrphanFederatedAuthors — brid.gy derivation', () => {
       acct: 'americanfietser.bsky.social@bsky.brid.gy',
       domain: 'bsky.brid.gy',
       avatarUrl: 'https://bsky.brid.gy/a.png',
-      oxyUserId: '6a38fbdd272930c46a785b1f',
+      oxyUserId: BRIDGED_OXY_ID,
     });
 
     const result = await resolveOrphanFederatedAuthors([

@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useMemo } from 'react';
-import { View, ScrollView } from 'react-native';
+import { ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -28,6 +28,14 @@ interface ComposeToolbarProps {
     onEventPress?: () => void;
     onRoomPress?: () => void;
     onPodcastPress?: () => void;
+    /** Add another language to the post — composer-wide, so main toolbar only. */
+    onLanguagePress?: () => void;
+    /**
+     * Open the collaborator picker — composer-wide (a collab post has one set of
+     * authors), so main toolbar only, and omitted entirely where the post cannot
+     * take collaborators at all.
+     */
+    onCollaboratorsPress?: () => void;
     hasLocation?: boolean;
     isGettingLocation?: boolean;
     hasPoll?: boolean;
@@ -38,7 +46,14 @@ interface ComposeToolbarProps {
     hasRoom?: boolean;
     hasPodcast?: boolean;
     hasSchedule?: boolean;
-    scheduleEnabled?: boolean;
+    /** The post already carries more than one language. */
+    hasLanguages?: boolean;
+    /** False once the post holds the maximum author languages. */
+    languageEnabled?: boolean;
+    /** The post already names at least one collaborator. */
+    hasCollaborators?: boolean;
+    /** False once the post holds the maximum collaborators. */
+    collaboratorsEnabled?: boolean;
     hasSourceErrors?: boolean;
     disabled?: boolean;
 }
@@ -56,6 +71,8 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     onEventPress,
     onRoomPress,
     onPodcastPress,
+    onLanguagePress,
+    onCollaboratorsPress,
     hasLocation = false,
     isGettingLocation = false,
     hasPoll = false,
@@ -66,7 +83,10 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     hasRoom = false,
     hasPodcast = false,
     hasSchedule = false,
-    scheduleEnabled = true,
+    hasLanguages = false,
+    languageEnabled = true,
+    hasCollaborators = false,
+    collaboratorsEnabled = true,
     hasSourceErrors = false,
     disabled = false,
 }) => {
@@ -79,7 +99,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
         handler?.();
     }, [haptic]);
 
-    const scheduleColor = (disabled || !scheduleEnabled)
+    const scheduleColor = disabled
         ? theme.colors.textTertiary
         : hasSchedule
             ? theme.colors.primary
@@ -225,19 +245,70 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                 </PressableScale>
             )}
 
+            {onLanguagePress && (
+                <PressableScale
+                    onPress={withHaptic(onLanguagePress)}
+                    disabled={disabled || !languageEnabled}
+                    className="p-1"
+                    accessibilityRole="button"
+                    accessibilityLabel={t('compose.languages.add', { defaultValue: 'Add a language' })}
+                >
+                    {/* The SAME icon the post component marks a translation
+                        with, in the same two states: `PostActions` renders
+                        `isTranslated ? 'language' : 'language-outline'` tinted
+                        primary or secondary. Here "carries another language" is
+                        the authoring side of that same fact, so the control that
+                        writes one and the badge that reads one look alike. */}
+                    <Ionicons
+                        name={hasLanguages ? 'language' : 'language-outline'}
+                        size={20}
+                        color={disabled || !languageEnabled
+                            ? theme.colors.textTertiary
+                            : hasLanguages
+                                ? theme.colors.primary
+                                : theme.colors.textSecondary}
+                    />
+                </PressableScale>
+            )}
+
             {onSchedulePress && (
                 <PressableScale
                     onPress={withHaptic(onSchedulePress)}
                     disabled={disabled}
                     className="p-1"
-                    style={!scheduleEnabled ? { opacity: 0.6 } : undefined}
+                    accessibilityRole="button"
+                    // The chosen time lives in the author row's time slot, where
+                    // it replaces "now" — see `ComposeScheduleIndicator`. So this
+                    // control is the plain action again, and tints itself when a
+                    // time is set exactly like every other icon in this row
+                    // signals its attachment is present.
+                    accessibilityLabel={t('compose.schedule.a11y', { defaultValue: 'Schedule this post' })}
                 >
-                    <View style={{ opacity: disabled ? 0.3 : 1 }}>
-                        <CalendarIcon
-                            size={20}
-                            color={scheduleColor}
-                        />
-                    </View>
+                    <CalendarIcon size={20} color={scheduleColor} />
+                </PressableScale>
+            )}
+
+            {onCollaboratorsPress && (
+                <PressableScale
+                    onPress={withHaptic(onCollaboratorsPress)}
+                    disabled={disabled || !collaboratorsEnabled}
+                    className="p-1"
+                    accessibilityRole="button"
+                    accessibilityLabel={t('collab.inviteCollaborators', { defaultValue: 'Invite collaborators' })}
+                >
+                    {/* The SAME glyph the collaborator picker already labels its
+                        rows with, in the two states this row uses everywhere
+                        else: filled once the post names someone, outline while
+                        it does not. */}
+                    <Ionicons
+                        name={hasCollaborators ? 'people' : 'people-outline'}
+                        size={20}
+                        color={disabled || !collaboratorsEnabled
+                            ? theme.colors.textTertiary
+                            : hasCollaborators
+                                ? theme.colors.primary
+                                : theme.colors.textSecondary}
+                    />
                 </PressableScale>
             )}
 

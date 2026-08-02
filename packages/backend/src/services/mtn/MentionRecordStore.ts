@@ -37,7 +37,7 @@
  * `chain_conflict`.
  */
 
-import { and, asc, desc, eq, gt, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gt, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import type { AppendOutcome, ChainHead, RecordStore } from '@oxyhq/protocol';
 import { getDb } from '../../db/postgres';
@@ -112,6 +112,50 @@ export function canonicalChainRow(): SQL {
 function isChainAppendConflict(error: unknown): boolean {
   return CHAIN_CONFLICT_CONSTRAINTS.some((name) => isUniqueViolation(error, name));
 }
+
+/** The envelope's self-asserted issue time, as a number SQL can sort on. */
+const ENVELOPE_ISSUED_AT: SQL = sql`(${mentionSignedRecords.envelope} ->> 'issuedAt')::numeric`;
+
+/**
+ * The last-writer-wins order over the records of ONE logical key: newest
+ * `issuedAt` first, a tie broken by the higher `recordId`.
+ *
+ * This is the order the rest of the MTN layer already states —
+ * `incomingWinsLww` in `MentionNodeSyncService` is the same two comparisons in
+ * TypeScript, and `@oxyhq/protocol`'s `RecordStore` contract calls
+ * `materializeCurrent` "last-writer-wins" and `latestIssuedAtForKey` "the
+ * monotonicity frontier ... (replay/rollback defence)". Both of those are
+ * statements about `issuedAt`, so `issuedAt` has to be what the SQL sorts on.
+ *
+ * **`created_at` is not a stand-in for it, and the gap is not theoretical.**
+ * `created_at` defaults to `now()`, which is `transaction_timestamp()`: every
+ * row written inside ONE transaction — a batch backfill, a migration — carries
+ * the identical value to the microsecond. `order by created_at desc limit 1`
+ * over those rows is a TIE, so whichever row the scan happens to reach first
+ * becomes the answer, and for `latestIssuedAtForKey` that answer is a frontier
+ * BELOW the true maximum. A frontier that under-reports accepts exactly the
+ * record it exists to reject (step 5 of the engine's verify: `env.issuedAt <=
+ * latestIssuedAt`), and the accepted rollback is then stored with a LATER
+ * `created_at` than the record it supersedes — so the disagreement between the
+ * two columns is permanent from the first tie onward and every later rollback
+ * for that key is accepted too.
+ *
+ * Sorting on `id` instead would be worse in a way that is invisible: `id` is
+ * `text` holding a 24-char ObjectId hex for every pre-cutover row and a uuid v7
+ * for everything after, and under the database's collation `'0' < '6'` — so
+ * `order by id desc` puts EVERY post-cutover record last and reliably answers
+ * with the oldest branch of the key.
+ *
+ * `nulls last` on both keys is deliberate: DESC defaults to NULLS FIRST, which
+ * would let a row with no `issuedAt` at all win the sort and take the frontier
+ * out entirely. A v1 row carries no `recordId`; it reaches only
+ * `latestIssuedAtForKey`, which reads the `issuedAt` and nothing else, so the
+ * tiebreak has no work to do there.
+ */
+export const LWW_CURRENT_ORDER: SQL[] = [
+  sql`${ENVELOPE_ISSUED_AT} desc nulls last`,
+  sql`${mentionSignedRecords.recordId} desc nulls last`,
+];
 
 /**
  * The Mention implementation of the protocol {@link RecordStore}, backed by the
@@ -376,6 +420,14 @@ export class MentionRecordStoreImpl implements RecordStore {
     return row?.seq ?? null;
   }
 
+  /**
+   * The current value of one record key — the last writer, by
+   * {@link LWW_CURRENT_ORDER}, NOT by insert order.
+   *
+   * Fork archives are deliberately in scope (no `canonicalChainRow()` here): a
+   * branch that wins its key wins materialization, which is the whole point of
+   * preserving it.
+   */
   async materializeCurrent(subject: string, collection: string, rkey: string): Promise<SignedRecordEnvelope | null> {
     const oxyUserId = parseUserDid(subject);
     if (!oxyUserId) {
@@ -392,7 +444,7 @@ export class MentionRecordStoreImpl implements RecordStore {
           eq(mentionSignedRecords.verified, true),
         ),
       )
-      .orderBy(desc(mentionSignedRecords.createdAt))
+      .orderBy(...LWW_CURRENT_ORDER)
       .limit(1);
     return row?.envelope ?? null;
   }
@@ -402,6 +454,11 @@ export class MentionRecordStoreImpl implements RecordStore {
    *  - v1: per `type` (the legacy singleton scope).
    *  - v2: per record KEY (`nsid`, `rkey`) — last-writer-wins for THAT key;
    *    distinct keys are independent appends.
+   *
+   * The frontier is the MAXIMUM `issuedAt` over the key, and it is a replay /
+   * rollback defence — so it must be read on the `issuedAt` axis itself and not
+   * through a proxy for it. See {@link LWW_CURRENT_ORDER} for what a proxy
+   * costs.
    */
   async latestIssuedAtForKey(subject: string, env: SignedRecordEnvelope): Promise<number | null> {
     const oxyUserId = parseUserDid(subject);
@@ -430,7 +487,7 @@ export class MentionRecordStoreImpl implements RecordStore {
       .select({ envelope: mentionSignedRecords.envelope })
       .from(mentionSignedRecords)
       .where(and(eq(mentionSignedRecords.oxyUserId, oxyUserId), keyClause))
-      .orderBy(desc(mentionSignedRecords.createdAt))
+      .orderBy(...LWW_CURRENT_ORDER)
       .limit(1);
     const latestIssuedAt = latest?.envelope?.issuedAt;
     return typeof latestIssuedAt === 'number' ? latestIssuedAt : null;

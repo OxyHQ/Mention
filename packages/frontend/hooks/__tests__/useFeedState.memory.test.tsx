@@ -137,6 +137,7 @@ describe('useFeedState memory-mode retention and request ownership', () => {
             items: [post('p1'), post('p2'), post('p3')],
             hasMore: true,
             nextCursor: 'cursor-3',
+            retainedAt: Date.now(),
         });
 
         let first!: TestRenderer.ReactTestRenderer;

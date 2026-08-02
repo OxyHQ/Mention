@@ -4,7 +4,7 @@
  */
 
 import { isAuthorFeedFilter, PostType, PostVisibility } from '@mention/shared-types';
-import { and, arrayOverlaps, desc, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, arrayOverlaps, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../../../../db/postgres';
 import {
   bookmarks,
@@ -21,6 +21,7 @@ import { ProfileVisibility, requiresAccessCheck } from '../../../../utils/privac
 import { authorFeedSql } from '../../../../utils/postAuthorship';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { notABoostSql } from '../../../../utils/feedQueryBuilder';
+import { trendTermMatchSql } from '../../../../services/trending/termSpace';
 import type { AuthorFeedFilter } from '@mention/shared-types';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
@@ -100,6 +101,43 @@ export const keywordsSource: SourceModule = {
   },
 };
 
+/**
+ * `trendTerms`: the posts behind ONE trend — what a reader lands on after
+ * pressing it.
+ *
+ * Matched with {@link trendTermMatchSql} — the SAME definition the detection
+ * batch counts over, shared rather than restated. A feed that matched less than
+ * detection counted would open a reported trend onto a screen missing exactly
+ * the posts that made it trend, which is why the two must not be able to drift.
+ *
+ * `fetchChrono` orders on the CURSOR's own keyset (`created_at`, then `id`) —
+ * never `id` alone. `posts.id` holds pre-cutover ObjectId hex AND post-cutover
+ * uuid v7, so it is not a chronological axis at all: an `id` sort behind a
+ * `created_at` cursor does not merely misorder, it permanently SKIPS rows at
+ * every page boundary. This feed is mostly federated posts, so it is the worst
+ * possible place for that. (Same rule as the `authored` source; see AGENTS.md
+ * § Profile feed.)
+ */
+export const trendTermsSource: SourceModule = {
+  id: 'trendTerms',
+  kind: 'source',
+  userComposable: true,
+  gather: async (ctx, params, cap) => {
+    const term = typeof params.term === 'string' ? params.term.trim().toLowerCase() : '';
+    if (!term) return [];
+
+    return fetchChrono(
+      [
+        trendTermMatchSql(term),
+        eq(posts.visibility, 'public'),
+        eq(posts.status, 'published'),
+      ],
+      ctx.cursor,
+      cap,
+    );
+  },
+};
+
 /** `accounts`: posts from an explicit author-id list (custom feeds). */
 export const accountsSource: SourceModule = {
   id: 'accounts',
@@ -156,6 +194,26 @@ function buildAuthoredConditions(authorId: string, filter: AuthorFeedFilter): SQ
       break;
     case 'media':
       conditions.push(hasMediaSql(), eq(posts.isReply, false), notABoostSql());
+      break;
+    case 'videos':
+      // Deliberately NARROWER than `media`: the two video shapes
+      // `videoOnlyFilter.keep` recognizes, and no attachment branch, because
+      // that predicate has none — including it would fetch posts the filter then
+      // drops, paying for a page that arrives short. It is also narrower than
+      // the GLOBAL videos feed (`FeedQueryBuilder.buildVideosQuery`), which
+      // additionally gates on duration and orientation: a profile grid shows the
+      // author's videos, not a reel lane's selection of them.
+      conditions.push(
+        or(
+          eq(posts.type, PostType.VIDEO),
+          sql`exists ${getDb()
+            .select({ one: sql`1` })
+            .from(postMedia)
+            .where(and(eq(postMedia.postId, posts.id), eq(postMedia.type, 'video')))}`,
+        ) as SQL,
+        eq(posts.isReply, false),
+        notABoostSql(),
+      );
       break;
     case 'likes':
       break;
@@ -230,6 +288,31 @@ function relationshipKeyset(
   ) as SQL;
 }
 
+/**
+ * The descending order {@link relationshipKeyset} pages against — written so an
+ * index can actually serve it.
+ *
+ * `nulls last` for the same reason `chronoOrderBy` spells it out: both columns
+ * are NOT NULL so it changes no row, but drizzle emits `.desc()` in index DDL as
+ * `DESC NULLS LAST` while a query's `desc()` means `DESC NULLS FIRST`, and
+ * Postgres compares the NULLS placement when deciding whether an index can
+ * satisfy an ORDER BY. `likes_user_id_created_at_idx` and
+ * `bookmarks_user_id_created_at_idx` are both `(user_id, created_at DESC NULLS
+ * LAST)`, and both queries below are a per-viewer keyset over them.
+ *
+ * Measured, 20,000 rows for one viewer, page of 31:
+ *
+ *   likes      Seq Scan + Sort, cost 1092.42  →  Index Scan, cost 4.31
+ *   bookmarks  Seq Scan + Sort, cost 1073.42  →  Index Scan, cost 4.24
+ *
+ * Neither index carries `id`, so the good plan is an Incremental Sort with
+ * `created_at` presorted — it streams and only ever sorts one tie group, and the
+ * LIMIT stops it after 32 rows instead of reading the viewer's whole history.
+ */
+function relationshipOrder(createdAtColumn: PgColumn, idColumn: PgColumn): SQL[] {
+  return [sql`${createdAtColumn} desc nulls last`, sql`${idColumn} desc nulls last`];
+}
+
 /** The viewer's liked posts, in like order, for the ORDERED Author-likes feed. */
 async function gatherAuthorLikes(authorId: string, ctx: FeedEngineContext): Promise<CandidatePost[]> {
   const pageLimit = ctx.pageLimit ?? 30;
@@ -244,7 +327,7 @@ async function gatherAuthorLikes(authorId: string, ctx: FeedEngineContext): Prom
         ...[eq(likes.userId, authorId), eq(likes.value, 1), ...(keyset ? [keyset] : [])],
       ),
     )
-    .orderBy(desc(likes.createdAt), desc(likes.id))
+    .orderBy(...relationshipOrder(likes.createdAt, likes.id))
     .limit(pageLimit + 1);
 
   if (likeRows.length === 0) return [];
@@ -321,7 +404,7 @@ export const savedSource: SourceModule = {
       .select({ id: bookmarks.id, postId: bookmarks.postId, createdAt: bookmarks.createdAt })
       .from(bookmarks)
       .where(and(...[eq(bookmarks.userId, ctx.currentUserId), ...(keyset ? [keyset] : [])]))
-      .orderBy(desc(bookmarks.createdAt), desc(bookmarks.id))
+      .orderBy(...relationshipOrder(bookmarks.createdAt, bookmarks.id))
       .limit(pageLimit + 1);
 
     if (bookmarkRows.length === 0) return [];
@@ -377,6 +460,7 @@ export const mutualsSource: SourceModule = {
 
 export const userSourceModules: SourceModule[] = [
   keywordsSource,
+  trendTermsSource,
   accountsSource,
   authoredSource,
   savedSource,

@@ -19,6 +19,13 @@
  *      lockfile, but for an unrelated reason, and only inside the image build —
  *      .github/scripts/verify-lockfile.sh runs against a full checkout and
  *      cannot see it at all.
+ *   4. Override-masked range violations — no `overrides` entry forces a package
+ *      to a version outside a range some dependent declared, unless that
+ *      violation is listed as an accepted one. An override applies to every
+ *      edge in the tree at once, so it silences a genuine incompatibility with
+ *      the same silence it uses to dedupe a patch: the install stays green,
+ *      `--frozen-lockfile` stays green, and the mismatch surfaces at runtime on
+ *      a deploy instead. Nothing else here — or in bun — checks this.
  *
  * Intent ported from bluesky-social/social-app 29dad38ab ("Add lockfile lint",
  * MIT (c) 2023-2026 Bluesky Social PBC), which configures `lockfile-lint` with
@@ -41,6 +48,8 @@ import { readdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import semver from "semver";
+
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const lockfilePath = resolve(repositoryRoot, "bun.lock");
 const packagesDirectory = resolve(repositoryRoot, "packages");
@@ -61,6 +70,35 @@ const ALLOWED_NON_REGISTRY_PROTOCOLS = ["workspace:"];
 
 /** Aliases (`"alias": ["real-package@1.0.0", ...]`) that are known and accepted. */
 const ALLOWED_PACKAGE_NAME_ALIASES = [];
+
+/**
+ * Override-masked range violations that are deliberate, keyed
+ * `"<dependent> -> <dependency>@<declared range>"`. The dependent is a package
+ * NAME rather than a lockfile key, so an entry survives the tree being
+ * reshaped around it; the version actually installed is reported by the failure
+ * rather than encoded here, so re-pointing an override at a newer patch does
+ * not silently invalidate the reason.
+ *
+ * Every entry is a decision that the override is worth more than the range it
+ * breaks — a security bump the dependent has not caught up with, or a
+ * single-copy pin for a native module. An entry that stops firing is reported
+ * too, so this cannot rot into a list of claims nothing tests.
+ */
+const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
+  "minimatch -> brace-expansion@^1.1.7":
+    "brace-expansion is pinned forward for its ReDoS advisory; minimatch's range predates the fix.",
+  "minimatch -> brace-expansion@^5.0.5":
+    "Same pin. minimatch 10 asks for a brace-expansion major that is not published, so every tree resolves this edge elsewhere regardless.",
+  "markdown-it -> linkify-it@^2.0.0":
+    "linkify-it is held at one copy for hardened link matching; markdown-it works against the newer API.",
+  "@tailwindcss/node -> lightningcss@1.32.0":
+    "lightningcss is pinned to 1.30.1 so its linux-x64 gnu/musl native binaries stay on a single version through the image build.",
+  "vite -> lightningcss@^1.32.0": "Same single-copy native-binary pin as @tailwindcss/node.",
+  "expo -> expo-modules-core@~57.0.8":
+    "expo-modules-core is pinned to the version the installed native runtime was built against; two copies break the native module registry.",
+  "@alia.onl/sdk -> @oxyhq/services@^23.0.1":
+    "Peer range on a third-party SDK that trails our release cadence. Forward-compatible: it consumes a stable subset of the services surface.",
+};
 
 /**
  * Vacuity floor: a parser that silently produced an empty package map would
@@ -385,6 +423,86 @@ if (auditedInstalls === 0) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// 4. No override forces a package outside a range someone declared.
+//
+//    `overrides` exists to collapse a package to a single copy. It does that by
+//    outranking every declared range at once, which means it cannot tell the
+//    difference between deduping a patch and satisfying a range the dependent
+//    never claimed to support. Both installs are green, so the second case has
+//    nowhere to surface but production.
+// ---------------------------------------------------------------------------
+
+const rootManifest = JSON.parse(await readFile(resolve(repositoryRoot, "package.json"), "utf8"));
+const overriddenPackages = new Set(Object.keys(rootManifest.overrides ?? {}));
+if (overriddenPackages.size === 0) {
+  failures.push("root package.json declares no overrides — the override scan is probably broken");
+}
+
+/**
+ * The entry a dependency edge resolves to, following bun's rule that the
+ * nearest enclosing scope wins: a dep of `a/b` is `a/b/dep`, else `a/dep`,
+ * else the hoisted `dep`.
+ */
+function resolveEdge(fromKey, dependencyName) {
+  const enclosing = fromKey === "" ? [] : resolutionChain(fromKey);
+  for (let depth = enclosing.length; depth >= 0; depth -= 1) {
+    const candidate = [...enclosing.slice(0, depth), dependencyName].join("/");
+    if (packages[candidate]) return packages[candidate];
+  }
+  return null;
+}
+
+const firedViolations = new Set();
+let auditedOverrideEdges = 0;
+
+for (const [key, entry] of Object.entries(packages)) {
+  if (!Array.isArray(entry)) continue;
+  const metadata = entry.find((field) => field && typeof field === "object" && !Array.isArray(field));
+  if (!metadata) continue;
+  const dependent = resolutionChain(key).at(-1);
+
+  for (const field of ["dependencies", "peerDependencies"]) {
+    for (const [dependency, range] of Object.entries(metadata[field] ?? {})) {
+      if (!overriddenPackages.has(dependency) || typeof range !== "string") continue;
+      // An optional peer is a capability the dependent runs without.
+      if (field === "peerDependencies" && (metadata.optionalPeers ?? []).includes(dependency)) continue;
+      // `workspace:`, `npm:` and `catalog:` specs are not version ranges.
+      if (!semver.validRange(range)) continue;
+
+      const resolved = resolveEdge(key, dependency);
+      if (!Array.isArray(resolved) || typeof resolved[0] !== "string") continue;
+      const { name, spec } = splitDescriptor(resolved[0]);
+      if (name !== dependency || !semver.valid(spec)) continue;
+
+      auditedOverrideEdges += 1;
+      if (semver.satisfies(spec, range)) continue;
+
+      const violation = `${dependent} -> ${dependency}@${range}`;
+      firedViolations.add(violation);
+      if (violation in ACCEPTED_OVERRIDE_RANGE_VIOLATIONS) continue;
+      failures.push(
+        `${key}: declares ${dependency}@${range} (${field}) but the "${dependency}" override installs ${spec}, which does not satisfy it. ` +
+          `Nothing fails at install time — bun applies the override and \`--frozen-lockfile\` stays green — so this only shows up once the missing version's behaviour is reached at runtime. ` +
+          `Either point the override at a version the range accepts, upgrade ${dependent}, or record it in ACCEPTED_OVERRIDE_RANGE_VIOLATIONS as "${violation}" with the reason it is safe.`,
+      );
+    }
+  }
+}
+
+if (auditedOverrideEdges === 0) {
+  failures.push(
+    "no overridden dependency edge was resolved — the override scan matched nothing and would pass regardless of the tree",
+  );
+}
+
+for (const violation of Object.keys(ACCEPTED_OVERRIDE_RANGE_VIOLATIONS)) {
+  if (firedViolations.has(violation)) continue;
+  failures.push(
+    `ACCEPTED_OVERRIDE_RANGE_VIOLATIONS lists "${violation}", which no longer happens — the override or the dependent moved. Delete the entry so the list keeps describing the tree.`,
+  );
+}
+
 if (failures.length > 0) {
   console.error("bun.lock validation failed:\n");
   for (const failure of failures) console.error(`- ${failure}`);
@@ -394,6 +512,8 @@ if (failures.length > 0) {
 
 console.log(
   `Validated ${packageCount} bun.lock resolutions (registry-only, https, integrity-pinned, no aliases), ` +
-    `${workspacePaths.length} workspace records against their manifests, and ` +
-    `${auditedInstalls} frozen installs across ${dockerfileNames.length} Dockerfiles.`,
+    `${workspacePaths.length} workspace records against their manifests, ` +
+    `${auditedInstalls} frozen installs across ${dockerfileNames.length} Dockerfiles, and ` +
+    `${auditedOverrideEdges} edges against the ${overriddenPackages.size} overridden packages ` +
+    `(${firedViolations.size} accepted range violations).`,
 );

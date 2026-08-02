@@ -14,6 +14,7 @@ describe('viewer-scoped private cache', () => {
       viewerQueryKeys.postsRoot(viewerId),
       viewerQueryKeys.post(viewerId, 'post-1'),
       viewerQueryKeys.pinnedPost(viewerId, 'profile-1'),
+      viewerQueryKeys.scheduledPosts(viewerId),
       viewerQueryKeys.feedsRoot(viewerId),
       viewerQueryKeys.feed(viewerId, 'custom', { language: 'es' }),
       viewerQueryKeys.search(viewerId, 'posts', 'query', true),
@@ -122,6 +123,7 @@ describe('viewer-scoped private cache', () => {
       publicQueryKeys.feedModules(),
       publicQueryKeys.marketplaceCategories(),
       publicQueryKeys.trendingHistory(),
+      publicQueryKeys.trendSummary('kremer trade'),
     ];
 
     keys.forEach((key) => {

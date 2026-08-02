@@ -4,7 +4,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types/post';
+import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import React, { useMemo } from 'react';
@@ -192,7 +192,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
             @handle) and inline verified / federated / agent badges via the shared
             UserName, so it reads as the same identity surface as the profile. */}
         <View className="px-4 pt-4 pb-5 items-center">
-          <Avatar source={avatarUri} size={80} variant={MEDIA_VARIANT_VIDEO_POSTER} />
+          <Avatar source={avatarUri} size={80} variant={MEDIA_VARIANT_AVATAR_LG} />
           <UserName
             name={profileData.design.displayName ?? profileData.name?.displayName}
             handle={profileData.username}

@@ -1,32 +1,59 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import mongoose from 'mongoose';
-import { eq } from 'drizzle-orm';
-
 /**
- * The MTN record backfill.
+ * The MTN record backfill, against REAL ROWS.
  *
- * `Post` (count/find/findById), `isMentionRecordSigningEnabled` and
- * `emitPostCreated` are mocked so the REAL candidate selection, ordering and
- * inert-safe bail run without MongoDB or a signing key.
+ * The previous version mocked `Post.count/find/findById` over a hand-built
+ * array, so the CANDIDATE FILTER never ran — and that filter is the script's
+ * whole safety story. Six `IS NULL` / equality arms decide which posts get a
+ * signed, permanent chain record; a wrong one either signs a draft into a user's
+ * public repo or reports a clean no-op having selected nothing. Neither failure
+ * is visible against a mock that hands back whatever the test wrote.
  *
- * **The chain is not mocked.** Both of this script's chain reads — the batched
- * "which of these posts already has a record" skip and the post-emit confirmation
- * — run against real `mention_signed_records` rows. Their previous mocks
- * re-implemented the filter in the test, so an existence check that queried the
- * wrong column would have kept passing; and this script's whole job is deciding
- * what to skip, so a wrong skip is either a duplicate signed record or a post
- * that silently never gets one.
+ * So the posts are rows and the filter runs. `emitPostCreated` and
+ * `isMentionRecordSigningEnabled` stay mocked: signing needs a key, and the
+ * emitter is another module's subject. What the emitter WRITES is real, because
+ * the script re-reads `mention_signed_records` afterwards to confirm the append
+ * landed — the emitter absorbs its own failures, so that confirmation is the
+ * only thing standing between a swallowed append and a run reported as clean.
+ *
+ * ## This script sweeps the WHOLE corpus, which shapes the file
+ *
+ * It takes no scope: every local, published, public, non-boost post is a
+ * candidate, including rows other files seeded into the shared database. Two
+ * consequences, both deliberate:
+ *
+ *  - Nothing asserts on the run's aggregate counters. Every assertion names a
+ *    post this file wrote, and the emission log is filtered to those.
+ *  - Cases are GROUPED so the sweep runs a handful of times rather than once per
+ *    assertion. A full pass assembles every candidate's nine-table record and
+ *    emits for each, so one sweep per assertion is a lot of work for nothing.
+ *
+ * ## The keyset cursor, and why one case reproduces it without running the sweep
+ *
+ * This sweep pages on `(created_at, id)` ascending, and it did not terminate on
+ * a row whose `created_at` came from the database clock: `timestamptz` carries
+ * microseconds, a JS `Date` carries milliseconds, so the cursor compared against
+ * a value smaller than the row that produced it and matched its own anchor
+ * forever. Fixed at the source — `columns.ts` now defaults to
+ * `date_trunc('milliseconds', now())`, with a CHECK on `posts` so it cannot come
+ * back — and the fixtures here use the database clock again precisely so the
+ * ordinary cases exercise it.
+ *
+ * The last case still reproduces the PREDICATE directly rather than relying on
+ * the sweep to hang: a non-terminating sweep can only be observed as a test
+ * timeout, which names nothing, and racing it would leave an uncancellable loop
+ * hammering the database.
  */
 
-interface PostRow {
-  _id: mongoose.Types.ObjectId;
-  createdAt: Date;
-}
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { and, asc, eq, gt, or } from 'drizzle-orm';
+import { PostType, PostVisibility } from '@mention/shared-types';
+
+/** A full corpus sweep against a database other suites are writing to. */
+const SWEEP_TIMEOUT_MS = 60_000;
 
 const h = vi.hoisted(() => {
   const state: {
     signingEnabled: boolean;
-    posts: PostRow[];
     /**
      * What the mocked emitter does with each post it is handed. `write` inserts a
      * real chain row (the success path the confirmation read has to see);
@@ -34,61 +61,23 @@ const h = vi.hoisted(() => {
      * absorbing an append failure — which is exactly why the script re-reads.
      */
     emitBehaviour: 'write' | 'swallow';
-    /** Every post id the emitter was handed, in order. */
-    emittedFor: string[];
-  } = { signingEnabled: true, posts: [], emitBehaviour: 'write', emittedFor: [] };
-
-  const countDocuments = vi.fn(async () => state.posts.length);
-
-  // Post.find returns the candidate page on the FIRST cursor read, then an empty
-  // page so the script's `for (;;)` paging loop terminates (the real cursor
-  // advances past the last (createdAt, _id) and finds nothing more). A query with
-  // a `$or` cursor clause is a subsequent page → empty.
-  const find = vi.fn((query: Record<string, unknown>) => ({
-    sort: () => ({
-      limit: () => ({
-        lean: async () => (query.$or ? [] : state.posts),
-      }),
-    }),
-  }));
-
-  const findById = vi.fn(async (id: mongoose.Types.ObjectId) => {
-    const row = state.posts.find((p) => p._id.toString() === id.toString());
-    if (!row) return null;
-    return {
-      _id: row._id,
-      oxyUserId: 'user-A',
-      federation: undefined,
-      parentPostId: undefined,
-      threadId: undefined,
-      content: { text: 'a backfilled post body long enough' },
-    };
-  });
+    /** Every post id the emitter was handed, in order, with its reply context. */
+    emitted: Array<{ postId: string; reply: unknown }>;
+  } = { signingEnabled: true, emitBehaviour: 'write', emitted: [] };
 
   const isSigningEnabled = vi.fn(() => state.signingEnabled);
 
-  // The emitter is mocked, but what it WRITES is real: the confirmation read the
-  // script performs afterwards has to find (or not find) an actual chain row.
-  const emitPostCreated = vi.fn(async (post: { _id: mongoose.Types.ObjectId }) => {
-    state.emittedFor.push(post._id.toString());
-    if (state.emitBehaviour === 'write') {
-      await writeChainRow(post._id.toString());
-    }
-  });
+  const emitPostCreated = vi.fn(
+    async (post: { id: string }, options?: { reply?: unknown }) => {
+      state.emitted.push({ postId: post.id, reply: options?.reply });
+      if (state.emitBehaviour === 'write') {
+        await writeChainRow(post.id);
+      }
+    },
+  );
 
-  return {
-    state,
-    countDocuments,
-    find,
-    findById,
-    isSigningEnabled,
-    emitPostCreated,
-  };
+  return { state, isSigningEnabled, emitPostCreated };
 });
-
-vi.mock('../../models/Post', () => ({
-  Post: { countDocuments: h.countDocuments, find: h.find, findById: h.findById },
-}));
 
 vi.mock('../../services/mtn/mentionRecordEnv', () => ({
   isMentionRecordSigningEnabled: h.isSigningEnabled,
@@ -98,20 +87,21 @@ vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
   emitPostCreated: h.emitPostCreated,
 }));
 
-vi.mock('../../utils/database', () => ({
-  connectToDatabase: vi.fn(async () => undefined),
-}));
-
 vi.mock('../../utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-vi.spyOn(mongoose, 'disconnect').mockResolvedValue(undefined as never);
-
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { mentionSignedRecords } from '../../db/schema/mtn';
+import { posts } from '../../db/schema/posts';
+import { findPostRecords } from '../../db/posts/postRepository';
+import type { PostRecord, PostRecordInput } from '../../db/posts/postRecord';
+import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import backfillMtnRecords from '../../scripts/backfill-mtn-records';
 import { MENTION_POST_COLLECTION } from '@mention/shared-types';
+
+const scope = postScope('backfill-mtn-records');
+const AUTHOR = scope.user('author');
 
 /** The chain owner every row in this suite belongs to, so cleanup is exact. */
 const CHAIN_OWNER = 'oxy-backfill-mtn-suite';
@@ -149,6 +139,40 @@ async function writeChainRow(postId: string): Promise<void> {
   });
 }
 
+/**
+ * A candidate post: local, published, public, non-boost, with an author.
+ *
+ * `createdAt` is left to the DATABASE CLOCK on purpose — that is the shape every
+ * production row has, and it is the shape that used to hang this sweep (see the
+ * last case in this file). While the defect was live these fixtures had to pin
+ * an explicit millisecond timestamp to avoid hanging the whole run; letting the
+ * default back in is what makes the ordinary cases cover the fix too, rather
+ * than leaving one test carrying it alone.
+ */
+async function seedCandidate(overrides: Partial<PostRecordInput> = {}): Promise<PostRecord> {
+  const owner = (overrides.oxyUserId ?? AUTHOR) as string;
+  return seedPost(scope, {
+    oxyUserId: owner,
+    authorship: owner ? [{ oxyUserId: owner, role: 'owner', status: 'accepted' }] : [],
+    ...overrides,
+  });
+}
+
+/** The ids this file seeded, in the order the emitter saw them. */
+function emittedAmong(ids: string[]): string[] {
+  const wanted = new Set(ids);
+  return h.state.emitted.map((entry) => entry.postId).filter((id) => wanted.has(id));
+}
+
+/** Whether a chain record exists for `postId`. */
+async function hasChainRow(postId: string): Promise<boolean> {
+  const [row] = await getDb()
+    .select({ id: mentionSignedRecords.id })
+    .from(mentionSignedRecords)
+    .where(eq(mentionSignedRecords.rkey, postId));
+  return row !== undefined;
+}
+
 beforeAll(async () => {
   await connectPostgres();
 });
@@ -160,12 +184,8 @@ afterAll(async () => {
 beforeEach(async () => {
   vi.stubEnv('CONFIRM_ADMIN_MUTATION', 'backfillMtnRecords');
   h.state.signingEnabled = true;
-  h.state.posts = [];
   h.state.emitBehaviour = 'write';
-  h.state.emittedFor = [];
-  h.countDocuments.mockClear();
-  h.find.mockClear();
-  h.findById.mockClear();
+  h.state.emitted = [];
   h.isSigningEnabled.mockClear();
   h.emitPostCreated.mockClear();
   await getDb().delete(mentionSignedRecords).where(eq(mentionSignedRecords.oxyUserId, CHAIN_OWNER));
@@ -174,58 +194,145 @@ beforeEach(async () => {
 afterEach(async () => {
   vi.unstubAllEnvs();
   await getDb().delete(mentionSignedRecords).where(eq(mentionSignedRecords.oxyUserId, CHAIN_OWNER));
+  await clearPostScope(scope);
 });
 
 describe('backfillMtnRecords', () => {
   it('is a no-op when MTN signing is disabled (writes no records)', async () => {
     h.state.signingEnabled = false;
-    h.state.posts = [{ _id: new mongoose.Types.ObjectId(), createdAt: new Date() }];
+    const post = await seedCandidate();
 
     await backfillMtnRecords();
 
-    // Bailed before scanning — no candidate scan, no emission.
-    expect(h.countDocuments).not.toHaveBeenCalled();
+    // Bailed before scanning: an unsigned record must never be fabricated, and a
+    // later run with the key set is what does the real work.
     expect(h.emitPostCreated).not.toHaveBeenCalled();
+    expect(await hasChainRow(post.id)).toBe(false);
   });
 
-  it('emits a genesis record for a post lacking one and skips posts that already have one', async () => {
-    const needsRecord = new mongoose.Types.ObjectId();
-    const hasRecord = new mongoose.Types.ObjectId();
-    h.state.posts = [
-      { _id: needsRecord, createdAt: new Date('2024-01-01T00:00:00Z') },
-      { _id: hasRecord, createdAt: new Date('2024-01-02T00:00:00Z') },
-    ];
-    // A REAL chain row for the second post. The skip has to come from the query.
-    await writeChainRow(hasRecord.toString());
+  it('signs ONLY local, published, public, authored, non-boost posts', async () => {
+    // A signed record is permanent and public. Each excluded shape below is one
+    // arm of the candidate filter, and each is separately capable of putting
+    // content into a user's repo that was never meant to be there. They share
+    // one sweep because the sweep is the expensive part, not the seeding.
+    const included = await seedCandidate();
+    const federated = await seedCandidate({
+      federation: { activityId: `https://${scope.name}.test/activities/1` },
+    });
+    const draft = await seedCandidate({ status: 'draft' });
+    const priv = await seedCandidate({ visibility: PostVisibility.PRIVATE });
+    const followersOnly = await seedCandidate({ visibility: PostVisibility.FOLLOWERS_ONLY });
+    const orphan = await seedCandidate({ oxyUserId: null });
+    const boost = await seedCandidate({
+      type: PostType.BOOST,
+      boostOf: included.id,
+      content: { variants: [{ source: 'author', text: '', tag: 'en' }] },
+    });
+    const excluded = [federated.id, draft.id, priv.id, followersOnly.id, orphan.id, boost.id];
 
     await backfillMtnRecords();
 
-    expect(h.state.emittedFor).toEqual([needsRecord.toString()]);
-    // …and the run left exactly one NEW row behind, for the post that lacked one.
-    const rows = await getDb()
-      .select({ rkey: mentionSignedRecords.rkey })
-      .from(mentionSignedRecords)
-      .where(eq(mentionSignedRecords.oxyUserId, CHAIN_OWNER));
-    expect(rows.map((row) => row.rkey).sort()).toEqual(
-      [needsRecord.toString(), hasRecord.toString()].sort(),
-    );
-  });
+    expect(emittedAmong([included.id, ...excluded])).toEqual([included.id]);
+    for (const id of excluded) {
+      expect(await hasChainRow(id), `expected no chain row for ${id}`).toBe(false);
+    }
+  }, SWEEP_TIMEOUT_MS);
+
+  it('emits for a post lacking a record and skips one that already has one', async () => {
+    const needsRecord = await seedCandidate({ createdAt: new Date('2024-01-01T00:00:00Z') });
+    const hasRecord = await seedCandidate({ createdAt: new Date('2024-01-02T00:00:00Z') });
+    // A REAL chain row for the second post. The skip has to come from the query.
+    await writeChainRow(hasRecord.id);
+
+    await backfillMtnRecords();
+
+    expect(emittedAmong([needsRecord.id, hasRecord.id])).toEqual([needsRecord.id]);
+    expect(await hasChainRow(needsRecord.id)).toBe(true);
+  }, SWEEP_TIMEOUT_MS);
+
+  it('emits oldest-first, with the reply context resolved from real parent and root rows', async () => {
+    // Two guarantees, one sweep. Genesis has to be the OLDEST post: the chain is
+    // a per-user sequence, and a backfill that appends newest-first produces a
+    // repo whose order contradicts the posts it describes. And a backfilled
+    // reply record has to be byte-identical to one the live path would emit,
+    // which means resolving the parent's and the thread root's OWNERS.
+    const rootAuthor = scope.user('root-author');
+    const root = await seedCandidate({
+      oxyUserId: rootAuthor,
+      createdAt: new Date('2024-01-01T00:00:00Z'),
+    });
+    const parent = await seedCandidate({
+      parentPostId: root.id,
+      threadId: root.id,
+      createdAt: new Date('2024-01-02T00:00:00Z'),
+    });
+    const reply = await seedCandidate({
+      parentPostId: parent.id,
+      threadId: root.id,
+      createdAt: new Date('2024-01-03T00:00:00Z'),
+    });
+
+    await backfillMtnRecords();
+
+    expect(emittedAmong([root.id, parent.id, reply.id])).toEqual([root.id, parent.id, reply.id]);
+    expect(h.state.emitted.find((item) => item.postId === root.id)?.reply).toBeUndefined();
+    expect(h.state.emitted.find((item) => item.postId === reply.id)?.reply).toEqual({
+      root: { postId: root.id, oxyUserId: rootAuthor },
+      parent: { postId: parent.id, oxyUserId: AUTHOR },
+    });
+  }, SWEEP_TIMEOUT_MS);
 
   it('counts a post as failed when the emitter swallowed the append', async () => {
     // The confirmation read is the ONLY thing that distinguishes a written record
     // from an emitter that absorbed its own failure — `assertAdminRunComplete`
     // then makes the run exit non-zero rather than reporting a clean backfill.
     h.state.emitBehaviour = 'swallow';
-    h.state.posts = [{ _id: new mongoose.Types.ObjectId(), createdAt: new Date('2024-01-01T00:00:00Z') }];
+    const post = await seedCandidate();
 
-    await expect(backfillMtnRecords()).rejects.toThrow('run incomplete: failed=1');
-  });
+    // The count is not pinned: this file does not own the corpus the sweep
+    // visits, and every post in it fails under `swallow`.
+    await expect(backfillMtnRecords()).rejects.toThrow(/run incomplete: failed=[1-9]/);
+    expect(await hasChainRow(post.id)).toBe(false);
+  }, SWEEP_TIMEOUT_MS);
 
-  it('does nothing when there are no candidate posts', async () => {
-    h.state.posts = [];
+  it('advances its cursor past a post whose createdAt came from the DATABASE CLOCK', async () => {
+    // The paging cursor is `(created_at, id)` ascending, carried between pages as
+    // the last row's values. `created_at` is `timestamptz` — MICROSECOND
+    // precision — and a JS `Date` holds milliseconds, so the round trip TRUNCATES
+    // it: a row stored at `…179527` comes back as `…179`, and the next page's
+    // `created_at > '…179'` is TRUE for that same row. The cursor never advances
+    // and the sweep never terminates.
+    //
+    // Reproduced with the script's own predicate rather than by running it,
+    // deliberately: a non-terminating sweep can only be observed as a test
+    // timeout, which names nothing, and racing it would leave an uncancellable
+    // loop hammering the database for the rest of the run.
+    //
+    // Every OTHER fixture in this file pins a millisecond-precision `createdAt`
+    // to stay clear of this. `defaultNow()` is what production rows carry.
+    const post = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
+    });
+    const [record] = await findPostRecords(eq(posts.id, post.id), {
+      orderBy: [asc(posts.createdAt), asc(posts.id)],
+      limit: 1,
+    });
 
-    await backfillMtnRecords();
+    const nextPage = await findPostRecords(
+      and(
+        eq(posts.id, post.id),
+        or(
+          gt(posts.createdAt, record.createdAt),
+          and(eq(posts.createdAt, record.createdAt), gt(posts.id, record.id)),
+        ),
+      ),
+      { orderBy: [asc(posts.createdAt), asc(posts.id)], limit: 1 },
+    );
 
-    expect(h.emitPostCreated).not.toHaveBeenCalled();
+    expect(
+      nextPage.map((row) => row.id),
+      'a keyset cursor taken from a row must EXCLUDE that row from the next page',
+    ).toEqual([]);
   });
 });

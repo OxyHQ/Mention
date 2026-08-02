@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Unit coverage for {@link UserPreferenceService} REGION-affinity learning off
- * the (best-effort, often-absent) `postClassification.region` of an engaged post.
+ * Coverage for {@link UserPreferenceService} REGION-affinity learning off the
+ * (best-effort, often-absent) `postClassification.region` of an engaged post.
  *
  * The service must:
  *   - accumulate a counted `preferredRegions` entry on a POSITIVE engagement
@@ -12,9 +12,31 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  *   - expose the DOMINANT region via `getTopRegion` (highest count), returning
  *     `undefined` when none has been learned.
  *
- * The Post and UserBehavior models are mocked (no DB); we drive interactions and
- * assert the in-memory `preferredRegions` multiset.
+ * ## What changed with the Postgres port
+ *
+ * The post is a REAL ROW. It used to be a `models/Post` mock returning a literal
+ * `{ postClassification: { region: 'ES' } }`, which asserted that the service
+ * reads a field off whatever object it is handed — true of any implementation,
+ * including one that reads a column the writer never stores. `region` is now a
+ * real column that has to survive `insertPostRecord` → `loadPostRecord`, so a
+ * region that is written but not read back (or vice versa) fails here.
+ *
+ * `UserBehavior` is still Mongoose and stays mocked: the accumulator it holds is
+ * what these tests are about, and it is not part of this port.
  */
+
+const mocks = vi.hoisted(() => ({ findOne: vi.fn() }));
+
+vi.mock('../../models/UserBehavior', () => ({
+  __esModule: true,
+  default: { findOne: (filter: unknown) => mocks.findOne(filter) },
+}));
+vi.mock('../../models/Like', () => ({ __esModule: true, default: { find: vi.fn() } }));
+vi.mock('../../models/Bookmark', () => ({ __esModule: true, default: { find: vi.fn() } }));
+
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
+import { userPreferenceService } from '../../services/UserPreferenceService';
 
 interface RegionPref {
   region: string;
@@ -39,28 +61,12 @@ interface MockBehavior {
   save: () => Promise<void>;
 }
 
-const mocks = vi.hoisted(() => ({
-  findById: vi.fn(),
-  findOne: vi.fn(),
-}));
-
-vi.mock('../../models/Post', () => ({
-  Post: { findById: (id: string) => ({ lean: () => mocks.findById(id) }) },
-}));
-vi.mock('../../models/UserBehavior', () => ({
-  __esModule: true,
-  default: {
-    findOne: (filter: unknown) => mocks.findOne(filter),
-  },
-}));
-vi.mock('../../models/Like', () => ({ __esModule: true, default: { find: vi.fn() } }));
-vi.mock('../../models/Bookmark', () => ({ __esModule: true, default: { find: vi.fn() } }));
-
-import { userPreferenceService } from '../../services/UserPreferenceService';
+const scope = serviceScope('user-pref-region');
+const VIEWER = scope.user('viewer');
 
 function makeBehavior(): MockBehavior {
   return {
-    oxyUserId: 'viewer-1',
+    oxyUserId: VIEWER,
     preferredAuthors: [],
     preferredTopics: [],
     preferredPostTypes: { text: 0, image: 0, video: 0, poll: 0 },
@@ -78,10 +84,23 @@ function makeBehavior(): MockBehavior {
 
 let behavior: MockBehavior;
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
+  await clearServiceScope(scope);
   behavior = makeBehavior();
   mocks.findOne.mockResolvedValue(behavior);
+});
+
+afterEach(async () => {
+  await clearServiceScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 function regionPref(code: string): RegionPref | undefined {
@@ -89,67 +108,65 @@ function regionPref(code: string): RegionPref | undefined {
 }
 
 describe('UserPreferenceService — region-affinity learning', () => {
-  it('learns a region from an engaged post that carries postClassification.region', async () => {
-    mocks.findById.mockResolvedValue({
-      _id: 'p1',
-      oxyUserId: 'author-1',
-      type: 'text',
-      hashtags: [],
+  it('learns a region from an engaged post whose stored classification carries one', async () => {
+    const post = await seedPost(scope, {
       postClassification: { status: 'baseline', topics: [], region: 'ES' },
     });
 
-    await userPreferenceService.recordInteraction('viewer-1', 'p1', 'like');
+    await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
 
     const pref = regionPref('ES');
     expect(pref).toBeDefined();
-    expect(pref?.count).toBeGreaterThan(0);
+    expect(pref?.count).toBe(1);
     expect(behavior.save).toHaveBeenCalledTimes(1);
   });
 
-  it('NO-OPs (learns no region) when the post has no region — the common case', async () => {
-    mocks.findById.mockResolvedValue({
-      _id: 'p2',
-      oxyUserId: 'author-1',
-      type: 'text',
-      hashtags: [],
-      postClassification: { status: 'baseline', topics: [] }, // region absent
+  it('NO-OPs (learns no region) when the stored post has no region — the common case', async () => {
+    const post = await seedPost(scope, {
+      postClassification: { status: 'baseline', topics: [] },
     });
 
-    await userPreferenceService.recordInteraction('viewer-1', 'p2', 'like');
+    await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
 
     expect(behavior.preferredRegions).toHaveLength(0);
+    // The interaction still landed — only the region accumulator stayed empty.
     expect(behavior.save).toHaveBeenCalledTimes(1);
   });
 
   it('NO-OPs for a negative signal (skip must not grow region interest)', async () => {
-    mocks.findById.mockResolvedValue({
-      _id: 'p3',
-      oxyUserId: 'author-1',
-      type: 'text',
-      hashtags: [],
+    const post = await seedPost(scope, {
       postClassification: { status: 'baseline', topics: [], region: 'DE' },
     });
 
-    await userPreferenceService.recordInteraction('viewer-1', 'p3', 'skip');
+    await userPreferenceService.recordInteraction(VIEWER, post.id, 'skip');
 
     expect(behavior.preferredRegions).toHaveLength(0);
   });
 
   it('accumulates the same region across multiple engagements (counted multiset)', async () => {
-    mocks.findById.mockResolvedValue({
-      _id: 'p4',
-      oxyUserId: 'author-1',
-      type: 'text',
-      hashtags: [],
+    const post = await seedPost(scope, {
       postClassification: { status: 'baseline', topics: [], region: 'US' },
     });
 
-    await userPreferenceService.recordInteraction('viewer-1', 'p4', 'like');
-    const firstCount = regionPref('US')?.count ?? 0;
-    await userPreferenceService.recordInteraction('viewer-1', 'p4', 'boost');
+    // The count accumulates the interaction WEIGHT, not a plain +1 — a like is
+    // 1.0 and a boost 2.0 — so the exact total is 3. Asserting the exact value
+    // rather than "greater than before" is what makes a weight silently
+    // collapsing to a constant visible.
+    await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
+    expect(regionPref('US')?.count).toBe(1);
+    await userPreferenceService.recordInteraction(VIEWER, post.id, 'boost');
 
     expect(behavior.preferredRegions).toHaveLength(1);
-    expect((regionPref('US')?.count ?? 0)).toBeGreaterThan(firstCount);
+    expect(regionPref('US')?.count).toBe(3);
+  });
+
+  it('learns nothing at all when the post id resolves to no row', async () => {
+    // The service must not invent an interaction for a post that is gone: a
+    // deleted post's id arriving from stale client telemetry is the real case.
+    await userPreferenceService.recordInteraction(VIEWER, '019000000000000000000000000', 'like');
+
+    expect(behavior.preferredRegions).toHaveLength(0);
+    expect(behavior.save).not.toHaveBeenCalled();
   });
 });
 

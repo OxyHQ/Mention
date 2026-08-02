@@ -2,10 +2,14 @@ import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
 import { logger } from '../../utils/logger';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import { setActorOxyUserId, upsertActor } from '../../db/federation/actorRepository';
-import { resolveOxyExternalUser } from '../identity';
-import type { NormalizedExternalActor } from '@oxyhq/federation';
+import { resolveFederatedActorIdentity } from '../identity';
+import {
+  BSKY_NETWORK_DOMAIN,
+  blueskyUsernameFromHandle,
+  type NormalizedExternalActor,
+} from '@oxyhq/federation';
 import { xrpcGet } from './xrpcClient';
-import { BSKY_NETWORK_DOMAIN, PUBLIC_APPVIEW } from './constants';
+import { PUBLIC_APPVIEW } from './constants';
 
 /**
  * Maps an `app.bsky.actor.getProfile` response into a network-neutral actor,
@@ -65,15 +69,13 @@ export interface AtprotoProfileView {
  * the full `local@domain`, not the domain alone.
  */
 export function splitHandle(handle: string): { username: string; domain: string; federatedUsername: string } {
-  // For a default Bluesky handle (`<username>.bsky.social`) the `.bsky.social`
-  // suffix is redundant once the instance domain is already `bsky.social`, so the
-  // username is the handle with that suffix stripped. A custom domain handle is not
-  // a `.bsky.social` handle, so its whole handle stays the username. Guard the
-  // degenerate `handle === 'bsky.social'` (stripping would leave an empty username)
-  // by keeping the full handle in that case.
-  const suffix = `.${BSKY_NETWORK_DOMAIN}`;
-  const username =
-    handle !== BSKY_NETWORK_DOMAIN && handle.endsWith(suffix) ? handle.slice(0, -suffix.length) : handle;
+  // The suffix rule itself lives in `@oxyhq/federation`'s bridge policy, beside
+  // the Bluesky network record this connector's instance domain now comes from.
+  // The same Bluesky account can also reach us over ActivityPub through Bridgy
+  // Fed, and that path derives its username with this very function — so if the
+  // two ever disagreed, one person would become two accounts. Sharing the rule
+  // is what makes them agree by construction rather than by review.
+  const username = blueskyUsernameFromHandle(handle);
   return {
     username,
     domain: BSKY_NETWORK_DOMAIN,
@@ -166,7 +168,13 @@ export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promis
   }
 
   const existingOxyId = fedActor?.oxyUserId ?? undefined;
-  const oxyId = await resolveOxyExternalUser({ ...actor, oxyUserId: existingOxyId });
+  // Routed through the shared merge rather than straight at the identity bridge:
+  // the SAME Bluesky account can also reach us over ActivityPub through Bridgy
+  // Fed, and whichever protocol arrives second must adopt the first's Oxy user
+  // instead of minting a second identity under a username that is uniquely
+  // indexed. Both directions have to go through it or the merge only works when
+  // the bridged copy happens to arrive last.
+  const oxyId = await resolveFederatedActorIdentity({ ...actor, oxyUserId: existingOxyId });
   if (!oxyId) {
     // Hard runtime dependency: oxy-api `PUT /users/resolve` must accept a `did:`
     // actorUri. Until it does this returns null — fail soft (no throw, no orphan).

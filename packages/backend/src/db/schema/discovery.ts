@@ -21,10 +21,14 @@ import {
   text,
   unique,
 } from 'drizzle-orm/pg-core';
+import { TREND_CATEGORIES } from '@mention/shared-types';
 import { createdAt, generatedId, inList, timestamptz, tsvector, updatedAt } from './columns';
 
 /** `TrendingType`. */
 export const TRENDING_TYPES = ['hashtag', 'topic', 'entity'] as const;
+
+/** `TrendStatus` — present only while a trend is bursting hard enough to say so. */
+export const TREND_STATUSES = ['hot'] as const;
 
 /** `NotificationType`. */
 export const NOTIFICATION_TYPES = [
@@ -58,6 +62,12 @@ export const PUSH_TOKEN_PLATFORMS = ['android', 'ios', 'unknown'] as const;
  * drift while both stores are live.
  */
 export const TRENDING_RETENTION_SECONDS = 90 * 24 * 60 * 60;
+/**
+ * 30 days. Long enough that a story people return to keeps its summary, short
+ * enough that a collection of one-off explanations for terms nobody will search
+ * again stays bounded.
+ */
+export const TREND_SUMMARY_RETENTION_SECONDS = 30 * 24 * 60 * 60;
 export const NOTIFICATION_RETENTION_SECONDS = 90 * 24 * 60 * 60;
 /** 30 days — `SNAPSHOT_TTL_SECONDS` in `models/AuthorFollowerSnapshot.ts`. */
 export const AUTHOR_FOLLOWER_SNAPSHOT_RETENTION_SECONDS = 30 * 24 * 60 * 60;
@@ -84,11 +94,68 @@ export const trending = pgTable(
   {
     id: generatedId(),
     type: text({ enum: TRENDING_TYPES }).notNull(),
+    /**
+     * The TERM — the retrieval key. Lowercase, possibly a phrase, and what the
+     * `trend|<name>` feed matches posts against. Not for display: see
+     * {@link trending.displayName}.
+     */
     name: text().notNull(),
+    /**
+     * What a reader is shown ("Kremer Trade" for the term `orioles`).
+     *
+     * NULLABLE only because the table retains 90 days of rows written before
+     * trends had labels; every row written from now on carries one. Readers fall
+     * back to `name` — exactly the old behaviour for an old row, and never a
+     * fabricated label.
+     */
+    displayName: text(),
+    /** Coarse taxonomy hint shown under the label. NULL on pre-label rows. */
+    category: text({ enum: TREND_CATEGORIES }),
+    /**
+     * Which labelling rules produced {@link trending.displayName}. A label from
+     * older rules is re-derived rather than carried forward for the rest of the run.
+     */
+    labelVersion: integer(),
+    /**
+     * The primary languages of the posts behind this term (ISO 639-1).
+     *
+     * A trend is not language-neutral — `noticia` is a Spanish story and reading
+     * it in an Italian list is noise — so the languages travel with the row and
+     * the reader's own are matched against them. NULL on rows written before
+     * trending measured language, which simply match every reader.
+     */
+    languages: text().array(),
     description: text().notNull().default(''),
     score: doublePrecision().notNull(),
+    /** Posts carrying the term in the trailing window. */
     volume: integer().notNull().default(0),
+    /**
+     * DISTINCT authors behind those posts. Stored alongside `volume` because it,
+     * not the post count, is what the reporting floor is applied to — keeping it
+     * makes a stored row explain why it qualified.
+     */
+    authorCount: integer(),
+    /**
+     * How far above its own baseline the term landed, in standard deviations —
+     * the actual trend measurement (`score` only orders it). NULL on rows written
+     * before detection became a burst statistic.
+     */
+    burstScore: doublePrecision(),
     momentum: doublePrecision().notNull().default(0),
+    /**
+     * When the CURRENT run of this trend began — reconstructed from the batches
+     * it has appeared in, not from when this row was written. Drives the client's
+     * `new` badge and its age label. NULL on pre-onset rows.
+     */
+    startedAt: timestamptz(),
+    /** Present only while the trend is bursting hard enough to be called out. */
+    status: text({ enum: TREND_STATUSES }),
+    /**
+     * A few of the accounts behind the trend, for the faces shown beside it.
+     * Evidence that real people are posting, not a directory — capped at
+     * `MtnConfig.trending.detection.maxActors`. Oxy account ids, no foreign key.
+     */
+    actorIds: text().array(),
     rank: integer().notNull(),
     /** An Oxy Topic-registry id — no foreign key (the registry lives in Oxy). */
     topicId: text(),
@@ -98,6 +165,14 @@ export const trending = pgTable(
   },
   (t) => [
     check('trending_type_check', sql`${t.type} in (${sql.raw(inList(TRENDING_TYPES))})`),
+    check(
+      'trending_category_check',
+      sql`${t.category} is null or ${t.category} in (${sql.raw(inList(TREND_CATEGORIES))})`
+    ),
+    check(
+      'trending_status_check',
+      sql`${t.status} is null or ${t.status} in (${sql.raw(inList(TREND_STATUSES))})`
+    ),
     check('trending_volume_check', sql`${t.volume} >= 0`),
     unique('trending_name_calculated_at_type_key').on(t.name, t.calculatedAt, t.type),
     // Latest batch + history browsing.
@@ -108,6 +183,41 @@ export const trending = pgTable(
     index('trending_topic_id_idx')
       .on(t.topicId)
       .where(sql`${t.topicId} is not null`),
+  ]
+);
+
+/**
+ * `trend_summaries` — one generated explanation per (term, run).
+ *
+ * `run_started_at` is part of the IDENTITY, not metadata: `orioles` is a trade
+ * this week and a no-hitter next month, so a summary written for one would be
+ * actively wrong for the other and keying on the term alone would serve it
+ * anyway. A new run therefore earns a new summary, and has to clear the demand
+ * threshold again to get one.
+ *
+ * The unique constraint is what makes generation idempotent BY CONSTRUCTION: a
+ * race between two tasks that both cleared the threshold ends with one insert
+ * and one unique violation, never two generations stored.
+ *
+ * `generated_at` is the expiry column — see `db/expiry.ts` (30 days). Derived
+ * text, so losing an old one costs nothing but a regeneration that demand would
+ * have to justify all over again.
+ */
+export const trendSummaries = pgTable(
+  'trend_summaries',
+  {
+    id: generatedId(),
+    /** The trending term this explains. */
+    term: text().notNull(),
+    /** Onset of the RUN the summary was written for. */
+    runStartedAt: timestamptz().notNull(),
+    description: text().notNull(),
+    generatedAt: timestamptz().notNull(),
+  },
+  (t) => [
+    unique('trend_summaries_term_run_started_at_key').on(t.term, t.runStartedAt),
+    // Required by the expiry sweep.
+    index('trend_summaries_generated_at_idx').on(t.generatedAt),
   ]
 );
 
@@ -283,8 +393,22 @@ export const notifications = pgTable(
       sql`${t.entityType} in (${sql.raw(inList(NOTIFICATION_ENTITY_TYPES))})`
     ),
     unique('notifications_dedup_key').on(t.recipientId, t.actorId, t.type, t.entityId),
-    // The keyset-paginated list: filter on recipient, order by id descending.
-    index('notifications_recipient_keyset_idx').on(t.recipientId, t.id.desc()),
+    /**
+     * The keyset-paginated list: filter on recipient, order by
+     * `(created_at DESC, id DESC)` — the same pair the cursor carries, so the
+     * index serves the whole page without a sort.
+     *
+     * It used to be `(recipient_id, id DESC)`, and that was only ever correct
+     * while `id DESC` WAS chronological order. It stopped being: `id` is `text`
+     * holding a 24-char ObjectId hex before the cutover and a uuid v7 after, and
+     * `'0' < '6'` under the database's collation, so ordering on it alone put
+     * every post-cutover notification below every pre-cutover one. The `id` half
+     * stays as the TIEBREAK, where the collation order does not matter because
+     * the ORDER BY and the keyset comparison agree on it — `created_at` defaults
+     * to `date_trunc('milliseconds', now())`, so rows written in one millisecond
+     * or one transaction share it exactly and something has to break the tie.
+     */
+    index('notifications_recipient_keyset_idx').on(t.recipientId, t.createdAt.desc(), t.id.desc()),
     // The unread badge.
     index('notifications_recipient_unread_idx')
       .on(t.recipientId, t.createdAt.desc())

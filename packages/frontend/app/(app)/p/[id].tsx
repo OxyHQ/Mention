@@ -17,7 +17,7 @@ import { PanelStickyFooter } from '@/components/shell/PanelChrome';
 import { useBottomBarReservedSpace } from '@/components/BottomBar';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { useThreadPreferences, SORT_TO_API } from '@/hooks/useThreadPreferences';
-import { usePostsStore, usePostSelector } from '@/stores/postsStore';
+import { applyServerViewCounts, usePostsStore, usePostSelector } from '@/stores/postsStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import ReplyPreferencesSheet from '@/components/ReplyPreferencesSheet';
 import type {
@@ -35,9 +35,13 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { insightsService } from '@/services/insightsService';
 import { feedService } from '@/services/feedService';
+import { socketService } from '@/services/socketService';
 import { SEO } from '@/components/SEO';
+import { createLogger } from '@oxyhq/core/logger';
 
 type PostDetailEntity = HydratedPost | Reply | Boost;
+
+const postDetailLogger = createLogger('PostDetail');
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -161,6 +165,25 @@ const PostDetailScreen: React.FC = () => {
         if (composeReplyTargetId) router.push(`/compose?replyToPostId=${composeReplyTargetId}`);
     }, [composeReplyTargetId]);
 
+    // Watch this post's engagement counters for as long as it is on screen.
+    //
+    // This is the one surface where a stale count is conspicuous: the reader is
+    // looking at a single post, often for minutes, and someone else's like or
+    // reply lands under their eyes. Feeds deliberately do NOT subscribe — a
+    // screenful of posts would be a room each, and a number a few seconds old in
+    // a scrolling list is not the same problem.
+    //
+    // A genuine external subscription, hence an effect. The server re-checks
+    // that this viewer may read the post before admitting the socket, so the id
+    // in the URL grants nothing on its own.
+    useEffect(() => {
+        const postId = String(id ?? '');
+        if (!postId || !user) return;
+
+        socketService.joinPost(postId);
+        return () => socketService.leavePost(postId);
+    }, [id, user]);
+
     // Load the post. When the feed already cached it, the post is rendered
     // synchronously above (`cachedPost`) and this effect only revalidates it in
     // the background (stale-while-revalidate) — no spinner, no blocking fetch.
@@ -182,9 +205,21 @@ const PostDetailScreen: React.FC = () => {
         // Likewise drop the previous post's continuation spine.
         setContinuations([]);
 
-        // Track view in background (non-blocking) regardless of cache state.
+        // Track view in background (non-blocking) regardless of cache state. The
+        // ack carries the post's fresh total — the server reads it back
+        // specifically to return it — so it goes into the shared cache rather
+        // than being dropped: this screen renders that number, and the view it
+        // just recorded is precisely the one it would otherwise be missing.
         if (user) {
-            insightsService.trackPostView(postId).catch(() => {});
+            insightsService
+                .trackPostView(postId)
+                .then((ack) => applyServerViewCounts({ [postId]: ack.viewsCount }))
+                .catch((error) => {
+                    // View tracking is best-effort and must never reach the
+                    // reader, but a count that silently stops updating should
+                    // still be diagnosable.
+                    postDetailLogger.debug('Post view tracking failed', { error });
+                });
         }
 
         // Fetch the author's self-thread continuation spine (root → c1 … cN) ONLY

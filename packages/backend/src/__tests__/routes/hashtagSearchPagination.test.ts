@@ -1,82 +1,150 @@
-import express from 'express';
-import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 /**
- * Route coverage for `GET /hashtags/search` offset pagination.
+ * Route coverage for `GET /hashtags/search` offset pagination, against REAL ROWS.
  *
- * The handler was hard-capped at 5 tags with no offset. It now over-fetches one
- * row past `limit` to detect `hasMore` and pages via `$skip`/`$limit` on a stable
- * `{ count desc, tag asc }` sort. The aggregation is mocked to a fixed, already
- * ranked result set so the test asserts the handler's window + `hasMore` logic
- * (and that the offset/limit actually reach the pipeline).
+ * The handler over-fetches one row past `limit` to detect `hasMore` and pages
+ * with a stable `{ count desc, tag asc }` sort. The previous version mocked the
+ * aggregation and re-implemented `$skip`/`$limit` in the mock, so it asserted
+ * that the handler had BUILT a pipeline — it could not distinguish the real
+ * `GROUP BY` over `unnest(hashtags)` from one that returns nothing, and it could
+ * not see the tie-break at all, because the mock handed back an already-ranked
+ * list. The tie-break is the reason offset paging is safe here: two tags with
+ * equal counts and no deterministic second key can swap between pages, which
+ * shows up as a repeated or a skipped tag and never as an error.
  */
 
-const { aggregate } = vi.hoisted(() => ({ aggregate: vi.fn() }));
+import express from 'express';
+import request from 'supertest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
-vi.mock('../../models/Post', () => ({ default: { aggregate } }));
-
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import hashtagsRoutes from '../../routes/hashtags';
 
 const app = express();
 app.use(express.json());
 app.use('/hashtags', hashtagsRoutes);
 
-// Ranked tags the aggregation would return (count desc). The mock applies only the
-// pipeline's $skip/$limit — every seeded tag is treated as matching the query.
-const RANKED = Array.from({ length: 5 }, (_, i) => ({ tag: `tag${i}`, count: 100 - i }));
+const scope = postScope('hashtag-search');
 
-function pipelineStage(pipeline: Array<Record<string, unknown>>, op: string): Record<string, unknown> | undefined {
-  return pipeline.find((stage) => op in stage);
+/**
+ * A tag unique to this file, since one database serves the whole parallel run
+ * and the handler ranks across every public post in it. The prefix is what keeps
+ * another suite's `#test` out of these pages.
+ */
+const PREFIX = 'hstagfixture';
+
+/** Zero-padded, so alphabetical order and numeric order agree past nine. */
+function pad(index: number): string {
+  return String(index).padStart(2, '0');
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  aggregate.mockImplementation((pipeline: Array<Record<string, unknown>>) => {
-    const skip = Number(pipelineStage(pipeline, '$skip')?.$skip ?? 0);
-    const limit = Number(pipelineStage(pipeline, '$limit')?.$limit ?? RANKED.length);
-    return Promise.resolve(RANKED.slice(skip, skip + limit));
-  });
-});
-
 describe('GET /hashtags/search — pagination', () => {
+  beforeAll(async () => {
+    await connectPostgres();
+  });
+
+  afterEach(async () => {
+    await clearPostScope(scope);
+  });
+
+  afterAll(async () => {
+    await closePostgres();
+  });
+
+  /**
+   * `counts[i]` posts carrying `<PREFIX>i`, so the ranking is known exactly.
+   *
+   * Inserted in DESCENDING tag order on purpose. With equal counts, a query
+   * whose sort has no tie-break returns whatever order the scan produced —
+   * which is insertion order — so seeding alphabetically would let a missing
+   * `tag asc` produce the right answer by accident. Verified: dropping the
+   * tie-break passes when these are inserted in order and fails when they are
+   * not.
+   */
+  async function seedTags(counts: number[]): Promise<void> {
+    for (let index = counts.length - 1; index >= 0; index -= 1) {
+      for (let n = 0; n < counts[index]; n += 1) {
+        await seedPost(scope, { hashtags: [`${PREFIX}${pad(index)}`] });
+      }
+    }
+  }
+
+  async function page(query: Record<string, string | number>) {
+    const res = await request(app).get('/hashtags/search').query(query).expect(200);
+    return {
+      tags: (res.body.hashtags as Array<{ tag: string }>).map((row) => row.tag),
+      counts: (res.body.hashtags as Array<{ count: number }>).map((row) => row.count),
+      pagination: res.body.pagination as { offset: number; limit: number; hasMore: boolean },
+    };
+  }
+
   it('rejects a missing query with 400', async () => {
     await request(app).get('/hashtags/search').expect(400);
   });
 
-  it('over-fetches to report hasMore and returns exactly `limit` rows on a full page', async () => {
-    const res = await request(app).get('/hashtags/search').query({ query: 'tag', limit: 2, offset: 0 }).expect(200);
+  it('ranks by post count and reports the real count per tag', async () => {
+    await seedTags([3, 1, 2]);
 
-    expect(res.body.hashtags.map((h: { tag: string }) => h.tag)).toEqual(['tag0', 'tag1']);
-    expect(res.body.pagination).toMatchObject({ offset: 0, limit: 2, hasMore: true });
+    const { tags, counts } = await page({ query: PREFIX, limit: 10 });
 
-    // The over-fetch (`limit + 1`) and the offset both reach the aggregation.
-    const pipeline = aggregate.mock.calls[0][0] as Array<Record<string, unknown>>;
-    expect(pipelineStage(pipeline, '$skip')).toEqual({ $skip: 0 });
-    expect(pipelineStage(pipeline, '$limit')).toEqual({ $limit: 3 });
-    expect(pipelineStage(pipeline, '$sort')).toEqual({ $sort: { count: -1, _id: 1 } });
+    expect(tags).toEqual([`${PREFIX}00`, `${PREFIX}02`, `${PREFIX}01`]);
+    expect(counts).toEqual([3, 2, 1]);
   });
 
-  it('pages with a stable order and never repeats a tag', async () => {
+  it('over-fetches to report hasMore and returns exactly `limit` rows on a full page', async () => {
+    await seedTags([3, 2, 1]);
+
+    const { tags, pagination } = await page({ query: PREFIX, limit: 2, offset: 0 });
+
+    expect(tags).toEqual([`${PREFIX}00`, `${PREFIX}01`]);
+    expect(pagination).toMatchObject({ offset: 0, limit: 2, hasMore: true });
+  });
+
+  it('pages with a stable order and never repeats or skips a tag', async () => {
+    // Every count is EQUAL, so the count sort alone cannot order these — only
+    // the `tag asc` tie-break can. Distinct counts would make this test pass
+    // against a handler with no tie-break at all.
+    //
+    // TWELVE of them, not five: with a handful of groups Postgres returns them
+    // in an order that happens to be alphabetical anyway, so dropping the
+    // tie-break passed this test at five tags. Enough groups to make the
+    // aggregate's output order genuinely arbitrary is what gives the assertion
+    // something to catch — verified by re-running the mutation at both sizes.
+    const TAGS = 12;
+    await seedTags(Array.from({ length: TAGS }, () => 1));
+    const expected = Array.from({ length: TAGS }, (_, index) => `${PREFIX}${pad(index)}`);
+
     const seen: string[] = [];
     let offset = 0;
     let guard = 0;
 
     for (;;) {
-      const res = await request(app).get('/hashtags/search').query({ query: 'tag', limit: 2, offset }).expect(200);
-      seen.push(...res.body.hashtags.map((h: { tag: string }) => h.tag));
-      if (!res.body.pagination.hasMore) break;
-      offset = res.body.pagination.offset + res.body.pagination.limit;
-      if (++guard > 10) throw new Error('pagination did not terminate');
+      const { tags, pagination } = await page({ query: PREFIX, limit: 2, offset });
+      seen.push(...tags);
+      if (!pagination.hasMore) break;
+      offset = pagination.offset + pagination.limit;
+      if ((guard += 1) > 10) throw new Error('pagination did not terminate');
     }
 
-    expect(seen).toEqual(['tag0', 'tag1', 'tag2', 'tag3', 'tag4']);
+    expect(seen).toEqual(expected);
     expect(new Set(seen).size).toBe(seen.length);
   });
 
   it('reports hasMore=false when the result set fits within the default page', async () => {
-    const res = await request(app).get('/hashtags/search').query({ query: 'tag' }).expect(200);
-    expect(res.body.hashtags).toHaveLength(5);
-    expect(res.body.pagination.hasMore).toBe(false);
+    await seedTags([2, 1]);
+
+    const { tags, pagination } = await page({ query: PREFIX });
+
+    expect(tags).toHaveLength(2);
+    expect(pagination.hasMore).toBe(false);
+  });
+
+  it('never ranks a hashtag that only appears on a non-public post', async () => {
+    await seedPost(scope, { hashtags: [`${PREFIX}public`] });
+    await seedPost(scope, { hashtags: [`${PREFIX}private`], visibility: 'private' });
+
+    const { tags } = await page({ query: PREFIX, limit: 10 });
+
+    expect(tags).toEqual([`${PREFIX}public`]);
   });
 });

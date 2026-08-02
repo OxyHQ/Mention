@@ -93,12 +93,6 @@ vi.mock('../../../models/Like', () => ({
   },
 }));
 
-vi.mock('../../../models/UserSettings', () => ({
-  default: {
-    updateOne: vi.fn(),
-  },
-}));
-
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: mocks.getServiceOxyClient,
 }));

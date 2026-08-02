@@ -29,7 +29,7 @@ import type { ComposerMediaItem } from '@/utils/composeUtils';
 import type { MentionTextValue } from '@/utils/mentions';
 import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
-import { HPAD, BOTTOM_LEFT_PAD, TIMELINE_LINE_OFFSET } from './composeLayout';
+import { HPAD, BOTTOM_LEFT_PAD } from './composeLayout';
 
 /**
  * The exact slice of the composer's stylesheet this row renders with. The
@@ -189,16 +189,13 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
   const handleSensitiveToggle = useCallback(() => onSensitiveToggle(threadId), [threadId, onSensitiveToggle]);
   const handleTextInputRef = useCallback((el: MentionTextInputHandle | null) => textInputRef(threadId, el), [threadId, textInputRef]);
 
-  // Memoize connector line styles
-  const connectorAboveStyle = useMemo(() => [
-    styles.itemConnectorLineAbove,
-    { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` },
-  ], [styles.itemConnectorLineAbove, theme.colors.primary]);
-
-  const connectorBelowStyle = useMemo(() => [
-    styles.itemConnectorLine,
-    { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` },
-  ], [styles.itemConnectorLine, theme.colors.primary]);
+  /**
+   * The line between avatars says "this post continues the one above it", which
+   * is true in THREAD mode and false in beast mode, where every post is
+   * independent and just happens to be composed alongside the others. Drawing it
+   * there claims a relationship the posts will not have once they go out.
+   */
+  const showTimeline = postingMode === 'thread';
 
   const containerStyle = useMemo(() => [
     styles.postContainer,
@@ -216,8 +213,18 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
 
   return (
     <View style={containerStyle}>
-      <View style={connectorAboveStyle} />
-      <View style={connectorBelowStyle} />
+      {showTimeline ? (
+        <>
+          {/* The connector's colour is the className, never an interpolated
+              hex-alpha suffix on `theme.colors.primary` — that token resolves to
+              `rgb(0 98 157)`, so `${primary}30` yields a malformed string
+              react-native-web reads back as FULLY OPAQUE, painting a solid bar
+              instead of the faint line. Geometry (incl. `left`) lives in the
+              composer's own sheet entries. */}
+          <View className="bg-primary/20" style={styles.itemConnectorLineAbove} />
+          <View className="bg-primary/20" style={styles.itemConnectorLine} />
+        </>
+      ) : null}
       <View style={styles.threadItemWithTimeline}>
         <View style={headerRowStyle}>
           <TouchableOpacity activeOpacity={0.7}>

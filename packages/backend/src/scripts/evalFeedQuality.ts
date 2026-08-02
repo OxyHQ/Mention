@@ -639,10 +639,11 @@ async function main(): Promise<void> {
   const mongoose = (await import('mongoose')).default;
   const { logger } = await import('../utils/logger');
   const { MtnConfig } = await import('@mention/shared-types');
-  const { Post } = await import('../models/Post');
   const { findActorByAcct, findActorByUri, findActorsByUris } = await import('../db/federation/actorRepository');
   const { connectPostgres, closePostgres } = await import('../db/postgres');
-  const { FEED_FIELDS } = await import('../mtn/feed/FeedAPI');
+  const { and, eq, isNotNull, or, sql } = await import('drizzle-orm');
+  const { posts } = await import('../db/schema/posts');
+  const { CHRONO_DESC, findPostRecords, loadPostRecord } = await import('../db/posts/postRepository');
   const { baselineContentClassifier } = await import('../services/BaselineContentClassifier');
   const { feedRankingService } = await import('../services/FeedRankingService');
   const { registerAllModules } = await import('../mtn/feed/engine');
@@ -690,20 +691,26 @@ async function main(): Promise<void> {
         return doc ? toActor(doc) : null;
       },
       async findRecentPostsForActor(actor, limit) {
-        const or: Record<string, unknown>[] = [{ 'federation.actorUri': actor.uri }];
-        if (actor.oxyUserId) or.push({ oxyUserId: actor.oxyUserId });
-        return Post.find({ $or: or, visibility: 'public', status: 'published' })
-          .select(FEED_FIELDS)
-          .sort({ createdAt: -1 })
-          .limit(limit)
-          .lean<CandidatePost[]>();
+        const byActor = actor.oxyUserId
+          ? or(eq(posts.federationActorUri, actor.uri), eq(posts.oxyUserId, actor.oxyUserId))
+          : eq(posts.federationActorUri, actor.uri);
+        return findPostRecords(
+          and(byActor, eq(posts.visibility, 'public'), eq(posts.status, 'published')),
+          { orderBy: CHRONO_DESC, limit },
+        );
       },
       async findPostById(postId) {
-        if (!mongoose.isValidObjectId(postId)) return null;
-        return Post.findOne({ _id: postId }).select(FEED_FIELDS).lean<CandidatePost | null>();
+        // No id-shape guard: `posts.id` is `text`, so an id of any shape simply
+        // matches no row — and an ObjectId test would have refused every post
+        // created since the cutover.
+        return loadPostRecord(postId);
       },
       async findPostByActivityId(activityId) {
-        return Post.findOne({ 'federation.activityId': activityId }).select(FEED_FIELDS).lean<CandidatePost | null>();
+        const [row] = await findPostRecords(eq(posts.federationActivityId, activityId), {
+          orderBy: CHRONO_DESC,
+          limit: 1,
+        });
+        return row ?? null;
       },
       actorUriOf: (post) => federationActorUri(post),
     };
@@ -711,10 +718,17 @@ async function main(): Promise<void> {
     logger.info(`[evalFeedQuality] resolved ${labeledPosts.length} labeled posts`);
 
     // ---- Bounded random federated sample ----
-    const randomSample = await Post.aggregate<CandidatePost>([
-      { $match: { federation: { $ne: null }, visibility: 'public', status: 'published' } },
-      { $sample: { size: args.sampleSize } },
-    ]);
+    // `is not null`, never `<> null`: Mongo's `$ne: null` also matched a MISSING
+    // subdocument, while SQL's `<>` against NULL matches nothing — the literal
+    // translation would draw an empty sample and silently evaluate nothing.
+    const randomSample = await findPostRecords(
+      and(
+        isNotNull(posts.federationActivityId),
+        eq(posts.visibility, 'public'),
+        eq(posts.status, 'published'),
+      ),
+      { orderBy: [sql`random()`], limit: args.sampleSize },
+    );
     logger.info(`[evalFeedQuality] drew ${randomSample.length} random federated posts`);
 
     // ---- Optional real For You pool for --viewer ----

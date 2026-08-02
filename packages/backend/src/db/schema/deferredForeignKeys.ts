@@ -133,6 +133,15 @@ export function isOxyAccountColumn(column: PgColumn): boolean {
  */
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
   {
+    table: trending,
+    column: trending.actorIds,
+    reason:
+      'A SAMPLE of the Oxy accounts behind a trend — evidence that real people ' +
+      'are posting, not a relation. It is an array rather than a join table for ' +
+      'the same reason: nothing ever queries a trend BY actor, and there is no ' +
+      'users table for the ids to point at.',
+  },
+  {
     table: gifs,
     column: gifs.klipyId,
     reason:

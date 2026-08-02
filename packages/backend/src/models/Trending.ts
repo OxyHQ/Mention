@@ -1,4 +1,6 @@
 import mongoose, { Document, Schema } from "mongoose";
+import { TREND_CATEGORIES } from "@mention/shared-types";
+import type { TrendCategory, TrendStatus } from "@mention/shared-types";
 
 export enum TrendingType {
   HASHTAG = 'hashtag',
@@ -31,11 +33,68 @@ export const TRENDING_TTL_SECONDS = 90 * 24 * 60 * 60;
 export interface TrendingRecord {
   _id: mongoose.Types.ObjectId;
   type: TrendingType;
+  /**
+   * The TERM — the retrieval key. Lowercase, possibly a phrase, and what the
+   * `trend|<name>` feed matches posts against. Not for display: see
+   * {@link TrendingRecord.displayName}.
+   */
   name: string;
+  /**
+   * What a reader is shown ("Kremer Trade" for the term `orioles`).
+   *
+   * OPTIONAL only because the collection retains 90 days of rows written before
+   * trends had labels; every row written from now on carries one (the schema
+   * requires it). Readers fall back to `name` — which is exactly the old
+   * behaviour for an old row, and never a fabricated label.
+   */
+  displayName?: string;
+  /** Coarse taxonomy hint shown under the label. Absent on pre-label rows. */
+  category?: TrendCategory;
+  /**
+   * The primary languages of the posts behind this term (ISO 639-1).
+   *
+   * A trend is not language-neutral — `noticia` is a Spanish story and reading
+   * it in an Italian list is noise — so the languages travel with the row and
+   * the reader's own are matched against them. Absent on rows written before
+   * trending measured language, which simply match every reader.
+   */
+  languages?: string[];
+  /**
+   * Which labelling rules produced {@link displayName}. A label from older rules
+   * is re-derived rather than carried forward for the rest of the run.
+   */
+  labelVersion?: number;
   description: string;
   score: number;
+  /** Posts carrying the term in the trailing window. */
   volume: number;
+  /**
+   * DISTINCT authors behind those posts. Stored alongside `volume` because it,
+   * not the post count, is what the reporting floor is applied to — keeping it
+   * makes a stored row explain why it qualified.
+   */
+  authorCount?: number;
+  /**
+   * How far above its own baseline the term landed, in standard deviations —
+   * the actual trend measurement (`score` only orders it). Absent on rows
+   * written before detection became a burst statistic.
+   */
+  burstScore?: number;
   momentum: number;
+  /**
+   * When the CURRENT run of this trend began — reconstructed from the batches it
+   * has appeared in, not from when this row was written. Drives the client's
+   * `new` badge and its age label. Absent on pre-onset rows.
+   */
+  startedAt?: Date;
+  /** Present only while the trend is bursting hard enough to be called out. */
+  status?: TrendStatus;
+  /**
+   * A few of the accounts behind the trend, for the faces shown beside it.
+   * Evidence that real people are posting, not a directory — capped at
+   * `MtnConfig.trending.detection.maxActors`.
+   */
+  actorIds?: string[];
   rank: number;
   topicId?: mongoose.Types.ObjectId;
   calculatedAt: Date;
@@ -58,6 +117,24 @@ const TrendingSchema = new Schema({
     type: String,
     required: true,
   },
+  // Required for every NEW row: a trend a reader cannot read is not a trend.
+  // Pre-existing rows predate labels and simply lack it (Mongoose validates on
+  // write, never on read), which is why the read type keeps it optional.
+  displayName: {
+    type: String,
+    required: true,
+  },
+  category: {
+    type: String,
+    enum: TREND_CATEGORIES,
+  },
+  labelVersion: {
+    type: Number,
+  },
+  languages: {
+    type: [String],
+    default: undefined,
+  },
   description: {
     type: String,
     default: '',
@@ -72,10 +149,27 @@ const TrendingSchema = new Schema({
     required: true,
     default: 0,
   },
+  authorCount: {
+    type: Number,
+  },
+  burstScore: {
+    type: Number,
+  },
   momentum: {
     type: Number,
     required: true,
     default: 0,
+  },
+  startedAt: {
+    type: Date,
+  },
+  status: {
+    type: String,
+    enum: ['hot'],
+  },
+  actorIds: {
+    type: [String],
+    default: undefined,
   },
   rank: {
     type: Number,

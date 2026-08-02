@@ -26,13 +26,11 @@ const {
   enqueueDelivery,
   isFediverseSharingEnabled,
   getUserById,
-  postFindByIdLean,
   insertMany,
 } = vi.hoisted(() => ({
   enqueueDelivery: vi.fn(),
   isFediverseSharingEnabled: vi.fn(),
   getUserById: vi.fn(),
-  postFindByIdLean: vi.fn(),
   insertMany: vi.fn(),
 }));
 
@@ -47,9 +45,6 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({ getPublicKey: vi.fn()
 vi.mock('../../../queue/producers', () => ({ enqueueDelivery, enqueueInboxActivity: vi.fn() }));
 vi.mock('../../../models/FederationDeliveryQueue', () => ({
   default: { insertMany, create: vi.fn() },
-}));
-vi.mock('../../../models/Post', () => ({
-  Post: { findById: () => ({ select: () => ({ lean: () => postFindByIdLean() }) }) },
 }));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
@@ -68,8 +63,10 @@ import {
   federationScope,
   seedActor,
   seedFollowerWithInbox,
+  seedPost,
 } from '../../helpers/federationFixtures';
 import { followService } from '../../../connectors/activitypub/follow.service';
+import type { PostRecord } from '../../../db/posts/postRecord';
 import { deliveryService } from '../../../connectors/activitypub/delivery.service';
 
 const ISO = '2024-05-06T07:08:09.000Z';
@@ -93,10 +90,17 @@ const ORIGIN_INBOX = `${scope.origin}/origin-inbox`;
 const ORIGIN_NOTE = `${ORIGIN_ACTOR}/statuses/9`;
 const EXTRA_INBOX = 'https://bar.example/inbox';
 
-/** The FEDERATED boosted original + its author's actor row (the extra inbox). */
-async function seedFederatedOriginal(): Promise<void> {
-  postFindByIdLean.mockResolvedValue({
-    oxyUserId: 'orig-owner',
+/**
+ * The FEDERATED boosted original + its author's actor row (the extra inbox).
+ *
+ * A real mirrored post row: `resolveFederationTarget` reads its stored
+ * `federation.activity_id` to decide the Announce's `object`, so a stub here
+ * could not tell a working lookup from one that finds nothing — and a boost
+ * whose object silently resolves to null is one no remote server can render.
+ */
+async function seedFederatedOriginal(): Promise<PostRecord> {
+  const original = await seedPost(scope, {
+    oxyUserId: scope.user('orig-owner'),
     federation: { activityId: ORIGIN_NOTE, actorUri: ORIGIN_ACTOR },
   });
   await seedActor(scope, {
@@ -105,6 +109,7 @@ async function seedFederatedOriginal(): Promise<void> {
     sharedInboxUrl: ORIGIN_INBOX,
     inboxUrl: ORIGIN_INBOX,
   });
+  return original;
 }
 
 const USER_AUTHOR_OXY = scope.user('author-oxy');
@@ -122,7 +127,6 @@ beforeEach(async () => {
   await clearFederationScope(scope);
   enqueueDelivery.mockResolvedValue(true);
   isFediverseSharingEnabled.mockResolvedValue(true);
-  postFindByIdLean.mockResolvedValue(null);
   getUserById.mockResolvedValue({ id: 'u', username: 'bob' });
 });
 
@@ -169,12 +173,15 @@ describe('deliverToFollowers — addressing extension', () => {
 
 describe('federateBoost — Announce', () => {
   it('announces a boost of a FEDERATED original to followers + the original author inbox', async () => {
-    await seedFederatedOriginal();
+    const original = await seedFederatedOriginal();
     // The booster's own remote follower.
     const followerInbox = await seedFollowerWithInbox(scope, USER_BOOSTER_OXY, { username: 'x' });
 
     await followService.federateBoost(
-      { _id: 'boost1', boostOf: 'orig1', createdAt: ISO },
+      // `federateBoost` takes the SDK's `LocalBoostEventPayload`, which still
+      // spells the id `_id` — the one shape on this path that is NOT a
+      // `NoteSourcePost`. `boostOf` is a real Mention post id either way.
+      { _id: 'boost1', boostOf: original.id, createdAt: ISO },
       USER_BOOSTER_OXY,
       'alice',
     );
@@ -193,47 +200,57 @@ describe('federateBoost — Announce', () => {
   });
 
   it('announces a boost of a LOCAL original with the minted note URI and no extra inbox', async () => {
-    postFindByIdLean.mockResolvedValue({ oxyUserId: 'local-owner-id', federation: undefined });
+    const owner = scope.user('local-owner-id');
+    const original = await seedPost(scope, { oxyUserId: owner });
     // The local original's author username, resolved server-side.
-    getUserById.mockResolvedValue({ id: 'local-owner-id', username: 'bob' });
+    getUserById.mockResolvedValue({ id: owner, username: 'bob' });
     const followerInbox = await seedFollowerWithInbox(scope, USER_BOOSTER_OXY, { username: 'x' });
 
     await followService.federateBoost(
-      { _id: 'boost1', boostOf: 'orig1', createdAt: ISO },
+      // `federateBoost` takes the SDK's `LocalBoostEventPayload`, which still
+      // spells the id `_id` — the one shape on this path that is NOT a
+      // `NoteSourcePost`. `boostOf` is a real Mention post id either way.
+      { _id: 'boost1', boostOf: original.id, createdAt: ISO },
       USER_BOOSTER_OXY,
       'alice',
     );
 
-    expect(getUserById).toHaveBeenCalledWith('local-owner-id');
+    expect(getUserById).toHaveBeenCalledWith(owner);
     const activity = deliveredActivity();
     expect(activity.type).toBe('Announce');
-    expect(activity.object).toBe('https://mention.earth/ap/users/bob/posts/orig1');
+    expect(activity.object).toBe(`https://mention.earth/ap/users/bob/posts/${original.id}`);
     expect(activity.cc).toEqual([ALICE_FOLLOWERS, 'https://mention.earth/ap/users/bob']);
     // A local original has no remote inbox — only the booster's follower is hit.
     expect(deliveredInboxes()).toEqual([followerInbox]);
   });
 
   it('skips federation entirely when the booster has sharing disabled', async () => {
+    const original = await seedFederatedOriginal();
     isFediverseSharingEnabled.mockResolvedValue(false);
 
     await followService.federateBoost(
-      { _id: 'boost1', boostOf: 'orig1', createdAt: ISO },
+      // `federateBoost` takes the SDK's `LocalBoostEventPayload`, which still
+      // spells the id `_id` — the one shape on this path that is NOT a
+      // `NoteSourcePost`. `boostOf` is a real Mention post id either way.
+      { _id: 'boost1', boostOf: original.id, createdAt: ISO },
       USER_BOOSTER_OXY,
       'alice',
     );
 
-    expect(postFindByIdLean).not.toHaveBeenCalled();
     expect(enqueueDelivery).not.toHaveBeenCalled();
   });
 });
 
 describe('federateUndoBoost — Undo(Announce)', () => {
   it('retracts a boost with an Undo(Announce) to followers + the original author inbox', async () => {
-    await seedFederatedOriginal();
+    const original = await seedFederatedOriginal();
     const followerInbox = await seedFollowerWithInbox(scope, USER_BOOSTER_OXY, { username: 'x' });
 
     await followService.federateUndoBoost(
-      { _id: 'boost1', boostOf: 'orig1', createdAt: ISO },
+      // `federateBoost` takes the SDK's `LocalBoostEventPayload`, which still
+      // spells the id `_id` — the one shape on this path that is NOT a
+      // `NoteSourcePost`. `boostOf` is a real Mention post id either way.
+      { _id: 'boost1', boostOf: original.id, createdAt: ISO },
       USER_BOOSTER_OXY,
       'alice',
     );
@@ -254,12 +271,12 @@ describe('federateUndoBoost — Undo(Announce)', () => {
 describe('federateNewPost — boost regression guard (POST /posts boost_of)', () => {
   it('federates a bare boost as an Announce, NEVER an empty Create(Note)', async () => {
     const buildNoteSpy = vi.spyOn(followService, 'buildCreateNoteActivity');
-    await seedFederatedOriginal();
+    const original = await seedFederatedOriginal();
     const followerInbox = await seedFollowerWithInbox(scope, USER_BOOSTER_OXY, { username: 'x' });
 
     // The shape PostCreationService passes: a boost has an EMPTY body + boostOf.
     await followService.federateNewPost(
-      { _id: 'boost1', boostOf: 'orig1', content: { variants: [] }, createdAt: ISO, visibility: 'public' },
+      { id: 'boost1', boostOf: original.id, content: { variants: [] }, createdAt: ISO, visibility: 'public' },
       USER_BOOSTER_OXY,
       'alice',
     );
@@ -289,7 +306,6 @@ describe('federateNewPost — boost regression guard (POST /posts boost_of)', ()
     const activity = deliveredActivity();
     expect(activity.type).toBe('Create');
     expect((activity.object as Record<string, unknown>).type).toBe('Note');
-    expect(postFindByIdLean).not.toHaveBeenCalled();
     buildNoteSpy.mockRestore();
   });
 });

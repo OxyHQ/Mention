@@ -1,0 +1,39 @@
+-- `notifications_recipient_keyset_idx` becomes `(recipient_id, created_at DESC,
+-- id DESC)` — the axis `GET /notifications` now pages on.
+--
+-- WHY: it was `(recipient_id, id DESC)`, and ordering a notification list by
+-- `id` alone was only ever correct while `id DESC` WAS chronological order. It
+-- stopped being at the cutover. `id` is `text` holding a 24-char ObjectId hex
+-- for pre-cutover rows and a uuid v7 for every row created after, and `'0'` sorts
+-- before `'6'` under the database's collation (`en_US.utf8`, verified on the
+-- server) — so `order by id desc` places EVERY post-cutover notification below
+-- EVERY pre-cutover one. A migrated account opened its notifications tab on its
+-- oldest notifications, and everything that happened since the cutover was
+-- unreachable until the reader paged past the entire pre-cutover backlog. It
+-- self-heals only when the 90-day retention sweep finishes clearing the old
+-- cohort.
+--
+-- `id` STAYS, as the tiebreak. `created_at` defaults to
+-- `date_trunc('milliseconds', now())` and `now()` is `transaction_timestamp()`,
+-- so a fan-out written in one transaction shares it exactly; without a second
+-- key a page boundary inside such a group repeats or skips rows. The collation
+-- order of `id` does not matter for a tiebreak, because the ORDER BY and the
+-- keyset comparison use the same comparison and therefore agree — which is the
+-- distinction between this and the defect above.
+--
+-- DESC NULLS LAST is deliberate on both keys and matches what the query says.
+-- Postgres matches an index to an ORDER BY on the NULLS placement as well as the
+-- direction, and drizzle emits `.desc()` in index DDL as `DESC NULLS LAST` while
+-- a plain `desc()` in a query means `DESC NULLS FIRST`. Measured on 5,000 rows
+-- for one recipient: mismatched, the plan is a Bitmap Heap Scan feeding a Sort of
+-- the whole match set (cost 459) before the LIMIT; matched, it is an Index Only
+-- Scan with no Sort at all (cost 1.85). Both columns are NOT NULL, so this
+-- changes no result — only whether a hot route sorts a user's entire
+-- notification history on every page.
+--
+-- The DROP/CREATE is not online. The table is bounded by 90-day retention and
+-- the index is small; if that stops being true, reissue as CREATE INDEX
+-- CONCURRENTLY under a new name and drop the old one afterwards.
+
+DROP INDEX "notifications_recipient_keyset_idx";--> statement-breakpoint
+CREATE INDEX "notifications_recipient_keyset_idx" ON "notifications" USING btree ("recipient_id","created_at" DESC NULLS LAST,"id" DESC NULLS LAST);

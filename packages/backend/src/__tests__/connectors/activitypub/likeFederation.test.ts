@@ -16,24 +16,25 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  *
  * The delivery/queue layer and the Oxy client are mocked so the real
  * `FollowService` runs in isolation; assertions read the captured
- * `enqueueDelivery` calls. The actor and follow ROWS are real Postgres rows —
- * "delivered to the origin author inbox ONLY" is only meaningful if the liker's
- * follower inboxes genuinely exist and were genuinely not chosen, which a
- * `find().lean()` double asserted about itself.
+ * `enqueueDelivery` calls. The actor, follow and POST rows are all real Postgres
+ * rows — "delivered to the origin author inbox ONLY" is only meaningful if the
+ * liker's follower inboxes genuinely exist and were genuinely not chosen, which
+ * a `find().lean()` double asserted about itself; and whether a like has a
+ * remote object to point at is decided by the liked post's own row, so stubbing
+ * that read would only prove the delivery layer does the right thing with a
+ * hand-written object.
  */
 
 const {
   enqueueDelivery,
   isFediverseSharingEnabled,
   getUserById,
-  postFindByIdLean,
   insertMany,
   fallbackCreate,
 } = vi.hoisted(() => ({
   enqueueDelivery: vi.fn(),
   isFediverseSharingEnabled: vi.fn(),
   getUserById: vi.fn(),
-  postFindByIdLean: vi.fn(),
   insertMany: vi.fn(),
   fallbackCreate: vi.fn(),
 }));
@@ -54,10 +55,6 @@ vi.mock('../../../db/federation/deliveryQueueRepository', () => ({
   insertDeliveries: insertMany,
   insertDelivery: fallbackCreate,
 }));
-vi.mock('../../../models/Post', () => ({
-  Post: { findById: () => ({ select: () => ({ lean: () => postFindByIdLean() }) }) },
-}));
-vi.mock('../../../models/UserSettings', () => ({ default: {} }));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
@@ -76,6 +73,7 @@ import {
   federationScope,
   seedActor,
   seedFollow,
+  seedPost,
 } from '../../helpers/federationFixtures';
 import { followService } from '../../../connectors/activitypub/follow.service';
 
@@ -88,9 +86,9 @@ const FOLLOWER_ACTOR = `${scope.origin}/users/x`;
 const FOLLOWER_INBOX = `${scope.origin}/follower-inbox`;
 
 /** A FEDERATED liked original: its remote activity id + author actor row. */
-async function seedFederatedTarget(): Promise<void> {
-  postFindByIdLean.mockResolvedValue({
-    oxyUserId: 'orig-owner',
+async function seedFederatedTarget(): Promise<string> {
+  const post = await seedPost(scope, {
+    oxyUserId: scope.user('orig-owner'),
     federation: { activityId: ORIGIN_NOTE, actorUri: ORIGIN_ACTOR },
   });
   // `resolveFederationTarget` reads the remote author's row for its inbox.
@@ -100,6 +98,13 @@ async function seedFederatedTarget(): Promise<void> {
     sharedInboxUrl: ORIGIN_INBOX,
     inboxUrl: ORIGIN_INBOX,
   });
+  return post.id;
+}
+
+/** A LOCAL liked original: no federation block, so there is no remote inbox. */
+async function seedLocalTarget(): Promise<string> {
+  const post = await seedPost(scope, { oxyUserId: scope.user('local-owner') });
+  return post.id;
 }
 
 /** The liker's OWN follower — present so "not fanned out" can be observed. */
@@ -140,7 +145,6 @@ beforeEach(async () => {
   enqueueDelivery.mockResolvedValue(true);
   fallbackCreate.mockResolvedValue(undefined);
   isFediverseSharingEnabled.mockResolvedValue(true);
-  postFindByIdLean.mockResolvedValue(null);
   getUserById.mockResolvedValue({ id: 'u', username: 'bob' });
 });
 
@@ -154,11 +158,11 @@ afterAll(async () => {
 
 describe('federateLike — Like to origin', () => {
   it('sends a Like of the remote activity id to the origin author inbox ONLY', async () => {
-    await seedFederatedTarget();
+    const postId = await seedFederatedTarget();
     // The liker's own follower EXISTS in the graph; a like must still not fan out.
     await seedLikerFollower();
 
-    await followService.federateLike({ _id: 'like1', postId: 'orig1' }, USER_LIKER_OXY, 'alice');
+    await followService.federateLike({ _id: 'like1', postId }, USER_LIKER_OXY, 'alice');
 
     const activity = deliveredActivity();
     expect(activity.type).toBe('Like');
@@ -174,10 +178,10 @@ describe('federateLike — Like to origin', () => {
   it('is a no-op for a LOCAL liked post (no remote inbox)', async () => {
     // A local original: no federation block → resolveFederationTarget yields no
     // author inbox, so nothing is delivered over ActivityPub.
-    postFindByIdLean.mockResolvedValue({ oxyUserId: 'local-owner', federation: undefined });
+    const postId = await seedLocalTarget();
     getUserById.mockResolvedValue({ id: 'local-owner', username: 'bob' });
 
-    await followService.federateLike({ _id: 'like1', postId: 'localpost' }, USER_LIKER_OXY, 'alice');
+    await followService.federateLike({ _id: 'like1', postId }, USER_LIKER_OXY, 'alice');
 
     expect(enqueueDelivery).not.toHaveBeenCalled();
   });
@@ -185,40 +189,33 @@ describe('federateLike — Like to origin', () => {
   it('skips entirely when sharing is disabled', async () => {
     isFediverseSharingEnabled.mockResolvedValue(false);
 
-    await followService.federateLike({ _id: 'like1', postId: 'orig1' }, USER_LIKER_OXY, 'alice');
+    const postId = await seedFederatedTarget();
 
-    expect(postFindByIdLean).not.toHaveBeenCalled();
+    await followService.federateLike({ _id: 'like1', postId }, USER_LIKER_OXY, 'alice');
+
     expect(enqueueDelivery).not.toHaveBeenCalled();
   });
 
   it('keeps the public path best-effort but propagates queue failure from the durable path', async () => {
-    await seedFederatedTarget();
+    const postId = await seedFederatedTarget();
     enqueueDelivery.mockRejectedValue(new Error('delivery queue unavailable'));
     fallbackCreate.mockRejectedValue(new Error('delivery queue unavailable'));
 
     await expect(
-      followService.federateLike(
-        { _id: 'like1', postId: 'orig1' },
-        USER_LIKER_OXY,
-        'alice',
-      ),
+      followService.federateLike({ _id: 'like1', postId }, USER_LIKER_OXY, 'alice'),
     ).resolves.toBeUndefined();
 
     await expect(
-      followService.federateLikeStrict(
-        { _id: 'like1', postId: 'orig1' },
-        USER_LIKER_OXY,
-        'alice',
-      ),
+      followService.federateLikeStrict({ _id: 'like1', postId }, USER_LIKER_OXY, 'alice'),
     ).rejects.toThrow('delivery queue unavailable');
   });
 });
 
 describe('federateUndoLike — Undo(Like) to origin', () => {
   it('retracts a like with an Undo(Like) re-minting the same Like id', async () => {
-    await seedFederatedTarget();
+    const postId = await seedFederatedTarget();
 
-    await followService.federateUndoLike({ _id: 'like1', postId: 'orig1' }, USER_LIKER_OXY, 'alice');
+    await followService.federateUndoLike({ _id: 'like1', postId }, USER_LIKER_OXY, 'alice');
 
     const activity = deliveredActivity();
     expect(activity.type).toBe('Undo');
@@ -234,25 +231,21 @@ describe('federateUndoLike — Undo(Like) to origin', () => {
   });
 
   it('is a no-op for a LOCAL liked post', async () => {
-    postFindByIdLean.mockResolvedValue({ oxyUserId: 'local-owner', federation: undefined });
+    const postId = await seedLocalTarget();
     getUserById.mockResolvedValue({ id: 'local-owner', username: 'bob' });
 
-    await followService.federateUndoLike({ _id: 'like1', postId: 'localpost' }, USER_LIKER_OXY, 'alice');
+    await followService.federateUndoLike({ _id: 'like1', postId }, USER_LIKER_OXY, 'alice');
 
     expect(enqueueDelivery).not.toHaveBeenCalled();
   });
 
   it('propagates queue failure from the durable Undo path', async () => {
-    await seedFederatedTarget();
+    const postId = await seedFederatedTarget();
     enqueueDelivery.mockRejectedValue(new Error('undo queue unavailable'));
     fallbackCreate.mockRejectedValue(new Error('undo queue unavailable'));
 
     await expect(
-      followService.federateUndoLikeStrict(
-        { _id: 'like1', postId: 'orig1' },
-        USER_LIKER_OXY,
-        'alice',
-      ),
+      followService.federateUndoLikeStrict({ _id: 'like1', postId }, USER_LIKER_OXY, 'alice'),
     ).rejects.toThrow('undo queue unavailable');
   });
 });

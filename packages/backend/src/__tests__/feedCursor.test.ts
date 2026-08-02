@@ -237,35 +237,64 @@ describe('the Postgres keyset', () => {
   });
 });
 
-describe('the Mongo match form', () => {
-  /**
-   * `applyToQuery` is the LAST Mongo-shaped thing in this file, and it is here
-   * because it is still LIVE: `connectors/activitypub/routes/ap.routes.ts` pages
-   * the ActivityPub outbox with Mongoose, and a Mastodon instance walking that
-   * collection is a real consumer. It dies with the batch that ports that route.
-   *
-   * Asserting a match object is the right shape of assertion for exactly as long
-   * as a Mongo query is what the code produces — and no longer.
-   */
-  it('emits the compound keyset for a timestamped cursor', async () => {
-    const createdAt = new Date('2024-01-01T00:00:00.000Z');
-    const match: Record<string, unknown> = {};
-    ChronoCursor.applyToQuery(match, ChronoCursor.build(OBJECT_ID_HEX, createdAt));
+/**
+ * The ASCENDING half of the keyset.
+ *
+ * `applyToQuery`, the Mongo match form this block replaces, is gone with the
+ * last Mongoose pager (`connectors/activitypub/routes/ap.routes.ts`). What took
+ * its place is a direction: the replies list is the one surface a reader can
+ * flip to oldest-first, and the BOUND has to flip with the SORT. A descending
+ * bound behind an ascending sort re-serves page one forever — an infinite scroll
+ * that never advances, which is precisely the failure the descending cases above
+ * are written against, mirrored.
+ */
+describe('the ascending keyset', () => {
+  /** The same scoped page as `page`, read oldest-first. */
+  async function pageAscending(cursor?: SQL): Promise<string[]> {
+    const scope = inArray(posts.id, created);
+    const rows = await db
+      .select({ id: posts.id })
+      .from(posts)
+      .where(cursor ? and(scope, cursor) : scope)
+      .orderBy(...chronoOrderBy('asc'));
+    return rows.map((row) => row.id);
+  }
 
-    expect(match.$or).toEqual([
-      { createdAt: { $lt: createdAt } },
-      { createdAt, _id: { $lt: OBJECT_ID_HEX } },
-    ]);
-    expect(match._id).toBeUndefined();
+  it('orders oldest-first and continues forward, never backward', async () => {
+    const newest = await create({ createdAt: new Date('2026-03-01T00:00:00.000Z') });
+    const middle = await create({ createdAt: new Date('2026-02-01T00:00:00.000Z') });
+    const older = await create({ createdAt: new Date('2026-01-01T00:00:00.000Z') });
+
+    expect(await pageAscending(undefined)).toEqual([older.id, middle.id, newest.id]);
+
+    const afterOldest = await chronoCursorSql(ChronoCursor.build(older.id, older.createdAt), 'asc');
+    expect(await pageAscending(afterOldest)).toEqual([middle.id, newest.id]);
+
+    const afterMiddle = await chronoCursorSql(ChronoCursor.build(middle.id, middle.createdAt), 'asc');
+    expect(await pageAscending(afterMiddle)).toEqual([newest.id]);
   });
 
-  it('emits a bare id bound for an id-only cursor, and nothing for a bad one', async () => {
-    const match: Record<string, unknown> = {};
-    ChronoCursor.applyToQuery(match, OBJECT_ID_HEX);
-    expect(match._id).toEqual({ $lt: OBJECT_ID_HEX });
+  it('a DESCENDING bound behind the ascending sort re-serves what was already read', async () => {
+    // The mirror image of the guarantee above, stated as the failure it prevents:
+    // pass the descending form of the same cursor and the "next" page contains
+    // the rows the reader has already seen instead of the ones after them.
+    const newest = await create({ createdAt: new Date('2026-03-01T00:00:00.000Z') });
+    const older = await create({ createdAt: new Date('2026-01-01T00:00:00.000Z') });
 
-    const untouched: Record<string, unknown> = {};
-    ChronoCursor.applyToQuery(untouched, 'not-an-id');
-    expect(untouched).toEqual({});
+    const forward = await chronoCursorSql(ChronoCursor.build(older.id, older.createdAt), 'asc');
+    const backward = await chronoCursorSql(ChronoCursor.build(older.id, older.createdAt));
+
+    expect(await pageAscending(forward)).toEqual([newest.id]);
+    expect(await pageAscending(backward)).toEqual([]);
+  });
+
+  it('breaks a created_at tie forward, so a shared instant loses nobody either way', async () => {
+    const sameInstant = new Date('2026-02-01T00:00:00.000Z');
+    const lower = await create({ id: 'aaaaaaaaaaaaaaaaaaaaaaaa', createdAt: sameInstant });
+    const higher = await create({ id: 'bbbbbbbbbbbbbbbbbbbbbbbb', createdAt: sameInstant });
+
+    expect(await pageAscending(undefined)).toEqual([lower.id, higher.id]);
+    const afterLower = await chronoCursorSql(ChronoCursor.build(lower.id, sameInstant), 'asc');
+    expect(await pageAscending(afterLower)).toEqual([higher.id]);
   });
 });

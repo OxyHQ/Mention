@@ -1,11 +1,14 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { closePostgres, connectPostgres } from '../../db/postgres';
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { posts } from '../../db/schema/posts';
 import {
   clearFederationScope,
   federationScope,
   readActor,
   seedActor,
+  seedPost,
 } from '../helpers/federationFixtures';
 
 const scope = federationScope('federated-profile-sync');
@@ -22,47 +25,6 @@ const scope = federationScope('federated-profile-sync');
  *    before any network call settles.
  */
 
-/**
- * The orphaned federated posts (`oxyUserId: null`) the background sync's author
- * backfill claims, plus enough of Mongo's matching to tell a `/`-terminated RANGE
- * over `federation.activityId` apart from a prefix `$regex`. The corpus holds two
- * actors whose usernames share a prefix, so a match that is not `/`-terminated
- * visibly hands one user's posts to the other.
- */
-const h = vi.hoisted(() => {
-  interface OrphanPost {
-    activityId: string;
-    oxyUserId: string | null;
-  }
-  const orphans: OrphanPost[] = [];
-
-  function matchesActivityId(activityId: string, condition: Record<string, unknown>): boolean {
-    if (typeof condition.$regex === 'string') return new RegExp(condition.$regex).test(activityId);
-    const { $gte: gte, $lt: lt } = condition;
-    if (typeof gte !== 'string' || typeof lt !== 'string') return false;
-    return activityId >= gte && activityId < lt;
-  }
-
-  const postUpdateMany = vi.fn(async (
-    filter: { 'federation.activityId': Record<string, unknown>; oxyUserId: string | null },
-    update: { $set: { oxyUserId: string } },
-  ) => {
-    let modifiedCount = 0;
-    for (const post of orphans) {
-      if (post.oxyUserId !== filter.oxyUserId) continue;
-      if (!matchesActivityId(post.activityId, filter['federation.activityId'])) continue;
-      post.oxyUserId = update.$set.oxyUserId;
-      modifiedCount += 1;
-    }
-    return { matchedCount: modifiedCount, modifiedCount };
-  });
-
-  return { orphans, postUpdateMany };
-});
-
-vi.mock('../../models/Post', () => ({
-  Post: { updateMany: (...a: unknown[]) => h.postUpdateMany(...(a as Parameters<typeof h.postUpdateMany>)) },
-}));
 
 /** Resolves only when the test lets it — proves the request path never awaits it. */
 let releaseOutboxSync: (() => void) | undefined;
@@ -176,7 +138,6 @@ beforeEach(async () => {
   // `clearAllMocks` keeps implementations, so restore the default identity here
   // rather than leaking one test's Oxy user into the next.
   getUserById.mockResolvedValue(LOCAL_OXY_USER);
-  h.orphans.length = 0;
 });
 
 describe('federatedProfileSync.syncOnProfileView', () => {
@@ -319,44 +280,90 @@ describe('federatedProfileSync.syncOnProfileView', () => {
 });
 
 describe('federatedProfileSync author backfill', () => {
-  /** Let the detached background task reach the author backfill. */
-  async function runSyncAndAwaitBackfill(oxyUserId: string): Promise<void> {
-    syncOutboxPostsDetailed.mockResolvedValueOnce({ syncedCount: 3, shouldStampCooldown: true });
-    await federatedProfileSync.syncOnProfileView(oxyUserId);
-    await vi.waitFor(() => expect(h.postUpdateMany).toHaveBeenCalledOnce());
+  /**
+   * Seed an ORPHANED federated post: stored with its remote activity id but no
+   * resolved local author, which is what the backfill claims.
+   *
+   * These used to be objects in an in-memory array behind a `Post.updateMany`
+   * double that re-implemented Mongo's matching. That double is what decided
+   * whether the range matched — so it could not distinguish the `/`-terminated
+   * range the code actually issues from a prefix that claims a sibling's posts,
+   * which is the entire property these two cases exist to pin.
+   */
+  async function seedOrphan(activityId: string): Promise<string> {
+    const record = await seedPost(scope, {
+      oxyUserId: null,
+      authorship: [],
+      federation: { activityId, actorUri: activityId.split('/statuses/')[0] },
+    });
+    return record.id;
   }
 
-  it('claims ONLY the synced actor\'s orphaned posts, never a username-prefix sibling\'s', async () => {
-    // `@alice` and `@alicesmith` are different people on the same instance. An
-    // activityId prefix that is not `/`-terminated matches both.
-    h.orphans.push(
-      { activityId: `${AP_ACTOR_URI}/statuses/1`, oxyUserId: null },
-      { activityId: `${scope.origin}/users/alicesmith/statuses/1`, oxyUserId: null },
-    );
+  async function ownerOf(postId: string): Promise<string | null> {
+    const [row] = await getDb()
+      .select({ oxyUserId: posts.oxyUserId })
+      .from(posts)
+      .where(eq(posts.id, postId));
+    return row?.oxyUserId ?? null;
+  }
+
+  /** Let the detached background task reach the author backfill and finish it. */
+  async function runSyncAndAwaitBackfill(
+    oxyUserId: string,
+    claimed: string,
+  ): Promise<void> {
+    syncOutboxPostsDetailed.mockResolvedValueOnce({ syncedCount: 3, shouldStampCooldown: true });
+    await federatedProfileSync.syncOnProfileView(oxyUserId);
+    // Wait on the ROW the backfill is supposed to write, not on a spy: the task
+    // is detached, so there is no promise to await and no call to count.
+    await vi.waitFor(async () => {
+      const stamped = (await readActor(AP_ACTOR_URI))?.lastOutboxSyncAt;
+      // eslint-disable-next-line no-console
+      const [row] = await getDb()
+        .select({ o: posts.oxyUserId, a: posts.federationActivityId })
+        .from(posts)
+        .where(eq(posts.id, claimed));
+      // eslint-disable-next-line no-console
+      console.error('DEBUG stamp', stamped, 'row', JSON.stringify(row));
+      expect(await ownerOf(claimed)).toBe(oxyUserId);
+    }, { timeout: 3000 });
+  }
+
+  it("claims ONLY the synced actor's orphaned posts, never a username-prefix sibling's", async () => {
+    // `@alice` and `@alicesmith` are different people on the same instance. A
+    // prefix bound that is not `/`-terminated matches both.
+    // The actor FIRST: `seedCachedActor` clears the whole scope, seeded posts
+    // included, so orphans created before it would be gone by the assertion —
+    // and the claim would read as "correctly did not match a sibling" for the
+    // wrong reason.
     await seedCachedActor(federatedActor());
+    const mine = await seedOrphan(`${AP_ACTOR_URI}/statuses/1`);
+    const sibling = await seedOrphan(`${scope.origin}/users/alicesmith/statuses/1`);
 
-    await runSyncAndAwaitBackfill('fed1');
+    await runSyncAndAwaitBackfill('fed1', mine);
 
-    expect(h.orphans).toEqual([
-      { activityId: `${AP_ACTOR_URI}/statuses/1`, oxyUserId: 'fed1' },
-      // The sibling's post must still be unclaimed.
-      { activityId: `${scope.origin}/users/alicesmith/statuses/1`, oxyUserId: null },
-    ]);
+    expect(await ownerOf(sibling)).toBeNull();
   });
 
-  it('treats regex metacharacters in the actor URI as literal text', async () => {
-    // A dot in the remote username is a wildcard to a mongod-evaluated `$regex`,
-    // so `@a.ice` would claim `@alice`'s posts (and the pattern would run over an
-    // unindexable scan).
-    h.orphans.push({ activityId: `${AP_ACTOR_URI}/statuses/1`, oxyUserId: null });
+  it('treats a dot in the actor URI as literal text, never a wildcard', async () => {
+    // A dot in the remote username is a wildcard to any pattern-based match, so
+    // `@a.ice` would claim `@alice`'s posts — and the pattern would run over an
+    // unindexable scan. A range bound compares bytes and cannot do either.
     await seedCachedActor(federatedActor({
-      uri: 'https://remote.example/users/a.ice',
-      acct: 'a.ice@remote.example',
-      outboxUrl: 'https://remote.example/users/a.ice/outbox',
+      uri: `${scope.origin}/users/a.ice`,
+      acct: `a.ice@${scope.domain}`,
+      outboxUrl: `${scope.origin}/users/a.ice/outbox`,
     }));
+    const alicePost = await seedOrphan(`${AP_ACTOR_URI}/statuses/1`);
 
-    await runSyncAndAwaitBackfill('fed1');
+    syncOutboxPostsDetailed.mockResolvedValueOnce({ syncedCount: 3, shouldStampCooldown: true });
+    await federatedProfileSync.syncOnProfileView('fed1');
+    // The sync stamps the actor AFTER the claim would have run, so waiting on the
+    // stamp proves the backfill finished rather than merely not having started.
+    await vi.waitFor(async () =>
+      expect((await readActor(`${scope.origin}/users/a.ice`))?.lastOutboxSyncAt).toBeInstanceOf(Date),
+    );
 
-    expect(h.orphans[0].oxyUserId).toBeNull();
+    expect(await ownerOf(alicePost)).toBeNull();
   });
 });

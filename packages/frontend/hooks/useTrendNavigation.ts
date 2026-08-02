@@ -10,10 +10,6 @@ import { reportTrendEvent } from '@/utils/feedTelemetry';
  * resolved by `navigateToTrend` so the link a user shares lands on the same place.
  */
 export function buildTrendUrl(trend: Trend): string {
-  if (trend.type === 'hashtag') {
-    const tag = (trend.hashtag || trend.text).replace(/^#/, '');
-    return `${WEB_BASE_URL}/hashtag/${encodeURIComponent(tag)}`;
-  }
   return `${WEB_BASE_URL}/trend/${encodeURIComponent(trend.text)}`;
 }
 
@@ -46,16 +42,20 @@ export function useTrendNavigation() {
       ...(trend.recId ? { recId: trend.recId } : {}),
     });
 
-    if (trend.type === 'hashtag') {
-      const tag = (trend.hashtag || trend.text).replace(/^#/, '');
-      router.push(`/hashtag/${encodeURIComponent(tag)}`);
-    } else {
-      const params = new URLSearchParams();
-      if (trend.description) params.set('description', trend.description);
-      params.set('type', trend.type);
-      const query = params.toString();
-      router.push(`/trend/${encodeURIComponent(trend.text)}${query ? `?${query}` : ''}`);
-    }
+    /*
+     * EVERY trend opens the trend feed, including one whose term people mostly
+     * spelled with a `#`. The hashtag screen matches the `#` form only, which
+     * is a strict subset of what made the term trend, so sending a
+     * hashtag-shaped trend there hid exactly the prose posts the burst was
+     * measured from. `/hashtag/<tag>` is still where a tag INSIDE a post goes.
+     *
+     * The TERM is the whole address. Carrying the label alongside it would give
+     * one resource two URLs, freeze a shared link's title at the moment it was
+     * copied — so it lies once the term is relabelled — and let a crafted URL
+     * show a reader a name the server never chose. The screen resolves the
+     * presentation from the term.
+     */
+    router.push(`/trend/${encodeURIComponent(trend.text)}`);
   }, [router]);
 
   return { navigateToTrend };

@@ -273,7 +273,7 @@ const Feed = ((props: FeedProps) => {
     // Determine if we should use scoped (local) feed state
     const useScoped = !!(filters && Object.keys(filters).length) && !showOnlySaved;
 
-    const { user: currentUser, isAuthenticated, signIn } = useAuth();
+    const { user: currentUser, isAuthenticated, canUsePrivateApi, signIn } = useAuth();
     const { blockedSet } = usePrivacyControls();
 
     // Use the feed state hook for all feed operations
@@ -394,9 +394,11 @@ const Feed = ((props: FeedProps) => {
     // Feed-ranking telemetry: derive the descriptor this feed reports against and
     // own an impression tracker for the session. The session resets when the
     // descriptor changes or the feed is reloaded (reloadKey), so impressions are
-    // counted once per post per session.
+    // counted once per post per session. `canUsePrivateApi` short-circuits
+    // reporting for anonymous viewers so a public browse never POSTs (and never
+    // 401-loops) — the same gate the web feed applies.
     const feedDescriptor = resolveFeedDescriptor(type, userId, filters, showOnlySaved);
-    const impressionTracker = useFeedImpressionTracker(feedDescriptor, reloadKey);
+    const impressionTracker = useFeedImpressionTracker(feedDescriptor, reloadKey, canUsePrivateApi);
 
     // Memoize renderPostItem to prevent recreating on every render
     const renderPostItem = useCallback(({ item: row }: { item: NativeFeedRow; index: number }) => {

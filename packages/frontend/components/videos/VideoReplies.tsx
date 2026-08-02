@@ -6,6 +6,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 // This panel owns an element-sized scroller, including on web. Use the
 // FlashList implementation explicitly instead of the document-scroll web feed.
 import Feed from '@/components/Feed/Feed.native';
+import { useVideosRail } from '@/context/VideosRailContext';
 import { InlineReplyComposer } from './InlineReplyComposer';
 
 interface VideoRepliesProps {
@@ -30,12 +31,16 @@ interface VideoRepliesProps {
 export function VideoReplies({ postId, onClose, onCommentPosted }: VideoRepliesProps) {
   const { t } = useTranslation();
   const theme = useTheme();
+  // Desktop's on-video comment button opens nothing (this column is already
+  // there) — it takes the caret instead. The mobile sheet never bumps the nonce,
+  // so its composer is unaffected.
+  const { focusComposerNonce } = useVideosRail();
 
   return (
     <View style={styles.container}>
       <View style={styles.header} className="border-b border-border">
         <Text style={[styles.title, { color: theme.colors.text }]}>
-          {t('videos.replies', { defaultValue: 'Replies' })}
+          {t('videos.replies')}
         </Text>
         {onClose && (
           <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={t('common.close', { defaultValue: 'Close' })}>
@@ -54,7 +59,11 @@ export function VideoReplies({ postId, onClose, onCommentPosted }: VideoRepliesP
         />
       </View>
 
-      <InlineReplyComposer postId={postId} onPosted={onCommentPosted} />
+      <InlineReplyComposer
+        postId={postId}
+        onPosted={onCommentPosted}
+        focusNonce={focusComposerNonce}
+      />
     </View>
   );
 }

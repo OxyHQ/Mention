@@ -36,9 +36,18 @@
  * differently if the upstream media is permanently unavailable.
  */
 
-import mongoose from 'mongoose';
+import { and, asc, count, eq, gt, isNotNull, isNull, ne, sql, type SQL } from 'drizzle-orm';
 import { PostType } from '@mention/shared-types';
-import { Post } from '../models/Post';
+import { connectPostgres, getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
+import { postAttachments, postContentVariants, postMedia } from '../db/schema/postContent';
+import {
+  deletePostRecord,
+  findPostRecords,
+  replacePostContent,
+  updatePostRecord,
+} from '../db/posts/postRepository';
+import type { PostRecord } from '../db/posts/postRecord';
 import { logger } from '../utils/logger';
 import { buildFederatedNoteContent } from '../connectors/activitypub/apPostContent';
 import { signedFetch } from '../connectors/activitypub/helpers';
@@ -53,21 +62,13 @@ import {
   closeAdminScriptResources,
 } from './lib/adminScriptLifecycle';
 
-/** Posts scanned per page (stable `_id` cursor pagination). */
+/** Posts scanned per page (stable `id` cursor pagination). */
 const PAGE_SIZE = 500;
 
 /** HTTP statuses that mean the remote object is permanently gone. */
 const GONE_STATUS_CODES = new Set([404, 410]);
 
-interface EmptyFederatedPostRow {
-  _id: mongoose.Types.ObjectId;
-  oxyUserId?: string | null;
-  federation?: {
-    activityId?: string;
-    actorUri?: string;
-    url?: string;
-  } | null;
-}
+type EmptyFederatedPostRow = PostRecord;
 
 /** Outcome of re-fetching a post's source AP object. */
 type FetchOutcome =
@@ -131,52 +132,36 @@ function parseFlags(argv: string[]): Flags {
 }
 
 /**
- * Build the Mongo filter selecting federated posts with an empty body: a
- * non-boost federated post with no text, no media, no attachments, and no poll.
- * `{ field: null }` matches both an explicit null and a missing field.
+ * The predicate selecting federated posts with an empty body: a non-boost
+ * federated post with no text, no media, no attachments, and no poll.
+ *
+ * The three "empty array" arms become `NOT EXISTS` over the child tables, which
+ * is stronger than what Mongo could express: an embedded array had three empty
+ * shapes (missing, null, `[]`) that each needed their own `$or` arm, while a
+ * child table has one — the absence of a row.
+ *
+ * A variant carrying only whitespace still counts as empty, so the body test is
+ * `NOT EXISTS (… body ~ '\S')` rather than merely "has no variant row".
  */
-function buildEmptyFederatedFilter(actorUri: string | undefined): Record<string, unknown> {
-  const filter: Record<string, unknown> = {
-    'federation.activityId': { $exists: true, $ne: null },
-    type: { $ne: PostType.BOOST },
-    // No poll of any shape.
-    'content.poll': null,
-    'content.pollId': null,
-    pollId: null,
-    // No rendition AND empty media AND empty attachments. The body lives only in
-    // `content.variants`, so "empty text" is "no variant carrying a body".
-    $and: [
-      {
-        $or: [
-          { 'content.variants': { $exists: false } },
-          { 'content.variants': { $size: 0 } },
-          { 'content.variants.text': { $not: { $regex: /\S/ } } },
-        ],
-      },
-      {
-        $or: [
-          { 'content.media': { $exists: false } },
-          { 'content.media': null },
-          { 'content.media': { $size: 0 } },
-        ],
-      },
-      {
-        $or: [
-          { 'content.attachments': { $exists: false } },
-          { 'content.attachments': null },
-          { 'content.attachments': { $size: 0 } },
-        ],
-      },
-    ],
-  };
-  if (actorUri) filter['federation.actorUri'] = actorUri;
-  return filter;
+function buildEmptyFederatedFilter(actorUri: string | undefined): SQL {
+  const conditions: SQL[] = [
+    isNotNull(posts.federationActivityId),
+    ne(posts.type, PostType.BOOST),
+    isNull(posts.contentPollId),
+    sql`not exists (
+      select 1 from ${postContentVariants}
+      where ${postContentVariants.postId} = ${posts.id}
+        and ${postContentVariants.body} ~ '\\S'
+    )`,
+    sql`not exists (select 1 from ${postMedia} where ${postMedia.postId} = ${posts.id})`,
+    sql`not exists (select 1 from ${postAttachments} where ${postAttachments.postId} = ${posts.id})`,
+  ];
+  if (actorUri) conditions.push(eq(posts.federationActorUri, actorUri));
+  return and(...conditions) as SQL;
 }
 
 async function reingestEmptyFederatedPosts(): Promise<void> {
   const startedAt = Date.now();
-  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
-  const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
   const flags = parseFlags(process.argv.slice(2));
 
   const counts = {
@@ -194,9 +179,9 @@ async function reingestEmptyFederatedPosts(): Promise<void> {
   ): Promise<boolean> => {
     try {
       await assertPostsSafeToDelete(
-        `reingestEmptyFederatedPosts:${String(post._id)}`,
+        `reingestEmptyFederatedPosts:${post.id}`,
         [{
-          id: post._id,
+          id: post.id,
           uris: [
             post.federation?.activityId,
             post.federation?.url,
@@ -213,7 +198,7 @@ async function reingestEmptyFederatedPosts(): Promise<void> {
     }
 
     if (!flags.dryRun) {
-      await Post.deleteOne({ _id: post._id });
+      await deletePostRecord(post.id, undefined);
     }
     counts.deleted += 1;
     return true;
@@ -224,33 +209,34 @@ async function reingestEmptyFederatedPosts(): Promise<void> {
       scriptName: 'reingestEmptyFederatedPosts',
       dryRun: flags.dryRun,
     });
-    await mongoose.connect(mongoUri, { dbName });
-    logger.info('[reingestEmptyFederatedPosts] connected to MongoDB', {
+    await connectPostgres();
+    logger.info('[reingestEmptyFederatedPosts] connected to PostgreSQL', {
       dryRun: flags.dryRun,
       narrowedScope: Boolean(flags.actorUri),
     });
 
     const baseFilter = buildEmptyFederatedFilter(flags.actorUri);
-    const totalCount = await Post.countDocuments(baseFilter);
+    const [totals] = await getDb()
+      .select({ count: count() })
+      .from(posts)
+      .where(baseFilter);
+    const totalCount = totals?.count ?? 0;
     logger.info(`[reingestEmptyFederatedPosts] ${totalCount} empty federated posts to scan`);
     if (totalCount === 0) {
       logger.info('[reingestEmptyFederatedPosts] nothing to do');
       return;
     }
 
-    let lastId: mongoose.Types.ObjectId | null = null;
+    let lastId: string | null = null;
 
-    // Forward-only cursor. Repair (rewrites content.text) and delete both remove
-    // a post from the matching set for subsequent pages, and we only ever page by
-    // ascending `_id`, so no post is visited twice and none is skipped.
+    // Forward-only cursor. Repair (which writes a body) and delete both remove a
+    // post from the matching set for subsequent pages, and we only ever page by
+    // ascending `id`, so no post is visited twice and none is skipped.
     for (;;) {
-      const pageFilter: Record<string, unknown> = { ...baseFilter };
-      if (lastId) pageFilter._id = { $gt: lastId };
-
-      const page = await Post.find(pageFilter, { _id: 1, oxyUserId: 1, federation: 1 })
-        .sort({ _id: 1 })
-        .limit(PAGE_SIZE)
-        .lean<EmptyFederatedPostRow[]>();
+      const page: EmptyFederatedPostRow[] = await findPostRecords(
+        lastId ? and(baseFilter, gt(posts.id, lastId)) : baseFilter,
+        { orderBy: [asc(posts.id)], limit: PAGE_SIZE },
+      );
 
       if (page.length === 0) break;
 
@@ -292,33 +278,40 @@ async function reingestEmptyFederatedPosts(): Promise<void> {
           ? (built.media.some((m) => m.type === 'video') ? PostType.VIDEO : PostType.IMAGE)
           : PostType.TEXT;
 
-        const setOps: Record<string, unknown> = {
-          // The re-ingested body, in its only home. Replaces every rendition:
-          // this post was blank, so there is nothing to preserve.
-          'content.variants': built.variants,
-          type: derivedType,
-          hashtags: built.hashtags,
-          'metadata.isSensitive': built.sensitive,
-          'federation.sensitive': built.sensitive,
-        };
-        const unsetOps: Record<string, ''> = {};
-
-        if (built.media.length > 0) setOps['content.media'] = built.media;
-        else unsetOps['content.media'] = '';
-        if (built.attachments.length > 0) setOps['content.attachments'] = built.attachments;
-        else unsetOps['content.attachments'] = '';
-        if (built.summary !== undefined) setOps['federation.spoilerText'] = built.summary;
-        else unsetOps['federation.spoilerText'] = '';
-
-        const update: Record<string, unknown> = { $set: setOps };
-        if (Object.keys(unsetOps).length > 0) update.$unset = unsetOps;
-        if (!flags.dryRun) await Post.updateOne({ _id: post._id }, update);
+        if (!flags.dryRun) {
+          await updatePostRecord(post.id, {
+            hashtags: built.hashtags,
+            metadata: { isSensitive: built.sensitive },
+          });
+          await getDb()
+            .update(posts)
+            .set({
+              type: derivedType,
+              federationSensitive: built.sensitive,
+              federationSpoilerText: built.summary ?? null,
+            })
+            .where(eq(posts.id, post.id));
+          // The re-ingested body, in its only home. REPLACES every rendition —
+          // this post was blank, so there is nothing to preserve — which is what
+          // `replacePostContent`'s transactional delete-then-insert does, and
+          // what the `$set`/`$unset` pair was spelling out by hand.
+          await replacePostContent(
+            post.id,
+            {
+              ...post.content,
+              variants: built.variants.length > 0 ? built.variants : undefined,
+              media: built.media.length > 0 ? built.media : undefined,
+              attachments: built.attachments.length > 0 ? built.attachments : undefined,
+            },
+            post.mentions,
+          );
+        }
 
         if (hasBody) counts.recovered += 1;
         else counts.keptCwOnly += 1;
       }
 
-      lastId = page[page.length - 1]._id;
+      lastId = page[page.length - 1].id;
       logger.info(
         `[reingestEmptyFederatedPosts] progress: scanned ${counts.scanned}/${totalCount}, ` +
           `${flags.dryRun ? 'wouldRecover' : 'recovered'} ${counts.recovered}, ` +
@@ -350,7 +343,6 @@ async function reingestEmptyFederatedPosts(): Promise<void> {
     throw error;
   } finally {
     await closeAdminScriptResources();
-    await mongoose.disconnect();
   }
 }
 

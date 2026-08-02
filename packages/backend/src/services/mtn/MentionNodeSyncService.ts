@@ -84,12 +84,12 @@ import {
 } from '@mention/shared-types';
 import MentionUserNode from '../../models/MentionUserNode';
 import MentionNodeIngestWitness from '../../models/MentionNodeIngestWitness';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { isUniqueViolation } from '../../db/pgErrors';
 import { mentionSignedRecords } from '../../db/schema/mtn';
 import { logger } from '../../utils/logger';
-import { MTN_CHAIN_STATUS } from './MentionRecordStore';
+import { LWW_CURRENT_ORDER, MTN_CHAIN_STATUS } from './MentionRecordStore';
 import { getHead, getPublicLogSince } from './MentionRepoLogService';
 import { verifyAndStoreRecord } from './MentionRecordService';
 import { projectRecord } from './PostMaterializer';
@@ -243,6 +243,13 @@ async function materialize(envelope: SignedRecordEnvelope, getBlob: NodeBlobFetc
 /**
  * The current materialized record for an AtProto-style `(nsid, rkey)` key, as the
  * minimal `{ issuedAt, recordId }` LWW needs. Reads Mention's own copy only.
+ *
+ * Ordered by {@link LWW_CURRENT_ORDER} — the SAME two comparisons
+ * {@link incomingWinsLww} makes below, which is the point: this read supplies
+ * the `existing` side of that comparison, so if it answers with a different
+ * branch than the rule names, the rule is applied against the wrong value and
+ * an older revision of a post can be adopted as the winner and materialized
+ * over the current one.
  */
 async function currentKeyValue(
   oxyUserId: string,
@@ -263,7 +270,7 @@ async function currentKeyValue(
         eq(mentionSignedRecords.verified, true),
       ),
     )
-    .orderBy(desc(mentionSignedRecords.createdAt))
+    .orderBy(...LWW_CURRENT_ORDER)
     .limit(1);
   if (!row || typeof row.envelope?.issuedAt !== 'number' || typeof row.recordId !== 'string') {
     return null;
@@ -287,8 +294,10 @@ function incomingWinsLww(
 
 /**
  * Persist a forked / tie-breaking envelope as a NON-chained mirror row. It keeps
- * the AtProto `(nsid, rkey)` materialization fields and `recordId` (so it becomes
- * the current value for its key by `createdAt`) but deliberately carries NO `seq`
+ * the AtProto `(nsid, rkey)` materialization fields and `recordId` (which is what
+ * makes it the current value for its key under {@link LWW_CURRENT_ORDER} — it
+ * reaches here only having won on `issuedAt`, or having tied on it with the
+ * higher `recordId`) but deliberately carries NO `seq`
  * — the authentic linear chain (and its unique `(oxy_user_id, seq)` index) is left
  * untouched, so both the existing chain row AND this fork branch persist. The
  * unique `record_id` index makes a re-ingested fork idempotent, and it is named

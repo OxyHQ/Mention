@@ -2,7 +2,11 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import type { User as OxyUser } from '@oxyhq/core';
-import { PostVisibility, type PostContent } from '@mention/shared-types';
+import {
+  PostVisibility,
+  type FederationBlocksResponse,
+  type PostContent,
+} from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import { activityPubConnector, isPermanentlyUnavailableOutboxReason } from './activitypub/ActivityPubConnector';
 import {
@@ -14,10 +18,12 @@ import {
   existsFollow,
   findFollows,
 } from '../db/federation/followRepository';
-import { Post } from '../models/Post';
-import { FEDERATION_ENABLED } from './activitypub/constants';
+import { and, eq, isNotNull, lt, type SQL } from 'drizzle-orm';
+import { posts as postsTable } from '../db/schema/posts';
+import { CHRONO_DESC, findPostRecords } from '../db/posts/postRepository';
+import { FEDERATION_BLOCKS, FEDERATION_ENABLED } from './activitypub/constants';
 import { ATPROTO_ENABLED, isDid, isAtUri, isAtprotoHandle } from './atproto/constants';
-import { normalizeFederatedAcct } from './activitypub/helpers';
+import { activityIdUnderActor, normalizeFederatedAcct } from './activitypub/helpers';
 import { isAbsoluteHttpUrl } from './shared/url';
 import { connectorRegistry } from './index';
 import { classifyQuery } from './resolve';
@@ -209,6 +215,26 @@ async function resolveActorDisplayNamesByUri(
 // Note: Local profile search/lookup is handled by OxyHQServices
 // (/profiles/search, /profiles/resolve). These routes handle cross-network
 // federation operations (resolve, follows, posts).
+
+/**
+ * GET /federation/blocked-domains
+ *
+ * The instances Mention refuses to federate with, and why — public, because
+ * moderation policy is a statement to the outside world and every instance whose
+ * published blocklist we read makes the same one.
+ *
+ * Served from {@link FEDERATION_BLOCKS}, the SAME array the federation policy
+ * derives its enforced set from, so what this returns and what the server
+ * actually does cannot drift apart. Our own domains and the Oxy identity apex are
+ * rejected by that policy too but are not moderation decisions, and are not in
+ * this list — see `activitypub/federationBlockPolicy`.
+ *
+ * No auth: an unauthenticated reader is the audience.
+ */
+router.get('/blocked-domains', (_req: AuthRequest, res: Response) => {
+  const body: FederationBlocksResponse = { blocks: [...FEDERATION_BLOCKS] };
+  return res.json(body);
+});
 
 /**
  * GET /federation/resolve?handle=...
@@ -514,20 +540,32 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
     const limit = 20;
     // Query by oxyUserId (the canonical user identity in Oxy) for federated posts.
     // Falls back to the activity ID range query if the actor has no Oxy link yet.
-    const query: Record<string, unknown> = actor.oxyUserId
-      ? { oxyUserId: actor.oxyUserId, federation: { $ne: null }, visibility: PostVisibility.PUBLIC }
-      : {
-          'federation.activityId': { $gte: actor.uri + '/', $lt: actor.uri + '/\uffff' },
-          visibility: PostVisibility.PUBLIC,
-        };
+    //
+    // `is not null`, NOT `<> null`: Mongo's `$ne: null` also matched a MISSING
+    // `federation` subdocument, while SQL's `<>` against NULL is NULL and matches
+    // nothing — the literal translation would return an empty author feed for
+    // every actor that HAS an Oxy link, which is all of them.
+    const conditions: SQL[] = actor.oxyUserId
+      ? [
+        eq(postsTable.oxyUserId, actor.oxyUserId),
+        isNotNull(postsTable.federationActivityId),
+        eq(postsTable.visibility, PostVisibility.PUBLIC),
+      ]
+      : [
+        // Prefix, not a range — see `activityIdUnderActor`. The range this
+        // replaces matched nothing under a linguistic collation, so an actor
+        // with no Oxy link served an empty feed however many posts it had.
+        activityIdUnderActor(actor.uri),
+        eq(postsTable.visibility, PostVisibility.PUBLIC),
+      ];
     if (parsed.data.cursor) {
-      query.createdAt = { $lt: new Date(parsed.data.cursor) };
+      conditions.push(lt(postsTable.createdAt, new Date(parsed.data.cursor)));
     }
 
-    let posts = await Post.find(query)
-      .sort({ createdAt: -1 })
-      .limit(limit + 1)
-      .lean();
+    let posts = await findPostRecords(and(...conditions), {
+      orderBy: CHRONO_DESC,
+      limit: limit + 1,
+    });
 
     // If no local posts and no cursor (first page), trigger an async backfill
     // dispatched by the actor's network.

@@ -11,22 +11,23 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  *     deleter's followers, delivered to the follower inboxes;
  *   - the sharing gate short-circuit.
  *
- * The delivery/queue layer, the models, and the Oxy client are mocked so the real
+ * The delivery/queue layer and the Oxy client are mocked so the real
  * `FollowService` runs in isolation; assertions read the captured
- * `enqueueDelivery` calls.
+ * `enqueueDelivery` calls. Nothing stubs the POST store, because a
+ * `Delete(Tombstone)` mints its object id from the deleter's username and the
+ * post id alone — the row is already gone by the time this fires, which is the
+ * whole reason the id is captured BEFORE deletion.
  */
 
 const {
   enqueueDelivery,
   isFediverseSharingEnabled,
   getUserById,
-  postFindByIdLean,
   insertMany,
 } = vi.hoisted(() => ({
   enqueueDelivery: vi.fn(),
   isFediverseSharingEnabled: vi.fn(),
   getUserById: vi.fn(),
-  postFindByIdLean: vi.fn(),
   insertMany: vi.fn(),
 }));
 
@@ -42,10 +43,6 @@ vi.mock('../../../queue/producers', () => ({ enqueueDelivery, enqueueInboxActivi
 vi.mock('../../../models/FederationDeliveryQueue', () => ({
   default: { insertMany, create: vi.fn() },
 }));
-vi.mock('../../../models/Post', () => ({
-  Post: { findById: () => ({ select: () => ({ lean: () => postFindByIdLean() }) }) },
-}));
-vi.mock('../../../models/UserSettings', () => ({ default: {} }));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
@@ -94,7 +91,6 @@ beforeEach(async () => {
   await clearFederationScope(scope);
   enqueueDelivery.mockResolvedValue(true);
   isFediverseSharingEnabled.mockResolvedValue(true);
-  postFindByIdLean.mockResolvedValue(null);
   getUserById.mockResolvedValue({ id: 'u', username: 'alice' });
 });
 
@@ -110,7 +106,7 @@ describe('federateDelete — Delete(Tombstone)', () => {
   it('broadcasts a Delete of the post canonical id to the deleter followers', async () => {
     const followerInbox = await seedFollowerWithInbox(scope, USER_AUTHOR_OXY, { username: 'x' });
 
-    await followService.federateDelete({ _id: 'post1' }, USER_AUTHOR_OXY, 'alice');
+    await followService.federateDelete({ id: 'post1' }, USER_AUTHOR_OXY, 'alice');
 
     const activity = deliveredActivity();
     expect(activity.type).toBe('Delete');
@@ -129,7 +125,7 @@ describe('federateDelete — Delete(Tombstone)', () => {
   it('skips federation entirely when the deleter has sharing disabled', async () => {
     isFediverseSharingEnabled.mockResolvedValue(false);
 
-    await followService.federateDelete({ _id: 'post1' }, USER_AUTHOR_OXY, 'alice');
+    await followService.federateDelete({ id: 'post1' }, USER_AUTHOR_OXY, 'alice');
 
     expect(enqueueDelivery).not.toHaveBeenCalled();
   });

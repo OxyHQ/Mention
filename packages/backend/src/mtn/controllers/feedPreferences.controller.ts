@@ -16,7 +16,7 @@ import { PRESET_FEEDS, isValidFeedDescriptor, parseFeedDescriptor, validateForYo
 import type { FeedDescriptor, SavedFeed } from '@mention/shared-types';
 import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import UserFeedPreference from '../../models/UserFeedPreference';
-import UserSettings from '../../models/UserSettings';
+import { loadUserSettings, updateUserSettings } from '../../db/userProfile/userSettingsRepository';
 import CustomFeed from '../../models/CustomFeed';
 import { sendErrorResponse, sendSuccessResponse } from '../../utils/apiHelpers';
 import { logger } from '../../utils/logger';
@@ -149,7 +149,7 @@ class FeedPreferencesController {
     }
     const userId = getRequiredOxyUserId(req);
     try {
-      const doc = await UserSettings.findOne({ oxyUserId: userId }, { feedTuning: 1 }).lean();
+      const doc = await loadUserSettings(userId);
       return sendSuccessResponse(res, 200, { forYou: doc?.feedTuning?.forYou ?? {} });
     } catch (error) {
       logger.error('[FeedPreferences] Failed to load feed tuning', { userId, error });
@@ -175,11 +175,9 @@ class FeedPreferencesController {
         return sendErrorResponse(res, 400, 'Bad Request', result.error);
       }
 
-      const updated = await UserSettings.findOneAndUpdate(
-        { oxyUserId: userId },
-        { $set: { 'feedTuning.forYou': result.value } },
-        { new: true, upsert: true },
-      ).lean();
+      const updated = await updateUserSettings(userId, {
+        set: { 'feedTuning.forYou': result.value },
+      });
 
       return sendSuccessResponse(
         res,

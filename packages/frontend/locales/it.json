@@ -632,7 +632,17 @@
     "previous": "Video precedente",
     "next": "Video successivo",
     "picture_in_picture": "Picture in picture",
-    "picture_in_picture_failed": "Impossibile avviare Picture in picture"
+    "picture_in_picture_failed": "Impossibile avviare Picture in picture",
+    "replies": "Risposte",
+    "addComment": "Aggiungi un commento...",
+    "like": "Mi piace",
+    "unlike": "Non mi piace più",
+    "comment": "Commenta",
+    "boost": "Rilancia",
+    "unboost": "Annulla rilancio",
+    "save": "Salva",
+    "unsave": "Rimuovi dai salvati",
+    "share": "Condividi"
   },
   "common": {
     "unknown": "sconosciuto",
@@ -1025,6 +1035,12 @@
         "reviews": "Recensioni"
       },
       "reviewPlaceholder": "Racconta cosa pensi di questo feed (facoltativo)"
+    },
+    "trending": {
+      "title": "Di tendenza ora",
+      "subtitle": "Una conversazione in corso",
+      "people_one": "{{count}} persona che pubblica",
+      "people_other": "{{count}} persone che pubblicano"
     }
   },
   "connections": {
@@ -1141,6 +1157,38 @@
   "compose.drafts": "Bozze",
   "compose.noDrafts": "Nessuna bozza",
   "compose.noDraftsDescription": "Le tue bozze salvate appariranno qui",
+  "compose.unpublished": "Non pubblicati",
+  "compose.scheduled.tab": "Programmati",
+  "compose.scheduled.empty": "Nessun post programmato",
+  "compose.scheduled.emptyDescription": "I post che programmi resteranno qui fino al momento della pubblicazione.",
+  "compose.scheduled.unknownTime": "Orario non disponibile",
+  "compose.scheduled.publishNow": "Pubblica ora",
+  "compose.scheduled.publishNowConfirm": "Il post uscirà subito invece che all’orario programmato.",
+  "compose.scheduled.published": "Post pubblicato",
+  "compose.scheduled.publishError": "Impossibile pubblicare il post",
+  "compose.draftPreviewTitle": "Anteprima della bozza",
+  "compose.draftPreviewA11y": "Anteprima della bozza",
+  "compose.draftPreviewEdit": "Continua a scrivere",
+  "compose.draftPreviewThread": "Primo post di altri {{count}} in questo thread",
+  "compose.schedule.a11y": "Programma questo post",
+  "compose.schedule.chipA11y": "Programmato per {{time}}. Tocca per cambiare.",
+  "compose.scheduled.edit": "Modifica post programmato",
+  "compose.scheduled.editingNotice": "Stai modificando un post programmato: nessuno lo ha ancora visto, quindi non ci sono limiti di tempo. Puoi cambiare quando viene pubblicato.",
+  "common.edit": "Modifica",
+  "compose.scheduled.previewTitle": "Anteprima",
+  "compose.scheduled.previewA11y": "Anteprima del post programmato",
+  "compose.scheduled.publishesAt": "Pubblicazione il {{time}}",
+  "compose.scheduled.publishing": "Pubblicazione in corso…",
+  "compose.scheduled.pastDueNotice": "L'orario è passato: potrebbe essere già online. Riapri questa lista per aggiornare.",
+  "compose.scheduled.cancelConfirmPastDue": "L'orario è passato, quindi potrebbe essere già stato pubblicato. In ogni caso questo post verrà eliminato.",
+  "common.back": "Indietro",
+  "compose.scheduled.cancelTitle": "Annulla post programmato",
+  "compose.scheduled.cancelConfirm": "Questo post verrà eliminato e non sarà mai pubblicato.",
+  "compose.scheduled.cancelConfirmAction": "Annulla post",
+  "compose.scheduled.cancelled": "Post programmato annullato",
+  "compose.scheduled.cancelError": "Impossibile annullare il post programmato",
+  "compose.scheduled.loadError": "Non siamo riusciti a caricare i tuoi post programmati",
+  "common.retry": "Riprova",
   "compose.draftLoaded": "Bozza caricata",
   "compose.deleteDraft": "Elimina bozza",
   "compose.deleteDraftConfirm": "Sei sicuro di voler eliminare questa bozza?",
@@ -1459,5 +1507,27 @@
       }
     },
     "searchPlaceholder": "Cerca nei salvati"
+  },
+  "trend": {
+    "trendingLabel": "Di tendenza",
+    "typeEntity": "Entità",
+    "typeTopic": "Argomento",
+    "badge": {
+      "hot": "Caldo",
+      "new": "Nuovo",
+      "hoursAgo": "{{count}} h fa",
+      "daysAgo": "{{count}} g fa"
+    },
+    "peopleCount": "{{formatted}} persone",
+    "postCount": "{{formatted}} post",
+    "category": {
+      "news": "Notizie",
+      "politics": "Politica",
+      "sports": "Sport",
+      "pop-culture": "Intrattenimento",
+      "video-games": "Videogiochi",
+      "science": "Scienza",
+      "other": ""
+    }
   }
 }

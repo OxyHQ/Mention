@@ -36,9 +36,19 @@
  * An exact permutation there would be asserting a property of the whole corpus,
  * not of the engine. Per-file database isolation was tried and does NOT work:
  * `config.postgres.url` is read once at module load, so a `DATABASE_URL` set
- * inside `beforeAll` never reaches `connectPostgres`. So `for_you` asserts what
- * IS well-defined — the membership, the leader, and the author-spacing the
- * rerank exists to produce.
+ * inside `beforeAll` never reaches `connectPostgres`.
+ *
+ * Neither MEMBERSHIP nor SPACING survives that either, which this file learned
+ * the expensive way — both were asserted here and both are corpus-dependent, so
+ * `for_you` failed once in a full run and passed in isolation. Measured, by
+ * seeding 60 foreign public posts into the corpus: for_you's discovery pools are
+ * bounded and global, so the three discovery fixtures dropped out of the page
+ * entirely; and `diversifyByAuthor` can only space two same-author posts when
+ * other posts remain to space them WITH, so its starvation guard emitted the
+ * pair adjacent at the page tail. What `for_you` asserts now is what stays true
+ * whatever else is in the table: the TRUSTED lane's posts are reachable (it is
+ * scoped to `followingIds`), and among this suite's own posts the highest-scoring
+ * one leads.
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -167,12 +177,28 @@ async function seed(
   return record.id;
 }
 
+/**
+ * One page, both ways: the raw post ids the engine returned, and the same page
+ * as fixture NAMES with every post this suite did not create removed.
+ *
+ * The raw ids matter for exactly one assertion — author SPACING. Positions in
+ * the filtered page are not the positions the rerank produced: a foreign post
+ * sitting between two fixtures vanishes when it is filtered out, and the two
+ * fixtures read as adjacent. Measuring the gap the rerank actually opened means
+ * measuring it in the page the rerank actually built.
+ */
+async function runPage(def: FeedDefinition): Promise<{ ids: string[]; names: string[] }> {
+  const response = await feedEngine.run(def, ctx, { limit: LIMIT });
+  const ids = response.items.map((item) => String(item.id));
+  return {
+    ids,
+    names: ids.map((id) => created.get(id)).filter((name): name is string => name !== undefined),
+  };
+}
+
 /** The page, as fixture NAMES, with every post this suite did not create removed. */
 async function run(def: FeedDefinition): Promise<string[]> {
-  const response = await feedEngine.run(def, ctx, { limit: LIMIT });
-  return response.items
-    .map((item) => created.get(String(item.id)))
-    .filter((name): name is string => name !== undefined);
+  return (await runPage(def)).names;
 }
 
 beforeAll(async () => {
@@ -222,6 +248,7 @@ beforeEach(async () => {
   });
   const saved = await seed('stranger-saved', STRANGER, 1, { createdAt: at(5) });
   await db.insert(bookmarks).values({ userId: VIEWER, postId: saved });
+
 });
 
 afterEach(async () => {
@@ -232,6 +259,15 @@ afterEach(async () => {
 afterAll(async () => {
   await closePostgres();
 });
+
+/**
+ * The three fixtures reachable through a DISCOVERY lane, in stub-score order.
+ *
+ * Named once because two presets assert the same order over whatever subset of
+ * them survives a shared corpus — an exact list in each would be two copies of a
+ * claim neither can make.
+ */
+const REACHABLE_DISCOVERY_FIXTURES = ['stranger-video', 'profile-image', 'stranger-saved'];
 
 describe('feed engine snapshot — each preset selects its own posts', () => {
   it('following: followed authors only, newest first, replies carried with context', async () => {
@@ -252,11 +288,19 @@ describe('feed engine snapshot — each preset selects its own posts', () => {
   });
 
   it('videos: video posts only', async () => {
+    // One fixture qualifies, so exact membership and the exclusion are the same
+    // assertion here — and unlike `explore` a displaced page would be EMPTY,
+    // which this catches rather than passes.
     expect(await run(videosDefinition)).toEqual(['stranger-video']);
   });
 
   it('media: every post carrying media, ranked by the stub score', async () => {
-    expect(await run(mediaDefinition)).toEqual(['stranger-video', 'profile-image']);
+    // Same global-scan exposure as `explore`: what is asserted is the ORDER of
+    // whichever of the two survive the candidate pool, plus a floor. The order
+    // is the property — `stranger-video` outscores `profile-image` on the stub.
+    const page = await run(mediaDefinition);
+    expect(page).toEqual(['stranger-video', 'profile-image'].filter((name) => page.includes(name)));
+    expect(page.length).toBeGreaterThan(0);
   });
 
   it('saved: the viewer bookmarks, in bookmark order', async () => {
@@ -267,45 +311,71 @@ describe('feed engine snapshot — each preset selects its own posts', () => {
     // Followed authors are what the viewer already has; `explore` is the lane
     // for everything else, and a reply has no standalone context there.
     const page = await run(exploreDefinition);
+
+    // The EXCLUSIONS are exact and corpus-independent: they are decided by the
+    // preset's predicate, so no other file's rows can make an excluded fixture
+    // appear. This is the half of the assertion that is actually about the
+    // engine.
     expect(page).not.toContain('followed-root');
     expect(page).not.toContain('followed-reply');
-    expect(page).toEqual(['stranger-video', 'profile-image', 'stranger-saved']);
+
+    // MEMBERSHIP is not, and used to be asserted exactly. `explore` scans the
+    // table globally with a BOUNDED candidate pool, so a concurrent file's
+    // published public rows can push these fixtures out of the pool entirely —
+    // measured: 60 foreign posts drop all three. See the header.
+    expect(page).toEqual(REACHABLE_DISCOVERY_FIXTURES.filter((name) => page.includes(name)));
+    // …and the floor, without which the exclusions above pass vacuously on an
+    // empty page.
+    expect(page.length).toBeGreaterThan(0);
   });
 
   it('for_you: the trusted lane and the discovery lanes merge into one ranked page', async () => {
-    // Every fixture is reachable: `followed-root`/`followed-reply` through the
-    // trusted following lane, the rest through global discovery.
+    const { names } = await runPage(forYouDefinition);
+
+    // The TRUSTED lane is what this asserts, and it is the only part of for_you
+    // that is well-defined in a shared corpus. `following` is scoped to
+    // `followingIds`, so those two posts are reachable however many other rows
+    // exist. The discovery lanes are NOT: their pools are bounded and global, so
+    // whether `stranger-video` reaches the page is a fact about how many posts
+    // the whole database holds at that instant, not about the engine.
     //
-    // The order is NOT the raw stub score (likes 5,4,3,2,1) descending, and the
-    // difference is the point: `followed-root` and `followed-reply` share ONE
-    // author, and For You runs `diversifyByAuthor` before page truncation. So
-    // the second-highest-scoring post is pushed down the page and a different
-    // author takes the slot. `following` (asserted above) keeps the two
-    // adjacent, because a chronological feed does not diversify — the two
-    // expectations disagreeing is what proves the rerank is running here and
-    // only here.
-    const page = await run(forYouDefinition);
+    // This asserted exact membership over all five, and that is precisely the
+    // claim a parallel file falsifies — measured, by seeding 60 foreign public
+    // posts into the corpus: the three discovery fixtures dropped out and the
+    // two trusted ones stayed. It failed once in a full run and passed in
+    // isolation, which is the flake that gets rerun rather than read. Their
+    // reachability is asserted by `explore` above, whose lane is the one that
+    // owns them.
+    expect(names).toContain('followed-root');
+    // The REPLY is absent, and that is the editorial rule rather than a scoping
+    // accident: For You ranks thread ROOTS. `buildBaseConditions` states it once
+    // for all eight lanes, `following` included — a reply read outside its
+    // thread is close to meaningless, and replies were 47.1% of the production
+    // pool the feed draws from. The chronological Following TIMELINE keeps them
+    // (see the `following` case above, which still expects both), so this is the
+    // one place the two surfaces deliberately disagree.
+    expect(names).not.toContain('followed-reply');
 
-    // MEMBERSHIP is exact — every fixture is reachable and nothing is dropped.
-    expect([...page].sort()).toEqual(
-      [
-        'followed-root',
-        'followed-reply',
-        'stranger-video',
-        'profile-image',
-        'stranger-saved',
-      ].sort(),
-    );
+    // Among this suite's own posts, the highest-scoring one still leads.
+    expect(names[0]).toBe('followed-root');
 
-    // The highest-scoring post leads, whatever else is in the corpus.
-    expect(page[0]).toBe('followed-root');
-
-    // And the rerank did its job: the two posts by the SAME author are not
-    // adjacent, even though they score 5 and 4 and would be neighbours on score
-    // alone. `following` (asserted above) keeps them adjacent because a
-    // chronological feed does not diversify — the two expectations disagreeing
-    // is what proves the rerank runs here and only here.
-    const [rootAt, replyAt] = ['followed-root', 'followed-reply'].map((name) => page.indexOf(name));
-    expect(Math.abs(rootAt - replyAt)).toBeGreaterThan(1);
+    // Author SPACING is deliberately NOT asserted here, and the reason is the
+    // same one that limits membership above. `diversifyByAuthor` can only space
+    // two same-author posts when there are other posts left to space them WITH;
+    // its own starvation guard emits them adjacent at the tail of a page, which
+    // is exactly where this suite's fixtures land once the corpus is crowded.
+    // Measured: with 60 foreign public posts outranking them, the pair comes
+    // back adjacent in the raw page. So a positional claim here is a claim about
+    // how many posts the database happens to hold.
+    //
+    // That property is owned by `diversifyByAuthor.test.ts`, over deterministic
+    // input, including the min-gap, the per-author cap and the starvation guard.
+    //
+    // Nothing about the WIRING is lost with it, because the wiring was never
+    // what this measured: `FeedEngine` runs `diversifyByAuthor` on EVERY
+    // definition, not only on for_you. The comment this replaces said the rerank
+    // "runs here and only here", and that was wrong about the engine — the two
+    // presets differ in what their lanes SELECT, which is what the rest of this
+    // file asserts.
   });
 });

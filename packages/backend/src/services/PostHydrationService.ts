@@ -1,14 +1,23 @@
-import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostUser, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostViewerState, PostVisibility, PostAuthorshipEntry, MEDIA_VARIANT_THUMB } from '@mention/shared-types';
-import { Post, type PostFederationData } from '../models/Post';
-import Poll from '../models/Poll';
-import Like from '../models/Like';
-import Bookmark from '../models/Bookmark';
+import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostUser, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostReplyContext, PostViewerState, PostVisibility, PostAuthorshipEntry, MEDIA_VARIANT_THUMB } from '@mention/shared-types';
+import { and, asc, eq, inArray, type SQL } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { bookmarks as bookmarksTable, likes as likesTable } from '../db/schema/engagement';
+import { pollOptions, pollVotes, polls as pollsTable } from '../db/schema/polls';
+import { posts } from '../db/schema/posts';
+import { userSettings } from '../db/schema/userProfile';
+import {
+  CHRONO_DESC,
+  countQuotesOf,
+  findBoostedPostIds,
+  findPostRecords,
+  loadPostRecords,
+} from '../db/posts/postRepository';
+import type { PostRecordFederation } from '../db/posts/postRecord';
 import type { FederatedActorRecord } from '../db/federation/actorRecord';
 import {
   findActorsByOxyUserIds,
   findActorsByUris,
 } from '../db/federation/actorRepository';
-import { UserSettings } from '../models/UserSettings';
 import { actorService } from '../connectors/activitypub/actor.service';
 import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
 import { deriveBridgyActorUri } from '../connectors/activitypub/bridgy';
@@ -25,6 +34,9 @@ import {
 import { resolveMediaItems, attachCdnVariant } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
 import { readPersistedMediaFields } from './MediaMetadataService';
+// The counter-visibility flags are shared with the realtime broadcaster, which
+// has to hide exactly what the DTO hides — see `engagementCountPrivacy.ts`.
+import { DEFAULT_PRIVACY, readEngagementCountPrivacy } from './engagementCountPrivacy';
 import type { User as OxyUser } from '@oxyhq/core';
 import { getNormalizedUserHandle, getUserLanguages } from '@oxyhq/core';
 import type { LinkPreview } from '@oxyhq/contracts';
@@ -62,7 +74,7 @@ interface RawPost {
   content?: Partial<StoredPostContent>;
   metadata?: Partial<PostMetadata>;
   /** AP federation metadata (federated posts only); `spoilerText` is the CW label. */
-  federation?: PostFederationData;
+  federation?: PostRecordFederation;
   /**
    * Stage-A classification subdoc. Only the canonical multi-language array is
    * read during hydration (surfaced to the DTO as `metadata.languages`).
@@ -89,6 +101,7 @@ interface RawPost {
   tags?: string[];
   visibility?: string;
   status?: string;
+  scheduledFor?: unknown;
   language?: string;
   createdAt?: unknown;
   updatedAt?: unknown;
@@ -186,12 +199,24 @@ interface ExtendedViewerContext extends ViewerContext {
   _authorPrivacyCache?: Map<string, typeof DEFAULT_PRIVACY>;
 }
 
-const DEFAULT_PRIVACY = {
-  hideLikeCounts: false,
-  hideShareCounts: false,
-  hideReplyCounts: false,
-  hideSaveCounts: false,
-};
+/**
+ * Loading a reply's PARENT, only to answer "whom does this reply answer" (see
+ * `buildReplyParentAuthorMap`) and to answer the same question by id (see
+ * `canViewerReadPostId`).
+ *
+ * A WHOLE record rather than a projection, deliberately. Two of the four fields
+ * the ACL reads are not columns of `posts`: `authorship` is `post_authorships`,
+ * and `federation` is assembled from a family of `federation_*` columns. A
+ * hand-narrowed select would have to reproduce both assemblies, and the failure
+ * mode of getting one wrong is silent — `canViewerReadPost` reads a missing
+ * `status` as published and a missing `authorship` as "no collaborators", so the
+ * gate stops gating rather than erroring. The parent's body is never rendered
+ * from here; it is thrown away the moment its author id is taken.
+ */
+async function loadReplyParents(postIds: readonly string[]): Promise<RawPost[]> {
+  const records = await loadPostRecords([...postIds]);
+  return records as unknown as RawPost[];
+}
 
 /**
  * Build the cached identity ({@link CachedUserSummary}: raw Oxy user + the
@@ -722,7 +747,7 @@ function scheduleOrphanActorSync(actorUris: Set<string>): void {
  * to key on).
  */
 export async function resolveOrphanFederatedAuthors(
-  orphans: Array<{ postId: string; federation: PostFederationData }>,
+  orphans: Array<{ postId: string; federation: PostRecordFederation }>,
 ): Promise<Map<string, PostUser>> {
   const result = new Map<string, PostUser>();
   if (orphans.length === 0) return result;
@@ -861,7 +886,7 @@ export class PostHydrationService {
     // Everything else is independent and can run concurrently.
     const [
       ,
-      { userMap, recentReplierMap },
+      { userMap, recentReplierMap, replyParentAuthorIdByPostId, selfContinuationPostIds },
       pollMap,
       authorPrivacyMap,
       linkPreviewMap,
@@ -870,10 +895,27 @@ export class PostHydrationService {
     ] = await Promise.all([
       this.populateViewerInteractions(postIds, viewerContext),
       (async () => {
-        const replierAggResult = await this.loadRecentReplierProjection(postIds);
-        const uMap = await this.buildUserMap(postsForHydration, replierAggResult.allReplierIds);
+        // The reply-parent lookup runs BESIDE the replier projection, not after
+        // it: both only need the collected graph, and both feed the SAME user
+        // batch below. So resolving "whom does each reply answer" adds no Oxy
+        // round trip and no latency of its own — the parent authors are merged
+        // into the one `buildUserMap` call the rest of hydration already makes.
+        const [replierAggResult, replyParents] = await Promise.all([
+          this.loadRecentReplierProjection(postIds),
+          this.buildReplyParentAuthorMap(postsForHydration, viewerContext),
+        ]);
+        const extraUserIds = new Set(replierAggResult.allReplierIds);
+        for (const parentAuthorId of replyParents.parentAuthorIds) {
+          extraUserIds.add(parentAuthorId);
+        }
+        const uMap = await this.buildUserMap(postsForHydration, extraUserIds);
         const rMap = this.buildReplierAvatarsFromUserMap(replierAggResult.perPostRepliers, uMap);
-        return { userMap: uMap, recentReplierMap: rMap };
+        return {
+          userMap: uMap,
+          recentReplierMap: rMap,
+          replyParentAuthorIdByPostId: replyParents.parentAuthorIdByPostId,
+          selfContinuationPostIds: replyParents.selfContinuationPostIds,
+        };
       })(),
       this.buildPollMap(postsForHydration),
       this.buildAuthorPrivacyMap(postsForHydration, viewerContext),
@@ -905,6 +947,8 @@ export class PostHydrationService {
           orphanAuthorMap,
           resolvedMap,
           quoteCountMap,
+          replyParentAuthorIdByPostId,
+          selfContinuationPostIds,
         })
       )
     );
@@ -1001,20 +1045,17 @@ export class PostHydrationService {
           ? slice._sliceKey
           : recalculated.map((i) => i.post.id).join('+');
 
-        // A `replyContext` reason describes the parent that anchors the slice
-        // ("Replying to @…"), and such a slice is exactly [parent, reply]. When
-        // the per-viewer ACL above drops the parent, the reason is left
-        // describing an item the response no longer carries — so it goes with its
-        // anchor instead of naming the author of a post this viewer was denied.
-        const reason = slice.reason?.type === 'replyContext'
-          && hydratedItems.length !== slice.items.length
-          ? undefined
-          : slice.reason;
-
+        // The reason SURVIVES an ACL-dropped parent. It used to be stripped,
+        // because it carried `parentAuthor` and would then have named the author
+        // of a post this viewer was just denied — but the author now lives on the
+        // reply's own `replyContext`, gated by the same ACL, so there is nothing
+        // left here to leak. Stripping it was also losing the only thing the
+        // reason still asserts: that this item is a reply, which the `hideReplies`
+        // tuner filters on. A viewer hiding replies would have been served the
+        // ones whose parent they could not read.
         result.push({
           ...slice,
           _sliceKey: sliceKey,
-          reason,
           items: recalculated,
         });
       }
@@ -1084,28 +1125,24 @@ export class PostHydrationService {
     // This avoids a separate query in buildAuthorPrivacyMap
     if (authorIds.length > 0) {
       try {
-        const allAuthorSettings = await UserSettings.find({
-          oxyUserId: { $in: authorIds },
-        }).lean();
+        const allAuthorSettings = await this.loadPrivacySettings(authorIds);
 
         // Pre-populate author privacy map for reuse in buildAuthorPrivacyMap
         const authorPrivacyCache = new Map<string, typeof DEFAULT_PRIVACY>();
-        for (const s of allAuthorSettings) {
-          const authorId = String(s.oxyUserId);
+        for (const row of allAuthorSettings) {
+          const authorId = row.oxyUserId;
 
           // Track private profiles
-          const vis = s.privacy?.profileVisibility;
-          if (vis === 'private' || vis === 'followers_only') {
+          if (row.profileVisibility === 'private' || row.profileVisibility === 'followers_only') {
             context.privateProfileIds.add(authorId);
           }
 
           // Cache engagement privacy for buildAuthorPrivacyMap
-          authorPrivacyCache.set(authorId, {
-            hideLikeCounts: Boolean(s.privacy?.hideLikeCounts),
-            hideShareCounts: Boolean(s.privacy?.hideShareCounts),
-            hideReplyCounts: Boolean(s.privacy?.hideReplyCounts),
-            hideSaveCounts: Boolean(s.privacy?.hideSaveCounts),
-          });
+          // The columns are flat and `NOT NULL`, so the row IS a
+          // `CountPrivacySource`. Read through the shared helper anyway: the
+          // realtime broadcaster hides exactly what this DTO hides, and a fifth
+          // counter must not be able to land in one surface only.
+          authorPrivacyCache.set(authorId, readEngagementCountPrivacy(row));
         }
 
         // Set defaults for authors without settings
@@ -1136,14 +1173,9 @@ export class PostHydrationService {
     restrictedIds.forEach((id) => context.restrictedIds.add(String(id)));
 
     try {
-      const settings = await UserSettings.findOne({ oxyUserId: viewerId }).lean();
-      if (settings?.privacy) {
-        context.privacyPreferences = {
-          hideLikeCounts: Boolean(settings.privacy.hideLikeCounts),
-          hideShareCounts: Boolean(settings.privacy.hideShareCounts),
-          hideReplyCounts: Boolean(settings.privacy.hideReplyCounts),
-          hideSaveCounts: Boolean(settings.privacy.hideSaveCounts),
-        };
+      const [settings] = await this.loadPrivacySettings([viewerId]);
+      if (settings) {
+        context.privacyPreferences = readEngagementCountPrivacy(settings);
       }
     } catch (error) {
       logger.warn('[PostHydration] Failed to load viewer privacy settings:', error);
@@ -1261,16 +1293,19 @@ export class PostHydrationService {
       }
 
       const nextIds = Array.from(nextIdMap.keys());
-      const referenceQuery: Record<string, unknown> = { _id: { $in: nextIds } };
+      const referenceScope: SQL[] = [inArray(posts.id, nextIds)];
       if (publicReferencesOnly) {
-        referenceQuery.status = 'published';
-        referenceQuery.visibility = PostVisibility.PUBLIC;
+        referenceScope.push(eq(posts.status, 'published'));
+        referenceScope.push(eq(posts.visibility, PostVisibility.PUBLIC));
       }
 
       try {
-        const fetched = await Post.find(referenceQuery)
-          .select('-metadata.likedBy -metadata.savedBy')
-          .lean();
+        // Ordered because `findPostRecords` requires it, not because the caller
+        // cares: the results are re-keyed by id into `nextIdMap` immediately
+        // below, so the query's own order never reaches a reader.
+        const fetched = await findPostRecords(and(...referenceScope), {
+          orderBy: CHRONO_DESC,
+        });
 
         currentLevel = fetched.map((post) => ({
           post: post as unknown as RawPost,
@@ -1336,6 +1371,39 @@ export class PostHydrationService {
     return '';
   }
 
+  /**
+   * The privacy columns of `user_settings` for a set of accounts.
+   *
+   * ONE reader for every site that needs them (author privacy, profile
+   * visibility, the viewer's own preference), because the Mongoose model these
+   * replaced was consulted from four places and each rebuilt the same defaults.
+   * A row's ABSENCE is meaningful — it means "never saved settings" — so the
+   * caller applies `DEFAULT_PRIVACY` rather than this returning a padded map.
+   */
+  private async loadPrivacySettings(oxyUserIds: string[]): Promise<
+    Array<{
+      oxyUserId: string;
+      profileVisibility: string | null;
+      hideLikeCounts: boolean;
+      hideShareCounts: boolean;
+      hideReplyCounts: boolean;
+      hideSaveCounts: boolean;
+    }>
+  > {
+    if (oxyUserIds.length === 0) return [];
+    return getDb()
+      .select({
+        oxyUserId: userSettings.oxyUserId,
+        profileVisibility: userSettings.privacyProfileVisibility,
+        hideLikeCounts: userSettings.privacyHideLikeCounts,
+        hideShareCounts: userSettings.privacyHideShareCounts,
+        hideReplyCounts: userSettings.privacyHideReplyCounts,
+        hideSaveCounts: userSettings.privacyHideSaveCounts,
+      })
+      .from(userSettings)
+      .where(inArray(userSettings.oxyUserId, oxyUserIds));
+  }
+
   private async populateViewerInteractions(postIds: string[], viewerContext: ViewerContext): Promise<void> {
     const viewerId = viewerContext.viewerId;
     if (!viewerId || postIds.length === 0) {
@@ -1343,32 +1411,33 @@ export class PostHydrationService {
     }
 
     try {
-      const [likes, bookmarks, boosts] = await Promise.all([
-        Like.find({ userId: viewerId, postId: { $in: postIds } }).select('postId value').lean(),
-        Bookmark.find({ userId: viewerId, postId: { $in: postIds } }).select('postId').lean(),
-        Post.find({ oxyUserId: viewerId, boostOf: { $in: postIds } }).select('boostOf').lean(),
+      const db = getDb();
+      const [likeRows, bookmarkRows, boosts] = await Promise.all([
+        db
+          .select({ postId: likesTable.postId, value: likesTable.value })
+          .from(likesTable)
+          .where(and(eq(likesTable.userId, viewerId), inArray(likesTable.postId, postIds))),
+        db
+          .select({ postId: bookmarksTable.postId })
+          .from(bookmarksTable)
+          .where(and(eq(bookmarksTable.userId, viewerId), inArray(bookmarksTable.postId, postIds))),
+        findBoostedPostIds(viewerId, postIds),
       ]);
 
-      likes.forEach((like) => {
-        const id = like?.postId ? String(like.postId) : undefined;
-        if (!id) return;
-        const value = like.value ?? 1;
-        if (value === 1) {
-          viewerContext.likedPosts.add(id);
-        } else {
-          viewerContext.downvotedPosts.add(id);
-        }
-      });
+      // `value` is `1` or `-1` and NOT NULL, so a downvote is the only way into
+      // the second bucket — the Mongo read defaulted a missing value to 1.
+      for (const like of likeRows) {
+        if (like.value === 1) viewerContext.likedPosts.add(like.postId);
+        else viewerContext.downvotedPosts.add(like.postId);
+      }
 
-      bookmarks.forEach((bookmark) => {
-        const id = bookmark?.postId ? String(bookmark.postId) : undefined;
-        if (id) viewerContext.savedPosts.add(id);
-      });
+      for (const bookmark of bookmarkRows) {
+        viewerContext.savedPosts.add(bookmark.postId);
+      }
 
-      boosts.forEach((boost) => {
-        const id = boost?.boostOf ? String(boost.boostOf) : undefined;
-        if (id) viewerContext.boostedPosts.add(id);
-      });
+      for (const boostedId of boosts) {
+        viewerContext.boostedPosts.add(boostedId);
+      }
     } catch (error) {
       logger.error('[PostHydration] Failed to populate viewer interactions:', error);
     }
@@ -1389,33 +1458,59 @@ export class PostHydrationService {
     }
 
     try {
-      const polls = await Poll.find({ _id: { $in: pollIds } }).lean();
+      // Three tables where Mongo had one document: the options are their own
+      // rows (ordered by `position`, which is what preserves the order the
+      // author wrote them in) and each ballot is a row rather than an id inside
+      // `options[].votes`. The wire shape is unchanged — `votes` is a count per
+      // option INDEX and `userVotes` maps a voter to the index they chose — so
+      // the index has to come from `position`, never from array arrival order.
+      const db = getDb();
+      const [pollRows, optionRows, voteRows] = await Promise.all([
+        db
+          .select({ id: pollsTable.id, question: pollsTable.question, endsAt: pollsTable.endsAt })
+          .from(pollsTable)
+          .where(inArray(pollsTable.id, pollIds)),
+        db
+          .select({ id: pollOptions.id, pollId: pollOptions.pollId, text: pollOptions.text })
+          .from(pollOptions)
+          .where(inArray(pollOptions.pollId, pollIds))
+          .orderBy(asc(pollOptions.pollId), asc(pollOptions.position)),
+        db
+          .select({ pollId: pollVotes.pollId, optionId: pollVotes.optionId, userId: pollVotes.userId })
+          .from(pollVotes)
+          .where(inArray(pollVotes.pollId, pollIds)),
+      ]);
+
+      const optionsByPoll = new Map<string, Array<{ id: string; text: string }>>();
+      for (const option of optionRows) {
+        const existing = optionsByPoll.get(option.pollId);
+        if (existing) existing.push({ id: option.id, text: option.text });
+        else optionsByPoll.set(option.pollId, [{ id: option.id, text: option.text }]);
+      }
+
       const map = new Map<string, Record<string, unknown>>();
+      for (const poll of pollRows) {
+        const options = optionsByPoll.get(poll.id) ?? [];
+        const indexByOptionId = new Map(options.map((option, index) => [option.id, index]));
 
-      polls.forEach((poll) => {
-        const id = poll?._id ? String(poll._id) : undefined;
-        if (!id) return;
+        const votes: Record<string, number> = {};
+        const userVotes: Record<string, string> = {};
+        for (let index = 0; index < options.length; index += 1) votes[String(index)] = 0;
+        for (const vote of voteRows) {
+          const index = vote.pollId === poll.id ? indexByOptionId.get(vote.optionId) : undefined;
+          if (index === undefined) continue;
+          votes[String(index)] = (votes[String(index)] ?? 0) + 1;
+          userVotes[vote.userId] = String(index);
+        }
 
-        map.set(id, {
+        map.set(poll.id, {
           question: poll.question,
-          options: poll.options.map((opt) => opt.text),
-          endTime: poll.endsAt?.toISOString?.() ?? poll.endsAt ?? new Date().toISOString(),
-          votes: poll.options.reduce((acc: Record<string, number>, opt, index) => {
-            acc[String(index)] = Array.isArray(opt.votes) ? opt.votes.length : 0;
-            return acc;
-          }, {}),
-          userVotes: poll.options.reduce((acc: Record<string, string>, opt, index) => {
-            if (Array.isArray(opt.votes)) {
-              opt.votes.forEach((userId) => {
-                if (userId) {
-                  acc[String(userId)] = String(index);
-                }
-              });
-            }
-            return acc;
-          }, {}),
+          options: options.map((option) => option.text),
+          endTime: poll.endsAt.toISOString(),
+          votes,
+          userVotes,
         });
-      });
+      }
 
       return map;
     } catch (error) {
@@ -1466,7 +1561,7 @@ export class PostHydrationService {
   private async buildOrphanFederatedAuthorMap(
     nodes: HydratedGraphNode[],
   ): Promise<Map<string, PostUser>> {
-    const orphans: Array<{ postId: string; federation: PostFederationData }> = [];
+    const orphans: Array<{ postId: string; federation: PostRecordFederation }> = [];
     for (const { post } of nodes) {
       if (post?.oxyUserId || !post?.federation) continue;
       const postId = this.resolveId(post);
@@ -1620,15 +1715,9 @@ export class PostHydrationService {
 
       // Fetch only missing authors
       try {
-        const settings = await UserSettings.find({ oxyUserId: { $in: missingIds } }).lean();
+        const settings = await this.loadPrivacySettings(missingIds);
         for (const setting of settings) {
-          const authorId = String(setting.oxyUserId);
-          cached.set(authorId, {
-            hideLikeCounts: Boolean(setting.privacy?.hideLikeCounts),
-            hideShareCounts: Boolean(setting.privacy?.hideShareCounts),
-            hideReplyCounts: Boolean(setting.privacy?.hideReplyCounts),
-            hideSaveCounts: Boolean(setting.privacy?.hideSaveCounts),
-          });
+          cached.set(setting.oxyUserId, readEngagementCountPrivacy(setting));
         }
         for (const id of missingIds) {
           if (!cached.has(id)) cached.set(id, { ...DEFAULT_PRIVACY });
@@ -1651,15 +1740,9 @@ export class PostHydrationService {
     }
 
     try {
-      const settings = await UserSettings.find({ oxyUserId: { $in: authorIds } }).lean();
+      const settings = await this.loadPrivacySettings(authorIds);
       settings.forEach((setting) => {
-        const authorId = String(setting.oxyUserId);
-        privacyMap.set(authorId, {
-          hideLikeCounts: Boolean(setting.privacy?.hideLikeCounts),
-          hideShareCounts: Boolean(setting.privacy?.hideShareCounts),
-          hideReplyCounts: Boolean(setting.privacy?.hideReplyCounts),
-          hideSaveCounts: Boolean(setting.privacy?.hideSaveCounts),
-        });
+        privacyMap.set(setting.oxyUserId, readEngagementCountPrivacy(setting));
       });
 
       authorIds.forEach((authorId) => {
@@ -1697,6 +1780,251 @@ export class PostHydrationService {
     }
 
     return { perPostRepliers, allReplierIds };
+  }
+
+  /**
+   * May this viewer read the post with this id?
+   *
+   * The same question {@link canViewerReadPost} answers, asked by a caller that
+   * holds an id rather than a hydrated graph — today the `joinPost` socket
+   * handler, deciding whether a client may subscribe to a post's live counters.
+   *
+   * It is a real read of the real gate, not a cheaper approximation: the post is
+   * loaded whole, the viewer context is built by the same builder hydration
+   * uses, and the verdict comes from the same predicate. A "is it public?"
+   * shortcut written at the call site would be a second visibility rule, and the
+   * two would drift the first time either moved.
+   *
+   * A blocked author fails here too, matching hydration — which drops a blocked
+   * author's post while COLLECTING it, before the gate below ever sees it, so
+   * asking the gate alone would let through the one case hydration never serves.
+   *
+   * Costs one indexed primary-key lookup plus the viewer context (the viewer's
+   * blocks/restrictions/graph) — the same work one post-detail request already
+   * does. Callers must therefore bound how often they can ask.
+   *
+   * There is NO id-shape guard. The id reaches this seam straight from a client,
+   * but `posts.id` is `text`, so a string that could never name a post is a bound
+   * parameter that matches no row — which is already the `false` a guard would
+   * have produced. An `isValidObjectId` test here would instead answer `false`
+   * for every post created since the cutover, silently refusing every live
+   * subscription.
+   */
+  async canViewerReadPostId(
+    postId: string,
+    viewerId: string,
+    options?: Pick<HydrationOptions, 'oxyClient'>,
+  ): Promise<boolean> {
+    const [post] = await loadReplyParents([postId]);
+    if (!post) return false;
+
+    const isFederatedPost = !!post.federation;
+    const authorId = post.oxyUserId ? String(post.oxyUserId) : undefined;
+    // A native post with no author is a data error hydration refuses to render;
+    // a federated orphan is public by definition and keeps the federated path.
+    if (!authorId) return isFederatedPost;
+
+    const viewerContext = await this.buildViewerContext([post], viewerId, options);
+    if (viewerContext.blockedIds.has(authorId)) return false;
+
+    return this.canViewerReadPost(
+      post,
+      authorId,
+      normalizeAuthorship(post.authorship as PostAuthorshipEntry[] | undefined),
+      isFederatedPost,
+      viewerContext,
+    );
+  }
+
+  /**
+   * May this viewer read this post at all?
+   *
+   * The single post-level ACL. Privacy checks apply to LOCAL posts only —
+   * federated posts are public by definition. Hydration is used for
+   * globally-broadcast DTOs and for nested quote/boost references fetched by id,
+   * so the gate lives here rather than relying on every caller to pre-filter.
+   *
+   * Extracted from {@link buildPostSummary} (whose behaviour is unchanged) so
+   * that {@link buildReplyParentAuthorMap} can ask the identical question about a
+   * reply's PARENT. A reply's "Replying to @…" header names the parent's author,
+   * which must not reveal the author — or the existence — of a post this viewer
+   * would be refused. Answering that with a second, hand-rolled visibility check
+   * is exactly how the two would drift apart; there is one gate and both call it.
+   */
+  private canViewerReadPost(
+    post: RawPost,
+    authorId: string,
+    authorship: PostAuthorshipEntry[],
+    isFederatedPost: boolean,
+    viewerContext: ViewerContext,
+  ): boolean {
+    if (isFederatedPost) return true;
+
+    const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
+    // Pending collaborators may PREVIEW the post they were invited to (so the
+    // collab-invite UI can render the actual content before they accept),
+    // alongside the owner and accepted collaborators. All three bypass the
+    // unpublished/private/followers-only/restricted ACL checks below.
+    const viewerOwnsPost =
+      viewerContext.viewerId === authorId ||
+      (viewerEntry?.role === 'collaborator' &&
+        (viewerEntry.status === 'accepted' || viewerEntry.status === 'pending'));
+
+    if ((post.status ?? 'published') !== 'published' && !viewerOwnsPost) {
+      return false;
+    }
+
+    const visibility = (post.visibility ?? PostVisibility.PUBLIC) as PostVisibility;
+    if (visibility === PostVisibility.PRIVATE && !viewerOwnsPost) {
+      return false;
+    }
+
+    if (visibility === PostVisibility.FOLLOWERS_ONLY && !viewerOwnsPost) {
+      if (!viewerContext.viewerId || !viewerContext.follows.has(authorId)) {
+        return false;
+      }
+    }
+
+    if (viewerContext.restrictedIds.has(authorId) && !viewerOwnsPost) {
+      return false;
+    }
+
+    // Filter posts from private/followers_only profiles. Own posts are always
+    // visible; public profiles pass through.
+    if (viewerContext.privateProfileIds.has(authorId) && !viewerOwnsPost) {
+      if (!viewerContext.viewerId || !viewerContext.follows.has(authorId)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * For every post in the graph that IS a reply, the Oxy id of the author it
+   * answers — when we hold that parent AND this viewer may read it.
+   *
+   * This is what makes reply context a property of the POST rather than of the
+   * feed slice that happens to carry it. Every surface hydrates, so every surface
+   * gets it: the feeds whose definition never opted into reply-context slicing,
+   * the paths that emit no slices at all (the popular fallback, ordered feeds),
+   * and the non-feed screens (search, saved, insights, the thread view) that
+   * render a bare `HydratedPost`.
+   *
+   * Costs nothing when the page holds no replies — the common case for a
+   * discovery lane — and at most ONE extra indexed `_id` lookup otherwise. The
+   * authors themselves are NOT resolved here: their ids are merged into the
+   * single {@link buildUserMap} batch the rest of hydration already runs, so a
+   * parent author who is also a post author on the page costs no second fetch and
+   * no second Oxy round trip.
+   *
+   * Membership of the returned map is the ACL decision. A parent that is absent,
+   * unpublished, private, followers-only to a non-follower, restricted, or behind
+   * a private profile yields NO entry, so the reply still reports itself as a
+   * reply but names nobody — never a header naming the author of a post this
+   * viewer was refused.
+   *
+   * `selfContinuationPostIds` is the SELF-THREAD decision, made here rather than
+   * in the renderer for two reasons. It is the only place that holds both
+   * authoritative author ids (`post.oxyUserId` and the parent's), and the DTO's
+   * `user.id` is NOT a safe substitute: an orphan federated post carries a
+   * degraded author summary whose `id` is the POST id (see `degradedActorSummary`
+   * in `buildPostSummary`), so a renderer-side comparison would silently never
+   * match for exactly those posts.
+   */
+  private async buildReplyParentAuthorMap(
+    nodes: HydratedGraphNode[],
+    viewerContext: ViewerContext,
+  ): Promise<{
+    parentAuthorIdByPostId: Map<string, string>;
+    parentAuthorIds: Set<string>;
+    selfContinuationPostIds: Set<string>;
+  }> {
+    const parentAuthorIdByPostId = new Map<string, string>();
+    const parentAuthorIds = new Set<string>();
+    const selfContinuationPostIds = new Set<string>();
+
+    // The STORED `is_reply` column is the ONE definition of the concept (see
+    // `derivesReplyIntent` in db/posts/postRecord.ts): it counts a federated
+    // reply whose `inReplyTo` never resolved into a local `parentPostId`. Such a
+    // reply has no parent to name but is still a reply, and `buildPostSummary`
+    // emits its marker off the same column.
+    const parentIdByPostId = new Map<string, string>();
+    const replyAuthorIdByPostId = new Map<string, string>();
+    for (const { post } of nodes) {
+      if (!post || post.isReply !== true) continue;
+      const postId = this.resolveId(post);
+      const parentId = post.parentPostId ? String(post.parentPostId) : '';
+      if (postId && parentId) {
+        parentIdByPostId.set(postId, parentId);
+        // The raw `oxyUserId`, not the DTO's `user.id` — see the note above.
+        replyAuthorIdByPostId.set(postId, post.oxyUserId ? String(post.oxyUserId) : '');
+      }
+    }
+
+    if (parentIdByPostId.size === 0) {
+      return { parentAuthorIdByPostId, parentAuthorIds, selfContinuationPostIds };
+    }
+
+    // Parents already collected into the graph (a reply-context slice prepends
+    // its parent, and a thread's own posts sit beside each other) are reused
+    // rather than re-fetched.
+    const knownById = new Map<string, RawPost>();
+    for (const { post } of nodes) {
+      const id = this.resolveId(post);
+      if (id) knownById.set(id, post);
+    }
+
+    const missingIds = [...new Set(parentIdByPostId.values())].filter((id) => !knownById.has(id));
+    if (missingIds.length > 0) {
+      try {
+        const parents = await loadReplyParents(missingIds);
+        for (const parent of parents) {
+          const id = this.resolveId(parent);
+          if (id) knownById.set(id, parent);
+        }
+      } catch (error) {
+        // Soft-fail: replies still report themselves as replies, just unnamed.
+        logger.warn('[PostHydration] Failed to load reply parents:', error);
+      }
+    }
+
+    for (const [postId, parentId] of parentIdByPostId) {
+      const parent = knownById.get(parentId);
+      if (!parent) continue;
+
+      const parentAuthorId = parent.oxyUserId ? String(parent.oxyUserId) : '';
+      // An orphan federated parent carries no Oxy author link, so there is
+      // nobody to name — the reply keeps its marker and drops the handle.
+      if (!parentAuthorId) continue;
+
+      // A reply to one's OWN post is a self-thread continuation, which every
+      // client renders as a thread (connector line + "Show this thread"), never
+      // as a reply header — "Replying to @themselves" on every post after the
+      // first is noise, and self-threads are a very common shape. Classified
+      // here, where both ids are authoritative; `buildPostSummary` then omits
+      // `replyContext` for these posts entirely, so the renderer needs no rule
+      // and cannot mistake a self-continuation for an unnamed reply.
+      const replyAuthorId = replyAuthorIdByPostId.get(postId);
+      if (replyAuthorId && replyAuthorId === parentAuthorId) {
+        selfContinuationPostIds.add(postId);
+        continue;
+      }
+
+      const readable = this.canViewerReadPost(
+        parent,
+        parentAuthorId,
+        normalizeAuthorship(parent.authorship as PostAuthorshipEntry[] | undefined),
+        !!parent.federation,
+        viewerContext,
+      );
+      if (!readable) continue;
+
+      parentAuthorIdByPostId.set(postId, parentAuthorId);
+      parentAuthorIds.add(parentAuthorId);
+    }
+
+    return { parentAuthorIdByPostId, parentAuthorIds, selfContinuationPostIds };
   }
 
   /**
@@ -1740,8 +2068,12 @@ export class PostHydrationService {
     resolvedMap: Map<string, ResolvedVariant>;
     /** Undefined unless the caller passed `includeQuoteCounts` — see {@link HydrationOptions}. */
     quoteCountMap: Map<string, number> | undefined;
+    /** Reply post id → its parent's author id, for the posts whose parent this viewer may read. */
+    replyParentAuthorIdByPostId: Map<string, string>;
+    /** Replies to their OWN author's post — self-thread continuations, which carry no reply context. */
+    selfContinuationPostIds: Set<string>;
   }): Promise<HydratedPostSummary | null> {
-    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap } = params;
+    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap, replyParentAuthorIdByPostId, selfContinuationPostIds } = params;
 
     const postId = this.resolveId(post);
     if (!postId) return null;
@@ -1769,47 +2101,8 @@ export class PostHydrationService {
 
     const authorship = normalizeAuthorship(post.authorship as PostAuthorshipEntry[] | undefined);
 
-    // Privacy checks only apply to local users (federated posts are public by definition).
-    // Hydration can be used for globally-broadcast DTOs and for nested quote/boost
-    // references fetched by id, so enforce post-level ACL here instead of relying
-    // on callers to pre-filter every referenced post.
-    if (!isFederatedPost) {
-      const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
-      // Pending collaborators may PREVIEW the post they were invited to (so the
-      // collab-invite UI can render the actual content before they accept),
-      // alongside the owner and accepted collaborators. All three bypass the
-      // unpublished/private/followers-only/restricted ACL checks below.
-      const viewerOwnsPost =
-        viewerContext.viewerId === authorId ||
-        (viewerEntry?.role === 'collaborator' &&
-          (viewerEntry.status === 'accepted' || viewerEntry.status === 'pending'));
-
-      if ((post.status ?? 'published') !== 'published' && !viewerOwnsPost) {
-        return null;
-      }
-
-      const visibility = (post.visibility ?? PostVisibility.PUBLIC) as PostVisibility;
-      if (visibility === PostVisibility.PRIVATE && !viewerOwnsPost) {
-        return null;
-      }
-
-      if (visibility === PostVisibility.FOLLOWERS_ONLY && !viewerOwnsPost) {
-        if (!viewerContext.viewerId || !viewerContext.follows.has(authorId)) {
-          return null;
-        }
-      }
-
-      if (viewerContext.restrictedIds.has(authorId) && !viewerOwnsPost) {
-        return null;
-      }
-
-      // Filter posts from private/followers_only profiles. Own posts are always
-      // visible; public profiles pass through.
-      if (viewerContext.privateProfileIds.has(authorId) && !viewerOwnsPost) {
-        if (!viewerContext.viewerId || !viewerContext.follows.has(authorId)) {
-          return null;
-        }
-      }
+    if (!this.canViewerReadPost(post, authorId, authorship, isFederatedPost, viewerContext)) {
+      return null;
     }
 
     // `resolveUserSummaries` always populates an entry for every requested id
@@ -1858,6 +2151,15 @@ export class PostHydrationService {
 
     // Only include essential metadata for feed performance
     const includeFullMetadata = (params.viewerContext as ExtendedViewerContext).includeFullMetadata !== false;
+    // Guarded rather than converted inline like `createdAt`: this field is
+    // optional, so an unparseable value is reachable, and `toISOString()` throws
+    // on one — which would fail the whole hydration, not just this field.
+    const scheduledAt = post.scheduledFor
+      ? new Date(post.scheduledFor as string | number | Date)
+      : null;
+    const scheduledFor = scheduledAt && !Number.isNaN(scheduledAt.getTime())
+      ? scheduledAt.toISOString()
+      : undefined;
     const metadata = {
       visibility: (post.visibility ?? PostVisibility.PUBLIC) as PostVisibility,
       replyPermission: post.replyPermission as import('@mention/shared-types').ReplyPermission[] | undefined,
@@ -1879,6 +2181,11 @@ export class PostHydrationService {
       createdAt: new Date((post.createdAt || post.date || Date.now()) as string | number | Date).toISOString(),
       updatedAt: new Date((post.updatedAt || post.createdAt || Date.now()) as string | number | Date).toISOString(),
       status: post.status as 'draft' | 'published' | 'scheduled' | undefined,
+      // Only a scheduled post carries one, and the ACL above already dropped
+      // every unpublished post for anyone but its owner/collaborators — so this
+      // is emitted unconditionally rather than gated on `status`, which would
+      // only duplicate that check somewhere it could drift.
+      scheduledFor,
     };
 
     // Always replace mentions in text if they exist, regardless of includeFullMetadata
@@ -1898,6 +2205,13 @@ export class PostHydrationService {
     const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
     const includeAuthorship = viewerEntry != null;
 
+    // Empty when the parent is absent, unreadable by this viewer, or an orphan
+    // federated post with no Oxy author — the post is still marked as a reply,
+    // it simply names nobody.
+    const parentAuthorId = replyParentAuthorIdByPostId.get(postId);
+    const parentAuthor = parentAuthorId ? userMap.get(parentAuthorId) : undefined;
+    const replyContext: PostReplyContext = parentAuthor ? { parentAuthor } : {};
+
     return {
       id: postId,
       content: content ?? { text: finalText },
@@ -1912,6 +2226,14 @@ export class PostHydrationService {
       metadata,
       // Include parentPostId for thread hierarchy in replies
       ...(post.parentPostId ? { parentPostId: String(post.parentPostId) } : {}),
+      // The reply marker rides on the POST, so every surface that renders one —
+      // sliced feed, flat feed, search, saved, thread view — can say "Replying
+      // to @…" from the DTO alone. The stored `is_reply` column is the single
+      // definition, so a federated reply whose `inReplyTo` never resolved is
+      // still marked; it just names nobody. Self-thread continuations are the one
+      // exclusion — they are replies, but they are rendered as a THREAD, not as
+      // reply context. See `PostReplyContext`.
+      ...(post.isReply === true && !selfContinuationPostIds.has(postId) ? { replyContext } : {}),
     };
   }
 
@@ -2231,13 +2553,8 @@ export class PostHydrationService {
     const counts = new Map<string, number>();
     if (postIds.length === 0) return counts;
 
-    const rows = await Post.aggregate<{ _id: string; count: number }>([
-      { $match: { quoteOf: { $in: postIds } } },
-      { $group: { _id: '$quoteOf', count: { $sum: 1 } } },
-    ]);
-
-    for (const row of rows) {
-      if (row?._id) counts.set(String(row._id), row.count);
+    for (const [postId, count] of await countQuotesOf(postIds)) {
+      counts.set(postId, count);
     }
     return counts;
   }

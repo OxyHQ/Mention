@@ -1,5 +1,5 @@
 import { logger } from '../../utils/logger';
-import StarterPack from '../../models/StarterPack';
+import { upsertMirroredStarterPack } from '../../db/lists/starterPackRepository';
 import { mapWithConcurrency } from '../../utils/concurrency';
 import { xrpcGet } from './xrpcClient';
 import { fetchAndUpsertAtprotoProfile } from './profile.mapper';
@@ -204,18 +204,19 @@ async function upsertMirroredPack(
   memberOxyUserIds: string[],
 ): Promise<boolean> {
   try {
-    await StarterPack.findOneAndUpdate(
-      { 'source.uri': ref.uri },
-      {
-        $set: {
-          ownerOxyUserId,
-          name: ref.name,
-          memberOxyUserIds,
-          source: { network: 'atproto', uri: ref.uri, syncedAt: new Date() },
-        },
-      },
-      { upsert: true },
-    );
+    // Postgres, through the shared writer. This upserted the Mongo model until
+    // now, while every reader had already moved: `routes/starterPacks.ts` serves
+    // the API from `starter_packs` and `starterPackCuration` ranks from
+    // `starter_pack_members`. A mirrored pack was therefore written to a store
+    // nothing reads — invisible in the API, curating nothing, and re-syncing
+    // cleanly forever because the write itself always succeeded.
+    await upsertMirroredStarterPack({
+      sourceNetwork: 'atproto',
+      sourceUri: ref.uri,
+      ownerOxyUserId,
+      name: ref.name,
+      memberOxyUserIds,
+    });
     return true;
   } catch (err) {
     // A concurrent sync of the same pack can race the upsert to an E11000; that is

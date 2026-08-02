@@ -1,4 +1,4 @@
-import UserSettings, { type UserSettingsData } from '../models/UserSettings';
+import type { UserSettingsRecord } from '../db/userProfile/userSettingsRecord';
 import { resolveBannerUrl } from './mediaResolver';
 
 /**
@@ -29,33 +29,9 @@ function resolveProfileHeaderImage(value: unknown): string | undefined {
 }
 
 /**
- * Ensures a UserSettings document exists for a user
- * Creates with defaults if missing, updates if missing profileCustomization
- */
-export async function ensureUserSettings(oxyUserId: string) {
-  let doc = await UserSettings.findOne({ oxyUserId }).lean<UserSettingsData>().exec();
-  
-  if (!doc) {
-    const created = await UserSettings.create({ 
-      oxyUserId,
-      profileCustomization: DEFAULT_PROFILE_CUSTOMIZATION,
-    });
-    doc = created.toObject<UserSettingsData>();
-  } else if (!doc.profileCustomization) {
-    doc = await UserSettings.findOneAndUpdate(
-      { oxyUserId },
-      { $set: { profileCustomization: DEFAULT_PROFILE_CUSTOMIZATION } },
-      { new: true }
-    ).lean<UserSettingsData>().exec();
-  }
-  
-  return doc;
-}
-
-/**
  * Extracts public profile design data from UserSettings document
  */
-export function extractPublicProfileData(doc: Partial<UserSettingsData> | null | undefined, userId: string) {
+export function extractPublicProfileData(doc: Partial<UserSettingsRecord> | null | undefined, userId: string) {
   const customization = doc?.profileCustomization || {};
   const profileCustomization = {
     coverPhotoEnabled:
@@ -114,7 +90,7 @@ export function redactedProfileDesign(userId: string) {
  * rule `GET /profile/design/:userId` applies.
  */
 export function buildSettingsResponseForViewer(
-  doc: Partial<UserSettingsData> | null | undefined,
+  doc: Partial<UserSettingsRecord> | null | undefined,
   targetUserId: string,
   viewerUserId: string,
   options: { canViewProfileDesign: boolean },

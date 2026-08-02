@@ -15,6 +15,41 @@
       "when": 1785575653415,
       "tag": "0001_posts_reply_discriminator",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785656123834,
+      "tag": "0002_post_cursor_ms_precision",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785678207141,
+      "tag": "0003_notifications_chrono_keyset",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785680245091,
+      "tag": "0004_one_native_boost_per_account",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785675946096,
+      "tag": "0005_post_trend_terms",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785678555752,
+      "tag": "0006_trend_labels_and_bridged_identity",
+      "breakpoints": true
     }
   ]
 }

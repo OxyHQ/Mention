@@ -33,10 +33,8 @@ const h = vi.hoisted(() => {
     mirrorResults: Map<string, Array<{ ok: boolean; permanent: boolean } | Error>>;
   } = { actors: [], alreadySet: new Set(), mirrorResults: new Map() };
 
-  const settingsFindOne = vi.fn((query: { oxyUserId: string }) => ({
-    lean: async () =>
-      state.alreadySet.has(query.oxyUserId) ? { profileHeaderImage: 'existing_file' } : null,
-  }));
+  const settingsFindOne = vi.fn(async (oxyUserId: string) =>
+    (state.alreadySet.has(oxyUserId) ? { profileHeaderImage: 'existing_file' } : null));
 
   const mirror = vi.fn(async (_url: string, oxyUserId: string) => {
     const queue = state.mirrorResults.get(oxyUserId);
@@ -76,10 +74,14 @@ vi.mock('../../db/federation/actorRepository', () => ({
   scanActors: h.scanActors,
 }));
 
-vi.mock('../../models/UserSettings', () => ({
-  default: {
-    findOne: h.settingsFindOne,
-  },
+/**
+ * The repository is the seam. This suite is about the SWEEP — which actors it
+ * visits, the idempotent skip, the retry/backoff and the dry run — not about
+ * how a banner is stored; that round trip is on real rows in
+ * `__tests__/connectors/identity.test.ts`.
+ */
+vi.mock('../../db/userProfile/userSettingsRepository', () => ({
+  loadUserSettings: h.settingsFindOne,
 }));
 
 vi.mock('../../connectors/identity', () => ({
@@ -194,7 +196,7 @@ describe('backfillFederatedBanners', () => {
       countActors: h.countActors,
       scanActors: h.scanActors,
     }));
-    vi.doMock('../../models/UserSettings', () => ({ default: { findOne: h.settingsFindOne } }));
+    vi.doMock('../../db/userProfile/userSettingsRepository', () => ({ loadUserSettings: h.settingsFindOne }));
     vi.doMock('../../connectors/identity', () => ({ mirrorFederatedBanner: h.mirror }));
     vi.doMock('../../utils/logger', () => ({
       logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },

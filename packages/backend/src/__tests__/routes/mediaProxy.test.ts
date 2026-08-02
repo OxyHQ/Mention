@@ -49,9 +49,10 @@ vi.mock('../../services/mediaCache/cacheStore', () => ({
 
 /** Cache front inert by default so most tests hit the remote-stream path. */
 const mediaCacheEnabled = vi.hoisted(() => ({ value: false }));
+const oxyStore = vi.hoisted(() => ({ resolveOxyDownloadUrl: vi.fn() }));
 vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
   isMediaCacheEnabled: () => mediaCacheEnabled.value,
-  resolveOxyDownloadUrl: vi.fn(),
+  resolveOxyDownloadUrl: (...args: unknown[]) => oxyStore.resolveOxyDownloadUrl(...args),
 }));
 
 /**
@@ -124,6 +125,9 @@ function streamingResponse(statusCode: number, headers: Record<string, string>, 
 
 const REMOTE = 'https://remote.example/media/cat.jpg';
 
+/** What the (mocked) Oxy store resolves a cached object to. */
+const OXY_CDN_URL = 'https://cloud.oxy.so/oxyfile123';
+
 /** What the stubbed core guard returns for an allowed URL. */
 const ALLOWED_GUARD = { ok: true, ip: '203.0.113.10', family: 4 } as const;
 
@@ -133,6 +137,7 @@ beforeEach(() => {
   cacheStore.lookupCacheRow.mockReset().mockResolvedValue(undefined);
   cacheStore.bumpAccess.mockReset().mockResolvedValue(undefined);
   cacheStore.recordAccessAndMaybeEnqueue.mockReset().mockResolvedValue(true);
+  oxyStore.resolveOxyDownloadUrl.mockReset().mockResolvedValue(OXY_CDN_URL);
 });
 
 describe('GET /media/proxy — upstream status mapping', () => {
@@ -362,5 +367,114 @@ describe('GET /media/proxy — URL validated before any cache write', () => {
       expect.anything(),
       ALLOWED_GUARD,
     );
+  });
+});
+
+/**
+ * `?variant=` lets a caller ask for a SIZED render of a remote image, which is
+ * what stops a feed card from downloading a multi-megabyte original to fill a
+ * ≤320px box (`mediaResolver` emits it on `thumbUrl`/`fullUrl` for federated
+ * media). The route never resizes anything itself — the resize belongs to Oxy's
+ * existing image pipeline — so the parameter is honoured by appending it to the
+ * `cloud.oxy.so` redirect once the bytes are mirrored, and ignored until then.
+ */
+describe('GET /media/proxy — sized variants', () => {
+  beforeEach(() => {
+    mediaCacheEnabled.value = true;
+    fetchUpstreamFollowingRedirects.mockReset();
+    isNegativelyCached.mockReset().mockResolvedValue(false);
+    markNegativelyCached.mockReset().mockResolvedValue(undefined);
+  });
+
+  it('redirects a cached image to the SIZED Oxy render when a variant is asked for', async () => {
+    cacheStore.lookupCacheRow.mockResolvedValue({
+      state: 'cached',
+      oxyFileId: 'oxyfile123',
+      contentType: 'image/png',
+    });
+
+    const res = await request(app).get('/media/proxy').query({ url: REMOTE, variant: 'w320' });
+
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(`${OXY_CDN_URL}?variant=w320`);
+    expect(fetchUpstreamFollowingRedirects).not.toHaveBeenCalled();
+  });
+
+  it('redirects to the un-sized original when no variant is asked for', async () => {
+    cacheStore.lookupCacheRow.mockResolvedValue({
+      state: 'cached',
+      oxyFileId: 'oxyfile123',
+      contentType: 'image/png',
+    });
+
+    const res = await request(app).get('/media/proxy').query({ url: REMOTE });
+
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(OXY_CDN_URL);
+  });
+
+  it('ignores a variant on cached NON-image media', async () => {
+    // Oxy's variant taxonomy is an image one; `w320` of an mp4 is meaningless.
+    // `resolveMediaRef` cannot make this call (it resolves a bare reference with
+    // no type beside it), so the guard has to live where the type is known.
+    cacheStore.lookupCacheRow.mockResolvedValue({
+      state: 'cached',
+      oxyFileId: 'oxyfile123',
+      contentType: 'video/mp4',
+    });
+
+    const res = await request(app).get('/media/proxy').query({ url: REMOTE, variant: 'w320' });
+
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(OXY_CDN_URL);
+  });
+
+  it('never forwards an unrecognised variant to our CDN', async () => {
+    // The value is appended to a cloud.oxy.so URL, so an unvalidated one would
+    // let any caller mint arbitrary query strings against our own CDN.
+    cacheStore.lookupCacheRow.mockResolvedValue({
+      state: 'cached',
+      oxyFileId: 'oxyfile123',
+      contentType: 'image/png',
+    });
+
+    for (const variant of ['../../etc', 'w9999', 'hls_master', '', 'w320&x=1']) {
+      const res = await request(app).get('/media/proxy').query({ url: REMOTE, variant });
+
+      expect(res.status).toBe(302);
+      expect(res.headers.location).toBe(OXY_CDN_URL);
+    }
+  });
+
+  it('streams the original but only BRIEFLY caches it when a variant cannot be served', async () => {
+    // Cache miss: we cannot produce the sized render, so the original is served
+    // in its place. That response must expire quickly — caching it for a day
+    // under a `variant` URL would pin the client to the full-size bytes long
+    // after the mirror landed, turning a temporary miss into a permanent one.
+    cacheStore.lookupCacheRow.mockResolvedValue(undefined);
+    fetchUpstreamFollowingRedirects.mockResolvedValue({
+      response: streamingResponse(200, { 'content-type': 'image/jpeg' }, Buffer.from([0xff, 0xd8])),
+      finalUrl: REMOTE,
+    });
+
+    const res = await request(app).get('/media/proxy').query({ url: REMOTE, variant: 'w320' });
+
+    expect(res.status).toBe(200);
+    expect(res.headers['cache-control']).toBe('public, max-age=300');
+    expect(res.headers['cache-control']).not.toContain('immutable');
+    // ...and the miss still enqueues the mirror that will satisfy the next one.
+    expect(cacheStore.recordAccessAndMaybeEnqueue).toHaveBeenCalledWith(REMOTE);
+  });
+
+  it('keeps the long immutable cache directive for a plain (variant-less) stream', async () => {
+    cacheStore.lookupCacheRow.mockResolvedValue(undefined);
+    fetchUpstreamFollowingRedirects.mockResolvedValue({
+      response: streamingResponse(200, { 'content-type': 'image/jpeg' }, Buffer.from([0xff, 0xd8])),
+      finalUrl: REMOTE,
+    });
+
+    const res = await request(app).get('/media/proxy').query({ url: REMOTE });
+
+    expect(res.headers['cache-control']).toBe('public, max-age=86400, immutable');
   });
 });

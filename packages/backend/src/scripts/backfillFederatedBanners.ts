@@ -45,7 +45,7 @@ import mongoose from 'mongoose';
 import { connectToDatabase } from '../utils/database';
 import { countActors, scanActors } from '../db/federation/actorRepository';
 import { connectPostgres, closePostgres } from '../db/postgres';
-import UserSettings from '../models/UserSettings';
+import { loadUserSettings } from '../db/userProfile/userSettingsRepository';
 import { mirrorFederatedBanner } from '../connectors/identity';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
@@ -142,10 +142,7 @@ async function processActor(
   dryRun: boolean,
 ): Promise<void> {
   if (!FORCE) {
-    const existing = await UserSettings.findOne(
-      { oxyUserId: actor.oxyUserId },
-      { profileHeaderImage: 1 },
-    ).lean<{ profileHeaderImage?: string } | null>();
+    const existing = await loadUserSettings(actor.oxyUserId);
     if (existing?.profileHeaderImage) {
       counters.skippedAlreadySet += 1;
       return;

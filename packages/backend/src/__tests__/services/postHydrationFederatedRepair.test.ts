@@ -62,7 +62,6 @@ vi.mock('../../models/Post', () => ({ Post: { find: () => chainable([]), findOne
 vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/UserSettings', () => ({ UserSettings: { find: () => chainable([]), findOne: () => chainable([]) } }));
 // The starter-pack CURATION aggregation runs on the cache-fill path (it stamps the
 // ranking-side `starterPackScore`). No DB here → no packs → no scores.
 vi.mock('../../models/StarterPack', () => ({
@@ -79,6 +78,14 @@ vi.mock('../../services/userSummaryCache', () => ({
 
 import { resolveUserSummaries, degradedActorSummary, isFallbackUserSummary } from '../../services/PostHydrationService';
 
+/**
+ * This file's own federated author. It must not be an id another suite seeds an
+ * actor under: the lookup is by `oxy_user_id`, suites share one database and run
+ * in parallel, and `postHydrationOrphanBridgy.test.ts` used to seed a different
+ * handle on a different instance under this exact literal — so whichever row the
+ * query reached first decided the answer, and this file failed intermittently on
+ * its handle/instance/avatar assertions while passing in isolation.
+ */
 const FED_ID = '6a38fbdd272930c46a785b1f';
 
 beforeAll(async () => {

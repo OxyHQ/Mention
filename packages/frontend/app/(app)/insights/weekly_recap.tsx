@@ -18,7 +18,7 @@ import { insightsService, type AccountInsights } from '@/services/insightsServic
 import { useTranslation } from 'react-i18next';
 import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types/post';
+import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import StatCard from '@/components/insights/StatCard';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { ArticleIcon } from '@/assets/icons/article-icon';
@@ -253,7 +253,11 @@ const WeeklyRecapScreen: React.FC = () => {
             <ThemedView className="flex-1">
                 {renderHeader()}
                 <View className="flex-1 items-center justify-center p-6">
-                    <AnalyticsIcon size={64} color={theme.colors.text + '60'} />
+                    {/* `textTertiary` is the theme's real de-emphasised ink.
+                        `theme.colors.text + '60'` was a malformed colour (the
+                        token is `rgb(...)`), so the empty-state glyph painted at
+                        full foreground strength — louder than the message. */}
+                    <AnalyticsIcon size={64} color={theme.colors.textTertiary} />
                     <Text className="text-base mt-3 text-muted-foreground">
                         {t('insights.weeklyRecap.noDataAvailable')}
                     </Text>
@@ -319,7 +323,7 @@ const WeeklyRecapScreen: React.FC = () => {
                     <Avatar
                         source={avatarUri}
                         size={72}
-                        variant={MEDIA_VARIANT_VIDEO_POSTER}
+                        variant={MEDIA_VARIANT_AVATAR_LG}
                     />
                     <Text className="text-2xl font-bold mt-4 mb-2 text-foreground" style={{ letterSpacing: -0.3 }}>
                         {t('insights.weeklyRecap.pageTitle')}

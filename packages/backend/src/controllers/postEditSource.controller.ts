@@ -8,8 +8,8 @@ import type {
 } from '@mention/shared-types/post';
 import {
   mentionTextsFromContent,
-  reconcileMentionIds,
 } from '@mention/shared-types/mentions';
+import { reconcileMentionIdsForPost } from '../utils/textProcessing';
 import { posts } from '../db/schema/posts';
 import { findPostRecords, CHRONO_DESC } from '../db/posts/postRepository';
 import { authorVariants } from '../services/postVariants';
@@ -71,7 +71,7 @@ export const getPostEditSource = async (
       ...(variants.length > 0 ? { variants } : {}),
       ...(post.content.media ? { media: post.content.media } : {}),
     };
-    const mentions = reconcileMentionIds(
+    const mentions = reconcileMentionIdsForPost(
       mentionTextsFromContent(content),
       post.mentions,
     );
@@ -102,6 +102,12 @@ export const getPostEditSource = async (
       mentionUsers,
       ...(post.authorship.length > 0 ? { authorship: post.authorship } : {}),
       ...(post.parentPostId ? { parentPostId: post.parentPostId } : {}),
+      // The composer needs the publication state to know whether the 30-minute
+      // edit window applies at all, and the time so it can restore the schedule
+      // instead of silently dropping it when the author saves. `status` is
+      // `NOT NULL` here, so it is always sent rather than conditionally.
+      status: post.status,
+      ...(post.scheduledFor ? { scheduledFor: post.scheduledFor.toISOString() } : {}),
     };
     return res.json(response);
   } catch (error) {

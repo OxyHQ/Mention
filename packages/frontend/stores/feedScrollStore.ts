@@ -38,6 +38,13 @@ export interface FeedMemoryCacheEntry {
     interstitials?: FeedInterstitialSlot[];
     hasMore: boolean;
     nextCursor?: string;
+    /**
+     * When this slice was retained, in `Date.now()` terms. A warm start compares
+     * it against the last engagement write (`stores/engagementInvalidation`) to
+     * tell a slice that still reflects the server from one that predates a like,
+     * boost or save the viewer has since made.
+     */
+    retainedAt: number;
 }
 
 interface FeedScrollStore {

@@ -181,6 +181,86 @@ export const postWriteRateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+/**
+ * Rate limiter for the statistics/insights router.
+ *
+ * EVERY handler there reaches Mongo, so the whole router is the
+ * `js/missing-rate-limiting` surface, not just the one route CodeQL's dataflow
+ * happened to reach: `getPostInsights` runs three parallel `countDocuments`, the
+ * public per-day heatmap aggregates a caller-chosen window of up to 366 days,
+ * and the shared overview aggregation is cached only per `(user, days)` — which
+ * a caller varies for free.
+ *
+ * Deliberately NOT the general `apiRateLimiter`: that one's store is keyed
+ * `rate-limit:api:` and its `user:<id>` key is byte-identical to the one
+ * `createOxyRateLimit` writes from `runtimeApp.ts` under the SAME prefix, so the
+ * two already share a counter with mismatched windows (60s vs 15min). Mounting
+ * more routes onto it would widen an existing collision rather than bound
+ * anything. 200/minute matches the generosity it was reaching for; a profile
+ * visit spends a handful.
+ */
+const statisticsStore = new RedisStore({
+  prefix: 'rate-limit:statistics:',
+  windowMs: 60 * 1000,
+});
+export const statisticsRateLimiter = rateLimit({
+  store: statisticsStore,
+  windowMs: 60 * 1000,
+  max: 200,
+  keyGenerator: (req: Request) => {
+    const authReq = req as AuthRequest;
+    if (authReq.user?.id) {
+      return `user:${authReq.user.id}`;
+    }
+    return hashedIpKey(req);
+  },
+  message: 'Too many statistics requests. Please slow down.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+/**
+ * Rate limiter for `POST /statistics/post/:postId/view`.
+ *
+ * The only WRITE on the statistics router, and the only route there that reaches
+ * Mongo on every single call: a counted view is a `findOneAndUpdate`, and a view
+ * the dedupe window rejects still costs the read-back that produces the response.
+ * Unbounded, that is one DB round trip per request for as fast as a caller can
+ * issue them.
+ *
+ * Dedicated rather than folded into `feedRateLimiter`: these budgets are
+ * unrelated, and sharing one would mean a viewer who opens many posts starts
+ * getting throttled while SCROLLING. It is also tighter than the general
+ * `apiRateLimiter` the router carries, because that one has to accommodate the
+ * read endpoints too.
+ *
+ * 120/minute is two post-detail opens per second sustained for a full minute.
+ * The client fires this once per open (`app/(app)/p/[id].tsx`), so a person
+ * reading — even one tapping quickly through a thread — is nowhere near it,
+ * while a loop reaches it in seconds. Deliberately looser than
+ * `postWriteRateLimiter` (60/min): opening posts to read is a more frequent act
+ * than composing them.
+ */
+const postViewStore = new RedisStore({
+  prefix: 'rate-limit:post-view:',
+  windowMs: 60 * 1000,
+});
+export const postViewRateLimiter = rateLimit({
+  store: postViewStore,
+  windowMs: 60 * 1000,
+  max: 120,
+  keyGenerator: (req: Request) => {
+    const authReq = req as AuthRequest;
+    if (authReq.user?.id) {
+      return `user:${authReq.user.id}`;
+    }
+    return hashedIpKey(req);
+  },
+  message: 'Too many post views in a short time. Please slow down.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Request throttling for expensive feed operations (For You feed with ranking)
 const feedThrottleStore = new RedisStore({ 
   prefix: 'rate-limit:feed-throttle:',

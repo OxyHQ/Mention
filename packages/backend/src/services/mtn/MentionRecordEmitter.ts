@@ -3,7 +3,7 @@
  * for each native write, so every call site is a clean, isolated one-liner.
  *
  * Dual-write contract (Workstream B / B1):
- *  - Mongo stays AUTHORITATIVE. Record emission is a best-effort SIDE-EFFECT that
+ *  - Postgres stays AUTHORITATIVE. Record emission is a best-effort SIDE-EFFECT that
  *    NEVER blocks the response and NEVER changes endpoint output.
  *  - Emission is gated on a LOCAL author: `federation == null && oxyUserId`.
  *    Federated/remote-authored content NEVER emits (those records belong to the
@@ -19,7 +19,7 @@
  * chain is written-only until the B2 source-of-truth pivot.
  */
 
-import type { IPost } from '../../models/Post';
+import type { PostRecord } from '../../db/posts/postRecord';
 import {
   PostVisibility,
   MENTION_POST_COLLECTION,
@@ -46,13 +46,15 @@ import {
 } from './mentionRecordBuilders';
 
 /** True when a post is authored by a LOCAL Mention user (eligible to emit). */
-function isLocalAuthored(post: Pick<IPost, 'federation' | 'oxyUserId'>): post is Pick<IPost, 'federation' | 'oxyUserId'> & { oxyUserId: string } {
+function isLocalAuthored(
+  post: Pick<PostRecord, 'federation' | 'oxyUserId'>,
+): post is Pick<PostRecord, 'federation' | 'oxyUserId'> & { oxyUserId: string } {
   return post.federation == null && typeof post.oxyUserId === 'string' && post.oxyUserId.length > 0;
 }
 
 /** True when a post is safe to publish to public MTN/atproto read surfaces. */
-function isPublicPublishedPost(post: Pick<IPost, 'status' | 'visibility'>): boolean {
-  return (post.status ?? 'published') === 'published' && post.visibility === PostVisibility.PUBLIC;
+function isPublicPublishedPost(post: Pick<PostRecord, 'status' | 'visibility'>): boolean {
+  return post.status === 'published' && post.visibility === PostVisibility.PUBLIC;
 }
 
 /**
@@ -109,7 +111,7 @@ async function requireAppend(
  *              reply; omitted for top-level posts.
  */
 export async function emitPostCreated(
-  post: IPost,
+  post: PostRecord,
   options: { reply?: ReplyContext; facets?: MtnFacet[] } = {},
 ): Promise<void> {
   if (!isLocalAuthored(post) || !isPublicPublishedPost(post)) return;
@@ -124,7 +126,7 @@ export async function emitPostCreated(
     await signAndAppend(
       authorOxyUserId,
       MENTION_POST_COLLECTION,
-      String(post._id),
+      post.id,
       toRecordPayload(buildPostRecord(post, { ...options, embeds })),
     );
   });
@@ -132,11 +134,11 @@ export async function emitPostCreated(
 
 /**
  * Emit an `app.mention.feed.repost` record for a LOCAL boost. `boost` is the
- * boost Post (its `_id` is the record key); `repostedPostOwnerOxyUserId` is the
+ * boost Post (its `id` is the record key); `repostedPostOwnerOxyUserId` is the
  * owner of the boosted original (for the subject URI).
  */
 export async function emitRepostCreated(
-  boost: IPost,
+  boost: PostRecord,
   repostedPostId: string,
   repostedPostOwnerOxyUserId: string | undefined,
 ): Promise<void> {
@@ -147,11 +149,11 @@ export async function emitRepostCreated(
     await signAndAppend(
       boosterOxyUserId,
       MENTION_REPOST_COLLECTION,
-      String(boost._id),
+      boost.id,
       toRecordPayload(buildRepostRecord({
         repostedPostId,
         repostedPostOwnerOxyUserId: ownerOxyUserId,
-        createdAt: boost.createdAt ? new Date(boost.createdAt) : undefined,
+        createdAt: boost.createdAt,
       })),
     );
   });

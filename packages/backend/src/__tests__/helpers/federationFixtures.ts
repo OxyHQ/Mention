@@ -1,5 +1,6 @@
 /**
- * Real `federated_actors` / `federated_follows` rows for the federation suites.
+ * Real `federated_actors` / `federated_follows` / `posts` rows for the
+ * federation suites.
  *
  * These suites used to mock the Mongoose models, which meant every assertion
  * about an actor or a follow edge was an assertion about the mock: a test could
@@ -18,10 +19,13 @@
  */
 
 import { eq, inArray, like, or } from 'drizzle-orm';
+import { PostType, PostVisibility } from '@mention/shared-types';
 import { getDb } from '../../db/postgres';
 import { federatedActorFields, federatedActors, federatedFollows } from '../../db/schema/federation';
 import { assembleActorRecord } from '../../db/federation/actorRepository';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
+import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepository';
+import type { PostRecord, PostRecordInput } from '../../db/posts/postRecord';
 
 type ActorInsert = typeof federatedActors.$inferInsert;
 type FollowInsert = typeof federatedFollows.$inferInsert;
@@ -39,6 +43,16 @@ type FollowInsert = typeof federatedFollows.$inferInsert;
  * its own hostnames.
  */
 const seededUris = new Map<string, Set<string>>();
+
+/**
+ * Every post id a scope has seeded, so cleanup reaches them without a predicate.
+ *
+ * Posts cannot be scoped the way actors are: `posts` has no column carrying the
+ * suite's origin, and a federated post's `federation.activity_id` is often a
+ * third-party URL the suite chose. Tracking the ids `seedPost` minted is the
+ * only scoping that cannot reach another file's rows.
+ */
+const seededPostIds = new Map<string, string[]>();
 
 function recordSeeded(scope: FederationScope, uri: string): void {
   const existing = seededUris.get(scope.origin);
@@ -194,6 +208,35 @@ export async function seedFollowerWithInbox(
   return inbox;
 }
 
+/**
+ * Insert one post and return the record production code reads back.
+ *
+ * The defaults describe a healthy, public, published, locally-authored post —
+ * what `resolveFederationTarget` and the inbound handlers expect — so a suite
+ * states only the fact it is about. Pass `federation` to make it an imported
+ * remote post; that is the difference between a `Like` with a remote object to
+ * point at and a no-op.
+ */
+export async function seedPost(
+  scope: FederationScope,
+  overrides: Partial<PostRecordInput> = {},
+): Promise<PostRecord> {
+  const owner = (overrides.oxyUserId ?? scope.user('post-owner')) as string;
+  const record = await insertPostRecord({
+    oxyUserId: owner,
+    authorship: [{ oxyUserId: owner, role: 'owner', status: 'accepted' }],
+    type: PostType.TEXT,
+    visibility: PostVisibility.PUBLIC,
+    status: 'published',
+    content: { variants: [{ source: 'author', text: 'a post', tag: 'en' }] },
+    ...overrides,
+  });
+  const existing = seededPostIds.get(scope.origin);
+  if (existing) existing.push(record.id);
+  else seededPostIds.set(scope.origin, [record.id]);
+  return record;
+}
+
 /** Every follow edge a suite created, for asserting what a handler wrote. */
 export async function readFollows(
   scope: FederationScope,
@@ -231,6 +274,12 @@ export async function clearFederationScope(
   extraActorUris: readonly string[] = [],
 ): Promise<void> {
   const db = getDb();
+  // Newest first, so a reply is removed before the parent it points at rather
+  // than being silently cascaded or set-null'd out from under the delete.
+  const postIds = seededPostIds.get(scope.origin) ?? [];
+  for (const id of postIds.splice(0).reverse()) {
+    await deletePostRecord(id, undefined);
+  }
   // EITHER identifier, because a suite's rows are reachable by two different
   // handles: its own sender ids (which carry the scope name) and the remote
   // actors it seeded (which carry the scope origin). A follow to an atproto DID

@@ -1,35 +1,34 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
-
 /**
  * `engagement.quotes` — the one engagement counter Mention does NOT denormalize
- * onto `post.stats`. It is counted on read off the `quoteOf` index, so the whole
+ * onto `post.stats`. It is counted on read off the `quote_of` index, so the whole
  * contract is "only when the caller asks":
  *
  *  - `includeQuoteCounts: true` (the post-detail endpoints) → one aggregate for
  *    the whole hydrated batch, `quotes` present on every post;
- *  - default (every feed request) → NO aggregate at all, `quotes` absent.
+ *  - default (every feed request) → NO query at all, `quotes` absent.
  *
- * The second half is the load-bearing assertion: if the option ever stops gating
- * the query, feeds silently take an extra collection scan per request and nothing
- * else in the response changes to show it. So the no-flag case asserts the mock
- * was never CALLED, not merely that the field is missing.
+ * The counts come from REAL quote rows. Under the previous mock the aggregate's
+ * result was whatever `mockResolvedValue` said, so the test could not tell the
+ * grouped query apart from one that matched nothing — the exact failure the
+ * counter would exhibit in production, since a miss is legitimately read as zero.
+ *
+ * The second half stays a CALL assertion, and deliberately so: the guarantee is
+ * "no query is issued", which has no observable trace in the response. The spy
+ * wraps the real `countQuotesOf` and calls through, so the data path is still
+ * the real one — only the fact of the call is instrumented.
  */
 
-const POST_ID = '650000000000000000000011';
-const OTHER_POST_ID = '650000000000000000000012';
-const AUTHOR_OXY_ID = 'oxy-author';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PostType } from '@mention/shared-types';
+import type { CachedUserSummary } from '../../services/userSummaryCache';
 
-const { getUserById, getUsersByIds, cacheStore, postFind, postFindOne, postAggregate, userSettingsFindOne } = vi.hoisted(() => ({
+const { getUserById, getUsersByIds, cacheStore } = vi.hoisted(() => ({
   getUserById: vi.fn(),
   getUsersByIds: vi.fn(),
   cacheStore: new Map<string, CachedUserSummary>(),
-  postFind: vi.fn(),
-  postFindOne: vi.fn(),
-  postAggregate: vi.fn(),
-  userSettingsFindOne: vi.fn(),
 }));
 
+// Oxy owns identity and is a remote service; it stays mocked. Posts do not.
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({
     getUserById,
@@ -53,39 +52,6 @@ vi.mock('../../utils/privacyHelpers', () => ({
   extractFollowersIds: vi.fn(() => []),
 }));
 
-/** Chainable Mongoose query stub — every builder method returns itself, `.lean()` resolves the rows. */
-function chainable(rows: unknown[] | null) {
-  const q: Record<string, unknown> = {};
-  for (const m of ['select', 'sort', 'limit', 'maxTimeMS']) {
-    q[m] = () => q;
-  }
-  q.lean = async () => rows;
-  q.then = undefined;
-  return q;
-}
-
-vi.mock('../../models/Post', () => ({
-  Post: {
-    find: (...args: unknown[]) => chainable(postFind(...args)),
-    findOne: (...args: unknown[]) => chainable(postFindOne(...args)),
-    aggregate: (...args: unknown[]) => postAggregate(...args),
-  },
-}));
-vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/UserSettings', () => ({
-  UserSettings: { find: () => chainable(userSettingsFindOne()), findOne: () => chainable(null) },
-}));
-vi.mock('../../models/StarterPack', () => ({
-  StarterPack: { aggregate: async () => [] },
-  default: { aggregate: async () => [] },
-}));
-vi.mock('../../models/FederatedActor', () => ({
-  FederatedActor: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
-  default: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
-}));
-
 vi.mock('../../services/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
@@ -100,82 +66,95 @@ vi.mock('../../services/userSummaryCache', () => ({
   }),
 }));
 
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import * as postRepository from '../../db/posts/postRepository';
+import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import { PostHydrationService } from '../../services/PostHydrationService';
 
-function postRow(id: string) {
-  return {
-    _id: id,
-    oxyUserId: AUTHOR_OXY_ID,
-    authorship: [{ oxyUserId: AUTHOR_OXY_ID, role: 'owner', status: 'accepted' }],
-    type: 'post',
-    content: { variants: [{ tag: 'en', source: 'author', text: 'a quotable note' }] },
-    stats: { likesCount: 3, boostsCount: 1, commentsCount: 0, downvotesCount: 0, savesCount: 2, viewsCount: 7 },
-    metadata: { createdAt: new Date('2024-02-01T00:00:00Z') },
-    createdAt: new Date('2024-02-01T00:00:00Z'),
-    visibility: 'public',
-    hashtags: [],
-    mentions: [],
-  };
-}
+const scope = postScope('quote-counts');
+const AUTHOR = scope.user('author');
 
 describe('PostHydrationService — quote counts', () => {
   let service: PostHydrationService;
+  // Spied on the module NAMESPACE, not replaced: the real query still runs, and
+  // the spy exists only so the "no query at all" half has something to observe.
+  const countQuotesOfSpy = vi.spyOn(postRepository, 'countQuotesOf');
+
+  beforeAll(async () => {
+    await connectPostgres();
+  });
 
   beforeEach(() => {
     cacheStore.clear();
     getUserById.mockReset();
     getUsersByIds.mockReset();
-    postFind.mockReset();
-    postFindOne.mockReset();
-    postAggregate.mockReset();
-    userSettingsFindOne.mockReset();
+    countQuotesOfSpy.mockClear();
 
-    postFind.mockReturnValue([]);
-    postFindOne.mockReturnValue(null);
-    postAggregate.mockResolvedValue([]);
-    userSettingsFindOne.mockReturnValue([]);
     getUsersByIds.mockResolvedValue([
-      { id: AUTHOR_OXY_ID, username: 'author', name: { displayName: 'Author' }, badges: [], verified: false },
+      { id: AUTHOR, username: 'author', name: { displayName: 'Author' }, badges: [], verified: false },
     ]);
     getUserById.mockResolvedValue(null);
 
     service = new PostHydrationService();
   });
 
-  it('counts quotes per post in ONE aggregate when the caller asks for them', async () => {
-    postAggregate.mockResolvedValue([
-      { _id: POST_ID, count: 2 },
-      { _id: OTHER_POST_ID, count: 9 },
-    ]);
+  afterEach(async () => {
+    await clearPostScope(scope);
+  });
 
-    const hydrated = await service.hydratePosts([postRow(POST_ID), postRow(OTHER_POST_ID)], {
+  afterAll(async () => {
+    await closePostgres();
+  });
+
+  /** A quote is an ordinary post carrying `quoteOf`. */
+  async function seedQuotes(quoteOf: string, count: number): Promise<void> {
+    for (let i = 0; i < count; i += 1) {
+      await seedPost(scope, { oxyUserId: AUTHOR, quoteOf, type: PostType.TEXT });
+    }
+  }
+
+  it('counts quotes per post in ONE query when the caller asks for them', async () => {
+    const quoted = await seedPost(scope, { oxyUserId: AUTHOR });
+    const alsoQuoted = await seedPost(scope, { oxyUserId: AUTHOR });
+    await seedQuotes(quoted.id, 2);
+    await seedQuotes(alsoQuoted.id, 3);
+    // A reply is NOT a quote: it references its parent through `parent_post_id`,
+    // so it must not reach the count. Under a mock this row did not exist at all.
+    await seedPost(scope, { oxyUserId: AUTHOR, parentPostId: quoted.id, isReply: true });
+
+    const hydrated = await service.hydratePosts([quoted, alsoQuoted], {
       maxDepth: 0,
       includeQuoteCounts: true,
     });
 
-    expect(hydrated.map((p) => p.engagement.quotes)).toEqual([2, 9]);
-    expect(postAggregate).toHaveBeenCalledTimes(1);
-    expect(postAggregate).toHaveBeenCalledWith([
-      { $match: { quoteOf: { $in: [POST_ID, OTHER_POST_ID] } } },
-      { $group: { _id: '$quoteOf', count: { $sum: 1 } } },
-    ]);
+    expect(hydrated.map((post) => post.engagement.quotes)).toEqual([2, 3]);
+    expect(countQuotesOfSpy).toHaveBeenCalledTimes(1);
+    expect(countQuotesOfSpy).toHaveBeenCalledWith([quoted.id, alsoQuoted.id]);
   });
 
-  it('reports zero for a post no aggregate row mentions', async () => {
-    postAggregate.mockResolvedValue([{ _id: OTHER_POST_ID, count: 4 }]);
+  it('reports zero for a post nothing quotes', async () => {
+    const quoted = await seedPost(scope, { oxyUserId: AUTHOR });
+    const unquoted = await seedPost(scope, { oxyUserId: AUTHOR });
+    await seedQuotes(quoted.id, 1);
 
-    const [hydrated] = await service.hydratePosts([postRow(POST_ID)], {
+    const hydrated = await service.hydratePosts([unquoted], {
       maxDepth: 0,
       includeQuoteCounts: true,
     });
 
-    expect(hydrated.engagement.quotes).toBe(0);
+    // Zero, not absent: a caller that asked always gets a number.
+    expect(hydrated[0].engagement.quotes).toBe(0);
   });
 
-  it('runs NO aggregate and omits the field when the caller does not ask', async () => {
-    const [hydrated] = await service.hydratePosts([postRow(POST_ID)], { maxDepth: 0 });
+  it('runs NO query and omits the field when the caller does not ask', async () => {
+    const quoted = await seedPost(scope, { oxyUserId: AUTHOR });
+    await seedQuotes(quoted.id, 1);
 
+    const [hydrated] = await service.hydratePosts([quoted], { maxDepth: 0 });
+
+    // The quote row exists, so an ungated query would have produced 1 — the
+    // field being absent is therefore about the gate, not about missing data.
     expect(hydrated.engagement.quotes).toBeUndefined();
-    expect(postAggregate).not.toHaveBeenCalled();
+    expect(countQuotesOfSpy).not.toHaveBeenCalled();
   });
 });

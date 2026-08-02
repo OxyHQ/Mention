@@ -1,20 +1,8 @@
 import React from "react";
-import {
-    View,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    Modal,
-    KeyboardAvoidingView,
-    ScrollView,
-    StyleSheet,
-    Platform,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { View, Text, TextInput, TouchableOpacity } from "react-native";
+import { Dialog } from '@oxyhq/bloom/dialog';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from "react-i18next";
-import { IconButton } from '@/components/ui/Button';
-import { CloseIcon } from "@/assets/icons/close-icon";
 import { Calendar } from "@/components/ui/Calendar";
 
 interface EventEditorProps {
@@ -31,6 +19,21 @@ interface EventEditorProps {
     onClose: () => void;
 }
 
+/**
+ * The composer's event-attachment editor.
+ *
+ * Renders through bloom's `Dialog` for the same reason as its sibling
+ * `ArticleEditor`: a hand-rolled RN `<Modal>` opens a native window that sits
+ * outside the design system's ordering, so anything opened from inside it — the
+ * date calendar here, a confirm prompt — has no way to paint above it. It also
+ * lets the Dialog own the safe-area insets, the keyboard avoidance, the scroll
+ * container and the header/close affordance this used to rebuild by hand.
+ *
+ * Every event field is controlled by the composer, which owns the draft, so an
+ * open/close/reopen cycle cannot lose what was typed. Only the two picker
+ * toggles are local, and they live on this component rather than on the Dialog's
+ * children, so they survive the same cycle too.
+ */
 export const EventEditor: React.FC<EventEditorProps> = ({
     visible,
     name,
@@ -46,7 +49,6 @@ export const EventEditor: React.FC<EventEditorProps> = ({
 }) => {
     const theme = useTheme();
     const { t } = useTranslation();
-    const insets = useSafeAreaInsets();
     const [showDatePicker, setShowDatePicker] = React.useState(false);
     const [showTimePicker, setShowTimePicker] = React.useState(false);
 
@@ -84,41 +86,34 @@ export const EventEditor: React.FC<EventEditorProps> = ({
         });
     }, [eventDate]);
 
-    return (
-        <Modal
-            visible={visible}
-            animationType="slide"
-            presentationStyle="fullScreen"
-            onRequestClose={onClose}
+    const saveAction = (
+        <TouchableOpacity
+            onPress={onSave}
+            className="px-4 py-2 rounded-full bg-primary"
+            activeOpacity={0.85}
+            accessibilityRole="button"
         >
-            <View
-                className="flex-1 bg-background"
-                style={{ paddingTop: insets.top, paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right }}
-            >
-                <View className="flex-row items-center justify-between px-4 py-3" style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border }}>
-                    <IconButton variant="icon" onPress={onClose} className="w-10 h-10 justify-center items-center">
-                        <CloseIcon size={20} className="text-foreground" />
-                    </IconButton>
-                    <Text className="text-lg font-semibold flex-1 text-center text-foreground">
-                        {t("compose.event.editorTitle", { defaultValue: "Create event" })}
-                    </Text>
-                    <TouchableOpacity
-                        onPress={onSave}
-                        className="px-4 py-2 rounded-[20px] bg-primary"
-                        activeOpacity={0.85}
-                    >
-                        <Text className="text-[15px] font-semibold" style={{ color: theme.colors.card }}>
-                            {t("common.save")}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
+            <Text className="text-[15px] font-semibold" style={{ color: theme.colors.card }}>
+                {t("common.save")}
+            </Text>
+        </TouchableOpacity>
+    );
 
-                <KeyboardAvoidingView
-                    className="flex-1"
-                    behavior={Platform.OS === "ios" ? "padding" : undefined}
-                    keyboardVerticalOffset={Platform.OS === "ios" ? 24 : 0}
-                >
-                    <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }} keyboardShouldPersistTaps="handled">
+    return (
+        <Dialog
+            open={visible}
+            onClose={onClose}
+            placement={{ base: 'bottom', md: 'center' }}
+            maxWidth={640}
+            maxHeightRatio={0.92}
+            header={{
+                title: t("compose.event.editorTitle", { defaultValue: "Create event" }),
+                largeTitle: false,
+                right: saveAction,
+            }}
+            testID="eventEditorDialog"
+        >
+            <View className="gap-4 pb-6">
                         <TextInput
                             className="text-lg font-semibold p-4 rounded-xl border border-border bg-secondary text-foreground min-h-[56px]"
                             placeholder={t("compose.event.namePlaceholder", {
@@ -213,9 +208,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({
                             numberOfLines={4}
                             maxLength={500}
                         />
-                    </ScrollView>
-                </KeyboardAvoidingView>
             </View>
-        </Modal>
+        </Dialog>
     );
 };

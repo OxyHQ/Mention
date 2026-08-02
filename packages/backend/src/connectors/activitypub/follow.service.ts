@@ -4,8 +4,10 @@ import {
   findActorsByOxyUserIds,
 } from '../../db/federation/actorRepository';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
-import { Post } from '../../models/Post';
-import Poll from '../../models/Poll';
+import { loadPostRecord } from '../../db/posts/postRepository';
+import { asc, inArray } from 'drizzle-orm';
+import { getDb } from '../../db/postgres';
+import { pollOptions, pollVotes, polls } from '../../db/schema/polls';
 import { AP_CONTEXT } from '@oxyhq/federation';
 import {
   FEDERATION_DOMAIN,
@@ -122,12 +124,12 @@ function buildNoteAttachment(item: MediaItem | undefined | null): Record<string,
 }
 
 /**
- * The post fields the Note builder reads. A lean `Post` document satisfies it —
+ * The post fields the Note builder reads. A {@link PostRecord} satisfies it —
  * every caller (push delivery, the outbox page, the per-post dereference route)
  * already has one, so nothing re-fetches.
  */
 export interface NoteSourcePost {
-  _id: unknown;
+  id: string;
   content: PostContent;
   hashtags?: string[];
   mentions?: string[];
@@ -255,10 +257,63 @@ export interface NoteQuoteContext {
 
 /** The Poll fields {@link buildPollContext} reads from a lean `Poll` document. */
 interface PollContextSource {
-  _id: unknown;
-  options: Array<{ text: string; votes?: string[] }>;
+  id: string;
+  options: Array<{ text: string; votes: string[] }>;
   endsAt: Date;
-  isMultipleChoice?: boolean;
+  isMultipleChoice: boolean;
+}
+
+/**
+ * Load polls with their options and ballots, as {@link PollContextSource}.
+ *
+ * Three tables where Mongo had one document: the options are their own rows
+ * (`position` is what preserves the order the author wrote them in) and each
+ * ballot is a row rather than an id inside `options[].votes`. Reading the
+ * Mongoose model instead — which is what this did until the posts port — returns
+ * nothing, so every poll post federated as a PLAIN NOTE and no remote server
+ * ever saw a Question. Nothing errored: `null` is also how "this post has no
+ * poll" is spelled.
+ */
+async function loadPollContextSources(pollIds: string[]): Promise<PollContextSource[]> {
+  if (pollIds.length === 0) return [];
+  const db = getDb();
+  const [pollRows, optionRows, voteRows] = await Promise.all([
+    db
+      .select({ id: polls.id, endsAt: polls.endsAt, isMultipleChoice: polls.isMultipleChoice })
+      .from(polls)
+      .where(inArray(polls.id, pollIds)),
+    db
+      .select({ id: pollOptions.id, pollId: pollOptions.pollId, text: pollOptions.text })
+      .from(pollOptions)
+      .where(inArray(pollOptions.pollId, pollIds))
+      .orderBy(asc(pollOptions.pollId), asc(pollOptions.position)),
+    db
+      .select({ optionId: pollVotes.optionId, userId: pollVotes.userId })
+      .from(pollVotes)
+      .where(inArray(pollVotes.pollId, pollIds)),
+  ]);
+
+  const votersByOption = new Map<string, string[]>();
+  for (const vote of voteRows) {
+    const existing = votersByOption.get(vote.optionId);
+    if (existing) existing.push(vote.userId);
+    else votersByOption.set(vote.optionId, [vote.userId]);
+  }
+
+  const optionsByPoll = new Map<string, Array<{ text: string; votes: string[] }>>();
+  for (const option of optionRows) {
+    const entry = { text: option.text, votes: votersByOption.get(option.id) ?? [] };
+    const existing = optionsByPoll.get(option.pollId);
+    if (existing) existing.push(entry);
+    else optionsByPoll.set(option.pollId, [entry]);
+  }
+
+  return pollRows.map((poll) => ({
+    id: poll.id,
+    endsAt: poll.endsAt,
+    isMultipleChoice: poll.isMultipleChoice,
+    options: optionsByPoll.get(poll.id) ?? [],
+  }));
 }
 
 /**
@@ -446,7 +501,7 @@ export class FollowService {
     quote?: NoteQuoteContext,
   ): Record<string, unknown> {
     const actor = actorUrl(username);
-    const postId = String(post._id);
+    const postId = post.id;
     const noteId = `${actor}/posts/${postId}`;
     // Emit a canonical ISO 8601 `published` regardless of whether the caller
     // passed a Mongoose `Date` (outbox/dereference) or an ISO string (push).
@@ -612,7 +667,7 @@ export class FollowService {
     // below and federates as a normal Note.)
     if (post.boostOf) {
       await this.federateBoost(
-        { _id: post._id, boostOf: String(post.boostOf), createdAt: post.createdAt },
+        { _id: post.id, boostOf: String(post.boostOf), createdAt: post.createdAt },
         senderOxyUserId,
         senderUsername,
       );
@@ -815,7 +870,7 @@ export class FollowService {
     for (const post of posts) {
       const ids = normalizeMentionIds(post.mentions);
       if (ids.length === 0) continue;
-      perPostIds.set(String(post._id), ids);
+      perPostIds.set(post.id, ids);
       allIds.push(...ids);
     }
     if (allIds.length === 0) return result;
@@ -855,9 +910,7 @@ export class FollowService {
     const pollId = post.content?.pollId;
     if (!pollId) return null;
     try {
-      const poll = await Poll.findById(pollId)
-        .select('options endsAt isMultipleChoice')
-        .lean<PollContextSource | null>();
+      const [poll] = await loadPollContextSources([String(pollId)]);
       return poll ? buildPollContext(poll) : null;
     } catch (err) {
       logger.warn('[FedDeliver] failed to resolve poll context', err);
@@ -882,17 +935,15 @@ export class FollowService {
       if (!pollId) continue;
       const key = String(pollId);
       const bucket = pollIdToPostIds.get(key);
-      if (bucket) bucket.push(String(post._id));
-      else pollIdToPostIds.set(key, [String(post._id)]);
+      if (bucket) bucket.push(post.id);
+      else pollIdToPostIds.set(key, [post.id]);
     }
     if (pollIdToPostIds.size === 0) return result;
 
     try {
-      const polls = await Poll.find({ _id: { $in: [...pollIdToPostIds.keys()] } })
-        .select('options endsAt isMultipleChoice')
-        .lean<PollContextSource[]>();
-      for (const poll of polls) {
-        const postIds = pollIdToPostIds.get(String(poll._id));
+      const sources = await loadPollContextSources([...pollIdToPostIds.keys()]);
+      for (const poll of sources) {
+        const postIds = pollIdToPostIds.get(poll.id);
         if (!postIds) continue;
         const context = buildPollContext(poll);
         for (const postId of postIds) result.set(postId, context);
@@ -945,7 +996,7 @@ export class FollowService {
     for (const post of posts) {
       const quoteId = post.quoteOf ? String(post.quoteOf) : undefined;
       if (!quoteId) continue;
-      const postId = String(post._id);
+      const postId = post.id;
       const bucket = quoteIdToPostIds.get(quoteId);
       if (bucket) bucket.push(postId);
       else quoteIdToPostIds.set(quoteId, [postId]);
@@ -984,7 +1035,7 @@ export class FollowService {
    * Returns null when the original is missing or its author cannot be resolved.
    */
   private async resolveFederationTarget(originalPostId: string): Promise<FederationTarget | null> {
-    const original = await Post.findById(originalPostId).select('oxyUserId federation').lean();
+    const original = await loadPostRecord(originalPostId);
     if (!original) return null;
 
     const activityId = original.federation?.activityId;
@@ -1194,7 +1245,7 @@ export class FollowService {
    * {@link federateNewPost}; best-effort.
    */
   async federateDelete(
-    post: { _id: unknown },
+    post: { id: string },
     deleterOxyUserId: string,
     deleterUsername: string,
   ): Promise<void> {
@@ -1202,7 +1253,7 @@ export class FollowService {
     if (!(await isFediverseSharingEnabled(deleterOxyUserId))) return;
 
     try {
-      const activity = this.buildDeleteActivity(deleterUsername, String(post._id));
+      const activity = this.buildDeleteActivity(deleterUsername, post.id);
       await deliveryService.deliverToFollowers(activity, deleterOxyUserId, deleterUsername);
     } catch (err) {
       logger.error('Failed to federate post delete:', err);

@@ -118,7 +118,15 @@ describe('backend logging policy', () => {
     }
 
     expect(violations).toEqual([]);
-  });
+    // Whole-tree scanner, not a unit test: it parses EVERY production source
+    // file with the TypeScript compiler, so its runtime scales with the
+    // codebase and vitest's 5s default was never the right bound. It crossed
+    // that bound on CI (~0.5s here, >5s on a shared runner competing with the
+    // rest of the suite) and started failing on every commit regardless of
+    // content — including a pure revert. The generous ceiling matches the
+    // house pattern for slow suites; it is a guard against a hang, not a
+    // performance budget.
+  }, 60_000);
 
   it('sanitizes the early console error fallback in server.ts', () => {
     const serverFile = path.join(BACKEND_ROOT, 'server.ts');

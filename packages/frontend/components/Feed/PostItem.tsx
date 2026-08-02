@@ -49,6 +49,7 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 import { reportFeedInteraction } from '@/utils/feedTelemetry';
 import { formatFullTimestamp } from '@/utils/dateUtils';
 import { displayNameOrHandle } from '@/utils/displayName';
+import { resolveReplyContextRow } from '@/utils/replyContextRow';
 
 // Lazy load modals/sheets only when the user opens them.
 const PostSourcesSheet = lazy(() => import('@/components/Post/PostSourcesSheet'));
@@ -82,27 +83,6 @@ interface PostItemProps {
      * it as one block. The element below then owns the single bottom separator.
      */
     attachedBelow?: boolean;
-    /**
-     * Whether this row is a reply surfaced into a feed (slice reason
-     * `replyContext`). Renders a muted "Replying to …" row in the avatar-gutter
-     * lane above the header, mirroring the Pinned row layout (Bluesky-style
-     * context rows, all muted).
-     *
-     * Kept SEPARATE from {@link replyContextAuthor} because the two answer
-     * different questions: this one is "is it a reply", which the server always
-     * knows, and the other is "to whom", which it may not. Deriving the row from
-     * the author alone silently hid the marker whenever the parent could not be
-     * resolved — making a context-free reply indistinguishable from a top-level
-     * post.
-     */
-    isReplyContext?: boolean;
-    /**
-     * The parent author, when the server could resolve it. Absent when the parent
-     * post is not in the database — e.g. a federated reply whose `inReplyTo`
-     * never resolved. The row then reads as a reply without naming a recipient
-     * rather than disappearing.
-     */
-    replyContextAuthor?: PostUser;
     /**
      * When this row is a PURE repost (boost) surfaced into a feed, the actor who
      * reposted it. The main post body is the ORIGINAL post (passed as `post`);
@@ -165,8 +145,6 @@ const PostItem: React.FC<PostItemProps> = ({
     isThreadChild = false,
     isThreadLastChild = false,
     attachedBelow = false,
-    isReplyContext = false,
-    replyContextAuthor,
     repostedBy,
     isPostDetail: isPostDetailProp = false,
     feedDescriptor,
@@ -640,12 +618,9 @@ const PostItem: React.FC<PostItemProps> = ({
     const hasBelowHeaderBlocks = Boolean((hasValidLocation && location) || hasSources || shouldRenderMediaBlock || boostUnavailable || !isNested);
     const headerToBlocksGap = content.text ? SECTION_GAP : HEADER_CONTENT_GAP;
 
-    // The parent author's real handle, when there is one — what the hover preview
-    // resolves. The LABEL below falls back to the display name so the row still
-    // reads as a reply to someone, but a display name is not a handle and must
-    // never be fetched as one.
-    const replyContextAuthorHandle = getNormalizedUserHandle(replyContextAuthor) ?? undefined;
-    const replyContextHandle = replyContextAuthorHandle || replyContextAuthor?.name?.displayName;
+    // Read off the POST, never passed in — see `resolveReplyContextRow` for the
+    // rule and why it lives there rather than in each caller.
+    const replyContextRow = resolveReplyContextRow({ post: viewPost, isNested });
 
     const postAuthor = displayNameOrHandle(viewPost.user.name?.displayName, authorHandle ? `@${authorHandle}` : '');
     const postTextSummary = content.text
@@ -700,7 +675,7 @@ const PostItem: React.FC<PostItemProps> = ({
             </View>,
         );
     }
-    if (isReplyContext || replyContextHandle) {
+    if (replyContextRow) {
         // Named when the parent author resolved; otherwise the row still states
         // that this is a reply — the alternative (rendering nothing) is what made
         // a context-free reply read as an ordinary top-level post.
@@ -710,8 +685,8 @@ const PostItem: React.FC<PostItemProps> = ({
                     <Ionicons name="return-down-forward-outline" size={13} color={theme.colors.textSecondary} />
                 </View>
                 <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
-                    {replyContextHandle
-                        ? `${t('post.replyingTo', { defaultValue: 'Replying to' })} @${replyContextHandle}`
+                    {replyContextRow.label
+                        ? `${t('post.replyingTo', { defaultValue: 'Replying to' })} @${replyContextRow.label}`
                         : t('post.replyingToUnknown', { defaultValue: 'Replying to a post' })}
                 </Text>
             </View>
@@ -719,8 +694,8 @@ const PostItem: React.FC<PostItemProps> = ({
         // The hover card previews a real handle. Without one there is nobody to
         // fetch, so the row renders as plain text instead of a dead target.
         contextRows.push(
-            replyContextAuthorHandle
-                ? <ProfileHoverCard key="reply" username={replyContextAuthorHandle}>{replyRow}</ProfileHoverCard>
+            replyContextRow.authorHandle
+                ? <ProfileHoverCard key="reply" username={replyContextRow.authorHandle}>{replyRow}</ProfileHoverCard>
                 : <Fragment key="reply">{replyRow}</Fragment>,
         );
     }

@@ -1,32 +1,46 @@
+import { eq, inArray } from 'drizzle-orm';
 import { logger } from '../../utils/logger';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import {
   findActorsByUris,
   markOutboxBackfillUnavailable as markActorOutboxBackfillUnavailable,
 } from '../../db/federation/actorRepository';
-import { Post } from '../../models/Post';
+import { getDb } from '../../db/postgres';
+import { isUniqueViolation } from '../../db/pgErrors';
+import { posts } from '../../db/schema/posts';
+import { uuidv7 } from '../../db/schema/columns';
+import {
+  bumpPostCounters,
+  CHRONO_DESC,
+  UNIQUE_MATCH_NO_ORDER,
+  findPostRecords,
+  insertPostRecord,
+  loadPostRecord,
+  replacePostContent,
+} from '../../db/posts/postRepository';
+import {
+  POST_CLASSIFICATION_PENDING,
+  type PostRecordInput,
+} from '../../db/posts/postRecord';
 import { extractActorUriFromActivityId } from '@oxyhq/federation';
 import {
   FEDERATION_MAX_CONTENT_LENGTH,
   AP_CONTENT_TYPE,
+  isBlockedDomain,
 } from './constants';
-import { Types } from 'mongoose';
-import { PostVisibility } from '@mention/shared-types';
-import type { MediaItem } from '@mention/shared-types';
+import { PostType, PostVisibility } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import { buildFederatedNoteContent, buildFederatedNoteVariants } from './apPostContent';
 import { normalizeMentionIds } from '../../utils/textProcessing';
 import { postTextHasHttpLink } from '../../utils/postSearchMetadata';
 import { getPostCreator } from '../../services/serviceRegistry';
-import { mediaMetadataService } from '../../services/MediaMetadataService';
-import { enqueueMediaMetadataEnrich } from '../../services/mediaMetadataEnrichJob';
+import { enrichIngestedPosts } from '../../services/postEnrichment';
 import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
 import {
   SPAM_QUALITY_CONFIG,
   toClassificationScores,
 } from '../../services/contentClassification/spamQuality';
 import type { PostClassificationScores } from '@mention/shared-types';
-import { POST_CLASSIFICATION_PENDING } from '../../models/Post';
 import { assertSafePublicUrl } from '@oxyhq/core/server';
 import { actorService } from './actor.service';
 import {
@@ -134,6 +148,7 @@ export type OutboxHttpFailureReason = `outbox-http-${number}`;
 
 export type OutboxSyncFailureReason =
   | 'missing-outbox'
+  | 'blocked-domain'
   | 'non-empty-outbox-without-items'
   | 'no-candidates'
   | 'pagination-failed'
@@ -253,6 +268,7 @@ interface RawPostClassificationSeed {
   languages: string[];
   region?: string;
   hashtagsNorm: string[];
+  trendTerms: string[];
   sensitive: boolean;
   /** Deterministic spam/quality/toxicity scores (0..1); AI batch overwrites later. */
   scores: PostClassificationScores;
@@ -295,6 +311,7 @@ export class OutboxSyncService {
         languages: signals.languages,
         region: signals.region,
         hashtagsNorm: signals.hashtagsNorm,
+        trendTerms: signals.trendTerms,
         sensitive: signals.sensitive ?? input.sensitive,
         scores: signals.scores,
         version: signals.version,
@@ -308,6 +325,10 @@ export class OutboxSyncService {
         topics: [],
         languages: [],
         hashtagsNorm: input.hashtags,
+        // The hashtags ARE terms (the extractor would have emitted them
+        // verbatim); what is lost on this path is the prose half, which is the
+        // honest consequence of the extractor having thrown.
+        trendTerms: input.hashtags,
         sensitive: input.sensitive,
         // Neutral, valid scores so ranking treats a defensive-fallback post as
         // unremarkable (not spam, mid quality) rather than skewing it.
@@ -343,6 +364,29 @@ export class OutboxSyncService {
     actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string },
     limitOrOptions: number | OutboxSyncOptions = 20,
   ): Promise<OutboxSyncResult> {
+    // Instance domain policy on the PULL path.
+    //
+    // The inbound dispatcher stops a suspended instance PUSHING to us; this stops
+    // us PULLING from it. Every outbox sync — the scheduled followed-actor sweep,
+    // the recent-post backfill, the profile-view refresh, and the post-Accept
+    // backfill — converges here, and each of them loads its actor straight from
+    // Mongo, so none of them passes through the resolver's policy check.
+    //
+    // Cooldown is deliberately NOT stamped and the reason is NOT permanently
+    // unavailable: the outbox is fine, our policy refused it. Unblocking the
+    // domain must resume syncing without first clearing state written while it
+    // was blocked.
+    let actorHost: string;
+    try {
+      actorHost = new URL(actor.uri).hostname.toLowerCase();
+    } catch {
+      // An actor URI we cannot parse has no host to check against the policy, so
+      // it fails closed rather than being pulled from unchecked.
+      return { syncedCount: 0, shouldStampCooldown: false, reason: 'blocked-domain' };
+    }
+    if (isBlockedDomain(actorHost)) {
+      return { syncedCount: 0, shouldStampCooldown: false, reason: 'blocked-domain' };
+    }
     if (!actor.outboxUrl) {
       return { syncedCount: 0, shouldStampCooldown: false, reason: 'missing-outbox' };
     }
@@ -580,21 +624,23 @@ export class OutboxSyncService {
       // resolved (imported before the outbox mention fix) can be repaired from the
       // in-hand note without any extra query or fetch.
       const allActivityIds = candidates.map(c => c.activityId);
-      const existingPosts = await Post.find(
-        { 'federation.activityId': { $in: allActivityIds } },
-        { 'federation.activityId': 1, mentions: 1, 'content.media': 1 },
-      ).lean();
+      const existingPosts = allActivityIds.length === 0
+        ? []
+        : await findPostRecords(
+          inArray(posts.federationActivityId, allActivityIds),
+          { orderBy: CHRONO_DESC },
+        );
       const existingIds = new Set(
-        existingPosts.map(p => (p.federation as { activityId?: string } | undefined)?.activityId),
+        existingPosts.map(p => p.federation?.activityId),
       );
       // activityId → the stored post's mention state, keyed for the self-heal pass.
       const existingMentionStateByActivityId = new Map<string, { mentions: string[]; hasMedia: boolean }>();
       for (const p of existingPosts) {
-        const activityId = (p.federation as { activityId?: string } | undefined)?.activityId;
+        const activityId = p.federation?.activityId;
         if (!activityId) continue;
-        const media = (p as { content?: { media?: unknown[] } }).content?.media;
+        const media = p.content.media;
         existingMentionStateByActivityId.set(activityId, {
-          mentions: normalizeMentionIds((p as { mentions?: unknown }).mentions),
+          mentions: normalizeMentionIds(p.mentions),
           hasMedia: Array.isArray(media) && media.length > 0,
         });
       }
@@ -707,10 +753,11 @@ export class OutboxSyncService {
       // mutated; `applyMentionPlaceholders` treats an empty anchor map as a no-op).
       const emptyMentions: ResolvedInboundMentions = { ids: [], localIds: [], anchorMap: new Map() };
 
-      // Build documents for batch insert. Raw insert docs (bypass Mongoose) — a
-      // loose record shape since they are assembled field-by-field below and
-      // inserted via `Post.collection.insertMany`.
-      const newDocs: Record<string, unknown>[] = [];
+      // Build the rows for batch insert. Each carries a PRE-ASSIGNED id, so the
+      // media-enrich pass below can address every post without reading anything
+      // back — the same reason the Mongo version minted its own `ObjectId`
+      // rather than letting the driver do it.
+      const newDocs: PostRecordInput[] = [];
       // Federated replies inserted in this batch, to be linked into their threads
       // AFTER the raw insert (so a self-thread whose root + replies arrive in the
       // same batch resolve against the now-inserted parents). Captured separately
@@ -815,28 +862,26 @@ export class OutboxSyncService {
         const visibility = mapApVisibility(note.to, note.cc);
 
         newDocs.push({
-          // Assigned here rather than left to the driver so the post-insert
-          // metadata-enrich pass below can address each doc without depending on
-          // `insertMany` mutating the input array.
-          _id: new Types.ObjectId(),
+          // Assigned here rather than read back afterwards so the post-insert
+          // metadata-enrich pass below can address each row directly.
+          id: uuidv7(),
           oxyUserId: resolvedOxyUserId,
           authorship: buildAuthorship(resolvedOxyUserId, []),
           federation: {
             activityId,
             actorUri,
             inReplyTo: inReplyToUri,
-            url: note.url || note.id,
+            url: typeof note.url === 'string' ? note.url : activityId,
             sensitive,
             spoilerText: summary,
           },
-          type: media.length > 0 ? (media.some((m) => m.type === 'video') ? 'video' : 'image') : 'text',
+          type: media.length > 0
+            ? (media.some((m) => m.type === 'video') ? PostType.VIDEO : PostType.IMAGE)
+            : PostType.TEXT,
           content: {
             // The body, and its ONLY home (`contentMap` → author variants,
-            // `variants[0]` primary). This insert path is RAW
-            // (`Post.collection.insertMany`): it bypasses Mongoose middleware AND
-            // schema defaults, so anything not written here is simply not
-            // persisted — which is precisely why a hook-maintained `content.text`
-            // mirror could not survive on this path, and why there is none.
+            // `variants[0]` primary). There is no `content.text` mirror on any
+            // path — the column does not exist.
             variants: variants.length > 0 ? variants : undefined,
             media: media.length > 0 ? media : undefined,
             attachments: attachments.length > 0 ? attachments : undefined,
@@ -846,31 +891,22 @@ export class OutboxSyncService {
           hashtags,
           // Resolved @mention Oxy user ids (federated + local) — the SAME allowlist
           // the inbox path stores, keyed by the `[mention:<id>]` placeholders now in
-          // the body so hydration renders each as a real profile link. Set
-          // explicitly because the raw `insertMany` bypasses the schema default.
+          // the body so hydration renders each as a real profile link.
           ...(mentionResult.ids.length > 0 ? { mentions: mentionResult.ids } : {}),
           ...(primaryLanguage ? { language: primaryLanguage } : {}),
           status: 'published',
-          // Engagement counters start at 0 and only ever move in lockstep with
-          // real native records (Like docs / boost Posts / reply Posts) created
-          // from inbound Like/Announce/Create activities. We never copy remote
-          // aggregate totals (`note.likes/shares/replies.totalItems`) — those are
-          // unverifiable foreign counts with no backing listable records here.
-          stats: {
-            likesCount: 0,
-            boostsCount: 0,
-            commentsCount: 0,
-            viewsCount: 0,
-            sharesCount: 0,
-            savesCount: 0,
-          },
+          // Engagement counters start at 0 (the column defaults) and only ever
+          // move in lockstep with real native records (Like rows / boost Posts /
+          // reply Posts) created from inbound Like/Announce/Create activities. We
+          // never copy remote aggregate totals
+          // (`note.likes/shares/replies.totalItems`) — those are unverifiable
+          // foreign counts with no backing listable records here.
           metadata: {
             isSensitive: sensitive,
           },
-          // The raw collection insertMany bypasses Mongoose schema defaults, so
-          // seed the classification subdoc explicitly. Stage-A deterministic
-          // fields are populated here while `status` stays `pending` so the async
-          // AI batch still enriches the post exactly like locally created posts.
+          // Stage-A deterministic fields are populated here while `status` stays
+          // `pending` so the async AI batch still enriches the post exactly like
+          // locally created posts.
           postClassification: baseline,
           ...(published ? { createdAt: published, updatedAt: published } : {}),
         });
@@ -886,65 +922,62 @@ export class OutboxSyncService {
         }
       }
 
-      // Strip empty location/coordinates from content to avoid 2dsphere index errors
-      const hasInvalidCoords = (loc: unknown): boolean => {
-        if (!loc || typeof loc !== 'object') return false;
-        const coords = (loc as { coordinates?: unknown }).coordinates;
-        return !Array.isArray(coords) || coords.length !== 2;
-      };
-      for (const doc of newDocs) {
-        const content = doc.content as { location?: unknown } | undefined;
-        if (content?.location && hasInvalidCoords(content.location)) {
-          delete content.location;
-        }
-        if (doc.location && hasInvalidCoords(doc.location)) {
-          delete doc.location;
-        }
-      }
+      // The half-written-coordinate strip that used to sit here is gone, and
+      // deliberately: Mongo's validator accepted `{ coordinates: [] }` and the
+      // 2dsphere index then rejected the write, so this path had to prune the
+      // pairs by hand. `posts_content_location_pair_check` and
+      // `posts_location_pair_check` make a half-present pair unrepresentable, and
+      // nothing on this path writes a location at all.
 
-      // Batch insert using raw collection to bypass Mongoose schema defaults
-      // (Mongoose adds empty location.coordinates which breaks 2dsphere index)
       if (newDocs.length > 0) {
-        await Post.collection.insertMany(newDocs, { ordered: false }).catch((err: unknown) => {
-          // Partial write errors (duplicate key) are expected — log but don't throw.
-          // Bulk-write errors carry `writeErrors: [{ err: { code, errmsg } }]`.
-          type BulkWriteEntry = { err?: { code?: number; errmsg?: string } };
-          const writeErrors: BulkWriteEntry[] =
-            err && typeof err === 'object' && Array.isArray((err as { writeErrors?: unknown }).writeErrors)
-              ? ((err as { writeErrors: BulkWriteEntry[] }).writeErrors)
-              : [];
-          const unexpectedErrors = writeErrors.filter((e) => e.err?.code !== 11000);
-          if (unexpectedErrors.length > 0) {
-            logger.warn('[FedSync] insertMany encountered unexpected errors', {
-              count: unexpectedErrors.length,
-              errors: unexpectedErrors.map((entry) => entry.err?.errmsg),
-            });
-          }
-          if (writeErrors.length > 0 && writeErrors.length < newDocs.length) {
-            logger.debug('[FedSync] insertMany partially succeeded', {
-              errorCount: writeErrors.length,
-              insertedCount: newDocs.length - writeErrors.length,
-            });
-          } else if (writeErrors.length === 0) {
-            throw err;
-          }
-        });
-
-        // Oxy derives intrinsic media metadata (width/height/durationSec) by
-        // probing the asset asynchronously, so the inline `enrichFromOxy` that
-        // ran while materializing this media almost always beat the probe and
-        // came back empty. Schedule the retry that actually collects it.
-        //
-        // This path builds posts through a RAW `Post.collection.insertMany`,
-        // bypassing `PostCreationService` — which is where every other ingest
-        // route picks up this enqueue. Without it, outbox-backfilled posts (the
-        // bulk of federated video) never get a second attempt at all, and their
-        // media stays permanently dimension- and duration-less.
-        for (const doc of newDocs) {
-          const media = (doc.content as { media?: MediaItem[] } | undefined)?.media;
-          if (!Array.isArray(media) || !mediaMetadataService.needsOxyRetry(media)) continue;
-          void enqueueMediaMetadataEnrich(String(doc._id));
+        // Per-row rather than one multi-row INSERT, because a post is nine tables
+        // and `insertPostRecord` writes them in ONE transaction each — so a
+        // duplicate `federation.activity_id` rolls back only its own post instead
+        // of aborting the batch, which is what `{ ordered: false }` bought on the
+        // Mongo side. A unique violation is the EXPECTED outcome of a concurrent
+        // import and is counted, not logged as a failure.
+        const results = await Promise.allSettled(
+          newDocs.map((input) => insertPostRecord(input)),
+        );
+        const inserted = results.flatMap((result) =>
+          result.status === 'fulfilled' ? [result.value] : [],
+        );
+        const unexpected = results.flatMap((result) =>
+          result.status === 'rejected' && !isUniqueViolation(result.reason) ? [result.reason] : [],
+        );
+        if (unexpected.length > 0) {
+          logger.warn('[FedSync] batch insert encountered unexpected errors', {
+            count: unexpected.length,
+            errors: unexpected.map((error) => (error instanceof Error ? error.message : String(error))),
+          });
         }
+        const rejected = results.filter((result) => result.status === 'rejected').length;
+        if (rejected > 0 && rejected < newDocs.length) {
+          logger.debug('[FedSync] batch insert partially succeeded', {
+            errorCount: rejected,
+            insertedCount: newDocs.length - rejected,
+          });
+        } else if (rejected === newDocs.length && unexpected.length > 0) {
+          throw unexpected[0];
+        }
+
+        // Post-ingest enrichment for the page just stored. This path bypasses
+        // `PostCreationService` on purpose (whole records built from the remote's
+        // own values), so it cannot inherit enrichment from there — but it does
+        // NOT get its own copy of each enrichment either. Both routes converge on
+        // the one entry point, which is what stops the next enrichment from being
+        // remembered on the native route and forgotten on this one (see
+        // `services/postEnrichment/` for the times that already happened).
+        //
+        // Passed as a page rather than post-by-post so an enrichment can
+        // coalesce across the batch — the link-preview warm dedupes a URL shared
+        // by several notes into a single resolve.
+        //
+        // The INSERTED records, not the inputs: an insert that lost the unique
+        // race on `federation.activity_id` stored nothing, and enqueuing work for
+        // it would be work against a post this task never wrote. It is also where
+        // the generated id lives.
+        enrichIngestedPosts(inserted);
       }
 
       // Link federated replies into their threads. Done AFTER the insert so a
@@ -964,11 +997,16 @@ export class OutboxSyncService {
         try {
           const link = await this.resolveThreadLink(inReplyToUri, 0, true);
           if (!link) continue;
-          const linked = await Post.updateOne(
-            { 'federation.activityId': activityId },
-            { $set: { parentPostId: link.parentPostId, threadId: link.threadId } },
-          );
-          if (linked.matchedCount > 0) {
+          // `is_reply` is NOT written here, and must not be: the row was
+          // inserted with `federation.inReplyTo` already set, so
+          // `derivesReplyIntent` stamped the discriminator at insert time. This
+          // pass only attaches the LINKS once the parent is resolvable.
+          const linked = await getDb()
+            .update(posts)
+            .set({ parentPostId: link.parentPostId, threadId: link.threadId })
+            .where(eq(posts.federationActivityId, activityId))
+            .returning({ id: posts.id });
+          if (linked.length > 0) {
             await recordRecentReplierForPost({
               parentPostId: link.parentPostId,
               oxyUserId,
@@ -1110,11 +1148,15 @@ export class OutboxSyncService {
     // blank an existing post's body — leave it untouched.
     if (variants.length === 0) return false;
 
-    const result = await Post.updateOne(
-      { 'federation.activityId': candidate.activityId },
-      { $set: { 'content.variants': variants, mentions: resolved.ids } },
+    // At most one row: `posts_federation_activity_id_key` is a partial UNIQUE
+    // index on this column, so no ORDER BY has anything to decide.
+    const [stored] = await findPostRecords(
+      eq(posts.federationActivityId, candidate.activityId),
+      { orderBy: UNIQUE_MATCH_NO_ORDER, limit: 1 },
     );
-    return ((result as { modifiedCount?: number }).modifiedCount ?? 0) > 0;
+    if (!stored) return false;
+    await replacePostContent(stored.id, { ...stored.content, variants }, resolved.ids);
+    return true;
   }
 
   /**
@@ -1261,7 +1303,11 @@ export class OutboxSyncService {
     }
 
     // Dedup the boost itself by the Announce activity id.
-    const existingBoost = await Post.exists({ 'federation.activityId': announceId });
+    const [existingBoost] = await getDb()
+      .select({ id: posts.id })
+      .from(posts)
+      .where(eq(posts.federationActivityId, announceId))
+      .limit(1);
     if (existingBoost) return false;
 
     // Resolve the boosted post's local _id. A local or already-imported post is
@@ -1274,7 +1320,7 @@ export class OutboxSyncService {
       return false;
     }
 
-    const originalPost = await Post.findById(originalPostId, { visibility: 1, status: 1 }).lean();
+    const originalPost = await loadPostRecord(originalPostId);
     if (!originalPost || originalPost.status !== 'published' || originalPost.visibility !== PostVisibility.PUBLIC) {
       logger.info('[FedSync] skipped non-public or unpublished boost');
       return false;
@@ -1320,10 +1366,7 @@ export class OutboxSyncService {
     // This is the ONLY site where a federated Announce becomes a native boost
     // count, so federatedBoostsCount is incremented alongside boostsCount here;
     // `boostsCount - federatedBoostsCount` then isolates the native boost count.
-    await Post.updateOne(
-      { _id: originalPostId },
-      { $inc: { 'stats.boostsCount': 1, 'stats.federatedBoostsCount': 1 } },
-    );
+    await bumpPostCounters(originalPostId, { boosts: 1, federatedBoosts: 1 });
     return true;
   }
 
@@ -1389,26 +1432,23 @@ export class OutboxSyncService {
 
     // 3. Derive the thread-root id. A linked parent already points at the root;
     //    an unlinked federated parent is walked up via its stored inReplyTo.
-    const parent = await Post.findById(parentPostId, {
-      threadId: 1,
-      'federation.inReplyTo': 1,
-    }).lean<{ _id: unknown; threadId?: string; federation?: { inReplyTo?: string } } | null>();
+    const parent = await loadPostRecord(parentPostId);
     if (!parent) return null;
 
     if (parent.threadId) {
-      return { parentPostId: String(parent._id), threadId: parent.threadId };
+      return { parentPostId: parent.id, threadId: parent.threadId };
     }
 
     const parentInReplyToUri = extractInReplyToUri(parent.federation?.inReplyTo);
     if (parentInReplyToUri && depth < MAX_ANCESTOR_DEPTH) {
       const ancestorLink = await this.resolveThreadLink(parentInReplyToUri, depth + 1, allowBackfill);
       if (ancestorLink) {
-        return { parentPostId: String(parent._id), threadId: ancestorLink.threadId };
+        return { parentPostId: parent.id, threadId: ancestorLink.threadId };
       }
     }
 
     // Parent has no resolvable ancestor → it IS the thread root.
-    return { parentPostId: String(parent._id), threadId: String(parent._id) };
+    return { parentPostId: parent.id, threadId: parent.id };
   }
 
   /**
@@ -1426,11 +1466,12 @@ export class OutboxSyncService {
    */
   private async ensureFederatedNote(objectUri: string, depth = 0): Promise<string | null> {
     // Already stored?
-    const existing = await Post.findOne(
-      { 'federation.activityId': objectUri },
-      { _id: 1 },
-    ).lean();
-    if (existing) return String(existing._id);
+    const [existing] = await getDb()
+      .select({ id: posts.id })
+      .from(posts)
+      .where(eq(posts.federationActivityId, objectUri))
+      .limit(1);
+    if (existing) return existing.id;
 
     const objectGuard = await assertSafePublicUrl(objectUri);
     if (!objectGuard.ok) {
@@ -1540,15 +1581,16 @@ export class OutboxSyncService {
         skipFederationDelivery: true,
         ...(published ? { createdAt: published, updatedAt: published } : {}),
       });
-      return String(created._id);
+      return created.id;
     } catch (err) {
       // Concurrent import may have created it — re-read to return the id.
       if (isDuplicateKeyError(err)) {
-        const raced = await Post.findOne(
-          { 'federation.activityId': noteActivityId },
-          { _id: 1 },
-        ).lean();
-        return raced ? String(raced._id) : null;
+        const [raced] = await getDb()
+          .select({ id: posts.id })
+          .from(posts)
+          .where(eq(posts.federationActivityId, noteActivityId))
+          .limit(1);
+        return raced ? raced.id : null;
       }
       const message = err instanceof Error ? err.message : String(err);
       logger.warn('[FedSync] failed to store boosted note', {

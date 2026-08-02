@@ -1,4 +1,4 @@
-import { and, desc, eq, type SQL } from 'drizzle-orm';
+import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import type { Decision } from '@oxyhq/crowdsource-contracts';
 import type {
   ModerationEnforcementAction,
@@ -160,7 +160,7 @@ async function applyEffect(
         .select({ postStatus: moderationEnforcements.previousStatePostStatus })
         .from(moderationEnforcements)
         .where(appliedActionFilter(subject, 'restrict'))
-        .orderBy(desc(moderationEnforcements.createdAt))
+        .orderBy(...RESTRICTION_IN_FORCE_ORDER)
         .limit(1);
       const restoreTo = asPostStatus(restriction?.postStatus);
       await getDb().update(posts).set({ status: restoreTo }).where(eq(posts.id, subject.id));
@@ -183,12 +183,16 @@ async function applyEffect(
        * Only lifted if MODERATION set it. An author's own content warning is theirs,
        * and a correction that removed it would be a moderation action nobody asked
        * for — visible to no-one until the post appeared in discovery again.
+       *
+       * An EXISTENCE question, so it deliberately carries no ORDER BY: unlike the
+       * restore above there is no state to read back off the winning row, every
+       * matching row answers it identically, and a sort that decides nothing
+       * reads in this file as though it decides something.
        */
       const [label] = await getDb()
         .select({ id: moderationEnforcements.id })
         .from(moderationEnforcements)
         .where(appliedActionFilter(subject, 'label_sensitive'))
-        .orderBy(desc(moderationEnforcements.createdAt))
         .limit(1);
       if (!label) {
         return { changed: false, reason: 'The content warning was not set by moderation' };
@@ -224,6 +228,46 @@ function appliedActionFilter(
     eq(moderationEnforcements.applied, true),
   );
 }
+
+/**
+ * Which of a subject's applied restrictions is the one still IN FORCE — i.e. the
+ * one a restore is reversing, and therefore the one whose recorded
+ * `previousStatePostStatus` is the status to put back.
+ *
+ * **`applied_at`, because it is the only column that records when the effect
+ * happened.** `created_at` records when the ROW was written, and it defaults to
+ * `now()` — `transaction_timestamp()` — so every row written inside ONE
+ * transaction shares it to the microsecond. `order by created_at desc limit 1`
+ * over a batch imported that way is a TIE, resolved by whatever the scan reached
+ * first: the restore then reads a `previousStatePostStatus` recorded by some
+ * OTHER restriction and puts the post back into a status it has not had for
+ * months — or, where that column was never written, into the `published`
+ * default, publishing something the author had left as a draft. `applied_at` is
+ * a value this service writes at the moment it changes the post, so a batched
+ * import preserves it and it cannot collapse the way a database default does.
+ *
+ * Falling back to `id` would be worse than the tie it is meant to settle: `id`
+ * is `text` holding a 24-char ObjectId hex for every pre-cutover row and a uuid
+ * v7 after, and `'0' < '6'` under the database's collation — so `order by id
+ * desc` sorts every post-cutover enforcement LAST and hands the restore the
+ * OLDEST restriction on record, every single time.
+ *
+ * The last two keys make the order TOTAL rather than merely better: `action` is
+ * pinned by the filter, so `(decision_id, decision_revision)` is unique among
+ * the candidates by Appendix D's own constraint, and a higher revision is by
+ * definition the one that supersedes. Nothing here can alternate between two
+ * requests.
+ *
+ * `nulls last` on `applied_at` because DESC defaults to NULLS FIRST: a row that
+ * claims `applied` while recording no `applied_at` must not outrank one that
+ * says exactly when it happened.
+ */
+const RESTRICTION_IN_FORCE_ORDER: SQL[] = [
+  sql`${moderationEnforcements.appliedAt} desc nulls last`,
+  desc(moderationEnforcements.createdAt),
+  desc(moderationEnforcements.decisionRevision),
+  desc(moderationEnforcements.decisionId),
+];
 
 /**
  * The recorded pre-restriction status, or `published` when there is none.

@@ -47,7 +47,8 @@
  * needs a nullable sort key must say `nulls first` explicitly.
  */
 
-import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import type {
   MediaItem,
@@ -55,6 +56,7 @@ import type {
   PostAuthorshipEntry,
   PostContentVariant,
   PostSourceLink,
+  PostStats,
   ReplyPermission,
   StoredPostContent,
 } from '@mention/shared-types';
@@ -79,6 +81,7 @@ import {
   type PostRecordClassification,
   type PostRecordFederation,
   type PostRecordInput,
+  type PostRecordTopicRef,
 } from './postRecord';
 
 type PostRow = typeof posts.$inferSelect;
@@ -286,7 +289,19 @@ async function loadChildRows(
       .select()
       .from(postClassificationTopicRefs)
       .where(inArray(postClassificationTopicRefs.postId, [...postIds]))
-      .orderBy(asc(postClassificationTopicRefs.name)),
+      // Mongo's array preserved the order the classifier emitted, and the table
+      // has no `position` column to reproduce it. `relevance DESC` recovers the
+      // MEANING of that order wherever the classifier supplied one, with `name`
+      // as a deterministic tie-break so a page never reshuffles between reads;
+      // plain alphabetical (what this was) discards the ranking entirely. Every
+      // reader today is set-like — membership, grouping — so this is about not
+      // throwing information away rather than about a consumer that indexes
+      // `[0]`. If true insertion order ever matters, it needs a `position`
+      // column and a migration, not a different sort.
+      .orderBy(
+        sql`${postClassificationTopicRefs.relevance} desc nulls last`,
+        asc(postClassificationTopicRefs.name),
+      ),
   ]);
 
   // The variant-owned tables key on the VARIANT, so they can only be read once
@@ -555,6 +570,7 @@ function assembleRecord(row: PostRow, children: PostChildRows): PostRecord {
       languages: optional(row.classificationLanguages),
       region: optional(row.classificationRegion),
       hashtagsNorm: optional(row.classificationHashtagsNorm),
+      trendTerms: optional(row.classificationTrendTerms),
       sensitive: optional(row.classificationSensitive),
       version: optional(row.classificationVersion),
       sentiment: row.classificationSentiment,
@@ -629,6 +645,47 @@ export async function loadPostRecord(
 ): Promise<PostRecord | null> {
   const [record] = await loadPostRecords([postId], db);
   return record ?? null;
+}
+
+/**
+ * Flip ONE still-scheduled post to `published`, and return it only to the caller
+ * that won the flip.
+ *
+ * This is a CLAIM, not an update: the publish pipeline behind it federates,
+ * writes an MTN record and notifies, so two callers holding the same post must
+ * not both run it. That is reachable in practice — the 60s sweep may load a due
+ * post moments before its author taps "post now".
+ *
+ * `status = 'scheduled'` in the WHERE is the mutual exclusion. The UPDATE takes a
+ * row lock, so a second caller blocks until the first commits and then re-checks
+ * the predicate against the COMMITTED row, which no longer says `scheduled` —
+ * it matches nothing and gets `null`. That is the same filter the sweep selects
+ * on, so the sweep is excluded too. No advisory lock and no explicit transaction
+ * are needed for this: a single UPDATE statement is already atomic.
+ *
+ * `ownerId` narrows the claim to one author for the request path. The sweep omits
+ * it, since it publishes on nobody's behalf.
+ *
+ * Returns the whole record so the caller can run the pipeline without a second
+ * read. `RETURNING id` then assembling is deliberate — a post is nine tables and
+ * `RETURNING *` would still only give one of them.
+ */
+export async function claimScheduledPost(
+  postId: string,
+  ownerId: string | undefined,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<PostRecord | null> {
+  const [claimed] = await db
+    .update(posts)
+    .set({ status: 'published' })
+    .where(and(
+      eq(posts.id, postId),
+      eq(posts.status, 'scheduled'),
+      ...(ownerId ? [eq(posts.oxyUserId, ownerId)] : []),
+    ))
+    .returning({ id: posts.id });
+  if (!claimed) return null;
+  return loadPostRecord(claimed.id, db);
 }
 
 /**
@@ -741,6 +798,7 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     classificationLanguages: classification?.languages ?? null,
     classificationRegion: classification?.region ?? null,
     classificationHashtagsNorm: classification?.hashtagsNorm ?? null,
+    classificationTrendTerms: classification?.trendTerms ?? null,
     classificationSensitive: classification?.sensitive ?? null,
     classificationVersion: classification?.version ?? null,
     classificationSentiment: classification?.sentiment ?? 'neutral',
@@ -997,6 +1055,7 @@ export async function updatePostRecord(
     classificationLanguages: classification?.languages,
     classificationRegion: classification?.region,
     classificationHashtagsNorm: classification?.hashtagsNorm,
+    classificationTrendTerms: classification?.trendTerms,
     classificationSensitive: classification?.sensitive,
     classificationVersion: classification?.version,
     classificationSentiment: classification?.sentiment,
@@ -1023,8 +1082,139 @@ export async function updatePostRecord(
         }),
   });
 
+  // The child table is written FIRST and unconditionally on presence, because
+  // the scalar early-return below must not be able to skip it: a patch carrying
+  // only `topicRefs` produces no column values at all.
+  if (classification?.topicRefs !== undefined) {
+    await replaceTopicRefs(postId, classification.topicRefs, db);
+  }
+
   if (Object.keys(values).length === 0) return;
   await db.update(posts).set(values).where(eq(posts.id, postId));
+}
+
+/**
+ * Replace a post's classification topic refs wholesale.
+ *
+ * Delete-then-insert in ONE transaction, the same shape as
+ * {@link replacePostAuthorship}, because an enrichment pass REPLACES the topic
+ * set rather than adding to it: a topic the classifier dropped has to disappear,
+ * and the `(post_id, name)` unique index would reject a plain re-insert anyway.
+ *
+ * This exists because `updatePostRecord` maps scalar COLUMNS, and `topicRefs` is
+ * a child table. It type-checked as part of `PostRecordPatch.postClassification`
+ * and was silently ignored — so Stage-B AI enrichment, the only producer of
+ * registry-linked refs, wrote its topics to the scalar `classification_topics`
+ * array and dropped every `topicId` linkage on the floor. Nothing errored;
+ * trending, the topic pages and personalization just stopped seeing AI topics.
+ */
+export async function replaceTopicRefs(
+  postId: string,
+  topicRefs: readonly PostRecordTopicRef[],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<void> {
+  const write = async (tx: DatabaseOrTransaction): Promise<void> => {
+    await tx
+      .delete(postClassificationTopicRefs)
+      .where(eq(postClassificationTopicRefs.postId, postId));
+    if (topicRefs.length > 0) {
+      await tx.insert(postClassificationTopicRefs).values(
+        topicRefs.map((ref) => ({
+          postId,
+          name: ref.name,
+          topicId: ref.topicId ?? null,
+          relevance: ref.relevance ?? null,
+          type: ref.type ?? null,
+        })),
+      );
+    }
+  };
+
+  if ('transaction' in db) {
+    await db.transaction(write);
+    return;
+  }
+  await write(db);
+}
+
+/**
+ * The denormalized counters a caller outside `PostEngagementCommandService` moves.
+ *
+ * Likes, downvotes and saves are deliberately ABSENT: those three are maintained
+ * transactionally with the `likes`/`bookmarks` rows they project, and a second
+ * door onto them is how a projection starts disagreeing with its authority.
+ * These four have no relationship table of their own — a reply, a boost and a
+ * view are counted where they happen.
+ */
+export interface PostCounterDelta {
+  comments?: number;
+  boosts?: number;
+  /** Of {@link boosts}, the subset that arrived as an inbound AP Announce. */
+  federatedBoosts?: number;
+  views?: number;
+}
+
+/**
+ * Apply counter deltas to a post and return the counters as they now stand, or
+ * `null` when no row matched.
+ *
+ * One statement — the increment, the clamp and the read-back are the same
+ * `UPDATE … RETURNING`, so no window exists in which a response could report a
+ * value another transaction has already moved.
+ *
+ * The `greatest(0, …)` clamp is a DELIBERATE difference from the Mongo `$inc` it
+ * replaces, and matches what `PostEngagementCommandService` already chose: a
+ * double unboost drove `stats.boostsCount` negative in Mongo, and a negative
+ * count is both nonsense on the wire and a ranking input that pushes a post below
+ * every post with no engagement at all.
+ *
+ * The AUTHOR comes back with the counters, on the same round trip, because the
+ * realtime broadcast needs both: whose privacy settings decide what may be sent,
+ * and what the numbers now are. Reading the author separately would be a second
+ * query that could answer about a different version of the row.
+ */
+export async function bumpPostCounters(
+  postId: string,
+  delta: PostCounterDelta,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<(PostStats & { oxyUserId: string | null }) | null> {
+  // `PgUpdateSetSource`, not `Partial<PostInsert>`: each value here is a SQL
+  // EXPRESSION (`greatest(0, col + n)`) rather than a literal, which the insert
+  // type's `number` columns reject.
+  const values: PgUpdateSetSource<typeof posts> = {
+    ...(delta.comments
+      ? { statsCommentsCount: sql`greatest(0, ${posts.statsCommentsCount} + ${delta.comments})` }
+      : {}),
+    ...(delta.boosts
+      ? { statsBoostsCount: sql`greatest(0, ${posts.statsBoostsCount} + ${delta.boosts})` }
+      : {}),
+    ...(delta.federatedBoosts
+      ? {
+        statsFederatedBoostsCount: sql`greatest(0, ${posts.statsFederatedBoostsCount} + ${delta.federatedBoosts})`,
+      }
+      : {}),
+    ...(delta.views
+      ? { statsViewsCount: sql`greatest(0, ${posts.statsViewsCount} + ${delta.views})` }
+      : {}),
+  };
+  if (Object.keys(values).length === 0) return null;
+
+  const [row] = await db
+    .update(posts)
+    .set(values)
+    .where(eq(posts.id, postId))
+    .returning({
+      oxyUserId: posts.oxyUserId,
+      likesCount: posts.statsLikesCount,
+      downvotesCount: posts.statsDownvotesCount,
+      boostsCount: posts.statsBoostsCount,
+      federatedBoostsCount: posts.statsFederatedBoostsCount,
+      commentsCount: posts.statsCommentsCount,
+      viewsCount: posts.statsViewsCount,
+      sharesCount: posts.statsSharesCount,
+      savesCount: posts.statsSavesCount,
+    });
+  return row ?? null;
 }
 
 /**
@@ -1246,5 +1436,35 @@ export function authoredBy(oxyUserId: string): SQL {
   return followedAuthorsSql([oxyUserId]);
 }
 
-/** Descending chronological keyset — the sort every post list in this app uses. */
-export const CHRONO_DESC: SQL[] = [desc(posts.createdAt), desc(posts.id)];
+/**
+ * Descending chronological keyset — the sort every post list in this app uses.
+ *
+ * `nulls last` is spelled out for the reason {@link chronoOrderBy} documents at
+ * length: both columns are NOT NULL so it changes no result, but drizzle emits
+ * `.desc()` in index DDL as `DESC NULLS LAST` while a query's `desc()` means
+ * `DESC NULLS FIRST`, and Postgres compares the NULLS placement when deciding
+ * whether an index can satisfy an ORDER BY. Written the plain way, none of the
+ * thirteen chronological indexes on `posts` is usable and the planner falls back
+ * to scanning the match set and sorting it.
+ */
+export const CHRONO_DESC: SQL[] = [
+  sql`${posts.createdAt} desc nulls last`,
+  sql`${posts.id} desc nulls last`,
+];
+
+/**
+ * No ordering, because the predicate can match at most one row.
+ *
+ * {@link findPostRecords} requires `orderBy` on purpose — an unordered paged
+ * read is a bug that surfaces only as a duplicated or skipped row at a page
+ * boundary — and that requirement should not be relaxed to accommodate the
+ * handful of reads where it genuinely has nothing to decide. Those reads say so
+ * HERE instead, by name.
+ *
+ * Only correct behind a filter the database guarantees is unique: today that is
+ * `federation_activity_id`, which carries the partial unique index
+ * `posts_federation_activity_id_key`. Reaching for this because a query "should"
+ * only match one row reintroduces exactly the bug the required parameter exists
+ * to prevent — if the uniqueness is not a constraint, order the read.
+ */
+export const UNIQUE_MATCH_NO_ORDER: SQL[] = [];

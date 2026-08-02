@@ -395,24 +395,31 @@ describe('coverage of the current plan set', () => {
         plannedTables()
       );
 
-      // A relation on an unplanned table is expected to be uncovered and is NOT
-      // a defect — conflating the two would make the gate fire permanently on a
-      // state nobody can fix, which is how a gate gets disabled.
+      // WAS `outOfScope > 0`, written while 24 collections were unplanned, when
+      // a relation on an unplanned table was expected to be uncovered and
+      // conflating the two would have fired the gate permanently on a state
+      // nobody could fix. Every table now has a plan, so that number is legally
+      // ZERO and the old assertion inverted into a false alarm the day the work
+      // finished — a check that fails on SUCCESS, which gets a gate disabled
+      // just as surely as one that cries wolf.
       //
-      // The count is DERIVED rather than asserted against a literal, and that
-      // correction is the point of this comment. It used to read
-      // `toBeGreaterThan(0)`, which was true while collections were unplanned
-      // and became FALSE the moment the last one landed — a green assertion
-      // that had stopped testing what it names, then a red one that reads like
-      // a defect in the checker. A literal encoding the current state of the
-      // migration has a half-life of one batch; the honest form is the
-      // relationship, which holds at every point including the finish line.
+      // Two things survive the change of state, and both are asserted because
+      // neither implies the other. The COUNT is derived from the same source the
+      // scope decision is made from, so it holds at 24 collections or at none
+      // and it still fails if the derivation breaks — `toBeGreaterThanOrEqual(0)`
+      // would be true of every possible value, which is the vacuous form of this
+      // same repair. The PARTITION is the structural half: every deployed
+      // constraint is in scope or out of it, exactly once.
       const unplanned = new Set(tablesWithoutAPlan());
       const expectedOutOfScope = deployed.filter((relation) =>
         unplanned.has(relation.tableName)
       ).length;
       expect(coverage.outOfScope).toBe(expectedOutOfScope);
       expect(coverage.outOfScope + coverage.deployedInScope).toBe(deployed.length);
+      // The floor moves to the side that is now non-empty: with nothing
+      // unplanned, EVERY deployed constraint must be in scope, so a partition
+      // that put them all outside would pass the sum above and mean nothing.
+      expect(coverage.deployedInScope).toBe(deployed.length);
     } finally {
       await closePostgres();
     }

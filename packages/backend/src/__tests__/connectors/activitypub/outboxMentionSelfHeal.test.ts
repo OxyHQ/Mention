@@ -2,9 +2,11 @@ import { PassThrough } from 'node:stream';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';
+import { loadPostRecord } from '../../../db/posts/postRepository';
 import {
   clearFederationScope,
   federationScope,
+  seedPost,
 } from '../../helpers/federationFixtures';
 
 const scope = federationScope('outbox-mention-self-heal');
@@ -113,12 +115,6 @@ vi.mock('../../../models/Post', () => ({
   },
 }));
 
-vi.mock('../../../models/UserSettings', () => ({
-  default: {
-    updateOne: vi.fn(),
-  },
-}));
-
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: mocks.getServiceOxyClient,
 }));
@@ -192,12 +188,38 @@ function stubOutbox(collection: unknown): ReturnType<typeof vi.fn> {
 }
 
 /** Make the dedup query report an existing post for the mention note. */
-function stubExistingPost(mentions: string[]): void {
-  mocks.postFind.mockReturnValue({
-    lean: vi.fn().mockResolvedValue([
-      { federation: { activityId: MENTION_NOTE_ID }, mentions, content: {} },
-    ]),
+/**
+ * The already-imported post the heal repairs, as a REAL row.
+ *
+ * It used to be a `Post.find` stub returning a literal. That stub decided BOTH
+ * halves the heal turns on — whether the dedupe found the post, and what its
+ * stored `mentions` were — so "healed" and "left alone" were the mock's answers
+ * rather than the code's, and the write itself was asserted as an `updateOne`
+ * filter shape that no longer exists (the heal calls `replacePostContent`).
+ */
+async function seedExistingPost(mentions: string[]): Promise<string> {
+  const record = await seedPost(scope, {
+    oxyUserId: 'oxy_alice',
+    content: {
+      variants: [{
+        source: 'author',
+        tag: 'en',
+        text: 'hey <a href="https://mastodon.example/users/bob">@bob</a>',
+      }],
+    },
+    mentions,
+    federation: { activityId: MENTION_NOTE_ID, actorUri: ACTOR_URI },
   });
+  return record.id;
+}
+
+/** The stored body + allowlist, which is what the heal is supposed to move. */
+async function storedState(postId: string): Promise<{ mentions: string[]; texts: string[] }> {
+  const record = await loadPostRecord(postId);
+  return {
+    mentions: record?.mentions ?? [],
+    texts: (record?.content.variants ?? []).map((variant) => variant.text),
+  };
 }
 
 function runSync() {
@@ -252,7 +274,7 @@ describe('OutboxSyncService — @mention self-heal on re-sync', () => {
   it('heals an existing post with bare-text mentions from the in-hand note, with NO extra fetch', async () => {
     // The post already exists (deduped) but its stored mention allowlist is empty
     // — a pre-fix import that never resolved @bob.
-    stubExistingPost([]);
+    const postId = await seedExistingPost([]);
     const fetchMock = stubOutbox({
       type: 'OrderedCollection',
       totalItems: 1,
@@ -264,22 +286,16 @@ describe('OutboxSyncService — @mention self-heal on re-sync', () => {
     // One existing post healed; nothing new inserted.
     expect(result.healedMentionCount).toBe(1);
     expect(result.newPostCount).toBe(0);
-    expect(mocks.postInsertMany).not.toHaveBeenCalled();
 
-    // The heal write rewrites the body variant to the `[mention:<id>]` placeholder
-    // and sets the `mentions` allowlist — in lockstep, like the inbox Update path.
-    const healCall = mocks.postUpdateOne.mock.calls.find(
-      ([filter]) =>
-        (filter as { 'federation.activityId'?: string })['federation.activityId'] === MENTION_NOTE_ID,
-    );
-    if (!healCall) throw new Error('expected a heal updateOne for the mention note');
-    const update = healCall[1] as {
-      $set: { mentions: string[]; 'content.variants': Array<{ text: string }> };
-    };
-    expect(update.$set.mentions).toEqual([BOB_OXY_ID]);
-    expect(update.$set['content.variants']).toHaveLength(1);
-    expect(update.$set['content.variants'][0].text).toContain(`[mention:${BOB_OXY_ID}]`);
-    expect(update.$set['content.variants'][0].text).not.toContain('<a');
+    // The stored body and allowlist move IN LOCKSTEP, like the inbox Update path:
+    // the anchor becomes a `[mention:<id>]` placeholder and the id joins the
+    // allowlist. A body carrying a placeholder no id backs is the failure this
+    // pairing exists to prevent.
+    const state = await storedState(postId);
+    expect(state.mentions).toEqual([BOB_OXY_ID]);
+    expect(state.texts).toHaveLength(1);
+    expect(state.texts[0]).toContain(`[mention:${BOB_OXY_ID}]`);
+    expect(state.texts[0]).not.toContain('<a');
 
     // No extra network fetch: only the single outbox GET ran. The note was already
     // in hand and @bob resolved from the (mocked) actor cache, not the network.
@@ -289,7 +305,7 @@ describe('OutboxSyncService — @mention self-heal on re-sync', () => {
 
   it('leaves an ALREADY-resolved post untouched (no resolution, no write)', async () => {
     // Stored allowlist already covers the note's single mention → not a candidate.
-    stubExistingPost([BOB_OXY_ID]);
+    const postId = await seedExistingPost([BOB_OXY_ID]);
     stubOutbox({
       type: 'OrderedCollection',
       totalItems: 1,
@@ -299,13 +315,13 @@ describe('OutboxSyncService — @mention self-heal on re-sync', () => {
     const result = await runSync();
 
     expect(result.healedMentionCount).toBe(0);
-    // Never re-resolves and never rewrites an already-resolved post.
+    // Never re-resolves, and the stored body is byte-identical afterwards.
     expect(mocks.getOrFetchActor).not.toHaveBeenCalled();
-    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
+    expect((await storedState(postId)).texts[0]).toContain('<a');
   });
 
   it('leaves the post as-is on a resolve MISS (mentioned actor unresolvable)', async () => {
-    stubExistingPost([]);
+    const postId = await seedExistingPost([]);
     stubOutbox({
       type: 'OrderedCollection',
       totalItems: 1,
@@ -317,8 +333,12 @@ describe('OutboxSyncService — @mention self-heal on re-sync', () => {
     const result = await runSync();
 
     expect(result.healedMentionCount).toBe(0);
-    // The heal was attempted (bounded resolution ran) but wrote nothing.
+    // The heal was attempted (bounded resolution ran) but wrote nothing: the
+    // stored body keeps its raw anchor and the allowlist stays empty. Writing a
+    // placeholder here with no id behind it is the corruption this guards.
     expect(mocks.getOrFetchActor).toHaveBeenCalledWith(BOB_URI);
-    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
+    const state = await storedState(postId);
+    expect(state.mentions).toEqual([]);
+    expect(state.texts[0]).toContain('<a');
   });
 });

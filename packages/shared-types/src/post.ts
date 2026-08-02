@@ -45,9 +45,27 @@ export enum PostVisibility {
  * dedicated 96px square `w96` crop — most avatars across the app render
  * ≤40px (post headers ~36px, notifications, facepiles), so `w96` covers
  * those comfortably even at 3x DPR while staying lighter than the 128px
- * crop it replaced. Video posters are a DIFFERENT context: they fill the (up
- * to ~320px wide) media card as a rectangle, so they keep the 256px `thumb`
- * crop via VIDEO_POSTER rather than being shrunk to a small square.
+ * crop it replaced. A handful of surfaces render a MUCH bigger avatar —
+ * the profile header (90px / 70px), the about page (80px), the OAuth consent
+ * screens (72px / 56px), starter-pack and list avatar groups (56px) — where
+ * `w96` would be visibly soft at 3x DPR; AVATAR_LG covers those with the 256px
+ * `thumb` crop. Those call sites previously reached for VIDEO_POSTER purely
+ * because it happened to equal `'thumb'`, which made every one of them read as
+ * if it were rendering a video.
+ *
+ * VIDEO posters are two contexts, not one, and a single size cannot serve both:
+ *  - VIDEO_THUMB (`w320`) is a small STILL — the profile media grid cell and
+ *    the notification thumbnail. It matches THUMB exactly, so a video cell and
+ *    an image cell in the same grid now cost the same.
+ *  - VIDEO_POSTER (`w1280`) is the frame shown BEHIND a player, and both of its
+ *    surfaces are full-width: the in-feed video card and the fullscreen Reels
+ *    viewer. On a 3x-DPR phone that is ~1180 device px, so the two differ by
+ *    padding, not by an order of magnitude. `w1280` covers both; `w2048` would
+ *    add rows neither can show.
+ * The previous single `'thumb'` (256px) was wrong at BOTH ends — it yielded
+ * 144x256 for a 720x1280 source, too soft fullscreen, while the only other
+ * working option (the raw `poster`, up to 1920px / ~240 KB) was ~6x oversized
+ * for a grid cell.
  *
  * The profile banner is its own context: a full-bleed 170px-tall strip, so its
  * width — not the lightbox's — is what bounds it. The widest real surface is a
@@ -60,7 +78,9 @@ export enum PostVisibility {
 export const MEDIA_VARIANT_THUMB = 'w320';
 export const MEDIA_VARIANT_FULL = 'w2048';
 export const MEDIA_VARIANT_AVATAR = 'w96';
-export const MEDIA_VARIANT_VIDEO_POSTER = 'thumb';
+export const MEDIA_VARIANT_AVATAR_LG = 'thumb';
+export const MEDIA_VARIANT_VIDEO_THUMB = 'w320';
+export const MEDIA_VARIANT_VIDEO_POSTER = 'w1280';
 export const MEDIA_VARIANT_BANNER = 'w1280';
 
 export interface MediaItem {
@@ -490,6 +510,23 @@ export interface PostClassification {
    * {@link Post.hashtags} so ranking/discovery read one canonical form.
    */
   hashtagsNorm?: string[];
+  /**
+   * Stage-A. Candidate TREND TERMS extracted from the post's own text: unigrams
+   * and adjacent-word phrases, lowercased and stop-word-filtered, with any `#`
+   * marker stripped so a hashtag and the bare word collapse to ONE term
+   * (`#FIFA`, `#fifa` and `FIFA` are all `fifa`).
+   *
+   * This is what makes trend detection a property of what people WROTE rather
+   * than of who happened to type a `#`. Trending unions this with
+   * {@link PostClassification.hashtagsNorm} and {@link PostClassification.topics}
+   * into a single term space, so a burst is measured the same way whichever form
+   * it arrived in.
+   *
+   * Absent on posts that predate term extraction; the union above is what keeps
+   * detection working (on hashtags and topic slugs alone) for those, and the
+   * corpus self-heals as new posts land.
+   */
+  trendTerms?: string[];
   /** Stage-A. Whether the content is marked sensitive/NSFW (pass-through). */
   sensitive?: boolean;
   /**
@@ -679,6 +716,14 @@ export interface CreateThreadPostRequest {
 export interface CreateThreadRequest {
   mode: 'thread' | 'beast'; // thread = linked posts, beast = separate posts
   posts: CreateThreadPostRequest[];
+  /**
+   * ISO time to publish the whole batch at, instead of immediately. BEAST mode
+   * only — the server refuses it in thread mode, where each continuation is
+   * created as a reply to the one before it and publishing them separately would
+   * let a reply precede the post it answers. One time covers every post: the
+   * author picked a moment for the set.
+   */
+  scheduledFor?: string;
 }
 
 export interface UpdatePostRequest {
@@ -689,6 +734,12 @@ export interface UpdatePostRequest {
   hashtags?: string[];
   /** Invite collaborators when editing a solo post within the 30-minute window. */
   collaboratorIds?: string[];
+  /**
+   * Move a still-SCHEDULED post to another time, ISO-8601. Accepted only while
+   * the stored post is `scheduled`, and only for a time still ahead; earlier is
+   * allowed. Omitted, the existing schedule stands.
+   */
+  scheduledFor?: string;
 }
 
 export interface PostFeed {
@@ -762,6 +813,15 @@ export interface PostEditSource {
   mentionUsers: PostUser[];
   authorship?: PostAuthorshipEntry[];
   parentPostId?: string;
+  /**
+   * The post's publication state. The composer needs it to know it is editing
+   * something that has NOT gone out yet: a scheduled post is exempt from the
+   * 30-minute edit window and can still be moved to another time, so the screen
+   * must not tell the author about a deadline that does not apply to them.
+   */
+  status?: PostPublicationStatus;
+  /** When a `scheduled` post is due to publish, ISO-8601. */
+  scheduledFor?: string;
 }
 
 export interface HydratedAuthor extends PostUser {
@@ -873,6 +933,59 @@ export interface PostMetadataState {
   createdAt: string;
   updatedAt: string;
   status?: PostPublicationStatus;
+  /**
+   * When a `scheduled` post is due to publish, ISO-8601. Present ONLY on a post
+   * that carries one, which in practice means `status === 'scheduled'` — and
+   * hydration drops an unpublished post for everyone except its owner and its
+   * accepted/pending collaborators, so this never reaches a third party.
+   */
+  scheduledFor?: string;
+}
+
+/**
+ * "This post is a reply, and this is what it answers."
+ *
+ * The SINGLE carrier of reply context. It rides on the POST, not on the feed
+ * slice that happens to contain it, because a post is a reply as a property of
+ * itself — independent of which surface renders it. Before this existed the only
+ * carrier was `FeedSliceReason.replyContext`, which the server emits solely for
+ * feeds whose definition opted in (`execution.replyContext`) and never at all on
+ * the response paths that return no slices (the popular fallback, ordered feeds,
+ * feed generators). Every other surface that renders a post — search, saved,
+ * insights, the scheduled-post preview, the thread view — had no access to it,
+ * so a reply on those surfaces was indistinguishable from a top-level post.
+ *
+ * Present on every post that is a reply, decided by the server's one definition
+ * of the concept (`isReplyPost`), which counts a federated reply whose
+ * `inReplyTo` never resolved locally. `parentAuthor` is therefore optional and
+ * the empty object is meaningful: "this is a reply, but we cannot say to whom".
+ *
+ * ONE exclusion: a reply to its OWN author's post — a self-thread continuation —
+ * carries no `replyContext` at all. It is a reply, but it is rendered as a
+ * THREAD (connector line, "Show this thread"), and a "Replying to @themselves"
+ * header on every post after the first is noise on a very common shape. The
+ * server decides this because only it holds both authoritative author ids: a
+ * post's `user.id` is a degraded, post-id based placeholder for orphan federated
+ * posts, so a client-side comparison would silently never match on exactly those.
+ *
+ * Note this is narrower than "present iff the post is a reply" — consumers that
+ * need the raw fact should read {@link HydratedPostSummary.parentPostId}. What
+ * this field answers is "does this row need to tell the reader what it answers".
+ *
+ * The local parent id is NOT repeated here — it is already
+ * {@link HydratedPostSummary.parentPostId}, and one value with two spellings is
+ * how carriers drift apart. This object answers only "to WHOM", which nothing
+ * else on the DTO carries.
+ */
+export interface PostReplyContext {
+  /**
+   * The parent's author. Absent when the parent is not held locally (an
+   * unresolved federated `inReplyTo`), AND when the viewer's own ACL denies the
+   * parent — naming the author of a post this viewer was just refused would leak
+   * both its existence and its writer, so the same gate that drops a post from a
+   * response drops its authorship here.
+   */
+  parentAuthor?: PostUser;
 }
 
 export interface HydratedPostSummary {
@@ -896,6 +1009,13 @@ export interface HydratedPostSummary {
   permissions: PostPermissions;
   metadata: PostMetadataState;
   parentPostId?: string;
+  /**
+   * Set on every post that IS a reply, on every surface, whatever the feed did
+   * with slicing. Its PRESENCE is the reply marker — which `parentPostId` alone
+   * cannot be, because a federated reply whose `inReplyTo` never resolved is a
+   * reply with no local parent. See {@link PostReplyContext}.
+   */
+  replyContext?: PostReplyContext;
 }
 
 export interface HydratedBoostContext {

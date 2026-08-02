@@ -1,6 +1,7 @@
-import mongoose from 'mongoose';
+import { and, eq, sql, type SQL } from 'drizzle-orm';
 import { logger } from '../../utils/logger';
-import { Post } from '../../models/Post';
+import { getDb } from '../../db/postgres';
+import { posts } from '../../db/schema/posts';
 import { createSignedFetch, type SignedFetch } from '@oxyhq/federation/node';
 import { getPublicKey, signViaOxy } from './crypto';
 import {
@@ -38,8 +39,13 @@ export const ACTIVITYPUB_FETCH_DEADLINE_MS = 15_000;
 /** Maximum silence between ActivityPub response-body chunks. */
 export const ACTIVITYPUB_BODY_IDLE_TIMEOUT_MS = 5_000;
 
+/** The media-type family of a `content-type` header: parameters dropped, lowercased. */
+function contentTypeFamily(raw: string | null): string {
+  return raw?.split(';', 1)[0]?.trim().toLowerCase() ?? '';
+}
+
 function activityPubJsonContentType(raw: string | null): boolean {
-  const family = raw?.split(';', 1)[0]?.trim().toLowerCase() ?? '';
+  const family = contentTypeFamily(raw);
   return family === 'application/json'
     || family === 'application/activity+json'
     || family === 'application/ld+json'
@@ -166,7 +172,16 @@ export async function singleHopToResponse(result: SingleHopResult): Promise<Resp
   if (result.status >= 200 && result.status < 300
       && !activityPubJsonContentType(headers.get('content-type'))) {
     result.response.destroy();
-    throw new Error('ActivityPub response has unsupported content-type');
+    // NAME the offending media type. Without it the rejection reads only as
+    // "not JSON", and every diagnosis of a bulk sweep costs a code change plus a
+    // redeploy to find out whether the origin served HTML, an error page, or
+    // nothing at all. Only the media-type FAMILY is interpolated (parameters
+    // dropped, lowercased, length-capped), so no remote-controlled payload rides
+    // into the message.
+    const family = contentTypeFamily(headers.get('content-type'));
+    throw new Error(
+      `ActivityPub response has unsupported content-type: ${family ? family.slice(0, 64) : '(none)'}`,
+    );
   }
 
   const declaredLength = Number(headers.get('content-length'));
@@ -619,26 +634,81 @@ export function mapApVisibility(to?: unknown, cc?: unknown): PostVisibility {
 }
 
 /**
- * Resolve an ActivityPub object URI to a local Post `_id`, handling both:
+ * Resolve an ActivityPub object URI to a local post id, handling both:
  *  - a local post (our own AP note URI → `<...>/posts/<postId>`), and
  *  - an imported federated post (matched by `federation.activityId`).
  *
- * Returns the Post `_id` as a string, or null when no such post exists here.
+ * Returns the post id as a string, or null when no such post exists here.
+ *
+ * ## There is no id-SHAPE guard, and adding one back would be a silent outage
+ *
+ * This used to gate the local branch on `ObjectId.isValid(localPostId)`. That
+ * check was a cheap way to avoid a Mongo CastError, and it is now the opposite
+ * of cheap: `posts.id` is `text` holding a 24-char ObjectId hex for pre-cutover
+ * rows and a uuid v7 for everything created after, so an ObjectId test rejects
+ * every post this instance has made since the cutover.
+ *
+ * Thirteen call sites hang off this one function — `handleLike`,
+ * `handleUndoLike`, `handleAnnounce`, `handleUndoAnnounce`, `handlePollVote`,
+ * `handleCreate`'s quote resolution, `importAnnounce`, `resolveThreadLink`,
+ * `ensureFederatedReplyLink` — and every one of them treats `null` as "we do not
+ * have that post". So the failure would have been: every reply, like, boost and
+ * quote the fediverse aimed at one of our own recent posts stops resolving, with
+ * no error, no log, and no exception anywhere. A `text` column needs no guard —
+ * an id of any shape simply matches no row.
  */
 export async function resolvePostIdFromObjectUri(objectUri: string): Promise<string | null> {
+  const db = getDb();
   const localPostId = extractLocalPostIdFromApUri(objectUri);
-  if (localPostId && mongoose.Types.ObjectId.isValid(localPostId)) {
-    const local = await Post.findOne({
-      _id: localPostId,
-      status: 'published',
-      visibility: PostVisibility.PUBLIC,
-    }, { _id: 1 }).lean();
-    if (local) return String(local._id);
+  if (localPostId) {
+    const [local] = await db
+      .select({ id: posts.id })
+      .from(posts)
+      .where(and(
+        eq(posts.id, localPostId),
+        eq(posts.status, 'published'),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+      ))
+      .limit(1);
+    if (local) return local.id;
   }
 
-  const imported = await Post.findOne(
-    { 'federation.activityId': objectUri },
-    { _id: 1 },
-  ).lean();
-  return imported ? String(imported._id) : null;
+  const [imported] = await db
+    .select({ id: posts.id })
+    .from(posts)
+    .where(eq(posts.federationActivityId, objectUri))
+    .limit(1);
+  return imported ? imported.id : null;
+}
+
+/**
+ * "Every post whose AP activity id lives under this actor's URI."
+ *
+ * `starts_with`, NOT a `>= prefix AND < prefix || '\uffff'` range, and not a
+ * `LIKE` pattern either. All three were tried and only this one is correct here:
+ *
+ *  - The RANGE is what Mongo's byte-ordered comparison made safe, and it does
+ *    not survive the port. Under this database's `en_US.utf8` collation U+FFFF
+ *    does not sort above ordinary text — measured, on the migrated schema:
+ *    `'…/alice/statuses/1' >= '…/alice/'` is true but
+ *    `'…/alice/statuses/1' < '…/alice/\uffff'` is FALSE. The half-open range
+ *    therefore matched (almost) nothing, silently: the author backfill claimed
+ *    no orphaned post and the unlinked-actor feed served an empty page, both
+ *    without an error.
+ *  - `LIKE` reintroduces exactly what the range existed to avoid — a pattern
+ *    built from a remote-controlled URI, where an unescaped `%` or `_` widens
+ *    the match.
+ *
+ * `starts_with` compares bytes, so a dot or a `%` in the remote username is
+ * literal text, and `@bob` cannot claim `@bobsmith`'s posts because the prefix
+ * is `/`-terminated by the caller.
+ *
+ * INDEX NOTE: this is a sequential scan on `federation_activity_id`. A btree in
+ * a linguistic collation could not serve the range it replaces either (and did
+ * not, since the range matched nothing), so nothing regressed — but if this ever
+ * runs hot, the fix is an expression index `(federation_activity_id COLLATE "C")`
+ * plus C-collated range bounds, not a return to the sentinel.
+ */
+export function activityIdUnderActor(actorUri: string): SQL {
+  return sql`starts_with(${posts.federationActivityId}, ${`${actorUri}/`})`;
 }

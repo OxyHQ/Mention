@@ -1,12 +1,18 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';
+import { eq } from 'drizzle-orm';
+import { PostType } from '@mention/shared-types';
+import { getDb } from '../../../db/postgres';
+import { posts } from '../../../db/schema/posts';
 import {
   clearFederationScope,
   federationScope,
   seedActor,
   seedFollow,
+  seedPost,
 } from '../../helpers/federationFixtures';
+import type { PostRecord } from '../../../db/posts/postRecord';
 
 /**
  * Sharing-consent gate on the shared-inbox handlers that target an EXISTING
@@ -29,30 +35,39 @@ import {
  * sharing state — mirroring the pre-existing, likewise-ungated
  * `handleUndo(Follow)` branch. Covered here as a regression guard.
  *
- * Drives the REAL `InboxProcessingService` (same mocking convention as the
- * sibling `inboundFollowBridge.test.ts` / `inboxOxyUserIdInvariant.test.ts`:
- * mock the models + `services/fediverseSharing`, let `actor.service.ts` run
- * for real against REAL `federated_actors` / `federated_follows` rows).
- * `outbox.service.ts` is
- * mocked wholesale — its own thread-linking/boost-import logic has its own
- * dedicated test coverage; here only the GATE matters.
+ * Drives the REAL `InboxProcessingService` against REAL `federated_actors`,
+ * `federated_follows` and `posts` rows. `services/fediverseSharing` stays
+ * mocked — it is the flag under test — and `outbox.service.ts` is mocked
+ * wholesale, because its thread-linking/boost-import logic has its own
+ * coverage and only the GATE matters here.
+ *
+ * The target post used to be a `Post.findOne` stub that answered by inspecting
+ * the caller's FILTER SHAPE (`'status' in filter`, `filter.type === 'boost'`).
+ * That routing table is a re-implementation of the queries under test, so it
+ * could not distinguish a working lookup from one that matches nothing — and
+ * "the owner is remote-owned" was a property the test asserted rather than a
+ * property of a row. Both are real rows now, which also means
+ * `resolvePostIdFromObjectUri` genuinely resolves the AP object URI back to a
+ * local post id: the whole gate hangs off that resolution, and with a stub it
+ * was assumed.
  */
 
 const scope = federationScope('inbound-sharing-gates');
 const ACTOR_URI = `${scope.origin}/users/bob`;
-const TARGET_POST_ID = '507f1f77bcf86cd799439011';
-const TARGET_POST_URI = `https://mention.earth/ap/users/alice/posts/${TARGET_POST_ID}`;
-const OWNER_OXY_ID = 'oxy_alice';
-const BOOSTER_OXY_ID = 'oxy_bob';
+const OWNER_OXY_ID = scope.user('alice');
+const BOOSTER_OXY_ID = scope.user('bob');
+
+/**
+ * The local post every activity in this file targets, seeded per test so its id
+ * is the real one the AP object URI has to resolve back to.
+ */
+let target: PostRecord;
+let targetUri: string;
 
 const mocks = vi.hoisted(() => ({
   getPublicKey: vi.fn(),
   signViaOxy: vi.fn(),
   signRequest: vi.fn(),
-  postFindOne: vi.fn(),
-  postExists: vi.fn(),
-  postUpdateOne: vi.fn(),
-  postDeleteOne: vi.fn(),
   materializeEngagementRelationship: vi.fn(),
   materializeEngagementTombstone: vi.fn(),
   postCreatorCreate: vi.fn(),
@@ -82,25 +97,11 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   signRequest: mocks.signRequest,
 }));
 
-vi.mock('../../../models/Post', () => ({
-  POST_CLASSIFICATION_PENDING: 'pending',
-  Post: {
-    findOne: mocks.postFindOne,
-    exists: mocks.postExists,
-    updateOne: mocks.postUpdateOne,
-    deleteOne: mocks.postDeleteOne,
-  },
-}));
-
 vi.mock('../../../services/PostEngagementCommandService', () => ({
   materializeEngagementRelationship: (...args: unknown[]) =>
     mocks.materializeEngagementRelationship(...args),
   materializeEngagementTombstone: (...args: unknown[]) =>
     mocks.materializeEngagementTombstone(...args),
-}));
-
-vi.mock('../../../models/UserSettings', () => ({
-  default: { updateOne: vi.fn() },
 }));
 
 vi.mock('../../../utils/oxyHelpers', () => ({
@@ -134,6 +135,8 @@ vi.mock('../../../connectors/activitypub/outbox.service', () => ({
   },
 }));
 
+import { bumpPostCounters, loadPostRecord } from '../../../db/posts/postRepository';
+import type { PostRecordInput } from '../../../db/posts/postRecord';
 import { actorService } from '../../../connectors/activitypub/actor.service';
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
 
@@ -148,24 +151,39 @@ function seedRemoteActor(oxyUserId: string | null): Promise<unknown> {
 }
 
 /**
- * Routes every `Post.findOne` call by its filter shape:
- *  - `resolvePostIdFromObjectUri`'s local-post-exists check (`status` present)
- *  - `isLocalPostOwnerSharingEnabled`'s owner lookup (bare `_id`)
- *  - `handleUndoAnnounce`'s boost-row lookup (`type: 'boost'`)
+ * Seed the activity target: a public, published, LOCALLY-owned post.
+ *
+ * `federation` stays absent, which is what makes the owner local and therefore
+ * gate-able — `isLocalPostOwnerSharingEnabled` proceeds unconditionally for a
+ * mirrored post, so this field is the difference between the gate running and
+ * the gate being skipped.
  */
-function stubPostFindOne(options: {
-  localPostExists?: boolean;
-  owner?: { oxyUserId?: string | null; federation?: unknown } | null;
-  boost?: { _id: string; boostOf?: string } | null;
-} = {}): void {
-  const { localPostExists = true, owner = { oxyUserId: OWNER_OXY_ID, federation: null }, boost = null } = options;
-  mocks.postFindOne.mockImplementation((filter: Record<string, unknown>) => ({
-    lean: async () => {
-      if (filter.type === 'boost' || 'boostOf' in filter) return boost;
-      if ('status' in filter) return localPostExists ? { _id: filter._id } : null;
-      return owner;
-    },
-  }));
+async function seedTarget(overrides: Partial<PostRecordInput> = {}): Promise<void> {
+  target = await seedPost(scope, { oxyUserId: OWNER_OXY_ID, ...overrides });
+  targetUri = `https://mention.earth/ap/users/alice/posts/${target.id}`;
+}
+
+/** The boost row a subsequent Undo(Announce) has to find and delete. */
+async function seedBoost(announceId: string): Promise<PostRecord> {
+  return seedPost(scope, {
+    oxyUserId: BOOSTER_OXY_ID,
+    type: PostType.BOOST,
+    content: {},
+    boostOf: target.id,
+    federation: { activityId: announceId, actorUri: ACTOR_URI },
+  });
+}
+
+/** The stored boost counters, for asserting an Undo actually decremented them. */
+async function readCounters(postId: string): Promise<{ boosts: number; federatedBoosts: number }> {
+  const [row] = await getDb()
+    .select({
+      boosts: posts.statsBoostsCount,
+      federatedBoosts: posts.statsFederatedBoostsCount,
+    })
+    .from(posts)
+    .where(eq(posts.id, postId));
+  return row;
 }
 
 // `expect(actorFindOne).not.toHaveBeenCalled()` used to stand for "the gate ran
@@ -181,13 +199,9 @@ beforeEach(async () => {
   vi.clearAllMocks();
   await clearFederationScope(scope);
 
-  mocks.postExists.mockResolvedValue(null);
-  mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
-  mocks.postDeleteOne.mockResolvedValue({ deletedCount: 1 });
   mocks.materializeEngagementRelationship.mockResolvedValue({ changed: true });
   mocks.materializeEngagementTombstone.mockResolvedValue({ changed: true });
-  mocks.postCreatorCreate.mockResolvedValue({ _id: 'created_post_1' });
-  mocks.ensureFederatedReplyLink.mockResolvedValue({ parentPostId: TARGET_POST_ID, threadId: TARGET_POST_ID });
+  mocks.postCreatorCreate.mockResolvedValue({ id: 'created_post_1' });
   mocks.importAnnounce.mockResolvedValue(true);
   mocks.isFediverseSharingEnabled.mockResolvedValue(true);
   await seedRemoteActor(BOOSTER_OXY_ID);
@@ -198,7 +212,14 @@ beforeEach(async () => {
     direction: 'outbound',
     status: 'accepted',
   });
-  stubPostFindOne();
+  await seedTarget();
+  // Resolved lazily: a test that re-seeds the target (the mirrored-parent case)
+  // must not have the thread link still pointing at the previous, LOCAL post —
+  // which would run the gate on the wrong post and hide the property under test.
+  mocks.ensureFederatedReplyLink.mockImplementation(async () => ({
+    parentPostId: target.id,
+    threadId: target.id,
+  }));
 });
 
 describe('handleCreate — reply targeting an opted-out parent-post owner', () => {
@@ -213,7 +234,7 @@ describe('handleCreate — reply targeting an opted-out parent-post owner', () =
         attributedTo: ACTOR_URI,
         content: '<p>nice post</p>',
         to: ['https://www.w3.org/ns/activitystreams#Public'],
-        inReplyTo: TARGET_POST_URI,
+        inReplyTo: targetUri,
       },
     };
   }
@@ -236,7 +257,12 @@ describe('handleCreate — reply targeting an opted-out parent-post owner', () =
   });
 
   it('is not gated when the parent is remote-owned/mirrored (federation != null)', async () => {
-    stubPostFindOne({ owner: { oxyUserId: 'remote_oxy_1', federation: { activityId: 'https://remote.example/1' } } });
+    // A MIRRORED post: `federation != null`, so its "owner" is a federated actor
+    // with no Mention consent to honour. The gate must not run at all.
+    await seedTarget({
+      oxyUserId: scope.user('remote-owner'),
+      federation: { activityId: `${scope.origin}/statuses/mirrored`, actorUri: ACTOR_URI },
+    });
     mocks.isFediverseSharingEnabled.mockResolvedValue(false);
 
     await inboxProcessingService.processInboxActivity(replyActivity(), ACTOR_URI);
@@ -248,14 +274,14 @@ describe('handleCreate — reply targeting an opted-out parent-post owner', () =
 
 describe('handleLike (gated) / handleUndoLike (ungated teardown) — target owner sharing', () => {
   function likeActivity() {
-    return { id: `${ACTOR_URI}/likes/1`, type: 'Like' as const, actor: ACTOR_URI, object: TARGET_POST_URI };
+    return { id: `${ACTOR_URI}/likes/1`, type: 'Like' as const, actor: ACTOR_URI, object: targetUri };
   }
   function undoLikeActivity() {
     return {
       id: `${ACTOR_URI}/likes/1/undo`,
       type: 'Undo' as const,
       actor: ACTOR_URI,
-      object: { id: `${ACTOR_URI}/likes/1`, type: 'Like' as const, actor: ACTOR_URI, object: TARGET_POST_URI },
+      object: { id: `${ACTOR_URI}/likes/1`, type: 'Like' as const, actor: ACTOR_URI, object: targetUri },
     };
   }
 
@@ -266,9 +292,8 @@ describe('handleLike (gated) / handleUndoLike (ungated teardown) — target owne
     expect(mocks.materializeEngagementRelationship).toHaveBeenCalledWith({
       kind: 'like',
       userId: BOOSTER_OXY_ID,
-      postId: TARGET_POST_ID,
+      postId: target.id,
     });
-    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
   });
 
   it('handleLike: no Like row, no counter move, no actor resolution when the owner has sharing disabled', async () => {
@@ -277,7 +302,6 @@ describe('handleLike (gated) / handleUndoLike (ungated teardown) — target owne
     await inboxProcessingService.processInboxActivity(likeActivity(), ACTOR_URI);
 
     expect(mocks.materializeEngagementRelationship).not.toHaveBeenCalled();
-    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
     expect(resolveActorSpy).not.toHaveBeenCalled();
   });
 
@@ -287,9 +311,8 @@ describe('handleLike (gated) / handleUndoLike (ungated teardown) — target owne
     expect(mocks.materializeEngagementTombstone).toHaveBeenCalledWith({
       kind: 'like',
       userId: BOOSTER_OXY_ID,
-      postId: TARGET_POST_ID,
+      postId: target.id,
     });
-    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
   });
 
   it('handleUndoLike: still processes the undo (row removed, counter decremented) when the owner has sharing disabled — teardown must converge', async () => {
@@ -300,15 +323,19 @@ describe('handleLike (gated) / handleUndoLike (ungated teardown) — target owne
     expect(mocks.materializeEngagementTombstone).toHaveBeenCalledWith({
       kind: 'like',
       userId: BOOSTER_OXY_ID,
-      postId: TARGET_POST_ID,
+      postId: target.id,
     });
-    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
     // The sharing flag is never even consulted for an Undo.
     expect(mocks.isFediverseSharingEnabled).not.toHaveBeenCalled();
   });
 
   it('is not gated when the target is remote-owned/mirrored (federation != null)', async () => {
-    stubPostFindOne({ owner: { oxyUserId: 'remote_oxy_1', federation: { activityId: 'https://remote.example/1' } } });
+    // A MIRRORED post: `federation != null`, so its "owner" is a federated actor
+    // with no Mention consent to honour. The gate must not run at all.
+    await seedTarget({
+      oxyUserId: scope.user('remote-owner'),
+      federation: { activityId: `${scope.origin}/statuses/mirrored`, actorUri: ACTOR_URI },
+    });
     mocks.isFediverseSharingEnabled.mockResolvedValue(false);
 
     await inboxProcessingService.processInboxActivity(likeActivity(), ACTOR_URI);
@@ -317,7 +344,7 @@ describe('handleLike (gated) / handleUndoLike (ungated teardown) — target owne
     expect(mocks.materializeEngagementRelationship).toHaveBeenCalledWith({
       kind: 'like',
       userId: BOOSTER_OXY_ID,
-      postId: TARGET_POST_ID,
+      postId: target.id,
     });
   });
 });
@@ -328,7 +355,7 @@ describe('handleAnnounce (gated) / handleUndoAnnounce (ungated teardown) — tar
       id: `${ACTOR_URI}/announces/1`,
       type: 'Announce' as const,
       actor: ACTOR_URI,
-      object: TARGET_POST_URI,
+      object: targetUri,
       published: new Date().toISOString(),
     };
   }
@@ -337,7 +364,7 @@ describe('handleAnnounce (gated) / handleUndoAnnounce (ungated teardown) — tar
       id: `${ACTOR_URI}/announces/1/undo`,
       type: 'Undo' as const,
       actor: ACTOR_URI,
-      object: { id: `${ACTOR_URI}/announces/1`, type: 'Announce' as const, actor: ACTOR_URI, object: TARGET_POST_URI },
+      object: { id: `${ACTOR_URI}/announces/1`, type: 'Announce' as const, actor: ACTOR_URI, object: targetUri },
     };
   }
 
@@ -357,41 +384,75 @@ describe('handleAnnounce (gated) / handleUndoAnnounce (ungated teardown) — tar
     expect(resolveActorSpy).not.toHaveBeenCalled();
   });
 
-  it('handleUndoAnnounce: removes the boost and decrements the counter as today when enabled', async () => {
-    stubPostFindOne({ boost: { _id: 'boost_1', boostOf: TARGET_POST_ID } });
+  it('handleUndoAnnounce: removes the boost row and decrements BOTH counters when enabled', async () => {
+    const boost = await seedBoost(`${ACTOR_URI}/announces/1`);
+    await bumpPostCounters(target.id, { boosts: 1, federatedBoosts: 1 });
 
     await inboxProcessingService.processInboxActivity(undoAnnounceActivity(), ACTOR_URI);
 
-    expect(mocks.postDeleteOne).toHaveBeenCalledWith({
-      _id: 'boost_1',
-      'federation.actorUri': ACTOR_URI,
-    });
-    expect(mocks.postUpdateOne).toHaveBeenCalledWith(
-      { _id: TARGET_POST_ID, 'stats.boostsCount': { $gt: 0 } },
-      { $inc: { 'stats.boostsCount': -1 } },
-    );
+    expect(await loadPostRecord(boost.id)).toBeNull();
+    // Both, in lockstep: the import incremented both, and a decrement that moved
+    // only `boosts` would leave `federatedBoosts` permanently overstating how
+    // much of the count came from the fediverse.
+    expect(await readCounters(target.id)).toEqual({ boosts: 0, federatedBoosts: 0 });
   });
 
-  it('handleUndoAnnounce: still processes the undo (boost removed, counter decremented) when the owner has sharing disabled — teardown must converge', async () => {
-    stubPostFindOne({ boost: { _id: 'boost_1', boostOf: TARGET_POST_ID } });
+  it("handleUndoAnnounce: never retracts ANOTHER actor's boost of the same post", async () => {
+    // The FALLBACK path — an Undo that omits the original Announce id, which
+    // Mastodon does — matches on (boostOf, booster, actorUri). Drop the actor
+    // URI from that predicate and one remote server can retract another's boost
+    // of the same post. The id path cannot be tested this way: a UNIQUE index on
+    // `federation_activity_id` already makes two boosts sharing an Announce id
+    // unstorable, which is worth knowing before writing a test for it.
+    const mine = await seedBoost(`${ACTOR_URI}/announces/1`);
+    const theirs = await seedPost(scope, {
+      oxyUserId: scope.user('mallory'),
+      type: PostType.BOOST,
+      content: {},
+      boostOf: target.id,
+      federation: {
+        activityId: `${scope.origin}/users/mallory/announces/1`,
+        actorUri: `${scope.origin}/users/mallory`,
+      },
+    });
+    await bumpPostCounters(target.id, { boosts: 2, federatedBoosts: 2 });
+
+    await inboxProcessingService.processInboxActivity(
+      {
+        id: `${ACTOR_URI}/announces/1/undo`,
+        type: 'Undo' as const,
+        actor: ACTOR_URI,
+        // No `id` on the inner Announce: the id lookup cannot fire.
+        object: { type: 'Announce' as const, actor: ACTOR_URI, object: targetUri },
+      },
+      ACTOR_URI,
+    );
+
+    expect(await loadPostRecord(mine.id)).toBeNull();
+    expect(await loadPostRecord(theirs.id)).not.toBeNull();
+    expect(await readCounters(target.id)).toEqual({ boosts: 1, federatedBoosts: 1 });
+  });
+
+  it('handleUndoAnnounce: still converges when the owner has sharing disabled — teardown is ungated', async () => {
+    const boost = await seedBoost(`${ACTOR_URI}/announces/1`);
+    await bumpPostCounters(target.id, { boosts: 1, federatedBoosts: 1 });
     mocks.isFediverseSharingEnabled.mockResolvedValue(false);
 
     await inboxProcessingService.processInboxActivity(undoAnnounceActivity(), ACTOR_URI);
 
-    expect(mocks.postDeleteOne).toHaveBeenCalledWith({
-      _id: 'boost_1',
-      'federation.actorUri': ACTOR_URI,
-    });
-    expect(mocks.postUpdateOne).toHaveBeenCalledWith(
-      { _id: TARGET_POST_ID, 'stats.boostsCount': { $gt: 0 } },
-      { $inc: { 'stats.boostsCount': -1 } },
-    );
+    expect(await loadPostRecord(boost.id)).toBeNull();
+    expect(await readCounters(target.id)).toEqual({ boosts: 0, federatedBoosts: 0 });
     // The sharing flag is never even consulted for an Undo.
     expect(mocks.isFediverseSharingEnabled).not.toHaveBeenCalled();
   });
 
   it('is not gated when the announced post is remote-owned/mirrored (federation != null)', async () => {
-    stubPostFindOne({ owner: { oxyUserId: 'remote_oxy_1', federation: { activityId: 'https://remote.example/1' } } });
+    // A MIRRORED post: `federation != null`, so its "owner" is a federated actor
+    // with no Mention consent to honour. The gate must not run at all.
+    await seedTarget({
+      oxyUserId: scope.user('remote-owner'),
+      federation: { activityId: `${scope.origin}/statuses/mirrored`, actorUri: ACTOR_URI },
+    });
     mocks.isFediverseSharingEnabled.mockResolvedValue(false);
 
     await inboxProcessingService.processInboxActivity(announceActivity(), ACTOR_URI);

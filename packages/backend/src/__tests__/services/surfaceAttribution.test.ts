@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { isVideoSurface, MtnConfig } from '@mention/shared-types';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { isVideoSurface, MtnConfig, PostType } from '@mention/shared-types';
 
 /**
  * Surface-aware engagement attribution.
@@ -10,19 +10,29 @@ import { isVideoSurface, MtnConfig } from '@mention/shared-types';
  *  2. `UserPreferenceService.recordInteraction` — that a like from the Videos
  *     surface DAMPENS author affinity and AMPLIFIES content (post-type/topic)
  *     affinity, while a like from a normal feed uses full attribution.
+ *
+ * ## What changed with the Postgres port
+ *
+ * The engaged post is a REAL `type: 'video'` row. Previously it was a literal
+ * `{ type: 'video' }` returned by a `models/Post` mock, which meant the
+ * post-type half of the assertion ("a video like grows `preferredPostTypes.video`")
+ * measured a string the test itself supplied. `type` is a stored column now, so
+ * a post whose type is written or read back wrong shows up as the wrong
+ * accumulator moving.
+ *
+ * `UserBehavior` is still Mongoose and stays mocked — it holds the accumulators
+ * under test and is not part of this port.
  */
 
-const mocks = vi.hoisted(() => ({
-  postFindById: vi.fn(),
-  behaviorFindOne: vi.fn(),
-}));
+const mocks = vi.hoisted(() => ({ behaviorFindOne: vi.fn() }));
 
-vi.mock('../../models/Post', () => ({ Post: { findById: mocks.postFindById } }));
 vi.mock('../../models/UserBehavior', () => ({ default: { findOne: mocks.behaviorFindOne } }));
 // Like/Bookmark are imported by the service but unused on the recordInteraction path.
 vi.mock('../../models/Like', () => ({ default: {} }));
 vi.mock('../../models/Bookmark', () => ({ default: {} }));
 
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { userPreferenceService } from '../../services/UserPreferenceService';
 
 describe('isVideoSurface', () => {
@@ -48,6 +58,10 @@ describe('isVideoSurface', () => {
   });
 });
 
+const scope = serviceScope('surface-attribution');
+const VIEWER = scope.user('viewer');
+const AUTHOR = scope.user('author');
+
 /**
  * A minimal Mongoose-document-like UserBehavior stub: an object whose array/obj
  * fields are real (so the service can push/index into them) plus the no-op
@@ -55,7 +69,7 @@ describe('isVideoSurface', () => {
  */
 function makeBehaviorDoc() {
   return {
-    oxyUserId: 'viewer_1',
+    oxyUserId: VIEWER,
     preferredAuthors: [] as Array<Record<string, unknown>>,
     preferredTopics: [] as Array<Record<string, unknown>>,
     preferredPostTypes: { text: 0, image: 0, video: 0, poll: 0 } as Record<string, number>,
@@ -71,32 +85,53 @@ function makeBehaviorDoc() {
   };
 }
 
-function mockPost(post: Record<string, unknown>) {
-  mocks.postFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(post) });
-}
+/** The one video post every attribution case below engages with. */
+let videoPostId: string;
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
+  vi.clearAllMocks();
+  await clearServiceScope(scope);
+  videoPostId = (
+    await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      type: PostType.VIDEO,
+      content: {
+        variants: [{ source: 'author', text: 'a reel', tag: 'en' }],
+        media: [{ id: 'file-1', type: 'video' }],
+      },
+    })
+  ).id;
+  // The post-type half of every assertion below reads `preferredPostTypes.video`,
+  // which only moves because the STORED type is `video`. Pin it once.
+  expect((await readPost(videoPostId))?.type).toBe(PostType.VIDEO);
+});
+
+afterEach(async () => {
+  await clearServiceScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
 
 describe('UserPreferenceService surface-aware attribution', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('a VIDEO-surface like dampens author affinity vs a normal-surface like', async () => {
-    const videoPost = { _id: 'p1', oxyUserId: 'author_1', type: 'video', hashtags: [] };
-
     const normalDoc = makeBehaviorDoc();
     mocks.behaviorFindOne.mockResolvedValueOnce(normalDoc);
-    mockPost(videoPost);
-    await userPreferenceService.recordInteraction('viewer_1', 'p1', 'like', { surface: 'for_you' });
+    await userPreferenceService.recordInteraction(VIEWER, videoPostId, 'like', { surface: 'for_you' });
     // The stored relationship `weight` (what ranking consumes) is the dampened
     // value — interactionCount is a side metric and is NOT surface-scaled.
-    const normalAuthorWeight = normalDoc.preferredAuthors.find((a) => a.authorId === 'author_1')
+    const normalAuthorWeight = normalDoc.preferredAuthors.find((a) => a.authorId === AUTHOR)
       ?.weight as number;
 
     const videoDoc = makeBehaviorDoc();
     mocks.behaviorFindOne.mockResolvedValueOnce(videoDoc);
-    mockPost(videoPost);
-    await userPreferenceService.recordInteraction('viewer_1', 'p1', 'like', { surface: 'videos' });
-    const videoAuthorWeight = videoDoc.preferredAuthors.find((a) => a.authorId === 'author_1')
+    await userPreferenceService.recordInteraction(VIEWER, videoPostId, 'like', { surface: 'videos' });
+    const videoAuthorWeight = videoDoc.preferredAuthors.find((a) => a.authorId === AUTHOR)
       ?.weight as number;
 
     expect(normalAuthorWeight).toBeGreaterThan(0);
@@ -109,21 +144,19 @@ describe('UserPreferenceService surface-aware attribution', () => {
   });
 
   it('a VIDEO-surface like amplifies post-type (content) affinity vs a normal-surface like', async () => {
-    const videoPost = { _id: 'p1', oxyUserId: 'author_1', type: 'video', hashtags: [] };
-
     const normalDoc = makeBehaviorDoc();
     mocks.behaviorFindOne.mockResolvedValueOnce(normalDoc);
-    mockPost(videoPost);
-    await userPreferenceService.recordInteraction('viewer_1', 'p1', 'like', { surface: 'for_you' });
+    await userPreferenceService.recordInteraction(VIEWER, videoPostId, 'like', { surface: 'for_you' });
     const normalVideoTypePref = normalDoc.preferredPostTypes.video;
 
     const videoDoc = makeBehaviorDoc();
     mocks.behaviorFindOne.mockResolvedValueOnce(videoDoc);
-    mockPost(videoPost);
-    await userPreferenceService.recordInteraction('viewer_1', 'p1', 'like', { surface: 'videos' });
+    await userPreferenceService.recordInteraction(VIEWER, videoPostId, 'like', { surface: 'videos' });
     const videoVideoTypePref = videoDoc.preferredPostTypes.video;
 
     expect(normalVideoTypePref).toBeGreaterThan(0);
+    // It is the VIDEO bucket that moved, not some other post type.
+    expect(normalDoc.preferredPostTypes.text).toBe(0);
     // Content (post-type) affinity is amplified on the video surface.
     expect(videoVideoTypePref).toBeCloseTo(
       normalVideoTypePref * MtnConfig.preferences.engagementContext.videoSurfaceContentBoost,
@@ -133,21 +166,15 @@ describe('UserPreferenceService surface-aware attribution', () => {
   });
 
   it('no context behaves exactly like a normal-surface like (backward compatible)', async () => {
-    const post = { _id: 'p1', oxyUserId: 'author_1', type: 'video', hashtags: [] };
-
     const ctxDoc = makeBehaviorDoc();
     mocks.behaviorFindOne.mockResolvedValueOnce(ctxDoc);
-    mockPost(post);
-    await userPreferenceService.recordInteraction('viewer_1', 'p1', 'like', { surface: 'for_you' });
-    const ctxWeight = ctxDoc.preferredAuthors.find((a) => a.authorId === 'author_1')
-      ?.weight as number;
+    await userPreferenceService.recordInteraction(VIEWER, videoPostId, 'like', { surface: 'for_you' });
+    const ctxWeight = ctxDoc.preferredAuthors.find((a) => a.authorId === AUTHOR)?.weight as number;
 
     const noCtxDoc = makeBehaviorDoc();
     mocks.behaviorFindOne.mockResolvedValueOnce(noCtxDoc);
-    mockPost(post);
-    await userPreferenceService.recordInteraction('viewer_1', 'p1', 'like');
-    const noCtxWeight = noCtxDoc.preferredAuthors.find((a) => a.authorId === 'author_1')
-      ?.weight as number;
+    await userPreferenceService.recordInteraction(VIEWER, videoPostId, 'like');
+    const noCtxWeight = noCtxDoc.preferredAuthors.find((a) => a.authorId === AUTHOR)?.weight as number;
 
     expect(noCtxWeight).toBeCloseTo(ctxWeight, 5);
   });

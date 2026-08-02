@@ -1,22 +1,38 @@
-import { Post, IPost, PostFederationData, POST_CLASSIFICATION_PENDING } from '../models/Post';
+import { eq } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { postSubscriptions } from '../db/schema/engagement';
+import { posts } from '../db/schema/posts';
+import {
+  claimScheduledPost,
+  insertPostRecord,
+  loadPostRecord,
+  loadPostRecords,
+  updatePostRecord,
+} from '../db/posts/postRepository';
+import {
+  POST_CLASSIFICATION_PENDING,
+  type PostRecord,
+  type PostRecordClassification,
+  type PostRecordFederation,
+  type PostRecordInput,
+} from '../db/posts/postRecord';
 import {
   PostType,
   PostVisibility,
   PostContent,
-  PostContentVariant,
   MediaItem,
-  StoredPostContent,
+  PostMetadata,
+  ReplyPermission,
 } from '@mention/shared-types';
 import {
   mentionTextsFromContent,
-  reconcileMentionIds,
 } from '@mention/shared-types/mentions';
+import { reconcileMentionIdsForPost } from '../utils/textProcessing';
 import {
   createMentionNotifications,
   createBatchNotifications,
   createPostAuthorNotifications,
 } from '../utils/notificationUtils';
-import PostSubscription from '../models/PostSubscription';
 import { logger } from '../utils/logger';
 import { getRuntimeSocketServer } from '../runtime/socketServer';
 import { getPostFederator, registerPostCreator } from './serviceRegistry';
@@ -28,15 +44,10 @@ import type { ReplyContext } from './mtn/mentionRecordBuilders';
 import { postCollaborationService } from './PostCollaborationService';
 import { getOwnerId, hasPendingCollabInvites } from '../utils/postAuthorship';
 import { mediaMetadataService } from './MediaMetadataService';
-import { enqueueMediaMetadataEnrich } from './mediaMetadataEnrichJob';
-import { warmLinkPreviewForTextDetached } from '../utils/linkPreviewWarm';
-import {
-  applyDetectedPrimaryTag,
-  authorVariants,
-  buildPrimaryVariant,
-  declaredBaseLanguages,
-} from './postVariants';
+import { enrichIngestedPosts } from './postEnrichment';
+import { authorVariants, declaredBaseLanguages, toStoredContent } from './postVariants';
 import { recordRecentReplierForPost } from './PostRecentReplierService';
+import { parentHasPublished } from './scheduledChain';
 
 export interface CreatePostParams {
   oxyUserId: string | null;
@@ -64,9 +75,9 @@ export interface CreatePostParams {
   replyPermission?: string[];
   reviewReplies?: boolean;
   quotesDisabled?: boolean;
-  metadata?: Record<string, unknown>;
+  metadata?: PostMetadata;
   // Federation fields — only for incoming federated posts
-  federation?: PostFederationData;
+  federation?: PostRecordFederation;
   // Stage-A baseline classification inputs for federated posts. The federation
   // ingest paths pass the AP-derived instance host so the deterministic
   // classifier can resolve a coarse region. (Language is threaded through the
@@ -103,22 +114,36 @@ function derivePostType(params: CreatePostParams): PostType {
   return PostType.TEXT;
 }
 
+/**
+ * The Stage-A classification a post is stored with, plus the primary language it
+ * resolved.
+ *
+ * Returned rather than written into a mutable bag: `PostRecordInput` is a typed
+ * literal now, so a stray key is a `tsc` error instead of a column that never
+ * gets written — and the language has to reach BOTH the row's `language` column
+ * and the primary variant's tag, which a single mutation site cannot express
+ * without the caller re-reading its own scratch object.
+ */
+interface BaselineClassification {
+  postClassification?: Partial<PostRecordClassification>;
+  language?: string;
+}
+
 class PostCreationService {
   /**
-   * Compute the deterministic Stage-A classification subdoc for a post and merge
-   * it onto the post data, keeping `status: 'pending'` so the async AI batch
-   * (PostClassificationService) still enriches the post afterward.
+   * Compute the deterministic Stage-A classification for a post, keeping
+   * `status: 'pending'` so the async AI batch (PostClassificationService) still
+   * enriches the post afterward.
    *
    * Best-effort and non-fatal: classification MUST NEVER block or fail post
    * creation. The classifier is pure/synchronous so it should not throw, but any
-   * throw is caught + logged at warn and the post is still saved with the default
-   * `pending` subdoc untouched.
+   * throw is caught + logged at warn and the post is still stored with the
+   * column defaults (`status: 'pending'`, zeroed scores) untouched.
    */
-  private applyBaselineClassification(
-    postData: Record<string, unknown>,
+  private baselineClassification(
     params: CreatePostParams,
     primaryText: string,
-  ): void {
+  ): BaselineClassification {
     try {
       const isFederated = params.federation != null;
       const metadataSensitive = (params.metadata as { isSensitive?: boolean } | undefined)?.isSensitive;
@@ -150,33 +175,33 @@ class PostCreationService {
       // the AI batch's unclassified filter still picks the post up. The
       // deterministic `scores` are written so ranking can downrank spam/low-quality
       // posts before any AI runs; the AI batch OVERWRITES `scores` wholesale when a
-      // key is configured (the intended hybrid). The classification subdoc carries
-      // ONLY the multi-language `languages` array — there is no single-value field.
-      postData.postClassification = {
-        status: POST_CLASSIFICATION_PENDING,
-        attempts: 0,
-        topics: signals.topics,
-        languages: signals.languages,
-        region: signals.region,
-        hashtagsNorm: signals.hashtagsNorm,
-        sensitive: signals.sensitive,
-        scores: signals.scores,
-        version: signals.version,
-        classifiedAt: new Date(signals.classifiedAt),
+      // key is configured (the intended hybrid). The classification carries ONLY
+      // the multi-language `languages` array — there is no single-value field.
+      return {
+        postClassification: {
+          status: POST_CLASSIFICATION_PENDING,
+          attempts: 0,
+          topics: signals.topics,
+          languages: signals.languages,
+          region: signals.region,
+          hashtagsNorm: signals.hashtagsNorm,
+          trendTerms: signals.trendTerms,
+          sensitive: signals.sensitive,
+          scores: signals.scores,
+          version: signals.version,
+          classifiedAt: new Date(signals.classifiedAt),
+        },
+        // Keep the top-level AP `post.language` (single, protocol-facing) in
+        // sync with the resolved primary (`languages[0]`, already normalized to
+        // ISO 639-1). When the classifier could not resolve any language, the
+        // caller's own `params.language` (if any) is left untouched.
+        language: signals.languages[0],
       };
-
-      // Keep the top-level AP `post.language` (single, protocol-facing) in sync
-      // with the resolved primary (`languages[0]`, already normalized to ISO
-      // 639-1). When the classifier could not resolve any language, the raw
-      // `params.language` set earlier (if any) is left untouched.
-      const primaryLanguage = signals.languages[0];
-      if (primaryLanguage != null) {
-        postData.language = primaryLanguage;
-      }
     } catch (error) {
-      // Never block creation on classification — fall back to the schema default
-      // (`{ status: 'pending' }`) so the AI batch still processes the post.
+      // Never block creation on classification — fall back to the column
+      // defaults (`status: 'pending'`) so the AI batch still processes the post.
       logger.warn('PostCreationService: baseline classification failed; saving without Stage-A signals', error);
+      return {};
     }
   }
 
@@ -189,30 +214,30 @@ class PostCreationService {
    * resolved here with a single lean lookup. Entirely best-effort and isolated by
    * the emitter — a failure NEVER blocks creation or changes the response.
    */
-  private async emitMtnRecord(post: IPost): Promise<void> {
+  private async emitMtnRecord(post: PostRecord): Promise<void> {
     try {
       if (post.federation != null || !post.oxyUserId) {
         return;
       }
 
       if (post.boostOf) {
-        const original = await Post.findById(post.boostOf).select('oxyUserId').lean();
-        await emitRepostCreated(post, String(post.boostOf), original?.oxyUserId);
+        const original = await loadPostRecord(post.boostOf);
+        await emitRepostCreated(post, post.boostOf, original?.oxyUserId ?? undefined);
         return;
       }
 
       let reply: ReplyContext | undefined;
       if (post.parentPostId) {
         const rootId = post.threadId ?? post.parentPostId;
-        const ids = [...new Set([String(post.parentPostId), String(rootId)])];
-        const refs = await Post.find({ _id: { $in: ids } }).select('oxyUserId').lean();
-        const ownerById = new Map(refs.map((r) => [String(r._id), r.oxyUserId]));
-        const parentOwner = ownerById.get(String(post.parentPostId));
-        const rootOwner = ownerById.get(String(rootId));
+        const ids = [...new Set([post.parentPostId, rootId])];
+        const refs = await loadPostRecords(ids);
+        const ownerById = new Map(refs.map((r) => [r.id, r.oxyUserId]));
+        const parentOwner = ownerById.get(post.parentPostId);
+        const rootOwner = ownerById.get(rootId);
         if (parentOwner && rootOwner) {
           reply = {
-            root: { postId: String(rootId), oxyUserId: rootOwner },
-            parent: { postId: String(post.parentPostId), oxyUserId: parentOwner },
+            root: { postId: rootId, oxyUserId: rootOwner },
+            parent: { postId: post.parentPostId, oxyUserId: parentOwner },
           };
         }
       }
@@ -233,50 +258,7 @@ class PostCreationService {
    * Pass `skipNotifications`, `skipSocketEmit`, or `skipFederationDelivery`
    * to suppress individual stages (e.g. for incoming federated posts).
    */
-  /**
-   * Turn the content a CALLER supplies (the API shape: a plain `text` body, or an
-   * explicit set of author variants) into the content we STORE (renditions only —
-   * `variants[0]` is the primary and the sole home of the body).
-   *
-   * When the author declared variants, those ARE the renditions. Otherwise the
-   * single body becomes the primary variant, tagged with whatever language was
-   * resolved for the post — the author's declaration if they made one, else the
-   * classifier's detection (a bare base code: the region is unknown and inventing
-   * one would federate a guess). A post whose language nothing could resolve keeps
-   * an untagged primary; a post with no body at all (a boost) keeps no variant.
-   */
-  private buildStoredContent(
-    content: PostContent,
-    inputVariants: PostContentVariant[],
-    primaryLanguage: string | undefined,
-  ): StoredPostContent {
-    const primary = buildPrimaryVariant(content.text, primaryLanguage);
-    const variants = inputVariants.length > 0
-      ? applyDetectedPrimaryTag(inputVariants, primaryLanguage)
-      : (primary ? [primary] : []);
-
-    // An explicit whitelist, not a spread of the request shape: `text` (and the
-    // hydration-only `textLang`) must NOT reach storage — they are the API's view
-    // of the body, and the body lives on the rendition. The post-level facts below
-    // are deliberately not per-language: a poll's votes must aggregate (two polls
-    // would split the count), and a location or a citation is a fact about the
-    // post, not about a language.
-    return {
-      ...(variants.length > 0 ? { variants } : {}),
-      media: content.media,
-      article: content.article,
-      poll: content.poll,
-      pollId: content.pollId,
-      location: content.location,
-      sources: content.sources,
-      event: content.event,
-      room: content.room,
-      podcast: content.podcast,
-      attachments: content.attachments,
-    };
-  }
-
-  async create(params: CreatePostParams): Promise<IPost> {
+  async create(params: CreatePostParams): Promise<PostRecord> {
     const isScheduled = params.status === 'scheduled';
 
     let content = params.content;
@@ -291,14 +273,28 @@ class PostCreationService {
     const primaryText = inputVariants[0]?.text ?? content.text ?? '';
 
     // Defense-in-depth against blank federated posts. `buildFederatedNoteContent`
-    // is the PRIMARY guard on the ingest paths, but the outbox backfill inserts
-    // raw docs via `Post.collection.insertMany` and bypasses this method entirely,
-    // so a federated Note that reaches `create` must never persist an empty body:
-    // no text, no media, no attachments, no poll, and no content-warning summary
-    // is a blank post with nothing to render. Reject it loudly rather than store a
-    // ghost. Native (non-federated) posts are unaffected — this only guards the
-    // federated branch.
-    if (params.federation != null) {
+    // is the PRIMARY guard on the ingest paths, so a federated Note that reaches
+    // `create` must never persist an empty body: no text, no media, no
+    // attachments, no poll, and no content-warning summary is a blank post with
+    // nothing to render. Reject it loudly rather than store a ghost. Native
+    // (non-federated) posts are unaffected — this only guards the federated branch.
+    //
+    // A BOOST is exempt, and the exemption is load-bearing rather than a
+    // loophole. A `type:'boost'` post carries an intentionally empty body and
+    // renders entirely from `boostOf` — that is the same shape a native repost
+    // stores. Without this clause the guard matched every inbound Announce:
+    // `importAnnounce` builds exactly `{ content: { text: '' }, boostOf,
+    // federation }`, the throw was swallowed by that method's `catch` into a
+    // `logger.warn`, and it returned `false`. The visible result was that NO
+    // federated boost has ever imported — no boost row, `stats.boostsCount` and
+    // `stats.federatedBoostsCount` never moving — with nothing above WARN to say
+    // so. The same creator serves the outbox-backfill boost path, so both were
+    // affected.
+    //
+    // `boostOf` cannot dangle: it carries a foreign key to `posts.id`, and
+    // `importAnnounce` verifies the original is published and public first, so
+    // "has a boostOf" really does mean "has something to render".
+    if (params.federation != null && params.boostOf == null) {
       const hasText = primaryText.trim().length > 0;
       const hasMedia = Array.isArray(content.media) && content.media.length > 0;
       const hasAttachments = Array.isArray(content.attachments) && content.attachments.length > 0;
@@ -312,135 +308,165 @@ class PostCreationService {
       }
     }
 
-    const postData: Record<string, unknown> = {
+    // Stage-A deterministic classification (native + single-federated paths).
+    // Best-effort: keeps `status: 'pending'` so the AI batch still enriches it.
+    // It runs BEFORE the content is built because the language it resolves is what
+    // tags the primary variant when the author declared none. The classifier's
+    // resolution WINS over the caller's `params.language` — it has already
+    // normalized the tag to ISO 639-1 — and falls back to the caller's when it
+    // resolved nothing at all.
+    const baseline = this.baselineClassification(params, primaryText);
+    const primaryLanguage = baseline.language ?? params.language;
+
+    const storedContent = toStoredContent(content, primaryLanguage);
+
+    // Collaborators defer federation: an invitee must never be leaked to the
+    // fediverse before consenting, so the flag is set at INSERT rather than
+    // patched afterwards — a post that federated between the two writes could
+    // not be un-federated.
+    const collaboratorIds = params.collaboratorIds ?? [];
+    const deferCollabFederation = params.oxyUserId != null && collaboratorIds.length > 0;
+
+    const input: PostRecordInput = {
+      oxyUserId: params.oxyUserId ?? null,
+      authorship: params.oxyUserId != null
+        ? postCollaborationService.buildAuthorship(params.oxyUserId, collaboratorIds)
+        : [],
       type: derivePostType({ ...params, content }),
       visibility: params.visibility ?? PostVisibility.PUBLIC,
+      status: params.status ?? 'published',
       hashtags: params.hashtags ?? [],
-      // Filled from the finalized stored bodies below. Incoming metadata alone
-      // must never create a notification recipient.
-      mentions: [],
+      replyPermission: (params.replyPermission ?? ['anyone']) as ReplyPermission[],
+      reviewReplies: params.reviewReplies ?? false,
+      quotesDisabled: params.quotesDisabled ?? false,
       quoteOf: params.quoteOf ?? null,
       boostOf: params.boostOf ?? null,
       parentPostId: params.parentPostId ?? null,
       threadId: params.threadId ?? null,
-      replyPermission: params.replyPermission ?? ['anyone'],
-      reviewReplies: params.reviewReplies ?? false,
-      quotesDisabled: params.quotesDisabled ?? false,
-      status: params.status ?? 'published',
-      metadata: params.metadata ?? {},
-      stats: {
-        likesCount: 0,
-        boostsCount: 0,
-        commentsCount: 0,
-        viewsCount: 0,
-        sharesCount: 0,
-        savesCount: 0,
+      content: storedContent,
+      // Reconciled from the FINALIZED stored bodies. Incoming metadata alone must
+      // never create a notification recipient.
+      mentions: reconcileMentionIdsForPost(mentionTextsFromContent(storedContent), params.mentions),
+      metadata: {
+        ...(params.metadata ?? {}),
+        ...(deferCollabFederation ? { collabFederationDeferred: true } : {}),
       },
+      ...(params.federation != null ? { federation: params.federation } : {}),
+      ...(params.location != null ? { location: params.location } : {}),
+      ...(primaryLanguage != null ? { language: primaryLanguage } : {}),
+      ...(params.scheduledFor != null ? { scheduledFor: params.scheduledFor } : {}),
+      ...(baseline.postClassification ? { postClassification: baseline.postClassification } : {}),
+      ...(params.createdAt != null ? { createdAt: params.createdAt } : {}),
+      ...(params.updatedAt != null ? { updatedAt: params.updatedAt } : {}),
     };
 
-    if (params.oxyUserId != null) {
-      postData.oxyUserId = params.oxyUserId;
-      const collaboratorIds = params.collaboratorIds ?? [];
-      if (collaboratorIds.length > 0) {
-        postData.authorship = postCollaborationService.buildAuthorship(params.oxyUserId, collaboratorIds);
-        postData.metadata = { ...(postData.metadata as Record<string, unknown>), collabFederationDeferred: true };
-      } else {
-        postData.authorship = postCollaborationService.buildAuthorship(params.oxyUserId, []);
-      }
-    }
-    if (params.federation != null) {
-      postData.federation = params.federation;
-    }
-    if (params.location != null) {
-      postData.location = params.location;
-    }
-    if (params.language != null) {
-      postData.language = params.language;
-    }
-    if (params.scheduledFor != null) {
-      postData.scheduledFor = params.scheduledFor;
-    }
-    if (params.createdAt != null) {
-      postData.createdAt = params.createdAt;
-    }
-    if (params.updatedAt != null) {
-      postData.updatedAt = params.updatedAt;
-    }
-
-    // Stage-A deterministic classification (native + single-federated paths).
-    // Best-effort: keeps `status: 'pending'` so the AI batch still enriches it.
-    // It runs BEFORE the content is built because the language it resolves is what
-    // tags the primary variant when the author declared none.
-    this.applyBaselineClassification(postData, params, primaryText);
-
-    const primaryLanguage = typeof postData.language === 'string' ? postData.language : undefined;
-    const storedContent = this.buildStoredContent(content, inputVariants, primaryLanguage);
-    postData.content = storedContent;
-    postData.mentions = reconcileMentionIds(
-      mentionTextsFromContent(storedContent),
-      params.mentions,
-    );
-
-    const post = new Post(postData);
-    await post.save();
+    let post = await insertPostRecord(input);
     await recordRecentReplierForPost(post);
 
-    const savedMedia = post.content?.media;
-    if (Array.isArray(savedMedia) && mediaMetadataService.needsOxyRetry(savedMedia as MediaItem[])) {
-      void enqueueMediaMetadataEnrich(String(post._id));
-    }
+    const isPublished = post.status === 'published';
 
-    const isPublished = (post.status ?? 'published') === 'published';
+    // Post-ingest enrichment, converged with the outbox backfill's raw-insert
+    // route on one entry point (see `services/postEnrichment/`). Deferred while
+    // the post is still scheduled: a scheduled post has no readers yet, and
+    // `publishScheduledPost` runs the same step when it goes live. That gate is
+    // also why link previews were silently missing for every scheduled post —
+    // the old per-call-site fan-out skipped the warm here and the publish step
+    // never had one.
+    if (isPublished) {
+      enrichIngestedPosts([post]);
+    }
 
     if (
       params.autoAcceptCollaboratorIds &&
       params.autoAcceptCollaboratorIds.length > 0
     ) {
-      await postCollaborationService.autoAcceptInvites(
+      post = await postCollaborationService.autoAcceptInvites(
         post,
         new Set(params.autoAcceptCollaboratorIds),
       );
     }
 
-    const hasPendingInvites = hasPendingCollabInvites(post.authorship ?? []);
+    const hasPendingInvites = hasPendingCollabInvites(post.authorship);
 
     if (isPublished && hasPendingInvites && params.oxyUserId) {
       await postCollaborationService.notifyPendingInvites(post, params.oxyUserId);
     }
 
-    const postMeta = (post.metadata ?? {}) as Record<string, unknown>;
     const skipFederation =
       params.skipFederationDelivery ||
-      hasPendingCollabInvites(post.authorship ?? []) ||
-      postMeta.federationDelivered === true;
+      hasPendingInvites ||
+      post.metadata.federationDelivered === true;
 
     // MTN Protocol dual-write (best-effort, never blocks, never changes output).
-    // Mongo is authoritative; this emits a signed `app.mention.feed.*` record for
-    // LOCAL authors only (`federation == null && oxyUserId`). A scheduled post is
-    // not yet published, so it emits when the scheduler publishes it, not here.
+    // Postgres is authoritative; this emits a signed `app.mention.feed.*` record
+    // for LOCAL authors only (`federation == null && oxyUserId`). A scheduled
+    // post is not yet published, so it emits when the scheduler publishes it.
     if (!isScheduled) {
       await this.emitMtnRecord(post);
     }
 
     if (isScheduled || params.skipNotifications) {
-      if (isPublished) {
-        warmLinkPreviewForTextDetached(primaryText);
-      }
       return post;
     }
 
-    if (isPublished) {
-      warmLinkPreviewForTextDetached(primaryText);
-    }
-
-    await this.runPostSideEffects(post, {
+    return this.runPostSideEffects(post, {
       oxyUserId: params.oxyUserId ?? null,
       senderUsername: params.senderUsername,
       skipSocketEmit: params.skipSocketEmit,
       skipFederation,
     });
+  }
 
-    return post;
+  /**
+   * CLAIM a scheduled post, then publish it.
+   *
+   * The claim is the point. `publishScheduledPost` flips the status on a
+   * document it was handed, so two callers holding the same document both run
+   * the whole pipeline — federating twice, writing two MTN records, notifying
+   * twice. That is reachable in practice: the 60s sweep may load a due post
+   * moments before its author taps "post now".
+   *
+   * The conditional UPDATE in {@link claimScheduledPost} is the mutual exclusion
+   * — see its docblock for why one statement is enough. `publishScheduledPost`
+   * then re-sets the status it already holds, which is a no-op, and runs the side
+   * effects exactly once.
+   *
+   * **A continuation is refused while its parent is still unpublished.** A
+   * scheduled thread's posts are replies to one another, so publishing one out
+   * of turn puts an answer on screen ahead of the post it answers — a broken
+   * thread real readers can see, with no way to reorder it afterwards. The check
+   * lives HERE, at the one chokepoint both the sweep and the author's "publish
+   * now" go through, so the invariant does not depend on any caller ordering its
+   * work correctly; `ScheduledPostPublisher` orders the chain as well, but that
+   * is for liveness, not for safety. Why a pre-check needs no transaction is in
+   * `services/scheduledChain.ts`: `scheduled -> published` is one-way, so the
+   * reading can only err toward waiting.
+   *
+   * Returns `null` when the post was not claimable — gone, not this owner's,
+   * already published, or still behind its parent — leaving the caller to tell
+   * those apart if it needs to.
+   */
+  async claimAndPublishScheduledPost(params: {
+    postId: string;
+    ownerId?: string;
+  }): Promise<PostRecord | null> {
+    const [pending] = await getDb()
+      .select({ parentPostId: posts.parentPostId })
+      .from(posts)
+      .where(eq(posts.id, params.postId))
+      .limit(1);
+    if (!pending) {
+      return null;
+    }
+    if (!(await parentHasPublished(pending))) {
+      return null;
+    }
+
+    const claimed = await claimScheduledPost(params.postId, params.ownerId);
+    if (!claimed) {
+      return null;
+    }
+    return this.publishScheduledPost(claimed);
   }
 
   /**
@@ -450,25 +476,33 @@ class PostCreationService {
    * collaborator invites, the MTN dual-write, notifications, the real-time feed
    * emit, and (deferred until every collaborator has resolved) federation.
    *
-   * Driven by {@link ScheduledPostPublisher} (leader-gated). Every side effect
-   * is isolated so one stage's failure never aborts the others; the caller
-   * further isolates each post so one post never sinks the batch.
+   * Reached only through {@link claimAndPublishScheduledPost}, which is what
+   * guarantees one publish per post: this method flips the status on a document
+   * it was HANDED, so calling it directly with a stale copy would run the whole
+   * pipeline a second time. Every side effect is isolated so one stage's failure
+   * never aborts the others; the caller further isolates each post so one post
+   * never sinks the batch.
    */
-  async publishScheduledPost(post: IPost): Promise<IPost> {
-    post.status = 'published';
-    await post.save();
-    await recordRecentReplierForPost(post);
+  async publishScheduledPost(post: PostRecord): Promise<PostRecord> {
+    await updatePostRecord(post.id, { status: 'published' });
+    const published: PostRecord = { ...post, status: 'published' };
+    await recordRecentReplierForPost(published);
 
-    const ownerId = getOwnerId(post.authorship ?? []) ?? null;
-    const hasPendingInvites = hasPendingCollabInvites(post.authorship ?? []);
+    // The post is only now visible to readers, so this is where its enrichment
+    // belongs — `create()` deliberately skipped it while the post was scheduled.
+    // The SAME entry point the immediate create and the federated backfill use.
+    enrichIngestedPosts([published]);
+
+    const ownerId = getOwnerId(published.authorship) ?? null;
+    const hasPendingInvites = hasPendingCollabInvites(published.authorship);
 
     if (ownerId && hasPendingInvites) {
-      await postCollaborationService.notifyPendingInvites(post, ownerId);
+      await postCollaborationService.notifyPendingInvites(published, ownerId);
     }
 
     // MTN dual-write now — the signed record's authoritative timestamp is the
     // publish moment, not the (earlier) scheduling moment.
-    await this.emitMtnRecord(post);
+    await this.emitMtnRecord(published);
 
     // The federation username is resolved inside runPostSideEffects from the
     // authoritative owner id (and only when the post will actually federate) —
@@ -476,12 +510,10 @@ class PostCreationService {
     // separate resolution here. Federation stays deferred while any collaborator
     // invite is still pending (`skipFederation`), mirroring create(); the
     // eventual accept() federates the post.
-    await this.runPostSideEffects(post, {
+    return this.runPostSideEffects(published, {
       oxyUserId: ownerId,
       skipFederation: hasPendingInvites,
     });
-
-    return post;
   }
 
   /**
@@ -524,26 +556,32 @@ class PostCreationService {
    * mention / reply / quote / boost / subscriber notifications, the real-time
    * feed socket emit, and outbound ActivityPub federation delivery.
    *
-   * Reads everything it needs from the persisted `post` document (mentions,
+   * Reads everything it needs from the persisted `post` record (mentions,
    * parent/quote/boost refs, visibility, status) so it can be driven both by
    * `create()` (a fresh publish) and by `publishScheduledPost()` (a previously
    * scheduled post going live). Every stage is isolated — a failure in one never
    * aborts the others or surfaces to the caller.
+   *
+   * Returns the post as it now stands: a successful fan-out sets
+   * `metadata.federationDelivered`, and the record is a plain object rather than
+   * a live document, so the caller's copy would otherwise still say `false` —
+   * which is the flag `maybeFederateOnResolve` reads to decide whether a later
+   * invite resolution should federate the post a SECOND time.
    */
   private async runPostSideEffects(
-    post: IPost,
+    post: PostRecord,
     ctx: {
       oxyUserId: string | null;
       senderUsername?: string;
       skipSocketEmit?: boolean;
       skipFederation: boolean;
     },
-  ): Promise<void> {
+  ): Promise<PostRecord> {
     const oxyUserId = ctx.oxyUserId;
-    const mentions = post.mentions ?? [];
-    const parentPostId = post.parentPostId ?? null;
-    const quoteOf = post.quoteOf ?? null;
-    const boostOf = post.boostOf ?? null;
+    const mentions = post.mentions;
+    const parentPostId = post.parentPostId;
+    const quoteOf = post.quoteOf;
+    const boostOf = post.boostOf;
 
     // Run all notification stages in parallel — they are independent
     const results = await Promise.allSettled([
@@ -553,7 +591,7 @@ class PostCreationService {
           const isReply = Boolean(parentPostId);
           await createMentionNotifications(
             mentions,
-            String(post._id),
+            post.id,
             oxyUserId,
             isReply ? 'reply' : 'post',
           );
@@ -567,53 +605,42 @@ class PostCreationService {
         );
         if (idsToFetch.length === 0) return;
 
-        const relatedPosts = await Post.find({ _id: { $in: idsToFetch } })
-          .select('oxyUserId authorship')
-          .lean();
-        const postsMap = new Map(relatedPosts.map((p) => [String(p._id), p]));
+        const relatedPosts = await loadPostRecords(idsToFetch);
+        const postsMap = new Map(relatedPosts.map((p) => [p.id, p]));
 
         if (parentPostId) {
-          const parent = postsMap.get(String(parentPostId));
+          const parent = postsMap.get(parentPostId);
           if (parent) {
-            await createPostAuthorNotifications(
-              parent.authorship as import('@mention/shared-types').PostAuthorshipEntry[] | undefined,
-              {
-                actorId: oxyUserId,
-                type: 'reply',
-                entityId: String(post._id),
-                entityType: 'reply',
-              },
-            );
+            await createPostAuthorNotifications(parent.authorship, {
+              actorId: oxyUserId,
+              type: 'reply',
+              entityId: post.id,
+              entityType: 'reply',
+            });
           }
         }
 
         if (quoteOf) {
-          const original = postsMap.get(String(quoteOf));
+          const original = postsMap.get(quoteOf);
           if (original) {
-            await createPostAuthorNotifications(
-              original.authorship as import('@mention/shared-types').PostAuthorshipEntry[] | undefined,
-              {
-                actorId: oxyUserId,
-                type: 'quote',
-                entityId: String(original._id),
-                entityType: 'post',
-              },
-            );
+            await createPostAuthorNotifications(original.authorship, {
+              actorId: oxyUserId,
+              type: 'quote',
+              entityId: original.id,
+              entityType: 'post',
+            });
           }
         }
 
         if (boostOf) {
-          const original = postsMap.get(String(boostOf));
+          const original = postsMap.get(boostOf);
           if (original) {
-            await createPostAuthorNotifications(
-              original.authorship as import('@mention/shared-types').PostAuthorshipEntry[] | undefined,
-              {
-                actorId: oxyUserId,
-                type: 'boost',
-                entityId: String(original._id),
-                entityType: 'post',
-              },
-            );
+            await createPostAuthorNotifications(original.authorship, {
+              actorId: oxyUserId,
+              type: 'boost',
+              entityId: original.id,
+              entityType: 'post',
+            });
           }
         }
       })(),
@@ -621,7 +648,14 @@ class PostCreationService {
       (async () => {
         const isTopLevelPost = !parentPostId;
         if (!oxyUserId || !isTopLevelPost) return;
-        const subs = await PostSubscription.find({ authorId: oxyUserId }).lean();
+        // Postgres: nothing has written the Mongo collection since post
+        // subscriptions moved, so this fan-out had stopped finding subscribers
+        // and new-post notifications quietly stopped being sent to anyone who
+        // subscribed after the cutover.
+        const subs = await getDb()
+          .select({ subscriberId: postSubscriptions.subscriberId })
+          .from(postSubscriptions)
+          .where(eq(postSubscriptions.authorId, oxyUserId));
         if (subs.length === 0) return;
         const notifications = subs
           .filter((s) => s.subscriberId !== oxyUserId)
@@ -629,7 +663,7 @@ class PostCreationService {
             recipientId: s.subscriberId,
             actorId: oxyUserId,
             type: 'post' as const,
-            entityId: String(post._id),
+            entityId: post.id,
             entityType: 'post' as const,
           }));
         if (notifications.length > 0) {
@@ -644,9 +678,9 @@ class PostCreationService {
       }
     }
 
-    const isPublished = (post.status ?? 'published') === 'published';
+    const isPublished = post.status === 'published';
 
-    const shouldEmitGlobally = post.visibility === 'public' && isPublished;
+    const shouldEmitGlobally = post.visibility === PostVisibility.PUBLIC && isPublished;
     if (!ctx.skipSocketEmit && shouldEmitGlobally) {
       try {
         const io = getRuntimeSocketServer();
@@ -657,7 +691,7 @@ class PostCreationService {
           // unhydrated document. Mirrors createThread's post-create emit.
           // maxDepth:1 is REQUIRED so a created boost embeds its boostOf target
           // (a boost has an intentionally empty body and renders blank otherwise).
-          const [hydratedPost] = await postHydrationService.hydratePosts([post.toObject()], {
+          const [hydratedPost] = await postHydrationService.hydratePosts([post], {
             // This DTO is broadcast to all sockets, so hydrate as an anonymous
             // viewer. Nested quote/boost references that are not publicly
             // visible are omitted instead of leaking via a creator-specific ACL.
@@ -697,14 +731,15 @@ class PostCreationService {
         try {
           // Late-bound accessor avoids a circular import with the connector registry.
           await getPostFederator().federateNewPost(post, oxyUserId, federationUsername);
-          post.metadata = { ...(post.metadata ?? {}), federationDelivered: true };
-          post.markModified('metadata');
-          await post.save();
+          await updatePostRecord(post.id, { metadata: { federationDelivered: true } });
+          return { ...post, metadata: { ...post.metadata, federationDelivered: true } };
         } catch (fedError) {
           logger.error('PostCreationService: failed to federate post', fedError);
         }
       }
     }
+
+    return post;
   }
 }
 
