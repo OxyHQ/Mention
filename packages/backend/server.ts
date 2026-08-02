@@ -23,6 +23,10 @@ import {
   getRedisClient,
 } from './src/utils/redis';
 import { isRedisConnectionError } from './src/utils/redisHelpers';
+import {
+  startUserInvalidationSubscriber,
+  type UserInvalidationSubscriber,
+} from './src/services/userInvalidationSubscriber';
 import { DistributedPresenceService } from './src/services/DistributedPresenceService';
 import {
   registerSocketPresence,
@@ -174,6 +178,7 @@ const io = new SocketIOServer(server, {
 setRuntimeSocketServer(io);
 
 let socketRedisClients: ReturnType<typeof createRedisPubSub> | null = null;
+let userInvalidationSubscriber: UserInvalidationSubscriber | null = null;
 
 // Setup Redis adapter for Socket.IO horizontal scaling
 // Note: @socket.io/redis-adapter v8+ supports node-redis
@@ -700,6 +705,12 @@ const bootServer = async () => {
   // cross-instance broadcasts work from the first connection
   await setupRedisAdapter();
 
+  // Drop cached Oxy identity as soon as Oxy says it changed, instead of waiting
+  // out the user-summary TTL. Runs on EVERY task: the SDK response caches it
+  // sweeps are per-process, so a leader-only subscriber would leave the rest of
+  // the fleet stale. Inert (and non-fatal) when Redis is unavailable.
+  userInvalidationSubscriber = await startUserInvalidationSubscriber();
+
   // Start BullMQ federation queue workers on EVERY task (inbox + delivery
   // throughput should scale with the fleet; BullMQ delivers each job to exactly
   // one worker). No-op when Redis is not configured — federation then falls
@@ -795,6 +806,13 @@ const gracefulShutdown = (signal: string): void => {
       });
     });
 
+    const invalidationShutdown = async (): Promise<void> => {
+      if (!userInvalidationSubscriber) return;
+      const handle = userInvalidationSubscriber;
+      userInvalidationSubscriber = null;
+      await handle.stop();
+    };
+
     const pubSubShutdown = async (): Promise<void> => {
       if (!socketRedisClients) return;
       const { publisher, subscriber } = socketRedisClients;
@@ -819,6 +837,7 @@ const gracefulShutdown = (signal: string): void => {
     await Promise.allSettled([
       httpClosed,
       socketShutdown,
+      invalidationShutdown(),
       pubSubShutdown(),
       closeRedisConnection(),
       mongoose.disconnect(),
