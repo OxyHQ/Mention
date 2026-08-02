@@ -25,7 +25,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { MongoClient, ObjectId, type Db } from 'mongodb';
-import { eq, like } from 'drizzle-orm';
+import { eq, inArray, like } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import {
   actorKeyPairs,
@@ -97,6 +97,7 @@ afterEach(async () => {
   await db.delete(actorKeyPairs).where(eq(actorKeyPairs.oxyUserId, OWNER));
   await db.delete(federatedActors).where(eq(federatedActors.uri, ACTOR_URI));
   await db.delete(federatedActors).where(like(federatedActors.uri, `${DUP_URI_PREFIX}%`));
+  await db.delete(federatedActors).where(like(federatedActors.uri, 'did:plc:bff%'));
   await db.delete(federatedFollows).where(eq(federatedFollows.localUserId, OWNER));
   await db.delete(federatedMediaCache).where(eq(federatedMediaCache.remoteUrl, REMOTE_MEDIA));
   await db
@@ -398,12 +399,14 @@ describe('duplicate federated actors', () => {
    * to remove this" from "the transform lost it", and only the resolution log
    * knows it.
    */
-  async function walkEmission(uri: string) {
+  const walkEmission = (uri: string) => walkEmissionWhere({ uri });
+
+  async function walkEmissionWhere(filter: Record<string, unknown>) {
     const log = new ResolutionLog();
     const resolutions = createResolutionContext(await planResolutions(source), log);
     let documentsRead = 0;
     let primaryRowsEmitted = 0;
-    for await (const doc of mongo.collection('federatedactors').find({ uri })) {
+    for await (const doc of mongo.collection('federatedactors').find(filter)) {
       documentsRead += 1;
       transformDocument(
         planFor('federatedactors'),
@@ -582,19 +585,126 @@ describe('duplicate federated actors', () => {
     expect(auditWouldBlockCopy(uriFinding as NonNullable<typeof uriFinding>)).toBe(false);
   });
 
-  it('still BLOCKS an acct collision across DIFFERENT uris — the rule fails closed', async () => {
-    // The `handle.invalid` shape: distinct actors that a derivation bug gave one
-    // identity. The rule groups on `uri` alone, so it does not touch these — and
-    // `resolvesUniquenessGroup` requires all-but-one acted on, so the finding
-    // keeps blocking rather than being cleared by a rule written for something
-    // else. Dropping 20 of these would delete 20 real Bluesky accounts.
+  it('RE-KEYS the sentinel-acct rows onto their DIDs — 21 distinct accounts, none deleted', async () => {
+    // The `handle.invalid` shape: the AppView's error string for a handle that
+    // does not verify, identical for every affected account, so it identifies
+    // nobody. Production holds 21 rows carrying it and they are 21 DISTINCT
+    // Bluesky DIDs — dropping twenty to satisfy the constraint would delete
+    // twenty real accounts, which is the loss the ingest fix exists to prevent.
+    const dids = Array.from({ length: 21 }, (_, index) => `did:plc:bffdup${String(index).padStart(18, 'x')}`);
     await mongo.collection('federatedactors').insertMany(
-      Array.from({ length: 3 }, (_, index) => ({
-        _id: oid(41 + index),
-        uri: `${DUP_URI_PREFIX}sentinel-${index}`,
+      dids.map((did, index) => ({
+        _id: oid(200 + index),
+        uri: did,
+        protocol: 'atproto',
         username: 'handle.invalid',
         domain: 'bsky.social',
         acct: 'handle.invalid',
+        lastFetchedAt: new Date(2026, 0, 1 + index),
+      }))
+    );
+
+    await copy('federatedactors');
+
+    // ALL 21 land — nothing is dropped — and each carries its OWN DID as its
+    // identity, which is what the connector now writes at ingest.
+    const rows = await getDb()
+      .select()
+      .from(federatedActors)
+      .where(inArray(federatedActors.uri, dids));
+    expect(rows).toHaveLength(21);
+    expect(new Set(rows.map((row) => row.acct)).size).toBe(21);
+    for (const row of rows) {
+      expect(row.acct).toBe(row.uri);
+      expect(row.username).toBe(row.uri);
+      expect(row.domain).toBe('bsky.social');
+    }
+    // The sentinel survives nowhere — a copy left in one column is a copy the
+    // next collision is built from.
+    expect(rows.some((row) => row.acct === 'handle.invalid')).toBe(false);
+    expect(rows.some((row) => row.username === 'handle.invalid')).toBe(false);
+
+    // And it is a RE-KEY, not a drop: nothing was removed, so the emission is
+    // faithful without any rule-recorded removal at all.
+    const emission = await walkEmissionWhere({ acct: 'handle.invalid' });
+    expect(emission.documentsRead).toBe(21);
+    expect(emission.primaryRowsEmitted).toBe(21);
+    expect(emission.documentsDroppedByRule).toBe(0);
+    expect(droppedDocuments(emission)).toBe(0);
+  });
+
+  it('stops the acct finding blocking once the re-key answers it', async () => {
+    const dids = Array.from({ length: 3 }, (_, index) => `did:plc:bffrk${String(index).padStart(19, 'y')}`);
+    await mongo.collection('federatedactors').insertMany(
+      dids.map((did, index) => ({
+        _id: oid(230 + index),
+        uri: did,
+        protocol: 'atproto',
+        username: 'handle.invalid',
+        domain: 'bsky.social',
+        acct: 'handle.invalid',
+        lastFetchedAt: new Date(2026, 0, 1 + index),
+      }))
+    );
+
+    const resolutions = createResolutionContext(await planResolutions(source), new ResolutionLog());
+    const findings = await auditUniqueness(source, planFor('federatedactors'), resolutions);
+    for (const index of ['federated_actors_acct_key', 'federated_actors_domain_username_key']) {
+      const finding = findings.find((entry) => entry.detail.includes(index));
+      expect(finding, index).toBeDefined();
+      // Still computed and printed with its ids, carrying the rule.
+      expect(finding?.documents).toBe(3);
+      expect(finding?.resolvedBy?.id).toBe(KEEP_FRESHEST_FEDERATED_ACTOR.id);
+      expect(auditWouldBlockCopy(finding as NonNullable<typeof finding>)).toBe(false);
+    }
+  });
+
+  it('REFUSES a uri group that also carries the sentinel, rather than letting the two remedies collide', async () => {
+    // The one shape where the remedies contradict each other: two rows sharing
+    // a `uri` AND carrying the sentinel acct. The transform decides from one
+    // document and checks the sentinel first, so both would be RE-KEYED — and
+    // two rows would land sharing a `uri`, violating the constraint this rule
+    // exists to satisfy. The pre-pass therefore leaves the whole group alone
+    // and the finding blocks, which is the fail-closed answer.
+    //
+    // No such group exists in production (the 21 sentinel rows carry 21
+    // distinct DIDs); this pins the guard so a later change cannot quietly
+    // create one.
+    const did = 'did:plc:bffcollide00000000000000';
+    await mongo.collection('federatedactors').insertMany(
+      [0, 1].map((index) => ({
+        _id: oid(250 + index),
+        uri: did,
+        protocol: 'atproto',
+        username: 'handle.invalid',
+        domain: 'bsky.social',
+        acct: 'handle.invalid',
+        lastFetchedAt: new Date(2026, 0, 1 + index),
+      }))
+    );
+
+    const resolutions = createResolutionContext(await planResolutions(source), new ResolutionLog());
+    const findings = await auditUniqueness(source, planFor('federatedactors'), resolutions);
+    const uriFinding = findings.find((entry) => entry.detail.includes('federated_actors_uri_key'));
+
+    expect(uriFinding).toBeDefined();
+    expect(uriFinding?.resolvedBy).toBeUndefined();
+    expect(auditWouldBlockCopy(uriFinding as NonNullable<typeof uriFinding>)).toBe(true);
+  });
+
+  it('still BLOCKS a NON-sentinel acct shared across DIFFERENT uris — neither remedy applies', async () => {
+    // Two different actors that happen to share an acct. Not one actor fetched
+    // twice (so the drop must not touch them) and not the sentinel (so the
+    // re-key must not either). `resolvesUniquenessGroup` fails closed and a
+    // human decides — which is the property that keeps the rule from becoming
+    // a general licence to delete a colliding row.
+    await mongo.collection('federatedactors').insertMany(
+      Array.from({ length: 3 }, (_, index) => ({
+        _id: oid(41 + index),
+        uri: `${DUP_URI_PREFIX}shared-${index}`,
+        username: 'shared',
+        domain: 'bff-dup.example',
+        acct: 'shared@bff-dup.example',
         lastFetchedAt: new Date(2026, 0, 1 + index),
       }))
     );

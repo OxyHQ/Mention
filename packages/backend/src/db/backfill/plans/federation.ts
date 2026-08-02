@@ -39,6 +39,7 @@ import {
   federationDeliveryQueue,
 } from '../../schema/federation';
 import type { CollectionPlan } from '../plan';
+import { isUnresolvedAtprotoHandle } from '../../../connectors/atproto/unresolvedHandle';
 import { KEEP_FRESHEST_FEDERATED_ACTOR } from '../resolutions';
 import { buildRow } from '../rowBuilder';
 import {
@@ -117,13 +118,15 @@ const federatedActorsPlan: CollectionPlan = {
     {
       index: 'federated_actors_acct_key',
       key: [{ path: 'acct', normalize: 'exact' }],
-      // The SAME rule answers this one, without being declared over `acct`:
-      // almost every acct collision is two rows of one `uri` group, so dropping
-      // the uri duplicates removes them too, and `resolvesUniquenessGroup` then
-      // sees all-but-one of the group acted on. It fails CLOSED for a group the
-      // rule does not empty to one — which is exactly the `handle.invalid`
-      // rows, 21 distinct DIDs sharing an acct that no rule here answers. That
-      // finding still blocks, deliberately.
+      // The SAME rule answers this one through BOTH its remedies, which is why
+      // they are one rule: almost every acct collision is two rows of one `uri`
+      // group and is cleared by the drop, and the `handle.invalid` group is
+      // cleared by the re-key. Either way `resolvesUniquenessGroup` sees
+      // all-but-one of the group acted on.
+      //
+      // It fails CLOSED for anything else — a NON-sentinel acct shared across
+      // distinct `uri`s is two different actors that neither remedy is written
+      // for, and that finding still blocks so a human decides.
       resolvedBy: KEEP_FRESHEST_FEDERATED_ACTOR,
     },
     {
@@ -142,12 +145,39 @@ const federatedActorsPlan: CollectionPlan = {
   transform: (doc, emit, resolutions) => {
     const id = ownId(doc);
 
+    const uri = reqStr(doc, 'uri');
+    const storedAcct = reqStr(doc, 'acct');
+    // REMEDY TWO, checked FIRST and decided from this document alone: an `acct`
+    // that is Bluesky's unresolved-handle sentinel identifies nobody, so the row
+    // is re-keyed onto its own DID — which for an atproto actor IS its `uri`.
+    // The same substitution `atprotoIdentityHandle` now applies at ingest, so
+    // the row lands in the shape the fixed writer would have produced.
+    //
+    // The pre-pass guarantees a sentinel row is never ALSO a `uri` duplicate
+    // (it refuses any such group outright), which is what makes checking the
+    // sentinel before the drop safe — otherwise a row needing to be dropped
+    // would be re-keyed instead and two rows would share a `uri`.
+    const sentinelAcct = isUnresolvedAtprotoHandle(storedAcct);
+    if (sentinelAcct) {
+      resolutions.record({
+        rule: KEEP_FRESHEST_FEDERATED_ACTOR,
+        documentId: id,
+        detail:
+          `acct ${JSON.stringify(storedAcct)} is the AppView's error string for a ` +
+          'handle that does not verify, not an identity — every such account ' +
+          'carries the same one. `acct` and `username` are re-keyed to this ' +
+          "row's own DID, which is unique and is what the connector now writes. " +
+          'Nothing is dropped.',
+        evidence: { uri, acct: storedAcct, username: reqStr(doc, 'username') },
+      });
+    }
+
     // A duplicate of an actor another row already carries — decided ONCE by the
     // pre-pass against the whole collection, because "which of these rows is
     // the freshest" is a question about the GROUP and a transform sees one
     // document. Every phase reads that same decision, so the audit, the copy
     // and both verifier passes cannot disagree about which row survives.
-    if (resolutions.actedOn.get(KEEP_FRESHEST_FEDERATED_ACTOR.id)?.has(id) === true) {
+    if (!sentinelAcct && resolutions.actedOn.get(KEEP_FRESHEST_FEDERATED_ACTOR.id)?.has(id) === true) {
       resolutions.dropDocument(
         KEEP_FRESHEST_FEDERATED_ACTOR,
         'federatedactors',
@@ -168,10 +198,12 @@ const federatedActorsPlan: CollectionPlan = {
         {
           id,
           protocol: str(doc, 'protocol') ?? 'activitypub',
-          uri: reqStr(doc, 'uri'),
-          username: reqStr(doc, 'username'),
+          uri,
+          // Re-keyed onto the DID for a sentinel row; the stored value verbatim
+          // for every other actor, which is all but 21 documents.
+          username: sentinelAcct ? uri : reqStr(doc, 'username'),
           domain: reqStr(doc, 'domain'),
-          acct: reqStr(doc, 'acct'),
+          acct: sentinelAcct ? uri : storedAcct,
           summary: str(doc, 'summary'),
           avatarUrl: str(doc, 'avatarUrl'),
           headerUrl: str(doc, 'headerUrl'),
