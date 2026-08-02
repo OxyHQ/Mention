@@ -469,12 +469,29 @@ describe('the onThisDay source', () => {
    * fixture still exists when the suite runs on 29 February. Deriving it as
    * "last year" instead makes the suite fail one day in four with an
    * off-by-one-day that looks like a query bug.
+   *
+   * Derived INSIDE each case, not once at module scope, and the difference is a
+   * real flake rather than style. `onThisDaySource.gather` reads `new Date()` at
+   * CALL time; a module-scope anchor is read when the file is first evaluated.
+   * If the UTC day rolls over between the two, the fixture's month/day and the
+   * query's disagree, the source correctly returns nothing, and both cases below
+   * go red together looking like a broken predicate. The window is a few seconds
+   * a day — undemonstrable, which is exactly why it is worth closing rather than
+   * waiting to observe. This narrows it to the microseconds between the anchor
+   * and the query; closing it entirely would need the source to take an injected
+   * clock, which is a production change this does not justify.
    */
-  const now = new Date();
-  const anniversary = new Date(Date.UTC(2000, now.getUTCMonth(), now.getUTCDate(), 12));
-  const dayBefore = new Date(anniversary.getTime() - 24 * 60 * 60 * 1000);
+  function anchor(): { anniversary: Date; dayBefore: Date } {
+    const now = new Date();
+    const anniversary = new Date(Date.UTC(2000, now.getUTCMonth(), now.getUTCDate(), 12));
+    return {
+      anniversary,
+      dayBefore: new Date(anniversary.getTime() - 24 * 60 * 60 * 1000),
+    };
+  }
 
   it('matches the viewer\'s own posts from an earlier year on today\'s month and day', async () => {
+    const { anniversary, dayBefore } = anchor();
     const memory = await create({ oxyUserId: VIEWER, createdAt: anniversary });
     // Right day, wrong year — today is not nostalgia.
     await create({ oxyUserId: VIEWER, createdAt: at(0) });
@@ -488,6 +505,7 @@ describe('the onThisDay source', () => {
   });
 
   it('widens to the viewer plus their follows on the follows scope', async () => {
+    const { anniversary } = anchor();
     const mine = await create({ oxyUserId: VIEWER, createdAt: anniversary });
     const friends = await create({
       oxyUserId: FRIEND_A,
@@ -504,7 +522,7 @@ describe('the onThisDay source', () => {
   });
 
   it('returns nothing for an anonymous viewer', async () => {
-    await create({ oxyUserId: VIEWER, createdAt: anniversary });
+    await create({ oxyUserId: VIEWER, createdAt: anchor().anniversary });
     expect(await onThisDaySource.gather({}, {}, 30)).toEqual([]);
   });
 });
