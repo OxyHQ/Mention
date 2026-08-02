@@ -441,8 +441,12 @@ router.post('/', ...writeLimiters, validateBody(createLaneSchema), async (req: A
  * PATCH /lanes/:id
  * Body: `{ name?: string, displayMode?: 'mixed'|'tab'|'hidden' }`
  *
- * Renaming is free — nothing routes by name (see `models/Lane` on why there is no
- * slug). Changing `displayMode` changes which posts a profile tab CONTAINS, so
+ * Renaming is free, and a lane deliberately has NO slug: the tab routes by id, so
+ * a slug would be either immutable (stale the moment somebody renames) or
+ * regenerated (breaking the URL), and it would add a second uniqueness
+ * constraint and a whole class of collisions to carry forever. The only derived
+ * identity a lane has is `name_lower`, which `db/channels/laneRepository.ts`
+ * owns. Changing `displayMode` changes which posts a profile tab CONTAINS, so
  * the client has to invalidate both of its post-list caches afterwards.
  */
 router.patch(
