@@ -296,6 +296,7 @@ describe('the runner actually runs it', () => {
   it('surfaces a numeric finding through runAudits, not just through auditNumerics', async () => {
     const plan = planWith([likeValueAudit]);
     const findings = await runAudits(
+      await connectPostgres(),
       stubSource([0]),
       { migrated: [{ plan, documents: 3 }], excluded: [], unknown: [], absent: [] },
       createResolutionContext(await planResolutions(stubSource([])), new ResolutionLog())

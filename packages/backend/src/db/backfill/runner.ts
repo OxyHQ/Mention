@@ -220,6 +220,7 @@ export async function discover(source: MongoSource): Promise<Discovery> {
  * exists to prevent got three levels in before a `23503` stopped it.
  */
 export async function runAudits(
+  db: Database,
   source: MongoSource,
   discovery: Discovery,
   resolutions: ResolutionContext,
@@ -256,7 +257,7 @@ export async function runAudits(
             'pass runs the transforms — which refuse exactly those documents. ' +
             'Fix them and re-run: referential integrity is UNKNOWN, not clean.'
         )
-      : await auditReferentialIntegrity(source, discovery.migrated, resolutions, {
+      : await auditReferentialIntegrity(db, source, discovery.migrated, resolutions, {
           batchSize: options.batchSize,
         });
   findings.push(...referentialIntegrity.findings);
@@ -602,6 +603,7 @@ export async function runBackfill(
   const resolutions = createResolutionContext(resolutionPlan, resolutionLog);
 
   const { findings, referentialIntegrity } = await runAudits(
+    options.db,
     options.source,
     discovery,
     resolutions,

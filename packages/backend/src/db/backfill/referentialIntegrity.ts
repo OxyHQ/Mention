@@ -48,7 +48,7 @@
  * {@link assertNotVacuous} refuses that report rather than printing it.
  */
 
-import { is } from 'drizzle-orm';
+import { is, sql } from 'drizzle-orm';
 import {
   getTableConfig,
   PgTable,
@@ -56,6 +56,7 @@ import {
   type UpdateDeleteAction,
 } from 'drizzle-orm/pg-core';
 import { sqlColumnName } from '../casing';
+import type { Database } from '../postgres';
 import type { AuditFinding } from './audit';
 import { streamCollection, type MongoSource } from './mongoSource';
 import { planTables, singlePrimaryKeyProperty, tableName, type CollectionPlan } from './plan';
@@ -267,6 +268,99 @@ export function emissionIsFaithful(emission: PlanEmission): boolean {
   return droppedDocuments(emission) === 0;
 }
 
+/** One foreign key as POSTGRES holds it, read from `pg_constraint`. */
+export interface DeployedRelation {
+  readonly constraint: string;
+  readonly tableName: string;
+  readonly targetTableName: string;
+}
+
+/**
+ * Every foreign key the migrated database actually has.
+ *
+ * `pg_constraint` is the authority here for the same reason `listCollections()`
+ * is the authority for the source: the CODE is what might be wrong. A relation
+ * this audit fails to derive from the drizzle metadata is invisible to every
+ * other check in this file, and the report would still say "N relations
+ * inspected" — a number that reads as coverage and is not.
+ */
+export async function deployedForeignKeys(db: Database): Promise<DeployedRelation[]> {
+  const rows = await db.execute<{
+    constraint_name: string;
+    table_name: string;
+    target_table_name: string;
+  }>(sql`
+    select c.conname as constraint_name,
+           child.relname as table_name,
+           parent.relname as target_table_name
+    from pg_constraint c
+    join pg_class child on child.oid = c.conrelid
+    join pg_class parent on parent.oid = c.confrelid
+    join pg_namespace n on n.oid = child.relnamespace
+    where c.contype = 'f' and n.nspname = 'public'
+    order by 1
+  `);
+  return rows.map((row) => ({
+    constraint: row.constraint_name,
+    tableName: row.table_name,
+    targetTableName: row.target_table_name,
+  }));
+}
+
+/**
+ * How much of the deployed foreign-key graph this audit actually derived.
+ *
+ * ## Why IN SCOPE is the only fair denominator
+ *
+ * `referentialRelations` walks the tables the CURRENT plans write, so while
+ * collections are still unplanned most of the schema's foreign keys are
+ * legitimately outside its reach. Measuring against every deployed constraint
+ * would report a huge permanent shortfall that is nobody's defect, and a gate
+ * that reports a defect nobody can fix is a gate that gets disabled by whoever
+ * hits it next.
+ *
+ * So the denominator is the constraints whose CHILD table a plan writes — the
+ * ones the audit claims to cover. In a healthy state that number and
+ * {@link derived} are equal, because both are computed from the same plan set;
+ * a gap between them is a defect in the DERIVATION, not in the data and not in
+ * how far the migration has got.
+ */
+export interface RelationCoverage {
+  /** Deployed constraints whose child table a current plan writes. */
+  readonly deployedInScope: number;
+  /** How many of those the audit derived, by constraint name. */
+  readonly derived: number;
+  /** In scope and NOT derived — each one a defect in this checker. */
+  readonly missing: readonly DeployedRelation[];
+  /** Deployed constraints on tables no plan writes yet. Expected, not a fault. */
+  readonly outOfScope: number;
+}
+
+/**
+ * Reconcile the derived relation set against the deployed one.
+ *
+ * Compared by CONSTRAINT NAME, which is the identifier a `23503` carries and
+ * therefore the only one an operator can act on. That also makes the check
+ * catch a naming defect and not just a missing relation: if `describeRelation`
+ * computes a name Postgres does not have, the audit has been reporting a
+ * constraint that does not exist, and this is what says so.
+ */
+export function reconcileRelations(
+  derived: readonly Relation[],
+  deployed: readonly DeployedRelation[],
+  plannedTables: ReadonlySet<string>
+): RelationCoverage {
+  const derivedNames = new Set(derived.map((relation) => relation.constraint));
+  const inScope = deployed.filter((relation) => plannedTables.has(relation.tableName));
+  const missing = inScope.filter((relation) => !derivedNames.has(relation.constraint));
+  return {
+    deployedInScope: inScope.length,
+    derived: inScope.length - missing.length,
+    missing,
+    outOfScope: deployed.length - inScope.length,
+  };
+}
+
 /** One offending value, with how many rows carried it. */
 export interface OrphanValue {
   readonly value: string;
@@ -289,6 +383,14 @@ export interface ReferentialIntegrityReport {
   readonly relationsInspected: number;
   /** Relations that actually saw a non-null reference. */
   readonly relationsExercised: number;
+  /**
+   * How much of the DEPLOYED foreign-key graph the derivation actually found.
+   *
+   * Absent when the pass did not run. This is the number that turns
+   * `relationsInspected` from a count into coverage: 8 relations inspected is a
+   * clean-looking report whether the schema has 8 constraints in scope or 42.
+   */
+  readonly coverage?: RelationCoverage;
   readonly collectionsInspected: number;
   readonly documentsInspected: number;
   readonly referencesChecked: number;
@@ -358,6 +460,29 @@ export function assertNotVacuous(report: ReferentialIntegrityReport): void {
   if (report.documentsInspected === 0) {
     throw new VacuousReferentialIntegrityError(report, 'no document was read');
   }
+  // The half the floor was missing, and the one that matters most in practice.
+  // The three checks above ask whether the pass did ANY work; this one asks
+  // whether the work COVERED what it claims to. A derivation that silently
+  // found 8 of 42 relations passes all three and reports "0 orphans" — a clean
+  // verdict over a fifth of the graph, indistinguishable from a clean verdict
+  // over all of it.
+  //
+  // Scoped to constraints whose CHILD table a current plan writes, because a
+  // relation on an unplanned table is expected to be uncovered while
+  // collections remain unplanned. Conflating the two would make this fire
+  // permanently on a state nobody can fix, which is how a gate gets disabled.
+  const coverage = report.coverage;
+  if (coverage !== undefined && coverage.missing.length > 0) {
+    throw new VacuousReferentialIntegrityError(
+      report,
+      `the derivation found ${coverage.derived} of ${coverage.deployedInScope} ` +
+        'foreign key(s) deployed on tables these plans write, so this report ' +
+        'covers less of the graph than it appears to. Deployed but NOT derived: ' +
+        coverage.missing
+          .map((relation) => `${relation.constraint} (${relation.tableName})`)
+          .join(', ')
+    );
+  }
 }
 
 /** Accumulates one relation's offending values without unbounded growth. */
@@ -396,6 +521,7 @@ interface AppliedTally {
  * prove.
  */
 export async function auditReferentialIntegrity(
+  db: Database,
   source: MongoSource,
   planned: ReadonlyArray<{ plan: CollectionPlan; documents: number }>,
   resolutions: ResolutionContext,
@@ -411,6 +537,25 @@ export async function auditReferentialIntegrity(
   // the complete plan set precisely so this does not happen.
   const fedTables = new Set<string>();
   for (const plan of plans) for (const table of planTables(plan)) fedTables.add(tableName(table));
+
+  // ---- phase 0: is the derivation itself complete? ------------------------
+  //
+  // Before asking anything about the DATA, ask whether this audit found the
+  // constraints it is about to claim coverage of. `pg_constraint` is the
+  // authority; the drizzle walk is the thing that might be wrong.
+  const coverage = reconcileRelations(relations, await deployedForeignKeys(db), fedTables);
+  const coverageFindings: AuditFinding[] = coverage.missing.map((relation) => ({
+    collection: '(schema)',
+    kind: 'undetected-relation' as const,
+    detail:
+      `${relation.constraint} is a foreign key on ${relation.tableName} → ` +
+      `${relation.targetTableName} that Postgres HAS and this audit did not ` +
+      'derive from the drizzle metadata. Every reference through it is therefore ' +
+      'unchecked, and the orphan verdict below says nothing about it. This is a ' +
+      'defect in the checker, not in the data — no change to Mongo can clear it.',
+    documents: 0,
+    sampleIds: [],
+  }));
 
   // ---- phase 1: every primary key the migration will produce ---------------
   const emittedKeys = new Map<string, Set<string>>();
@@ -571,9 +716,16 @@ export async function auditReferentialIntegrity(
     const accumulator = orphansByConstraint.get(relation.constraint);
     if (accumulator === undefined) continue;
     const resolvedBy = answeredBy.get(relation.constraint);
+    // `documents` alone is a TIE — and a tie is the NORMAL case here, because
+    // most orphaned values are referenced exactly once. `MAX_REPORTED_ORPHAN_
+    // VALUES` then keeps whichever 50 the sort happened to leave in front, so
+    // two runs over the same data can report two different sets and an operator
+    // who fixes the first 50 is handed a different 50 with nothing saying the
+    // report was a sample. The value is unique per entry, so it makes the order
+    // total and the truncation reproducible.
     const values = [...accumulator.documentsByValue.entries()]
       .map(([value, documents]) => ({ value, documents }))
-      .sort((a, b) => b.documents - a.documents);
+      .sort((a, b) => b.documents - a.documents || (a.value < b.value ? -1 : a.value > b.value ? 1 : 0));
 
     orphans.push({
       relation,
@@ -613,6 +765,7 @@ export async function auditReferentialIntegrity(
   findings.push(...describeOverreach(applied, relations, orphansByConstraint));
 
   const report: ReferentialIntegrityReport = {
+    coverage,
     relationsInspected: relations.length,
     relationsExercised: exercised.size,
     collectionsInspected,
@@ -620,7 +773,7 @@ export async function auditReferentialIntegrity(
     referencesChecked,
     orphans,
     emissions,
-    findings,
+    findings: [...coverageFindings, ...findings],
   };
 
   assertNotVacuous(report);

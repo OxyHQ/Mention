@@ -228,7 +228,7 @@ async function main(): Promise<number> {
 
     // ---- audit (pre-pass) -------------------------------------------------
     if (options.auditOnly || options.startFromEmpty) {
-      const blocking = await runPreAudit(source, discovery, options);
+      const blocking = await runPreAudit(db, source, discovery, options);
       if (options.auditOnly) {
         heading(blocking === 0 ? 'AUDIT CLEAN' : 'AUDIT FOUND BLOCKING ROWS');
         return blocking === 0 ? 0 : 1;
@@ -376,6 +376,7 @@ function tablesFor(collections: readonly string[]): Set<string> {
  * file header for why a plain copy does not.
  */
 async function runPreAudit(
+  db: Database,
   source: MongoSource,
   discovery: Discovery,
   options: Options
@@ -392,7 +393,7 @@ async function runPreAudit(
   const resolutions = createResolutionContext(resolutionPlan, log);
 
   heading('AUDIT');
-  const { findings, referentialIntegrity } = await runAudits(source, discovery, resolutions, {
+  const { findings, referentialIntegrity } = await runAudits(db, source, discovery, resolutions, {
     batchSize: options.batchSize,
   });
   reportFindings(findings);
@@ -462,6 +463,31 @@ function reportReferentialIntegrity(report: ReferentialIntegrityReport): void {
     say(`  ${report.notRunReason}`);
     return;
   }
+  // COVERAGE FIRST, as a fraction, because it is what makes every number below
+  // it mean anything. "8 relations inspected" reads as a clean report whether
+  // the plans' tables carry 8 constraints or 42, and that ambiguity is what let
+  // an audit over a fifth of the graph look complete.
+  const coverage = report.coverage;
+  if (coverage === undefined) {
+    say('  Coverage: UNKNOWN — the derived set was never reconciled against pg_constraint.');
+  } else {
+    say(
+      `  Coverage: ${coverage.derived}/${coverage.deployedInScope} foreign key(s) ` +
+        'deployed on tables these plans write were derived and checked' +
+        (coverage.outOfScope === 0
+          ? '.'
+          : `; ${coverage.outOfScope} more are deployed on tables no plan writes yet ` +
+            'and are OUT OF SCOPE — expected while collections remain unplanned, ' +
+            'and not a defect.')
+    );
+    for (const missing of coverage.missing) {
+      say(
+        `    NOT DERIVED  ${missing.constraint} on ${missing.tableName} → ` +
+          `${missing.targetTableName} — every reference through it is unchecked.`
+      );
+    }
+  }
+
   say(
     `  ${report.relationsInspected} foreign key(s) derived from the schema, ` +
       `${report.relationsExercised} of them exercised by this data; ` +

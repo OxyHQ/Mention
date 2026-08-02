@@ -86,6 +86,7 @@ export interface AuditFinding {
     | 'numeric'
     | 'uniqueness'
     | 'referential-integrity'
+    | 'undetected-relation'
     | 'dropped-document'
     | 'resolution-overreach';
   /** Human-readable, and specific enough to act on without opening the code. */
@@ -441,7 +442,13 @@ export async function auditUniqueness(
         { $match: scope },
         { $group: { _id: groupKey, count: { $sum: 1 }, ids: { $push: '$_id' } } },
         { $match: { count: { $gt: 1 } } },
-        { $sort: { count: -1 } },
+        // `count` alone is a TIE among every group of the same size, and the
+        // `$limit` below then keeps an arbitrary 50 of them — so an operator
+        // fixes the reported collisions, re-runs, and is handed a DIFFERENT 50
+        // with no indication that the first report was a sample. `_id` is the
+        // group key and is unique per group, so appending it makes the order
+        // total and the truncation reproducible.
+        { $sort: { count: -1, _id: 1 } },
         { $limit: 50 },
       ])
       .toArray();
@@ -526,6 +533,12 @@ export function auditWouldBlockCopy(finding: AuditFinding): boolean {
     // both are `23503`. Nullability changes what the report RECOMMENDS, never
     // whether the copy may start.
     finding.kind === 'referential-integrity' ||
+    // A foreign key Postgres HAS and this audit never derived. Kept apart from
+    // every other class on purpose: it is a defect in the CHECKER, not in the
+    // data, so there is nothing an operator could fix in Mongo to clear it and
+    // no resolution rule may ever answer it — a rule clearing it would be the
+    // migration excusing its own blind spot.
+    finding.kind === 'undetected-relation' ||
     // A transform that emitted fewer rows than it read documents is losing
     // data, and it blocks even with no foreign key pointing at the lost rows.
     // This is one of the two finding classes a resolution rule must never
