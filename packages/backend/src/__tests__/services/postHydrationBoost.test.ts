@@ -78,29 +78,6 @@ vi.mock('../../utils/privacyHelpers', () => ({
   extractFollowersIds: vi.fn(() => []),
 }));
 
-// A chainable Mongoose query stub for the collections this file does not own —
-// polls, likes, bookmarks, settings, starter packs. Each returns nothing, which
-// is the state the assertions below assume.
-function chainable(rows: unknown[] | null) {
-  const q: Record<string, unknown> = {};
-  for (const m of ['select', 'sort', 'limit', 'maxTimeMS']) {
-    q[m] = () => q;
-  }
-  q.lean = async () => rows;
-  q.then = undefined;
-  return q;
-}
-
-vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
-// The starter-pack CURATION aggregation runs on the cache-fill path (it stamps the
-// ranking-side `starterPackScore`). No DB here → no packs → no scores.
-vi.mock('../../models/StarterPack', () => ({
-  StarterPack: { aggregate: async () => [] },
-  default: { aggregate: async () => [] },
-}));
-
 vi.mock('../../services/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
@@ -476,5 +453,52 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     expect(hydrated).toBeTruthy();
     expect(hydrated.boost).toBeNull();
     expect(hydrated.originalPost).toBeNull();
+  });
+
+  it('withholds a followers-only original from a FOLLOWER when publicReferencesOnly is on', async () => {
+    // This is the case that actually guards the `publicReferencesOnly` predicate,
+    // and the one above does not.
+    //
+    // A private or draft original is refused TWICE — once by the reference query
+    // and again by the per-post ACL, which drops anything non-published or
+    // PRIVATE for a non-owner. So deleting the reference predicate leaves that
+    // case green, and it was measured doing exactly that: the assertion is true
+    // but the mechanism it names is unguarded.
+    //
+    // A followers-only original viewed by a FOLLOWER passes the per-post ACL, so
+    // only `publicReferencesOnly` can withhold it — which is the guarantee that
+    // matters here, because this response is a public broadcast surface that
+    // other viewers may be served from.
+    const original = await seedOriginal({
+      visibility: PostVisibility.FOLLOWERS_ONLY,
+      status: 'published',
+    });
+    const boost = await seedBoost(original.id);
+
+    const { extractFollowingIds } = await import('../../utils/privacyHelpers');
+    vi.mocked(extractFollowingIds).mockReturnValue([ORIGINAL_AUTHOR_OXY_ID]);
+    try {
+      const [broadcast] = await service.hydratePosts([boost], {
+        viewerId: VIEWER_ID,
+        maxDepth: 1,
+        publicReferencesOnly: true,
+        includeLinkMetadata: false,
+        includeFullMetadata: false,
+      });
+      expect(broadcast.boost).toBeNull();
+      expect(broadcast.originalPost).toBeNull();
+
+      // The control, so the case cannot pass because the fixture is simply
+      // invisible: the SAME viewer, without `publicReferencesOnly`, does see it.
+      const [personal] = await service.hydratePosts([boost], {
+        viewerId: VIEWER_ID,
+        maxDepth: 1,
+        includeLinkMetadata: false,
+        includeFullMetadata: false,
+      });
+      expect(personal.boost?.originalPost?.id).toBe(original.id);
+    } finally {
+      vi.mocked(extractFollowingIds).mockReturnValue([]);
+    }
   });
 });
