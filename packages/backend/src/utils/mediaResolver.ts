@@ -3,6 +3,7 @@ import {
   MEDIA_VARIANT_THUMB,
   MEDIA_VARIANT_FULL,
   MEDIA_VARIANT_AVATAR,
+  MEDIA_VARIANT_VIDEO_THUMB,
   MEDIA_VARIANT_VIDEO_POSTER,
   MEDIA_VARIANT_BANNER,
 } from '@mention/shared-types';
@@ -75,9 +76,11 @@ export interface ResolvedMedia {
  *  - avatars (small, circular crop)             → {@link MEDIA_VARIANT_AVATAR}.
  *    The dedicated 96px square `w96` crop — most avatars across the app
  *    render ≤40px, comfortably covered even at 3x DPR.
- *  - video posters (feed media rectangle)       → {@link MEDIA_VARIANT_VIDEO_POSTER}.
- *    Kept on the 256px `thumb` crop: a poster fills the media card, so it
- *    must not be shrunk to a small square.
+ *  - video grid cell / notification still       → {@link MEDIA_VARIANT_VIDEO_THUMB}.
+ *    A small still, sized exactly like an image in the same grid (`w320`).
+ *  - video poster behind a player               → {@link MEDIA_VARIANT_VIDEO_POSTER}.
+ *    The in-feed video card and the fullscreen Reels viewer are both
+ *    full-width (~1180 device px on a 3x phone), so both take `w1280`.
  *  - profile banners (full-bleed 170px strip)   → {@link MEDIA_VARIANT_BANNER}.
  *    Bounded by width, not by the lightbox: `w1280` covers a 3x-DPR phone.
  */
@@ -387,8 +390,30 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
       const altField = item.alt ? { alt: item.alt } : {};
       const geometry = persistedGeometry(item);
 
+      if (item.type === 'video' && isAbsoluteHttpUrl(item.id)) {
+        // FEDERATED video. `resolved.thumbUrl` is the proxied VIDEO asking for an
+        // image variant — bytes no <Image> can render, because `/media/proxy`
+        // honours a variant only for image content types. A still is what every
+        // consumer of `thumbUrl` wants here, so both still fields point at the
+        // extracted poster frame. `/media/poster` takes no variant (it caps the
+        // frame at 720px itself), so the grid and the player share one size.
+        return {
+          id: item.id,
+          type: item.type,
+          ...altField,
+          ...geometry,
+          url: resolved.url || undefined,
+          thumbUrl: resolved.posterUrl,
+          posterUrl: resolved.posterUrl,
+        };
+      }
+
       if (item.type === 'video' && !isAbsoluteHttpUrl(item.id)) {
         try {
+          // Two sizes, because the surfaces differ by an order of magnitude: a
+          // ~130px grid cell versus a full-width player. See the MEDIA_VARIANT_*
+          // block in `@mention/shared-types` for the sizing rationale.
+          const thumbUrl = getServiceOxyClient().getFileDownloadUrl(item.id, MEDIA_VARIANT_VIDEO_THUMB);
           const posterUrl = getServiceOxyClient().getFileDownloadUrl(item.id, MEDIA_VARIANT_VIDEO_POSTER);
           // Adaptive-bitrate HLS master playlist. NOT guaranteed to exist yet
           // (background transcode is fire-and-forget on upload) — the frontend
@@ -401,7 +426,7 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
             ...altField,
             ...geometry,
             url: resolved.url || undefined,
-            thumbUrl: posterUrl,
+            thumbUrl,
             posterUrl,
             hlsUrl,
           };

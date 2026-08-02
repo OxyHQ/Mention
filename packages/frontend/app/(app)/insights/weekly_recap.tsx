@@ -18,7 +18,7 @@ import { insightsService, type AccountInsights } from '@/services/insightsServic
 import { useTranslation } from 'react-i18next';
 import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types/post';
+import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import StatCard from '@/components/insights/StatCard';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { ArticleIcon } from '@/assets/icons/article-icon';
@@ -323,7 +323,7 @@ const WeeklyRecapScreen: React.FC = () => {
                     <Avatar
                         source={avatarUri}
                         size={72}
-                        variant={MEDIA_VARIANT_VIDEO_POSTER}
+                        variant={MEDIA_VARIANT_AVATAR_LG}
                     />
                     <Text className="text-2xl font-bold mt-4 mb-2 text-foreground" style={{ letterSpacing: -0.3 }}>
                         {t('insights.weeklyRecap.pageTitle')}
