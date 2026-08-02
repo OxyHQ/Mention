@@ -275,13 +275,27 @@ async function survivingPostIds(ids: string[]): Promise<string[]> {
   return rows.map((row) => row.id).sort();
 }
 
-function makeActor(oxyUserId: string | undefined = OWNER): ActorRow {
+function makeActor(): ActorRow {
   return {
     id: `actor-${scope.name}`,
     uri: ACTOR_URI,
     acct: `ghost@${scope.name}.test`,
-    oxyUserId,
+    oxyUserId: OWNER,
   };
+}
+
+/**
+ * A legacy anchor with no linked Oxy identity.
+ *
+ * A separate builder rather than `makeActor(undefined)`: a default parameter
+ * treats an explicitly-passed `undefined` as absent, so that spelling silently
+ * produces the OWNED actor and the test passes for the wrong reason (measured —
+ * it did).
+ */
+function makeOwnerlessActor(): ActorRow {
+  const actor = makeActor();
+  delete actor.oxyUserId;
+  return actor;
 }
 
 /** Run the one-shot with the given argv flags (default: a live run). */
@@ -491,7 +505,7 @@ describe('purgeGoneFederatedActors', () => {
   });
 
   it('purges an owner-less legacy row: uri-keyed refs + anchor, with no Oxy identity call', async () => {
-    h.state.actors = [makeActor(undefined)];
+    h.state.actors = [makeOwnerlessActor()];
 
     await run();
 
@@ -549,7 +563,6 @@ describe('purgeGoneFederatedActors', () => {
  */
 describe('purgeGoneFederatedActors — Postgres rows the cascade leaves behind', () => {
   it('removes the purged actor’s own likes', async () => {
-    const { likes } = await import('../../db/schema/engagement');
     h.state.actors = [makeActor()];
     const graph = await seedPostGraph();
     await getDb().insert(likes).values({ userId: OWNER, postId: graph.bystander });
@@ -563,8 +576,3 @@ describe('purgeGoneFederatedActors — Postgres rows the cascade leaves behind',
     expect(remaining).toEqual([]);
   });
 });
-
-// `track` is re-exported by the fixtures for suites that let PRODUCTION code
-// create posts; this suite seeds every row itself, so referencing it here keeps
-// the import list honest about what is used.
-void track;
