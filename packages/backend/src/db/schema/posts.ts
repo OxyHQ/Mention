@@ -143,6 +143,35 @@ export const posts = pgTable(
      */
     oxyUserId: text(),
 
+    /**
+     * The PERSON who wrote this post, when the post's author is a channel
+     * account rather than a human.
+     *
+     * A channel is becoming a real Oxy account, so `oxy_user_id` and
+     * `post_authorships` will hold the CHANNEL. That leaves the writer with
+     * nowhere else on the row — and Mention still needs them: a channel whose
+     * `signPosts` is on renders a "by <writer>" line beneath the channel's
+     * byline.
+     *
+     * **It is its own column and must NEVER become a `post_authorships` row.**
+     * That looks like tidying and breaks two things, both load-bearing:
+     *
+     *  - `getHeaderAuthorshipEntries` (`utils/postAuthorship`) would render the
+     *    writer as a CO-AUTHOR, so the DTO would name the person a channel with
+     *    `signPosts: false` exists to keep anonymous.
+     *  - `authorFeedSql` matches through `post_authorships`, so the post would
+     *    reappear on the writer's OWN profile — exactly what the
+     *    `channel_id is null` exclusion is there to prevent. Kept out, that
+     *    clause can eventually be deleted; put in, it has to stay forever.
+     *
+     * Both properties are pinned against real rows in
+     * `__tests__/models/channelAccountSchema.test.ts`.
+     *
+     * No index: nothing reads the column yet, and the read it is being added for
+     * takes a post the caller already holds and resolves its writer by id.
+     */
+    writtenByOxyUserId: text(),
+
     type: text({ enum: POST_TYPES }).notNull().default('text'),
     visibility: text({ enum: POST_VISIBILITIES }).notNull().default('public'),
     status: text({ enum: POST_STATUSES }).notNull().default('published'),

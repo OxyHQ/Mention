@@ -92,6 +92,13 @@
       "when": 1785710778445,
       "tag": "0012_channel_posts_survive_their_channel",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1785712317420,
+      "tag": "0013_channel_account_writer",
+      "breakpoints": true
     }
   ]
 }

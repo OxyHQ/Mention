@@ -179,6 +179,12 @@ export interface PostRecord {
    * The author's own lane for this post — a LENS. Purely local curation: it
    * never changes distribution, visibility, replies or federation.
    */
+  /**
+   * The person who wrote a CHANNEL post. Never a `post_authorships` entry — see
+   * the column's own note in `db/schema/posts.ts` for what that would break.
+   */
+  writtenByOxyUserId: string | null;
+
   laneId: string | null;
   /**
    * The channel this post was published TO — a DESTINATION, and the opposite of
@@ -272,6 +278,7 @@ export interface PostRecordInput {
   parentPostId?: string | null;
   threadId?: string | null;
   scheduledFor?: Date | null;
+  writtenByOxyUserId?: string | null;
   laneId?: string | null;
   channelId?: string | null;
   content: StoredPostContent;

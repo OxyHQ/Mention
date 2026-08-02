@@ -50,7 +50,7 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 import { reportFeedInteraction } from '@/utils/feedTelemetry';
 import { formatFullTimestamp } from '@/utils/dateUtils';
 import { displayNameOrHandle } from '@/utils/displayName';
-import { postAcceptsReplies } from '@/utils/postReplies';
+import { postAcceptsReplies, reportableReplyPermission } from '@/utils/postReplies';
 import { resolveReplyContextRow } from '@/utils/replyContextRow';
 
 // Lazy load modals/sheets only when the user opens them.
@@ -999,8 +999,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         boosts={engagementSummary?.boosts}
                         quotes={metadata.quotesDisabled ? null : engagementSummary?.quotes}
                         saves={engagementSummary?.saves}
-                        replyPermission={metadata.replyPermission}
-                        repliesDisabled={!postAcceptsReplies(viewPost)}
+                        replyPermission={reportableReplyPermission(viewPost)}
                         quotesDisabled={metadata.quotesDisabled}
                         postId={viewPostId}
                         onLikesPress={openLikesList}

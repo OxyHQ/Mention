@@ -457,6 +457,12 @@ const userSettingsPlan: CollectionPlan = {
           profileMinimalistMode: bool(doc, 'profileCustomization.minimalistMode') ?? false,
           ...profileMediaColumns(doc, settingsId),
 
+          // NULL when the subdocument is absent, which is the whole point: its
+          // absence is what says this account is not a channel. `bool()` returns
+          // null for a missing path, so no `?? false` here — that would migrate
+          // every person's settings as a channel that does not sign.
+          channelAccountSignPosts: bool(doc, 'channelAccount.signPosts'),
+
           interestTags: strArray(doc, 'interests.tags'),
 
           feedDiversityEnabled: bool(doc, 'feedSettings.diversity.enabled') ?? true,

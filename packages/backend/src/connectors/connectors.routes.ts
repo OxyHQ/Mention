@@ -24,10 +24,11 @@ import { CHRONO_DESC, findPostRecords } from '../db/posts/postRepository';
 import { FEDERATION_BLOCKS, FEDERATION_ENABLED } from './activitypub/constants';
 import { ATPROTO_ENABLED, isDid, isAtUri, isAtprotoHandle } from './atproto/constants';
 import { activityIdUnderActor, normalizeFederatedAcct } from './activitypub/helpers';
+import { upstreamProfileUrlCandidates } from './activitypub/upstreamProfileUrl';
 import { isAbsoluteHttpUrl } from './shared/url';
 import { connectorRegistry } from './index';
 import { classifyQuery } from './resolve';
-import type { NetworkConnector } from '@oxyhq/federation';
+import type { NetworkConnector, NormalizedExternalActor } from '@oxyhq/federation';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
 import { apiRateLimiter } from '../middleware/rateLimiter';
@@ -86,9 +87,17 @@ const LOCAL_USERNAME_RE = /^@?[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,62}$/;
 
 /**
  * A `/resolve` query: an external identifier the connectors resolve (AP acct /
- * atproto handle / DID / AT-URI) OR a bare local username. Rejecting everything
- * else (whitespace, URL schemes, path/query chars) keeps junk out of the
- * downstream network dispatch (XRPC / WebFinger / `https://<handle>/...` / DNS).
+ * atproto handle / DID / AT-URI), a bare local username, or a pasted profile URL.
+ * Rejecting everything else (whitespace, path/query chars on a bare handle) keeps
+ * junk out of the downstream network dispatch (XRPC / WebFinger /
+ * `https://<handle>/...` / DNS).
+ *
+ * A URL is admitted here as a SHAPE and nowhere near that dispatch: the handler
+ * routes one down its own lane, which derives bridge accts from our committed
+ * policy and 404s a URL it does not recognise. So a pasted URL is never fetched,
+ * never classified as a handle, and never reaches a connector — the property this
+ * refine used to hold by rejecting the whole shape now lives one layer down,
+ * where it can state which hosts are allowed rather than only that none are.
  */
 function isResolvableQuery(value: string): boolean {
   return (
@@ -96,6 +105,7 @@ function isResolvableQuery(value: string): boolean {
     || isAtprotoHandle(value)
     || isDid(value)
     || isAtUri(value)
+    || isAbsoluteHttpUrl(value)
     || LOCAL_USERNAME_RE.test(value)
   );
 }
@@ -237,12 +247,53 @@ router.get('/blocked-domains', (_req: AuthRequest, res: Response) => {
 });
 
 /**
+ * Resolve a pasted upstream profile URL (`https://x.com/elonmusk`) through the
+ * bridges that republish that network, or `null`.
+ *
+ * The URL itself is NEVER fetched — see `activitypub/upstreamProfileUrl`. Every
+ * host contacted here comes from our own committed bridge policy, and the pasted
+ * value only ever contributes the handle inside a derived acct.
+ *
+ * Candidates are tried in policy order and the FIRST that answers wins: the
+ * response carries one actor, and ingesting the same person from a second bridge
+ * would change nothing about which Oxy identity they end up under (the
+ * duplicate-identity merge collapses copies onto one), so it would buy an extra
+ * round trip per paste and nothing else.
+ *
+ * A resolved actor is kept only if it re-labelled onto the identity the URL
+ * names. `<handle>@<bridge-host>` is a derivation from how each bridge names its
+ * mirrors, not something the actor asserts, so an actor that turns out to be
+ * somebody else — the bridge operator's own account, most obviously — is dropped
+ * rather than shown as the account that was pasted.
+ */
+async function resolveThroughBridges(rawUrl: string): Promise<NormalizedExternalActor | null> {
+  for (const candidate of upstreamProfileUrlCandidates(rawUrl)) {
+    // Sequential on purpose: the first answer ends the search, so fanning out
+    // would fetch from bridges whose answer is already unnecessary.
+    // eslint-disable-next-line no-await-in-loop
+    const actor = await connectorRegistry.resolve(candidate.acct);
+    if (!actor) continue;
+    if (actor.federatedUsername === candidate.expectedFederatedUsername) return actor;
+    logger.info('[Connectors] bridge answered for a different account than the pasted URL names', {
+      bridgeHost: candidate.bridgeHost,
+      expected: candidate.expectedFederatedUsername,
+      resolved: actor.federatedUsername,
+    });
+  }
+  return null;
+}
+
+/**
  * GET /federation/resolve?handle=...
  *
  * Unified cross-network handle resolution. Classifies the query (ActivityPub /
  * atproto / local), dispatches to the connector that owns it, and returns a
  * normalized actor card with the Oxy user it maps to plus the viewer's follow
  * state. Local Oxy handles are out of scope here (resolved by Oxy `/profiles`).
+ *
+ * A pasted profile URL takes its own lane BEFORE classification: it names an
+ * account on a network we reach only through a bridge, so there is no handle to
+ * classify and nothing a connector could be handed directly.
  */
 router.get('/resolve', async (req: AuthRequest, res: Response) => {
   if (!requireAnyConnector(res)) return;
@@ -250,13 +301,16 @@ router.get('/resolve', async (req: AuthRequest, res: Response) => {
   const parsed = resolveQuerySchema.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
 
-  const network = classifyQuery(parsed.data.handle);
-  if (network === 'local') {
+  const query = parsed.data.handle;
+  const isPastedUrl = isAbsoluteHttpUrl(query);
+  if (!isPastedUrl && classifyQuery(query) === 'local') {
     return res.status(404).json({ error: 'Not an external handle' });
   }
 
   try {
-    const actor = await connectorRegistry.resolve(parsed.data.handle);
+    const actor = isPastedUrl
+      ? await resolveThroughBridges(query)
+      : await connectorRegistry.resolve(query);
     if (!actor) return res.status(404).json({ error: 'Actor not found' });
 
     // Follow state for the (optional) viewer — keyed on the actor's protocol id.

@@ -28,6 +28,7 @@ import { emitTrendsUpdated } from '../utils/socket';
 import { aliaChat, isAliaEnabled } from '../utils/alia';
 import { topicService } from './TopicService';
 import { isNsfwHashtag } from './contentClassification/nsfw';
+import { isTopicSlug } from './contentClassification/taxonomy';
 import { isTrendStopWord } from './trending/termExtraction';
 import { trendCandidateUnionSql, trendTermMatchSql } from './trending/termSpace';
 import {
@@ -721,48 +722,97 @@ class TrendingService {
     termsSql: SQL,
     membersOf: ReadonlyMap<string, string[]>,
   ): Promise<TermCandidate[]> {
-    const { minVolume, maxActors } = MtnConfig.trending.detection;
+    const { minVolume, maxActors, authorPostCap } = MtnConfig.trending.detection;
 
-    const rows = await getDb()
-      .select({
-        term: sql<string>`trend_term.term`,
-        volume: sql`count(*)`.mapWith(Number),
-        recentVolume: sql`count(*) filter (where ${gte(posts.createdAt, recentStart)})`.mapWith(Number),
-        hashtagVolume: sql`count(*) filter (where ${posts.hashtags} @> array[trend_term.term]::text[])`.mapWith(Number),
-        topicVolume: sql`count(*) filter (where ${posts.classificationTopics} @> array[trend_term.term]::text[])`.mapWith(Number),
-        authorCount: sql`count(distinct ${posts.oxyUserId})`.mapWith(Number),
-        actorIds: sql<string[]>`(array_agg(distinct ${posts.oxyUserId}) filter (where ${posts.oxyUserId} is not null))[1:${sql.raw(String(maxActors))}]`,
-        languages: sql<string[]>`coalesce(array_agg(distinct ${posts.language}) filter (where ${posts.language} is not null), array[]::text[])`,
-        // Coarse region, where the classifier resolved one. Sparse by design,
-        // which is why the graph's region filter is built from what the data
-        // actually contains rather than from a fixed list.
-        regions: sql<string[]>`coalesce(array_agg(distinct ${posts.classificationRegion}) filter (where ${posts.classificationRegion} is not null), array[]::text[])`,
-      })
-      .from(posts)
-      // `select distinct` inside the lateral, not a bare `unnest`.
-      //
-      // The union is a CONCATENATION of arrays, so a post carrying the term BOTH
-      // as a hashtag and as an extracted term unnests twice and is counted twice
-      // — inflating that term's volume, its author set and its burst score
-      // against every term that appears once per post. What a reader would have
-      // seen is a term trending because one post mentioned it twice. Mongo's
-      // `$setUnion` deduplicated per document and this is where that property
-      // lives now; `distinct` is doing the work `$setUnion` did, not tidying a
-      // query. It is what makes the CLUSTERED expression safe too: mapping
-      // `Kyiv` onto `Ukraine` yields the representative twice for a post that
-      // said both, and that one post must count once against the story.
-      .innerJoin(
-        sql`lateral (select distinct unnest(${termsSql}) as term) as trend_term`,
-        sql`true`,
+    // TWO grouping levels, because volume is per-AUTHOR-capped: a term's volume
+    // is assembled from what each author contributed, not from a flat post
+    // count. `expanded` is the shared scan both levels read, so the corpus is
+    // walked ONCE rather than once per level.
+    const rows = await getDb().execute<{
+      term: string;
+      volume: number;
+      recentVolume: number;
+      hashtagVolume: number;
+      topicVolume: number;
+      authorCount: number;
+      actorIds: string[] | null;
+      languages: string[] | null;
+      regions: string[] | null;
+    }>(sql`
+      with expanded as (
+        select
+          trend_term.term as term,
+          ${posts.oxyUserId} as author,
+          ${posts.createdAt} as created_at,
+          ${posts.language} as language,
+          ${posts.classificationRegion} as region,
+          ${posts.hashtags} as hashtags,
+          ${posts.classificationTopics} as topics
+        from ${posts}
+        -- select distinct inside the lateral, not a bare unnest.
+        --
+        -- The union is a CONCATENATION of arrays, so a post carrying the term
+        -- BOTH as a hashtag and as an extracted term unnests twice and is
+        -- counted twice — inflating that term's volume, its author set and its
+        -- burst score against every term that appears once per post. What a
+        -- reader would have seen is a term trending because one post mentioned
+        -- it twice. Mongo's $setUnion deduplicated per document and this is
+        -- where that property lives now. It is what makes the CLUSTERED
+        -- expression safe too: mapping Kyiv onto Ukraine yields the
+        -- representative twice for a post that said both, and that one post
+        -- must count once against the story.
+        join lateral (select distinct unnest(${termsSql}) as term) as trend_term on true
+        -- The SAME predicate value the corpus count used, not a copy of it: the
+        -- share-of-corpus ratio is only meaningful when numerator and
+        -- denominator are drawn from one population, and two spellings of "the
+        -- same match" is how they stop being.
+        where ${windowMatch}
+      ),
+      per_author as (
+        select
+          term,
+          author,
+          count(*) as posts,
+          -- The instant is passed as an ISO string with an explicit cast, not
+          -- as a JS Date. db.execute hands a raw template parameter straight
+          -- to postgres.js without the column type drizzle's own builder
+          -- attaches, and a Date there throws ERR_INVALID_ARG_TYPE at
+          -- serialization rather than failing as SQL.
+          count(*) filter (where created_at >= ${recentStart.toISOString()}::timestamptz) as recent_posts
+        from expanded
+        group by term, author
+      ),
+      capped as (
+        select
+          term,
+          -- Each author counted at most authorPostCap times, so volume
+          -- measures how WIDELY a term is being said rather than how much. The
+          -- bot that posts twenty contributes two, and the volume floor then
+          -- measures breadth without anything having to be identified as a bot.
+          sum(least(posts, ${authorPostCap}))::int as volume,
+          sum(least(recent_posts, ${authorPostCap}))::int as recent_volume
+        from per_author
+        group by term
       )
-      // The SAME predicate value the corpus count used, not a copy of it: the
-      // share-of-corpus ratio is only meaningful when numerator and denominator
-      // are drawn from one population, and two spellings of "the same match" is
-      // how they stop being.
-      .where(windowMatch)
-      .groupBy(sql`trend_term.term`)
-      // Cheapest possible narrowing before anything per-term runs.
-      .having(sql`count(*) >= ${minVolume}`);
+      select
+        e.term as "term",
+        c.volume as "volume",
+        c.recent_volume as "recentVolume",
+        -- Provenance is NOT capped: it only decides the row's type, and the
+        -- question there is how the term was written, not by how many.
+        (count(*) filter (where e.hashtags @> array[e.term]::text[]))::int as "hashtagVolume",
+        (count(*) filter (where e.topics @> array[e.term]::text[]))::int as "topicVolume",
+        (count(distinct e.author))::int as "authorCount",
+        (array_agg(distinct e.author) filter (where e.author is not null))[1:${sql.raw(String(maxActors))}] as "actorIds",
+        coalesce(array_agg(distinct e.language) filter (where e.language is not null), array[]::text[]) as "languages",
+        coalesce(array_agg(distinct e.region) filter (where e.region is not null), array[]::text[]) as "regions"
+      from expanded e
+      join capped c on c.term = e.term
+      group by e.term, c.volume, c.recent_volume
+      -- Cheapest possible narrowing, against the CAPPED volume — the number the
+      -- floor is meant to be about.
+      having c.volume >= ${minVolume}
+    `);
 
     return rows
       // Blocklisted NSFW/adult terms never trend, whatever their numbers.
@@ -779,6 +829,17 @@ class TrendingService {
       // The extraction-time filter still earns its place: it keeps the stored
       // arrays and their index small. This is the one that decides.
       .filter((row) => !isTrendStopWord(row.term))
+      // A term that IS one of our own category names is a shelf label, not a
+      // thing on the shelf. `classification_topics` stopped proposing
+      // candidates for exactly this reason, but the same words also arrive as
+      // hashtags an author typed — `#news` reached the live list with fifteen
+      // authors and named a row "News · News" — so the rule belongs on the term
+      // itself rather than on one of the fields it can travel in.
+      //
+      // Not a word list: it is the taxonomy already maintained for labelling,
+      // read as a stop-list for candidacy. A category gained or renamed there
+      // changes this with it.
+      .filter((row) => !isTopicSlug(row.term))
       .map((row) => {
         const languages = row.languages ?? [];
         const corpus = corpusSizeFor(languages, corpusByLanguage);

@@ -263,21 +263,55 @@ describe('aggregateTermCandidates — ONE term space', () => {
 });
 
 describe('aggregateTermCandidates — authors are people, not posts', () => {
-  it('counts DISTINCT authors rather than posts', async () => {
+  it('DISCOUNTS one loud author instead of counting their posts', async () => {
     /**
-     * The floor is applied to this number, and posts are the thing one account
-     * can manufacture: fifty posts from one author is not a trend, and counting
+     * The floor is applied to volume, and posts are the thing one account can
+     * manufacture: fifty posts from one author is not a trend, and counting
      * posts alone made that indistinguishable from fifty people agreeing.
+     *
+     * Every author now counts at most `authorPostCap` times, so this term's
+     * volume is 2 however many times the one account said it — below the floor,
+     * so it never becomes a candidate at all. Nothing has to be identified as a
+     * bot for that to work, which is the whole point of discounting rather than
+     * refusing.
      */
     const shouty = term('shouty');
     for (let i = 0; i < MIN_VOLUME + 2; i += 1) {
       await seedPost({ trendTerms: [shouty], oxyUserId: `one-author-${RUN}` });
     }
 
-    const [candidate] = await candidatesFor([shouty]);
+    expect(await candidatesFor([shouty])).toEqual([]);
+  });
+
+  it('CONTROL: the same post count spread across authors DOES clear the floor', async () => {
+    // The discriminating pair. Same number of posts as the case above, the only
+    // difference being how many people said it — which is exactly what volume is
+    // now measuring.
+    const widely = term('widely');
+    for (let i = 0; i < MIN_VOLUME + 2; i += 1) {
+      await seedPost({ trendTerms: [widely], oxyUserId: `spread-${RUN}-${i}` });
+    }
+
+    const [candidate] = await candidatesFor([widely]);
 
     expect(candidate.measurement.volume).toBe(MIN_VOLUME + 2);
-    expect(candidate.measurement.authorCount).toBe(1);
+    expect(candidate.measurement.authorCount).toBe(MIN_VOLUME + 2);
+  });
+
+  it('counts an author TWICE, not once — saying something twice is ordinary', async () => {
+    // The cap is 2 rather than 1 deliberately: at 1 the volume floor would be a
+    // second copy of `minAuthors`, and a person repeating themselves carries
+    // real signal about what they are engaged with.
+    const twice = term('twice');
+    for (let i = 0; i < 2; i += 1) {
+      await seedPost({ trendTerms: [twice], oxyUserId: `pair-a-${RUN}` });
+      await seedPost({ trendTerms: [twice], oxyUserId: `pair-b-${RUN}` });
+    }
+
+    const [candidate] = await candidatesFor([twice]);
+
+    expect(candidate.measurement.volume).toBe(4);
+    expect(candidate.measurement.authorCount).toBe(2);
   });
 
   it('does not let orphan posts with no author inflate the author count', async () => {
@@ -292,7 +326,10 @@ describe('aggregateTermCandidates — authors are people, not posts', () => {
 
     const [candidate] = await candidatesFor([orphaned]);
 
-    expect(candidate.measurement.volume).toBe(MIN_VOLUME + 2);
+    // Volume 4: one from each real author, plus the orphans capped at 2 — they
+    // share a single NULL author group, so a flood of authorless posts cannot
+    // walk past the floor either.
+    expect(candidate.measurement.volume).toBe(MIN_VOLUME);
     expect(candidate.measurement.authorCount).toBe(2);
     expect(candidate.actorIds).toHaveLength(2);
   });

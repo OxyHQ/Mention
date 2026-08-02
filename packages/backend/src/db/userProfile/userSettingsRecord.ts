@@ -166,6 +166,29 @@ export interface FeedSettings {
   };
 }
 
+/**
+ * Settings that apply only when the account these settings belong to IS a
+ * channel.
+ *
+ * A channel is becoming a real Oxy account, and settings are keyed on
+ * `oxy_user_id` — which a channel account has — so this is the one place a
+ * per-channel preference can live. It cannot live in Oxy: Oxy owns identity and
+ * has no concept of signing a post, and Mention-owned settings do not belong
+ * there.
+ */
+export interface ChannelAccountSettings {
+  /**
+   * Whether a post published by this channel also NAMES the person who wrote it
+   * (rendered as a "by <writer>" line beneath the channel's byline; the writer
+   * itself is stored on `posts.written_by_oxy_user_id`).
+   *
+   * `false` is the default, matching `channels.sign_posts` — a channel post is
+   * anonymous behind the channel unless its owner says otherwise. Getting the
+   * default backwards would publish every writer's identity by omission.
+   */
+  signPosts: boolean;
+}
+
 /** A user's settings, assembled. */
 export interface UserSettingsRecord {
   oxyUserId: string;
@@ -173,6 +196,12 @@ export interface UserSettingsRecord {
   profileHeaderImage?: string;
   privacy: PrivacySettings;
   profileCustomization: ProfileCustomization;
+  /**
+   * ABSENT unless this account is a channel — the presence of the object is
+   * what distinguishes a channel account from a person, exactly as the absent
+   * Mongo subdocument did. See `channel_account_sign_posts` in the schema.
+   */
+  channelAccount?: ChannelAccountSettings;
   interests?: InterestsSettings;
   feedSettings: FeedSettings;
   /**
