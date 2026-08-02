@@ -135,6 +135,17 @@ export const FEDERATION_BLOCK_POLICY: readonly FederationBlockPolicyEntry[] = []
  * Under the fix-upstream rule the resolution is for the engine to export
  * `canonicalDomainHost` and for this to be deleted, not for the copy to be
  * maintained.
+ *
+ * The two possible drifts are NOT equally dangerous, and the asymmetry is worth
+ * knowing before anyone weighs that work. `createDomainPolicy` re-canonicalises
+ * whatever domains it is handed, and `constants.ts` hands it this module's
+ * output — so if the ENGINE later normalises more than this does, enforcement
+ * widens while the purge does not, and we refuse content we have not deleted.
+ * Inconsistent, but recoverable. The unrecoverable direction is the reverse: for
+ * MENTION's copy to normalise more than the engine's, which makes the purge
+ * delete content for a block that was never in force at the wire. That was a
+ * real bug here — a trailing-dot strip — and it is now pinned by a test that
+ * drives the engine rather than a fixture.
  */
 export function canonicalBlockedDomain(domain: string): string {
   const value = domain.trim().toLowerCase();
