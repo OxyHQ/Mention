@@ -115,8 +115,17 @@ export const FEDERATION_BLOCK_POLICY: readonly FederationBlockPolicyEntry[] = []
  * which is what actually compares an incoming host against the blocked set. The
  * two agreeing is not left to inspection — the enforcement test blocks a domain
  * through this module and asserts the ENGINE rejects it.
+ *
+ * Note what it does NOT do: it does not strip a trailing dot. `example.com.` is
+ * a different string from `example.com` here and in the engine alike, so it
+ * matches nothing — which is the safe outcome, and the committed policy's shape
+ * gate rejects it anyway. Exported so that every consumer comparing a host
+ * against this policy uses THIS function: a second canonicaliser that stripped
+ * the dot would decide a host was blocked when the engine had not, and for a
+ * consumer whose action is irreversible that difference is content deleted for a
+ * domain we never actually blocked.
  */
-function canonicalBlockedDomain(domain: string): string {
+export function canonicalBlockedDomain(domain: string): string {
   const value = domain.trim().toLowerCase();
   return value.startsWith('www.') ? value.slice(4) : value;
 }
