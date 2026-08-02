@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FeedPostSlice, HydratedPost } from '@mention/shared-types';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
 
@@ -50,32 +50,13 @@ vi.mock('../../utils/privacyHelpers', () => ({
       : [],
 }));
 
-function chainable(rows: unknown[] | null) {
-  const q: Record<string, unknown> = {};
-  for (const m of ['select', 'sort', 'limit', 'maxTimeMS']) {
-    q[m] = () => q;
-  }
-  q.lean = async () => rows;
-  return q;
-}
-
-vi.mock('../../models/Post', () => ({
-  Post: { find: () => chainable([]), findOne: () => chainable(null) },
-}));
-vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/UserSettings', () => ({
-  UserSettings: { find: () => chainable([]), findOne: () => chainable(null) },
-}));
-vi.mock('../../models/FederatedActor', () => ({
-  FederatedActor: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
-  default: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
-}));
-vi.mock('../../models/StarterPack', () => ({
-  StarterPack: { aggregate: async () => [] },
-  default: { aggregate: async () => [] },
-}));
+/**
+ * The slice's POSTS are supplied by the caller, so this suite hands `hydrateSlices`
+ * exactly the two rows it is about and nothing has to be seeded. Everything
+ * hydration reads BESIDE them — viewer likes and bookmarks, author privacy
+ * settings, polls, quote counts — is Postgres, so the connection is a
+ * prerequisite even though those tables stay empty.
+ */
 
 const cacheStore = new Map<string, CachedUserSummary>();
 vi.mock('../../services/userSummaryCache', () => ({
@@ -92,12 +73,21 @@ vi.mock('../../services/userSummaryCache', () => ({
   }),
 }));
 
+import { closePostgres, connectPostgres } from '../../db/postgres';
 import { PostHydrationService } from '../../services/PostHydrationService';
 
 interface PostRowOverrides {
   status?: string;
   visibility?: string;
 }
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
 
 function makePostRow(id: string, authorId: string, overrides: PostRowOverrides = {}) {
   return {
@@ -113,6 +103,11 @@ function makePostRow(id: string, authorId: string, overrides: PostRowOverrides =
     status: overrides.status ?? 'published',
     hashtags: [],
     mentions: [],
+    // The STORED discriminator, which is what both reply-context carriers read.
+    // Absent it, `buildReplyParentAuthorMap` skips the row and the header names
+    // nobody — the failure would look like an ACL decision rather than a fixture
+    // missing a column.
+    isReply: false,
   };
 }
 
@@ -123,7 +118,7 @@ function makePostRow(id: string, authorId: string, overrides: PostRowOverrides =
  */
 function makeReplyContextSlice(parentOverrides: PostRowOverrides = {}): FeedPostSlice {
   const parent = makePostRow(PARENT_ID, PARENT_AUTHOR_ID, parentOverrides);
-  const reply = { ...makePostRow(REPLY_ID, REPLY_AUTHOR_ID), parentPostId: PARENT_ID };
+  const reply = { ...makePostRow(REPLY_ID, REPLY_AUTHOR_ID), parentPostId: PARENT_ID, isReply: true };
 
   return {
     _sliceKey: `${PARENT_ID}+${REPLY_ID}`,

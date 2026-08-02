@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Scheduling a batch, in either composer mode.
@@ -41,24 +41,37 @@ vi.mock('../../utils/notificationUtils', async (importOriginal) => ({
   createMentionNotifications: hoisted.createMentionNotifications,
 }));
 
-import { Post } from '../../models/Post';
+import { uuidv7 } from '../../db/schema/columns';
 
+/**
+ * A PLAIN record, not a Mongoose document.
+ *
+ * `PostCreationService.create` returns a `PostRecord` now, and the controller
+ * SPREADS what it gets back (`{ ...post, threadId: post.id }`) to anchor a
+ * self-thread root. Spreading a Mongoose document copies the wrapper's own
+ * enumerable properties and NOT the schema fields, so a document double loses
+ * `content` at exactly that line — a 500 the controller logs and discards.
+ */
 vi.mock('../../services/PostCreationService', () => ({
   postCreationService: {
-    create: hoisted.create.mockImplementation(async (params: Record<string, unknown>) => {
-      const post = new Post({
-        oxyUserId: params.oxyUserId,
-        content: params.content,
-        mentions: params.mentions,
-        visibility: params.visibility,
-        ...(params.status ? { status: params.status } : {}),
-        ...(params.scheduledFor ? { scheduledFor: params.scheduledFor } : {}),
-      });
-      return post;
-    }),
+    create: hoisted.create.mockImplementation(async (params: Record<string, unknown>) => ({
+      id: uuidv7(),
+      oxyUserId: params.oxyUserId,
+      authorship: [],
+      content: params.content,
+      mentions: params.mentions ?? [],
+      hashtags: [],
+      visibility: params.visibility,
+      status: params.status ?? 'published',
+      metadata: {},
+      parentPostId: params.parentPostId ?? null,
+      threadId: params.threadId ?? null,
+      ...(params.scheduledFor ? { scheduledFor: params.scheduledFor } : {}),
+    })),
   },
 }));
 
+import { closePostgres, connectPostgres } from '../../db/postgres';
 import { createThread } from '../../controllers/posts.controller';
 
 const FUTURE = new Date(Date.now() + 60 * 60 * 1000).toISOString();
@@ -106,9 +119,20 @@ function creationSchedules() {
 }
 
 describe('createThread — scheduling a beast batch', () => {
+  // A self-thread ROOT is anchored with a real `updatePostRecord` — the thread
+  // marker is the one write this controller still makes itself, and mocking it
+  // would leave the thread branch untested. The seeded posts here are doubles,
+  // so the update simply matches no row; the connection is what it needs.
+  beforeAll(async () => {
+    await connectPostgres();
+  });
+
+  afterAll(async () => {
+    await closePostgres();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(Post.prototype, 'save').mockResolvedValue(undefined as never);
   });
 
   afterEach(() => {
@@ -194,7 +218,6 @@ describe('createThread — scheduling a beast batch', () => {
 describe('createThread — a scheduled batch stays invisible until it publishes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(Post.prototype, 'save').mockResolvedValue(undefined as never);
   });
 
   afterEach(() => {

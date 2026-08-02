@@ -48,7 +48,11 @@ vi.mock('../../services/UserPreferenceService', () => ({
   userPreferenceService: { recordInteraction: vi.fn(async () => undefined) },
 }));
 vi.mock('../../services/feedViewCounter', () => ({
-  recordDedupedView: vi.fn(async () => false),
+  // `null` is "no view counted", which is what sends `trackPostView` down the
+  // read-back branch these cases are about. It used to be `false`; the counter
+  // returns the post's new total now, so a falsy-but-not-null value would flow
+  // straight into the response as the count.
+  recordDedupedView: vi.fn(async () => null),
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => undefined),

@@ -210,6 +210,22 @@ function replyLabels(candidates: CandidatePost[]): string[] {
 /** A real parent row, so a local reply's `parent_post_id` satisfies its FK. */
 let parentId = '';
 
+/**
+ * The `inReplyTo` every federated-reply fixture carries, and the activity id of
+ * a real federated post seeded beside them.
+ *
+ * The parent is seeded DELIBERATELY, and not for the FK — `federation_in_reply_to`
+ * has none. An unlinked federated reply is precisely an ORPHAN to
+ * `backfillFederatedThreadLinks`, whose sweep is table-wide and whose
+ * completeness gate fails a run with any unresolved orphan in it. Leaving these
+ * unresolvable would make that suite fail whenever the two files happen to
+ * overlap — a cross-file flake that names the wrong suite. Giving them a
+ * resolvable parent costs this file nothing: the lanes read `is_reply`, which is
+ * stored at insert, and `parent_post_id` is still null at seed time, which is
+ * the state the fixture is about.
+ */
+const FEDERATED_PARENT_URI = 'https://remote.example/notes/foryou-replies-parent';
+
 async function seed(spec: SeedSpec): Promise<void> {
   const extra = (spec.extra ?? {}) as {
     postClassification?: Record<string, unknown>;
@@ -256,7 +272,7 @@ function parentFields(link: ParentLink): Record<string, unknown> {
       return { parentPostId: parentId };
     case 'federatedReply':
       // The shape a bare `parent_post_id` check misses entirely.
-      return { federation: { inReplyTo: 'https://remote.example/notes/9' } };
+      return { federation: { inReplyTo: FEDERATED_PARENT_URI } };
   }
 }
 
@@ -276,6 +292,18 @@ beforeAll(async () => {
   });
   parentId = parent.id;
   createdIds.push(parent.id);
+
+  // The federated replies' `inReplyTo` target — see `FEDERATED_PARENT_URI`.
+  const federatedParent = await insertPostRecord({
+    oxyUserId: null,
+    authorship: [],
+    type: PostType.TEXT,
+    visibility: PostVisibility.PUBLIC,
+    status: 'published',
+    content: { variants: [{ source: 'author', text: 'the federated parent' }] },
+    federation: { activityId: FEDERATED_PARENT_URI, actorUri: 'https://remote.example/users/x' },
+  });
+  createdIds.push(federatedParent.id);
 
   for (const spec of SEEDS) await seed(spec);
 }, 120_000);
@@ -387,8 +415,17 @@ describe('gatherForYouCandidates — the merged pool', () => {
     // The measurement this change exists for. The seeded universe is two thirds
     // replies (above the 47.1% measured in production); the ranked pool that
     // comes out of it is 0%.
+    //
+    // Stated over THIS suite's own labels rather than over `pool.length`, which
+    // is a claim about the whole database: the discovery lanes are global, so a
+    // parallel file's rows legitimately enter the pool and the size is a fact
+    // about how much the run happens to hold. The two assertions that matter —
+    // every root reachable, no reply anywhere — are already exact.
     expect(replyLabels(pool)).toEqual([]);
-    expect(pool.length).toBe(SEEDS.filter((spec) => spec.link === 'root').length);
+    const mine = labels.filter((label) => !label.startsWith('unseeded:'));
+    expect(new Set(mine)).toEqual(
+      new Set(SEEDS.filter((spec) => spec.link === 'root').map((spec) => spec.label)),
+    );
   });
 });
 
