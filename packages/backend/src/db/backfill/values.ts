@@ -404,6 +404,28 @@ export function reqJsonObject(doc: MongoDocument, path: string): Record<string, 
   return value;
 }
 
+/**
+ * A `jsonb` column holding ANY JSON value — object, array or scalar.
+ *
+ * The one case where narrowing to {@link jsonObject} would be WRONG rather than
+ * merely stricter. `moderation_events.payload` and
+ * `moderation_outbox.payload_decision` are declared loose ON PURPOSE (§10.11
+ * makes a published decision document extensible, and the schema says so), so
+ * they hold whatever a newer CrowdSource sent. `jsonb` accepts an array or a
+ * scalar just as readily as an object, and a transform that refused one would
+ * abort a whole run over a document the target column can store perfectly well
+ * — the migration deciding a shape question the schema deliberately left open.
+ *
+ * A `Map` is still converted rather than serialized as `{}` — same hazard as
+ * {@link jsonObject}, for the same reason.
+ */
+export function jsonValue(doc: MongoDocument, path: string): unknown {
+  const value = at(doc, path);
+  if (absent(value)) return null;
+  if (value instanceof Map) return Object.fromEntries(value) as Record<string, unknown>;
+  return value;
+}
+
 /** A `jsonb` column holding an ARRAY. */
 export function jsonArray(doc: MongoDocument, path: string): unknown[] | null {
   const value = at(doc, path);

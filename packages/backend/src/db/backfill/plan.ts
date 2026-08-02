@@ -308,9 +308,26 @@ export function singlePrimaryKeyProperty(table: PgTable): string | null {
   return composite.length === 1 ? (composite[0] ?? null) : null;
 }
 
-/** The allowed values of an enum-backed column, from the column itself. */
+/**
+ * The allowed values of an enum-backed column, from the column itself.
+ *
+ * An ARRAY column carries no `enumValues` of its own — drizzle puts them on the
+ * element type, so `text({ enum: X }).array().enumValues` is `undefined` while
+ * `.baseColumn.enumValues` is `X`. Reading through to the base column is what
+ * lets `reports.categories` be audited at all: its CHECK constrains the
+ * ELEMENTS (`categories <@ array[…]`), and Mongo's `distinct` on an array field
+ * returns the elements too, so the two sides line up exactly. The set is still
+ * READ rather than restated, which is the whole contract of this function.
+ *
+ * What this does NOT cover, and the caller must handle: an array CHECK often
+ * also constrains LENGTH (`array_length(categories, 1) >= 1`). An empty array
+ * contributes no elements to `distinct`, so no audit built on this can see one.
+ */
 export function allowedValues(column: PgColumn): readonly string[] {
-  const values = (column as unknown as { enumValues?: readonly string[] }).enumValues;
+  const self = (column as unknown as { enumValues?: readonly string[] }).enumValues;
+  const base = (column as unknown as { baseColumn?: { enumValues?: readonly string[] } })
+    .baseColumn?.enumValues;
+  const values = self ?? base;
   if (!values || values.length === 0) {
     throw new Error(
       `Column ${column.name} has no enumValues — an EnumAudit on it would ` +
