@@ -274,4 +274,25 @@ describe('transparency page', () => {
     expect(texts).toContain(lookup('transparency.howWeDecide.judgement'));
     expect(texts).toContain(lookup('transparency.howWeDecide.audit'));
   });
+
+  it('says that a block covers the exact server named, and not its subdomains', async () => {
+    mockPublicGet.mockResolvedValue({ data: { blocks: [DOCUMENTED_BLOCK] } });
+
+    const texts = renderedTexts(await renderScreen());
+    const scope = lookup('transparency.whatItDoes.scope');
+
+    // `isBlockedDomain` is exact set membership on the canonical host: blocking
+    // one server does not block anything under it. The page previously read as
+    // though naming an instance covered everything beneath it, which is a
+    // stronger promise than the server keeps. Keeping exact matching is a
+    // deliberate policy — the same one Mastodon applies — so the page has to say
+    // so rather than the engine being quietly widened to match the page.
+    expect(texts).toContain(scope);
+
+    // Asserted on the substance, not the sentence: a reword may change every
+    // word here, but copy that stops naming what is NOT covered has stopped
+    // doing the job this paragraph exists for.
+    expect(scope?.toLowerCase()).toContain('subdomain');
+    expect(scope?.toLowerCase()).toContain('exactly');
+  });
 });

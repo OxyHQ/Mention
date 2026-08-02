@@ -1747,6 +1747,7 @@
       "title": "What a block does",
       "body": "Nothing from a blocked instance reaches Mention. Posts, follows, likes and boosts it sends are refused as they arrive, we stop fetching its accounts and timelines, and its accounts can no longer be found or followed from here.",
       "bluntness": "It applies to a whole site, not to the individual people on it. That is a blunt instrument, so we would rather use it rarely and explain it every time.",
+      "scope": "Each entry names one server and covers exactly that name. A subdomain is a different server — a block on example.com does not extend to social.example.com — so each one is decided on its own and appears here in its own right.",
       "limits": "Worth knowing: a block governs what reaches Mention. Anything you post publicly here stays public and can still be read from anywhere, including the instances on this list."
     },
     "howWeDecide": {

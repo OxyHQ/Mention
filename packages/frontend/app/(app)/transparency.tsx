@@ -154,6 +154,7 @@ export default function TransparencyScreen() {
         <SectionTitle>{t('transparency.whatItDoes.title')}</SectionTitle>
         <Paragraph>{t('transparency.whatItDoes.body')}</Paragraph>
         <Paragraph>{t('transparency.whatItDoes.bluntness')}</Paragraph>
+        <Paragraph>{t('transparency.whatItDoes.scope')}</Paragraph>
         <Paragraph>{t('transparency.whatItDoes.limits')}</Paragraph>
 
         <SectionTitle>{t('transparency.howWeDecide.title')}</SectionTitle>
