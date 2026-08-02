@@ -744,7 +744,17 @@
     "previous": "Previous video",
     "next": "Next video",
     "picture_in_picture": "Picture in Picture",
-    "picture_in_picture_failed": "Couldn't start Picture in Picture"
+    "picture_in_picture_failed": "Couldn't start Picture in Picture",
+    "replies": "Replies",
+    "addComment": "Add a comment...",
+    "like": "Like",
+    "unlike": "Unlike",
+    "comment": "Comment",
+    "boost": "Boost",
+    "unboost": "Undo boost",
+    "save": "Save",
+    "unsave": "Remove from saved",
+    "share": "Share"
   },
   "common": {
     "unknown": "unknown",

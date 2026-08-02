@@ -171,6 +171,22 @@ function buildAuthoredQuery(authorId: string, filter: AuthorFeedFilter, cursor?:
         { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
       ];
       break;
+    case 'videos':
+      // Deliberately NARROWER than `media`: the two video shapes
+      // `videoOnlyFilter.keep` recognizes, and no `content.attachments` branch,
+      // because that predicate has none — including it would fetch posts the
+      // filter then drops, paying for a page that arrives short.
+      query.$and = [
+        {
+          $or: [
+            { type: PostType.VIDEO },
+            { 'content.media': { $elemMatch: { type: 'video' } } },
+          ],
+        },
+        notAReplyClause(),
+        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
+      ];
+      break;
     case 'likes':
       break;
   }

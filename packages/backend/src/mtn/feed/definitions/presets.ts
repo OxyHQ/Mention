@@ -391,8 +391,8 @@ export const savedDefinition: FeedDefinition = {
 };
 
 /**
- * Author feed (the profile feed) — a single author's posts/replies/media/boosts
- * (chronological) or likes (ordered).
+ * Author feed (the profile feed) — a single author's
+ * posts/replies/media/videos/boosts (chronological) or likes (ordered).
  *
  * `hydrateMaxDepth: 1` on every variant is load-bearing: a boost has an
  * intentionally empty body and renders from its embedded `boostOf` original,
@@ -401,7 +401,11 @@ export const savedDefinition: FeedDefinition = {
  */
 export function authorDefinition(authorId: string, filter: AuthorFeedFilter): FeedDefinition {
   const isLikes = filter === 'likes';
-  const filters: ModuleRef[] = filter === 'media' ? [enabled('mediaOnly')] : [];
+  const filters: ModuleRef[] = filter === 'media'
+    ? [enabled('mediaOnly')]
+    : filter === 'videos'
+      ? [enabled('videoOnly')]
+      : [];
   return {
     id: `author|${authorId}${filter === 'posts' ? '' : `|${filter}`}`,
     title: 'Author',

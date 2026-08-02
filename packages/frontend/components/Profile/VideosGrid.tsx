@@ -10,7 +10,7 @@ import { Video } from '@/assets/icons/video-icon';
 import { videoPosterUrl } from '@/utils/imageUrlCache';
 import type { HydratedPostSummary, MediaItem } from '@mention/shared-types';
 import VideoPosterCell from '@/components/common/VideoPosterCell';
-import { isVideoMediaRef } from '@/utils/mediaTypes';
+import { isVideoMediaRef, readMediaDurationSec } from '@/utils/mediaTypes';
 import { useProfileMediaFeed } from './useProfileMediaFeed';
 import { ProfileGridList, type ProfileGridEntry } from './ProfileGridList';
 
@@ -34,6 +34,13 @@ interface VideoGridEntry extends ProfileGridEntry {
      * 404/load error too.
      */
     posterUri?: string;
+    /**
+     * Play count of the post this cell's video came from. Per-POST, so two
+     * videos in one post repeat it.
+     */
+    views?: number | null;
+    /** Duration of THIS item's video, in seconds. Per-item, so per-cell correct. */
+    durationSec?: number;
 }
 
 const VideosGrid: React.FC<VideosGridProps> = ({
@@ -52,11 +59,11 @@ const VideosGrid: React.FC<VideosGridProps> = ({
     const theme = useTheme();
     const { t } = useTranslation();
     const {
-        mediaFeed,
+        primaryFeed,
         postsFeed,
         items,
         loadMore,
-    } = useProfileMediaFeed({ userId, isPrivate, isOwnProfile });
+    } = useProfileMediaFeed({ userId, isPrivate, isOwnProfile, filter: 'videos' });
 
     /**
      * Resolve a static video poster. Prefer the server-resolved final `posterUrl`
@@ -85,10 +92,21 @@ const VideosGrid: React.FC<VideosGridProps> = ({
             media.forEach((ref, idx) => {
                 const key = ref.id || ref.url;
                 if (!key) return;
-                if (!isVideoMediaRef(key, { mediaType: ref.type })) return; // Only include videos
+                // Still per-ITEM even though the `videos` descriptor already
+                // filtered server-side: that filter keeps POSTS, so a post mixing
+                // one photo with one video is a legitimate result whose photo this
+                // grid must drop — and the empty-primary posts fallback below is
+                // unfiltered entirely.
+                if (!isVideoMediaRef(key, { mediaType: ref.type })) return;
                 if (seen.has(key)) return;
                 seen.add(key);
-                out.push({ postId: targetId, posterUri: resolvePosterUri(ref), mediaIndex: idx });
+                out.push({
+                    postId: targetId,
+                    posterUri: resolvePosterUri(ref),
+                    mediaIndex: idx,
+                    views: post.engagement?.views,
+                    durationSec: readMediaDurationSec(ref),
+                });
             });
         };
 
@@ -101,8 +119,8 @@ const VideosGrid: React.FC<VideosGridProps> = ({
     }, [items, resolvePosterUri]);
 
     const isLoading = (
-        (!mediaFeed && !postsFeed) ||
-        mediaFeed?.isLoading ||
+        (!primaryFeed && !postsFeed) ||
+        primaryFeed?.isLoading ||
         postsFeed?.isLoading
     ) && videoItems.length === 0;
 
@@ -117,7 +135,8 @@ const VideosGrid: React.FC<VideosGridProps> = ({
                     posterUri={item.posterUri}
                     size={itemSize}
                     placeholderColor={theme.colors.textSecondary}
-                    badge="corner"
+                    views={item.views}
+                    durationSec={item.durationSec}
                 />
             </TouchableOpacity>
         );

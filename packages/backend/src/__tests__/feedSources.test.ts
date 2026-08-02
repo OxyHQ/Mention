@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import mongoose from 'mongoose';
-import { PostVisibility } from '@mention/shared-types';
+import { PostType, PostVisibility } from '@mention/shared-types';
 import { notAReplyClause } from '../utils/postReply';
 
 /**
@@ -259,6 +259,22 @@ describe('authored source', () => {
     expect(mediaOr).toEqual(['type', 'content.media.0', 'content.attachments']);
   });
 
+  it('videos filter matches the two shapes videoOnly accepts — and NOT attachments', async () => {
+    findRouter = () => [];
+    await authoredSource.gather({ currentUserId: 'viewer' }, { authorId: 'a8b', filter: 'videos' }, 31);
+    const and = findCalls[0].$and as Array<Record<string, unknown>>;
+    const videoOr = and[0].$or as Array<Record<string, unknown>>;
+    // Narrower than `media` on purpose: `videoOnlyFilter.keep` has no
+    // `content.attachments` branch, so a query that fetched those posts would
+    // only be paying for candidates the filter then drops.
+    expect(videoOr.map((c) => Object.keys(c)[0])).toEqual(['type', 'content.media']);
+    expect(videoOr[0]).toEqual({ type: PostType.VIDEO });
+    expect(videoOr[1]).toEqual({ 'content.media': { $elemMatch: { type: 'video' } } });
+    // Same top-level tab shape as `media`: roots only, no boosts.
+    expect(and[1]).toEqual(notAReplyClause());
+    expect(and[2]).toEqual({ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] });
+  });
+
   /**
    * Regression: "a boost disappears from the profile feed".
    *
@@ -274,6 +290,19 @@ describe('authored source', () => {
       findRouter = () => [makePost(9)];
       await authoredSource.gather({ currentUserId: 'viewer' }, { authorId: 'a9', filter: 'posts' }, 31);
       expect(sortCalls[0]).toEqual({ createdAt: -1, _id: -1 });
+    });
+
+    // The filter switch only writes `query.$and`, so the sort lives outside it
+    // and every tab inherits the same axis by construction. Pinned rather than
+    // reasoned about, because a per-tab sort is exactly the change that would
+    // reintroduce the skipped-page boundary on ONE tab and nowhere else.
+    it('sorts on the same axis for every tab, not just posts', async () => {
+      findRouter = () => [makePost(9)];
+      for (const filter of ['replies', 'media', 'videos', 'boosts'] as const) {
+        sortCalls.length = 0;
+        await authoredSource.gather({ currentUserId: 'viewer' }, { authorId: 'a9', filter }, 31);
+        expect(sortCalls[0]).toEqual({ createdAt: -1, _id: -1 });
+      }
     });
 
     it('pages with a compound createdAt keyset, not a bare _id boundary', async () => {

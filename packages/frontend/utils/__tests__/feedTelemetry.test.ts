@@ -14,11 +14,18 @@
  *   5. Teardown flushes early, so navigating away never strands a batch.
  *   6. `resolveFeedDescriptor` maps the feed's type/userId/filters to the same
  *      descriptor the feed is fetched with.
+ *   7. `useFeedImpressionTracker` starts a NEW session — after flushing the old
+ *      one — whenever the descriptor or the reset key changes. The reel is what
+ *      makes this load-bearing: it switches feed (`videos` ↔ `following`) and
+ *      resolves its viewer without ever unmounting.
  *
  * The tracker's only outward effect is `feedService.sendFeedInteractions`, which
  * is mocked so the test never touches the network/SDK layer. `@oxyhq/core/logger` is
  * mocked for the same reason.
  */
+
+import { createElement } from 'react';
+import TestRenderer, { act } from 'react-test-renderer';
 
 import { feedService } from '@/services/feedService';
 import {
@@ -26,6 +33,7 @@ import {
     flushFeedInteractions,
     reportFeedInteraction,
     resolveFeedDescriptor,
+    useFeedImpressionTracker,
 } from '../feedTelemetry';
 
 Object.assign(globalThis, { __DEV__: false });
@@ -270,6 +278,112 @@ describe('FeedImpressionTracker', () => {
         t.setHidden('p1');
         t.dispose();
         expect(mockSendFeedInteractions).not.toHaveBeenCalled();
+    });
+});
+
+describe('useFeedImpressionTracker', () => {
+    // The live tracker of the mounted probe — re-read after every render, since a
+    // session change replaces the instance behind the (stable) ref.
+    let mounted: { current: FeedImpressionTracker } | null = null;
+
+    function Probe({ descriptor, resetKey }: { descriptor: string; resetKey?: string }) {
+        mounted = useFeedImpressionTracker(descriptor, resetKey);
+        return null;
+    }
+
+    function tracker(): FeedImpressionTracker {
+        if (!mounted) throw new Error('no tracker probe mounted');
+        return mounted.current;
+    }
+
+    function mount(descriptor: string, resetKey?: string): TestRenderer.ReactTestRenderer {
+        let created: TestRenderer.ReactTestRenderer | undefined;
+        act(() => {
+            created = TestRenderer.create(createElement(Probe, { descriptor, resetKey }));
+        });
+        if (!created) throw new Error('renderer was not created');
+        return created;
+    }
+
+    beforeEach(() => {
+        jest.useFakeTimers();
+        jest.setSystemTime(0);
+        mockSendFeedInteractions.mockClear();
+        mounted = null;
+    });
+
+    afterEach(() => {
+        flushFeedInteractions();
+        jest.useRealTimers();
+    });
+
+    it('flushes the outgoing session when the descriptor changes mid-mount', () => {
+        const renderer = mount('videos');
+        const outgoing = tracker();
+        tracker().setVisible('p1');
+        jest.setSystemTime(2000);
+
+        // The reel's tab switch: same mount, different feed.
+        act(() => {
+            renderer.update(createElement(Probe, { descriptor: 'following' }));
+        });
+
+        // Sent on the spot, not on the next flush window: dispose has no later
+        // window to ride, so a tab switch must not strand the dwell it accrued.
+        expect(sentInteractions()).toEqual([
+            expect.objectContaining({ feedDescriptor: 'videos', postUri: 'p1', durationMs: 2000 }),
+        ]);
+
+        // …and the tracker behind the ref is a NEW one, so the same post counts
+        // once more against the feed that is now being watched.
+        expect(tracker()).not.toBe(outgoing);
+        tracker().setVisible('p1');
+        jest.setSystemTime(3500);
+        tracker().setHidden('p1');
+        jest.advanceTimersByTime(1000);
+
+        expect(sentInteractions()).toEqual([
+            expect.objectContaining({ feedDescriptor: 'videos', postUri: 'p1', durationMs: 2000 }),
+            expect.objectContaining({ feedDescriptor: 'following', postUri: 'p1', durationMs: 1500 }),
+        ]);
+    });
+
+    it('starts a new session on a reset key change without stranding the previous one', () => {
+        // The auth cold boot: the viewer resolves 2s into the first video, which
+        // is a new session for the same feed.
+        const renderer = mount('videos');
+        const anonymous = tracker();
+        tracker().setVisible('p1');
+        jest.setSystemTime(2000);
+
+        act(() => {
+            renderer.update(createElement(Probe, { descriptor: 'videos', resetKey: 'viewer-1' }));
+        });
+
+        expect(sentInteractions()).toEqual([
+            expect.objectContaining({ postUri: 'p1', durationMs: 2000 }),
+        ]);
+
+        expect(tracker()).not.toBe(anonymous);
+        tracker().setVisible('p2');
+        jest.setSystemTime(3200);
+        tracker().setHidden('p2');
+        jest.advanceTimersByTime(1000);
+
+        expect(sentInteractions()).toEqual([
+            expect.objectContaining({ postUri: 'p1', durationMs: 2000 }),
+            expect.objectContaining({ postUri: 'p2', durationMs: 1200 }),
+        ]);
+    });
+
+    it('keeps ONE tracker across a re-render that changes neither', () => {
+        const renderer = mount('videos', 'viewer-1');
+        const first = tracker();
+        act(() => {
+            renderer.update(createElement(Probe, { descriptor: 'videos', resetKey: 'viewer-1' }));
+        });
+
+        expect(tracker()).toBe(first);
     });
 });
 

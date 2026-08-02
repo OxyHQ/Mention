@@ -15,17 +15,27 @@ export interface VideosRailState {
   active: boolean;
   activePost: VideosRailActivePost | null;
   onCommentPosted: (postId: string) => void;
+  /**
+   * Bumped every time the screen asks the replies column to take the caret —
+   * what the on-video comment button does on desktop, where the column is
+   * already open and there is nothing to toggle. A counter rather than a
+   * boolean: two presses in a row must both land, and a flag that is already
+   * true would swallow the second.
+   */
+  focusComposerNonce: number;
 }
 
 /**
  * The writable slice of the state. The /videos screen pushes a partial update
  * through `setRailState`; everything not provided is preserved.
  */
-type VideosRailPatch = Partial<VideosRailState>;
+type VideosRailPatch = Partial<Omit<VideosRailState, 'focusComposerNonce'>>;
 
 interface VideosRailContextValue extends VideosRailState {
   /** The /videos screen is the SOLE writer. Merges a partial into the state. */
   setRailState: (patch: VideosRailPatch) => void;
+  /** Ask the replies column's composer to take the caret. */
+  requestComposerFocus: () => void;
 }
 
 const NOOP = () => {};
@@ -34,11 +44,13 @@ const DEFAULT_STATE: VideosRailState = {
   active: false,
   activePost: null,
   onCommentPosted: NOOP,
+  focusComposerNonce: 0,
 };
 
 const VideosRailContext = createContext<VideosRailContextValue>({
   ...DEFAULT_STATE,
   setRailState: NOOP,
+  requestComposerFocus: NOOP,
 });
 
 export function VideosRailProvider({ children }: { children: React.ReactNode }) {
@@ -48,9 +60,17 @@ export function VideosRailProvider({ children }: { children: React.ReactNode }) 
     setState((prev) => ({ ...prev, ...patch }));
   }, []);
 
+  // The nonce is incremented HERE rather than patched by the screen, so the
+  // caller stays identity-stable: reading the current value to add one would put
+  // it in the screen's press handler's dependencies, and that handler is a
+  // dependency of the reel's `renderItem`.
+  const requestComposerFocus = useCallback(() => {
+    setState((prev) => ({ ...prev, focusComposerNonce: prev.focusComposerNonce + 1 }));
+  }, []);
+
   const value = useMemo<VideosRailContextValue>(
-    () => ({ ...state, setRailState }),
-    [state, setRailState],
+    () => ({ ...state, setRailState, requestComposerFocus }),
+    [state, setRailState, requestComposerFocus],
   );
 
   return (
