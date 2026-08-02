@@ -12,7 +12,7 @@ import { config } from '../config';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { queryInt } from '../utils/queryParams';
 import { PostVisibility } from '@mention/shared-types';
-import { decodeSearchCursor, encodeSearchCursor } from '../utils/searchCursor';
+import { decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
 import { discoverySafeSql } from '../mtn/feed/feedSafety';
 import { loadMuteWords, loadShowSensitiveContent } from '../services/safety/viewerSafety';
 import {
@@ -342,7 +342,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       // Cursor-based pagination
       if (cursor !== undefined) {
         const decodedCursor = typeof cursor === 'string'
-          ? decodeSearchCursor(cursor)
+          ? decodeChronoCursor(cursor)
           : undefined;
         if (!decodedCursor) {
           return res.status(400).json({ message: 'Invalid search cursor' });
@@ -375,7 +375,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 
       // Calculate next cursor
       const anchor = hasMoreResults ? postsToReturn[postsToReturn.length - 1] : undefined;
-      const nextCursor = anchor ? encodeSearchCursor(anchor.createdAt, anchor.id) : undefined;
+      const nextCursor = anchor ? encodeChronoCursor(anchor.createdAt, anchor.id) : undefined;
 
       // Hydrate posts with viewer-scoped state and embedded quoted/boost
       // originals. Pass the request's oxyClient so viewer-scoped fields
