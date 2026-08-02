@@ -76,14 +76,13 @@ const { closePostgres, connectPostgres, getDb } = await import('../../db/postgre
 const { likes: pgLikes } = await import('../../db/schema/engagement');
 const { posts: pgPosts } = await import('../../db/schema/posts');
 const { logger } = await import('../../utils/logger');
+const { federatedActors, federatedFollows } = await import('../../db/schema/federation');
+const { adminScriptCursors } = await import('../../db/schema/adminScripts');
 const { Post } = await import('../../models/Post');
 const { default: Like } = await import('../../models/Like');
 const { default: Notification } = await import('../../models/Notification');
-const { default: FederatedActor } = await import('../../models/FederatedActor');
-const { default: FederatedFollow } = await import('../../models/FederatedFollow');
 const { default: FederatedMediaCache } = await import('../../models/FederatedMediaCache');
 const { default: ContentLabel } = await import('../../models/ContentLabel');
-const { AdminScriptCursor } = await import('../../models/AdminScriptCursor');
 const { withDeadlockRetry } = await import('../helpers/serviceFixtures');
 const { POST_REFERENCE_PROBE_NAMES } = await import('../../scripts/lib/adminDeletionPreflight');
 const { FEDERATION_DOMAIN } = await import('../../connectors/activitypub/constants');
@@ -144,10 +143,44 @@ afterAll(async () => {
  * like a flaky assertion somewhere else in the file.
  */
 async function clearPostgresFixtures(): Promise<void> {
-  const accounts = ['oxy-local', 'oxy-blocked'];
+  const accounts = ['oxy-local', 'oxy-blocked', 'oxy-remote'];
   const db = getDb();
   await withDeadlockRetry(() => db.delete(pgLikes).where(inArray(pgLikes.userId, accounts)));
   await withDeadlockRetry(() => db.delete(pgPosts).where(inArray(pgPosts.oxyUserId, accounts)));
+  // The federation anchors and the resume cursors moved to Postgres with the
+  // rest of this script's stores, so they are scoped the same way: by this
+  // file's own domains and script name, never "delete every actor".
+  await db.delete(federatedFollows).where(inArray(federatedFollows.localUserId, accounts));
+  await db.delete(federatedActors).where(inArray(federatedActors.domain, [BLOCKED, ALLOWED]));
+  await db
+    .delete(adminScriptCursors)
+    .where(eq(adminScriptCursors.script, 'purgeBlockedDomainContent'));
+}
+
+/** This file's actor rows, so an assertion can count what survived. */
+async function actorsOnDomain(domain: string): Promise<number> {
+  const rows = await getDb()
+    .select({ id: federatedActors.id })
+    .from(federatedActors)
+    .where(eq(federatedActors.domain, domain));
+  return rows.length;
+}
+
+/** This file's follow edges naming one remote actor. */
+async function followsOfActor(remoteActorUri: string): Promise<number> {
+  const rows = await getDb()
+    .select({ id: federatedFollows.id })
+    .from(federatedFollows)
+    .where(eq(federatedFollows.remoteActorUri, remoteActorUri));
+  return rows.length;
+}
+
+/** This file's resume-cursor rows. */
+async function cursorRows() {
+  return getDb()
+    .select()
+    .from(adminScriptCursors)
+    .where(eq(adminScriptCursors.script, 'purgeBlockedDomainContent'));
 }
 
 beforeEach(async () => {
@@ -155,8 +188,9 @@ beforeEach(async () => {
   h.mediaCacheEnabled.value = true;
   h.deleteShouldFail.value = false;
   await Promise.all(
-    [Post, Like, Notification, FederatedActor, FederatedFollow, FederatedMediaCache, ContentLabel,
-      AdminScriptCursor].map((model) => model.deleteMany({})),
+    [Post, Like, Notification, FederatedMediaCache, ContentLabel].map((model) =>
+      model.deleteMany({}),
+    ),
   );
   await clearPostgresFixtures();
 });
@@ -186,9 +220,8 @@ async function seed(): Promise<Seeded> {
     unrelatedNotification: new mongoose.Types.ObjectId(),
   };
 
-  await FederatedActor.collection.insertMany([
+  await getDb().insert(federatedActors).values([
     {
-      _id: new mongoose.Types.ObjectId(),
       protocol: 'activitypub',
       uri: BLOCKED_ACTOR_URI,
       username: 'bad',
@@ -197,7 +230,6 @@ async function seed(): Promise<Seeded> {
       oxyUserId: 'oxy-blocked',
     },
     {
-      _id: new mongoose.Types.ObjectId(),
       protocol: 'activitypub',
       uri: `https://${ALLOWED}/users/ok`,
       username: 'ok',
@@ -205,7 +237,7 @@ async function seed(): Promise<Seeded> {
       acct: `ok@${ALLOWED}`,
       oxyUserId: 'oxy-remote',
     },
-  ] as never);
+  ]);
 
   await Post.collection.insertMany([
     {
@@ -322,22 +354,20 @@ async function seed(): Promise<Seeded> {
     },
   ] as never);
 
-  await FederatedFollow.collection.insertMany([
+  await getDb().insert(federatedFollows).values([
     {
-      _id: new mongoose.Types.ObjectId(),
       localUserId: 'oxy-local',
       remoteActorUri: BLOCKED_ACTOR_URI,
       direction: 'inbound',
       status: 'accepted',
     },
     {
-      _id: new mongoose.Types.ObjectId(),
       localUserId: 'oxy-local',
       remoteActorUri: `https://${ALLOWED}/users/ok`,
       direction: 'outbound',
       status: 'accepted',
     },
-  ] as never);
+  ]);
 
   await FederatedMediaCache.collection.insertMany([
     {
@@ -371,15 +401,31 @@ async function run(overrides: Partial<PurgeOptions> = {}): Promise<PurgeReport> 
 
 /** Every document in every collection the run can touch, order-independent. */
 async function snapshotEverything(): Promise<string> {
-  const models = [Post, Like, Notification, FederatedActor, FederatedFollow, FederatedMediaCache,
-    ContentLabel, AdminScriptCursor];
+  const models = [Post, Like, Notification, FederatedMediaCache, ContentLabel];
   const collections = await Promise.all(
     models.map(async (model) => {
       const docs = await model.collection.find({}).sort({ _id: 1 }).toArray();
       return [model.collection.collectionName, docs] as const;
     }),
   );
-  return JSON.stringify(collections);
+  // The Postgres side has to be in the snapshot too, or "a dry run changes
+  // nothing" would stop covering the three stores this script's actor lane now
+  // reads and writes — which is precisely where a dry run could start deleting.
+  const db = getDb();
+  const [actorRows, followRows, cursorRows2] = await Promise.all([
+    db.select().from(federatedActors).where(inArray(federatedActors.domain, [BLOCKED, ALLOWED])),
+    db
+      .select()
+      .from(federatedFollows)
+      .where(inArray(federatedFollows.localUserId, ['oxy-local', 'oxy-blocked'])),
+    cursorRows(),
+  ]);
+  return JSON.stringify([
+    collections,
+    actorRows.map((row) => row.uri).sort(),
+    followRows.map((row) => `${row.localUserId}|${row.remoteActorUri}`).sort(),
+    cursorRows2.map((row) => row.scope).sort(),
+  ]);
 }
 
 async function postExists(id: mongoose.Types.ObjectId): Promise<boolean> {
@@ -394,8 +440,8 @@ describe('purgeBlockedDomainContent — what it removes', () => {
 
     expect(await postExists(ids.blockedPost)).toBe(false);
     expect(await postExists(ids.blockedBoostOfLocal)).toBe(false);
-    expect(await FederatedActor.countDocuments({ domain: BLOCKED })).toBe(0);
-    expect(await FederatedFollow.countDocuments({ remoteActorUri: BLOCKED_ACTOR_URI })).toBe(0);
+    expect(await actorsOnDomain(BLOCKED)).toBe(0);
+    expect(await followsOfActor(BLOCKED_ACTOR_URI)).toBe(0);
     expect(await FederatedMediaCache.countDocuments({ remoteUrl: BLOCKED_MEDIA_URL })).toBe(0);
     expect(report.issues.preflightBlocked).toBe(0);
     expect(report.issues.cascadeResidue).toBe(0);
@@ -499,9 +545,9 @@ describe('purgeBlockedDomainContent — what it must NEVER remove', () => {
     await run();
 
     expect(await postExists(ids.allowedPost)).toBe(true);
-    expect(await FederatedActor.countDocuments({ domain: ALLOWED })).toBe(1);
+    expect(await actorsOnDomain(ALLOWED)).toBe(1);
     expect(await FederatedMediaCache.countDocuments({ remoteUrl: ALLOWED_MEDIA_URL })).toBe(1);
-    expect(await FederatedFollow.countDocuments({ remoteActorUri: `https://${ALLOWED}/users/ok` }))
+    expect(await followsOfActor(`https://${ALLOWED}/users/ok`))
       .toBe(1);
   });
 
@@ -631,7 +677,7 @@ describe('purgeBlockedDomainContent — DRY_RUN', () => {
 
     await run({ dryRun: true });
 
-    expect(await AdminScriptCursor.countDocuments({})).toBe(0);
+    expect(await cursorRows()).toEqual([]);
   });
 });
 
@@ -653,9 +699,7 @@ describe('purgeBlockedDomainContent — re-running', () => {
 
     await run();
 
-    const phases = (await AdminScriptCursor.find({ script: 'purgeBlockedDomainContent' }).lean())
-      .map((row) => row.scope.split(':')[0])
-      .sort();
+    const phases = (await cursorRows()).map((row) => row.scope.split(':')[0]).sort();
     expect(phases).toEqual(['actors', 'anchors', 'media', 'orphan-posts']);
   });
 

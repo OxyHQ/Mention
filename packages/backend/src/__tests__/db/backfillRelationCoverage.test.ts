@@ -35,7 +35,11 @@ import {
   type DeployedRelation,
   type ReferentialIntegrityReport,
 } from '../../db/backfill/referentialIntegrity';
-import { COLLECTION_PLANS, allSchemaTables } from '../../db/backfill/collectionMap';
+import {
+  COLLECTION_PLANS,
+  allSchemaTables,
+  tablesWithoutAPlan,
+} from '../../db/backfill/collectionMap';
 import { planTables, tableName, type CollectionPlan } from '../../db/backfill/plan';
 import { buildRow } from '../../db/backfill/rowBuilder';
 import { mongoSourceFromDb, type MongoSource } from '../../db/backfill/mongoSource';
@@ -396,14 +400,21 @@ describe('coverage of the current plan set', () => {
       // conflating the two would have fired the gate permanently on a state
       // nobody could fix. Every table now has a plan, so that number is legally
       // ZERO and the old assertion inverted into a false alarm the day the work
-      // finished — a check that fails on SUCCESS, which is the shape that gets a
-      // gate disabled just as surely as one that cries wolf.
+      // finished — a check that fails on SUCCESS, which gets a gate disabled
+      // just as surely as one that cries wolf.
       //
-      // What survives the change of state is the PARTITION: every deployed
-      // constraint is either in scope or out of it, exactly once. That holds
-      // whether the unplanned set is 24 collections or none, and it is what the
-      // case was really about.
-      expect(coverage.outOfScope).toBeGreaterThanOrEqual(0);
+      // Two things survive the change of state, and both are asserted because
+      // neither implies the other. The COUNT is derived from the same source the
+      // scope decision is made from, so it holds at 24 collections or at none
+      // and it still fails if the derivation breaks — `toBeGreaterThanOrEqual(0)`
+      // would be true of every possible value, which is the vacuous form of this
+      // same repair. The PARTITION is the structural half: every deployed
+      // constraint is in scope or out of it, exactly once.
+      const unplanned = new Set(tablesWithoutAPlan());
+      const expectedOutOfScope = deployed.filter((relation) =>
+        unplanned.has(relation.tableName)
+      ).length;
+      expect(coverage.outOfScope).toBe(expectedOutOfScope);
       expect(coverage.outOfScope + coverage.deployedInScope).toBe(deployed.length);
       // The floor moves to the side that is now non-empty: with nothing
       // unplanned, EVERY deployed constraint must be in scope, so a partition

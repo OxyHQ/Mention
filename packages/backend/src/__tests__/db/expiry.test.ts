@@ -7,6 +7,8 @@
  * which is exactly the obligation Mongo's TTL index carried implicitly.
  */
 
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, sep } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { getTableName, inArray, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
@@ -66,21 +68,33 @@ describe('the retention constants still equal the Mongoose models\'', () => {
   });
 });
 
+/** Every `.ts` under `directory`, walked — never a directory someone named. */
+function tsFilesUnder(directory: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) found.push(...tsFilesUnder(path));
+    else if (entry.name.endsWith('.ts')) found.push(path);
+  }
+  return found;
+}
+
 describe('the sweep registry', () => {
   it('covers every model that had a Mongo TTL index', () => {
-    // Nine: the seven enumerated by reading every `expireAfterSeconds` in
-    // `src/models/`, plus `trend_summaries`, which was born on Postgres and
-    // therefore never had a Mongo TTL index to be found that way, plus
-    // `trend_graphs`, whose model arrived from `main` DURING the port and which
-    // is exactly the case this list exists to catch — a TTL'd collection that
-    // grows forever the moment it is ported without a registry entry. A vacuity
-    // floor as much as a count: a broken registry export would make every
-    // assertion below iterate nothing.
-    expect(EXPIRY_SWEEP_TARGETS).toHaveLength(9);
+    // The list is EXACT rather than a floor, and exact in BOTH directions: a
+    // table that lost its sweep grows forever with nothing to notice, and one
+    // that was never given a sweep is the same failure a merge later. Two of
+    // these arrived exactly that way — `mcp_auth_codes` and `trend_graphs`, on
+    // separate merges, each a TTL'd collection ported without a registry entry
+    // until this file said so.
+    //
+    // The COUNT is deliberately not restated here; the case below derives it by
+    // walking the models, which is the assertion that cannot go stale.
     expect(EXPIRY_SWEEP_TARGETS.map((target) => getTableName(target.table)).sort()).toEqual([
       'author_follower_snapshots',
       'engagement_outbox',
       'feed_interactions',
+      'mcp_auth_codes',
       'moderation_events',
       'moderation_outbox',
       'notifications',
@@ -88,6 +102,74 @@ describe('the sweep registry', () => {
       'trend_summaries',
       'trending',
     ]);
+  });
+
+  it('has one entry per model that declares a Mongo TTL index, found by WALKING', () => {
+    // This case exists because the list above was wrong, and wrong in a way that
+    // repeats. Its comment used to read "the seven enumerated by reading every
+    // `expireAfterSeconds` in `src/models/`" — and `McpAuthCode` declared one in
+    // `src/mcp/models/`, so the enumeration that produced "seven" could not see
+    // it. That is the SAME directory blind spot that hid all three MCP
+    // collections from the migration's own collection map, found twice in two
+    // different tools.
+    //
+    // So the count is DERIVED by walking the tree rather than restated. A model
+    // that gains a TTL index in a directory nobody thought of now fails here
+    // instead of silently never being swept.
+    const ttlModels = tsFilesUnder(join(__dirname, '..', '..'))
+      .filter((file) => file.includes(`${sep}models${sep}`))
+      // A TEST that mentions the option is not a model that declares one, and
+      // one such file lives under a `models` directory.
+      .filter((file) => !file.includes(`${sep}__tests__${sep}`))
+      .filter((file) => readFileSync(file, 'utf8').includes('expireAfterSeconds'));
+
+    expect(
+      ttlModels.map((file) => file.slice(file.lastIndexOf(sep) + 1)).sort(),
+      'Mongo models declaring a TTL index'
+    ).toStrictEqual([
+      'AuthorFollowerSnapshot.ts',
+      'EngagementOutbox.ts',
+      'FeedInteraction.ts',
+      'ModerationEvent.ts',
+      'ModerationOutbox.ts',
+      'Notification.ts',
+      'TrendSummary.ts',
+      'Trending.ts',
+    ]);
+
+    // The two sides do NOT line up one-for-one, and the difference is the point:
+    // a collection whose call sites are fully ported has its Mongoose model
+    // DELETED, while its registry entry must stay forever — the sweep is the
+    // only thing standing between the ported table and unbounded growth. So the
+    // registry is the walk PLUS an explicit list of ported collections, each
+    // named. An equality would have made finishing a port look like a
+    // regression, and the obvious repair (deleting the entry with the model) is
+    // precisely the failure this whole file exists to prevent.
+    const REGISTERED_WITHOUT_A_MODEL = [
+      // `mcp/models/McpAuthCode.ts`, deleted when the MCP OAuth surface moved to
+      // `mcp_auth_codes`. Mongo reaped these for free; nothing does now but the
+      // registry entry.
+      'mcp_auth_codes',
+      // `models/TrendGraph.ts`, deleted when the trend graph moved to
+      // `trend_graphs` — the model arrived from `main` mid-port and was ported and
+      // deleted in one merge, so it never appeared in the walk above at all. Its
+      // 7-day TTL was the only thing bounding the largest rows in the schema (a
+      // whole batch of nodes and edges in two jsonb columns).
+      'trend_graphs',
+    ];
+    expect(EXPIRY_SWEEP_TARGETS).toHaveLength(
+      ttlModels.length + REGISTERED_WITHOUT_A_MODEL.length
+    );
+    const registered = new Set(
+      EXPIRY_SWEEP_TARGETS.map((target) => getTableName(target.table))
+    );
+    for (const table of REGISTERED_WITHOUT_A_MODEL) {
+      expect(registered, `${table} lost its sweep along with its Mongoose model`).toContain(table);
+    }
+
+    // Vacuity floor: a walk that found nothing would satisfy an equality
+    // between two empty lists.
+    expect(ttlModels.length).toBeGreaterThan(5);
   });
 
   it('gives every entry a reason', () => {

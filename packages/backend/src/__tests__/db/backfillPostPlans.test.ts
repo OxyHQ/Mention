@@ -27,6 +27,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { articles } from '../../db/schema/articles';
 import { posts } from '../../db/schema/posts';
 import {
   postAttachments,
@@ -35,6 +36,7 @@ import {
   postContentVariants,
   postMedia,
   postMentions,
+  postRecentRepliers,
   postSources,
   postVariantAltTexts,
   postVariantMedia,
@@ -65,6 +67,17 @@ const postsPlan = () => {
   if (!plan) throw new Error('no plan for posts');
   return plan;
 };
+
+async function copy(collection: string) {
+  const plan = COLLECTION_PLANS.find((entry) => entry.collection === collection);
+  if (!plan) throw new Error(`no plan for ${collection}`);
+  return copyCollection(plan, {
+    db: getDb(),
+    source,
+    resolutions: createResolutionContext(await planResolutions(source), new ResolutionLog()),
+    parents: parentKeysFrom(new Map()),
+  });
+}
 
 async function copyPosts() {
   return copyCollection(postsPlan(), {
@@ -114,7 +127,9 @@ beforeAll(async () => {
 }, 120_000);
 
 afterEach(async () => {
-  // Every child table CASCADEs from `posts`.
+  // Every child table CASCADEs from `posts` -- but a DRAFT article has no post
+  // to cascade from, so it is deleted on its own scope.
+  await getDb().delete(articles).where(eq(articles.createdBy, OWNER));
   await getDb().delete(posts).where(eq(posts.oxyUserId, OWNER));
   for (const name of await mongo.listCollections({}, { nameOnly: true }).toArray()) {
     await mongo.collection(name.name).deleteMany({});
@@ -552,3 +567,5 @@ describe('a post with no createdAt', () => {
     expect(row?.createdAt.getMilliseconds()).toBe(7);
   });
 });
+
+

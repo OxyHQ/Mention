@@ -31,6 +31,22 @@
  * asymmetry is the point: for `articles` the data matters and the constraint is
  * loose, and here it is the other way round.
  *
+ * ## Where this copy actually lands, measured rather than assumed
+ *
+ * The Postgres table has live writers ON THIS BRANCH and NONE in production:
+ * the port has never deployed, so at cutover `post_recent_repliers` is EMPTY
+ * and the Mongo collection holds 139,340 documents (measured against
+ * `mention-production`, 2026-08-02). The service is frozen for the copy, so
+ * there are no live writers to order against.
+ *
+ * That is worth stating because the natural description — "the live services
+ * maintain it, the Mongo model is write-dead" — is true of the branch and false
+ * of the system, and a plan written against branch state would be reasoning
+ * about a race that cannot occur. `ON CONFLICT DO NOTHING` on the natural key
+ * makes the copy safe EITHER way, so the design does not change; what changes
+ * is that the cap-eviction artefact below cannot arise from a race at all, only
+ * from history that already exceeded the cap.
+ *
  * ## A duplicate WITHIN one array is not auditable, and is normalized instead
  *
  * `UniquenessAudit` `$group`s over DOCUMENTS — one group per document key — so
@@ -57,7 +73,7 @@ import { articles } from '../../schema/articles';
 import { postRecentRepliers } from '../../schema/postContent';
 import type { CollectionPlan } from '../plan';
 import { buildRow } from '../rowBuilder';
-import { childRowId, ownId, reqDate, reqStr, str, subdocuments } from '../values';
+import { childRowId, id, ownId, reqDate, reqId, reqStr, str, subdocuments } from '../values';
 import { timestamps } from './timestamps';
 
 /** `articles` → `articles`. */
@@ -65,13 +81,16 @@ const articlesPlan: CollectionPlan = {
   collection: 'articles',
   table: articles,
   transform: (doc, emit) => {
-    const id = ownId(doc);
+    // NOT named `id`: that shadows the `id` VALUE helper imported above, and the
+    // shadow is silent — `id(doc, 'postId')` then calls a string and fails with
+    // "Type 'String' has no call signatures" only because TypeScript catches it.
+    const articleId = ownId(doc);
     emit(
       articles,
       buildRow(
         articles,
         {
-          id,
+          id: articleId,
           // NULLABLE, and a real foreign key where Mongo had a bare indexed
           // string. The Mongoose field is not `required` because a draft article
           // can exist before its post, so NULL is a legitimate state rather than
@@ -80,7 +99,13 @@ const articlesPlan: CollectionPlan = {
           // deliberately not resolved here: whether a dangling article is
           // dropped or detached is a decision about real data nobody has looked
           // at yet.
-          postId: str(doc, 'postId'),
+          // `id` rather than `str`, and the difference is a `23503`: this is a
+          // real foreign key, and Mongo's field is a bare indexed String that
+          // can hold an EMPTY one. `str` would pass `''` through to the
+          // constraint, which references no post and fails the insert partway
+          // through a run; `id` treats an empty string as absent, which is what
+          // it means. It also accepts a stored ObjectId, which `str` refuses.
+          postId: id(doc, 'postId'),
           createdBy: reqStr(doc, 'createdBy'),
           // Copied verbatim. `title` is `maxlength: 280` in Mongoose and the
           // column is unbounded `text`, so nothing can be refused on length; and
@@ -92,7 +117,7 @@ const articlesPlan: CollectionPlan = {
           body: str(doc, 'body'),
           ...timestamps(doc),
         },
-        id
+        articleId
       )
     );
   },
@@ -111,7 +136,11 @@ const postRecentRepliersPlan: CollectionPlan = {
   ],
   transform: (doc, emit) => {
     const parentId = ownId(doc);
-    const postId = reqStr(doc, 'postId');
+    // `reqId`, not `reqStr`: the model declares `String`, but the value is a
+    // stringified `posts._id` and a legacy document that stored the ObjectId
+    // itself would make `reqStr` throw on data the target holds perfectly well.
+    // `reqId` accepts either shape and preserves both verbatim.
+    const postId = reqId(doc, 'postId');
 
     // Last entry per user wins. `subdocuments` yields array order, and the array
     // is append-ordered by the projection service, so a later position is the

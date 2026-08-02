@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   BlockSeverity,
@@ -13,17 +13,27 @@ import type {
 /**
  * The scheduled half of the blocklist loop: detect and PROPOSE, never decide.
  *
- * Against a real MongoDB, because every property here is a property of the
+ * Against a real database, because every property here is a property of the
  * LEDGER — whether a domain a person already answered comes back, whether an
  * unanswered proposal survives, what a run that could not reach a verdict leaves
  * behind. A mocked model cannot fail for any of those.
+ *
+ * That database is now Postgres. It was `mongodb-memory-server`; the queue moved
+ * to `blocklist_proposals` + `blocklist_proposal_observations` and the history to
+ * `blocklist_proposal_runs` + `blocklist_proposal_run_sources`.
+ *
+ * **This file owns those four tables for the duration of a run.** Its cleanup is
+ * unscoped, because one case asserts the behaviour when there is NO run history
+ * at all — which is a claim about the whole table, not about this file's rows.
+ * Vitest runs files in parallel against one database, so a second file writing a
+ * proposal or a run would make this one flake. Nothing else does today; if
+ * something starts, both files need scoping and this case needs rethinking.
  *
  * The intelligence POLL is injected. Its own behaviour (parsing, digests,
  * timeouts, the SSRF-safe transport) is covered by
  * `reportFederationBlocklistCandidates.test.ts`; this file is about the decision
  * layer on top of it, and must not need a network to exercise a threshold.
  */
-vi.unmock('mongoose');
 
 /** Stands in for the enforced set. Never written by anything under test. */
 const h = vi.hoisted(() => ({ blocked: new Set<string>(), federationEnabled: true }));
@@ -37,9 +47,11 @@ vi.mock('../../../connectors/activitypub/constants', () => ({
   },
 }));
 
-const mongoose = (await import('mongoose')).default;
-const { default: BlocklistProposal } = await import('../../../models/BlocklistProposal');
-const { default: BlocklistProposalRun } = await import('../../../models/BlocklistProposalRun');
+const { closePostgres, connectPostgres, getDb } = await import('../../../db/postgres');
+const { blocklistProposalRuns, blocklistProposals } = await import('../../../db/schema/blocklist');
+const { recordProposalRun, upsertOpenProposal } = await import(
+  '../../../db/blocklist/blocklistProposalRepository'
+);
 const { FEDERATION_BLOCK_POLICY } = await import(
   '../../../connectors/activitypub/federationBlockPolicy'
 );
@@ -57,24 +69,42 @@ const { BLOCKLIST_PROPOSAL_INTERVAL_MS, BlocklistProposalScheduler } = await imp
   '../../../services/federation/BlocklistProposalScheduler'
 );
 
-let server: MongoMemoryServer;
-
 beforeAll(async () => {
-  server = await MongoMemoryServer.create();
-  await mongoose.connect(server.getUri(), { dbName: 'blocklist-proposals' });
-}, 180_000);
+  await connectPostgres();
+}, 60_000);
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await server.stop();
+  const db = getDb();
+  await db.delete(blocklistProposals);
+  await db.delete(blocklistProposalRuns);
+  await closePostgres();
 });
 
 beforeEach(async () => {
-  await BlocklistProposal.deleteMany({});
-  await BlocklistProposalRun.deleteMany({});
+  // Observations and run sources go with their parents by ON DELETE CASCADE.
+  const db = getDb();
+  await db.delete(blocklistProposals);
+  await db.delete(blocklistProposalRuns);
   h.blocked.clear();
   h.federationEnabled = true;
 });
+
+/** One proposal row, or `undefined`. Child rows are read through the service. */
+async function proposalRow(domain: string) {
+  const [row] = await getDb()
+    .select()
+    .from(blocklistProposals)
+    .where(eq(blocklistProposals.domain, domain));
+  return row;
+}
+
+/** How many proposals exist, optionally for one domain. */
+async function proposalCount(domain?: string): Promise<number> {
+  const rows = await getDb()
+    .select({ domain: blocklistProposals.domain })
+    .from(blocklistProposals);
+  return domain === undefined ? rows.length : rows.filter((row) => row.domain === domain).length;
+}
 
 // --- fixtures ---------------------------------------------------------------
 
@@ -217,7 +247,7 @@ describe('corroboration is counted by operator', () => {
     expect(result.ok).toBe(true);
     expect(result.counts.clearedOperatorThreshold).toBe(0);
     expect(result.pending).toEqual([]);
-    expect(await BlocklistProposal.countDocuments({})).toBe(0);
+    expect(await proposalCount()).toBe(0);
   });
 
   it('clears it when the same two verdicts come from two operators', async () => {
@@ -298,7 +328,7 @@ describe('only what is new reaches the queue', () => {
 
     expect(result.pending.map((p) => p.domain)).toEqual(['fresh.example']);
     expect(result.counts.suppressedBlocked).toBe(1);
-    expect(await BlocklistProposal.countDocuments({ domain: 'known.example' })).toBe(0);
+    expect(await proposalCount('known.example')).toBe(0);
   });
 
   it('does not propose a domain a person already declined', async () => {
@@ -313,7 +343,7 @@ describe('only what is new reaches the queue', () => {
 
     expect(result.pending).toEqual([]);
     expect(result.counts.suppressedDeclined).toBe(1);
-    const row = await BlocklistProposal.findOne({ domain: 'rejected.example' }).lean();
+    const row = await proposalRow('rejected.example');
     expect(row?.status).toBe('declined');
     expect(row?.decisionReason).toBe('Bridge account, not spam — no category fits');
   });
@@ -344,8 +374,7 @@ describe('rows the sweep closes on its own', () => {
     });
 
     expect(result.counts.lapsed).toBe(1);
-    expect((await BlocklistProposal.findOne({ domain: 'gone.example' }).lean())?.status)
-      .toBe('lapsed');
+    expect((await proposalRow('gone.example'))?.status).toBe('lapsed');
   });
 
   it('marks a proposal adopted once the policy refuses the domain', async () => {
@@ -358,8 +387,7 @@ describe('rows the sweep closes on its own', () => {
     expect(result.counts.adopted).toBe(1);
     expect(result.counts.suppressedBlocked).toBe(1);
     expect(result.pending).toEqual([]);
-    expect((await BlocklistProposal.findOne({ domain: 'adopted.example' }).lean())?.status)
-      .toBe('adopted');
+    expect((await proposalRow('adopted.example'))?.status).toBe('adopted');
   });
 });
 
@@ -378,9 +406,11 @@ describe('a run that cannot reach a verdict', () => {
     // The dangerous failure this guards: lapsing every open proposal at once
     // because the sources were down.
     expect(result.counts.lapsed).toBe(0);
-    expect((await BlocklistProposal.findOne({ domain: 'standing.example' }).lean())?.status)
-      .toBe('open');
-    expect(await BlocklistProposalRun.countDocuments({ ok: false })).toBe(1);
+    expect((await proposalRow('standing.example'))?.status).toBe('open');
+    const recorded = await getDb()
+      .select({ ok: blocklistProposalRuns.ok })
+      .from(blocklistProposalRuns);
+    expect(recorded.filter((run) => !run.ok)).toHaveLength(1);
   });
 
   it('records the run when the poll itself throws', async () => {
@@ -393,7 +423,7 @@ describe('a run that cannot reach a verdict', () => {
 
     expect(result.ok).toBe(false);
     expect(result.failureReason).toContain('DNS exploded');
-    const run = await BlocklistProposalRun.findOne({}).lean();
+    const [run] = await getDb().select().from(blocklistProposalRuns);
     expect(run?.ok).toBe(false);
     expect(run?.trigger).toBe('scheduled');
   });
@@ -404,6 +434,44 @@ describe('a run that cannot reach a verdict', () => {
 describe('recording a decision', () => {
   beforeEach(async () => {
     await sweep({ candidates: [corroborated('decide.example')] });
+  });
+
+  it('refuses to resurrect a declined domain even when the sweep never saw the decline', async () => {
+    // The DISCRIMINATING case for the `status <> 'declined'` guard, and the only
+    // one that observes it. The sweep reads every candidate's status once at the
+    // top and skips the declined ones there, so a sequential test exercises that
+    // pre-check and passes with the guard deleted — mutation-verified, it did.
+    //
+    // What the guard is actually for is the window between that read and the
+    // write: a person declining mid-sweep. Reproduced by writing the way the
+    // sweep does, against a row that has since been declined.
+    await declineProposal({
+      domain: 'decide.example',
+      decidedBy: 'nate',
+      reason: 'Bridge account, not spam',
+    });
+
+    const result = await upsertOpenProposal({
+      domain: 'decide.example',
+      now: new Date(),
+      operatorCount: 2,
+      corroboratingSources: [GMBH_A, STUX],
+      observations: [],
+      footprint: {
+        actors: 0,
+        posts: 0,
+        localUsersFollowing: 0,
+        remoteActorsFollowed: 0,
+        localUsersFollowed: 0,
+      },
+    });
+
+    expect(result).toEqual({ raised: false, declinedFirst: true });
+    // A decision somebody made, still standing — with its author and reason.
+    const row = await proposalRow('decide.example');
+    expect(row?.status).toBe('declined');
+    expect(row?.decidedBy).toBe('nate');
+    expect(row?.decisionReason).toBe('Bridge account, not spam');
   });
 
   it('refuses a decline with no author or no reason', async () => {
@@ -430,8 +498,14 @@ describe('recording a decision', () => {
     const reopened = await reopenProposal('decide.example', 'nate');
 
     expect(reopened.status).toBe('open');
-    expect(reopened.decidedBy).toBeUndefined();
-    expect(reopened.decisionReason).toBeUndefined();
+    // NULL, not absent: Mongo's `$unset` removed the field, Postgres sets the
+    // column back. Both say "no decision stands", and every consumer already
+    // coalesces (`row.decidedBy ?? 'someone'`). The one thing that would be
+    // wrong is leaving the previous author in place — a row reading `open` while
+    // still naming who declined it describes two decisions at once.
+    expect(reopened.decidedBy).toBeNull();
+    expect(reopened.decisionReason).toBeNull();
+    expect(reopened.decidedAt).toBeNull();
     expect((await listOpenProposals()).map((p) => p.domain)).toEqual(['decide.example']);
   });
 });
@@ -515,7 +589,7 @@ describe('the scheduler decides when a sweep is due', () => {
   });
 
   it('does not sweep again inside the interval', async () => {
-    await BlocklistProposalRun.create(recordedRun(new Date(Date.now() - 60_000)));
+    await recordProposalRun(recordedRun(new Date(Date.now() - 60_000)));
     const { scheduler, runs } = stubScheduler();
     scheduler.start();
 
@@ -526,7 +600,7 @@ describe('the scheduler decides when a sweep is due', () => {
   });
 
   it('sweeps once the interval has elapsed — however often the process restarted', async () => {
-    await BlocklistProposalRun.create(
+    await recordProposalRun(
       recordedRun(new Date(Date.now() - BLOCKLIST_PROPOSAL_INTERVAL_MS - 1_000)),
     );
     const { scheduler, runs } = stubScheduler();
@@ -598,12 +672,16 @@ describe('the scheduled path cannot block anything', () => {
   const SCHEDULED_PATH = [
     'services/federation/BlocklistProposalService.ts',
     'services/federation/BlocklistProposalScheduler.ts',
-    'models/BlocklistProposal.ts',
-    'models/BlocklistProposalRun.ts',
+    'db/blocklist/blocklistProposalRepository.ts',
     'connectors/activitypub/blocklistSourceRegistry.ts',
   ];
 
-  const WRITE_METHODS = [
+  /**
+   * Mongoose write methods. Zero of these remain — the queue is Postgres — and
+   * the list stays precisely BECAUSE it should now find nothing: a Mongo write
+   * reappearing on this path would be a second store nobody decided about.
+   */
+  const MONGO_WRITE_METHODS = [
     'bulkWrite',
     'updateOne',
     'updateMany',
@@ -620,14 +698,37 @@ describe('the scheduled path cannot block anything', () => {
     'save',
   ];
 
-  /** The only two collections the unattended path may write. */
-  const WRITABLE = new Set(['BlocklistProposal', 'BlocklistProposalRun']);
+  /**
+   * The drizzle write verbs. This half is what keeps the check ARMED after the
+   * port: the two Mongoose models were deleted, so a scanner that only knew
+   * `Model.updateOne(...)` would have found nothing on any file and reported a
+   * clean pass for every possible violation — the exact shape of a check that
+   * stops distinguishing. `db.insert(x)` / `db.update(x)` / `db.delete(x)` name
+   * their TABLE as the first argument, which is what gets tested.
+   */
+  const DRIZZLE_WRITE_METHODS = ['insert', 'update', 'delete'];
+
+  /** The only four tables the unattended path may write. */
+  const WRITABLE = new Set([
+    'blocklistProposals',
+    'blocklistProposalObservations',
+    'blocklistProposalRuns',
+    'blocklistProposalRunSources',
+  ]);
 
   it('writes nothing but the review queue, and never touches the block configuration', () => {
-    const writeCall = new RegExp(`\\b([A-Za-z_$][\\w$]*)\\s*\\.\\s*(${WRITE_METHODS.join('|')})\\s*\\(`, 'g');
+    const mongoWrite = new RegExp(
+      `\\b([A-Za-z_$][\\w$]*)\\s*\\.\\s*(${MONGO_WRITE_METHODS.join('|')})\\s*\\(`,
+      'g',
+    );
+    const drizzleWrite = new RegExp(
+      `\\.\\s*(${DRIZZLE_WRITE_METHODS.join('|')})\\s*\\(\\s*([A-Za-z_$][\\w$]*)`,
+      'g',
+    );
     const foreignWrites: string[] = [];
     const policyReach: string[] = [];
     let scanned = 0;
+    let writeCallsSeen = 0;
 
     for (const relative of SCHEDULED_PATH) {
       const source = readFileSync(path.join(BACKEND_SRC, relative), 'utf8');
@@ -636,8 +737,15 @@ describe('the scheduled path cannot block anything', () => {
       expect(source.length).toBeGreaterThan(1_000);
       scanned += 1;
 
-      for (const match of source.matchAll(writeCall)) {
-        if (!WRITABLE.has(match[1])) foreignWrites.push(`${relative}: ${match[0]}`);
+      for (const match of source.matchAll(mongoWrite)) {
+        // The full matched line, not the capture: a truncated group cannot tell
+        // the three cases apart when someone has to read the failure.
+        foreignWrites.push(`${relative}: ${match[0]}`);
+      }
+
+      for (const match of source.matchAll(drizzleWrite)) {
+        writeCallsSeen += 1;
+        if (!WRITABLE.has(match[2])) foreignWrites.push(`${relative}: ${match[0]}`);
       }
 
       // The committed policy is a source file; the only way an unattended path
@@ -657,6 +765,10 @@ describe('the scheduled path cannot block anything', () => {
     }
 
     expect(scanned).toBe(SCHEDULED_PATH.length);
+    // Second vacuity floor, and the one the model deletion made necessary: an
+    // empty `foreignWrites` proves nothing unless the scanner found the writes
+    // that ARE there. The repository issues several per proposal and per run.
+    expect(writeCallsSeen, 'write calls the scanner actually matched').toBeGreaterThan(4);
     expect(foreignWrites).toEqual([]);
     expect(policyReach).toEqual([]);
   });

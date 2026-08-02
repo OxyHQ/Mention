@@ -31,6 +31,7 @@ import { asc, eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { articles } from '../../db/schema/articles';
 import { postRecentRepliers } from '../../db/schema/postContent';
+import { posts } from '../../db/schema/posts';
 import { mongoSourceFromDb, type MongoSource } from '../../db/backfill/mongoSource';
 import { copyCollection } from '../../db/backfill/runner';
 import { COLLECTION_PLANS } from '../../db/backfill/collectionMap';
@@ -140,6 +141,70 @@ describe('articles', () => {
     expect(row?.postId).toBeNull();
     expect(row?.body).toBeNull();
   });
+
+  it('treats an EMPTY postId as absent rather than as a reference to nothing', async () => {
+    // `postId` is a bare indexed String in Mongo, so `''` is storable, and here
+    // it is a real foreign key. Reading it with `str` would pass the empty
+    // string to the constraint, which references no post and raises `23503`
+    // partway through a run; `id` returns null for it. The distinction is one
+    // helper name and the failure is at hour three, so it is worth a case.
+    const id = new ObjectId();
+    await mongo.collection('articles').insertOne({
+      _id: id,
+      postId: '',
+      createdBy: AUTHOR,
+      title: 'bfc empty link',
+      createdAt: new Date('2024-02-03T04:05:06.007Z'),
+      updatedAt: new Date('2024-02-03T04:05:06.007Z'),
+    });
+
+    await copy('articles');
+
+    const [row] = await getDb()
+      .select()
+      .from(articles)
+      .where(eq(articles.id, id.toHexString()));
+    expect(row?.postId).toBeNull();
+  });
+
+  it('does NOT reconcile the denormalized shortcut on the post', async () => {
+    // Mongo carried the linkage BOTH ways — `Article.postId` and
+    // `Post.content.article.articleId` — and the two could disagree. The schema
+    // settled which is authoritative (`articles.post_id`, the only side with a
+    // constraint) but the migration must not act on that: quietly repairing a
+    // disagreement destroys the evidence that one existed, and which side is
+    // right is a question about the data rather than about the copy.
+    const post = await seedPost(scope, { oxyUserId: AUTHOR });
+    // Set on the ROW rather than through `seedPost`, because the denormalized
+    // shortcut is not part of the post-creation input — which is itself the
+    // point: nothing in the write path keeps the two sides agreeing, so they
+    // can drift, and a document where they HAVE drifted is what this needs.
+    await getDb()
+      .update(posts)
+      .set({ contentArticleId: 'bfc-other-article' })
+      .where(eq(posts.id, post.id));
+    const articleId = new ObjectId();
+    await mongo.collection('articles').insertOne({
+      _id: articleId,
+      postId: post.id,
+      createdBy: AUTHOR,
+      title: 'bfc real',
+      createdAt: new Date('2024-02-03T04:05:06.007Z'),
+      updatedAt: new Date('2024-02-03T04:05:06.007Z'),
+    });
+
+    await copy('articles');
+
+    const [row] = await getDb()
+      .select()
+      .from(articles)
+      .where(eq(articles.id, articleId.toHexString()));
+    const [stored] = await getDb().select().from(posts).where(eq(posts.id, post.id));
+
+    expect(row?.postId).toBe(post.id);
+    // Each side copied from its OWN source field; the disagreement survives.
+    expect(stored?.contentArticleId).toBe('bfc-other-article');
+  });
 });
 
 describe('post_recent_repliers', () => {
@@ -216,6 +281,87 @@ describe('post_recent_repliers', () => {
     const rows = await repliersOf(post.id);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.repliedAt.toISOString()).toBe('2024-03-09T00:00:00.000Z');
+  });
+
+  it('REFUSES an entry with no repliedAt rather than inventing one', async () => {
+    // `replied_at` is NOT NULL with NO default, so unlike a timestamp column it
+    // cannot fall through to a database value — but the reason to be loud is
+    // stronger than the constraint: the read is ORDERED by this column, so an
+    // invented `now()` would sort the entry straight to the top of the list it
+    // is meant to describe.
+    const post = await seedPost(scope, { oxyUserId: AUTHOR });
+    await mongo.collection('post_recent_repliers').insertOne({
+      _id: new ObjectId(),
+      postId: post.id,
+      repliers: [{ oxyUserId: scope.user('undated') }],
+      createdAt: new Date('2024-05-06T07:08:09.010Z'),
+      updatedAt: new Date('2024-05-06T07:08:09.010Z'),
+    });
+
+    await expect(copy('post_recent_repliers')).rejects.toThrow(/repliedAt/);
+  });
+
+  it('keeps the LIVE row when Postgres already holds that pair', async () => {
+    // Distinct from the idempotence case below, and the distinction is the
+    // whole reason this table is unusual: its Postgres side is ALREADY
+    // authoritative (the projection services maintain it, the Mongo model is
+    // write-dead), so this copy merges history into a table with LIVE writers.
+    // Idempotence asks what a second copy of the SAME rows does; this asks what
+    // happens when the live value DIFFERS from the historical one.
+    const post = await seedPost(scope, { oxyUserId: AUTHOR });
+    const replier = scope.user('live');
+    await mongo.collection('post_recent_repliers').insertOne({
+      _id: new ObjectId(),
+      postId: post.id,
+      repliers: [{ oxyUserId: replier, repliedAt: new Date('2020-01-01T00:00:00.000Z') }],
+      createdAt: new Date('2024-05-06T07:08:09.010Z'),
+      updatedAt: new Date('2024-05-06T07:08:09.010Z'),
+    });
+
+    const live = new Date('2026-01-01T00:00:00.000Z');
+    await getDb()
+      .insert(postRecentRepliers)
+      .values({ postId: post.id, oxyUserId: replier, repliedAt: live });
+
+    await copy('post_recent_repliers');
+
+    const rows = await repliersOf(post.id);
+    // `ON CONFLICT DO NOTHING` fires on the natural key, so the LIVE row and its
+    // `replied_at` survive and the six-year-old historical one is skipped.
+    // Nothing live is overwritten — which is what makes copying into a live
+    // table the conservative choice rather than the reckless one.
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.repliedAt.toISOString()).toBe(live.toISOString());
+  });
+
+  it('EMITS one row per surviving replier, which is what the verifier counts', async () => {
+    // The subject the row-level cases above cannot see. Deleting the dedupe
+    // leaves them green, because `ON CONFLICT DO NOTHING` collapses the
+    // duplicate within the same statement anyway — measured, twice, on two
+    // different plans. What the dedupe actually carries is the EMITTED count:
+    // `verify.ts` re-runs the transforms to compute how many rows each table
+    // should hold, so a transform emitting three rows into a table that can
+    // hold two makes the verifier report a shortfall that is not one — a real
+    // run failing its own check on healthy data.
+    const twice = scope.user('counted');
+    let emitted = 0;
+    planFor('post_recent_repliers').transform(
+      {
+        _id: new ObjectId(),
+        postId: new ObjectId().toHexString(),
+        repliers: [
+          { oxyUserId: twice, repliedAt: new Date('2024-01-03T00:00:00.000Z') },
+          { oxyUserId: scope.user('counted-other'), repliedAt: new Date('2024-01-02T00:00:00.000Z') },
+          { oxyUserId: twice, repliedAt: new Date('2024-01-01T00:00:00.000Z') },
+        ],
+      },
+      () => {
+        emitted += 1;
+      },
+      createResolutionContext(await planResolutions(source), new ResolutionLog())
+    );
+
+    expect(emitted).toBe(2);
   });
 
   it('is idempotent: a second copy adds nothing', async () => {

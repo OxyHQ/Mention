@@ -28,6 +28,13 @@
 import type { PgColumn, PgTable, UpdateDeleteAction } from 'drizzle-orm/pg-core';
 import { getTableColumns, getTableName } from 'drizzle-orm';
 import { sqlColumnName } from '../casing';
+import { repairFetchFailures } from './adminScripts';
+import {
+  blockedDomainPurgeRuns,
+  blockedDomainPurges,
+  blocklistProposalRuns,
+} from './blocklist';
+import { mcpAuthCodes, mcpConnections, mcpRegisteredClients } from './mcp';
 import { entityFollows } from './engagement';
 import { actorKeyPairs, federatedActors, federatedMediaCache } from './federation';
 import { channelMembers, laneMutes, lanes } from './channels';
@@ -114,6 +121,10 @@ const OXY_ACCOUNT_COLUMN_NAMES: ReadonlySet<string> = new Set([
   'payload_actor_oxy_user_id',
   'payload_post_owner_oxy_user_id',
   'pending_remove_owner_id',
+  // The bundle's ACTIVE account, stored on the primary connection row. An
+  // Oxy account id like every other name here, so it belongs to the
+  // predicate rather than the individually-reasoned list below.
+  'active_oxy_user_id',
 ]);
 
 /**
@@ -131,6 +142,34 @@ export function isOxyAccountColumn(column: PgColumn): boolean {
 /**
  * Every id-shaped column that is NOT an Oxy account id and still carries no
  * foreign key. Each has its own reason; none of them is "we forgot".
+ *
+ * ## The pattern in these reasons: right for the schema, wrong for the domain
+ *
+ * Referential hygiene has a DEFAULT ANSWER — an id-shaped column should
+ * reference the table it names — and three entries below are places that answer
+ * is wrong. They arrived within two commits of each other, which is what makes
+ * it a pattern rather than three exceptions:
+ *
+ * - **An identifier from another namespace.** An OAuth `client_id` may name a
+ *   STATICALLY CONFIGURED client that has no row in any table
+ *   (`mcp/config/mcpClients.ts`), so a key pointing at the dynamically
+ *   registered half would refuse every connection made by a configured one. The
+ *   constraint would have looked like correct hygiene while denying service.
+ * - **A grouping token with no parent row.** A `bundle_id`, a purge `run_id` —
+ *   the group IS the set of rows sharing the value, so there is nothing to
+ *   reference. `blocked_domain_purges.run_id` additionally must not tie the
+ *   state row's lifetime to its history.
+ * - **An EVIDENCE row, which must outlive its subject.**
+ *   `repair_fetch_failures.post_id` records that a re-fetch failed at a moment.
+ *   CASCADE would erase the record of the failure along with the thing it
+ *   failed on — precisely backwards for an audit row — and SET NULL cannot
+ *   apply to the column that IS the identifier.
+ *
+ * The third is the one worth carrying forward: **audit and evidence tables are
+ * where the default answer is reliably wrong**, because a constraint expresses
+ * "this row is about a thing that exists" and an evidence row is about a thing
+ * that may not. Ask what the row MEANS before asking what its column looks
+ * like.
  */
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
   {
@@ -517,6 +556,81 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: pushTokens,
     column: pushTokens.deviceId,
     reason: 'A client-supplied device id. Not the primary key of any row.',
+  },
+  {
+    table: mcpConnections,
+    column: mcpConnections.clientId,
+    reason:
+      'An OAuth `client_id`, not a row id. It names a client that may be either ' +
+      'statically configured (`mcp/config/mcpClients.ts`, which has no table at ' +
+      'all) or dynamically registered (`mcp_registered_clients`), so no single ' +
+      'table could be the referent — and a constraint pointing at the registered ' +
+      'half would refuse every connection made by a configured client.',
+  },
+  {
+    table: mcpConnections,
+    column: mcpConnections.bundleId,
+    reason:
+      'The id of a BUNDLE, which is not a table: a bundle exists only as the set ' +
+      'of connections sharing this value, with `is_bundle_primary` marking the ' +
+      'one whose OAuth grant the client refreshes. There is nothing to reference ' +
+      'because the grouping IS the rows.',
+  },
+  {
+    table: mcpAuthCodes,
+    column: mcpAuthCodes.clientId,
+    reason:
+      'The same OAuth `client_id` as on `mcp_connections`, and unconstrained for ' +
+      'the same reason: a code may be issued to a configured client that has no ' +
+      'row anywhere.',
+  },
+  {
+    table: mcpRegisteredClients,
+    column: mcpRegisteredClients.clientId,
+    reason:
+      'The client identifier this table MINTS — its own natural key, carried ' +
+      'under a unique index. It is id-shaped by name only; there is no other ' +
+      'table for it to point at, because this is the one that defines it.',
+  },
+  {
+    table: blocklistProposalRuns,
+    column: blocklistProposalRuns.runId,
+    reason:
+      'This table MINTS the run id — its own natural key, carried under a unique ' +
+      'index. Id-shaped by name only; there is no other table for it to point ' +
+      'at, because this is the one that defines it.',
+  },
+  {
+    table: blockedDomainPurges,
+    column: blockedDomainPurges.runId,
+    reason:
+      'The run that last claimed or completed this domain, kept as the audit ' +
+      'JOIN KEY into `blocked_domain_purge_runs`. Deliberately unconstrained: a ' +
+      'run is not a table — it is the set of rows sharing the id, one per domain ' +
+      'swept — so there is no single parent row to reference. A constraint would ' +
+      'also make the state row undeletable independently of its history, which ' +
+      'is the opposite of the split these two tables exist to express.',
+  },
+  {
+    table: blockedDomainPurgeRuns,
+    column: blockedDomainPurgeRuns.runId,
+    reason:
+      'The grouping token for every domain swept by one run, half of this ' +
+      "table's `(domain, run_id)` unique key. Same reason as above: the run has " +
+      'no row of its own anywhere, so nothing exists to reference.',
+  },
+  {
+    table: repairFetchFailures,
+    column: repairFetchFailures.postId,
+    reason:
+      'Deliberately unconstrained, and the deletion semantics are the reason. A ' +
+      'row is EVIDENCE that a re-fetch failed at a moment, not a pointer to live ' +
+      'content — so it must outlive the post if the post is later deleted. A ' +
+      'foreign key with CASCADE would erase the record of the failure along with ' +
+      'its subject, and SET NULL cannot apply to a NOT NULL column that IS the ' +
+      'identifier. The consumer already tolerates a stale id: it intersects these ' +
+      "with the sweep's live candidate filter rather than trusting them alone, " +
+      'which is what keeps a dangling row costing nothing beyond being skipped.',
   },
 ];
 

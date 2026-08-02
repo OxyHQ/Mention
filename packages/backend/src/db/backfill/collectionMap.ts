@@ -65,12 +65,15 @@ import type { CollectionPlan, ExcludedCollection } from './plan';
 import { planTables, tableName } from './plan';
 import { CHANNEL_PLANS } from './plans/channels';
 import { CONTENT_PLANS } from './plans/content';
+import { ADMIN_SCRIPT_PLANS } from './plans/adminScripts';
+import { BLOCKLIST_PLANS } from './plans/blocklist';
 import { DISCOVERY_PLANS } from './plans/discovery';
 import { ENGAGEMENT_PLANS } from './plans/engagement';
 import { FEDERATION_PLANS } from './plans/federation';
 import { FEED_PLANS } from './plans/feeds';
 import { GATE_PLANS } from './plans/gates';
 import { LIST_PLANS } from './plans/lists';
+import { MCP_PLANS } from './plans/mcp';
 import { MODERATION_PLANS } from './plans/moderation';
 import { MTN_PLANS } from './plans/mtn';
 import { OUTBOX_PLANS } from './plans/outbox';
@@ -141,6 +144,9 @@ export const COLLECTION_PLANS: readonly CollectionPlan[] = [
   ...FEDERATION_PLANS,
   ...FEED_PLANS,
   ...LIST_PLANS,
+  ...MCP_PLANS,
+  ...BLOCKLIST_PLANS,
+  ...ADMIN_SCRIPT_PLANS,
   ...MODERATION_PLANS,
   ...USER_PROFILE_PLANS,
 ];

@@ -24,14 +24,23 @@
 import mongoose from 'mongoose';
 import { logger } from '../utils/logger';
 import { MIGRATION_REPAIR_FETCH_FAILURE_INDEXES } from './constants';
-import { RepairFetchFailure } from '../models/RepairFetchFailure';
 import type { Migration } from './runner';
+
+/**
+ * Named literally rather than read off a Mongoose model, which the Postgres port
+ * deleted. A landed migration is FROZEN HISTORY: it repairs the indexes of a
+ * pre-cutover Mongo collection, so it must keep naming what that collection was
+ * called at the time and must not follow a live constant that could be renamed
+ * underneath it. Same treatment `0012` got when the MTN models went.
+ */
+const REPAIR_FETCH_FAILURE_COLLECTION = 'repairfetchfailures';
+
 
 export const migrationRepairFetchFailureIndexes: Migration = {
   id: MIGRATION_REPAIR_FETCH_FAILURE_INDEXES,
 
   async run(db: mongoose.mongo.Db): Promise<void> {
-    const failures = db.collection(RepairFetchFailure.collection.collectionName);
+    const failures = db.collection(REPAIR_FETCH_FAILURE_COLLECTION);
     await failures.createIndex({ script: 1, postId: 1 }, { unique: true });
     await failures.createIndex({ script: 1, reason: 1 });
     logger.info(

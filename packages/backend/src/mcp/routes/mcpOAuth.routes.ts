@@ -2,9 +2,18 @@ import { Router, Request, Response } from 'express';
 import type { OxyServices } from '@oxyhq/core';
 import type { OxyAuthRequest } from '@oxyhq/core/server';
 import crypto from 'crypto';
-import { McpAuthCode } from '../models/McpAuthCode';
-import { McpConnection } from '../models/McpConnection';
-import { McpRegisteredClient } from '../models/McpRegisteredClient';
+import {
+  claimAuthCode,
+  createAuthCode,
+  findAuthCodeByCode,
+} from '../../db/mcp/mcpAuthCodeRepository';
+import {
+  createConnection,
+  findConnectionByRefreshTokenHash,
+  findLiveBundlePrimary,
+  rotateRefreshTokenFamily,
+} from '../../db/mcp/mcpConnectionRepository';
+import { createRegisteredClient } from '../../db/mcp/mcpRegisteredClientRepository';
 import { getMcpClientAsync, isAllowedRedirectUri } from '../config/mcpClients';
 import {
   MCP_ACCESS_TOKEN_TTL_SECONDS,
@@ -102,11 +111,7 @@ export function createMcpOAuthRoutes(oxy: OxyServices): Router {
       if (!parsed) {
         return res.status(400).json({ message: 'Invalid or expired link token' });
       }
-      const primary = await McpConnection.findOne({
-        bundleId: parsed.bundleId,
-        isBundlePrimary: true,
-        revokedAt: null,
-      }).lean();
+      const primary = await findLiveBundlePrimary(parsed.bundleId);
       const client = primary ? await getMcpClientAsync(primary.clientId) : null;
       return res.json({
         clientLabel: client?.label ?? primary?.clientLabel ?? parsed.clientId,
@@ -156,7 +161,7 @@ export function createMcpOAuthRoutes(oxy: OxyServices): Router {
       const clientId = `mcp-dcr-${crypto.randomUUID()}`;
       const label = requestedName && requestedName.length <= 200 ? requestedName : 'MCP Client';
 
-      await McpRegisteredClient.create({ clientId, redirectUris, label });
+      await createRegisteredClient({ clientId, redirectUris, label });
 
       // RFC 7591 client information response for a public client.
       return res.status(201).json({
@@ -223,10 +228,14 @@ export function createMcpOAuthRoutes(oxy: OxyServices): Router {
       const scope = firstString(req.body?.scope);
       const state = firstString(req.body?.state);
 
-      if (!(await getMcpClientAsync(clientId))) {
+      // The resolved client, not the raw query value: `client.clientId` is the
+      // canonical id (static config or the registered row) and is a `string`,
+      // which is what the code row stores.
+      const client = await getMcpClientAsync(clientId);
+      if (!client) {
         return res.status(400).json({ error: 'invalid_client', message: 'Unknown client_id' });
       }
-      if (!(await isAllowedRedirectUri(clientId, redirectUri))) {
+      if (!redirectUri || !(await isAllowedRedirectUri(clientId, redirectUri))) {
         return res.status(400).json({ error: 'invalid_request', message: 'redirect_uri not allowed for this client' });
       }
       if (!codeChallenge || codeChallengeMethod !== PKCE_METHOD) {
@@ -235,9 +244,9 @@ export function createMcpOAuthRoutes(oxy: OxyServices): Router {
 
       const scopes = resolveScopes(scope);
       const code = generateAuthCode();
-      await McpAuthCode.create({
+      await createAuthCode({
         code,
-        clientId,
+        clientId: client.clientId,
         oxyUserId,
         redirectUri,
         codeChallenge,
@@ -245,7 +254,7 @@ export function createMcpOAuthRoutes(oxy: OxyServices): Router {
         expiresAt: new Date(Date.now() + MCP_AUTH_CODE_TTL_SECONDS * 1000),
       });
 
-      const redirect = new URL(redirectUri as string);
+      const redirect = new URL(redirectUri);
       redirect.searchParams.set('code', code);
       if (state) redirect.searchParams.set('state', state);
 
@@ -291,7 +300,7 @@ async function handleAuthorizationCodeGrant(req: Request, res: Response): Promis
     return res.status(400).json({ error: 'invalid_client' });
   }
 
-  const authCode = await McpAuthCode.findOne({ code });
+  const authCode = await findAuthCodeByCode(code);
   if (!authCode || authCode.usedAt || authCode.expiresAt.getTime() < Date.now()) {
     return res.status(400).json({ error: 'invalid_grant', message: 'Authorization code is invalid or expired' });
   }
@@ -302,20 +311,19 @@ async function handleAuthorizationCodeGrant(req: Request, res: Response): Promis
     return res.status(400).json({ error: 'invalid_grant', message: 'PKCE verification failed' });
   }
 
-  // Single-use: atomically stamp usedAt; if another request won the race, reject.
-  const claimed = await McpAuthCode.findOneAndUpdate(
-    { _id: authCode._id, usedAt: null },
-    { usedAt: new Date() },
-    { new: true },
-  );
-  if (!claimed) {
+  // Single-use: ONE conditional UPDATE carrying `used_at IS NULL`, so the
+  // database decides the race. The read above cannot stand in for it — two
+  // requests both observing "not yet used" is exactly the case this rejects,
+  // and its false answer points toward permission (a code redeemed twice),
+  // never toward silence.
+  if (!(await claimAuthCode(authCode.id))) {
     return res.status(400).json({ error: 'invalid_grant', message: 'Authorization code already used' });
   }
 
   const jti = generateJti();
   const refresh = generateRefreshToken();
   const bundleId = crypto.randomUUID();
-  await McpConnection.create({
+  await createConnection({
     oxyUserId: authCode.oxyUserId,
     clientId,
     clientLabel: client.label,
@@ -359,20 +367,27 @@ async function handleRefreshTokenGrant(req: Request, res: Response): Promise<Res
     return res.status(400).json({ error: 'invalid_client' });
   }
 
-  const connection = await McpConnection.findOne({ refreshTokenHash: hashToken(refreshToken) });
+  const presentedHash = hashToken(refreshToken);
+  const connection = await findConnectionByRefreshTokenHash(presentedHash);
   if (!connection || connection.revokedAt || connection.clientId !== clientId) {
     return res.status(400).json({ error: 'invalid_grant', message: 'Refresh token is invalid or revoked' });
   }
 
-  // Rotate: revoke the outgoing token family, then mint a new family.
-  await revokeJti(connection.jti);
-
+  // Rotate the family FIRST, conditional on the presented hash still being the
+  // current one, so two concurrent refreshes of one token cannot both mint a
+  // live family — the loser matches no row. Only the winner then blocklists the
+  // outgoing `jti`; a loser doing it would revoke the family the winner just
+  // rotated to nothing, since the row it read is already superseded.
   const newJti = generateJti();
   const newRefresh = generateRefreshToken();
-  connection.jti = newJti;
-  connection.refreshTokenHash = newRefresh.hash;
-  connection.lastUsedAt = new Date();
-  await connection.save();
+  const rotated = await rotateRefreshTokenFamily(connection.id, presentedHash, {
+    jti: newJti,
+    refreshTokenHash: newRefresh.hash,
+  });
+  if (!rotated) {
+    return res.status(400).json({ error: 'invalid_grant', message: 'Refresh token is invalid or revoked' });
+  }
+  await revokeJti(connection.jti);
 
   const accessToken = signAccessToken({
     oxyUserId: connection.oxyUserId,

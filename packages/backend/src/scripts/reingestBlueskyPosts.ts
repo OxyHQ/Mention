@@ -96,7 +96,7 @@ import {
   type StoredPostContent,
 } from '@mention/shared-types';
 import { and, asc, count, eq, gt, ilike, ne, or, type SQL } from 'drizzle-orm';
-import { getDb } from '../db/postgres';
+import { connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import {
   findPostRecords,
@@ -719,7 +719,10 @@ async function reingestBlueskyPosts(): Promise<void> {
       scriptName: 'reingestBlueskyPosts',
       dryRun: flags.dryRun,
     });
-    await mongoose.connect(mongoUri, { dbName });
+    // BOTH stores. This script reads and writes `posts` directly through
+    // `getDb()`, and `closeAdminScriptResources` was already closing a pool it
+    // never opened — so every page died on "PostgreSQL is not connected".
+    await Promise.all([mongoose.connect(mongoUri, { dbName }), connectPostgres()]);
     logger.info('[reingestBlueskyPosts] connected to MongoDB', {
       dryRun: flags.dryRun,
       sourceKind: flags.path,
