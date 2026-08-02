@@ -37,7 +37,15 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
+  // Dropped to prove `dropCheckpointTable` does what it says, then RECREATED
+  // immediately. Vitest runs test files in parallel against ONE database, and
+  // `mention_backfill_checkpoints` is shared state: leaving it dropped raced
+  // `backfillVerify.test.ts`, whose `--start-from-empty` case writes a
+  // checkpoint and died on `relation … does not exist` — a failure in a file
+  // that had touched nothing, arriving only when the scheduler happened to
+  // order the two that way.
   await dropCheckpointTable(getDb());
+  await ensureCheckpointTable(getDb());
   await closePostgres();
 });
 

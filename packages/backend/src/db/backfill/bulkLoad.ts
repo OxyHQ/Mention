@@ -200,6 +200,17 @@ export function applyDefaultFns(table: PgTable, rows: readonly BuiltRow[]): Buil
   });
 }
 
+/**
+ * The prefix every staging table's name starts with.
+ *
+ * Exported so anything that has to RECOGNISE one reads the same constant the
+ * loader names it from. A staging table is transient, has no primary key, and
+ * belongs to no migration, so a schema-wide invariant that walks `pg_class`
+ * would otherwise trip over whichever ones happen to exist at that instant —
+ * which it did, intermittently, against the shared test database.
+ */
+export const STAGING_TABLE_PREFIX = 'mention_backfill_stage_';
+
 /** A staging table name unique to one load, safe to interpolate. */
 let stagingCounter = 0;
 function nextStagingName(): string {
@@ -208,7 +219,7 @@ function nextStagingName(): string {
 }
 
 function stagingNameFor(counter: number): string {
-  return `mention_backfill_stage_${process.pid}_${counter}`;
+  return `${STAGING_TABLE_PREFIX}${process.pid}_${counter}`;
 }
 
 /**
