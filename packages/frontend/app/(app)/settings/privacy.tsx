@@ -28,6 +28,7 @@ import {
 } from '@/hooks/usePrivacySettings';
 import { queryClient } from '@/lib/queryClient';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { invalidateSafetyFilters } from '@/stores/safetyInvalidation';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
 
 const FILTER_TOGGLES: {
@@ -128,6 +129,11 @@ export default function PrivacySettingsScreen() {
         try {
             await authenticatedClient.put('/profile/settings', { privacy: updated });
             await updatePrivacySettingsCache(updated, cacheLease);
+            // Sensitive content is excluded by the SERVER's feed/search queries,
+            // so a cache filled under the previous answer is now showing (or
+            // withholding) exactly what the viewer just decided about. One
+            // authority tells both read caches: `stores/safetyInvalidation`.
+            invalidateSafetyFilters();
         } catch (error) {
             logger.error('Error updating privacy setting', error, { field });
             setPrivacySettings(previous);
