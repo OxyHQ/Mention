@@ -176,6 +176,55 @@ describe('the VERDICT past the cap', () => {
     expect(notice?.sampleIds.length).toBeGreaterThan(0);
   });
 
+  it('BLOCKS when a rule answers the LISTED groups but not the unlisted one', async () => {
+    // The discriminating case, and the one the first draft of this file missed:
+    // with no rule declared at all, a notice that attached `resolvedBy`
+    // unconditionally was indistinguishable from one that checked — the plan had
+    // nothing to attach. A rule that covers the fifty described groups and NOT
+    // the fifty-first is what tells those two implementations apart, and it is
+    // also the realistic shape: a dedup rule that answers ordinary duplicates
+    // and deliberately leaves a sentinel set alone.
+    await insertCollidingPairs(GROUPS);
+
+    const rows = await mongo
+      .collection('federatedactors')
+      .find({}, { projection: { _id: 1, uri: 1 } })
+      .toArray();
+    const byUri = new Map<string, string[]>();
+    for (const row of rows) {
+      const list = byUri.get(String(row.uri)) ?? [];
+      list.push(String(row._id));
+      byUri.set(String(row.uri), list);
+    }
+    // Sorted the way the audit sorts, so "the unlisted one" is the same group
+    // here as it is there rather than whichever Mongo happened to return last.
+    const uris = [...byUri.keys()].sort();
+    const covered = new Set<string>();
+    for (const uri of uris.slice(0, COLLISION_GROUPS_REPORTED)) {
+      for (const id of (byUri.get(uri) ?? []).slice(1)) covered.add(id);
+    }
+
+    const rule: ResolutionRule = {
+      id: 'buc-partial-rule',
+      collection: 'federatedactors',
+      finding: 'test',
+      decision: 'test',
+    };
+    const plan: CollectionPlan = {
+      ...planFor('federatedactors'),
+      uniquenessAudits: [
+        { index: 'federated_actors_uri_key', key: [{ path: 'uri', normalize: 'exact' }], resolvedBy: rule },
+      ],
+    };
+
+    const notice = noticeIn(await audit(plan, new Map([[rule.id, covered]])));
+
+    expect(notice).toBeDefined();
+    expect(notice?.resolvedBy).toBeUndefined();
+    expect(auditWouldBlockCopy(notice as AuditFinding)).toBe(true);
+    expect(notice?.detail).toContain('is NOT answered by any rule');
+  });
+
   it('does NOT block when a rule answers every unlisted group', async () => {
     await insertCollidingPairs(GROUPS);
 
