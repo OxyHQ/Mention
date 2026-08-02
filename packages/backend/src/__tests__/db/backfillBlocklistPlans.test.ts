@@ -260,7 +260,12 @@ describe('blocklist proposal runs', () => {
       finishedAt: new Date('2025-05-05T00:01:00.000Z'),
       minOperators: 3,
       sources: [
-        { instance: 'bfb-a.test', operator: 'a', outcome: 'unavailable', entries: 0, detail: '502' },
+        // `failed` — the poller's own vocabulary, which is what production rows
+        // carry. This fixture said `unavailable`, agreeing with a CHECK that
+        // agreed with nothing: the whole point of a backfill fixture is to be
+        // the SHAPE Mongo actually holds, so a value invented alongside the
+        // constraint made the plan look verified against itself.
+        { instance: 'bfb-a.test', operator: 'a', outcome: 'failed', entries: 0, detail: '502' },
       ],
       counts: {
         domainsObserved: 0,
@@ -292,7 +297,7 @@ describe('blocklist proposal runs', () => {
       .select()
       .from(blocklistProposalRunSources)
       .where(eq(blocklistProposalRunSources.runRowId, id.toHexString()));
-    expect(sourceRow?.outcome).toBe('unavailable');
+    expect(sourceRow?.outcome).toBe('failed');
     expect(sourceRow?.detail).toBe('502');
   });
 
