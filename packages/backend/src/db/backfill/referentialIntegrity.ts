@@ -231,17 +231,35 @@ export interface PlanEmission {
   readonly documentsRead: number;
   /** Rows emitted for the plan's OWN table — one per document, when faithful. */
   readonly primaryRowsEmitted: number;
+  /**
+   * Documents a DOCUMENTED RULE removed whole, recorded by id.
+   *
+   * Subtracted below, and it is the only thing that is. See
+   * `ResolutionContext.dropDocument` for why the two kinds of loss must stay
+   * distinguishable.
+   */
+  readonly documentsDroppedByRule: number;
 }
 
 /**
- * Documents that produced no row in their own table.
+ * Documents that produced no row in their own table AND that nothing decided
+ * to remove.
  *
  * A transform emits exactly one primary row per document, so a shortfall is
  * data going missing. Reported as its own blocking finding whether or not any
- * foreign key points at the lost rows.
+ * foreign key points at the lost rows, and no resolution rule may clear it.
+ *
+ * The one subtraction is a drop a documented rule RECORDED BY ID — which is a
+ * reviewed decision, not a loss. Note that a row a rule merely NULLs a column
+ * on, or drops as an orphan, is still emitted and so never reaches this
+ * arithmetic at all: `primaryRowsEmitted` counts what the transform emitted,
+ * before any rule ran.
  */
 export function droppedDocuments(emission: PlanEmission): number {
-  return Math.max(0, emission.documentsRead - emission.primaryRowsEmitted);
+  return Math.max(
+    0,
+    emission.documentsRead - emission.primaryRowsEmitted - emission.documentsDroppedByRule
+  );
 }
 
 /** Did this plan emit a primary row for every document it read? */
@@ -434,7 +452,14 @@ export async function auditReferentialIntegrity(
     }
 
     documentsInspected += documentsRead;
-    emissions.push({ collection: plan.collection, documentsRead, primaryRowsEmitted });
+    emissions.push({
+      collection: plan.collection,
+      documentsRead,
+      primaryRowsEmitted,
+      // Read AFTER the whole collection streamed, so it covers every document a
+      // rule removed rather than whatever had been seen partway through.
+      documentsDroppedByRule: resolutions.documentsDroppedIn(plan.collection),
+    });
   }
 
   // ---- phase 2: check every reference against those sets -------------------

@@ -41,6 +41,7 @@ import { is } from 'drizzle-orm';
 import * as schema from '../schema';
 import type { CollectionPlan, ExcludedCollection } from './plan';
 import { planTables, tableName } from './plan';
+import { ENGAGEMENT_PLANS } from './plans/engagement';
 
 /**
  * Every collection that moves, and what it becomes.
@@ -92,7 +93,7 @@ import { planTables, tableName } from './plan';
  * is wrong about which table a collection feeds is worse than a missing one:
  * the missing one fails loudly at `discover()`.
  */
-export const COLLECTION_PLANS: readonly CollectionPlan[] = [];
+export const COLLECTION_PLANS: readonly CollectionPlan[] = [...ENGAGEMENT_PLANS];
 
 /**
  * Every collection that deliberately does NOT move, and why.

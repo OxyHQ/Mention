@@ -17,20 +17,33 @@
  * the finding is still computed, still counted, still printed — now carrying
  * the rule that answers it.
  *
- * ## There are currently NO declared rules, and that is correct
+ * ## The two kinds of rule, and what is declared today
  *
- * {@link ORPHAN_RESOLUTIONS} and {@link RESOLUTION_RULES} are empty. A rule is a
- * decision about REAL data — which of two colliding rows survives, whether a
- * post naming a deleted parent is dropped or nulled — and no such data has been
- * inspected yet, because no audit has been run against `mention-production`.
- * Inventing a rule in advance would be guessing at a decision, and a rule that
- * fires on data nobody looked at is worse than no rule at all: it acts, and the
- * report says it acted, and nobody ever decided.
+ * - **Orphan rules** ({@link ORPHAN_RESOLUTIONS}) act on a row whose reference
+ *   names no parent. **None is declared**, and that is correct: which of a
+ *   post's dangling references is dropped and which is nulled is a decision
+ *   about real data, and no audit has run against `mention-production` yet.
+ *   Inventing one in advance would be guessing — it would act, the report would
+ *   say it acted, and nobody would have decided.
+ * - **Value rules** act on a VALUE the schema no longer accepts.
+ *   {@link DROP_UNREAD_FEED_ENTITY_FOLLOWS} is the one declared rule, and it is
+ *   declared because the decision was already made and written down in
+ *   `schema/engagement.ts` — which states outright that the backfill "must
+ *   actively drop rows rather than copy them" for a retired
+ *   `entityfollows.entityType`. This file is where that instruction reports
+ *   itself by id instead of happening silently inside a transform.
  *
- * So the engine is complete and inert. Every finding blocks
- * ({@link ResolutionContext.resolvesUniquenessGroup} answers `false` for every
- * rule), every transform runs unmodified, and the first real audit is what
- * produces the first rule. The shape below is what a rule slots into.
+ * Note what did NOT happen: the rule does not make its finding disappear. The
+ * `EnumAudit` on `entity_follows.entity_type` still runs, still counts the
+ * rows, and still prints them — now carrying the rule that answers them.
+ *
+ * ## A rule-recorded drop is not data loss, and the difference is enforced
+ *
+ * {@link ResolutionContext.dropDocument} is the ONLY channel by which a
+ * transform may emit nothing for a document. A transform that just returns is
+ * still a `dropped-document` finding, which blocks and which no rule may ever
+ * clear. The two failures look identical from a row count, so they are
+ * separated at the point of decision rather than inferred afterwards.
  *
  * ## Rules are narrow BY CONSTRUCTION
  *
@@ -175,6 +188,36 @@ export function orphanResolution(input: OrphanResolutionInput): OrphanRelation {
 }
 
 /**
+ * Rows with a retired `entityfollows.entityType`.
+ *
+ * `schema/engagement.ts` states this as an instruction — "the one place in this
+ * schema where the backfill must actively drop rows rather than copy them" —
+ * and this is that instruction, written where it reports itself BY ID.
+ */
+export const DROP_UNREAD_FEED_ENTITY_FOLLOWS: ResolutionRule = {
+  id: 'drop-unread-feed-entity-follows',
+  collection: 'entityfollows',
+  finding:
+    "entityfollows.entityType = 'feed' is not one of hashtag | list. The CHECK " +
+    'on entity_follows.entity_type would reject these rows.',
+  decision:
+    "Rows with entityType:'feed' are DROPPED. They were written by a historical " +
+    'code path and are read by NOTHING: a custom-feed subscription is a ' +
+    '`FeedLike` row (POST /feeds/:id/like), which is what moves ' +
+    '`CustomFeed.subscriberCount` and what every feed surface reads — ' +
+    "`EntityFollow{entityType:'feed'}` moves nothing and is queried by no " +
+    'source, service or controller. Both the Mongoose enum and the Postgres ' +
+    'CHECK already declare only hashtag|list; these rows exist because Mongoose ' +
+    'never ran `runValidators`, so the enum was documentation. Copying them ' +
+    'would mean widening a constraint to admit data with no reader, which is ' +
+    'precisely the Mongo baggage the port exists to leave behind. Every dropped ' +
+    'row is reported BY ID under this rule.',
+};
+
+/** Rules that act on a VALUE rather than on a missing parent. */
+const VALUE_RESOLUTIONS: readonly ResolutionRule[] = [DROP_UNREAD_FEED_ENTITY_FOLLOWS];
+
+/**
  * Every declared orphan resolution.
  *
  * EMPTY, deliberately — see this file's header. The first entry belongs to
@@ -189,9 +232,10 @@ export const ORPHAN_RESOLUTIONS: readonly OrphanRelation[] = [];
  * Derived from {@link ORPHAN_RESOLUTIONS} plus any standalone value rules, so a
  * declared rule cannot be missing from the report by omission.
  */
-export const RESOLUTION_RULES: readonly ResolutionRule[] = dedupeRules(
-  ORPHAN_RESOLUTIONS.map((relation) => relation.rule)
-);
+export const RESOLUTION_RULES: readonly ResolutionRule[] = dedupeRules([
+  ...ORPHAN_RESOLUTIONS.map((relation) => relation.rule),
+  ...VALUE_RESOLUTIONS,
+]);
 
 function dedupeRules(rules: readonly ResolutionRule[]): ResolutionRule[] {
   const seen = new Set<string>();
@@ -266,9 +310,30 @@ export interface ResolutionSummary {
  */
 export class ResolutionLog {
   private readonly records = new Map<string, ResolutionRecord>();
+  /** Documents a rule removed WHOLE, by collection — see `dropDocument`. */
+  private readonly dropped = new Map<string, Set<string>>();
 
   record(entry: ResolutionRecord): void {
     this.records.set(`${entry.rule.id} ${entry.documentId} ${entry.within ?? ''}`, entry);
+  }
+
+  /**
+   * Record that a rule removed an entire document, so it produces no row.
+   *
+   * Kept as a SET of document ids per collection rather than a counter, for the
+   * same reason {@link record} is keyed rather than incremented: a transform is
+   * re-run several times per document (the deferred pass, the referential
+   * audit, both verifier passes), and a counter would multiply by four.
+   */
+  dropDocument(collection: string, documentId: string): void {
+    const existing = this.dropped.get(collection);
+    if (existing) existing.add(documentId);
+    else this.dropped.set(collection, new Set([documentId]));
+  }
+
+  /** How many documents of this collection a rule removed whole. */
+  documentsDroppedIn(collection: string): number {
+    return this.dropped.get(collection)?.size ?? 0;
   }
 
   /**
@@ -343,6 +408,28 @@ export interface ResolutionContext {
   /** Record that a rule changed what a document becomes. */
   readonly record: (entry: ResolutionRecord) => void;
   /**
+   * Record that a documented rule removes an entire document.
+   *
+   * The transform then emits NOTHING for it, which would otherwise read as a
+   * `dropped-document` finding — the check that says a transform is losing
+   * data. Both are real and they must stay distinguishable: a drop nobody
+   * decided is a bug that blocks and no rule may clear, while a drop a rule
+   * recorded BY ID is a decision that has already been reviewed. This is the
+   * channel that separates them, and it is the only thing `droppedDocuments`
+   * subtracts.
+   *
+   * A transform that simply returns without emitting and without calling this
+   * still blocks, which is the correct default.
+   */
+  readonly dropDocument: (
+    rule: ResolutionRule,
+    collection: string,
+    documentId: string,
+    detail: string
+  ) => void;
+  /** How many documents of this collection a rule removed whole. */
+  readonly documentsDroppedIn: (collection: string) => number;
+  /**
    * Does a rule already answer this uniqueness collision?
    *
    * Asked by `auditUniqueness`, so `audit.ts` needs no knowledge of any
@@ -367,6 +454,11 @@ export function createResolutionContext(
     record: (entry) => {
       log.record(entry);
     },
+    dropDocument: (rule, collection, documentId, detail) => {
+      log.record({ rule, documentId, detail });
+      log.dropDocument(collection, documentId);
+    },
+    documentsDroppedIn: (collection) => log.documentsDroppedIn(collection),
     resolvesUniquenessGroup: (rule, ids) => {
       const acted = plan.actedOn.get(rule.id);
       if (acted === undefined || ids.length < 2) return false;
