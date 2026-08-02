@@ -229,3 +229,37 @@ export const geography = customType<{ data: string; driverData: string }>({
 export function inList(values: readonly string[]): string {
   return values.map((value) => `'${value}'`).join(', ');
 }
+
+/**
+ * {@link inList} for a closed set of NUMBERS — unquoted, so `in (1, -1)`.
+ *
+ * The same drift argument applies and is why this exists rather than the CHECK
+ * spelling its values out: `likes.value` had a `LIKE_VALUES` tuple beside a
+ * CHECK that restated `(1, -1)` independently, so the tuple was referenced by
+ * nothing and neither side would have noticed the other changing. The backfill's
+ * numeric audit now reads that tuple, which makes the drift a live hazard rather
+ * than a latent one.
+ *
+ * Rendering is deliberately `join(', ')` so the emitted DDL is byte-identical to
+ * what the applied migration already contains — a cosmetic difference here would
+ * make drizzle-kit propose a constraint drop/recreate for no change at all.
+ * `db/__tests__` asserts that rendering; do not "tidy" the separator.
+ *
+ * Non-finite values are refused rather than rendered: `Infinity` and `NaN`
+ * stringify to identifiers Postgres parses as column references, so an
+ * unguarded one becomes a syntactically valid CHECK against a column that does
+ * not exist — a migration failure far from its cause.
+ */
+export function numericInList(values: readonly number[]): string {
+  return values
+    .map((value) => {
+      if (!Number.isFinite(value)) {
+        throw new Error(
+          `numericInList received ${String(value)}, which is not a SQL numeric ` +
+            'literal — Postgres would parse it as a column reference'
+        );
+      }
+      return String(value);
+    })
+    .join(', ');
+}

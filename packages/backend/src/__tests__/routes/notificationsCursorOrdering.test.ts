@@ -171,6 +171,12 @@ afterAll(async () => {
   await closePostgres();
 });
 
+/** The subset of `EXPLAIN (FORMAT JSON)` this file walks. */
+interface ProbePlanNode {
+  'Node Type': string;
+  Plans?: ProbePlanNode[];
+}
+
 describe('the fixture really stages the collation hazard', () => {
   it('sorts the pre-cutover id ABOVE the post-cutover one, in the database', async () => {
     /**
@@ -298,43 +304,87 @@ describe('GET /notifications — the index actually serves that order', () => {
      * notification history on every page, and it is INVISIBLE in the response —
      * the rows are identical either way. So the plan is the assertion.
      *
-     * Turning OFF seq scans AND bitmap scans is what makes this discriminating
-     * rather than a measure of table size. A bitmap scan reads an index but
-     * returns rows in heap order, so it always needs a Sort — on a handful of
-     * fixture rows the planner picks it whatever the index can do, and the
-     * assertion would fail for both the right and the wrong ORDER BY. With both
-     * off, an ordered index scan is the only option left and the one remaining
-     * question is whether the index can satisfy the ORDER BY. If it cannot,
-     * Postgres still adds a `Sort` — which is exactly what a plain `desc()` does
-     * here, because drizzle emits `.desc()` in index DDL as `DESC NULLS LAST`
-     * while a query's `desc()` means `DESC NULLS FIRST`, and pathkey matching
-     * compares the NULLS placement too. Confirmed at scale rather than inferred:
-     * on 5,000 rows for one recipient with the planner unconstrained, the
-     * mismatched order plans Bitmap Heap Scan + Sort at cost 459 and the matched
-     * one an Index Only Scan at cost 1.85.
+     * Measured against a PRIVATE table, not `notifications`, and that is the
+     * whole design. The earlier version EXPLAINed the real table with seq and
+     * bitmap scans disabled, which narrows the planner's options but does not
+     * remove its CHOICE: `notifications` carries several indexes, every other
+     * file in a parallel run writes rows that move its statistics, and the
+     * planner then picks a different index and adds a Sort that says nothing
+     * about this ORDER BY. It passed alone and failed once the suite grew — the
+     * same substitution the sibling gate in `db/chronoOrderPlan.test.ts` was
+     * rewritten for: "the planner chose the good plan" is not the property,
+     * "the ORDER BY is spelled so an index CAN serve it" is.
      *
-     * `SET LOCAL` keeps both settings inside this transaction, so the other files
-     * sharing this database are unaffected.
+     * `on commit drop` inside one transaction: invisible to other connections,
+     * nothing waits on it, and with exactly ONE index the planner has no choice
+     * left to make. `format json` with an exact `Node Type` match, because the
+     * substring `Sort` also matches `Incremental Sort` — a BETTER plan whose
+     * name contains the word, and a gate that fails on a correct plan is the one
+     * whoever hits it next deletes.
+     *
+     * The negative control is what keeps it honest: drizzle emits `.desc()` in
+     * index DDL as `DESC NULLS LAST` while a query's `desc()` means `DESC NULLS
+     * FIRST`, and pathkey matching compares the NULLS placement too — so the
+     * wrong spelling must still produce a Sort here, or this table is not
+     * reproducing the hazard.
      */
-    const viewer = viewerId();
-    await seed(viewer, uuidv7(), new Date('2026-07-01T00:00:00.000Z'), `${NAMESPACE}-plan`);
+    const nodeTypes = async (order: string): Promise<string[]> => {
+      const plan = await db.transaction(async (tx) => {
+        await tx.execute(sql`
+          create temp table notif_order_probe (
+            id text primary key,
+            recipient_id text not null,
+            created_at timestamptz not null
+          ) on commit drop
+        `);
+        await tx.execute(sql`
+          create index notif_order_probe_idx
+            on notif_order_probe (recipient_id, created_at desc nulls last, id desc nulls last)
+        `);
+        await tx.execute(sql`
+          insert into notif_order_probe
+          select lpad(g::text, 24, '0'), 'probe-viewer', now() - (g || ' seconds')::interval
+          from generate_series(1, 2000) g
+        `);
+        await tx.execute(sql`analyze notif_order_probe`);
+        const rows = await tx.execute<{ 'QUERY PLAN': [{ Plan: ProbePlanNode }] }>(sql`
+          explain (format json) select id from notif_order_probe
+          where recipient_id = 'probe-viewer'
+          order by ${sql.raw(order)} limit 21
+        `);
+        return [...rows][0]['QUERY PLAN'][0].Plan;
+      });
+      const types: string[] = [];
+      const walk = (node: ProbePlanNode): void => {
+        types.push(node['Node Type']);
+        for (const child of node.Plans ?? []) walk(child);
+      };
+      walk(plan);
+      return types;
+    };
 
-    const plan = await db.transaction(async (tx) => {
-      await tx.execute(sql`set local enable_seqscan = off`);
-      await tx.execute(sql`set local enable_bitmapscan = off`);
-      const rows = await tx.execute<{ 'QUERY PLAN': string }>(sql`
-        explain select * from ${notifications}
-        where ${and(
-          eq(notifications.recipientId, viewer),
-          sql`true`,
-        )}
-        order by ${sql.join(NOTIFICATION_PAGE_ORDER, sql`, `)}
-        limit 21
-      `);
-      return [...rows].map((row) => row['QUERY PLAN']).join('\n');
-    });
+    // The order string is RENDERED from the exported constant, not written out
+    // here — otherwise this probe would assert that a hand-written spelling works
+    // against a hand-built index and would keep passing after the route changed
+    // its order, which is the substitution this whole file exists to catch. The
+    // column names are rewritten to the probe table's, which carry the same
+    // names, so what is under test is the ORDER and its NULLS placement.
+    const rendered = db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .orderBy(...NOTIFICATION_PAGE_ORDER)
+      .toSQL()
+      .sql.toLowerCase()
+      .split('order by')[1]
+      .trim()
+      .replace(/"notifications"\./g, '')
+      .replace(/"/g, '');
 
-    expect(plan).toContain('notifications_recipient_keyset_idx');
-    expect(plan).not.toContain('Sort');
+    expect(rendered).toContain('nulls last');
+    expect(await nodeTypes(rendered)).not.toContain('Sort');
+    // Negative control: drizzle's bare `desc()` spelling is NULLS FIRST, which
+    // the index cannot serve. If this stops sorting, the probe has stopped
+    // reproducing the hazard and the assertion above means nothing.
+    expect(await nodeTypes('created_at desc, id desc')).toContain('Sort');
   });
 });

@@ -123,25 +123,31 @@ export function getDb(): Database {
 }
 
 /**
- * The raw postgres.js handle underneath the drizzle instance.
+ * The raw `postgres.js` handle underneath the drizzle instance.
  *
- * Narrow on purpose: it exists for the migration LEDGER, which lives in the
- * `drizzle` schema and is deliberately absent from `db/schema` — drizzle owns
- * those rows, so modelling them here would invite application code to write to
- * a table the migrator treats as its own. Reading them needs raw SQL, and this
- * is the one seam that provides it.
+ * Narrow on purpose, and it has exactly TWO legitimate callers — both one-shot
+ * migration paths, never request-path code:
  *
- * Application queries go through {@link getDb}. A caller reaching for this to
- * run ordinary SQL is bypassing the schema types and the casing configuration
- * that keep queries and migrations agreeing on column names.
+ *  - the migration LEDGER, which lives in the `drizzle` schema and is
+ *    deliberately absent from `db/schema`. Drizzle owns those rows, so
+ *    modelling them here would invite application code to write to a table the
+ *    migrator treats as its own; reading them needs raw SQL.
+ *  - the backfill's bulk loader (`db/backfill/`), because drizzle does not wrap
+ *    `COPY` — it is a protocol-level operation with no query-builder equivalent
+ *    — and `ANALYZE` after a bulk load has no builder form either.
  *
- * @throws {Error} If called before `connectPostgres()` resolved.
+ * Everything serving a request goes through {@link getDb}. A caller reaching
+ * for this to run ordinary SQL is bypassing the schema types and the casing
+ * configuration that keep queries and migrations agreeing on column names.
+ *
+ * @throws {Error} If called before `connectPostgres()` resolved — the same
+ *   programming error {@link getDb} reports, for the same reason.
  */
 export function getPostgresClient(): postgres.Sql {
   if (!client) {
     throw new Error(
       'PostgreSQL is not connected. Call connectPostgres() during startup ' +
-      'before issuing queries.'
+      'before reaching for the raw client.'
     );
   }
   return client;

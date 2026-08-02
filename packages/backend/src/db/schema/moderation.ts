@@ -129,7 +129,14 @@ export const reports = pgTable(
     reportedId: text().notNull(),
     /** An Oxy account id — no foreign key. */
     reporter: text().notNull(),
-    categories: text().array().notNull(),
+    /**
+     * The enum is declared for the ELEMENT type even though the CHECK below is
+     * what Postgres enforces: it emits no DDL (drizzle's `text({ enum })` is a
+     * TypeScript-level domain, the column is still `text[]`) and it is what lets
+     * the backfill audit read the accepted set OFF THE COLUMN rather than
+     * restating it. `allowedValues` reads through `.baseColumn` for exactly this.
+     */
+    categories: text({ enum: REPORT_CATEGORIES }).array().notNull(),
     details: text(),
     status: text({ enum: REPORT_STATUSES }).notNull().default('pending'),
     localStatus: text({ enum: REPORT_LOCAL_STATUSES }).notNull().default('received'),
