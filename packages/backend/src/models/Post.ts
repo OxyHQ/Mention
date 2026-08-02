@@ -67,11 +67,11 @@ export interface IPost extends Document {
    *
    * A lane is a lens; a channel is a DESTINATION. A post that carries one belongs
    * to the channel and only to the channel: it is excluded unconditionally from
-   * every author-relationship query (see `EXCLUDE_CHANNEL_POSTS` in
-   * `utils/postAuthorship`), and it accepts no replies (see
-   * `utils/channelReplyGate`). There is deliberately no companion boolean — the
-   * presence of this field IS the rule, which is what keeps the exclusion a flat
-   * conjunctive term rather than a disjunction `ChronoCursor` would clobber.
+   * every author-relationship query (the `isNull(posts.channelId)` term inside
+   * `followedAuthorsSql`, `utils/postAuthorship`), and it accepts no replies
+   * (see `utils/channelReplyGate`). There is deliberately no companion boolean —
+   * the presence of this field IS the rule, which is what keeps the exclusion a
+   * flat conjunctive term rather than a disjunction `ChronoCursor` would clobber.
    */
   channelId?: string;
   parentPostId?: string; // for replies
