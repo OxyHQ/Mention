@@ -66,6 +66,7 @@
  * carrying the rule that answers it.
  */
 
+import type { PgColumn } from 'drizzle-orm/pg-core';
 import type { CollectionPlan, EnumAudit, NumericAudit, UniquenessNormalization } from './plan';
 import { allowedValues, describeNumericBound, numericIsAccepted } from './plan';
 import type { MongoSource } from './mongoSource';
@@ -109,6 +110,60 @@ export interface AuditFinding {
 const SAMPLE_LIMIT = 5;
 
 /**
+ * A document where a REQUIRED field is missing entirely — which `distinct`
+ * cannot see.
+ *
+ * This is the hole that makes the null branches of the two audits below only
+ * half a check, and it is not obvious from either: **Mongo's `distinct` omits a
+ * missing field altogether**. `distinct('followerCount')` over a collection
+ * whose every document lacks the field returns `[]`, not `[null]` — measured
+ * against a real server, and it is what made a case asserting the opposite go
+ * red. An EXPLICIT `null` does appear in the set, so the two states that Mongo
+ * treats as interchangeable everywhere else are distinguishable here, and only
+ * one of them was being checked.
+ *
+ * The consequence without this probe: a `NOT NULL` column with no default and a
+ * source document that never had the field passes every audit, and then
+ * `buildRow` throws mid-copy — one document, no count, no sample, and a
+ * half-migrated database. Which is the precise outcome the audit phase exists
+ * to prevent.
+ *
+ * `$exists: false` is the right predicate rather than `$eq: null`, and the
+ * difference is the same trap in the other direction: `{field: null}` matches
+ * BOTH a missing field and an explicit null, so it would double-report every
+ * value `distinct` already found. Together the two are exact and disjoint.
+ */
+async function auditMissingRequired(
+  source: MongoSource,
+  plan: CollectionPlan,
+  path: string,
+  column: PgColumn,
+  kind: AuditFinding['kind'],
+  refusedBy: string,
+  resolvedBy: ResolutionRule | undefined
+): Promise<AuditFinding | null> {
+  const collection = source.collection(plan.collection);
+  const filter = { [path]: { $exists: false } } as Record<string, unknown>;
+  const documents = await collection.countDocuments(filter);
+  if (documents === 0) return null;
+  const samples = await collection
+    .find(filter, { projection: { _id: 1 }, limit: SAMPLE_LIMIT })
+    .toArray();
+  return {
+    collection: plan.collection,
+    kind,
+    detail:
+      `${plan.collection}.${path} is MISSING from ${documents} document(s), and ` +
+      `${column.name} is NOT NULL with no default and no declared substitute. ` +
+      `${refusedBy} would reject these rows with a 23502. Mongo's \`distinct\` ` +
+      'does not report a missing field at all, so this is checked separately.',
+    documents,
+    sampleIds: samples.map((doc) => String(doc._id)),
+    ...(resolvedBy === undefined ? {} : { resolvedBy }),
+  };
+}
+
+/**
  * Check every enum-backed column of a plan against `distinct()` on the source.
  *
  * `distinct` is the right instrument: it is a single index-assisted pass that
@@ -125,6 +180,20 @@ export async function auditEnums(
     const allowed = new Set(allowedValues(audit.column));
     const collection = source.collection(plan.collection);
     const observed = await collection.distinct(audit.path, {});
+
+    // A field that is MISSING rather than null — see `auditMissingRequired`.
+    if (audit.column.notNull && audit.absentAs === undefined) {
+      const missing = await auditMissingRequired(
+        source,
+        plan,
+        audit.path,
+        audit.column,
+        'enum',
+        `${audit.column.name} is NOT NULL, so Postgres`,
+        audit.resolvedBy
+      );
+      if (missing !== null) findings.push(missing);
+    }
 
     for (const value of observed) {
       if (value === null || value === undefined) {
@@ -235,6 +304,20 @@ export async function auditNumerics(
   for (const audit of plan.numericAudits ?? []) {
     const collection = source.collection(plan.collection);
     const observed = await collection.distinct(audit.path, {});
+
+    // A field that is MISSING rather than null — see `auditMissingRequired`.
+    if (audit.column.notNull && audit.absentAs === undefined) {
+      const missing = await auditMissingRequired(
+        source,
+        plan,
+        audit.path,
+        audit.column,
+        'numeric',
+        `${audit.column.name} is NOT NULL, so Postgres`,
+        audit.resolvedBy
+      );
+      if (missing !== null) findings.push(missing);
+    }
 
     for (const value of observed) {
       if (value === null || value === undefined) {

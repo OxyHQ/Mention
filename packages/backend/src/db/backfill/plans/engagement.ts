@@ -55,7 +55,8 @@ import {
 import { allowedValues, type CollectionPlan } from '../plan';
 import { DROP_UNREAD_FEED_ENTITY_FOLLOWS } from '../resolutions';
 import { buildRow } from '../rowBuilder';
-import { date, int, ownId, reqId, reqStr, str, strArray } from '../values';
+import { int, ownId, reqId, reqStr, str, strArray } from '../values';
+import { createdOnly, timestamps } from './timestamps';
 
 /**
  * The entity kinds `entity_follows` still accepts.
@@ -367,29 +368,6 @@ const entityFollowsPlan: CollectionPlan = {
     );
   },
 };
-
-/**
- * `created_at` + `updated_at`, copied when present and OMITTED when absent.
- *
- * Omitting is not the same as `null`: both columns are `NOT NULL` with a
- * default, so a null would be refused while an omission lets the default apply.
- * `buildRow` rejects `undefined` for exactly this reason — the transform has to
- * choose, and this is where it chooses.
- */
-function timestamps(doc: Record<string, unknown>): Record<string, unknown> {
-  const createdAt = date(doc, 'createdAt');
-  const updatedAt = date(doc, 'updatedAt');
-  return {
-    ...(createdAt === null ? {} : { createdAt }),
-    ...(updatedAt === null ? {} : { updatedAt }),
-  };
-}
-
-/** {@link timestamps} for the two models that have no `updatedAt` at all. */
-function createdOnly(doc: Record<string, unknown>): Record<string, unknown> {
-  const createdAt = date(doc, 'createdAt');
-  return createdAt === null ? {} : { createdAt };
-}
 
 /** Every engagement plan. */
 export const ENGAGEMENT_PLANS: readonly CollectionPlan[] = [

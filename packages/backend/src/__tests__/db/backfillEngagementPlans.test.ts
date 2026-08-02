@@ -25,6 +25,7 @@ import { entityFollows, mutes, muteWords, pokes } from '../../db/schema/engageme
 import { mongoSourceFromDb, type MongoSource } from '../../db/backfill/mongoSource';
 import { copyCollection } from '../../db/backfill/runner';
 import { COLLECTION_PLANS } from '../../db/backfill/collectionMap';
+import { ENGAGEMENT_PLANS } from '../../db/backfill/plans/engagement';
 import { planTables, tableName } from '../../db/backfill/plan';
 import { auditEnums, auditWouldBlockCopy } from '../../db/backfill/audit';
 import {
@@ -296,9 +297,20 @@ describe('the retired entityfollows type', () => {
 });
 
 describe('the plans are wired into the map', () => {
+  /**
+   * This file owns the ENGAGEMENT group, so it asserts the group and its
+   * REGISTRATION — deliberately not the whole map.
+   *
+   * The first version compared `COLLECTION_PLANS` to a seven-name literal, which
+   * says "these seven exist" and "no other group exists" in one breath. The
+   * second half is not this file's claim to make and it went red the moment the
+   * discovery group landed, in a file whose subject had not changed. Whether the
+   * map covers every live collection is answered where it belongs: by
+   * `tablesWithoutAPlan()` and by the runner's `unknown` bucket, both against
+   * the real database rather than a literal.
+   */
   it('declares all seven engagement collections', () => {
-    const collections = COLLECTION_PLANS.map((plan) => plan.collection).sort();
-    expect(collections).toStrictEqual(
+    expect(ENGAGEMENT_PLANS.map((plan) => plan.collection).sort()).toStrictEqual(
       [
         'bookmarks',
         'entityfollows',
@@ -311,11 +323,18 @@ describe('the plans are wired into the map', () => {
     );
   });
 
+  it('registers every one of them in the map the runner reads', () => {
+    const registered = new Set(COLLECTION_PLANS.map((plan) => plan.collection));
+    for (const plan of ENGAGEMENT_PLANS) {
+      expect(registered.has(plan.collection), `${plan.collection} is not registered`).toBe(true);
+    }
+  });
+
   it('reaches a real Postgres table for each of them', async () => {
     // A vacuity floor: the assertion above compares strings, so it would pass
     // against seven plans pointing at tables that do not exist.
     let checked = 0;
-    for (const plan of COLLECTION_PLANS) {
+    for (const plan of ENGAGEMENT_PLANS) {
       // Every table the plan declares, its children included — `tableName` is
       // the sanctioned accessor, and reaching into drizzle's internals by hand
       // is what broke the first draft of this case.

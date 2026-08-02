@@ -42,16 +42,30 @@ import {
   ResolutionLog,
 } from '../../db/backfill/resolutions';
 
-/** A source whose only real behaviour is the value set `distinct` returns. */
-function stubSource(values: readonly unknown[], documents = 3): MongoSource {
+/**
+ * A source whose real behaviour is the value set `distinct` returns — plus how
+ * many documents LACK the field entirely, which is a different question.
+ *
+ * The two have to be answerable apart, because Mongo answers them apart:
+ * `distinct` omits a missing field rather than reporting it as `null`, so the
+ * audit probes for it with a separate `{$exists: false}` count. A stub whose
+ * `countDocuments` ignored its filter would answer both with the same number and
+ * report a phantom missing-field finding on every case here — which is exactly
+ * what the first version did.
+ */
+function stubSource(values: readonly unknown[], documents = 3, missing = 0): MongoSource {
+  const isMissingProbe = (filter: unknown): boolean =>
+    JSON.stringify(filter ?? {}).includes('$exists');
   const collection = {
     distinct: async () => [...values],
-    countDocuments: async () => documents,
-    find: () => ({
-      toArray: async () =>
-        Array.from({ length: Math.min(documents, 5) }, (_, index) => ({
+    countDocuments: async (filter: unknown) => (isMissingProbe(filter) ? missing : documents),
+    find: (filter: unknown) => ({
+      toArray: async () => {
+        const count = isMissingProbe(filter) ? missing : documents;
+        return Array.from({ length: Math.min(count, 5) }, (_, index) => ({
           _id: `numaudit-${index}`,
-        })),
+        }));
+      },
     }),
   } as unknown as ReadOnlyCollection;
   return {
@@ -193,6 +207,41 @@ describe('auditNumerics — the NULL branches', () => {
 
   it('does NOT report a null the transform declares a default for', async () => {
     const findings = await auditNumerics(stubSource([null]), planWith([likeValueAudit]));
+    expect(findings).toEqual([]);
+  });
+
+  /**
+   * The branch `distinct` cannot reach, and the one that cost a red case to
+   * find: Mongo's `distinct` OMITS a missing field rather than returning `null`
+   * for it. So a `NOT NULL` column with no default, over documents that never
+   * had the field, passed every audit and then threw inside `buildRow`
+   * mid-copy — one document, no count, no sample, half a database migrated.
+   */
+  it('reports a field that is MISSING rather than null', async () => {
+    const findings = await auditNumerics(
+      // `distinct` sees NOTHING (the field is absent everywhere), and the
+      // separate `$exists: false` probe sees four documents.
+      stubSource([], 0, 4),
+      planWith([
+        { path: 'revision', column: likes.revision, constraint: 'likes_revision_check', min: 0 },
+      ])
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0].detail).toContain('MISSING');
+    expect(findings[0].documents).toBe(4);
+    expect(auditWouldBlockCopy(findings[0])).toBe(true);
+  });
+
+  it('does NOT probe for a missing field the transform declares a default for', async () => {
+    const findings = await auditNumerics(stubSource([], 0, 4), planWith([likeValueAudit]));
+    expect(findings).toEqual([]);
+  });
+
+  it('does NOT probe for a missing field in a NULLABLE column', async () => {
+    const findings = await auditNumerics(
+      stubSource([], 0, 4),
+      planWith([{ path: 'optional', column: likes.source, constraint: 'fixture_check', min: 0 }])
+    );
     expect(findings).toEqual([]);
   });
 });
