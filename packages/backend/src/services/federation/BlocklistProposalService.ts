@@ -58,16 +58,23 @@ import {
   sourceRank,
   tallyOperators,
 } from '../../connectors/activitypub/blocklistSourceRegistry';
-import BlocklistProposal, {
-  type BlocklistProposalFootprint,
-  type BlocklistProposalObservation,
-  type IBlocklistProposal,
-} from '../../models/BlocklistProposal';
-import BlocklistProposalRun, {
-  type BlocklistProposalRunCounts,
-  type BlocklistProposalRunSource,
-  type BlocklistProposalRunTrigger,
-} from '../../models/BlocklistProposalRun';
+import {
+  closeOpenProposal,
+  declineProposalRow,
+  findProposalByDomain,
+  listOpenProposalDomains,
+  listOpenProposals as listOpenProposalRows,
+  recordProposalRun,
+  reopenProposalRow,
+  statusByDomain,
+  upsertOpenProposal,
+  type ProposalFootprint,
+  type ProposalObservation,
+  type ProposalRunCounts,
+  type ProposalRunSource,
+  type ProposalRunTrigger,
+  type StoredProposal,
+} from '../../db/blocklist/blocklistProposalRepository';
 import {
   reportFederationBlocklistCandidates,
   type BlockSeverity,
@@ -142,8 +149,8 @@ export interface PendingProposal {
   /** Distinct operators suspending it. */
   operatorCount: number;
   corroboratingSources: string[];
-  observations: BlocklistProposalObservation[];
-  footprint: BlocklistProposalFootprint;
+  observations: ProposalObservation[];
+  footprint: ProposalFootprint;
   /** This run raised it — as opposed to a previous one nobody has answered. */
   raisedThisRun: boolean;
 }
@@ -152,10 +159,10 @@ export interface BlocklistProposalSweepResult {
   runId: string;
   startedAt: Date;
   finishedAt: Date;
-  trigger: BlocklistProposalRunTrigger;
+  trigger: ProposalRunTrigger;
   minOperators: number;
-  sources: BlocklistProposalRunSource[];
-  counts: BlocklistProposalRunCounts;
+  sources: ProposalRunSource[];
+  counts: ProposalRunCounts;
   /** Every proposal awaiting a person after this run, oldest first. */
   pending: PendingProposal[];
   /**
@@ -169,7 +176,7 @@ export interface BlocklistProposalSweepResult {
 }
 
 export interface BlocklistProposalSweepOptions {
-  trigger: BlocklistProposalRunTrigger;
+  trigger: ProposalRunTrigger;
   /**
    * The intelligence poll. Injected so this module's behaviour — thresholds,
    * suppression, the ledger's state machine — is testable without the network,
@@ -181,22 +188,6 @@ export interface BlocklistProposalSweepOptions {
 /** The message of an unknown thrown value, without leaking a stack into a field. */
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-/**
- * A write that lost a race with a concurrent one on the unique `domain` index.
- *
- * The only way to reach it: a person declines a domain in the window between
- * this sweep reading the ledger and writing to it. Treated as the decline
- * winning — see {@link upsertOpenProposal}.
- */
-function isDuplicateKeyError(error: unknown): boolean {
-  return (
-    typeof error === 'object'
-    && error !== null
-    && 'code' in error
-    && error.code === 11000
-  );
 }
 
 /** The default poll: every registered source, at the operator threshold. */
@@ -211,7 +202,7 @@ function pollPublishedBlocklists(): Promise<BlocklistIntelReport> {
 /** Flatten one candidate's per-source verdicts onto the row, unmerged. */
 function toStoredObservations(
   candidate: BlocklistCandidate,
-): BlocklistProposalObservation[] {
+): ProposalObservation[] {
   return candidate.observations.map((observation) => ({
     instance: observation.source,
     operator: operatorOf(observation.source) ?? observation.source,
@@ -221,7 +212,7 @@ function toStoredObservations(
   }));
 }
 
-function toStoredFootprint(candidate: BlocklistCandidate): BlocklistProposalFootprint {
+function toStoredFootprint(candidate: BlocklistCandidate): ProposalFootprint {
   return {
     actors: candidate.footprint.actors,
     posts: candidate.footprint.posts,
@@ -238,45 +229,27 @@ interface ClearedCandidate {
 }
 
 /**
- * Raise or refresh one proposal.
+ * Raise or refresh one proposal, unless a person has already declined it.
  *
- * The filter carries `status: { $ne: 'declined' }` so a decline landing between
- * the classification read and this write cannot be undone by it. When that
- * happens the upsert has nothing to match and tries to INSERT a domain that
- * already exists, which the unique index refuses — so the duplicate-key error IS
- * the signal that a person decided first, and the proposal is skipped rather
- * than resurrected.
- *
- * @returns whether the row entered `open` from something else (or from nothing).
+ * The `status <> 'declined'` guard is the repository's, and it is stated on the
+ * write itself rather than checked beforehand: a decline landing between the
+ * classification read and this write must not be undone by it. Its refusal is a
+ * VERDICT — `declinedFirst` — which the sweep counts as a suppression, not an
+ * error.
  */
-async function upsertOpenProposal(
+function raiseProposal(
   cleared: ClearedCandidate,
   now: Date,
 ): Promise<{ raised: boolean; declinedFirst: boolean }> {
   const { candidate, suspend } = cleared;
-
-  try {
-    const before = await BlocklistProposal.findOneAndUpdate(
-      { domain: candidate.domain, status: { $ne: 'declined' } },
-      {
-        $set: {
-          status: 'open',
-          lastSeenAt: now,
-          operatorCount: suspend.operators.length,
-          corroboratingSources: suspend.sources,
-          observations: toStoredObservations(candidate),
-          footprint: toStoredFootprint(candidate),
-        },
-        $setOnInsert: { domain: candidate.domain, firstProposedAt: now },
-      },
-      { upsert: true, returnDocument: 'before' },
-    ).lean<IBlocklistProposal | null>();
-
-    return { raised: before === null || before.status !== 'open', declinedFirst: false };
-  } catch (error) {
-    if (isDuplicateKeyError(error)) return { raised: false, declinedFirst: true };
-    throw error;
-  }
+  return upsertOpenProposal({
+    domain: candidate.domain,
+    now,
+    operatorCount: suspend.operators.length,
+    corroboratingSources: suspend.sources,
+    observations: toStoredObservations(candidate),
+    footprint: toStoredFootprint(candidate),
+  });
 }
 
 /**
@@ -303,7 +276,7 @@ export async function runBlocklistProposalSweep(
     failureReason = `poll failed: ${describeError(error)}`;
   }
 
-  const sources: BlocklistProposalRunSource[] = (report?.sources ?? []).map((source) => ({
+  const sources: ProposalRunSource[] = (report?.sources ?? []).map((source) => ({
     instance: source.source,
     operator: operatorOf(source.source) ?? source.source,
     outcome: source.outcome,
@@ -326,7 +299,7 @@ export async function runBlocklistProposalSweep(
 
   const ok = failureReason === undefined;
 
-  const counts: BlocklistProposalRunCounts = {
+  const counts: ProposalRunCounts = {
     domainsObserved: report?.domainsObserved ?? 0,
     clearedOperatorThreshold: 0,
     opened: 0,
@@ -361,10 +334,7 @@ export async function runBlocklistProposalSweep(
       });
     }
 
-    const existing = await BlocklistProposal.find({
-      domain: { $in: cleared.map((entry) => entry.candidate.domain) },
-    }).lean<IBlocklistProposal[]>();
-    const statusByDomain = new Map(existing.map((row) => [row.domain, row.status]));
+    const knownStatus = await statusByDomain(cleared.map((entry) => entry.candidate.domain));
 
     const raisedThisRun = new Set<string>();
     const proposable = new Set<string>();
@@ -379,12 +349,12 @@ export async function runBlocklistProposalSweep(
         counts.suppressedBlocked += 1;
         continue;
       }
-      if (statusByDomain.get(domain) === 'declined') {
+      if (knownStatus.get(domain) === 'declined') {
         counts.suppressedDeclined += 1;
         continue;
       }
 
-      const { raised, declinedFirst } = await upsertOpenProposal(entry, startedAt);
+      const { raised, declinedFirst } = await raiseProposal(entry, startedAt);
       if (declinedFirst) {
         counts.suppressedDeclined += 1;
         continue;
@@ -400,32 +370,22 @@ export async function runBlocklistProposalSweep(
     // question: either we blocked it (the review succeeded) or the corroboration
     // behind it went away. `declined` rows are not read here at all — a person's
     // decision is never moved by the sweep.
-    const openRows = await BlocklistProposal.find({ status: 'open' }).lean<IBlocklistProposal[]>();
-    for (const row of openRows) {
-      if (proposable.has(row.domain)) continue;
-      const status = isBlockedDomain(row.domain) ? 'adopted' : 'lapsed';
-      await BlocklistProposal.updateOne({ domain: row.domain, status: 'open' }, { $set: { status } });
+    const openDomains = await listOpenProposalDomains();
+    for (const domain of openDomains) {
+      if (proposable.has(domain)) continue;
+      const status = isBlockedDomain(domain) ? 'adopted' : 'lapsed';
+      await closeOpenProposal(domain, status);
       if (status === 'adopted') counts.adopted += 1;
       else counts.lapsed += 1;
     }
 
-    const stillOpen = await BlocklistProposal.find({ status: 'open' })
-      .sort({ firstProposedAt: 1 })
-      .lean<IBlocklistProposal[]>();
+    const stillOpen = await listOpenProposalRows();
     counts.pending = stillOpen.length;
-    pending = stillOpen.map((row) => ({
-      domain: row.domain,
-      firstProposedAt: row.firstProposedAt,
-      operatorCount: row.operatorCount,
-      corroboratingSources: row.corroboratingSources,
-      observations: row.observations,
-      footprint: row.footprint,
-      raisedThisRun: raisedThisRun.has(row.domain),
-    }));
+    pending = stillOpen.map((row) => toPendingProposal(row, raisedThisRun.has(row.domain)));
   }
 
   const finishedAt = new Date();
-  await BlocklistProposalRun.create({
+  await recordProposalRun({
     runId,
     trigger: options.trigger,
     startedAt,
@@ -451,21 +411,23 @@ export async function runBlocklistProposalSweep(
   };
 }
 
-/** Every proposal awaiting a person, oldest first. */
-export async function listOpenProposals(): Promise<PendingProposal[]> {
-  const rows = await BlocklistProposal.find({ status: 'open' })
-    .sort({ firstProposedAt: 1 })
-    .lean<IBlocklistProposal[]>();
-
-  return rows.map((row) => ({
+/** A stored row in the shape the report and the CLI render. */
+function toPendingProposal(row: StoredProposal, raisedThisRun: boolean): PendingProposal {
+  return {
     domain: row.domain,
     firstProposedAt: row.firstProposedAt,
     operatorCount: row.operatorCount,
     corroboratingSources: row.corroboratingSources,
     observations: row.observations,
     footprint: row.footprint,
-    raisedThisRun: false,
-  }));
+    raisedThisRun,
+  };
+}
+
+/** Every proposal awaiting a person, oldest first. */
+export async function listOpenProposals(): Promise<PendingProposal[]> {
+  const rows = await listOpenProposalRows();
+  return rows.map((row) => toPendingProposal(row, false));
 }
 
 export interface DeclineProposalInput {
@@ -484,7 +446,7 @@ export interface DeclineProposalInput {
  * `adopted` one is already blocked, so there is nothing to decline, and a
  * second decline would overwrite the first author and reason.
  */
-export async function declineProposal(input: DeclineProposalInput): Promise<IBlocklistProposal> {
+export async function declineProposal(input: DeclineProposalInput): Promise<StoredProposal> {
   const domain = input.domain.trim().toLowerCase();
   const decidedBy = input.decidedBy.trim();
   const reason = input.reason.trim();
@@ -492,7 +454,7 @@ export async function declineProposal(input: DeclineProposalInput): Promise<IBlo
   if (decidedBy.length === 0) throw new Error('a decline must name who decided');
   if (reason.length === 0) throw new Error('a decline must state why');
 
-  const row = await BlocklistProposal.findOne({ domain }).lean<IBlocklistProposal | null>();
+  const row = await findProposalByDomain(domain);
   if (!row) throw new Error(`no proposal for ${domain}`);
   if (row.status === 'declined') {
     throw new Error(`${domain} was already declined by ${row.decidedBy ?? 'someone'}`);
@@ -501,11 +463,7 @@ export async function declineProposal(input: DeclineProposalInput): Promise<IBlo
     throw new Error(`${domain} is already refused by the committed policy`);
   }
 
-  const declined = await BlocklistProposal.findOneAndUpdate(
-    { domain, status: { $in: ['open', 'lapsed'] } },
-    { $set: { status: 'declined', decidedAt: new Date(), decidedBy, decisionReason: reason } },
-    { new: true },
-  ).lean<IBlocklistProposal | null>();
+  const declined = await declineProposalRow(domain, decidedBy, reason);
 
   if (!declined) throw new Error(`${domain} changed state during the decline; re-read it`);
 
@@ -524,19 +482,12 @@ export async function declineProposal(input: DeclineProposalInput): Promise<IBlo
  * can be revisited deliberately, by a person, rather than by the sweep quietly
  * re-raising it. The next sweep either re-confirms it or lapses it.
  */
-export async function reopenProposal(domain: string, reopenedBy: string): Promise<IBlocklistProposal> {
+export async function reopenProposal(domain: string, reopenedBy: string): Promise<StoredProposal> {
   const canonical = domain.trim().toLowerCase();
   const by = reopenedBy.trim();
   if (by.length === 0) throw new Error('a reopen must name who did it');
 
-  const reopened = await BlocklistProposal.findOneAndUpdate(
-    { domain: canonical, status: 'declined' },
-    {
-      $set: { status: 'open' },
-      $unset: { decidedAt: '', decidedBy: '', decisionReason: '' },
-    },
-    { new: true },
-  ).lean<IBlocklistProposal | null>();
+  const reopened = await reopenProposalRow(canonical);
 
   if (!reopened) throw new Error(`no declined proposal for ${canonical}`);
 

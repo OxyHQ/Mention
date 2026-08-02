@@ -54,13 +54,24 @@ export const PUBLISHED_BLOCK_SEVERITIES = ['suspend', 'silence', 'noop'] as cons
 /** `BlocklistProposalRunTrigger`. */
 export const BLOCKLIST_PROPOSAL_RUN_TRIGGERS = ['scheduled', 'manual'] as const;
 
-/** `SourceOutcome` — what one source contributed to one run. */
-export const BLOCKLIST_SOURCE_OUTCOMES = [
-  'published',
-  'unavailable',
-  'unparseable',
-  'empty',
-] as const;
+/**
+ * `SourceOutcome` — what one source contributed to one run.
+ *
+ * The vocabulary belongs to the POLLER
+ * (`scripts/reportFederationBlocklistCandidates.ts`), and `not-published` (the
+ * instance serves no blocklist at all) is an ordinary outcome that must never
+ * be confused with `failed`. `models/BlocklistProposalRun.ts` derives its enum
+ * from that type with `satisfies`, so a value added there and not here fails to
+ * compile.
+ *
+ * This list originally read `published | unavailable | unparseable | empty` — a
+ * vocabulary nothing produces. It was not merely narrow, which is the failure
+ * `CONVENTIONS.md` warns about; it did not overlap the real one at all past
+ * `published`, so the CHECK would have refused every row the backfill copied
+ * (`backfill/plans/blocklist.ts` takes `outcome` verbatim) and the type would
+ * have refused every write. Corrected by migration `0010`.
+ */
+export const BLOCKLIST_SOURCE_OUTCOMES = ['published', 'not-published', 'failed'] as const;
 
 /** `BlockedDomainPurgeState`. */
 export const BLOCKED_DOMAIN_PURGE_STATES = [
