@@ -1,10 +1,15 @@
 import { PassThrough } from 'node:stream';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { closePostgres, connectPostgres } from '../../../db/postgres';
+import { asc, like } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { posts } from '../../../db/schema/posts';
+import { findPostRecords, loadPostRecord } from '../../../db/posts/postRepository';
+import type { PostRecord } from '../../../db/posts/postRecord';
 import {
   clearFederationScope,
   federationScope,
+  seedPost,
 } from '../../helpers/federationFixtures';
 
 const scope = federationScope('outbox-validation');
@@ -14,6 +19,8 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
+  // Production inserted these, so `seedPost`'s id tracking never saw them.
+  await getDb().delete(posts).where(like(posts.federationActivityId, `${ACTOR_URI}/%`));
   await clearFederationScope(scope);
 });
 
@@ -27,7 +34,7 @@ afterAll(async () => {
  * The remote actor's outbox (an OrderedCollection / OrderedCollectionPage and
  * its items) arrives from arbitrary, untrusted Fediverse servers. These tests
  * exercise `OutboxSyncService.syncOutboxPostsDetailed` end-to-end (mocked
- * `fetch` + mocked models) to prove:
+ * `fetch`, REAL `posts` rows) to prove:
  *
  *  1. A malformed top-level outbox collection aborts the sync gracefully (empty
  *     result, no crash, no cooldown stamp).
@@ -37,6 +44,21 @@ afterAll(async () => {
  *  3. A valid item with a PAST `published` is ingested with `createdAt` equal to
  *     that past instant — the federated-date fix is preserved (no regression).
  *  4. An Announce item is imported as a `type:'boost'` post.
+ *
+ * ## The insert is read back, not spied on
+ *
+ * Batch 7 replaced the raw `Post.collection.insertMany` with per-row
+ * `insertPostRecord` calls against Postgres, so the `insertMany` spy this suite
+ * asserted on stopped being called at all — and with it went the only evidence
+ * that a validated item was ever ingested. The four abort/reject cases kept
+ * passing on `not.toHaveBeenCalled()`, which a spy nothing calls satisfies for
+ * the wrong reason.
+ *
+ * Assertions now read the rows back. That is strictly stronger than the spy was:
+ * the spy saw the document the service BUILT, while a row proves it survived the
+ * schema's own CHECK constraints — and the "one bad item must not abort the
+ * batch" property is about what actually landed, which a single spied call
+ * argument could never show.
  */
 
 const mocks = vi.hoisted(() => ({
@@ -44,12 +66,6 @@ const mocks = vi.hoisted(() => ({
   signViaOxy: vi.fn(),
   findOneAndUpdate: vi.fn(),
   updateOne: vi.fn(),
-  postFind: vi.fn(),
-  postFindOne: vi.fn(),
-  postFindById: vi.fn(),
-  postUpdateOne: vi.fn(),
-  postInsertMany: vi.fn(),
-  postExists: vi.fn(),
   getServiceOxyClient: vi.fn(),
   makeServiceRequest: vi.fn(),
   persistRemoteMedia: vi.fn(),
@@ -85,22 +101,6 @@ vi.mock('@oxyhq/core/server', async (importOriginal) => ({
   assertSafePublicUrl: mocks.assertSafePublicUrl,
 }));
 
-vi.mock('../../../models/Post', () => ({
-  // Mirror the real module's `pending` constant so the Stage-A baseline seed
-  // resolves it (vitest throws on undefined mock exports).
-  POST_CLASSIFICATION_PENDING: 'pending',
-  Post: {
-    find: mocks.postFind,
-    findOne: mocks.postFindOne,
-    findById: mocks.postFindById,
-    updateOne: mocks.postUpdateOne,
-    exists: mocks.postExists,
-    collection: {
-      insertMany: mocks.postInsertMany,
-    },
-  },
-}));
-
 vi.mock('../../../models/UserSettings', () => ({
   default: {
     updateOne: vi.fn(),
@@ -131,9 +131,25 @@ vi.mock('../../../services/serviceRegistry', () => ({
 
 import { outboxSyncService } from '../../../connectors/activitypub/outbox.service';
 
-const ACTOR_URI = 'https://mastodon.social/users/alice';
-const OUTBOX_URL = 'https://mastodon.social/users/alice/outbox';
-const FIRST_PAGE_URL = 'https://mastodon.social/users/alice/outbox?page=true';
+const ACTOR_URI = `${scope.origin}/users/alice`;
+const OUTBOX_URL = `${ACTOR_URI}/outbox`;
+const FIRST_PAGE_URL = `${ACTOR_URI}/outbox?page=true`;
+const OWNER_OXY_ID = 'oxy_alice';
+
+/**
+ * The posts this suite's SUBJECT wrote, oldest-first.
+ *
+ * Scoped by `federation.activity_id` prefix rather than by author: the ids are
+ * built from `scope.origin`, so this can only ever see rows this file's sync
+ * created — which is also what makes the teardown below safe under vitest's
+ * parallel file execution.
+ */
+function importedPosts(): Promise<PostRecord[]> {
+  return findPostRecords(
+    like(posts.federationActivityId, `${ACTOR_URI}/%`),
+    { orderBy: [asc(posts.createdAt)] },
+  );
+}
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -191,12 +207,6 @@ beforeEach(() => {
   mocks.signViaOxy.mockResolvedValue('c2lnbmF0dXJl'); // base64 stub signature
   mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({ _id: 'actor_1', ...update.$set }));
   mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
-  mocks.postFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
-  mocks.postFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
-  mocks.postFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
-  mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
-  mocks.postInsertMany.mockResolvedValue({ insertedCount: 0 });
-  mocks.postExists.mockResolvedValue(null);
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   mocks.recordAccess.mockResolvedValue(undefined);
   mocks.postCreatorCreate.mockResolvedValue({ _id: 'created_post_1' });
@@ -236,7 +246,7 @@ describe('OutboxSyncService — collection-level zod validation', () => {
       reason: 'invalid-collection',
     });
     // Nothing was ingested.
-    expect(mocks.postInsertMany).not.toHaveBeenCalled();
+    expect(await importedPosts()).toHaveLength(0);
     expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
   });
 
@@ -252,7 +262,7 @@ describe('OutboxSyncService — collection-level zod validation', () => {
     // Pagination failed → no candidates, no cooldown stamp, no crash.
     expect(result.syncedCount).toBe(0);
     expect(result.shouldStampCooldown).toBe(false);
-    expect(mocks.postInsertMany).not.toHaveBeenCalled();
+    expect(await importedPosts()).toHaveLength(0);
   });
 });
 
@@ -283,16 +293,14 @@ describe('OutboxSyncService — per-item zod validation', () => {
     // Only the two well-formed notes survived validation.
     expect(result.candidateCount).toBe(2);
     expect(result.newPostCount).toBe(2);
-    expect(mocks.postInsertMany).toHaveBeenCalledTimes(1);
-    const inserted = mocks.postInsertMany.mock.calls[0][0] as Array<Record<string, unknown>>;
-    expect(inserted).toHaveLength(2);
-    const activityIds = inserted.map((d) => (d.federation as { activityId?: string }).activityId);
-    expect(activityIds).toEqual([
+    // Both good rows LANDED. Reading them back is what makes "one bad item does
+    // not abort the batch" a statement about the database rather than about the
+    // single array the service happened to hand its writer.
+    const inserted = await importedPosts();
+    expect(inserted.map((post) => post.federation?.activityId)).toEqual([
       `${ACTOR_URI}/statuses/1`,
       `${ACTOR_URI}/statuses/3`,
     ]);
-    // The malformed item is NOT present.
-    expect(activityIds).not.toContain(`${ACTOR_URI}/statuses/bad`);
   });
 
 
@@ -329,7 +337,7 @@ describe('OutboxSyncService — per-item zod validation', () => {
     const result = await runSync();
 
     expect(result).toMatchObject({ syncedCount: 0, candidateCount: 0, reason: 'no-candidates' });
-    expect(mocks.postInsertMany).not.toHaveBeenCalled();
+    expect(await importedPosts()).toHaveLength(0);
   });
 
   it('rejects outbox notes whose activity id belongs to another actor and stores verified actorUri on accepted notes', async () => {
@@ -362,15 +370,22 @@ describe('OutboxSyncService — per-item zod validation', () => {
 
     expect(result.candidateCount).toBe(1);
     expect(result.newPostCount).toBe(1);
-    const inserted = mocks.postInsertMany.mock.calls[0][0] as Array<Record<string, unknown>>;
+    const inserted = await importedPosts();
     expect(inserted).toHaveLength(1);
-    expect(inserted[0].oxyUserId).toBe('oxy_alice');
+    expect(inserted[0].oxyUserId).toBe(OWNER_OXY_ID);
     expect(inserted[0].federation).toEqual(
       expect.objectContaining({
         activityId: `${ACTOR_URI}/statuses/accepted`,
         actorUri: ACTOR_URI,
       }),
     );
+    // The forged id is not merely absent from one insert call — no row carries
+    // it, which is the only form of "rejected" a later reader can rely on.
+    const forged = await findPostRecords(
+      like(posts.federationActivityId, 'https://victim.example/%'),
+      { orderBy: [asc(posts.createdAt)] },
+    );
+    expect(forged).toHaveLength(0);
   });
 
   it('preserves the original past published date on a valid item (no date regression)', async () => {
@@ -387,26 +402,26 @@ describe('OutboxSyncService — per-item zod validation', () => {
     const result = await runSync();
 
     expect(result.newPostCount).toBe(1);
-    const inserted = mocks.postInsertMany.mock.calls[0][0] as Array<Record<string, unknown>>;
-    const doc = inserted[0];
+    const [doc] = await importedPosts();
     // createdAt / updatedAt reflect the ORIGINAL upstream publish instant, not
-    // the sync time — proving `parseApPublished` remains the single date authority.
-    expect(doc.createdAt).toBeInstanceOf(Date);
-    expect((doc.createdAt as Date).toISOString()).toBe(pastPublished);
-    expect((doc.updatedAt as Date).toISOString()).toBe(pastPublished);
+    // the sync time — proving `parseApPublished` remains the single date
+    // authority. Read from the STORED row, so a column default that overwrote
+    // the supplied instant would fail here; the spy could not have seen that.
+    expect(doc.createdAt.toISOString()).toBe(pastPublished);
+    expect(doc.updatedAt.toISOString()).toBe(pastPublished);
   });
 });
 
 describe('OutboxSyncService — Announce item imports as a boost', () => {
   it('imports a validated Announce as a type:boost post via the boost importer', async () => {
-    const announcedUri = 'https://example.org/users/bob/statuses/999';
+    const announcedUri = `${scope.origin}/users/bob/statuses/999`;
     const announceId = `${ACTOR_URI}/statuses/announce-1/activity`;
-    // The boosted object already exists locally so `resolvePostIdFromObjectUri`
-    // returns its id (no remote fetch of the boosted Note needed).
-    mocks.postFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue({ _id: 'local_boosted_post' }) });
-    // The boosted post must be public + published for the boost to be imported.
-    mocks.postFindById.mockReturnValue({
-      lean: vi.fn().mockResolvedValue({ status: 'published', visibility: 'public' }),
+    // The boosted object is a REAL row, so `resolvePostIdFromObjectUri` finds it
+    // by `federation.activity_id` and no remote fetch of the Note is needed. Its
+    // published+public state is what lets the boost import at all, and it is now
+    // the row's state rather than a stubbed answer.
+    const boosted = await seedPost(scope, {
+      federation: { activityId: announcedUri, actorUri: `${scope.origin}/users/bob` },
     });
 
     stubOutbox(
@@ -431,8 +446,8 @@ describe('OutboxSyncService — Announce item imports as a boost', () => {
     expect(result.importedBoostCount).toBe(1);
     expect(mocks.postCreatorCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        oxyUserId: 'oxy_alice',
-        boostOf: 'local_boosted_post',
+        oxyUserId: OWNER_OXY_ID,
+        boostOf: boosted.id,
         // A boost mirrors native reposts: empty content body, hydrated via boostOf.
         content: { text: '' },
         federation: expect.objectContaining({ activityId: announceId }),
@@ -442,11 +457,52 @@ describe('OutboxSyncService — Announce item imports as a boost', () => {
       }),
     );
     // The boosted post's counters moved +1 in lockstep with the new boost record:
-    // both the native boost total and the federated-boost subset.
-    expect(mocks.postUpdateOne).toHaveBeenCalledWith(
-      { _id: 'local_boosted_post' },
-      { $inc: { 'stats.boostsCount': 1, 'stats.federatedBoostsCount': 1 } },
+    // both the native boost total and the federated-boost subset. Read from the
+    // row, so the increment is the stored value and not the shape of an update
+    // document — `boostsCount - federatedBoostsCount` is what isolates native
+    // boosts, and only the stored pair can show it holding.
+    const after = await loadPostRecord(boosted.id);
+    expect(after?.stats.boostsCount).toBe(boosted.stats.boostsCount + 1);
+    expect(after?.stats.federatedBoostsCount).toBe(boosted.stats.federatedBoostsCount + 1);
+  });
+
+  it('rejects an Announce whose activity id belongs to another actor', async () => {
+    // The Announce branch has its OWN `activityIdBelongsToActor` guard, and it
+    // had no test: deleting it left this file green, while deleting the Note
+    // branch's copy turned a case red. An id under someone else's host is how a
+    // hostile outbox claims a boost it never made — and the boost record would
+    // carry OUR synced actor as its author, since `oxyUserId` comes from the
+    // outbox owner, not from the id.
+    const boosted = await seedPost(scope, {
+      federation: { activityId: `${scope.origin}/users/bob/statuses/888`, actorUri: `${scope.origin}/users/bob` },
+    });
+
+    stubOutbox(
+      { type: 'OrderedCollection', totalItems: 1, first: FIRST_PAGE_URL },
+      {
+        type: 'OrderedCollectionPage',
+        id: FIRST_PAGE_URL,
+        orderedItems: [
+          {
+            id: 'https://victim.example/users/bob/statuses/announce-forged/activity',
+            type: 'Announce',
+            actor: ACTOR_URI,
+            object: `${scope.origin}/users/bob/statuses/888`,
+            published: '2024-05-21T10:00:00Z',
+          },
+        ],
+      },
     );
+
+    const result = await runSync();
+
+    expect(result.importedBoostCount).toBe(0);
+    expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
+    // The boosted post's counters never moved either — a rejected Announce must
+    // leave no trace at all, not merely skip the post insert.
+    const after = await loadPostRecord(boosted.id);
+    expect(after?.stats.boostsCount).toBe(boosted.stats.boostsCount);
+    expect(after?.stats.federatedBoostsCount).toBe(boosted.stats.federatedBoostsCount);
   });
 });
 
