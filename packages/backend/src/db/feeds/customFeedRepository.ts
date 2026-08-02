@@ -148,6 +148,49 @@ export function definitionOf(row: FeedRow, relations: FeedRelations): StoredFeed
   };
 }
 
+/**
+ * Replace a feed's module lists.
+ *
+ * DELETE-then-INSERT inside one transaction, which is what keeps
+ * `custom_feed_definition_modules_feed_kind_position_key` from firing halfway
+ * through: every old `(kind, position)` is released before any new one is
+ * claimed, so a reorder that reuses the same positions cannot collide with
+ * itself.
+ *
+ * Lives here rather than in the route because it now has two callers — the
+ * route and `scripts/backfillCustomFeedDefinitions.ts` — and a second
+ * hand-rolled copy is a second place for the delete-then-insert ordering, or
+ * the `kind` → list mapping, to be got wrong.
+ */
+export async function replaceDefinitionModules(
+  tx: DatabaseOrTransaction,
+  feedId: string,
+  definition: StoredFeedDefinition,
+): Promise<void> {
+  await tx
+    .delete(customFeedDefinitionModules)
+    .where(eq(customFeedDefinitionModules.feedId, feedId));
+
+  const rows = (
+    [
+      ['source', definition.sources],
+      ['signal', definition.signals],
+      ['filter', definition.filters],
+    ] as const
+  ).flatMap(([kind, refs]) =>
+    (refs ?? []).map((ref, position) => ({
+      feedId,
+      kind,
+      position,
+      module: ref.module,
+      enabled: ref.enabled,
+      params: ref.params ?? null,
+      weight: ref.weight ?? null,
+    })),
+  );
+  if (rows.length > 0) await tx.insert(customFeedDefinitionModules).values(rows);
+}
+
 /** Load one feed with its child rows, or `null`. */
 export async function loadFeed(
   db: DatabaseOrTransaction,

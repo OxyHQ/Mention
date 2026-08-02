@@ -15,17 +15,17 @@ import {
   type SQL,
 } from 'drizzle-orm';
 import { qualified } from '../db/casing';
-import { getDb, type DatabaseOrTransaction } from '../db/postgres';
+import { getDb } from '../db/postgres';
 import {
   definitionOf,
   emptyRelations,
   loadFeed,
   loadFeedRelations,
+  replaceDefinitionModules,
   type FeedRelations,
   type FeedRow,
 } from '../db/feeds/customFeedRepository';
 import {
-  customFeedDefinitionModules,
   customFeedMembers,
   customFeeds,
   feedGenerators,
@@ -35,7 +35,6 @@ import {
 import { validateBody, validateObjectId, schemas } from '../middleware/validate';
 import { buildCustomFeedCreatePayload, buildCustomFeedUpdatePatch } from './customFeedWrite';
 import { buildCustomFeedDefinition } from '../mtn/feed/definitions/customFeedDefinition';
-import type { StoredFeedDefinition } from '../models/CustomFeed';
 import { loadViewerFeedContext } from '../mtn/feed/feedContext';
 import { feedEngine } from '../mtn/feed/engine/FeedEngine';
 import { resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
@@ -191,44 +190,6 @@ function serializeFeed(row: FeedRow, relations: FeedRelations) {
 /** The `topicCount` the feed cards render — it counts KEYWORDS, not `topicIds`. */
 function topicCountOf(row: FeedRow): number {
   return (row.keywords ?? []).length;
-}
-
-/**
- * Replace a feed's module lists.
- *
- * DELETE-then-INSERT inside one transaction, which is what keeps
- * `custom_feed_definition_modules_feed_kind_position_key` from firing halfway
- * through: every old `(kind, position)` is released before any new one is
- * claimed, so a reorder that reuses the same positions cannot collide with
- * itself.
- */
-async function replaceDefinitionModules(
-  tx: DatabaseOrTransaction,
-  feedId: string,
-  definition: StoredFeedDefinition,
-): Promise<void> {
-  await tx
-    .delete(customFeedDefinitionModules)
-    .where(eq(customFeedDefinitionModules.feedId, feedId));
-
-  const rows = (
-    [
-      ['source', definition.sources],
-      ['signal', definition.signals],
-      ['filter', definition.filters],
-    ] as const
-  ).flatMap(([kind, refs]) =>
-    (refs ?? []).map((ref, position) => ({
-      feedId,
-      kind,
-      position,
-      module: ref.module,
-      enabled: ref.enabled,
-      params: ref.params ?? null,
-      weight: ref.weight ?? null,
-    })),
-  );
-  if (rows.length > 0) await tx.insert(customFeedDefinitionModules).values(rows);
 }
 
 /** Like counts for a page of feeds, keyed by feed id. Absent means zero. */
