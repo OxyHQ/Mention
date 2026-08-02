@@ -223,7 +223,7 @@ export default function ExploreTrendingScreen() {
       ) : null}
       <Pressable
         accessibilityRole="button"
-        onPress={() => router.push('/explore/trending-graph')}
+        onPress={() => router.push('/trend-graph')}
         className="flex-row items-center gap-1 self-start"
       >
         <Ionicons name="git-network-outline" size={14} color={theme.colors.primary} />

@@ -1004,6 +1004,10 @@
     "notFound": {
       "title": "Page Not Found - Mention",
       "description": "The page you're looking for doesn't exist."
+    },
+    "trendGraph": {
+      "title": "Trend relations - Mention",
+      "description": "How the terms behind Mention's trends relate to each other."
     }
   },
   "lists": {
@@ -1958,11 +1962,6 @@
       "region": "Region",
       "all": "All"
     },
-    "legend": {
-      "truncated": "{{count}} further relations were left out of this graph.",
-      "branch": "Indented under a term: the terms merged into it — one story, one row in the list.",
-      "related": "A dashed branch: shares posts with its parent, but was not merged."
-    },
     "node": {
       "counts": "{{posts}} posts · {{authors}} distinct authors"
     },
@@ -1972,6 +1971,10 @@
     "sections": {
       "stories": "Merged stories",
       "ungrouped": "Terms on their own"
+    },
+    "eyebrow": "Behind the list",
+    "badge": {
+      "merged": "{{count}} merged"
     }
   }
 }

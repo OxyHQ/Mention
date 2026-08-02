@@ -890,6 +890,10 @@
     "notFound": {
       "title": "Pagina Non Trovata - Mention",
       "description": "La pagina che stai cercando non esiste."
+    },
+    "trendGraph": {
+      "title": "Relazioni tra tendenze - Mention",
+      "description": "Come si collegano tra loro i termini dietro le tendenze di Mention."
     }
   },
   "lists": {
@@ -1709,11 +1713,6 @@
       "region": "Regione",
       "all": "Tutti"
     },
-    "legend": {
-      "truncated": "Altre {{count}} relazioni sono state escluse da questo grafo.",
-      "branch": "Rientrato sotto un termine: i termini uniti a esso — una storia, una riga nella lista.",
-      "related": "Ramo tratteggiato: condivide post con il termine sopra, ma non è stato unito."
-    },
     "node": {
       "counts": "{{posts}} post · {{authors}} autori distinti"
     },
@@ -1723,6 +1722,10 @@
     "sections": {
       "stories": "Storie unite",
       "ungrouped": "Termini a sé"
+    },
+    "eyebrow": "Dietro la lista",
+    "badge": {
+      "merged": "{{count}} uniti"
     }
   }
 }
