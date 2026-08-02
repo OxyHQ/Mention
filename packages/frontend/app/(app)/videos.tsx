@@ -1277,7 +1277,7 @@ export default function VideosScreen() {
     const params = useLocalSearchParams<{ postId?: string; mediaIndex?: string }>();
     const { oxyServices, user, canUsePrivateApi, isAuthResolved, isAuthenticated } = useAuth();
     const viewerId = user?.id;
-    const { likePost, unlikePost, boostPost, unboostPost, savePost, unsavePost, getPostById } = usePostsStore();
+    const { likePost, unlikePost, boostPost, unboostPost, savePost, unsavePost, getPostById, cachePosts } = usePostsStore();
     // Desktop (>=990) gate. Actions + follow now overlay the video on every
     // breakpoint (matching mobile); `isDesktop` only decides how the comment
     // button behaves — a no-op on desktop (replies are already open in the
@@ -1469,6 +1469,15 @@ export default function VideosScreen() {
 
             if (newPosts.length > 0) {
                 newPosts.forEach(p => shownIdsRef.current.add(p.id));
+                // Seed the SHARED post cache, exactly as `useFeedState` does for
+                // every other feed. Without it the reel is invisible to the store:
+                // `updatePostEverywhere` is a read-modify-write that returns null
+                // for a post it has never seen, so every store write about a reel
+                // post — a like, a save, the server's view count — was a silent
+                // no-op, and none of it reached `/p/[id]` or the profile grids.
+                // Only the deep-link target escaped that, because `getPostById`
+                // upserts on its way through.
+                cachePosts(newPosts);
                 setPosts(prev => {
                     const existingIds = new Set(prev.map(p => p.id));
                     const toAdd = newPosts.filter(p => !existingIds.has(p.id));
@@ -1485,7 +1494,7 @@ export default function VideosScreen() {
             setHasMore(false);
             return 0;
         }
-    }, [filterVideoPosts]);
+    }, [filterVideoPosts, cachePosts]);
 
     // Mirror the latest pagination state into a ref so the auto-continue loop
     // reads fresh values without re-creating the callback each render.

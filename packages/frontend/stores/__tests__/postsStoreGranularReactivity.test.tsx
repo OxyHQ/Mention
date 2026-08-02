@@ -4,6 +4,7 @@ import type { FeedType } from '@mention/shared-types/feed';
 import { PostVisibility } from '@mention/shared-types/post';
 import type { FeedItem, FeedMetaData } from '@/db';
 import {
+  applyServerViewCounts,
   useFeedSelector,
   usePostSelector,
   usePostsStore,
@@ -25,6 +26,8 @@ const mockFeedService = {
   getSavedPosts: jest.fn(),
   getUserFeed: jest.fn(),
   getPostById: jest.fn(),
+  saveItem: jest.fn(),
+  unsaveItem: jest.fn(),
 };
 
 const mockBuildFeedKey = (type: string, userId?: string) =>
@@ -138,9 +141,17 @@ jest.mock('@/services/feedService', () => ({
       mockFeedService.getUserFeed(...args),
     getPostById: (...args: unknown[]) =>
       mockFeedService.getPostById(...args),
+    saveItem: (...args: unknown[]) => mockFeedService.saveItem(...args),
+    unsaveItem: (...args: unknown[]) => mockFeedService.unsaveItem(...args),
   },
 }));
 jest.mock('@/services/echoGuard', () => ({ markLocalAction: jest.fn() }));
+// List-membership invalidation is a separate authority with its own test
+// (`engagementInvalidationWiring`); it reaches React Query, which does not load
+// here and has nothing to say about the counts under test.
+jest.mock('@/stores/engagementInvalidation', () => ({
+  invalidateEngagementLists: jest.fn(),
+}));
 jest.mock('@/lib/precacheActorsFromPosts', () => ({
   precacheActorsFromPosts: jest.fn(),
 }));
@@ -246,6 +257,8 @@ describe('postsStore keyed SQLite reactivity', () => {
     mockFeedService.getSavedPosts.mockReset();
     mockFeedService.getUserFeed.mockReset();
     mockFeedService.getPostById.mockReset();
+    mockFeedService.saveItem.mockReset();
+    mockFeedService.unsaveItem.mockReset();
   });
 
   it('persists canonical related posts once without recreating local aliases', () => {
@@ -551,5 +564,211 @@ describe('postsStore keyed SQLite reactivity', () => {
     });
 
     expect(mockPosts.has('private-post')).toBe(false);
+  });
+});
+
+/**
+ * Server-authoritative counts.
+ *
+ * Two engagement numbers are decided entirely on the server and cannot be
+ * derived here: the view count (a 24h per-viewer dedupe window, the self-view
+ * guard and an eligibility filter all live there) and the save count (the number
+ * of Bookmark rows). For both, the server already answers with the value it
+ * wrote — the bug was throwing that answer away and either showing nothing or
+ * showing a ±1 applied to a stale base.
+ *
+ * The distinction that makes this worth pinning: a LATE count converges on its
+ * own, a WRONG one never does.
+ */
+describe('postsStore server-authoritative counts', () => {
+  beforeAll(() => {
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+  });
+
+  beforeEach(() => {
+    mockPosts.clear();
+    mockFeedIds.clear();
+    mockFeedMeta.clear();
+    mockFeedService.saveItem.mockReset();
+    mockFeedService.unsaveItem.mockReset();
+  });
+
+  /** Seed one post into the shared cache with a known engagement baseline. */
+  const seed = (id: string, engagement: Partial<FeedItem['engagement']> = {}): FeedItem => {
+    const post = makePost(id);
+    post.engagement = { ...post.engagement, ...engagement };
+    act(() => {
+      usePostsStore.getState().cachePosts([post]);
+    });
+    return post;
+  };
+
+  describe('applyServerViewCounts', () => {
+    it('writes the server total through the store and wakes that post subscribers', () => {
+      seed('viewed', { views: 3 });
+
+      const renders = jest.fn();
+      let renderer!: TestRenderer.ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(
+          <PostProbe postId="viewed" onRender={renders} />
+        );
+      });
+      renders.mockClear();
+
+      act(() => {
+        applyServerViewCounts({ viewed: 42 });
+      });
+
+      expect(mockPosts.get('viewed')?.engagement.views).toBe(42);
+      expect(renders).toHaveBeenCalledTimes(1);
+      expect(renders.mock.calls[0][0]?.engagement.views).toBe(42);
+
+      act(() => {
+        renderer.unmount();
+      });
+    });
+
+    it('applies the total to a post whose cached count was never a number', () => {
+      // A feed can hydrate a post with `views: null` (counts hidden, or simply
+      // never returned). An increment has nothing to add to; an assignment does.
+      seed('never-counted', { views: null });
+
+      act(() => {
+        applyServerViewCounts({ 'never-counted': 7 });
+      });
+
+      expect(mockPosts.get('never-counted')?.engagement.views).toBe(7);
+    });
+
+    it('is a silent no-op for a post the store has never seen', () => {
+      // This is the reel's failure mode: `updatePostEverywhere` is a
+      // read-modify-write, so a post that was never cached absorbs every write
+      // without a trace. The applier must not throw over it — the fix is to seed
+      // the cache (see `videos.tsx`), not to make this path invent a row.
+      expect(() => {
+        act(() => {
+          applyServerViewCounts({ 'never-cached': 42 });
+        });
+      }).not.toThrow();
+
+      expect(mockPosts.has('never-cached')).toBe(false);
+    });
+
+    it('does not write when the count already matches', () => {
+      seed('unchanged', { views: 42 });
+
+      const renders = jest.fn();
+      let renderer!: TestRenderer.ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(
+          <PostProbe postId="unchanged" onRender={renders} />
+        );
+      });
+      renders.mockClear();
+
+      act(() => {
+        applyServerViewCounts({ unchanged: 42 });
+      });
+
+      expect(renders).not.toHaveBeenCalled();
+
+      act(() => {
+        renderer.unmount();
+      });
+    });
+
+    it('ignores a value that is not a finite number', () => {
+      // The map is parsed JSON: its declared type is a claim about the wire, and
+      // "NaN views" on screen would be untraceable.
+      seed('malformed', { views: 3 });
+
+      act(() => {
+        applyServerViewCounts({ malformed: Number.NaN });
+      });
+
+      expect(mockPosts.get('malformed')?.engagement.views).toBe(3);
+    });
+  });
+
+  describe('save / unsave reconcile', () => {
+    it('converges a stale base to the server count instead of drifting from it', async () => {
+      // The cached count is far behind (other viewers saved this post since it
+      // was fetched). A blind +1 would show 6 — right movement, wrong number, and
+      // nothing later corrects it. The server answers with what it actually holds.
+      seed('stale', { saves: 5 });
+      mockFeedService.saveItem.mockResolvedValue({
+        success: true,
+        data: { message: 'Post saved successfully', savesCount: 101 },
+      });
+
+      await act(async () => {
+        await usePostsStore.getState().savePost({ postId: 'stale' });
+      });
+
+      expect(mockPosts.get('stale')?.engagement.saves).toBe(101);
+      expect(mockPosts.get('stale')?.viewerState.isSaved).toBe(true);
+    });
+
+    it('converges on unsave too', async () => {
+      seed('stale-unsave', { saves: 5 });
+      act(() => {
+        usePostsStore.getState().updatePostEverywhere('stale-unsave', (prev) => ({
+          ...prev,
+          viewerState: { ...prev.viewerState, isSaved: true },
+        }));
+      });
+      mockFeedService.unsaveItem.mockResolvedValue({
+        success: true,
+        data: { message: 'Post unsaved successfully', savesCount: 100 },
+      });
+
+      await act(async () => {
+        await usePostsStore.getState().unsavePost({ postId: 'stale-unsave' });
+      });
+
+      expect(mockPosts.get('stale-unsave')?.engagement.saves).toBe(100);
+      expect(mockPosts.get('stale-unsave')?.viewerState.isSaved).toBe(false);
+    });
+
+    it('acquires a count the optimistic path could never have produced', async () => {
+      // `saves: null` (counts hidden, or simply not returned): the optimistic
+      // branch deliberately skips a non-numeric count because there is nothing to
+      // add to, so before the reconcile such a post could never acquire one at
+      // all. The response here is also an idempotent retry ("Post already saved",
+      // `changed: false` server-side) — it still carries the authoritative count,
+      // and the post IS saved, so both must land.
+      seed('already', { saves: null });
+      mockFeedService.saveItem.mockResolvedValue({
+        success: true,
+        data: { message: 'Post already saved', savesCount: 12 },
+      });
+
+      await act(async () => {
+        await usePostsStore.getState().savePost({ postId: 'already' });
+      });
+
+      expect(mockPosts.get('already')?.engagement.saves).toBe(12);
+      expect(mockPosts.get('already')?.viewerState.isSaved).toBe(true);
+    });
+
+    it('leaves the optimistic state alone when the response carries no count', async () => {
+      // Forward-compatibility: an older/degraded response must not blank the
+      // count or undo the optimistic flip.
+      seed('no-server-count', { saves: 5 });
+      mockFeedService.saveItem.mockResolvedValue({
+        success: true,
+        data: { message: 'Post saved successfully' },
+      });
+
+      await act(async () => {
+        await usePostsStore.getState().savePost({ postId: 'no-server-count' });
+      });
+
+      expect(mockPosts.get('no-server-count')?.engagement.saves).toBe(6);
+      expect(mockPosts.get('no-server-count')?.viewerState.isSaved).toBe(true);
+    });
   });
 });

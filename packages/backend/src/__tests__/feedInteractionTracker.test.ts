@@ -20,7 +20,8 @@ import { MtnConfig } from '@mention/shared-types';
  */
 
 let postDoc: { oxyUserId?: string } | null = { oxyUserId: 'author' };
-let dedupedViewResult = true;
+/** The post's new total when the view counted; null when it did not. */
+let dedupedViewResult: number | null = 1;
 
 const findOne = vi.fn((_filter?: unknown, _projection?: unknown) => ({
   lean: () => Promise.resolve(postDoc),
@@ -51,7 +52,14 @@ vi.mock('../services/UserPreferenceService', () => ({
   },
 }));
 
-import { applyImpressionSignals } from '../mtn/feed/FeedInteractionTracker';
+// `trackFeedInteraction` reaches this model through a dynamic import (circular
+// dependency at module load), which `vi.mock` intercepts all the same.
+const createFeedInteraction = vi.fn((_doc: unknown) => Promise.resolve({}));
+vi.mock('../models/FeedInteraction', () => ({
+  FeedInteraction: { create: (doc: unknown) => createFeedInteraction(doc) },
+}));
+
+import { applyImpressionSignals, trackFeedInteraction } from '../mtn/feed/FeedInteractionTracker';
 
 const POST_ID = new mongoose.Types.ObjectId('5f0000000000000000000001').toString();
 
@@ -68,7 +76,7 @@ function impression(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   postDoc = { oxyUserId: 'author' };
-  dedupedViewResult = true;
+  dedupedViewResult = 1;
   vi.clearAllMocks();
 });
 
@@ -87,16 +95,52 @@ describe('applyImpressionSignals — dwell clamping', () => {
 
 describe('applyImpressionSignals — dedupe (record dwell once per post/viewer)', () => {
   it('does NOT record dwell when the view was already counted (duplicate impression)', async () => {
-    dedupedViewResult = false; // second impression: recordDedupedView reports no new view
+    dedupedViewResult = null; // second impression: recordDedupedView reports no new view
     await applyImpressionSignals(impression({ durationMs: 4000 }));
     expect(recordDedupedView).toHaveBeenCalledTimes(1);
     expect(recordDwell).not.toHaveBeenCalled();
   });
 
   it('records dwell only on the first (newly-counted) view', async () => {
-    dedupedViewResult = true;
+    dedupedViewResult = 1;
     await applyImpressionSignals(impression({ durationMs: 4000 }));
     expect(recordDwell).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The view count travels back to the reporting client, which is the only way a
+ * screen showing a post can learn about the view IT just caused: every gate that
+ * decides whether an impression counts (dedupe window, self-view guard,
+ * eligibility) lives on this side, so a client-side increment would be wrong in
+ * precisely the cases the server declined.
+ */
+describe('applyImpressionSignals — the counted total travels back', () => {
+  it('returns the post new total when the view counted', async () => {
+    dedupedViewResult = 42;
+    await expect(applyImpressionSignals(impression({ durationMs: 4000 }))).resolves.toBe(42);
+  });
+
+  it('returns null for a repeat impression inside the dedupe window', async () => {
+    dedupedViewResult = null;
+    await expect(applyImpressionSignals(impression({ durationMs: 4000 }))).resolves.toBeNull();
+  });
+
+  it('returns null for the viewer own post (self-view guard)', async () => {
+    postDoc = { oxyUserId: 'viewer' };
+    dedupedViewResult = 42; // Would be reported if the guard did not short-circuit.
+    await expect(applyImpressionSignals(impression({ durationMs: 4000 }))).resolves.toBeNull();
+  });
+
+  it('returns null for an ineligible post', async () => {
+    postDoc = null;
+    await expect(applyImpressionSignals(impression({ durationMs: 4000 }))).resolves.toBeNull();
+  });
+
+  it('returns null for a non-local postUri', async () => {
+    await expect(
+      applyImpressionSignals(impression({ postUri: 'https://remote/notlocal' })),
+    ).resolves.toBeNull();
   });
 });
 
@@ -128,5 +172,33 @@ describe('applyImpressionSignals — eligibility', () => {
     await applyImpressionSignals(impression({ durationMs: 4000 }));
     expect(recordDedupedView).not.toHaveBeenCalled();
     expect(recordDwell).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * `trackFeedInteraction` is the only caller of `applyImpressionSignals`, so the
+ * count is worth nothing unless it survives that hop. It used to detach the call
+ * entirely (a floating promise with a `.catch()`), which is why the value existed
+ * server-side and never left the process.
+ */
+describe('trackFeedInteraction — propagating the counted total', () => {
+  it('returns the counted total for an impression', async () => {
+    dedupedViewResult = 42;
+    await expect(trackFeedInteraction(impression({ durationMs: 4000 }))).resolves.toBe(42);
+    expect(createFeedInteraction).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns null for a non-impression event, which counts no view', async () => {
+    dedupedViewResult = 42; // Would leak out if the event branch were ignored.
+    await expect(trackFeedInteraction(impression({ event: 'click' as const }))).resolves.toBeNull();
+    expect(recordDedupedView).not.toHaveBeenCalled();
+  });
+
+  it('still records the analytics row, and reports no count, when the signals throw', async () => {
+    // The impression side effects are best-effort: a failure there must not fail
+    // the interaction record, and must not invent a count for the response.
+    recordDedupedView.mockRejectedValueOnce(new Error('redis down'));
+    await expect(trackFeedInteraction(impression({ durationMs: 4000 }))).resolves.toBeNull();
+    expect(createFeedInteraction).toHaveBeenCalledTimes(1);
   });
 });

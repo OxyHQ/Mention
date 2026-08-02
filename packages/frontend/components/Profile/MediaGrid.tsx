@@ -9,7 +9,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { FeedItem } from '@/db';
 import type { HydratedPostSummary, MediaItem } from '@mention/shared-types';
-import VideoPosterCell from '@/components/common/VideoPosterCell';
+import LiveVideoPosterCell from './LiveVideoPosterCell';
 import { isVideoMediaRef, readMediaDurationSec } from '@/utils/mediaTypes';
 import { useProfileMediaFeed } from './useProfileMediaFeed';
 import { ProfileGridList, type ProfileGridEntry } from './ProfileGridList';
@@ -34,9 +34,18 @@ interface MediaGridEntry extends ProfileGridEntry {
      * Play count of the post this cell's media came from — set on video entries
      * only, so the type says outright that image cells carry neither of these.
      * Per-POST, so two videos in one post repeat it, exactly as `isCarousel`
-     * already paints on every one of a post's cells.
+     * already paints on every one of a post's cells. Fetch-time value: the cell
+     * prefers the live count from the shared cache when the post is in it.
      */
     views?: number | null;
+    /**
+     * The post {@link MediaGridEntry.views} describes, which is NOT always
+     * {@link ProfileGridEntry.postId}: a boost/quote with no media of its own
+     * borrows the ORIGINAL's media, and `postId` stays the outer post so the tap
+     * still opens what the viewer sees on the profile. Subscribing to `postId`
+     * there would paint the BOOST's count under the original's video.
+     */
+    viewsPostId?: string;
     /** Duration of THIS item's video, in seconds. Per-item, so per-cell correct. */
     durationSec?: number;
 }
@@ -104,8 +113,10 @@ const MediaGrid: React.FC<MediaGridProps> = ({
                         mediaIndex: idx,
                         // `post`, not the outer feed item: for a boost/quote with no
                         // media of its own the media belongs to the ORIGINAL, and the
-                        // count has to describe the video being shown.
+                        // count has to describe the video being shown. The live
+                        // subscription has to follow that same post, hence the id.
                         views: post.engagement?.views,
+                        viewsPostId: post.id ? String(post.id) : undefined,
                         durationSec: readMediaDurationSec(ref),
                     });
                     return;
@@ -156,11 +167,12 @@ const MediaGrid: React.FC<MediaGridProps> = ({
         return (
             <TouchableOpacity activeOpacity={0.8} style={{ width: itemSize, height: itemSize }} onPress={handlePress}>
                 {item.isVideo ? (
-                    <VideoPosterCell
+                    <LiveVideoPosterCell
                         posterUri={item.uri || undefined}
                         size={itemSize}
                         placeholderColor={theme.colors.textSecondary}
-                        views={item.views}
+                        viewsPostId={item.viewsPostId}
+                        fallbackViews={item.views}
                         durationSec={item.durationSec}
                         scrim
                     />

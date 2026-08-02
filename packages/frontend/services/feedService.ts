@@ -16,7 +16,9 @@ import type {
   FeedDescriptor,
   HydratedPost,
   UpdatePostRequest,
+  FeedInteractionBatchResponse,
   FeedInteractionInput,
+  FeedPostViewCounts,
   FeedInterstitialEventInput,
   PostEditSource,
   PostUser,
@@ -917,11 +919,22 @@ class FeedService {
    * one request per row put a scrolling client over the backend's per-IP feed
    * rate limiter, which rejected the overflow and lost the ranking signal.
    * Batching is owned by `utils/feedTelemetry.ts`; this method is the transport.
+   *
+   * Returns the view totals the batch MOVED — the one thing in the response the
+   * caller cannot derive for itself, since whether an impression counts is
+   * decided server-side. An empty map is the normal answer (a batch is mostly
+   * re-reported impressions inside the dedupe window) and is also what a failed
+   * write returns: telemetry stays best-effort, so a caller never has to
+   * distinguish "nothing counted" from "the request never landed".
    */
-  async sendFeedInteractions(interactions: FeedInteractionInput[]): Promise<void> {
-    if (interactions.length === 0) return;
+  async sendFeedInteractions(interactions: FeedInteractionInput[]): Promise<FeedPostViewCounts> {
+    if (interactions.length === 0) return {};
     try {
-      await authenticatedClient.post('/feed/mtn/interactions', { interactions });
+      const response = await authenticatedClient.post<FeedInteractionBatchResponse>(
+        '/feed/mtn/interactions',
+        { interactions },
+      );
+      return response.data?.viewCounts ?? {};
     } catch (error) {
       // Telemetry write — non-critical to the user, but log so silent loss of
       // feed-ranking signal is observable in diagnostics.
@@ -929,6 +942,7 @@ class FeedService {
         count: interactions.length,
         ...normalizeApiError(error),
       });
+      return {};
     }
   }
 

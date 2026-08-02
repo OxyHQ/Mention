@@ -9,6 +9,7 @@ import {
 } from '@mention/shared-types';
 import { feedService } from '@/services/feedService';
 import { trendingService } from '@/services/trendingService';
+import { applyServerViewCounts } from '@/stores/postsStore';
 import { createLogger } from '@oxyhq/core/logger';
 import { FeedFilters } from './feedUtils';
 
@@ -30,6 +31,10 @@ import { FeedFilters } from './feedUtils';
  *
  * All writes are best-effort: `feedService.sendFeedInteractions` swallows and
  * debug-logs its own failures, so telemetry can never block or break the feed.
+ *
+ * The impression batch is the one write here that is not purely outbound — its
+ * response carries the view totals the server just moved, which the queue hands
+ * to the shared post cache. See `sendPendingBatch`.
  */
 
 const logger = createLogger('FeedTelemetry');
@@ -59,11 +64,21 @@ function sendPendingBatch(): void {
     // Drain at most one batch per request; anything beyond the cap stays queued
     // and goes out on the next flush rather than as one unbounded body.
     const batch = pendingInteractions.splice(0, FEED_INTERACTION_BATCH_LIMIT);
-    feedService.sendFeedInteractions(batch).catch((error) => {
-        // `sendFeedInteractions` already swallows + debug-logs network failures;
-        // this guards against any synchronous throw so telemetry can't bubble.
-        logger.debug('Interaction batch failed', { error });
-    });
+    feedService
+        .sendFeedInteractions(batch)
+        // The response is not an acknowledgement to discard: it carries the view
+        // totals this batch actually moved. Only the server knows whether an
+        // impression counted (dedupe window, self-view guard, eligibility), so
+        // this is the one moment the viewer's own screens can learn about the
+        // view they just caused — otherwise the number stays stale until the
+        // next feed fetch, which is what made a watched video look uncounted.
+        .then(applyServerViewCounts)
+        .catch((error) => {
+            // `sendFeedInteractions` already swallows + debug-logs network
+            // failures; this guards against any synchronous throw — including one
+            // from applying the counts — so telemetry can't bubble into a render.
+            logger.debug('Interaction batch failed', { error });
+        });
 }
 
 function scheduleFlush(): void {

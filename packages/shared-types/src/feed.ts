@@ -239,6 +239,32 @@ export interface FeedInteractionBatchInput {
 }
 
 /**
+ * Post id → the post's NEW `viewsCount`, as the server holds it after the write.
+ *
+ * Only ever carries posts whose count the request actually moved. That is the
+ * whole point: the client cannot derive this number. Whether an impression
+ * counts is decided entirely server-side (a 24h per-viewer dedupe window, the
+ * self-view guard, and the public+published eligibility filter), so a client
+ * that optimistically incremented would be wrong in exactly the cases the
+ * server declined — and a wrong count never self-corrects, while a late one
+ * does.
+ */
+export type FeedPostViewCounts = Record<string, number>;
+
+/**
+ * The response body of `POST /feed/mtn/interactions`.
+ *
+ * `viewCounts` is ADDITIVE: `success` keeps its previous meaning, so a client
+ * that ignores the new field behaves exactly as it did before. It is absent
+ * (rather than `{}`) when nothing was counted, which is the common case — a
+ * batch is mostly re-reported impressions inside the dedupe window.
+ */
+export interface FeedInteractionBatchResponse {
+  success: boolean;
+  viewCounts?: FeedPostViewCounts;
+}
+
+/**
  * Hard cap on interactions per request. Bounds the server's per-request fan-out
  * (each entry can trigger a post lookup plus dedupe/dwell writes) and bounds the
  * client's queue drain, so a backlog is spread across requests instead of
