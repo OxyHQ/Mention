@@ -14,12 +14,12 @@ import {
   existsFollow,
   findFollows,
 } from '../db/federation/followRepository';
-import { and, eq, gte, isNotNull, lt, type SQL } from 'drizzle-orm';
+import { and, eq, isNotNull, lt, type SQL } from 'drizzle-orm';
 import { posts as postsTable } from '../db/schema/posts';
 import { CHRONO_DESC, findPostRecords } from '../db/posts/postRepository';
 import { FEDERATION_ENABLED } from './activitypub/constants';
 import { ATPROTO_ENABLED, isDid, isAtUri, isAtprotoHandle } from './atproto/constants';
-import { normalizeFederatedAcct } from './activitypub/helpers';
+import { activityIdUnderActor, normalizeFederatedAcct } from './activitypub/helpers';
 import { isAbsoluteHttpUrl } from './shared/url';
 import { connectorRegistry } from './index';
 import { classifyQuery } from './resolve';
@@ -528,8 +528,10 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
         eq(postsTable.visibility, PostVisibility.PUBLIC),
       ]
       : [
-        gte(postsTable.federationActivityId, `${actor.uri}/`),
-        lt(postsTable.federationActivityId, `${actor.uri}/\uffff`),
+        // Prefix, not a range — see `activityIdUnderActor`. The range this
+        // replaces matched nothing under a linguistic collation, so an actor
+        // with no Oxy link served an empty feed however many posts it had.
+        activityIdUnderActor(actor.uri),
         eq(postsTable.visibility, PostVisibility.PUBLIC),
       ];
     if (parsed.data.cursor) {

@@ -372,11 +372,18 @@ describe('GET /search — order and pagination', () => {
   });
 
   it('walks a page boundary that falls INSIDE one millisecond', async () => {
-    // Two rows written in ONE transaction share `created_at` exactly —
-    // `now()` is `transaction_timestamp()`, not `clock_timestamp()` (probed
-    // against the server, not assumed). So this is the real, reachable state of
-    // a page boundary landing between two rows the timestamp cannot separate,
-    // and the `id DESC` tie-break is the only thing carrying the walk.
+    // Rows written in ONE transaction share `created_at` exactly — `now()` is
+    // `transaction_timestamp()`, not `clock_timestamp()` (probed against the
+    // server, not assumed). So this is the real, reachable state of a page
+    // boundary landing between rows the timestamp cannot separate, and the
+    // `id DESC` tie-break is the only thing carrying the walk.
+    //
+    // The single transaction is LOAD-BEARING, not tidiness: three separate
+    // inserts would land on three different `transaction_timestamp()` values,
+    // the timestamps would separate the rows on their own, and this would
+    // quietly become an ordinary pagination test. Do not "simplify" it into
+    // three `seedPost` calls — the `expect` below on a single shared stamp is
+    // there to fail loudly if someone does.
     //
     // Page size ONE, so the boundary falls between the two of them rather than
     // around them.

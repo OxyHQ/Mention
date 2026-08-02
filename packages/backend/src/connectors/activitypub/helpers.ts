@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql, type SQL } from 'drizzle-orm';
 import { logger } from '../../utils/logger';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
@@ -665,4 +665,36 @@ export async function resolvePostIdFromObjectUri(objectUri: string): Promise<str
     .where(eq(posts.federationActivityId, objectUri))
     .limit(1);
   return imported ? imported.id : null;
+}
+
+/**
+ * "Every post whose AP activity id lives under this actor's URI."
+ *
+ * `starts_with`, NOT a `>= prefix AND < prefix || '\uffff'` range, and not a
+ * `LIKE` pattern either. All three were tried and only this one is correct here:
+ *
+ *  - The RANGE is what Mongo's byte-ordered comparison made safe, and it does
+ *    not survive the port. Under this database's `en_US.utf8` collation U+FFFF
+ *    does not sort above ordinary text — measured, on the migrated schema:
+ *    `'…/alice/statuses/1' >= '…/alice/'` is true but
+ *    `'…/alice/statuses/1' < '…/alice/\uffff'` is FALSE. The half-open range
+ *    therefore matched (almost) nothing, silently: the author backfill claimed
+ *    no orphaned post and the unlinked-actor feed served an empty page, both
+ *    without an error.
+ *  - `LIKE` reintroduces exactly what the range existed to avoid — a pattern
+ *    built from a remote-controlled URI, where an unescaped `%` or `_` widens
+ *    the match.
+ *
+ * `starts_with` compares bytes, so a dot or a `%` in the remote username is
+ * literal text, and `@bob` cannot claim `@bobsmith`'s posts because the prefix
+ * is `/`-terminated by the caller.
+ *
+ * INDEX NOTE: this is a sequential scan on `federation_activity_id`. A btree in
+ * a linguistic collation could not serve the range it replaces either (and did
+ * not, since the range matched nothing), so nothing regressed — but if this ever
+ * runs hot, the fix is an expression index `(federation_activity_id COLLATE "C")`
+ * plus C-collated range bounds, not a return to the sentinel.
+ */
+export function activityIdUnderActor(actorUri: string): SQL {
+  return sql`starts_with(${posts.federationActivityId}, ${`${actorUri}/`})`;
 }

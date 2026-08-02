@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import UserSettings, { type ProfileMedia } from '../models/UserSettings';
+import type { ProfileMedia } from '../db/userProfile/userSettingsRecord';
 import UserBehavior from '../models/UserBehavior';
 import { and, eq } from 'drizzle-orm';
 import { posts } from '../db/schema/posts';
@@ -12,7 +12,12 @@ import Bookmark from '../models/Bookmark';
 import Like from '../models/Like';
 // Block and Restrict routes removed - frontend should use Oxy services directly
 import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import { buildSettingsResponseForViewer, ensureUserSettings } from '../utils/userSettings';
+import { buildSettingsResponseForViewer } from '../utils/userSettings';
+import {
+  ensureUserSettings,
+  loadUserSettings,
+  updateUserSettings,
+} from '../db/userProfile/userSettingsRepository';
 import { ensureProfileMediaPublic } from '../utils/oxyHelpers';
 import { canViewProfileDesign } from '../utils/privacyHelpers';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
@@ -70,7 +75,7 @@ router.get('/settings/:userId', async (req: AuthRequest, res: Response) => {
 
     const doc = userId === viewerUserId
       ? await ensureUserSettings(userId)
-      : await UserSettings.findOne({ oxyUserId: userId }).lean().exec();
+      : await loadUserSettings(userId);
 
     // This route serves the SAME profile-design DTO as `GET /profile/design/:userId`,
     // so it applies the SAME visibility rule. Without it a private profile's
@@ -399,11 +404,7 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
     }
 
     const doc = Object.keys(operation).length > 0
-      ? await UserSettings.findOneAndUpdate(
-        { oxyUserId },
-        operation,
-        { upsert: true, new: true }
-      ).lean()
+      ? await updateUserSettings(oxyUserId, { set: operation.$set, unset: operation.$unset })
       : await ensureUserSettings(oxyUserId);
 
     // Profile banners are public-facing media: an anonymous <img> on a profile
@@ -514,7 +515,7 @@ router.post('/export', async (req: AuthRequest, res: Response) => {
       writeLine('like', like);
     }
 
-    const settings = await UserSettings.findOne({ oxyUserId }).lean();
+    const settings = await loadUserSettings(oxyUserId);
     writeLine('settings', settings ?? null);
 
     res.end();

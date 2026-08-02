@@ -110,10 +110,12 @@ describe('ThreadSlicingService reply-context parent publication', () => {
         maxSliceSize: 3,
       });
 
+      // The BODY check first, deliberately: it is the assertion whose failure
+      // message names the guarantee (the unpublished body appears verbatim in
+      // the diff), where an id-list mismatch prints two uuids.
+      expect(JSON.stringify(slices)).not.toContain(PARENT_BODY);
       expect(slicedPostIds(slices)).toEqual([reply.id]);
       expect(additionalPostIds).not.toContain(parent.id);
-      // Not merely absent from the id list — none of its BODY reached the wire.
-      expect(JSON.stringify(slices)).not.toContain(PARENT_BODY);
     },
   );
 

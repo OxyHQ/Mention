@@ -148,9 +148,12 @@ import { activityPubConnector as federationService } from '../../connectors/acti
  * Every activity-id prefix this suite's rows can carry.
  *
  * The scope origin covers the invented actors; the ccTLD instance is a real
- * hostname the region derivation needs, so it is listed explicitly.
+ * hostname the region derivation needs, so it is listed explicitly — as the FULL
+ * actor URI, not the bare host. `https://social.example.de/` alone also matched
+ * a federated post another suite in this batch seeds to exercise the same coarse
+ * region, and this sweep deleted it between that suite's create and its read.
  */
-const OWNED_ACTIVITY_PREFIXES = [scope.origin, 'https://social.example.de/'];
+const OWNED_ACTIVITY_PREFIXES = [scope.origin, DE_ACTOR_URI];
 
 function ownedPosts(): SQL {
   return or(
@@ -1006,70 +1009,41 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
     };
   }
 
-  /**
-   * KNOWN DEFECT — DO NOT "FIX" THIS TEST, FIX `PostCreationService`.
-   *
-   * NO inbound Announce is imported at all today. `importAnnounce` builds the
-   * boost the way a boost has to be built — `content: { text: '' }`, because a
-   * `type:'boost'` post carries an intentionally EMPTY body and relies on
-   * `boostOf` for hydration — and hands it to `PostCreationService.create`,
-   * whose "refusing to create empty federated post" guard rejects ANY post with
-   * a `federation` block and no text, media, attachment, poll or spoiler. A
-   * boost is exactly that shape, and the guard has no `boostOf` exemption.
-   *
-   * `importAnnounce` catches the throw, logs at WARN and returns false, so the
-   * whole thing is silent: no boost row, no counter movement, no error surface.
-   * The guard predates the Postgres port (only its comment changed in the port
-   * commit), so this is a pre-existing production bug that the previous suite
-   * could not see — it replaced the creator with `mocks.postCreatorCreate`, which
-   * happily returned a fake document and never ran the guard.
-   *
-   * Pinned as a TRIPWIRE: exempting `boostOf` in that guard turns this red, and
-   * whoever does it should restore the commented expectations below.
-   */
-  it('is currently REFUSED by the empty-federated-post guard (see the note above)', async () => {
+  it('creates a native boost Post deduped by Announce id and moves BOTH counters', async () => {
     await seedResolvedActor(scope.user('bob'));
     const postId = await seedResolvableTarget(announcedUri);
 
     await federationService.processInboxActivity(announce(), actorUri);
 
-    expect(await rowByActivityId(announceId)).toBeUndefined();
+    // The boost is a real post row of its own, owned by the BOOSTER and pointing
+    // at the boosted original — the same shape a native repost has, which is what
+    // lets the feed and hydration treat the two identically.
+    //
+    // It also carries an intentionally EMPTY body, and that is the whole reason
+    // this is worth asserting against a row: `PostCreationService`'s
+    // "refusing to create empty federated post" guard used to match exactly this
+    // shape, so every inbound Announce was thrown out, caught by
+    // `importAnnounce`'s own `catch`, logged at WARN and reported as `false` —
+    // no boost row, no counter movement, nothing above WARN to say so. The
+    // previous suite could not see it: it replaced the creator with a mock that
+    // returned a fake document and never ran the guard at all.
+    const boost = await rowByActivityId(announceId);
+    expect(boost).toBeDefined();
+    expect(boost?.type).toBe('boost');
+    expect(boost?.oxyUserId).toBe(scope.user('bob'));
+    expect(boost?.boostOf).toBe(postId);
+    // The boost's date reflects when the boost happened, not the sync.
+    expect(boost?.createdAt.toISOString()).toBe('2026-06-18T09:30:00.000Z');
+    // Empty body, stored: the boost renders entirely from `boostOf`.
+    const boostRecord = await loadPostRecord(boost?.id ?? '');
+    expect(boostRecord?.content.variants ?? []).toEqual([]);
+
+    // A federated Announce moves the native boost counter AND the federated
+    // subset counter +1 in lockstep, so `boostsCount - federatedBoostsCount`
+    // isolates native reposts.
     const counters = await countersOf(postId);
-    expect(counters?.boosts).toBe(0);
-    expect(counters?.federatedBoosts).toBe(0);
-
-    //  const boost = await rowByActivityId(announceId);
-    //  expect(boost?.type).toBe('boost');
-    //  expect(boost?.oxyUserId).toBe(scope.user('bob'));
-    //  expect(boost?.boostOf).toBe(postId);
-    //  expect(boost?.createdAt.toISOString()).toBe('2026-06-18T09:30:00.000Z');
-    //  expect(counters?.boosts).toBe(1);
-    //  expect(counters?.federatedBoosts).toBe(1);
-  });
-
-  it('imports a boost whose Announce carries a body, proving the rest of the path works', async () => {
-    // The SAME path, with the one thing the guard demands: an `Announce` of a
-    // post Mention already holds, imported through `importAnnounce` with a body
-    // on the boost. This is the vacuity floor for the tripwire above — without
-    // it, "no boost was created" could be satisfied by a path that never runs.
-    await seedResolvedActor(scope.user('bob'));
-    const postId = await seedResolvableTarget(announcedUri);
-    const boost = await insertPostRecord({
-      oxyUserId: scope.user('bob'),
-      authorship: [{ oxyUserId: scope.user('bob'), role: 'owner', status: 'accepted' }],
-      type: PostType.BOOST,
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-      content: {},
-      boostOf: postId,
-      federation: { activityId: announceId, actorUri },
-    });
-
-    // A boost row IS storable with an empty body — the schema has no objection;
-    // only `PostCreationService`'s guard does.
-    expect(boost.type).toBe(PostType.BOOST);
-    expect(boost.boostOf).toBe(postId);
-    expect((await rowByActivityId(announceId))?.id).toBe(boost.id);
+    expect(counters?.boosts).toBe(1);
+    expect(counters?.federatedBoosts).toBe(1);
   });
 
   it('skips when the booster is unresolved (no record, no counter move)', async () => {
@@ -1087,19 +1061,8 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
   it('does not double-create when the Announce is redelivered', async () => {
     await seedResolvedActor(scope.user('bob'));
     const postId = await seedResolvableTarget(announcedUri);
-    // Seed the boost the import WOULD have made, so the dedup branch — which is
-    // the subject here — has something to dedup against.
-    await insertPostRecord({
-      oxyUserId: scope.user('bob'),
-      authorship: [{ oxyUserId: scope.user('bob'), role: 'owner', status: 'accepted' }],
-      type: PostType.BOOST,
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-      content: {},
-      boostOf: postId,
-      federation: { activityId: announceId, actorUri },
-    });
 
+    await federationService.processInboxActivity(announce(), actorUri);
     await federationService.processInboxActivity(announce(), actorUri);
 
     const boosts = await getDb()
@@ -1109,7 +1072,9 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
     expect(boosts).toHaveLength(1);
     // The dedup returns BEFORE the counter bump, so a redelivery cannot inflate
     // the count of a boost that already exists.
-    expect((await countersOf(postId))?.boosts).toBe(0);
+    const counters = await countersOf(postId);
+    expect(counters?.boosts).toBe(1);
+    expect(counters?.federatedBoosts).toBe(1);
   });
 
   it('blocks unsafe boosted object fetches before contacting the network', async () => {
@@ -1140,36 +1105,32 @@ describe('federationService.processInboxActivity → handleUndoAnnounce', () => 
   const announceId = `${BOB_URI}/statuses/200/activity`;
 
   /**
-   * Store the boost an Announce would have produced, plus the counters it would
-   * have moved.
-   *
-   * Seeded rather than imported because the import path is refused today (see
-   * the KNOWN DEFECT above) — but the Undo path is a different question and is
-   * fully exercisable: it locates a boost row by its Announce id, scoped to the
-   * verified signer, deletes it and moves both counters back.
+   * Import a real boost through the inbound Announce path, so the Undo retracts
+   * something a real import produced rather than a row the test invented in the
+   * shape it hoped the importer used.
    */
-  async function seedImportedBoost(): Promise<{ postId: string; boostId: string }> {
+  async function importBoost(): Promise<{ postId: string }> {
     await seedResolvedActor(scope.user('bob'));
     const postId = await seedResolvableTarget(announcedUri);
-    const boost = await insertPostRecord({
-      oxyUserId: scope.user('bob'),
-      authorship: [{ oxyUserId: scope.user('bob'), role: 'owner', status: 'accepted' }],
-      type: PostType.BOOST,
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-      content: {},
-      boostOf: postId,
-      federation: { activityId: announceId, actorUri },
-    });
-    await bumpPostCounters(postId, { boosts: 1, federatedBoosts: 1 });
+    await federationService.processInboxActivity(
+      {
+        type: 'Announce',
+        id: announceId,
+        actor: actorUri,
+        object: announcedUri,
+        published: '2026-06-18T09:30:00Z',
+      },
+      actorUri,
+    );
+    expect(await rowByActivityId(announceId)).toBeDefined();
     const counters = await countersOf(postId);
     expect(counters?.boosts).toBe(1);
     expect(counters?.federatedBoosts).toBe(1);
-    return { postId, boostId: boost.id };
+    return { postId };
   }
 
   it('deletes the boost and decrements BOTH counters in lockstep', async () => {
-    const { postId } = await seedImportedBoost();
+    const { postId } = await importBoost();
 
     await federationService.processInboxActivity(
       { type: 'Undo', actor: actorUri, object: { type: 'Announce', id: announceId, object: announcedUri } },
@@ -1199,7 +1160,7 @@ describe('federationService.processInboxActivity → handleUndoAnnounce', () => 
   });
 
   it('cannot retract another actor boost by replaying its public Announce id', async () => {
-    const { postId } = await seedImportedBoost();
+    const { postId } = await importBoost();
     const attackerUri = 'https://evil.example/users/mallory';
 
     await federationService.processInboxActivity(
@@ -1227,11 +1188,11 @@ describe('federationService.processInboxActivity → handleDelete', () => {
   const objectId = `${ownerUri}/statuses/500`;
 
   it('authorizes Delete against the verified actor URI stored on the post', async () => {
-    await seedFederatedPost({
+    const seeded = await seedFederatedPost({
       oxyUserId: scope.user('alice'),
       activityId: objectId,
       actorUri: ownerUri,
-      text: 'a post somebody else wants gone',
+      text: 'a post an impostor tried to delete',
     });
 
     await federationService.processInboxActivity(
@@ -1246,8 +1207,12 @@ describe('federationService.processInboxActivity → handleDelete', () => {
     );
 
     // The object id is public and remote-controlled, so authorization is against
-    // the actor URI STAMPED on the row at ingest — the post survives.
-    expect(await rowByActivityId(objectId)).toBeDefined();
+    // the actor URI STAMPED on the row at ingest — the post survives, body and
+    // all. Asserted on the BODY so a failure names what was destroyed rather
+    // than printing `expected undefined to be defined`.
+    expect((await loadPostRecord(seeded.id))?.content.variants[0]?.text).toBe(
+      'a post an impostor tried to delete',
+    );
   });
 
   it('deletes only when the verified signer owns the stored post', async () => {

@@ -4,59 +4,46 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * Coverage for {@link getKnownPostLikers} — the post-detail social-proof
  * endpoint (`GET /posts/:id/likes/known`).
  *
- * Three properties matter and are asserted independently:
+ * Four properties matter and are asserted independently:
  *
  *  1. **Anonymous viewers get 200 + empty**, never 401. The row is decorative on
  *     a PUBLIC screen, so an auth failure here would log an error per detail
  *     view for every signed-out reader.
- *  2. **A viewer who follows nobody never queries likes at all.** An empty `$in`
+ *  2. **A viewer who follows nobody never queries likes at all.** An empty `IN`
  *     would match nothing anyway; short-circuiting keeps a pointless query off
  *     the hottest read.
- *  3. **The candidate set stays bounded.** Measured against a 150k-like post,
- *     the indexable shape costs 5000 keys / 0 docs examined; letting the
- *     candidate list grow unbounded keeps the endpoint CORRECT and quietly
- *     makes it O(likes).
+ *  3. **Only likers the viewer follows come back**, and `total` counts the same
+ *     set the sample was drawn from.
+ *  4. **The candidate set stays bounded at 5000.** Letting it grow unbounded
+ *     keeps the endpoint CORRECT and quietly makes it O(likes) — the failure
+ *     mode a shape assertion is usually reached for, and the one this file
+ *     instead demonstrates with a like that falls off the end of the cap.
  *
- * ## KNOWN DEFECT — this endpoint reads a store nothing writes any more
+ * ## What changed with the Postgres port
  *
- * `PostEngagementCommandService` writes likes to the POSTGRES `likes` table
- * (`db/schema/engagement.ts`), and `posts.controller.ts` still imports
- * `Like from '../models/Like'` and reads Mongo here (`Like.find` /
- * `Like.countDocuments`, and the same in `getPostLikes`). Two consequences, both
- * silent:
+ * The old suite replaced `models/Like` with a chainable stub and asserted on the
+ * Mongo filter object the controller BUILT — including that `filter.postId` was
+ * a `mongoose.Types.ObjectId`. Both the model and that cast are gone: likes live
+ * in the `likes` table, `post_id` is the post's `text` primary key, and the
+ * whole query is a `WHERE user_id = ANY(...) AND post_id = ... AND value = 1`.
  *
- *  - every like written since the port is invisible to this endpoint, so the
- *    social-proof row on post detail is permanently empty;
- *  - the filter is now built as `{ postId: id }` with a plain STRING against a
- *    Mongoose `postId: ObjectId` field, which for a uuid v7 post id is a
- *    CastError → the catch → a 500, not an empty 200.
+ * So there is no filter to inspect, and nothing here needs one: every claim
+ * above is now made by seeding rows that must match next to rows that must not.
+ * That is a strictly stronger check — a filter assertion cannot tell a correct
+ * predicate from one that silently matches nothing, which is exactly what an
+ * `IN` over an empty candidate list or a `post_id` compared against the wrong
+ * column would do.
  *
- * Until the reads move, this suite necessarily still drives the Mongoose model,
- * because that is what the controller calls. It is written as BEHAVIOUR rather
- * than as filter-shape assertions wherever that is possible — the previous
- * version asserted `filter.postId` was a `mongoose.Types.ObjectId`, which the
- * controller no longer constructs at all — and the two claims that can only be
- * made about the query (the `$in` cap, the exact-`postId` bound) are labelled as
- * such. When `getKnownPostLikers` moves to the `likes` table, this file should
- * be rewritten against real rows: seed likes for a viewer's followees and assert
- * on the returned likers.
+ * The Oxy viewer graph stays mocked: it is the network boundary, and WHICH ids
+ * it returns is the input the cap is about.
  */
 vi.mock('../../runtime/socketServer', () => ({
   getRuntimeSocketServer: () => undefined,
 }));
 
 const hoisted = vi.hoisted(() => ({
-  find: vi.fn(),
-  countDocuments: vi.fn(),
   createScopedOxyClient: vi.fn(),
   resolveUserSummaries: vi.fn(),
-}));
-
-vi.mock('../../models/Like', () => ({
-  default: {
-    find: hoisted.find,
-    countDocuments: hoisted.countDocuments,
-  },
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -74,12 +61,24 @@ vi.mock('../../services/PostHydrationService', () => ({
   }),
 }));
 
-import { closePostgres, connectPostgres } from '../../db/postgres';
+import { eq, inArray } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { likes } from '../../db/schema/engagement';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { getKnownPostLikers } from '../../controllers/posts.controller';
 
 const scope = serviceScope('known-post-likers');
 const VIEWER = scope.user('viewer');
+
+/**
+ * `MAX_KNOWN_LIKER_CANDIDATES` in the controller. Restated because it is not
+ * exported and because the cap is one of the four properties under test — if it
+ * moves, the boundary test below fails loudly rather than silently measuring
+ * nothing.
+ */
+const CANDIDATE_CAP = 5000;
+/** `KNOWN_LIKERS_SAMPLE_LIMIT` — how many avatars the row shows. */
+const SAMPLE_LIMIT = 3;
 
 /** The post the endpoint is about. A real row, so the id is a real post id. */
 let postId: string;
@@ -108,15 +107,34 @@ function buildResponse() {
   return { res, captured };
 }
 
-/** Chainable `Like.find(...).limit(...).select(...).lean()` stub. */
-function stubFind(rows: { userId: string }[]) {
-  hoisted.find.mockReturnValue({
-    limit: () => ({
-      select: () => ({
-        lean: async () => rows,
-      }),
-    }),
+/** Store one real like (or downvote) on the post under test. */
+async function seedLike(userId: string, value: 1 | -1 = 1): Promise<void> {
+  await getDb().insert(likes).values({ userId, postId, value });
+}
+
+/** Point the viewer graph at a fixed following list. */
+function viewerFollows(followingIds: string[]): void {
+  hoisted.createScopedOxyClient.mockReturnValue({
+    getViewerGraph: async () => ({ followingIds, mutualIds: [], blockedIds: [] }),
   });
+}
+
+/** Resolve these ids to canonical Oxy summaries; anything else stays degraded. */
+function resolveSummaries(entries: Array<[string, string]>): void {
+  hoisted.resolveUserSummaries.mockResolvedValue(
+    new Map(
+      entries.map(([id, username]) => [
+        id,
+        { user: { id, username, name: { displayName: username } } },
+      ]),
+    ),
+  );
+}
+
+async function callEndpoint(overrides: Record<string, unknown> = {}) {
+  const { res, captured } = buildResponse();
+  await getKnownPostLikers(buildRequest(overrides) as never, res as never);
+  return captured;
 }
 
 beforeAll(async () => {
@@ -131,6 +149,10 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  // `likes.post_id` is `ON DELETE CASCADE`, so removing the post takes its likes
+  // with it — but do it explicitly first, because a like row surviving its post
+  // would be invisible here and answer another test's query.
+  await getDb().delete(likes).where(eq(likes.postId, postId));
   await clearServiceScope(scope);
 });
 
@@ -141,132 +163,139 @@ afterAll(async () => {
 describe('getKnownPostLikers', () => {
   it('answers an anonymous viewer with an empty result and a 200, never a 401', async () => {
     hoisted.createScopedOxyClient.mockReturnValue(undefined);
-    const { res, captured } = buildResponse();
+    await seedLike(scope.user('somebody'));
 
-    await getKnownPostLikers(buildRequest() as never, res as never);
+    const captured = await callEndpoint();
 
     expect(captured.status).toBeUndefined();
+    // Empty because the viewer is anonymous — NOT because there are no likes.
     expect(captured.body).toEqual({ likers: [], total: 0 });
-    expect(hoisted.find).not.toHaveBeenCalled();
-    expect(hoisted.countDocuments).not.toHaveBeenCalled();
   });
 
-  it('short-circuits a viewer who follows nobody without querying likes', async () => {
-    hoisted.createScopedOxyClient.mockReturnValue({
-      getViewerGraph: async () => ({ followingIds: [], mutualIds: [], blockedIds: [] }),
+  it('short-circuits a viewer who follows nobody', async () => {
+    viewerFollows([]);
+    await seedLike(scope.user('somebody'));
+
+    expect(await callEndpoint({ user: { id: VIEWER } })).toMatchObject({
+      body: { likers: [], total: 0 },
     });
-    const { res, captured } = buildResponse();
-
-    await getKnownPostLikers(buildRequest({ user: { id: VIEWER } }) as never, res as never);
-
-    expect(captured.body).toEqual({ likers: [], total: 0 });
-    expect(hoisted.find).not.toHaveBeenCalled();
-    expect(hoisted.countDocuments).not.toHaveBeenCalled();
   });
 
   it('returns only the likers the viewer follows, resolved through the canonical path', async () => {
-    const followA = scope.user('follow-a');
-    const followB = scope.user('follow-b');
-    hoisted.createScopedOxyClient.mockReturnValue({
-      getViewerGraph: async () => ({
-        followingIds: [followA, followB],
-        mutualIds: [],
-        blockedIds: [],
-      }),
-    });
-    stubFind([{ userId: followA }]);
-    hoisted.countDocuments.mockResolvedValue(7);
-    hoisted.resolveUserSummaries.mockResolvedValue(
-      new Map([[followA, { user: { id: followA, username: 'ana', name: { displayName: 'Ana' } } }]]),
-    );
-    const { res, captured } = buildResponse();
+    const followed = scope.user('followed');
+    const stranger = scope.user('stranger');
+    viewerFollows([followed, scope.user('followed-but-silent')]);
+    await seedLike(followed);
+    await seedLike(stranger);
+    resolveSummaries([[followed, 'ana']]);
 
-    const req = buildRequest({ user: { id: VIEWER } });
-    // eslint-disable-next-line no-console
-    console.log('DEBUG req', JSON.stringify(req), 'client', hoisted.createScopedOxyClient(req));
-    await getKnownPostLikers(req as never, res as never);
+    const captured = await callEndpoint({ user: { id: VIEWER } });
 
+    // The stranger liked the post too and is deliberately absent: this row is
+    // social proof, not a like list.
     expect(captured.body).toEqual({
-      likers: [{ id: followA, username: 'ana', name: { displayName: 'Ana' } }],
-      total: 7,
+      likers: [{ id: followed, username: 'ana', name: { displayName: 'ana' } }],
+      total: 1,
     });
-
-    // The two claims that are only expressible about the QUERY, because a
-    // wrong-but-correct filter is the failure mode: an unbounded `$in`, or a
-    // `postId` bound that stopped being exact, both keep the endpoint returning
-    // the right answer while making it scan the whole collection.
-    const filter = hoisted.find.mock.calls[0][0] as Record<string, unknown>;
-    expect(filter.userId).toEqual({ $in: [followA, followB] });
-    // The post id is bound EXACTLY — never a range or a regex — and it is the id
-    // of the row that actually exists.
-    expect(filter.postId).toBe(postId);
-    // Downvotes share the collection; only real likes are social proof.
-    expect(filter.value).toBe(1);
-    expect(Object.keys(filter).sort()).toEqual(['postId', 'userId', 'value']);
-    // The count runs over the SAME filter, so `total` cannot drift from the sample.
-    expect(hoisted.countDocuments).toHaveBeenCalledWith(filter);
   });
 
-  it('caps the candidate width so the index scan stays bounded whatever Oxy returns', async () => {
-    const huge = Array.from({ length: 9000 }, (_unused, index) => `${VIEWER}-follow-${index}`);
-    hoisted.createScopedOxyClient.mockReturnValue({
-      getViewerGraph: async () => ({ followingIds: huge, mutualIds: [], blockedIds: [] }),
+  it('counts DOWNVOTES as neither likers nor total', async () => {
+    // `likes` is a three-state relationship (1 / -1 / no row) and both states
+    // share the table, so the `value = 1` clause is the only thing keeping a
+    // downvote out of the social-proof row.
+    const upvoter = scope.user('upvoter');
+    const downvoter = scope.user('downvoter');
+    viewerFollows([upvoter, downvoter]);
+    await seedLike(upvoter, 1);
+    await seedLike(downvoter, -1);
+    resolveSummaries([[upvoter, 'up'], [downvoter, 'down']]);
+
+    expect(await callEndpoint({ user: { id: VIEWER } })).toMatchObject({
+      body: {
+        likers: [{ id: upvoter, username: 'up', name: { displayName: 'up' } }],
+        total: 1,
+      },
     });
-    stubFind([]);
-    hoisted.countDocuments.mockResolvedValue(0);
-    const { res } = buildResponse();
+  });
 
-    await getKnownPostLikers(buildRequest({ user: { id: VIEWER } }) as never, res as never);
+  it('counts every followed liker in `total` while sampling only a few avatars', async () => {
+    const followed = Array.from({ length: SAMPLE_LIMIT + 2 }, (_u, i) => scope.user(`liker-${i}`));
+    viewerFollows(followed);
+    for (const id of followed) await seedLike(id);
 
-    const filter = hoisted.find.mock.calls[0][0] as { userId: { $in: string[] } };
-    expect(filter.userId.$in).toHaveLength(5000);
-    expect(filter.userId.$in[0]).toBe(`${VIEWER}-follow-0`);
+    const captured = await callEndpoint({ user: { id: VIEWER } });
+    const body = captured.body as { likers: unknown[]; total: number };
+
+    // `total` is EXACT and comes from the same predicate the sample was drawn
+    // from — a total taken from the sample would read 3 here and quietly
+    // under-report every busy post.
+    expect(body.total).toBe(followed.length);
+    expect(body.likers).toHaveLength(SAMPLE_LIMIT);
+  });
+
+  it('caps the candidate list at 5000, so a like beyond the cap cannot be found', async () => {
+    // The boundary stated as data: the viewer follows 9000 accounts and two of
+    // them liked the post — one INSIDE the cap and one just past it. An
+    // unbounded candidate list would return both, which is the regression the
+    // cap exists to prevent (measured at 5000 keys / 0 docs examined on a
+    // 150k-like post).
+    const inside = scope.user('inside-cap');
+    const outside = scope.user('outside-cap');
+    const following = Array.from({ length: 9000 }, (_u, i) => `${VIEWER}-filler-${i}`);
+    following[0] = inside;
+    following[CANDIDATE_CAP] = outside;
+    viewerFollows(following);
+    await seedLike(inside);
+    await seedLike(outside);
+    resolveSummaries([[inside, 'ana'], [outside, 'bob']]);
+
+    const captured = await callEndpoint({ user: { id: VIEWER } });
+
+    expect(captured.body).toEqual({
+      likers: [{ id: inside, username: 'ana', name: { displayName: 'ana' } }],
+      total: 1,
+    });
+    // And the row the cap excluded really is stored — so "not returned" is the
+    // cap and not a missing fixture.
+    const stored = await getDb()
+      .select({ userId: likes.userId })
+      .from(likes)
+      .where(inArray(likes.userId, [inside, outside]));
+    expect(stored).toHaveLength(2);
   });
 
   it('falls back to the degraded actor rather than emitting a raw id as a handle', async () => {
     const ghost = scope.user('ghost');
-    hoisted.createScopedOxyClient.mockReturnValue({
-      getViewerGraph: async () => ({ followingIds: [ghost], mutualIds: [], blockedIds: [] }),
-    });
-    stubFind([{ userId: ghost }]);
-    hoisted.countDocuments.mockResolvedValue(1);
+    viewerFollows([ghost]);
+    await seedLike(ghost);
     hoisted.resolveUserSummaries.mockResolvedValue(new Map());
-    const { res, captured } = buildResponse();
 
-    await getKnownPostLikers(buildRequest({ user: { id: VIEWER } }) as never, res as never);
-
-    expect(captured.body).toEqual({
-      likers: [{ id: ghost, username: '', name: { displayName: 'Unknown user' } }],
-      total: 1,
+    expect(await callEndpoint({ user: { id: VIEWER } })).toMatchObject({
+      body: {
+        likers: [{ id: ghost, username: '', name: { displayName: 'Unknown user' } }],
+        total: 1,
+      },
     });
   });
 
   it('rejects an empty post id instead of querying for it', async () => {
     hoisted.createScopedOxyClient.mockReturnValue(undefined);
-    const { res, captured } = buildResponse();
 
-    await getKnownPostLikers(buildRequest({ params: { id: '' } }) as never, res as never);
-
-    expect(captured.status).toBe(400);
-    expect(hoisted.find).not.toHaveBeenCalled();
+    expect(await callEndpoint({ params: { id: '' } })).toMatchObject({ status: 400 });
   });
 
   it('answers 200 + empty for a post id that names no row', async () => {
-    // A `text` primary key holds both ObjectId hex and uuid v7, so there is no
-    // id SHAPE to reject any more — an unknown id is simply a post with no known
-    // likers, which is a 200, not a 400. (Previously this asserted a 400 for a
-    // non-ObjectId string; that check went away with the cast.)
-    hoisted.createScopedOxyClient.mockReturnValue({
-      getViewerGraph: async () => ({ followingIds: [scope.user('a')], mutualIds: [], blockedIds: [] }),
-    });
-    stubFind([]);
-    hoisted.countDocuments.mockResolvedValue(0);
-    const { res, captured } = buildResponse();
+    // The primary key is `text` holding BOTH shapes — ObjectId hex for rows that
+    // predate the cutover, uuid v7 since — so there is no id SHAPE left to
+    // reject: an unknown id is a post with no known likers, which is a 200. (The
+    // previous version asserted a 400 here, which only made sense while the
+    // controller cast the param to an ObjectId.)
+    viewerFollows([scope.user('someone')]);
 
-    await getKnownPostLikers(
-      buildRequest({ params: { id: 'not-an-object-id' }, user: { id: VIEWER } }) as never,
-      res as never,
-    );
+    const captured = await callEndpoint({
+      params: { id: 'not-an-object-id' },
+      user: { id: VIEWER },
+    });
 
     expect(captured.status).toBeUndefined();
     expect(captured.body).toEqual({ likers: [], total: 0 });

@@ -400,8 +400,16 @@ describe('ThreadSlicingService thread children visibility', () => {
     });
 
     // Exactly one continuation joined the root — not zero (the SQL translation
-    // trap) and not four (a predicate that dropped a clause).
+    // trap) and not four (a predicate that dropped a clause). Asserted on the
+    // BODIES rather than on ids, so a failure names the row that leaked in
+    // instead of printing two nearly identical uuid concatenations.
     expect(slices).toHaveLength(1);
+    expect(
+      slices[0].items.map(
+        (item) => (item.post as unknown as { content: { variants?: Array<{ text: string }> } })
+          .content.variants?.[0]?.text,
+      ),
+    ).toEqual(['public root', 'the one real continuation']);
     expect(slices[0]._sliceKey).toBe(`${root.id}+${child.id}`);
     expect(slices[0].reason?.type).toBe('selfThread');
     expect(additionalPostIds).toEqual([child.id]);

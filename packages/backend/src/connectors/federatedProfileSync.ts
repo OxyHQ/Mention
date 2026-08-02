@@ -21,8 +21,9 @@
  */
 
 import type { User } from '@oxyhq/core';
-import { and, gte, isNull, lt } from 'drizzle-orm';
+import { and, isNull } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
+import { activityIdUnderActor } from './activitypub/helpers';
 import { posts } from '../db/schema/posts';
 import type { FederatedActorRecord } from '../db/federation/actorRecord';
 import {
@@ -314,19 +315,17 @@ class FederatedProfileSync {
           });
         }
 
-        // Backfill oxyUserId on any posts that were stored without it. The match is
-        // a `/`-terminated RANGE over `federation.activity_id` (the same form the
-        // sibling read in `connectors.routes.ts` uses), never a pattern built from
-        // the actor URI: an unescaped prefix would let `@bob` claim `@bobsmith`'s
-        // orphaned posts, and any regex/LIKE metacharacter surviving URL
-        // normalization would widen the match over an unindexable scan.
+        // Backfill oxyUserId on any posts that were stored without it. The match
+        // is a `/`-terminated PREFIX over `federation.activity_id` — see
+        // `activityIdUnderActor`, which is also why it is not a range and not a
+        // pattern. `@bob` cannot claim `@bobsmith`'s orphaned posts because the
+        // prefix carries the separator.
         if (syncedCount > 0) {
           await getDb()
             .update(posts)
             .set({ oxyUserId: syncUserId })
             .where(and(
-              gte(posts.federationActivityId, `${actor.uri}/`),
-              lt(posts.federationActivityId, `${actor.uri}/\uffff`),
+              activityIdUnderActor(actor.uri),
               isNull(posts.oxyUserId),
             ));
         }

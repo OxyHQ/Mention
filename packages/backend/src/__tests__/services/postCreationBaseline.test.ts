@@ -68,7 +68,13 @@ vi.mock('../../utils/oxyHelpers', () => ({
 }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import { clearServiceScope, readPost, serviceScope, trackPost } from '../helpers/serviceFixtures';
+import {
+  clearServiceScope,
+  readPost,
+  serviceScope,
+  trackPost,
+  withDeadlockRetry,
+} from '../helpers/serviceFixtures';
 import { postCreationService } from '../../services/PostCreationService';
 import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
 import { PostVisibility } from '@mention/shared-types';
@@ -80,7 +86,10 @@ const scope = serviceScope('post-creation-baseline');
 async function createAndReload(
   params: Parameters<typeof postCreationService.create>[0],
 ): Promise<PostRecord> {
-  const created = await postCreationService.create(params);
+  // Retried on `40P01` only: ten suites write `posts` concurrently and its four
+  // self-referencing foreign keys make bulk statements contend for locks in
+  // different orders. See `withDeadlockRetry`.
+  const created = await withDeadlockRetry(() => postCreationService.create(params));
   trackPost(scope, created.id);
   const stored = await readPost(created.id);
   if (!stored) throw new Error(`post ${created.id} was not readable after create`);
@@ -147,7 +156,9 @@ describe('PostCreationService — native Stage-A baseline', () => {
       // The inbox handler passes the AP-derived language here (extractApLanguage).
       language: 'de',
       instanceDomain: 'social.example.de',
-      federation: { activityId: `https://social.example.de/${scope.name}/statuses/1`, sensitive: false },
+      // The activity id is namespaced to THIS suite; only `instanceDomain` drives
+      // the coarse region, so it does not have to live on the ccTLD host.
+      federation: { activityId: `https://${scope.name}.test/statuses/1`, sensitive: false },
       visibility: PostVisibility.PUBLIC,
       skipNotifications: true,
       skipSocketEmit: true,
@@ -162,7 +173,7 @@ describe('PostCreationService — native Stage-A baseline', () => {
     expect(post.postClassification.status).toBe('pending');
     // The federation subdoc is what makes `federation == null` the "is this
     // ours?" test everywhere else, so it has to have survived the write.
-    expect(post.federation?.activityId).toBe(`https://social.example.de/${scope.name}/statuses/1`);
+    expect(post.federation?.activityId).toBe(`https://${scope.name}.test/statuses/1`);
   });
 
   it("threads a federated note's declared multi-language set into postClassification.languages", async () => {
@@ -173,7 +184,7 @@ describe('PostCreationService — native Stage-A baseline', () => {
       language: 'en',
       languages: ['en', 'es'],
       instanceDomain: 'mastodon.example.com',
-      federation: { activityId: `https://mastodon.example.com/${scope.name}/statuses/2`, sensitive: false },
+      federation: { activityId: `https://${scope.name}.test/statuses/2`, sensitive: false },
       visibility: PostVisibility.PUBLIC,
       skipNotifications: true,
       skipSocketEmit: true,
@@ -206,7 +217,13 @@ describe('PostCreationService — native Stage-A baseline', () => {
 
     // `post_mentions` is its own table and it is the notification allowlist: an
     // id that survived here would notify someone the body never names.
-    expect(post.mentions).toEqual(['alice-id', 'bob-id']);
+    //
+    // Compared as a SET. `assemblePostRecords` reads the rows `order by id`, and
+    // the id is a per-row uuid v7 whose random tail decides ties between two
+    // mentions written in the same millisecond — so the stored order is not the
+    // body order and is not reproducible. Nothing consumes mention ORDER (it is
+    // an allowlist), but an assertion that depended on it would flake.
+    expect([...post.mentions].sort()).toEqual(['alice-id', 'bob-id']);
   });
 
   it('does NOT block post creation when the classifier throws', async () => {

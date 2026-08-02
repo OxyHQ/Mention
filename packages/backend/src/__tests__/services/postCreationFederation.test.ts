@@ -60,7 +60,14 @@ vi.mock('../../utils/oxyHelpers', () => ({
 }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import { clearServiceScope, readPost, serviceScope, trackPost } from '../helpers/serviceFixtures';
+import {
+  clearServiceScope,
+  readPost,
+  readScopePosts,
+  serviceScope,
+  trackPost,
+  withDeadlockRetry,
+} from '../helpers/serviceFixtures';
 import { postCreationService } from '../../services/PostCreationService';
 import { PostVisibility } from '@mention/shared-types';
 import type { PostRecord } from '../../db/posts/postRecord';
@@ -71,7 +78,10 @@ const AUTHOR = scope.user('fed-author');
 async function createAndReload(
   params: Parameters<typeof postCreationService.create>[0],
 ): Promise<PostRecord> {
-  const created = await postCreationService.create(params);
+  // Retried on `40P01` only: ten suites write `posts` concurrently and its four
+  // self-referencing foreign keys make bulk statements contend for locks in
+  // different orders. See `withDeadlockRetry`.
+  const created = await withDeadlockRetry(() => postCreationService.create(params));
   trackPost(scope, created.id);
   const stored = await readPost(created.id);
   if (!stored) throw new Error(`post ${created.id} was not readable after create`);
@@ -175,6 +185,45 @@ describe('PostCreationService — immediate-create federation username sourcing'
     expect(federateNewPost).not.toHaveBeenCalled();
     expect(post.status).toBe('scheduled');
     expect(post.metadata.federationDelivered).toBe(false);
+  });
+
+  it('still REFUSES a blank federated Note that carries no boostOf', async () => {
+    // The other half of the boost exemption, and the reason it is written as
+    // `federation != null && boostOf == null` rather than dropped outright. A
+    // boost renders from `boostOf`; a Note with no body, no media, no
+    // attachment, no poll and no content warning renders NOTHING, and storing it
+    // is storing a ghost. Widening the exemption to every federated post is the
+    // obvious over-correction, and this is what catches it.
+    await expect(
+      postCreationService.create({
+        oxyUserId: AUTHOR,
+        content: { text: '   ' },
+        visibility: PostVisibility.PUBLIC,
+        federation: { activityId: `https://${scope.name}.test/statuses/blank` },
+        skipSocketEmit: true,
+      }),
+    ).rejects.toThrow(/refusing to create empty federated post/);
+
+    // And nothing was written on the way to the throw.
+    expect(await readScopePosts(scope)).toHaveLength(0);
+  });
+
+  it('accepts a blank federated Note that carries a content warning', async () => {
+    // The guard's own escape hatch, and the control that keeps the case above
+    // from passing on a creator that refuses everything: a spoiler-only post has
+    // something to render.
+    const post = await createAndReload({
+      oxyUserId: AUTHOR,
+      content: { text: '' },
+      visibility: PostVisibility.PUBLIC,
+      federation: {
+        activityId: `https://${scope.name}.test/statuses/cw-only`,
+        spoilerText: 'content warning only',
+      },
+      skipSocketEmit: true,
+    });
+
+    expect(post.federation?.spoilerText).toBe('content warning only');
   });
 
   it('defers the fan-out for a post carrying a pending collaborator invite', async () => {

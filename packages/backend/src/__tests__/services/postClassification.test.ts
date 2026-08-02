@@ -78,7 +78,7 @@ vi.mock('../../services/TopicService', () => ({
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import { insertPostRecord } from '../../db/posts/postRepository';
+import { insertPostRecord, updatePostRecord } from '../../db/posts/postRepository';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { postClassificationService } from '../../services/PostClassificationService';
 import type { PostRecord, PostRecordClassification } from '../../db/posts/postRecord';
@@ -539,29 +539,18 @@ describe('PostClassificationService — canonical topicRefs resolution', () => {
     expect(resolveTopicRefs).toHaveBeenCalledTimes(1);
     expect(resolveTopicRefs.mock.calls[0][0]).toEqual([{ name: 'basketball' }, { name: 'lakers' }]);
 
-    // The slug list IS persisted — it is a scalar array column.
+    // Both encodings are persisted: `topics` is a scalar array column,
+    // `topicRefs` a CHILD TABLE that `updatePostRecord` has to replace by hand.
+    // That second write is the one worth pinning — the patch type accepts
+    // `topicRefs` whether or not the implementation maps it, so a repository
+    // that ignored the key would drop every registry-linked ref that Stage B
+    // produces, silently, while `topics` kept looking right.
     const classification = await classificationOf(post.id);
     expect(classification.topics).toEqual(['basketball', 'lakers']);
-
-    // KNOWN DEFECT — DO NOT "FIX" THIS ASSERTION, FIX THE REPOSITORY.
-    //
-    // `post_classification_topic_refs` is a CHILD TABLE, and `updatePostRecord`
-    // (`db/posts/postRepository.ts`) maps scalar columns only: it accepts
-    // `postClassification.topicRefs` in its patch type and then silently ignores
-    // it. `insertChildRows` is the table's only writer, so Stage-B enrichment —
-    // the ONLY producer of registry-linked refs — drops every one of them.
-    // `TrendingService`'s inner join and `postTopicMatch`'s topic-page lookup
-    // both read that table, and `UserPreferenceService` prefers it over the slug
-    // list, so the whole `topicId` linkage is silently gone.
-    //
-    // This is pinned as a TRIPWIRE, not as a blessing: the moment
-    // `updatePostRecord` learns to replace the child rows, this goes red and
-    // whoever fixed it should invert it to the commented expectation below.
-    expect(classification.topicRefs).toBeUndefined();
-    //  expect(classification.topicRefs).toEqual([
-    //    { name: 'basketball', topicId: 'topic:basketball' },
-    //    { name: 'lakers', topicId: 'topic:lakers' },
-    //  ]);
+    expect(classification.topicRefs).toEqual([
+      { name: 'basketball', topicId: 'topic:basketball' },
+      { name: 'lakers', topicId: 'topic:lakers' },
+    ]);
   });
 
   it('falls back to name-only topicRefs when the registry resolves no id', async () => {
@@ -583,12 +572,12 @@ describe('PostClassificationService — canonical topicRefs resolution', () => {
     await postClassificationService.processQueue();
     expectBatchWasOurs();
 
-    // The registry answered without an id, which is the branch under test; the
-    // ref itself is then dropped by `updatePostRecord` (see the KNOWN DEFECT
-    // above), so what is observable here is that the post still classified.
     expect(resolveTopicRefs).toHaveBeenCalledTimes(1);
-    expect((await classificationOf(post.id)).status).toBe('classified');
-    expect((await classificationOf(post.id)).topicRefs).toBeUndefined();
+    // The ref is stored by NAME with no `topic_id` — an unresolved slug is still
+    // a canonical topic; readers that need a `topicId` simply skip it.
+    const classification = await classificationOf(post.id);
+    expect(classification.status).toBe('classified');
+    expect(classification.topicRefs).toEqual([{ name: 'obscure_topic' }]);
   });
 
   it('stores name-only topicRefs when registry resolution throws (never drops the canonical list)', async () => {
@@ -609,12 +598,79 @@ describe('PostClassificationService — canonical topicRefs resolution', () => {
     await postClassificationService.processQueue();
     expectBatchWasOurs();
 
-    // The post is still classified and its slug list is intact — a registry
-    // outage must never cost the canonical topics. (The refs themselves are
-    // dropped by `updatePostRecord`; see the KNOWN DEFECT above.)
+    // The post is still classified and BOTH encodings survive — a registry
+    // outage costs the `topicId` linkage, never the canonical topic list.
     const classification = await classificationOf(post.id);
     expect(classification.status).toBe('classified');
     expect(classification.topics).toEqual(['coffee', 'espresso']);
+    expect(classification.topicRefs).toEqual([{ name: 'coffee' }, { name: 'espresso' }]);
+  });
+
+  it('CLEARS the existing topicRefs when enrichment returns no topics', async () => {
+    // The replace is wholesale, not a merge: a topic the classifier dropped has
+    // to disappear. Seeded WITH refs so "none afterwards" is a clearance rather
+    // than a post that never had any — the difference the previous case cannot
+    // make on its own.
+    const post = await seedSubject('used to be about chess', {
+      classification: {
+        status: 'pending',
+        topicRefs: [{ name: 'chess', topicId: 'topic:chess' }],
+      },
+    });
+    expect((await classificationOf(post.id)).topicRefs).toEqual([
+      { name: 'chess', topicId: 'topic:chess' },
+    ]);
+    await padBatch(1);
+    respondWith([
+      {
+        postIndex: 0,
+        topics: [],
+        sentiment: 'neutral',
+        intent: 'other',
+        scores: { toxicity: 0, constructiveness: 0, spam: 0, quality: 0.3, controversy: 0, negativity: 0 },
+        confidence: 0.4,
+      },
+    ]);
+
+    await postClassificationService.processQueue();
+    expectBatchWasOurs();
+
+    // An empty list clears the rows; the reload reports `undefined`, not `[]`.
+    expect((await classificationOf(post.id)).topicRefs).toBeUndefined();
+    expect((await classificationOf(post.id)).status).toBe('classified');
+  });
+
+  it('REPLACES rather than appends, so a dropped topic is gone', async () => {
+    const post = await seedSubject('a post whose topics change', {
+      classification: {
+        status: 'pending',
+        topicRefs: [
+          { name: 'chess', topicId: 'topic:chess' },
+          { name: 'sailing', topicId: 'topic:sailing' },
+        ],
+      },
+    });
+    await padBatch(1);
+    respondWith([
+      {
+        postIndex: 0,
+        topics: ['sailing'],
+        sentiment: 'neutral',
+        intent: 'other',
+        scores: { toxicity: 0, constructiveness: 0, spam: 0, quality: 0.4, controversy: 0, negativity: 0 },
+        confidence: 0.6,
+      },
+    ]);
+
+    await postClassificationService.processQueue();
+    expectBatchWasOurs();
+
+    // `chess` is gone, not merged. The `(post_id, name)` unique index would have
+    // rejected a plain re-insert of `sailing`, so an append-only implementation
+    // fails loudly here rather than silently doubling.
+    expect((await classificationOf(post.id)).topicRefs).toEqual([
+      { name: 'sailing', topicId: 'topic:sailing' },
+    ]);
   });
 
   it('stores no topicRefs row when the AI returns no topics', async () => {
@@ -637,6 +693,124 @@ describe('PostClassificationService — canonical topicRefs resolution', () => {
     // No topics anywhere in the batch → the resolver is never called at all.
     expect(resolveTopicRefs).not.toHaveBeenCalled();
     expect((await classificationOf(post.id)).topicRefs).toBeUndefined();
+  });
+});
+
+/**
+ * The two `topicRefs` properties the enrichment path depends on but cannot
+ * itself demonstrate.
+ *
+ * `classifyBatch` always sends `status`, `attempts` and `classifiedAt` alongside
+ * the refs, so it can never produce a patch whose scalar set is EMPTY — and the
+ * AI never supplies a `relevance`, so it can never produce two refs that sort
+ * differently from alphabetical. Both are reachable from a direct
+ * `updatePostRecord` / seed, and both are load-bearing for this suite: the first
+ * is what makes the child write survive the "nothing to update" early return,
+ * the second is the read order every assertion above is written against.
+ */
+describe('PostClassificationService — the topicRefs write and read order it relies on', () => {
+  it('writes topicRefs from a patch that carries NO scalar values', async () => {
+    // `updatePostRecord` returns early when the scalar set is empty. The child
+    // write has to happen BEFORE that return, or a patch carrying only
+    // `topicRefs` silently does nothing.
+    const post = await seedSubject('a post whose scalars are already correct');
+
+    await updatePostRecord(post.id, {
+      postClassification: { topicRefs: [{ name: 'kayaking', topicId: 'topic:kayaking' }] },
+    });
+
+    expect((await classificationOf(post.id)).topicRefs).toEqual([
+      { name: 'kayaking', topicId: 'topic:kayaking' },
+    ]);
+  });
+
+  it('leaves existing topicRefs untouched when the patch omits them', async () => {
+    // A status-only update must not wipe the classifier's work — `undefined`
+    // means "not stated", which is a different thing from `[]`.
+    const post = await seedSubject('a post with settled topics', {
+      classification: {
+        status: 'classified',
+        topicRefs: [{ name: 'kayaking', topicId: 'topic:kayaking' }],
+      },
+    });
+
+    await updatePostRecord(post.id, { postClassification: { attempts: 2 } });
+
+    const classification = await classificationOf(post.id);
+    expect(classification.attempts).toBe(2);
+    expect(classification.topicRefs).toEqual([{ name: 'kayaking', topicId: 'topic:kayaking' }]);
+  });
+
+  it('reads topicRefs back by RELEVANCE, with the name only as a tie-break', async () => {
+    // The table has no `position` column, so insertion order is unrecoverable
+    // and the read-back sorts `relevance DESC NULLS LAST, name ASC`. Chosen so
+    // the two candidate sorts DISAGREE: alphabetically this is
+    // `alpha, mid, zulu`, and by relevance it is `zulu, mid, alpha`. Every
+    // assertion elsewhere in this file happens to use relevance-free refs whose
+    // alphabetical order is also the stored one, so without this case the sort
+    // could be either and nothing would notice.
+    const post = await seedSubject('a post the classifier ranked', {
+      classification: {
+        status: 'classified',
+        topicRefs: [
+          { name: 'alpha', topicId: 'topic:alpha', relevance: 2 },
+          { name: 'zulu', topicId: 'topic:zulu', relevance: 9 },
+          { name: 'mid', topicId: 'topic:mid', relevance: 5 },
+        ],
+      },
+    });
+
+    expect((await classificationOf(post.id)).topicRefs?.map((ref) => ref.name)).toEqual([
+      'zulu',
+      'mid',
+      'alpha',
+    ]);
+  });
+
+  it('sorts a ref with NO relevance last, whatever its name', async () => {
+    // `NULLS LAST` is the half a plain `relevance DESC` gets wrong: postgres
+    // sorts NULLs FIRST on a descending sort by default, which would put the
+    // unranked topic at the head of the list.
+    const post = await seedSubject('a post with one ranked and one unranked topic', {
+      classification: {
+        status: 'classified',
+        topicRefs: [
+          // Alphabetically first AND unranked, so it leads under either mistake.
+          { name: 'aaa-unranked', topicId: 'topic:aaa' },
+          { name: 'zzz-ranked', topicId: 'topic:zzz', relevance: 4 },
+        ],
+      },
+    });
+
+    expect((await classificationOf(post.id)).topicRefs?.map((ref) => ref.name)).toEqual([
+      'zzz-ranked',
+      'aaa-unranked',
+    ]);
+  });
+
+  it('refuses a relevance outside the 1..10 scale rather than truncating it', async () => {
+    // `relevance` is a 1..10 integer, NOT a percentage — a caller handing it a
+    // 0..100 confidence must fail loudly at the CHECK instead of storing a
+    // number every reader would misinterpret.
+    //
+    // The CHECK name is asserted off `cause`, not off the message: drizzle wraps
+    // the driver error in a `Failed query: …` string that names the table but
+    // not the constraint, so matching the message would pass for a NOT NULL or a
+    // foreign-key violation just as happily.
+    const rejection = await seedSubject('a post scored on the wrong scale', {
+      classification: {
+        status: 'classified',
+        topicRefs: [{ name: 'overscored', topicId: 'topic:overscored', relevance: 90 }],
+      },
+    }).then(
+      () => null,
+      (error: { cause?: { constraint_name?: string } }) => error,
+    );
+
+    expect(rejection).not.toBeNull();
+    expect(rejection?.cause?.constraint_name).toBe(
+      'post_classification_topic_refs_relevance_check',
+    );
   });
 });
 
@@ -868,7 +1042,11 @@ describe('PostClassificationService — the batch selector reads the body’s RE
     await postClassificationService.processQueue();
     expectBatchWasOurs();
 
-    expect(aliaPayload().some((entry) => entry.text.includes('boost body'))).toBe(false);
+    // Listed rather than `.some(...) === false`, so a failure prints the body
+    // that reached the classifier instead of `expected true to be false`.
+    expect(
+      aliaPayload().map((entry) => entry.text).filter((text) => text.includes('boost body')),
+    ).toEqual([]);
     // The original WAS classified — proving the queue ran at all, so "the boost
     // was skipped" cannot be satisfied by an empty batch.
     expect((await classificationOf(original.id)).status).toBe('classified');
@@ -899,7 +1077,9 @@ describe('PostClassificationService — the batch selector reads the body’s RE
     await postClassificationService.processQueue();
     expectBatchWasOurs();
 
-    expect(aliaPayload().some((entry) => entry.text.includes('a draft body'))).toBe(false);
+    expect(
+      aliaPayload().map((entry) => entry.text).filter((text) => text.includes('a draft body')),
+    ).toEqual([]);
     expect((await classificationOf(published.id)).status).toBe('classified');
     expect((await classificationOf(draft.id)).status).toBe('pending');
   });

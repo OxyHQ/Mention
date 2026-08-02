@@ -27,7 +27,7 @@
  */
 
 import { PostType, PostVisibility } from '@mention/shared-types';
-import { eq, inArray, like, or, sql } from 'drizzle-orm';
+import { like } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { deletePostRecord, insertPostRecord, loadPostRecord } from '../../db/posts/postRepository';
 import type { PostRecord, PostRecordInput } from '../../db/posts/postRecord';
@@ -48,6 +48,37 @@ export interface ServiceScope {
  * did not mint.
  */
 const seededIds = new Map<string, string[]>();
+
+/**
+ * Retry an operation that lost a Postgres DEADLOCK (`40P01`).
+ *
+ * Ten suites write and delete `posts` rows concurrently against one database,
+ * and `posts` self-references itself four times (`parent_post_id`, `thread_id`
+ * and `quote_of` are `ON DELETE SET NULL`, `boost_of` cascades), so a delete
+ * takes locks beyond the rows it names. Observed under a mixed run of these
+ * suites plus the feed suites: `40P01` on a bulk delete, taking down whichever
+ * side the detector chose — sometimes a suite here, sometimes an unrelated one.
+ * Every self-referencing column IS indexed on its own leading column
+ * (`post_replies_chrono_v1`, `posts_thread_idx`, `posts_quote_of_idx`,
+ * `posts_boost_of_idx`), so this is ordinary lock-order contention rather than a
+ * missing index — which is why the answer is a retry and not a schema change.
+ *
+ * A losing transaction is told to retry, and that is all this does. It is
+ * deliberately NOT a blanket catch: only `40P01` is retried, so a real
+ * constraint violation still fails the test immediately.
+ */
+export async function withDeadlockRetry<T>(operation: () => Promise<T>, attempts = 4): Promise<T> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      const code = (error as { code?: string; cause?: { code?: string } }).code
+        ?? (error as { cause?: { code?: string } }).cause?.code;
+      if (code !== '40P01' || attempt >= attempts) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 25 * attempt));
+    }
+  }
+}
 
 /** Derive a per-file fixture scope. Pass the suite's own name. */
 export function serviceScope(name: string): ServiceScope {
@@ -87,15 +118,17 @@ export async function seedPost(
   overrides: Partial<PostRecordInput> = {},
 ): Promise<PostRecord> {
   const owner = 'oxyUserId' in overrides ? overrides.oxyUserId : scope.user('author');
-  const record = await insertPostRecord({
-    oxyUserId: owner ?? null,
-    authorship: owner ? [{ oxyUserId: owner, role: 'owner', status: 'accepted' }] : [],
-    type: PostType.TEXT,
-    visibility: PostVisibility.PUBLIC,
-    status: 'published',
-    content: { variants: [{ source: 'author', text: 'a post', tag: 'en' }] },
-    ...overrides,
-  });
+  const record = await withDeadlockRetry(() =>
+    insertPostRecord({
+      oxyUserId: owner ?? null,
+      authorship: owner ? [{ oxyUserId: owner, role: 'owner', status: 'accepted' }] : [],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: { variants: [{ source: 'author', text: 'a post', tag: 'en' }] },
+      ...overrides,
+    }),
+  );
   trackPost(scope, record.id);
   return record;
 }
@@ -103,12 +136,6 @@ export async function seedPost(
 /** The assembled record, for asserting what a write path actually persisted. */
 export async function readPost(id: string): Promise<PostRecord | null> {
   return loadPostRecord(id);
-}
-
-/** The raw scalar row, for asserting a column a `PostRecord` normalizes away. */
-export async function readPostRow(id: string): Promise<typeof posts.$inferSelect | undefined> {
-  const [row] = await getDb().select().from(posts).where(eq(posts.id, id));
-  return row;
 }
 
 /**
@@ -123,24 +150,6 @@ export async function readScopePosts(scope: ServiceScope): Promise<Array<typeof 
     .from(posts)
     .where(like(posts.oxyUserId, `${ownerPrefix(scope)}%`))
     .orderBy(posts.createdAt, posts.id);
-}
-
-/**
- * A pre-cutover-shaped post id: 24 hex characters, exactly like a Mongo
- * ObjectId.
- *
- * The primary key is `text` holding BOTH shapes — ObjectId hex for every row
- * that predates the cutover and uuid v7 for everything written since — and
- * `'0' < '6'`, so a suite that seeds only one shape cannot see an ordering bug
- * that only appears when the two are mixed. `label` is hashed into the value so
- * two calls in one suite cannot collide.
- */
-export function legacyPostId(scope: ServiceScope, label: string): string {
-  let hash = 0;
-  for (const char of `${scope.name}:${label}`) {
-    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  }
-  return `6${hash.toString(16).padStart(8, '0')}${'0'.repeat(15)}`.slice(0, 24);
 }
 
 /**
@@ -161,34 +170,12 @@ export function legacyPostId(scope: ServiceScope, label: string): string {
 export async function clearServiceScope(scope: ServiceScope): Promise<void> {
   const ids = seededIds.get(scope.name) ?? [];
   for (const id of ids.splice(0).reverse()) {
-    await deletePostRecord(id, undefined);
+    await withDeadlockRetry(() => deletePostRecord(id, undefined));
   }
-  await getDb()
-    .delete(posts)
-    .where(like(posts.oxyUserId, `${ownerPrefix(scope)}%`));
+  await withDeadlockRetry(() =>
+    getDb()
+      .delete(posts)
+      .where(like(posts.oxyUserId, `${ownerPrefix(scope)}%`)),
+  );
 }
 
-/**
- * Remove rows a suite created under ids it did not track and cannot predicate on
- * — the escape hatch for a code path that attributes a post to a fixed id.
- */
-export async function deletePostsByIds(ids: readonly string[]): Promise<void> {
-  if (ids.length === 0) return;
-  await getDb().delete(posts).where(inArray(posts.id, [...ids]));
-}
-
-/**
- * Count the rows matching an arbitrary predicate over `posts`.
- *
- * Deliberately returns a NUMBER rather than a boolean: an assertion on an exact
- * non-zero count is the one that survives the bare-column trap, where a
- * correlated subquery compares two of the inner table's own columns and returns
- * nothing at all with no error.
- */
-export async function countPosts(where: Parameters<typeof or>[0]): Promise<number> {
-  const [row] = await getDb()
-    .select({ n: sql<number>`count(*)::int` })
-    .from(posts)
-    .where(where);
-  return row?.n ?? 0;
-}
