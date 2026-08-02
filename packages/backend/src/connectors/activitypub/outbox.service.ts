@@ -26,6 +26,7 @@ import { extractActorUriFromActivityId } from '@oxyhq/federation';
 import {
   FEDERATION_MAX_CONTENT_LENGTH,
   AP_CONTENT_TYPE,
+  isBlockedDomain,
 } from './constants';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
@@ -33,8 +34,7 @@ import { buildFederatedNoteContent, buildFederatedNoteVariants } from './apPostC
 import { normalizeMentionIds } from '../../utils/textProcessing';
 import { postTextHasHttpLink } from '../../utils/postSearchMetadata';
 import { getPostCreator } from '../../services/serviceRegistry';
-import { mediaMetadataService } from '../../services/MediaMetadataService';
-import { enqueueMediaMetadataEnrich } from '../../services/mediaMetadataEnrichJob';
+import { enrichIngestedPosts } from '../../services/postEnrichment';
 import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
 import {
   SPAM_QUALITY_CONFIG,
@@ -148,6 +148,7 @@ export type OutboxHttpFailureReason = `outbox-http-${number}`;
 
 export type OutboxSyncFailureReason =
   | 'missing-outbox'
+  | 'blocked-domain'
   | 'non-empty-outbox-without-items'
   | 'no-candidates'
   | 'pagination-failed'
@@ -267,6 +268,7 @@ interface RawPostClassificationSeed {
   languages: string[];
   region?: string;
   hashtagsNorm: string[];
+  trendTerms: string[];
   sensitive: boolean;
   /** Deterministic spam/quality/toxicity scores (0..1); AI batch overwrites later. */
   scores: PostClassificationScores;
@@ -309,6 +311,7 @@ export class OutboxSyncService {
         languages: signals.languages,
         region: signals.region,
         hashtagsNorm: signals.hashtagsNorm,
+        trendTerms: signals.trendTerms,
         sensitive: signals.sensitive ?? input.sensitive,
         scores: signals.scores,
         version: signals.version,
@@ -322,6 +325,10 @@ export class OutboxSyncService {
         topics: [],
         languages: [],
         hashtagsNorm: input.hashtags,
+        // The hashtags ARE terms (the extractor would have emitted them
+        // verbatim); what is lost on this path is the prose half, which is the
+        // honest consequence of the extractor having thrown.
+        trendTerms: input.hashtags,
         sensitive: input.sensitive,
         // Neutral, valid scores so ranking treats a defensive-fallback post as
         // unremarkable (not spam, mid quality) rather than skewing it.
@@ -357,6 +364,29 @@ export class OutboxSyncService {
     actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string },
     limitOrOptions: number | OutboxSyncOptions = 20,
   ): Promise<OutboxSyncResult> {
+    // Instance domain policy on the PULL path.
+    //
+    // The inbound dispatcher stops a suspended instance PUSHING to us; this stops
+    // us PULLING from it. Every outbox sync — the scheduled followed-actor sweep,
+    // the recent-post backfill, the profile-view refresh, and the post-Accept
+    // backfill — converges here, and each of them loads its actor straight from
+    // Mongo, so none of them passes through the resolver's policy check.
+    //
+    // Cooldown is deliberately NOT stamped and the reason is NOT permanently
+    // unavailable: the outbox is fine, our policy refused it. Unblocking the
+    // domain must resume syncing without first clearing state written while it
+    // was blocked.
+    let actorHost: string;
+    try {
+      actorHost = new URL(actor.uri).hostname.toLowerCase();
+    } catch {
+      // An actor URI we cannot parse has no host to check against the policy, so
+      // it fails closed rather than being pulled from unchecked.
+      return { syncedCount: 0, shouldStampCooldown: false, reason: 'blocked-domain' };
+    }
+    if (isBlockedDomain(actorHost)) {
+      return { syncedCount: 0, shouldStampCooldown: false, reason: 'blocked-domain' };
+    }
     if (!actor.outboxUrl) {
       return { syncedCount: 0, shouldStampCooldown: false, reason: 'missing-outbox' };
     }
@@ -909,6 +939,9 @@ export class OutboxSyncService {
         const results = await Promise.allSettled(
           newDocs.map((input) => insertPostRecord(input)),
         );
+        const inserted = results.flatMap((result) =>
+          result.status === 'fulfilled' ? [result.value] : [],
+        );
         const unexpected = results.flatMap((result) =>
           result.status === 'rejected' && !isUniqueViolation(result.reason) ? [result.reason] : [],
         );
@@ -928,20 +961,23 @@ export class OutboxSyncService {
           throw unexpected[0];
         }
 
-        // Oxy derives intrinsic media metadata (width/height/durationSec) by
-        // probing the asset asynchronously, so the inline `enrichFromOxy` that
-        // ran while materializing this media almost always beat the probe and
-        // came back empty. Schedule the retry that actually collects it.
+        // Post-ingest enrichment for the page just stored. This path bypasses
+        // `PostCreationService` on purpose (whole records built from the remote's
+        // own values), so it cannot inherit enrichment from there — but it does
+        // NOT get its own copy of each enrichment either. Both routes converge on
+        // the one entry point, which is what stops the next enrichment from being
+        // remembered on the native route and forgotten on this one (see
+        // `services/postEnrichment/` for the times that already happened).
         //
-        // This path bypasses `PostCreationService` — which is where every other
-        // ingest route picks up this enqueue. Without it, outbox-backfilled posts
-        // (the bulk of federated video) never get a second attempt at all, and
-        // their media stays permanently dimension- and duration-less.
-        for (const doc of newDocs) {
-          const media = doc.content.media;
-          if (!Array.isArray(media) || !mediaMetadataService.needsOxyRetry(media)) continue;
-          if (doc.id) void enqueueMediaMetadataEnrich(doc.id);
-        }
+        // Passed as a page rather than post-by-post so an enrichment can
+        // coalesce across the batch — the link-preview warm dedupes a URL shared
+        // by several notes into a single resolve.
+        //
+        // The INSERTED records, not the inputs: an insert that lost the unique
+        // race on `federation.activity_id` stored nothing, and enqueuing work for
+        // it would be work against a post this task never wrote. It is also where
+        // the generated id lives.
+        enrichIngestedPosts(inserted);
       }
 
       // Link federated replies into their threads. Done AFTER the insert so a

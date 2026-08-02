@@ -18,6 +18,7 @@ import {
   upsertActor,
 } from '../../db/federation/actorRepository';
 import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
+import { federationBridges } from './federationBridgePolicy';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import {
@@ -27,7 +28,7 @@ import {
   domainFromAcct,
 } from './helpers';
 import { readBoundedResponseBody } from '../shared/httpBody';
-import { reportFederatedActorGone, resolveOxyExternalUser } from '../identity';
+import { reportFederatedActorGone, resolveFederatedActorIdentity } from '../identity';
 
 /**
  * Resolution, caching and refresh of remote ActivityPub actors.
@@ -56,6 +57,13 @@ const store: FederatedActorStore<EngineFederatedActorRecord> = {
     // `fields` is the one part of the write that is a second TABLE rather than a
     // column, so it is split out here and the repository replaces the whole list
     // inside the same transaction as the row.
+    //
+    // An absent `networkAcct` CLEARS the column rather than leaving it alone —
+    // `upsertActor` writes every optional column as `?? null` — which is what a
+    // row that STOPPED being bridged needs (a bridge removed from the policy, or
+    // an actor that no longer satisfies its rule): it must not keep claiming an
+    // identity it no longer derives. Mongo needed an explicit `$unset` for the
+    // same behaviour, because an absent key in a `$set` is a no-op there.
     const { fields, uri: _uri, ...columns } = update;
     return withEngineId(await upsertActor(uri, columns, fields));
   },
@@ -100,9 +108,21 @@ export const actorService = createActorResolver<EngineFederatedActorRecord>({
   normalizeFederatedAcct,
   domainFromAcct,
   firstStringUrl,
+  // A bridge republishes another network's accounts under its own hostname, so an
+  // actor from one is stored under the network it actually came from —
+  // `@wired@x.com`, not `@wired@bird.makeup`. The MECHANISM is shared
+  // (`@oxyhq/federation`); the reviewed entries are Mention's own moderation
+  // policy in `./federationBridgePolicy`, and oxy-api keeps its own list for the
+  // resolve-side trust decision. Only the IDENTITY moves — `acct`, `uri` and the
+  // stored `domain` keep addressing the bridge, so the domain policy and every
+  // moderation consumer are unaffected.
+  //
+  // `isBlockedDomain` is evaluated by the resolver well before this runs, and a
+  // blocked host never reaches it.
+  deriveNetworkIdentity: federationBridges.deriveNetworkIdentity,
   store,
   identity: {
-    resolveExternalUser: (actor, opts) => resolveOxyExternalUser(actor, opts),
+    resolveExternalUser: (actor, opts) => resolveFederatedActorIdentity(actor, opts),
     reportActorGone: (oxyUserId) => reportFederatedActorGone(oxyUserId),
   },
   text: {

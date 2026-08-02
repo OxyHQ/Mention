@@ -66,23 +66,33 @@ export async function isPostEligibleForViewTelemetry(postId: string): Promise<bo
 
 /**
  * Increment a post's view count for `viewerId`, deduped within the configured
- * window. Returns `true` when this call counted a NEW view (and thus performed
- * the increment), `false` when it was a duplicate or Redis was unavailable.
+ * window. Returns the post's NEW `stats.viewsCount` when this call counted a new
+ * view, and `null` when it did not — a duplicate inside the window, an
+ * ineligible post, or Redis being unavailable. A returned number therefore also
+ * means "this post exists and was counted"; callers that only care whether the
+ * view landed test for `!== null`.
+ *
+ * The count comes back on the increment's OWN round trip (`UPDATE … RETURNING`),
+ * not a follow-up read: the client that reported the impression is the one
+ * surface that cannot derive this number for itself — the dedupe window, the
+ * self-view guard and the eligibility filter all live here — so throwing away a
+ * value we already hold forces the whole UI to wait for the next feed fetch to
+ * learn what it just caused. `RETURNING` also makes the answer the value the row
+ * actually holds after the increment rather than a racing re-read.
  *
  * Resolves `postId` defensively: an id that is not a local post (e.g. a
  * federated URI) simply matches no row and is ignored rather than throwing. The
- * increment is fire-and-forget at the call site's discretion (this function
- * awaits it so callers can surface failures, but never throws — it logs at
- * debug).
+ * increment is awaited so callers can surface failures, but never throws — it
+ * logs at debug.
  */
-export async function recordDedupedView(postId: string, viewerId: string): Promise<boolean> {
+export async function recordDedupedView(postId: string, viewerId: string): Promise<number | null> {
   if (!postId || !viewerId) {
-    return false;
+    return null;
   }
 
   const eligible = await isPostEligibleForViewTelemetry(postId);
   if (!eligible) {
-    return false;
+    return null;
   }
 
   const redis = getRedisClient();
@@ -103,27 +113,29 @@ export async function recordDedupedView(postId: string, viewerId: string): Promi
   );
 
   if (!claimed) {
-    return false;
+    return null;
   }
 
   try {
     // The visibility/status predicate stays on the WRITE as well as the
     // eligibility read above: a post that was unpublished between the two must
-    // not have its counter moved.
-    await getDb()
+    // not have its counter moved. A row that no longer matches returns nothing,
+    // which is the same "did not count" answer a duplicate gets.
+    const [updated] = await getDb()
       .update(posts)
       .set({ statsViewsCount: sql`${posts.statsViewsCount} + 1` })
       .where(and(
         eq(posts.id, postId),
         eq(posts.visibility, PostVisibility.PUBLIC),
         eq(posts.status, 'published'),
-      ));
-    return true;
+      ))
+      .returning({ viewsCount: posts.statsViewsCount });
+    return updated?.viewsCount ?? null;
   } catch (error) {
     logger.debug('[FeedViewCounter] viewsCount increment failed', {
       postId,
       reason: error instanceof Error ? error.message : 'unknown',
     });
-    return false;
+    return null;
   }
 }

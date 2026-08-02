@@ -20,16 +20,28 @@ export interface CollaboratorUser {
 interface CollaboratorPickerProps {
   selected: CollaboratorUser[];
   onChange: (users: CollaboratorUser[]) => void;
+  /**
+   * Whether the search field is open. Owned by the composer, because the control
+   * that opens it is the people icon in the attachment row — the same row every
+   * other attachment is added from — not a link inside this component.
+   */
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
   disabled?: boolean;
 }
 
-const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({ selected, onChange, disabled }) => {
+const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
+  selected,
+  onChange,
+  expanded,
+  onExpandedChange,
+  disabled,
+}) => {
   const { t } = useTranslation();
   const { oxyServices, user } = useAuth();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CollaboratorUser[]>([]);
   const [loading, setLoading] = useState(false);
-  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     const search = async () => {
@@ -72,12 +84,22 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({ selected, onCha
 
   const selectedIds = new Set(selected.map((s) => s.id));
 
+  const closeSearch = () => {
+    onExpandedChange(false);
+    setQuery('');
+    setResults([]);
+  };
+
   const addUser = (collaborator: CollaboratorUser) => {
     if (selectedIds.has(collaborator.id)) return;
     if (selected.length >= MAX_POST_COLLABORATORS) return;
     onChange([...selected, collaborator]);
     setQuery('');
     setResults([]);
+    // The last slot just filled: the search field it would render into is gone,
+    // so leaving `expanded` true would strand the composer in a state the icon
+    // has to be pressed twice to leave.
+    if (selected.length + 1 >= MAX_POST_COLLABORATORS) onExpandedChange(false);
   };
 
   const removeUser = (id: string) => {
@@ -85,6 +107,9 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({ selected, onCha
   };
 
   if (disabled) return null;
+  // Nothing chosen and nothing open: the people icon in the attachment row is
+  // the entry point, so this block has nothing to say yet and takes no space.
+  if (!expanded && selected.length === 0) return null;
 
   return (
     <View className="px-4 pb-2">
@@ -104,67 +129,57 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({ selected, onCha
         </View>
       )}
 
-      {selected.length < MAX_POST_COLLABORATORS && (
-        <>
-          {!expanded ? (
+      {expanded && selected.length < MAX_POST_COLLABORATORS && (
+        <View className="border border-border rounded-xl bg-card overflow-hidden">
+          <View className="flex-row items-center px-3 py-2 gap-2">
+            <Ionicons name="search" size={18} className="text-muted-foreground" />
+            <TextInput
+              className="flex-1 text-foreground text-[15px]"
+              placeholder={t('collab.searchPlaceholder', { defaultValue: 'Search people to collaborate with' })}
+              placeholderTextColor="#888"
+              value={query}
+              onChangeText={setQuery}
+              autoFocus
+            />
             <TouchableOpacity
-              className="flex-row items-center gap-2 py-2"
-              onPress={() => setExpanded(true)}
+              accessibilityRole="button"
+              accessibilityLabel={t('collab.closeSearch', { defaultValue: 'Close collaborator search' })}
+              onPress={closeSearch}
             >
-              <Ionicons name="people-outline" size={20} className="text-primary" />
-              <Text className="text-primary text-[15px]">
-                {t('collab.inviteCollaborators', { defaultValue: 'Invite collaborators' })}
-              </Text>
+              <Ionicons name="close" size={20} className="text-muted-foreground" />
             </TouchableOpacity>
-          ) : (
-            <View className="border border-border rounded-xl bg-card overflow-hidden">
-              <View className="flex-row items-center px-3 py-2 gap-2">
-                <Ionicons name="search" size={18} className="text-muted-foreground" />
-                <TextInput
-                  className="flex-1 text-foreground text-[15px]"
-                  placeholder={t('collab.searchPlaceholder', { defaultValue: 'Search people to collaborate with' })}
-                  placeholderTextColor="#888"
-                  value={query}
-                  onChangeText={setQuery}
-                  autoFocus
-                />
-                <TouchableOpacity onPress={() => { setExpanded(false); setQuery(''); setResults([]); }}>
-                  <Ionicons name="close" size={20} className="text-muted-foreground" />
-                </TouchableOpacity>
-              </View>
-              {loading ? (
-                <View style={styles.loadingRow}>
-                  <Loading className="text-primary" size="small" style={{ flex: undefined }} />
-                </View>
-              ) : (
-                <FlatList
-                  data={results.filter((r) => !selectedIds.has(r.id))}
-                  keyExtractor={(item) => item.id}
-                  keyboardShouldPersistTaps="handled"
-                  style={{ maxHeight: 200 }}
-                  ListEmptyComponent={
-                    query.length > 0 ? (
-                      <Text className="text-muted-foreground text-sm p-3 text-center">
-                        {t('collab.noResults', { defaultValue: 'No users found' })}
-                      </Text>
-                    ) : null
-                  }
-                  renderItem={({ item }) => (
-                    <TouchableOpacity className="flex-row items-center px-3 py-2 gap-3" onPress={() => addUser(item)}>
-                      <Avatar source={item.avatar} size={32} variant={MEDIA_VARIANT_AVATAR} />
-                      <View className="flex-1">
-                        <Text className="text-foreground text-[15px] font-medium">
-                          {displayNameOrHandle(item.displayName, item.username)}
-                        </Text>
-                        <Text className="text-muted-foreground text-sm">@{item.username}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  )}
-                />
-              )}
+          </View>
+          {loading ? (
+            <View style={styles.loadingRow}>
+              <Loading className="text-primary" size="small" style={{ flex: undefined }} />
             </View>
+          ) : (
+            <FlatList
+              data={results.filter((r) => !selectedIds.has(r.id))}
+              keyExtractor={(item) => item.id}
+              keyboardShouldPersistTaps="handled"
+              style={{ maxHeight: 200 }}
+              ListEmptyComponent={
+                query.length > 0 ? (
+                  <Text className="text-muted-foreground text-sm p-3 text-center">
+                    {t('collab.noResults', { defaultValue: 'No users found' })}
+                  </Text>
+                ) : null
+              }
+              renderItem={({ item }) => (
+                <TouchableOpacity className="flex-row items-center px-3 py-2 gap-3" onPress={() => addUser(item)}>
+                  <Avatar source={item.avatar} size={32} variant={MEDIA_VARIANT_AVATAR} />
+                  <View className="flex-1">
+                    <Text className="text-foreground text-[15px] font-medium">
+                      {displayNameOrHandle(item.displayName, item.username)}
+                    </Text>
+                    <Text className="text-muted-foreground text-sm">@{item.username}</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+            />
           )}
-        </>
+        </View>
       )}
     </View>
   );

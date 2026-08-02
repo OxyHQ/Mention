@@ -485,6 +485,12 @@ const PostClassificationSchema = new Schema({
   // Canonical hashtags (lowercase, no `#`, alias-mapped, deduped). Mirrors the
   // top-level `hashtags` normalization for one canonical read form.
   hashtagsNorm: { type: [String], default: undefined },
+  // Candidate TREND TERMS from the post's own text: unigrams + adjacent-word
+  // phrases, lowercased, stop-word filtered, `#`-stripped so a hashtag and the
+  // bare word collapse to one term. Multikey — the trending aggregation and the
+  // per-trend feed both match against it. Absent on posts that predate term
+  // extraction (trending still reaches them through hashtags/topics).
+  trendTerms: { type: [String], default: undefined },
   // Sensitive/NSFW pass-through.
   sensitive: { type: Boolean },
   // Deterministic ruleset version that produced the baseline; enables re-baselining.
@@ -808,6 +814,18 @@ PostSchema.index(
 PostSchema.index(
   { 'postClassification.languages': 1, visibility: 1, status: 1, createdAt: -1 },
   { name: 'for_you_language_idx' }
+);
+// Trend detection + the per-trend feed. Leads with the MULTIKEY
+// `postClassification.trendTerms` array so both consumers reach a term directly:
+// the 30-minute batch scans one trailing window across ALL terms, and the
+// `trend|<term>` feed pages one term chronologically. visibility+status narrow to
+// what either is allowed to count/serve, createdAt orders both the batch's window
+// and the feed's page.
+// NOTE: `autoIndex`/`autoCreate` are OFF in production — created by migration
+// `0014-post-trend-terms-index`, not on model load.
+PostSchema.index(
+  { 'postClassification.trendTerms': 1, visibility: 1, status: 1, createdAt: -1 },
+  { name: 'trend_terms_idx' }
 );
 
 // Saved posts with text search: optimizes saved posts queries with a regex over

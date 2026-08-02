@@ -51,7 +51,12 @@ export const OXY_BASE_URL = process.env.EXPO_PUBLIC_OXY_BASE_URL || 'https://api
 
 // Mention's registered Oxy OAuth client id (ApplicationCredential publicKey).
 // Required by @oxyhq/services for the cross-app device sign-in flow. Public and
-// safe to commit; overridable per-environment via EXPO_PUBLIC_OXY_CLIENT_ID.
+// safe to commit — it travels inside the bundle, so it cannot be confidential.
+// The deploy workflow injects the PRODUCTION id from the
+// EXPO_PUBLIC_OXY_CLIENT_ID secret; the value below is only a fallback so a
+// local build runs unconfigured, and is deliberately NOT the production id — a
+// fallback that is correct in production hides the case where the env var stops
+// being injected, because nothing changes when it does.
 export const OXY_CLIENT_ID =
   process.env.EXPO_PUBLIC_OXY_CLIENT_ID ??
   'oxy_dk_ba07b16e89bd180d2b58c09b02db550e727fa598ed73e2f2';

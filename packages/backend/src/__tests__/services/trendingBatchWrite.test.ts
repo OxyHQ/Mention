@@ -25,6 +25,7 @@
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import { MtnConfig } from '@mention/shared-types';
 import { asc, eq, inArray, lt } from 'drizzle-orm';
 
 import { TrendingType } from '../../models/Trending';
@@ -60,6 +61,14 @@ interface TrendItemInput {
   volume: number;
   momentum: number;
   topicId?: string;
+  displayName?: string;
+  category?: string;
+  burstScore?: number;
+  authorCount?: number;
+  startedAt?: Date;
+  status?: 'hot';
+  actorIds?: string[];
+  languages?: string[];
 }
 
 /**
@@ -86,10 +95,17 @@ function uniqueName(prefix: string): string {
 function item(overrides: Partial<TrendItemInput> & { name: string }): TrendItemInput {
   return {
     type: 'hashtag',
+    displayName: overrides.name,
+    category: 'other',
     description: '',
     score: 10,
+    burstScore: 2,
     volume: 5,
+    authorCount: 4,
     momentum: 0.5,
+    startedAt: new Date(),
+    actorIds: [],
+    languages: [],
     ...overrides,
   };
 }
@@ -101,13 +117,16 @@ function batchStamp(offsetMs = 0): Date {
   return at;
 }
 
-async function seedPost(hashtags: string[]): Promise<void> {
+async function seedPost(hashtags: string[], author?: string): Promise<void> {
   const [row] = await db
     .insert(posts)
     .values({
       status: 'published',
       visibility: 'public',
-      createdAt: new Date(Date.now() - 60 * 60 * 1000),
+      // Inside the six-hour RECENT window, so the term bursts against its own
+      // trailing rate rather than sitting flat.
+      createdAt: new Date(Date.now() - 30 * 60 * 1000),
+      oxyUserId: author ?? null,
       hashtags,
     })
     .returning({ id: posts.id });
@@ -277,9 +296,22 @@ describe('getTrending — the wire format is the contract', () => {
     expect(trend).not.toHaveProperty('topicId');
     // Mongo bookkeeping that no reader ever looked at must not reappear.
     expect(trend).not.toHaveProperty('__v');
+    // The whole key set, pinned: a NULL column must be OMITTED rather than
+    // emitted as `null` (the SDK's zod parse rejects a null where it expects
+    // "not there"), so a key appearing here is a claim that the row really
+    // carries a value.
     expect(Object.keys(trend ?? {}).sort()).toEqual([
-      '_id', 'calculatedAt', 'description', 'momentum', 'name', 'rank', 'score', 'type', 'updatedAt', 'volume',
+      '_id', 'authorCount', 'burstScore', 'calculatedAt', 'category', 'description',
+      'displayName', 'momentum', 'name', 'rank', 'score', 'startedAt', 'type',
+      'updatedAt', 'volume',
     ]);
+    // `actorIds` and `languages` are absent here BECAUSE the fixture's are
+    // empty: `saveTrendingBatch` writes an empty list as NULL rather than as
+    // `[]`, so the DTO omits the key. That is the same "absent, never null"
+    // rule as `topicId`, and it is why an empty sample cannot be mistaken for a
+    // resolved-to-nobody one.
+    expect(trend).not.toHaveProperty('actorIds');
+    expect(trend).not.toHaveProperty('languages');
     expect(result.summary).toBe('the summary');
     expect(result.recId).toEqual(expect.any(String));
   });
@@ -330,37 +362,57 @@ describe('getTrending — the wire format is the contract', () => {
   });
 });
 
-describe('loadVolumeSeries — one series per (name, type), in time order', () => {
-  it('reads volumes ordered by batch time, keyed by name AND type', async () => {
+describe('loadVolumeSeries — one series per TERM, in time order', () => {
+  it('reads volumes ordered by batch time', async () => {
     /**
      * Mongo's array happened to be in time order because the planner streamed a
-     * matching index; `array_agg(... order by calculated_at)` states it. The
-     * per-type split is the other half: a name that trends as both a hashtag and
-     * a topic is two measurements, and merging them draws a sparkline that
-     * alternates between two unrelated quantities.
+     * matching index; `array_agg(... order by calculated_at)` states it. An
+     * aggregate's input order is not guaranteed in Postgres, so leaving it out
+     * would draw a sparkline whose points are in whatever sequence the planner
+     * produced — still six numbers, still plausible, and wrong.
      */
     const name = uniqueName('series');
     const volumes = [3, 9, 4, 7, 5, 8];
     for (const [index, volume] of volumes.entries()) {
       const at = batchStamp(-(volumes.length - index) * 60_000);
-      await svc.saveTrendingBatch(
-        [
-          item({ name, volume, score: 50 }),
-          item({ name, type: 'topic', volume: volume * 10, score: 40 }),
-        ],
-        at,
-      );
+      await svc.saveTrendingBatch([item({ name, volume, score: 50 })], at);
       if (index === volumes.length - 1) {
         await db.insert(trendBatches).values({ calculatedAt: at, summary: '' });
       }
     }
 
     const result = await trendingService.getTrending(500);
-    const hashtagTrend = result.trending.find((row) => row.name === name && row.type === 'hashtag');
-    const topicTrend = result.trending.find((row) => row.name === name && row.type === 'topic');
+    const trend = result.trending.find((row) => row.name === name);
 
-    expect(hashtagTrend?.series).toEqual(volumes);
-    expect(topicTrend?.series).toEqual(volumes.map((v) => v * 10));
+    expect(trend?.series).toEqual(volumes);
+  });
+
+  it('keys the series on the NAME alone, so a provenance flip cannot cut a history in two', async () => {
+    /**
+     * `type` used to be part of the key, because a name could be measured twice
+     * in one batch — once as a hashtag, once as a topic. Those lanes are gone: a
+     * term is measured ONCE, and `type` is now provenance that can legitimately
+     * flip between batches as the mix of posts spelling it with a `#` shifts.
+     * Keying on the pair would cut one continuous history in two at the flip and
+     * drop BOTH halves below the drawing floor — a sparkline that vanishes for a
+     * trend that never stopped.
+     */
+    const name = uniqueName('flip');
+    const volumes = [4, 5, 6, 7, 8, 9];
+    for (const [index, volume] of volumes.entries()) {
+      const at = batchStamp(-(volumes.length - index) * 60_000);
+      // The provenance flips halfway through the run.
+      const type = index < 3 ? 'hashtag' : 'topic';
+      await svc.saveTrendingBatch([item({ name, type, volume, score: 50 })], at);
+      if (index === volumes.length - 1) {
+        await db.insert(trendBatches).values({ calculatedAt: at, summary: '' });
+      }
+    }
+
+    const result = await trendingService.getTrending(500);
+    const trend = result.trending.find((row) => row.name === name);
+
+    expect(trend?.series).toEqual(volumes);
   });
 
   it('omits the series entirely for a trend with too little history', async () => {
@@ -376,6 +428,67 @@ describe('loadVolumeSeries — one series per (name, type), in time order', () =
 
     expect(trend).toBeDefined();
     expect(trend).not.toHaveProperty('series');
+  });
+});
+
+/**
+ * A trend is not language-neutral — `noticia` is a Spanish story and reading it
+ * in an Italian list is noise — so the reader's languages decide the ORDER.
+ *
+ * They must never decide MEMBERSHIP. A reader whose languages are quiet would
+ * otherwise be served an empty widget, which is a worse answer than a list they
+ * can partly read; the overfetch-then-reorder shape is what buys that.
+ */
+describe('getTrending — the reader\'s language orders, never filters', () => {
+  async function publishLanguageBatch(): Promise<{ es: string; it: string; none: string }> {
+    const es = uniqueName('es-trend');
+    const it = uniqueName('it-trend');
+    const none = uniqueName('no-lang-trend');
+    const at = batchStamp();
+    await svc.saveTrendingBatch(
+      [
+        item({ name: it, score: 30, languages: ['it'] }),
+        item({ name: none, score: 20, languages: [] }),
+        item({ name: es, score: 10, languages: ['es'] }),
+      ],
+      at,
+    );
+    await db.insert(trendBatches).values({ calculatedAt: at, summary: '' });
+    return { es, it, none };
+  }
+
+  /** This batch's trends only, in served order — sibling rows can never match. */
+  function ordered(trends: Array<{ name: string }>, names: string[]): string[] {
+    return trends.map((trend) => trend.name).filter((name) => names.includes(name));
+  }
+
+  it('puts the trends a reader can read ahead of the ones they cannot', async () => {
+    const { es, it, none } = await publishLanguageBatch();
+
+    const result = await trendingService.getTrending(500, undefined, ['es']);
+
+    // `it` scored HIGHEST and is now last: the reorder beat the score, which is
+    // the whole assertion. A trend with NO recorded language is readable by
+    // everyone — it predates trending measuring language — so it stays in the
+    // leading group, and within a group the score order survives.
+    expect(ordered(result.trending, [es, it, none])).toEqual([none, es, it]);
+  });
+
+  it('still returns the rest — a quiet language is never an empty widget', async () => {
+    const { es, it, none } = await publishLanguageBatch();
+
+    const result = await trendingService.getTrending(500, undefined, ['ja']);
+
+    expect(ordered(result.trending, [es, it, none]).sort()).toEqual([es, it, none].sort());
+  });
+
+  it('leaves the order alone when the reader offers no language', async () => {
+    const { es, it, none } = await publishLanguageBatch();
+
+    const result = await trendingService.getTrending(500);
+
+    // Score order, untouched.
+    expect(ordered(result.trending, [es, it, none])).toEqual([it, none, es]);
   });
 });
 
@@ -455,7 +568,21 @@ describe('calculateTrending — end to end', () => {
     const tag = uniqueName('e2e');
     mocks.resolveNames.mockResolvedValue(new Map());
     mocks.updatePopularityFromTrending.mockResolvedValue(undefined);
-    for (let i = 0; i < 3; i += 1) await seedPost([tag]);
+
+    /**
+     * The detection floors, satisfied as DATA rather than stubbed: `minVolume`
+     * posts by `minAuthors`-or-more distinct authors, all inside the recent
+     * window so the burst statistic clears `minBurstScore`.
+     *
+     * The filler is the share-of-corpus ceiling (`maxDocumentFrequency`). Five
+     * posts in a corpus of five is 100% of the window, which is how a term
+     * proves it is VOCABULARY rather than a subject — so the term needs a
+     * network around it to be a trend at all. Sibling suites' rows only enlarge
+     * the denominator further, which is the safe direction.
+     */
+    const authors = MtnConfig.trending.detection.minAuthors + 2;
+    for (let i = 0; i < authors; i += 1) await seedPost([tag], `${tag}-author-${i}`);
+    for (let i = 0; i < 4 * authors; i += 1) await seedPost([uniqueName('filler')]);
 
     await trendingService.calculateTrending();
 
@@ -469,7 +596,7 @@ describe('calculateTrending — end to end', () => {
 
     const result = await trendingService.getTrending(500);
     const trend = result.trending.find((row) => row.name === tag);
-    expect(trend?.volume).toBe(3);
+    expect(trend?.volume).toBe(authors);
     expect(mocks.emitTrendsUpdated).toHaveBeenCalledTimes(1);
 
     // The memoized current-batch token comes from the same row.

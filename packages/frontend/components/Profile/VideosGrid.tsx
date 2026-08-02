@@ -9,8 +9,8 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { Video } from '@/assets/icons/video-icon';
 import { videoPosterUrl } from '@/utils/imageUrlCache';
 import type { HydratedPostSummary, MediaItem } from '@mention/shared-types';
-import VideoPosterCell from '@/components/common/VideoPosterCell';
-import { isVideoMediaRef } from '@/utils/mediaTypes';
+import LiveVideoPosterCell from './LiveVideoPosterCell';
+import { isVideoMediaRef, readMediaDurationSec } from '@/utils/mediaTypes';
 import { useProfileMediaFeed } from './useProfileMediaFeed';
 import { ProfileGridList, type ProfileGridEntry } from './ProfileGridList';
 
@@ -34,6 +34,15 @@ interface VideoGridEntry extends ProfileGridEntry {
      * 404/load error too.
      */
     posterUri?: string;
+    /**
+     * Play count of the post this cell's video came from, as it stood when the
+     * page was fetched. Per-POST, so two videos in one post repeat it. The cell
+     * subscribes to the post itself and prefers the live count; this is what it
+     * shows until (and unless) that post is in the shared cache.
+     */
+    views?: number | null;
+    /** Duration of THIS item's video, in seconds. Per-item, so per-cell correct. */
+    durationSec?: number;
 }
 
 const VideosGrid: React.FC<VideosGridProps> = ({
@@ -52,22 +61,24 @@ const VideosGrid: React.FC<VideosGridProps> = ({
     const theme = useTheme();
     const { t } = useTranslation();
     const {
-        mediaFeed,
+        primaryFeed,
         postsFeed,
         items,
         loadMore,
-    } = useProfileMediaFeed({ userId, isPrivate, isOwnProfile });
+    } = useProfileMediaFeed({ userId, isPrivate, isOwnProfile, filter: 'videos' });
 
     /**
-     * Resolve a static video poster. Prefer the server-resolved final `posterUrl`
-     * (fallback `thumbUrl`) from the media object; fall back to the legacy client
-     * resolver keyed on the id/url (Oxy `thumb` / backend `/media/poster`).
+     * Resolve a static video still. Prefer the server-resolved `thumbUrl` — this
+     * is a grid cell, and `posterUrl` is sized for a full-width player — falling
+     * back to `posterUrl` and then to the legacy client resolver keyed on the
+     * id/url (backend `/media/poster`). Both server fields are a still image for
+     * a video of either origin, so preferring the smaller one is safe.
      * Undefined → icon placeholder. A 404/error from the URL is handled by the
      * cell's own image-error fallback.
      */
     const resolvePosterUri = useCallback(
         (ref: MediaItem): string | undefined => {
-            const serverUrl = ref.posterUrl || ref.thumbUrl;
+            const serverUrl = ref.thumbUrl || ref.posterUrl;
             if (serverUrl) return serverUrl;
             return videoPosterUrl(ref.id || ref.url || '', oxyServices);
         },
@@ -85,10 +96,21 @@ const VideosGrid: React.FC<VideosGridProps> = ({
             media.forEach((ref, idx) => {
                 const key = ref.id || ref.url;
                 if (!key) return;
-                if (!isVideoMediaRef(key, { mediaType: ref.type })) return; // Only include videos
+                // Still per-ITEM even though the `videos` descriptor already
+                // filtered server-side: that filter keeps POSTS, so a post mixing
+                // one photo with one video is a legitimate result whose photo this
+                // grid must drop — and the empty-primary posts fallback below is
+                // unfiltered entirely.
+                if (!isVideoMediaRef(key, { mediaType: ref.type })) return;
                 if (seen.has(key)) return;
                 seen.add(key);
-                out.push({ postId: targetId, posterUri: resolvePosterUri(ref), mediaIndex: idx });
+                out.push({
+                    postId: targetId,
+                    posterUri: resolvePosterUri(ref),
+                    mediaIndex: idx,
+                    views: post.engagement?.views,
+                    durationSec: readMediaDurationSec(ref),
+                });
             });
         };
 
@@ -101,8 +123,8 @@ const VideosGrid: React.FC<VideosGridProps> = ({
     }, [items, resolvePosterUri]);
 
     const isLoading = (
-        (!mediaFeed && !postsFeed) ||
-        mediaFeed?.isLoading ||
+        (!primaryFeed && !postsFeed) ||
+        primaryFeed?.isLoading ||
         postsFeed?.isLoading
     ) && videoItems.length === 0;
 
@@ -113,11 +135,18 @@ const VideosGrid: React.FC<VideosGridProps> = ({
 
         return (
             <TouchableOpacity activeOpacity={0.8} style={{ width: itemSize, height: itemSize }} onPress={handlePress}>
-                <VideoPosterCell
+                {/*
+                  Every entry here is built from the post it navigates to, so the
+                  post to subscribe to and the post to open are the same one —
+                  unlike the media grid, where an embedded original splits them.
+                */}
+                <LiveVideoPosterCell
                     posterUri={item.posterUri}
                     size={itemSize}
                     placeholderColor={theme.colors.textSecondary}
-                    badge="corner"
+                    viewsPostId={item.postId}
+                    fallbackViews={item.views}
+                    durationSec={item.durationSec}
                 />
             </TouchableOpacity>
         );

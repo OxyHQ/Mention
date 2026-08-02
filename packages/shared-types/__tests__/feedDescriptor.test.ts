@@ -10,6 +10,9 @@ describe("feed descriptors", () => {
     expect(isValidFeedDescriptor("following")).toBe(true);
     expect(isValidFeedDescriptor("author|user-1")).toBe(true);
     expect(isValidFeedDescriptor("author|user-1|replies")).toBe(true);
+    // Every profile tab must resolve to an author descriptor, and `videos` is a
+    // tab — served by its own server-side filter, not by the `media` feed.
+    expect(isValidFeedDescriptor("author|user-1|videos")).toBe(true);
     expect(isValidFeedDescriptor("hashtag|typescript")).toBe(true);
   });
 

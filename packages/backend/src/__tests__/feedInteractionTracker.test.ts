@@ -6,10 +6,14 @@
  *   (a) an absurd `durationMs` is CLAMPED to `MtnConfig.preferences.maxDwellMs`
  *       before it folds into the post's rolling dwell average,
  *   (b) dwell is recorded AT MOST ONCE per (post, viewer) — a repeat impression
- *       (deduped view returns `false`) does NOT pump the average,
+ *       (deduped view reports no new view) does NOT pump the average,
  *   (c) a viewer's OWN post never records dwell or skip/view learning,
  *   (d) telemetry about a post that is not a public, published local post is a
- *       no-op, whatever the client sent.
+ *       no-op, whatever the client sent,
+ *   (e) the counted total travels BACK to the reporting client, and only when a
+ *       view really counted — every gate that decides that lives on this side,
+ *       so a client-side increment would be wrong in exactly the cases the
+ *       server declined.
  *
  * (c) and (d) are decided by a query, and the post it queries is a real row now.
  * Under the previous `Post.findOne` mock the eligibility answer was assigned by
@@ -24,7 +28,10 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MtnConfig, PostVisibility } from '@mention/shared-types';
 
-const recordDedupedView = vi.fn((_postId: string, _viewerId: string) => Promise.resolve(true));
+/** Resolves to the post's new total when the view counted, `null` when it did not. */
+const recordDedupedView = vi.fn(
+  (_postId: string, _viewerId: string): Promise<number | null> => Promise.resolve(1),
+);
 const recordDwell = vi.fn((_postId: string, _durationMs: number) => Promise.resolve());
 const recordInteraction = vi.fn(
   (_userId: string, _postId: string, _signal: string, _opts: unknown) => Promise.resolve(),
@@ -72,7 +79,7 @@ describe('applyImpressionSignals', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    recordDedupedView.mockResolvedValue(true);
+    recordDedupedView.mockResolvedValue(1);
   });
 
   afterEach(async () => {
@@ -105,7 +112,7 @@ describe('applyImpressionSignals', () => {
   describe('dedupe (record dwell once per post/viewer)', () => {
     it('does NOT record dwell when the view was already counted', async () => {
       const post = await seedPost(scope, { oxyUserId: AUTHOR });
-      recordDedupedView.mockResolvedValue(false);
+      recordDedupedView.mockResolvedValue(null);
 
       await applyImpressionSignals(impression(post.id, { durationMs: 4000 }));
 
@@ -183,6 +190,55 @@ describe('applyImpressionSignals', () => {
       expect(recordDedupedView).not.toHaveBeenCalled();
       expect(recordDwell).not.toHaveBeenCalled();
       expect(recordInteraction).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * The view count travels back to the reporting client, which is the only way a
+   * screen showing a post can learn about the view IT just caused. Each `null`
+   * arm below is a DIFFERENT reason not to report one, and they are enumerated
+   * rather than sampled because a single leaked number is a "+1" the server
+   * never performed.
+   */
+  describe('the counted total travels back', () => {
+    it('returns the post new total when the view counted', async () => {
+      const post = await seedPost(scope, { oxyUserId: AUTHOR });
+      recordDedupedView.mockResolvedValue(42);
+
+      await expect(applyImpressionSignals(impression(post.id, { durationMs: 4000 })))
+        .resolves.toBe(42);
+    });
+
+    it('returns null for a repeat impression inside the dedupe window', async () => {
+      const post = await seedPost(scope, { oxyUserId: AUTHOR });
+      recordDedupedView.mockResolvedValue(null);
+
+      await expect(applyImpressionSignals(impression(post.id, { durationMs: 4000 })))
+        .resolves.toBeNull();
+    });
+
+    it('returns null for the viewer own post, whatever the counter would have said', async () => {
+      const own = await seedPost(scope, { oxyUserId: VIEWER });
+      // Would be reported if the self-view guard did not short-circuit first.
+      recordDedupedView.mockResolvedValue(42);
+
+      await expect(applyImpressionSignals(impression(own.id, { durationMs: 4000 })))
+        .resolves.toBeNull();
+    });
+
+    it('returns null for an ineligible post', async () => {
+      const draft = await seedPost(scope, { oxyUserId: AUTHOR, status: 'draft' });
+      recordDedupedView.mockResolvedValue(42);
+
+      await expect(applyImpressionSignals(impression(draft.id, { durationMs: 4000 })))
+        .resolves.toBeNull();
+    });
+
+    it('returns null for a non-local postUri', async () => {
+      recordDedupedView.mockResolvedValue(42);
+
+      await expect(applyImpressionSignals(impression('https://remote.example/notlocal')))
+        .resolves.toBeNull();
     });
   });
 });

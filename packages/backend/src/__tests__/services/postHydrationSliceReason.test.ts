@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FeedPostSlice, HydratedPost } from '@mention/shared-types';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
 
@@ -50,29 +50,13 @@ vi.mock('../../utils/privacyHelpers', () => ({
       : [],
 }));
 
-function chainable(rows: unknown[] | null) {
-  const q: Record<string, unknown> = {};
-  for (const m of ['select', 'sort', 'limit', 'maxTimeMS']) {
-    q[m] = () => q;
-  }
-  q.lean = async () => rows;
-  return q;
-}
-
-vi.mock('../../models/Post', () => ({
-  Post: { find: () => chainable([]), findOne: () => chainable(null) },
-}));
-vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/FederatedActor', () => ({
-  FederatedActor: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
-  default: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
-}));
-vi.mock('../../models/StarterPack', () => ({
-  StarterPack: { aggregate: async () => [] },
-  default: { aggregate: async () => [] },
-}));
+/**
+ * The slice's POSTS are supplied by the caller, so this suite hands `hydrateSlices`
+ * exactly the two rows it is about and nothing has to be seeded. Everything
+ * hydration reads BESIDE them — viewer likes and bookmarks, author privacy
+ * settings, polls, quote counts — is Postgres, so the connection is a
+ * prerequisite even though those tables stay empty.
+ */
 
 const cacheStore = new Map<string, CachedUserSummary>();
 vi.mock('../../services/userSummaryCache', () => ({
@@ -89,12 +73,21 @@ vi.mock('../../services/userSummaryCache', () => ({
   }),
 }));
 
+import { closePostgres, connectPostgres } from '../../db/postgres';
 import { PostHydrationService } from '../../services/PostHydrationService';
 
 interface PostRowOverrides {
   status?: string;
   visibility?: string;
 }
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
 
 function makePostRow(id: string, authorId: string, overrides: PostRowOverrides = {}) {
   return {
@@ -110,29 +103,27 @@ function makePostRow(id: string, authorId: string, overrides: PostRowOverrides =
     status: overrides.status ?? 'published',
     hashtags: [],
     mentions: [],
+    // The STORED discriminator, which is what both reply-context carriers read.
+    // Absent it, `buildReplyParentAuthorMap` skips the row and the header names
+    // nobody — the failure would look like an ACL decision rather than a fixture
+    // missing a column.
+    isReply: false,
   };
 }
 
 /**
  * A reply-context slice as `ThreadSlicingService` builds it: the parent first,
- * the reply second, and a reason naming the parent's author.
+ * the reply second. The reason carries the TAG only — whom the reply answers is
+ * resolved by hydration onto the reply's own `replyContext`.
  */
 function makeReplyContextSlice(parentOverrides: PostRowOverrides = {}): FeedPostSlice {
   const parent = makePostRow(PARENT_ID, PARENT_AUTHOR_ID, parentOverrides);
-  const reply = makePostRow(REPLY_ID, REPLY_AUTHOR_ID);
+  const reply = { ...makePostRow(REPLY_ID, REPLY_AUTHOR_ID), parentPostId: PARENT_ID, isReply: true };
 
   return {
     _sliceKey: `${PARENT_ID}+${REPLY_ID}`,
     isIncompleteThread: true,
-    reason: {
-      type: 'replyContext',
-      parentAuthor: {
-        id: PARENT_AUTHOR_ID,
-        username: 'parenthandle',
-        name: { displayName: 'Parent Author' },
-        avatar: null,
-      },
-    },
+    reason: { type: 'replyContext' },
     items: [
       { post: parent as unknown as HydratedPost, isThreadParent: true, isThreadChild: false, isThreadLastChild: false },
       { post: reply as unknown as HydratedPost, isThreadParent: false, isThreadChild: true, isThreadLastChild: true },
@@ -140,7 +131,7 @@ function makeReplyContextSlice(parentOverrides: PostRowOverrides = {}): FeedPost
   };
 }
 
-describe('PostHydrationService — reply-context reason follows its anchor', () => {
+describe('PostHydrationService — reply context under the viewer ACL', () => {
   let service: PostHydrationService;
 
   beforeEach(() => {
@@ -153,24 +144,40 @@ describe('PostHydrationService — reply-context reason follows its anchor', () 
     service = new PostHydrationService();
   });
 
-  it('keeps the reason when the parent survives the ACL', async () => {
+  it('names the parent author on the reply when the parent survives the ACL', async () => {
     const [slice] = await service.hydrateSlices([makeReplyContextSlice()], { viewerId: VIEWER_ID });
 
     expect(slice.items.map((item) => item.post.id)).toEqual([PARENT_ID, REPLY_ID]);
     expect(slice.reason?.type).toBe('replyContext');
+
+    const reply = slice.items[1].post;
+    expect(reply.replyContext?.parentAuthor?.id).toBe(PARENT_AUTHOR_ID);
+    expect(reply.replyContext?.parentAuthor?.username).toBe('parenthandle');
   });
 
   it.each([
     ['an unpublished parent', { status: 'draft' }],
     ['a private parent', { visibility: 'private' }],
-  ] as const)('clears the reason when the ACL drops %s', async (_label, parentOverrides) => {
+  ] as const)('names nobody, but still reports a reply, when the ACL drops %s', async (_label, parentOverrides) => {
     const [slice] = await service.hydrateSlices([makeReplyContextSlice(parentOverrides)], {
       viewerId: VIEWER_ID,
     });
 
-    // The parent is gone — and so is the header that described it.
+    // The parent post is gone from the response…
     expect(slice.items.map((item) => item.post.id)).toEqual([REPLY_ID]);
-    expect(slice.reason).toBeUndefined();
+
+    const reply = slice.items[0].post;
+    // …and so is its author. Naming them would reveal both the existence of a
+    // post this viewer was refused and who wrote it.
+    expect(reply.replyContext?.parentAuthor).toBeUndefined();
     expect(JSON.stringify(slice)).not.toContain('parenthandle');
+    expect(JSON.stringify(slice)).not.toContain('Parent Author');
+
+    // But the row is STILL declared a reply, in both carriers. The reason used to
+    // be stripped here along with the author it once held, which quietly let a
+    // viewer who had hidden replies be served exactly the replies whose parent
+    // they could not read — `removeReplies` filters on this tag.
+    expect(reply.replyContext).toBeDefined();
+    expect(slice.reason?.type).toBe('replyContext');
   });
 });

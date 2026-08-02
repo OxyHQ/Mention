@@ -12,7 +12,7 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 
 /**
  * atproto profile mapping: `app.bsky.actor.getProfile` → normalized actor →
- * `FederatedActor` upsert (`protocol:'atproto'`) → Oxy identity resolution.
+ * `federated_actors` upsert (`protocol:'atproto'`) → Oxy identity resolution.
  * Verifies the no-orphan fail-soft contract: when Oxy cannot resolve the actor's
  * `did:` (oxy-api dependency), the actor returns WITHOUT an `oxyUserId` and never
  * throws.
@@ -20,13 +20,17 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 
 const mocks = vi.hoisted(() => ({
   xrpcGet: vi.fn(),
-  resolveOxyExternalUser: vi.fn(),
+  resolveFederatedActorIdentity: vi.fn(),
 }));
 
 vi.mock('../../../connectors/atproto/xrpcClient', () => ({ xrpcGet: mocks.xrpcGet }));
 
 vi.mock('../../../connectors/identity', () => ({
-  resolveOxyExternalUser: mocks.resolveOxyExternalUser,
+  // The atproto path resolves through the shared MERGE, not straight at the
+  // identity bridge: the same Bluesky account can also arrive over ActivityPub
+  // through Bridgy Fed, and whichever lands second must adopt the first's Oxy
+  // user rather than mint a twin.
+  resolveFederatedActorIdentity: mocks.resolveFederatedActorIdentity,
 }));
 
 import {
@@ -52,7 +56,7 @@ const PROFILE = {
 beforeEach(async () => {
   await clearFederationScope(scope, [DID]);
   vi.clearAllMocks();
-  mocks.resolveOxyExternalUser.mockResolvedValue('oxy-alice');
+  mocks.resolveFederatedActorIdentity.mockResolvedValue('oxy-alice');
 });
 
 describe('mapProfileToNormalizedActor', () => {
@@ -188,7 +192,7 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     // username + instance domain) — the exact shape oxy-api's username↔domain
     // binding requires for a `did:` actor. Passing the bare handle here would
     // make `PUT /users/resolve` 400 → no oxyUserId → no posts and proxied media.
-    expect(mocks.resolveOxyExternalUser).toHaveBeenCalledWith(
+    expect(mocks.resolveFederatedActorIdentity).toHaveBeenCalledWith(
       expect.objectContaining({
         externalId: DID,
         federatedUsername: 'alice@bsky.social',
@@ -205,7 +209,7 @@ describe('fetchAndUpsertAtprotoProfile', () => {
   it('fails soft (no oxyUserId, no throw, no stamp) when Oxy cannot resolve the did:', async () => {
     await clearFederationScope(scope, [DID]);
     mocks.xrpcGet.mockResolvedValue(PROFILE);
-    mocks.resolveOxyExternalUser.mockResolvedValue(null);
+    mocks.resolveFederatedActorIdentity.mockResolvedValue(null);
 
     const actor = await fetchAndUpsertAtprotoProfile(DID);
 

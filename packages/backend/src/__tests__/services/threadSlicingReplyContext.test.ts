@@ -1,17 +1,24 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PostVisibility, type PostUser } from '@mention/shared-types';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import { PostVisibility } from '@mention/shared-types';
 
 /**
- * Regression harness for the blank reply-context author bug (M9), plus the two
- * post-shaped invariants the slicer's OWN queries carry.
+ * What thread slicing OWNS for a reply, and the two post-shaped invariants its
+ * own queries carry.
  *
- * A `replyContext` slice renders a "Replying to @<parent author>" header from
- * `slice.reason.parentAuthor`. Thread slicing runs on RAW post records BEFORE
- * `PostHydrationService` resolves authors, so the parent's canonical
- * `name.displayName` / handle / avatar are NOT present on the record (only
- * `oxyUserId` is). The old code read `parent.user` (undefined) and serialized
- * `displayName: ''` / `handle: ''` → the header rendered a bare "@".
+ * OWNS: tagging the slice `replyContext` and PREPENDING the parent post so the
+ * pair renders as one connected thread. Nothing else can do that — it is a
+ * decision about the shape of the page.
+ *
+ * DOES NOT OWN: whom the reply answers. That is `post.replyContext.parentAuthor`,
+ * filled by `PostHydrationService` for every post on every surface. The slicer
+ * used to resolve parent authors too, which made the "Replying to @…" header
+ * reachable ONLY through a slice — so it never appeared on the feeds whose
+ * definition does not opt into reply slicing, nor on the response paths that
+ * emit no slices at all, nor on the screens that render a bare post. Two
+ * carriers for one fact, and only one of them reached most of the app.
+ *
+ * The reason is still emitted when no parent can be prepended, because the
+ * `hideReplies` tuner filters on it.
  *
  * ## What changed with the Postgres port
  *
@@ -24,8 +31,6 @@ import type { CachedUserSummary } from '../../services/userSummaryCache';
  * matches a missing field while SQL's `<> NULL` is NULL and matches no row at
  * all. The rewrite seeds real children and asserts WHICH ones came back.
  *
- * `resolveUserSummaries` stays mocked: it is the Oxy identity boundary, not part
- * of this port, and mocking it keeps the author assertions about the slicer.
  */
 
 const { resolveUserSummaries } = vi.hoisted(() => ({ resolveUserSummaries: vi.fn() }));
@@ -46,13 +51,6 @@ const scope = serviceScope('thread-slicing-reply-context');
 const PARENT_AUTHOR_ID = scope.user('parent-author');
 const REPLY_AUTHOR_ID = scope.user('reply-author');
 
-function summary(id: string, username: string, displayName: string): CachedUserSummary {
-  return {
-    user: { id, username, name: { displayName }, avatar: `${id}-avatar`, verified: false },
-    followerCount: 0,
-  };
-}
-
 beforeAll(async () => {
   await connectPostgres();
 });
@@ -60,7 +58,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   vi.clearAllMocks();
   await clearServiceScope(scope);
-  resolveUserSummaries.mockResolvedValue(new Map<string, CachedUserSummary>());
+  resolveUserSummaries.mockResolvedValue(new Map());
 });
 
 afterEach(async () => {
@@ -88,15 +86,10 @@ function seedReply(parentId: string, text: string): Promise<PostRecord> {
   });
 }
 
-describe('ThreadSlicingService reply-context parent author', () => {
-  it('populates parentAuthor from the resolved canonical summary (not blank)', async () => {
+describe('ThreadSlicingService reply-context slices', () => {
+  it('prepends the parent post and carries an author-free reason', async () => {
     const parent = await seedParent('parent body');
     const reply = await seedReply(parent.id, 'a reply');
-    resolveUserSummaries.mockResolvedValue(
-      new Map<string, CachedUserSummary>([
-        [PARENT_AUTHOR_ID, summary(PARENT_AUTHOR_ID, 'parenthandle', 'Parent Display Name')],
-      ]),
-    );
 
     // Only the REPLY is a feed candidate — the parent has to be fetched.
     const { slices } = await threadSlicingService.sliceFeed([reply], {
@@ -107,44 +100,15 @@ describe('ThreadSlicingService reply-context parent author', () => {
 
     const replyContextSlice = slices.find((s) => s.reason?.type === 'replyContext');
     expect(replyContextSlice).toBeDefined();
-    const reason = replyContextSlice?.reason;
-    if (reason?.type !== 'replyContext') throw new Error('expected replyContext reason');
-
-    expect(reason.parentAuthor).toBeDefined();
-    const parentAuthor = reason.parentAuthor as PostUser;
-    expect(parentAuthor.name.displayName).toBe('Parent Display Name');
-    expect(parentAuthor.username).toBe('parenthandle');
-    expect(parentAuthor.id).toBe(PARENT_AUTHOR_ID);
-
-    // The parent POST itself came out of the database and was prepended.
+    // The parent POST itself came out of the database and was prepended: that is
+    // the whole of what slicing contributes here.
     expect(replyContextSlice?._sliceKey).toBe(`${parent.id}+${reply.id}`);
+    expect(replyContextSlice?.reason).toEqual({ type: 'replyContext' });
 
-    // The slicer must resolve the PARENT author id through the canonical path.
-    expect(resolveUserSummaries).toHaveBeenCalledTimes(1);
-    expect(resolveUserSummaries.mock.calls[0][0]).toContain(PARENT_AUTHOR_ID);
-  });
-
-  it('emits the degraded (ghost-handle-safe) parent author when it cannot be resolved', async () => {
-    const parent = await seedParent('parent body');
-    const reply = await seedReply(parent.id, 'a reply');
-    // Author resolution returns nothing (e.g. Oxy lookup miss + no federated actor).
-    resolveUserSummaries.mockResolvedValue(new Map<string, CachedUserSummary>());
-
-    const { slices } = await threadSlicingService.sliceFeed([reply], {
-      enableThreadGrouping: false,
-      enableReplyContext: true,
-      maxSliceSize: 3,
-    });
-
-    const reason = slices.find((s) => s.reason?.type === 'replyContext')?.reason;
-    if (reason?.type !== 'replyContext') throw new Error('expected replyContext reason');
-
-    // Ghost-handle rule: an unresolvable parent carries an EMPTY username and no
-    // display name — NEVER the raw oxyUserId as a handle. The renderer then
-    // suppresses the "@<handle>" line instead of showing a fake handle.
-    expect(reason.parentAuthor?.id).toBe(PARENT_AUTHOR_ID);
-    expect(reason.parentAuthor?.username).toBe('');
-    expect(reason.parentAuthor?.name.displayName).toBeUndefined();
+    // The header's author is hydration's job now, so the slicer must not reach
+    // for the identity resolver at all — a second resolution here is the
+    // duplicate carrier this split removed.
+    expect(resolveUserSummaries).not.toHaveBeenCalled();
   });
 
   it('prepends the parent of EVERY reply on the page, not just the first', async () => {
@@ -256,7 +220,7 @@ describe('ThreadSlicingService reply-context parent author', () => {
  * as an ordinary top-level post.
  */
 describe('ThreadSlicingService replies without a local parent link', () => {
-  it('tags an unlinked federated reply as replyContext, with no parentAuthor', async () => {
+  it('tags an unlinked federated reply as replyContext', async () => {
     const reply = await seedPost(scope, {
       oxyUserId: REPLY_AUTHOR_ID,
       // `is_reply` is STORED and is true precisely because `federation.inReplyTo`
@@ -278,9 +242,10 @@ describe('ThreadSlicingService replies without a local parent link', () => {
     if (reason?.type !== 'replyContext') {
       throw new Error(`expected replyContext reason, got ${String(reason?.type)}`);
     }
-    // Nobody to name — but the slice still declares itself a reply, which is what
-    // the header and the hideReplies tuner key off.
-    expect(reason.parentAuthor).toBeUndefined();
+    // The slice still declares itself a reply, which is what the hideReplies
+    // tuner keys off; the header comes from the post's own `replyContext`, and
+    // for this reply it names nobody because there is no local parent to name.
+    expect(reason).toEqual({ type: 'replyContext' });
     // The reply is alone in the slice: there is no parent post to prepend.
     expect(slices[0].items).toHaveLength(1);
   });
@@ -309,11 +274,6 @@ describe('ThreadSlicingService replies without a local parent link', () => {
   });
 
   it('still tags a reply whose parent was already rendered higher in the page', async () => {
-    resolveUserSummaries.mockResolvedValue(
-      new Map<string, CachedUserSummary>([
-        [PARENT_AUTHOR_ID, summary(PARENT_AUTHOR_ID, 'parenthandle', 'Parent Display Name')],
-      ]),
-    );
     const parent = await seedParent('parent body');
     const reply = await seedReply(parent.id, 'a reply');
 
@@ -332,9 +292,10 @@ describe('ThreadSlicingService replies without a local parent link', () => {
       throw new Error(`expected replyContext reason, got ${String(reason?.type)}`);
     }
     expect(replySlice.items).toHaveLength(1);
-    // The parent doc IS in hand here, so the author still resolves — only the
-    // POST cannot be repeated.
-    expect(reason.parentAuthor?.username).toBe('parenthandle');
+    // The reason survives even though the parent POST cannot be repeated: it is
+    // what the hideReplies tuner filters on, and stripping it is what previously
+    // made a context-free reply render as an ordinary top-level post.
+    expect(reason).toEqual({ type: 'replyContext' });
   });
 });
 

@@ -2,9 +2,6 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, FlatList } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { CloseIcon } from '@/assets/icons/close-icon';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { DraftsIcon } from '@/assets/icons/drafts';
@@ -14,15 +11,21 @@ import { confirmDialog } from '@/utils/alerts';
 import { createLogger } from '@oxyhq/core/logger';
 import { HIT_SLOP_LG } from '@/styles/hitSlop';
 
-const logger = createLogger('DraftsSheet');
+const logger = createLogger('DraftsList');
 
-interface DraftsSheetProps {
-  onClose: () => void;
+interface DraftsListProps {
   onLoadDraft: (draft: Draft) => void;
+  /** Show how this draft will look once posted. */
+  onPreviewDraft: (draft: Draft) => void;
   currentDraftId: string | null;
 }
 
-const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, currentDraftId }) => {
+/**
+ * The composer's LOCAL drafts. They never reach the server — `useDrafts`
+ * persists them per viewer on the device — which is why this list needs no
+ * network state beyond its own storage read.
+ */
+const DraftsList: React.FC<DraftsListProps> = ({ onLoadDraft, onPreviewDraft, currentDraftId }) => {
   const theme = useTheme();
   const { t } = useTranslation();
   const { drafts, isLoading, deleteDraft, loadDrafts } = useDrafts();
@@ -120,10 +123,13 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
     const isCurrentDraft = item.id === currentDraftId;
     const isDeleting = deletingId === item.id;
 
+    // The current-draft tint is `bg-primary/10`, not
+    // `theme.colors.primary + '15'`: that token is an `rgb(...)` string, so a
+    // hex-alpha suffix reads back fully opaque and the row the user is editing
+    // paints solid primary under its own foreground text.
     return (
       <View
-        className="flex-row items-center px-4 py-3 bg-background border-b border-border"
-        style={isCurrentDraft ? { backgroundColor: theme.colors.primary + '15' } : undefined}
+        className={`flex-row items-center px-4 py-3 border-b border-border ${isCurrentDraft ? 'bg-primary/10' : 'bg-background'}`}
       >
         <TouchableOpacity
           className="flex-1 flex-row items-center"
@@ -175,6 +181,17 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
           <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
         </TouchableOpacity>
         <TouchableOpacity
+          className="p-1 mr-1"
+          onPress={() => onPreviewDraft(item)}
+          disabled={isDeleting}
+          hitSlop={HIT_SLOP_LG}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={t('compose.draftPreviewA11y', { defaultValue: 'Preview draft' })}
+        >
+          <Ionicons name="eye-outline" size={18} color={theme.colors.textSecondary} />
+        </TouchableOpacity>
+        <TouchableOpacity
           className="p-1"
           onPress={() => {
             logger.debug(`Delete button pressed for draft: ${item.id}`);
@@ -192,71 +209,38 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
         </TouchableOpacity>
       </View>
     );
-  }, [theme, currentDraftId, deletingId, handleLoadDraft, handleDeleteDraft, formatDate, getDraftPreview, t]);
+  }, [theme, currentDraftId, deletingId, handleLoadDraft, handleDeleteDraft, onPreviewDraft, formatDate, getDraftPreview, t]);
 
   if (isLoading) {
     return (
-      <View className="flex-1 max-h-[600px] bg-background">
-        <Header
-          options={{
-            title: t('compose.drafts'),
-            rightComponents: [
-              <IconButton variant="icon"
-                key="close"
-                onPress={onClose}
-              >
-                <CloseIcon size={20} className="text-foreground" />
-              </IconButton>,
-            ],
-          }}
-          hideBottomBorder={true}
-          disableSticky={true}
-        />
-        <View className="flex-1 justify-center items-center py-12">
-          <Loading className="text-primary" size="large" />
-        </View>
+      <View className="flex-1 justify-center items-center py-12">
+        <Loading className="text-primary" size="large" />
+      </View>
+    );
+  }
+
+  if (drafts.length === 0) {
+    return (
+      <View className="flex-1 justify-center items-center py-12 px-8">
+        <DraftsIcon size={64} className="text-muted-foreground" />
+        <Text className="mt-6 text-xl font-semibold text-foreground">
+          {t('compose.noDrafts')}
+        </Text>
+        <Text className="mt-2 text-base text-center text-muted-foreground">
+          {t('compose.noDraftsDescription')}
+        </Text>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 max-h-[600px] bg-background">
-      <Header
-        options={{
-          title: t('compose.drafts'),
-          rightComponents: [
-            <IconButton variant="icon"
-              key="close"
-              onPress={onClose}
-            >
-              <CloseIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-        }}
-        hideBottomBorder={true}
-        disableSticky={true}
-      />
-
-      {drafts.length === 0 ? (
-        <View className="flex-1 justify-center items-center py-12 px-8">
-          <DraftsIcon size={64} className="text-muted-foreground" />
-          <Text className="mt-6 text-xl font-semibold text-foreground">
-            {t('compose.noDrafts')}
-          </Text>
-          <Text className="mt-2 text-base text-center text-muted-foreground">
-            {t('compose.noDraftsDescription')}
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={drafts}
-          renderItem={renderDraftItem}
-          keyExtractor={(item) => item.id}
-          className="flex-1"
-        />
-      )}
-    </View>
+    <FlatList
+      data={drafts}
+      renderItem={renderDraftItem}
+      keyExtractor={(item) => item.id}
+      className="flex-1"
+    />
   );
 };
 
-export default DraftsSheet;
+export default DraftsList;

@@ -30,8 +30,20 @@ export const QUERY_CLIENT_CONFIG = {
       // Refetch strategy - minimize unnecessary network requests
       refetchOnReconnect: true, // Refetch when connection restored
       refetchOnWindowFocus: false, // Disabled - prevents annoying refetches
-      refetchOnMount: false, // Use cached data when available - faster UX
-      
+
+      // `refetchOnMount` is deliberately left at the library default (refetch on
+      // mount ONLY when the data is stale). `staleTime` above — and the shorter
+      // one every screen declares for itself — is the lever that keeps a cached
+      // screen instant: fresh data is still painted from cache with no request.
+      //
+      // Pinning it to `false` instead would silently disarm `invalidateQueries`
+      // for every query that is not mounted at the moment of the write, which is
+      // the normal case: a post is saved from the feed, and the saved screen —
+      // where the change has to show up — is a navigation away. Invalidation
+      // marks such a query stale and leaves the refetch to its next mount, so a
+      // client that never refetches on mount serves the pre-write list until the
+      // 30-minute `gcTime` expires or the page is reloaded.
+
       // Enable structural sharing for better performance
       // Compares data structures to minimize re-renders
       structuralSharing: true,

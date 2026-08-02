@@ -29,6 +29,7 @@ import {
   authorDefinition,
   hashtagDefinition,
   topicDefinition,
+  trendDefinition,
   listDefinition,
 } from './presets';
 
@@ -79,6 +80,12 @@ export async function resolveDefinition(
     case 'topic': {
       const slug = params[0];
       return slug ? topicDefinition(slug) : null;
+    }
+    case 'trend': {
+      // The term may contain spaces (`trend|todd blanche`); the `|` split leaves
+      // it intact, so nothing here needs to re-join anything.
+      const term = params[0];
+      return term ? trendDefinition(term) : null;
     }
     case 'list': {
       const listId = params[0];

@@ -39,6 +39,21 @@ export interface IFederatedActor extends Document {
   username: string;
   domain: string;
   acct: string;
+  /**
+   * The `<handle>@<network-domain>` identity a BRIDGED actor was re-labelled onto
+   * (`wired@x.com`), absent for every ordinary actor whose identity is its acct.
+   *
+   * Deliberately separate from `domain`, which stays the host that delivered the
+   * activity: the domain policy, the blocklist intelligence and the purge scripts
+   * all key off that, and moving it onto `x.com` would make a real moderation
+   * decision about the bridge invisible to them.
+   *
+   * It is also the ONLY field on which two rows for the same upstream person
+   * match. The same X account mirrored by two different bridges has two URIs and
+   * two accts and looks like two people everywhere else, so this is what
+   * `resolveFederatedActorIdentity` de-duplicates on.
+   */
+  networkAcct?: string;
   summary?: string;
   avatarUrl?: string;
   headerUrl?: string;
@@ -109,6 +124,10 @@ const FederatedActorSchema = new Schema<IFederatedActor>({
   username: { type: String, required: true },
   domain: { type: String, required: true, index: true },
   acct: { type: String, required: true, unique: true, index: true },
+  // Indexed but NOT unique: two rows sharing a `networkAcct` is the normal,
+  // expected shape (the same person mirrored by two bridges), and it is exactly
+  // what the de-duplication looks up.
+  networkAcct: { type: String, index: { sparse: true } },
   summary: { type: String },
   avatarUrl: { type: String },
   headerUrl: { type: String },

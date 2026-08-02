@@ -49,9 +49,11 @@ import type { Database } from './postgres';
 import {
   AUTHOR_FOLLOWER_SNAPSHOT_RETENTION_SECONDS,
   NOTIFICATION_RETENTION_SECONDS,
+  TREND_SUMMARY_RETENTION_SECONDS,
   TRENDING_RETENTION_SECONDS,
   authorFollowerSnapshots,
   notifications,
+  trendSummaries,
   trending,
 } from './schema/discovery';
 import { FEED_INTERACTION_RETENTION_SECONDS, feedInteractions } from './schema/feeds';
@@ -99,6 +101,15 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'Housekeeping only — the trending job publishes a full batch every 30 ' +
       'minutes, and the history aggregation bounds its own window by the SAME ' +
       'constant, so nothing can ask for a row the sweep has taken.',
+  },
+  {
+    table: trendSummaries,
+    column: trendSummaries.generatedAt,
+    retentionSeconds: TREND_SUMMARY_RETENTION_SECONDS,
+    reason:
+      'Derived text. A summary is regenerated on demand for whichever run is ' +
+      'live, so deleting an old one costs nothing but a regeneration that ' +
+      'demand would have to justify all over again.',
   },
   {
     table: notifications,

@@ -574,19 +574,26 @@ export const trackPostView = async (req: AuthRequest, res: Response) => {
     // undeduplicated `$inc`-on-any-postId inflation path. An anonymous request
     // (no viewer id) cannot be deduped, so — matching `feedViewCounter`, which
     // requires a viewer id — it is never counted.
-    if (userId) {
-      await recordDedupedView(postId, userId);
-    }
+    // A counted view returns the post's new total on the increment's own round
+    // trip, which is both the number this response owes the caller and proof the
+    // post exists — so that path needs no read at all.
+    const countedViewsCount = userId ? await recordDedupedView(postId, userId) : null;
 
-    // Read back the current count for the response; this also serves as the
-    // existence check, so a missing post still returns 404.
-    const [post] = await getDb()
-      .select({ viewsCount: posts.statsViewsCount })
-      .from(posts)
-      .where(eq(posts.id, postId))
-      .limit(1);
-    if (!post) {
-      return res.status(404).json({ message: 'Post not found' });
+    // Nothing was counted (anonymous, a duplicate inside the window, or a post
+    // the eligibility filter rejects). Read the current count back for the
+    // response; this also serves as the existence check, so a missing post still
+    // returns 404.
+    let viewsCount = countedViewsCount;
+    if (viewsCount === null) {
+      const [post] = await getDb()
+        .select({ viewsCount: posts.statsViewsCount })
+        .from(posts)
+        .where(eq(posts.id, postId))
+        .limit(1);
+      if (!post) {
+        return res.status(404).json({ message: 'Post not found' });
+      }
+      viewsCount = post.viewsCount;
     }
 
     // Best-effort preference learning — detached so it never adds latency to the
@@ -597,7 +604,7 @@ export const trackPostView = async (req: AuthRequest, res: Response) => {
         .catch((error) => logger.warn('Failed to record view interaction:', error));
     }
 
-    res.json({ success: true, viewsCount: post.viewsCount });
+    res.json({ success: true, viewsCount });
   } catch (error) {
     logger.error('Error tracking post view:', error);
     res.status(500).json({

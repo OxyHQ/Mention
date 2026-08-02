@@ -1,62 +1,86 @@
 /**
- * Trending AGGREGATION, against real rows.
+ * Trending CANDIDATE AGGREGATION, against real rows.
  *
- * What is being asserted is the SAFETY GATE and the two topic sources, because
- * both fail silently. The suite this replaces asserted the shape of a Mongo
- * `$match` object — it could tell you the pipeline named `metadata.isSensitive`,
- * and nothing at all about whether a sensitive post ever reached a trend.
+ * The one pipeline that measures every term, and every property it carries
+ * fails SILENTLY when it breaks — a sensitive post that reaches a trend, a term
+ * space that quietly narrows back to hashtags, an author floor computed from
+ * posts. None of them raises anything; they just produce a plausible list.
  *
- * The two branches of `aggregateTopics` are the other silent one. Mongo chose
- * between the canonical `topicRefs` and the slug-only baseline with a `$cond`;
- * Postgres has to express it as a `union all` whose slug branch carries a
- * `not exists`, and dropping that predicate double-counts every post that has
- * both — a plausible-looking number, never an error.
+ * The suite this replaces asserted the SHAPE of a Mongo `$match`/`$group`
+ * object. It could tell you the pipeline named `metadata.isSensitive`, and
+ * nothing at all about whether a sensitive post ever reached a trend. Every
+ * assertion below is on the returned MEASUREMENT, computed from rows.
+ *
+ * Terms are namespaced per run: sibling suites share one database and one
+ * `posts` table, so a bare term like `news` is a claim about every other file in
+ * the run. `mine()` narrows every assertion to this file's own terms.
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { inArray } from 'drizzle-orm';
+import { MtnConfig } from '@mention/shared-types';
 
-// Trending pulls in side-effecting collaborators the aggregations never touch.
+// Trending pulls in side-effecting collaborators the aggregation never touches.
 vi.mock('../../utils/socket', () => ({ emitTrendsUpdated: vi.fn() }));
 vi.mock('../../utils/alia', () => ({ aliaChat: vi.fn(), isAliaEnabled: () => false }));
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import { postClassificationTopicRefs } from '../../db/schema/postContent';
 import { posts } from '../../db/schema/posts';
 import { trendingService } from '../../services/TrendingService';
 
 /**
- * `aggregateHashtags` / `aggregateTopics` are private; reach them through a typed
- * structural view rather than `as any`, so the tests stay type-checked.
+ * `aggregateTermCandidates` is private; reach it through a typed structural view
+ * rather than `as any`, so the tests stay type-checked.
  */
+interface TermCandidateView {
+  measurement: {
+    term: string;
+    volume: number;
+    recentVolume: number;
+    authorCount: number;
+    documentFrequency?: number;
+  };
+  actorIds: string[];
+  hashtagVolume: number;
+  topicVolume: number;
+  languages: string[];
+}
 type PrivateTrending = {
-  aggregateHashtags(): Promise<Array<{ name: string; volume: number; momentum: number; score: number }>>;
-  aggregateTopics(): Promise<Array<{ name: string; type: string; volume: number; score: number }>>;
+  aggregateTermCandidates(now: Date): Promise<TermCandidateView[]>;
 };
 const svc = trendingService as unknown as PrivateTrending;
 
+/** The floor the aggregation applies before a candidate is returned at all. */
+const MIN_VOLUME = MtnConfig.trending.detection.minVolume;
+
 let db: Database;
 const createdPostIds: string[] = [];
+const RUN = randomUUID().slice(0, 8);
 
-/** Inside the 24-hour window but OUTSIDE the six-hour one, so momentum is 0. */
-const STALE = new Date(Date.now() - 12 * 60 * 60 * 1000);
+/** A term unique to this run. Lowercase — the aggregation groups on the stored value. */
+function term(name: string): string {
+  return `${name}${RUN}`;
+}
 
-/** A slug unique to this run — sibling suites share the database and the table. */
-function uniqueSlug(prefix: string): string {
-  return `${prefix}-${randomUUID().slice(0, 8)}`;
+/** Inside the 24-hour window and inside the six-hour recent one. */
+function recently(minutesAgo = 30): Date {
+  return new Date(Date.now() - minutesAgo * 60 * 1000);
 }
 
 interface SeedOptions {
+  trendTerms?: string[];
   hashtags?: string[];
   classificationTopics?: string[];
-  topicRefs?: Array<{ name: string; relevance?: number; type?: 'topic' | 'entity' }>;
+  oxyUserId?: string | null;
+  language?: string;
   createdAt?: Date;
   status?: 'published' | 'draft';
   visibility?: 'public' | 'private';
   classificationSensitive?: boolean;
   metadataIsSensitive?: boolean;
   federationSensitive?: boolean;
+  spamScore?: number;
   isBoost?: boolean;
 }
 
@@ -66,36 +90,41 @@ async function seedPost(options: SeedOptions = {}): Promise<string> {
     .values({
       status: options.status ?? 'published',
       visibility: options.visibility ?? 'public',
-      createdAt: options.createdAt ?? new Date(Date.now() - 60 * 60 * 1000),
+      createdAt: options.createdAt ?? recently(),
+      oxyUserId: options.oxyUserId === undefined ? `author-${RUN}-${createdPostIds.length}` : options.oxyUserId,
+      language: options.language ?? 'en',
+      classificationTrendTerms: options.trendTerms,
       hashtags: options.hashtags,
       classificationTopics: options.classificationTopics,
       classificationSensitive: options.classificationSensitive,
       metadataIsSensitive: options.metadataIsSensitive ?? false,
       federationSensitive: options.federationSensitive,
+      ...(options.spamScore === undefined ? {} : { classificationScoreSpam: options.spamScore }),
     })
     .returning({ id: posts.id });
   createdPostIds.push(row.id);
 
   if (options.isBoost) {
-    // A boost points at an original; the aggregations exclude anything that does.
+    // A boost points at an original; the aggregation excludes anything that does.
     await db.update(posts).set({ boostOf: row.id }).where(inArray(posts.id, [row.id]));
-  }
-  if (options.topicRefs?.length) {
-    await db.insert(postClassificationTopicRefs).values(
-      options.topicRefs.map((ref) => ({
-        postId: row.id,
-        name: ref.name,
-        relevance: ref.relevance ?? null,
-        type: ref.type ?? null,
-      })),
-    );
   }
   return row.id;
 }
 
-/** Trends whose name is one of `names` — a sibling suite's rows can never match. */
-function mine<T extends { name: string }>(trends: T[], names: string[]): T[] {
-  return trends.filter((trend) => names.includes(trend.name));
+/** Seed `count` posts, each by a DIFFERENT author, all carrying `options`. */
+async function seedMany(count: number, options: SeedOptions = {}): Promise<void> {
+  for (let i = 0; i < count; i += 1) {
+    await seedPost(options);
+  }
+}
+
+/** This run's candidates only — a sibling suite's rows can never match. */
+function mine(candidates: TermCandidateView[], terms: string[]): TermCandidateView[] {
+  return candidates.filter((candidate) => terms.includes(candidate.measurement.term));
+}
+
+async function candidatesFor(terms: string[]): Promise<TermCandidateView[]> {
+  return mine(await svc.aggregateTermCandidates(new Date()), terms);
 }
 
 beforeAll(async () => {
@@ -104,7 +133,6 @@ beforeAll(async () => {
 
 afterEach(async () => {
   if (createdPostIds.length > 0) {
-    // `post_classification_topic_refs` cascades from the post.
     await db.delete(posts).where(inArray(posts.id, createdPostIds));
     createdPostIds.length = 0;
   }
@@ -114,162 +142,202 @@ afterAll(async () => {
   await closePostgres();
 });
 
-describe('aggregateHashtags — the safety gate is in the QUERY, not after it', () => {
-  it('counts an ordinary hashtag and excludes every sensitive flag', async () => {
+describe('aggregateTermCandidates — what is allowed to count', () => {
+  it('excludes every sensitive flag independently, and each is nullable', async () => {
     /**
-     * Each of the three flags is INDEPENDENTLY sufficient, and each is nullable
-     * in a different way (`classification_sensitive` and `federation_sensitive`
-     * are NULL on most posts, `metadata_is_sensitive` never is). That is why the
-     * clause is `is not true` and not `= false`: with `<> true`, a NULL makes the
-     * whole predicate NULL and EVERY unclassified post would silently vanish from
-     * trending. The clean post below is what catches that.
+     * The three flags are INDEPENDENTLY sufficient and each is nullable, so a
+     * predicate written as `= false` would silently drop every post that has
+     * never been classified — the overwhelming majority. Seeding one post per
+     * flag beside a clean cohort is what tells "excluded the sensitive ones"
+     * apart from "excluded everything".
      */
-    const tag = uniqueSlug('cleantag');
-    await seedPost({ hashtags: [tag] });
-    await seedPost({ hashtags: [tag], classificationSensitive: true });
-    await seedPost({ hashtags: [tag], metadataIsSensitive: true });
-    await seedPost({ hashtags: [tag], federationSensitive: true });
+    const clean = term('clean');
+    await seedMany(MIN_VOLUME, { trendTerms: [clean] });
+    await seedPost({ trendTerms: [clean], classificationSensitive: true });
+    await seedPost({ trendTerms: [clean], metadataIsSensitive: true });
+    await seedPost({ trendTerms: [clean], federationSensitive: true });
 
-    const trends = mine(await svc.aggregateHashtags(), [tag]);
+    const [candidate] = await candidatesFor([clean]);
 
-    expect(trends).toHaveLength(1);
-    expect(trends[0].volume).toBe(1);
+    expect(candidate).toBeDefined();
+    expect(candidate.measurement.volume).toBe(MIN_VOLUME);
   });
 
-  it('excludes drafts, private posts, boosts, and posts outside the 24-hour window', async () => {
-    const tag = uniqueSlug('windowtag');
-    await seedPost({ hashtags: [tag] });
-    await seedPost({ hashtags: [tag], status: 'draft' });
-    await seedPost({ hashtags: [tag], visibility: 'private' });
-    await seedPost({ hashtags: [tag], isBoost: true });
-    await seedPost({ hashtags: [tag], createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000) });
+  it('excludes drafts, non-public posts and boosts', async () => {
+    const gated = term('gated');
+    await seedMany(MIN_VOLUME, { trendTerms: [gated] });
+    await seedPost({ trendTerms: [gated], status: 'draft' });
+    await seedPost({ trendTerms: [gated], visibility: 'private' });
+    await seedPost({ trendTerms: [gated], isBoost: true });
 
-    const trends = mine(await svc.aggregateHashtags(), [tag]);
+    const [candidate] = await candidatesFor([gated]);
 
-    expect(trends).toHaveLength(1);
-    expect(trends[0].volume).toBe(1);
+    expect(candidate.measurement.volume).toBe(MIN_VOLUME);
   });
 
-  it('counts the six-hour subset separately, driving momentum', async () => {
-    // Two posts, one of them recent: momentum = (recent * 4) / total, capped at 1.
-    const tag = uniqueSlug('momentumtag');
-    await seedPost({ hashtags: [tag], createdAt: new Date(Date.now() - 60 * 1000) });
-    await seedPost({ hashtags: [tag], createdAt: new Date(Date.now() - 20 * 60 * 60 * 1000) });
+  it('excludes a post the deterministic classifier already scored as spam', async () => {
+    /**
+     * The clause has to be TOTAL. Mongo's `{ $not: { $gte: n } }` matched a post
+     * with no spam score at all; SQL's `< n` would DROP those, shrinking every
+     * count. The unclassified post below is the one that proves `is not true`
+     * was written rather than `<`.
+     */
+    const scored = term('scored');
+    const reject = MtnConfig.feed.discoveryGate.spamRejectThreshold;
+    await seedMany(MIN_VOLUME - 1, { trendTerms: [scored], spamScore: 0 });
+    await seedPost({ trendTerms: [scored] }); // never classified — must still count
+    await seedPost({ trendTerms: [scored], spamScore: reject });
 
-    const [trend] = mine(await svc.aggregateHashtags(), [tag]);
+    const [candidate] = await candidatesFor([scored]);
 
-    expect(trend.volume).toBe(2);
-    expect(trend.momentum).toBeCloseTo(1, 10); // (1 * 4) / 2 = 2, capped at 1
-    expect(trend.score).toBeCloseTo(2 * (1 + 2 * 0.5), 10);
+    expect(candidate.measurement.volume).toBe(MIN_VOLUME);
   });
 
-  it('drops blocklisted NSFW hashtags even when the post itself is clean', async () => {
-    // The post carries no sensitive flag at all, so the query-level gate lets it
-    // through; the blocklist filter after the aggregation is what removes it.
-    const clean = uniqueSlug('technology');
-    await seedPost({ hashtags: [clean, 'nsfw', 'Sexy'] });
+  it('drops blocklisted NSFW terms but keeps ordinary ones from the same posts', async () => {
+    const ordinary = term('ordinary');
+    // `porn` is on the NSFW blocklist and is NOT namespaced — that is the point:
+    // the blocklist matches the bare term, so it must be seeded bare.
+    await seedMany(MIN_VOLUME, { trendTerms: [ordinary, 'porn'] });
 
-    const trends = await svc.aggregateHashtags();
+    const candidates = await svc.aggregateTermCandidates(new Date());
 
-    expect(mine(trends, [clean])).toHaveLength(1);
-    expect(trends.map((t) => t.name)).not.toContain('nsfw');
-    expect(trends.map((t) => t.name)).not.toContain('sexy');
+    expect(candidates.map((c) => c.measurement.term)).toContain(ordinary);
+    expect(candidates.map((c) => c.measurement.term)).not.toContain('porn');
   });
 
-  it('counts every hashtag on a post, not just the first', async () => {
-    const first = uniqueSlug('first');
-    const second = uniqueSlug('second');
-    await seedPost({ hashtags: [first, second] });
+  it('applies the volume floor, so a term below it never becomes a candidate', async () => {
+    const thin = term('thin');
+    await seedMany(MIN_VOLUME - 1, { trendTerms: [thin] });
 
-    const trends = mine(await svc.aggregateHashtags(), [first, second]);
-
-    expect(trends.map((t) => t.volume)).toEqual([1, 1]);
+    expect(await candidatesFor([thin])).toEqual([]);
   });
 });
 
-describe('aggregateTopics — canonical refs, with the slug list as an EXCLUSIVE fallback', () => {
-  it('prefers canonical refs and does not also count the post\'s slug list', async () => {
+describe('aggregateTermCandidates — ONE term space', () => {
+  it('groups a hashtag and the bare word into a SINGLE candidate', async () => {
     /**
-     * The `not exists` in the slug branch. Without it this post contributes to
-     * BOTH branches: `canonical` counts 2 instead of 1, `legacy` appears at all,
-     * and the resulting volumes look entirely plausible.
+     * The whole reason the three columns are unioned: the previous design ranked
+     * hashtags and topics in separate lanes, so the lane that was cheapest to
+     * fill decided the output and trending read as a hashtag ranking.
      */
-    const canonical = uniqueSlug('canonical');
-    const legacy = uniqueSlug('legacy');
-    for (let i = 0; i < 2; i += 1) {
-      await seedPost({
-        classificationTopics: [legacy],
-        topicRefs: [{ name: canonical, relevance: 8 }],
-      });
+    const unified = term('unified');
+    await seedMany(3, { trendTerms: [unified] });
+    await seedMany(3, { hashtags: [unified] });
+
+    const candidates = await candidatesFor([unified]);
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].measurement.volume).toBe(6);
+  });
+
+  it('counts a post once even when it carries the term in two columns', async () => {
+    const doubled = term('doubled');
+    await seedMany(MIN_VOLUME, { trendTerms: [doubled], hashtags: [doubled] });
+
+    const [candidate] = await candidatesFor([doubled]);
+
+    expect(candidate.measurement.volume).toBe(MIN_VOLUME);
+  });
+
+  it('reaches a post that predates term extraction through its hashtags alone', async () => {
+    // A post written before the classifier emitted `trendTerms` has a NULL
+    // column; the union must not turn that into "no terms at all".
+    const legacy = term('legacy');
+    await seedMany(MIN_VOLUME, { hashtags: [legacy] });
+
+    const [candidate] = await candidatesFor([legacy]);
+
+    expect(candidate.measurement.volume).toBe(MIN_VOLUME);
+  });
+});
+
+describe('aggregateTermCandidates — authors are people, not posts', () => {
+  it('counts DISTINCT authors rather than posts', async () => {
+    /**
+     * The floor is applied to this number, and posts are the thing one account
+     * can manufacture: fifty posts from one author is not a trend, and counting
+     * posts alone made that indistinguishable from fifty people agreeing.
+     */
+    const shouty = term('shouty');
+    for (let i = 0; i < MIN_VOLUME + 2; i += 1) {
+      await seedPost({ trendTerms: [shouty], oxyUserId: `one-author-${RUN}` });
     }
 
-    const trends = await svc.aggregateTopics();
+    const [candidate] = await candidatesFor([shouty]);
 
-    expect(mine(trends, [canonical]).map((t) => t.volume)).toEqual([2]);
-    expect(mine(trends, [legacy])).toEqual([]);
+    expect(candidate.measurement.volume).toBe(MIN_VOLUME + 2);
+    expect(candidate.measurement.authorCount).toBe(1);
   });
 
-  it('falls back to the slug list for a post that resolved no refs', async () => {
-    const slugOnly = uniqueSlug('slugonly');
-    // Older than the six-hour window, so momentum is 0 and `score` is exactly the
-    // summed relevance — the thing under test — rather than relevance x 1.5.
-    for (let i = 0; i < 2; i += 1) await seedPost({ classificationTopics: [slugOnly], createdAt: STALE });
-
-    const [trend] = mine(await svc.aggregateTopics(), [slugOnly]);
-
-    expect(trend.volume).toBe(2);
-    expect(trend.type).toBe('topic');
-    // Slug topics carry no relevance, so each contributes the neutral default (5).
-    expect(trend.score).toBeCloseTo(10, 10);
-  });
-
-  it('sums a ref\'s declared relevance and defaults a missing one to the neutral value', async () => {
-    const declared = uniqueSlug('declared');
-    const missing = uniqueSlug('missing');
-    for (let i = 0; i < 2; i += 1) {
-      await seedPost({
-        topicRefs: [{ name: declared, relevance: 9 }, { name: missing }],
-        createdAt: STALE,
-      });
+  it('does not let orphan posts with no author inflate the author count', async () => {
+    // A legacy orphan federated post is a real post and counts toward volume,
+    // but it cannot testify to WHO is posting — which would be the one way to
+    // walk straight past the author floor.
+    const orphaned = term('orphaned');
+    await seedMany(2, { trendTerms: [orphaned] });
+    for (let i = 0; i < MIN_VOLUME; i += 1) {
+      await seedPost({ trendTerms: [orphaned], oxyUserId: null });
     }
 
-    const trends = await svc.aggregateTopics();
+    const [candidate] = await candidatesFor([orphaned]);
 
-    expect(mine(trends, [declared])[0].score).toBeCloseTo(18, 10);
-    expect(mine(trends, [missing])[0].score).toBeCloseTo(10, 10);
+    expect(candidate.measurement.volume).toBe(MIN_VOLUME + 2);
+    expect(candidate.measurement.authorCount).toBe(2);
+    expect(candidate.actorIds).toHaveLength(2);
   });
 
-  it('keeps a name that is both a topic and an entity as TWO trends', async () => {
-    // The same collision the batch uniqueness key exists for, one layer earlier.
-    const shared = uniqueSlug('shared');
-    for (let i = 0; i < 2; i += 1) {
-      await seedPost({ topicRefs: [{ name: shared, type: 'topic' }] });
-      await seedPost({ topicRefs: [{ name: shared, type: 'entity' }] });
-    }
+  it('caps the stored actor sample at maxActors', async () => {
+    const crowded = term('crowded');
+    const authors = MtnConfig.trending.detection.maxActors + 3;
+    await seedMany(authors, { trendTerms: [crowded] });
 
-    const trends = mine(await svc.aggregateTopics(), [shared]);
+    const [candidate] = await candidatesFor([crowded]);
 
-    expect(trends.map((t) => t.type).sort()).toEqual(['entity', 'topic']);
+    expect(candidate.measurement.authorCount).toBe(authors);
+    expect(candidate.actorIds).toHaveLength(MtnConfig.trending.detection.maxActors);
+  });
+});
+
+describe('aggregateTermCandidates — provenance is carried, not scored', () => {
+  it('counts how often the term arrived as a hashtag and as a topic slug', async () => {
+    // Provenance decides the row's `type` and gates the topic-registry lookup.
+    // Nothing about the score depends on it, which is why it travels separately.
+    const mixed = term('mixed');
+    await seedMany(2, { hashtags: [mixed] });
+    await seedMany(2, { classificationTopics: [mixed] });
+    await seedMany(2, { trendTerms: [mixed] });
+
+    const [candidate] = await candidatesFor([mixed]);
+
+    expect(candidate.measurement.volume).toBe(6);
+    expect(candidate.hashtagVolume).toBe(2);
+    expect(candidate.topicVolume).toBe(2);
   });
 
-  it('requires at least two posts before a topic trends', async () => {
-    const lonely = uniqueSlug('lonely');
-    await seedPost({ topicRefs: [{ name: lonely }] });
+  it('carries the primary languages of the posts behind the term, ignoring the unset ones', async () => {
+    const bilingual = term('bilingual');
+    await seedMany(3, { trendTerms: [bilingual], language: 'es' });
+    await seedMany(2, { trendTerms: [bilingual], language: 'en' });
 
-    expect(mine(await svc.aggregateTopics(), [lonely])).toEqual([]);
+    const [candidate] = await candidatesFor([bilingual]);
+
+    expect([...candidate.languages].sort()).toEqual(['en', 'es']);
   });
 
-  it('excludes sensitive posts and NSFW slugs from topics too', async () => {
-    const clean = uniqueSlug('cleantopic');
-    for (let i = 0; i < 2; i += 1) await seedPost({ topicRefs: [{ name: clean }] });
-    for (let i = 0; i < 4; i += 1) {
-      await seedPost({ topicRefs: [{ name: clean }], classificationSensitive: true });
-      await seedPost({ topicRefs: [{ name: 'porn' }] });
-    }
+  it('separates the recent window from the trailing one', async () => {
+    // `recentVolume` is the numerator of the burst statistic; counting the whole
+    // window into it would make every term look like it is breaking now.
+    const bursty = term('bursty');
+    await seedMany(3, { trendTerms: [bursty], createdAt: recently(10) });
+    await seedMany(2, {
+      trendTerms: [bursty],
+      // Inside the 24-hour window, outside the six-hour one.
+      createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000),
+    });
 
-    const trends = await svc.aggregateTopics();
+    const [candidate] = await candidatesFor([bursty]);
 
-    expect(mine(trends, [clean]).map((t) => t.volume)).toEqual([2]);
-    expect(trends.map((t) => t.name)).not.toContain('porn');
+    expect(candidate.measurement.volume).toBe(5);
+    expect(candidate.measurement.recentVolume).toBe(3);
   });
 });

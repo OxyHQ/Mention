@@ -128,6 +128,9 @@ describe('getPostEditSource', () => {
         media: [{ id: 'media-1', type: 'image' }],
       },
       mentions: ['alice-id', 'bob-id'],
+      // Sent unconditionally: the column is `NOT NULL`, and the composer needs
+      // it to know whether the 30-minute edit window applies at all.
+      status: 'published',
       mentionUsers: [{ id: 'alice-id', username: 'alice', name: { displayName: 'Alice' } }],
       authorship: [{ oxyUserId: OWNER, role: 'owner', status: 'accepted' }],
     });

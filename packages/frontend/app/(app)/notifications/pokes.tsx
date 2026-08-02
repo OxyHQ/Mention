@@ -226,8 +226,12 @@ export default function PokesScreen() {
                     <EmptyState
                         title={t('pokes.empty.title', { defaultValue: 'No pokes yet' })}
                         subtitle={t('pokes.empty.subtitle', { defaultValue: 'When someone pokes you, it will show up here. Poke your followers to get started!' })}
+                        // `contrast50` is the theme's real muted surface;
+                        // `${theme.colors.border}33` was a malformed colour (the
+                        // token is `rgb(...)`) that painted an opaque
+                        // border-coloured disc.
                         customIcon={
-                            <View style={[styles.emptyIcon, { backgroundColor: `${theme.colors.border}33` }]}>
+                            <View style={[styles.emptyIcon, { backgroundColor: theme.colors.contrast50 }]}>
                                 <Ionicons name="hand-right" size={36} color={theme.colors.textSecondary} />
                             </View>
                         }

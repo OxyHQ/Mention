@@ -6,6 +6,7 @@
  */
 
 import type { FeedInterstitialKind } from '../feed';
+import { TREND_CATEGORIES } from '../trending';
 
 export const MtnConfig = {
   // --- Ranking weights ---
@@ -667,6 +668,279 @@ export const MtnConfig = {
        */
       minPoints: 6,
     },
+
+    /**
+     * TERM EXTRACTION — the Stage-A ingest step that decides what a post is
+     * ABOUT, in the vocabulary trending measures.
+     *
+     * Bounds only. The extractor holds the linguistics (stop words, tokenizing,
+     * phrase runs); everything here is a size limit, so tuning how much a post
+     * may contribute never means editing the algorithm.
+     */
+    terms: {
+      /**
+       * Shortest token kept. Two-letter tokens are overwhelmingly particles,
+       * initials and units that survive stop-word filtering in every language
+       * at once, and they cannot carry a trend on their own.
+       */
+      minTokenLength: 3,
+      /**
+       * Longest token kept. Above this a "word" is a URL fragment, a base64
+       * blob or a keysmash — never something a reader would recognise as a
+       * topic — and it would otherwise bloat the stored array and its index.
+       */
+      maxTokenLength: 32,
+      /**
+       * Longest PHRASE, in tokens. Two is what the shape of real trends asks
+       * for: a person (`todd blanche`), an event (`kremer trade`), a tag
+       * (`frightclub`). Three-token phrases multiply the candidate space
+       * without adding trends that the two-token prefix does not already carry.
+       */
+      maxPhraseTokens: 2,
+      /**
+       * Terms stored per post. A cap is what keeps the multikey index bounded:
+       * without one, a single long post writes hundreds of index entries. Terms
+       * are emitted in reading order, so the cap keeps the opening of the post —
+       * which is where its subject almost always is.
+       */
+      maxTermsPerPost: 12,
+    },
+
+    /**
+     * DETECTION — how the 30-minute batch decides what is trending.
+     *
+     * The measurement is a BURST, not a total: a term's rate over the recent
+     * window is compared against the rate implied by its own trailing window,
+     * and the score is how far the observation sits above what that baseline
+     * predicts. This is the whole reason a permanently-popular hashtag stops
+     * outranking real news — it is enormous but perfectly steady, so it predicts
+     * itself and scores ~0.
+     */
+    detection: {
+      /**
+       * Trailing window that establishes the BASELINE rate, and over which
+       * `volume` is counted. Also the window the sparkline is drawn over, so a
+       * point and its axis describe the same span.
+       */
+      windowMs: 24 * 60 * 60 * 1000,
+      /**
+       * The RECENT window whose rate is tested against the baseline. A quarter
+       * of the trailing window: long enough that a handful of posts does not
+       * swing the rate, short enough that a story breaking now is visible within
+       * one or two batches.
+       */
+      recentWindowMs: 6 * 60 * 60 * 1000,
+      /**
+       * Distinct AUTHORS a term needs before it can trend at all. The floor is
+       * on people, not posts, because posts are the thing a single account can
+       * manufacture: fifty posts from one author is not a trend, and counting
+       * posts alone made that indistinguishable from fifty people agreeing.
+       */
+      minAuthors: 3,
+      /**
+       * Posts a term needs in the trailing window.
+       *
+       * Guards the rate estimate itself: below a handful of observations the
+       * burst statistic measures a coincidence precisely.
+       *
+       * Briefly raised to 8 to remove `why`, `right` and `will` from the live
+       * list, which emptied it completely — and that was the wrong lever pulled
+       * for the right complaint. Those terms are noise because of WHAT THEY
+       * ARE, and the stop-word filter that now runs at detection removes them
+       * by name at any volume. This floor only has to exclude counts too small
+       * to estimate a rate from; asking it to do semantics as well is what
+       * costs a small network its entire list.
+       *
+       * Measured against the batches of 2026-08-01: at 5, `why`/`will` are
+       * gone by name, `right` (4 posts) is gone by count, and `music` (5) and
+       * `politics` (11) survive — which is the list this network actually has.
+       */
+      minVolume: 5,
+      /**
+       * VOCABULARY CEILING: the share of ALL posts in the window a term may
+       * appear in before it is treated as vocabulary rather than a subject.
+       *
+       * A stop-word list can only ever hold the words somebody thought of, in
+       * the languages somebody speaks. This asks the corpus instead: a term
+       * carried by a large fraction of everything posted is how this network
+       * talks, not what it is talking about — and that holds in any language,
+       * for slang, and for whatever the next surprise is.
+       *
+       * SCALE-SENSITIVE, and the first value chosen was wrong for this network.
+       * 3% was intuition borrowed from Bluesky's size, where a huge story like
+       * `fifa` (1,897 posts) is still a hundredth of a percent of the day. On a
+       * network whose busiest term of the day is twenty posts, a legitimate
+       * trend IS several percent of everything — so 3% deleted `politics` (11
+       * posts, 4 authors) as vocabulary and emptied the list.
+       *
+       * A quarter is the level at which the claim actually holds: a term
+       * carried by one post in four is how the network talks, whatever it is.
+       * Real vocabulary sits far above it and real subjects far below, so the
+       * gap between them is what makes the number safe rather than tuned.
+       *
+       * The stop-word list, not this, is what removes function words — they are
+       * refused by NAME at any frequency. This exists for the terms no list
+       * anticipates.
+       */
+      maxDocumentFrequency: 0.25,
+      /**
+       * CONCENTRATION CEILING: posts per distinct author a term may average
+       * before it is refused entirely.
+       *
+       * The author floor asks "how many people?", which one prolific account
+       * walks past the moment a second one joins it. This asks the other half —
+       * "is anyone saying this more than a few times?" — and it is the guard
+       * that actually matches how automated posting looks on this network.
+       *
+       * Measured on Mention's own trending list, 2026-08-01: `#noticia` was 20
+       * posts from ONE account, `#ultimanoticia` 10 from the same one, and
+       * `#cartoon` 40 posts from TWO accounts alternating. Those three were the
+       * top of the list. Every real conversation has the opposite shape — many
+       * people saying something once or twice — so a ceiling of four separates
+       * them cleanly without needing to identify anybody as a bot.
+       */
+      maxPostsPerAuthor: 4,
+      /**
+       * How many trends a batch tries to report before it is willing to fall
+       * back on popularity (see `topUpWithPopular`). A list of one or two is
+       * not a list, so the top-up fills toward this and stops.
+       */
+      minTrends: 5,
+      /**
+       * Posts a term needs before POPULARITY alone can put it on the list —
+       * deliberately higher than {@link minVolume}.
+       *
+       * The two paths make different claims and so need different evidence. A
+       * burst can be small, because the shape of the spike is the signal: four
+       * of five posts arriving in the last few hours means something even at
+       * five posts. "People are posting about this" means nothing at five
+       * posts — it is just five posts.
+       *
+       * Live batch, 2026-08-01: `came` reached the widget with a volume of 3
+       * and a NEGATIVE burst score. No statistical guard can save a list at
+       * that size, and no stop-word list will ever contain every inflected
+       * form of every common verb. The honest fix is to require the popular
+       * path to actually be popular.
+       *
+       * RECALIBRATED once a term had to NAME something. This bar was doing two
+       * jobs: proving there was enough evidence, and standing in for "is this a
+       * subject at all?" — which it could only ever do by proxy, because the
+       * term space was then full of ordinary words whose volume came from
+       * everyone who happened to use them. The naming rule answers the second
+       * question upstream now, and it shrank every count with it: `Ukraine`, a
+       * real subject, measured exactly 10, fell short on the next batch, and
+       * left the list empty.
+       *
+       * So this returns to being an evidence floor and nothing more. Whether a
+       * term is a name is no longer this number's question to answer.
+       */
+      minPopularVolume: 5,
+      /**
+       * How far above its own baseline a term must sit to be reported, in
+       * standard deviations of the Poisson count it is compared against.
+       * Everything below this is ordinary fluctuation of an ordinary term.
+       */
+      minBurstScore: 1.5,
+      /**
+       * Burst score at which a trend is marked `hot`. Deliberately far above
+       * {@link minBurstScore}: `hot` is a claim that something is happening
+       * right now, and a badge that lights up for every third row says nothing.
+       */
+      hotBurstScore: 6,
+      /**
+       * How long a trend is considered NEW after it first appeared, for the
+       * client's badge. Past it the client shows the trend's age instead.
+       */
+      newTrendMaxAgeMs: 2 * 60 * 60 * 1000,
+      /**
+       * Gap tolerated when reconstructing when a trend STARTED. A term that
+       * drops out of one or two batches and returns is the same run, not a new
+       * one — trends hover around the reporting threshold, and treating every
+       * dip as a fresh start would reset the age of a day-old story to zero and
+       * relight its `new` badge. Three batch intervals.
+       */
+      onsetGapToleranceMs: 90 * 60 * 1000,
+      /**
+       * How far back the onset reconstruction looks. Bounds the history scan;
+       * a run older than this reports its start clamped to the lookback, which
+       * only affects the age label of a trend that has been running for a week
+       * and is a bound the reader cannot mistake for a fresh start.
+       */
+      onsetLookbackMs: 7 * 24 * 60 * 60 * 1000,
+      /** Trends stored per batch. Bounds the batch write and every read below it. */
+      maxTrends: 30,
+      /**
+       * Representative authors kept per trend — the faces shown beside it. Small
+       * on purpose: they are evidence that real accounts are behind the trend,
+       * not a directory of them.
+       */
+      maxActors: 5,
+    },
+
+    /**
+     * SUMMARIES — the one place a model is allowed to run, and only for trends
+     * readers actually open.
+     *
+     * A trend's NAME is derived deterministically for every trend of every
+     * batch (see `services/trending/trendLabeling.ts`). A summary is different:
+     * it is prose explaining what happened, it is only worth anything on the
+     * screen a reader lands on after pressing a trend, and it costs a
+     * generation. Generating one per trend per batch would mean paying
+     * continuously for text almost nobody reads — at 30 trends every 30
+     * minutes, over a thousand generations a day whether or not a single person
+     * opens one.
+     *
+     * So demand pays for it: the summary is generated the first time a trend
+     * crosses {@link minViews} opens, ONCE per run, and served from storage
+     * forever after.
+     */
+    summary: {
+      /**
+       * Opens a trend needs before its summary is generated.
+       *
+       * The threshold IS the cost control, and it is per-run rather than
+       * per-batch: a trend that runs all day is summarised once, not
+       * forty-eight times. Set it to a number a curious reader can reach and an
+       * indifferent one cannot.
+       */
+      minViews: 25,
+      /**
+       * How long the view counter lives. Comfortably longer than a typical run
+       * so the opens that accumulate over an evening still add up, and short
+       * enough that a term returning weeks later starts counting afresh.
+       */
+      viewWindowMs: 48 * 60 * 60 * 1000,
+      /**
+       * Longest summary kept. Two sentences of context under a headline — past
+       * this it stops being a caption and becomes an article nobody asked for.
+       */
+      maxLength: 280,
+    },
+
+    /**
+     * LABELLING — turning a detected term into something a human recognises.
+     *
+     * A term is a retrieval key (`orioles`); a label is what the story is
+     * (`Kremer Trade`). They are different strings for a good reason: the key
+     * has to match what people wrote, and the label has to read like a headline.
+     * Only the label is ever shown.
+     */
+    labeling: {
+      /**
+       * Terms sent for labelling per batch. Only terms that have never been
+       * labelled are sent — an existing label is REUSED — so this bounds the
+       * cost of a batch where many trends are new at once, which is exactly the
+       * batch during which a big story breaks.
+       */
+      maxPerBatch: 12,
+      /**
+       * The category taxonomy offered to the labeller. Declared once in
+       * `trending.ts` (with the matching type and the degrade-to-`other`
+       * narrowing) and referenced here, so the list a prompt is built from and
+       * the list a client can render can never drift apart.
+       */
+      categories: TREND_CATEGORIES,
+    },
   },
 
   /** Videos (Reels) feed — metadata-backed filters (no runtime probing). */
@@ -691,6 +965,7 @@ export const MtnConfig = {
       custom: 10000,
       hashtag: 15000,
       topic: 15000,
+      trend: 15000,
       list: 10000,
       feedgen: 5000,
       trending: 15000,

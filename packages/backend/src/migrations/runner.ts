@@ -24,6 +24,14 @@ import { migrationPostHotPathIndexes } from './0010-post-hot-path-indexes';
 import { migrationEngagementOutboxIndexes } from './0011-engagement-outbox-indexes';
 import { migrationMtnEventIdempotencyIndex } from './0012-mtn-event-idempotency-index';
 import { migrationTrendingNameTypeUniqueIndex } from './0013-trending-name-type-unique-index';
+import { migrationPostTrendTermsIndex } from './0014-post-trend-terms-index';
+import { migrationTrendSummaryIndexes } from './0015-trend-summary-indexes';
+import { migrationAdminScriptCursorIndex } from './0016-admin-script-cursor-index';
+import { migrationRepairFetchFailureIndexes } from './0017-repair-fetch-failure-indexes';
+import { migrationBlockedDomainPurgeIndexes } from './0018-blocked-domain-purge-indexes';
+import { migrationBlockedDomainPurgeRunIndexes } from './0019-blocked-domain-purge-run-indexes';
+import { migrationBlocklistProposalIndexes } from './0020-blocklist-proposal-indexes';
+import { migrationBlocklistProposalRunIndexes } from './0021-blocklist-proposal-run-indexes';
 import { MIGRATIONS_COLLECTION } from './constants';
 
 export interface Migration {
@@ -73,7 +81,27 @@ const MIGRATIONS: readonly Migration[] = [
   migrationEngagementOutboxIndexes,
   migrationMtnEventIdempotencyIndex,
   migrationTrendingNameTypeUniqueIndex,
+  migrationPostTrendTermsIndex,
+  migrationTrendSummaryIndexes,
+  migrationAdminScriptCursorIndex,
+  migrationRepairFetchFailureIndexes,
+  migrationBlockedDomainPurgeIndexes,
+  migrationBlockedDomainPurgeRunIndexes,
+  migrationBlocklistProposalIndexes,
+  migrationBlocklistProposalRunIndexes,
 ];
+
+/**
+ * The ordered ids this runner will apply.
+ *
+ * Exported so that a migration which was WRITTEN but never registered here is a
+ * test failure rather than a discovery months later. That mistake is silent by
+ * construction: nothing imports the file, nothing runs it, and in production —
+ * where `autoIndex`/`autoCreate` are off — the index it was meant to create
+ * simply does not exist while every query still works, more slowly or without
+ * the constraint it was supposed to enforce.
+ */
+export const MIGRATION_IDS: readonly string[] = MIGRATIONS.map((migration) => migration.id);
 
 export async function getPendingMigrationIds(): Promise<string[]> {
   const db = mongoose.connection.db;

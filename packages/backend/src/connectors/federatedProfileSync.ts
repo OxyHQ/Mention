@@ -221,12 +221,13 @@ class FederatedProfileSync {
           actor = await activityPubConnector.fetchRemoteActor(actorUri, false, acctHint);
 
           if (!actor) {
-            // The actor fetch is the ONLY place the instance domain policy is
-            // enforced (`isBlockedDomain` inside `fetchRemoteActor` — it rejects a
-            // configured blocked instance, our own AP domains, and the Oxy identity
-            // apex; `syncOutboxPostsDetailed` does not check it). Fabricating a
-            // minimal actor row with a guessed `<actorUri>/outbox` here therefore
-            // imported posts from an instance the policy had just refused. Guessing
+            // The actor fetch enforces the instance domain policy (`isBlockedDomain`
+            // inside `fetchRemoteActor` — it rejects a configured blocked instance,
+            // our own AP domains, and the Oxy identity apex). Fabricating a minimal
+            // actor row with a guessed `<actorUri>/outbox` here therefore used to
+            // import posts from an instance the policy had just refused —
+            // `syncOutboxPostsDetailed` now re-checks the policy itself, but the
+            // fabrication would still be wrong for the reason below. Guessing
             // that URL is also wrong on its own terms — the outbox has to come from
             // the actor's advertised `outbox` field, since non-Mastodon layouts
             // (PeerTube, Lemmy, some Pleroma) put it elsewhere. So a failed fetch is

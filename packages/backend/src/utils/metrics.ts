@@ -64,6 +64,11 @@ const DEFINITIONS = {
     help: 'Trending batch calculations by outcome (success, partial, failure)',
     labelNames: ['result'],
   },
+  trend_summary_total: {
+    kind: 'counter',
+    help: 'On-demand trend summary generations, by outcome (generated, failed)',
+    labelNames: ['result'],
+  },
   trending_batch_age_seconds: {
     kind: 'gauge',
     help: 'Age of the trending batch being served, observed on a cache miss',

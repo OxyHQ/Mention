@@ -49,7 +49,6 @@ import {
 } from '@mention/shared-types';
 import {
   mentionTextsFromContent,
-  reconcileMentionIds,
 } from '@mention/shared-types/mentions';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
 import { affinityEventService } from '../services/AffinityEventService';
@@ -59,13 +58,14 @@ import { logger } from '../utils/logger';
 import { metrics } from '../utils/metrics';
 import { postHydrationService, resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
 import { config } from '../config';
-import { mergeHashtags } from '../utils/textProcessing';
+import { mergeHashtags, reconcileMentionIdsForPost } from '../utils/textProcessing';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { extractFollowingIds } from '../utils/privacyHelpers';
 import { queryInt, queryString } from '../utils/queryParams';
 import { topicSlugSql } from '../utils/postTopicMatch';
 import { requestLanguageCandidates } from '../utils/viewerLanguage';
 import { getRuntimeSocketServer } from '../runtime/socketServer';
+import { emitPostEngagement, POST_ENGAGEMENT_EVENTS } from '../services/postEngagementBroadcast';
 import { normalizeMediaItems, type NormalizedMediaItem } from '../utils/mediaInput';
 import { warmLinkPreviewForText } from '../utils/linkPreviewWarm';
 import { authorVariants, buildPrimaryVariant, resolveVariant, validateAuthorVariants } from '../services/postVariants';
@@ -93,6 +93,7 @@ import {
   updateBookmarkFolderForViewer,
 } from '../services/BookmarkFolderService';
 import { repairRecentRepliersAfterPostDelete } from '../services/PostRecentReplierService';
+import { loadScheduledChain } from '../services/scheduledChain';
 
 // Constants from centralized config
 const MAX_SOURCES = config.posts.maxSources;
@@ -939,8 +940,33 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    if (req.body.status || req.body.scheduledFor) {
-      return res.status(400).json({ message: 'Scheduling threads is not supported yet' });
+    // Both modes are schedulable, and they are schedulable for different
+    // reasons. Beast posts are independent — nothing chains to anything — so
+    // scheduling them is n independent scheduled posts. A THREAD is a chain:
+    // each continuation is created with its predecessor as `parentPostId`, so
+    // publishing them separately could let a reply go live before the post it
+    // answers. That is not solved here but in the publish path, where it belongs:
+    // `claimAndPublishScheduledPost` refuses a post whose parent has not
+    // published, and `ScheduledPostPublisher` walks each chain parent-first and
+    // stops at its first failure. See `services/scheduledChain.ts` for why the
+    // invariant survives a partial failure.
+    const wantsSchedule = Boolean(req.body.status || req.body.scheduledFor);
+
+    let threadScheduledFor: Date | null = null;
+    if (wantsSchedule) {
+      // The SAME two checks `POST /posts` applies, deliberately: a beast batch
+      // must not be schedulable on terms a single post is not.
+      if (!req.body.scheduledFor) {
+        return res.status(400).json({ message: 'scheduledFor is required when scheduling a post' });
+      }
+      const parsed = new Date(req.body.scheduledFor);
+      if (Number.isNaN(parsed.getTime())) {
+        return res.status(400).json({ message: 'Invalid scheduled time' });
+      }
+      if (parsed.getTime() <= Date.now()) {
+        return res.status(400).json({ message: 'Scheduled time must be in the future' });
+      }
+      threadScheduledFor = parsed;
     }
 
     // Collaborative authorship is a single-post feature; a thread has no single
@@ -1119,6 +1145,14 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         // previous post (sequential thread), with a shared threadId root.
         // For beast mode: all posts are independent.
         ...(isThreadContinuation ? { parentPostId: previousPostId, threadId: mainPostId } : {}),
+        // Every post of a scheduled batch carries the SAME time — the author
+        // picked one moment for the set, not n moments. For a beast batch each
+        // is then an ordinary scheduled post published independently; for a
+        // thread the shared time is what lets the sweep pick the whole chain up
+        // on one tick and publish it in order.
+        ...(threadScheduledFor
+          ? { status: 'scheduled' as const, scheduledFor: threadScheduledFor }
+          : {}),
         skipNotifications: true,
         skipSocketEmit: true,
         skipFederationDelivery: true,
@@ -1149,8 +1183,12 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
       // Mentions per post in thread. Read the reconciled persisted allowlist,
       // never the raw request metadata: an orphan id must not notify anyone.
+      // A SCHEDULED post has not gone out, so nobody has been mentioned yet —
+      // `publishScheduledPost` runs this same notification stage at the moment it
+      // does. Notifying here would point people at a post they cannot read.
       try {
-        if (anchored.mentions.length > 0) {
+        // A scheduled thread notifies NOBODY yet, per the note above.
+        if (!threadScheduledFor && anchored.mentions.length > 0) {
           await createMentionNotifications(
             anchored.mentions,
             anchored.id,
@@ -1192,10 +1230,13 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
     logger.info(`Created ${createdPosts.length} posts in ${mode} mode`);
 
-    // Emit real-time feed update for new thread posts
+    // Emit real-time feed update for new thread posts. A SCHEDULED batch emits
+    // nothing: the posts are not readable yet, so pushing them into live feeds
+    // would show subscribers a post the ACL then refuses. Each one emits for
+    // itself when the publisher runs it.
     try {
       const io = getRuntimeSocketServer();
-      if (io && createdPosts.length > 0) {
+      if (io && !threadScheduledFor && createdPosts.length > 0) {
         // Emit the first post (main post) to feeds
         const mainPost = createdPosts[0];
         io.emit('feed:updated', {
@@ -1342,10 +1383,22 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    // Enforce 30-minute edit window
-    const EDIT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
-    if (Date.now() - loaded.createdAt.getTime() > EDIT_WINDOW_MS) {
-      return res.status(403).json({ message: 'Edit window has expired. Posts can only be edited within 30 minutes of creation.' });
+    // The 30-minute edit window exists because READERS have already seen a
+    // published post: rewriting one indefinitely is a trust problem, so the
+    // author gets a short grace period and no more.
+    //
+    // A SCHEDULED post has no readers. It has not published, has not federated,
+    // and has emitted no MTN record — so the window's reason simply does not
+    // apply, while the window itself would make a post scheduled for next
+    // Tuesday uneditable thirty minutes after it was written. Hence the
+    // carve-out. It is decided from the STORED status read in this request;
+    // nothing the client sends can select it.
+    const editingScheduledPost = loaded.status === 'scheduled';
+    if (!editingScheduledPost) {
+      const EDIT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+      if (Date.now() - loaded.createdAt.getTime() > EDIT_WINDOW_MS) {
+        return res.status(403).json({ message: 'Edit window has expired. Posts can only be edited within 30 minutes of creation.' });
+      }
     }
 
     // The edit is assembled as PLAIN VALUES and written once at the end, rather
@@ -1357,6 +1410,27 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     const post = loaded;
     const content: StoredPostContent = { ...post.content };
     const patch: PostRecordPatch = {};
+
+    // Rescheduling. Only a post that is still scheduled can be moved — sending a
+    // time for a published post is a client bug, not a silent no-op. The new
+    // time may be EARLIER or later; the only bound is that it is still ahead,
+    // since the publisher sweeps for `scheduled_for <= now` and a past time would
+    // mean "publish on the next tick" while reading as a schedule.
+    let rescheduledTo: Date | null = null;
+    if (req.body.scheduledFor !== undefined) {
+      if (!editingScheduledPost) {
+        return res.status(400).json({ message: 'Only a scheduled post can be rescheduled' });
+      }
+      const nextScheduledFor = new Date(req.body.scheduledFor);
+      if (Number.isNaN(nextScheduledFor.getTime())) {
+        return res.status(400).json({ message: 'scheduledFor must be a valid date' });
+      }
+      if (nextScheduledFor.getTime() <= Date.now()) {
+        return res.status(400).json({ message: 'scheduledFor must be in the future' });
+      }
+      patch.scheduledFor = nextScheduledFor;
+      rescheduledTo = nextScheduledFor;
+    }
 
     // Support both flat body fields and nested content object from frontend
     const contentObj = req.body.content;
@@ -1448,6 +1522,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         languages: signals.languages,
         region: signals.region,
         hashtagsNorm: signals.hashtagsNorm,
+        trendTerms: signals.trendTerms,
         sensitive: signals.sensitive,
         scores: signals.scores,
         version: signals.version,
@@ -1567,7 +1642,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     content.attachments = updatedAttachments ?? undefined;
 
     if (hashtags !== undefined) patch.hashtags = mergeHashtags('', hashtags || []);
-    const nextMentions = reconcileMentionIds(
+    const nextMentions = reconcileMentionIdsForPost(
       mentionTextsFromContent(content),
       mentions !== undefined ? mentions : post.mentions,
     );
@@ -1578,8 +1653,56 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       Array.isArray(req.body.collaboratorHandles) ? req.body.collaboratorHandles : undefined,
     );
 
+    // An edit that started under the scheduled carve-out must not land on a post
+    // that went live while it was being assembled — the publisher sweeps every
+    // 60s, and the body above does its own I/O (article save, collaborator
+    // resolution). Re-read the STORED status as late as possible and refuse
+    // rather than write, so a just-published post cannot be edited without its
+    // 30-minute window. This narrows the window to the gap between this read and
+    // the two writes below; it does not close it, because the content graph is a
+    // second statement that no predicate on the first could cover. The residual
+    // exposure is bounded: `status` is not among the patched columns, so the
+    // write can never revert a publish, and the federation/MTN gates below
+    // re-read the status themselves.
+    if (editingScheduledPost) {
+      const [stillScheduled] = await getDb()
+        .select({ id: postsTable.id })
+        .from(postsTable)
+        .where(and(eq(postsTable.id, post.id), eq(postsTable.status, 'scheduled')))
+        .limit(1);
+      if (!stillScheduled) {
+        return res.status(409).json({
+          message: 'This post published while you were editing it. Reload it to edit within the 30-minute window.',
+        });
+      }
+    }
+
     await updatePostRecord(post.id, patch);
     await replacePostContent(post.id, content, nextMentions);
+
+    // A scheduled THREAD has one publish moment, not one per post: its
+    // continuations are replies to each other and the author picked a time for
+    // the thread, so moving any member moves the whole chain. Leaving the others
+    // behind would not break the ordering invariant — a continuation whose
+    // parent is still scheduled simply waits — but it would show the author a
+    // queue with three different times for one thread and publish it in dribs.
+    // After the write, so a failed edit cannot move anything.
+    if (rescheduledTo) {
+      const chain = await loadScheduledChain(post.id, userId);
+      if (chain.ok) {
+        const others = chain.postIds.filter((id) => id !== post.id);
+        if (others.length > 0) {
+          await getDb()
+            .update(postsTable)
+            .set({ scheduledFor: rescheduledTo })
+            .where(and(
+              inArray(postsTable.id, others),
+              eq(postsTable.oxyUserId, userId),
+              eq(postsTable.status, 'scheduled'),
+            ));
+        }
+      }
+    }
 
     let edited: PostRecord = {
       ...post,
@@ -1756,6 +1879,15 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
+    // Cancelling a SCHEDULED post takes its scheduled continuations with it, and
+    // the ids are collected BEFORE the delete, while the chain is still walkable.
+    // A thread's continuations exist only as replies to their predecessor: once
+    // the parent is gone they can never publish (the claim refuses a post whose
+    // parent has not published) and nobody can see them either, so leaving them
+    // behind would be a silent black hole in the author's queue rather than a
+    // cancellation. Empty for a published post and for a lone scheduled one.
+    const cancelledContinuations = await scheduledContinuationIds(String(req.params.id), userId);
+
     // The owner check is part of the DELETE's own predicate, not a read-then-
     // delete gap: two concurrent requests cannot both observe the row and both
     // proceed to the cascade.
@@ -1829,12 +1961,84 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
       logger.error('Error during cascading post cleanup', cleanupError);
     }
 
+    await deleteScheduledContinuations(cancelledContinuations, userId);
+
     res.json({ message: 'Post deleted successfully' });
   } catch (error) {
     logger.error('Error deleting post', error);
     res.status(500).json({ message: 'Error deleting post' });
   }
 };
+
+/**
+ * The scheduled posts that would be orphaned by cancelling `postId` — its own
+ * scheduled descendants, never `postId` itself.
+ *
+ * Returns nothing unless `postId` is itself a scheduled post of `ownerId`:
+ * deleting a PUBLISHED post leaves its replies standing (they are real posts
+ * people have seen), and only an unpublished chain is the author's to withdraw.
+ */
+async function scheduledContinuationIds(postId: string, ownerId: string): Promise<string[]> {
+  const [target] = await getDb()
+    .select({ id: postsTable.id })
+    .from(postsTable)
+    .where(and(
+      eq(postsTable.id, postId),
+      eq(postsTable.oxyUserId, ownerId),
+      eq(postsTable.status, 'scheduled'),
+    ))
+    .limit(1);
+  if (!target) {
+    return [];
+  }
+  const chain = await loadScheduledChain(postId, ownerId);
+  if (!chain.ok) {
+    return [];
+  }
+  // The chain walks up to its root as well; only what publishes AFTER this post
+  // depends on it.
+  const index = chain.postIds.indexOf(postId);
+  return index === -1 ? [] : chain.postIds.slice(index + 1);
+}
+
+/**
+ * Delete cancelled continuations and the only two records a never-published post
+ * can own: its article and its poll.
+ *
+ * Everything else `deletePost` cleans up needs a reader — likes, bookmarks,
+ * subscriptions, mention notifications — and a scheduled post has none by
+ * construction (it never federated, emitted no MTN record, and `createThread`
+ * withholds its mention notifications until publish). Best-effort: a
+ * cancellation that removed the posts has done the part the author asked for.
+ */
+async function deleteScheduledContinuations(postIds: string[], ownerId: string): Promise<void> {
+  if (postIds.length === 0) return;
+  try {
+    const cancelled = await findPostRecords(
+      and(
+        inArray(postsTable.id, postIds),
+        eq(postsTable.oxyUserId, ownerId),
+        eq(postsTable.status, 'scheduled'),
+      ),
+      { orderBy: CHRONO_DESC },
+    );
+    const articleIds = cancelled.flatMap((p) => (p.content.article?.articleId ? [p.content.article.articleId] : []));
+    const pollIds = cancelled.flatMap((p) => (p.content.pollId ? [p.content.pollId] : []));
+
+    // Per-row, because `deletePostRecord` owns the child-table cascade a post's
+    // nine tables need; a bare `DELETE … WHERE id = any(...)` would leave the
+    // repository's own invariants to the database's foreign keys alone.
+    await Promise.allSettled(
+      cancelled.map((p) => deletePostRecord(p.id, eq(postsTable.oxyUserId, ownerId))),
+    );
+    await Promise.allSettled([
+      articleIds.length > 0 ? ArticleModel.deleteMany({ _id: { $in: articleIds } }).exec() : Promise.resolve(),
+      pollIds.length > 0 ? Poll.deleteMany({ _id: { $in: pollIds } }).exec() : Promise.resolve(),
+    ]);
+  } catch (error) {
+    logger.error('Error cancelling scheduled thread continuations', error);
+  }
+}
 
 /**
  * Apply an idempotent vote command. The relationship, counters and durable
@@ -1880,6 +2084,25 @@ export const likePost = async (req: AuthRequest, res: Response) => {
         .catch((error) => logger.warn('Failed to record interaction for preferences', error));
     }
 
+    // Everyone watching this post gets the counters the transaction just wrote.
+    // The two event names cover the whole vote axis: casting an upvote RAISES the
+    // like count (from nothing, or by switching off a downvote), while a downvote
+    // can only leave it where it was or lower it. Both counters ride along either
+    // way, so a switched vote converges on one event. An unchanged vote moved
+    // nothing and is not announced.
+    if (result.changed) {
+      emitPostEngagement({
+        event: value === 1 ? POST_ENGAGEMENT_EVENTS.LIKED : POST_ENGAGEMENT_EVENTS.UNLIKED,
+        postId,
+        ...(result.post.oxyUserId ? { authorOxyUserId: result.post.oxyUserId } : {}),
+        counts: {
+          likes: result.post.statsLikesCount,
+          downvotes: result.post.statsDownvotesCount,
+        },
+        actorId: userId,
+      });
+    }
+
     res.json({
       message: result.changed
         ? result.previousValue === null
@@ -1910,6 +2133,19 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
 
     const postId = req.params.id as string;
     const result = await removeVoteCommand({ userId, postId });
+
+    if (result.changed) {
+      emitPostEngagement({
+        event: POST_ENGAGEMENT_EVENTS.UNLIKED,
+        postId,
+        ...(result.post.oxyUserId ? { authorOxyUserId: result.post.oxyUserId } : {}),
+        counts: {
+          likes: result.post.statsLikesCount,
+          downvotes: result.post.statsDownvotesCount,
+        },
+        actorId: userId,
+      });
+    }
 
     res.json({
       message: result.changed ? 'Vote removed successfully' : 'No vote to remove',
@@ -1948,6 +2184,19 @@ export const savePost = async (req: AuthRequest, res: Response) => {
         .catch((error) => logger.warn('Failed to record interaction for preferences', error));
     }
 
+    // No `actorId`: the save COUNT is public (it is on every post DTO), but who
+    // saved a post is not, and a room is the wrong place to say it. The trade is
+    // that this viewer's own other devices cannot tell their own save from a
+    // stranger's — they do not need to, since only the count travels here.
+    if (result.changed) {
+      emitPostEngagement({
+        event: POST_ENGAGEMENT_EVENTS.SAVED,
+        postId,
+        ...(result.post.oxyUserId ? { authorOxyUserId: result.post.oxyUserId } : {}),
+        counts: { saves: result.post.statsSavesCount },
+      });
+    }
+
     res.json({
       message: result.changed ? 'Post saved successfully' : 'Post already saved',
       savesCount: result.post.statsSavesCount,
@@ -1971,6 +2220,15 @@ export const unsavePost = async (req: AuthRequest, res: Response) => {
 
     const postId = req.params.id as string;
     const result = await unsavePostCommand({ userId, postId });
+
+    if (result.changed) {
+      emitPostEngagement({
+        event: POST_ENGAGEMENT_EVENTS.UNSAVED,
+        postId,
+        ...(result.post.oxyUserId ? { authorOxyUserId: result.post.oxyUserId } : {}),
+        counts: { saves: result.post.statsSavesCount },
+      });
+    }
 
     // Durable MTN side effects are delivered by the transactional outbox.
     res.json({
@@ -2287,7 +2545,112 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Get scheduled posts
+/**
+ * Publish one of the caller's scheduled posts immediately.
+ *
+ * Publishing early is NOT a reschedule to now — that would leave the post to the
+ * next 60s sweep — and it is not a status flip either, because a scheduled post
+ * has not federated, has not emitted its MTN record and has notified nobody, all
+ * of which `PostCreationService.publishScheduledPost` does. So this reaches that
+ * exact method rather than reimplementing publishing in a controller; the post
+ * takes the identical pipeline, only sooner.
+ *
+ * Ownership and the publish decision are both server-side and both inside ONE
+ * atomic claim: the update filters on `oxyUserId` AND `status: 'scheduled'`, so a
+ * non-owner cannot publish someone else's post, and nothing can publish twice —
+ * not even the sweep running concurrently, which selects on the same filter.
+ *
+ * **Publishing one post of a scheduled THREAD publishes the thread.** Its posts
+ * are replies to one another, so there is no coherent way to send just one:
+ * ahead of its parent is a reply to something nobody can see, and behind its
+ * continuations is a thread that stops mid-sentence until its original time
+ * comes round. The chain is the unit, and it goes out in order, root first.
+ */
+export const publishScheduledPostNow = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const targetId = String(req.params.id);
+    const chain = await loadScheduledChain(targetId, userId);
+    if (!chain.ok) {
+      return res.status(409).json({
+        message: 'This post continues a thread that has not been published yet.',
+      });
+    }
+
+    // Root first, and stop at the first post that does not go out — the same
+    // rule the sweep follows, for the same reason. A post left behind stays
+    // scheduled and publishes at its own time, still in order.
+    let published: PostRecord | null = null;
+    for (const postId of chain.postIds) {
+      const result = await postCreationService.claimAndPublishScheduledPost({ postId, ownerId: userId });
+      if (postId === targetId) {
+        published = result;
+      }
+      if (result === null) {
+        break;
+      }
+    }
+
+    if (!published) {
+      // The claim missed. Tell the OWNER why — a post of theirs that already
+      // went out is a different situation from one that never existed — but only
+      // after proving ownership, so this can never confirm the existence of
+      // someone else's post.
+      const [own] = await getDb()
+        .select({ status: postsTable.status })
+        .from(postsTable)
+        .where(and(
+          eq(postsTable.id, String(req.params.id)),
+          eq(postsTable.oxyUserId, userId),
+        ))
+        .limit(1);
+      if (own && own.status === 'published') {
+        return res.status(409).json({ message: 'This post has already been published' });
+      }
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    const hydratedPosts = await postHydrationService.hydratePosts([published], {
+      viewerId: userId,
+      oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
+      maxDepth: 1,
+      includeLinkMetadata: true,
+    });
+    if (hydratedPosts.length === 0) {
+      logger.error('Failed to hydrate a just-published scheduled post', {
+        postId: published.id,
+        userId,
+      });
+      return res.status(500).json({ message: 'Error publishing scheduled post' });
+    }
+
+    res.json(hydratedPosts[0]);
+  } catch (error) {
+    logger.error('Error publishing scheduled post', error);
+    res.status(500).json({ message: 'Error publishing scheduled post' });
+  }
+};
+
+/**
+ * The caller's own pending scheduled posts, soonest first.
+ *
+ * Hydrated like every other post listing, so the composer can PREVIEW one
+ * through the same renderer the feed uses — media resolved to display URLs,
+ * author, poll, quote and language variants all built by the one service that
+ * knows how. Serving raw lean documents here (as this did) forced the client to
+ * reimplement a slice of hydration, which drifts the moment either side changes.
+ *
+ * Access control is enforced TWICE, both server-side: the query is scoped to
+ * `oxyUserId`, and `PostHydrationService` — the single ACL authority — drops any
+ * post whose `status` is not `published` for a viewer who does not own it. A
+ * non-owner therefore cannot obtain a scheduled post here even if the query
+ * scoping were ever loosened.
+ */
 export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -2300,12 +2663,20 @@ export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
       { orderBy: [asc(postsTable.scheduledFor), asc(postsTable.id)] },
     );
 
-    res.json(scheduledPosts);
+    const hydratedPosts = await postHydrationService.hydratePosts(scheduledPosts, {
+      viewerId: userId,
+      oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
+      maxDepth: 1,
+      includeLinkMetadata: true,
+    });
+
+    res.json({ posts: hydratedPosts });
   } catch (error) {
     logger.error('Error fetching scheduled posts', error);
     res.status(500).json({ message: 'Error fetching scheduled posts' });
   }
-}; 
+};
 
 // Get nearby posts based on location
 export const getNearbyPosts = async (req: AuthRequest, res: Response) => {

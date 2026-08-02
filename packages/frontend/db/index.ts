@@ -36,8 +36,6 @@ export {
   upsertPosts,
   getPostById,
   getPostsByIds,
-  updateEngagement,
-  updateViewerState,
   updatePost,
   deletePost,
   pruneOldPosts,

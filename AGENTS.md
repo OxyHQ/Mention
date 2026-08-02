@@ -31,6 +31,8 @@ Run backend tests from the package root: `cd packages/backend && bun run test` (
 
 `check`, `lint` and `test` fan out with `bun run --parallel` (Foreman-style, one prefix per script). `check` keeps three ordered stages because the middle one is a real dependency: workspace validators → `build` → type-checks, since every `tsc --noEmit` compiles against shared-types' built `dist`. `lint:frontend` (`expo lint`) runs after the parallel group rather than inside it — it is the heaviest single job and there is nothing to overlap it with. Local A/B, warm, three alternating runs: 11.8s sequential → 7.4s parallel.
 
+**A `doctor` failure SIGINTs the rest of `check:workspace`.** `doctor` fails on a Node version mismatch alone (it pins the exact version Jest/Expo need), and because the group runs in parallel the runner kills every sibling that has not already finished — so someone on a different Node sees `doctor` exit 1 plus a handful of `Signaled: SIGINT` lines and reasonably reads it as several broken validators. They are not broken, and WHICH ones get killed varies run to run purely on which happened to finish first. Re-run the survivors individually (`validate:workflows`, `validate:lockfile`, `validate:i18n`, `validate:logger`, `audit:security`) before believing any of them failed.
+
 **The backend and MCP run on Bun, not Node** (`CMD ["bun", …]` in both images), so both are typed with `"types": ["node", "bun"]` and `Bun.*` is fair game in their source. `@types/bun` is catalogued at the exact version `packageManager` names, and doctor fails if the two drift — type definitions for a different Bun than the one shipping is a silent way to be wrong. The frontend is Metro/Node and stays Node-typed.
 
 **`bun install` refuses to RESOLVE a dependency published in the last week** (`minimumReleaseAge` in `bunfig.toml`), which is where a compromised release is most likely to still be live. It applies to resolution only, never to a frozen install: `bun install --frozen-lockfile` (CI's `quality` job, both image builds) installs an already-locked fresh package with no complaint even on a cold manifest cache — 1588 packages, measured in CI with the quarantine active. **Resolution on a cold cache is judged afresh for EVERY dependency, including ones already in the lockfile**, so any step that re-resolves must opt out: `.github/scripts/verify-lockfile.sh` passes `--minimum-release-age=0` because reproducing an existing lockfile is not the moment the decision gets made. A warm manifest cache hides this — the first local run of that script passed and CI failed on `@playwright/test@1.62.0` — so verify a resolution-path change against a cold cache or against CI, not locally. First-party packages are excluded by EXACT name, because a scope glob (`"@oxyhq/*"`) parses fine and silently matches nothing; a new first-party dependency must be added to `minimumReleaseAgeExcludes` or its first install fails loudly. Deliberate one-off override: `bun install --minimum-release-age=0`.
@@ -45,6 +47,29 @@ Bun built-ins that look like they could delete a dependency here, and cannot —
 
 **Rebuild `shared-types` before believing a red typecheck or build.** `@mention/shared-types` is consumed through its BUILT `dist`, so after any rebase/checkout that pulls in a shared-types change, every other package still compiles against the previous build and reports the newly-landed symbols as missing — `TS2305: has no exported member 'X'`, in files you never touched. It reads exactly like someone else's broken commit, and has been reported as "N pre-existing errors" more than once. `bun run --cwd packages/shared-types build` first; only a failure that survives that is real.
 
+## Worktrees — never `git stash` in this checkout
+
+This repo is worked from ~70 linked worktrees at once, and **the stash stack belongs to the REPOSITORY, not to your worktree**. Three facts compose into taking someone else's work:
+
+1. `git stash` pushes onto one stack shared by every worktree, so `stash@{0}` is usually another session's.
+2. A worktree whose work is already COMMITTED has nothing to stash, so `git stash -u` creates no entry — and says so quietly, exit 0.
+3. `git stash pop` then pops whatever is on top of that shared stack into YOUR tree, auto-merging what it can and conflicting on the rest, in files you never touched.
+
+The instinct that triggers it is tidiness: stash → measure something against a clean tree → pop. Don't. To compare against another commit, add a SEPARATE worktree (`git worktree add --detach <path> <commit-ish>`), or read the other version straight out of the object store (`git show <commit>:<path>`), which needs no working tree and no shared state at all.
+
+If it already happened: a CONFLICTED pop does not drop the entry, so the other session's work is still on the stack and recovery is possible. Restore your own files (`git checkout HEAD -- <paths>`, then `git reset`), then VERIFY the entry survived — `git stash list` and `git stash show --stat stash@{0}` against what it should contain — before calling the repair done.
+
+## Stub servers — random port, and verify the teardown
+
+A stub bound to a well-known service port is indistinguishable from the real service to every other agent and session on this machine, and it outlives the session that started it. Anything fetching that port — a browser check, a curl, another agent's verification run — gets a coherent, plausible, STALE answer, and there is no signal at the fetch layer that distinguishes the stub from the real backend.
+
+Two cheap defences, both required:
+
+- Bind a random high port and point the thing under test at it, rather than the canonical one. `4110` is the backend every frontend dev server here already targets, so it is the worst possible choice.
+- VERIFY teardown (`pgrep -f`, `ss -ltnp`) instead of trusting `pkill`'s exit status. A `pkill` placed in a compound command can go unreached when an earlier part exits, and the command still reports success for the part that ran.
+
+The general form is the one this repo keeps relearning: a cleanup you did not verify is a cleanup you did not do.
+
 ## Bumping an Oxy SDK package (CRITICAL — `bun add` reports success and changes nothing)
 
 **Shared versions live in exactly one place: `workspaces.catalog` in the root `package.json`.** Workspace manifests and the root `overrides` both name the package as `"catalog:"`, and `scripts/doctor.mjs` reads the Bloom pin out of the catalog rather than repeating it. A bump is therefore ONE edit (the catalog entry) plus `bun install` for `bun.lock`.
@@ -56,6 +81,12 @@ An override reading `"catalog:"` still rewrites transitive resolutions — verif
 Doctor rejects a manifest or override that re-pins a catalogued package to a literal range, because that silently escapes the catalog while still resolving (mutation-tested: each of manifest re-pin, override re-pin, an emptied catalog, and a `@types/bun` that drifts from `packageManager` fails with its own message). `@oxyhq/bloom` must NOT appear in the root `dependencies` — doctor rejects that too ("Runtime dependencies must live in their owning workspace"), and a rebase conflict resolution reintroduces it easily.
 
 Packages with a single consumer and an exact pin (`@oxyhq/crowdsource*`, `@oxyhq/federation`, `@oxyhq/protocol`) are deliberately NOT catalogued: there is no second site for them to drift from.
+
+**After bumping the catalog, check that no NESTED copy of the old version survived.** An incremental `bun install` (and `bun update <pkg>`) does not re-resolve an edge it has already recorded — it preserves the previous resolution by nesting it, so a dependency that used to share the hoisted copy silently acquires its own stale one (`"@oxyhq/federation/@oxyhq/core": ["@oxyhq/core@16.0.0"]` while the top level moved to 17). The install is green, `--frozen-lockfile` is green, and the bump looks done while the dependent still loads the old major. `grep -oE '"[^"]*<pkg>": \["<pkg>@[0-9.]+' bun.lock | sort -u` should print exactly one line. Deleting `bun.lock` and resolving from scratch fixes it but rewrites hundreds of unrelated resolutions; deleting just the stale nested keys and reinstalling gets the same result in a reviewable diff.
+
+`bun update` also writes the packages it touched into the ROOT `dependencies`, which doctor only rejects for `@oxyhq/bloom`. Check `git diff package.json` after running it.
+
+**`validate:lockfile` fails on an override that forces a package outside a declared range** (check 4). An override outranks every range at once, so it cannot distinguish deduping a patch from satisfying a range a dependency never claimed — the deliberate cases are listed in `ACCEPTED_OVERRIDE_RANGE_VIOLATIONS` with their reason, and an entry that stops firing is reported so the list cannot rot. This is the only check that catches a catalogued bump landing a major its dependents do not accept.
 
 **Assert the installed version after any bump — never trust the installer's output.** `node -e "console.log(require('./node_modules/@oxyhq/<pkg>/package.json').version)"` before running any gate, or the gate measures the old package.
 
@@ -134,7 +165,7 @@ Feeds live in `backend/src/mtn/` — ForYou, Following, Author, Hashtag, Explore
 
 #### Profile feed = the `author` descriptor
 
-The profile feed is NOT a separate endpoint — it is `GET /feed/mtn?descriptor=author|<oxyUserId>|<tab>`, served by the same engine as every other feed. There is no `/feed/user/:userId`. `<tab>` ∈ `AuthorFeedFilter` (`posts` | `replies` | `media` | `likes` | `boosts` — one per profile tab; unknown ⇒ `posts`). Frontend entry point: `feedService.getUserFeed`.
+The profile feed is NOT a separate endpoint — it is `GET /feed/mtn?descriptor=author|<oxyUserId>|<tab>`, served by the same engine as every other feed. There is no `/feed/user/:userId`. `<tab>` ∈ `AuthorFeedFilter` (`posts` | `replies` | `media` | `videos` | `likes` | `boosts` — one per profile tab; unknown ⇒ `posts`). Frontend entry point: `feedService.getUserFeed`.
 
 - **Cursor/sort axis:** the `authored` source sorts `{ createdAt: -1, _id: -1 }` to match the `ChronoCursor` keyset. Never sort an author query by `_id`: a federated post's import-time `_id` bears no relation to its remote `createdAt`, so an `_id` sort behind a `createdAt` cursor permanently skips backfilled posts at the page boundary (this is the "boost disappears from the profile feed" bug).
 - **Profile-visibility gate** lives in the `authored` source (`canViewAuthorFeed`) and covers EVERY tab: a private / followers-only profile returns an empty feed to a non-follower. Post-level `visibility: public` is not sufficient — profile visibility is a separate setting.
@@ -306,6 +337,19 @@ Oxy owns preview resolution/cache; hydration batches through
 `OxyServices.getLinkPreviews`, while post-create warming lives in
 `packages/backend/src/utils/linkPreviewWarm.ts`. Any feed-side function touching
 remote URLs must be detached before the feed response returns.
+
+## Stale-after-write — the frontend has TWO post-list caches
+
+A write that changes which posts a LIST contains has to reach both, and neither can see the other:
+
+- **React Query** owns the saved screen (`app/(app)/saved.tsx`).
+- **The feed store** owns every `<Feed>` surface, the profile likes and boosts tabs included, and warm-starts a remount from the slice retained in `stores/feedScrollStore` instead of refetching page 1 — which is what stops a deep-scrolled feed resetting on every navigation. It has no staleness notion of its own: absent a signal it serves that slice until a full reload.
+
+`stores/engagementInvalidation.ts` is the single authority that records a list changed, and `postsStore` reports every engagement write the server accepts. **Do not invalidate from the hooks** — `usePostVote` and `app/(app)/videos.tsx` write through the store without touching `usePostSave`/`usePostLike`/`usePostBoost`, so a hook-level invalidation silently misses two call sites.
+
+Each cache then honours that one signal in its OWN terms: React Query invalidates its family, a feed compares its slice's `retainedAt` against the write. The seam is real and worth knowing before debugging — a change on the React Query side cannot fix a feed surface or vice versa, so a fix verified on one surface proves nothing about the other. In particular there is NO query key for a likes or boosts list (`viewerQueryKeys` has none), so those surfaces are unreachable from React Query entirely; anyone reaching for `invalidateQueries` there is about to write a no-op.
+
+Client-wide `refetchOnMount` must stay at the library default. Pinned to `false` it makes React Query's half of the signal inert: an invalidated query that is not mounted at the moment of the write never revalidates on its next mount, which is every case that matters. `staleTime` — the client default and the shorter one each screen declares — is the lever for cheap revisits.
 
 ## Feed Interstitials (Recommendation Cards)
 

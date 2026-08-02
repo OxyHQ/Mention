@@ -98,8 +98,11 @@ export const ProfileStyleSection: React.FC = () => {
               activeOpacity={0.7}
             >
               <View className="w-full overflow-hidden">
+                {/* `bg-primary/20`, not `colors.primary + '20'`: the token is an
+                    `rgb(...)` string, so a hex-alpha suffix reads back fully
+                    opaque and the cover swatch loses its tint. */}
                 {style.coverPhotoEnabled ? (
-                  <View className="w-full h-[60px]" style={{ backgroundColor: colors.primary + '20' }} />
+                  <View className="w-full h-[60px] bg-primary/20" />
                 ) : (
                   <View className="w-full h-0" />
                 )}

@@ -1,7 +1,38 @@
+import type { PostUser, TrendCategory, TrendStatus } from '@mention/shared-types';
+
 export interface Trend {
   id: string;
   type: 'hashtag' | 'topic' | 'entity';
+  /**
+   * The TERM — the retrieval key the trend's feed matches on. Not for display:
+   * render {@link Trend.displayName}.
+   */
   text: string;
+  /**
+   * What a reader is shown ("Kremer Trade", not `orioles`).
+   *
+   * Always populated by the store, falling back to the term for a trend that
+   * predates labelling, so no renderer needs its own fallback — and none can
+   * forget one and print a raw slug at a user.
+   */
+  displayName: string;
+  /** Coarse taxonomy hint. Absent when nothing was assigned. */
+  category?: TrendCategory;
+  /**
+   * When this run of the trend began, ISO. Drives the `new` badge and the age
+   * label. Absent on trends that predate onset tracking — those simply show no
+   * badge, which is honest: nobody knows when they started.
+   */
+  startedAt?: string;
+  /** Present only while the trend is bursting hard enough to be called out. */
+  status?: TrendStatus;
+  /** Distinct authors behind the trend. Absent on rows that predate the field. */
+  authorCount?: number;
+  /**
+   * A few of the accounts posting about it, already resolved server-side — the
+   * faces beside the row. Absent when none resolved.
+   */
+  actors?: PostUser[];
   hashtag: string;
   description: string;
   score: number;

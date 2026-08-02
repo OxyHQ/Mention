@@ -36,6 +36,20 @@
       "when": 1785680245091,
       "tag": "0004_one_native_boost_per_account",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785675946096,
+      "tag": "0005_post_trend_terms",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785678555752,
+      "tag": "0006_trend_labels_and_bridged_identity",
+      "breakpoints": true
     }
   ]
 }

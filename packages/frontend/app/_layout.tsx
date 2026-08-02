@@ -4,18 +4,9 @@ import { enableFreeze } from 'react-native-screens';
 import { registerChunkErrorRecovery } from '@/lib/chunkReload';
 import NetInfo from '@react-native-community/netinfo';
 import { focusManager, onlineManager } from '@tanstack/react-query';
-import {
-  Redirect,
-  Slot,
-  Stack,
-  usePathname,
-  useRouter,
-  useSegments,
-} from "expo-router";
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect, useState } from "react";
 import { AppState, Platform, type AppStateStatus } from "react-native";
-import { useAuth } from '@oxyhq/services/ui/client';
 import { BloomProvider } from '@oxyhq/bloom/provider';
 
 // Components
@@ -23,13 +14,10 @@ import AppSplashScreen from '@/components/AppSplashScreen';
 import { NotificationPermissionGate } from '@/components/NotificationPermissionGate';
 import { PwaHead } from '@/components/PwaHead';
 import { AppProviders } from '@/components/providers/AppProviders';
+import { AuthRouter } from '@/components/providers/AuthRouter';
 import { Provider as PortalProvider, Outlet as PortalOutlet } from '@oxyhq/bloom/portal';
 
 // Hooks
-import { useServerAppearanceSync } from '@/hooks/useServerAppearanceSync';
-import { useAccountThemeSync } from '@/hooks/useAccountTheme';
-import { useSeedViewerFollowStatuses } from '@/hooks/useViewerFollowing';
-import { useHydrateExternalEmbeds } from '@/stores/externalEmbedsStore';
 import { useHapticsStore } from '@/stores/hapticsStore';
 
 // Services & Utils
@@ -40,12 +28,8 @@ import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { AppInitializer } from '@/lib/appInitializer';
 import { logger } from '@oxyhq/core/logger';
 import { configureAppLogging } from '@/lib/logging';
-import { useShareIntentRouter } from '@/lib/shareIntent';
 import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
-import {
-  initializeWebTelemetry,
-  recordWebNavigation,
-} from '@/lib/webTelemetry';
+import { initializeWebTelemetry } from '@/lib/webTelemetry';
 
 // Styles
 import '../global.css';
@@ -217,61 +201,5 @@ export default function RootLayout() {
         </AppProviders>
       </BloomProvider>
     </>
-  );
-}
-
-function AuthRouter() {
-  const { isAuthenticated, isAuthResolved } = useAuth();
-  const router = useRouter();
-  const segments = useSegments();
-  const pathname = usePathname();
-
-  useServerAppearanceSync();
-  // Drives Bloom from the viewer's portable Oxy account theme when the local
-  // source is `account` (rides the cold-boot payload — no extra fetch).
-  useAccountThemeSync();
-  useHydrateExternalEmbeds();
-
-  // Seed the shared follow store from the viewer's following graph so every
-  // FollowButton across the app paints the correct Follow/Following on first
-  // render — one request here replaces per-button status probes.
-  useSeedViewerFollowStatuses();
-
-  // Forward OS share-sheet payloads into `/compose`. No-op on web
-  // (handled by the manifest Share Target).
-  useShareIntentRouter({ router, enabled: isAuthResolved && isAuthenticated });
-
-  useEffect(() => {
-    recordWebNavigation(pathname);
-  }, [pathname]);
-
-  if (!isAuthResolved) {
-    return null;
-  }
-
-  // WEB: render <Slot/> so the matched route flows in normal document flow (the
-  // BODY is the scroller). A native-stack <Stack> clamps each scene in a
-  // viewport-height `position: absolute; inset: 0` container, leaving
-  // `position: sticky` no taller scroll container to pin within — the rails scroll
-  // away. <Slot/> avoids that.
-  //
-  // <Slot> is the SOLE authority for the (auth)↔(app) swap: reproduce the old root
-  // `redirect={isAuthenticated}` declaratively with <Redirect> — authenticated AND
-  // inside the (auth) group → bounce to "/". Anonymous users are never redirected
-  // away, so public browse keeps working; no competing child redirect on the same
-  // signal, so no cold-load race.
-  if (Platform.OS === 'web') {
-    const inAuthGroup = segments[0] === '(auth)';
-    if (isAuthenticated && inAuthGroup) {
-      return <Redirect href="/" />;
-    }
-    return <Slot />;
-  }
-
-  return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(auth)" redirect={isAuthenticated} />
-      <Stack.Screen name="(app)" />
-    </Stack>
   );
 }

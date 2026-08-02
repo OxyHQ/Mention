@@ -1,6 +1,6 @@
 import { PassThrough } from 'node:stream';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { eq, like } from 'drizzle-orm';
+import { and, eq, like, ne } from 'drizzle-orm';
 
 /**
  * Thread-linking for federated reply import.
@@ -47,7 +47,6 @@ const h = vi.hoisted(() => ({
   fetchUpstreamFollowingRedirects: vi.fn(),
   persistRemoteMedia: vi.fn(),
   recordAccess: vi.fn(),
-  userSettingsUpdateOne: vi.fn(),
   likeCreate: vi.fn(),
   likeFindOneAndDelete: vi.fn(),
   getServiceOxyClient: vi.fn(),
@@ -75,7 +74,6 @@ vi.mock('../../models/FederationDeliveryQueue', () => ({
 vi.mock('../../models/Like', () => ({
   default: { create: h.likeCreate, findOneAndDelete: h.likeFindOneAndDelete },
 }));
-
 
 vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: h.getServiceOxyClient }));
 
@@ -140,6 +138,7 @@ import '../../services/PostCreationService';
 import { activityPubConnector as federationService } from '../../connectors/activitypub/ActivityPubConnector';
 import backfillFederatedThreadLinks from '../../scripts/backfillFederatedThreadLinks';
 import { insertPostRecord } from '../../db/posts/postRepository';
+import { withDeadlockRetry } from '../helpers/serviceFixtures';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 const scope = federationScope('federation-thread-linking');
@@ -172,14 +171,28 @@ async function rowByActivityId(activityId: string) {
  * Two passes because these rows point at each other: the first clears every
  * link, so the second can delete them in any order without tripping a foreign
  * key or being silently set-null'd out from under itself.
+ *
+ * Both passes go through {@link withDeadlockRetry}, and that is not belt-and-
+ * braces. `posts` self-references itself four times — `parent_post_id`,
+ * `thread_id` and `quote_of` are `ON DELETE SET NULL`, `boost_of` cascades — so
+ * a bulk delete takes locks well beyond the rows it names, and ten suites write
+ * and delete `posts` concurrently against one database. Measured here: a plain
+ * delete lost a `40P01` on roughly one full run in three, and it surfaced as
+ * THIS suite failing in a test that had nothing to do with cleanup. The shared
+ * `serviceFixtures` helpers have carried this retry from the start; this file
+ * predates them and had its own cleanup, which is how it missed it.
  */
 async function clearScopePosts(): Promise<void> {
   const db = getDb();
-  await db
-    .update(posts)
-    .set({ parentPostId: null, threadId: null, boostOf: null, quoteOf: null })
-    .where(like(posts.federationActivityId, `${scope.origin}%`));
-  await db.delete(posts).where(like(posts.federationActivityId, `${scope.origin}%`));
+  await withDeadlockRetry(() =>
+    db
+      .update(posts)
+      .set({ parentPostId: null, threadId: null, boostOf: null, quoteOf: null })
+      .where(like(posts.federationActivityId, `${scope.origin}%`)),
+  );
+  await withDeadlockRetry(() =>
+    db.delete(posts).where(like(posts.federationActivityId, `${scope.origin}%`)),
+  );
 }
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
@@ -253,7 +266,6 @@ beforeEach(async () => {
   h.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   h.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   h.recordAccess.mockResolvedValue(undefined);
-  h.userSettingsUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   h.likeCreate.mockResolvedValue({ _id: 'like_1' });
   h.likeFindOneAndDelete.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
   h.getServiceOxyClient.mockReturnValue({
@@ -481,6 +493,107 @@ describe('outbox backfill — bounded ancestor backfill', () => {
     expect(reply).toBeDefined();
     expect(immediateParent).toBeDefined();
     expect(reply?.parentPostId).toBe(immediateParent?.id);
+  });
+
+  /**
+   * How much of a thread ONE ingest pass will pull.
+   *
+   * `MAX_ANCESTOR_DEPTH` (30) is the pre-existing and still the BINDING bound on
+   * live thread ingest: `handleCreate` is the only live entry point that walks a
+   * reply chain (via `ensureFederatedReplyLink`), each level has exactly one
+   * `inReplyTo`, so the walk is linear and one inbound reply materialises at most
+   * that many ancestors. Nothing walks `replies`/`context` collections, so there is
+   * no descendant fan-out at all; the outbox path is separately bounded by its own
+   * candidate limit, page budget and per-page inspection cap.
+   *
+   * The measured pile-up (annihilation.social, 1,820 ancestors) is far past this,
+   * which is exactly why it needs pinning at the boundary rather than at a "no
+   * runaway" order of magnitude: these assert the number of ancestors ACTUALLY
+   * MATERIALISED, so a regression that loosens the walk shows up as a count, not as
+   * a hang.
+   */
+  describe('per-pass ancestor materialisation boundary', () => {
+    /**
+     * `length` ancestors above the inbound reply, ending at a real root. Returns the
+     * fetch mock so the caller can count on-demand ancestor fetches.
+     */
+    const finiteChain = (length: number) => {
+      // statuses/1 is the root; statuses/N replies to statuses/N-1. The inbound
+      // reply is statuses/(length + 1), so `length` ancestors sit above it.
+      const fetchMock = vi.fn(async (url: string) => {
+        const n = Number(url.match(/\/statuses\/(\d+)$/)?.[1]);
+        if (!Number.isFinite(n)) throw new Error(`unexpected fetch ${url}`);
+        return jsonResponse({
+          id: url,
+          type: 'Note',
+          attributedTo: ACTOR_URI,
+          content: `<p>ancestor ${n}</p>`,
+          ...(n > 1 ? { inReplyTo: `${ACTOR_URI}/statuses/${n - 1}` } : {}),
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+        });
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      return fetchMock;
+    };
+
+    /**
+     * Ancestor posts this pass actually WROTE, counted from the rows (excludes
+     * the inbound reply itself).
+     *
+     * Counted from `posts` rather than from a creator spy, because the spy
+     * answers "how many creates were attempted" and the boundary is about how
+     * many ancestors EXIST afterwards — a create that lost a unique race on
+     * `federation_activity_id` attempted and stored nothing.
+     */
+    const materialisedAncestors = async (replyActivityId: string): Promise<number> => {
+      const rows = await getDb()
+        .select({ activityId: posts.federationActivityId })
+        .from(posts)
+        .where(and(
+          like(posts.federationActivityId, `${ACTOR_URI}/statuses/%`),
+          ne(posts.federationActivityId, replyActivityId),
+        ));
+      return rows.length;
+    };
+
+    it('pulls a whole 30-ancestor chain — AT the depth cap nothing is left behind', async () => {
+      const fetchMock = finiteChain(30);
+
+      await federationService.processInboxActivity(
+        replyCreateActivity('31', `${ACTOR_URI}/statuses/30`),
+        ACTOR_URI,
+      );
+
+      expect(await materialisedAncestors(`${ACTOR_URI}/statuses/31`)).toBe(30);
+      expect(fetchMock).toHaveBeenCalledTimes(30);
+      // Reached the real root, so the reply carries the true thread id.
+      const root = await rowByActivityId(`${ACTOR_URI}/statuses/1`);
+      expect(root).toBeDefined();
+      const reply = await rowByActivityId(`${ACTOR_URI}/statuses/31`);
+      expect(reply?.threadId).toBe(root?.id);
+    });
+
+    it('stops at 30 on a 31-ancestor chain — the reply still lands, unlinked above', async () => {
+      const fetchMock = finiteChain(31);
+
+      await federationService.processInboxActivity(
+        replyCreateActivity('32', `${ACTOR_URI}/statuses/31`),
+        ACTOR_URI,
+      );
+
+      // One over the chain length the cap allows: the 31st ancestor (the real root,
+      // statuses/1) is never fetched and never written.
+      expect(await materialisedAncestors(`${ACTOR_URI}/statuses/32`)).toBe(30);
+      expect(fetchMock).toHaveBeenCalledTimes(30);
+      expect(fetchMock).not.toHaveBeenCalledWith(`${ACTOR_URI}/statuses/1`, expect.anything());
+      expect(await rowByActivityId(`${ACTOR_URI}/statuses/1`)).toBeUndefined();
+
+      // Best-effort, never a dropped post: the reply exists and is linked to its
+      // immediate parent, rooted at the deepest ancestor the pass did reach.
+      const reply = await rowByActivityId(`${ACTOR_URI}/statuses/32`);
+      expect(reply?.parentPostId).toBe((await rowByActivityId(`${ACTOR_URI}/statuses/31`))?.id);
+      expect(reply?.threadId).toBe((await rowByActivityId(`${ACTOR_URI}/statuses/2`))?.id);
+    });
   });
 });
 

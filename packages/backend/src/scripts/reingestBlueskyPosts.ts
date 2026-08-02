@@ -93,7 +93,6 @@ import mongoose from 'mongoose';
 import {
   PostType,
   type MediaItem,
-  type PostContentVariant,
   type StoredPostContent,
 } from '@mention/shared-types';
 import { and, asc, count, eq, gt, ilike, ne, or, type SQL } from 'drizzle-orm';
@@ -115,6 +114,7 @@ import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
 import { refetchAtprotoPostForRepair } from '../connectors/atproto/post.mapper';
 import { fetchAndUpsertAtprotoProfile, splitHandle } from '../connectors/atproto/profile.mapper';
 import { mapWithConcurrency, DEFAULT_CONCURRENCY, MAX_CONCURRENCY } from '../utils/concurrency';
+import { repairVariantText } from './lib/variantTextRepair';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import {
   assertAdminRunComplete,
@@ -244,49 +244,6 @@ function mediaSignature(media: readonly MediaItem[] | undefined | null): string 
     .map((item) => `${item.id}\x00${item.type}\x00${item.alt ?? ''}`)
     .sort()
     .join('\x01');
-}
-
-/**
- * Repair the BODY text of the stored variants from freshly-mapped bodies, WITHOUT
- * disturbing the stored language tags, `source`, or `createdAt`. Returns the new
- * variant array when a body actually changed, or `undefined` when nothing changed
- * (or when there is nothing to safely repair).
- *
- * Non-destructive by construction:
- *  - a post that has no stored body variant is left alone — that is the empty-post
- *    reingest script's job, not this one;
- *  - a fresh mapping that produced NO body never blanks a content-bearing post;
- *  - only the text is swapped in, so the classifier-detected/author-declared tag a
- *    stored variant carries is preserved (never reset by the re-map).
- *
- * Variants are aligned by index — the federated ingest writes them in a
- * deterministic order (primary first). A structural mismatch (variant count
- * differs, only reachable for a rare multilingual bridged note) repairs the
- * PRIMARY body text alone and leaves every other stored variant intact.
- */
-function repairVariantText(
-  freshTexts: readonly string[],
-  stored: readonly PostContentVariant[] | undefined | null,
-): PostContentVariant[] | undefined {
-  if (!stored || stored.length === 0) return undefined;
-  if (freshTexts.length === 0) return undefined;
-
-  if (freshTexts.length !== stored.length) {
-    const freshPrimary = freshTexts[0];
-    if (!freshPrimary || freshPrimary === stored[0].text) return undefined;
-    return [{ ...stored[0], text: freshPrimary }, ...stored.slice(1)];
-  }
-
-  let changed = false;
-  const next = stored.map((variant, i) => {
-    const freshText = freshTexts[i];
-    if (typeof freshText === 'string' && freshText.length > 0 && freshText !== variant.text) {
-      changed = true;
-      return { ...variant, text: freshText };
-    }
-    return variant;
-  });
-  return changed ? next : undefined;
 }
 
 /** The post `type` a media set implies (mirrors the inbox `Update` derivation). */

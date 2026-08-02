@@ -60,18 +60,61 @@ describe('resolveMediaRef', () => {
     expect(getFileDownloadUrl).toHaveBeenCalledWith('file123', 'w2048');
   });
 
-  it('wraps an external http(s) url behind /media/proxy and /media/poster (no variant system)', () => {
+  it('wraps an external http(s) url behind /media/proxy and /media/poster, asking for sized variants', () => {
     const external = 'https://mastodon.social/media/abc.jpg';
     const result = resolveMediaRef(external);
 
     const encoded = encodeURIComponent(external);
+    // `url` is the un-varianted original (and the playable source for a video).
     expect(result.url).toBe(`${PUBLIC_BASE}/media/proxy?url=${encoded}`);
-    expect(result.thumbUrl).toBe(`${PUBLIC_BASE}/media/proxy?url=${encoded}`);
+    expect(result.thumbUrl).toBe(`${PUBLIC_BASE}/media/proxy?url=${encoded}&variant=w320`);
     expect(result.posterUrl).toBe(`${PUBLIC_BASE}/media/poster?url=${encoded}`);
-    // Federated/proxied media has no variant system → no large variant.
-    expect(result.fullUrl).toBeUndefined();
+    expect(result.fullUrl).toBe(`${PUBLIC_BASE}/media/proxy?url=${encoded}&variant=w2048`);
     // External URLs never touch the Oxy file URL builder.
     expect(getFileDownloadUrl).not.toHaveBeenCalled();
+  });
+
+  it('never gives federated media a thumbUrl identical to its full-size url', () => {
+    // THE regression this guards: `thumbUrl` used to be the very same
+    // un-varianted proxy URL as `url`, so a feed card — which renders `thumbUrl`
+    // directly — downloaded the remote ORIGINAL to fill a ≤320px box (measured at
+    // 2.5 MB for one Mastodon PNG, 3.9 MB for one Pleroma JPEG). The two URLs
+    // being distinct is what lets the proxy tell a thumbnail request from a
+    // full-size one at all.
+    //
+    // Asserted across several origins because the fix must not be tied to any one
+    // server's URL conventions: Mastodon exposes a `/small/` sibling of
+    // `/original/`, but Pleroma serves its preview at byte-identical bytes to the
+    // full image and Bluesky uses an opaque blob endpoint, so nothing may be
+    // inferred from the remote path.
+    const origins = [
+      'https://cdn.masto.host/inst/media_attachments/files/1/2/3/original/abc.png',
+      'https://annihilation.social/media/0f1e-2d3c/photo.jpeg?name=photo.jpeg',
+      'https://misskey.io/files/9a8b7c6d-1234',
+      'https://cdn.bsky.app/img/feed_fullsize/plain/did:plc:abc/xyz@jpeg',
+    ];
+
+    for (const origin of origins) {
+      const result = resolveMediaRef(origin);
+      expect(result.thumbUrl).toBeDefined();
+      expect(result.thumbUrl).not.toBe(result.url);
+      expect(result.thumbUrl).toContain('variant=w320');
+      // The lightbox must still be able to reach the full image.
+      expect(result.url).toBe(`${PUBLIC_BASE}/media/proxy?url=${encodeURIComponent(origin)}`);
+      expect(result.url).not.toContain('variant=');
+    }
+  });
+
+  it('keeps the remote url intact inside the proxy variant URLs', () => {
+    // The variant is appended as a separate query parameter, so a remote URL that
+    // itself carries a query string (Pleroma and Bluesky both do) must survive
+    // encoded and unmodified — otherwise the proxy would fetch a different asset.
+    const external = 'https://annihilation.social/media/uuid/a%20b.jpg?name=a%20b.jpg';
+    const result = resolveMediaRef(external);
+
+    const parsed = new URL(result.thumbUrl as string);
+    expect(parsed.searchParams.get('url')).toBe(external);
+    expect(parsed.searchParams.get('variant')).toBe('w320');
   });
 
   it('passes through a URL already on our backend public origin', () => {
@@ -107,10 +150,12 @@ describe('resolveAvatarUrl', () => {
     expect(resolveAvatarUrl('avatar1')).toBe(`${OXY_BASE}/assets/avatar1/stream?variant=w96`);
   });
 
-  it('returns the proxy url for an external avatar', () => {
+  it('returns the proxy url for an external avatar, asking for the avatar variant', () => {
+    // An avatar renders tiny and circular, so it asks for `w96` — NOT the `w320`
+    // post-media thumbnail `resolveMediaRef` would otherwise hand back.
     const external = 'https://cdn.example.com/avatar.png';
     expect(resolveAvatarUrl(external)).toBe(
-      `${PUBLIC_BASE}/media/proxy?url=${encodeURIComponent(external)}`,
+      `${PUBLIC_BASE}/media/proxy?url=${encodeURIComponent(external)}&variant=w96`,
     );
   });
 
@@ -119,7 +164,7 @@ describe('resolveAvatarUrl', () => {
     // NOT treated as an Oxy CDN URL.
     const external = 'https://files.mastodon.social/accounts/avatars/original.png';
     expect(resolveAvatarUrl(external)).toBe(
-      `${PUBLIC_BASE}/media/proxy?url=${encodeURIComponent(external)}`,
+      `${PUBLIC_BASE}/media/proxy?url=${encodeURIComponent(external)}&variant=w96`,
     );
   });
 
@@ -161,20 +206,76 @@ describe('resolveMediaItems', () => {
     const encoded = encodeURIComponent('https://external.test/v.mp4');
     expect(items[1].id).toBe('https://external.test/v.mp4');
     expect(items[1].type).toBe('video');
+    // The playable source stays un-varianted; the poster keeps its own endpoint.
     expect(items[1].url).toBe(`${PUBLIC_BASE}/media/proxy?url=${encoded}`);
     expect(items[1].posterUrl).toBe(`${PUBLIC_BASE}/media/poster?url=${encoded}`);
-    // Federated media has no large variant.
-    expect(items[1].fullUrl).toBeUndefined();
+    // A federated video's `thumbUrl` is its POSTER, never the proxied video
+    // asking for an image variant: `/media/proxy` honours a variant only for
+    // image content types, so that URL would hand an <Image> raw video bytes.
+    expect(items[1].thumbUrl).toBe(`${PUBLIC_BASE}/media/poster?url=${encoded}`);
+    expect(items[1].thumbUrl).not.toContain('/media/proxy');
   });
 
-  it('uses the native thumb variant for Oxy video posters', () => {
+  it('leaves the Oxy-file branch on its own variants, untouched by the federated fix', () => {
+    // Pins that giving FEDERATED media a thumbnail path did not disturb the
+    // native one: native items resolve through the SDK's file-URL builder with
+    // the `MEDIA_VARIANT_*` taxonomy, and must never acquire a `/media/proxy`
+    // URL (which would double-proxy our own CDN).
+    const items = resolveMediaItems([
+      { id: 'native-img', type: 'image' },
+      { id: 'native-vid', type: 'video' },
+    ]);
+
+    expect(items[0].url).toBe(`${OXY_BASE}/assets/native-img/stream`);
+    expect(items[0].thumbUrl).toBe(`${OXY_BASE}/assets/native-img/stream?variant=w320`);
+    expect(items[0].posterUrl).toBe(`${OXY_BASE}/assets/native-img/stream?variant=w320`);
+    expect(items[0].fullUrl).toBe(`${OXY_BASE}/assets/native-img/stream?variant=w2048`);
+
+    expect(items[1].thumbUrl).toBe(`${OXY_BASE}/assets/native-vid/stream?variant=w320`);
+    expect(items[1].fullUrl).toBeUndefined();
+
+    for (const item of items) {
+      for (const url of [item.url, item.thumbUrl, item.posterUrl, item.fullUrl]) {
+        expect(url ?? '').not.toContain('/media/proxy');
+      }
+    }
+  });
+
+  it('gives a native video TWO still sizes: a grid-cell thumb and a player poster', () => {
+    // The two surfaces differ by an order of magnitude — a ~130px grid cell
+    // versus a full-width player — so one size cannot serve both. `thumb`(256)
+    // used to serve both and was wrong at each end: 144x256 is soft fullscreen,
+    // while the only other working option (the raw 1920px `poster`) is ~6x
+    // oversized for a cell.
     const items = resolveMediaItems([{ id: 'video-file', type: 'video' }]);
 
     expect(items).toHaveLength(1);
     expect(items[0].url).toBe(`${OXY_BASE}/assets/video-file/stream`);
-    expect(items[0].thumbUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=thumb`);
-    expect(items[0].posterUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=thumb`);
+    expect(items[0].thumbUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=w320`);
+    expect(items[0].posterUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=w1280`);
+    expect(items[0].thumbUrl).not.toBe(items[0].posterUrl);
     expect(items[0].fullUrl).toBeUndefined();
+  });
+
+  it('never asks for a variant name the asset service does not generate', () => {
+    // Every name emitted for a video must exist server-side. `thumb` for a video
+    // was a hard 404 on the CDN until oxy-api learned to render image sizes from
+    // the poster frame, and a name outside the taxonomy (`full`, `large`,
+    // `original`) 404s for every mime.
+    const generated = new Set([
+      'w96', 'w128', 'thumb', 'w320', 'w640', 'w1280', 'w2048', 'poster', 'hls_master',
+    ]);
+    const items = resolveMediaItems([
+      { id: 'video-file', type: 'video' },
+      { id: 'img-file', type: 'image' },
+    ]);
+
+    for (const item of items) {
+      for (const url of [item.url, item.thumbUrl, item.posterUrl, item.fullUrl, item.hlsUrl]) {
+        const variant = url ? new URL(url).searchParams.get('variant') : null;
+        if (variant) expect(generated).toContain(variant);
+      }
+    }
   });
 
   it('resolves the hls_master variant as hlsUrl for a native Oxy video', () => {
@@ -235,7 +336,7 @@ describe('resolveMediaItems — persisted geometry passthrough', () => {
     ]);
 
     expect(item).toMatchObject({ ...geometry, durationSec: 12.5 });
-    expect(item.posterUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=thumb`);
+    expect(item.posterUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=w1280`);
   });
 
   it('forwards geometry for a GIF', () => {

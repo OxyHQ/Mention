@@ -297,21 +297,67 @@ describe('assertPostsSafeToDelete — against real rows', () => {
     await testCase.cleanup(target);
   });
 
-  it('lets the caller opt out of the engagement probes, and ONLY those', async () => {
-    // `cascadeEngagement` exists for the gone-actor purge, which deletes the
-    // Like and Bookmark rows in its own awaited cascade. It must not become a
-    // blanket override: a post another post replies to stays blocked.
+  it('lets the caller acknowledge only the probes it NAMES', async () => {
+    // `removedByCascade` exists for the gone-actor purge, which deletes the
+    // `likes` and `bookmarks` rows in its own awaited cascade. It must not
+    // become a blanket override: a post another post replies to stays blocked,
+    // and so does a probe the caller did not name.
     const liked = await seed();
     await getDb().insert(likes).values({ userId: OTHER, postId: liked });
 
     await expect(
-      assertPostsSafeToDelete('preflight-test', [{ id: liked }], { cascadeEngagement: true }),
+      assertPostsSafeToDelete('preflight-test', [{ id: liked }], {
+        removedByCascade: ['likes.post_id', 'bookmarks.post_id'],
+      }),
     ).resolves.toBeUndefined();
+
+    // The SAME liked post, with only the bookmark probe acknowledged: the like
+    // is still a blocker, so the acknowledgement is per-probe rather than a
+    // mode.
+    await expect(
+      assertPostsSafeToDelete('preflight-test', [{ id: liked }], {
+        removedByCascade: ['bookmarks.post_id'],
+      }),
+    ).rejects.toThrow(/likes\.post_id/);
 
     const replied = await seed();
     await seed({ oxyUserId: OTHER, parentPostId: replied });
     await expect(
-      assertPostsSafeToDelete('preflight-test', [{ id: replied }], { cascadeEngagement: true }),
+      assertPostsSafeToDelete('preflight-test', [{ id: replied }], {
+        removedByCascade: ['likes.post_id', 'bookmarks.post_id'],
+      }),
+    ).rejects.toThrow(/posts\.boost_of/);
+  });
+
+  /**
+   * The post GRAPH probe is the one no cascade may acknowledge away, and
+   * `allowDanglingReplyReferences` narrows it to `boost_of` alone.
+   *
+   * The reply/quote/thread columns are `ON DELETE SET NULL`, so nothing DANGLES
+   * in the referential sense — the reference is silently erased instead of
+   * visibly broken, which is exactly why the option has to be stated rather than
+   * assumed. `boost_of` is never covered: a boost has a deliberately empty body
+   * and renders entirely from its original, so a dangling one is a placeholder
+   * card with nothing behind it.
+   */
+  it('narrows the graph probe to boosts when the caller allows dangling replies', async () => {
+    const replied = await seed();
+    await seed({ oxyUserId: OTHER, parentPostId: replied });
+
+    await expect(
+      assertPostsSafeToDelete('preflight-test', [{ id: replied }], {
+        allowDanglingReplyReferences: true,
+        removedByCascade: ['likes.post_id', 'bookmarks.post_id'],
+      }),
+    ).resolves.toBeUndefined();
+
+    const boosted = await seed();
+    await seed({ oxyUserId: OTHER, boostOf: boosted });
+    await expect(
+      assertPostsSafeToDelete('preflight-test', [{ id: boosted }], {
+        allowDanglingReplyReferences: true,
+        removedByCascade: ['likes.post_id', 'bookmarks.post_id'],
+      }),
     ).rejects.toThrow(/posts\.boost_of/);
   });
 

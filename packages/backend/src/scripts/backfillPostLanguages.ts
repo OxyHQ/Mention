@@ -106,13 +106,19 @@ export async function backfillPostLanguages(
         updated += 1;
         if (dryRun) continue;
 
-        // A per-post PARTIAL patch rather than a batched bulkWrite: the two
+        // A per-post PARTIAL patch rather than a batched bulkWrite: the three
         // classification fields are a MERGE onto the existing subdocument, which
         // is what `updatePostRecord` expresses and what a whole-column write
         // would destroy. The page size still bounds the work per round.
         await updatePostRecord(post.id, {
           postClassification: {
             languages: signals.languages,
+            // Written alongside the languages because this update also stamps
+            // `version`: a row claiming the current baseline version while
+            // missing a field that version defines is worse than an
+            // un-backfilled row, since the version is exactly what readers use
+            // to decide whether to trust the classification.
+            trendTerms: signals.trendTerms,
             version: signals.version,
           },
           language: signals.languages[0],

@@ -99,6 +99,24 @@ export const federatedActors = pgTable(
     domain: text().notNull(),
     /** `<username>@<domain>`. Unique — the webfinger handle. */
     acct: text().notNull().unique('federated_actors_acct_key'),
+    /**
+     * The `<handle>@<network-domain>` identity a BRIDGED actor was re-labelled
+     * onto (`wired@x.com`), NULL for every ordinary actor whose identity is its
+     * acct.
+     *
+     * Deliberately separate from `domain`, which stays the host that delivered
+     * the activity: the domain policy, the blocklist intelligence and the purge
+     * scripts all key off that, and moving it onto `x.com` would make a real
+     * moderation decision about the bridge invisible to them.
+     *
+     * It is also the ONLY field on which two rows for the same upstream person
+     * match. The same X account mirrored by two different bridges has two URIs
+     * and two accts and looks like two people everywhere else, so this is what
+     * `resolveFederatedActorIdentity` de-duplicates on — hence indexed and
+     * deliberately NOT unique: two rows sharing one `network_acct` is the normal
+     * shape, and it is exactly what the de-duplication looks up.
+     */
+    networkAcct: text(),
     summary: text(),
     avatarUrl: text(),
     headerUrl: text(),
@@ -190,6 +208,12 @@ export const federatedActors = pgTable(
     index('federated_actors_oxy_user_id_idx')
       .on(t.oxyUserId)
       .where(sql`${t.oxyUserId} is not null`),
+    // The duplicate-identity merge (`resolveFederatedActorIdentity`). Partial
+    // because only bridged rows carry one — Mongo's index was `sparse` for the
+    // same reason, and the overwhelming majority of rows are ordinary actors.
+    index('federated_actors_network_acct_idx')
+      .on(t.networkAcct)
+      .where(sql`${t.networkAcct} is not null`),
   ]
 );
 

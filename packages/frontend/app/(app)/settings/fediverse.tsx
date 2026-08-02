@@ -5,6 +5,7 @@ import { Switch } from '@oxyhq/bloom/switch';
 import { toast } from '@oxyhq/bloom/toast';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
+import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -32,6 +33,7 @@ const logger = createLogger('FediverseSettings');
  */
 function FediverseSharingBody() {
   const { t } = useTranslation();
+  const router = useRouter();
   const { user, oxyServices } = useAuth();
   const bottomSheet = React.useContext(BottomSheetContext);
   const { preferredLanguage, updatePreferredLanguage } = useFediversePreferredLanguage();
@@ -175,6 +177,12 @@ function FediverseSharingBody() {
           icon={<RowIcon name="help-circle-outline" />}
           title={t('fediverse.settings.whatIs')}
           onPress={openInfoSheet}
+        />
+        <SettingsListItem
+          icon={<RowIcon name="shield-checkmark-outline" />}
+          title={t('transparency.title')}
+          description={t('transparency.list.title')}
+          onPress={() => router.push('/transparency')}
         />
       </SettingsListGroup>
     </ScrollView>

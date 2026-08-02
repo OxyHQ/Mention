@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { toast } from '@oxyhq/bloom/toast';
 import Constants from 'expo-constants';
+import { useRouter } from 'expo-router';
 import { ThemedView } from '@/components/ThemedView';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Header } from '@/components/Header';
@@ -17,6 +18,7 @@ import { API_URL } from '@/config';
 
 export default function AboutScreen() {
     const { t } = useTranslation();
+    const router = useRouter();
     const safeBack = useSafeBack();
     const { showBottomSheet } = useAuth() as { showBottomSheet?: (screen: string) => void };
 
@@ -124,6 +126,16 @@ export default function AboutScreen() {
                         title={t('settings.aboutMention.apiUrl')}
                         value={apiUrl}
                         showChevron={false}
+                    />
+                </SettingsListGroup>
+
+                {/* Moderation policy, stated publicly */}
+                <SettingsListGroup>
+                    <SettingsListItem
+                        icon={<RowIcon name="shield-checkmark" />}
+                        title={t('transparency.title')}
+                        description={t('transparency.list.title')}
+                        onPress={() => router.push('/transparency')}
                     />
                 </SettingsListGroup>
 

@@ -1,4 +1,8 @@
 import { and, eq } from 'drizzle-orm';
+import {
+  isMentionBroadcast,
+  MAX_MENTION_NOTIFICATIONS_PER_POST,
+} from '@mention/shared-types/mentions';
 import { getDb } from '../db/postgres';
 import {
   notifications,
@@ -181,6 +185,19 @@ export const createNotification = async (
 
 /**
  * Creates notifications for mentions in content
+ *
+ * A post that names more than `MAX_MENTION_NOTIFICATIONS_PER_POST` distinct users
+ * is a broadcast, not a conversation, and notifies NOBODY — see
+ * {@link isMentionBroadcast} for why nobody rather than the first N. This is the
+ * fan-out backstop for EVERY caller: the native compose/reply/thread paths hand
+ * this function the post's full persisted `mentions` allowlist, so the list it
+ * receives IS the post's mention count and the gate below is exact for them. A
+ * caller that holds only a SUBSET of a post's mentions (the federated inbox, which
+ * narrows to local users before it gets here) cannot state the post's count from
+ * this list and must apply the same predicate itself against the full count — this
+ * gate would otherwise let a 30-mention broadcast through on the strength of its
+ * one local recipient.
+ *
  * @param mentionUserIds - Array of Oxy user IDs who were mentioned
  * @param postId - ID of the post containing the mentions
  * @param actorId - ID of the user who created the post
@@ -199,6 +216,14 @@ export const createMentionNotifications = async (
 
     // Get unique user IDs
     const uniqueUserIds = [...new Set(mentionUserIds)];
+
+    if (isMentionBroadcast(uniqueUserIds.length)) {
+      logger.warn('[Notifications] suppressed mention fan-out for a broadcast post', {
+        mentioned: uniqueUserIds.length,
+        cap: MAX_MENTION_NOTIFICATIONS_PER_POST,
+      });
+      return;
+    }
 
     // Create notification for each mentioned user
     for (const recipientId of uniqueUserIds) {
