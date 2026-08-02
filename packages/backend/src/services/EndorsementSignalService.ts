@@ -21,10 +21,9 @@
  * leaves it `pending` with backoff for the drain job ({@link flushOutbox}).
  */
 
-import StarterPack from '../models/StarterPack';
 import { asc, eq } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
-import { accountListMembers, accountLists } from '../db/schema/lists';
+import { accountListMembers, accountLists, starterPackMembers, starterPacks } from '../db/schema/lists';
 import EndorsementOutbox, {
   getEndorsementNextAttempt,
   type EndorsementSource,
@@ -51,11 +50,27 @@ export class EndorsementSignalService {
    */
   private async loadScopeState(source: EndorsementSource, sourceId: string): Promise<ScopeState | null> {
     if (source === 'starterPack') {
-      const pack = await StarterPack.findById(sourceId)
-        .select('ownerOxyUserId memberOxyUserIds')
-        .lean();
+      // Postgres, matching the account-list branch below and for the same
+      // reason: the Mongo `StarterPack` collection now has no writer at all —
+      // the atproto mirror was its last one and it writes `starter_packs`. A
+      // `null` here does not mean "unknown", it means DELETED, so the caller
+      // retracts the endorsements; a read that stopped moving would therefore
+      // have withdrawn signal for live packs rather than merely gone stale.
+      const [pack] = await getDb()
+        .select({ ownerOxyUserId: starterPacks.ownerOxyUserId })
+        .from(starterPacks)
+        .where(eq(starterPacks.id, sourceId))
+        .limit(1);
       if (!pack) return null;
-      return { ownerId: pack.ownerOxyUserId, memberIds: pack.memberOxyUserIds ?? [] };
+      const packMembers = await getDb()
+        .select({ oxyUserId: starterPackMembers.oxyUserId })
+        .from(starterPackMembers)
+        .where(eq(starterPackMembers.packId, sourceId))
+        .orderBy(asc(starterPackMembers.position));
+      return {
+        ownerId: pack.ownerOxyUserId,
+        memberIds: packMembers.map((member) => member.oxyUserId),
+      };
     }
     // Postgres. The Mongo `AccountList` collection has no writer left, so this
     // resolved every list created after the cutover as MISSING — and `null` here
