@@ -123,6 +123,29 @@ export function getDb(): Database {
 }
 
 /**
+ * The raw `postgres.js` handle behind {@link getDb}.
+ *
+ * Drizzle does not wrap `COPY` — it is a protocol-level operation with no
+ * query-builder equivalent — so the backfill's bulk loader (`db/backfill/`)
+ * needs the driver handle to stream a batch in, and `ANALYZE` after a bulk load
+ * has no builder form either. Those are the only two callers, and both are
+ * one-shot migration paths rather than request-path code: everything serving a
+ * request goes through `getDb()` and the query builder.
+ *
+ * @throws {Error} If called before `connectPostgres()` resolved — the same
+ *   programming error {@link getDb} reports, for the same reason.
+ */
+export function getPostgresClient(): postgres.Sql {
+  if (!client) {
+    throw new Error(
+      'PostgreSQL is not connected. Call connectPostgres() during startup ' +
+      'before reaching for the raw client.'
+    );
+  }
+  return client;
+}
+
+/**
  * Whether `connectPostgres()` has published a handle.
  *
  * SYNCHRONOUS and cheap, so a hot synchronous caller can ask "is there a pool at
