@@ -19,6 +19,10 @@ trap cleanup_test_directory EXIT
 
 export DEPLOY_TEST_LOG=""
 export DEPLOY_TEST_EXPECT_METRICS_ARN=false
+# The SSM parameter path a case feeds to INTERNAL_METRICS_PARAMETER, and from
+# which the mocked register-task-definition derives the ARN it demands. A case
+# overrides it to cover a path shape the default does not.
+export DEPLOY_TEST_METRICS_PARAMETER=/oxy/mention/INTERNAL_METRICS_TOKEN
 export DEPLOY_TEST_TASK_EXIT_CODE=0
 export DEPLOY_TEST_EXPECT_TASK_SECRET_ARN=false
 export DEPLOY_TEST_SERVICE_DESIRED_COUNT=1
@@ -140,16 +144,31 @@ aws() {
           fi
           previous_argument="$argument"
         done
-        jq -e '
+        # The verdict is written to the log rather than left to `set -e`. A
+        # command that fails in the MIDDLE of this function does not abort the
+        # run -- measured, and it holds whether the function is exported or
+        # local -- because the caller consumes it as `v="$(aws ...)"` and only
+        # the function's LAST command reaches that assignment's exit status. An
+        # assertion whose only effect is its own exit status therefore cannot
+        # fail, which is what this one did: pointing it at an ARN no case uses
+        # left the suite green. Logging a distinct token instead puts the
+        # mismatch in the expected.log diff, where it names itself.
+        if jq -e \
+          --arg expected \
+          "arn:aws:ssm:test:123456789012:parameter${DEPLOY_TEST_METRICS_PARAMETER}" \
+          '
           .containerDefinitions[]
           | select(.name == "mention-test")
           | .secrets[]
           | select(
               .name == "INTERNAL_METRICS_TOKEN" and
-              .valueFrom == "arn:aws:ssm:test:123456789012:parameter/oxy/mention/INTERNAL_METRICS_TOKEN"
+              .valueFrom == $expected
             )
-        ' "$input_json" >/dev/null
-        printf 'metrics:arn\n' >>"$DEPLOY_TEST_LOG"
+        ' "$input_json" >/dev/null; then
+          printf 'metrics:arn\n' >>"$DEPLOY_TEST_LOG"
+        else
+          printf 'metrics:arn:MISMATCH\n' >>"$DEPLOY_TEST_LOG"
+        fi
       fi
       if [[ "$DEPLOY_TEST_EXPECT_TASK_SECRET_ARN" == "true" ]]; then
         local previous_argument=""
@@ -162,7 +181,9 @@ aws() {
           fi
           previous_argument="$argument"
         done
-        jq -e '
+        # Same reason as the metrics assertion above: log the verdict, do not
+        # rely on this function's exit status.
+        if jq -e '
           .containerDefinitions[]
           | select(.name == "mention-test")
           | .secrets[]
@@ -170,8 +191,11 @@ aws() {
               .name == "MENTION_MCP_JWT_SECRET" and
               .valueFrom == "arn:aws:ssm:test:123456789012:parameter/oxy/mention-mcp/MENTION_MCP_JWT_SECRET"
             )
-        ' "$input_json" >/dev/null
-        printf 'task-secret:arn\n' >>"$DEPLOY_TEST_LOG"
+        ' "$input_json" >/dev/null; then
+          printf 'task-secret:arn\n' >>"$DEPLOY_TEST_LOG"
+        else
+          printf 'task-secret:arn:MISMATCH\n' >>"$DEPLOY_TEST_LOG"
+        fi
       fi
       printf '%s\n' "arn:aws:ecs:test:task-definition/mention-test:2"
       ;;
@@ -282,7 +306,7 @@ run_release() {
   )
   if [[ "$inject_internal_metrics" == "true" ]]; then
     release_environment+=(
-      INTERNAL_METRICS_PARAMETER=/oxy/mention/INTERNAL_METRICS_TOKEN
+      INTERNAL_METRICS_PARAMETER="$DEPLOY_TEST_METRICS_PARAMETER"
     )
   fi
   if [[ "$inject_task_secret" == "true" ]]; then
@@ -315,6 +339,23 @@ printf '%s\n' \
 diff -u \
   "$test_directory/success/expected.log" \
   "$test_directory/success/aws.log"
+
+# A hyphen in the parameter path is its own case because it is its own bug: the
+# bracket expression validating this name once matched every character EXCEPT a
+# hyphen, so /oxy/mention/... deployed and /oxy/oxy-api/... did not. Mention's
+# own path has no hyphen, which is why nothing here caught it. Keep both.
+DEPLOY_TEST_METRICS_PARAMETER=/oxy/mention-mcp/INTERNAL_METRICS_TOKEN
+run_release hyphenated-metrics-parameter true false true
+DEPLOY_TEST_METRICS_PARAMETER=/oxy/mention/INTERNAL_METRICS_TOKEN
+printf '%s\n' \
+  metrics:arn \
+  'service:arn:aws:ecs:test:task-definition/mention-test:2:desired=1' \
+  smoke \
+  reconcile \
+  >"$test_directory/hyphenated-metrics-parameter/expected.log"
+diff -u \
+  "$test_directory/hyphenated-metrics-parameter/expected.log" \
+  "$test_directory/hyphenated-metrics-parameter/aws.log"
 
 run_release explicit-task-secret true false false 0 true
 printf '%s\n' \
