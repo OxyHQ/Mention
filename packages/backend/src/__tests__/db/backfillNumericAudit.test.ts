@@ -67,6 +67,11 @@ function stubSource(values: readonly unknown[], documents = 3, missing = 0): Mon
         }));
       },
     }),
+    // `planResolutions` runs a pre-pass over `federatedactors` for the
+    // keep-freshest rule, so every source it is handed must answer an
+    // aggregation. Empty is the honest answer here: this stub carries only the
+    // numeric-audit fixture and holds no actors, so no group collides.
+    aggregate: () => ({ toArray: async () => [] }),
   } as unknown as ReadOnlyCollection;
   return {
     collection: () => collection,
