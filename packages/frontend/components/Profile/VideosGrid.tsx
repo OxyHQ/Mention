@@ -66,15 +66,17 @@ const VideosGrid: React.FC<VideosGridProps> = ({
     } = useProfileMediaFeed({ userId, isPrivate, isOwnProfile, filter: 'videos' });
 
     /**
-     * Resolve a static video poster. Prefer the server-resolved final `posterUrl`
-     * (fallback `thumbUrl`) from the media object; fall back to the legacy client
-     * resolver keyed on the id/url (Oxy `thumb` / backend `/media/poster`).
+     * Resolve a static video still. Prefer the server-resolved `thumbUrl` — this
+     * is a grid cell, and `posterUrl` is sized for a full-width player — falling
+     * back to `posterUrl` and then to the legacy client resolver keyed on the
+     * id/url (backend `/media/poster`). Both server fields are a still image for
+     * a video of either origin, so preferring the smaller one is safe.
      * Undefined → icon placeholder. A 404/error from the URL is handled by the
      * cell's own image-error fallback.
      */
     const resolvePosterUri = useCallback(
         (ref: MediaItem): string | undefined => {
-            const serverUrl = ref.posterUrl || ref.thumbUrl;
+            const serverUrl = ref.thumbUrl || ref.posterUrl;
             if (serverUrl) return serverUrl;
             return videoPosterUrl(ref.id || ref.url || '', oxyServices);
         },

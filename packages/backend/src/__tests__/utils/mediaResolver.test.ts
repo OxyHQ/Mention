@@ -209,7 +209,11 @@ describe('resolveMediaItems', () => {
     // The playable source stays un-varianted; the poster keeps its own endpoint.
     expect(items[1].url).toBe(`${PUBLIC_BASE}/media/proxy?url=${encoded}`);
     expect(items[1].posterUrl).toBe(`${PUBLIC_BASE}/media/poster?url=${encoded}`);
-    expect(items[1].fullUrl).toBe(`${PUBLIC_BASE}/media/proxy?url=${encoded}&variant=w2048`);
+    // A federated video's `thumbUrl` is its POSTER, never the proxied video
+    // asking for an image variant: `/media/proxy` honours a variant only for
+    // image content types, so that URL would hand an <Image> raw video bytes.
+    expect(items[1].thumbUrl).toBe(`${PUBLIC_BASE}/media/poster?url=${encoded}`);
+    expect(items[1].thumbUrl).not.toContain('/media/proxy');
   });
 
   it('leaves the Oxy-file branch on its own variants, untouched by the federated fix', () => {
@@ -227,7 +231,7 @@ describe('resolveMediaItems', () => {
     expect(items[0].posterUrl).toBe(`${OXY_BASE}/assets/native-img/stream?variant=w320`);
     expect(items[0].fullUrl).toBe(`${OXY_BASE}/assets/native-img/stream?variant=w2048`);
 
-    expect(items[1].thumbUrl).toBe(`${OXY_BASE}/assets/native-vid/stream?variant=thumb`);
+    expect(items[1].thumbUrl).toBe(`${OXY_BASE}/assets/native-vid/stream?variant=w320`);
     expect(items[1].fullUrl).toBeUndefined();
 
     for (const item of items) {
@@ -237,14 +241,41 @@ describe('resolveMediaItems', () => {
     }
   });
 
-  it('uses the native thumb variant for Oxy video posters', () => {
+  it('gives a native video TWO still sizes: a grid-cell thumb and a player poster', () => {
+    // The two surfaces differ by an order of magnitude — a ~130px grid cell
+    // versus a full-width player — so one size cannot serve both. `thumb`(256)
+    // used to serve both and was wrong at each end: 144x256 is soft fullscreen,
+    // while the only other working option (the raw 1920px `poster`) is ~6x
+    // oversized for a cell.
     const items = resolveMediaItems([{ id: 'video-file', type: 'video' }]);
 
     expect(items).toHaveLength(1);
     expect(items[0].url).toBe(`${OXY_BASE}/assets/video-file/stream`);
-    expect(items[0].thumbUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=thumb`);
-    expect(items[0].posterUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=thumb`);
+    expect(items[0].thumbUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=w320`);
+    expect(items[0].posterUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=w1280`);
+    expect(items[0].thumbUrl).not.toBe(items[0].posterUrl);
     expect(items[0].fullUrl).toBeUndefined();
+  });
+
+  it('never asks for a variant name the asset service does not generate', () => {
+    // Every name emitted for a video must exist server-side. `thumb` for a video
+    // was a hard 404 on the CDN until oxy-api learned to render image sizes from
+    // the poster frame, and a name outside the taxonomy (`full`, `large`,
+    // `original`) 404s for every mime.
+    const generated = new Set([
+      'w96', 'w128', 'thumb', 'w320', 'w640', 'w1280', 'w2048', 'poster', 'hls_master',
+    ]);
+    const items = resolveMediaItems([
+      { id: 'video-file', type: 'video' },
+      { id: 'img-file', type: 'image' },
+    ]);
+
+    for (const item of items) {
+      for (const url of [item.url, item.thumbUrl, item.posterUrl, item.fullUrl, item.hlsUrl]) {
+        const variant = url ? new URL(url).searchParams.get('variant') : null;
+        if (variant) expect(generated).toContain(variant);
+      }
+    }
   });
 
   it('resolves the hls_master variant as hlsUrl for a native Oxy video', () => {
@@ -305,7 +336,7 @@ describe('resolveMediaItems — persisted geometry passthrough', () => {
     ]);
 
     expect(item).toMatchObject({ ...geometry, durationSec: 12.5 });
-    expect(item.posterUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=thumb`);
+    expect(item.posterUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=w1280`);
   });
 
   it('forwards geometry for a GIF', () => {

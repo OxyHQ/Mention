@@ -45,9 +45,27 @@ export enum PostVisibility {
  * dedicated 96px square `w96` crop — most avatars across the app render
  * ≤40px (post headers ~36px, notifications, facepiles), so `w96` covers
  * those comfortably even at 3x DPR while staying lighter than the 128px
- * crop it replaced. Video posters are a DIFFERENT context: they fill the (up
- * to ~320px wide) media card as a rectangle, so they keep the 256px `thumb`
- * crop via VIDEO_POSTER rather than being shrunk to a small square.
+ * crop it replaced. A handful of surfaces render a MUCH bigger avatar —
+ * the profile header (90px / 70px), the about page (80px), the OAuth consent
+ * screens (72px / 56px), starter-pack and list avatar groups (56px) — where
+ * `w96` would be visibly soft at 3x DPR; AVATAR_LG covers those with the 256px
+ * `thumb` crop. Those call sites previously reached for VIDEO_POSTER purely
+ * because it happened to equal `'thumb'`, which made every one of them read as
+ * if it were rendering a video.
+ *
+ * VIDEO posters are two contexts, not one, and a single size cannot serve both:
+ *  - VIDEO_THUMB (`w320`) is a small STILL — the profile media grid cell and
+ *    the notification thumbnail. It matches THUMB exactly, so a video cell and
+ *    an image cell in the same grid now cost the same.
+ *  - VIDEO_POSTER (`w1280`) is the frame shown BEHIND a player, and both of its
+ *    surfaces are full-width: the in-feed video card and the fullscreen Reels
+ *    viewer. On a 3x-DPR phone that is ~1180 device px, so the two differ by
+ *    padding, not by an order of magnitude. `w1280` covers both; `w2048` would
+ *    add rows neither can show.
+ * The previous single `'thumb'` (256px) was wrong at BOTH ends — it yielded
+ * 144x256 for a 720x1280 source, too soft fullscreen, while the only other
+ * working option (the raw `poster`, up to 1920px / ~240 KB) was ~6x oversized
+ * for a grid cell.
  *
  * The profile banner is its own context: a full-bleed 170px-tall strip, so its
  * width — not the lightbox's — is what bounds it. The widest real surface is a
@@ -60,7 +78,9 @@ export enum PostVisibility {
 export const MEDIA_VARIANT_THUMB = 'w320';
 export const MEDIA_VARIANT_FULL = 'w2048';
 export const MEDIA_VARIANT_AVATAR = 'w96';
-export const MEDIA_VARIANT_VIDEO_POSTER = 'thumb';
+export const MEDIA_VARIANT_AVATAR_LG = 'thumb';
+export const MEDIA_VARIANT_VIDEO_THUMB = 'w320';
+export const MEDIA_VARIANT_VIDEO_POSTER = 'w1280';
 export const MEDIA_VARIANT_BANNER = 'w1280';
 
 export interface MediaItem {

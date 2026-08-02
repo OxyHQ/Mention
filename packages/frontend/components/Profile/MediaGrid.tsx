@@ -49,10 +49,15 @@ const WINDOW_SIZE = 7;
 // fallback `url`).
 const resolveImageUri = (ref: MediaItem): string | undefined => ref.thumbUrl || ref.url || undefined;
 
-// Static video poster from the server-resolved media object (`posterUrl`,
-// fallback `thumbUrl`). Undefined → icon placeholder; a 404/error from the URL
-// is handled by the cell's own image-error fallback.
-const resolveVideoPosterUri = (ref: MediaItem): string | undefined => ref.posterUrl || ref.thumbUrl || undefined;
+// Static video still from the server-resolved media object (`thumbUrl`, fallback
+// `posterUrl`). `thumbUrl` comes FIRST because a grid cell is ~130px and
+// `posterUrl` is sized for a full-width player — an order of magnitude more
+// bytes than this surface can show. Both fields are a still image for a video of
+// EITHER origin (the resolver points a federated video's `thumbUrl` at its
+// extracted poster, not at the proxied video), so this order is safe.
+// Undefined → icon placeholder; a 404/error from the URL is handled by the
+// cell's own image-error fallback.
+const resolveVideoPosterUri = (ref: MediaItem): string | undefined => ref.thumbUrl || ref.posterUrl || undefined;
 
 const MediaGrid: React.FC<MediaGridProps> = ({
     userId,
