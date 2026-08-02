@@ -617,7 +617,12 @@ describe('buildBlockedContentDomains', () => {
     const domains = buildBlockedContentDomains([`WWW.${BLOCKED.toUpperCase()}`], own);
 
     expect([...domains]).toEqual([BLOCKED]);
-    expect(canonicalDomain('WWW.Example.COM.')).toBe('example.com');
+    expect(canonicalDomain('WWW.Example.COM')).toBe('example.com');
+    // A trailing dot is deliberately NOT stripped: the engine keeps it too, so
+    // such an entry matches no host at the wire. Stripping it here would make
+    // this script delete content for a block that was never in force — see
+    // `blockedDomainCanonicalAgreement.test.ts`, which drives the real engine.
+    expect(canonicalDomain('example.com.')).toBe('example.com.');
   });
 
   it('narrows to one domain, and refuses one that is not on the blocklist', () => {

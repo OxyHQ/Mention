@@ -152,7 +152,10 @@ import { EntityFollow } from '../models/EntityFollow';
 import FederatedMediaCache from '../models/FederatedMediaCache';
 import BlockedDomainPurge, { toLedgerCounts } from '../models/BlockedDomainPurge';
 import BlockedDomainPurgeRun from '../models/BlockedDomainPurgeRun';
-import { getBlockedDomainPolicy } from '../connectors/activitypub/federationBlockPolicy';
+import {
+  canonicalBlockedDomain,
+  getBlockedDomainPolicy,
+} from '../connectors/activitypub/federationBlockPolicy';
 import { Postgate } from '../models/Postgate';
 import { Threadgate } from '../models/Threadgate';
 import { FeedInteraction } from '../models/FeedInteraction';
@@ -269,14 +272,19 @@ function readOptions(): PurgeOptions {
 // --- the target domain set ---------------------------------------------------
 
 /**
- * The one canonical form a domain is compared in: lowercase, no trailing dot, no
- * `www.` prefix. Mirrors the engine's own `canonicalDomainHost`, so a domain this
- * script targets is exactly a domain the live policy blocks.
+ * The canonical comparison form, re-exported from the policy module so this
+ * script and the live `isBlockedDomain` decide "same domain" with the SAME
+ * function rather than two that agree by inspection.
+ *
+ * It deliberately does not strip a trailing dot. An earlier copy here did, which
+ * made this script strictly more aggressive than the engine: `example.com.` in
+ * the blocklist matches nothing when the engine compares hosts, but the stripped
+ * form matched `example.com` and would have deleted that instance's content for
+ * a block that was never in force. For an irreversible action, being broader
+ * than the enforcement it claims to follow is the one direction that cannot be
+ * allowed.
  */
-export function canonicalDomain(value: string): string {
-  const cleaned = value.trim().toLowerCase().replace(/\.$/, '');
-  return cleaned.startsWith('www.') ? cleaned.slice(4) : cleaned;
-}
+export const canonicalDomain = canonicalBlockedDomain;
 
 /** Canonical hostname of a URL, or `null` when it is not parseable as one. */
 export function hostOf(value: string): string | null {
@@ -299,11 +307,17 @@ export class EmptyBlocklistError extends Error {
  * Build the set of domains whose content this run removes.
  *
  * Deliberately NOT `isBlockedDomain`: that predicate also matches our own
- * ActivityPub domains and the Oxy identity apex, so an unset/empty
- * `FEDERATION_BLOCKED_DOMAINS` would resolve to "everything we publish
- * ourselves". Here the configured blocklist is the ONLY source, our own domains
- * are subtracted from it whatever an operator configured, and an empty result
- * throws instead of running.
+ * ActivityPub domains and the Oxy identity apex, so an empty blocklist would
+ * resolve to "everything we publish ourselves". Here the blocklist is the ONLY
+ * source, our own domains are subtracted from it whatever an operator
+ * configured, and an empty result throws instead of running.
+ *
+ * `configured` is the COMMITTED POLICY UNIONED WITH the environment lever, which
+ * is the one place the two are treated alike — and only because a human is
+ * confirming this exact run by name through `CONFIRM_ADMIN_MUTATION`. The
+ * AUTOMATIC path is the opposite and reads the reviewed policy only: nothing
+ * unattended may be triggered by a value someone can change in a console with no
+ * diff, no author and no review.
  */
 export function buildBlockedContentDomains(
   configured: readonly string[],
@@ -327,8 +341,8 @@ export function buildBlockedContentDomains(
 
   if (targets.size === 0) {
     throw new EmptyBlocklistError(
-      'FEDERATION_BLOCKED_DOMAINS names no domain outside our own. '
-      + 'Pass the reviewed blocklist to this run.',
+      'neither the committed policy nor FEDERATION_BLOCKED_DOMAINS names a domain '
+      + 'outside our own.',
     );
   }
 
@@ -1686,8 +1700,16 @@ async function main(): Promise<void> {
   try {
     assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun: options.dryRun });
 
+    // The reviewed run sweeps what the committed policy blocks, so the operator
+    // does not have to paste the reviewed list back in as an environment string
+    // and cannot mistype it while doing so. The env lever is unioned in for an
+    // emergency block that has not been written up yet — permissible here, where
+    // a person is confirming the run, and never on the automatic path.
     const domains = buildBlockedContentDomains(
-      config.federation.blockedDomains,
+      [
+        ...getBlockedDomainPolicy().map((entry) => entry.domain),
+        ...config.federation.blockedDomains,
+      ],
       [FEDERATION_DOMAIN, ACTOR_DOMAIN, OXY_IDENTITY_APEX],
       options.domain,
     );

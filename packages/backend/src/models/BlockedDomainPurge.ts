@@ -12,6 +12,20 @@ import mongoose, { Schema } from 'mongoose';
  *   blocked) and auditable (an automatic deletion is never "it vanished and
  *   nobody knows when or why").
  *
+ * A ROW OUTLIVES THE POLICY — A CONSUMER MUST JOIN, NOT JUST READ
+ *   Rows are never deleted, including for a domain that later leaves the policy.
+ *   So this collection is NOT a list of currently-blocked domains and must never
+ *   be rendered as one: anything published from it has to be joined against the
+ *   CURRENT `getBlockedDomainPolicy()`, or it will show removal counts for a
+ *   domain we no longer block and present a lifted block as a live one.
+ *
+ * `heldReason` IS INTERNAL
+ *   It names the breached ceiling and the measured counts, which together tell a
+ *   reader exactly how much content to plant to trip the circuit breaker — or to
+ *   stay just under it. It exists for an operator reviewing a refusal. If a held
+ *   domain is ever surfaced publicly it should say only that it is held for
+ *   review; the numbers stay here.
+ *
  * DELETION IS ONE-WAY
  *   Removing a domain from the policy file UNDOES NOTHING. It sets
  *   {@link IBlockedDomainPurge.inPolicy} to false and stops there: content that
