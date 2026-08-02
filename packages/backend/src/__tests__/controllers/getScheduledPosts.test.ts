@@ -1,36 +1,38 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Unit coverage for {@link getScheduledPosts} — `GET /posts/scheduled`, the feed
- * behind the composer's Unpublished sheet and its preview.
+ * `getScheduledPosts` — `GET /posts/scheduled`, the feed behind the composer's
+ * Unpublished sheet and its preview.
  *
  * Three properties matter and are asserted independently:
  *
- *  1. **The query is scoped to the CALLER.** A scheduled post is deliberately
- *     not public; this filter is the first of the two server-side gates that
- *     keep it that way (hydration is the second — see
- *     `scheduledPostAcl.test.ts`). Losing `oxyUserId` here would turn a private
- *     listing into everyone's scheduled posts.
+ *  1. **The read is scoped to the CALLER.** A scheduled post is deliberately not
+ *     public; this predicate is the first of the two server-side gates that keep
+ *     it that way (hydration is the second — see `scheduledPostAcl.test.ts`).
+ *     Losing `oxy_user_id` here would turn a private listing into everyone's
+ *     scheduled posts.
  *  2. **An unauthenticated caller gets 401, not an empty list.** The route sits
  *     on the public router (so `/posts/:id` cannot shadow it), so the handler
  *     self-guards; a silent empty answer would read as "you have none".
  *  3. **It returns HYDRATED posts.** The preview renders through the feed's own
- *     `PostItem`, which needs resolved media/author/poll — raw lean documents
- *     would force the client to rebuild a slice of hydration and drift from it.
+ *     `PostItem`, which needs resolved media/author/poll — raw rows would force
+ *     the client to rebuild a slice of hydration and drift from it.
+ *
+ * The read is REAL. Its predicate used to be asserted as a filter object, which
+ * cannot tell a correct scope from one that matches nothing — and "matches
+ * nothing" is what a broken scheduled listing looks like from outside. Seeding
+ * another user's scheduled post beside the caller's is what makes the scope
+ * claim mean something; hydration stays stubbed, because what it returns is the
+ * subject of its own suites and here it only has to be observable.
  */
 vi.mock('../../runtime/socketServer', () => ({
   getRuntimeSocketServer: () => undefined,
 }));
 
 const hoisted = vi.hoisted(() => ({
-  find: vi.fn(),
   hydratePosts: vi.fn(),
   createScopedOxyClient: vi.fn(),
   resolveUserSummaries: vi.fn(),
-}));
-
-vi.mock('../../models/Post', () => ({
-  Post: { find: hoisted.find },
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -47,15 +49,27 @@ vi.mock('../../services/PostHydrationService', () => ({
   }),
 }));
 
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
+import type { PostRecord } from '../../db/posts/postRecord';
 import { getScheduledPosts } from '../../controllers/posts.controller';
 
-const VIEWER_ID = 'oxy-viewer';
+const scope = serviceScope('get-scheduled-posts');
+const VIEWER_ID = scope.user('viewer');
+const OTHER_ID = scope.user('someone-else');
 
-/** Chainable `Post.find(...).sort(...).lean()` stub. */
-function stubFind(rows: unknown[]) {
-  const sort = vi.fn(() => ({ lean: async () => rows }));
-  hoisted.find.mockReturnValue({ sort });
-  return { sort };
+/** A future instant, so a seeded scheduled post is never swept as due. */
+function later(minutes: number): Date {
+  return new Date(Date.now() + minutes * 60 * 1000);
+}
+
+async function seedScheduled(options: { owner?: string; inMinutes?: number } = {}): Promise<string> {
+  const record = await seedPost(scope, {
+    oxyUserId: options.owner ?? VIEWER_ID,
+    status: 'scheduled',
+    scheduledFor: later(options.inMinutes ?? 60),
+  });
+  return record.id;
 }
 
 function buildRequest(overrides: Record<string, unknown> = {}) {
@@ -86,42 +100,61 @@ function buildResponse() {
   return { res, captured };
 }
 
+/** The ids the handler actually handed to hydration, in order. */
+function hydratedIds(): string[] {
+  const [records] = hoisted.hydratePosts.mock.calls[0] ?? [];
+  return ((records ?? []) as PostRecord[]).map((record) => record.id);
+}
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   hoisted.createScopedOxyClient.mockReturnValue(undefined);
   hoisted.hydratePosts.mockResolvedValue([]);
 });
 
+afterEach(async () => {
+  await clearServiceScope(scope);
+});
+
 describe('getScheduledPosts', () => {
-  it('reads ONLY the calling user\'s scheduled posts', async () => {
-    const { sort } = stubFind([{ _id: 'post-1' }]);
+  it("reads ONLY the calling user's scheduled posts, soonest first", async () => {
+    const soon = await seedScheduled({ inMinutes: 30 });
+    const later = await seedScheduled({ inMinutes: 120 });
+    // Neither of these may appear: one belongs to somebody else, one has
+    // already published.
+    await seedScheduled({ owner: OTHER_ID });
+    await seedPost(scope, { oxyUserId: VIEWER_ID });
     const { res } = buildResponse();
 
     await getScheduledPosts(buildRequest({ user: { id: VIEWER_ID } }) as never, res as never);
 
-    expect(hoisted.find).toHaveBeenCalledWith({
-      oxyUserId: VIEWER_ID,
-      status: 'scheduled',
-    });
     // Soonest first — the order the sheet presents without re-sorting.
-    expect(sort).toHaveBeenCalledWith({ scheduledFor: 1 });
+    expect(hydratedIds()).toEqual([soon, later]);
   });
 
   it('hydrates as the caller, so the ACL runs with the right viewer', async () => {
-    stubFind([{ _id: 'post-1' }]);
+    await seedScheduled();
     const { res } = buildResponse();
 
     await getScheduledPosts(buildRequest({ user: { id: VIEWER_ID } }) as never, res as never);
 
     expect(hoisted.hydratePosts).toHaveBeenCalledWith(
-      [{ _id: 'post-1' }],
+      expect.any(Array),
       expect.objectContaining({ viewerId: VIEWER_ID }),
     );
   });
 
-  it('answers with the HYDRATED posts, not the raw documents', async () => {
-    stubFind([{ _id: 'post-1', content: { variants: [{ text: 'raw' }] } }]);
-    const hydrated = [{ id: 'post-1', content: { text: 'resolved' } }];
+  it('answers with the HYDRATED posts, not the raw rows', async () => {
+    const postId = await seedScheduled();
+    const hydrated = [{ id: postId, content: { text: 'resolved' } }];
     hoisted.hydratePosts.mockResolvedValue(hydrated);
     const { res, captured } = buildResponse();
 
@@ -131,19 +164,18 @@ describe('getScheduledPosts', () => {
   });
 
   it('refuses an unauthenticated caller with a 401 rather than an empty list', async () => {
+    await seedScheduled();
     const { res, captured } = buildResponse();
 
     await getScheduledPosts(buildRequest() as never, res as never);
 
     expect(captured.status).toBe(401);
-    expect(hoisted.find).not.toHaveBeenCalled();
     expect(hoisted.hydratePosts).not.toHaveBeenCalled();
   });
 
-  it('answers 500 without leaking the error when the read fails', async () => {
-    hoisted.find.mockImplementation(() => {
-      throw new Error('mongo is down');
-    });
+  it('answers 500 without leaking the error when hydration fails', async () => {
+    await seedScheduled();
+    hoisted.hydratePosts.mockRejectedValue(new Error('the database is down'));
     const { res, captured } = buildResponse();
 
     await getScheduledPosts(buildRequest({ user: { id: VIEWER_ID } }) as never, res as never);

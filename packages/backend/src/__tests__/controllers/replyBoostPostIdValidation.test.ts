@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 /**
  * A client-supplied post id must be a post id before it reaches a query.
@@ -13,17 +13,23 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  *   findByIdAndUpdate({ $ne: null }) -> MUTATED an arbitrary post
  *   findById({ $gt: '' } | 123 | {} | 'aaaaaaaaaaaa') -> CastError
  *
- * So the cast is not a guard: an operator whose operand is itself castable goes
- * straight through. Reaching the counter update was blocked only because
- * `parentPostId` and `boostOf` are String columns and `.save()` threw first —
- * an unrelated schema detail, and a 500 where a 400 belongs.
+ * So the cast was not a guard: an operator whose operand is itself castable went
+ * straight through.
  *
- * ## What these assertions are worth
+ * ## What the port changed, and what it did not
  *
- * Each asserts BOTH the 400 and that `Post.findById` was never called. The
- * status alone would keep passing if the guard moved below the query, which is
- * the arrangement that still leaks: the arbitrary post has already been read by
- * then.
+ * Every id is a BOUND PARAMETER against a `text` column now, so an operator
+ * object can no longer become a predicate — the hole this file was written for
+ * is closed by the storage layer rather than by the check. The TYPE check stays
+ * anyway: a non-string has no business being interpolated as an id, and a 400
+ * is the honest answer for one.
+ *
+ * The id-SHAPE half is GONE, and its absence is asserted below. `posts.id` holds
+ * pre-cutover ObjectId hex AND post-cutover uuid v7, so an `isValidObjectId`
+ * gate would 400 every post this instance has minted since the cutover — the
+ * failure would be a compose action that silently stopped working, not an error.
+ * A string that is simply not a post id matches no row and gets the 404 it
+ * deserves.
  */
 vi.mock('../../services/postEngagementBroadcast', () => ({
   emitPostEngagement: vi.fn(),
@@ -47,8 +53,11 @@ vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
 }));
 
-import { Post } from '../../models/Post';
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { feedController } from '../../controllers/feed.controller';
+
+const scope = serviceScope('reply-boost-id-validation');
 
 function buildResponse() {
   const captured: { status?: number; body?: unknown } = {};
@@ -65,67 +74,81 @@ function buildResponse() {
   return { res, captured };
 }
 
-/**
- * Values a JSON body can carry that are not post ids. `{ $ne: null }` is the one
- * that actually selected a document; the rest reached the driver and threw,
- * which is a 500 for what is plainly a bad request.
- */
-const HOSTILE_IDS: Array<[string, unknown]> = [
+/** Values a JSON body can carry that are not, and can never be, an id STRING. */
+const NON_STRING_IDS: Array<[string, unknown]> = [
   ['a query operator', { $ne: null }],
   ['a comparison operator', { $gt: '' }],
   ['an array', ['aaaaaaaaaaaaaaaaaaaaaaaa']],
   ['a bare number', 123],
   ['an empty object', {}],
   ['a boolean', true],
-  ['a non-hex string', 'notanobjectid'],
 ];
 
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 describe('createReply / createBoost reject a post id that is not one', () => {
-  afterEach(() => {
+  afterEach(async () => {
     vi.restoreAllMocks();
+    await clearServiceScope(scope);
   });
 
-  it.each(HOSTILE_IDS)('createReply refuses %s without querying', async (_label, postId) => {
-    const findById = vi.spyOn(Post, 'findById');
+  it.each(NON_STRING_IDS)('createReply refuses %s', async (_label, postId) => {
     const { res, captured } = buildResponse();
 
     await feedController.createReply(
-      { body: { postId, content: 'hello' }, user: { id: 'attacker' } } as never,
+      { body: { postId, content: 'hello' }, user: { id: scope.user('attacker') } } as never,
       res as never,
     );
 
     expect(captured.status).toBe(400);
-    expect(findById).not.toHaveBeenCalled();
   });
 
-  it.each(HOSTILE_IDS)('createBoost refuses %s without querying', async (_label, originalPostId) => {
-    const findById = vi.spyOn(Post, 'findById');
+  it.each(NON_STRING_IDS)('createBoost refuses %s', async (_label, originalPostId) => {
     const { res, captured } = buildResponse();
 
     await feedController.createBoost(
-      { body: { originalPostId }, user: { id: 'attacker' } } as never,
+      { body: { originalPostId }, user: { id: scope.user('attacker') } } as never,
       res as never,
     );
 
     expect(captured.status).toBe(400);
-    expect(findById).not.toHaveBeenCalled();
   });
 
-  it('still lets a real post id through to the query', async () => {
-    // The floor under the assertions above: they would all pass just as well
-    // against a handler that refused every id it was ever given.
-    const findById = vi.spyOn(Post, 'findById').mockImplementation((() => ({
-      maxTimeMS: () => ({ lean: () => Promise.resolve(null) }),
-    })) as never);
+  it.each([
+    ['a non-hex string', 'notanobjectid'],
+    ['a uuid that names no post', '019fffff-ffff-7fff-bfff-ffffffffffff'],
+  ])('answers 404, not 400, for %s — a string that is simply not a post', async (_l, postId) => {
     const { res, captured } = buildResponse();
 
     await feedController.createReply(
-      { body: { postId: 'aaaaaaaaaaaaaaaaaaaaaaaa', content: 'hello' }, user: { id: 'author' } } as never,
+      { body: { postId, content: 'hello' }, user: { id: scope.user('author') } } as never,
       res as never,
     );
 
-    expect(findById).toHaveBeenCalledWith('aaaaaaaaaaaaaaaaaaaaaaaa');
-    // 404, because the stub says no such post — the point is that it got there.
+    // The distinction matters: 400 would mean "that cannot be an id", and an
+    // id-shape gate saying that about a uuid v7 is exactly the regression this
+    // case exists to catch.
     expect(captured.status).toBe(404);
+  });
+
+  it('lets a real post id through to a real read', async () => {
+    // The floor under every assertion above: they would all pass just as well
+    // against a handler that refused every id it was ever given.
+    const parent = await seedPost(scope, { oxyUserId: scope.user('parent-author') });
+    const { res, captured } = buildResponse();
+
+    await feedController.createReply(
+      { body: { postId: parent.id, content: 'hello' }, user: { id: scope.user('author') } } as never,
+      res as never,
+    );
+
+    expect(captured.status).not.toBe(400);
+    expect(captured.status).not.toBe(404);
   });
 });

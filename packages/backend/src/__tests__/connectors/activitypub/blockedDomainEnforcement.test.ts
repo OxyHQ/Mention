@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
 
 /**
  * `FEDERATION_BLOCKED_DOMAINS` must stop a suspended instance syncing INTO
@@ -84,14 +85,26 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   signRequest: mocks.signRequest,
 }));
 
-vi.mock('../../../models/FederatedActor', () => ({
-  default: {
-    findOne: mocks.actorFindOne,
-    find: mocks.actorFind,
-    findOneAndUpdate: mocks.findOneAndUpdate,
-    updateOne: mocks.updateOne,
-  },
-}));
+/**
+ * The actor CACHE is the real repository, wrapped in a spy.
+ *
+ * The property this suite exists for is that a blocked domain is refused BEFORE
+ * any store read, and that needs an observable on the read itself. It used to
+ * spy on `models/FederatedActor` — which nothing calls any more, so the
+ * assertion had stopped distinguishing a refusal from a lookup that simply went
+ * somewhere else. Wrapping the repository restores it, and keeps the CONTROL
+ * cases reading a real row.
+ */
+vi.mock('../../../db/federation/actorRepository', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../db/federation/actorRepository')>();
+  return {
+    ...actual,
+    findActorByUri: (uri: string, ...rest: unknown[]) => {
+      mocks.actorFindOne(uri);
+      return (actual.findActorByUri as (...a: unknown[]) => unknown)(uri, ...rest);
+    },
+  };
+});
 
 vi.mock('../../../models/FederatedFollow', () => ({
   default: {
@@ -179,27 +192,62 @@ vi.mock('../../../utils/safeUpstreamFetch', async (importOriginal) => {
   return { ...actual, fetchUpstreamSingleHop: mocks.fetchUpstreamSingleHop };
 });
 
+import { inArray } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { federatedActors } from '../../../db/schema/federation';
+import {
+  findActorByUri,
+  setActorOxyUserId,
+  upsertActor,
+} from '../../../db/federation/actorRepository';
+import {
+  deleteFollowsFor,
+  upsertOutboundAcceptedSubscription,
+} from '../../../db/federation/followRepository';
 import { activityPubConnector } from '../../../connectors/activitypub/ActivityPubConnector';
 import { deliveryService } from '../../../connectors/activitypub/delivery.service';
 import { isBlockedDomain } from '../../../connectors/activitypub/constants';
 
-const BLOCKED_ACTOR = 'https://spam.example/users/mallory';
-const ALLOWED_ACTOR = 'https://mastodon.social/users/bob';
+/**
+ * The hosts are load-bearing (one is on the blocklist, one is not) and the rows
+ * are real, so the actor paths are namespaced per run instead: `federated_actors`
+ * carries a unique `uri` and `acct`, and vitest runs files in parallel.
+ */
+const RUN = randomUUID().slice(0, 8);
+const BLOCKED_ACTOR = `https://spam.example/users/mallory-${RUN}`;
+const ALLOWED_ACTOR = `https://mastodon.social/users/bob-${RUN}`;
 const LOCAL_ACTOR = 'https://mention.earth/ap/users/alice';
 
 /** A cached, non-stale actor row already resolved to an Oxy user — the hole's precondition. */
-function cacheActor(uri: string, oxyUserId: string) {
-  mocks.actorFindOne.mockReturnValue({
-    lean: vi.fn().mockResolvedValue({
-      _id: 'actor_1',
-      uri,
-      acct: `mallory@${new URL(uri).hostname}`,
-      oxyUserId,
+/** A real cached actor row, so the control cases read one rather than a script. */
+async function cacheActor(uri: string, oxyUserId: string): Promise<void> {
+  const host = new URL(uri).hostname;
+  await upsertActor(
+    uri,
+    {
+      protocol: 'activitypub',
+      username: `${new URL(uri).pathname.split('/').pop()}`,
+      domain: host,
+      acct: `${new URL(uri).pathname.split('/').pop()}@${host}`,
       outboxUrl: `${uri}/outbox`,
+      inboxUrl: `${uri}/inbox`,
       publicKeyPem: 'cached-pem',
+      type: 'Person',
+      manuallyApprovesFollowers: false,
+      discoverable: true,
+      memorial: false,
+      suspended: false,
+      followersCount: 0,
+      followingCount: 0,
+      postsCount: 0,
       lastFetchedAt: new Date(),
-    }),
-  });
+    },
+    [],
+  );
+  const actor = await findActorByUri(uri);
+  if (actor) await setActorOxyUserId(actor.id, oxyUserId);
+  // The seed itself must not count as a lookup for the refusal assertion.
+  mocks.actorFindOne.mockClear();
 }
 
 function createNote(actorUri: string) {
@@ -220,6 +268,22 @@ function createNote(actorUri: string) {
 }
 
 const sendAcceptSpy = vi.spyOn(deliveryService, 'sendAccept');
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+afterEach(async () => {
+  await deleteFollowsFor({ remoteActorUri: BLOCKED_ACTOR });
+  await deleteFollowsFor({ remoteActorUri: ALLOWED_ACTOR });
+  await getDb()
+    .delete(federatedActors)
+    .where(inArray(federatedActors.uri, [BLOCKED_ACTOR, ALLOWED_ACTOR]));
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -279,7 +343,7 @@ describe('inbound PUSH from a blocked domain', () => {
   }
 
   it('drops a Create whose actor is ALREADY CACHED — no post is created', async () => {
-    cacheActor(BLOCKED_ACTOR, 'oxy_mallory');
+    await cacheActor(BLOCKED_ACTOR, 'oxy_mallory');
 
     await activityPubConnector.processInboxActivity(createNote(BLOCKED_ACTOR), BLOCKED_ACTOR);
 
@@ -289,7 +353,11 @@ describe('inbound PUSH from a blocked domain', () => {
   });
 
   it('control: the same Create from an allowed domain with a cached actor IS imported', async () => {
-    cacheActor(ALLOWED_ACTOR, 'oxy_bob');
+    await cacheActor(ALLOWED_ACTOR, 'oxy_bob');
+    // `handleCreate` imports a note only for an actor somebody here follows.
+    // Real row, because the gate is a real query — and the BLOCKED case above
+    // never reaches it, which is exactly what this control has to prove.
+    await upsertOutboundAcceptedSubscription(`local-${RUN}`, ALLOWED_ACTOR, 'activitypub');
 
     await activityPubConnector.processInboxActivity(createNote(ALLOWED_ACTOR), ALLOWED_ACTOR);
 
@@ -298,7 +366,7 @@ describe('inbound PUSH from a blocked domain', () => {
   });
 
   it('drops a Follow — no Oxy edge is bridged and no follow row is written', async () => {
-    cacheActor(BLOCKED_ACTOR, 'oxy_mallory');
+    await cacheActor(BLOCKED_ACTOR, 'oxy_mallory');
 
     await activityPubConnector.processInboxActivity(
       { id: `${BLOCKED_ACTOR}/follows/1`, type: 'Follow', actor: BLOCKED_ACTOR, object: LOCAL_ACTOR },
@@ -311,7 +379,7 @@ describe('inbound PUSH from a blocked domain', () => {
   });
 
   it('control: the same Follow from an allowed domain DOES bridge and Accept', async () => {
-    cacheActor(ALLOWED_ACTOR, 'oxy_bob');
+    await cacheActor(ALLOWED_ACTOR, 'oxy_bob');
 
     await activityPubConnector.processInboxActivity(
       { id: `${ALLOWED_ACTOR}/follows/1`, type: 'Follow', actor: ALLOWED_ACTOR, object: LOCAL_ACTOR },
@@ -327,7 +395,7 @@ describe('inbound PUSH from a blocked domain', () => {
   });
 
   it('drops a Like — no engagement is materialized', async () => {
-    cacheActor(BLOCKED_ACTOR, 'oxy_mallory');
+    await cacheActor(BLOCKED_ACTOR, 'oxy_mallory');
 
     await activityPubConnector.processInboxActivity(
       {
@@ -344,7 +412,7 @@ describe('inbound PUSH from a blocked domain', () => {
   });
 
   it('drops an Announce — no boost post is created', async () => {
-    cacheActor(BLOCKED_ACTOR, 'oxy_mallory');
+    await cacheActor(BLOCKED_ACTOR, 'oxy_mallory');
 
     await activityPubConnector.processInboxActivity(
       {
@@ -362,7 +430,7 @@ describe('inbound PUSH from a blocked domain', () => {
   });
 
   it('drops a Delete — an existing local copy is not mutated by a blocked origin', async () => {
-    cacheActor(BLOCKED_ACTOR, 'oxy_mallory');
+    await cacheActor(BLOCKED_ACTOR, 'oxy_mallory');
 
     await activityPubConnector.processInboxActivity(
       {
@@ -427,13 +495,13 @@ describe('outbox PULL from a blocked domain', () => {
 
 describe('cached actors on a blocked domain are no longer served', () => {
   it('getOrFetchActor returns null even though a row is cached', async () => {
-    cacheActor(BLOCKED_ACTOR, 'oxy_mallory');
+    await cacheActor(BLOCKED_ACTOR, 'oxy_mallory');
 
     await expect(activityPubConnector.getOrFetchActor(BLOCKED_ACTOR)).resolves.toBeNull();
   });
 
   it('control: a cached actor on an allowed domain is still returned', async () => {
-    cacheActor(ALLOWED_ACTOR, 'oxy_bob');
+    await cacheActor(ALLOWED_ACTOR, 'oxy_bob');
 
     const actor = await activityPubConnector.getOrFetchActor(ALLOWED_ACTOR);
     expect(actor?.uri).toBe(ALLOWED_ACTOR);
