@@ -1714,18 +1714,17 @@
       "all": "Tutti"
     },
     "node": {
-      "counts": "{{posts}} post · {{authors}} autori distinti"
-    },
-    "edge": {
-      "related": "Correlato a {{term}} — {{posts}} post in comune, non unito"
+      "posts_one": "{{count}} post",
+      "posts_other": "{{count}} post",
+      "authors_one": "{{count}} autore",
+      "authors_other": "{{count}} autori"
     },
     "sections": {
       "stories": "Storie unite",
       "ungrouped": "Termini a sé"
     },
-    "eyebrow": "Dietro la lista",
-    "badge": {
-      "merged": "{{count}} uniti"
-    }
+    "related_zero": "Correlati, non uniti: {{terms}}",
+    "related_one": "Correlati, non uniti: {{terms}} +{{count}} altri",
+    "related_other": "Correlati, non uniti: {{terms}} +{{count}} altri"
   }
 }

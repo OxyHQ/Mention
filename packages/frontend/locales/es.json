@@ -1934,18 +1934,17 @@
       "all": "Todos"
     },
     "node": {
-      "counts": "{{posts}} publicaciones · {{authors}} autores distintos"
-    },
-    "edge": {
-      "related": "Relacionado con {{term}} — {{posts}} publicaciones en común, sin unir"
+      "posts_one": "{{count}} publicación",
+      "posts_other": "{{count}} publicaciones",
+      "authors_one": "{{count}} autor",
+      "authors_other": "{{count}} autores"
     },
     "sections": {
       "stories": "Historias unidas",
       "ungrouped": "Términos por su cuenta"
     },
-    "eyebrow": "Detrás de la lista",
-    "badge": {
-      "merged": "{{count}} unidos"
-    }
+    "related_zero": "Relacionados, sin unir: {{terms}}",
+    "related_one": "Relacionados, sin unir: {{terms}} +{{count}} más",
+    "related_other": "Relacionados, sin unir: {{terms}} +{{count}} más"
   }
 }
