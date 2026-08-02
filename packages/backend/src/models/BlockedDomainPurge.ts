@@ -19,12 +19,13 @@ import mongoose, { Schema } from 'mongoose';
  *   CURRENT `getBlockedDomainPolicy()`, or it will show removal counts for a
  *   domain we no longer block and present a lifted block as a live one.
  *
- * `heldReason` IS INTERNAL
+ * `heldReason` IS STAFF-ONLY AND MUST NOT REACH A PUBLIC DTO
  *   It names the breached ceiling and the measured counts, which together tell a
  *   reader exactly how much content to plant to trip the circuit breaker — or to
- *   stay just under it. It exists for an operator reviewing a refusal. If a held
- *   domain is ever surfaced publicly it should say only that it is held for
- *   review; the numbers stay here.
+ *   stay just under it. It exists for an operator reviewing a refusal. A public
+ *   surface may say that a domain is blocked and that its history has not been
+ *   removed yet, pending review, and nothing more: the STATE may be published,
+ *   the NUMBERS may not. Do not add this field to a published response type.
  *
  * DELETION IS ONE-WAY
  *   Removing a domain from the policy file UNDOES NOTHING. It sets

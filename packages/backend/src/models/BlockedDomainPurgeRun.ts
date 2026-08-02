@@ -24,6 +24,14 @@ import {
  *   entirely, and the record of an irreversible deletion has to keep saying what
  *   it was done for. Reading them live would let the record change after the
  *   fact.
+ *
+ *   This is a SNAPSHOT and is deliberately never reconciled with the live
+ *   policy. If the wording is later corrected the two will differ, and that is
+ *   correct rather than a bug to fix: one says why the domain is blocked now,
+ *   the other why content was deleted then. A surface showing both must label
+ *   this one as the reason at the time of removal — do not "repair" the
+ *   divergence by re-reading the current entry, which would quietly rewrite
+ *   history.
  */
 export type BlockedDomainPurgeTrigger =
   /** The domain was newly added to the committed policy and reconciled automatically. */
