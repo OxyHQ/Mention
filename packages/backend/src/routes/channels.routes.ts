@@ -873,12 +873,13 @@ router.put(
  * Mongo version there is no partway state to fail into. Two things survive the
  * move and are worth knowing here:
  *
- *  - **Releasing the posts is not tidiness, it is what stops them being
- *    deleted.** `posts.channel_id` is `ON DELETE CASCADE`, so the release is
- *    load-bearing in a way its Mongo `$unset` never was. A released post
- *    reappears on its author's profile because the exclusion is
- *    `channel_id is null`, and it stops being anonymous because hydration reads
- *    the channel through that column.
+ *  - **A released post reappears on its author's profile** — the exclusion is
+ *    `channel_id is null` — and it stops being anonymous, because hydration
+ *    reads the channel through that column. Since migration `0012` the
+ *    CONSTRAINT (`ON DELETE SET NULL`) guarantees the release happens on every
+ *    path, including callers that never reach this route; the repository's own
+ *    release remains the layer that also clears `lane_id` and removes the
+ *    channel's lanes, which no foreign key can do.
  *  - **Members and followers go with the row**, by their own
  *    `ON DELETE CASCADE`, and so do the channel's lanes' mutes — so the four
  *    hand-sequenced deletes the Mongo handler carried are now two statements and

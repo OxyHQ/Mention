@@ -14,12 +14,15 @@
  *     not publish to and could not repair: `canPublishToChannel` answers from
  *     the membership row alone, on purpose, so there is no "or the owner" branch
  *     to fall back on. One transaction removes the window.
- *  3. **Deleting a channel RELEASES its posts before the row goes.** In Mongo
- *     that ordering was a convention the route documented at length. Here it is
- *     load-bearing in a harder way: `posts.channel_id` is `ON DELETE CASCADE`,
- *     so a `delete from channels` that is not preceded by the release DESTROYS
- *     every post ever published to the channel — including posts written by
- *     other publishers. One transaction, with the release first.
+ *  3. **Deleting a channel RELEASES its posts, and takes its lanes with it.**
+ *     In Mongo the ordering was a convention the route documented at length,
+ *     and until migration `0012` it was the only thing standing between a
+ *     channel delete and the destruction of every post ever published to it
+ *     (`posts.channel_id` was `ON DELETE CASCADE`). That is now the
+ *     CONSTRAINT's job — `ON DELETE SET NULL` — and this stays as the layer
+ *     above it, because a foreign key cannot reach `lanes`: its `owner_id` is
+ *     polymorphic and carries no key, so only this function stops a deleted
+ *     channel leaving lanes nobody can read or remove.
  */
 
 import { and, eq } from 'drizzle-orm';
@@ -144,15 +147,22 @@ export async function updateChannelProfile(
  * Delete a channel, everything that hangs off it, and nothing else — in ONE
  * transaction.
  *
- * The FIRST statement is the whole reason this is not a one-line delete, and it
- * is more load-bearing here than it was in Mongo:
+ * What each statement is for, now that migration `0012` made
+ * `posts.channel_id` `ON DELETE SET NULL`:
  *
- *  - `posts.channel_id` is `ON DELETE CASCADE`, so releasing the posts is what
- *    stands between deleting a channel and deleting every post ever published
- *    to it. `lane_id` goes with it because the lane it names is deleted below.
- *  - The channel's own lanes then go; `lane_mutes.lane_id` is
- *    `ON DELETE CASCADE`, so the readers' mutes of them go too. A lane whose
- *    publisher no longer exists can never be reached or managed.
+ *  - The release no longer stands between a channel delete and the destruction
+ *    of its posts — the constraint does that, on every path, including the ones
+ *    that never call this function. It stays because it also clears `lane_id`
+ *    in the same statement rather than leaning on a second cascade firing in
+ *    the right order, and because the intent belongs where the delete is.
+ *  - **The channel's own lanes are the part NO constraint can cover.**
+ *    `lanes.owner_id` is polymorphic (an Oxy account id or a channel id,
+ *    discriminated by `owner_type`), so it carries no foreign key. Skip this
+ *    and the lanes survive their publisher: still listed by
+ *    `GET /lanes?ownerType=channel`, served empty by `laneSource`, and
+ *    undeletable because `callerManagesLane` can no longer find the channel.
+ *    `lane_mutes.lane_id` IS `ON DELETE CASCADE`, so the readers' mutes go with
+ *    the lanes.
  *  - `channel_members` and `channel_follows` are `ON DELETE CASCADE` on
  *    `channel_id`, so the channel row itself takes them.
  *

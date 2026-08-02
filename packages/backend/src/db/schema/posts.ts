@@ -218,8 +218,9 @@ export const posts = pgTable(
      * reaches. Only ORIGINAL local posts carry one; replies and boosts are
      * refused at the write boundary.
      *
-     * CASCADE: deleting a lane removes the curation, not the posts — so the
-     * column is nulled rather than the row deleted. See the FK below.
+     * SET NULL: deleting a lane removes the CURATION, not the posts — so the
+     * column is nulled rather than the row deleted. The FK below now says the
+     * same thing for the same reason.
      */
     laneId: text().references(() => lanes.id, { onDelete: 'set null' }),
 
@@ -238,8 +239,31 @@ export const posts = pgTable(
      * exclusion is `channel_id is null`, which is total: it matches every post
      * written before channels existed as well as every ordinary post, so no
      * backfill is owed and no second clause is needed.
+     *
+     * ## SET NULL, and it was CASCADE — migration `0012`
+     *
+     * `ON DELETE CASCADE` here meant that deleting ONE channel destroyed every
+     * post ever published to it, irreversibly, INCLUDING posts written by other
+     * publishers. That contradicted the product rule its own delete route
+     * documents at length — deleting a channel RELEASES its posts back to their
+     * authors — and it contradicted `lane_id` directly above, which carries the
+     * identical argument (deleting the curation is not deleting the content)
+     * and always said `set null`. An inconsistency, not a considered exception,
+     * which is the shape a future reader resolves in whichever direction is
+     * nearest.
+     *
+     * It was unreachable while `deleteChannelCascade` was the only writer, and
+     * that is exactly the reasoning the flip rejects: "correct because the
+     * application always releases first" is a property of ONE call site, and
+     * this repo is actively adding others (a destructive domain-purge sweep is
+     * being ported alongside this). The FK is what makes the guarantee hold for
+     * a caller nobody has written yet.
+     *
+     * The release in `deleteChannelCascade` STAYS. This protects the row; the
+     * release is what performs the rest of the product rule — see the fixture
+     * in `__tests__/db/channelRepository.test.ts` that distinguishes them.
      */
-    channelId: text().references(() => channels.id, { onDelete: 'cascade' }),
+    channelId: text().references(() => channels.id, { onDelete: 'set null' }),
 
     /**
      * The post this one replies to.

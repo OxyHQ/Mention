@@ -19,11 +19,13 @@
  *    the rename moved `name_lower` too. Assert the CONSTRAINT rather than the
  *    column, because a derivation that stopped happening leaves a perfectly
  *    plausible `name` behind and nothing else changes.
- *  - **`deleteChannelCascade` must leave the posts alive.** `posts.channel_id`
- *    is `ON DELETE CASCADE`, so the release is what stands between deleting a
- *    channel and deleting every post ever published to it — including other
- *    people's. A test that only checks `channel_id is null` on a row it fetched
- *    would pass on an empty result; this one asserts the row EXISTS first.
+ *  - **`deleteChannelCascade` must leave the posts alive.** A test that only
+ *    checks `channel_id is null` on a row it fetched would pass on an empty
+ *    result, so every one of these asserts the row EXISTS first. Migration
+ *    `0012` moved the guarantee under the application — `posts.channel_id` is
+ *    now `ON DELETE SET NULL` — and the block near the bottom of this file
+ *    exercises that constraint with no repository between it and the row,
+ *    because that is the path a background sweep takes.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -454,7 +456,7 @@ describe('the defaults a caller may omit', () => {
 });
 
 describe('deleteChannelCascade', () => {
-  it('RELEASES the channel\'s posts rather than deleting them', async () => {
+  it('releases the channel\'s posts rather than deleting them', async () => {
     const owner = scope.user('deleter');
     const channel = await insertChannelWithOwner(uniqueHandle(), owner, {
       title: 'A channel',
@@ -472,10 +474,9 @@ describe('deleteChannelCascade', () => {
 
     await deleteChannelCascade(channel.id);
 
-    // EXISTS first, and only then its columns: `posts.channel_id` is
-    // `ON DELETE CASCADE`, so the failure this guards against is the row being
-    // GONE — against which an assertion on `row?.channelId` would read
-    // `undefined` and pass.
+    // EXISTS first, and only then its columns — the failure worth guarding
+    // against is the row being GONE, against which an assertion on
+    // `row?.channelId` reads `undefined` and passes.
     const released = await readPostRow(post.id);
     expect(released).toBeDefined();
     expect(released?.channelId).toBeNull();
@@ -566,6 +567,72 @@ describe('deleteChannelCascade', () => {
 
     await deleteChannelCascade(channel.id);
     await expect(deleteChannelCascade(channel.id)).resolves.toBeUndefined();
+  });
+});
+
+/**
+ * The FOREIGN KEY on its own, with no application code between it and the row.
+ *
+ * `deleteChannelCascade` is not the only way a `channels` row can go: a
+ * destructive background sweep deletes across many tables directly, and this is
+ * the shape it takes. Migration `0012` flipped `posts.channel_id` from
+ * `ON DELETE CASCADE` to `ON DELETE SET NULL` precisely because "correct
+ * because the application always releases first" is a property of ONE call
+ * site.
+ *
+ * These cases delete the row with a bare `db.delete(channels)`, which is the
+ * only way to observe the constraint rather than the repository. **After `0012`
+ * no test can distinguish the release inside `deleteChannelCascade` from the FK
+ * by its OUTCOME** — both leave `channel_id` null — and the second case below
+ * is the honest statement of what the repository still does that the constraint
+ * does not.
+ */
+describe('deleting a channel ROW directly, bypassing the repository', () => {
+  it('leaves its posts alive with a null channel_id — this is migration 0012', async () => {
+    const channel = await insertChannelWithOwner(uniqueHandle(), scope.user('direct'), {
+      title: 'A channel',
+      signPosts: false,
+    });
+    createdChannelIds.push(channel.id);
+    const post = await seedPost(scope, { channelId: channel.id });
+
+    await getDb().delete(channels).where(eq(channels.id, channel.id));
+
+    // Under the old `ON DELETE CASCADE` this row was GONE — one channel delete
+    // destroying every post ever published to it, other publishers' included.
+    const survivor = await readPostRow(post.id);
+    expect(survivor).toBeDefined();
+    expect(survivor?.channelId).toBeNull();
+  });
+
+  it('DOES leave the channel\'s lanes orphaned — which is why the repository stays', async () => {
+    // `lanes.owner_id` is POLYMORPHIC (an Oxy account id or a channel id,
+    // discriminated by `owner_type`), so it carries no foreign key and no
+    // cascade can reach it. A direct delete therefore leaves lanes naming a
+    // channel that no longer exists: they still list from
+    // `GET /lanes?ownerType=channel&ownerId=…`, `laneSource` finds no channel
+    // and serves nothing, and `callerManagesLane` finds no channel and answers
+    // 404 — so nobody can delete them either.
+    //
+    // This is the difference the FK cannot cover, and it is the reason
+    // `deleteChannelCascade` remains the door rather than a redundant wrapper.
+    const channel = await insertChannelWithOwner(uniqueHandle(), scope.user('orphaner'), {
+      title: 'A channel',
+      signPosts: false,
+    });
+    createdChannelIds.push(channel.id);
+    const lane = await insertLane({
+      ownerType: 'channel',
+      ownerId: channel.id,
+      name: 'Orphan',
+      displayMode: 'tab',
+    });
+    createdLaneIds.push(lane.id);
+
+    await getDb().delete(channels).where(eq(channels.id, channel.id));
+
+    expect(await readLane(lane.id)).toBeDefined();
+    expect((await readLane(lane.id))?.ownerId).toBe(channel.id);
   });
 });
 
