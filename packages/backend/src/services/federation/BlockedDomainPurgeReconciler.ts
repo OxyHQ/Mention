@@ -77,6 +77,8 @@ import BlockedDomainPurge, {
   type BlockedDomainPurgeCounts,
   type IBlockedDomainPurge,
 } from '../../models/BlockedDomainPurge';
+import BlockedDomainPurgeRun from '../../models/BlockedDomainPurgeRun';
+import type { FederationBlockPolicyEntry } from '../../connectors/activitypub/federationBlockPolicy';
 import { logger } from '../../utils/logger';
 import {
   describeBreaches,
@@ -106,12 +108,19 @@ export type PurgeRunner = (
 
 export interface ReconcileBlockedDomainPurgesInput {
   /**
-   * The canonical domains in the committed policy file, as its own parser
-   * produced them. This module never reads the file: the policy's shape belongs
-   * to whoever owns it, and passing the result in keeps exactly one parser in
-   * the repo.
+   * The committed policy entries, as `getBlockedDomainPolicy()` produced them
+   * (already canonicalised). This module never reads or parses the policy file:
+   * passing the parser's output in keeps exactly one reader of it in the repo.
+   *
+   * `since` on these entries is IGNORED for deciding what is new. It is a date
+   * the author declares rather than a commit timestamp — it can be backdated,
+   * and correcting a typo in it is an ordinary edit that must not re-trigger a
+   * deletion. Newness comes from diffing the domain set against the ledger.
+   * `reason`, `category` and `corroboratingSources` ARE used: they are copied
+   * onto the audit record so the published justification and the record of what
+   * was deleted for it are the same words.
    */
-  policyDomains: readonly string[];
+  policyEntries: readonly FederationBlockPolicyEntry[];
   runPurge: PurgeRunner;
   now?: () => Date;
 }
@@ -168,10 +177,10 @@ export function toMeasurement(report: PurgeReport): PurgeMeasurement {
  * later, so the eligibility rule lives in exactly one place.
  */
 async function observePolicy(
-  policyDomains: readonly string[],
+  policyEntries: readonly FederationBlockPolicyEntry[],
   now: Date,
 ): Promise<{ eligible: string[]; baselined: string[]; departed: string[] }> {
-  const wanted = [...new Set(policyDomains)].sort();
+  const wanted = [...new Set(policyEntries.map((entry) => entry.domain))].sort();
   const isFirstEverReconciliation = (await BlockedDomainPurge.estimatedDocumentCount()) === 0;
 
   const baselined: string[] = [];
@@ -265,7 +274,7 @@ export async function reconcileBlockedDomainPurges(
 
   await reArmStaleClaims(now);
 
-  const { eligible, baselined, departed } = await observePolicy(input.policyDomains, now);
+  const { eligible, baselined, departed } = await observePolicy(input.policyEntries, now);
   result.baselined = baselined;
   result.departed = departed;
 
@@ -323,7 +332,7 @@ export async function reconcileBlockedDomainPurges(
         domains: claimed.length,
         heldReason,
       });
-      await recordOutcome(claimed, preview, {
+      await recordOutcome(claimed, preview, input.policyEntries, {
         state: 'held',
         runId,
         heldReason,
@@ -334,7 +343,7 @@ export async function reconcileBlockedDomainPurges(
     }
 
     const removed = await input.runPurge(domains, { dryRun: false, resetCursor: false });
-    await recordOutcome(claimed, removed, { state: 'purged', runId, now });
+    await recordOutcome(claimed, removed, input.policyEntries, { state: 'purged', runId, now });
     result.purged = claimed;
     result.removed = toLedgerCounts(removed.totals);
     logger.info('[BlockedDomainPurge] automatic purge complete', {
@@ -362,12 +371,29 @@ export async function reconcileBlockedDomainPurges(
   }
 }
 
-/** Write the per-domain audit record for a finished (or refused) run. */
+/**
+ * Write the audit record for a finished (or refused) run.
+ *
+ * Two records, deliberately: the LEDGER row moves to its new state (and, when
+ * refused, keeps what the breaker measured as the evidence for that state),
+ * while an append-only RUN row records what was actually removed. A domain can
+ * be blocked, purged, unblocked and blocked again — storing the counts only on
+ * the state row would overwrite the first purge's result with the second and
+ * make any total for that domain quietly wrong.
+ *
+ * The run row copies the policy's `reason`, `category` and
+ * `corroboratingSources` as they read AT THIS MOMENT. The published wording can
+ * later change, or the entry can be removed entirely, and the record of an
+ * irreversible deletion has to keep saying what it was done for.
+ */
 async function recordOutcome(
   domains: readonly string[],
   report: PurgeReport,
+  policyEntries: readonly FederationBlockPolicyEntry[],
   context: { state: 'purged' | 'held'; runId: string; heldReason?: string; now: Date },
 ): Promise<void> {
+  const entryByDomain = new Map(policyEntries.map((entry) => [entry.domain, entry]));
+
   for (const domain of domains) {
     const counts = report.byDomain.get(domain);
     const ledgerCounts = counts ? toLedgerCounts(counts) : null;
@@ -377,11 +403,28 @@ async function recordOutcome(
     };
     if (context.state === 'purged') {
       update.purgedAt = context.now;
-      if (ledgerCounts) update.removed = ledgerCounts;
     } else {
       update.heldReason = context.heldReason;
       if (ledgerCounts) update.measured = ledgerCounts;
     }
     await BlockedDomainPurge.updateOne({ domain }, { $set: update });
+
+    // A refused batch removed nothing, so it has no history to append.
+    if (context.state !== 'purged' || !ledgerCounts) continue;
+    const entry = entryByDomain.get(domain);
+    await BlockedDomainPurgeRun.updateOne(
+      { domain, runId: context.runId },
+      {
+        $set: {
+          runAt: context.now,
+          trigger: 'policy_added',
+          removed: ledgerCounts,
+          reason: entry?.reason,
+          category: entry?.category,
+          corroboratingSources: entry ? [...entry.corroboratingSources] : undefined,
+        },
+      },
+      { upsert: true },
+    );
   }
 }

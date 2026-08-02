@@ -5,6 +5,7 @@ import type {
   PurgeOptions,
   PurgeReport,
 } from '../../../scripts/purgeBlockedDomainContent';
+import type { FederationBlockPolicyEntry } from '../../../connectors/activitypub/federationBlockPolicy';
 
 /**
  * The reconciliation that turns "a domain was added to the policy file" into
@@ -20,6 +21,7 @@ vi.unmock('mongoose');
 
 const mongoose = (await import('mongoose')).default;
 const { default: BlockedDomainPurge } = await import('../../../models/BlockedDomainPurge');
+const { default: BlockedDomainPurgeRun } = await import('../../../models/BlockedDomainPurgeRun');
 const { emptyCounts } = await import('../../../scripts/purgeBlockedDomainContent');
 const { reconcileBlockedDomainPurges } = await import(
   '../../../services/federation/BlockedDomainPurgeReconciler'
@@ -39,6 +41,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await BlockedDomainPurge.deleteMany({});
+  await BlockedDomainPurgeRun.deleteMany({});
 });
 
 /** A corpus big enough that ordinary per-domain counts clear every ceiling. */
@@ -46,6 +49,24 @@ const CORPUS = { federatedPosts: 100_000, federatedActors: 40_000 };
 
 /** A domain present the first time the policy is ever observed. */
 const SEED_DOMAIN = 'seed.example';
+
+/**
+ * Policy entries in the shape `getBlockedDomainPolicy()` returns.
+ *
+ * `since` is given a value here precisely so it is visible that nothing reads it
+ * to decide newness — it is a date the author declares, not a commit timestamp,
+ * and correcting a typo in it must never re-trigger a deletion.
+ */
+function entries(domains: readonly string[]): FederationBlockPolicyEntry[] {
+  return domains.map((domain) => ({
+    domain,
+    severity: 'suspend',
+    category: 'spam',
+    reason: `${domain} was blocked for testing`,
+    since: '2026-01-01',
+    corroboratingSources: ['mastodon.social'],
+  }));
+}
 
 interface StubOptions {
   /** Per-domain post counts the stubbed purge reports. */
@@ -107,7 +128,7 @@ function stubPurge(stub: StubOptions = {}): StubbedPurge {
  */
 async function establishBaseline(purge: StubbedPurge): Promise<void> {
   await reconcileBlockedDomainPurges({
-    policyDomains: [SEED_DOMAIN],
+    policyEntries: entries([SEED_DOMAIN]),
     runPurge: purge.runPurge,
   });
 }
@@ -122,7 +143,7 @@ describe('the first reconciliation establishes a baseline, it does not purge a b
     const purge = stubPurge();
 
     const result = await reconcileBlockedDomainPurges({
-      policyDomains: ['a.example', 'b.example', 'c.example'],
+      policyEntries: entries(['a.example', 'b.example', 'c.example']),
       runPurge: purge.runPurge,
     });
 
@@ -141,10 +162,10 @@ describe('the first reconciliation establishes a baseline, it does not purge a b
     // rather than swept unattended. Conservative on purpose: the failure
     // direction of an automatic deleter must always be to delete less.
     const purge = stubPurge();
-    await reconcileBlockedDomainPurges({ policyDomains: [], runPurge: purge.runPurge });
+    await reconcileBlockedDomainPurges({ policyEntries: [], runPurge: purge.runPurge });
 
     const result = await reconcileBlockedDomainPurges({
-      policyDomains: ['first.example'],
+      policyEntries: entries(['first.example']),
       runPurge: purge.runPurge,
     });
 
@@ -156,12 +177,12 @@ describe('the first reconciliation establishes a baseline, it does not purge a b
   it('purges a domain added AFTER the baseline exists', async () => {
     const purge = stubPurge();
     await reconcileBlockedDomainPurges({
-      policyDomains: ['a.example'],
+      policyEntries: entries(['a.example']),
       runPurge: purge.runPurge,
     });
 
     const result = await reconcileBlockedDomainPurges({
-      policyDomains: ['a.example', 'new.example'],
+      policyEntries: entries(['a.example', 'new.example']),
       runPurge: purge.runPurge,
     });
 
@@ -178,13 +199,13 @@ describe('it acts on the delta, not the whole policy', () => {
     const purge = stubPurge();
     await establishBaseline(purge);
     await reconcileBlockedDomainPurges({
-      policyDomains: [SEED_DOMAIN, 'one.example'],
+      policyEntries: entries([SEED_DOMAIN, 'one.example']),
       runPurge: purge.runPurge,
     });
     const callsAfterFirst = purge.calls.length;
 
     const again = await reconcileBlockedDomainPurges({
-      policyDomains: [SEED_DOMAIN, 'one.example'],
+      policyEntries: entries([SEED_DOMAIN, 'one.example']),
       runPurge: purge.runPurge,
     });
 
@@ -195,12 +216,12 @@ describe('it acts on the delta, not the whole policy', () => {
   it('measures ONLY the newly blocked domains, never the whole policy', async () => {
     const purge = stubPurge();
     await reconcileBlockedDomainPurges({
-      policyDomains: ['old1.example', 'old2.example'],
+      policyEntries: entries(['old1.example', 'old2.example']),
       runPurge: purge.runPurge,
     });
 
     await reconcileBlockedDomainPurges({
-      policyDomains: ['old1.example', 'old2.example', 'fresh.example'],
+      policyEntries: entries(['old1.example', 'old2.example', 'fresh.example']),
       runPurge: purge.runPurge,
     });
 
@@ -213,12 +234,12 @@ describe('removing a domain from the policy undoes nothing', () => {
     const purge = stubPurge();
     await establishBaseline(purge);
     await reconcileBlockedDomainPurges({
-      policyDomains: [SEED_DOMAIN, 'gone.example'],
+      policyEntries: entries([SEED_DOMAIN, 'gone.example']),
       runPurge: purge.runPurge,
     });
 
     const result = await reconcileBlockedDomainPurges({
-      policyDomains: [SEED_DOMAIN],
+      policyEntries: entries([SEED_DOMAIN]),
       runPurge: purge.runPurge,
     });
 
@@ -236,14 +257,14 @@ describe('removing a domain from the policy undoes nothing', () => {
     const purge = stubPurge();
     await establishBaseline(purge);
     await reconcileBlockedDomainPurges({
-      policyDomains: [SEED_DOMAIN, 'back.example'],
+      policyEntries: entries([SEED_DOMAIN, 'back.example']),
       runPurge: purge.runPurge,
     });
     await establishBaseline(purge);
     const before = purge.calls.length;
 
     const result = await reconcileBlockedDomainPurges({
-      policyDomains: [SEED_DOMAIN, 'back.example'],
+      policyEntries: entries([SEED_DOMAIN, 'back.example']),
       runPurge: purge.runPurge,
     });
 
@@ -258,7 +279,7 @@ describe('the circuit breaker', () => {
     await establishBaseline(purge);
 
     const result = await reconcileBlockedDomainPurges({
-      policyDomains: [SEED_DOMAIN, 'typo.example'],
+      policyEntries: entries([SEED_DOMAIN, 'typo.example']),
       runPurge: purge.runPurge,
     });
 
@@ -276,13 +297,13 @@ describe('the circuit breaker', () => {
     const purge = stubPurge({ localFollows: { 'typo.example': 3 } });
     await establishBaseline(purge);
     await reconcileBlockedDomainPurges({
-      policyDomains: [SEED_DOMAIN, 'typo.example'],
+      policyEntries: entries([SEED_DOMAIN, 'typo.example']),
       runPurge: purge.runPurge,
     });
     const afterHold = purge.calls.length;
 
     const again = await reconcileBlockedDomainPurges({
-      policyDomains: [SEED_DOMAIN, 'typo.example'],
+      policyEntries: entries([SEED_DOMAIN, 'typo.example']),
       runPurge: purge.runPurge,
     });
 
@@ -296,7 +317,7 @@ describe('the circuit breaker', () => {
     await establishBaseline(purge);
 
     await reconcileBlockedDomainPurges({
-      policyDomains: [SEED_DOMAIN, 'ok.example'],
+      policyEntries: entries([SEED_DOMAIN, 'ok.example']),
       runPurge: purge.runPurge,
     });
 
@@ -312,15 +333,23 @@ describe('running twice, and dying half way', () => {
     await establishBaseline(purge);
 
     await reconcileBlockedDomainPurges({
-      policyDomains: [SEED_DOMAIN, 'spam.example'],
+      policyEntries: entries([SEED_DOMAIN, 'spam.example']),
       runPurge: purge.runPurge,
     });
 
     const row = await BlockedDomainPurge.findOne({ domain: 'spam.example' }).lean();
-    // "It vanished and nobody knows when or why" is the outcome this prevents.
-    expect(row?.removed?.posts).toBe(42);
     expect(row?.purgedAt).toBeInstanceOf(Date);
     expect(row?.runId).toBeTruthy();
+
+    // "It vanished and nobody knows when or why" is the outcome this prevents.
+    const history = await BlockedDomainPurgeRun.findOne({ domain: 'spam.example' }).lean();
+    expect(history?.removed.posts).toBe(42);
+    expect(history?.trigger).toBe('policy_added');
+    expect(history?.runAt).toBeInstanceOf(Date);
+    // The policy's own words ride with the record, so a deletion is never
+    // unexplained even if the entry is later reworded or removed.
+    expect(history?.reason).toContain('spam.example');
+    expect(history?.corroboratingSources).toEqual(['mastodon.social']);
   });
 
   it('marks a failed purge for retry instead of claiming success', async () => {
@@ -328,7 +357,7 @@ describe('running twice, and dying half way', () => {
     await establishBaseline(purge);
 
     const result = await reconcileBlockedDomainPurges({
-      policyDomains: [SEED_DOMAIN, 'boom.example'],
+      policyEntries: entries([SEED_DOMAIN, 'boom.example']),
       runPurge: purge.runPurge,
     });
 
@@ -340,13 +369,13 @@ describe('running twice, and dying half way', () => {
     const failing = stubPurge({ failLive: true });
     await establishBaseline(failing);
     await reconcileBlockedDomainPurges({
-      policyDomains: [SEED_DOMAIN, 'boom.example'],
+      policyEntries: entries([SEED_DOMAIN, 'boom.example']),
       runPurge: failing.runPurge,
     });
 
     const healthy = stubPurge();
     const result = await reconcileBlockedDomainPurges({
-      policyDomains: [SEED_DOMAIN, 'boom.example'],
+      policyEntries: entries([SEED_DOMAIN, 'boom.example']),
       runPurge: healthy.runPurge,
     });
 
@@ -369,7 +398,7 @@ describe('running twice, and dying half way', () => {
 
     // A claim made moments ago belongs to a run that may still be working.
     const soon = await reconcileBlockedDomainPurges({
-      policyDomains: [SEED_DOMAIN, 'stuck.example'],
+      policyEntries: entries([SEED_DOMAIN, 'stuck.example']),
       runPurge: purge.runPurge,
     });
     expect(soon.purged).toEqual([]);
@@ -381,7 +410,7 @@ describe('running twice, and dying half way', () => {
       { $set: { claimedAt: new Date(Date.now() - 3 * 60 * 60 * 1_000) } },
     );
     const later = await reconcileBlockedDomainPurges({
-      policyDomains: [SEED_DOMAIN, 'stuck.example'],
+      policyEntries: entries([SEED_DOMAIN, 'stuck.example']),
       runPurge: purge.runPurge,
     });
 
@@ -392,18 +421,63 @@ describe('running twice, and dying half way', () => {
     const purge = stubPurge();
     await establishBaseline(purge);
     await reconcileBlockedDomainPurges({
-      policyDomains: [SEED_DOMAIN, 'twice.example'],
+      policyEntries: entries([SEED_DOMAIN, 'twice.example']),
       runPurge: purge.runPurge,
     });
     const calls = purge.calls.length;
 
     const second = await reconcileBlockedDomainPurges({
-      policyDomains: [SEED_DOMAIN, 'twice.example'],
+      policyEntries: entries([SEED_DOMAIN, 'twice.example']),
       runPurge: purge.runPurge,
     });
 
     expect(second.purged).toEqual([]);
     expect(purge.calls.length).toBe(calls);
+  });
+});
+
+describe('the run history is append-only', () => {
+  it('keeps BOTH results when a domain is blocked, unblocked and blocked again', async () => {
+    // The reason history is a separate collection from state. Storing counts on
+    // the state row would overwrite the first purge with the second, and any
+    // per-domain total would then be quietly wrong.
+    const purge = stubPurge({ posts: { 'again.example': 7 } });
+    await establishBaseline(purge);
+    await reconcileBlockedDomainPurges({
+      policyEntries: entries([SEED_DOMAIN, 'again.example']),
+      runPurge: purge.runPurge,
+    });
+    await reconcileBlockedDomainPurges({
+      policyEntries: entries([SEED_DOMAIN]),
+      runPurge: purge.runPurge,
+    });
+
+    const second = stubPurge({ posts: { 'again.example': 5 } });
+    await reconcileBlockedDomainPurges({
+      policyEntries: entries([SEED_DOMAIN, 'again.example']),
+      runPurge: second.runPurge,
+    });
+
+    const history = await BlockedDomainPurgeRun.find({ domain: 'again.example' })
+      .sort({ runAt: 1 })
+      .lean();
+    expect(history).toHaveLength(2);
+    expect(history.map((row) => row.removed.posts).sort()).toEqual([5, 7]);
+    // Summing per domain is the query a transparency surface wants, and it is
+    // only correct because neither row overwrote the other.
+    expect(history.reduce((sum, row) => sum + row.removed.posts, 0)).toBe(12);
+  });
+
+  it('does not append a duplicate when the same run records a domain twice', async () => {
+    const purge = stubPurge();
+    await establishBaseline(purge);
+    await reconcileBlockedDomainPurges({
+      policyEntries: entries([SEED_DOMAIN, 'once.example']),
+      runPurge: purge.runPurge,
+    });
+
+    const rows = await BlockedDomainPurgeRun.find({ domain: 'once.example' }).lean();
+    expect(rows).toHaveLength(1);
   });
 });
 
@@ -415,7 +489,7 @@ describe('a reviewed manual run settles the same ledger', () => {
     // showing something false.
     const purge = stubPurge();
     await reconcileBlockedDomainPurges({
-      policyDomains: ['backlog.example'],
+      policyEntries: entries(['backlog.example']),
       runPurge: purge.runPurge,
     });
     expect(await stateOf('backlog.example')).toBe('baseline');
@@ -427,7 +501,7 @@ describe('a reviewed manual run settles the same ledger', () => {
     );
 
     const after = await reconcileBlockedDomainPurges({
-      policyDomains: ['backlog.example'],
+      policyEntries: entries(['backlog.example']),
       runPurge: purge.runPurge,
     });
 
@@ -441,7 +515,7 @@ describe('no policy source', () => {
     const purge = stubPurge();
 
     const result = await reconcileBlockedDomainPurges({
-      policyDomains: [],
+      policyEntries: [],
       runPurge: purge.runPurge,
     });
 

@@ -151,6 +151,8 @@ import FederatedFollow from '../models/FederatedFollow';
 import { EntityFollow } from '../models/EntityFollow';
 import FederatedMediaCache from '../models/FederatedMediaCache';
 import BlockedDomainPurge, { toLedgerCounts } from '../models/BlockedDomainPurge';
+import BlockedDomainPurgeRun from '../models/BlockedDomainPurgeRun';
+import { getBlockedDomainPolicy } from '../connectors/activitypub/federationBlockPolicy';
 import { Postgate } from '../models/Postgate';
 import { Threadgate } from '../models/Threadgate';
 import { FeedInteraction } from '../models/FeedInteraction';
@@ -1585,8 +1587,12 @@ async function recordManualRunInLedger(
 
   const now = new Date();
   const runId = `manual-${now.toISOString()}`;
+  // The policy's own words for these domains, so a reviewed run's record reads
+  // the same as an automatic one's rather than being an unexplained deletion.
+  const entryByDomain = new Map(getBlockedDomainPolicy().map((entry) => [entry.domain, entry]));
   try {
     for (const [domain, counts] of report.byDomain) {
+      const removed = toLedgerCounts(counts);
       await BlockedDomainPurge.updateOne(
         { domain },
         {
@@ -1596,9 +1602,23 @@ async function recordManualRunInLedger(
             purgedAt: now,
             runId,
             lastObservedAt: now,
-            removed: toLedgerCounts(counts),
           },
           $setOnInsert: { firstObservedAt: now },
+        },
+        { upsert: true },
+      );
+      const entry = entryByDomain.get(domain);
+      await BlockedDomainPurgeRun.updateOne(
+        { domain, runId },
+        {
+          $set: {
+            runAt: now,
+            trigger: 'manual',
+            removed,
+            reason: entry?.reason,
+            category: entry?.category,
+            corroboratingSources: entry ? [...entry.corroboratingSources] : undefined,
+          },
         },
         { upsert: true },
       );

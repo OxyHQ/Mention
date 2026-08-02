@@ -134,15 +134,18 @@ export interface IBlockedDomainPurge {
   heldReason?: string;
   /** The error a `failed` attempt reported. */
   failureReason?: string;
-  /** What the dry-run measurement predicted. */
+  /**
+   * What the dry-run measurement predicted. Kept on the STATE row because it is
+   * the evidence for the current state — specifically, what the circuit breaker
+   * saw when it refused. What a run actually REMOVED is history and lives on
+   * `BlockedDomainPurgeRun`, so a domain blocked twice keeps both results.
+   */
   measured?: BlockedDomainPurgeCounts;
-  /** What the live run actually removed. */
-  removed?: BlockedDomainPurgeCounts;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const countsSchema = new Schema<BlockedDomainPurgeCounts>({
+export const blockedDomainPurgeCountsSchema = new Schema<BlockedDomainPurgeCounts>({
   posts: { type: Number, required: true, default: 0 },
   actors: { type: Number, required: true, default: 0 },
   boosts: { type: Number, required: true, default: 0 },
@@ -169,8 +172,7 @@ const blockedDomainPurgeSchema = new Schema<IBlockedDomainPurge>({
   purgedAt: { type: Date },
   heldReason: { type: String },
   failureReason: { type: String },
-  measured: { type: countsSchema, default: undefined },
-  removed: { type: countsSchema, default: undefined },
+  measured: { type: blockedDomainPurgeCountsSchema, default: undefined },
 }, { timestamps: true, collection: 'blockeddomainpurges' });
 
 // The reconciler's whole cheapness rests on this: one indexed lookup per policy

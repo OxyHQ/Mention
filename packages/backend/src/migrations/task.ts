@@ -38,12 +38,12 @@ export const MIGRATION_DATABASE_CONNECTION_OPTIONS = Object.freeze({
  * and it is the direction a bug here should always fall in.
  */
 async function reconcileBlockedDomains(): Promise<void> {
-  const policyDomains = loadBlockedDomainPolicy();
-  if (policyDomains === null) return;
+  const policyEntries = loadBlockedDomainPolicy();
+  if (policyEntries.length === 0) return;
 
   try {
     await reconcileBlockedDomainPurges({
-      policyDomains,
+      policyEntries,
       runPurge: (domains, options) => purgeBlockedDomainContent(domains, options),
     });
   } catch (error) {

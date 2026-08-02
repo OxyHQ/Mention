@@ -152,3 +152,13 @@ export const MIGRATION_REPAIR_FETCH_FAILURE_INDEXES = '0017-repair-fetch-failure
  * See {@link ./0018-blocked-domain-purge-indexes}.
  */
 export const MIGRATION_BLOCKED_DOMAIN_PURGE_INDEXES = '0018-blocked-domain-purge-indexes';
+
+/**
+ * Create the `BlockedDomainPurgeRun` history indexes: the UNIQUE
+ * `{domain, runId}` identity that stops a retried or resumed run appending a
+ * duplicate row and inflating a per-domain total, plus `{domain, runAt}` serving
+ * both queries a transparency surface needs (latest run, and every run to sum).
+ * Production disables Mongoose auto-indexing, so this migration is the schema
+ * authority. See {@link ./0019-blocked-domain-purge-run-indexes}.
+ */
+export const MIGRATION_BLOCKED_DOMAIN_PURGE_RUN_INDEXES = '0019-blocked-domain-purge-run-indexes';
