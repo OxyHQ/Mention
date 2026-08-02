@@ -1,6 +1,6 @@
 import { PassThrough } from 'node:stream';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { eq, like } from 'drizzle-orm';
+import { and, eq, like, ne } from 'drizzle-orm';
 
 /**
  * Thread-linking for federated reply import.
@@ -525,11 +525,25 @@ describe('outbox backfill — bounded ancestor backfill', () => {
       return fetchMock;
     };
 
-    /** Ancestor posts written to the store by this pass (excludes the reply itself). */
-    const materialisedAncestors = (replyActivityId: string): number =>
-      h.postCreatorCreate.mock.calls.filter(
-        (c) => (c[0].federation as { activityId?: string })?.activityId !== replyActivityId,
-      ).length;
+    /**
+     * Ancestor posts this pass actually WROTE, counted from the rows (excludes
+     * the inbound reply itself).
+     *
+     * Counted from `posts` rather than from a creator spy, because the spy
+     * answers "how many creates were attempted" and the boundary is about how
+     * many ancestors EXIST afterwards — a create that lost a unique race on
+     * `federation_activity_id` attempted and stored nothing.
+     */
+    const materialisedAncestors = async (replyActivityId: string): Promise<number> => {
+      const rows = await getDb()
+        .select({ activityId: posts.federationActivityId })
+        .from(posts)
+        .where(and(
+          like(posts.federationActivityId, `${ACTOR_URI}/statuses/%`),
+          ne(posts.federationActivityId, replyActivityId),
+        ));
+      return rows.length;
+    };
 
     it('pulls a whole 30-ancestor chain — AT the depth cap nothing is left behind', async () => {
       const fetchMock = finiteChain(30);
@@ -539,13 +553,13 @@ describe('outbox backfill — bounded ancestor backfill', () => {
         ACTOR_URI,
       );
 
-      expect(materialisedAncestors(`${ACTOR_URI}/statuses/31`)).toBe(30);
+      expect(await materialisedAncestors(`${ACTOR_URI}/statuses/31`)).toBe(30);
       expect(fetchMock).toHaveBeenCalledTimes(30);
       // Reached the real root, so the reply carries the true thread id.
-      const root = h.findByActivityId(`${ACTOR_URI}/statuses/1`);
-      expect(root).toBeTruthy();
-      const reply = h.findByActivityId(`${ACTOR_URI}/statuses/31`);
-      expect(reply?.threadId).toBe(root?._id);
+      const root = await rowByActivityId(`${ACTOR_URI}/statuses/1`);
+      expect(root).toBeDefined();
+      const reply = await rowByActivityId(`${ACTOR_URI}/statuses/31`);
+      expect(reply?.threadId).toBe(root?.id);
     });
 
     it('stops at 30 on a 31-ancestor chain — the reply still lands, unlinked above', async () => {
@@ -558,16 +572,16 @@ describe('outbox backfill — bounded ancestor backfill', () => {
 
       // One over the chain length the cap allows: the 31st ancestor (the real root,
       // statuses/1) is never fetched and never written.
-      expect(materialisedAncestors(`${ACTOR_URI}/statuses/32`)).toBe(30);
+      expect(await materialisedAncestors(`${ACTOR_URI}/statuses/32`)).toBe(30);
       expect(fetchMock).toHaveBeenCalledTimes(30);
       expect(fetchMock).not.toHaveBeenCalledWith(`${ACTOR_URI}/statuses/1`, expect.anything());
-      expect(h.findByActivityId(`${ACTOR_URI}/statuses/1`)).toBeUndefined();
+      expect(await rowByActivityId(`${ACTOR_URI}/statuses/1`)).toBeUndefined();
 
       // Best-effort, never a dropped post: the reply exists and is linked to its
       // immediate parent, rooted at the deepest ancestor the pass did reach.
-      const reply = h.findByActivityId(`${ACTOR_URI}/statuses/32`);
-      expect(reply?.parentPostId).toBe(h.findByActivityId(`${ACTOR_URI}/statuses/31`)?._id);
-      expect(reply?.threadId).toBe(h.findByActivityId(`${ACTOR_URI}/statuses/2`)?._id);
+      const reply = await rowByActivityId(`${ACTOR_URI}/statuses/32`);
+      expect(reply?.parentPostId).toBe((await rowByActivityId(`${ACTOR_URI}/statuses/31`))?.id);
+      expect(reply?.threadId).toBe((await rowByActivityId(`${ACTOR_URI}/statuses/2`))?.id);
     });
   });
 });

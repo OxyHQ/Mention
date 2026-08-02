@@ -27,16 +27,15 @@ interface ActorRow {
 const h = vi.hoisted(() => {
   const state: {
     actors: ActorRow[];
-    // oxyUserIds whose UserSettings.profileHeaderImage is already set.
+    // oxyUserIds whose `user_settings.profile_header_image` is already set.
     alreadySet: Set<string>;
     // queued mirror results, consumed FIFO per call (keyed by oxyUserId).
     mirrorResults: Map<string, Array<{ ok: boolean; permanent: boolean } | Error>>;
   } = { actors: [], alreadySet: new Set(), mirrorResults: new Map() };
 
-  const settingsFindOne = vi.fn((query: { oxyUserId: string }) => ({
-    lean: async () =>
-      state.alreadySet.has(query.oxyUserId) ? { profileHeaderImage: 'existing_file' } : null,
-  }));
+  const loadUserSettings = vi.fn(async (oxyUserId: string) =>
+    state.alreadySet.has(oxyUserId) ? { profileHeaderImage: 'existing_file' } : null,
+  );
 
   const mirror = vi.fn(async (_url: string, oxyUserId: string) => {
     const queue = state.mirrorResults.get(oxyUserId);
@@ -59,7 +58,7 @@ const h = vi.hoisted(() => {
     (page.afterId ? [] : state.actors),
   );
 
-  return { state, settingsFindOne, mirror, countActors, scanActors };
+  return { state, loadUserSettings, mirror, countActors, scanActors };
 });
 
 vi.mock('../../utils/database', () => ({
@@ -69,6 +68,13 @@ vi.mock('../../utils/database', () => ({
 vi.mock('../../db/postgres', () => ({
   connectPostgres: vi.fn(async () => undefined),
   closePostgres: vi.fn(async () => undefined),
+  // The script's own reads go through the mocked repository below, but the
+  // module graph it pulls in reaches `getDb` — the identity bridge's
+  // duplicate-identity lookup does, since the merge moved to Postgres. It is
+  // never called on these paths; the export only has to exist.
+  getDb: vi.fn(() => {
+    throw new Error('backfillFederatedBanners must not query the database directly');
+  }),
 }));
 
 vi.mock('../../db/federation/actorRepository', () => ({
@@ -76,10 +82,8 @@ vi.mock('../../db/federation/actorRepository', () => ({
   scanActors: h.scanActors,
 }));
 
-vi.mock('../../models/UserSettings', () => ({
-  default: {
-    findOne: h.settingsFindOne,
-  },
+vi.mock('../../db/userProfile/userSettingsRepository', () => ({
+  loadUserSettings: h.loadUserSettings,
 }));
 
 vi.mock('../../connectors/identity', () => ({
@@ -194,7 +198,9 @@ describe('backfillFederatedBanners', () => {
       countActors: h.countActors,
       scanActors: h.scanActors,
     }));
-    vi.doMock('../../models/UserSettings', () => ({ default: { findOne: h.settingsFindOne } }));
+    vi.doMock('../../db/userProfile/userSettingsRepository', () => ({
+      loadUserSettings: h.loadUserSettings,
+    }));
     vi.doMock('../../connectors/identity', () => ({ mirrorFederatedBanner: h.mirror }));
     vi.doMock('../../utils/logger', () => ({
       logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -210,7 +216,7 @@ describe('backfillFederatedBanners', () => {
     await done;
 
     // FORCE bypasses the idempotent skip — the already-set actor is re-mirrored.
-    expect(h.settingsFindOne).not.toHaveBeenCalled();
+    expect(h.loadUserSettings).not.toHaveBeenCalled();
     expect(h.mirror).toHaveBeenCalledTimes(1);
   });
 

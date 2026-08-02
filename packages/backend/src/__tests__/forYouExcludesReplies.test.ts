@@ -1,8 +1,7 @@
-import { MongoMemoryServer } from 'mongodb-memory-server';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /**
- * For You must rank thread ROOTS, not replies — enforced against a REAL mongod.
+ * For You must rank thread ROOTS, not replies — enforced against a REAL database.
  *
  * ## What this guards
  *
@@ -15,16 +14,14 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
  * signed-out reader, and the never-blank tail for a signed-in one — never applied
  * it at all.
  *
- * ## Why a real database rather than a mocked `Post.find`
+ * ## Why a real database rather than a mocked query
  *
- * The bug is a missing clause in a Mongo match, so a test that inspects the match
- * object can only assert that some expected shape is present — it re-states the
- * fix rather than checking its effect, and it passes just as happily if the clause
- * is present but wrong (matching `parentPostId` only, spelling `inReplyTo` wrong,
- * losing the `''` sentinel, or landing under an `$or` a later builder clobbers).
- * Executing the REAL match objects against a REAL mongod over a pool whose reply
- * share is known removes that whole class of false pass: the assertion is on the
- * documents that come back.
+ * The bug is a missing predicate, so a test that inspects the query object can
+ * only assert that some expected shape is present — it re-states the fix rather
+ * than checking its effect, and it passes just as happily if the predicate is
+ * present but wrong. Executing the REAL queries against a REAL database over a
+ * pool whose reply share is known removes that whole class of false pass: the
+ * assertion is on the rows that come back.
  *
  * Every lane is exercised INDIVIDUALLY so a regression names the source that
  * leaked, and each lane's fixture pair is a reply and a root that both match that
@@ -33,17 +30,30 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
  *
  * Replies are seeded in BOTH encodings, because the local link and the federated
  * IRI diverge exactly where it matters: a federated reply whose parent never
- * resolved carries `federation.inReplyTo` with a null `parentPostId`, so a filter
- * reading the local link alone lets precisely those through (see `utils/postReply`).
- * A third fixture carries `federation.inReplyTo: ''` and must be treated as a ROOT,
- * pinning the empty-string sentinel.
+ * resolved carries `federation.inReplyTo` with a null `parent_post_id`. Both are
+ * folded into the STORED `is_reply` column by `derivesReplyIntent` at write time,
+ * which is what lets every reader test one thing; seeding both encodings is what
+ * proves the derivation, not just the readers. A third fixture carries
+ * `federation.inReplyTo: ''` and must be treated as a ROOT, pinning the
+ * empty-string sentinel — with a twist the port introduced, recorded below.
+ *
+ * ## The `''` sentinel is UNREPRESENTABLE here, and that is the stronger answer
+ *
+ * Mongo could store `federation.inReplyTo: ''` on a post whose `parentPostId`
+ * was null, so "is the empty string a parent?" was a live question every reader
+ * had to answer the same way. `posts_federated_reply_discriminator_check`
+ * (`federation_in_reply_to is null or is_reply`) makes that row impossible to
+ * write at all: `derivesReplyIntent` correctly reads `''` as "no parent", so
+ * `is_reply` is false, and the CHECK then refuses the insert. The sentinel is
+ * therefore pinned as a REFUSED WRITE rather than as a row in the pool — a
+ * guarantee no reader can lose, instead of one every reader had to keep.
  */
 
-vi.unmock('mongoose');
-
-const mongoose = (await import('mongoose')).default;
-const { Post } = await import('../models/Post');
-const { isReplyClause, isReplyPost } = await import('../utils/postReply');
+const { closePostgres, connectPostgres, getDb } = await import('../db/postgres');
+const { posts } = await import('../db/schema/posts');
+const { insertPostRecord } = await import('../db/posts/postRepository');
+const { PostType, PostVisibility } = await import('@mention/shared-types');
+const { and, eq, inArray, sql } = await import('drizzle-orm');
 const {
   gatherForYouCandidates,
   gatherFollowingLane,
@@ -71,9 +81,6 @@ const LIST_AUTHOR = 'list-1';
 const AFFINITY_AUTHOR = 'aff-1';
 const OTHER_AUTHOR = 'someone-else';
 
-/** A parent that exists locally, so a local reply's `parentPostId` is realistic. */
-const PARENT_ID = new mongoose.Types.ObjectId().toString();
-
 /** How a seeded post encodes (or does not encode) its parent. */
 type ParentLink = 'root' | 'emptyIriRoot' | 'localReply' | 'federatedReply';
 
@@ -82,11 +89,11 @@ interface SeedSpec {
   label: string;
   author: string;
   link: ParentLink;
-  /** Lane-selecting fields (topics / languages / region). */
+  /** Lane-selecting fields (topics / languages / region), and the video shape. */
   extra?: Record<string, unknown>;
   /**
    * Newest + most engaged, so this fixture survives a lane's `limit()` whatever
-   * else is in the collection. Set for the two lanes that select EVERY post
+   * else is in the table. Set for the two lanes that select EVERY post
    * (trending, global): their per-source caps are 25 and 20, small enough that a
    * regression which floods the pool with replies could otherwise push their own
    * root past the cap and turn a leak into a confusing vacuity failure.
@@ -97,51 +104,7 @@ interface SeedSpec {
 /** Fixture timestamps: recent enough for every lane's recency window. */
 const NOW = Date.now();
 
-function parentFields(link: ParentLink): Record<string, unknown> {
-  switch (link) {
-    case 'root':
-      return { parentPostId: null };
-    case 'emptyIriRoot':
-      // Not a reply: the empty IRI is the "no parent" sentinel, not a parent.
-      return { parentPostId: null, federation: { inReplyTo: '' } };
-    case 'localReply':
-      return { parentPostId: PARENT_ID };
-    case 'federatedReply':
-      // The shape a bare `parentPostId` check misses entirely.
-      return { parentPostId: null, federation: { inReplyTo: 'https://remote.example/notes/9' } };
-  }
-}
-
-/**
- * A raw feed-eligible post document. Inserted through the driver rather than the
- * Mongoose model deliberately: the model's pre-validate hooks would normalize
- * `parentPostId` / `federation` and the fixtures exist precisely to pin those two
- * encodings byte-for-byte.
- */
-function buildDoc(spec: SeedSpec): Record<string, unknown> {
-  return {
-    _id: new mongoose.Types.ObjectId(),
-    oxyUserId: spec.author,
-    authorship: [{ oxyUserId: spec.author, role: 'owner', status: 'accepted' }],
-    visibility: 'public',
-    status: 'published',
-    type: 'text',
-    content: { variants: [{ source: 'author', text: spec.label }] },
-    createdAt: new Date(spec.priority ? NOW : NOW - 60 * 60 * 1000),
-    updatedAt: new Date(NOW),
-    // Non-zero so the engagement-sorted lanes (trending, popular) rank them.
-    stats: {
-      likesCount: spec.priority ? 100 : 5,
-      boostsCount: 1,
-      commentsCount: 2,
-      federatedBoostsCount: 0,
-    },
-    hashtags: [],
-    ...parentFields(spec.link),
-    ...(spec.extra ?? {}),
-  };
-}
-
+/** One lane under test: how to run it, and the pair of fixtures it must select. */
 /** One lane under test: how to run it, and the pair of fixtures it must select. */
 interface LaneCase {
   lane: string;
@@ -196,8 +159,6 @@ const SEEDS: SeedSpec[] = [
       { label: `${laneCase.lane}:federatedReply`, author, link: 'federatedReply', extra, priority },
     ];
   }),
-  // Sentinel: an empty `inReplyTo` is NOT a parent, so this must survive every lane.
-  { label: 'sentinel:emptyIriRoot', author: OTHER_AUTHOR, link: 'emptyIriRoot' },
   // Video pair, for the characterization test below. Shaped to satisfy
   // `buildVideosQuery`'s `content.media` $elemMatch (portrait, sized, long enough).
   { label: 'videos:root', author: OTHER_AUTHOR, link: 'root', extra: VIDEO_FIELDS },
@@ -220,55 +181,177 @@ const params: GatherParams = {
 };
 
 /**
- * The seeded documents, built ONCE so their ids can be mapped back to labels.
- * The label cannot ride on the document itself: every lane projects
- * {@link FEED_FIELDS}, which would drop an extra field and leave assertions
- * comparing opaque ObjectIds.
+ * The label a seeded post carries, keyed by the id the repository minted.
+ *
+ * The label cannot ride on the row itself: every lane assembles a whole
+ * `PostRecord`, so an extra field would not survive, and assertions would compare
+ * opaque uuids.
  */
-const SEED_DOCS = SEEDS.map(buildDoc);
+const LABEL_BY_ID = new Map<string, string>();
 
-const LABEL_BY_ID = new Map(
-  SEED_DOCS.map((doc, index) => [String(doc._id), SEEDS[index].label]),
-);
+/** The ids this suite created, so teardown removes exactly them. */
+const createdIds: string[] = [];
 
 /** The label a candidate was seeded with — what failure messages name. */
 function labelOf(post: CandidatePost): string {
-  const id = String(post._id);
-  return LABEL_BY_ID.get(id) ?? `unseeded:${id}`;
+  return LABEL_BY_ID.get(post.id) ?? `unseeded:${post.id}`;
 }
 
-function replyLabels(posts: CandidatePost[]): string[] {
-  return posts.filter((post) => isReplyPost(post)).map(labelOf);
+/**
+ * A candidate is a reply if the STORED discriminator says so. That is the same
+ * column every lane filters on, which is the point: `derivesReplyIntent` folds
+ * both parent encodings into it once, at write time, so a reader that tests one
+ * thing cannot miss the other.
+ */
+function replyLabels(candidates: CandidatePost[]): string[] {
+  return candidates.filter((post) => post.isReply).map(labelOf);
 }
 
-let mongod: MongoMemoryServer;
+/** A real parent row, so a local reply's `parent_post_id` satisfies its FK. */
+let parentId = '';
+
+async function seed(spec: SeedSpec): Promise<void> {
+  const extra = (spec.extra ?? {}) as {
+    postClassification?: Record<string, unknown>;
+    content?: Record<string, unknown>;
+    type?: string;
+  };
+  const record = await insertPostRecord({
+    oxyUserId: spec.author,
+    authorship: [{ oxyUserId: spec.author, role: 'owner', status: 'accepted' }],
+    type: (extra.type as typeof PostType.TEXT) ?? PostType.TEXT,
+    visibility: PostVisibility.PUBLIC,
+    status: 'published',
+    createdAt: new Date(spec.priority ? NOW : NOW - 60 * 60 * 1000),
+    updatedAt: new Date(NOW),
+    content: (extra.content as never) ?? { variants: [{ source: 'author', text: spec.label }] },
+    ...(extra.postClassification ? { postClassification: extra.postClassification as never } : {}),
+    ...parentFields(spec.link),
+  });
+  LABEL_BY_ID.set(record.id, spec.label);
+  createdIds.push(record.id);
+
+  // The engagement-sorted lanes (trending, popular) rank on these, and
+  // `insertPostRecord` has no counter parameters — they are projections of real
+  // rows everywhere else, so they are written directly here.
+  await getDb()
+    .update(posts)
+    .set({
+      statsLikesCount: spec.priority ? 100 : 5,
+      statsBoostsCount: 1,
+      statsCommentsCount: 2,
+    })
+    .where(eq(posts.id, record.id));
+}
+
+function parentFields(link: ParentLink): Record<string, unknown> {
+  switch (link) {
+    case 'root':
+      return {};
+    case 'emptyIriRoot':
+      // Not a reply: the empty IRI is the "no parent" sentinel, not a parent —
+      // which is why the schema refuses the row. See the sentinel test.
+      return { federation: { inReplyTo: '' } };
+    case 'localReply':
+      return { parentPostId: parentId };
+    case 'federatedReply':
+      // The shape a bare `parent_post_id` check misses entirely.
+      return { federation: { inReplyTo: 'https://remote.example/notes/9' } };
+  }
+}
 
 beforeAll(async () => {
-  mongod = await MongoMemoryServer.create();
-  await mongoose.connect(mongod.getUri(), { dbName: 'foryou-replies' });
-  await Post.collection.insertMany(SEED_DOCS);
+  await connectPostgres();
+  // The parent every `localReply` points at. It is NOT one of the fixtures — it
+  // carries no lane selector and is never expected in any lane's output — so it
+  // is tracked for teardown but left out of `LABEL_BY_ID`, and a lane that
+  // returned it would be reported as `unseeded:`.
+  const parent = await insertPostRecord({
+    oxyUserId: OTHER_AUTHOR,
+    authorship: [{ oxyUserId: OTHER_AUTHOR, role: 'owner', status: 'accepted' }],
+    type: PostType.TEXT,
+    visibility: PostVisibility.PRIVATE,
+    status: 'draft',
+    content: { variants: [{ source: 'author', text: 'the parent' }] },
+  });
+  parentId = parent.id;
+  createdIds.push(parent.id);
+
+  for (const spec of SEEDS) await seed(spec);
 }, 120_000);
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongod?.stop();
+  if (createdIds.length > 0) {
+    await getDb().delete(posts).where(inArray(posts.id, createdIds));
+  }
+  await closePostgres();
 });
 
 describe('For You candidate pool — the fixture universe', () => {
   it('holds a substantial reply share, so the exclusion tests are not vacuous', async () => {
-    const total = await Post.countDocuments({ visibility: 'public', status: 'published' });
-    const replies = await Post.countDocuments({
-      visibility: 'public',
-      status: 'published',
-      ...isReplyClause(),
-    });
+    /**
+     * Counted over THIS suite's own ids: vitest runs files in parallel against
+     * one database, so a bare "every public published post" count is a claim
+     * about every other file in the run.
+     *
+     * The two seeded reply ENCODINGS are checked separately, because the whole
+     * fixture design rests on `derivesReplyIntent` folding both into `is_reply`.
+     * If it stopped recognising the federated one, the total below would still
+     * look healthy while half the pool quietly stopped being replies — and every
+     * exclusion assertion would pass for the wrong reason.
+     */
+    const seededIds = [...LABEL_BY_ID.keys()];
+    const rows = await getDb()
+      .select({ id: posts.id, isReply: posts.isReply })
+      .from(posts)
+      .where(and(
+        inArray(posts.id, seededIds),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+      ));
 
-    // Mirrors the production shape this fix targets (47.1% replies): if the
-    // fixtures ever stopped containing replies, every assertion below would pass
-    // for the wrong reason.
-    expect(total).toBe(SEEDS.length);
-    expect(replies).toBe(SEEDS.filter((s) => s.link !== 'root' && s.link !== 'emptyIriRoot').length);
-    expect(replies / total).toBeGreaterThan(0.4);
+    const expectedReplies = SEEDS.filter((spec) => spec.link === 'localReply' || spec.link === 'federatedReply');
+    const replies = rows.filter((row) => row.isReply);
+
+    expect(rows).toHaveLength(SEEDS.length);
+    expect(replies).toHaveLength(expectedReplies.length);
+    // Both encodings really were stored as replies, not just the local one.
+    const replyLabelSet = new Set(replies.map((row) => LABEL_BY_ID.get(row.id)));
+    expect([...replyLabelSet].filter((label) => label?.endsWith(':federatedReply')).length)
+      .toBe(expectedReplies.filter((spec) => spec.link === 'federatedReply').length);
+    // Mirrors the production shape this fix targets (47.1% replies).
+    expect(replies.length / rows.length).toBeGreaterThan(0.4);
+  });
+
+  /**
+   * The empty-IRI sentinel, as a refused write.
+   *
+   * `derivesReplyIntent` reads `''` as "no parent" — which is the behaviour this
+   * pins — so `is_reply` comes out false, and
+   * `posts_federated_reply_discriminator_check` then refuses the row: a stored
+   * `federation_in_reply_to` may only exist on a post the discriminator agrees
+   * is a reply. So the state every Mongo reader had to interpret consistently
+   * cannot arise here at all.
+   *
+   * Mutation: make `derivesReplyIntent` treat a non-null `inReplyTo` as a reply
+   * regardless of length and this insert SUCCEEDS, which is the failure.
+   */
+  it('refuses to store an empty inReplyTo, so no reader has to interpret it', async () => {
+    await expect(
+      insertPostRecord({
+        oxyUserId: OTHER_AUTHOR,
+        authorship: [{ oxyUserId: OTHER_AUTHOR, role: 'owner', status: 'accepted' }],
+        type: PostType.TEXT,
+        visibility: PostVisibility.PUBLIC,
+        status: 'published',
+        content: { variants: [{ source: 'author', text: 'empty iri' }] },
+        federation: { inReplyTo: '' },
+      }),
+      // The constraint name is on the CAUSE, not on drizzle's wrapper message.
+    ).rejects.toSatisfy((error: unknown) =>
+      JSON.stringify(error instanceof Error ? (error.cause ?? error) : error)
+        .includes('posts_federated_reply_discriminator_check'),
+    );
   });
 });
 
@@ -301,13 +384,11 @@ describe('gatherForYouCandidates — the merged pool', () => {
     for (const laneCase of LANE_CASES) {
       expect(labels).toContain(`${laneCase.lane}:root`);
     }
-    expect(labels).toContain('sentinel:emptyIriRoot');
-
-    // The measurement this change exists for. The seeded universe is 16 replies
-    // out of 25 posts (64%, above the 47.1% measured in production); the ranked
-    // pool that comes out of it is 0%.
+    // The measurement this change exists for. The seeded universe is two thirds
+    // replies (above the 47.1% measured in production); the ranked pool that
+    // comes out of it is 0%.
     expect(replyLabels(pool)).toEqual([]);
-    expect(pool.length).toBe(SEEDS.filter((s) => s.link === 'root' || s.link === 'emptyIriRoot').length);
+    expect(pool.length).toBe(SEEDS.filter((spec) => spec.link === 'root').length);
   });
 });
 
@@ -317,7 +398,7 @@ describe('popular source — anonymous For You + never-blank fallback', () => {
 
     // Vacuity floor: the source returned real candidates from the seeded pool.
     expect(posts.length).toBeGreaterThan(0);
-    expect(posts.map(labelOf)).toContain('sentinel:emptyIriRoot');
+    expect(posts.map(labelOf)).toContain('trending:root');
 
     expect(replyLabels(posts)).toEqual([]);
   });
@@ -400,7 +481,10 @@ describe('roots-only feed presets — resolved through the module registry', () 
 
       // Vacuity floor: the preset's sources really returned candidates.
       expect(gathered).toBeGreaterThan(0);
-    });
+      // A preset runs every one of its enabled sources SEQUENTIALLY here — for_you
+      // alone is eight lanes — against a database ten worker processes are also
+      // writing to. The default 5s budget is for a single query, not for that.
+    }, 30_000);
   }
 });
 

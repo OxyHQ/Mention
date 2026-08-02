@@ -317,7 +317,14 @@ describe('feed engine snapshot — each preset selects its own posts', () => {
     // reachability is asserted by `explore` above, whose lane is the one that
     // owns them.
     expect(names).toContain('followed-root');
-    expect(names).toContain('followed-reply');
+    // The REPLY is absent, and that is the editorial rule rather than a scoping
+    // accident: For You ranks thread ROOTS. `buildBaseConditions` states it once
+    // for all eight lanes, `following` included — a reply read outside its
+    // thread is close to meaningless, and replies were 47.1% of the production
+    // pool the feed draws from. The chronological Following TIMELINE keeps them
+    // (see the `following` case above, which still expects both), so this is the
+    // one place the two surfaces deliberately disagree.
+    expect(names).not.toContain('followed-reply');
 
     // Among this suite's own posts, the highest-scoring one still leads.
     expect(names[0]).toBe('followed-root');

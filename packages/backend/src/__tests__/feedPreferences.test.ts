@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Group F — GET/PUT /feed/preferences. Models are mocked; the controller's
@@ -22,17 +22,17 @@ vi.mock('../models/CustomFeed', () => ({
   default: { findById: vi.fn(() => ({ lean: async () => customFeedDoc })) },
 }));
 
-let settingsDoc: { feedTuning?: { forYou?: unknown } } | null = null;
-const settingsUpdate = vi.fn((_q: unknown, update: { $set: Record<string, unknown> }) => ({
-  lean: async () => ({ feedTuning: { forYou: update.$set['feedTuning.forYou'] } }),
-}));
-vi.mock('../models/UserSettings', () => ({
-  default: {
-    findOne: vi.fn(() => ({ lean: async () => settingsDoc })),
-    findOneAndUpdate: (...a: unknown[]) => settingsUpdate(...(a as [unknown, { $set: Record<string, unknown> }])),
-  },
-}));
+/**
+ * The tuning half of this controller reads and writes `user_settings` through the
+ * Postgres repository, so those three cases run against REAL ROWS. The saved-feed
+ * half still reads Mongo models and stays mocked above — one controller, two
+ * stores, for as long as the port is in progress.
+ */
 
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../db/postgres';
+import { userSettings } from '../db/schema/userProfile';
+import { loadUserSettings } from '../db/userProfile/userSettingsRepository';
 import { feedPreferencesController } from '../mtn/controllers/feedPreferences.controller';
 
 function makeRes() {
@@ -44,12 +44,29 @@ function makeRes() {
   };
   return res;
 }
-const authed = (body?: unknown) => ({ user: { id: 'viewer' }, body }) as never;
+/**
+ * Namespaced, because vitest runs files in parallel against one database and
+ * `user_settings.oxy_user_id` is unique — a bare `'viewer'` is a claim about
+ * every other file in the run.
+ */
+const VIEWER = 'feed-preferences-viewer';
+const authed = (body?: unknown) => ({ user: { id: VIEWER }, body }) as never;
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, VIEWER));
+  await closePostgres();
+});
+
+beforeEach(async () => {
   storedDoc = null;
   customFeedDoc = null;
-  settingsDoc = null;
+  // No row at all, which is a DIFFERENT state from a row with nothing tuned —
+  // and the one `getTuning`'s empty answer is about.
+  await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, VIEWER));
   vi.clearAllMocks();
 });
 
@@ -148,7 +165,11 @@ describe('GET /feed/tuning', () => {
   });
 
   it('returns the stored forYou tuning', async () => {
-    settingsDoc = { feedTuning: { forYou: { minQuality: { enabled: true, minQuality: 0.5 } } } };
+    await getDb().insert(userSettings).values({
+      oxyUserId: VIEWER,
+      tuningMinQualityEnabled: true,
+      tuningMinQuality: 0.5,
+    });
     const res = makeRes();
     await feedPreferencesController.getTuning(authed(), res as never);
     expect((res.body as { data: { forYou: unknown } }).data.forYou).toEqual({
@@ -171,8 +192,10 @@ describe('PUT /feed/tuning', () => {
       res as never,
     );
     expect(res.statusCode).toBe(200);
-    const persisted = settingsUpdate.mock.calls[0][1].$set['feedTuning.forYou'];
-    expect(persisted).toEqual({
+    // Read BACK from the database, not from the call the controller made: the
+    // question is what is stored, and a write built from the right values can
+    // still land in the wrong columns.
+    expect((await loadUserSettings(VIEWER))?.feedTuning?.forYou).toEqual({
       lowEffortGate: { enabled: false },
       minQuality: { enabled: true, minQuality: 0.4 },
     });
@@ -182,14 +205,15 @@ describe('PUT /feed/tuning', () => {
     const res = makeRes();
     await feedPreferencesController.updateTuning(authed({ forYou: { minQuality: { minQuality: 2 } } }), res as never);
     expect(res.statusCode).toBe(400);
-    expect(settingsUpdate).not.toHaveBeenCalled();
+    // Nothing written: a rejected body must not half-persist.
+    expect(await loadUserSettings(VIEWER)).toBeNull();
   });
 
   it('400s an unknown tuning module', async () => {
     const res = makeRes();
     await feedPreferencesController.updateTuning(authed({ forYou: { bogus: {} } }), res as never);
     expect(res.statusCode).toBe(400);
-    expect(settingsUpdate).not.toHaveBeenCalled();
+    expect(await loadUserSettings(VIEWER)).toBeNull();
   });
 
   it('401s an anonymous request', async () => {
