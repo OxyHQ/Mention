@@ -22,20 +22,30 @@
  * declare `createdAt` by hand and have no `updatedAt` at all, and their tables
  * match. Reading an `updatedAt` off them would invent one.
  *
- * ## What the enum audit CANNOT cover here, stated rather than skipped
+ * ## The numeric CHECKs ARE audited — the earlier note here was wrong
  *
- * `EnumAudit` reads its allowed set from a drizzle column's `enumValues`, which
- * only text columns carry. `likes.value` (`in (1, -1)`) and `likes.revision`
- * (`>= 0`) are CHECK-constrained NUMERICS, so no `EnumAudit` can express them
- * and a `value: 0` row in production would not be caught before the copy — it
- * would fail on the CHECK partway through. That is a real hole in the audit,
- * not an oversight in these plans; closing it needs a numeric-range audit the
- * framework does not have. Every TEXT enum in this file is audited.
+ * A previous version of this comment said `likes.value` (`in (1, -1)`) and
+ * `likes.revision` (`>= 0`) could not be checked before the copy, because
+ * `EnumAudit` reads its allowed set from a drizzle column's `enumValues` and no
+ * numeric column carries one. The framework half of that was true; the verdict
+ * was not. `distinct()` is the same instrument the enum audit uses and returns
+ * numbers as readily as strings, so `auditNumerics` (`../audit.ts`) now covers
+ * both, and a `value: 0` row is reported before anything is written rather than
+ * failing on the CHECK partway through.
+ *
+ * `likes.value`'s accepted set is `LIKE_VALUES`, imported from the schema — the
+ * same tuple the CHECK is now rendered from, so the audit predicts the
+ * constraint rather than a copy of it. `revision >= 0` is a BOUND, and a bound
+ * has no structured form to read: it is declared on the audit beside the
+ * constraint name it claims to predict, which is weaker and is worth knowing.
+ *
+ * Every TEXT enum in this file is audited too.
  */
 
 import {
   bookmarks,
   entityFollows,
+  LIKE_VALUES,
   likes,
   muteWords,
   mutes,
@@ -62,6 +72,36 @@ export { ENTITY_FOLLOW_TYPES } from '../../schema/engagement';
 const likesPlan: CollectionPlan = {
   collection: 'likes',
   table: likes,
+  numericAudits: [
+    {
+      path: 'value',
+      column: likes.value,
+      constraint: 'likes_value_check',
+      // From the schema's own tuple — the SAME one the CHECK renders from, so
+      // this predicts the constraint instead of a second copy of it.
+      values: LIKE_VALUES,
+      // The transform re-applies Mongoose's `default: 1`, so a document written
+      // before the field existed is not a finding.
+      absentAs: 1,
+    },
+    {
+      path: 'revision',
+      column: likes.revision,
+      constraint: 'likes_revision_check',
+      // A BOUND, not a set, and it is declared rather than read: `>= 0` lives
+      // inline in the CHECK and drizzle exposes no structured form of it. The
+      // constraint name above is what ties the declaration to the thing it
+      // claims to predict.
+      //
+      // `0` and not `1` deliberately. Mongoose says `min: 1`; the CHECK was
+      // widened to `>= 0` because legacy rows start at zero and take revision 1
+      // on their next transition. Auditing against the model's stricter claim
+      // would report every legacy row as blocking, which is the shape of gate
+      // that gets disabled by whoever hits it next.
+      min: 0,
+      absentAs: 1,
+    },
+  ],
   uniquenessAudits: [
     {
       index: 'likes_user_id_post_id_key',

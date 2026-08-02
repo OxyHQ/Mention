@@ -20,6 +20,23 @@
  * The audit reads the allowed set from the drizzle COLUMN, never from a list
  * repeated here, so it predicts the CHECK rather than a copy of it.
  *
+ * ## Why a NUMERIC audit is necessary, and why one had to be built
+ *
+ * An `EnumAudit` can only read `column.enumValues`, which no numeric column
+ * carries — so for a while this file's coverage stopped at text and the ~40
+ * numeric CHECKs in this schema were unaudited, `likes.value in (1, -1)` among
+ * them. That was recorded as a hole rather than left silent, and the recorded
+ * reason ("closing it needs a numeric-range audit the framework does not have")
+ * was correct about the framework and wrong about the difficulty: `distinct()`
+ * is the same instrument, and it returns numbers as readily as strings.
+ *
+ * The class matters more than the one constraint that exposed it. Most of those
+ * CHECKs are `>= 0` on a DENORMALIZED COUNTER copied straight out of Mongo, and
+ * a counter driven below zero by a decrement race is the most ordinary way a
+ * Mongo integer lands outside a range nobody was enforcing. `auditNumerics`
+ * covers sets and bounds alike; see {@link NumericAudit} for why the accepted
+ * SET is read from the schema's own constant while a BOUND has to be declared.
+ *
  * ## Why a uniqueness audit is necessary
  *
  * Postgres now enforces unique indexes Mongo lacked — case-insensitive ones
@@ -49,8 +66,8 @@
  * carrying the rule that answers it.
  */
 
-import type { CollectionPlan, EnumAudit, UniquenessNormalization } from './plan';
-import { allowedValues } from './plan';
+import type { CollectionPlan, EnumAudit, NumericAudit, UniquenessNormalization } from './plan';
+import { allowedValues, describeNumericBound, numericIsAccepted } from './plan';
 import type { MongoSource } from './mongoSource';
 import type { ResolutionContext, ResolutionRule } from './resolutions';
 
@@ -65,6 +82,7 @@ export interface AuditFinding {
    */
   readonly kind:
     | 'enum'
+    | 'numeric'
     | 'uniqueness'
     | 'referential-integrity'
     | 'dropped-document'
@@ -195,6 +213,109 @@ async function describeEnumFinding(
 }
 
 /**
+ * Check every numeric-CHECK column of a plan against `distinct()` on the source.
+ *
+ * Same instrument as {@link auditEnums} and the same cost profile — `distinct`
+ * returns the VALUE SET, so this is affordable over every collection before
+ * anything is written. The only real difference is what the accepted set is
+ * read from: a text enum has `column.enumValues`, a numeric CHECK has nothing
+ * structured at all, so the plan declares it (see {@link NumericAudit}).
+ *
+ * One caveat that is worth stating rather than discovering: `distinct` on a
+ * column holding thousands of distinct counter values returns thousands of
+ * numbers. That is still one index-assisted pass and the comparison is O(n) in
+ * the SET, not in the documents — but it is why the countDocuments/sample
+ * lookup below runs only for a value that actually violates, never per value.
+ */
+export async function auditNumerics(
+  source: MongoSource,
+  plan: CollectionPlan
+): Promise<AuditFinding[]> {
+  const findings: AuditFinding[] = [];
+  for (const audit of plan.numericAudits ?? []) {
+    const collection = source.collection(plan.collection);
+    const observed = await collection.distinct(audit.path, {});
+
+    for (const value of observed) {
+      if (value === null || value === undefined) {
+        // Identical reasoning to the enum audit's null branch, and it holds for
+        // the same measured reason: `NULL >= 0` is NULL, a CHECK is satisfied by
+        // anything that is not FALSE, so Postgres ACCEPTS a NULL in a nullable
+        // column. Reporting it would be a false positive on every optional
+        // numeric field in the schema.
+        if (!audit.column.notNull) continue;
+        // A NOT NULL column raises `23502`, not `23514` — a different failure
+        // that a CHECK has nothing to do with. `absentAs` is the plan declaring
+        // the transform substitutes a default before the value gets there.
+        if (audit.absentAs !== undefined) continue;
+        findings.push(
+          await describeNumericFinding(
+            source,
+            plan,
+            audit,
+            null,
+            `is absent/null and no default is declared, but ${audit.column.name} is NOT NULL`
+          )
+        );
+        continue;
+      }
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        // A string where a number belongs is the shape that survives Mongo
+        // happily and dies on the INSERT: `integer` refuses it outright, and a
+        // NaN/Infinity has no Postgres representation at all.
+        findings.push(
+          await describeNumericFinding(
+            source,
+            plan,
+            audit,
+            value,
+            `is ${typeof value === 'number' ? String(value) : typeof value}, ` +
+              'which no Postgres numeric column accepts'
+          )
+        );
+        continue;
+      }
+      if (numericIsAccepted(audit, value)) continue;
+      findings.push(
+        await describeNumericFinding(
+          source,
+          plan,
+          audit,
+          value,
+          `is not ${describeNumericBound(audit)}`
+        )
+      );
+    }
+  }
+  return findings;
+}
+
+async function describeNumericFinding(
+  source: MongoSource,
+  plan: CollectionPlan,
+  audit: NumericAudit,
+  value: unknown,
+  why: string
+): Promise<AuditFinding> {
+  const collection = source.collection(plan.collection);
+  const filter = { [audit.path]: value } as Record<string, unknown>;
+  const documents = await collection.countDocuments(filter);
+  const samples = await collection
+    .find(filter, { projection: { _id: 1 }, limit: SAMPLE_LIMIT })
+    .toArray();
+  return {
+    collection: plan.collection,
+    kind: 'numeric',
+    detail:
+      `${plan.collection}.${audit.path} = ${JSON.stringify(value)} ${why}. ` +
+      `${audit.constraint} would reject these rows.`,
+    documents,
+    sampleIds: samples.map((doc) => String(doc._id)),
+    ...(audit.resolvedBy === undefined ? {} : { resolvedBy: audit.resolvedBy }),
+  };
+}
+
+/**
  * Find groups of documents that collide under a uniqueness rule Postgres
  * enforces and Mongo did not.
  *
@@ -312,6 +433,10 @@ export function auditWouldBlockCopy(finding: AuditFinding): boolean {
   if (finding.resolvedBy !== undefined) return false;
   return (
     finding.kind === 'enum' ||
+    // A numeric CHECK is `23514`, exactly as an enum CHECK is, and blocks for
+    // the same reason: the row is refused by the server, so the alternative to
+    // stopping now is stopping at hour three with a partly-migrated database.
+    finding.kind === 'numeric' ||
     finding.kind === 'uniqueness' ||
     // A referential finding blocks whether or not the column is NULLABLE.
     // Nullable means SQL NULL is accepted, not that a value naming no row is:

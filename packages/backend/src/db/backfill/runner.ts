@@ -45,6 +45,7 @@ import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { getPostgresClient, type Database } from '../postgres';
 import {
   auditEnums,
+  auditNumerics,
   auditUniqueness,
   auditWouldBlockCopy,
   type AuditFinding,
@@ -231,6 +232,7 @@ export async function runAudits(
     // `[]`, so skipping is not a shortcut that could hide anything.
     if (documents === 0) continue;
     findings.push(...(await auditEnums(source, plan)));
+    findings.push(...(await auditNumerics(source, plan)));
     findings.push(...(await auditUniqueness(source, plan, resolutions)));
   }
 

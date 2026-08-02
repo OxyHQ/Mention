@@ -66,6 +66,110 @@ export interface EnumAudit {
 }
 
 /**
+ * A numeric CHECK to check a Mongo field against before inserting.
+ *
+ * ## Why this exists as a separate kind from {@link EnumAudit}
+ *
+ * `EnumAudit` reads its accepted set from the drizzle column's `enumValues`,
+ * which only a text column carries. This schema declares roughly forty numeric
+ * CHECKs and none of them is expressible that way — so before this existed,
+ * every one of them was unaudited and would have failed the copy with a `23514`
+ * naming a constraint rather than a row, partway through a run.
+ *
+ * They are NOT a theoretical class. Most are `>= 0` on a DENORMALIZED COUNTER
+ * copied straight out of Mongo (`trending.volume`, `topic_stats.postCount`,
+ * `account_lists.subscriberCount`, `custom_feeds.ratingsCount`, every
+ * `attempts` column), and a counter that went negative on a decrement race is
+ * the single most ordinary way a Mongo integer ends up outside a range nobody
+ * was enforcing. Mongoose's `min:` never ran — `runValidators` is set nowhere
+ * in this package — so a negative count is legal there and rejected here.
+ *
+ * ## The accepted set is READ, never restated
+ *
+ * A closed set ({@link values}) must come from the SAME exported constant the
+ * schema builds its CHECK from, for the reason `EnumAudit` reads `enumValues`:
+ * an audit carrying its own copy of the accepted values predicts a constraint
+ * that no longer exists the moment someone widens one side. `LIKE_VALUES` in
+ * `schema/engagement.ts` is that constant for `likes.value`, and the CHECK now
+ * renders from it.
+ *
+ * A bound ({@link min}/{@link max}) cannot be read from anywhere — `>= 0` is
+ * written inline in the CHECK and drizzle exposes no structured form of it — so
+ * it is declared here beside {@link constraint}, which names the constraint the
+ * declaration is claiming to predict. That is weaker than the closed-set case
+ * and is stated rather than hidden.
+ */
+export interface NumericAudit {
+  /** Dotted path of the field in the Mongo document. */
+  readonly path: string;
+  /** The Postgres column the value lands in. */
+  readonly column: PgColumn;
+  /** The CHECK this predicts, named so a report is actionable without the code. */
+  readonly constraint: string;
+  /**
+   * A closed set of accepted values — from the schema constant the CHECK uses.
+   *
+   * Mutually exclusive with {@link min}/{@link max}: a set IS the bound.
+   */
+  readonly values?: readonly number[];
+  /** Inclusive lower bound. */
+  readonly min?: number;
+  /** Inclusive upper bound. */
+  readonly max?: number;
+  /**
+   * The value an ABSENT field maps to, when the transform supplies a default.
+   *
+   * Same contract as {@link EnumAudit.absentAs}: declaring it means the audit
+   * does not report a `NOT NULL` column's absent field as a violation the
+   * transform is about to fill in anyway.
+   */
+  readonly absentAs?: number;
+  /** A documented rule that already answers a finding on this audit. */
+  readonly resolvedBy?: ResolutionRule;
+}
+
+/**
+ * Does this value satisfy the audit's declared constraint?
+ *
+ * @throws {Error} When the audit declares NO constraint at all. An audit with
+ *   neither a set nor a bound accepts everything and would report clean over
+ *   any data whatsoever — the vacuous-check failure mode, which is worse than
+ *   having no audit because it reads like coverage.
+ */
+export function numericIsAccepted(audit: NumericAudit, value: number): boolean {
+  const hasSet = audit.values !== undefined;
+  const hasBound = audit.min !== undefined || audit.max !== undefined;
+  if (!hasSet && !hasBound) {
+    throw new Error(
+      `NumericAudit on ${audit.constraint} declares neither an accepted set nor ` +
+        'a bound, so it would accept every value and pass vacuously'
+    );
+  }
+  if (hasSet && hasBound) {
+    throw new Error(
+      `NumericAudit on ${audit.constraint} declares both an accepted set and a ` +
+        'bound. A set IS the bound; declaring both means two answers to one ' +
+        'question, and nothing says which the CHECK actually enforces'
+    );
+  }
+  if (audit.values !== undefined) return audit.values.includes(value);
+  if (audit.min !== undefined && value < audit.min) return false;
+  if (audit.max !== undefined && value > audit.max) return false;
+  return true;
+}
+
+/** The accepted range, in words, for a finding's message. */
+export function describeNumericBound(audit: NumericAudit): string {
+  if (audit.values !== undefined) return `one of ${audit.values.join(', ')}`;
+  if (audit.min !== undefined && audit.max !== undefined) {
+    return `between ${audit.min} and ${audit.max}`;
+  }
+  if (audit.min !== undefined) return `>= ${audit.min}`;
+  if (audit.max !== undefined) return `<= ${audit.max}`;
+  return '(nothing — this audit declares no constraint)';
+}
+
+/**
  * How one column of a unique index is normalized before comparison.
  *
  * Guessing in either direction is harmful and asymmetric. Normalizing MORE than
@@ -142,6 +246,8 @@ export interface CollectionPlan {
   readonly childTables?: readonly PgTable[];
   /** Closed value sets to check before inserting. */
   readonly enumAudits?: readonly EnumAudit[];
+  /** Numeric CHECKs to check before inserting — sets and bounds alike. */
+  readonly numericAudits?: readonly NumericAudit[];
   /** Uniqueness Postgres now enforces and Mongo did not. */
   readonly uniquenessAudits?: readonly UniquenessAudit[];
   /**

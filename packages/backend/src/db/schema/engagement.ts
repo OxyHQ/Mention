@@ -11,7 +11,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, updatedAt } from './columns';
+import { createdAt, generatedId, inList, numericInList, updatedAt } from './columns';
 import { posts } from './posts';
 
 /** `Like.value` — an up-vote or a down-vote. */
@@ -63,7 +63,13 @@ export const likes = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    check('likes_value_check', sql`${t.value} in (1, -1)`),
+    // Rendered FROM `LIKE_VALUES` rather than restating it. The tuple existed
+    // beside a CHECK that spelled the same two numbers out independently, so
+    // nothing referenced it and neither side would have noticed the other
+    // changing; the backfill's numeric audit now reads it, which turns that
+    // latent drift into a live one. `numericInList` emits `1, -1`, byte-identical
+    // to the applied DDL, so this is not a migration.
+    check('likes_value_check', sql`${t.value} in (${sql.raw(numericInList(LIKE_VALUES))})`),
     check('likes_revision_check', sql`${t.revision} >= 0`),
     unique('likes_user_id_post_id_key').on(t.userId, t.postId),
     // Counting/listing likes BY POST — the likes-list endpoint and engagement
