@@ -22,6 +22,7 @@ import {
   loadPostRecord,
 } from '../db/posts/postRepository';
 import { POST_CLASSIFICATION_PENDING, type PostRecord } from '../db/posts/postRecord';
+import { isUniqueViolation } from '../db/pgErrors';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { getRuntimeSocketServer } from '../runtime/socketServer';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
@@ -52,6 +53,15 @@ import {
 import { sanitizePodcast, resolvePodcastContent } from '../utils/syraPodcast';
 import { recordRecentReplierForPost } from '../services/PostRecentReplierService';
 import { UserPrivacyManager } from '../mtn/UserPrivacyManager';
+
+/**
+ * The one message both "already boosted" answers use.
+ *
+ * The optimistic read and the unique-index violation are the same fact observed
+ * a moment apart, so a client cannot be asked to tell them apart — and two
+ * literals would drift the moment one is reworded.
+ */
+const ALREADY_BOOSTED_ERROR = 'You have already boosted this content';
 
 /**
  * Hard cap on how many posts of an author's self-thread continuation spine the
@@ -517,14 +527,20 @@ class FeedController {
         return res.status(shareValidation.status).json({ error: shareValidation.message });
       }
 
-      // Check if user already boosted this
+      /**
+       * The cheap answer for the overwhelmingly common case. It is NOT the
+       * authority and must not be read as one: there is nothing between this
+       * read and the insert below, so two concurrent boosts both see "no". The
+       * authority is `posts_one_boost_per_account_key`, whose violation is
+       * caught at the insert and answered identically.
+       */
       const [existingBoost] = await findPostRecords(
         and(eq(postsTable.oxyUserId, currentUserId), eq(postsTable.boostOf, originalPostId)),
         { orderBy: CHRONO_DESC, limit: 1 },
       );
 
       if (existingBoost) {
-        return res.status(400).json({ error: 'You have already boosted this content' });
+        return res.status(400).json({ error: ALREADY_BOOSTED_ERROR });
       }
 
       // Create boost
@@ -539,20 +555,39 @@ class FeedController {
         mentions,
       );
 
-      const boost = await insertPostRecord({
-        oxyUserId: currentUserId,
-        authorship: buildAuthorship(currentUserId, []),
-        type: PostType.BOOST,
-        // A bare boost has an empty body, so this yields no rendition at all —
-        // which is the point: `boostOf` is what hydration renders. A boost with
-        // commentary keeps its words as the primary rendition, as before.
-        content: toStoredContent(boostContent, undefined),
-        status: 'published',
-        visibility: PostVisibility.PUBLIC,
-        boostOf: originalPostId,
-        hashtags: mergedTags,
-        mentions: reconciledMentions,
-      });
+      let boost: PostRecord;
+      try {
+        boost = await insertPostRecord({
+          oxyUserId: currentUserId,
+          authorship: buildAuthorship(currentUserId, []),
+          type: PostType.BOOST,
+          // A bare boost has an empty body, so this yields no rendition at all —
+          // which is the point: `boostOf` is what hydration renders. A boost with
+          // commentary keeps its words as the primary rendition, as before.
+          content: toStoredContent(boostContent, undefined),
+          status: 'published',
+          visibility: PostVisibility.PUBLIC,
+          boostOf: originalPostId,
+          hashtags: mergedTags,
+          mentions: reconciledMentions,
+        });
+      } catch (error: unknown) {
+        /**
+         * The loser of two concurrent boosts. NAMED rather than a bare `23505`:
+         * this branch answers for one rule, and a future unique index on `posts`
+         * must not be silently reported to the client as "already boosted".
+         *
+         * Nothing is left behind — `insertPostRecord` writes the post and its
+         * child rows in ONE transaction, so the violation rolls the whole thing
+         * back. The answer is the same 400 the read above would have given, and
+         * it is the truthful one: by the time this request finished, that account
+         * had boosted that post.
+         */
+        if (isUniqueViolation(error, 'posts_one_boost_per_account_key')) {
+          return res.status(400).json({ error: ALREADY_BOOSTED_ERROR });
+        }
+        throw error;
+      }
 
       // MTN dual-write: a boost emits an `app.mention.feed.repost` record whose
       // subject is the boosted original's MTN URI. Best-effort, never blocks.

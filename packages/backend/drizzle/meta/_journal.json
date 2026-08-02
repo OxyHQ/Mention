@@ -29,6 +29,13 @@
       "when": 1785678207141,
       "tag": "0003_notifications_chrono_keyset",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785680245091,
+      "tag": "0004_one_native_boost_per_account",
+      "breakpoints": true
     }
   ]
 }

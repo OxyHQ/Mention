@@ -557,6 +557,43 @@ export const posts = pgTable(
     index('posts_created_at_idx').on(t.createdAt.desc()),
     index('posts_thread_idx').on(t.threadId, t.oxyUserId, t.parentPostId, t.createdAt),
     index('posts_boost_of_idx').on(t.boostOf, t.createdAt.desc()),
+    /**
+     * One NATIVE boost per account per post — the constraint that makes "have
+     * you already boosted this?" answerable.
+     *
+     * `feed.controller` reads for an existing boost and then inserts, with
+     * nothing between the two, so two concurrent boosts both read "no" and both
+     * insert. Nothing downstream copes: unboost deletes ONE row and leaves the
+     * other, so the user unboosts and the boost is still there, and
+     * `stats.boosts_count` drifts by however many duplicates were made. No
+     * amount of ordering fixes that — the read cannot be made authoritative,
+     * only the index can, which is why the guard is now an optimisation and this
+     * is the authority.
+     *
+     * **`federation_activity_id is null` is the load-bearing half of the
+     * predicate, and leaving it out is a federation outage.** A federated boost
+     * is a MIRROR of a remote actor's Announce, deduped by the Announce's own id
+     * (`posts_federation_activity_id_key`) because that is the only identity the
+     * remote instance guarantees. Mastodon's unboost-then-reboost emits a NEW
+     * Announce id, so if the intervening `Undo(Announce)` never arrived — an
+     * ordinary federation failure — two rows for one (actor, original) is the
+     * CORRECT state, not a defect. A wider index rejects that insert with a
+     * 23505 inside the BullMQ inbox worker, which retries it forever. Caught by
+     * `backfillFederatedBoostCounts.test.ts`, whose fixture is two Announces
+     * from one booster; that fixture is right and the first version of this
+     * index was wrong.
+     *
+     * So this constrains Mention's OWN boost action, which is the only one
+     * Mention decides. `type = 'boost'` and `boost_of is not null` narrow it
+     * further: `boost_of` is NULL on every other post and Postgres treats NULLs
+     * as distinct, so those two would work by accident — stating them says what
+     * the rule IS and keeps the index the size of the native-boost set.
+     */
+    uniqueIndex('posts_one_boost_per_account_key')
+      .on(t.oxyUserId, t.boostOf)
+      .where(
+        sql`${t.type} = 'boost' and ${t.boostOf} is not null and ${t.federationActivityId} is null`
+      ),
     index('posts_quote_of_idx').on(t.quoteOf, t.createdAt.desc()),
     index('posts_scheduled_idx')
       .on(t.scheduledFor)
