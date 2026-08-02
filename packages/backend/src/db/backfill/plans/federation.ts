@@ -39,6 +39,7 @@ import {
   federationDeliveryQueue,
 } from '../../schema/federation';
 import type { CollectionPlan } from '../plan';
+import { KEEP_FRESHEST_FEDERATED_ACTOR } from '../resolutions';
 import { buildRow } from '../rowBuilder';
 import {
   bool,
@@ -108,8 +109,23 @@ const federatedActorsPlan: CollectionPlan = {
     { path: 'outboxBackfill.status', column: federatedActors.outboxBackfillStatus },
   ],
   uniquenessAudits: [
-    { index: 'federated_actors_uri_key', key: [{ path: 'uri', normalize: 'exact' }] },
-    { index: 'federated_actors_acct_key', key: [{ path: 'acct', normalize: 'exact' }] },
+    {
+      index: 'federated_actors_uri_key',
+      key: [{ path: 'uri', normalize: 'exact' }],
+      resolvedBy: KEEP_FRESHEST_FEDERATED_ACTOR,
+    },
+    {
+      index: 'federated_actors_acct_key',
+      key: [{ path: 'acct', normalize: 'exact' }],
+      // The SAME rule answers this one, without being declared over `acct`:
+      // almost every acct collision is two rows of one `uri` group, so dropping
+      // the uri duplicates removes them too, and `resolvesUniquenessGroup` then
+      // sees all-but-one of the group acted on. It fails CLOSED for a group the
+      // rule does not empty to one — which is exactly the `handle.invalid`
+      // rows, 21 distinct DIDs sharing an acct that no rule here answers. That
+      // finding still blocks, deliberately.
+      resolvedBy: KEEP_FRESHEST_FEDERATED_ACTOR,
+    },
     {
       // The pair that a case-only difference would collide on if either side
       // were ever normalized differently. Both are `exact` because neither the
@@ -120,10 +136,30 @@ const federatedActorsPlan: CollectionPlan = {
         { path: 'domain', normalize: 'exact' },
         { path: 'username', normalize: 'exact' },
       ],
+      resolvedBy: KEEP_FRESHEST_FEDERATED_ACTOR,
     },
   ],
-  transform: (doc, emit) => {
+  transform: (doc, emit, resolutions) => {
     const id = ownId(doc);
+
+    // A duplicate of an actor another row already carries — decided ONCE by the
+    // pre-pass against the whole collection, because "which of these rows is
+    // the freshest" is a question about the GROUP and a transform sees one
+    // document. Every phase reads that same decision, so the audit, the copy
+    // and both verifier passes cannot disagree about which row survives.
+    if (resolutions.actedOn.get(KEEP_FRESHEST_FEDERATED_ACTOR.id)?.has(id) === true) {
+      resolutions.dropDocument(
+        KEEP_FRESHEST_FEDERATED_ACTOR,
+        'federatedactors',
+        id,
+        'Another federatedactors document carries the same `uri` and was ' +
+          'fetched more recently, so it is the row the resolver has been ' +
+          'keeping current. This one is a duplicate insert from the unindexed ' +
+          'concurrent upsert and is dropped; see the rule for why nothing is ' +
+          'lost with it.'
+      );
+      return;
+    }
 
     emit(
       federatedActors,

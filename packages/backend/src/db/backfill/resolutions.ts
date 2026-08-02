@@ -214,8 +214,77 @@ export const DROP_UNREAD_FEED_ENTITY_FOLLOWS: ResolutionRule = {
     'row is reported BY ID under this rule.',
 };
 
+/**
+ * Duplicate `federatedactors` rows for ONE actor, produced by an unindexed
+ * concurrent upsert.
+ *
+ * The finding is 569 colliding `uri` groups covering 1,156 documents, measured
+ * against `mention-production` on 2026-08-03 — and it is still growing, which is
+ * why this is a COPY-TIME rule and not a script somebody runs the night before.
+ * The writer is `findOneAndUpdate({uri}, …, {upsert:true})` in
+ * `connectors/activitypub/actor.service.ts` and its atproto twin in
+ * `connectors/atproto/profile.mapper.ts`. MongoDB only guarantees an upsert
+ * inserts once when a UNIQUE INDEX covers the filter; `models/FederatedActor.ts`
+ * declares `uri`, `acct` and `(domain, username)` unique, but `autoIndex` is off
+ * in production and no migration ever created them, so two concurrent
+ * resolutions of a first-seen actor both miss the read and both insert.
+ *
+ * The port already fixes the writer — `db/federation/actorRepository.ts` upserts
+ * `ON CONFLICT (uri) DO UPDATE` against a real constraint — so this rule cleans
+ * up what the unindexed years produced and nothing recreates it afterwards.
+ */
+export const KEEP_FRESHEST_FEDERATED_ACTOR: ResolutionRule = {
+  id: 'keep-freshest-federated-actor',
+  collection: 'federatedactors',
+  finding:
+    'Several federatedactors documents share one `uri` — and, through it, one ' +
+    '`acct` and one `(domain, username)`. federated_actors_uri_key, ' +
+    'federated_actors_acct_key and federated_actors_domain_username_key would ' +
+    'each reject all but one of them.',
+  decision:
+    'The row with the GREATEST `lastFetchedAt` survives (a document carrying ' +
+    'none sorts last); ties break on `_id` DESCENDING so the choice is ' +
+    'deterministic. Every other row in the group is DROPPED and reported by id. ' +
+    '\n\n' +
+    'Why most-recently-fetched and not created-first, which is the intuitive ' +
+    'rule: the rows were IDENTICAL at insert — they are the same remote actor ' +
+    'fetched twice, milliseconds apart (519 of the 569 groups were created ' +
+    'within 10ms and NOT ONE spans more than a second). They differ today only ' +
+    'because every later `findOneAndUpdate({uri})` updated whichever row the ' +
+    'collection scan reached first, so exactly one row of each group kept being ' +
+    'refreshed and the rest froze at their insert values — 577 of the 587 ' +
+    'discarded rows were never fetched again at all. That makes ' +
+    '"most-recently-synced" and "most-complete" the SAME row, and makes ' +
+    'created-first actively wrong: the maintained row is the lowest `_id` in ' +
+    '433 groups and the highest in 134, so ordering by `_id` would discard the ' +
+    'live row in roughly a quarter of them. ' +
+    '\n\n' +
+    'Nothing is lost. Measured across all 569 groups: no discarded row holds an ' +
+    '`oxyUserId` the survivor lacks and no two rows point at different Oxy ' +
+    'users (566 identical, 3 survivor-only, 0 the other way, 0 conflicting); ' +
+    'only 2 groups have a discarded row carrying any non-empty value the ' +
+    'survivor lacks, and those are one `summary` and one `lastOutboxSyncAt` — ' +
+    'the latter being the sticky cooldown stamp a fresh row is better off ' +
+    'without. A discarded row never leads on `postsCount`, follower counts, ' +
+    'backfill progress or profile-field count, so a MERGE would be machinery ' +
+    'for a case that does not occur. Nothing references an actor by `_id` ' +
+    'either — `federatedfollows` keys on `remoteActorUri` and no post carries ' +
+    'an actor id — so a dropped row strands no child. ' +
+    '\n\n' +
+    'SCOPED TO `uri` ON PURPOSE. Rows sharing a `uri` are one actor fetched ' +
+    'twice; that is what makes discarding a duplicate lossless. Rows that share ' +
+    'an `acct` or a `(domain, username)` under DIFFERENT `uri`s are DIFFERENT ' +
+    'actors that a derivation bug gave one identity, and dropping those would ' +
+    'delete real accounts. This rule must never be widened to group on `acct` ' +
+    'or `(domain, username)` — see the 21 `acct:"handle.invalid"` rows, which ' +
+    'are 21 distinct Bluesky DIDs and are deliberately NOT answered here.',
+};
+
 /** Rules that act on a VALUE rather than on a missing parent. */
-const VALUE_RESOLUTIONS: readonly ResolutionRule[] = [DROP_UNREAD_FEED_ENTITY_FOLLOWS];
+const VALUE_RESOLUTIONS: readonly ResolutionRule[] = [
+  DROP_UNREAD_FEED_ENTITY_FOLLOWS,
+  KEEP_FRESHEST_FEDERATED_ACTOR,
+];
 
 /**
  * Every declared orphan resolution.
@@ -384,17 +453,133 @@ export interface ResolutionPlan {
 }
 
 /**
+ * One `federatedactors` document, reduced to what the survivor choice reads.
+ *
+ * `lastFetchedAt` is `unknown` because it is whatever Mongo holds. A document
+ * written before the field existed has none, and a `Date` is the only shape
+ * worth ordering by — {@link fetchedAtMillis} decides that once rather than at
+ * two comparison sites.
+ */
+interface ActorDuplicateCandidate {
+  readonly id: string;
+  readonly lastFetchedAt: unknown;
+}
+
+/**
+ * When an actor row was last refreshed, as a number, or `-Infinity` for never.
+ *
+ * NULLS LAST is the whole point and is why this is not `Date.parse`: a row with
+ * no `lastFetchedAt` was never fetched after its insert, which makes it the LEAST
+ * eligible survivor, and any finite sentinel would sort it above a real 1970
+ * timestamp. `-Infinity` cannot.
+ */
+function fetchedAtMillis(value: unknown): number {
+  if (value instanceof Date) {
+    const millis = value.getTime();
+    return Number.isNaN(millis) ? Number.NEGATIVE_INFINITY : millis;
+  }
+  return Number.NEGATIVE_INFINITY;
+}
+
+/**
+ * The rows of one colliding group that do NOT survive, in the rule's order.
+ *
+ * Exported for the tests, which pin the ORDERING rather than a fixture: the
+ * choice is the rule, so it is what has to be exercised against a pair, a
+ * three-way group and a twenty-one-way one — a pair cannot distinguish
+ * "sorted correctly" from "reversed", and it is the size that made two earlier
+ * readings of this data wrong.
+ */
+export function federatedActorDuplicatesToDrop(
+  group: readonly ActorDuplicateCandidate[]
+): string[] {
+  if (group.length < 2) return [];
+  const ordered = [...group].sort((a, b) => {
+    const byFetched = fetchedAtMillis(b.lastFetchedAt) - fetchedAtMillis(a.lastFetchedAt);
+    if (byFetched !== 0) return byFetched;
+    // `_id` DESCENDING. Only reachable when two rows were fetched at the same
+    // millisecond or never — the survivor is then arbitrary but must not be
+    // RANDOM, or two phases of one run could disagree about which row to write.
+    // Descending matches `findActorByOxyUserId`'s own tie-break
+    // (`last_fetched_at desc nulls last, id desc`), so the migration and the
+    // live reader pick the same row by construction rather than by review.
+    return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+  });
+  return ordered.slice(1).map((row) => row.id);
+}
+
+/**
+ * Every `federatedactors` document {@link KEEP_FRESHEST_FEDERATED_ACTOR} drops.
+ *
+ * Grouped in MongoDB rather than streamed and grouped here: the collection is
+ * ~63,000 documents and only the two fields the choice reads are projected, so
+ * the whole answer is one aggregation returning the colliding groups alone.
+ */
+async function planFederatedActorDuplicates(source: MongoSource): Promise<ReadonlySet<string>> {
+  const dropped = new Set<string>();
+  // No existence check, deliberately: an aggregation over a collection that
+  // does not exist returns an empty cursor, which is the same answer a guard
+  // would produce and cannot be wrong.
+  //
+  // `source.count()` looks like the guard to reach for and is NOT usable here.
+  // It answers from a MEMOISED `listCollections()` — captured once, on the first
+  // call anywhere in the process — so a collection created after that snapshot
+  // counts as 0 and would stand this rule down silently, leaving every
+  // collision to block with no indication the pre-pass had been skipped. That
+  // is not hypothetical: it is what the first version of this function did, and
+  // the tests below caught it only because they assert the rule ACTED rather
+  // than that the copy succeeded.
+  const groups = await source
+    .collection('federatedactors')
+    .aggregate<{ rows?: unknown }>(
+      [
+        // Grouped on `uri` ALONE — see the rule's `decision`. Widening this to
+        // `acct` or `(domain, username)` would delete distinct actors.
+        {
+          $group: {
+            _id: '$uri',
+            rows: { $push: { id: '$_id', lastFetchedAt: '$lastFetchedAt' } },
+            count: { $sum: 1 },
+          },
+        },
+        { $match: { count: { $gt: 1 } } },
+      ],
+      // 569 groups today, but the number is growing while the unindexed writer
+      // is live, and a `$group` over the whole collection is exactly the shape
+      // that outgrows the 100 MB in-memory limit unannounced.
+      { allowDiskUse: true }
+    )
+    .toArray();
+
+  for (const group of groups) {
+    const rows = Array.isArray(group.rows) ? group.rows : [];
+    const candidates: ActorDuplicateCandidate[] = rows.flatMap((row) => {
+      if (row === null || typeof row !== 'object') return [];
+      const entry = row as { id?: unknown; lastFetchedAt?: unknown };
+      // A document with no `_id` cannot be named in the report, and a rule that
+      // cannot report what it acted on has not answered anything — leaving it
+      // out keeps the group unresolved, which blocks. Not reachable in Mongo,
+      // written because the alternative is a silent drop.
+      if (entry.id === undefined || entry.id === null) return [];
+      return [{ id: String(entry.id), lastFetchedAt: entry.lastFetchedAt }];
+    });
+    for (const id of federatedActorDuplicatesToDrop(candidates)) dropped.add(id);
+  }
+  return dropped;
+}
+
+/**
  * Run every rule's pre-pass against the source.
  *
  * Takes the source rather than reaching for one, so the audit phase and the
  * copy phase provably run it against the same database.
  */
 export async function planResolutions(source: MongoSource): Promise<ResolutionPlan> {
-  // No rule declares a pre-pass yet. The parameter is still required so adding
-  // one is a change to this function's BODY rather than to its signature and
-  // every call site.
-  void source;
-  return { actedOn: new Map() };
+  return {
+    actedOn: new Map([
+      [KEEP_FRESHEST_FEDERATED_ACTOR.id, await planFederatedActorDuplicates(source)],
+    ]),
+  };
 }
 
 // ---------------------------------------------------------------------------
