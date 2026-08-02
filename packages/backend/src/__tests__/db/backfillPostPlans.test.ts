@@ -484,3 +484,71 @@ describe('the scalar columns', () => {
     expect(row?.contentPodcastSyraId).toBe('bfx-pod');
   });
 });
+
+/**
+ * Six posts of 577,526 in production have NO `createdAt` — absent, not
+ * malformed. All six federated, five of them one batch, which points at the raw
+ * federated `insertMany` path.
+ *
+ * The column is `NOT NULL` **with a DEFAULT**, so the silent outcome is `now()`:
+ * they would be dated to the migration instant and sit at the top of every
+ * chronological feed on day one, with nothing raised anywhere. That is the shape
+ * of failure a defaulted column has, and it is why silence from an audit is not
+ * evidence for this class.
+ */
+describe('a post with no createdAt', () => {
+  it('takes the time from its own _id, not the migration clock', async () => {
+    // A fixed second in 2023, so "derived from the id" and "whatever the clock
+    // says" cannot be confused for one another.
+    const createdSeconds = Math.floor(new Date('2023-05-06T07:08:09.000Z').getTime() / 1000);
+    const id = ObjectId.createFromTime(createdSeconds);
+    const startedAt = new Date();
+    const document = basePost(id);
+    // The production shape: the field is ABSENT, not null.
+    delete (document as { createdAt?: unknown }).createdAt;
+    await mongo.collection('posts').insertOne(document);
+    await copyPosts();
+
+    const [row] = await getDb().select().from(posts).where(eq(posts.id, id.toHexString()));
+
+    expect(row?.createdAt).toStrictEqual(new Date(createdSeconds * 1000));
+    // The assertion that would fail against the database default. Without it
+    // this case passes on `now()` for any fixture whose id happens to be new.
+    expect(row?.createdAt.getTime()).toBeLessThan(startedAt.getTime());
+  });
+
+  it('does NOT reach for updatedAt, which is two weeks late on the real rows', async () => {
+    const createdSeconds = Math.floor(new Date('2026-06-27T05:49:29.000Z').getTime() / 1000);
+    const id = ObjectId.createFromTime(createdSeconds);
+    // The actual production value on five of the six: a media-cache rewrite a
+    // fortnight after the post was written. It is the nearest plausible
+    // alternative source and it is wrong in the direction that matters.
+    const updatedAt = new Date('2026-07-13T21:26:55.109Z');
+    const document = basePost(id, { updatedAt });
+    delete (document as { createdAt?: unknown }).createdAt;
+    await mongo.collection('posts').insertOne(document);
+    await copyPosts();
+
+    const [row] = await getDb().select().from(posts).where(eq(posts.id, id.toHexString()));
+
+    expect(row?.createdAt).toStrictEqual(new Date(createdSeconds * 1000));
+    expect(row?.createdAt).not.toStrictEqual(updatedAt);
+    // `updatedAt` itself is still copied verbatim — the derivation replaces the
+    // MISSING value, never a present one.
+    expect(row?.updatedAt).toStrictEqual(updatedAt);
+  });
+
+  it('leaves a present createdAt alone, millisecond precision included', async () => {
+    // The guard against always deriving: an ObjectId carries SECONDS, so a
+    // transform that derived unconditionally would silently truncate the
+    // millisecond component of every one of the 577,520 posts that have one.
+    const id = new ObjectId();
+    const createdAt = new Date('2024-02-03T04:05:06.007Z');
+    await mongo.collection('posts').insertOne(basePost(id, { createdAt }));
+    await copyPosts();
+
+    const [row] = await getDb().select().from(posts).where(eq(posts.id, id.toHexString()));
+    expect(row?.createdAt).toStrictEqual(createdAt);
+    expect(row?.createdAt.getMilliseconds()).toBe(7);
+  });
+});

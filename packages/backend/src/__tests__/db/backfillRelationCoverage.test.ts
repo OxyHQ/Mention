@@ -391,12 +391,24 @@ describe('coverage of the current plan set', () => {
         plannedTables()
       );
 
-      // While 24 collections are unplanned this is the large number, and it is
-      // NOT a defect — a relation on an unplanned table is expected to be
-      // uncovered. Conflating the two would make the gate fire permanently on a
-      // state nobody can fix, which is how a gate gets disabled.
-      expect(coverage.outOfScope).toBeGreaterThan(0);
+      // WAS `outOfScope > 0`, written while 24 collections were unplanned, when
+      // a relation on an unplanned table was expected to be uncovered and
+      // conflating the two would have fired the gate permanently on a state
+      // nobody could fix. Every table now has a plan, so that number is legally
+      // ZERO and the old assertion inverted into a false alarm the day the work
+      // finished — a check that fails on SUCCESS, which is the shape that gets a
+      // gate disabled just as surely as one that cries wolf.
+      //
+      // What survives the change of state is the PARTITION: every deployed
+      // constraint is either in scope or out of it, exactly once. That holds
+      // whether the unplanned set is 24 collections or none, and it is what the
+      // case was really about.
+      expect(coverage.outOfScope).toBeGreaterThanOrEqual(0);
       expect(coverage.outOfScope + coverage.deployedInScope).toBe(deployed.length);
+      // The floor moves to the side that is now non-empty: with nothing
+      // unplanned, EVERY deployed constraint must be in scope, so a partition
+      // that put them all outside would pass the sum above and mean nothing.
+      expect(coverage.deployedInScope).toBe(deployed.length);
     } finally {
       await closePostgres();
     }

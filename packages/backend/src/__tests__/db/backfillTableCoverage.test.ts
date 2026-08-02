@@ -33,20 +33,27 @@ import { tablesWithoutAPlan } from '../../db/backfill/collectionMap';
  */
 
 /**
- * Tables with no plan feeding them, as of the consolidation of the port, `main`
- * and the backfill.
+ * Tables with no plan feeding them.
  *
- * Every entry is WORK REMAINING, not a decision. There is deliberately no
- * "post-cutover-only" class: `collectionMap.ts` records exclusions on the SOURCE
- * side (`NOT_MIGRATED`, twelve collections with reasons), and a target table
- * nothing writes has no equivalent justification — if one ever earns it, it
- * belongs in a named constant with the reason, not silently in here.
+ * **EMPTY as of 2026-08-02, and that is the point of the file.** It was written
+ * with eight names in it, as a progress bar with a shrink rule; the last two
+ * (`user_settings`, `user_settings_label_actions`) came out when the userProfile
+ * plans landed, and this test is what said so — it went red in BOTH directions
+ * at once, reporting nothing unplanned while the list still named two.
+ *
+ * Leave it as a list rather than collapsing the assertion to `toEqual([])`. The
+ * shrink rule below is what makes an entry impossible to leave behind, and the
+ * next table that arrives without a plan — `trend_summaries` came in on a merge
+ * from `main` and was invisible here until a production run refused it — should
+ * be a red test and a deliberate decision about whether it belongs on this list
+ * or needs a plan, not a silent edit to an expectation.
+ *
+ * There is deliberately no "post-cutover-only" class. `collectionMap.ts` records
+ * exclusions on the SOURCE side (`NOT_MIGRATED`, twelve collections with
+ * reasons); a target table nothing writes has no equivalent justification, and
+ * if one ever earns it, it belongs in a named constant with the reason.
  */
-const UNPLANNED_TABLES: readonly string[] = [
-  // `usersettings` and its label-action children.
-  'user_settings',
-  'user_settings_label_actions',
-];
+const UNPLANNED_TABLES: readonly string[] = [];
 
 describe('every schema table has a plan feeding it', () => {
   it('has no unplanned table beyond the ones named here', () => {
