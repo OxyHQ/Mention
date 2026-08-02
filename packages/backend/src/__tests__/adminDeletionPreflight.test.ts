@@ -1,10 +1,13 @@
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { eq } from 'drizzle-orm';
+import type * as TypeScript from 'typescript';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import {
   DeletionPreflightError,
+  POST_REFERENCE_PROBE_NAMES,
   assertNoDeletionBlockers,
   assertPostsSafeToDelete,
   collectReferenceBlockers,
@@ -17,6 +20,129 @@ import { likes } from '../db/schema/engagement';
 import { notifications } from '../db/schema/discovery';
 import { deletePostRecord, insertPostRecord } from '../db/posts/postRepository';
 import type { PostRecordInput } from '../db/posts/postRecord';
+
+const ts = createRequire(path.join(__dirname, 'adminDeletionPreflight.test.ts'))(
+  'typescript',
+) as typeof TypeScript;
+const PREFLIGHT_SOURCE = path.resolve(__dirname, '../scripts/lib/adminDeletionPreflight.ts');
+
+/**
+ * The complete set of functions a probe may reach to answer "does a row exist",
+ * and every one of them reads Postgres.
+ *
+ * A probe that reaches NONE of these answers its question without asking the
+ * store — which is the Mongo-era defect exactly: a probe against a collection
+ * nothing writes returned "no reference" for every input, so the preflight
+ * cleared every deletion while reading as a gate that ran.
+ */
+const POSTGRES_READ_HELPERS = new Set([
+  'anyRow',
+  'postExists',
+  'existsFollow',
+  'hasActorKeyPair',
+  'hasDeliveriesFromSender',
+  'hasDeliveriesReferencingObjects',
+]);
+
+/**
+ * Known subject, known value. Each of these probes lives in the ACTOR builder,
+ * which — unlike the post probes below — has no row test standing behind it, and
+ * which is where the split-store defect was found (3 checks reading Postgres, 36
+ * reading a store that had moved). A count floor cannot tell a working parse
+ * from a broken one; naming a probe and the exact helper it must reach can.
+ */
+const ACTOR_PROBE_READS: Readonly<Record<string, string>> = {
+  'actor_key_pairs.oxy_user_id': 'hasActorKeyPair',
+  'federated_follows.remote_actor_uri': 'existsFollow',
+  'federation_delivery_queue.sender_oxy_user_id': 'hasDeliveriesFromSender',
+  'posts owner/authorship/mentions': 'postExists',
+  'user_settings.oxy_user_id': 'anyRow',
+  'mention_signed_records.oxy_user_id': 'anyRow',
+};
+
+interface ScannedProbe {
+  /** The blocker name an operator would see printed. */
+  readonly name: string;
+  /** The enclosing top-level function, so a failure says which builder broke. */
+  readonly owner: string;
+  readonly line: number;
+  /** Which members of {@link POSTGRES_READ_HELPERS} the probe body reaches. */
+  readonly reads: readonly string[];
+}
+
+/**
+ * Every reference probe the module declares, read off the AST rather than by
+ * grep — so a probe mentioned in a docblock is not a hit, and a probe whose body
+ * spans twenty lines of drizzle is still one probe.
+ *
+ * The two builders declare probes in different SHAPES and both must be covered:
+ * the actor probes are `{ name, hasReference }` object literals, and the post
+ * probes are a `Record<PostReferenceProbeName, …>` keyed by string literal.
+ */
+function scanPreflightProbes(): ScannedProbe[] {
+  const source = readFileSync(PREFLIGHT_SOURCE, 'utf8');
+  const sourceFile = ts.createSourceFile(
+    PREFLIGHT_SOURCE,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const probes: ScannedProbe[] = [];
+
+  const readsOf = (body: TypeScript.Node): string[] => {
+    const found = new Set<string>();
+    const collect = (child: TypeScript.Node): void => {
+      if (ts.isCallExpression(child) && ts.isIdentifier(child.expression)) {
+        const callee = child.expression.text;
+        if (POSTGRES_READ_HELPERS.has(callee)) found.add(callee);
+      }
+      ts.forEachChild(child, collect);
+    };
+    collect(body);
+    return [...found];
+  };
+  const lineOf = (node: TypeScript.Node): number =>
+    sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
+
+  const visit = (node: TypeScript.Node, owner: string): void => {
+    const scope = ts.isFunctionDeclaration(node) && node.name ? node.name.text : owner;
+
+    if (ts.isObjectLiteralExpression(node)) {
+      // Shape 1 — `{ name: '…', hasReference: () => … }`.
+      let name: string | undefined;
+      let hasReference: TypeScript.Expression | undefined;
+      for (const property of node.properties) {
+        if (!ts.isPropertyAssignment(property) || !ts.isIdentifier(property.name)) continue;
+        if (property.name.text === 'name' && ts.isStringLiteral(property.initializer)) {
+          name = property.initializer.text;
+        }
+        if (property.name.text === 'hasReference') hasReference = property.initializer;
+      }
+      if (name !== undefined && hasReference !== undefined) {
+        probes.push({ name, owner: scope, line: lineOf(node), reads: readsOf(hasReference) });
+      }
+
+      // Shape 2 — the post builder's string-literal-keyed record. Anchored on
+      // the builder's NAME so an unrelated string-keyed object elsewhere in the
+      // module can never be mistaken for a probe table.
+      if (scope === 'buildPostReferenceProbes') {
+        for (const property of node.properties) {
+          if (!ts.isPropertyAssignment(property) || !ts.isStringLiteral(property.name)) continue;
+          probes.push({
+            name: property.name.text,
+            owner: scope,
+            line: lineOf(property),
+            reads: readsOf(property.initializer),
+          });
+        }
+      }
+    }
+    ts.forEachChild(node, (child) => visit(child, scope));
+  };
+  visit(sourceFile, '<module>');
+
+  return probes;
+}
 
 describe('administrative deletion preflight', () => {
   it('reports every matched reference in one pass', async () => {
@@ -90,17 +216,73 @@ describe('administrative deletion preflight', () => {
     // collection nothing writes returns "no reference" and the preflight clears
     // the deletion. Row assertions below cover four probes; this covers all
     // thirty-odd at once, including any added later.
-    const source = readFileSync(
-      path.resolve(__dirname, '../scripts/lib/adminDeletionPreflight.ts'),
-      'utf8',
-    );
+    const source = readFileSync(PREFLIGHT_SOURCE, 'utf8');
     const modelImports = [...source.matchAll(/from '\.\.\/\.\.\/models\/([\w.]+)'/g)].map(
       (match) => match[1],
     );
     // `Report.model` survives for the `ReportedType` ENUM only — a value, not a
     // query. Asserting the exact set rather than a count keeps a swap visible.
+    //
+    // THE IMPORT ASSERTION IS THE LOAD-BEARING ONE OF THE TWO. It is an exact
+    // equality over a walked set, so it fails whether the list grows OR shrinks.
+    // The `.exists(` line beneath it is a NEGATIVE naming a Mongo-era API that
+    // no longer occurs anywhere in this file — it matches zero today, which
+    // means it can no longer distinguish a violation from a clean file and is
+    // kept only as a cheap tripwire for a reintroduced Mongoose read. If one of
+    // these two ever has to go, it is that one.
     expect(modelImports).toEqual(['Report.model']);
     expect(source).not.toMatch(/\b[A-Z]\w*\.exists\(/);
+  });
+
+  /**
+   * The floor under the check above, and the only thing standing behind
+   * `assertActorSafeToDelete`.
+   *
+   * "No Mongoose model is imported" is a NEGATIVE that names the old API: once
+   * the models were deleted it matched nothing, and a pattern that matches
+   * nothing passes for every possible violation, silently, forever. It cannot
+   * see the failure that actually matters either — a probe that answers its
+   * question WITHOUT asking the store. The exact defect found this month was 3
+   * of 39 actor probes reading Postgres while the rest read a store that had
+   * moved, and none of the assertions above could have detected it.
+   *
+   * So this walks the AST and demands that every probe REACH a Postgres read.
+   * The floors are semantic rather than counted, because a count is exactly what
+   * a broken parse satisfies: the post builder's key set must equal the exported
+   * name list (imported here as a value, so a rename is a compile error), and
+   * named actor probes must resolve to the named helper.
+   */
+  it('resolves EVERY declared probe to a Postgres read', () => {
+    const probes = scanPreflightProbes();
+    const describeProbe = (probe: ScannedProbe): string =>
+      `${probe.owner}: ${probe.name} (src/scripts/lib/adminDeletionPreflight.ts:${probe.line})`;
+
+    // FLOOR — the post builder. One probe per exported name, no more and no
+    // fewer: a dropped probe is a reference nothing checks, and a probe the list
+    // does not name cannot be acknowledged by a caller.
+    expect(
+      probes
+        .filter((probe) => probe.owner === 'buildPostReferenceProbes')
+        .map((probe) => probe.name)
+        .sort(),
+    ).toEqual([...POST_REFERENCE_PROBE_NAMES].sort());
+
+    // FLOOR — the actor builders. Known subject, known value: each named probe
+    // must be found AND must reach exactly the helper named for it.
+    expect(
+      Object.keys(ACTOR_PROBE_READS).map((name) => {
+        const matching = probes.filter((probe) => probe.name === name);
+        return `${name} -> ${
+          matching.length === 0
+            ? 'NOT FOUND'
+            : [...new Set(matching.flatMap((probe) => probe.reads))].sort().join('+')
+        }`;
+      }),
+    ).toEqual(Object.entries(ACTOR_PROBE_READS).map(([name, helper]) => `${name} -> ${helper}`));
+
+    // THE INVARIANT. A probe reaching no Postgres read is a gate that fails
+    // open, and an operator who believes it ran.
+    expect(probes.filter((probe) => probe.reads.length === 0).map(describeProbe)).toEqual([]);
   });
 
   it('uses durable delivery acknowledgements and explicit resource closure', () => {
