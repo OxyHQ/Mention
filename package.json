@@ -11,9 +11,9 @@
     ],
     "catalog": {
       "@oxyhq/bloom": "^0.73.0",
-      "@oxyhq/contracts": "^0.20.0",
-      "@oxyhq/core": "^16.0.0",
-      "@oxyhq/services": "^25.0.1",
+      "@oxyhq/contracts": "^0.21.0",
+      "@oxyhq/core": "^17.0.2",
+      "@oxyhq/services": "^26.0.0",
       "@syra.fm/sdk": "^0.7.0",
       "@types/bun": "1.3.14",
       "@types/jsonwebtoken": "^9.0.10",
@@ -67,6 +67,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "semver": "^7.8.5",
     "typescript": "catalog:",
     "yaml": "^2.9.0"
   },

@@ -59,6 +59,17 @@ The instinct that triggers it is tidiness: stash → measure something against a
 
 If it already happened: a CONFLICTED pop does not drop the entry, so the other session's work is still on the stack and recovery is possible. Restore your own files (`git checkout HEAD -- <paths>`, then `git reset`), then VERIFY the entry survived — `git stash list` and `git stash show --stat stash@{0}` against what it should contain — before calling the repair done.
 
+## Stub servers — random port, and verify the teardown
+
+A stub bound to a well-known service port is indistinguishable from the real service to every other agent and session on this machine, and it outlives the session that started it. Anything fetching that port — a browser check, a curl, another agent's verification run — gets a coherent, plausible, STALE answer, and there is no signal at the fetch layer that distinguishes the stub from the real backend.
+
+Two cheap defences, both required:
+
+- Bind a random high port and point the thing under test at it, rather than the canonical one. `4110` is the backend every frontend dev server here already targets, so it is the worst possible choice.
+- VERIFY teardown (`pgrep -f`, `ss -ltnp`) instead of trusting `pkill`'s exit status. A `pkill` placed in a compound command can go unreached when an earlier part exits, and the command still reports success for the part that ran.
+
+The general form is the one this repo keeps relearning: a cleanup you did not verify is a cleanup you did not do.
+
 ## Bumping an Oxy SDK package (CRITICAL — `bun add` reports success and changes nothing)
 
 **Shared versions live in exactly one place: `workspaces.catalog` in the root `package.json`.** Workspace manifests and the root `overrides` both name the package as `"catalog:"`, and `scripts/doctor.mjs` reads the Bloom pin out of the catalog rather than repeating it. A bump is therefore ONE edit (the catalog entry) plus `bun install` for `bun.lock`.
@@ -70,6 +81,12 @@ An override reading `"catalog:"` still rewrites transitive resolutions — verif
 Doctor rejects a manifest or override that re-pins a catalogued package to a literal range, because that silently escapes the catalog while still resolving (mutation-tested: each of manifest re-pin, override re-pin, an emptied catalog, and a `@types/bun` that drifts from `packageManager` fails with its own message). `@oxyhq/bloom` must NOT appear in the root `dependencies` — doctor rejects that too ("Runtime dependencies must live in their owning workspace"), and a rebase conflict resolution reintroduces it easily.
 
 Packages with a single consumer and an exact pin (`@oxyhq/crowdsource*`, `@oxyhq/federation`, `@oxyhq/protocol`) are deliberately NOT catalogued: there is no second site for them to drift from.
+
+**After bumping the catalog, check that no NESTED copy of the old version survived.** An incremental `bun install` (and `bun update <pkg>`) does not re-resolve an edge it has already recorded — it preserves the previous resolution by nesting it, so a dependency that used to share the hoisted copy silently acquires its own stale one (`"@oxyhq/federation/@oxyhq/core": ["@oxyhq/core@16.0.0"]` while the top level moved to 17). The install is green, `--frozen-lockfile` is green, and the bump looks done while the dependent still loads the old major. `grep -oE '"[^"]*<pkg>": \["<pkg>@[0-9.]+' bun.lock | sort -u` should print exactly one line. Deleting `bun.lock` and resolving from scratch fixes it but rewrites hundreds of unrelated resolutions; deleting just the stale nested keys and reinstalling gets the same result in a reviewable diff.
+
+`bun update` also writes the packages it touched into the ROOT `dependencies`, which doctor only rejects for `@oxyhq/bloom`. Check `git diff package.json` after running it.
+
+**`validate:lockfile` fails on an override that forces a package outside a declared range** (check 4). An override outranks every range at once, so it cannot distinguish deduping a patch from satisfying a range a dependency never claimed — the deliberate cases are listed in `ACCEPTED_OVERRIDE_RANGE_VIOLATIONS` with their reason, and an entry that stops firing is reported so the list cannot rot. This is the only check that catches a catalogued bump landing a major its dependents do not accept.
 
 **Assert the installed version after any bump — never trust the installer's output.** `node -e "console.log(require('./node_modules/@oxyhq/<pkg>/package.json').version)"` before running any gate, or the gate measures the old package.
 
