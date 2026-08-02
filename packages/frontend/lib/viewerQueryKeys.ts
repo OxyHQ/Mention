@@ -206,10 +206,47 @@ export const viewerQueryKeys = {
     ...viewerQueryKeys.channelsRoot(viewerId),
     'mine',
   ] as const,
+  /**
+   * The channels the caller READS — a different question from `ownedChannels`,
+   * backed by a different model (`ChannelFollow` rather than `ChannelMember`), so
+   * a different key rather than a parameter on the same one.
+   */
+  followedChannels: (viewerId: ViewerId) => [
+    ...viewerQueryKeys.channelsRoot(viewerId),
+    'following',
+  ] as const,
   /** Membership invitations awaiting the caller's answer. */
   channelInvites: (viewerId: ViewerId) => [
     ...viewerQueryKeys.channelsRoot(viewerId),
     'invites',
+  ] as const,
+  /**
+   * Profiles matching a SUBMITTED search term on the owner's invite screen.
+   *
+   * Inside the channel namespace rather than a generic search one so a
+   * membership write clears it along with everything else it invalidates — the
+   * rows carry an "already invited" state that a stale result would keep
+   * offering.
+   */
+  channelInviteSearch: (viewerId: ViewerId, term: string) => [
+    ...viewerQueryKeys.channelsRoot(viewerId),
+    'invite-search',
+    term,
+  ] as const,
+  /**
+   * A CHANNEL's lanes, as the composer offers them when publishing into it.
+   *
+   * `manage` is part of the key because the two reads answer DIFFERENT lists:
+   * the owner's management view (`GET /lanes/mine?channelId=`) includes `mixed`
+   * and `hidden` lanes, while a publisher can only read the public tab list. One
+   * cached under the other would offer a publisher lanes the server never showed
+   * them.
+   */
+  channelLanes: (viewerId: ViewerId, channelId: string, manage: boolean) => [
+    ...viewerQueryKeys.channelsRoot(viewerId),
+    'lanes',
+    channelId,
+    manage ? 'manage' : 'public',
   ] as const,
   /**
    * Readable names for the channels pinned as home tabs. Keyed by the id SET, so

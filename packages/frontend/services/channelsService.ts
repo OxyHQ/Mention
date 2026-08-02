@@ -119,6 +119,31 @@ class ChannelsService {
     return res.data ?? [];
   }
 
+  /**
+   * The channels this reader SUBSCRIBES to, newest follow first, keyset-paged on
+   * the follow rows (`<createdAtMs>_<followId>`).
+   *
+   * A different question from {@link listMine} with a different model behind it:
+   * that one is publishing RIGHTS (`ChannelMember`), this one is readership
+   * (`ChannelFollow`). A reader typically has many of these and none of those.
+   *
+   * Every row carries `viewerState` — `isFollowing: true` plus the reader's own
+   * `notify` — so a list of subscriptions can paint its mute switch without a
+   * second request per channel. That is the whole reason the directory's
+   * `viewerState`-less rows and these are handled differently by the screen.
+   */
+  async listFollowing(options?: { cursor?: string; limit?: number }): Promise<ChannelDirectoryPage> {
+    const params: Record<string, string | number> = {};
+    if (options?.cursor) params.cursor = options.cursor;
+    if (options?.limit) params.limit = options.limit;
+
+    const res = await authenticatedClient.get<ChannelDirectoryPage>(
+      `${CHANNELS_PATH}/following`,
+      { params },
+    );
+    return res.data ?? { items: [], hasMore: false };
+  }
+
   /** The channels the caller may publish to — owned or invited-and-accepted. */
   async listMine(): Promise<Channel[]> {
     const res = await authenticatedClient.get<Channel[]>(`${CHANNELS_PATH}/mine`);

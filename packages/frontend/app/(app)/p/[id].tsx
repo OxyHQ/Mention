@@ -37,6 +37,7 @@ import { insightsService } from '@/services/insightsService';
 import { feedService } from '@/services/feedService';
 import { socketService } from '@/services/socketService';
 import { SEO } from '@/components/SEO';
+import { postAcceptsReplies } from '@/utils/postReplies';
 import { createLogger } from '@oxyhq/core/logger';
 
 type PostDetailEntity = HydratedPost | Reply | Boost;
@@ -520,8 +521,13 @@ const PostDetailScreen: React.FC = () => {
                             screen no matter how far down the replies are scrolled.
                             It must be the LAST flow sibling for `position: sticky`
                             to pin it on web. `bg-background` matches the feed rows,
-                            so replies never show through it while it overlays them. */}
-                        {!!user && (
+                            so replies never show through it while it overlays them.
+
+                            Absent on a post that takes no replies — a channel post,
+                            or one closed to everybody. The rule is read off the POST
+                            (`postAcceptsReplies`), the same call the row's action bar
+                            makes, so the two surfaces cannot disagree. */}
+                        {!!user && postAcceptsReplies(post) && (
                             <PanelStickyFooter className="bg-background" style={stickyComposerStyle}>
                                 <FeedHeader
                                     showComposeButton
