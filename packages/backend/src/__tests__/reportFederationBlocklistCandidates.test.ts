@@ -98,9 +98,11 @@ import {
   buildCorroboration,
   buildDigestIndex,
   corroboratingSourceCount,
+  corroboratingSourceNames,
   parseDomainBlocks,
   renderReportTable,
   reportFederationBlocklistCandidates,
+  type SourceObservation,
   type SourcePollResult,
 } from '../scripts/reportFederationBlocklistCandidates';
 
@@ -546,6 +548,67 @@ describe('reportFederationBlocklistCandidates', () => {
   });
 });
 
+describe('corroboratingSourceNames', () => {
+  /**
+   * The committed policy's `corroboratingSources` is a list of NAMES, and the
+   * page publishes it as who else independently reached the same decision. A
+   * report that only ever said `suspend×3` could not fill that field: the only
+   * ways to write it from a count are to invent names or to leave it empty, and
+   * leaving it empty makes the page state the decision was Mention's alone.
+   */
+  function observed(
+    source: string,
+    severity: SourceObservation['severity'],
+    resolvedFromDigest = false,
+  ): SourceObservation {
+    return { source, severity, resolvedFromDigest };
+  }
+
+  it('names the sources at one severity, sorted, and no others', () => {
+    const names = corroboratingSourceNames(
+      [
+        observed('zeta.example', 'suspend'),
+        observed('alpha.example', 'suspend'),
+        observed('silencer.example', 'silence'),
+        observed('lister.example', 'noop'),
+      ],
+      'suspend',
+    );
+
+    expect(names).toEqual(['alpha.example', 'zeta.example']);
+  });
+
+  it('votes once per source, so the names agree with the count', () => {
+    // A source that lists the same domain twice contributes ONE vote to
+    // `sourceCount`. If it contributed two names, a reviewer transcribing the
+    // list into the policy would publish corroboration that does not exist.
+    const observations = [
+      observed('a.example', 'suspend'),
+      observed('a.example', 'suspend'),
+      observed('b.example', 'suspend'),
+    ];
+
+    expect(corroboratingSourceNames(observations, 'suspend')).toEqual(['a.example', 'b.example']);
+  });
+
+  it('says which names were recovered from a digest rather than read', () => {
+    // A masked entry counts identically, but a digest match is only as good as
+    // the domain list that seeded it — so the reader is told which is which.
+    expect(
+      corroboratingSourceNames([observed('masked.example', 'suspend', true)], 'suspend'),
+    ).toEqual(['masked.example(masked)']);
+
+    // One plain publication is a name we read directly, whatever else that
+    // source published masked.
+    expect(
+      corroboratingSourceNames(
+        [observed('mixed.example', 'suspend', true), observed('mixed.example', 'suspend', false)],
+        'suspend',
+      ),
+    ).toEqual(['mixed.example']);
+  });
+});
+
 describe('renderReportTable', () => {
   it('renders each candidate once and says how many it omitted', async () => {
     const sources = ['a.example', 'b.example'];
@@ -561,7 +624,9 @@ describe('renderReportTable', () => {
 
     expect(lines[0]).toContain('DOMAIN');
     expect(lines[1]).toContain('one.example');
-    expect(lines[1]).toContain('suspend×2');
+    // NAMED, not counted — this row is what a reviewer transcribes a policy
+    // entry's `corroboratingSources` from.
+    expect(lines[1]).toContain('suspend[a.example b.example]');
     expect(lines[1]).toContain('Hate speech');
     expect(lines[2]).toContain('1 further candidates omitted');
   });

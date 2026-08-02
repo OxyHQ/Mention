@@ -24,8 +24,12 @@
  * CORROBORATION IS THE PRODUCT
  *   A domain blocked by ONE source is that instance's opinion. A domain blocked
  *   by several, independently, at the same severity, for the same stated reason,
- *   is a signal. So every candidate carries HOW MANY DISTINCT SOURCES block it,
- *   AT WHAT SEVERITY, and WHAT THEY SAID — never a single collapsed verdict:
+ *   is a signal. So every candidate carries WHICH DISTINCT SOURCES block it — by
+ *   NAME, not merely how many — AT WHAT SEVERITY, and WHAT THEY SAID, never a
+ *   single collapsed verdict. The names are the actionable part: an entry in the
+ *   committed policy must list the instances that corroborated it, and a count
+ *   cannot be transcribed into that field while an empty one would claim the
+ *   decision was Mention's alone.
  *     - `suspend` and `silence` are counted SEPARATELY and never merged. They
  *       are different decisions (drop everything vs. hide from public timelines)
  *       and a domain that two sources merely SILENCE is not a suspend candidate.
@@ -124,17 +128,43 @@ import {
 /**
  * Instances polled when the operator names none.
  *
- * Chosen because all three were verified to actually serve the endpoint (HTTP
- * 200, 403/346/333 entries) AND because they are large, independently operated
- * general-purpose instances — corroboration across three sites that share a
- * moderation team would not be corroboration at all. Two more that were checked,
- * `fosstodon.org` and `hachyderm.io`, answer 404: they do not publish, which the
- * run reports rather than treating as breakage.
+ * Every one was verified to actually serve the endpoint (HTTP 200, with
+ * 403/346/573/590/376 entries respectively) — `fosstodon.org`, `hachyderm.io`,
+ * `mastodon.world`, `chaos.social` and `toot.community` all answer 404: they do
+ * not publish, which the run reports rather than treating as breakage.
+ *
+ * ONE OPERATOR PER ENTRY — THE PROPERTY THAT MAKES A COUNT MEAN ANYTHING.
+ *   Corroboration across sites that share a moderation team is not corroboration;
+ *   it is one decision counted twice. So each instance here is run by a DIFFERENT
+ *   party, checked against `GET /api/v1/instance` rather than assumed:
+ *     mastodon.social   staff@mastodon.social,  Mastodon GmbH
+ *     mstdn.social      hello@mstdn.social,     stux
+ *     mas.to            trumpet@mas.to,         trumpet
+ *     infosec.exchange  jerry@infosec.exchange, jerry
+ *     kolektiva.social  kolektiva@riseup.net,   the Kolektiva collective
+ *
+ *   `mastodon.online` was in this list and has been REMOVED: it self-describes as
+ *   "operated by Mastodon GmbH" and its published contact account is literally
+ *   `Mastodon@mastodon.social` — the same account as mastodon.social's. With both
+ *   present, the default threshold of two was satisfiable by a single moderation
+ *   team, which is the exact failure the threshold exists to prevent. Re-check
+ *   this before adding a source: `universeodon.com` and `mastodonapp.uk` are
+ *   another such pair (both `support@mastodonapp.uk`, admin `wild1145`).
+ *
+ * WHAT THIS STILL DOES NOT ESTABLISH
+ *   Distinct operators are not necessarily distinct JUDGEMENTS. Instances do
+ *   import each other's lists wholesale, so several sources can echo one origin
+ *   without any of them having looked. Nothing here can detect that, and no
+ *   threshold should be read as if it could — which is part of why this script
+ *   only ever produces a candidate list for a human, and why the committed policy
+ *   names its corroborating sources so a reader can weigh them for themselves.
  */
 export const DEFAULT_SOURCE_INSTANCES: readonly string[] = [
   'mastodon.social',
   'mstdn.social',
-  'mastodon.online',
+  'mas.to',
+  'infosec.exchange',
+  'kolektiva.social',
 ];
 
 /**
@@ -887,12 +917,50 @@ export async function reportFederationBlocklistCandidates(
   };
 }
 
-/** How many severity votes of each kind, as one compact cell. */
+/**
+ * WHICH sources published a given verdict, BY NAME.
+ *
+ * A count is enough to RANK a candidate and not enough to ACT on one. The
+ * committed policy's `corroboratingSources` is a list of instance NAMES, and
+ * `suspend×3` cannot be transcribed into it — while leaving it empty makes the
+ * transparency page state that the decision was Mention's alone. So a report
+ * that only counted its corroboration could not produce a truthful entry, which
+ * is why the names are rendered rather than kept for an in-process reader.
+ *
+ * ONE NAME PER SOURCE, so the cell's arithmetic matches the `SRCS` column: a
+ * source that somehow lists the same domain twice at the same severity votes
+ * once here too. Sorted, so re-runs diff cleanly.
+ *
+ * `(masked)` means that source published the block OBFUSCATED and we recovered
+ * the domain from its digest. The vote is real and counts identically — but a
+ * digest match is only ever as good as the domain list that seeded it, so the
+ * reader is told which names were READ and which were RESOLVED. It is marked
+ * only when EVERY one of that source's observations at this severity was masked;
+ * one plain publication is a name we read directly.
+ */
+export function corroboratingSourceNames(
+  observations: readonly SourceObservation[],
+  severity: BlockSeverity,
+): string[] {
+  const maskedOnly = new Map<string, boolean>();
+  for (const observation of observations) {
+    if (observation.severity !== severity) continue;
+    const prior = maskedOnly.get(observation.source);
+    maskedOnly.set(observation.source, (prior ?? true) && observation.resolvedFromDigest);
+  }
+
+  return [...maskedOnly.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([source, masked]) => (masked ? `${source}(masked)` : source));
+}
+
+/** Who published what, as one compact cell — `suspend[a.example b.example]`. */
 function renderSeverityCell(candidate: BlocklistCandidate): string {
   const parts: string[] = [];
-  if (candidate.suspendSources > 0) parts.push(`suspend×${candidate.suspendSources}`);
-  if (candidate.silenceSources > 0) parts.push(`silence×${candidate.silenceSources}`);
-  if (candidate.noopSources > 0) parts.push(`noop×${candidate.noopSources}`);
+  for (const severity of ['suspend', 'silence', 'noop'] as const) {
+    const names = corroboratingSourceNames(candidate.observations, severity);
+    if (names.length > 0) parts.push(`${severity}[${names.join(' ')}]`);
+  }
   return parts.join(' ');
 }
 
@@ -937,7 +1005,7 @@ export function renderReportTable(
   const header = {
     domain: 'DOMAIN',
     srcs: 'SRCS',
-    severity: 'SEVERITY',
+    severity: 'WHO BLOCKS IT',
     posts: 'POSTS',
     actors: 'ACTORS',
     follows: 'WE-FOLLOW',

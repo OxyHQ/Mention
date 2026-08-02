@@ -178,12 +178,29 @@ describe('resolveFederationBlocks', () => {
 });
 
 describe('the committed policy file', () => {
-  it('ships empty — Mention publishes no block today', () => {
-    // This asserts the CURRENT shipped state, which is exactly what the
-    // transparency page tells the public. The commit that adds the first entry
-    // should delete this assertion; the per-entry invariants below then stop
-    // being a gate for the future and start describing real decisions.
-    expect(FEDERATION_BLOCK_POLICY).toEqual([]);
+  /**
+   * VACUITY FLOOR for every loop below.
+   *
+   * These invariants were written while the policy shipped empty, which means
+   * every one of them passed by describing nothing. Now that the list is real
+   * they are a gate — and the way a gate like this silently stops being one is
+   * the list going back to empty, or a bad merge truncating it, after which each
+   * `for` loop below reads as a clean pass. So the count is asserted first, and
+   * it is deliberately an exact number rather than a floor: a commit that adds or
+   * removes a block has to come here and say so.
+   */
+  it('publishes 118 reviewed decisions', () => {
+    expect(FEDERATION_BLOCK_POLICY).toHaveLength(118);
+  });
+
+  it('names each instance once, so no decision is silently dropped', () => {
+    // `getBlockedDomainPolicy` collapses a repeated domain last-wins, which is
+    // right for a merge and wrong for a file a human maintains: the losing entry
+    // would vanish with its reason and its date, and nothing would say so.
+    const domains = FEDERATION_BLOCK_POLICY.map((committed) => committed.domain);
+
+    expect(new Set(domains).size).toBe(domains.length);
+    expect(getBlockedDomainPolicy()).toHaveLength(FEDERATION_BLOCK_POLICY.length);
   });
 
   it('states every entry in the canonical, comparable form', () => {
@@ -209,6 +226,53 @@ describe('the committed policy file', () => {
       for (const source of committed.corroboratingSources) {
         expect(source).toBe(source.trim().toLowerCase());
         expect(source).toMatch(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/);
+      }
+    }
+  });
+
+  it('never claims more corroboration than it names', () => {
+    /**
+     * The reasons state a number — "suspended for it by 8 independently operated
+     * instances" — and `corroboratingSources` lists them. Those are two writings
+     * of one fact, sitting in the same object, and the page renders BOTH: the
+     * sentence, then the names. A copy-pasted entry whose count survived while
+     * its source list was edited would publish a false claim about somebody
+     * else's moderation, in a sentence they can read.
+     *
+     * The count is therefore checked against the list rather than trusted. The
+     * phrase is matched loosely (any leading integer followed by
+     * "independently operated instances") so a reworded sentence stays covered.
+     */
+    let checked = 0;
+
+    for (const committed of FEDERATION_BLOCK_POLICY) {
+      const claimed = /\b(\d+) independently operated instances\b/.exec(committed.reason);
+      if (!claimed) continue;
+      checked += 1;
+
+      expect(Number.parseInt(claimed[1], 10)).toBe(committed.corroboratingSources.length);
+      // Two writings of the same fact must not disagree about whether there IS
+      // corroboration either.
+      expect(committed.corroboratingSources.length).toBeGreaterThanOrEqual(2);
+    }
+
+    // Vacuity floor: a regex that stopped matching would pass every assertion
+    // above by never reaching one.
+    expect(checked).toBe(FEDERATION_BLOCK_POLICY.length);
+  });
+
+  it('names each corroborating instance once, and never one it also blocks', () => {
+    for (const committed of FEDERATION_BLOCK_POLICY) {
+      const sources = committed.corroboratingSources;
+
+      // A repeated name would inflate the count the reason is checked against,
+      // and read on the page as two servers agreeing when it is one.
+      expect(new Set(sources).size).toBe(sources.length);
+
+      // Citing an instance as corroboration while refusing to federate with it
+      // is incoherent — whichever half is right, the entry cannot be.
+      for (const source of sources) {
+        expect(FEDERATION_BLOCK_POLICY.map((entry) => entry.domain)).not.toContain(source);
       }
     }
   });
