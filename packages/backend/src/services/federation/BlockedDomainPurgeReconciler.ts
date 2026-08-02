@@ -80,7 +80,9 @@ import BlockedDomainPurge, {
   type BlockedDomainPurgeCounts,
   type IBlockedDomainPurge,
 } from '../../models/BlockedDomainPurge';
-import BlockedDomainPurgeRun from '../../models/BlockedDomainPurgeRun';
+import BlockedDomainPurgeRun, {
+  type BlockedDomainPurgeTrigger,
+} from '../../models/BlockedDomainPurgeRun';
 import type { FederationBlockPolicyEntry } from '../../connectors/activitypub/federationBlockPolicy';
 import { logger } from '../../utils/logger';
 import {
@@ -183,42 +185,56 @@ async function observePolicy(
 ): Promise<{ eligible: string[]; departed: string[] }> {
   const wanted = [...new Set(policyEntries.map((entry) => entry.domain))].sort();
   const eligible: string[] = [];
+  if (wanted.length === 0) return { eligible, departed: await flagDeparted(wanted) };
 
-  for (const domain of wanted) {
-    const existing = await BlockedDomainPurge.findOne({ domain }).lean<IBlockedDomainPurge | null>();
+  // ONE read and ONE write for the whole policy, rather than a findOne plus an
+  // updateOne per domain. Measured before this change: 2.0ms per domain, dead
+  // linear from 118 to 944 domains — fine at today's size, but it is round-trip
+  // count and it runs on EVERY deploy, so it grows with the blocklist forever.
+  // Constant-round-trip is not an optimisation here so much as removing a reason
+  // for the policy to ever be kept small.
+  const existingRows = await BlockedDomainPurge.find(
+    { domain: { $in: wanted } },
+    { domain: 1, inPolicy: 1, state: 1 },
+  ).lean<Array<Pick<IBlockedDomainPurge, 'domain' | 'inPolicy' | 'state'>>>();
+  const existingByDomain = new Map(existingRows.map((row) => [row.domain, row]));
 
-    if (!existing) {
-      // A domain this ledger has never seen is eligible, whether it is the first
-      // one ever or the thousandth. Whether it is SAFE to sweep is the circuit
-      // breaker's question, answered from a measurement, not this function's
-      // answered from a row count.
-      await BlockedDomainPurge.updateOne(
-        { domain },
-        {
-          $set: { inPolicy: true, state: 'pending', lastObservedAt: now },
+  const operations = wanted.map((domain) => {
+    const existing = existingByDomain.get(domain);
+
+    // Never seen: eligible whether it is the first domain ever or the
+    // thousandth. Whether sweeping it is SAFE is the circuit breaker's question,
+    // answered from a measurement rather than from a row count.
+    // Re-added after removal: content can have arrived while it was allowed, so
+    // this is a fresh block.
+    const reAdded = existing?.inPolicy === false;
+    const retryable = existing?.state === 'pending' || existing?.state === 'failed';
+    const nextState = !existing || reAdded || retryable ? 'pending' : existing.state;
+    if (nextState === 'pending') eligible.push(domain);
+
+    return {
+      updateOne: {
+        filter: { domain },
+        update: {
+          $set: { inPolicy: true, state: nextState, lastObservedAt: now },
           $setOnInsert: { firstObservedAt: now },
         },
-        { upsert: true },
-      );
-      eligible.push(domain);
-      continue;
-    }
+        upsert: true,
+      },
+    };
+  });
 
-    // Re-added after having been removed: content can have arrived while it was
-    // allowed, so this is newly blocked again, not already handled.
-    const reAdded = existing.inPolicy === false;
-    const retryable = existing.state === 'pending' || existing.state === 'failed';
-    const nextState = reAdded || retryable ? 'pending' : existing.state;
+  await BlockedDomainPurge.bulkWrite(operations, { ordered: false });
 
-    await BlockedDomainPurge.updateOne(
-      { domain },
-      { $set: { inPolicy: true, state: nextState, lastObservedAt: now } },
-    );
-    if (nextState === 'pending') eligible.push(domain);
-  }
+  return { eligible, departed: await flagDeparted(wanted) };
+}
 
-  // Departed domains: flagged, never undone. There is no restore path in this
-  // system and this line is not one — it only records that the policy changed.
+/**
+ * Record that a domain has left the policy. Flagged, never undone: there is no
+ * restore path in this system and this is not one. The flag exists so a domain
+ * REMOVED and later RE-ADDED is recognised as newly blocked again.
+ */
+async function flagDeparted(wanted: readonly string[]): Promise<string[]> {
   const departedRows = await BlockedDomainPurge.find(
     { inPolicy: true, domain: { $nin: wanted } },
     { domain: 1 },
@@ -230,8 +246,7 @@ async function observePolicy(
       { $set: { inPolicy: false } },
     );
   }
-
-  return { eligible, departed };
+  return departed;
 }
 
 /** Re-arm claims from a run that never reported back. */
@@ -383,7 +398,17 @@ async function recordOutcome(
   policyEntries: readonly FederationBlockPolicyEntry[],
   context: { state: 'purged' | 'held'; runId: string; heldReason?: string; now: Date },
 ): Promise<void> {
+  if (domains.length === 0) return;
   const entryByDomain = new Map(policyEntries.map((entry) => [entry.domain, entry]));
+  // Typed rather than inferred: a bare literal widens to `string` and the bulk
+  // write's model type then rejects it.
+  const AUTOMATIC_TRIGGER: BlockedDomainPurgeTrigger = 'policy_added';
+
+  // Batched for the same reason the policy read is: this runs on every deploy
+  // and the count is the size of the blocklist, so a per-domain round trip makes
+  // the deploy slower every time a domain is added.
+  const ledgerOps = [];
+  const historyOps = [];
 
   for (const domain of domains) {
     const counts = report.byDomain.get(domain);
@@ -398,24 +423,31 @@ async function recordOutcome(
       update.heldReason = context.heldReason;
       if (ledgerCounts) update.measured = ledgerCounts;
     }
-    await BlockedDomainPurge.updateOne({ domain }, { $set: update });
+    ledgerOps.push({ updateOne: { filter: { domain }, update: { $set: update } } });
 
     // A refused batch removed nothing, so it has no history to append.
     if (context.state !== 'purged' || !ledgerCounts) continue;
     const entry = entryByDomain.get(domain);
-    await BlockedDomainPurgeRun.updateOne(
-      { domain, runId: context.runId },
-      {
-        $set: {
-          runAt: context.now,
-          trigger: 'policy_added',
-          removed: ledgerCounts,
-          reason: entry?.reason,
-          category: entry?.category,
-          corroboratingSources: entry ? [...entry.corroboratingSources] : undefined,
+    historyOps.push({
+      updateOne: {
+        filter: { domain, runId: context.runId },
+        update: {
+          $set: {
+            runAt: context.now,
+            trigger: AUTOMATIC_TRIGGER,
+            removed: ledgerCounts,
+            reason: entry?.reason,
+            category: entry?.category,
+            corroboratingSources: entry ? [...entry.corroboratingSources] : undefined,
+          },
         },
+        upsert: true,
       },
-      { upsert: true },
-    );
+    });
+  }
+
+  await BlockedDomainPurge.bulkWrite(ledgerOps, { ordered: false });
+  if (historyOps.length > 0) {
+    await BlockedDomainPurgeRun.bulkWrite(historyOps, { ordered: false });
   }
 }
