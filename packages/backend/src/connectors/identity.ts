@@ -1,6 +1,6 @@
 import { logger } from '../utils/logger';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
-import UserSettings from '../models/UserSettings';
+import { updateUserSettings } from '../db/userProfile/userSettingsRepository';
 import { invalidate as invalidateUserSummaryCache } from '../services/userSummaryCache';
 import { persistRemoteMediaForFederatedOwnerDetailed } from '../services/mediaCache/cacheWorker';
 import { FEDERATED_BANNER_DOWNLOAD_POLICY } from '../services/mediaCache/policy';
@@ -127,11 +127,9 @@ export async function mirrorFederatedBanner(
     );
 
     if (result.ok) {
-      await UserSettings.updateOne(
-        { oxyUserId },
-        { $set: { profileHeaderImage: result.media.oxyFileId } },
-        { upsert: true },
-      );
+      await updateUserSettings(oxyUserId, {
+        set: { profileHeaderImage: result.media.oxyFileId },
+      });
       return { ok: true, permanent: false };
     }
 

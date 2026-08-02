@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
-import UserSettings, { type ProfileMedia } from '../models/UserSettings';
+import type { ProfileMedia } from '../db/userProfile/userSettingsRecord';
+import { loadUserSettings } from '../db/userProfile/userSettingsRepository';
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
@@ -52,7 +53,7 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
       return sendErrorResponse(res, 400, 'Bad Request', validationError);
     }
 
-    const doc = await UserSettings.findOne({ oxyUserId: userId }).lean();
+    const doc = await loadUserSettings(userId);
     const profileVisibility = doc?.privacy?.profileVisibility || ProfileVisibility.PUBLIC;
 
     // The shared profile-design rule (`GET /profile/settings/:userId` applies the

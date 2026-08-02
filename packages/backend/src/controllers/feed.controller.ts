@@ -27,7 +27,7 @@ import { getRuntimeSocketServer } from '../runtime/socketServer';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
 import { affinityEventService } from '../services/AffinityEventService';
 import { postHydrationService } from '../services/PostHydrationService';
-import UserSettings from '../models/UserSettings';
+import { loadUserSettings } from '../db/userProfile/userSettingsRepository';
 import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, ProfileVisibility, OxyClient } from '../utils/privacyHelpers';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
@@ -1042,7 +1042,7 @@ class FeedController {
       }
 
       // Check privacy
-      const userSettings = await UserSettings.findOne({ oxyUserId: userId }).lean();
+      const userSettings = await loadUserSettings(userId);
       const profileVisibility = userSettings?.privacy?.profileVisibility || ProfileVisibility.PUBLIC;
       const isOwnProfile = currentUserId === userId;
 

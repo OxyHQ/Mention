@@ -15,7 +15,7 @@
 import type { FeedTuning } from '@mention/shared-types';
 import type { OxyClient } from '../../utils/privacyHelpers';
 import { extractFollowingIds, extractFollowersIds } from '../../utils/privacyHelpers';
-import UserSettings from '../../models/UserSettings';
+import { loadUserSettings } from '../../db/userProfile/userSettingsRepository';
 import { listSubscriptionService } from '../../services/ListSubscriptionService';
 import { userPreferenceService } from '../../services/UserPreferenceService';
 import { resolveUserSummaries } from '../../services/PostHydrationService';
@@ -61,7 +61,7 @@ export async function loadViewerLanguages(userId: string | undefined): Promise<s
 export async function loadFeedTuning(userId: string | undefined): Promise<FeedTuning | undefined> {
   if (!userId) return undefined;
   try {
-    const doc = await UserSettings.findOne({ oxyUserId: userId }, { feedTuning: 1 }).lean();
+    const doc = await loadUserSettings(userId);
     return doc?.feedTuning ?? undefined;
   } catch (error) {
     logger.warn('[feedContext] Failed to load feed tuning', error);

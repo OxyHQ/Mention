@@ -6,6 +6,7 @@ import {
   federationScope,
   seedActor,
   seedFollow,
+  seedPost,
 } from '../../../__tests__/helpers/federationFixtures';
 
 const scope = federationScope('inbound-mention-ingestion');
@@ -210,7 +211,7 @@ beforeEach(async () => {
   await clearFederationScope(scope);
   mocks.postExists.mockResolvedValue(null);
   mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
-  mocks.postCreatorCreate.mockResolvedValue({ _id: CREATED_POST_ID });
+  mocks.postCreatorCreate.mockResolvedValue({ id: CREATED_POST_ID });
   mocks.ensureFederatedReplyLink.mockResolvedValue(null);
   mocks.isFediverseSharingEnabled.mockResolvedValue(true);
   mocks.postFindOne.mockReturnValue({ lean: async () => null });
@@ -278,7 +279,13 @@ describe('handleCreate — inbound @mention ingestion', () => {
 
   it('does NOT re-notify on a redelivered Create (activityId already stored)', async () => {
     mocks.getProfileByUsername.mockResolvedValue({ _id: LOCAL_MENTION_OXY_ID, username: 'alice' });
-    mocks.postExists.mockResolvedValue({ _id: 'already_here' });
+    // The dedupe is a REAL uniqueness check on `federation.activity_id`, so the
+    // premise is a stored row rather than a stubbed `exists` answer — otherwise
+    // "did not re-notify" passes just as well against a dedupe that never runs.
+    await seedPost(scope, {
+      oxyUserId: AUTHOR_OXY_ID,
+      federation: { activityId: `${AUTHOR_URI}/statuses/1`, actorUri: AUTHOR_URI },
+    });
     const content =
       '<p>cc <a href="https://mention.earth/@alice" class="u-url mention">@<span>alice</span></a></p>';
     const activity = createActivity(content, [
