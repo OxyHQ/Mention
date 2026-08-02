@@ -93,6 +93,41 @@ describe('clusterTrendTerms — one story, one row', () => {
     expect(result.refusedForSize.length).toBeGreaterThan(0);
   });
 
+  it('names a tied row by the phrase, never a bare fragment of it', () => {
+    // A phrase and the words inside it are counted over the SAME posts, so a
+    // name and its fragments arrive at identical volume — `luis`, `sampedro`
+    // and `luis sampedro` all measured 4 in the live window. Volume cannot
+    // choose between them, and alphabetical order picks a fragment.
+    const result = clusterTrendTerms(
+      candidates({ luis: 4, sampedro: 4, 'luis sampedro': 4 }),
+      [
+        { a: 'luis', b: 'sampedro', posts: 4 },
+        { a: 'luis', b: 'luis sampedro', posts: 4 },
+      ],
+      config,
+    );
+
+    expect(result.clusters).toHaveLength(1);
+    expect(result.clusters[0].representative).toBe('luis sampedro');
+  });
+
+  it('cannot choose between two phrases of equal length — a known limit', () => {
+    // `jose luis` and `luis sampedro` are both two tokens, so the tie-break has
+    // nothing left to compare and falls through to lexicographic order. The
+    // name this row wants is `jose luis sampedro`, which no candidate can be:
+    // `MtnConfig.trending.terms.maxPhraseTokens` is 2, so a three-word name is
+    // only ever present as its two-word windows. Pinned as a LIMIT rather than
+    // left implicit, so raising that ceiling shows up here as a changed
+    // expectation instead of passing unnoticed.
+    const result = clusterTrendTerms(
+      candidates({ 'jose luis': 4, 'luis sampedro': 4 }),
+      [{ a: 'jose luis', b: 'luis sampedro', posts: 4 }],
+      config,
+    );
+
+    expect(result.clusters[0].representative).toBe('jose luis');
+  });
+
   it('is independent of the order pairs arrive in', () => {
     const input = candidates({ ukraine: 40, kyiv: 10, zelensky: 12, russia: 30 });
     const pairs: TrendTermPair[] = [
