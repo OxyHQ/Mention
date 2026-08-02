@@ -28,6 +28,7 @@
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
@@ -546,11 +547,16 @@ describe('materializing a verified MTN relationship', () => {
   });
 
   it('rejects a post that does not exist with the typed error', async () => {
+    // A FRESH id, not a hardcoded one. Vitest runs files in parallel against one
+    // database, so "this post does not exist" is only true if no other file can
+    // have created it — and one could: `searchPosts.test.ts` seeds the literal
+    // `65fdc8c8c8c8c8c8c8c8c8c9` this used to name, which made the assertion fail
+    // in a full run and pass in isolation. An absence assertion must own its id.
     await expect(
       materializeEngagementRelationship({
         kind: 'like',
         userId: 'oxy-node-user',
-        postId: '65fdc8c8c8c8c8c8c8c8c8c9',
+        postId: randomUUID(),
       }),
     ).rejects.toBeInstanceOf(EngagementPostNotFoundError);
   });
