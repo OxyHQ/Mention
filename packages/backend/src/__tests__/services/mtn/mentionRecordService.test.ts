@@ -484,13 +484,16 @@ describe('MentionRecordEmitter dual-write gate', () => {
   it('does NOT emit for a FEDERATED post', async () => {
     const federatedPost = await seedPost(scope, {
       oxyUserId: SUBJECT_OXY_ID,
+      // Built from the suite's own scope: `federation_activity_id` is globally
+      // UNIQUE, and this literal was shared with `mediaFeed.test.ts`, so in a
+      // parallel run whichever file inserted second failed with 23505.
       federation: {
-        activityId: 'https://remote.example/notes/1',
-        actorUri: 'https://remote.example/u/a',
+        activityId: `${scope.origin}/notes/1`,
+        actorUri: `${scope.origin}/u/a`,
       },
       content: { variants: [{ source: 'author', text: 'remote post', tag: 'en' }] },
     });
-    expect(federatedPost.federation?.activityId).toBe('https://remote.example/notes/1');
+    expect(federatedPost.federation?.activityId).toBe(`${scope.origin}/notes/1`);
 
     await emitPostCreated(federatedPost);
     expect(memoryStore.rows).toHaveLength(0);
