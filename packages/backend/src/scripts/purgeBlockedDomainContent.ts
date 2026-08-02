@@ -277,15 +277,17 @@ function readOptions(): PurgeOptions {
  * two that agree by inspection.
  *
  * It does NOT mean the duplication is gone, and nobody reading this should
- * conclude that it is. `@oxyhq/federation` keeps its own `canonicalDomainHost`
- * PRIVATE — `apUri.ts` exports only `extractActorUriFromActivityId`,
- * `createDomainPolicy` and two types — so `canonicalBlockedDomain` is a
- * hand-copy of it. Two implementations still have to agree, and the one that
- * actually decides what gets refused at the wire is the engine's. What holds
- * them together is behavioural, not structural: the agreement test drives the
- * REAL `createDomainPolicy` rather than a mock, so a divergence fails loudly.
- * The end state under the fix-upstream rule is the engine exporting
- * `canonicalDomainHost`, Mention importing it, and this mirror deleted.
+ * conclude that it is. The INSTALLED `@oxyhq/federation` (0.5.0) keeps its host
+ * rule private, so `canonicalBlockedDomain` is a hand-copy of it. Two
+ * implementations still have to agree, and the one that actually decides what
+ * gets refused at the wire is the engine's. What holds them together is
+ * behavioural, not structural: the agreement test drives the REAL
+ * `createDomainPolicy` rather than a mock, so a divergence fails loudly.
+ *
+ * The end state is not documentation, it is deletion, and upstream is already
+ * there: `packages/federation` at `main` exports `canonicalFederationHost` in
+ * version 0.6.0. It is simply unpublished — npm's latest is 0.5.0 — so the
+ * remaining work is a publish, a pin bump, and removing this mirror.
  *
  * It deliberately does not strip a trailing dot. An earlier copy here did, which
  * made this script strictly more aggressive than the engine: `example.com.` in

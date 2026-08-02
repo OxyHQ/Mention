@@ -111,9 +111,9 @@ export const FEDERATION_BLOCK_POLICY: readonly FederationBlockPolicyEntry[] = []
 /**
  * Canonical comparison form for a domain: trimmed, lowercased, `www.` stripped.
  *
- * Mirrors `canonicalDomainHost` inside `@oxyhq/federation`'s `createDomainPolicy`,
- * which is what actually compares an incoming host against the blocked set. The
- * two agreeing is not left to inspection — the enforcement test blocks a domain
+ * Mirrors the host rule inside `@oxyhq/federation`'s `createDomainPolicy`, which
+ * is what actually compares an incoming host against the blocked set. The two
+ * agreeing is not left to inspection — the enforcement test blocks a domain
  * through this module and asserts the ENGINE rejects it.
  *
  * Note what it does NOT do: it does not strip a trailing dot. `example.com.` is
@@ -125,16 +125,20 @@ export const FEDERATION_BLOCK_POLICY: readonly FederationBlockPolicyEntry[] = []
  * consumer whose action is irreversible that difference is content deleted for a
  * domain we never actually blocked.
  *
- * This is a MIRROR, not the engine's own function. `@oxyhq/federation` keeps
- * `canonicalDomainHost` private (`apUri.ts` exports only
- * `extractActorUriFromActivityId`, `createDomainPolicy` and two types), so
- * exporting this removes the duplication INSIDE Mention and no further. Two
- * implementations still have to agree, and the engine's is the one that decides
- * what is refused at the wire. Nothing structural keeps them in step — only the
- * tests that drive the real `createDomainPolicy` and assert the same verdict.
- * Under the fix-upstream rule the resolution is for the engine to export
- * `canonicalDomainHost` and for this to be deleted, not for the copy to be
- * maintained.
+ * This is a MIRROR, not the engine's own function, and it is TEMPORARY. The
+ * installed `@oxyhq/federation` (0.5.0, which `^0.5.0` resolves to) keeps its
+ * host rule private, so exporting this removes the duplication INSIDE Mention
+ * and no further: two implementations still have to agree, the engine's is the
+ * one that decides what is refused at the wire, and nothing structural keeps
+ * them in step — only the tests that drive the real `createDomainPolicy`.
+ *
+ * The upstream fix ALREADY EXISTS and this copy is meant to be deleted, not
+ * maintained. OxyHQServices `packages/federation` at `main` exports
+ * `canonicalFederationHost` (and `isSameFederationHost`) as of
+ * `12e46ed5`, in package version 0.6.0. The only thing standing between here and
+ * deletion is a publish: npm's latest is 0.5.0, so Mention cannot import the
+ * symbol yet. When 0.6.0 ships, bump the pin, make this an import of
+ * `canonicalFederationHost`, and delete the body.
  *
  * The two possible drifts are NOT equally dangerous, and the asymmetry is worth
  * knowing before anyone weighs that work. `createDomainPolicy` re-canonicalises
