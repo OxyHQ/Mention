@@ -623,7 +623,7 @@ class TrendingService {
     termsExpression: Record<string, unknown>,
     membersOf: ReadonlyMap<string, string[]>,
   ): Promise<TermCandidate[]> {
-    const { minVolume, maxActors } = MtnConfig.trending.detection;
+    const { minVolume, maxActors, authorPostCap } = MtnConfig.trending.detection;
 
     const rows = await Post.aggregate<{
       _id: string;
@@ -647,29 +647,62 @@ class TrendingService {
         { $addFields: { _terms: termsExpression } },
         { $match: { '_terms.0': { $exists: true } } },
         { $unwind: '$_terms' },
+        // TWO grouping stages, because volume is per-AUTHOR-capped: a term's
+        // volume has to be assembled from what each author contributed, not
+        // from a flat post count. The first stage is that per-author tally.
         {
           $group: {
-            _id: '$_terms',
-            volume: { $sum: 1 },
-            recentVolume: { $sum: { $cond: [{ $gte: ['$createdAt', recentStart] }, 1, 0] } },
-            hashtagVolume: {
+            _id: { term: '$_terms', author: '$oxyUserId' },
+            posts: { $sum: 1 },
+            recentPosts: { $sum: { $cond: [{ $gte: ['$createdAt', recentStart] }, 1, 0] } },
+            hashtagPosts: {
               $sum: { $cond: [{ $in: ['$_terms', { $ifNull: ['$hashtags', []] }] }, 1, 0] },
             },
-            topicVolume: {
+            topicPosts: {
               $sum: {
                 $cond: [{ $in: ['$_terms', { $ifNull: ['$postClassification.topics', []] }] }, 1, 0],
               },
             },
-            authors: { $addToSet: '$oxyUserId' },
             // The post's PRIMARY language (the top-level AP field, which is
-            // `postClassification.languages[0]`). A scalar, so the set needs no
-            // flattening; a post with no resolved language contributes null and
-            // is filtered out below.
+            // `postClassification.languages[0]`); and the coarse region, where
+            // the classifier resolved one. Both flattened in the next stage.
             languages: { $addToSet: '$language' },
-            // Coarse region, where the classifier resolved one. Sparse by
-            // design, which is why the graph's region filter is built from what
-            // the data actually contains rather than from a fixed list.
             regions: { $addToSet: '$postClassification.region' },
+          },
+        },
+        {
+          $group: {
+            _id: '$_id.term',
+            // Each author counted at most `authorPostCap` times, so `volume`
+            // measures how WIDELY a term is being said rather than how much.
+            // The bot that posts twenty contributes two.
+            volume: { $sum: { $min: ['$posts', authorPostCap] } },
+            recentVolume: { $sum: { $min: ['$recentPosts', authorPostCap] } },
+            // Provenance is NOT capped: it only decides the row's `type`, and
+            // the question there is how the term was written, not by how many.
+            hashtagVolume: { $sum: '$hashtagPosts' },
+            topicVolume: { $sum: '$topicPosts' },
+            authors: { $addToSet: '$_id.author' },
+            languageSets: { $push: '$languages' },
+            regionSets: { $push: '$regions' },
+          },
+        },
+        {
+          $addFields: {
+            languages: {
+              $reduce: {
+                input: '$languageSets',
+                initialValue: [],
+                in: { $setUnion: ['$$value', '$$this'] },
+              },
+            },
+            regions: {
+              $reduce: {
+                input: '$regionSets',
+                initialValue: [],
+                in: { $setUnion: ['$$value', '$$this'] },
+              },
+            },
           },
         },
         // Cheapest possible narrowing before the per-term projections below.

@@ -655,7 +655,23 @@ export const MtnConfig = {
        * cadence, and it matches the window `volume` itself is counted over, so a
        * point and its axis describe the same span.
        */
-      windowMs: 24 * 60 * 60 * 1000,
+      /*
+       * WIDENED from 24h after measuring what each window actually contains
+       * (2026-08-03, live corpus): 24 hours held 547 posts and FOUR terms with
+       * three or more distinct authors, two of which were stop words — the
+       * whole trending universe was two candidates, so the list was empty and
+       * the widget that renders it disappeared. 48 hours held 1950 posts and 25
+       * candidates, among them `gaza`, `israel`, `palestine`, `caturday`,
+       * `pastpuzzle` and `theater`: an actual list.
+       *
+       * The cost is precision about WHEN, and it is smaller than it looks:
+       * `recentWindowMs` still decides what counts as happening now, and this
+       * window is the BASELINE that recent rate is compared against. A wider
+       * baseline makes a genuine spike stand out more, not less. On a network
+       * this size, a day is not enough time for enough people to say the same
+       * thing.
+       */
+      windowMs: 48 * 60 * 60 * 1000,
       /**
        * Points on the wire after downsampling. Fixed so the response size and the
        * SVG geometry are constant no matter how many batches a name appears in
@@ -813,22 +829,27 @@ export const MtnConfig = {
        */
       maxDocumentFrequency: 0.25,
       /**
-       * CONCENTRATION CEILING: posts per distinct author a term may average
-       * before it is refused entirely.
+       * How many posts ONE author may contribute to a term's volume.
        *
-       * The author floor asks "how many people?", which one prolific account
-       * walks past the moment a second one joins it. This asks the other half —
-       * "is anyone saying this more than a few times?" — and it is the guard
-       * that actually matches how automated posting looks on this network.
+       * Replaces a ceiling that REFUSED a term whose posts-per-author average
+       * ran high. That test could not tell one account spraying from several
+       * people each posting a few times, and on a small network the second is
+       * exactly what a real conversation looks like: measured 2026-08-03,
+       * `news` carried 37 posts from EIGHT distinct authors and was refused
+       * outright for averaging 4.6, while its actual shape was a crowd with one
+       * loud bot in it.
        *
-       * Measured on Mention's own trending list, 2026-08-01: `#noticia` was 20
-       * posts from ONE account, `#ultimanoticia` 10 from the same one, and
-       * `#cartoon` 40 posts from TWO accounts alternating. Those three were the
-       * top of the list. Every real conversation has the opposite shape — many
-       * people saying something once or twice — so a ceiling of four separates
-       * them cleanly without needing to identify anybody as a bot.
+       * Discounting is the honest form of the same guard. Every author counts
+       * at most this many times, so a bot posting twenty contributes two and
+       * the volume floor then measures BREADTH rather than output: `news` falls
+       * to 13 and stays, `cnn` — twenty posts from one account — falls to 2 and
+       * goes. Nothing has to be identified as a bot for that to work.
+       *
+       * 2 rather than 1: at 1 the volume floor would be a second copy of
+       * `minAuthors`, and saying something twice is ordinary human behaviour
+       * that carries real signal about what a person is engaged with.
        */
-      maxPostsPerAuthor: 4,
+      authorPostCap: 2,
       /**
        * How many trends a batch tries to report before it is willing to fall
        * back on popularity (see `topUpWithPopular`). A list of one or two is

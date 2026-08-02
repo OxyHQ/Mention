@@ -1,3 +1,4 @@
+import { MtnConfig } from '@mention/shared-types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -106,6 +107,12 @@ const stage = (pipeline: Array<Record<string, unknown>>, key: string) =>
   pipeline.find((entry) => key in entry) as Record<string, Record<string, unknown>>;
 
 /** Drive the term pipeline while the corpus pipeline answers its own counts. */
+/** Every `$group` body, in pipeline order: [0] per author+term, [1] per term. */
+const groups = (pipeline: Array<Record<string, unknown>>) =>
+  pipeline
+    .filter((entry) => '$group' in entry)
+    .map((entry) => entry.$group as Record<string, unknown>);
+
 function stageTerms(rows: unknown[]): void {
   mocks.postAggregate.mockImplementation((pipeline: Array<Record<string, unknown>>) =>
     Promise.resolve(isCorpusPipeline(pipeline) ? [{ _id: 'en', count: 1_000 }] : rows),
@@ -209,7 +216,24 @@ describe('aggregateTermCandidates — ONE term space', () => {
 
     const pipeline = termPipeline();
     expect(stage(pipeline, '$unwind').$unwind).toBe('$_terms');
-    expect(stage(pipeline, '$group').$group._id).toBe('$_terms');
+    // Two grouping stages now: per author, then per term. The first keys on the
+    // pair because volume is assembled from what each author contributed.
+    expect(groups(pipeline)[0]._id).toEqual({ term: '$_terms', author: '$oxyUserId' });
+    expect(groups(pipeline)[1]._id).toBe('$_id.term');
+  });
+
+  it('counts each author at most `authorPostCap` times', async () => {
+    // The load-bearing line of the whole detector: without it a bot posting
+    // twenty is indistinguishable from twenty people posting once, and with it
+    // `volume` means how WIDELY a term is said rather than how much.
+    stageTerms([]);
+
+    await svc.aggregateTermCandidates(new Date());
+
+    const perTerm = groups(termPipeline())[1];
+    const cap = MtnConfig.trending.detection.authorPostCap;
+    expect(perTerm.volume).toEqual({ $sum: { $min: ['$posts', cap] } });
+    expect(perTerm.recentVolume).toEqual({ $sum: { $min: ['$recentPosts', cap] } });
   });
 });
 
@@ -219,8 +243,8 @@ describe('aggregateTermCandidates — authors are people, not posts', () => {
 
     await svc.aggregateTermCandidates(new Date());
 
-    const group = stage(termPipeline(), '$group').$group;
-    expect(group.authors).toEqual({ $addToSet: '$oxyUserId' });
+    // Distinct authors fall out of the per-author grouping itself.
+    expect(groups(termPipeline())[1].authors).toEqual({ $addToSet: '$_id.author' });
   });
 
   it('filters null authors out before the count, so orphan posts cannot inflate it', async () => {
@@ -250,14 +274,19 @@ describe('aggregateTermCandidates — provenance is carried, not scored', () => 
 
     await svc.aggregateTermCandidates(new Date());
 
-    const group = stage(termPipeline(), '$group').$group;
-    expect(group.hashtagVolume).toEqual({
+    const perAuthor = groups(termPipeline())[0];
+    expect(perAuthor.hashtagPosts).toEqual({
       $sum: { $cond: [{ $in: ['$_terms', { $ifNull: ['$hashtags', []] }] }, 1, 0] },
     });
-    expect(group.topicVolume).toEqual({
+    expect(perAuthor.topicPosts).toEqual({
       $sum: {
         $cond: [{ $in: ['$_terms', { $ifNull: ['$postClassification.topics', []] }] }, 1, 0],
       },
     });
+    // Provenance is NOT capped — it decides the row's `type`, and that question
+    // is how the term was written, not by how many people.
+    const perTerm = groups(termPipeline())[1];
+    expect(perTerm.hashtagVolume).toEqual({ $sum: '$hashtagPosts' });
+    expect(perTerm.topicVolume).toEqual({ $sum: '$topicPosts' });
   });
 });

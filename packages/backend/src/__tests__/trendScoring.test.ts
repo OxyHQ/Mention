@@ -14,7 +14,6 @@ const {
   recentWindowMs,
   minAuthors,
   minVolume,
-  maxPostsPerAuthor,
   maxDocumentFrequency,
   minTrends,
   minPopularVolume,
@@ -35,12 +34,15 @@ function steady(volume: number, term = 'steady'): TrendCandidate {
 }
 
 /**
- * Enough distinct authors to clear the concentration ceiling for this volume.
- * The fixtures here are about the BURST statistic, so they must not
- * accidentally be refused for looking like one account shouting.
+ * Enough distinct authors for the fixture to clear the author floor.
+ *
+ * These fixtures are about the BURST statistic, so they must not be refused for
+ * an unrelated reason. There is no longer a concentration ceiling to satisfy:
+ * repetition is discounted upstream by `authorPostCap`, so a candidate reaching
+ * this function already carries a per-author-capped volume.
  */
-function authorsFor(volume: number): number {
-  return Math.max(minAuthors, Math.ceil(volume / maxPostsPerAuthor));
+function authorsFor(_volume: number): number {
+  return minAuthors;
 }
 
 /** A candidate whose entire volume arrived inside the recent window. */
@@ -171,31 +173,34 @@ describe('resolveTrendStartedAt', () => {
   });
 });
 
-describe('clearsFloors — concentration', () => {
+describe('clearsFloors — repetition is discounted, not judged', () => {
   /*
-   * The three terms below are the ACTUAL top of Mention's trending list on
-   * 2026-08-01, with their real post and author counts. Every one of them is a
-   * handful of accounts posting repeatedly, and every one of them has to be
-   * refused — that list is what this whole guard was written for.
+   * The same real terms as before, written as the aggregation now hands them
+   * over. `authorPostCap` counts each author at most twice, so a candidate's
+   * `volume` is already "how widely" — and the cases the old concentration
+   * ceiling was written for fail the ordinary floors without needing it.
    */
   it('refuses one account posting a term twenty times', () => {
-    // #noticia — 20 posts, all from tierrasapiens@mastodon.social.
-    expect(clearsFloors({ term: 'noticia', volume: 20, recentVolume: 20, authorCount: 1 })).toBe(false);
+    // #noticia — 20 posts, all from tierrasapiens@mastodon.social. Capped to 2.
+    expect(clearsFloors({ term: 'noticia', volume: 2, recentVolume: 2, authorCount: 1 })).toBe(false);
   });
 
   it('refuses two accounts alternating all day', () => {
-    // #cartoon — 40 posts from simpsonsgifs + futuramagifs. It clears a volume
-    // floor easily and would clear a two-author floor too; the ratio is what
-    // gives it away.
-    expect(clearsFloors({ term: 'cartoon', volume: 40, recentVolume: 12, authorCount: 2 })).toBe(false);
+    // #cartoon — 40 posts from simpsonsgifs + futuramagifs. Capped to 4, which
+    // clears the volume floor; the AUTHOR floor is what refuses it.
+    expect(clearsFloors({ term: 'cartoon', volume: 4, recentVolume: 2, authorCount: 2 })).toBe(false);
   });
 
   it('accepts the same volume when it comes from many people', () => {
     expect(clearsFloors({ term: 'real', volume: 40, recentVolume: 12, authorCount: 20 })).toBe(true);
   });
 
-  it('accepts a conversation where a few people said it twice', () => {
-    expect(clearsFloors({ term: 'chat', volume: 12, recentVolume: 6, authorCount: 4 })).toBe(true);
+  it('accepts a crowd that contains one loud member', () => {
+    // `news`, measured 2026-08-03: 37 raw posts from EIGHT distinct authors,
+    // one of them a bot with twenty. The old ceiling refused it for averaging
+    // 4.6 posts per author — refusing eight people because of one of them.
+    // Capped, it is 13.
+    expect(clearsFloors({ term: 'news', volume: 13, recentVolume: 4, authorCount: 8 })).toBe(true);
   });
 
   it('still applies the author and volume floors', () => {
