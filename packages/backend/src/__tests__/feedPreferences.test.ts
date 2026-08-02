@@ -23,14 +23,20 @@ vi.mock('../models/CustomFeed', () => ({
 }));
 
 let settingsDoc: { feedTuning?: { forYou?: unknown } } | null = null;
-const settingsUpdate = vi.fn((_q: unknown, update: { $set: Record<string, unknown> }) => ({
-  lean: async () => ({ feedTuning: { forYou: update.$set['feedTuning.forYou'] } }),
-}));
-vi.mock('../models/UserSettings', () => ({
-  default: {
-    findOne: vi.fn(() => ({ lean: async () => settingsDoc })),
-    findOneAndUpdate: (...a: unknown[]) => settingsUpdate(...(a as [unknown, { $set: Record<string, unknown> }])),
-  },
+const settingsUpdate = vi.fn(
+  (_oxyUserId: string, update: { set: Record<string, unknown> }) =>
+    Promise.resolve({ feedTuning: { forYou: update.set['feedTuning.forYou'] } }),
+);
+/**
+ * The repository is the seam: this suite is about the controller's VALIDATION
+ * of `feedTuning.forYou` (bounds, shape, rejection), not about how the tuning
+ * is stored. The storage round trip is covered on real rows in
+ * `__tests__/db/userSettingsRepository.test.ts`.
+ */
+vi.mock('../db/userProfile/userSettingsRepository', () => ({
+  loadUserSettings: vi.fn(async () => settingsDoc),
+  updateUserSettings: (...a: unknown[]) =>
+    settingsUpdate(...(a as [string, { set: Record<string, unknown> }])),
 }));
 
 import { feedPreferencesController } from '../mtn/controllers/feedPreferences.controller';
@@ -171,7 +177,7 @@ describe('PUT /feed/tuning', () => {
       res as never,
     );
     expect(res.statusCode).toBe(200);
-    const persisted = settingsUpdate.mock.calls[0][1].$set['feedTuning.forYou'];
+    const persisted = settingsUpdate.mock.calls[0][1].set['feedTuning.forYou'];
     expect(persisted).toEqual({
       lowEffortGate: { enabled: false },
       minQuality: { enabled: true, minQuality: 0.4 },
