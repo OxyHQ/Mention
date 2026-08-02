@@ -70,6 +70,18 @@ Two cheap defences, both required:
 
 The general form is the one this repo keeps relearning: a cleanup you did not verify is a cleanup you did not do.
 
+## `typedRoutes` is ON and INERT — moving a route file breaks NO build
+
+`app.config.js` sets `typedRoutes: true`, so it is reasonable to assume a moved or deleted screen surfaces as a type error at every stale `router.push`. It does not. On expo-router **57.0.9**, measured in this repo: `router.push('/settings/fediverse/nodez')` type-checks clean, and `const bogus: Href = '/definitely-not-a-route-xyz'` is accepted — both **with and without** `.expo/types/router.d.ts` generated (`.expo/` is gitignored, so on a fresh checkout it does not even exist, but generating it changes nothing). The probe is not vacuous: a deliberate `const x: number = 'string'` in the SAME file IS reported, while the bogus `Href` beside it is not.
+
+Consequences, in order of how much they bite:
+
+- A row left pointing at a moved screen compiles, ships, and fails only under a user's thumb as **"This screen does not exist."** `tsc` is not a gate for route strings; do not let a green typecheck stand in for one.
+- Verifying a route move means **grep for every old route string** plus **loading the route in a real foregrounded browser tab** — including the NEGATIVE case, that the old path no longer resolves. Those are the only two defences.
+- `app/(app)/settings/__tests__/settingsRouteTargets.test.ts` is the gate for the settings subtree: it walks the real `app/` tree (`(group)` segments transparent, `index` = the directory) and asserts every route a settings screen navigates to exists. It is scoped to settings on purpose — those routes are all static, so it has no dynamic-segment false positives to litigate. Widen it before trusting it elsewhere.
+
+This is not Mention-specific — it applies to every Expo app in the ecosystem on this expo-router major, so it likely belongs in `~/Oxy/AGENTS.md`; it is recorded here because here is where it was measured.
+
 ## Bumping an Oxy SDK package (CRITICAL — `bun add` reports success and changes nothing)
 
 **Shared versions live in exactly one place: `workspaces.catalog` in the root `package.json`.** Workspace manifests and the root `overrides` both name the package as `"catalog:"`, and `scripts/doctor.mjs` reads the Bloom pin out of the catalog rather than repeating it. A bump is therefore ONE edit (the catalog entry) plus `bun install` for `bun.lock`.
