@@ -171,9 +171,20 @@ export function clusterTrendTerms(
     // The row is reported under its biggest member — the name most of the
     // conversation already uses. Never an invented umbrella like "War": that
     // needs a taxonomy written by hand, which is the thing being avoided.
+    //
+    // Ties go to the LONGER phrase, because the commonest tie is a name and its
+    // own fragments. One person produced four candidates at volume 4 in the
+    // live window — `luis`, `sampedro`, `jose luis`, `luis sampedro` — since a
+    // phrase and every word inside it are counted over the same posts. Equal
+    // evidence for all of them means volume cannot choose, and alphabetical
+    // order would have named that row `jose luis`. The more specific phrase is
+    // the better name for the same evidence. Lexicographic order remains the
+    // last resort, so the result stays independent of input order.
     const ordered = [...members].sort((left, right) => {
       const byVolume = (volumeOf.get(right) ?? 0) - (volumeOf.get(left) ?? 0);
-      return byVolume !== 0 ? byVolume : left.localeCompare(right);
+      if (byVolume !== 0) return byVolume;
+      const byTokens = right.split(' ').length - left.split(' ').length;
+      return byTokens !== 0 ? byTokens : left.localeCompare(right);
     });
     clusters.push({ representative: ordered[0], members: ordered });
   }
