@@ -72,7 +72,24 @@ export function engagementKindForFeed(
   return null;
 }
 
-/** Whether a feed cache retained at `retainedAt` predates the write it must show. */
+/**
+ * Whether a feed cache retained at `retainedAt` predates the write it must show.
+ *
+ * The bound is INCLUSIVE, and that is the whole of it: both sides are
+ * `Date.now()`, whose resolution is a millisecond, so a retain and a write that
+ * happen close enough together carry the SAME number and `<` reads them as
+ * "already reflects it". A slice retained no later than the write cannot be
+ * known to reflect it, so treat it as stale. The error `<=` can make is one
+ * unnecessary refetch; the error `<` makes is rendering a list the viewer has
+ * already changed — the likes tab still showing the post they just unliked.
+ *
+ * Not hypothetical: the two stamps land about a millisecond apart in
+ * `hooks/__tests__/engagementListRevalidation.test.tsx`, so which side of a
+ * boundary they fall on is decided by where in a millisecond the sequence
+ * started, and CI drew the short straw. Freezing `Date.now` to a constant turns
+ * that coin-flip into a deterministic failure of three cases in that file — the
+ * reproduction, if this ever needs re-deriving.
+ */
 export function isFeedCacheStale(
   type: FeedType,
   userId: string | undefined,
@@ -80,7 +97,7 @@ export function isFeedCacheStale(
   retainedAt: number,
 ): boolean {
   const kind = engagementKindForFeed(type, userId, viewerId);
-  return kind === null ? false : retainedAt < changedAt[kind];
+  return kind === null ? false : retainedAt <= changedAt[kind];
 }
 
 /**

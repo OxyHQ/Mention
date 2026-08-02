@@ -1,5 +1,6 @@
 import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostUser, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostReplyContext, PostViewerState, PostVisibility, PostAuthorshipEntry, MEDIA_VARIANT_THUMB } from '@mention/shared-types';
 import type { ChannelSummary, LaneDisplayMode, LaneSummary } from '@mention/shared-types';
+import { isValidObjectId } from 'mongoose';
 import { Post, type PostFederationData } from '../models/Post';
 import { Lane } from '../models/Lane';
 import { Channel } from '../models/Channel';
@@ -24,6 +25,9 @@ import {
 import { resolveMediaItems, attachCdnVariant } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
 import { readPersistedMediaFields } from './MediaMetadataService';
+// The counter-visibility flags are shared with the realtime broadcaster, which
+// has to hide exactly what the DTO hides — see `engagementCountPrivacy.ts`.
+import { DEFAULT_PRIVACY, readEngagementCountPrivacy } from './engagementCountPrivacy';
 import type { User as OxyUser } from '@oxyhq/core';
 import { getNormalizedUserHandle, getUserLanguages } from '@oxyhq/core';
 import type { LinkPreview } from '@oxyhq/contracts';
@@ -190,13 +194,6 @@ interface ExtendedViewerContext extends ViewerContext {
   includeFullMetadata?: boolean;
   _authorPrivacyCache?: Map<string, typeof DEFAULT_PRIVACY>;
 }
-
-const DEFAULT_PRIVACY = {
-  hideLikeCounts: false,
-  hideShareCounts: false,
-  hideReplyCounts: false,
-  hideSaveCounts: false,
-};
 
 /**
  * The projection for a reply's PARENT, fetched only to answer "whom does this
@@ -1150,12 +1147,7 @@ export class PostHydrationService {
           }
 
           // Cache engagement privacy for buildAuthorPrivacyMap
-          authorPrivacyCache.set(authorId, {
-            hideLikeCounts: Boolean(s.privacy?.hideLikeCounts),
-            hideShareCounts: Boolean(s.privacy?.hideShareCounts),
-            hideReplyCounts: Boolean(s.privacy?.hideReplyCounts),
-            hideSaveCounts: Boolean(s.privacy?.hideSaveCounts),
-          });
+          authorPrivacyCache.set(authorId, readEngagementCountPrivacy(s.privacy));
         }
 
         // Set defaults for authors without settings
@@ -1188,12 +1180,7 @@ export class PostHydrationService {
     try {
       const settings = await UserSettings.findOne({ oxyUserId: viewerId }).lean();
       if (settings?.privacy) {
-        context.privacyPreferences = {
-          hideLikeCounts: Boolean(settings.privacy.hideLikeCounts),
-          hideShareCounts: Boolean(settings.privacy.hideShareCounts),
-          hideReplyCounts: Boolean(settings.privacy.hideReplyCounts),
-          hideSaveCounts: Boolean(settings.privacy.hideSaveCounts),
-        };
+        context.privacyPreferences = readEngagementCountPrivacy(settings.privacy);
       }
     } catch (error) {
       logger.warn('[PostHydration] Failed to load viewer privacy settings:', error);
@@ -1778,13 +1765,7 @@ export class PostHydrationService {
       try {
         const settings = await UserSettings.find({ oxyUserId: { $in: missingIds } }).lean();
         for (const setting of settings) {
-          const authorId = String(setting.oxyUserId);
-          cached.set(authorId, {
-            hideLikeCounts: Boolean(setting.privacy?.hideLikeCounts),
-            hideShareCounts: Boolean(setting.privacy?.hideShareCounts),
-            hideReplyCounts: Boolean(setting.privacy?.hideReplyCounts),
-            hideSaveCounts: Boolean(setting.privacy?.hideSaveCounts),
-          });
+          cached.set(String(setting.oxyUserId), readEngagementCountPrivacy(setting.privacy));
         }
         for (const id of missingIds) {
           if (!cached.has(id)) cached.set(id, { ...DEFAULT_PRIVACY });
@@ -1809,13 +1790,7 @@ export class PostHydrationService {
     try {
       const settings = await UserSettings.find({ oxyUserId: { $in: authorIds } }).lean();
       settings.forEach((setting) => {
-        const authorId = String(setting.oxyUserId);
-        privacyMap.set(authorId, {
-          hideLikeCounts: Boolean(setting.privacy?.hideLikeCounts),
-          hideShareCounts: Boolean(setting.privacy?.hideShareCounts),
-          hideReplyCounts: Boolean(setting.privacy?.hideReplyCounts),
-          hideSaveCounts: Boolean(setting.privacy?.hideSaveCounts),
-        });
+        privacyMap.set(String(setting.oxyUserId), readEngagementCountPrivacy(setting.privacy));
       });
 
       authorIds.forEach((authorId) => {
@@ -1853,6 +1828,60 @@ export class PostHydrationService {
     }
 
     return { perPostRepliers, allReplierIds };
+  }
+
+  /**
+   * May this viewer read the post with this id?
+   *
+   * The same question {@link canViewerReadPost} answers, asked by a caller that
+   * holds an id rather than a hydrated graph — today the `joinPost` socket
+   * handler, deciding whether a client may subscribe to a post's live counters.
+   *
+   * It is a real read of the real gate, not a cheaper approximation: the post is
+   * fetched with the ACL's own projection, the viewer context is built by the
+   * same builder hydration uses, and the verdict comes from the same predicate.
+   * A "is it public?" shortcut written at the call site would be a second
+   * visibility rule, and the two would drift the first time either moved.
+   *
+   * A blocked author fails here too, matching hydration — which drops a blocked
+   * author's post while COLLECTING it, before the gate below ever sees it, so
+   * asking the gate alone would let through the one case hydration never serves.
+   *
+   * Costs one indexed `_id` lookup plus the viewer context (the viewer's
+   * blocks/restrictions/graph) — the same work one post-detail request already
+   * does. Callers must therefore bound how often they can ask.
+   */
+  async canViewerReadPostId(
+    postId: string,
+    viewerId: string,
+    options?: Pick<HydrationOptions, 'oxyClient'>,
+  ): Promise<boolean> {
+    // The id reaches this seam straight from a client. `findById` CASTS, so a
+    // non-id string would throw rather than answer, and "no such post" is the
+    // honest answer to a string that could never name one.
+    if (!isValidObjectId(postId)) return false;
+
+    const post = await Post.findById(postId)
+      .select(REPLY_PARENT_PROJECTION)
+      .lean<RawPost | null>();
+    if (!post) return false;
+
+    const isFederatedPost = !!post.federation;
+    const authorId = post.oxyUserId ? String(post.oxyUserId) : undefined;
+    // A native post with no author is a data error hydration refuses to render;
+    // a federated orphan is public by definition and keeps the federated path.
+    if (!authorId) return isFederatedPost;
+
+    const viewerContext = await this.buildViewerContext([post], viewerId, options);
+    if (viewerContext.blockedIds.has(authorId)) return false;
+
+    return this.canViewerReadPost(
+      post,
+      authorId,
+      normalizeAuthorship(post.authorship as PostAuthorshipEntry[] | undefined),
+      isFederatedPost,
+      viewerContext,
+    );
   }
 
   /**

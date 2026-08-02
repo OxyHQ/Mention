@@ -56,6 +56,7 @@ vi.mock('../../scripts/lib/adminScriptLifecycle', async (importOriginal) => ({
 }));
 
 const mongoose = (await import('mongoose')).default;
+const { logger } = await import('../../utils/logger');
 const { Post } = await import('../../models/Post');
 const { default: Like } = await import('../../models/Like');
 const { default: Notification } = await import('../../models/Notification');
@@ -363,6 +364,38 @@ describe('purgeBlockedDomainContent — what it removes', () => {
     // A row deleted before its bytes is an S3 object nothing can ever name again.
     expect(await FederatedMediaCache.countDocuments({ remoteUrl: BLOCKED_MEDIA_URL })).toBe(1);
     expect(report.issues.mediaObjectDeleteFailed).toBeGreaterThan(0);
+  });
+
+  it('logs WHY the delete failed, not just how many did', async () => {
+    // The count alone says objects from a blocked domain survived the purge but
+    // not what to do about it — a missing key, a permissions failure and an
+    // outage each need a different response, and this log is the only record
+    // that the delete was ever attempted.
+    await seed();
+    h.deleteShouldFail.value = true;
+    const warn = vi.spyOn(logger, 'warn');
+
+    await run();
+
+    const reasons = warn.mock.calls
+      .map(([, meta]) => (meta as { reasons?: unknown } | undefined)?.reasons)
+      .find((value): value is string[] => Array.isArray(value));
+    expect(reasons).toEqual(['media store refused the delete']);
+  });
+
+  it('says so when the media cache is disabled, instead of failing silently', async () => {
+    // This increments the SAME counter the delete failures do, so without a log
+    // a run that never attempted a delete is indistinguishable from one the
+    // object store refused — same number, entirely different cause.
+    await seed();
+    h.mediaCacheEnabled.value = false;
+    const warn = vi.spyOn(logger, 'warn');
+
+    const report = await run();
+
+    expect(report.issues.mediaObjectDeleteFailed).toBeGreaterThan(0);
+    expect(warn.mock.calls.some(([message]) => String(message).includes('media cache is disabled')))
+      .toBe(true);
   });
 });
 

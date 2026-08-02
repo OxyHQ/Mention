@@ -11,6 +11,7 @@ import {
 import { logger } from '../../utils/logger';
 import FederatedActor, { type IFederatedActor } from '../../models/FederatedActor';
 import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
+import { federationBridges } from './federationBridgePolicy';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import {
@@ -20,7 +21,7 @@ import {
   domainFromAcct,
 } from './helpers';
 import { readBoundedResponseBody } from '../shared/httpBody';
-import { reportFederatedActorGone, resolveOxyExternalUser } from '../identity';
+import { reportFederatedActorGone, resolveFederatedActorIdentity } from '../identity';
 
 /**
  * Resolution, caching and refresh of remote ActivityPub actors.
@@ -47,7 +48,14 @@ const store: FederatedActorStore<IFederatedActor> = {
   upsertActor: (uri, update: FederatedActorUpsert) =>
     FederatedActor.findOneAndUpdate(
       { uri },
-      { $set: update },
+      // `networkAcct` is absent for an ordinary actor, and an absent key in a
+      // `$set` simply leaves the column alone — which would strand a stale value
+      // on a row that STOPPED being bridged (a bridge removed from the policy, or
+      // an actor that no longer satisfies its rule). Unset it explicitly so the
+      // row can never keep claiming an identity it no longer derives.
+      update.networkAcct === undefined
+        ? { $set: update, $unset: { networkAcct: 1 } }
+        : { $set: update },
       { upsert: true, returnDocument: 'after', lean: true },
     ) as Promise<IFederatedActor | null>,
   findActorByPublicKeyId: (keyId) =>
@@ -97,9 +105,21 @@ export const actorService = createActorResolver<IFederatedActor>({
   normalizeFederatedAcct,
   domainFromAcct,
   firstStringUrl,
+  // A bridge republishes another network's accounts under its own hostname, so an
+  // actor from one is stored under the network it actually came from —
+  // `@wired@x.com`, not `@wired@bird.makeup`. The MECHANISM is shared
+  // (`@oxyhq/federation`); the reviewed entries are Mention's own moderation
+  // policy in `./federationBridgePolicy`, and oxy-api keeps its own list for the
+  // resolve-side trust decision. Only the IDENTITY moves — `acct`, `uri` and the
+  // stored `domain` keep addressing the bridge, so the domain policy and every
+  // moderation consumer are unaffected.
+  //
+  // `isBlockedDomain` is evaluated by the resolver well before this runs, and a
+  // blocked host never reaches it.
+  deriveNetworkIdentity: federationBridges.deriveNetworkIdentity,
   store,
   identity: {
-    resolveExternalUser: (actor, opts) => resolveOxyExternalUser(actor, opts),
+    resolveExternalUser: (actor, opts) => resolveFederatedActorIdentity(actor, opts),
     reportActorGone: (oxyUserId) => reportFederatedActorGone(oxyUserId),
   },
   text: {

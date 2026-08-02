@@ -36,6 +36,7 @@ import { queryInt, queryString } from '../utils/queryParams';
 import { buildTopicSlugMatch } from '../utils/postTopicMatch';
 import { requestLanguageCandidates } from '../utils/viewerLanguage';
 import { getRuntimeSocketServer } from '../runtime/socketServer';
+import { emitPostEngagement, POST_ENGAGEMENT_EVENTS } from '../services/postEngagementBroadcast';
 import { normalizeMediaItems, type NormalizedMediaItem } from '../utils/mediaInput';
 import { warmLinkPreviewForText } from '../utils/linkPreviewWarm';
 import { authorVariants, buildPrimaryVariant, resolveVariant, validateAuthorVariants } from '../services/postVariants';
@@ -2164,6 +2165,25 @@ export const likePost = async (req: AuthRequest, res: Response) => {
         .catch((error) => logger.warn('Failed to record interaction for preferences', error));
     }
 
+    // Everyone watching this post gets the counters the transaction just wrote.
+    // The two event names cover the whole vote axis: casting an upvote RAISES the
+    // like count (from nothing, or by switching off a downvote), while a downvote
+    // can only leave it where it was or lower it. Both counters ride along either
+    // way, so a switched vote converges on one event. An unchanged vote moved
+    // nothing and is not announced.
+    if (result.changed) {
+      emitPostEngagement({
+        event: value === 1 ? POST_ENGAGEMENT_EVENTS.LIKED : POST_ENGAGEMENT_EVENTS.UNLIKED,
+        postId,
+        authorOxyUserId: result.post.oxyUserId?.toString?.(),
+        counts: {
+          likes: result.post.stats?.likesCount ?? 0,
+          downvotes: result.post.stats?.downvotesCount ?? 0,
+        },
+        actorId: userId,
+      });
+    }
+
     res.json({
       message: result.changed
         ? result.previousValue === null
@@ -2194,6 +2214,19 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
 
     const postId = req.params.id as string;
     const result = await removeVoteCommand({ userId, postId });
+
+    if (result.changed) {
+      emitPostEngagement({
+        event: POST_ENGAGEMENT_EVENTS.UNLIKED,
+        postId,
+        authorOxyUserId: result.post.oxyUserId?.toString?.(),
+        counts: {
+          likes: result.post.stats?.likesCount ?? 0,
+          downvotes: result.post.stats?.downvotesCount ?? 0,
+        },
+        actorId: userId,
+      });
+    }
 
     res.json({
       message: result.changed ? 'Vote removed successfully' : 'No vote to remove',
@@ -2232,6 +2265,19 @@ export const savePost = async (req: AuthRequest, res: Response) => {
         .catch((error) => logger.warn('Failed to record interaction for preferences', error));
     }
 
+    // No `actorId`: the save COUNT is public (it is on every post DTO), but who
+    // saved a post is not, and a room is the wrong place to say it. The trade is
+    // that this viewer's own other devices cannot tell their own save from a
+    // stranger's — they do not need to, since only the count travels here.
+    if (result.changed) {
+      emitPostEngagement({
+        event: POST_ENGAGEMENT_EVENTS.SAVED,
+        postId,
+        authorOxyUserId: result.post.oxyUserId?.toString?.(),
+        counts: { saves: result.post.stats?.savesCount ?? 0 },
+      });
+    }
+
     res.json({
       message: result.changed ? 'Post saved successfully' : 'Post already saved',
       savesCount: result.post.stats?.savesCount ?? 0,
@@ -2255,6 +2301,15 @@ export const unsavePost = async (req: AuthRequest, res: Response) => {
 
     const postId = req.params.id as string;
     const result = await unsavePostCommand({ userId, postId });
+
+    if (result.changed) {
+      emitPostEngagement({
+        event: POST_ENGAGEMENT_EVENTS.UNSAVED,
+        postId,
+        authorOxyUserId: result.post.oxyUserId?.toString?.(),
+        counts: { saves: result.post.stats?.savesCount ?? 0 },
+      });
+    }
 
     // Durable MTN side effects are delivered by the transactional outbox.
     res.json({

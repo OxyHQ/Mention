@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   xrpcGet: vi.fn(),
   findOneAndUpdate: vi.fn(),
   updateOne: vi.fn(),
-  resolveOxyExternalUser: vi.fn(),
+  resolveFederatedActorIdentity: vi.fn(),
 }));
 
 vi.mock('../../../connectors/atproto/xrpcClient', () => ({ xrpcGet: mocks.xrpcGet }));
@@ -26,7 +26,11 @@ vi.mock('../../../models/FederatedActor', () => ({
 }));
 
 vi.mock('../../../connectors/identity', () => ({
-  resolveOxyExternalUser: mocks.resolveOxyExternalUser,
+  // The atproto path resolves through the shared MERGE, not straight at the
+  // identity bridge: the same Bluesky account can also arrive over ActivityPub
+  // through Bridgy Fed, and whichever lands second must adopt the first's Oxy
+  // user rather than mint a twin.
+  resolveFederatedActorIdentity: mocks.resolveFederatedActorIdentity,
 }));
 
 import {
@@ -53,7 +57,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.findOneAndUpdate.mockResolvedValue({ _id: 'fa1', oxyUserId: undefined });
   mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
-  mocks.resolveOxyExternalUser.mockResolvedValue('oxy-alice');
+  mocks.resolveFederatedActorIdentity.mockResolvedValue('oxy-alice');
 });
 
 describe('mapProfileToNormalizedActor', () => {
@@ -194,7 +198,7 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     // username + instance domain) — the exact shape oxy-api's username↔domain
     // binding requires for a `did:` actor. Passing the bare handle here would
     // make `PUT /users/resolve` 400 → no oxyUserId → no posts and proxied media.
-    expect(mocks.resolveOxyExternalUser).toHaveBeenCalledWith(
+    expect(mocks.resolveFederatedActorIdentity).toHaveBeenCalledWith(
       expect.objectContaining({
         externalId: DID,
         federatedUsername: 'alice@bsky.social',
@@ -210,7 +214,7 @@ describe('fetchAndUpsertAtprotoProfile', () => {
 
   it('fails soft (no oxyUserId, no throw, no stamp) when Oxy cannot resolve the did:', async () => {
     mocks.xrpcGet.mockResolvedValue(PROFILE);
-    mocks.resolveOxyExternalUser.mockResolvedValue(null);
+    mocks.resolveFederatedActorIdentity.mockResolvedValue(null);
 
     const actor = await fetchAndUpsertAtprotoProfile(DID);
 

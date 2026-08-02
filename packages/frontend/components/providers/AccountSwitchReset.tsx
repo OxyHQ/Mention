@@ -20,6 +20,7 @@ import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
 import { useTrendsStore } from '@/stores/trendsStore';
 import { clearAllFeedMemoryCaches } from '@/stores/feedScrollStore';
 import { resetEngagementInvalidation } from '@/stores/engagementInvalidation';
+import { resetSafetyInvalidation } from '@/stores/safetyInvalidation';
 import { setFeedViewerRequestScope } from '@/services/feedService';
 import { searchService } from '@/services/searchService';
 import { socketService } from '@/services/socketService';
@@ -118,8 +119,11 @@ export function AccountSwitchReset({
     useTrendsStore.getState().resetViewerState();
     clearAllFeedMemoryCaches();
     // The previous viewer's engagements say nothing about the next viewer's
-    // lists, and every cache they could have marked stale is gone anyway.
+    // lists, and every cache they could have marked stale is gone anyway. The
+    // same holds for the safety rules they changed — muted words and the
+    // sensitive-content toggle are per-account.
     resetEngagementInvalidation();
+    resetSafetyInvalidation();
 
     resetAppearance();
     resetTheme();

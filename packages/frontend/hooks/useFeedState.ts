@@ -29,6 +29,10 @@ import {
 } from '@/stores/feedScrollStore';
 import { isFeedCacheStale } from '@/stores/engagementInvalidation';
 import { isLaneFeedCacheStale } from '@/stores/laneInvalidation';
+import {
+    isFeedCacheStaleForSafety,
+    subscribeToSafetyFilterChanges,
+} from '@/stores/safetyInvalidation';
 
 // Re-export so callers that already imported from here keep working.
 export { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
@@ -495,14 +499,19 @@ export function useFeedState({
 
             const feedTypeToCheck = showOnlySaved ? 'saved' : type;
 
-            // A retained slice is only good if it postdates BOTH classes of write
-            // that change which posts a list CONTAINS: an engagement (like/boost/
-            // save) and a lane write (a post moved between lanes, a lane's
-            // displayMode changed, a lane muted). They live in separate authority
-            // modules and neither can see the other's writes, so both are asked.
+            // A retained slice is only good if it postdates ALL THREE classes of
+            // change that decide what a list contains: an engagement (like/boost/
+            // save), a lane write (a post moved between lanes, a lane's displayMode
+            // changed, a lane muted), and a safety-rule change (muted words, the
+            // sensitive-content toggle — these decide what the server is willing to
+            // send at all). Each lives in its own authority module and none can see
+            // another's writes, so all three are asked. Ask them HERE rather than at
+            // each call site: a caller that consults two of the three still returns
+            // a plausible feed, which is why that mistake survives review.
             const cacheIsStale = (retainedAt: number): boolean =>
                 isFeedCacheStale(feedTypeToCheck, userId, currentUserId, retainedAt)
-                || isLaneFeedCacheStale(userId, currentUserId, filters?.laneId, retainedAt);
+                || isLaneFeedCacheStale(userId, currentUserId, filters?.laneId, retainedAt)
+                || isFeedCacheStaleForSafety(retainedAt);
 
             // Check SQLite for cached data (cold-start optimization).
             // Only relevant when using the SQLite path (useMemoryFeed === false).
@@ -562,6 +571,12 @@ export function useFeedState({
             // flash), but the fetch below has to run or the list keeps showing its
             // pre-write membership until a reload. See `stores/engagementInvalidation`
             // and `stores/laneInvalidation`.
+            //
+            // THIRD EXCEPTION — a slice that predates a safety rule the viewer has
+            // since changed. Muted words and the sensitive-content toggle decide
+            // what the server is willing to send at all, so a slice retained under
+            // the old rules holds content the viewer asked not to see (or is
+            // missing content they just asked for). See `stores/safetyInvalidation`.
             const seeded = seededCacheRef.current;
             if (useMemoryFeed && !forceRefresh && seeded && type !== 'replies') {
                 seededCacheRef.current = undefined;
@@ -570,7 +585,7 @@ export function useFeedState({
                     isFetchingRef.current = false;
                     return;
                 }
-                logger.debug('Warm cache predates an engagement or lane write — revalidating');
+                logger.debug('Warm cache predates an engagement, lane write or safety change — revalidating');
             }
 
             try {
@@ -704,6 +719,22 @@ export function useFeedState({
 
     // Keep the ref pointing at the latest fetchInitial for the pending-poll scheduler.
     fetchInitialRef.current = fetchInitial;
+
+    // A muted word or the sensitive-content toggle changes what the server is
+    // willing to send, so a feed already on screen cannot re-derive its own
+    // contents — it has to ask again. The warm-start check in `fetchInitial`
+    // covers feeds that are unmounted when the rule changes; this covers the
+    // common case, where the settings screen was pushed OVER a feed that stays
+    // mounted underneath and would otherwise never run that check.
+    //
+    // Subscribed once for the hook's lifetime: the listener reads the current
+    // `fetchInitial` off the ref, so it never needs re-subscribing.
+    useEffect(
+        () => subscribeToSafetyFilterChanges(() => {
+            void fetchInitialRef.current?.(true);
+        }),
+        [],
+    );
 
     const refresh = useCallback(async () => {
         // Gate onEndReached synchronously before React commits localLoading.

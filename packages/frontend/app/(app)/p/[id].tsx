@@ -35,6 +35,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { insightsService } from '@/services/insightsService';
 import { feedService } from '@/services/feedService';
+import { socketService } from '@/services/socketService';
 import { SEO } from '@/components/SEO';
 import { createLogger } from '@oxyhq/core/logger';
 
@@ -163,6 +164,25 @@ const PostDetailScreen: React.FC = () => {
         // original), never to the boost record itself.
         if (composeReplyTargetId) router.push(`/compose?replyToPostId=${composeReplyTargetId}`);
     }, [composeReplyTargetId]);
+
+    // Watch this post's engagement counters for as long as it is on screen.
+    //
+    // This is the one surface where a stale count is conspicuous: the reader is
+    // looking at a single post, often for minutes, and someone else's like or
+    // reply lands under their eyes. Feeds deliberately do NOT subscribe — a
+    // screenful of posts would be a room each, and a number a few seconds old in
+    // a scrolling list is not the same problem.
+    //
+    // A genuine external subscription, hence an effect. The server re-checks
+    // that this viewer may read the post before admitting the socket, so the id
+    // in the URL grants nothing on its own.
+    useEffect(() => {
+        const postId = String(id ?? '');
+        if (!postId || !user) return;
+
+        socketService.joinPost(postId);
+        return () => socketService.leavePost(postId);
+    }, [id, user]);
 
     // Load the post. When the feed already cached it, the post is rendered
     // synchronously above (`cachedPost`) and this effect only revalidates it in
