@@ -123,6 +123,31 @@ export function getDb(): Database {
 }
 
 /**
+ * The raw postgres.js handle underneath the drizzle instance.
+ *
+ * Narrow on purpose: it exists for the migration LEDGER, which lives in the
+ * `drizzle` schema and is deliberately absent from `db/schema` — drizzle owns
+ * those rows, so modelling them here would invite application code to write to
+ * a table the migrator treats as its own. Reading them needs raw SQL, and this
+ * is the one seam that provides it.
+ *
+ * Application queries go through {@link getDb}. A caller reaching for this to
+ * run ordinary SQL is bypassing the schema types and the casing configuration
+ * that keep queries and migrations agreeing on column names.
+ *
+ * @throws {Error} If called before `connectPostgres()` resolved.
+ */
+export function getPostgresClient(): postgres.Sql {
+  if (!client) {
+    throw new Error(
+      'PostgreSQL is not connected. Call connectPostgres() during startup ' +
+      'before issuing queries.'
+    );
+  }
+  return client;
+}
+
+/**
  * Whether `connectPostgres()` has published a handle.
  *
  * SYNCHRONOUS and cheap, so a hot synchronous caller can ask "is there a pool at
