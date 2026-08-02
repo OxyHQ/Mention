@@ -120,7 +120,15 @@ export const FEDERATION_BRIDGE_POLICY: readonly FederationBridgeEntry[] = [
       + 'the stored actor rows for typecache, gorskon and giswqs, and a live fetch of '
       + 'bird.makeup/users/nasa. Enabled standalone because we hold actors from only two of the six '
       + 'live X bridges and zero cross-bridge duplicates: the wire-verified nasa collision between '
-      + 'bird.makeup and birdmakeup.sboulema.nl exists in the world but not in our corpus.',
+      + 'bird.makeup and birdmakeup.sboulema.nl exists in the world but not in our corpus.'
+      + ' NO HISTORY IS IMPORTABLE FROM THIS BRIDGE, AND THAT IS NOT OUR BUG: every actor here '
+      + 'serves a bare `{"type":"Collection"}` outbox — no `totalItems`, no `first`, no '
+      + '`orderedItems` — so there is no page to walk and the outbox backfill correctly imports '
+      + 'nothing. Verified 2026-08-03 against elonmusk, typecache, gorskon and giswqs; three of '
+      + 'those are accounts we already hold, so this is how BirdsiteLive behaves rather than '
+      + 'something about one account. A bridged X profile therefore shows an empty timeline until '
+      + 'somebody follows it and posts start arriving by delivery. Do not read that emptiness as a '
+      + 'broken import and go looking for the fault in `syncOutboxPosts`.',
     assumption:
       'That an X handle identifies one person over time. X releases abandoned handles, so two '
       + 'bridges capturing years apart could derive the same key for two different humans — the '
@@ -144,7 +152,10 @@ export const FEDERATION_BRIDGE_POLICY: readonly FederationBridgeEntry[] = [
       + 'https://www.instagram.com/<handle>. Verified against the stored rows for robert.habeck, '
       + 'umwelthilfe and plex — note Instagram handles may contain dots, which the '
       + 'single-path-segment rule preserves. The only live Instagram bridge, so its collision set '
-      + 'is empty; treat that as a fact about today, since the software is self-hostable.',
+      + 'is empty; treat that as a fact about today, since the software is self-hostable.'
+      + ' The empty-outbox behaviour recorded on bird.makeup holds here too — a bare '
+      + '`{"type":"Collection"}`, verified 2026-08-03 against plex, robert.habeck and umwelthilfe '
+      + '— which is what the shared software predicts, and is now checked rather than assumed.',
     assumption:
       'That an Instagram handle identifies one person over time — Instagram releases abandoned '
       + 'handles, the same residual as bird.makeup.',
