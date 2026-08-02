@@ -43,11 +43,6 @@ import { tablesWithoutAPlan } from '../../db/backfill/collectionMap';
  * belongs in a named constant with the reason, not silently in here.
  */
 const UNPLANNED_TABLES: readonly string[] = [
-  // `user_behaviors` and its three child tables.
-  'user_behavior_authors',
-  'user_behavior_regions',
-  'user_behavior_topics',
-  'user_behaviors',
   // `usersettings` and its label-action children.
   'user_settings',
   'user_settings_label_actions',

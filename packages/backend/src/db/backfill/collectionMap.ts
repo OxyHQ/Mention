@@ -75,6 +75,7 @@ import { MTN_PLANS } from './plans/mtn';
 import { OUTBOX_PLANS } from './plans/outbox';
 import { POLL_PLANS } from './plans/polls';
 import { POST_PLANS } from './plans/posts';
+import { USER_BEHAVIOR_PLANS } from './plans/userBehavior';
 
 /**
  * Every collection that moves, and what it becomes.
@@ -130,6 +131,7 @@ export const COLLECTION_PLANS: readonly CollectionPlan[] = [
   ...ENGAGEMENT_PLANS,
   ...DISCOVERY_PLANS,
   ...CONTENT_PLANS,
+  ...USER_BEHAVIOR_PLANS,
   ...MTN_PLANS,
   ...OUTBOX_PLANS,
   ...GATE_PLANS,
