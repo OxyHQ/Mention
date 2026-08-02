@@ -16,14 +16,21 @@
  *
  * ## Self-references need a second pass, and there is no way around it
  *
- * `posts.parent_post_id` is the ONLY self-reference in this schema, and it is
- * the one that matters most: a reply is a `posts` row pointing at another
- * `posts` row, and Postgres checks that foreign key IMMEDIATELY unless the
- * constraint is declared `DEFERRABLE`, which it is not. A reply whose parent
- * sorts later by `_id` therefore fails on insert — and that is routine rather
- * than theoretical, because a federated reply's import-time `_id` bears no
- * relation to the parent's (the same fact that makes an `_id` sort wrong for
- * the author feed).
+ * `posts` is the only self-referencing TABLE in this schema, but it carries
+ * FOUR self-referencing columns, not one — `boostOf`, `parentPostId`,
+ * `quoteOf` and `threadId`, every one of them `posts → posts`. (An earlier
+ * version of this comment said `parent_post_id` was the only one. The code was
+ * never wrong, because it derives the set from the foreign keys rather than
+ * from a list; the comment was, which is exactly why the derivation exists.)
+ *
+ * They matter for the same reason: Postgres checks a foreign key IMMEDIATELY
+ * unless the constraint is declared `DEFERRABLE`, which none of these is. A row
+ * whose target sorts later by `_id` therefore fails on insert — routine rather
+ * than theoretical, because a federated post's import-time `_id` bears no
+ * relation to the id of whatever it replies to, boosts or quotes (the same fact
+ * that makes an `_id` sort wrong for the author feed). `threadId` is the
+ * sharpest case: a thread's root is frequently NOT the lowest `_id` among its
+ * members once federated replies are interleaved.
  *
  * So the copy inserts every self-referencing column as NULL and a second pass
  * UPDATEs them once every row exists. The columns to defer are derived here

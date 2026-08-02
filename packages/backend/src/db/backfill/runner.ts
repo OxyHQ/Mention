@@ -25,15 +25,19 @@
  *
  * ## Self-references are deferred, per collection
  *
- * `posts.parent_post_id` is this schema's only self-reference, and Postgres
- * checks it IMMEDIATELY (the constraint is not `DEFERRABLE`). A reply whose
- * parent sorts later by `_id` therefore fails on insert — routine rather than
- * theoretical, because a federated reply's import-time `_id` bears no relation
- * to its parent's. So pass A inserts every self-referencing column as NULL, and
- * pass B re-streams the SAME collection and fills them in once every row of
- * that table exists. Pass B is a second read rather than an in-memory buffer so
- * 573,339 posts cannot blow the task's memory — exactly the reason pass A is
- * batched in the first place.
+ * `posts` is the only self-referencing TABLE, and it carries FOUR such columns:
+ * `boostOf`, `parentPostId`, `quoteOf`, `threadId`. Postgres checks each
+ * IMMEDIATELY (none of the constraints is `DEFERRABLE`), so a row whose target
+ * sorts later by `_id` fails on insert — routine rather than theoretical, since
+ * a federated post's import-time `_id` bears no relation to the id of what it
+ * replies to, boosts or quotes.
+ *
+ * So pass A inserts every self-referencing column as NULL, and pass B
+ * re-streams the SAME collection and fills them in once every row of that table
+ * exists. Pass B is a second read rather than an in-memory buffer so 573,339
+ * posts cannot blow the task's memory — exactly the reason pass A is batched in
+ * the first place. The columns are DERIVED (`selfReferencingColumns`), never
+ * listed, so all four are handled without this comment having to be right.
  */
 
 import { eq, getTableColumns, is } from 'drizzle-orm';
