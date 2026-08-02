@@ -25,7 +25,7 @@
 import { isLiveEntityId } from '../../db/ids';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema';
-import { and, asc, desc, eq, gt, lt, or, type SQL } from 'drizzle-orm';
+import { and, eq, gt, lt, or, sql, type SQL } from 'drizzle-orm';
 
 // --- Score-based cursor (for ranked feeds: for_you, explore) ---
 
@@ -313,11 +313,53 @@ export type ChronoDirection = 'asc' | 'desc';
  * Exported so a source cannot order by one axis and page on another — the
  * defect that made federated posts vanish at page boundaries when an `_id` sort
  * sat behind a `createdAt` cursor.
+ *
+ * ## The NULLS placement is load-bearing on BOTH branches
+ *
+ * Both columns are NOT NULL, so none of this changes a row or an order — it
+ * changes whether an index can serve the sort at all. Postgres matches an index
+ * to an ORDER BY on the NULLS placement as well as the direction, and it will
+ * use an index either in its declared order or in its EXACT REVERSE. Every
+ * chronological index on `posts` is declared `created_at DESC NULLS LAST, id
+ * DESC NULLS LAST` (that is what drizzle emits for `.desc()`), so the two
+ * spellings an index can serve are:
+ *
+ *   forward   `desc nulls last`   — a plain `desc()` means `DESC NULLS FIRST`
+ *   backward  `asc nulls first`   — a plain `asc()` means `ASC NULLS LAST`
+ *
+ * and drizzle's defaults are neither. Both were measured, both were wrong: the
+ * ascending branch was assumed correct on the grounds that `asc()` already means
+ * NULLS LAST, which is true and irrelevant — the index's reverse is NULLS FIRST.
+ * An EXPLAIN test caught it, which is why there is one.
+ *
+ * Measured on this schema, 20,000 posts, page of 31:
+ *
+ *  - Following timeline (200 followed authors): plain `desc()` planned a Hash
+ *    Semi Join over a SEQ SCAN of all 20,000 posts plus all 20,000 authorships,
+ *    then a Sort — cost 2788.92, 40,000 rows touched. With `nulls last`: an
+ *    Index Scan on `posts_created_at_idx` feeding a Nested Loop Semi Join that
+ *    touched 32 rows — cost 474.33, and the LIMIT stops it early.
+ *  - A chronological scan with no authorship join (discovery, global root feed):
+ *    Seq Scan + Sort at cost 1636.42 / 16.536 ms, against an Index Scan at cost
+ *    4.16 / 0.110 ms.
+ *
+ * and, for the ascending branch (the replies list flipped to oldest-first),
+ * plain `asc()` planned a Sort of all 20,000 rows at cost 2139.83 against an
+ * Index Only Scan Backward at cost 0.41 with `asc nulls first`.
+ *
+ * The cost grows with the MATCH SET, not the page, so it scales with how much
+ * the viewer can see.
+ *
+ * NOT every caller benefits, and the difference is worth knowing before reading
+ * a flat profile: the author/profile feed matches through a correlated EXISTS on
+ * `post_authorships`, so its plan is a Nested Loop from the authorship index
+ * into `posts_pkey` with no chronological index involved — measured identical
+ * (cost 903.53) either way. This is neutral there, not an improvement.
  */
 export function chronoOrderBy(direction: ChronoDirection = 'desc'): SQL[] {
   return direction === 'asc'
-    ? [asc(posts.createdAt), asc(posts.id)]
-    : [desc(posts.createdAt), desc(posts.id)];
+    ? [sql`${posts.createdAt} asc nulls first`, sql`${posts.id} asc nulls first`]
+    : [sql`${posts.createdAt} desc nulls last`, sql`${posts.id} desc nulls last`];
 }
 
 /**

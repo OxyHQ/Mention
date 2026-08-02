@@ -47,7 +47,7 @@
  * needs a nullable sort key must say `nulls first` explicitly.
  */
 
-import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import type {
@@ -1386,5 +1386,18 @@ export function authoredBy(oxyUserId: string): SQL {
   return followedAuthorsSql([oxyUserId]);
 }
 
-/** Descending chronological keyset — the sort every post list in this app uses. */
-export const CHRONO_DESC: SQL[] = [desc(posts.createdAt), desc(posts.id)];
+/**
+ * Descending chronological keyset — the sort every post list in this app uses.
+ *
+ * `nulls last` is spelled out for the reason {@link chronoOrderBy} documents at
+ * length: both columns are NOT NULL so it changes no result, but drizzle emits
+ * `.desc()` in index DDL as `DESC NULLS LAST` while a query's `desc()` means
+ * `DESC NULLS FIRST`, and Postgres compares the NULLS placement when deciding
+ * whether an index can satisfy an ORDER BY. Written the plain way, none of the
+ * thirteen chronological indexes on `posts` is usable and the planner falls back
+ * to scanning the match set and sorting it.
+ */
+export const CHRONO_DESC: SQL[] = [
+  sql`${posts.createdAt} desc nulls last`,
+  sql`${posts.id} desc nulls last`,
+];
