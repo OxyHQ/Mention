@@ -18,7 +18,7 @@ import { is } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import { posts } from '../../db/schema/posts';
 import { planLevels, selfReferences, selfReferencingColumns } from '../../db/backfill/order';
-import { COLLECTION_PLANS } from '../../db/backfill/collectionMap';
+import { COLLECTION_PLANS, tablesWithoutAPlan } from '../../db/backfill/collectionMap';
 import { planTables, tableName } from '../../db/backfill/plan';
 
 /** Every table in the schema barrel. */
@@ -96,17 +96,28 @@ describe('planLevels', () => {
         }
       }
     }
-    // The floor, in the only form that is honest TODAY: every cross-plan edge
-    // must either have been ORDERED, or name a parent table no plan feeds yet.
-    // A traversal that silently found neither would leave both counts at zero,
-    // which this refuses.
-    //
-    // Right now `checked` is 0 and the whole set is unplanned — `likes.post_id`
-    // and `bookmarks.post_id` point at `posts`, whose plan is not written. When
-    // the `posts` plan lands, those edges move into `checked` and this becomes
-    // a real ordering assertion without being edited.
+    // The floor: every cross-plan edge must either have been ORDERED, or name a
+    // parent table no plan feeds yet. A traversal that silently found neither
+    // would leave both counts at zero, which this refuses.
     expect(checked + unplannedParents.length).toBeGreaterThan(0);
-    expect(unplannedParents.every((edge) => edge.endsWith('-> posts'))).toBe(true);
+
+    // And an unplanned parent is legitimate EXACTLY WHEN no plan feeds it —
+    // derived from `tablesWithoutAPlan()` rather than named.
+    //
+    // This was a literal (`endsWith('-> posts')`), written when `posts` was the
+    // only plan not yet started and `checked` was still 0. Both facts have since
+    // changed: `posts` landed, and the feeds plan introduced a second legitimate
+    // unplanned parent (`custom_feed_source_lists -> account_lists`). A literal
+    // has to be edited once per batch and says nothing when it is right, so it
+    // fails for the wrong reason as often as the right one. The derived form
+    // needs no edit and still catches the case that matters — an edge whose
+    // parent IS planned but was not ordered, which the per-edge assertion above
+    // would have caught first.
+    const unsourced = new Set(tablesWithoutAPlan());
+    const illegitimate = unplannedParents.filter(
+      (edge) => !unsourced.has(edge.slice(edge.indexOf('-> ') + 3))
+    );
+    expect(illegitimate).toEqual([]);
   });
 
   it('places every selected plan exactly once', () => {
@@ -120,12 +131,24 @@ describe('planLevels', () => {
 describe('selfReferences over the live plans', () => {
   it('reports each self-referencing table once, with its columns', () => {
     const found = selfReferences(COLLECTION_PLANS);
-    // No engagement plan writes `posts`, so today this is empty — and that is
-    // the honest answer rather than a stub. It becomes non-empty the moment the
-    // `posts` plan lands, which is what makes this case worth keeping.
     for (const entry of found) {
       expect(entry.columns.length).toBeGreaterThan(0);
     }
     expect(new Set(found.map((entry) => tableName(entry.table))).size).toBe(found.length);
+
+    // This said "today this is empty, because no engagement plan writes
+    // `posts`" — true when written and false since the `posts` plan landed. Now
+    // that there IS something to find, the case asserts it rather than
+    // tolerating either answer: `posts` is the only self-referencing table in
+    // the schema and a plan writes it, so it must appear here with all four
+    // columns. An empty result would mean the deferred pass runs over nothing
+    // and every reply's parent link is silently dropped.
+    expect(found.map((entry) => tableName(entry.table))).toStrictEqual(['posts']);
+    expect(found[0]?.columns).toStrictEqual([
+      'boostOf',
+      'parentPostId',
+      'quoteOf',
+      'threadId',
+    ]);
   });
 });
