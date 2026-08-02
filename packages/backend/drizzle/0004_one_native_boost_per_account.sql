@@ -81,10 +81,15 @@
 -- entry too, which reads like production Mongo being unreachable and is not.)
 --
 -- KEEP THE BLOCK BELOW ANYWAY. It guards the window between that measurement and
--- the cutover, which is the one interval nobody can measure in advance — a
--- single double-tapped boost in it is enough to fail the index creation, and the
--- block is what makes that a named count and a repair instruction instead of one
--- example key discovered mid-cutover.
+-- the cutover, and that window has now been measured rather than hand-waved:
+-- `posts` grew by 435 documents in the ONE HOUR between the count above
+-- (577,091) and an unrelated probe an hour later (577,526). Roughly 400 posts an
+-- hour of drift, none of which existed when the zero was taken.
+--
+-- That is the difference between a preflight and a ceremony. A single
+-- double-tapped boost inside that window is enough to fail the index creation,
+-- and the block is what turns it into a named count plus a repair instruction
+-- instead of one example key discovered mid-cutover.
 --
 -- NOT online. `CREATE INDEX CONCURRENTLY` cannot run inside the migrator's
 -- transaction, and it would also defeat the preflight — a concurrent build fails
