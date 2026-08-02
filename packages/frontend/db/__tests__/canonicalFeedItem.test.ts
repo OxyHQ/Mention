@@ -61,6 +61,32 @@ function makePost(
 }
 
 describe('canonical post cache contract', () => {
+  // `PostItem` reads `storePost ?? post`, so the cached copy WINS over the one
+  // the API just returned. Anything this converter drops is therefore invisible
+  // on every feed surface while the raw API response still has it — and both of
+  // these are optional on `HydratedPost`, so omitting them type-checks cleanly.
+  //
+  // Dropping `channel` was not cosmetic: the backend deliberately degrades
+  // `post.user` to "Unknown user" on a channel post and expects the channel to
+  // supply the identity, so a lost `channel` renders the post as an unknown
+  // author rather than as the channel that published it.
+  it('carries the lane and the channel, which decide how a post is signed', () => {
+    const post = makePost('signed', {
+      lane: { id: 'lane-1', name: 'Opinion', displayMode: 'mixed' },
+      channel: { id: 'ch-1', handle: 'nateonoxy', title: 'Nate on Oxy', signPosts: false },
+    });
+
+    const item = toFeedItem(post);
+
+    expect(item.lane).toEqual(post.lane);
+    expect(item.channel).toEqual(post.channel);
+
+    // And it must survive the SQLite round trip, which is what a warm start reads.
+    const restored = rowToFeedItem(postToRow(item));
+    expect(restored?.lane).toEqual(post.lane);
+    expect(restored?.channel).toEqual(post.channel);
+  });
+
   it('adds only local rendering fields without synthesizing identity or viewer aliases', () => {
     const post = makePost('feed');
     const item = toFeedItem(post);

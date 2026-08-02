@@ -47,6 +47,15 @@ Bun built-ins that look like they could delete a dependency here, and cannot —
 
 **Rebuild `shared-types` before believing a red typecheck or build.** `@mention/shared-types` is consumed through its BUILT `dist`, so after any rebase/checkout that pulls in a shared-types change, every other package still compiles against the previous build and reports the newly-landed symbols as missing — `TS2305: has no exported member 'X'`, in files you never touched. It reads exactly like someone else's broken commit, and has been reported as "N pre-existing errors" more than once. `bun run --cwd packages/shared-types build` first; only a failure that survives that is real.
 
+## CodeQL on a PR reports what the DIFF introduces, not what the repo accepts
+
+A new file lights up with the repo's own established pattern, so a finding on your PR is not evidence your PR caused it. **Count the same rule on `main` first** — `gh api --paginate repos/OxyHQ/Mention/code-scanning/alerts`. Measured once: 83 open `js/missing-rate-limiting` alerts across 21 files, with `lists.ts` — the obvious counter-example, since it *does* carry limiters on its timeline — itself flagged six times for its other CRUD routes. The convention here is a route-level limiter for feeds, expensive aggregations and spam-surface writes; plain CRUD rides the app-wide `createOxyRateLimit` mounted as a closure in `app.ts`, which the query cannot see.
+
+The check still gates the merge, since recent PRs land with it green. Two things about satisfying it:
+
+- **`router.use(...limiters)` is `router.use()` when the array is empty** — every non-production environment — and Express throws `argument handler is required` at import. The `config.runtime.isProduction ? [x] : []` idiom is only safe in the **per-route** position, where a handler always follows. It is also the only position CodeQL inspects: a `use` behind an `if` covers the route at runtime and stays invisible to the scanner.
+- **`rateLimitPrefixUniqueness.test.ts` resolves prefixes by reading SOURCE**, so building limiters through a factory makes them all read as the default and fail. Write each `RedisStore` prefix as a literal. That guard walks every store in the tree and picks up new ones for free.
+
 ## Worktrees — never `git stash` in this checkout
 
 This repo is worked from ~70 linked worktrees at once, and **the stash stack belongs to the REPOSITORY, not to your worktree**. Three facts compose into taking someone else's work:
@@ -120,6 +129,14 @@ NODE_ENV=production ./gradlew :app:assembleRelease \
 - **Build arm64-only** (`-PreactNativeArchitectures=arm64-v8a`): the multi-ABI build fails at `:app:buildCMakeRelWithDebInfo[x86]`, and test devices (Pixel) are arm64. `-Xmx8g` avoids R8/native OOM.
 - **Metro dev builds** (not release): Metro MUST run from `packages/frontend`, NOT the monorepo root. From the root, Expo resolves the legacy `expo/AppEntry` entry (imports a non-existent `App`) instead of `expo-router/entry`, returning HTTP 500 and crashing the app on load.
 
+## Indexes and migrations
+
+`autoIndex`/`autoCreate` are OFF in production, so **declaring an index on a schema does not create it**. Two traps follow, and both fail silently:
+
+- **`POST_HOT_PATH_INDEXES` in `indexes/manifest.ts` is NOT a generic manifest** — it is migration `0010`'s payload, and `0010` is recorded applied and never re-runs. Appending an index there is a **no-op in production** while looking like the obvious place. `POST_HOT_PATH_INDEX_MANIFEST_VERSION` is read by nothing; bumping it is theatre. A new index ships as **its own migration**, modelled on `0014-post-trend-terms-index.ts`, registered in `migrations/constants.ts` AND the `MIGRATIONS` array in `runner.ts` (`MIGRATION_IDS` exists so an unregistered migration is a test failure, not a discovery months later).
+- **Never edit an already-written migration to add an index**, even one that has not reached production — it may have run on a developer's machine, and a migration that creates different indexes depending on when you first ran it is worse than an extra file.
+- **`sparse: true` is wrong on a COMPOUND index here.** Mongo indexes a document if *any* indexed key exists, and every post has `visibility`/`status`/`createdAt` — so `sparse` indexes the whole collection and buys nothing. Use `partialFilterExpression`, and make every query carry a literal term on the filtered field so the planner can prove eligibility. Verify with `explain()` on a real `mongod`; the test suite is fully mocked and cannot see this.
+
 ## Architecture
 
 Monorepo using Bun workspaces.
@@ -174,6 +191,8 @@ Feeds live in `backend/src/mtn/` — ForYou, Following, Author, Hashtag, Explore
 - `videos` feed descriptor → `videosDefinition` plus `videosSource` (`packages/backend/src/mtn/feed/definitions/presets.ts` and `engine/sources/discoverySources.ts`) — ranked feed of video posts (native + federated), powers the fullscreen Reels viewer (`packages/frontend/app/(app)/videos.tsx`). The legacy `type:'media'` global descriptor does NOT exist — returns 400.
 - **Boost hydration gotcha:** A `type:'boost'` post has an intentionally empty body and relies on `boostOf` for hydration. `PostHydrationService` only embeds the boosted original at `maxDepth >= 1`. Any endpoint/feed that INCLUDES boosts MUST pass `maxDepth:1` or boosts render blank. Affected: `connectors/connectors.routes.ts` and the `author` preset (`mtn/feed/definitions/presets.ts`, `hydrateMaxDepth: 1` on every variant). Native feeds (ForYou/posts via `feedQueryBuilder`) avoid this by excluding boosts.
 - **`hasMore` from authoritative overfetch:** `FeedResponseBuilder` computes `hasMore` from the overfetch flag, NOT `slicesToReturn.length >= limit` — post groups (thread slicing) can produce fewer slices than limit items, causing premature `hasMore: false`.
+- **`ChronoCursor.applyToQuery` ASSIGNS `match.$or`, it does not merge.** Any filter written as a disjunction is silently deleted the moment a cursor with a timestamp arrives, so page one filters correctly and every later page leaks. Nothing errors. Every feed clause must be a plain conjunctive term or an `$and` entry — and a test that pins it needs a LIVE cursor in the query, or it cannot see the bug.
+- **FOUR field projections feed hydration, not two:** `mtn/feed/FeedAPI.ts`, `controllers/feed.controller.ts`, `services/ThreadSlicingService.ts`, `routes/search.ts`. A new post field missing from one hydrates `undefined` with no error, and the symptom — present on a feed row, absent on the SAME post as a thread parent — reads like a caching bug.
 
 #### Profile feed = the `author` descriptor
 
@@ -223,7 +242,28 @@ Tool for the VIEWER to follow pack members — one-by-one or all at once via mul
 
 ### Lists (Subscriptions)
 
-Following a list = SUBSCRIBING via `EntityFollow` entityType `'list'` — viewer sees members' posts without following individually. `AccountList.subscriberCount` maintained by `src/services/ListSubscriptionService.ts`. Subscribed-list members merged into main feed via `feed.controller.ts` `mergeSubscribedListMemberIds()`. Caps: `MAX_SUBSCRIBED_LISTS_FOR_FEED=200`, `MAX_SUBSCRIBED_LIST_AUTHORS_FOR_FEED=5000`.
+Following a list = SUBSCRIBING via `EntityFollow` entityType `'list'` — viewer sees members' posts without following individually. `AccountList.subscriberCount` maintained by `src/services/ListSubscriptionService.ts`. Subscribed-list members reach the feed through `listSubscriptionService.getSubscribedListMemberIds`, loaded in `mtn/feed/feedContext.ts`'s parallel batch and consumed by `forYouSources`. Caps: `MAX_SUBSCRIBED_LISTS_FOR_FEED=200`, `MAX_SUBSCRIBED_LIST_AUTHORS_FOR_FEED=5000`.
+
+### Lanes
+
+A named track owned by a **publisher** — a user OR a channel (`ownerType`/`ownerId`; the polymorphic owner exists so channel lanes need no migration). A post carries at most one `laneId` and stays an ORDINARY post: distribution, visibility, replies and federation are untouched. The lane is a lens, not a destination.
+
+- Per-lane `displayMode`: `mixed` (default, appears on the main tab) · `tab` (its own profile tab only) · `hidden` (nowhere on the profile, **including for the owner**).
+- **`hidden` is curation, not privacy.** Those posts still reach every feed and stay readable at their own URL. Say so in any UI copy, or it gets reported as a leak.
+- A reader can mute one lane of one publisher (`LaneMute`). Applied in `FeedEngine.gatherPool` **and** `runPopularFallback` — the second bypasses the first. Scope is FEEDS only, deliberately narrower than muted words: a lane mute is a timeline preference, not a safety rule, so search and post detail still return the post.
+- Descriptor `lane|<laneId>`, ONE param — the lane knows its own publisher. `laneSource` gates on publisher visibility **and** on `displayMode === 'tab'`; drop either and the descriptor becomes a back door into a hidden lane.
+- Replies and boosts never carry a lane. `assertLaneAssignable` (`utils/laneAssignment.ts`) is the single validator, and its `channelId` argument is what keeps a lane with its own publisher — **the write path that forgets to pass it lets a channel post into a personal lane, which deanonymizes the writer** (the DTO stays anonymous but the lane tab is scoped to one author).
+
+### Channels
+
+A shared destination in the Telegram sense: an owner invites members who publish, and people follow the channel **without following its authors**. That decoupling is the point, so channel posts stay OUT of the Following feed — pinning the channel as a home tab (`useFeedPreferences`, any descriptor) is the sanctioned way to keep one at hand.
+
+- **The channel signs its posts.** The DTO carries `channel` BESIDE `user`; never fabricate a `PostUser` from a channel — `post.user` is the canonical Oxy shape and faking it breaks `/@handle` links and Oxy's ownership of identity. The renderer decides which to draw.
+- **Anonymity fails CLOSED.** With `signPosts: false` the writer's id leaves the DTO entirely rather than being hidden client-side, and the condition is "has a channel that did not say to sign" — so a channel row that fails to load anonymizes instead of exposing the writer.
+- **A channel post neither federates nor emits an MTN record**, and `channelId` is excluded from the AP outbox and `featured`. Both would republish, under the WRITER's identity and signature, the post the CHANNEL signs. Those are author surfaces.
+- **No replies, ever.** The gate reads `channelId`, never `replyPermission` (a settings write could flip that), at four sites: above the whole permission block in `createReply` (which is skipped entirely for `anyone` and contains an unconditional escape for the author), `POST /posts` (which performs **no parent lookup at all** — there is no prior check to lean on), and both federated ingest paths, where it **drops silently**: a throw retries the inbox job forever and a 4xx ends delivery from that instance permanently.
+- **Putting a channel post on your own profile is a BOOST.** There is no `channelOnly` field; the exclusion is the flat `{channelId: {$exists: false}}` living inside the author matchers, so a new profile query inherits it.
+- Followers are `ChannelFollow` (a dedicated model — `EntityFollow` cannot express the per-follow `notify`), members are `ChannelMember` (roles + invite state). The feed descriptor uses `_id`, never the handle, so a rename cannot break a pinned tab.
 
 ### Collaborative Posts
 
@@ -374,7 +414,7 @@ Suggested users / custom feeds / starter packs spliced between post slices — h
 - **GOTCHA — interstitial rows must never report impressions.** Web (`Feed.web.tsx`): they get a measure-only ref (no `data-post-uri`, never enters the impression observer). Native (`Feed.native.tsx`): skipped in `handleViewableItemsChanged` (`row?.kind !== 'post'` short-circuit). A bogus `postUri` must never reach `POST /feed/mtn/interactions`. Each card kind also gets its own `feedRowType` bucket (`interstitial:<kind>`) so FlashList never recycles a card onto a post cell.
 - **`FeedRow` (`feedRows.tsx`) is now a discriminated union** (`kind: 'post' | 'interstitial'`) — `PostFeedRow | InterstitialFeedRow` — the single row model shared by web and native, so both platforms inherit the splice from one `buildFeedRows`/`spliceInterstitials` pass.
 - **Mix adapts to follow-graph density** — config-only, `MtnConfig.feed.interstitials` (`packages/shared-types/src/mtn/config.ts`): `allowedDescriptors` (`for_you`, `following`, `explore`), `coldMaxFollowing: 20` / `denseMinFollowing: 150`, per-temperature `positions` (slice indices) and `rotation` (kind order), `densePageInterval: 2`. Cold graph leads with `suggestedStarterPacks`, early (slice 3); dense graph mostly `suggestedUsers`, gated to every other page. No magic numbers in `planInterstitials.ts` itself — all tuning lives in shared-types.
-- **Exclusions**: `GET /feeds/marketplace?excludeSubscribed=true` (via `FeedLike` — `EntityFollow{entityType:'feed'}` is a valid entity type but nothing reads it for this; `FeedLike` is the live subscription mechanism) and `GET /starter-packs?excludeUsed=true` (`ownerOxyUserId`/`usedByOxyUserIds` `$ne`). Oxy's scorer already excludes accounts the viewer follows, so `RecommendationService` was left alone.
+- **Exclusions**: `GET /feeds/marketplace?excludeSubscribed=true` (via `FeedLike`, the live subscription mechanism — `ENTITY_FOLLOW_TYPES` is `['hashtag','list']` only, `'feed'` was removed from it) and `GET /starter-packs?excludeUsed=true` (`ownerOxyUserId`/`usedByOxyUserIds` `$ne`). Oxy's scorer already excludes accounts the viewer follows, so `RecommendationService` was left alone.
 - **Dismissal is per-card, in-memory only** (returns on refresh) — deliberate, matches Bluesky. No server-side dismissal state.
 - **The PROFILE feed carries its own card** — `kind:'similarAccounts'`, the only kind that sets `subjectId` (the profile the suggestions are about). Planned by the SAME `planInterstitials` but on a separate path, deliberately OUTSIDE the graph-temperature model: that model asks how much bootstrapping the VIEWER needs, while this card is about the feed's SUBJECT and is just as useful to a viewer who follows a thousand people. Tuning: `MtnConfig.feed.interstitials.profile.positions`. The author descriptor is parsed with `parseFeedDescriptor` (so all four `author|<id>|<filter>` variants carry it), and the card is DROPPED on the viewer's own profile — hence `planInterstitials` takes `currentUserId`.
 - **Card telemetry is counters-only** — `POST /feed/mtn/interstitial-events` (`MtnFeedController.recordInterstitialEvent`), body `FeedInterstitialEventInput`. **It must never go through `trackFeedInteraction` / `POST /feed/mtn/interactions`**: that path requires a `postUri` and feeds POST ranking, so card engagement sent there would corrupt author/topic affinity with engagement that never touched a post. Validation + the counter live in `mtn/feed/interstitials/interstitialTelemetry.ts` (pure, no Express import — the controller can't be unit-tested, it pulls in `server.ts` circularly). One metric, `feed_interstitial_events_total{kind,event,descriptor}`; `descriptor` is the BASE token (`author`, never `author|<id>`) and the body's `feedDescriptor` is validated against `isValidFeedDescriptor` precisely BECAUSE it becomes a label — an arbitrary string would let a client mint unbounded label values. Slot key, position and viewer id are never labelled. Anonymous viewers 200 no-op (never 401 — same precedent as `recordInteraction`). The hot path stays I/O-free: a counter write is a Map update.

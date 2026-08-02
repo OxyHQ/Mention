@@ -1710,20 +1710,19 @@
       "all": "Tutti"
     },
     "legend": {
-      "solid": "Linea continua: i due termini sono stati uniti in una storia.",
-      "dashed": "Linea tratteggiata: correlati, ma non uniti.",
-      "size": "La dimensione del cerchio indica quanti post contengono il termine.",
-      "truncated": "Altre {{count}} relazioni sono state escluse da questo grafo."
+      "truncated": "Altre {{count}} relazioni sono state escluse da questo grafo.",
+      "branch": "Rientrato sotto un termine: i termini uniti a esso — una storia, una riga nella lista.",
+      "related": "Ramo tratteggiato: condivide post con il termine sopra, ma non è stato unito."
     },
     "node": {
-      "counts": "{{posts}} post · {{authors}} autori distinti",
-      "languages": "Lingue: {{list}}",
-      "regions": "Regioni: {{list}}",
-      "story": "Fa parte della storia: {{story}}"
+      "counts": "{{posts}} post · {{authors}} autori distinti"
     },
     "edge": {
-      "merged": "Unito a {{term}} — {{posts}} post in comune",
       "related": "Correlato a {{term}} — {{posts}} post in comune, non unito"
+    },
+    "sections": {
+      "stories": "Storie unite",
+      "ungrouped": "Termini a sé"
     }
   }
 }

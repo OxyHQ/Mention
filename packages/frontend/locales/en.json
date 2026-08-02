@@ -1959,20 +1959,19 @@
       "all": "All"
     },
     "legend": {
-      "solid": "A solid line: the two terms were merged into one story.",
-      "dashed": "A dashed line: related, but not merged.",
-      "size": "Circle size is how many posts carry the term.",
-      "truncated": "{{count}} further relations were left out of this graph."
+      "truncated": "{{count}} further relations were left out of this graph.",
+      "branch": "Indented under a term: the terms merged into it — one story, one row in the list.",
+      "related": "A dashed branch: shares posts with its parent, but was not merged."
     },
     "node": {
-      "counts": "{{posts}} posts · {{authors}} distinct authors",
-      "languages": "Languages: {{list}}",
-      "regions": "Regions: {{list}}",
-      "story": "Part of the story: {{story}}"
+      "counts": "{{posts}} posts · {{authors}} distinct authors"
     },
     "edge": {
-      "merged": "Merged with {{term}} — {{posts}} shared posts",
       "related": "Related to {{term}} — {{posts}} shared posts, not merged"
+    },
+    "sections": {
+      "stories": "Merged stories",
+      "ungrouped": "Terms on their own"
     }
   }
 }
