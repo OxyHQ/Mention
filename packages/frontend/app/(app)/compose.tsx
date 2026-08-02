@@ -35,7 +35,7 @@ import { toast } from '@oxyhq/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import type { CreatePostRequest, HydratedPost } from '@mention/shared-types';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
+import { MAX_POST_COLLABORATORS, MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useTheme } from '@oxyhq/bloom/theme';
 import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTextInput';
 import { SEO } from '@/components/SEO';
@@ -140,6 +140,7 @@ import type { ThreadItem } from '@/hooks/useThreadManager';
 import { useQuoteManager } from '@/hooks/useQuoteManager';
 import QuoteCard from '@/components/Compose/QuoteCard';
 import CollaboratorPicker, { type CollaboratorUser } from '@/components/Compose/CollaboratorPicker';
+import ComposeScheduleIndicator from '@/components/Compose/ComposeScheduleIndicator';
 import {
   areMentionDataEqual,
   mergeMentionData,
@@ -206,6 +207,9 @@ const ComposeScreenBody = () => {
   const [replyToPost, setReplyToPost] = useState<HydratedPost | null>(null);
   const [replyLoading, setReplyLoading] = useState(false);
   const [collaborators, setCollaborators] = useState<CollaboratorUser[]>([]);
+  // The collaborator search is opened from the attachment row's people icon, so
+  // its open/closed state belongs to the composer rather than to the picker.
+  const [collaboratorSearchOpen, setCollaboratorSearchOpen] = useState(false);
 
   // Use custom hooks for state management
   const mediaManager = useMediaManager();
@@ -478,6 +482,16 @@ const ComposeScreenBody = () => {
    * composer, so a line there would draw a relationship the posts will not have.
    */
   const showThreadTimeline = postingMode === 'thread';
+
+  /**
+   * Whether this post can name collaborators at all. A reply and a thread are
+   * authored solo, and an edit only qualifies while the stored post is still a
+   * solo one (`editCollabEligible`, server-decided). Gates BOTH the people icon
+   * in the attachment row and the picker it opens, so the icon can never open a
+   * panel that will not render.
+   */
+  const collaboratorsEligible =
+    !replyToPostId && threadItems.length === 0 && (!isEditMode || editCollabEligible);
 
   // Schedule manager
   const scheduleManager = useScheduleManager({
@@ -1548,6 +1562,12 @@ const ComposeScreenBody = () => {
     openScheduleSheet(ScheduleSheet);
   }, [openScheduleSheet]);
 
+  // The people icon toggles the search, so a second press closes what the first
+  // one opened rather than leaving the only exit inside the panel.
+  const handleCollaboratorsPress = useCallback(() => {
+    setCollaboratorSearchOpen((open) => !open);
+  }, []);
+
   // Main post toolbar handlers — stable references for memoized ComposeToolbar
   const handleMainGifPress = useCallback(() => {
     bottomSheet.setBottomSheetContent(
@@ -2118,6 +2138,16 @@ const ComposeScreenBody = () => {
                     onPressUser={() => { }}
                     onPressAvatar={() => { }}
                     disableHoverCard
+                    // The header's time slot says when the post goes out: "now"
+                    // until a time is picked, then the time itself. Passed ONLY
+                    // while scheduled, so the unscheduled row is untouched.
+                    timeSlot={scheduledAt ? (
+                      <ComposeScheduleIndicator
+                        scheduledLabel={formatScheduledLabel(scheduledAt)}
+                        onPress={handleSchedulePress}
+                        disabled={isPosting}
+                      />
+                    ) : undefined}
                   >
                     <MentionTextInput
                       ref={mainTextInputRef}
@@ -2132,10 +2162,6 @@ const ComposeScreenBody = () => {
                       autoFocus
                     />
                   </PostHeader>
-
-                  {(!replyToPostId && threadItems.length === 0 && (!isEditMode || editCollabEligible)) && (
-                    <CollaboratorPicker selected={collaborators} onChange={setCollaborators} />
-                  )}
 
                   {/* Attachments row (poll + article + media + link) */}
                   {attachmentOrder.length > 0 ? (
@@ -2387,7 +2413,6 @@ const ComposeScreenBody = () => {
                       onGifPress={handleMainGifPress}
                       onEmojiPress={handleMainEmojiPress}
                       onSchedulePress={handleSchedulePress}
-                      scheduledLabel={scheduledAt ? formatScheduledLabel(scheduledAt) : undefined}
                       onSourcesPress={openSourcesSheet}
                       onArticlePress={openArticleEditor}
                       onEventPress={openEventEditor}
@@ -2399,6 +2424,12 @@ const ComposeScreenBody = () => {
                       onLanguagePress={handleAddLanguage}
                       hasLanguages={variants.variantTags.length > 0}
                       languageEnabled={canAddLanguage(variants)}
+                      // Also main-toolbar only, and omitted outright where the
+                      // post cannot take collaborators — a reply, a thread, or
+                      // an edit of an already-collaborative post.
+                      onCollaboratorsPress={collaboratorsEligible ? handleCollaboratorsPress : undefined}
+                      hasCollaborators={collaborators.length > 0}
+                      collaboratorsEnabled={collaborators.length < MAX_POST_COLLABORATORS}
                       hasLocation={!!location}
                       isGettingLocation={isGettingLocation}
                       hasPoll={showPollCreator}
@@ -2413,6 +2444,18 @@ const ComposeScreenBody = () => {
                       disabled={isPosting}
                     />
                   </View>
+
+                  {/* Collaborators — chosen from the attachment row's people
+                      icon, so the panel it opens sits with the other editors
+                      that row spawns rather than above it. */}
+                  {collaboratorsEligible && (
+                    <CollaboratorPicker
+                      selected={collaborators}
+                      onChange={setCollaborators}
+                      expanded={collaboratorSearchOpen}
+                      onExpandedChange={setCollaboratorSearchOpen}
+                    />
+                  )}
 
                   {/* Poll Creator */}
                   {showPollCreator && (

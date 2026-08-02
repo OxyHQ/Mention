@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useMemo } from 'react';
-import { View, Text, ScrollView } from 'react-native';
+import { ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -30,6 +30,12 @@ interface ComposeToolbarProps {
     onPodcastPress?: () => void;
     /** Add another language to the post — composer-wide, so main toolbar only. */
     onLanguagePress?: () => void;
+    /**
+     * Open the collaborator picker — composer-wide (a collab post has one set of
+     * authors), so main toolbar only, and omitted entirely where the post cannot
+     * take collaborators at all.
+     */
+    onCollaboratorsPress?: () => void;
     hasLocation?: boolean;
     isGettingLocation?: boolean;
     hasPoll?: boolean;
@@ -44,13 +50,10 @@ interface ComposeToolbarProps {
     hasLanguages?: boolean;
     /** False once the post holds the maximum author languages. */
     languageEnabled?: boolean;
-    /**
-     * The chosen publish time, already formatted. Present ⇒ the schedule control
-     * IS the indicator: it shows the time inline instead of a separate card
-     * explaining it. Absent ⇒ the post goes out now and the control is the bare
-     * icon.
-     */
-    scheduledLabel?: string;
+    /** The post already names at least one collaborator. */
+    hasCollaborators?: boolean;
+    /** False once the post holds the maximum collaborators. */
+    collaboratorsEnabled?: boolean;
     hasSourceErrors?: boolean;
     disabled?: boolean;
 }
@@ -69,6 +72,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     onRoomPress,
     onPodcastPress,
     onLanguagePress,
+    onCollaboratorsPress,
     hasLocation = false,
     isGettingLocation = false,
     hasPoll = false,
@@ -79,9 +83,10 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     hasRoom = false,
     hasPodcast = false,
     hasSchedule = false,
-    scheduledLabel,
     hasLanguages = false,
     languageEnabled = true,
+    hasCollaborators = false,
+    collaboratorsEnabled = true,
     hasSourceErrors = false,
     disabled = false,
 }) => {
@@ -270,41 +275,40 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                 <PressableScale
                     onPress={withHaptic(onSchedulePress)}
                     disabled={disabled}
-                    // The tint is `bg-primary/10`, NOT a hand-built
-                    // `${theme.colors.primary}1A`: this theme's `primary` is
-                    // `rgb(0 98 157)`, so appending hex alpha to it yields a
-                    // string react-native-web parses back to FULLY OPAQUE
-                    // primary — which paints primary text on a primary pill and
-                    // hides the time completely. Caught in a browser, invisible
-                    // to jest.
-                    className={scheduledLabel
-                        ? 'flex-row items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10'
-                        : 'p-1'}
+                    className="p-1"
                     accessibilityRole="button"
-                    // The label carries the STATE, not just the action: a screen
-                    // reader has no colour or chip shape to go on.
-                    accessibilityLabel={scheduledLabel
-                        ? t('compose.schedule.chipA11y', {
-                            defaultValue: 'Scheduled for {{time}}. Tap to change.',
-                            time: scheduledLabel,
-                        })
-                        : t('compose.schedule.a11y', { defaultValue: 'Schedule this post' })}
+                    // The chosen time lives in the author row's time slot, where
+                    // it replaces "now" — see `ComposeScheduleIndicator`. So this
+                    // control is the plain action again, and tints itself when a
+                    // time is set exactly like every other icon in this row
+                    // signals its attachment is present.
+                    accessibilityLabel={t('compose.schedule.a11y', { defaultValue: 'Schedule this post' })}
                 >
-                    <View style={{ opacity: disabled ? 0.3 : 1 }}>
-                        <CalendarIcon
-                            size={20}
-                            color={scheduledLabel ? theme.colors.primary : scheduleColor}
-                        />
-                    </View>
-                    {scheduledLabel ? (
-                        <Text
-                            className="text-primary text-[13px] font-semibold"
-                            style={{ opacity: disabled ? 0.3 : 1 }}
-                            numberOfLines={1}
-                        >
-                            {scheduledLabel}
-                        </Text>
-                    ) : null}
+                    <CalendarIcon size={20} color={scheduleColor} />
+                </PressableScale>
+            )}
+
+            {onCollaboratorsPress && (
+                <PressableScale
+                    onPress={withHaptic(onCollaboratorsPress)}
+                    disabled={disabled || !collaboratorsEnabled}
+                    className="p-1"
+                    accessibilityRole="button"
+                    accessibilityLabel={t('collab.inviteCollaborators', { defaultValue: 'Invite collaborators' })}
+                >
+                    {/* The SAME glyph the collaborator picker already labels its
+                        rows with, in the two states this row uses everywhere
+                        else: filled once the post names someone, outline while
+                        it does not. */}
+                    <Ionicons
+                        name={hasCollaborators ? 'people' : 'people-outline'}
+                        size={20}
+                        color={disabled || !collaboratorsEnabled
+                            ? theme.colors.textTertiary
+                            : hasCollaborators
+                                ? theme.colors.primary
+                                : theme.colors.textSecondary}
+                    />
                 </PressableScale>
             )}
 

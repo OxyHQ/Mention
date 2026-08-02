@@ -88,6 +88,16 @@ interface PostHeaderProps {
   avatarSize?: number;
   avatarGap?: number;
   /**
+   * Replaces the relative-time label ("now", "5m", …) in the identity line.
+   *
+   * That slot is already the header's answer to "when does this post go out",
+   * so the composer puts the publish time there once one is chosen instead of
+   * adding a second place that says it. Omit it and the label renders exactly
+   * as it always has — the composer passes it ONLY while a time is set, so the
+   * unscheduled row stays the node it was.
+   */
+  timeSlot?: React.ReactNode;
+  /**
    * Oxy user id of the post author. When that author is currently live in a Syra
    * room, the avatar shows a live badge and tapping it joins the room instead of
    * opening the profile. Omit it for non-user avatars (e.g. the compose preview).
@@ -132,6 +142,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   avatarSource,
   avatarVariant,
   avatarSize = 36,
+  timeSlot,
   authorUserId,
   placeholderColor,
   onPressUser,
@@ -297,14 +308,14 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                 </View>
               </ProfileHoverCard>
             )}
-            {!!timeLabel && (
+            {timeSlot ?? (!!timeLabel && (
               <Text
                 className="text-muted-foreground text-[15px] leading-tight web:whitespace-nowrap"
                 style={{ flexShrink: 0 }}
               >
                 {'\u00B7'} {timeLabel}
               </Text>
-            )}
+            ))}
             {showBoost && (
               <View accessibilityRole="image" accessibilityLabel="Reposted">
                 <BoostIcon size={INDICATOR_ICON_SIZE} className="text-muted-foreground" />
