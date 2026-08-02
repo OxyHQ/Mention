@@ -785,19 +785,19 @@ export class OutboxSyncService {
         // schema defaults and `PostCreationService` entirely, so a candidate that
         // is not filtered out HERE is stored unchallenged.
         //
-        // Only a LOCAL `inReplyTo` can name a channel post — a remote object,
-        // imported or not, is a federated post and can never carry a `channelId`
-        // (`PostCreationService` refuses that combination outright). So the parse
-        // runs first and the lookup only happens for the URIs that could possibly
-        // matter, which keeps the gate free on the ordinary remote-to-remote reply
-        // that makes up nearly every backfilled thread.
+        // Only a LOCAL `inReplyTo` can name a channel's post — a remote object,
+        // imported or not, is authored by a remote actor, and a remote actor is
+        // never a local channel account. So the parse runs first and the lookup
+        // only happens for the URIs that could possibly matter, which keeps the
+        // gate free on the ordinary remote-to-remote reply that makes up nearly
+        // every backfilled thread.
         //
         // Silently skipped, like every other refusal in this loop: a backfill has
         // no caller to answer and no job to fail.
         if (inReplyToUri) {
           const localParentId = extractLocalPostIdFromApUri(inReplyToUri);
           if (localParentId && (await parentIsChannelPost(localParentId))) {
-            logger.debug('[FedSync] skipped outbox reply to a channel post');
+            logger.debug('[FedSync] skipped outbox reply to a channel-authored post');
             continue;
           }
         }

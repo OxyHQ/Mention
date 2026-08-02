@@ -38,6 +38,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
+  createUserScopedOxyServices: vi.fn(() => undefined),
   getServiceOxyClient: vi.fn(() => ({})),
 }));
 
@@ -82,6 +83,18 @@ function postRow(extra: Record<string, unknown> = {}) {
       return chain;
     },
     lean: () => Promise.resolve({ _id: POST_ID, ...extra }),
+  };
+  return chain;
+}
+
+/** What the ownership-scoped lookup answers for a post this caller does not own. */
+function missingPostRow() {
+  const chain = {
+    select: (fields: string) => {
+      selectSpy(fields);
+      return chain;
+    },
+    lean: () => Promise.resolve(null),
   };
   return chain;
 }
@@ -193,84 +206,62 @@ describe('PATCH /posts/:id/lane', () => {
 });
 
 /**
- * A CHANNEL post may not take a PERSONAL lane — and this path is the one that let
- * it, because it never selected `channelId` and so never passed it to
- * `assertLaneAssignable`.
+ * A CHANNEL post is not reachable through this route at all, and that is the
+ * whole of its channel story now.
  *
- * The validator derives the publisher as `channelId ? 'channel' : 'user'`, so
- * without it a channel post is measured against the CALLER's own lanes. Two
- * invariants break at once, and the second is the serious one:
+ * The lookup is scoped by `{ _id, oxyUserId: userId }`, and a channel is an Oxy
+ * account that AUTHORS its own posts — so a channel post's `oxyUserId` is the
+ * channel, never the caller, and the query simply does not match. The old
+ * deanonymization here (a channel post measured against the CALLER's personal
+ * lanes, then served on a lane tab scoped to that one author) is unreachable by
+ * construction rather than by a passed-through field.
  *
- *  1. "a post with `channelId` never appears on its author's profile"
- *     (`shared-types/src/channel.ts`, rule 3);
- *  2. it DEANONYMIZES. `laneSource`'s user branch queries
- *     `{laneId, oxyUserId: <author>}` and deliberately does NOT apply
- *     `EXCLUDE_CHANNEL_POSTS`, on the stated grounds that the pairing is
- *     impossible by construction. Under `signPosts: false` the DTO is anonymous
- *     but the SURFACE is scoped to one author, so a reader of that lane tab
- *     learns who wrote every "Unknown user" post on it.
+ * The cost is a real gap, stated rather than hidden: a channel post's lane cannot
+ * be MOVED after creation through this route. It can still be set at creation,
+ * where `PostCreationService` measures it against the post's actual owner.
  */
-describe('PATCH /posts/:id/lane — channel posts', () => {
-  const CHANNEL_ID = new mongoose.Types.ObjectId().toString();
+describe('PATCH /posts/:id/lane — a channel post is not this caller\'s to move', () => {
+  const CHANNEL_ACCOUNT = 'oxy-channel-account';
 
-  it('measures the lane against the CHANNEL, not the caller', async () => {
-    postFindOne.mockReturnValue(postRow({ channelId: CHANNEL_ID }));
-
-    await updatePostLane(makeReq({ laneId: LANE_ID }), makeRes() as never);
-
-    // The scoped lookup is the whole fix: a personal lane is invisible to a
-    // channel-scoped query, so it answers 404 exactly as somebody else's would.
-    expect(laneExists).toHaveBeenCalledWith({
-      _id: LANE_ID,
-      ownerType: 'channel',
-      ownerId: CHANNEL_ID,
-    });
-  });
-
-  it('404s a channel post pointed at one of the caller\'s PERSONAL lanes', async () => {
-    postFindOne.mockReturnValue(postRow({ channelId: CHANNEL_ID }));
-    // The lane exists and belongs to the caller, but not to the channel — which
-    // is precisely what the channel-scoped lookup finds nothing for.
-    laneExists.mockResolvedValue(null);
+  it('404s: the ownership-scoped lookup cannot see a post the channel authored', async () => {
+    // The route's own filter is the gate. `postFindOne` answering null IS what a
+    // real `{ _id, oxyUserId: <caller> }` query does for a channel-authored post.
+    postFindOne.mockReturnValue(missingPostRow());
 
     const res = makeRes();
     await updatePostLane(makeReq({ laneId: LANE_ID }), res as never);
 
     expect(res.statusCode).toBe(404);
+    expect(laneExists).not.toHaveBeenCalled();
     expect(postUpdateOne).not.toHaveBeenCalled();
   });
 
-  it('accepts a lane the CHANNEL owns', async () => {
-    postFindOne.mockReturnValue(postRow({ channelId: CHANNEL_ID }));
-    laneExists.mockResolvedValue({ _id: LANE_ID });
-
-    const res = makeRes();
-    await updatePostLane(makeReq({ laneId: LANE_ID }), res as never);
-
-    expect(res.statusCode).toBe(200);
-    expect(postUpdateOne).toHaveBeenCalled();
-  });
-
-  it('CONTROL: an ordinary post is still measured against the caller', async () => {
+  it('scopes the post lookup by the CALLER, which is what makes that true', async () => {
     postFindOne.mockReturnValue(postRow());
 
     await updatePostLane(makeReq({ laneId: LANE_ID }), makeRes() as never);
 
-    expect(laneExists).toHaveBeenCalledWith({
-      _id: LANE_ID,
-      ownerType: 'user',
-      ownerId: USER_ID,
-    });
+    expect(postFindOne).toHaveBeenCalledWith({ _id: POST_ID, oxyUserId: USER_ID });
+    expect(CHANNEL_ACCOUNT).not.toBe(USER_ID);
   });
 
-  it('selects channelId at all — the omission that caused this', async () => {
-    // A projection that does not ask for the field hands `undefined` to the
-    // validator with no error anywhere, which is exactly how this shipped.
-    postFindOne.mockReturnValue(postRow({ channelId: CHANNEL_ID }));
+  it('CONTROL: an ordinary post is measured against its OWNER, one comparison', async () => {
+    postFindOne.mockReturnValue(postRow());
 
     await updatePostLane(makeReq({ laneId: LANE_ID }), makeRes() as never);
 
-    const selected = String(selectSpy.mock.calls[0]?.[0] ?? '');
-    expect(selected.split(/\s+/)).toContain('channelId');
+    expect(laneExists).toHaveBeenCalledWith({ _id: LANE_ID, ownerId: USER_ID });
+  });
+
+  it('projects every field the validator reads', async () => {
+    // A projection that does not ask for a field hands `undefined` to the
+    // validator with no error anywhere — which is exactly how the previous
+    // channel bug shipped.
+    postFindOne.mockReturnValue(postRow());
+
+    await updatePostLane(makeReq({ laneId: LANE_ID }), makeRes() as never);
+
+    const selected = String(selectSpy.mock.calls[0]?.[0] ?? '').split(/\s+/);
+    expect(selected).toEqual(expect.arrayContaining(['parentPostId', 'boostOf', 'laneId']));
   });
 });

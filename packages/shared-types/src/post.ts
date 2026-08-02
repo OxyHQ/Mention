@@ -2,9 +2,8 @@
  * Post-related types for Mention social network
  */
 
-import type { UserNameResponse } from '@oxyhq/contracts';
+import type { AccountKind, UserNameResponse } from '@oxyhq/contracts';
 import { GeoJSONPoint } from './common';
-import type { ChannelSummary } from './channel';
 import type { LaneSummary } from './lane';
 
 export enum PostType {
@@ -708,15 +707,26 @@ export interface CreatePostRequest {
    */
   laneId?: string;
   /**
-   * Publish this post TO a channel, which is a destination rather than a lens: the
-   * post belongs to the channel and ONLY to the channel — it never appears on the
-   * author's profile or in their followers' timeline, and it accepts no replies.
+   * Publish this post AS another Oxy account — today, a `channel` account the
+   * caller operates. The post is AUTHORED BY that account: it carries the
+   * channel's `oxyUserId` and its `authorship`, so it lands on the channel's
+   * profile and in the timelines of the channel's followers, and it renders with
+   * the channel's avatar and name because `user` IS the channel.
    *
-   * The caller must be an ACCEPTED member of the channel (403 otherwise). To put a
-   * channel post on your own profile you boost it; there is no field for that,
-   * because a boost is already the right row with the right owner.
+   * The authenticated human is recorded OUTSIDE `authorship`, in
+   * `writtenByOxyUserId`, and is disclosed only when the channel sets
+   * `signPosts`. Putting them in `authorship` would both break that anonymity and
+   * put the post back on their own profile.
+   *
+   * A channel can never be acted as (`isActAsEligibleKind` refuses it — it is a
+   * content identity, not a seat), so this field, not a session switch, is how a
+   * post comes to be authored by one. The server refuses it (403) unless the
+   * caller is an accepted member of that account.
+   *
+   * To put a channel post on your own profile you boost it; there is no field for
+   * that, because a boost is already the right row with the right owner.
    */
-  channelId?: string;
+  publishAsOxyUserId?: string;
 }
 
 export interface CreateThreadPostRequest {
@@ -823,6 +833,25 @@ export interface PostUser {
   /** Bare Oxy file id (resolved by Bloom's ImageResolver) OR an absolute remote URL. */
   avatar?: string | null;
   verified?: boolean;
+  /**
+   * What the account IS — `personal`, `organization`, `project`, `bot`,
+   * `channel`. Oxy's user DTO already carries it (verified live: a profile read
+   * returns `kind: 'personal'`), and this interface is the canonical Oxy `User`
+   * shape passed through unchanged, so omitting it was the anomaly.
+   *
+   * It earns its place rather than merely fitting: a post authored by a channel
+   * account is an ORDINARY post whose author happens to be a channel, and the
+   * row has to link to `/c/<handle>` instead of `/@<handle>`. Without this the
+   * renderer cannot tell, and the only alternative is to send every author link
+   * to `/@<handle>` and let the profile screen bounce — correct, but a wasted
+   * navigation on every channel post.
+   *
+   * `AccountKind` comes from `@oxyhq/contracts`, which owns the account graph
+   * and which this file already imports from — restating the union here would
+   * be a second definition free to drift from the one the server validates
+   * against.
+   */
+  kind?: AccountKind;
   isFederated?: boolean;
   federation?: { domain?: string; actorUri?: string; actorId?: string };
   instance?: string;
@@ -1049,17 +1078,16 @@ export interface HydratedPostSummary {
    */
   lane?: LaneSummary;
   /**
-   * The channel this post was published to, when it has one — the SIGNATURE of the
-   * row, not a chip: a channel post renders with the channel's avatar and name.
+   * There is deliberately NO `channel` field here.
    *
-   * It is a separate field precisely so nothing can collapse it into `user`. Oxy
-   * owns identity and a channel is not a person; a fabricated `PostUser` would
-   * break `/@handle` links and poison the identity cache.
-   *
-   * When `channel.signPosts` is `false`, `user` carries NO real identity and
-   * `authors` is empty — the anonymity is in the DTO, not in the renderer.
+   * A channel is an Oxy account, so a channel post is authored BY it: `user` IS
+   * the channel, with its real avatar, name and `/c/<handle>` identity. The
+   * previous shape carried the channel alongside a DELIBERATELY DEGRADED `user`,
+   * because Oxy owns identity and no `PostUser` could be fabricated from a
+   * Mention-local channel row — which is exactly the workaround this replaced.
+   * Anything re-adding a channel field is re-introducing a second identity for a
+   * post, and the renderer would once again have to choose between them.
    */
-  channel?: ChannelSummary;
   parentPostId?: string;
   /**
    * Set on every post that IS a reply, on every surface, whatever the feed did

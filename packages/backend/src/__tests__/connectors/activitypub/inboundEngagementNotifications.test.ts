@@ -153,6 +153,11 @@ vi.mock('../../../connectors/activitypub/outbox.service', () => ({
   },
 }));
 
+// The channel reply gate resolves the parent author's account kind here.
+vi.mock('../../../services/publishAsAccount', () => ({
+  isChannelAccount: () => Promise.resolve(false),
+}));
+
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
 
 /** Stub the remote actor (liker/booster/reply-author) resolved via `FederatedActor.findOne`. */
@@ -193,12 +198,13 @@ function stubPostFindOne(options: {
 beforeEach(() => {
   vi.clearAllMocks();
 
-  // The channel reply gate (`utils/channelReplyGate`) reads the parent post
-  // through `Post.findById`. Nothing in this file involves a channel, so the
-  // default is a parent with no `channelId` — which is what makes these replies
-  // reach the assertions below instead of being dropped by the gate.
+  // The channel reply gate (`utils/channelReplyGate`) reads the parent post's
+  // AUTHOR through `Post.findById`, then that author's Oxy account kind. Nothing
+  // in this file involves a channel, so the default is a parent written by a
+  // person — which is what makes these replies reach the assertions below instead
+  // of being dropped by the gate.
   mocks.postFindById.mockImplementation(() => ({
-    select: () => ({ lean: async () => ({ channelId: undefined }) }),
+    select: () => ({ lean: async () => ({ oxyUserId: 'oxy-person' }) }),
   }));
 
   mocks.followExists.mockResolvedValue({ _id: 'follow_1' });

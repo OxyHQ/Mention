@@ -61,25 +61,13 @@ export interface IPost extends Document {
    */
   laneId?: string;
   /**
-   * The channel this post was published TO, when it has one — see `models/Channel`.
-   *
-   * A lane is a lens; a channel is a DESTINATION. A post that carries one belongs
-   * to the channel and only to the channel: it is excluded unconditionally from
-   * every author-relationship query (see `EXCLUDE_CHANNEL_POSTS` in
-   * `utils/postAuthorship`), and it accepts no replies (see
-   * `utils/channelReplyGate`). There is deliberately no companion boolean — the
-   * presence of this field IS the rule, which is what keeps the exclusion a flat
-   * conjunctive term rather than a disjunction `ChronoCursor` would clobber.
-   */
-  channelId?: string;
-  /**
    * The PERSON who wrote this post, when the post's author is a channel account
    * rather than a human.
    *
-   * A channel is becoming a real Oxy account, so `oxyUserId` and `authorship[]`
-   * will hold the CHANNEL. That leaves the writer with nowhere else on the row —
-   * and Mention still needs them: a channel whose `signPosts` is on renders a
-   * "by <writer>" line beneath the channel's byline.
+   * A channel is an Oxy account, so `oxyUserId` and `authorship[]` hold the
+   * CHANNEL. That leaves the writer with nowhere else on the row — and Mention
+   * still needs them: a channel whose `signPosts` is on renders a "by <writer>"
+   * line beneath the channel's byline.
    *
    * **It is its own top-level field and must NEVER be folded into `authorship[]`.**
    * That looks like tidying and breaks two things, both load-bearing:
@@ -87,18 +75,19 @@ export interface IPost extends Document {
    *  - `getHeaderAuthorshipEntries` (`utils/postAuthorship`) would render the
    *    writer as a CO-AUTHOR, so the DTO would name the person a channel with
    *    `signPosts: false` exists to keep anonymous.
-   *  - `buildAuthorFeedMatch` matches on `authorship`, so the post would reappear
-   *    on the writer's OWN profile — exactly what `EXCLUDE_CHANNEL_POSTS` is there
-   *    to prevent. Kept out of `authorship[]`, that clause can eventually be
-   *    deleted; put in, it has to stay forever.
+   *  - `buildAuthorFeedMatch` matches on `authorship`, so the post would appear on
+   *    the writer's OWN profile and in their followers' timelines — the exact
+   *    thing keeping the writer out of `authorship[]` buys, and the reason the
+   *    old `{ channelId: { $exists: false } }` exclusion could be deleted rather
+   *    than carried forever.
    *
    * Both properties are pinned (and mutation-tested) in
    * `__tests__/models/channelAccountSchema.test.ts`.
    *
-   * No `index:` — nothing reads the field yet, and the read it is being added for
-   * takes a post the caller already holds and resolves its writer by id. Adding a
-   * schema index would create nothing in production anyway (`autoIndex` is OFF),
-   * so an index here would be a migration for a query that does not exist.
+   * No `index:` — nothing queries BY writer; the only read takes a post the caller
+   * already holds and resolves its writer by id. Adding a schema index would
+   * create nothing in production anyway (`autoIndex` is OFF), so an index here
+   * would be a migration for a query that does not exist.
    */
   writtenByOxyUserId?: string;
   parentPostId?: string; // for replies
@@ -607,11 +596,6 @@ const PostSchema = new Schema<IPost>({
   // `post_lane_chrono_v1` declared further down, and a redundant single-field
   // index would be pure write cost.
   laneId: { type: String },
-  // No `index:` of its own — the only query that reaches a channel is the
-  // compound `post_channel_chrono_v1` declared further down. The author-surface
-  // EXCLUSION (`{ channelId: { $exists: false } }`) is a residual filter after the
-  // seek on `post_author_chrono_v1`, so it needs no index either.
-  channelId: { type: String },
   // The person behind a channel post — see the field's doc comment on `IPost` for
   // why it is here and NOT an `authorship[]` entry. No `index:`: nothing queries
   // by writer.
@@ -906,26 +890,6 @@ PostSchema.index(
 PostSchema.index(
   { laneId: 1, visibility: 1, status: 1, createdAt: -1, _id: -1 },
   { name: 'post_lane_chrono_v1', partialFilterExpression: { laneId: { $exists: true } } },
-);
-
-// The channel page: one channel's posts, newest first, on the `ChronoCursor`
-// keyset. Same shape and the same reasoning as `post_lane_chrono_v1` above —
-// `partialFilterExpression`, NOT `sparse`, because a compound sparse index covers
-// every document carrying ANY of its keys and every post has `visibility`.
-//
-// The partial filter is `{ $type: 'string' }` rather than `{ $exists: true }`: a
-// stored `null` satisfies `$exists`, so the `$exists` form would index every post
-// the moment some writer set the field to null. Nothing here writes one (the
-// create path sets `channelId` only when there IS a channel, and the delete
-// cascade `$unset`s it), and the type filter is what keeps that true regardless.
-//
-// Deliberately NOT a combined lane+channel index: no query filters on both.
-//
-// NOTE: `autoIndex`/`autoCreate` are OFF in production — created by migration
-// `0024-channel-indexes`, not on model load.
-PostSchema.index(
-  { channelId: 1, visibility: 1, status: 1, createdAt: -1, _id: -1 },
-  { name: 'post_channel_chrono_v1', partialFilterExpression: { channelId: { $type: 'string' } } },
 );
 
 // Saved posts with text search: optimizes saved posts queries with a regex over

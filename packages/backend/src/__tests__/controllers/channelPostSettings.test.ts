@@ -6,12 +6,12 @@ import mongoose from 'mongoose';
  * server never has to rely on `replyPermission` for anything.
  *
  *  - `PATCH /posts/:id/settings` refuses to change `replyPermission` on a channel
- *    post. The 403 on the reply paths reads `channelId` and would hold regardless
- *    — but a change here would UN-HIDE the client's reply button and leave every
- *    reader hitting a refusal they were invited to attempt.
- *  - `POST /posts/thread` refuses a `channelId` outright: in thread mode the
- *    continuations are replies, and a channel post accepts none, so the thread
- *    would be a root in the channel with its body scattered across posts the
+ *    post. The 403 on the reply paths reads the AUTHOR's account kind and would
+ *    hold regardless — but a change here would UN-HIDE the client's reply button
+ *    and leave every reader hitting a refusal they were invited to attempt.
+ *  - `POST /posts/thread` refuses a `publishAsOxyUserId` outright: in thread mode
+ *    the continuations are replies, and a channel post accepts none, so the thread
+ *    would be a root under the channel with its body scattered across posts the
  *    channel refuses.
  */
 
@@ -41,6 +41,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
+  createUserScopedOxyServices: vi.fn(() => undefined),
   getServiceOxyClient: vi.fn(() => ({})),
 }));
 
@@ -50,12 +51,27 @@ vi.mock('../../utils/logger', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
+const isChannelAccount = vi.fn();
+vi.mock('../../services/publishAsAccount', () => ({
+  isChannelAccount: (...args: unknown[]) => isChannelAccount(...args),
+  assertCanPublishAsAccount: vi.fn(
+    async (params: { callerId: string | null }) => params.callerId,
+  ),
+  PublishAsAccessError: class PublishAsAccessError extends Error {
+    readonly status: number;
+    constructor(status: number, message: string) {
+      super(message);
+      this.status = status;
+    }
+  },
+}));
+
 import { createThread, updatePostSettings } from '../../controllers/posts.controller';
 import type { OxyAuthRequest } from '@oxyhq/core/server';
 
 const USER_ID = 'author-1';
 const POST_ID = '507f1f77bcf86cd799439011';
-const CHANNEL_ID = new mongoose.Types.ObjectId().toString();
+const CHANNEL_ACCOUNT = 'oxy-channel-account';
 
 interface MockRes {
   statusCode: number;
@@ -89,6 +105,8 @@ function postDoc(extra: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   postFindOne.mockReset();
+  isChannelAccount.mockReset();
+  isChannelAccount.mockImplementation(async (id: string) => id === CHANNEL_ACCOUNT);
   postCreationCreate.mockReset();
   postCreationCreate.mockResolvedValue({
     _id: new mongoose.Types.ObjectId(),
@@ -103,7 +121,7 @@ describe('PATCH /posts/:id/settings — replyPermission on a channel post', () =
   }
 
   it('400s a replyPermission change on a channel post', async () => {
-    const doc = postDoc({ channelId: CHANNEL_ID });
+    const doc = postDoc({ oxyUserId: CHANNEL_ACCOUNT });
     postFindOne.mockResolvedValue(doc);
 
     const res = makeRes();
@@ -137,7 +155,7 @@ describe('PATCH /posts/:id/settings — replyPermission on a channel post', () =
   });
 
   it('CONTROL: a channel post can still be PINNED — only replies are refused', async () => {
-    const doc = postDoc({ channelId: CHANNEL_ID });
+    const doc = postDoc({ oxyUserId: CHANNEL_ACCOUNT });
     postFindOne.mockResolvedValue(doc);
 
     const res = makeRes();
@@ -148,15 +166,15 @@ describe('PATCH /posts/:id/settings — replyPermission on a channel post', () =
   });
 });
 
-describe('POST /posts/thread — a thread cannot be published to a channel', () => {
+describe('POST /posts/thread — a thread cannot be published as another account', () => {
   function req(body: Record<string, unknown>): OxyAuthRequest {
     return { user: { id: USER_ID }, body } as unknown as OxyAuthRequest;
   }
 
-  it('400s a top-level channelId before writing anything', async () => {
+  it('400s a top-level publishAsOxyUserId before writing anything', async () => {
     const res = makeRes();
     await createThread(
-      req({ mode: 'thread', channelId: CHANNEL_ID, posts: [{ content: { text: 'a' } }] }),
+      req({ mode: 'thread', publishAsOxyUserId: CHANNEL_ACCOUNT, posts: [{ content: { text: 'a' } }] }),
       res as never,
     );
 
@@ -164,10 +182,16 @@ describe('POST /posts/thread — a thread cannot be published to a channel', () 
     expect(postCreationCreate).not.toHaveBeenCalled();
   });
 
-  it('400s a per-entry channelId too', async () => {
+  it('400s a per-entry publishAsOxyUserId too', async () => {
     const res = makeRes();
     await createThread(
-      req({ mode: 'beast', posts: [{ content: { text: 'a' } }, { content: { text: 'b' }, channelId: CHANNEL_ID }] }),
+      req({
+        mode: 'beast',
+        posts: [
+          { content: { text: 'a' } },
+          { content: { text: 'b' }, publishAsOxyUserId: CHANNEL_ACCOUNT },
+        ],
+      }),
       res as never,
     );
 

@@ -113,10 +113,6 @@ vi.mock('../../models/Post', () => ({
   Post: { aggregate: async () => [], updateMany: async () => ({ modifiedCount: 0 }) },
 }));
 
-vi.mock('../../models/Channel', () => ({
-  Channel: { findById: () => ({ select: () => ({ lean: async () => null }) }) },
-}));
-
 vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: async () => new Map(),
 }));

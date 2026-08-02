@@ -106,39 +106,31 @@ export function collectAuthorshipUserIds(authorship: PostAuthorshipEntry[] | und
 }
 
 /**
- * A post published to a channel belongs to the CHANNEL and only to the channel: it
- * never appears on its author's profile, and it never reaches their followers'
- * timeline. To put one on your own profile you BOOST it — a separate row, owned by
- * you, that says so.
+ * The two author-relationship matchers: the profile feed, and the following
+ * timeline.
  *
- * The exclusion is unconditional and lives in the two author-relationship matchers
- * below rather than at their call sites, so a new profile or following query
- * inherits it instead of having to remember it.
+ * **There is deliberately no channel exclusion here any more, and re-adding one
+ * would be a symptom rather than a fix.** A channel post used to be authored by
+ * the PERSON who wrote it and marked with a `channelId`, so a flat
+ * `{ channelId: { $exists: false } }` term was the only thing keeping it off that
+ * person's own profile and out of their followers' timelines. A channel is now an
+ * Oxy account and AUTHORS its own posts, so the `authorship` clause below excludes
+ * it by construction — the writer is recorded in `Post.writtenByOxyUserId`, which
+ * these matchers never look at.
  *
- * **It is a flat conjunctive term, and it can never become an `$or`.**
- * `ChronoCursor.applyToQuery` ASSIGNS `match.$or` rather than merging into it, so
- * a disjunctive spelling of this filter would work on page one and then silently
- * stop filtering on every page after — a channel post leaking onto its author's
- * profile only once the reader scrolls. `$exists: false` also matches every post
- * written before channels existed, so no backfill is needed and no second clause
- * covers the ordinary post.
- *
- * A stored `null` would satisfy `$exists` and wrongly exclude the post, which is
- * why nothing ever writes one: `PostCreationService` sets `channelId` only when
- * there IS a channel, and the delete cascade `$unset`s it.
+ * That makes `Post.writtenByOxyUserId` load-bearing: fold it into `authorship[]`
+ * and every channel post reappears on its writer's surfaces with nothing left to
+ * stop it. Pinned, and mutation-tested, in
+ * `__tests__/models/channelAccountSchema.test.ts`.
  */
-export const EXCLUDE_CHANNEL_POSTS = { channelId: { $exists: false } } as const;
-
 export function buildAuthorFeedMatch(authorId: string): Record<string, unknown> {
   return {
     authorship: { $elemMatch: { oxyUserId: authorId, status: 'accepted' } },
-    ...EXCLUDE_CHANNEL_POSTS,
   };
 }
 
 export function buildFollowedAuthorsMatch(authorIds: string[]): Record<string, unknown> {
   return {
     authorship: { $elemMatch: { oxyUserId: { $in: authorIds }, status: 'accepted' } },
-    ...EXCLUDE_CHANNEL_POSTS,
   };
 }

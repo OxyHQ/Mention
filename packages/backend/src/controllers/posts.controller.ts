@@ -30,7 +30,7 @@ import { metrics } from '../utils/metrics';
 import { postHydrationService, resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
 import { config } from '../config';
 import { mergeHashtags, reconcileMentionIdsForPost } from '../utils/textProcessing';
-import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { createScopedOxyClient, createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { extractFollowingIds } from '../utils/privacyHelpers';
 import { queryInt, queryString } from '../utils/queryParams';
 import { buildTopicSlugMatch } from '../utils/postTopicMatch';
@@ -43,8 +43,12 @@ import { authorVariants, buildPrimaryVariant, resolveVariant, validateAuthorVari
 import { postTranslationService, TranslationRequestError } from '../services/PostTranslationService';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
 import { assertLaneAssignable, LaneAssignmentError } from '../utils/laneAssignment';
-import { assertParentAcceptsReplies, ChannelReplyError, isChannelPost } from '../utils/channelReplyGate';
-import { ChannelAccessError } from '../services/channelAccess';
+import {
+  assertParentAcceptsReplies,
+  ChannelReplyError,
+  postIsAuthoredByChannel,
+} from '../utils/channelReplyGate';
+import { PublishAsAccessError } from '../services/publishAsAccount';
 import { Lane } from '../models/Lane';
 import { sendSuccessResponse } from '../utils/apiHelpers';
 import type { LaneDisplayMode } from '@mention/shared-types';
@@ -400,7 +404,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { content, hashtags, mentions, quoted_post_id, boost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, quotesDisabled, status: incomingStatus, scheduledFor, collaboratorIds, collaboratorHandles, laneId, channelId } = req.body;
+    const { content, hashtags, mentions, quoted_post_id, boost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, quotesDisabled, status: incomingStatus, scheduledFor, collaboratorIds, collaboratorHandles, laneId, publishAsOxyUserId } = req.body;
 
     // Transitional request aliases are measured with a bounded label so their
     // retirement is evidence-based. They never become part of the stored DTO.
@@ -747,13 +751,14 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       // does not own is a 404, and one on a reply or a boost is a 400 — both
       // refusals, never a silent drop.
       laneId: typeof laneId === 'string' ? laneId : null,
-      // Validated inside `create` (see `assertCanPublishToChannel`): a channel the
-      // author is not an accepted member of is a 403 and an unknown one a 404 —
-      // both refusals, never a silent drop, and both raised before anything is
-      // written. `create` is also where a channel post picks up its
-      // `replyPermission: ['nobody']` and loses its MTN and federation fan-out, so
-      // no caller can route around any of it.
-      channelId: typeof channelId === 'string' ? channelId : null,
+      // Validated inside `create` (see `assertCanPublishAsAccount`): an account
+      // the caller is not an active member of is a 403 and one that is not a
+      // channel a 400 — both refusals, never a silent drop, and both raised
+      // before anything is written. `create` is also where the post picks up the
+      // channel as its AUTHOR, the writer as `writtenByOxyUserId`, and
+      // `replyPermission: ['nobody']`, so no caller can route around any of it.
+      publishAsOxyUserId: typeof publishAsOxyUserId === 'string' ? publishAsOxyUserId : null,
+      memberReader: createUserScopedOxyServices(req),
       parentPostId: parentPostId || in_reply_to_status_id || null,
       threadId: threadId || null,
       visibility: resolvedVisibility,
@@ -831,7 +836,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     if (error instanceof LaneAssignmentError) {
       return res.status(error.status).json({ message: error.message });
     }
-    if (error instanceof ChannelReplyError || error instanceof ChannelAccessError) {
+    if (error instanceof ChannelReplyError || error instanceof PublishAsAccessError) {
       return res.status(error.status).json({ message: error.message });
     }
     logger.error('Error creating post', error);
@@ -976,20 +981,20 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Posts array is required and cannot be empty' });
     }
 
-    // A THREAD CANNOT BE PUBLISHED TO A CHANNEL. In `thread` mode the
+    // A THREAD CANNOT BE PUBLISHED AS ANOTHER ACCOUNT. In `thread` mode the
     // continuations are replies, and a channel post accepts no replies — so the
-    // thread would be a root in the channel with its body scattered across posts
-    // the channel refuses. In `beast` mode the entries are independent posts and
-    // could each carry one, but a batch endpoint is the wrong place to introduce
-    // a second membership check, and nothing asks for it. Refused for the whole
-    // request, before anything is written; the same shape the collaborator refusal
-    // above takes, and for the same reason (a partial thread cannot be undone in
-    // one action).
-    const threadNamesAChannel =
-      typeof req.body.channelId === 'string' ||
-      posts.some((p: { channelId?: unknown }) => typeof p?.channelId === 'string');
-    if (threadNamesAChannel) {
-      return res.status(400).json({ message: 'Threads cannot be published to a channel' });
+    // thread would be a root under the channel with its body scattered across
+    // posts the channel refuses. In `beast` mode the entries are independent posts
+    // and could each carry one, but a batch endpoint is the wrong place to
+    // introduce a second membership check, and nothing asks for it. Refused for
+    // the whole request, before anything is written; the same shape the
+    // collaborator refusal above takes, and for the same reason (a partial thread
+    // cannot be undone in one action).
+    const threadNamesAnotherAccount =
+      typeof req.body.publishAsOxyUserId === 'string' ||
+      posts.some((p: { publishAsOxyUserId?: unknown }) => typeof p?.publishAsOxyUserId === 'string');
+    if (threadNamesAnotherAccount) {
+      return res.status(400).json({ message: 'A thread cannot be published as another account' });
     }
 
     // Lanes are validated for the WHOLE batch before a single post is written.
@@ -1843,9 +1848,9 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
       // reader hitting a 403 they were invited to attempt. The stored `['nobody']`
       // is defence in depth precisely because it is what the client reads, so it
       // has to stay put.
-      if (isChannelPost(post)) {
+      if (await postIsAuthoredByChannel(post)) {
         return res.status(400).json({
-          message: 'A post published to a channel does not accept replies',
+          message: 'A post published by a channel does not accept replies',
         });
       }
       const validPermissions = ['anyone', 'followers', 'following', 'mentioned', 'nobody'];
@@ -1929,13 +1934,12 @@ export const updatePostLane = async (req: AuthRequest, res: Response) => {
     }
 
     const post = await Post.findOne({ _id: req.params.id, oxyUserId: userId })
-      .select('parentPostId boostOf laneId channelId')
+      .select('parentPostId boostOf laneId')
       .lean<{
         _id: unknown;
         parentPostId?: string;
         boostOf?: string;
         laneId?: string;
-        channelId?: string;
       } | null>();
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
@@ -1944,21 +1948,15 @@ export const updatePostLane = async (req: AuthRequest, res: Response) => {
     // The SAME rule the create path applies, from the same definition: a lane
     // belongs to its publisher, and replies/boosts carry none.
     //
-    // **`channelId` is not optional here, and omitting it was a deanonymization.**
-    // `assertLaneAssignable` derives the publisher as `channelId ? 'channel' :
-    // 'user'`, so without it a CHANNEL post is measured against the CALLER's own
-    // personal lanes and can be moved into one. `laneSource`'s user branch then
-    // serves that lane scoped by `{ laneId, oxyUserId: <author> }` — and it
-    // deliberately does NOT apply `EXCLUDE_CHANNEL_POSTS`, precisely because this
-    // pairing is supposed to be impossible by construction. The DTO still renders
-    // anonymous under `signPosts: false`, but the SURFACE is the author's own lane
-    // tab, so anyone reading it learns which author wrote every "Unknown user"
-    // post on it. `PostCreationService.create` has always passed this; this was
-    // the one write path that did not.
+    // The publisher is `userId` rather than something read off the post, and the
+    // two cannot disagree: the lookup above is already scoped by
+    // `{ oxyUserId: userId }`, so a post authored by any other account — a channel
+    // included — is a 404 here and never reaches this call. That is also the limit
+    // of this route today: a channel post's lane is not movable through it, since
+    // the channel is the author and the caller is not.
     await assertLaneAssignable({
       laneId,
       authorId: userId,
-      channelId: post.channelId,
       parentPostId: post.parentPostId,
       boostOf: post.boostOf,
     });

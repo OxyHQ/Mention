@@ -174,96 +174,48 @@ export const viewerQueryKeys = {
    */
   lanesForOwner: (
     viewerId: ViewerId,
-    ownerType: string,
     ownerId: string | null | undefined,
   ) => [
     ...viewerQueryKeys.lanesRoot(viewerId),
     'owner',
-    ownerType,
     ownerId ?? '',
   ] as const,
-  channelsRoot: (viewerId: ViewerId) => [
+  /**
+   * The lanes of ANOTHER account the caller operates — a channel account — as
+   * that account's operator manages them.
+   *
+   * Separate from {@link ownedLanes} because it names a different account, and
+   * from {@link lanesForOwner} because it answers a DIFFERENT list: the
+   * management read (`GET /lanes/mine?ownerId=`) includes `mixed` and `hidden`
+   * lanes, while the public read is the tab list only. One cached under the
+   * other would offer lanes the server never showed.
+   */
+  operatedLanes: (viewerId: ViewerId, ownerId: string) => [
+    ...viewerQueryKeys.lanesRoot(viewerId),
+    'operated',
+    ownerId,
+  ] as const,
+  /**
+   * The Oxy accounts the caller operates, as the composer's "publish as" picker
+   * reads them. One key for the whole account graph — the picker filters it down
+   * to channel accounts itself, and a second key per kind would fan the same
+   * request out twice.
+   */
+  operatedAccounts: (viewerId: ViewerId) => [
     ...viewerQueryKeys.all(viewerId),
-    'channels',
+    'accounts',
+    'operated',
   ] as const,
   /**
-   * The directory, keyed by viewer because a signed-in reader's page EXCLUDES the
-   * channels they already follow — the same list is a different list per reader.
+   * The Mention-owned settings of ONE channel account, keyed by that account's
+   * `oxyUserId` — not by the caller's, because a channel has no login of its own
+   * and its operator reads it on its behalf.
    */
-  channelDirectory: (viewerId: ViewerId) => [
-    ...viewerQueryKeys.channelsRoot(viewerId),
-    'directory',
-  ] as const,
-  /**
-   * ONE channel, keyed by whatever spelling the URL carried (id or handle) — the
-   * backend resolves both, and keying by the raw segment keeps the page's own
-   * fetch and its invalidations talking about the same thing.
-   */
-  channel: (viewerId: ViewerId, idOrHandle: string) => [
-    ...viewerQueryKeys.channelsRoot(viewerId),
-    'detail',
-    idOrHandle,
-  ] as const,
-  channelMembers: (viewerId: ViewerId, idOrHandle: string) => [
-    ...viewerQueryKeys.channel(viewerId, idOrHandle),
-    'members',
-  ] as const,
-  /** The channels the caller may publish to. */
-  ownedChannels: (viewerId: ViewerId) => [
-    ...viewerQueryKeys.channelsRoot(viewerId),
-    'mine',
-  ] as const,
-  /**
-   * The channels the caller READS — a different question from `ownedChannels`,
-   * backed by a different model (`ChannelFollow` rather than `ChannelMember`), so
-   * a different key rather than a parameter on the same one.
-   */
-  followedChannels: (viewerId: ViewerId) => [
-    ...viewerQueryKeys.channelsRoot(viewerId),
-    'following',
-  ] as const,
-  /** Membership invitations awaiting the caller's answer. */
-  channelInvites: (viewerId: ViewerId) => [
-    ...viewerQueryKeys.channelsRoot(viewerId),
-    'invites',
-  ] as const,
-  /**
-   * Profiles matching a SUBMITTED search term on the owner's invite screen.
-   *
-   * Inside the channel namespace rather than a generic search one so a
-   * membership write clears it along with everything else it invalidates — the
-   * rows carry an "already invited" state that a stale result would keep
-   * offering.
-   */
-  channelInviteSearch: (viewerId: ViewerId, term: string) => [
-    ...viewerQueryKeys.channelsRoot(viewerId),
-    'invite-search',
-    term,
-  ] as const,
-  /**
-   * A CHANNEL's lanes, as the composer offers them when publishing into it.
-   *
-   * `manage` is part of the key because the two reads answer DIFFERENT lists:
-   * the owner's management view (`GET /lanes/mine?channelId=`) includes `mixed`
-   * and `hidden` lanes, while a publisher can only read the public tab list. One
-   * cached under the other would offer a publisher lanes the server never showed
-   * them.
-   */
-  channelLanes: (viewerId: ViewerId, channelId: string, manage: boolean) => [
-    ...viewerQueryKeys.channelsRoot(viewerId),
-    'lanes',
-    channelId,
-    manage ? 'manage' : 'public',
-  ] as const,
-  /**
-   * Readable names for the channels pinned as home tabs. Keyed by the id SET, so
-   * pinning or unpinning one re-resolves the labels instead of serving a map that
-   * is missing an entry.
-   */
-  channelTitles: (viewerId: ViewerId, channelIds: readonly string[]) => [
-    ...viewerQueryKeys.channelsRoot(viewerId),
-    'titles',
-    channelIds,
+  channelAccountSettings: (viewerId: ViewerId, accountId: string) => [
+    ...viewerQueryKeys.all(viewerId),
+    'accounts',
+    'channel-settings',
+    accountId,
   ] as const,
   pokesRoot: (viewerId: ViewerId) => [
     ...viewerQueryKeys.all(viewerId),

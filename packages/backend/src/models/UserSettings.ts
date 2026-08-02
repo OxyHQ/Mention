@@ -107,9 +107,9 @@ export interface InterestsSettings {
 /**
  * Settings that apply only when the account these settings belong to IS a channel.
  *
- * A channel is becoming a real Oxy account, and `UserSettings` is keyed on
- * `oxyUserId` — which a channel account has — so this is the one place a
- * per-channel preference can live. It cannot live in Oxy: Oxy owns identity and
+ * A channel IS a real Oxy account, and `UserSettings` is keyed on `oxyUserId` —
+ * which a channel account has — so this is the one place a per-channel preference
+ * can live. It cannot live in Oxy: Oxy owns identity and
  * has no concept of signing a post, and Mention-owned settings do not belong
  * there. The subdocument is ABSENT on a person's settings, which is what makes
  * "is this account a channel" a question nothing here has to answer.
@@ -120,9 +120,16 @@ export interface ChannelAccountSettings {
    * (rendered as a "by <writer>" line beneath the channel's byline; the writer
    * itself is stored on `Post.writtenByOxyUserId`).
    *
-   * `false` is the default, matching `Channel.signPosts` — a channel post is
-   * anonymous behind the channel unless its owner says otherwise. Getting the
-   * default backwards would publish every writer's identity by omission.
+   * `false` is the default: a channel post is anonymous behind the channel unless
+   * its owner says otherwise. Getting the default backwards would publish every
+   * writer's identity by omission.
+   *
+   * NOTHING READS THIS YET. `HydratedPostSummary` carries no field for the
+   * writer, so `Post.writtenByOxyUserId` never reaches a DTO and the `true` case
+   * has nowhere to render — which also means the `false` case is currently
+   * enforced structurally rather than by this flag. Adding the disclosure means
+   * adding the wire field first, in `@mention/shared-types`; until then this is
+   * the seam, not the behaviour.
    */
   signPosts: boolean;
 }
@@ -267,8 +274,7 @@ const InterestsSchema = new Schema<InterestsSettings>({
 }, { _id: false });
 
 // Channel-only settings. The subdocument itself has NO default, so it stays absent
-// on a person's settings — only `signPosts` inside it defaults, and it defaults to
-// `false` exactly as `Channel.signPosts` does.
+// on a person's settings — only `signPosts` inside it defaults, to `false`.
 const ChannelAccountSchema = new Schema<ChannelAccountSettings>({
   signPosts: { type: Boolean, default: false },
 }, { _id: false });

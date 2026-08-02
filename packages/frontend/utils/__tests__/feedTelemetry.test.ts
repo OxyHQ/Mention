@@ -110,12 +110,11 @@ describe('resolveFeedDescriptor', () => {
         expect(resolveFeedDescriptor('posts', undefined, { laneId: 'lane-1' }, true)).toBe('saved');
     });
 
-    // Same trap as the lane tab above, and a worse one to hit: a channel's posts
-    // belong to nobody's profile, so `author|<id>` would not merely be the wrong
-    // feed — it would be a feed those posts are excluded from entirely.
-    it('maps a channel page to channel|<channelId>, ahead of the author feed', () => {
-        expect(resolveFeedDescriptor('mixed', undefined, { channelId: 'channel-1' })).toBe('channel|channel-1');
-        expect(resolveFeedDescriptor('mixed', 'user-123', { channelId: 'channel-1' })).toBe('channel|channel-1');
+    // A CHANNEL's page needs no branch of its own: a channel is an Oxy account,
+    // so its page IS that account's author feed and `author|<id>` is the correct
+    // attribution rather than a near miss.
+    it('attributes a channel account page to its author feed', () => {
+        expect(resolveFeedDescriptor('posts', 'channel-account-1')).toBe('author|channel-account-1');
     });
 });
 

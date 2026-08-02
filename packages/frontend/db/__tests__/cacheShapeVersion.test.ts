@@ -6,14 +6,18 @@ import { SCHEMA_VERSION } from '../migrations';
 /**
  * The local cache keeps most of a post as a serialized `FeedItem` in `raw_json`,
  * and `rowToFeedItem` spreads whatever it finds there. So the payload's shape
- * drifts independently of every column: adding a field to `toFeedItem` changes
- * what NEW rows carry while every row already on disk keeps answering with the
- * old shape — forever, since nothing evicts it.
+ * drifts independently of every column: changing what `toFeedItem` carries
+ * changes what NEW rows hold while every row already on disk keeps answering
+ * with the old shape — forever, since nothing evicts it.
  *
  * That is not theoretical. `lane` and `channel` were added to the converter
  * without a schema bump, and channel posts rendered as "Unknown user" from cache
  * while the same post fetched fresh rendered correctly. It looks like a render
  * bug and is not one, which is what made it expensive to find.
+ *
+ * REMOVING a field is the same hazard from the other side, which is why v8 exists:
+ * `channel` is gone from the converter, but a v7 row on disk still carries one
+ * beside the degraded `user` the old backend paired it with.
  *
  * `SCHEMA_VERSION` is the only thing that evicts a stale row, and its own
  * docstring used to say "bump when the table definitions change" — which this
@@ -26,7 +30,6 @@ const PERSISTED_POST_KEYS = [
   'authors',
   'authorship',
   'boost',
-  'channel',
   'content',
   'context',
   'date',
@@ -46,7 +49,7 @@ const PERSISTED_POST_KEYS = [
 ] as const;
 
 /** The version that must ship with the key set above. */
-const VERSION_FOR_THESE_KEYS = 7;
+const VERSION_FOR_THESE_KEYS = 8;
 
 function makeFullyPopulatedPost(): HydratedPost {
   return {
@@ -91,7 +94,6 @@ function makeFullyPopulatedPost(): HydratedPost {
       updatedAt: '2026-08-02T00:00:00.000Z',
     },
     lane: { id: 'lane-1', name: 'Opinion', displayMode: 'mixed' },
-    channel: { id: 'ch-1', handle: 'nateonoxy', title: 'Nate on Oxy', signPosts: false },
     originalPost: null,
     quotedPost: null,
     boost: null,

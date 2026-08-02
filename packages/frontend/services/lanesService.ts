@@ -1,7 +1,6 @@
 import type {
   CreateLaneRequest,
   Lane,
-  LaneOwnerType,
   LaneSummary,
   MutedLane,
   UpdateLaneRequest,
@@ -36,29 +35,33 @@ class LanesService {
    *
    * `mixed` has no tab of its own and `hidden` is off the showcase, so the
    * server returns neither — this is exactly the tab list, not a lane list.
+   *
+   * `ownerId` is an `oxyUserId`. A channel is an Oxy account, so a channel's
+   * lanes and a person's are the SAME question asked of a different account —
+   * there is no owner-type discriminator to pass.
    */
-  async listForOwner(ownerId: string, ownerType: LaneOwnerType = 'user'): Promise<Lane[]> {
+  async listForOwner(ownerId: string): Promise<Lane[]> {
     // `publicApi` is raw axios and hands back the backend's `{ data }` envelope
     // VERBATIM — unlike `authenticatedClient`, which is the Oxy linked client and
     // peels it. The two are not interchangeable, and forgetting that here returns
     // the envelope where an array is expected: the `.map` in the caller throws
     // inside React Query, the query lands in an error state, and a profile
     // silently shows no lane tabs at all.
-    const res = await publicApi.get<{ data?: Lane[] }>(LANES_PATH, { ownerType, ownerId });
+    const res = await publicApi.get<{ data?: Lane[] }>(LANES_PATH, { ownerId });
     return res.data?.data ?? [];
   }
 
   /**
    * The caller's own lanes, newest first, each with its current post count.
    *
-   * With `channelId`, the lanes of a CHANNEL instead — the management view, so
-   * unlike {@link listForOwner} it includes `mixed` and `hidden` lanes. The
-   * server allows it only to the channel's OWNER (403 otherwise), so a mere
-   * publisher has to read that channel's lanes through the public list.
+   * With `ownerId`, the lanes of another account the caller operates — a channel
+   * account — instead. That is the management view, so unlike
+   * {@link listForOwner} it includes `mixed` and `hidden` lanes; the server
+   * allows it only to an operator of that account (403 otherwise).
    */
-  async listMine(channelId?: string): Promise<Lane[]> {
-    const res = channelId
-      ? await authenticatedClient.get<Lane[]>(`${LANES_PATH}/mine`, { params: { channelId } })
+  async listMine(ownerId?: string): Promise<Lane[]> {
+    const res = ownerId
+      ? await authenticatedClient.get<Lane[]>(`${LANES_PATH}/mine`, { params: { ownerId } })
       : await authenticatedClient.get<Lane[]>(`${LANES_PATH}/mine`);
     return res.data ?? [];
   }

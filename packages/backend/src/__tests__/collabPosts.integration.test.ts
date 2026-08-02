@@ -26,12 +26,11 @@ describe('collaborative posts integration', () => {
   });
 
   it('author feed match uses authorship elemMatch only (no legacy oxyUserId fallback)', () => {
-    // The channel exclusion is a SECOND, unrelated term (see
-    // `EXCLUDE_CHANNEL_POSTS`); what this test guards is that the AUTHOR half is
-    // an `authorship` elemMatch and nothing else — no `oxyUserId` `$or` fallback.
+    // The AUTHOR half is an `authorship` elemMatch and nothing else — no
+    // `oxyUserId` `$or` fallback, and (since a channel authors its own posts) no
+    // channel-exclusion term either.
     expect(buildAuthorFeedMatch('user-x')).toEqual({
       authorship: { $elemMatch: { oxyUserId: 'user-x', status: 'accepted' } },
-      channelId: { $exists: false },
     });
   });
 

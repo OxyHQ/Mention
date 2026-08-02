@@ -6,7 +6,8 @@ import { useTranslation } from 'react-i18next';
 import { Item } from '@oxyhq/bloom/item';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useAuth } from '@oxyhq/services/ui/client';
-import type { Channel, Lane } from '@mention/shared-types';
+import type { AccountNode } from '@oxyhq/core';
+import type { Lane } from '@mention/shared-types';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { IconButton } from '@/components/ui/Button';
 import { lanesService } from '@/services/lanesService';
@@ -18,14 +19,14 @@ interface LanePickerSheetProps {
   /** `null` clears the lane — the post goes out on no carriageway at all. */
   onSelect: (laneId: string | null) => void;
   /**
-   * The channel this post is being published TO, when there is one.
+   * The account this post is being published AS, when it is not the author.
    *
-   * A lane belongs to its PUBLISHER, and for a channel post the publisher is the
-   * channel — so the list has to be the channel's lanes, not the author's. The
-   * author's own lane on a channel post is not merely irrelevant, it is refused:
-   * the server checks a lane's owner before assigning it.
+   * A lane belongs to its PUBLISHER, and the publisher is whoever the post is
+   * authored by — so a post published as a channel account has to offer THAT
+   * account's lanes. The author's own lane on it is not merely irrelevant, it is
+   * refused: the server checks a lane's owner before assigning it.
    */
-  channel?: Channel | null;
+  publishAs?: AccountNode | null;
   onClose: () => void;
 }
 
@@ -46,27 +47,31 @@ const keyExtractor = (lane: Lane) => lane.id;
 const LanePickerSheet = memo(function LanePickerSheet({
   selectedLaneId,
   onSelect,
-  channel,
+  publishAs,
   onClose,
 }: LanePickerSheetProps) {
   const { t } = useTranslation();
   const { user, canUsePrivateApi } = useAuth();
 
-  // Only the channel's OWNER may read its management list; a publisher gets the
-  // public one, which is tab lanes only. The owner test comes off the DTO the
+  // Only an account's OWNER may read its management list; a mere member gets the
+  // public one, which is tab lanes only. The role comes off the account node the
   // composer already holds, so it costs no extra request — and asking the wrong
   // endpoint would answer 403 rather than an empty list.
-  const managesChannel = channel != null && channel.ownerOxyUserId === user?.id;
+  const managesPublisher =
+    publishAs != null &&
+    (publishAs.relationship === 'owner' || publishAs.callerMembership?.role === 'owner');
 
   const { data: lanes = [], isLoading } = useQuery<Lane[]>({
-    queryKey: channel
-      ? viewerQueryKeys.channelLanes(user?.id, channel.id, managesChannel)
+    queryKey: publishAs
+      ? managesPublisher
+        ? viewerQueryKeys.operatedLanes(user?.id, publishAs.accountId)
+        : viewerQueryKeys.lanesForOwner(user?.id, publishAs.accountId)
       : viewerQueryKeys.ownedLanes(user?.id),
     queryFn: () => {
-      if (!channel) return lanesService.listMine();
-      return managesChannel
-        ? lanesService.listMine(channel.id)
-        : lanesService.listForOwner(channel.id, 'channel');
+      if (!publishAs) return lanesService.listMine();
+      return managesPublisher
+        ? lanesService.listMine(publishAs.accountId)
+        : lanesService.listForOwner(publishAs.accountId);
     },
     enabled: canUsePrivateApi,
   });
@@ -121,7 +126,7 @@ const LanePickerSheet = memo(function LanePickerSheet({
         onPress={() => handleSelect(null)}
         title={t('lanes.picker.none', { defaultValue: 'No lane' })}
         subtitle={
-          channel
+          publishAs
             ? t('lanes.picker.noneSubtitleChannel', {
                 defaultValue: 'The post appears on the channel’s main tab',
               })
@@ -159,10 +164,10 @@ const LanePickerSheet = memo(function LanePickerSheet({
       )}
 
       {/* `/lanes` manages the AUTHOR's lanes, which are not the ones listed while
-          publishing to a channel. A channel's lanes have no management screen of
-          their own yet, so the way out is omitted rather than pointed somewhere
-          that would edit the wrong publisher's lanes. */}
-      {channel ? null : (
+          publishing as another account. A channel account's lanes have no
+          management screen of their own yet, so the way out is omitted rather
+          than pointed somewhere that would edit the wrong publisher's lanes. */}
+      {publishAs ? null : (
         <View className="mt-2 mx-4">
           <TouchableOpacity
             onPress={handleManage}

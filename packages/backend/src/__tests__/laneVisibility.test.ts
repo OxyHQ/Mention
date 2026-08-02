@@ -60,26 +60,26 @@ describe('loadExcludedLaneIds', () => {
   it('queries the publisher\'s lanes in the requested modes and returns their ids', async () => {
     findResolves([{ _id: 'lane-1' }, { _id: 'lane-2' }]);
 
-    const ids = await loadExcludedLaneIds('user', 'u1', ['tab', 'hidden']);
+    const ids = await loadExcludedLaneIds('u1', ['tab', 'hidden']);
 
     expect(laneFind).toHaveBeenCalledWith(
-      { ownerType: 'user', ownerId: 'u1', displayMode: { $in: ['tab', 'hidden'] } },
+      { ownerId: 'u1', displayMode: { $in: ['tab', 'hidden'] } },
       { _id: 1 },
     );
     expect(ids).toEqual(['lane-1', 'lane-2']);
   });
 
-  it('scopes by owner TYPE, so a channel lane never curates a user profile', async () => {
-    await loadExcludedLaneIds('channel', 'c1', ['hidden']);
+  it('scopes by OWNER, so one publisher\'s lane never curates another\'s profile', async () => {
+    await loadExcludedLaneIds('channel-account', ['hidden']);
     expect(laneFind).toHaveBeenCalledWith(
-      { ownerType: 'channel', ownerId: 'c1', displayMode: { $in: ['hidden'] } },
+      { ownerId: 'channel-account', displayMode: { $in: ['hidden'] } },
       { _id: 1 },
     );
   });
 
   it('skips the query entirely for a missing owner or an empty mode set', async () => {
-    expect(await loadExcludedLaneIds('user', '', ['hidden'])).toEqual([]);
-    expect(await loadExcludedLaneIds('user', 'u1', [])).toEqual([]);
+    expect(await loadExcludedLaneIds('', ['hidden'])).toEqual([]);
+    expect(await loadExcludedLaneIds('u1', [])).toEqual([]);
     expect(laneFind).not.toHaveBeenCalled();
   });
 
@@ -88,7 +88,7 @@ describe('loadExcludedLaneIds', () => {
 
     // `[]` means "exclude nothing", so a lookup failure shows a post the owner
     // meant to tuck away — far smaller harm than showing them nothing at all.
-    await expect(loadExcludedLaneIds('user', 'u1', ['hidden'])).resolves.toEqual([]);
+    await expect(loadExcludedLaneIds('u1', ['hidden'])).resolves.toEqual([]);
   });
 });
 
@@ -98,7 +98,6 @@ describe('ownerHasProfileAffectingLane', () => {
 
     await expect(ownerHasProfileAffectingLane('u1')).resolves.toBe(true);
     expect(laneExists).toHaveBeenCalledWith({
-      ownerType: 'user',
       ownerId: 'u1',
       displayMode: { $in: ['tab', 'hidden'] },
     });

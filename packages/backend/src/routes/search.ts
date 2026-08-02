@@ -36,7 +36,6 @@ const SEARCH_HYDRATION_PROJECTION = [
   'boostOf',
   'quoteOf',
   'laneId',
-  'channelId',
   'originalPostId',
   'parentPostId',
   'threadId',

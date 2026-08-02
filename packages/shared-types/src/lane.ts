@@ -8,10 +8,13 @@
  *  - the OWNER curates their showcase with {@link LaneDisplayMode}, and
  *  - a READER can mute one lane of one publisher without unfollowing them.
  *
- * A lane belongs to a PUBLISHER, and a publisher is a user OR a channel
- * ({@link LaneOwnerType}) — channels curate their own page exactly the way a user
- * curates a profile. The polymorphic owner exists from the first row on purpose:
- * adding it later would mean migrating every lane already written.
+ * A lane belongs to a PUBLISHER, identified by a single `ownerId` — an Oxy
+ * `oxyUserId`. A channel is an Oxy account, so a channel curating its page and a
+ * person curating their profile are THE SAME CASE, not two. The owner used to be
+ * polymorphic (`ownerType: 'user' | 'channel'`) because a channel was a
+ * Mention-local row with an id from a different space; once it became an account
+ * that discriminator had exactly one reachable value, and a single-valued enum is
+ * a branch every reader has to prove is dead.
  *
  * There is deliberately NO slug (the tab routes by id, so a rename cannot break a
  * URL) and NO denormalized post count (a wrong counter is worse than none — the
@@ -19,9 +22,6 @@
  */
 
 import type { PostUser } from './post';
-
-/** Who a lane belongs to. A channel curates its page the way a user curates a profile. */
-export type LaneOwnerType = 'user' | 'channel';
 
 /**
  * Where the publisher's showcase shows a lane's posts.
@@ -37,24 +37,15 @@ export type LaneDisplayMode = 'mixed' | 'tab' | 'hidden';
 /** {@link LaneDisplayMode} as a runtime list, for validation and pickers. */
 export const LANE_DISPLAY_MODES: readonly LaneDisplayMode[] = ['mixed', 'tab', 'hidden'];
 
-/** {@link LaneOwnerType} as a runtime list, for validation. */
-export const LANE_OWNER_TYPES: readonly LaneOwnerType[] = ['user', 'channel'];
-
 /** Narrow an arbitrary string to a {@link LaneDisplayMode}. */
 export function isLaneDisplayMode(value: string | undefined): value is LaneDisplayMode {
   return value !== undefined && (LANE_DISPLAY_MODES as readonly string[]).includes(value);
 }
 
-/** Narrow an arbitrary string to a {@link LaneOwnerType}. */
-export function isLaneOwnerType(value: string | undefined): value is LaneOwnerType {
-  return value !== undefined && (LANE_OWNER_TYPES as readonly string[]).includes(value);
-}
-
 /** A lane as its owner manages it. */
 export interface Lane {
   id: string;
-  ownerType: LaneOwnerType;
-  /** The publisher's id: an `oxyUserId` for `user`, a channel id for `channel`. */
+  /** The publisher's `oxyUserId` — a person or a channel account alike. */
   ownerId: string;
   name: string;
   displayMode: LaneDisplayMode;

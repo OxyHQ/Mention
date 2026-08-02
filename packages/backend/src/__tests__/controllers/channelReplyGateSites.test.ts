@@ -18,6 +18,10 @@ import mongoose from 'mongoose';
  *
  * Every refusal is paired with a control: an ordinary parent, and a parent
  * carrying a `laneId`, still accept replies. A lane is a lens, not a destination.
+ *
+ * The gate keys on the parent AUTHOR's Oxy account kind, so `isChannelAccount` is
+ * the seam these tests drive — mocked at `services/publishAsAccount`, the one
+ * module that knows what a channel account is.
  */
 
 const postFindById = vi.fn();
@@ -55,6 +59,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
+  createUserScopedOxyServices: vi.fn(() => undefined),
   getServiceOxyClient: vi.fn(() => ({})),
 }));
 
@@ -65,13 +70,28 @@ vi.mock('../../utils/logger', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
+const isChannelAccount = vi.fn();
+vi.mock('../../services/publishAsAccount', () => ({
+  isChannelAccount: (...args: unknown[]) => isChannelAccount(...args),
+  assertCanPublishAsAccount: vi.fn(
+    async (params: { callerId: string | null }) => params.callerId,
+  ),
+  PublishAsAccessError: class PublishAsAccessError extends Error {
+    readonly status: number;
+    constructor(status: number, message: string) {
+      super(message);
+      this.status = status;
+    }
+  },
+}));
+
 import { feedController } from '../../controllers/feed.controller';
 import { createPost } from '../../controllers/posts.controller';
 import type { OxyAuthRequest } from '@oxyhq/core/server';
 
 const USER_ID = 'author-1';
 const PARENT_ID = new mongoose.Types.ObjectId().toString();
-const CHANNEL_ID = new mongoose.Types.ObjectId().toString();
+const CHANNEL_ACCOUNT = 'oxy-channel-account';
 const LANE_ID = new mongoose.Types.ObjectId().toString();
 
 interface MockRes {
@@ -116,6 +136,8 @@ beforeEach(() => {
   postFindById.mockReset();
   postFindOne.mockReset();
   postCreate.mockReset();
+  isChannelAccount.mockReset();
+  isChannelAccount.mockImplementation(async (id: string) => id === CHANNEL_ACCOUNT);
   postCreationCreate.mockReset();
   postCreationCreate.mockResolvedValue({
     _id: new mongoose.Types.ObjectId(),
@@ -132,10 +154,10 @@ describe('site 1 — feed.controller.createReply', () => {
     } as unknown as OxyAuthRequest;
   }
 
-  it('refuses a reply to a channel post with 403, even for the post\'s OWN author', async () => {
+  it('refuses a reply to a channel post with 403, even for the channel\'s own member', async () => {
     // The author-replying-to-themselves escape inside the reply-permission block
-    // is exactly what this gate has to sit above: `oxyUserId === USER_ID` here.
-    postFindById.mockReturnValue(parentDoc({ channelId: CHANNEL_ID }));
+    // is exactly what this gate has to sit above.
+    postFindById.mockReturnValue(parentDoc({ oxyUserId: CHANNEL_ACCOUNT }));
     const res = makeRes();
     await feedController.createReply(replyReq(), res as never);
     expect(res.statusCode).toBe(403);
@@ -146,7 +168,7 @@ describe('site 1 — feed.controller.createReply', () => {
     // The permission block is SKIPPED for `['anyone']`, so a gate placed inside it
     // would never run on an ordinary post. This asserts it is placed above.
     postFindById.mockReturnValue(
-      parentDoc({ channelId: CHANNEL_ID, replyPermission: ['anyone'] }),
+      parentDoc({ oxyUserId: CHANNEL_ACCOUNT, replyPermission: ['anyone'] }),
     );
     const res = makeRes();
     await feedController.createReply(replyReq(), res as never);
@@ -181,7 +203,7 @@ describe('site 2 — POST /posts carrying a parent id', () => {
   }
 
   it('refuses a reply to a channel post with 403 via parentPostId', async () => {
-    postFindById.mockReturnValue(projection({ channelId: CHANNEL_ID }));
+    postFindById.mockReturnValue(projection({ oxyUserId: CHANNEL_ACCOUNT }));
     const res = makeRes();
     await createPost(postReq({ parentPostId: PARENT_ID }), res as never);
     expect(res.statusCode).toBe(403);
@@ -192,7 +214,7 @@ describe('site 2 — POST /posts carrying a parent id', () => {
     // The controller accepts BOTH spellings and hands whichever it got to
     // `PostCreationService` as `parentPostId`; a gate reading only one of them
     // would leave the other as the back door.
-    postFindById.mockReturnValue(projection({ channelId: CHANNEL_ID }));
+    postFindById.mockReturnValue(projection({ oxyUserId: CHANNEL_ACCOUNT }));
     const res = makeRes();
     await createPost(postReq({ in_reply_to_status_id: PARENT_ID }), res as never);
     expect(res.statusCode).toBe(403);
@@ -200,7 +222,7 @@ describe('site 2 — POST /posts carrying a parent id', () => {
   });
 
   it('CONTROL: an ordinary parent still accepts a reply', async () => {
-    postFindById.mockReturnValue(projection({ channelId: undefined }));
+    postFindById.mockReturnValue(projection({ oxyUserId: USER_ID }));
     const res = makeRes();
     await createPost(postReq({ parentPostId: PARENT_ID }), res as never);
     expect(res.statusCode).not.toBe(403);
@@ -208,7 +230,7 @@ describe('site 2 — POST /posts carrying a parent id', () => {
   });
 
   it('CONTROL: a parent carrying a laneId still accepts a reply', async () => {
-    postFindById.mockReturnValue(projection({ laneId: LANE_ID }));
+    postFindById.mockReturnValue(projection({ oxyUserId: USER_ID, laneId: LANE_ID }));
     const res = makeRes();
     await createPost(postReq({ parentPostId: PARENT_ID }), res as never);
     expect(res.statusCode).not.toBe(403);
