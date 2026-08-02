@@ -19,7 +19,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 const hoisted = vi.hoisted(() => ({
   claim: vi.fn(),
   hydratePosts: vi.fn(),
-  articleDeleteMany: vi.fn(),
   pollDeleteMany: vi.fn(),
 }));
 
@@ -58,9 +57,11 @@ vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
 
 vi.mock('../../connectors/outboundFederation', () => ({ federateAsResolvedActor: vi.fn() }));
 
-vi.mock('../../models/Article', () => ({
-  default: { deleteOne: () => ({ exec: async () => undefined }), deleteMany: hoisted.articleDeleteMany },
-}));
+// No `models/Article` mock: the article row is REAL, and cancelling the thread
+// has to remove it through `articles.post_id`'s `ON DELETE CASCADE` rather than
+// through a sweep. The stub that used to sit here was never asserted against —
+// it existed only to keep the Mongoose model out of the way — so once the
+// article write path moved to Postgres it proved nothing in either direction.
 
 vi.mock('../../models/Poll', () => ({
   default: { deleteOne: () => ({ exec: async () => undefined }), deleteMany: hoisted.pollDeleteMany },
@@ -83,6 +84,7 @@ vi.mock('mongoose', async (importOriginal) => {
 });
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
+import { findArticleById, insertArticle, newArticleId } from '../../db/posts/articleRepository';
 import { claimScheduledPost } from '../../db/posts/postRepository';
 import { clearServiceScope, readScopePosts, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { deletePost, publishScheduledPostNow } from '../../controllers/posts.controller';
@@ -168,7 +170,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   idByLabel = new Map();
   labelById = new Map();
-  hoisted.articleDeleteMany.mockReturnValue({ exec: async () => undefined });
   hoisted.pollDeleteMany.mockReturnValue({ exec: async () => undefined });
   hoisted.hydratePosts.mockImplementation(async (posts: unknown[]) => posts);
   // The claim is the real one's CONTRACT, not its body: flip a still-scheduled
@@ -205,6 +206,35 @@ describe('cancelling a scheduled thread', () => {
     // `root` published first and is nobody's continuation; `c2` replied to `c1`
     // and cannot exist without it.
     expect(await remainingIds()).toEqual(['root']);
+  });
+
+  /**
+   * The long-form body goes with the post it belongs to.
+   *
+   * Nothing sweeps `articles` — `articles.post_id` carries `ON DELETE CASCADE`
+   * to `posts.id` and `deletePostRecord` is what fires it. That makes this the
+   * only thing standing between a cancelled draft and an article row nobody can
+   * reach, so it is asserted rather than assumed: delete the `postId` anchor in
+   * `insertArticle`, or the cascade in the schema, and this goes red.
+   */
+  it('takes the article body with a cancelled thread', async () => {
+    await seedThread();
+    const rootId = idByLabel.get('root') as string;
+    const articleId = newArticleId();
+    await insertArticle({
+      id: articleId,
+      postId: rootId,
+      createdBy: AUTHOR,
+      title: 'Draft title',
+      body: 'Draft body',
+    });
+    expect(await findArticleById(articleId)).toBeDefined();
+
+    const { res } = buildResponse();
+    await deletePost(buildRequest(rootId) as never, res as never);
+
+    expect(await remainingIds()).toEqual([]);
+    expect(await findArticleById(articleId)).toBeUndefined();
   });
 
   it('leaves a lone scheduled post to delete exactly itself', async () => {

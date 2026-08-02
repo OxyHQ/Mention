@@ -1,4 +1,4 @@
-import type { FederatedMediaCacheState } from '../../models/FederatedMediaCache';
+import type { FederatedMediaCacheState } from '../../db/federation/mediaCacheRepository';
 import { contentTypeFamilyFromString } from '../../utils/safeUpstreamFetch';
 import {
   FEDERATED_BANNER_MAX_BYTES,
@@ -35,7 +35,7 @@ export type ProxyServeDecision =
 
 /**
  * Minimal projection of a cache row needed to make the serve decision. Accepting
- * a plain shape (not the Mongoose Document) keeps this pure and easy to test.
+ * a plain shape (not the row the driver returns) keeps this pure and easy to test.
  */
 export interface CacheLookup {
   state: FederatedMediaCacheState;

@@ -53,7 +53,13 @@ import {
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
 import { affinityEventService } from '../services/AffinityEventService';
 import { postCreationService } from '../services/PostCreationService';
-import ArticleModel, { IArticle } from '../models/Article';
+import {
+  deleteArticles,
+  findArticleById,
+  insertArticle,
+  newArticleId,
+  updateArticle,
+} from '../db/posts/articleRepository';
 import { logger } from '../utils/logger';
 import { metrics } from '../utils/metrics';
 import { postHydrationService, resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
@@ -98,6 +104,20 @@ import {
 } from '../services/BookmarkFolderService';
 import { repairRecentRepliersAfterPostDelete } from '../services/PostRecentReplierService';
 import { loadScheduledChain } from '../services/scheduledChain';
+
+/**
+ * An article whose id is minted but whose row is not written yet.
+ *
+ * The post's content document has to carry `articleId`, and the article row must
+ * not exist until the post it belongs to does — so the id is minted first and
+ * the insert happens after the post succeeds. See `db/posts/articleRepository.ts`.
+ */
+interface PendingArticle {
+  id: string;
+  createdBy: string;
+  title?: string;
+  body?: string;
+}
 
 // Constants from centralized config
 const MAX_SOURCES = config.posts.maxSources;
@@ -658,15 +678,16 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     }
 
     const sanitizedArticle = sanitizeArticle(content?.article || req.body.article);
-    let pendingArticleDoc: IArticle | null = null;
+    let pendingArticle: PendingArticle | null = null;
     if (sanitizedArticle) {
-      pendingArticleDoc = new ArticleModel({
+      pendingArticle = {
+        id: newArticleId(),
         createdBy: userId,
         title: sanitizedArticle.title || undefined,
         body: sanitizedArticle.body || undefined,
-      });
+      };
       postContent.article = {
-        articleId: pendingArticleDoc._id.toString(),
+        articleId: pendingArticle.id,
         title: sanitizedArticle.title,
         excerpt: sanitizedArticle.body ? sanitizedArticle.body.slice(0, MAX_ARTICLE_EXCERPT_LENGTH) : undefined,
       };
@@ -821,10 +842,9 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       senderUsername: req.user?.username,
     });
 
-    if (pendingArticleDoc) {
+    if (pendingArticle) {
       try {
-        pendingArticleDoc.postId = post.id;
-        await pendingArticleDoc.save();
+        await insertArticle({ ...pendingArticle, postId: post.id });
       } catch (articleError) {
         logger.error('Failed to save article content', articleError);
       }
@@ -1125,17 +1145,18 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         postContent.sources = sources;
       }
 
-      let pendingArticleDoc: IArticle | null = null;
+      let pendingArticle: PendingArticle | null = null;
       if (i === 0) {
         const sanitizedArticle = sanitizeArticle(content?.article);
         if (sanitizedArticle) {
-          pendingArticleDoc = new ArticleModel({
+          pendingArticle = {
+            id: newArticleId(),
             createdBy: userId,
             title: sanitizedArticle.title || undefined,
             body: sanitizedArticle.body || undefined,
-          });
+          };
           postContent.article = {
-            articleId: pendingArticleDoc._id.toString(),
+            articleId: pendingArticle.id,
             title: sanitizedArticle.title,
             excerpt: sanitizedArticle.body ? sanitizedArticle.body.slice(0, MAX_ARTICLE_EXCERPT_LENGTH) : undefined,
           };
@@ -1263,10 +1284,9 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         anchored = { ...post, threadId: post.id };
       }
 
-      if (pendingArticleDoc) {
+      if (pendingArticle) {
         try {
-          pendingArticleDoc.postId = anchored.id;
-          await pendingArticleDoc.save();
+          await insertArticle({ ...pendingArticle, postId: anchored.id });
         } catch (articleError) {
           logger.error('Failed to save article content (thread)', articleError);
         }
@@ -1683,28 +1703,30 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       const sanitizedArticle = sanitizeArticle(req.body.article);
       const existingArticleId = content.article?.articleId;
       if (sanitizedArticle) {
-        let articleDoc: IArticle | null = existingArticleId ? await ArticleModel.findOne({ _id: existingArticleId }).exec() : null;
+        const existing = existingArticleId ? await findArticleById(existingArticleId) : undefined;
         const previousArticle = content.article || {};
 
-        if (articleDoc) {
-          if (sanitizedArticle.title !== undefined) {
-            articleDoc.title = sanitizedArticle.title || undefined;
-          }
-          if (sanitizedArticle.body !== undefined) {
-            articleDoc.body = sanitizedArticle.body || undefined;
-          }
-          articleDoc.postId = post.id;
+        // `updateArticle` re-anchors `post_id` as well as writing the body, so
+        // the two branches differ only in whether a row already exists.
+        let articleId: string;
+        if (existing) {
+          articleId = existing.id;
+          await updateArticle(articleId, post.id, {
+            title: sanitizedArticle.title,
+            body: sanitizedArticle.body,
+          });
         } else {
-          articleDoc = new ArticleModel({
+          articleId = newArticleId();
+          await insertArticle({
+            id: articleId,
             createdBy: userId,
             postId: post.id,
             title: sanitizedArticle.title || undefined,
             body: sanitizedArticle.body || undefined,
           });
         }
-        await articleDoc.save();
         content.article = {
-          articleId: articleDoc._id.toString(),
+          articleId,
           title: sanitizedArticle.title !== undefined ? sanitizedArticle.title : previousArticle.title,
           excerpt: sanitizedArticle.body !== undefined
             ? (sanitizedArticle.body ? sanitizedArticle.body.slice(0, 280) : undefined)
@@ -1712,7 +1734,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         };
       } else {
         if (existingArticleId) {
-          await ArticleModel.deleteOne({ _id: existingArticleId }).exec();
+          await deleteArticles([existingArticleId]);
         }
         content.article = undefined;
       }
@@ -2160,16 +2182,14 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
     // Cascading cleanup — best-effort, don't fail the request
     try {
       await Promise.allSettled([
-        // Delete associated article
-        post.content.article?.articleId
-          ? ArticleModel.deleteOne({ _id: post.content.article.articleId }).exec()
-          : Promise.resolve(),
-        // The poll is NOT swept here either, for the same reason and now that it
-        // is written to Postgres: `polls.post_id` carries `ON DELETE CASCADE` to
-        // `posts.id`, and `deletePostRecord` above deletes the Postgres row. The
-        // Mongo `Poll.deleteOne` this replaces had stopped matching anything.
-        // The ARTICLE sweep above stays on Mongo deliberately — articles are
-        // still written there, so that one is not the same case.
+        // The article is NOT swept here, and neither is the poll: `articles.post_id`
+        // and `polls.post_id` both carry `ON DELETE CASCADE` to `posts.id`, and
+        // `deletePostRecord` above deletes the Postgres row. The Mongo
+        // `Article.deleteOne`/`Poll.deleteOne` this replaces matched a store the
+        // write path no longer uses. (The article note that used to sit here said
+        // the sweep stayed on Mongo "deliberately — articles are still written
+        // there". That was true when it was written and stopped being true the
+        // moment the article WRITE path moved; it is the same case now.)
         //
         // Likes and bookmarks are NOT swept here: `likes.post_id` and
         // `bookmarks.post_id` both carry `ON DELETE CASCADE` to `posts.id`, so
@@ -2259,8 +2279,9 @@ async function deleteScheduledContinuations(postIds: string[], ownerId: string):
       ),
       { orderBy: CHRONO_DESC },
     );
-    const articleIds = cancelled.flatMap((p) => (p.content.article?.articleId ? [p.content.article.articleId] : []));
-    // No `pollIds` here: the poll rows cascade from `posts` (see deletePost).
+    // No `articleIds` or `pollIds` here: both tables cascade from `posts` (see
+    // deletePost). The `Article.deleteMany` that used to follow this loop was
+    // reaching a store the article write path no longer uses.
 
     // Per-row, because `deletePostRecord` owns the child-table cascade a post's
     // nine tables need; a bare `DELETE … WHERE id = any(...)` would leave the
@@ -2268,9 +2289,6 @@ async function deleteScheduledContinuations(postIds: string[], ownerId: string):
     await Promise.allSettled(
       cancelled.map((p) => deletePostRecord(p.id, eq(postsTable.oxyUserId, ownerId))),
     );
-    await Promise.allSettled([
-      articleIds.length > 0 ? ArticleModel.deleteMany({ _id: { $in: articleIds } }).exec() : Promise.resolve(),
-    ]);
   } catch (error) {
     logger.error('Error cancelling scheduled thread continuations', error);
   }

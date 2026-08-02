@@ -6,7 +6,13 @@ import { randomBytes } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import type { IncomingMessage } from 'node:http';
 
-import FederatedMediaCache from '../../models/FederatedMediaCache';
+import {
+  findDueMediaCacheEntries,
+  incrementMediaCacheFailCount,
+  markMediaCacheCached,
+  markMediaCacheFailed,
+  scheduleMediaCacheRetry,
+} from '../../db/federation/mediaCacheRepository';
 import { logger } from '../../utils/logger';
 import { SsrfRejection } from '@oxyhq/core/server';
 import {
@@ -191,10 +197,7 @@ async function processEntry(remoteUrl: string): Promise<void> {
     if (!outcome.ok) {
       // not-media / too-large / gone media are permanent for this URL → mark failed (proxy-only).
       if (isPermanentCacheFailure(outcome)) {
-        await FederatedMediaCache.updateOne(
-          { remoteUrl },
-          { $set: { state: 'failed' }, $unset: { nextAttemptAt: '' } },
-        );
+        await markMediaCacheFailed(remoteUrl);
         return;
       }
       // Transient (upstream-error / ssrf) → backoff or give up.
@@ -216,21 +219,12 @@ async function processEntry(remoteUrl: string): Promise<void> {
       posterFileId = await extractAndUploadPoster(filePath, dir, uploadCachedMedia);
     }
 
-    await FederatedMediaCache.updateOne(
-      { remoteUrl },
-      {
-        $set: {
-          state: 'cached',
-          oxyFileId: media.oxyFileId,
-          posterFileId,
-          contentType,
-          sizeBytes,
-          cachedAt: new Date(),
-          failCount: 0,
-        },
-        $unset: { nextAttemptAt: '' },
-      },
-    );
+    await markMediaCacheCached(remoteUrl, {
+      oxyFileId: media.oxyFileId,
+      posterFileId,
+      contentType,
+      sizeBytes,
+    });
   } catch (error) {
     if (error instanceof MediaStoreUnavailableError) {
       // Upload capability is not available — do NOT churn failCount toward a
@@ -424,29 +418,34 @@ export async function persistRemoteMediaForFederatedOwner(
   return result.ok ? result.media : null;
 }
 
-/** Increment failCount and either schedule a backoff or mark `failed`. */
+/**
+ * Increment failCount and either schedule a backoff or mark `failed`.
+ *
+ * A missing row means the entry was deleted between the worker claiming it and
+ * this write — the purge script is the one thing that does that. It is SAID,
+ * not swallowed: the previous silent `return` left a row that is still
+ * `pending` with no `nextAttemptAt`, which is permanently due, so the worker
+ * re-selected it on every sweep and hammered a dead upstream forever with
+ * nothing in the log to show for it. Nothing is watching this sweep, so an
+ * unexplained no-op has to explain itself.
+ */
 async function applyFailureBackoff(remoteUrl: string): Promise<void> {
-  const updated = await FederatedMediaCache.findOneAndUpdate(
-    { remoteUrl },
-    { $inc: { failCount: 1 } },
-    { returnDocument: 'after' },
-  ).lean<{ failCount: number } | null>();
+  const failCount = await incrementMediaCacheFailCount(remoteUrl);
 
-  if (!updated) return;
-
-  const outcome = classifyFailure(updated.failCount);
-  if (outcome.giveUp) {
-    await FederatedMediaCache.updateOne(
-      { remoteUrl },
-      { $set: { state: 'failed' }, $unset: { nextAttemptAt: '' } },
-    );
+  if (failCount === null) {
+    logger.warn('[MediaCache] No cache entry to back off; it was removed mid-attempt', {
+      remoteUrl,
+    });
     return;
   }
 
-  await FederatedMediaCache.updateOne(
-    { remoteUrl },
-    { $set: { nextAttemptAt: new Date(Date.now() + outcome.nextAttemptInMs) } },
-  );
+  const outcome = classifyFailure(failCount);
+  if (outcome.giveUp) {
+    await markMediaCacheFailed(remoteUrl);
+    return;
+  }
+
+  await scheduleMediaCacheRetry(remoteUrl, new Date(Date.now() + outcome.nextAttemptInMs));
 }
 
 /** Derive a stable, safe filename for the Oxy upload from the URL + type. */
@@ -478,15 +477,7 @@ export async function runCacheWorkerOnce(): Promise<void> {
     return;
   }
 
-  const now = new Date();
-  const due = await FederatedMediaCache.find({
-    state: 'pending',
-    $or: [{ nextAttemptAt: { $lte: now } }, { nextAttemptAt: null }, { nextAttemptAt: { $exists: false } }],
-  })
-    .select('remoteUrl')
-    .sort({ lastAccessedAt: -1 })
-    .limit(MEDIA_CACHE_WORKER_BATCH_SIZE)
-    .lean<{ remoteUrl: string }[]>();
+  const due = await findDueMediaCacheEntries(MEDIA_CACHE_WORKER_BATCH_SIZE);
 
   if (due.length === 0) return;
 
@@ -494,6 +485,6 @@ export async function runCacheWorkerOnce(): Promise<void> {
 
   for (let i = 0; i < due.length; i += MEDIA_CACHE_WORKER_CONCURRENCY) {
     const batch = due.slice(i, i + MEDIA_CACHE_WORKER_CONCURRENCY);
-    await Promise.allSettled(batch.map((entry) => processEntry(entry.remoteUrl)));
+    await Promise.allSettled(batch.map((remoteUrl) => processEntry(remoteUrl)));
   }
 }
