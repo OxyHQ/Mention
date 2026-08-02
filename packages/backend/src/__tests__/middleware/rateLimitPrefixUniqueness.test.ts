@@ -61,11 +61,70 @@ function collectTypeScriptFiles(dir: string, out: string[] = []): string[] {
  * no-argument form, which silently takes {@link DEFAULT_PREFIX} and can collide
  * with anything else that omits one.
  */
+/**
+ * Blank out comments, preserving every byte position so reported line numbers
+ * stay true.
+ *
+ * Necessary because the scan is a regex over source text: a DOC COMMENT that
+ * mentions `new RedisStore(...)` — which the security middleware's own docs now
+ * do, explaining why the prefix must be a literal — is otherwise collected as a
+ * real construction with a defaulted prefix, and the guard fails on prose.
+ *
+ * String- and template-aware rather than a naive strip, so a `//` inside a URL
+ * literal cannot swallow the rest of a line and hide a real construction behind
+ * it. Regex literals are not tracked: none of the files scanned put a comment
+ * marker inside one, and the vacuity floor below is what would catch it if that
+ * ever stopped being true.
+ */
+function blankComments(source: string): string {
+  let out = '';
+  let i = 0;
+  while (i < source.length) {
+    const two = source.slice(i, i + 2);
+    if (two === '//') {
+      while (i < source.length && source[i] !== '\n') {
+        out += ' ';
+        i += 1;
+      }
+      continue;
+    }
+    if (two === '/*') {
+      while (i < source.length && source.slice(i, i + 2) !== '*/') {
+        out += source[i] === '\n' ? '\n' : ' ';
+        i += 1;
+      }
+      out += '  ';
+      i += 2;
+      continue;
+    }
+    const char = source[i];
+    if (char === '"' || char === "'" || char === '`') {
+      out += char;
+      i += 1;
+      while (i < source.length && source[i] !== char) {
+        if (source[i] === '\\') {
+          out += source.slice(i, i + 2);
+          i += 2;
+          continue;
+        }
+        out += source[i];
+        i += 1;
+      }
+      out += source[i] ?? '';
+      i += 1;
+      continue;
+    }
+    out += char;
+    i += 1;
+  }
+  return out;
+}
+
 function collectPrefixSites(): PrefixSite[] {
   const sites: PrefixSite[] = [];
 
   for (const file of collectTypeScriptFiles(BACKEND_SRC)) {
-    const contents = readFileSync(file, 'utf8');
+    const contents = blankComments(readFileSync(file, 'utf8'));
     const construction = /new\s+RedisStore\s*\(([^)]*)\)/g;
 
     let match = construction.exec(contents);

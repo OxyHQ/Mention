@@ -40,7 +40,7 @@ import { Postgate } from '../models/Postgate';
 import { createPostUri } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { config } from '../config';
-import { postWriteRateLimiter, translationRateLimiter } from '../middleware/security';
+import { laneWriteRateLimiter, postWriteRateLimiter, translationRateLimiter } from '../middleware/security';
 
 const router = Router();
 
@@ -66,6 +66,9 @@ const translationRateLimiters = config.runtime.isProduction
 const postWriteRateLimiters = config.runtime.isProduction
   ? [postWriteRateLimiter]
   : [];
+
+/** `PATCH /:id/lane` is a LANE write; see the mount below for why not a post one. */
+const laneWriteRateLimiters = config.runtime.isProduction ? [laneWriteRateLimiter] : [];
 
 /**
  * Post reads mounted on the PUBLIC API group with OPTIONAL auth (see appRoutes.ts)
@@ -147,9 +150,14 @@ router.post('/:id/collaborators/decline', declineCollabInvite);
 router.post('/:id/collaborators/stop-sharing', stopCollabSharing);
 router.put('/:id', ...postWriteRateLimiters, updatePost);
 router.patch('/:id/settings', updatePostSettings);
-// Moving a post between the author's own lanes is NOT an edit — no window, no
-// rate limiter, no federation. See `updatePostLane`.
-router.patch('/:id/lane', updatePostLane);
+// Moving a post between the author's own lanes is NOT an edit — no edit window
+// and no federation. See `updatePostLane`.
+//
+// It DOES carry the lane WRITE limiter, deliberately not the post-write one: this
+// is a lane operation, and putting it on the post-edit budget would conflate
+// moving a post between carriageways with rewriting its text — the exact
+// distinction that handler's docstring exists to preserve.
+router.patch('/:id/lane', ...laneWriteRateLimiters, updatePostLane);
 // Publish one of the caller's own scheduled posts ahead of its time.
 router.post('/:id/publish', publishScheduledPostNow);
 router.delete('/:id', deletePost);

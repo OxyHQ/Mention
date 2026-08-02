@@ -57,6 +57,8 @@ import {
 } from '../services/channelAccess';
 import { createNotification } from '../utils/notificationUtils';
 import { validateBody, validateObjectId } from '../middleware/validate';
+import { channelReadRateLimiter, channelWriteRateLimiter } from '../middleware/security';
+import { config } from '../config';
 import { sendErrorResponse, sendSuccessResponse } from '../utils/apiHelpers';
 import { logger } from '../utils/logger';
 
@@ -85,6 +87,15 @@ const MEMBER_PAGE_SIZE = MAX_CHANNEL_MEMBERS;
  * silent unbounded query.
  */
 const MAX_CALLER_CHANNEL_ROWS = 500;
+
+/**
+ * Compliance limiters, production-gated like every other limiter in the repo so
+ * tests and local development are unaffected. Spread into each route rather than
+ * applied with `router.use`, so that a READ route never spends the write budget
+ * and the grouping is legible at the route it governs.
+ */
+const readLimiters = config.runtime.isProduction ? [channelReadRateLimiter] : [];
+const writeLimiters = config.runtime.isProduction ? [channelWriteRateLimiter] : [];
 
 const handleSchema = z
   .string()
@@ -223,6 +234,17 @@ async function loadViewerState(
 /* ------------------------------------------------------------------------- */
 
 export const publicChannelsRouter = Router();
+
+// Every route on this router is a read, so one `use` covers them all. It is the
+// ANONYMOUS-reachable surface, where the key generator falls back to a hashed IP.
+//
+// Guarded because the list is EMPTY outside production, and `use(...[])` is
+// `use()` with no arguments — which Express rejects outright ("argument handler
+// is required"). The per-route spreads below are unaffected: they always still
+// carry their handler.
+if (readLimiters.length > 0) {
+  publicChannelsRouter.use(...readLimiters);
+}
 
 /**
  * GET /channels?cursor=<followerCount>_<id>&limit=&excludeFollowed=true
@@ -413,7 +435,7 @@ const router = Router();
 router.use(requireAuth);
 
 /** GET /channels/mine — the channels the caller may publish to, owned or not. */
-router.get('/mine', async (req: AuthRequest, res: Response) => {
+router.get('/mine', ...readLimiters, async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
     const memberships = await ChannelMember.find({ oxyUserId: userId, status: 'accepted' })
@@ -438,7 +460,7 @@ router.get('/mine', async (req: AuthRequest, res: Response) => {
 });
 
 /** GET /channels/invites — membership invitations awaiting the caller's answer. */
-router.get('/invites', async (req: AuthRequest, res: Response) => {
+router.get('/invites', ...readLimiters, async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
     const invites = await ChannelMember.find({ oxyUserId: userId, status: 'pending' })
@@ -485,7 +507,7 @@ router.get('/invites', async (req: AuthRequest, res: Response) => {
  * query rather than per row — a partial `viewerState` would be worse than none,
  * because an absent `role` is documented to mean "not a member".
  */
-router.get('/following', async (req: AuthRequest, res: Response) => {
+router.get('/following', ...readLimiters, async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
     const rawLimit = Number.parseInt(String(req.query.limit ?? ''), 10);
@@ -604,7 +626,7 @@ router.get('/following', async (req: AuthRequest, res: Response) => {
  * immediately after, which is what makes "may publish" ONE question with ONE
  * answer — there is no "or the owner" branch anywhere for it to drift from.
  */
-router.post('/', validateBody(createChannelSchema), async (req: AuthRequest, res: Response) => {
+router.post('/', ...writeLimiters, validateBody(createChannelSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
     const body = req.body as z.infer<typeof createChannelSchema>;
@@ -684,6 +706,7 @@ router.post('/', validateBody(createChannelSchema), async (req: AuthRequest, res
  */
 router.put(
   '/:id',
+  ...writeLimiters,
   validateObjectId('id'),
   validateBody(updateChannelSchema),
   async (req: AuthRequest, res: Response) => {
@@ -760,7 +783,7 @@ router.put(
  * An interruption partway through leaves posts that have already been released
  * back to their authors, which is the safe direction to fail in.
  */
-router.delete('/:id', validateObjectId('id'), async (req: AuthRequest, res: Response) => {
+router.delete('/:id', ...writeLimiters, validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
     const channelId = String(req.params.id);
@@ -809,6 +832,7 @@ router.delete('/:id', validateObjectId('id'), async (req: AuthRequest, res: Resp
  */
 router.post(
   '/:id/members',
+  ...writeLimiters,
   validateObjectId('id'),
   validateBody(inviteMemberSchema),
   async (req: AuthRequest, res: Response) => {
@@ -896,7 +920,7 @@ router.post(
 );
 
 /** POST /channels/:id/members/accept — the invitee accepts and may now publish. */
-router.post('/:id/members/accept', validateObjectId('id'), async (req: AuthRequest, res: Response) => {
+router.post('/:id/members/accept', ...writeLimiters, validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
     const channelId = String(req.params.id);
@@ -925,7 +949,7 @@ router.post('/:id/members/accept', validateObjectId('id'), async (req: AuthReque
 });
 
 /** POST /channels/:id/members/decline — the invitee declines. */
-router.post('/:id/members/decline', validateObjectId('id'), async (req: AuthRequest, res: Response) => {
+router.post('/:id/members/decline', ...writeLimiters, validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
     const declined = await ChannelMember.findOneAndUpdate(
@@ -960,6 +984,7 @@ router.post('/:id/members/decline', validateObjectId('id'), async (req: AuthRequ
  */
 router.delete(
   '/:id/members/:memberId',
+  ...writeLimiters,
   validateObjectId('id'),
   async (req: AuthRequest, res: Response) => {
     try {
@@ -1020,7 +1045,7 @@ router.delete(
  * `{oxyUserId, channelId}` index is what makes a repeat a no-op, and only a row
  * that did not exist bumps the counter.
  */
-router.post('/:id/follow', validateObjectId('id'), async (req: AuthRequest, res: Response) => {
+router.post('/:id/follow', ...writeLimiters, validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
     const channelId = String(req.params.id);
@@ -1067,7 +1092,7 @@ router.post('/:id/follow', validateObjectId('id'), async (req: AuthRequest, res:
  * followed answers the same success, because "not following" is exactly the state
  * the caller asked for. Only a row that actually went away decrements.
  */
-router.delete('/:id/follow', validateObjectId('id'), async (req: AuthRequest, res: Response) => {
+router.delete('/:id/follow', ...writeLimiters, validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
     const channelId = String(req.params.id);
@@ -1095,6 +1120,7 @@ router.delete('/:id/follow', validateObjectId('id'), async (req: AuthRequest, re
  */
 router.patch(
   '/:id/follow',
+  ...writeLimiters,
   validateObjectId('id'),
   validateBody(followSchema),
   async (req: AuthRequest, res: Response) => {

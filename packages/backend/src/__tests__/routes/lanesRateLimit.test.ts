@@ -28,13 +28,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const { MemoryStore, LIMIT } = vi.hoisted(() => {
-  /** Per-instance in-memory stand-in for `RedisStore`, same surface, no Redis. */
+  /**
+   * In-memory stand-in for `RedisStore`, same surface, no Redis.
+   *
+   * The counters live in a MODULE-LEVEL keyspace keyed by `<prefix><key>`, not on
+   * the instance — because that is what Redis is. A per-instance Map would give
+   * every limiter its own counter for free, so two limiters sharing a prefix
+   * would still behave independently under test and the separation asserted below
+   * would hold no matter what the source said. Modelling the shared keyspace is
+   * what lets that assertion fail when the prefixes collide.
+   */
+  const keyspace = new Map<string, number>();
+
   class MemoryStore {
-    private hits = new Map<string, number>();
     readonly prefix: string;
 
     constructor(options: { prefix?: string } = {}) {
       this.prefix = options.prefix ?? 'rate-limit:';
+    }
+
+    private slot(key: string): string {
+      return `${this.prefix}${key}`;
     }
 
     init(): void {
@@ -43,17 +57,17 @@ const { MemoryStore, LIMIT } = vi.hoisted(() => {
     }
 
     async increment(key: string): Promise<{ totalHits: number; resetTime: Date | undefined }> {
-      const next = (this.hits.get(key) ?? 0) + 1;
-      this.hits.set(key, next);
+      const next = (keyspace.get(this.slot(key)) ?? 0) + 1;
+      keyspace.set(this.slot(key), next);
       return { totalHits: next, resetTime: undefined };
     }
 
     async decrement(key: string): Promise<void> {
-      this.hits.set(key, Math.max(0, (this.hits.get(key) ?? 0) - 1));
+      keyspace.set(this.slot(key), Math.max(0, (keyspace.get(this.slot(key)) ?? 0) - 1));
     }
 
     async resetKey(key: string): Promise<void> {
-      this.hits.delete(key);
+      keyspace.delete(this.slot(key));
     }
   }
 
@@ -170,13 +184,25 @@ describe('GET /lanes/mine rate limiting', () => {
     expect((await request(quiet).get('/lanes/mine')).status).toBe(200);
   });
 
-  it('does NOT bound the sibling routes — this bounds one aggregation, not a surface', async () => {
-    // The asymmetry IS the design. A limiter applied to the router would pass a
-    // test that only hammered `/mine`, so the control has to hammer a sibling.
+  it('spends its OWN budget — exhausting /mine leaves a sibling route serving', async () => {
+    // Siblings ARE limited now — the compliance limiters cover the whole router —
+    // so the property is not "unlimited" but SEPARATE: `/mine` carries
+    // `lanesRateLimiter` (`rate-limit:lanes:`, 120) while `/muted` carries
+    // `laneReadRateLimiter` (`rate-limit:lanes-read:`, 300).
+    //
+    // What this DOES prove: exhausting `/mine` leaves `/muted` serving, so the
+    // expensive route's budget is not the router's budget.
+    //
+    // What it does NOT prove, deliberately: that the two prefixes differ. The
+    // stand-in store models Redis's shared keyspace, so a collision is
+    // observable in principle — but only once one route's spend exceeds the
+    // OTHER's ceiling, which here would mean hammering past 300 to catch
+    // something `rateLimitPrefixUniqueness` already proves statically and
+    // exhaustively across the whole tree. Prefix separation is that test's job;
+    // this one owns budget separation.
     const app = buildApp();
     await hammer(app, '/lanes/mine', LIMIT + 1);
 
-    // `/muted` is a bounded read on the same router, under the same identity.
     expect((await request(app).get('/lanes/muted')).status).toBe(200);
   });
 });

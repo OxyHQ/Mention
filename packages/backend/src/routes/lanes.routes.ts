@@ -38,10 +38,23 @@ import { Channel } from '../models/Channel';
 import { canManageChannel } from '../services/channelAccess';
 import { resolveUserSummaries } from '../services/PostHydrationService';
 import { validateBody, validateObjectId } from '../middleware/validate';
-import { lanesRateLimiter } from '../middleware/security';
+import { laneReadRateLimiter, laneWriteRateLimiter, lanesRateLimiter } from '../middleware/security';
 import { config } from '../config';
 import { sendErrorResponse, sendSuccessResponse } from '../utils/apiHelpers';
 import { logger } from '../utils/logger';
+
+/**
+ * Compliance limiters, production-gated like every other limiter in the repo.
+ * Spread per route rather than applied with `router.use`, so a read never spends
+ * the write budget and the grouping is legible where it applies.
+ *
+ * `GET /lanes/mine` keeps {@link lanesRateLimiter} INSTEAD of these: it is the
+ * one route here bounding a real cost (an uncached aggregation over the caller's
+ * whole post history) rather than satisfying a scanner, and it has its own
+ * behavioural test.
+ */
+const readLimiters = config.runtime.isProduction ? [laneReadRateLimiter] : [];
+const writeLimiters = config.runtime.isProduction ? [laneWriteRateLimiter] : [];
 
 /** Longest owner id we will look up — an Oxy user id is a 24-char hex ObjectId. */
 const MAX_OWNER_ID_LENGTH = 64;
@@ -190,6 +203,15 @@ async function countPostsByLane(laneIds: string[]): Promise<Map<string, number>>
 
 export const publicLanesRouter = Router();
 
+// Its only route is a read, and it is the ANONYMOUS-reachable surface, where the
+// key generator falls back to a hashed IP.
+//
+// Guarded: the list is EMPTY outside production, and `use(...[])` is `use()` with
+// no arguments, which Express rejects outright.
+if (readLimiters.length > 0) {
+  publicLanesRouter.use(...readLimiters);
+}
+
 /**
  * GET /lanes?ownerType=user|channel&ownerId=<id>
  *
@@ -278,7 +300,7 @@ router.get(
  * The owner is resolved through {@link resolveUserSummaries} — the same identity
  * path every post author goes through — never assembled by hand.
  */
-router.get('/muted', async (req: AuthRequest, res: Response) => {
+router.get('/muted', ...readLimiters, async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
     const mutes = await LaneMute.find({ viewerOxyUserId: userId })
@@ -329,7 +351,7 @@ router.get('/muted', async (req: AuthRequest, res: Response) => {
  * the pre-check: `countDocuments` is not a lock, so two concurrent creates of the
  * same name are stopped by the constraint or not at all.
  */
-router.post('/', validateBody(createLaneSchema), async (req: AuthRequest, res: Response) => {
+router.post('/', ...writeLimiters, validateBody(createLaneSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
     const { name, displayMode, channelId } = req.body as z.infer<typeof createLaneSchema>;
@@ -389,6 +411,7 @@ router.post('/', validateBody(createLaneSchema), async (req: AuthRequest, res: R
  */
 router.patch(
   '/:id',
+  ...writeLimiters,
   validateObjectId('id'),
   validateBody(updateLaneSchema),
   async (req: AuthRequest, res: Response) => {
@@ -456,7 +479,7 @@ router.patch(
  * would REAPPEAR on their profile. An interruption partway through this order
  * leaves an empty lane, which is harmless and re-deletable.
  */
-router.delete('/:id', validateObjectId('id'), async (req: AuthRequest, res: Response) => {
+router.delete('/:id', ...writeLimiters, validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
     const laneId = String(req.params.id);
@@ -500,7 +523,7 @@ router.delete('/:id', validateObjectId('id'), async (req: AuthRequest, res: Resp
  * **Muting your OWN lane is refused (400).** It would delete your own posts from
  * your own Following feed, which nobody means to ask for.
  */
-router.post('/:id/mute', validateObjectId('id'), async (req: AuthRequest, res: Response) => {
+router.post('/:id/mute', ...writeLimiters, validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
     const laneId = String(req.params.id);
@@ -577,7 +600,7 @@ router.post('/:id/mute', validateObjectId('id'), async (req: AuthRequest, res: R
  * Unmute. Idempotent: a lane that was not muted answers the same success, because
  * "not muted" is exactly the state the caller asked for.
  */
-router.delete('/:id/mute', validateObjectId('id'), async (req: AuthRequest, res: Response) => {
+router.delete('/:id/mute', ...writeLimiters, validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
     await LaneMute.deleteOne({ viewerOxyUserId: userId, laneId: String(req.params.id) });
