@@ -69,6 +69,7 @@ import { GATE_PLANS } from './plans/gates';
 import { MTN_PLANS } from './plans/mtn';
 import { OUTBOX_PLANS } from './plans/outbox';
 import { POLL_PLANS } from './plans/polls';
+import { POST_PLANS } from './plans/posts';
 
 /**
  * Every collection that moves, and what it becomes.
@@ -127,6 +128,7 @@ export const COLLECTION_PLANS: readonly CollectionPlan[] = [
   ...OUTBOX_PLANS,
   ...GATE_PLANS,
   ...POLL_PLANS,
+  ...POST_PLANS,
 ];
 
 /**
