@@ -185,12 +185,13 @@ describe('UserPreferenceService — canonical topic learning (topicRefs prefer /
 
   it('scales the learned weight by a stored relevance', async () => {
     // The relevance column is the whole reason `topicRefs` beats the slug list,
-    // so a ref stored at a fraction must accrue proportionally less than a ref
-    // stored with none. Two posts, one interaction each, same interaction type.
+    // so a ref stored low on the 1..10 scale must accrue proportionally less
+    // than a ref stored with none (which scales by the full weight). Two posts,
+    // one interaction each, same interaction type.
     const weak = await seedPost(scope, {
       postClassification: {
         status: 'classified',
-        topicRefs: [{ name: 'chess', topicId: 'topic-chess', relevance: 0.25 }],
+        topicRefs: [{ name: 'chess', topicId: 'topic-chess', relevance: 2 }],
       },
     });
     const full = await seedPost(scope, {
@@ -206,7 +207,8 @@ describe('UserPreferenceService — canonical topic learning (topicRefs prefer /
     const weakWeight = prefByTopic('chess')?.weight ?? 0;
     const fullWeight = prefByTopic('sailing')?.weight ?? 0;
     expect(weakWeight).toBeGreaterThan(0);
-    expect(weakWeight).toBeCloseTo(fullWeight * 0.25, 6);
+    // `relevance / 10` is the factor the service applies, so 2 → one fifth.
+    expect(weakWeight).toBeCloseTo(fullWeight * 0.2, 6);
   });
 
   it('learns NO classified topic when the stored post carries neither encoding', async () => {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import mongoose from 'mongoose';
 
 /**
@@ -7,17 +7,31 @@ import mongoose from 'mongoose';
  * Feed-impression telemetry fires many concurrent interactions for the SAME
  * user, so the load-modify-`.save()` on the `UserBehavior` document races on
  * Mongoose optimistic concurrency (`__v`) → a flood of `VersionError`. The
- * service now wraps the write in a bounded retry loop that RE-READS the freshest
+ * service wraps the write in a bounded retry loop that RE-READS the freshest
  * document and RE-APPLIES the same mutation. These tests prove:
  *  1. a `VersionError` on `.save()` is retried (no throw) and the accumulators
  *     end up correct on the winning revision,
  *  2. the first-interaction insert race (`E11000` duplicate key) is retried the
  *     same way,
- *  3. retries are bounded — a persistent conflict eventually surfaces the error.
+ *  3. retries are bounded — a persistent conflict eventually surfaces the error,
+ *  4. genuinely concurrent interactions all converge without a rejection.
  *
- * The Post and UserBehavior models are mocked (no DB). `mongoose` itself is NOT
- * mocked, so the real `VersionError` / `MongoServerError` classes are used and
- * the service's `instanceof` checks exercise production code paths.
+ * ## What the Postgres port changed here, and what it deliberately did NOT
+ *
+ * The POST is now a real row: `recordInteraction` loads it through
+ * `loadPostRecord`, and a missing row makes the whole method a silent no-op — so
+ * a suite that skipped the seed would "pass" every contention test without ever
+ * reaching the retry loop. That is exactly the failure mode this file exists to
+ * catch, so the row is seeded once and asserted present before the contention
+ * tests run.
+ *
+ * `UserBehavior` is still Mongoose, and the contention being tested is
+ * MONGO-side optimistic concurrency, so the model stays mocked and the races are
+ * staged on it. Test 4 keeps issuing its three interactions CONCURRENTLY
+ * (`Promise.allSettled` over three un-awaited calls); serialising them would
+ * make it pass while covering nothing. `mongoose` itself is NOT mocked, so the
+ * real `VersionError` / `MongoServerError` classes drive the service's
+ * `instanceof` checks.
  */
 
 interface AuthorPref {
@@ -45,15 +59,11 @@ interface MockBehavior {
 }
 
 const mocks = vi.hoisted(() => ({
-  findById: vi.fn(),
   findOne: vi.fn(),
   construct: vi.fn(),
 }));
 
-vi.mock('../../models/Post', () => ({
-  Post: { findById: (id: string) => ({ lean: () => mocks.findById(id) }) },
-}));
-// The default export is BOTH a constructor (service does `new UserBehavior(...)`
+// The default export is BOTH a constructor (the service does `new UserBehavior(...)`
 // on a first interaction) and a holder of the static `findOne`.
 vi.mock('../../models/UserBehavior', () => {
   function UserBehavior(this: unknown, doc: unknown) {
@@ -65,11 +75,17 @@ vi.mock('../../models/UserBehavior', () => {
 vi.mock('../../models/Like', () => ({ __esModule: true, default: { find: vi.fn() } }));
 vi.mock('../../models/Bookmark', () => ({ __esModule: true, default: { find: vi.fn() } }));
 
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { userPreferenceService } from '../../services/UserPreferenceService';
+
+const scope = serviceScope('user-pref-concurrency');
+const VIEWER = scope.user('viewer');
+const AUTHOR = scope.user('author');
 
 function makeBehavior(overrides: Partial<MockBehavior> = {}): MockBehavior {
   return {
-    oxyUserId: 'viewer-1',
+    oxyUserId: VIEWER,
     preferredAuthors: [],
     preferredTopics: [],
     preferredPostTypes: { text: 0, image: 0, video: 0, poll: 0 },
@@ -89,8 +105,8 @@ function makeVersionError(): mongoose.Error.VersionError {
   // A value whose prototype IS VersionError.prototype, so the service's
   // `error instanceof mongoose.Error.VersionError` check is exercised against the
   // real class. The real constructor needs a fully-typed Document we don't have
-  // in a unit test, so we build the instance via the prototype + a realistic
-  // message instead of fabricating a fake Document.
+  // here, so we build the instance via the prototype + a realistic message
+  // instead of fabricating a fake Document.
   const err: mongoose.Error.VersionError = Object.create(mongoose.Error.VersionError.prototype);
   Object.defineProperty(err, 'message', {
     value: 'No matching document found for id "beh-1" version 1 modifiedPaths "preferredAuthors"',
@@ -107,16 +123,28 @@ function makeDuplicateKeyError(): mongoose.mongo.MongoServerError {
   return err;
 }
 
-const LIKE_POST = {
-  _id: 'p1',
-  oxyUserId: 'author-1',
-  type: 'text',
-  hashtags: [],
-};
+/** The post every interaction below is about. Seeded once — it is not the subject. */
+let likedPostId: string;
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
-  mocks.findById.mockResolvedValue(LIKE_POST);
+  await clearServiceScope(scope);
+  likedPostId = (await seedPost(scope, { oxyUserId: AUTHOR })).id;
+  // Without a readable row `recordInteraction` returns before the retry loop, so
+  // every contention assertion below would hold vacuously. Assert it, once.
+  expect((await readPost(likedPostId))?.oxyUserId).toBe(AUTHOR);
+});
+
+afterEach(async () => {
+  await clearServiceScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 describe('UserPreferenceService.recordInteraction — concurrent write retries', () => {
@@ -129,7 +157,7 @@ describe('UserPreferenceService.recordInteraction — concurrent write retries',
     const fresh = makeBehavior({
       preferredAuthors: [
         {
-          authorId: 'author-2',
+          authorId: scope.user('other-author'),
           interactionCount: 1,
           lastInteractionAt: new Date(),
           interactionTypes: { likes: 1, boosts: 0, comments: 0, saves: 0, shares: 0 },
@@ -141,7 +169,7 @@ describe('UserPreferenceService.recordInteraction — concurrent write retries',
     mocks.findOne.mockResolvedValueOnce(stale).mockResolvedValueOnce(fresh);
 
     await expect(
-      userPreferenceService.recordInteraction('viewer-1', 'p1', 'like'),
+      userPreferenceService.recordInteraction(VIEWER, likedPostId, 'like'),
     ).resolves.toBeUndefined();
 
     // Re-read happened on the retry, and the second attempt persisted.
@@ -149,8 +177,8 @@ describe('UserPreferenceService.recordInteraction — concurrent write retries',
     expect(fresh.save).toHaveBeenCalledTimes(1);
 
     // The concurrent author survives AND our like is applied on top — accumulators correct.
-    expect(fresh.preferredAuthors.find(a => a.authorId === 'author-2')).toBeDefined();
-    const mine = fresh.preferredAuthors.find(a => a.authorId === 'author-1');
+    expect(fresh.preferredAuthors.find((a) => a.authorId === scope.user('other-author'))).toBeDefined();
+    const mine = fresh.preferredAuthors.find((a) => a.authorId === AUTHOR);
     expect(mine).toBeDefined();
     expect(mine?.interactionTypes.likes).toBe(1);
     expect(mine?.weight).toBeGreaterThan(0);
@@ -167,12 +195,12 @@ describe('UserPreferenceService.recordInteraction — concurrent write retries',
     mocks.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(winner);
 
     await expect(
-      userPreferenceService.recordInteraction('viewer-1', 'p1', 'like'),
+      userPreferenceService.recordInteraction(VIEWER, likedPostId, 'like'),
     ).resolves.toBeUndefined();
 
     expect(mocks.findOne).toHaveBeenCalledTimes(2);
     expect(winner.save).toHaveBeenCalledTimes(1);
-    expect(winner.preferredAuthors.find(a => a.authorId === 'author-1')?.interactionTypes.likes).toBe(1);
+    expect(winner.preferredAuthors.find((a) => a.authorId === AUTHOR)?.interactionTypes.likes).toBe(1);
   });
 
   it('does NOT retry on a non-conflict error (re-throws immediately)', async () => {
@@ -181,7 +209,7 @@ describe('UserPreferenceService.recordInteraction — concurrent write retries',
     mocks.findOne.mockResolvedValue(doc);
 
     await expect(
-      userPreferenceService.recordInteraction('viewer-1', 'p1', 'like'),
+      userPreferenceService.recordInteraction(VIEWER, likedPostId, 'like'),
     ).rejects.toThrow('mongo offline');
 
     // Read exactly once — no retry on a generic error.
@@ -197,7 +225,7 @@ describe('UserPreferenceService.recordInteraction — concurrent write retries',
     });
 
     await expect(
-      userPreferenceService.recordInteraction('viewer-1', 'p1', 'like'),
+      userPreferenceService.recordInteraction(VIEWER, likedPostId, 'like'),
     ).rejects.toBeInstanceOf(mongoose.Error.VersionError);
 
     // 1 initial attempt + MAX_VERSION_CONFLICT_RETRIES (5) retries = 6 reads.
@@ -209,6 +237,10 @@ describe('UserPreferenceService.recordInteraction — concurrent write retries',
     // of each of the 3 concurrent interactions) lose the `__v` race and raise a
     // VersionError; once contention clears, the retry saves commit. Each
     // `findOne` returns a FRESH revision, mirroring the DB re-read on retry.
+    //
+    // The three calls are issued WITHOUT awaiting in between — they interleave
+    // in one event loop, which is the whole point. Awaiting them one at a time
+    // would still pass and would cover nothing.
     const savedDocs: MockBehavior[] = [];
     let saveCount = 0;
     const CONFLICTING_SAVES = 3;
@@ -225,19 +257,22 @@ describe('UserPreferenceService.recordInteraction — concurrent write retries',
     });
 
     const results = await Promise.allSettled([
-      userPreferenceService.recordInteraction('viewer-1', 'p1', 'like'),
-      userPreferenceService.recordInteraction('viewer-1', 'p1', 'like'),
-      userPreferenceService.recordInteraction('viewer-1', 'p1', 'like'),
+      userPreferenceService.recordInteraction(VIEWER, likedPostId, 'like'),
+      userPreferenceService.recordInteraction(VIEWER, likedPostId, 'like'),
+      userPreferenceService.recordInteraction(VIEWER, likedPostId, 'like'),
     ]);
 
     // No interaction rejected — every conflict was retried into a success.
     for (const r of results) {
       expect(r.status).toBe('fulfilled');
     }
+    // Every attempt raised a conflict before any of them committed, which is
+    // what makes this contention rather than three sequential writes.
+    expect(saveCount).toBe(CONFLICTING_SAVES + 3);
     // All three interactions committed, and each committed doc carries the like.
     expect(savedDocs).toHaveLength(3);
     for (const doc of savedDocs) {
-      expect(doc.preferredAuthors.find(a => a.authorId === 'author-1')?.interactionTypes.likes).toBe(1);
+      expect(doc.preferredAuthors.find((a) => a.authorId === AUTHOR)?.interactionTypes.likes).toBe(1);
     }
   });
 });
