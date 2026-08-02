@@ -1,6 +1,20 @@
 /**
  * Where a run's resume position lives — POSTGRES, not a file.
  *
+ * ## This is a DELIBERATE DIVERGENCE from the reference implementation
+ *
+ * The oxy-api migration this machinery is modelled on checkpoints to a FILE.
+ * That is the one part of its design deliberately NOT copied here, and this
+ * paragraph exists so nobody later "restores consistency with the reference
+ * implementation" and reintroduces the defect.
+ *
+ * It was not a mistake there. oxy-api's largest collection was ~296k documents
+ * and its whole migration ~495k, so losing a checkpoint cost minutes of
+ * re-read — which is why the flaw never bit and never had to be noticed. The
+ * numbers here are different in kind, not degree: `authorfollowersnapshots`
+ * alone holds 2,155,466 documents (census, 2026-08-02), more than four times
+ * that entire migration.
+ *
  * ## Why not a file, which is the obvious answer
  *
  * The backfill runs as a one-shot Fargate task. That task has no durable local

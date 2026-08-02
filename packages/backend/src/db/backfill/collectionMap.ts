@@ -25,6 +25,28 @@
  *   dead `analytics`. These cannot be derived from anything: the code that
  *   named them is gone.
  *
+ * ## Models are NOT all under `src/models/` — do not assume they are
+ *
+ * This map was first built by an extractor that walked `src/models/` and read
+ * `Model.collection.collectionName` off the mongoose registry. That is the
+ * right technique and it was correctly implemented; its blind spot was a
+ * DIRECTORY ASSUMPTION. The MCP models live in `src/mcp/models/`
+ * (`McpConnection`, `McpRegisteredClient`, `McpAuthCode`) and were therefore
+ * invisible to it — not deleted, not legacy, just one directory over.
+ *
+ * The lesson is the general one, and it is why this paragraph exists rather
+ * than three extra entries: a code-derived map is only ever as complete as the
+ * paths it walks, so it needs a live `db.listCollections()` census BESIDE it.
+ * Any future extractor must scan for `mongoose.model(` across the whole
+ * package, not a directory someone remembers.
+ *
+ * ## A low document count is not a low stake
+ *
+ * `mcpconnections` holds 13 documents. It is also the bundle graph every linked
+ * Claude account resolves through (`src/mcp/middleware/mcpAuth.ts`), so losing
+ * those thirteen rows signs every MCP user out with no way back. Nothing in
+ * this file may be prioritised, or excluded, by row count.
+ *
  * The runner therefore treats `db.listCollections()` as the authority and
  * checks it against this map. A live collection appearing in NEITHER list is a
  * HARD FAILURE, not a warning — that is the only mechanism that can notice a
@@ -165,8 +187,13 @@ export const NOT_MIGRATED: readonly ExcludedCollection[] = [
       'surviving `Hashtag` reference in the repository is either the ' +
       "ActivityPub `type: 'Hashtag'` tag object or the NSFW constant list, " +
       'neither of which touches Mongo. 1,677 documents, 2026-08-02 — by far the ' +
-      'largest exclusion here, and the reason it is safe is that every one of ' +
-      'those rows is derivable from the posts that produced it.',
+      'largest exclusion here. The justification is DERIVABLE FROM A MIGRATED ' +
+      'COLUMN, which is a stronger claim than "superseded" and licenses more ' +
+      'confidence: every row of this aggregate is recomputable from ' +
+      '`posts.hashtags`, a column this migration copies, so nothing is lost ' +
+      'that cannot be reconstructed from data that moved. An exclusion resting ' +
+      'only on "a newer mechanism replaced it" would NOT license that, because ' +
+      'the newer mechanism need not carry the same rows.',
   },
   {
     collection: 'externalfeeds',
@@ -175,7 +202,12 @@ export const NOT_MIGRATED: readonly ExcludedCollection[] = [
       'in 18e469f5 / 6afc97aa ("sync Bluesky feeds as native FeedGenerators", ' +
       '#456), which deleted the model. Its successor `feedgenerators` → ' +
       '`feed_generators` IS migrated, and the sync repopulates from Bluesky ' +
-      'rather than from these rows. 322 documents, 2026-08-02: a spent source ' +
+      'rather than from these rows. 322 documents, 2026-08-02. This is the ' +
+      'WEAKER "superseded" justification rather than the derivable-from-a-' +
+      'migrated-column one `hashtags` has, so it is worth being precise about ' +
+      'what carries it: the successor does not merely exist, it is REPOPULATED ' +
+      'from Bluesky by the sync, so the rows are reproducible from the upstream ' +
+      'that produced them. A spent source ' +
       'whose data already exists in the collection that replaced it, so ' +
       'copying it would double-migrate.',
   },
