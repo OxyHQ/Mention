@@ -32,17 +32,33 @@ import { getDb, type DatabaseOrTransaction } from '../postgres';
 import {
   MODERATION_OUTBOX_KINDS,
   MODERATION_OUTBOX_RETENTION_SECONDS,
+  MODERATION_OUTBOX_STATUSES,
   moderationOutbox,
 } from '../schema/moderation';
 import { requireTransaction } from './transactionGuard';
 
 /** What kind of work an event represents. */
 export type ModerationOutboxKind = (typeof MODERATION_OUTBOX_KINDS)[number];
+/** Where an event is in its delivery lifecycle. */
+export type ModerationOutboxStatus = (typeof MODERATION_OUTBOX_STATUSES)[number];
 
-/** The payload shapes, by kind. Stored across three nullable columns. */
-export type ModerationOutboxPayload =
-  | { reportId: string }
-  | { eventId: string; caseId?: string; decision?: unknown };
+/**
+ * The payload, across four nullable columns.
+ *
+ * A flat optional shape rather than a discriminated union, matching what the
+ * workers read: each already knows its own `kind` from the event it claimed, and
+ * a union would force a narrowing step at every call site that adds nothing.
+ */
+export interface ModerationOutboxPayload {
+  /** The local report id, for `report.submit`. */
+  reportId?: string;
+  /** The inbound webhook event id, for `decision.apply` (Appendix D). */
+  eventId?: string;
+  /** The CrowdSource case a decision belongs to. */
+  caseId?: string;
+  /** The decision exactly as CrowdSource published it — whole and opaque. */
+  decision?: unknown;
+}
 
 /** One claimed event, in the shape the dispatcher consumes. */
 export interface ModerationOutboxEvent {
@@ -68,11 +84,9 @@ type OutboxRow = typeof moderationOutbox.$inferSelect;
  * columns would silently drop whatever a newer CrowdSource added).
  */
 function toPayload(row: OutboxRow): ModerationOutboxPayload {
-  if (row.kind === 'report.submit') {
-    return { reportId: row.payloadReportId ?? '' };
-  }
   return {
-    eventId: row.payloadEventId ?? '',
+    ...(row.payloadReportId === null ? {} : { reportId: row.payloadReportId }),
+    ...(row.payloadEventId === null ? {} : { eventId: row.payloadEventId }),
     ...(row.payloadCaseId === null ? {} : { caseId: row.payloadCaseId }),
     ...(row.payloadDecision === null ? {} : { decision: row.payloadDecision }),
   };
@@ -93,15 +107,12 @@ function toEvent(row: OutboxRow): ModerationOutboxEvent {
 }
 
 /** Split a payload back into the columns that hold it. */
-function payloadColumns(kind: ModerationOutboxKind, payload: ModerationOutboxPayload) {
-  if (kind === 'report.submit') {
-    return { payloadReportId: (payload as { reportId: string }).reportId };
-  }
-  const decision = payload as { eventId: string; caseId?: string; decision?: unknown };
+function payloadColumns(payload: ModerationOutboxPayload) {
   return {
-    payloadEventId: decision.eventId,
-    payloadCaseId: decision.caseId ?? null,
-    payloadDecision: decision.decision ?? null,
+    payloadReportId: payload.reportId ?? null,
+    payloadEventId: payload.eventId ?? null,
+    payloadCaseId: payload.caseId ?? null,
+    payloadDecision: payload.decision ?? null,
   };
 }
 
@@ -139,7 +150,7 @@ export async function enqueueModerationOutboxEvent(
     .values({
       id: input.eventId,
       kind: input.kind,
-      ...payloadColumns(input.kind, input.payload),
+      ...payloadColumns(input.payload),
       status: 'pending',
       attempts: 0,
       availableAt: now,
@@ -277,6 +288,25 @@ export async function releaseModerationOutboxEvent(
     .where(ownedLease(options.eventId, options.leaseOwner, now))
     .returning({ id: moderationOutbox.id });
   return released.length === 1;
+}
+
+/**
+ * The status of one event, or `undefined` when there is no such event.
+ *
+ * `undefined` means "no delivery event exists" — which the reconciliation sweep
+ * acts on by re-deriving one — and is deliberately distinguishable from
+ * `'dead_letter'`, which it must COUNT and never re-queue.
+ */
+export async function readModerationOutboxStatus(
+  eventId: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<ModerationOutboxStatus | undefined> {
+  const [row] = await db
+    .select({ status: moderationOutbox.status })
+    .from(moderationOutbox)
+    .where(eq(moderationOutbox.id, eventId))
+    .limit(1);
+  return row?.status;
 }
 
 /** One event by id, whatever its state. Used by the reconciliation sweep. */
