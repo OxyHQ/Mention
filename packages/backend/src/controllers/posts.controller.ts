@@ -32,7 +32,7 @@ import {
 import { POST_CLASSIFICATION_PENDING, type PostRecord } from '../db/posts/postRecord';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../mtn/feed/CursorBuilder';
 import { baselineContentClassifier } from '../services/BaselineContentClassifier';
-import Poll from '../models/Poll';
+import { attachPollToPost, createPollWithOptions } from '../db/polls/pollRepository';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { createMentionNotifications } from '../utils/notificationUtils';
 import {
@@ -616,20 +616,23 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
 
       try {
-        const pollDoc = new Poll({
+        // Postgres, through the shared writer. This used to `new Poll().save()`
+        // into Mongo while `PostHydrationService` — the single DTO producer for
+        // every post surface — reads polls from Postgres, so a poll created here
+        // was written to one store and looked for in the other: the post said it
+        // had a poll and rendered none.
+        //
+        // `postId` stays NULL until the post exists; the `temp_` placeholder the
+        // Mongo code used is not portable to a real foreign key.
+        pollId = await createPollWithOptions({
           question: poll.question,
-          options: poll.options.map((option: string) => ({ text: option, votes: [] })),
-          postId: 'temp_' + Date.now(), // Temporary ID, will be updated after post creation
+          options: poll.options,
           createdBy: userId,
           endsAt: new Date(poll.endTime || Date.now() + DEFAULT_POLL_DURATION_DAYS * 24 * 60 * 60 * 1000),
           isMultipleChoice: poll.isMultipleChoice || false,
-          isAnonymous: poll.isAnonymous || false
+          isAnonymous: poll.isAnonymous || false,
         });
-        
-        const savedPoll = await pollDoc.save();
-        pollId = String(savedPoll._id);
         postContent.pollId = pollId;
-        
       } catch (pollError) {
         logger.error('Failed to create poll', pollError);
         return res.status(400).json({ message: 'Failed to create poll' });
@@ -800,7 +803,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     if (!isScheduled && pollId) {
       try {
-        await Poll.findByIdAndUpdate(pollId, { postId: post.id });
+        await attachPollToPost(pollId, post.id);
       } catch (pollUpdateError) {
         logger.error('Failed to update poll postId', pollUpdateError);
       }
@@ -1085,16 +1088,19 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       let pollId = null;
       if (content?.poll) {
         const poll = content.poll;
-        const newPoll = new Poll({
+        // Same shared writer as the single-post path above. The previous call
+        // here also passed fields the poll schema never had (`endTime`, `votes`,
+        // `userVotes`) and bare option strings where the single-post path passed
+        // `{ text }` — two spellings of one write, which is what having no
+        // shared writer buys.
+        pollId = await createPollWithOptions({
           question: poll.question || 'Poll',
-          options: poll.options || [],
-          endTime: poll.endTime || new Date(Date.now() + DEFAULT_POLL_DURATION_DAYS * 24 * 60 * 60 * 1000).toISOString(),
-          votes: poll.votes || {},
-          userVotes: poll.userVotes || {},
-          createdBy: userId
+          options: poll.options ?? [],
+          createdBy: userId,
+          endsAt: new Date(poll.endTime || Date.now() + DEFAULT_POLL_DURATION_DAYS * 24 * 60 * 60 * 1000),
+          isMultipleChoice: poll.isMultipleChoice || false,
+          isAnonymous: poll.isAnonymous || false,
         });
-        await newPoll.save();
-        pollId = String(newPoll._id);
         postContent.pollId = pollId;
       }
 
@@ -1201,7 +1207,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
       // Update poll's postId
       if (pollId) {
-        await Poll.findByIdAndUpdate(pollId, { postId: anchored.id });
+        await attachPollToPost(pollId, anchored.id);
       }
 
       // Store the first post ID as the main post for thread linking
@@ -1942,10 +1948,13 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
         post.content.article?.articleId
           ? ArticleModel.deleteOne({ _id: post.content.article.articleId }).exec()
           : Promise.resolve(),
-        // Delete associated poll
-        post.content.pollId
-          ? Poll.deleteOne({ _id: post.content.pollId }).exec()
-          : Promise.resolve(),
+        // The poll is NOT swept here either, for the same reason and now that it
+        // is written to Postgres: `polls.post_id` carries `ON DELETE CASCADE` to
+        // `posts.id`, and `deletePostRecord` above deletes the Postgres row. The
+        // Mongo `Poll.deleteOne` this replaces had stopped matching anything.
+        // The ARTICLE sweep above stays on Mongo deliberately — articles are
+        // still written there, so that one is not the same case.
+        //
         // Likes and bookmarks are NOT swept here: `likes.post_id` and
         // `bookmarks.post_id` both carry `ON DELETE CASCADE` to `posts.id`, so
         // the row goes with the post inside the same statement. Sweeping them
@@ -2035,7 +2044,7 @@ async function deleteScheduledContinuations(postIds: string[], ownerId: string):
       { orderBy: CHRONO_DESC },
     );
     const articleIds = cancelled.flatMap((p) => (p.content.article?.articleId ? [p.content.article.articleId] : []));
-    const pollIds = cancelled.flatMap((p) => (p.content.pollId ? [p.content.pollId] : []));
+    // No `pollIds` here: the poll rows cascade from `posts` (see deletePost).
 
     // Per-row, because `deletePostRecord` owns the child-table cascade a post's
     // nine tables need; a bare `DELETE … WHERE id = any(...)` would leave the
@@ -2045,7 +2054,6 @@ async function deleteScheduledContinuations(postIds: string[], ownerId: string):
     );
     await Promise.allSettled([
       articleIds.length > 0 ? ArticleModel.deleteMany({ _id: { $in: articleIds } }).exec() : Promise.resolve(),
-      pollIds.length > 0 ? Poll.deleteMany({ _id: { $in: pollIds } }).exec() : Promise.resolve(),
     ]);
   } catch (error) {
     logger.error('Error cancelling scheduled thread continuations', error);
