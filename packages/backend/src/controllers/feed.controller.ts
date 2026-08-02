@@ -239,6 +239,27 @@ class FeedController {
         return res.status(400).json({ error: 'Content and post ID are required' });
       }
 
+      /**
+       * `postId` arrives as JSON, so it can be an OBJECT, and it goes straight
+       * into `Post.findById` below and into the counter update further down.
+       *
+       * Mongoose does not save us here — measured against mongod, not assumed:
+       * `{ $ne: null }` casts cleanly as a query operator on an ObjectId path
+       * and MATCHES an arbitrary post, and `findByIdAndUpdate` given the same
+       * value mutates one. (`{ $gt: '' }`, a bare number, an empty object and a
+       * 12-character string all throw `CastError` instead; the operator whose
+       * operand happens to be castable is the one that gets through.) What stops
+       * it reaching the counter today is incidental: `parentPostId` is a String
+       * column, so `reply.save()` throws first — an accident of an unrelated
+       * schema choice, one field-type change away from not holding.
+       *
+       * The string check is not redundant with `isValidObjectId`, which answers
+       * TRUE for a bare number that the cast then rejects with a 500.
+       */
+      if (typeof postId !== 'string' || !mongoose.isValidObjectId(postId)) {
+        return res.status(400).json({ error: 'Invalid post ID' });
+      }
+
       // Fetch parent post to check reply permissions
       const parentPost = await Post.findById(postId)
         .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
@@ -488,6 +509,13 @@ class FeedController {
 
       if (!originalPostId) {
         return res.status(400).json({ error: 'Original post ID is required' });
+      }
+
+      // Same client-supplied id, same three queries, same reason — see the note
+      // in `createReply`. `boostOf` being a String column is what currently
+      // stops an operator object reaching the boost counter, not any check.
+      if (typeof originalPostId !== 'string' || !mongoose.isValidObjectId(originalPostId)) {
+        return res.status(400).json({ error: 'Invalid post ID' });
       }
 
       const originalPost = await Post.findById(originalPostId)
