@@ -72,6 +72,35 @@ export interface IPost extends Document {
    * conjunctive term rather than a disjunction `ChronoCursor` would clobber.
    */
   channelId?: string;
+  /**
+   * The PERSON who wrote this post, when the post's author is a channel account
+   * rather than a human.
+   *
+   * A channel is becoming a real Oxy account, so `oxyUserId` and `authorship[]`
+   * will hold the CHANNEL. That leaves the writer with nowhere else on the row —
+   * and Mention still needs them: a channel whose `signPosts` is on renders a
+   * "by <writer>" line beneath the channel's byline.
+   *
+   * **It is its own top-level field and must NEVER be folded into `authorship[]`.**
+   * That looks like tidying and breaks two things, both load-bearing:
+   *
+   *  - `getHeaderAuthorshipEntries` (`utils/postAuthorship`) would render the
+   *    writer as a CO-AUTHOR, so the DTO would name the person a channel with
+   *    `signPosts: false` exists to keep anonymous.
+   *  - `buildAuthorFeedMatch` matches on `authorship`, so the post would reappear
+   *    on the writer's OWN profile — exactly what `EXCLUDE_CHANNEL_POSTS` is there
+   *    to prevent. Kept out of `authorship[]`, that clause can eventually be
+   *    deleted; put in, it has to stay forever.
+   *
+   * Both properties are pinned (and mutation-tested) in
+   * `__tests__/models/channelAccountSchema.test.ts`.
+   *
+   * No `index:` — nothing reads the field yet, and the read it is being added for
+   * takes a post the caller already holds and resolves its writer by id. Adding a
+   * schema index would create nothing in production anyway (`autoIndex` is OFF),
+   * so an index here would be a migration for a query that does not exist.
+   */
+  writtenByOxyUserId?: string;
   parentPostId?: string; // for replies
   threadId?: string; // for thread posts
   replyPermission?: ReplyPermission[]; // Who can reply and quote this post
@@ -583,6 +612,10 @@ const PostSchema = new Schema<IPost>({
   // EXCLUSION (`{ channelId: { $exists: false } }`) is a residual filter after the
   // seek on `post_author_chrono_v1`, so it needs no index either.
   channelId: { type: String },
+  // The person behind a channel post — see the field's doc comment on `IPost` for
+  // why it is here and NOT an `authorship[]` entry. No `index:`: nothing queries
+  // by writer.
+  writtenByOxyUserId: { type: String },
   parentPostId: { type: String, index: true },
   threadId: { type: String, index: true },
   replyPermission: {

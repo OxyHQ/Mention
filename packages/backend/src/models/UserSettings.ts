@@ -104,6 +104,29 @@ export interface InterestsSettings {
   tags?: string[]; // Array of interest tags
 }
 
+/**
+ * Settings that apply only when the account these settings belong to IS a channel.
+ *
+ * A channel is becoming a real Oxy account, and `UserSettings` is keyed on
+ * `oxyUserId` — which a channel account has — so this is the one place a
+ * per-channel preference can live. It cannot live in Oxy: Oxy owns identity and
+ * has no concept of signing a post, and Mention-owned settings do not belong
+ * there. The subdocument is ABSENT on a person's settings, which is what makes
+ * "is this account a channel" a question nothing here has to answer.
+ */
+export interface ChannelAccountSettings {
+  /**
+   * Whether a post published by this channel also NAMES the person who wrote it
+   * (rendered as a "by <writer>" line beneath the channel's byline; the writer
+   * itself is stored on `Post.writtenByOxyUserId`).
+   *
+   * `false` is the default, matching `Channel.signPosts` — a channel post is
+   * anonymous behind the channel unless its owner says otherwise. Getting the
+   * default backwards would publish every writer's identity by omission.
+   */
+  signPosts: boolean;
+}
+
 export interface NotificationPreferences {
   pushEnabled: boolean;
   emailEnabled: boolean;
@@ -139,6 +162,11 @@ export interface UserSettingsData {
   privacy?: PrivacySettings;
   profileCustomization?: ProfileCustomization;
   interests?: InterestsSettings;
+  /**
+   * Channel-only settings — present only when this account IS a channel. See
+   * {@link ChannelAccountSettings}.
+   */
+  channel?: ChannelAccountSettings;
   feedSettings?: FeedSettings;
   /**
    * Mention-local per-user FEED TUNING (Phase 4B) — the viewer's overrides on
@@ -238,6 +266,13 @@ const InterestsSchema = new Schema<InterestsSettings>({
   tags: [{ type: String }],
 }, { _id: false });
 
+// Channel-only settings. The subdocument itself has NO default, so it stays absent
+// on a person's settings — only `signPosts` inside it defaults, and it defaults to
+// `false` exactly as `Channel.signPosts` does.
+const ChannelAccountSchema = new Schema<ChannelAccountSettings>({
+  signPosts: { type: Boolean, default: false },
+}, { _id: false });
+
 // Per-user For You discovery-gate tuning. Each module carries an optional
 // `enabled` toggle + a single numeric threshold. Bounds are NOT duplicated here —
 // `validateForYouTuning` (shared spec) is the authoritative validator run in the
@@ -314,6 +349,7 @@ const UserSettingsSchema = new Schema<IUserSettings>({
   privacy: { type: PrivacySchema, default: () => ({ profileVisibility: 'public' }) },
   profileCustomization: { type: ProfileCustomizationSchema },
   interests: { type: InterestsSchema },
+  channel: { type: ChannelAccountSchema },
   feedSettings: { type: FeedSettingsSchema },
   feedTuning: { type: FeedTuningSchema },
   notificationPreferences: { type: NotificationPreferencesSchema },
