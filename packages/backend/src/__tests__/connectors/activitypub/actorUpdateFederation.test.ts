@@ -24,7 +24,6 @@ const {
   getUserById,
   resolveOxyUser,
   getPublicKey,
-  userSettingsFindOneLean,
   insertMany,
 } = vi.hoisted(() => ({
   enqueueDelivery: vi.fn(),
@@ -32,7 +31,6 @@ const {
   getUserById: vi.fn(),
   resolveOxyUser: vi.fn(),
   getPublicKey: vi.fn(),
-  userSettingsFindOneLean: vi.fn(),
   insertMany: vi.fn(),
 }));
 
@@ -51,9 +49,6 @@ vi.mock('../../../models/FederationDeliveryQueue', () => ({
 vi.mock('../../../models/Post', () => ({
   Post: { findById: () => ({ select: () => ({ lean: () => null }) }) },
 }));
-vi.mock('../../../models/UserSettings', () => ({
-  default: { findOne: () => ({ lean: () => userSettingsFindOneLean() }) },
-}));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
@@ -66,7 +61,9 @@ vi.mock('../../../utils/mediaResolver', () => ({
 vi.mock('../../../services/fediverseSharing', () => ({ isFediverseSharingEnabled }));
 vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ getUserById }) }));
 
-import { closePostgres, connectPostgres } from '../../../db/postgres';
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { userSettings } from '../../../db/schema/userProfile';
 import {
   clearFederationScope,
   federationScope,
@@ -111,7 +108,16 @@ beforeEach(async () => {
     createdAt: '2020-01-01T00:00:00.000Z',
   });
   getPublicKey.mockResolvedValue({ keyId: `${ALICE_ACTOR}#main-key`, publicKeyPem: 'PEM' });
-  userSettingsFindOneLean.mockResolvedValue({ profileHeaderImage: 'banner-file-id' });
+  // A REAL `user_settings` row. The banner used to come from a Mongoose model
+  // nothing writes since settings moved to Postgres, so the broadcast carried no
+  // `image` in production while this test asserted one.
+  await getDb()
+    .insert(userSettings)
+    .values({ oxyUserId: USER_OWNER, profileHeaderImage: 'banner-file-id' })
+    .onConflictDoUpdate({
+      target: userSettings.oxyUserId,
+      set: { profileHeaderImage: 'banner-file-id' },
+    });
 });
 
 describe('federateActorUpdate — Update(Person)', () => {
@@ -162,6 +168,7 @@ describe('federateActorUpdate — Update(Person)', () => {
 
 afterEach(async () => {
   await clearFederationScope(scope);
+  await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, USER_OWNER));
 });
 
 afterAll(async () => {
