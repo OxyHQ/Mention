@@ -2,6 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PostType, PostVisibility } from '@mention/shared-types';
+import { eq } from 'drizzle-orm';
 
 /**
  * `GET /profile/design/:userId` and `GET /profile/settings/:userId` serve the
@@ -29,8 +30,8 @@ const VIEWER = 'oxy-profile-design-parity-viewer';
 /** viewerId → the ids that viewer follows, as the Oxy graph would report them. */
 const followingByViewer = new Map<string, string[]>();
 
-/** The seeded UserSettings document for TARGET, or null when it has none. */
-let targetDoc: Record<string, unknown> | null = null;
+/** Whether this test seeded a settings row for TARGET (cleanup reads it). */
+let seededTarget = false;
 
 /** The viewer each route sees; `undefined` models an anonymous design request. */
 let currentViewer: string | undefined = VIEWER;
@@ -60,20 +61,6 @@ vi.mock('../../utils/oxyHelpers', () => ({
   ensureProfileMediaPublic: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../../models/UserSettings', () => ({
-  default: {
-    findOne: () => ({
-      lean: () => {
-        const query = {
-          exec: () => Promise.resolve(targetDoc),
-          then: (resolve: (value: unknown) => unknown) => Promise.resolve(targetDoc).then(resolve),
-        };
-        return query;
-      },
-    }),
-  },
-}));
-
 vi.mock('@oxyhq/core/server', () => ({
   requireOxyAuth: (req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (!currentViewer) {
@@ -94,7 +81,9 @@ vi.mock('../../models/UserBehavior', () => ({ default: {} }));
 vi.mock('../../models/Bookmark', () => ({ default: {} }));
 vi.mock('../../models/Like', () => ({ default: {} }));
 
-import { closePostgres, connectPostgres } from '../../db/postgres';
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { userSettings } from '../../db/schema/userProfile';
+import { updateUserSettings } from '../../db/userProfile/userSettingsRepository';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import profileDesignRoutes from '../../routes/profileDesign';
 import profileSettingsRoutes from '../../routes/profileSettings';
@@ -143,15 +132,19 @@ function designFields(payload: ProfileDesignPayload) {
   };
 }
 
-function seedTarget(profileVisibility: 'public' | 'private' | 'followers_only') {
-  targetDoc = {
-    oxyUserId: TARGET,
-    appearance: { themeMode: 'dark', primaryColor: '#ff0000' },
-    profileHeaderImage: 'private-banner-file',
-    profileCustomization: {
-      coverPhotoEnabled: true,
-      minimalistMode: true,
-      profileMedia: {
+async function seedTarget(profileVisibility: 'public' | 'private' | 'followers_only') {
+  // A REAL settings row, written through the same repository the settings PUT
+  // uses. The design fields and the visibility that gates them then come from
+  // one store, which is the whole point of this parity suite: a mock could
+  // satisfy the design route and the settings route with different objects.
+  await updateUserSettings(TARGET, {
+    set: {
+      'appearance.themeMode': 'dark',
+      'appearance.primaryColor': '#ff0000',
+      profileHeaderImage: 'private-banner-file',
+      'profileCustomization.coverPhotoEnabled': true,
+      'profileCustomization.minimalistMode': true,
+      'profileCustomization.profileMedia': {
         type: 'song',
         syraTrackId: 'track-1',
         title: 'A private song',
@@ -161,9 +154,12 @@ function seedTarget(profileVisibility: 'public' | 'private' | 'followers_only') 
         startSec: 0,
         durationSec: 180,
       },
+      'privacy.profileVisibility': profileVisibility,
+      'privacy.showSensitiveContent': true,
+      'privacy.hiddenWords': ['secret'],
     },
-    privacy: { profileVisibility, showSensitiveContent: true, hiddenWords: ['secret'] },
-  };
+  });
+  seededTarget = true;
 }
 
 beforeAll(async () => {
@@ -174,11 +170,14 @@ beforeEach(() => {
   vi.clearAllMocks();
   followingByViewer.clear();
   currentViewer = VIEWER;
-  targetDoc = null;
 });
 
 afterEach(async () => {
   await clearPostScope(scope);
+  if (seededTarget) {
+    await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, TARGET));
+    seededTarget = false;
+  }
 });
 
 afterAll(async () => {
@@ -187,7 +186,7 @@ afterAll(async () => {
 
 describe('GET /profile/settings/:userId profile-design visibility', () => {
   it('withholds a private profile\'s design from a stranger', async () => {
-    seedTarget('private');
+    await seedTarget('private');
     followingByViewer.set(VIEWER, []);
 
     const settings = await getSettings();
@@ -199,7 +198,7 @@ describe('GET /profile/settings/:userId profile-design visibility', () => {
   });
 
   it('withholds a followers-only profile\'s design from a non-follower', async () => {
-    seedTarget('followers_only');
+    await seedTarget('followers_only');
     followingByViewer.set(VIEWER, ['someone-else']);
 
     expect(designFields(await getSettings())).toEqual({
@@ -215,7 +214,7 @@ describe('GET /profile/settings/:userId profile-design visibility', () => {
   // file id becomes a final URL (and which variant it carries) is owned by
   // `mediaResolver` and covered by `utils/userSettings.test.ts`.
   it('serves the design to a follower of a private profile', async () => {
-    seedTarget('private');
+    await seedTarget('private');
     followingByViewer.set(VIEWER, [TARGET]);
 
     const settings = await getSettings();
@@ -230,7 +229,7 @@ describe('GET /profile/settings/:userId profile-design visibility', () => {
   });
 
   it('serves the design of a public profile to a stranger', async () => {
-    seedTarget('public');
+    await seedTarget('public');
     followingByViewer.set(VIEWER, []);
 
     const settings = await getSettings();
@@ -240,7 +239,7 @@ describe('GET /profile/settings/:userId profile-design visibility', () => {
   });
 
   it('serves the owner their own private profile design', async () => {
-    seedTarget('private');
+    await seedTarget('private');
     currentViewer = TARGET;
     followingByViewer.set(TARGET, []);
 
@@ -279,7 +278,7 @@ describe('GET /profile/design/:userId post counters', () => {
       authorship: [{ oxyUserId: VIEWER, role: 'owner', status: 'accepted' }],
     });
 
-    seedTarget('public');
+    await seedTarget('public');
     followingByViewer.set(VIEWER, []);
 
     const design = await getDesign();
@@ -290,7 +289,7 @@ describe('GET /profile/design/:userId post counters', () => {
   });
 
   it('reports zero for a profile with no posts at all', async () => {
-    seedTarget('public');
+    await seedTarget('public');
     followingByViewer.set(VIEWER, []);
 
     expect(await getDesign()).toMatchObject({

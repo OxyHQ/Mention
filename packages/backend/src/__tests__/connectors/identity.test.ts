@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { inArray } from 'drizzle-orm';
 
 /**
  * Network-neutral identity bridge (`resolveOxyExternalUser`) — asserts the EXACT
@@ -18,7 +19,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   makeServiceRequest: vi.fn(),
   persistRemoteMedia: vi.fn(),
-  userSettingsUpdateOne: vi.fn(),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -31,29 +31,42 @@ vi.mock('../../services/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMedia,
 }));
 
-vi.mock('../../models/UserSettings', () => ({
-  default: {
-    updateOne: mocks.userSettingsUpdateOne,
-  },
-}));
-
 import {
   deleteFederatedActorIdentity,
   reportFederatedActorGone,
   resolveOxyExternalUser,
 } from '../../connectors/identity';
 import type { NormalizedExternalActor } from '@oxyhq/federation';
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { userSettings } from '../../db/schema/userProfile';
+import { loadUserSettings } from '../../db/userProfile/userSettingsRepository';
+
+/** Every settings row these cases create, so cleanup reaches exactly them. */
+const settingsOwners = ['oxy-resolved', 'oxy-bob'];
 
 /** Build an HTTP-style rejection carrying the flat `.status` shape `getErrorStatus` reads. */
 function httpError(status: number, message = `HTTP ${status}`): Error {
   return Object.assign(new Error(message), { status });
 }
 
+beforeAll(async () => {
+  // The banner write is a real `user_settings` row now, so this suite needs the
+  // database it writes to.
+  await connectPostgres();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.makeServiceRequest.mockResolvedValue({ _id: 'oxy-resolved' });
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false, reason: 'disabled' });
-  mocks.userSettingsUpdateOne.mockResolvedValue({ acknowledged: true });
+});
+
+afterEach(async () => {
+  await getDb().delete(userSettings).where(inArray(userSettings.oxyUserId, settingsOwners));
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 describe('resolveOxyExternalUser', () => {
@@ -153,11 +166,11 @@ describe('resolveOxyExternalUser', () => {
       // Constrained to `image/` — see mirrorFederatedBanner.test.ts.
       expect.objectContaining({ allowedContentTypePrefixes: ['image/'] }),
     );
-    expect(mocks.userSettingsUpdateOne).toHaveBeenCalledWith(
-      { oxyUserId: 'oxy-resolved' },
-      { $set: { profileHeaderImage: 'banner_file_1' } },
-      { upsert: true },
-    );
+    // The STORED ROW, not the call. This is also the round trip meeting
+    // `actorObject.loadProfileBanner`, which reads the same column for the
+    // actor JSON and the `Update(Person)` broadcast — write and read are both
+    // Postgres now, which is the first time this field works end to end.
+    expect((await loadUserSettings('oxy-resolved'))?.profileHeaderImage).toBe('banner_file_1');
   });
 
   it('does not store a profile header image when banner mirroring fails', async () => {
@@ -179,7 +192,7 @@ describe('resolveOxyExternalUser', () => {
       expect.objectContaining({ role: 'banner' }),
       expect.objectContaining({ allowedContentTypePrefixes: ['image/'] }),
     );
-    expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
+    expect(await loadUserSettings('oxy-resolved')).toBeNull();
   });
 
   it('skips banner mirroring when the actor has no banner', async () => {
@@ -194,7 +207,7 @@ describe('resolveOxyExternalUser', () => {
     await resolveOxyExternalUser(actor);
 
     expect(mocks.persistRemoteMedia).not.toHaveBeenCalled();
-    expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
+    expect(await loadUserSettings('oxy-resolved')).toBeNull();
   });
 });
 

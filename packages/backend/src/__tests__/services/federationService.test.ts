@@ -51,7 +51,6 @@ const mocks = vi.hoisted(() => ({
   assertSafePublicUrl: vi.fn(),
   fetchUpstreamFollowingRedirects: vi.fn(),
   fetchUpstreamSingleHop: vi.fn(),
-  userSettingsUpdateOne: vi.fn(),
 }));
 
 vi.mock('../../connectors/activitypub/crypto', () => ({
@@ -89,12 +88,6 @@ vi.mock('../../models/PostSubscription', () => ({
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn().mockResolvedValue([]) },
   resolveUserSummaries: vi.fn(async () => new Map()),
-}));
-
-vi.mock('../../models/UserSettings', () => ({
-  default: {
-    updateOne: mocks.userSettingsUpdateOne,
-  },
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -138,6 +131,7 @@ import { and, eq, inArray, like, or, type SQL } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { likes } from '../../db/schema/engagement';
+import { userSettings } from '../../db/schema/userProfile';
 import { bumpPostCounters, insertPostRecord, loadPostRecord } from '../../db/posts/postRepository';
 import { PostType, PostVisibility } from '@mention/shared-types';
 // Importing the service is what registers it with the (mocked) registry above.
@@ -172,6 +166,9 @@ function ownedPosts(): SQL {
  */
 async function clearScopePosts(): Promise<void> {
   const db = getDb();
+  // `oxy_user_1` is the id the mocked Oxy resolution hands back, so the settings
+  // row the banner mirror writes is not reachable by this suite's own prefix.
+  await db.delete(userSettings).where(eq(userSettings.oxyUserId, 'oxy_user_1'));
   const owned = ownedPosts();
   const rows = await db.select({ id: posts.id }).from(posts).where(owned);
   if (rows.length > 0) {
@@ -197,6 +194,15 @@ async function seedFederatedPost(input: {
     content: { variants: [{ source: 'author', text: input.text ?? 'a federated post', tag: 'en' }] },
     federation: { activityId: input.activityId, actorUri: input.actorUri },
   });
+}
+
+/** The banner file id stored on an actor's Mention-side settings row. */
+async function readProfileHeaderImage(oxyUserId: string): Promise<string | undefined> {
+  const [row] = await getDb()
+    .select({ profileHeaderImage: userSettings.profileHeaderImage })
+    .from(userSettings)
+    .where(eq(userSettings.oxyUserId, oxyUserId));
+  return row?.profileHeaderImage ?? undefined;
 }
 
 /** The stored row for a federated post, looked up the way the code does. */
@@ -290,7 +296,6 @@ beforeEach(async () => {
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   mocks.recordAccess.mockResolvedValue(undefined);
   mocks.makeServiceRequest.mockResolvedValue({ id: 'oxy_user_1' });
-  mocks.userSettingsUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.fetchUpstreamFollowingRedirects.mockReset();
   // `signedFetch` is built on `fetchUpstreamSingleHop` (IP-pinned, no global
   // `fetch`). Adapt it to the per-test stubbed global `fetch` so existing tests
@@ -579,11 +584,11 @@ describe('federationService.fetchRemoteActor', () => {
       // federated-media video/audio allowance (see policy.ts).
       expect.objectContaining({ allowedContentTypePrefixes: ['image/'] }),
     );
-    expect(mocks.userSettingsUpdateOne).toHaveBeenCalledWith(
-      { oxyUserId: 'oxy_user_1' },
-      { $set: { profileHeaderImage: 'banner_file_1' } },
-      { upsert: true },
-    );
+    // The mirrored file id is STORED on the actor's Mention-side settings row —
+    // `user_settings.profile_header_image` is what `buildLocalActorObject` reads
+    // back to emit the AP `image`, so a mirror that never reached the column
+    // leaves the banner mirrored and invisible.
+    expect(await readProfileHeaderImage('oxy_user_1')).toBe('banner_file_1');
   });
 
   it('does not store a profile header image when banner mirroring fails', async () => {
@@ -612,7 +617,9 @@ describe('federationService.fetchRemoteActor', () => {
       expect.objectContaining({ role: 'banner' }),
       expect.objectContaining({ allowedContentTypePrefixes: ['image/'] }),
     );
-    expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
+    // Nothing stored: a failed mirror must not leave a header pointing at a file
+    // that was never uploaded.
+    expect(await readProfileHeaderImage('oxy_user_1')).toBeUndefined();
   });
 
   it('normalizes the whitespace of every remote text field on the actor', async () => {

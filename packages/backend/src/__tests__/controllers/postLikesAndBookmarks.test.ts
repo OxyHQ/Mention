@@ -365,15 +365,21 @@ describe('getSavedPosts', () => {
     expect(await saved({ search: 'gardening' })).toEqual([post.id]);
   });
 
-  it('treats % in a search term as a literal, not as "match everything"', async () => {
-    // The escaping case. `%` is `ILIKE`'s multi-character wildcard, so an
-    // unescaped term of `100%` becomes `%100%%` and matches every saved post —
-    // a search that silently returns the whole library while looking generous.
-    const literal = await seedSaved('inflation hit 100% this year');
-    await seedSaved('nothing numeric here');
-    await seedSaved('another unrelated saved post');
+  it('treats % in a search term as a literal wildcard-free character', async () => {
+    // `%` is `ILIKE`'s multi-character wildcard, so an unescaped term spans
+    // anything between its two halves.
+    //
+    // The term is `50%off` and NOT `100%`, and that difference is the whole
+    // test. A TRAILING `%` is indistinguishable: `%100%%` and `%100\%%` match
+    // exactly the same posts, so a `100%` search passes whether or not the
+    // escaping exists — the first draft of this case did use `100%`, and
+    // mutation-testing showed it stayed green with the escape removed. With the
+    // `%` in the MIDDLE, the unescaped form also matches the "50 percent off"
+    // decoy and the escaped form does not.
+    const literal = await seedSaved('the sale is 50%off today');
+    await seedSaved('the sale is 50 percent off today');
 
-    expect(await saved({ search: '100%' })).toEqual([literal.id]);
+    expect(await saved({ search: '50%off' })).toEqual([literal.id]);
   });
 
   it('treats _ in a search term as a literal, not as "any single character"', async () => {
@@ -402,10 +408,19 @@ describe('getSavedPosts', () => {
   });
 
   it('returns an empty page rather than every post when the viewer has saved nothing', async () => {
-    // `inArray(id, [])` is the shape that quietly becomes "no predicate" if the
-    // empty case is not short-circuited, and this endpoint deliberately does NOT
-    // filter by visibility — so the failure would serve every post in the table,
-    // private ones included, to anyone with an empty bookmark list.
+    // This endpoint deliberately does NOT filter by visibility — a viewer may see
+    // their own saved private posts — so the id list is the ONLY thing standing
+    // between an empty bookmark table and every post in the database.
+    //
+    // What guarantees it is worth stating precisely, because the obvious answer
+    // is wrong. It is NOT the `postIds.length === 0` short-circuit in the
+    // controller: removing that leaves this test green, verified by mutation.
+    // Drizzle 0.45 renders `inArray(col, [])` as the literal `false`, so the
+    // query already matches nothing and the short-circuit is a saved round trip
+    // rather than a correctness guard. The property under test is therefore the
+    // PREDICATE, and it is pinned here because a hand-written SQL fragment — or a
+    // drizzle whose empty-`IN` rendering changes — would turn "no bookmarks" into
+    // "no predicate" silently.
     await seedPost(scope, { oxyUserId: scope.user('author') });
 
     expect(await saved()).toEqual([]);

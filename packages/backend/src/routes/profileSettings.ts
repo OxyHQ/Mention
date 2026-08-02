@@ -14,6 +14,7 @@ import Like from '../models/Like';
 import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { buildSettingsResponseForViewer } from '../utils/userSettings';
 import {
+  UnknownSettingsPathError,
   ensureUserSettings,
   loadUserSettings,
   updateUserSettings,
@@ -403,9 +404,23 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       operation.$unset = unset;
     }
 
-    const doc = Object.keys(operation).length > 0
-      ? await updateUserSettings(oxyUserId, { set: operation.$set, unset: operation.$unset })
-      : await ensureUserSettings(oxyUserId);
+    // An unregistered dotted path is the caller's error, not a server fault:
+    // this route builds its update map from the REQUEST BODY, so an unknown key
+    // is the one place `UnknownSettingsPathError` is reachable from outside.
+    // Surfacing it as a 400 that names the path is the whole point of the
+    // repository throwing rather than silently dropping the write — a 500 with
+    // a stack would tell the caller nothing about which key was wrong.
+    let doc;
+    try {
+      doc = Object.keys(operation).length > 0
+        ? await updateUserSettings(oxyUserId, { set: operation.$set, unset: operation.$unset })
+        : await ensureUserSettings(oxyUserId);
+    } catch (error) {
+      if (error instanceof UnknownSettingsPathError) {
+        return sendErrorResponse(res, 400, 'Bad Request', error.message);
+      }
+      throw error;
+    }
 
     // Profile banners are public-facing media: an anonymous <img> on a profile
     // page can't send a bearer token, so a private Oxy asset is denied and the
