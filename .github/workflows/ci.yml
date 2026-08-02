@@ -39,6 +39,7 @@ jobs:
         run: |
           bash -n .github/scripts/*.sh
           bash .github/scripts/test-deploy-ecs-image.sh
+          bash .github/scripts/test-smoke-mention.sh
           bun .github/scripts/test-runtime-image-audit.mjs
 
   # Ported from bluesky-social/social-app 513a188a2 ("Add a GitHub Action

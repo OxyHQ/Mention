@@ -243,6 +243,7 @@ run_release() {
   local inject_task_secret="${6:-false}"
   local service_desired_count="${7:-1}"
   local rollout_scenario="${8:-healthy}"
+  local smoke_exit_code="${9:-0}"
   local case_directory="$test_directory/$case_name"
   local output_file="$case_directory/output.log"
   local smoke_script="$case_directory/smoke.sh"
@@ -260,11 +261,14 @@ run_release() {
   export DEPLOY_TEST_SERVICE_DESIRED_COUNT
   export DEPLOY_TEST_ROLLOUT_SCENARIO
 
-  # The generated smoke fixture expands this variable when it runs.
+  # The generated smoke fixture expands DEPLOY_TEST_LOG when it runs; its exit
+  # code is the entire interface deploy-ecs-image.sh reads, so each case picks
+  # one. 75 is the "failed, but a rollback cannot repair it" code.
   # shellcheck disable=SC2016
   printf '%s\n' \
     '#!/usr/bin/env bash' \
     'printf "smoke\n" >>"$DEPLOY_TEST_LOG"' \
+    "exit $smoke_exit_code" \
     >"$smoke_script"
 
   local -a release_environment=(
@@ -404,6 +408,50 @@ diff -u \
 grep -F \
   "completed at desiredCount=0; refusing to accept a zero-task steady state" \
   "$test_directory/completed-zero-deployment/output.log" \
+  >/dev/null
+
+# A smoke failure the smoke script attributes to the new image rolls the service
+# back, and stops the release before the reconciliation task runs.
+run_release smoke-hermetic-failure false false false 0 false 1 healthy 1
+printf '%s\n' \
+  'service:arn:aws:ecs:test:task-definition/mention-test:2:desired=1' \
+  smoke \
+  'service:arn:aws:ecs:test:task-definition/mention-test:1:desired=1' \
+  >"$test_directory/smoke-hermetic-failure/expected.log"
+diff -u \
+  "$test_directory/smoke-hermetic-failure/expected.log" \
+  "$test_directory/smoke-hermetic-failure/aws.log"
+grep -F \
+  "Post-deploy smoke checks failed." \
+  "$test_directory/smoke-hermetic-failure/output.log" \
+  >/dev/null
+
+# A smoke failure the smoke script attributes to something outside the new image
+# (exit 75) must NOT roll back: the service stays on the new task definition, the
+# release finishes its reconciliation task, and the job still fails so the
+# failure is paged rather than swallowed.
+run_release smoke-no-rollback-failure false false false 0 false 1 healthy 75
+printf '%s\n' \
+  'service:arn:aws:ecs:test:task-definition/mention-test:2:desired=1' \
+  smoke \
+  reconcile \
+  >"$test_directory/smoke-no-rollback-failure/expected.log"
+diff -u \
+  "$test_directory/smoke-no-rollback-failure/expected.log" \
+  "$test_directory/smoke-no-rollback-failure/aws.log"
+if grep -qF \
+  'service:arn:aws:ecs:test:task-definition/mention-test:1:' \
+  "$test_directory/smoke-no-rollback-failure/aws.log"; then
+  echo "A smoke failure that cannot be repaired by a rollback rolled back anyway." >&2
+  exit 1
+fi
+grep -F \
+  "stays on arn:aws:ecs:test:task-definition/mention-test:2" \
+  "$test_directory/smoke-no-rollback-failure/output.log" \
+  >/dev/null
+grep -F \
+  "Nothing was rolled back; this release needs a human." \
+  "$test_directory/smoke-no-rollback-failure/output.log" \
   >/dev/null
 
 echo "Deployment script transaction tests passed."
