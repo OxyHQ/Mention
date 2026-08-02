@@ -212,6 +212,7 @@
 
 import mongoose from 'mongoose';
 import { PostType, type MediaItem, type PostContentVariant } from '@mention/shared-types';
+import { connectPostgres } from '../db/postgres';
 import { Post } from '../models/Post';
 import { logger } from '../utils/logger';
 import { applyMentionPlaceholders, resolveInboundMentionsExisting } from '../connectors/activitypub/apMentions';
@@ -1183,7 +1184,15 @@ async function main(): Promise<void> {
 
   try {
     assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun });
-    await mongoose.connect(mongoUri, { dbName });
+    // BOTH stores: `Post` is still Mongo, while the resume cursor and the
+    // re-fetch failure log moved to Postgres. `closeAdminScriptResources`
+    // already closed a Postgres pool this never opened, so the first cursor read
+    // died on "PostgreSQL is not connected" — and a sweep that cannot read its
+    // cursor is the exact failure that mechanism exists to prevent.
+    await Promise.all([
+      mongoose.connect(mongoUri, { dbName }),
+      connectPostgres(),
+    ]);
     logger.info('[repairFederatedMentions] connected to MongoDB', { dryRun });
 
     const summary = await repairFederatedMentions({

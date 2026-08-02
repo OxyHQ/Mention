@@ -186,70 +186,78 @@ const mocks = vi.hoisted(() => {
       }),
     },
     /**
-     * A minimal `adminscriptcursors` collection, so the REAL cursor helper runs
-     * against it rather than being stubbed out. Mocking the helper instead would
-     * leave the wiring — which scope a run reads, when it writes, whether a dry
-     * run writes at all — untested, and that wiring is the entire fix.
+     * A minimal `admin_script_cursors` table with the REPOSITORY's own upsert
+     * semantics, so the REAL cursor helper runs against it rather than being
+     * stubbed out. Mocking the helper instead would leave the wiring — which
+     * scope a run reads, when it writes, whether a dry run writes at all —
+     * untested, and that wiring is the entire fix.
+     *
+     * The double moved down one layer when the store did: it used to stand in
+     * for the Mongoose model, and the port would otherwise have left it inert
+     * with the reads hitting an unconnected pool. What it doubles is the
+     * repository, whose OWN behaviour against real rows is covered by
+     * `adminScriptCursor.test.ts`.
      */
-    cursorModel: {
-      findOne: vi.fn((filter: { script: string; scope: string }) => ({
-        lean: async () =>
-          store.cursors.find(
-            (row) => row.script === filter.script && row.scope === filter.scope,
-          ) ?? null,
-      })),
-      updateOne: vi.fn(async (
-        filter: { script: string; scope: string },
-        update: { $set: Omit<StoredCursor, 'script' | 'scope'> },
+    cursorRepository: {
+      findAdminScriptCursor: vi.fn(async (script: string, scope: string) =>
+        store.cursors.find((row) => row.script === script && row.scope === scope) ?? null,
+      ),
+      upsertAdminScriptCursor: vi.fn(async (
+        script: string,
+        scope: string,
+        update: { cursor: string; scanned: number; completed?: boolean },
       ) => {
         if (store.cursorWriteError) throw store.cursorWriteError;
         store.cursorWrites.push({
-          scope: filter.scope,
-          cursor: update.$set.cursor,
-          scanned: update.$set.scanned,
-          completed: update.$set.completedAt !== null,
+          scope,
+          cursor: update.cursor,
+          scanned: update.scanned,
+          completed: update.completed === true,
         });
+        const completedAt = update.completed ? new Date() : null;
         const existing = store.cursors.find(
-          (row) => row.script === filter.script && row.scope === filter.scope,
+          (row) => row.script === script && row.scope === scope,
         );
-        if (existing) Object.assign(existing, update.$set);
-        else store.cursors.push({ ...filter, ...update.$set });
-        return { acknowledged: true };
+        if (existing) {
+          Object.assign(existing, { cursor: update.cursor, scanned: update.scanned, completedAt });
+        } else {
+          store.cursors.push({
+            script,
+            scope,
+            cursor: update.cursor,
+            scanned: update.scanned,
+            completedAt,
+          });
+        }
       }),
-      deleteOne: vi.fn(async (filter: { script: string; scope: string }) => {
+      deleteAdminScriptCursor: vi.fn(async (script: string, scope: string) => {
         store.cursors = store.cursors.filter(
-          (row) => !(row.script === filter.script && row.scope === filter.scope),
+          (row) => !(row.script === script && row.scope === scope),
         );
-        return { deletedCount: 1 };
       }),
     },
     /**
-     * A minimal `repairfetchfailures` collection with the model's UPSERT
-     * semantics, so the bound the collection relies on — one row per distinct
-     * failing post, not one per failure — is actually exercised rather than
-     * asserted about a mock that appends unconditionally.
+     * A minimal `repair_fetch_failures` table with the repository's UPSERT
+     * semantics, so the bound the table relies on — one row per distinct failing
+     * post, not one per failure — is actually exercised rather than asserted
+     * about a double that appends unconditionally.
      */
-    failureModel: {
-      bulkWrite: vi.fn(async (ops: {
-        updateOne: {
-          filter: { script: string; postId: string };
-          update: { $set: Omit<StoredFailure, 'script' | 'postId'> };
-          upsert?: boolean;
-        };
-      }[]) => {
+    failureRepository: {
+      recordRepairFetchFailures: vi.fn(async (
+        script: string,
+        failures: readonly Omit<StoredFailure, 'script'>[],
+      ) => {
         if (store.failureLogWriteError) throw store.failureLogWriteError;
-        for (const op of ops) {
-          const { filter, update, upsert } = op.updateOne;
+        for (const failure of failures) {
           const existing = store.failureLog.find(
-            (row) => row.script === filter.script && row.postId === filter.postId,
+            (row) => row.script === script && row.postId === failure.postId,
           );
-          if (existing) Object.assign(existing, update.$set);
-          // `upsert` is HONOURED rather than assumed: a mock that inserted
-          // regardless could not tell an upsert from a plain update, which is
-          // precisely the property the bounded collection depends on.
-          else if (upsert) store.failureLog.push({ ...filter, ...update.$set });
+          // Upsert, and `status` is REPLACED rather than merged: a post that
+          // failed with a 403 and now times out really has no status, and
+          // carrying the old one forward would say the origin refused again.
+          if (existing) Object.assign(existing, { status: undefined, ...failure });
+          else store.failureLog.push({ script, ...failure });
         }
-        return { upsertedCount: ops.length };
       }),
     },
   };
@@ -257,9 +265,10 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('../../models/Post', () => ({ Post: mocks.postModel }));
 
-vi.mock('../../models/AdminScriptCursor', () => ({ AdminScriptCursor: mocks.cursorModel }));
-
-vi.mock('../../models/RepairFetchFailure', () => ({ RepairFetchFailure: mocks.failureModel }));
+vi.mock('../../db/adminScripts/adminScriptStateRepository', () => ({
+  ...mocks.cursorRepository,
+  ...mocks.failureRepository,
+}));
 
 vi.mock('../../connectors/activitypub/helpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../connectors/activitypub/helpers')>()),
@@ -381,13 +390,13 @@ beforeEach(() => {
   store.cursorWriteError = null;
   store.failureLog = [];
   store.failureLogWriteError = null;
-  mocks.failureModel.bulkWrite.mockClear();
+  mocks.failureRepository.recordRepairFetchFailures.mockClear();
   postModel.countDocuments.mockClear();
   postModel.find.mockClear();
   postModel.bulkWrite.mockClear();
-  mocks.cursorModel.findOne.mockClear();
-  mocks.cursorModel.updateOne.mockClear();
-  mocks.cursorModel.deleteOne.mockClear();
+  mocks.cursorRepository.findAdminScriptCursor.mockClear();
+  mocks.cursorRepository.upsertAdminScriptCursor.mockClear();
+  mocks.cursorRepository.deleteAdminScriptCursor.mockClear();
   mocks.signedFetch.mockReset();
   mocks.getOrFetchActor.mockReset();
   mocks.findExistingActor.mockReset();
@@ -952,10 +961,10 @@ describe('resume cursor', () => {
     expect(summary.resumed).toBe(false);
     expect(summary.resumedFromScanned).toBe(0);
     expect(summary.scanned).toBe(3);
-    expect(mocks.cursorModel.deleteOne).toHaveBeenCalledWith({
-      script: SCRIPT_NAME,
-      scope: summary.cursorScope,
-    });
+    expect(mocks.cursorRepository.deleteAdminScriptCursor).toHaveBeenCalledWith(
+      SCRIPT_NAME,
+      summary.cursorScope,
+    );
   });
 
   it('counts a cursor write that did not land, and fails the run for it', async () => {
@@ -1055,20 +1064,18 @@ describe('re-fetch failure log', () => {
     // A dry run promises to write NOTHING. Rows left behind by a preview are the
     // same broken promise as a cursor quietly advanced by one.
     expect(store.failureLog).toEqual([]);
-    expect(mocks.failureModel.bulkWrite).not.toHaveBeenCalled();
+    expect(mocks.failureRepository.recordRepairFetchFailures).not.toHaveBeenCalled();
   });
 
   it('records the page\'s failures BEFORE advancing the cursor past them', async () => {
     store.posts = [damagedPost('1'), damagedPost('2')];
     mocks.signedFetch.mockImplementation(async () => rateLimited());
     const order: string[] = [];
-    mocks.failureModel.bulkWrite.mockImplementationOnce(async () => {
+    mocks.failureRepository.recordRepairFetchFailures.mockImplementationOnce(async () => {
       order.push('failures');
-      return { upsertedCount: 1 };
     });
-    mocks.cursorModel.updateOne.mockImplementationOnce(async () => {
+    mocks.cursorRepository.upsertAdminScriptCursor.mockImplementationOnce(async () => {
       order.push('cursor');
-      return { acknowledged: true };
     });
 
     await repairFederatedMentions({ batchSize: 1, noteTimeoutMs: 1_000 });

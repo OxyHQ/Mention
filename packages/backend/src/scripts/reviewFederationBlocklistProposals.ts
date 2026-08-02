@@ -48,7 +48,7 @@
  *   bun packages/backend/dist/src/scripts/reviewFederationBlocklistProposals.js
  */
 
-import mongoose from 'mongoose';
+import { connectPostgres } from '../db/postgres';
 import {
   declineProposal,
   listOpenProposals,
@@ -122,15 +122,23 @@ async function runSweep(): Promise<void> {
 
 async function main(): Promise<void> {
   const action = parseAction(process.env.BLOCKLIST_PROPOSAL_ACTION);
-  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
-  const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
 
   try {
     // `list` reads and writes nothing, so it stays usable without ceremony.
     // Everything else writes the queue and asks for the script name first.
     assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun: action === 'list' });
 
-    await mongoose.connect(mongoUri, { dbName });
+    // Postgres only. The review queue, the run history and the footprint census
+    // all moved, so there is no Mongo read left to open a connection for — and a
+    // live connection to a store nothing reads is how the next reader concludes
+    // that reading from it would still be valid.
+    //
+    // It has to be opened HERE: `closeAdminScriptResources` closes Postgres
+    // unconditionally, so this script has been closing a pool it never opened.
+    // Every action would have died on `getDb()` with "PostgreSQL is not
+    // connected" — loudly, which is the right direction, but the script could
+    // not run at all.
+    await connectPostgres();
 
     if (action === 'list') {
       await runList();
@@ -158,12 +166,6 @@ async function main(): Promise<void> {
     throw error;
   } finally {
     await closeAdminScriptResources();
-    await mongoose.disconnect().catch((disconnectError: unknown) => {
-      logger.warn(
-        '[reviewFederationBlocklistProposals] error during mongoose.disconnect()',
-        disconnectError,
-      );
-    });
   }
 }
 
