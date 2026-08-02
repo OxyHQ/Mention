@@ -209,6 +209,9 @@ export async function readFollows(
     );
 }
 
+/** An actor's verified-links rows as stored, in position order. */
+export { loadActorFields } from '../../db/federation/actorRepository';
+
 /** One actor as it is stored right now, for asserting what a handler wrote. */
 export async function readActor(uri: string): Promise<FederatedActorRecord | null> {
   const [row] = await getDb().select().from(federatedActors).where(eq(federatedActors.uri, uri));

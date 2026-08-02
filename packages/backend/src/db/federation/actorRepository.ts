@@ -368,6 +368,12 @@ export async function loadActorFields(
  * `'Person'` is the schema default and what every consumer already treats an
  * unrecognized actor as — the Stage-A classifier's bot signal is the only reader
  * of `type` at all, and it tests for the specific types it knows.
+ *
+ * **The information is lost, and the backfill's enum audit is where it surfaces.**
+ * Every remote type outside this set becomes `Person` from here on, so the audit
+ * that runs against production before the cutover is the ONE place the real
+ * distribution appears — a `Hubzilla` or a `Bot` in that report is this decision,
+ * not an oversight, and does not need re-investigating.
  */
 const ACTOR_TYPES: ReadonlySet<string> = new Set<FederatedActorRecord['type']>([
   'Person',
