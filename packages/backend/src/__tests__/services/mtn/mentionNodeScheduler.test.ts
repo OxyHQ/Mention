@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'fs';
+import { createRequire } from 'node:module';
 import path from 'path';
+import type * as TypeScript from 'typescript';
 
 /**
  * MTN Protocol — B3 node scheduler (MentionNodeScheduler) + read-path invariant.
@@ -169,12 +171,17 @@ describe('MentionNodeScheduler', () => {
   });
 });
 
+const ts = createRequire(path.join(__dirname, 'mentionNodeScheduler.test.ts'))(
+  'typescript',
+) as typeof TypeScript;
+
 describe('Read-path invariant — feeds/hydration never touch a node', () => {
+  const BACKEND_ROOT = path.resolve(__dirname, '../../../../');
   // Hot read-path modules: anything a feed/hydration request executes. None may
   // reference the node model, node endpoints, or the node services.
   const HOT_PATH_DIRS = ['src/mtn/feed', 'src/controllers', 'src/services'];
   // The node layer itself is the ONLY place node I/O is allowed — exclude it.
-  const NODE_LAYER = path.normalize('src/services/mtn');
+  const NODE_LAYER = `${path.join('src', 'services', 'mtn')}${path.sep}`;
   const FORBIDDEN = [
     'MentionUserNode',
     'MentionNodeSyncService',
@@ -184,42 +191,124 @@ describe('Read-path invariant — feeds/hydration never touch a node', () => {
     'exportToNode',
     'oxy-node.json',
   ];
+  /**
+   * One file per hot-path directory that the walk MUST reach, each of them
+   * nested rather than top-level.
+   *
+   * The old walk swallowed a `readdirSync` failure and returned `[]`, so a
+   * renamed or relocated directory scanned nothing and the invariant passed for
+   * every violation — indistinguishable, from the outside, from a clean tree. A
+   * file count would not fix that on its own: a directory can exist and still
+   * not be recursed into. Naming a nested file each directory must yield is what
+   * separates "the scan ran and found nothing" from "the scan never ran".
+   */
+  const ANCHOR_FILES = [
+    'src/mtn/feed/engine/sources/discoverySources.ts',
+    'src/controllers/feed.controller.ts',
+    'src/services/safety/viewerSafety.ts',
+  ];
 
-  function walk(dir: string): string[] {
-    const abs = path.resolve(__dirname, '../../../../', dir);
-    let entries: string[];
-    try {
-      entries = readdirSync(abs);
-    } catch {
-      return [];
-    }
+  function productionFiles(directory: string): string[] {
     const files: string[] = [];
-    for (const entry of entries) {
-      const full = path.join(abs, entry);
-      const rel = path.relative(path.resolve(__dirname, '../../../../'), full);
-      // The node layer (src/services/mtn) is the allowed home of node I/O.
-      if (path.normalize(rel).startsWith(NODE_LAYER)) continue;
-      if (statSync(full).isDirectory()) {
-        files.push(...walk(rel));
-      } else if (full.endsWith('.ts') && !full.endsWith('.test.ts')) {
-        files.push(full);
+    for (const entry of readdirSync(directory)) {
+      if (entry === '__tests__' || entry === 'dist' || entry === 'node_modules') continue;
+      const absolute = path.join(directory, entry);
+      if (statSync(absolute).isDirectory()) {
+        files.push(...productionFiles(absolute));
+      } else if (absolute.endsWith('.ts') && !absolute.endsWith('.test.ts')) {
+        files.push(absolute);
       }
     }
     return files;
   }
 
-  it('no hot-path module references a node model / endpoint / sync service', () => {
-    const offenders: string[] = [];
-    for (const dir of HOT_PATH_DIRS) {
-      for (const file of walk(dir)) {
-        const content = readFileSync(file, 'utf8');
+  /**
+   * Which forbidden tokens a file actually REFERENCES, off the AST.
+   *
+   * A substring search over raw text counts a docblock, and this branch
+   * documents replaced behaviour everywhere — so the check that fires is as
+   * likely to be describing the node layer as calling it. Identifiers match
+   * exactly; string literals match on substring, because that is how an import
+   * specifier (`'../../models/MentionUserNode'`) and an endpoint path
+   * (`'/oxy-node.json'`) carry the reference.
+   */
+  function referencedTokens(sourceFile: TypeScript.SourceFile): string[] {
+    const found = new Set<string>();
+    const visit = (node: TypeScript.Node): void => {
+      if (ts.isIdentifier(node)) {
+        if (FORBIDDEN.includes(node.text)) found.add(node.text);
+      } else if (
+        ts.isStringLiteralLike(node)
+        || ts.isTemplateHead(node)
+        || ts.isTemplateMiddle(node)
+        || ts.isTemplateTail(node)
+      ) {
         for (const token of FORBIDDEN) {
-          if (content.includes(token)) {
-            offenders.push(`${path.basename(file)} references "${token}"`);
-          }
+          if (node.text.includes(token)) found.add(token);
         }
       }
-    }
-    expect(offenders).toEqual([]);
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+    return [...found].sort();
+  }
+
+  function parse(file: string, source: string): TypeScript.SourceFile {
+    return ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  }
+
+  it('detects a node reference and ignores one that is only described', () => {
+    // The positive control for the scan below, driving the SAME function it
+    // does. Without it, "no offenders" is equally consistent with a detector
+    // that can no longer detect anything.
+    const detected = referencedTokens(
+      parse(
+        path.join(__dirname, 'referencedTokens.control.ts'),
+        [
+          "import MentionUserNode from '../models/MentionUserNode';",
+          "const endpoint = '/oxy-node.json';",
+          '// A comment naming MentionNodeSyncService must NOT count.',
+          '/** Nor a docblock naming MentionNodeScheduler and exportToNode. */',
+          'export const model = MentionUserNode;',
+          'export const url = `${endpoint}?x=1`;',
+        ].join('\n'),
+      ),
+    );
+
+    expect(detected).toEqual(['MentionUserNode', 'oxy-node.json']);
   });
+
+  it('no hot-path module references a node model / endpoint / sync service', () => {
+    const scanned = productionFiles(path.join(BACKEND_ROOT, 'src')).map((file) => ({
+      relative: path.relative(BACKEND_ROOT, file),
+      tokens: referencedTokens(parse(file, readFileSync(file, 'utf8'))),
+    }));
+    const hotPath = scanned.filter(
+      (entry) =>
+        HOT_PATH_DIRS.some(
+          (dir) => entry.relative === dir || entry.relative.startsWith(`${dir}${path.sep}`),
+        )
+        && !entry.relative.startsWith(NODE_LAYER),
+    );
+
+    // FLOOR — the walk reached every hot-path directory, and recursed into it.
+    expect(
+      ANCHOR_FILES.filter(
+        (anchor) => !hotPath.some((entry) => entry.relative === path.normalize(anchor)),
+      ),
+    ).toEqual([]);
+
+    // FLOOR — every forbidden token still NAMES something. A token whose symbol
+    // has been deleted (`MentionUserNode` the moment the Mongoose model gives
+    // way to `db/schema/mtn`'s `mentionUserNodes`) can never match again, and
+    // the invariant it stood for quietly stops being enforced. When this fails,
+    // re-express the token against the replacement symbol — do not delete it.
+    const reachable = new Set(scanned.flatMap((entry) => entry.tokens));
+    expect(FORBIDDEN.filter((token) => !reachable.has(token))).toEqual([]);
+
+    const offenders = hotPath.flatMap((entry) =>
+      entry.tokens.map((token) => `${entry.relative} references "${token}"`),
+    );
+    expect(offenders).toEqual([]);
+  }, 60_000);
 });
