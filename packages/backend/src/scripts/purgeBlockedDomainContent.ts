@@ -149,12 +149,19 @@ import Poll from '../models/Poll';
 import Article from '../models/Article';
 import PostSubscription from '../models/PostSubscription';
 import PostRecentReplier from '../models/PostRecentReplier';
-import FederatedActor from '../models/FederatedActor';
-import FederatedFollow from '../models/FederatedFollow';
+import {
+  countActors,
+  deleteActorsByUris,
+  scanActors,
+} from '../db/federation/actorRepository';
+import { countFollows, deleteFollowsFor } from '../db/federation/followRepository';
 import { EntityFollow } from '../models/EntityFollow';
 import FederatedMediaCache from '../models/FederatedMediaCache';
-import BlockedDomainPurge, { toLedgerCounts } from '../models/BlockedDomainPurge';
-import BlockedDomainPurgeRun from '../models/BlockedDomainPurgeRun';
+import {
+  recordPurgeOutcomes,
+  recordPurgeRun,
+  toLedgerCounts,
+} from '../db/blocklist/blockedDomainPurgeRepository';
 import { canonicalFederationHost } from '@oxyhq/federation';
 import { getBlockedDomainPolicy } from '../connectors/activitypub/federationBlockPolicy';
 import { Postgate } from '../models/Postgate';
@@ -1034,7 +1041,8 @@ async function purgePostBatch(
 // --- per-actor cascade -------------------------------------------------------
 
 interface ActorRow {
-  _id: mongoose.Types.ObjectId;
+  /** `federated_actors.id` — a text primary key, not an ObjectId. */
+  id: string;
   uri: string;
   acct: string;
   domain: string;
@@ -1255,15 +1263,17 @@ async function purgeActorContent(
   // and this is the number the automatic path's circuit breaker refuses on.
   record(
     report, domain, 'localFollowsRemoved',
-    await FederatedFollow.countDocuments({
+    await countFollows({
       remoteActorUri: actor.uri,
       direction: 'outbound',
-      status: 'accepted',
-    }).exec(),
+      statuses: ['accepted'],
+    }),
   );
   record(
     report, domain, 'federatedFollows',
-    await countOrDelete(FederatedFollow, { remoteActorUri: actor.uri }, options.dryRun),
+    options.dryRun
+      ? await countFollows({ remoteActorUri: actor.uri })
+      : await deleteFollowsFor({ remoteActorUri: actor.uri }),
   );
 }
 
@@ -1297,14 +1307,39 @@ function cursorScope(phase: string, domains: ReadonlySet<string>): string {
 async function resumePoint(
   scope: string,
   options: PurgeOptions,
-): Promise<{ lastId: mongoose.Types.ObjectId | null; scanned: number }> {
+): Promise<{ lastId: string | null; scanned: number }> {
   if (options.resetCursor) {
     await clearAdminScriptCursor(SCRIPT_NAME, scope);
     return { lastId: null, scanned: 0 };
   }
   const stored = await readAdminScriptCursor(SCRIPT_NAME, scope);
-  if (!stored || !mongoose.isValidObjectId(stored.cursor)) return { lastId: null, scanned: 0 };
-  return { lastId: new mongoose.Types.ObjectId(stored.cursor), scanned: stored.scanned };
+  // NO SHAPE GUARD. This used to be `mongoose.isValidObjectId(stored.cursor)`,
+  // which returns FALSE for a uuid v7 — the id every row created after the
+  // cutover carries. Its false answer means "start from the beginning", so the
+  // cursor would silently stop resuming, permanently, with no error: a
+  // destructive sweep re-walking the corpus from the top on every attempt. The
+  // primary key is now an opaque text id and the only thing worth asking of a
+  // stored cursor is whether there IS one.
+  if (!stored || stored.cursor.length === 0) return { lastId: null, scanned: 0 };
+  return { lastId: stored.cursor, scanned: stored.scanned };
+}
+
+/**
+ * A stored cursor as a Mongo `_id`, for the two phases that still page Mongo.
+ *
+ * The shape guard is CORRECT here and only here: `orphan-posts` and `media`
+ * still read collections whose ids really are ObjectIds, and each phase has its
+ * own `scope`, so a cursor from another phase can never arrive. It answers
+ * `null` — "start from the beginning" — for anything else, which for an
+ * idempotent resumable sweep costs a re-scan rather than a miss.
+ *
+ * DELETE IT when those two phases port. On a Postgres table the same guard
+ * returns false for every uuid v7 and the cursor silently stops resuming, which
+ * is precisely what {@link resumePoint} no longer does.
+ */
+function toMongoCursor(cursor: string | null): mongoose.Types.ObjectId | null {
+  if (!cursor || !mongoose.isValidObjectId(cursor)) return null;
+  return new mongoose.Types.ObjectId(cursor);
 }
 
 /**
@@ -1315,14 +1350,14 @@ async function resumePoint(
 async function saveProgress(
   scope: string,
   options: PurgeOptions,
-  cursor: mongoose.Types.ObjectId,
+  cursor: string,
   scanned: number,
   issues: RunIssues,
   completed?: boolean,
 ): Promise<void> {
   if (options.dryRun) return;
   const persisted = await recordAdminScriptCursor(SCRIPT_NAME, scope, {
-    cursor: cursor.toHexString(),
+    cursor,
     scanned,
     completed,
   });
@@ -1352,15 +1387,10 @@ async function forEachBlockedActor(
   for (;;) {
     if (options.limit !== undefined && processed >= options.limit) break;
 
-    const filter: Record<string, unknown> = {};
-    if (lastId) filter._id = { $gt: lastId };
-
-    const page = await FederatedActor.find(filter, {
-      _id: 1, uri: 1, acct: 1, domain: 1, oxyUserId: 1,
-    })
-      .sort({ _id: 1 })
-      .limit(PAGE_SIZE)
-      .lean<ActorRow[]>();
+    const page = await scanActors(
+      {},
+      { afterId: lastId ?? undefined, limit: PAGE_SIZE },
+    );
     if (page.length === 0) {
       if (lastId) await saveProgress(scope, options, lastId, scanned, issues, true);
       break;
@@ -1377,7 +1407,7 @@ async function forEachBlockedActor(
       processed += 1;
     }
 
-    lastId = page[page.length - 1]._id;
+    lastId = page[page.length - 1].id;
     await saveProgress(scope, options, lastId, scanned, issues);
     logger.info(`[${SCRIPT_NAME}] phase progress`, { scope, scanned, processed });
   }
@@ -1389,16 +1419,10 @@ async function forEachBlockedActor(
  */
 async function loadBlockedOwnerIds(domains: ReadonlySet<string>): Promise<ReadonlySet<string>> {
   const owners = new Set<string>();
-  let lastId: mongoose.Types.ObjectId | null = null;
+  let lastId: string | null = null;
 
   for (;;) {
-    const filter: Record<string, unknown> = {};
-    if (lastId) filter._id = { $gt: lastId };
-
-    const page = await FederatedActor.find(filter, { _id: 1, uri: 1, domain: 1, oxyUserId: 1 })
-      .sort({ _id: 1 })
-      .limit(PAGE_SIZE)
-      .lean<Array<{ _id: mongoose.Types.ObjectId; uri: string; domain: string; oxyUserId?: string }>>();
+    const page = await scanActors({}, { afterId: lastId ?? undefined, limit: PAGE_SIZE });
     if (page.length === 0) break;
 
     for (const actor of page) {
@@ -1411,7 +1435,7 @@ async function loadBlockedOwnerIds(domains: ReadonlySet<string>): Promise<Readon
       owners.add(owner);
     }
 
-    lastId = page[page.length - 1]._id;
+    lastId = page[page.length - 1].id;
   }
 
   return owners;
@@ -1470,10 +1494,9 @@ async function dropBlockedActorAnchors(
       issues.preflightBlocked += 1;
       return;
     }
-    record(
-      report, domain, 'actors',
-      await countOrDelete(FederatedActor, { _id: actor._id }, options.dryRun),
-    );
+    // Reached only on a live run — the dry-run branch above returned already —
+    // so this is unconditionally a delete rather than a count-or-delete.
+    record(report, domain, 'actors', await deleteActorsByUris([actor.uri]));
   });
 }
 
@@ -1492,12 +1515,13 @@ async function purgeOrphanBlockedPosts(
   issues: RunIssues,
 ): Promise<void> {
   const { lastId: resumeId, scanned: alreadyScanned } = await resumePoint(cursorScope(SCOPE_ORPHAN_POSTS, domains), options);
-  let lastId = resumeId;
+  let lastId: string | null = resumeId;
   let scanned = alreadyScanned;
 
   for (;;) {
     const filter: Record<string, unknown> = { 'federation.actorUri': { $exists: true } };
-    if (lastId) filter._id = { $gt: lastId };
+    const after = toMongoCursor(lastId);
+    if (after) filter._id = { $gt: after };
 
     const page = await Post.find(filter, POST_CASCADE_PROJECTION)
       .sort({ _id: 1 })
@@ -1532,7 +1556,7 @@ async function purgeOrphanBlockedPosts(
       }
     }
 
-    lastId = page[page.length - 1]._id;
+    lastId = page[page.length - 1]._id.toHexString();
     await saveProgress(cursorScope(SCOPE_ORPHAN_POSTS, domains), options, lastId, scanned, issues);
     logger.info(`[${SCRIPT_NAME}] phase orphan-posts progress`, { scanned });
   }
@@ -1546,12 +1570,13 @@ async function purgeBlockedMediaCache(
   issues: RunIssues,
 ): Promise<void> {
   const { lastId: resumeId, scanned: alreadyScanned } = await resumePoint(cursorScope(SCOPE_MEDIA, domains), options);
-  let lastId = resumeId;
+  let lastId: string | null = resumeId;
   let scanned = alreadyScanned;
 
   for (;;) {
     const filter: Record<string, unknown> = {};
-    if (lastId) filter._id = { $gt: lastId };
+    const after = toMongoCursor(lastId);
+    if (after) filter._id = { $gt: after };
 
     const page = await FederatedMediaCache.find(filter, { _id: 1, remoteUrl: 1 })
       .sort({ _id: 1 })
@@ -1575,7 +1600,7 @@ async function purgeBlockedMediaCache(
       await purgeMediaForUrls(urls, options, report, domain, issues);
     }
 
-    lastId = page[page.length - 1]._id;
+    lastId = page[page.length - 1]._id.toHexString();
     await saveProgress(cursorScope(SCOPE_MEDIA, domains), options, lastId, scanned, issues);
   }
 }
@@ -1619,7 +1644,7 @@ export async function purgeBlockedDomainContent(
   // would report a corpus smaller than reality and quietly move every ceiling.
   report.corpus = {
     federatedPosts: await Post.countDocuments({ 'federation.actorUri': { $exists: true } }),
-    federatedActors: await FederatedActor.countDocuments({}),
+    federatedActors: await countActors({}),
   };
 
   await purgeBlockedActorContent(domains, options, report, issues);
@@ -1656,38 +1681,25 @@ async function recordManualRunInLedger(
   // the same as an automatic one's rather than being an unexplained deletion.
   const entryByDomain = new Map(getBlockedDomainPolicy().map((entry) => [entry.domain, entry]));
   try {
-    for (const [domain, counts] of report.byDomain) {
-      const removed = toLedgerCounts(counts);
-      await BlockedDomainPurge.updateOne(
-        { domain },
-        {
-          $set: {
-            inPolicy: true,
-            state: 'purged',
-            purgedAt: now,
-            runId,
-            lastObservedAt: now,
-          },
-          $setOnInsert: { firstObservedAt: now },
-        },
-        { upsert: true },
-      );
-      const entry = entryByDomain.get(domain);
-      await BlockedDomainPurgeRun.updateOne(
-        { domain, runId },
-        {
-          $set: {
-            runAt: now,
-            trigger: 'manual',
-            removed,
-            reason: entry?.reason,
-            category: entry?.category,
-            corroboratingSources: entry ? [...entry.corroboratingSources] : undefined,
-          },
-        },
-        { upsert: true },
-      );
-    }
+    // Batched, matching the automatic path: both write the SAME ledger, and one
+    // action must leave one record whoever started it.
+    await recordPurgeOutcomes(
+      [...report.byDomain.keys()].map((domain) => ({ domain })),
+      { state: 'purged', runId, now },
+    );
+    await recordPurgeRun(
+      [...report.byDomain].map(([domain, counts]) => {
+        const entry = entryByDomain.get(domain);
+        return {
+          domain,
+          removed: toLedgerCounts(counts),
+          reason: entry?.reason,
+          category: entry?.category,
+          corroboratingSources: entry ? [...entry.corroboratingSources] : undefined,
+        };
+      }),
+      { runId, runAt: now, trigger: 'manual' },
+    );
   } catch (error) {
     logger.error(
       `[${SCRIPT_NAME}] the purge completed but its ledger record could not be written`,

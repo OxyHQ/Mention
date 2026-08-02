@@ -84,6 +84,33 @@ export function constraintNameOf(error: unknown): string | undefined {
   return driverField(error, 'constraint_name');
 }
 
+/**
+ * A driver failure reduced to its STRUCTURAL facts, safe to put in a log.
+ *
+ * The whole error object is not. postgres.js attaches the failing statement AND
+ * its bound parameters (`query`, `params`), and Postgres's own `detail` reads
+ * `Failing row contains (…)` — so `logger.warn(msg, { error })` publishes every
+ * value the statement carried. That is how two administrative sweeps whose
+ * entire contract is "never log a post id" came to log post ids and resume
+ * cursors: the backend logger redacts a 24-hex ObjectId under any key, but a
+ * uuid v7 primary key is not that shape and passes straight through, and the
+ * sweeps only ever run as Fargate one-shots whose only output is CloudWatch.
+ *
+ * SQLSTATE and the constraint name are the two things worth reading when a write
+ * is refused, and neither is data.
+ */
+export function describeDriverError(error: unknown): {
+  code?: string;
+  constraint?: string;
+  kind: string;
+} {
+  return {
+    code: sqlStateOf(error),
+    constraint: constraintNameOf(error),
+    kind: error instanceof Error ? error.name : typeof error,
+  };
+}
+
 /** True when `error` is a unique-index violation, optionally on a NAMED index. */
 export function isUniqueViolation(error: unknown, constraintName?: string): boolean {
   if (sqlStateOf(error) !== UNIQUE_VIOLATION) {

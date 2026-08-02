@@ -22,7 +22,7 @@
  * would mean a remote server could accept a follow it was never asked about.
  */
 
-import { and, asc, eq, inArray, or, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import { federatedFollows } from '../schema/federation';
 
@@ -128,6 +128,27 @@ export async function existsFollow(
     .where(clauses.length > 0 ? and(...clauses) : undefined)
     .limit(1);
   return rows.length > 0;
+}
+
+/**
+ * How many edges match a filter.
+ *
+ * Separate from {@link findFollows} because the purge counts a domain's accepted
+ * outbound follows BEFORE deleting them — that number is what the automatic
+ * path's circuit breaker refuses on, so pulling every row across the wire to
+ * take its length would make a safety measurement pay for rows nobody reads.
+ */
+export async function countFollows(
+  filter: FollowFilter,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<number> {
+  const clauses = followClauses(filter);
+  if (clauses === null) return 0;
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(federatedFollows)
+    .where(clauses.length > 0 ? and(...clauses) : undefined);
+  return row?.count ?? 0;
 }
 
 /** Every follow edge matching a filter. */

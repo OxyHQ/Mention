@@ -75,14 +75,22 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import BlockedDomainPurge, {
+import {
+  claimPendingDomains,
+  failClaimedDomains,
+  findPurgeRows,
+  flagDepartedDomains,
+  observePolicyDomains,
+  reArmStaleClaims as reArmStaleClaimRows,
+  recordPurgeOutcomes,
+  recordPurgeRun,
   toLedgerCounts,
   type BlockedDomainPurgeCounts,
-  type IBlockedDomainPurge,
-} from '../../models/BlockedDomainPurge';
-import BlockedDomainPurgeRun, {
-  type BlockedDomainPurgeTrigger,
-} from '../../models/BlockedDomainPurgeRun';
+  type BlockedDomainPurgeState,
+  type PolicyObservation,
+  type PurgeOutcome,
+  type PurgeRunRecord,
+} from '../../db/blocklist/blockedDomainPurgeRepository';
 import type { FederationBlockPolicyEntry } from '../../connectors/activitypub/federationBlockPolicy';
 import { logger } from '../../utils/logger';
 import {
@@ -193,13 +201,10 @@ async function observePolicy(
   // count and it runs on EVERY deploy, so it grows with the blocklist forever.
   // Constant-round-trip is not an optimisation here so much as removing a reason
   // for the policy to ever be kept small.
-  const existingRows = await BlockedDomainPurge.find(
-    { domain: { $in: wanted } },
-    { domain: 1, inPolicy: 1, state: 1 },
-  ).lean<Array<Pick<IBlockedDomainPurge, 'domain' | 'inPolicy' | 'state'>>>();
+  const existingRows = await findPurgeRows(wanted);
   const existingByDomain = new Map(existingRows.map((row) => [row.domain, row]));
 
-  const operations = wanted.map((domain) => {
+  const observations: PolicyObservation[] = wanted.map((domain) => {
     const existing = existingByDomain.get(domain);
 
     // Never seen: eligible whether it is the first domain ever or the
@@ -209,22 +214,14 @@ async function observePolicy(
     // this is a fresh block.
     const reAdded = existing?.inPolicy === false;
     const retryable = existing?.state === 'pending' || existing?.state === 'failed';
-    const nextState = !existing || reAdded || retryable ? 'pending' : existing.state;
+    const nextState: BlockedDomainPurgeState =
+      !existing || reAdded || retryable ? 'pending' : existing.state;
     if (nextState === 'pending') eligible.push(domain);
 
-    return {
-      updateOne: {
-        filter: { domain },
-        update: {
-          $set: { inPolicy: true, state: nextState, lastObservedAt: now },
-          $setOnInsert: { firstObservedAt: now },
-        },
-        upsert: true,
-      },
-    };
+    return { domain, state: nextState };
   });
 
-  await BlockedDomainPurge.bulkWrite(operations, { ordered: false });
+  await observePolicyDomains(observations, now);
 
   return { eligible, departed: await flagDeparted(wanted) };
 }
@@ -234,31 +231,19 @@ async function observePolicy(
  * restore path in this system and this is not one. The flag exists so a domain
  * REMOVED and later RE-ADDED is recognised as newly blocked again.
  */
-async function flagDeparted(wanted: readonly string[]): Promise<string[]> {
-  const departedRows = await BlockedDomainPurge.find(
-    { inPolicy: true, domain: { $nin: wanted } },
-    { domain: 1 },
-  ).lean<Array<{ domain: string }>>();
-  const departed = departedRows.map((row) => row.domain);
-  if (departed.length > 0) {
-    await BlockedDomainPurge.updateMany(
-      { domain: { $in: departed } },
-      { $set: { inPolicy: false } },
-    );
-  }
-  return departed;
+function flagDeparted(wanted: readonly string[]): Promise<string[]> {
+  // ONE conditional statement whose affected rows are the answer, rather than a
+  // read followed by a write over the ids it found.
+  return flagDepartedDomains(wanted);
 }
 
 /** Re-arm claims from a run that never reported back. */
 async function reArmStaleClaims(now: Date): Promise<void> {
   const cutoff = new Date(now.getTime() - STALE_CLAIM_MS);
-  const result = await BlockedDomainPurge.updateMany(
-    { state: 'in_progress', claimedAt: { $lt: cutoff } },
-    { $set: { state: 'pending' }, $unset: { claimedAt: '', runId: '' } },
-  );
-  if (result.modifiedCount > 0) {
+  const reArmed = await reArmStaleClaimRows(cutoff);
+  if (reArmed > 0) {
     logger.warn('[BlockedDomainPurge] re-armed claims from a run that did not report back', {
-      count: result.modifiedCount,
+      count: reArmed,
     });
   }
 }
@@ -298,15 +283,7 @@ export async function reconcileBlockedDomainPurges(
 
   // Claim atomically, so two overlapping deploys split the work instead of both
   // sweeping the same domains.
-  await BlockedDomainPurge.updateMany(
-    { domain: { $in: eligible }, state: 'pending' },
-    { $set: { state: 'in_progress', runId, claimedAt: now } },
-  );
-  const claimedRows = await BlockedDomainPurge.find(
-    { runId, state: 'in_progress' },
-    { domain: 1 },
-  ).lean<Array<{ domain: string }>>();
-  const claimed = claimedRows.map((row) => row.domain);
+  const claimed = await claimPendingDomains(eligible, runId, now);
   if (claimed.length === 0) {
     logger.info('[BlockedDomainPurge] another run claimed the newly blocked domains');
     return result;
@@ -363,15 +340,7 @@ export async function reconcileBlockedDomainPurges(
       runId,
       error,
     });
-    await BlockedDomainPurge.updateMany(
-      { runId, state: 'in_progress' },
-      {
-        $set: {
-          state: 'failed',
-          failureReason: error instanceof Error ? error.message : String(error),
-        },
-      },
-    );
+    await failClaimedDomains(runId, error instanceof Error ? error.message : String(error));
     result.failed = claimed;
     return result;
   }
@@ -400,54 +369,40 @@ async function recordOutcome(
 ): Promise<void> {
   if (domains.length === 0) return;
   const entryByDomain = new Map(policyEntries.map((entry) => [entry.domain, entry]));
-  // Typed rather than inferred: a bare literal widens to `string` and the bulk
-  // write's model type then rejects it.
-  const AUTOMATIC_TRIGGER: BlockedDomainPurgeTrigger = 'policy_added';
 
   // Batched for the same reason the policy read is: this runs on every deploy
   // and the count is the size of the blocklist, so a per-domain round trip makes
   // the deploy slower every time a domain is added.
-  const ledgerOps = [];
-  const historyOps = [];
+  const outcomes: PurgeOutcome[] = [];
+  const history: PurgeRunRecord[] = [];
 
   for (const domain of domains) {
     const counts = report.byDomain.get(domain);
     const ledgerCounts = counts ? toLedgerCounts(counts) : null;
-    const update: Record<string, unknown> = {
-      state: context.state,
-      runId: context.runId,
-    };
-    if (context.state === 'purged') {
-      update.purgedAt = context.now;
-    } else {
-      update.heldReason = context.heldReason;
-      if (ledgerCounts) update.measured = ledgerCounts;
-    }
-    ledgerOps.push({ updateOne: { filter: { domain }, update: { $set: update } } });
+    outcomes.push({
+      domain,
+      // Only a HELD row records what the breaker measured — it is the evidence
+      // for the refusal. A purged row's numbers belong on the history, where a
+      // second block of the same domain cannot overwrite the first.
+      ...(context.state === 'held' && ledgerCounts ? { measured: ledgerCounts } : {}),
+    });
 
     // A refused batch removed nothing, so it has no history to append.
     if (context.state !== 'purged' || !ledgerCounts) continue;
     const entry = entryByDomain.get(domain);
-    historyOps.push({
-      updateOne: {
-        filter: { domain, runId: context.runId },
-        update: {
-          $set: {
-            runAt: context.now,
-            trigger: AUTOMATIC_TRIGGER,
-            removed: ledgerCounts,
-            reason: entry?.reason,
-            category: entry?.category,
-            corroboratingSources: entry ? [...entry.corroboratingSources] : undefined,
-          },
-        },
-        upsert: true,
-      },
+    history.push({
+      domain,
+      removed: ledgerCounts,
+      reason: entry?.reason,
+      category: entry?.category,
+      corroboratingSources: entry ? [...entry.corroboratingSources] : undefined,
     });
   }
 
-  await BlockedDomainPurge.bulkWrite(ledgerOps, { ordered: false });
-  if (historyOps.length > 0) {
-    await BlockedDomainPurgeRun.bulkWrite(historyOps, { ordered: false });
-  }
+  await recordPurgeOutcomes(outcomes, context);
+  await recordPurgeRun(history, {
+    runId: context.runId,
+    runAt: context.now,
+    trigger: 'policy_added',
+  });
 }

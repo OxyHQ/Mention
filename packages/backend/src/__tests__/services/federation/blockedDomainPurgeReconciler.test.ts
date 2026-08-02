@@ -1,5 +1,5 @@
-import { MongoMemoryReplSet } from 'mongodb-memory-server';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { asc, eq } from 'drizzle-orm';
 import type {
   PurgeCounts,
   PurgeOptions,
@@ -11,38 +11,64 @@ import type { FederationBlockPolicyEntry } from '../../../connectors/activitypub
  * The reconciliation that turns "a domain was added to the policy file" into
  * "its content is gone", unattended.
  *
- * Against a real MongoDB, because every property here is a property of the
+ * Against a real database, because every property here is a property of the
  * LEDGER: which rows exist, what state they are in after a run that died, and
  * whether a domain gets swept twice. A mocked model cannot fail for any of
  * those. The purge itself is injected — this file is about the decision, and
  * `purgeBlockedDomainContent.test.ts` is about the deletion.
+ *
+ * That database is Postgres now. **This file owns `blocked_domain_purges` and
+ * `blocked_domain_purge_runs` for the duration of a run**: its cleanup is
+ * unscoped because one case asserts that NO row exists after an empty policy,
+ * which is a claim about the whole table rather than about this file's rows.
+ * Vitest runs files in parallel against one database; nothing else writes these
+ * two tables today, and if something starts, both files need scoping and that
+ * case needs rethinking.
  */
-vi.unmock('mongoose');
 
-const mongoose = (await import('mongoose')).default;
-const { default: BlockedDomainPurge } = await import('../../../models/BlockedDomainPurge');
-const { default: BlockedDomainPurgeRun } = await import('../../../models/BlockedDomainPurgeRun');
+const { closePostgres, connectPostgres, getDb } = await import('../../../db/postgres');
+const { blockedDomainPurges, blockedDomainPurgeRuns } = await import(
+  '../../../db/schema/blocklist'
+);
 const { emptyCounts } = await import('../../../scripts/purgeBlockedDomainContent');
 const { reconcileBlockedDomainPurges } = await import(
   '../../../services/federation/BlockedDomainPurgeReconciler'
 );
 
-let server: MongoMemoryReplSet;
-
 beforeAll(async () => {
-  server = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
-  await mongoose.connect(server.getUri(), { dbName: 'blocked-domain-reconciler' });
-}, 180_000);
+  await connectPostgres();
+}, 60_000);
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await server.stop();
+  const db = getDb();
+  await db.delete(blockedDomainPurges);
+  await db.delete(blockedDomainPurgeRuns);
+  await closePostgres();
 });
 
 beforeEach(async () => {
-  await BlockedDomainPurge.deleteMany({});
-  await BlockedDomainPurgeRun.deleteMany({});
+  const db = getDb();
+  await db.delete(blockedDomainPurges);
+  await db.delete(blockedDomainPurgeRuns);
 });
+
+/** One state row, or `undefined`. */
+async function purgeRow(domain: string) {
+  const [row] = await getDb()
+    .select()
+    .from(blockedDomainPurges)
+    .where(eq(blockedDomainPurges.domain, domain));
+  return row;
+}
+
+/** Every history row for one domain, oldest run first. */
+async function historyRows(domain: string) {
+  return getDb()
+    .select()
+    .from(blockedDomainPurgeRuns)
+    .where(eq(blockedDomainPurgeRuns.domain, domain))
+    .orderBy(asc(blockedDomainPurgeRuns.runAt));
+}
 
 /** A corpus big enough that ordinary per-domain counts clear every ceiling. */
 const CORPUS = { federatedPosts: 100_000, federatedActors: 40_000 };
@@ -128,7 +154,7 @@ function stubPurge(stub: StubOptions = {}): StubbedPurge {
 async function establishBaseline(_purge: StubbedPurge): Promise<void> {
   // Written straight to the ledger rather than reconciled, so seeding costs no
   // purge calls and cannot leak state into what a test is actually asserting.
-  await BlockedDomainPurge.create({
+  await getDb().insert(blockedDomainPurges).values({
     domain: SEED_DOMAIN,
     inPolicy: true,
     state: 'purged',
@@ -140,8 +166,7 @@ async function establishBaseline(_purge: StubbedPurge): Promise<void> {
 }
 
 async function stateOf(domain: string): Promise<string | undefined> {
-  const row = await BlockedDomainPurge.findOne({ domain }).lean();
-  return row?.state;
+  return (await purgeRow(domain))?.state;
 }
 
 describe('the first batch takes the ordinary path — measured, then swept or held', () => {
@@ -177,9 +202,9 @@ describe('the first batch takes the ordinary path — measured, then swept or he
 
     expect(result.purged).toEqual([]);
     expect(result.held).toEqual(['huge.example']);
-    const row = await BlockedDomainPurge.findOne({ domain: 'huge.example' }).lean();
+    const row = await purgeRow('huge.example');
     expect(row?.heldReason).toContain('localFollowsPerDomain');
-    expect(row?.measured?.localFollowsRemoved).toBe(4);
+    expect(row?.measuredLocalFollowsRemoved).toBe(4);
   });
 
   it('purges the first domain it ever sees even when the policy started EMPTY', async () => {
@@ -269,7 +294,7 @@ describe('removing a domain from the policy undoes nothing', () => {
     });
 
     expect(result.departed).toEqual(['gone.example']);
-    const row = await BlockedDomainPurge.findOne({ domain: 'gone.example' }).lean();
+    const row = await purgeRow('gone.example');
     // Deletion is one-way: the row still says purged, and nothing anywhere
     // restores what was removed.
     expect(row?.inPolicy).toBe(false);
@@ -321,10 +346,10 @@ describe('the circuit breaker', () => {
     // Measured, then refused: the ONLY purge call is the read-only one.
     expect(purge.calls).toEqual([{ domains: ['typo.example'], dryRun: true }]);
     expect(purge.calls.some((call) => !call.dryRun)).toBe(false);
-    const row = await BlockedDomainPurge.findOne({ domain: 'typo.example' }).lean();
+    const row = await purgeRow('typo.example');
     expect(row?.state).toBe('held');
     expect(row?.heldReason).toContain('localFollowsPerDomain');
-    expect(row?.measured?.localFollowsRemoved).toBe(3);
+    expect(row?.measuredLocalFollowsRemoved).toBe(3);
   });
 
   it('does not retry a held domain on the next deploy — it waits for a human', async () => {
@@ -371,13 +396,13 @@ describe('running twice, and dying half way', () => {
       runPurge: purge.runPurge,
     });
 
-    const row = await BlockedDomainPurge.findOne({ domain: 'spam.example' }).lean();
+    const row = await purgeRow('spam.example');
     expect(row?.purgedAt).toBeInstanceOf(Date);
     expect(row?.runId).toBeTruthy();
 
     // "It vanished and nobody knows when or why" is the outcome this prevents.
-    const history = await BlockedDomainPurgeRun.findOne({ domain: 'spam.example' }).lean();
-    expect(history?.removed.posts).toBe(42);
+    const [history] = await historyRows('spam.example');
+    expect(history?.removedPosts).toBe(42);
     expect(history?.trigger).toBe('policy_added');
     expect(history?.runAt).toBeInstanceOf(Date);
     // The policy's own words ride with the record, so a deletion is never
@@ -420,7 +445,7 @@ describe('running twice, and dying half way', () => {
   it('leaves a domain claimed when a run dies, and re-arms it only once the claim is stale', async () => {
     const purge = stubPurge();
     await establishBaseline(purge);
-    await BlockedDomainPurge.create({
+    await getDb().insert(blockedDomainPurges).values({
       domain: 'stuck.example',
       inPolicy: true,
       state: 'in_progress',
@@ -439,10 +464,10 @@ describe('running twice, and dying half way', () => {
     expect(await stateOf('stuck.example')).toBe('in_progress');
 
     // Once the claim is old, the work is redone rather than abandoned.
-    await BlockedDomainPurge.updateOne(
-      { domain: 'stuck.example' },
-      { $set: { claimedAt: new Date(Date.now() - 3 * 60 * 60 * 1_000) } },
-    );
+    await getDb()
+      .update(blockedDomainPurges)
+      .set({ claimedAt: new Date(Date.now() - 3 * 60 * 60 * 1_000) })
+      .where(eq(blockedDomainPurges.domain, 'stuck.example'));
     const later = await reconcileBlockedDomainPurges({
       policyEntries: entries([SEED_DOMAIN, 'stuck.example']),
       runPurge: purge.runPurge,
@@ -492,14 +517,12 @@ describe('the run history is append-only', () => {
       runPurge: second.runPurge,
     });
 
-    const history = await BlockedDomainPurgeRun.find({ domain: 'again.example' })
-      .sort({ runAt: 1 })
-      .lean();
+    const history = await historyRows('again.example');
     expect(history).toHaveLength(2);
-    expect(history.map((row) => row.removed.posts).sort()).toEqual([5, 7]);
+    expect(history.map((row) => row.removedPosts).sort()).toEqual([5, 7]);
     // Summing per domain is the query a transparency surface wants, and it is
     // only correct because neither row overwrote the other.
-    expect(history.reduce((sum, row) => sum + row.removed.posts, 0)).toBe(12);
+    expect(history.reduce((sum, row) => sum + row.removedPosts, 0)).toBe(12);
   });
 
   it('does not append a duplicate when the same run records a domain twice', async () => {
@@ -510,8 +533,7 @@ describe('the run history is append-only', () => {
       runPurge: purge.runPurge,
     });
 
-    const rows = await BlockedDomainPurgeRun.find({ domain: 'once.example' }).lean();
-    expect(rows).toHaveLength(1);
+    expect(await historyRows('once.example')).toHaveLength(1);
   });
 });
 
@@ -528,10 +550,10 @@ describe('a reviewed manual run settles the same ledger', () => {
     expect(await stateOf('backlog.example')).toBe('held');
 
     // What `main()` does after a reviewed live run, through the same model.
-    await BlockedDomainPurge.updateOne(
-      { domain: 'backlog.example' },
-      { $set: { state: 'purged', purgedAt: new Date(), runId: 'manual-test' } },
-    );
+    await getDb()
+      .update(blockedDomainPurges)
+      .set({ state: 'purged', purgedAt: new Date(), runId: 'manual-test' })
+      .where(eq(blockedDomainPurges.domain, 'backlog.example'));
 
     const after = await reconcileBlockedDomainPurges({
       policyEntries: entries(['backlog.example']),
@@ -554,6 +576,6 @@ describe('no policy source', () => {
 
     expect(result.purged).toEqual([]);
     expect(purge.calls).toEqual([]);
-    expect(await BlockedDomainPurge.countDocuments({})).toBe(0);
+    expect(await getDb().select().from(blockedDomainPurges)).toEqual([]);
   });
 });
