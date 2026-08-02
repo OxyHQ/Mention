@@ -50,9 +50,15 @@ const listeners = new Set<SafetyFilterListener>();
  * Whether a feed cache retained at `retainedAt` predates the viewer's current
  * safety rules — in which case it may still hold content those rules exclude, or
  * still be missing content they now allow.
+ *
+ * `<=`, not `<`, for the same reason as `isFeedCacheStale`: both stamps are
+ * `Date.now()`, so a retain and a rule change in the same millisecond cannot be
+ * ordered. Erring toward stale costs one refetch; erring the other way keeps
+ * showing content the viewer just asked not to see, which is the worse half of a
+ * safety rule.
  */
 export function isFeedCacheStaleForSafety(retainedAt: number): boolean {
-  return retainedAt < changedAt;
+  return retainedAt <= changedAt;
 }
 
 /**

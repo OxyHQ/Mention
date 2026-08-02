@@ -65,7 +65,22 @@ export function engagementKindForFeed(
   return null;
 }
 
-/** Whether a feed cache retained at `retainedAt` predates the write it must show. */
+/**
+ * Whether a feed cache retained at `retainedAt` predates the write it must show.
+ *
+ * `<=`, not `<`: both stamps come from `Date.now()`, so a retain and a write that
+ * land in the SAME millisecond are indistinguishable in order. A slice retained no
+ * later than the write cannot be known to reflect it, so treat it as stale. The
+ * error that choice can make is one unnecessary refetch; the other direction warm-
+ * starts a list that is missing the write — an unliked post still sitting in the
+ * likes tab.
+ *
+ * The margin is not theoretical: the retain and the invalidate are ~1ms apart in a
+ * test, so whether they share a millisecond is decided by where in one the sequence
+ * happens to start. In production a human navigates between them and the gap is
+ * seconds, which is why this surfaced as an intermittent test failure rather than a
+ * bug report.
+ */
 export function isFeedCacheStale(
   type: FeedType,
   userId: string | undefined,
@@ -73,7 +88,7 @@ export function isFeedCacheStale(
   retainedAt: number,
 ): boolean {
   const kind = engagementKindForFeed(type, userId, viewerId);
-  return kind === null ? false : retainedAt < changedAt[kind];
+  return kind === null ? false : retainedAt <= changedAt[kind];
 }
 
 /**
