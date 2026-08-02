@@ -1,3 +1,4 @@
+import { canonicalFederationHost } from '@oxyhq/federation';
 import type {
   FederationBlockCategory,
   FederationBlockSeverity,
@@ -56,10 +57,17 @@ import type {
  * One reviewed entry in the policy.
  *
  * `domain` must be written CANONICAL — lowercase, bare host, no scheme, no
- * `www.` prefix, no path — which is the form the federation engine compares
- * against. `resolveFederationBlocks` canonicalises anyway so a slip cannot
- * silently fail to block, and a test asserts every committed entry is already in
- * that form so the file reads exactly as it behaves.
+ * `www.` prefix, no path — which is the form
+ * {@link canonicalFederationHost} produces and the federation engine compares
+ * against. Every reader here canonicalises anyway so a slip cannot silently fail
+ * to block, and a test asserts every committed entry is already in that form so
+ * the file reads exactly as it behaves.
+ *
+ * ONE ENTRY BLOCKS ONE HOST. Matching is exact set membership on the canonical
+ * host, so `evil.example` does not cover `sub.evil.example` — a subdomain is a
+ * different server and needs its own reviewed entry. That is deliberate, and it
+ * is what the transparency page tells the public, so do not widen it here
+ * without changing the page too.
  */
 export interface FederationBlockPolicyEntry {
   readonly domain: string;
@@ -1103,61 +1111,21 @@ export const FEDERATION_BLOCK_POLICY: readonly FederationBlockPolicyEntry[] = [
 ];
 
 /**
- * Canonical comparison form for a domain: trimmed, lowercased, `www.` stripped.
- *
- * Mirrors the host rule inside `@oxyhq/federation`'s `createDomainPolicy`, which
- * is what actually compares an incoming host against the blocked set. The two
- * agreeing is not left to inspection — the enforcement test blocks a domain
- * through this module and asserts the ENGINE rejects it.
- *
- * Note what it does NOT do: it does not strip a trailing dot. `example.com.` is
- * a different string from `example.com` here and in the engine alike, so it
- * matches nothing — which is the safe outcome, and the committed policy's shape
- * gate rejects it anyway. Exported so that every consumer comparing a host
- * against this policy uses THIS function: a second canonicaliser that stripped
- * the dot would decide a host was blocked when the engine had not, and for a
- * consumer whose action is irreversible that difference is content deleted for a
- * domain we never actually blocked.
- *
- * This is a MIRROR, not the engine's own function, and it is TEMPORARY. The
- * installed `@oxyhq/federation` (0.5.0, which `^0.5.0` resolves to) keeps its
- * host rule private, so exporting this removes the duplication INSIDE Mention
- * and no further: two implementations still have to agree, the engine's is the
- * one that decides what is refused at the wire, and nothing structural keeps
- * them in step — only the tests that drive the real `createDomainPolicy`.
- *
- * The upstream fix ALREADY EXISTS and this copy is meant to be deleted, not
- * maintained. OxyHQServices `packages/federation` at `main` exports
- * `canonicalFederationHost` (and `isSameFederationHost`) as of
- * `12e46ed5`, in package version 0.6.0. The only thing standing between here and
- * deletion is a publish: npm's latest is 0.5.0, so Mention cannot import the
- * symbol yet. When 0.6.0 ships, bump the pin, make this an import of
- * `canonicalFederationHost`, and delete the body.
- *
- * The two possible drifts are NOT equally dangerous, and the asymmetry is worth
- * knowing before anyone weighs that work. `createDomainPolicy` re-canonicalises
- * whatever domains it is handed, and `constants.ts` hands it this module's
- * output — so if the ENGINE later normalises more than this does, enforcement
- * widens while the purge does not, and we refuse content we have not deleted.
- * Inconsistent, but recoverable. The unrecoverable direction is the reverse: for
- * MENTION's copy to normalise more than the engine's, which makes the purge
- * delete content for a block that was never in force at the wire. That was a
- * real bug here — a trailing-dot strip — and it is now pinned by a test that
- * drives the engine rather than a fixture.
- */
-export function canonicalBlockedDomain(domain: string): string {
-  const value = domain.trim().toLowerCase();
-  return value.startsWith('www.') ? value.slice(4) : value;
-}
-
-/**
  * THE COMMITTED POLICY, PARSED — the single reader of {@link FEDERATION_BLOCK_POLICY}.
  *
- * Domains come back canonicalised through {@link canonicalBlockedDomain} (so a
- * consumer never has to know the comparison form, and a slip in the file cannot
- * quietly produce a domain that matches nothing), deduplicated last-wins, and
- * sorted — the same treatment {@link resolveFederationBlocks} gives them, because
- * it is this function's output that it merges.
+ * Domains come back canonicalised through `canonicalFederationHost` — the
+ * federation engine's OWN function, the one `createDomainPolicy` compares
+ * incoming hosts with — so a consumer never has to know the comparison form, and
+ * a slip in the file cannot quietly produce a domain that matches nothing. Then
+ * deduplicated last-wins and sorted, the same treatment
+ * {@link resolveFederationBlocks} gives them, because it is this function's
+ * output that it merges.
+ *
+ * Mention held a hand-copy of that rule until `@oxyhq/federation@0.6.0` exported
+ * it. Two implementations of "are these the same host" only have to disagree
+ * once for a consumer to act on a domain the engine never refused, and one of
+ * these consumers DELETES content, so the copy was removed rather than
+ * documented. There is now nothing to keep in step.
  *
  * Returns REVIEWED entries only. The `FEDERATION_BLOCKED_DOMAINS` environment
  * lever is deliberately absent: a committed entry has a diff, an author and a
@@ -1184,7 +1152,7 @@ export function getBlockedDomainPolicy(
   const byDomain = new Map<string, FederationBlockPolicyEntry>();
 
   for (const entry of entries) {
-    const domain = canonicalBlockedDomain(entry.domain);
+    const domain = canonicalFederationHost(entry.domain);
     if (domain.length === 0) continue;
     byDomain.set(domain, { ...entry, domain });
   }
@@ -1212,13 +1180,13 @@ export function resolveFederationBlocks(
   const byDomain = new Map<string, PublishedFederationBlock>();
 
   for (const domain of environmentDomains) {
-    const canonical = canonicalBlockedDomain(domain);
+    const canonical = canonicalFederationHost(domain);
     if (canonical.length === 0) continue;
     byDomain.set(canonical, { source: 'operational', domain: canonical, severity: 'suspend' });
   }
 
   for (const entry of entries) {
-    const canonical = canonicalBlockedDomain(entry.domain);
+    const canonical = canonicalFederationHost(entry.domain);
     if (canonical.length === 0) continue;
     byDomain.set(canonical, {
       source: 'policy',

@@ -152,10 +152,8 @@ import { EntityFollow } from '../models/EntityFollow';
 import FederatedMediaCache from '../models/FederatedMediaCache';
 import BlockedDomainPurge, { toLedgerCounts } from '../models/BlockedDomainPurge';
 import BlockedDomainPurgeRun from '../models/BlockedDomainPurgeRun';
-import {
-  canonicalBlockedDomain,
-  getBlockedDomainPolicy,
-} from '../connectors/activitypub/federationBlockPolicy';
+import { canonicalFederationHost } from '@oxyhq/federation';
+import { getBlockedDomainPolicy } from '../connectors/activitypub/federationBlockPolicy';
 import { Postgate } from '../models/Postgate';
 import { Threadgate } from '../models/Threadgate';
 import { FeedInteraction } from '../models/FeedInteraction';
@@ -264,7 +262,7 @@ function readOptions(): PurgeOptions {
   return {
     dryRun: readBooleanEnv('DRY_RUN'),
     limit: readPositiveIntEnv('PURGE_LIMIT'),
-    domain: canonicalDomain(process.env.PURGE_DOMAIN || '') || undefined,
+    domain: canonicalFederationHost(process.env.PURGE_DOMAIN || '') || undefined,
     resetCursor: readBooleanEnv('RESET_CURSOR'),
   };
 }
@@ -272,37 +270,23 @@ function readOptions(): PurgeOptions {
 // --- the target domain set ---------------------------------------------------
 
 /**
- * The canonical comparison form, re-exported from the policy module so this
- * script and the transparency page share ONE function inside Mention instead of
- * two that agree by inspection.
+ * Canonical hostname of a URL, or `null` when it is not parseable as one.
  *
- * It does NOT mean the duplication is gone, and nobody reading this should
- * conclude that it is. The INSTALLED `@oxyhq/federation` (0.5.0) keeps its host
- * rule private, so `canonicalBlockedDomain` is a hand-copy of it. Two
- * implementations still have to agree, and the one that actually decides what
- * gets refused at the wire is the engine's. What holds them together is
- * behavioural, not structural: the agreement test drives the REAL
- * `createDomainPolicy` rather than a mock, so a divergence fails loudly.
- *
- * The end state is not documentation, it is deletion, and upstream is already
- * there: `packages/federation` at `main` exports `canonicalFederationHost` in
- * version 0.6.0. It is simply unpublished — npm's latest is 0.5.0 — so the
- * remaining work is a publish, a pin bump, and removing this mirror.
- *
- * It deliberately does not strip a trailing dot. An earlier copy here did, which
- * made this script strictly more aggressive than the engine: `example.com.` in
- * the blocklist matches nothing when the engine compares hosts, but the stripped
- * form matched `example.com` and would have deleted that instance's content for
- * a block that was never in force. For an irreversible action, being broader
- * than the enforcement it claims to follow is the one direction that cannot be
- * allowed.
+ * `canonicalFederationHost` is the federation ENGINE's own comparison form — the
+ * function `createDomainPolicy` uses to decide whether an incoming host is one
+ * we refused. This script deletes, so it must ask that question with the
+ * engine's function and not a local rendition of it: a canonicaliser that
+ * normalised one spelling differently would target content for a domain the
+ * engine never blocked, and there is no undo. An earlier hand-copy here stripped
+ * a trailing dot, which the engine does not — `example.com.` in the blocklist
+ * matches nothing at the wire, but the stripped form matched `example.com`, so
+ * that instance's content was in scope for a block that was never in force. For
+ * an irreversible action, broader-than-enforcement is the one direction that
+ * cannot be allowed, and the way to guarantee it is to run the same code.
  */
-export const canonicalDomain = canonicalBlockedDomain;
-
-/** Canonical hostname of a URL, or `null` when it is not parseable as one. */
 export function hostOf(value: string): string | null {
   try {
-    return canonicalDomain(new URL(value).hostname);
+    return canonicalFederationHost(new URL(value).hostname);
   } catch {
     return null;
   }
@@ -337,10 +321,10 @@ export function buildBlockedContentDomains(
   ownDomains: readonly string[],
   restrictTo?: string,
 ): ReadonlySet<string> {
-  const own = new Set(ownDomains.map(canonicalDomain).filter((entry) => entry.length > 0));
+  const own = new Set(ownDomains.map(canonicalFederationHost).filter((entry) => entry.length > 0));
   const targets = new Set<string>();
   for (const entry of configured) {
-    const domain = canonicalDomain(entry);
+    const domain = canonicalFederationHost(entry);
     if (domain.length === 0) continue;
     // Subtracted rather than rejected: a blocklist that happens to name us is a
     // configuration mistake, and the safe reading of it is "block them, never
@@ -1153,7 +1137,7 @@ async function purgeActorPosts(
 
 /** The domain a blocked actor is attributed to, from its row or its uri. */
 function domainOf(actor: ActorRow): string {
-  return canonicalDomain(actor.domain) || hostOf(actor.uri) || actor.domain;
+  return canonicalFederationHost(actor.domain) || hostOf(actor.uri) || actor.domain;
 }
 
 /**
@@ -1331,7 +1315,7 @@ async function forEachBlockedActor(
     for (const actor of page) {
       scanned += 1;
       const uriHost = hostOf(actor.uri);
-      if (!domains.has(canonicalDomain(actor.domain)) && (uriHost === null || !domains.has(uriHost))) {
+      if (!domains.has(canonicalFederationHost(actor.domain)) && (uriHost === null || !domains.has(uriHost))) {
         continue;
       }
       if (options.limit !== undefined && processed >= options.limit) break;
@@ -1367,7 +1351,7 @@ async function loadBlockedOwnerIds(domains: ReadonlySet<string>): Promise<Readon
       const owner = actor.oxyUserId?.trim();
       if (!owner) continue;
       const uriHost = hostOf(actor.uri);
-      if (!domains.has(canonicalDomain(actor.domain)) && (uriHost === null || !domains.has(uriHost))) {
+      if (!domains.has(canonicalFederationHost(actor.domain)) && (uriHost === null || !domains.has(uriHost))) {
         continue;
       }
       owners.add(owner);

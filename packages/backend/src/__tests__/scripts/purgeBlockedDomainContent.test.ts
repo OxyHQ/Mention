@@ -1,4 +1,5 @@
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
+import { canonicalFederationHost } from '@oxyhq/federation';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 // Type-only, so it is erased before the hoisted `vi.unmock` below runs and does
 // not pull the module in ahead of the dynamic imports.
@@ -67,7 +68,6 @@ const { POST_REFERENCE_PROBE_NAMES } = await import('../../scripts/lib/adminDele
 const { FEDERATION_DOMAIN } = await import('../../connectors/activitypub/constants');
 const {
   buildBlockedContentDomains,
-  canonicalDomain,
   purgeBlockedDomainContent,
   CASCADED_POST_REFERENCES,
   EmptyBlocklistError,
@@ -383,7 +383,7 @@ describe('purgeBlockedDomainContent — what it must NEVER remove', () => {
     // out of reach even if the first line of defence were wrong. Two independent
     // guards, because the cost of both failing is every local user's content.
     const ids = await seed();
-    const ownDomain = canonicalDomain(FEDERATION_DOMAIN);
+    const ownDomain = canonicalFederationHost(FEDERATION_DOMAIN);
 
     await purgeBlockedDomainContent(new Set([ownDomain]), options());
 
@@ -617,12 +617,12 @@ describe('buildBlockedContentDomains', () => {
     const domains = buildBlockedContentDomains([`WWW.${BLOCKED.toUpperCase()}`], own);
 
     expect([...domains]).toEqual([BLOCKED]);
-    expect(canonicalDomain('WWW.Example.COM')).toBe('example.com');
-    // A trailing dot is deliberately NOT stripped: the engine keeps it too, so
-    // such an entry matches no host at the wire. Stripping it here would make
-    // this script delete content for a block that was never in force — see
-    // `blockedDomainCanonicalAgreement.test.ts`, which drives the real engine.
-    expect(canonicalDomain('example.com.')).toBe('example.com.');
+    expect(canonicalFederationHost('WWW.Example.COM')).toBe('example.com');
+    // A trailing dot is deliberately NOT stripped. This IS the engine's function
+    // now, so the script cannot be broader than what is refused at the wire by
+    // construction — `example.com.` matches no host there and none here. See
+    // `blockedDomainCanonicalAgreement.test.ts` for the verdict-level proof.
+    expect(canonicalFederationHost('example.com.')).toBe('example.com.');
   });
 
   it('narrows to one domain, and refuses one that is not on the blocklist', () => {
