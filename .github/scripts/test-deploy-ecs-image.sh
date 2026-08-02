@@ -27,6 +27,10 @@ export DEPLOY_TEST_TASK_EXIT_CODE=0
 export DEPLOY_TEST_EXPECT_TASK_SECRET_ARN=false
 export DEPLOY_TEST_SERVICE_DESIRED_COUNT=1
 export DEPLOY_TEST_ROLLOUT_SCENARIO=healthy
+# The `lastStatus` a mocked one-shot reports. `RUNNING` never resolves, which is
+# how a case reaches the wait TIMEOUT rather than the exit-code path -- the only
+# route to the EXIT trap's unfinished-task warning.
+export DEPLOY_TEST_TASK_LAST_STATUS=STOPPED
 
 aws() {
   local service_json='{
@@ -255,14 +259,14 @@ aws() {
       printf '{
         "failures": [],
         "tasks": [{
-          "lastStatus": "STOPPED",
+          "lastStatus": "%s",
           "stoppedReason": "Essential container exited",
           "containers": [{
             "name": "deploy-test",
             "exitCode": %s
           }]
         }]
-      }\n' "$DEPLOY_TEST_TASK_EXIT_CODE"
+      }\n' "$DEPLOY_TEST_TASK_LAST_STATUS" "$DEPLOY_TEST_TASK_EXIT_CODE"
       ;;
     "logs get-log-events")
       printf 'tasklogs\n' >>"$DEPLOY_TEST_LOG"
@@ -454,6 +458,40 @@ printf '%s\n' \
 diff -u \
   "$test_directory/migration-order/expected.log" \
   "$test_directory/migration-order/aws.log"
+
+# A migration one-shot that never STOPS is the case that reaches the EXIT trap's
+# unfinished-task warning -- the only signal that a migration may still be
+# mutating the database after the deploy gave up, and unrecoverable because the
+# deploy role cannot call ecs:StopTask.
+#
+# This case exists to protect the migration loop's PROCESS SUBSTITUTION. Piping
+# into the loop instead puts its body in a subshell, so run_one_shot_command's
+# active_one_shot_* writes never reach the parent and the trap reads their
+# initial values -- the warning silently stops being emitted. `set -e` catches
+# the failing pipeline either way, so nothing else here can tell the two forms
+# apart: the release stops before update-service under both, and every other
+# assertion in this file passes under both. Measured, not reasoned.
+DEPLOY_TEST_TASK_LAST_STATUS=RUNNING
+run_release migration-task-never-stops false true false 0
+DEPLOY_TEST_TASK_LAST_STATUS=STOPPED
+printf '%s\n' \
+  'task:bun packages/backend/dist/src/db/migrate.js' \
+  >"$test_directory/migration-task-never-stops/expected.log"
+diff -u \
+  "$test_directory/migration-task-never-stops/expected.log" \
+  "$test_directory/migration-task-never-stops/aws.log"
+if ! grep -qF \
+  "Unfinished Postgres migration task arn:aws:ecs:test:task/deploy-test-one-shot may still be running" \
+  "$test_directory/migration-task-never-stops/output.log"; then
+  # Named rather than left as a bare `exit 1`, because the most likely way to
+  # arrive here is having rewritten the migration loop as a pipe -- and every
+  # other assertion in this file passes in that state, so an unexplained failure
+  # points at nothing.
+  echo "A migration task left running produced no unfinished-task warning." >&2
+  echo "If the migration loop was changed to a pipe, its body runs in a subshell" >&2
+  echo "and the EXIT trap never sees active_one_shot_*. Use process substitution." >&2
+  exit 1
+fi
 
 run_release zero-desired-count false false false 0 false 0
 grep -F \
