@@ -113,6 +113,22 @@ export const MtnConfig = {
       sameAuthorPenalty: 0.85, // was 0.95
       sameTopicPenalty: 0.80, // was 0.92
       /**
+       * Penalty for a post about a STORY already shown on this page.
+       *
+       * Stronger than the topic penalty because it is a stronger claim. The
+       * topic penalty above reads `post.hashtags` and nothing else, so it fires
+       * on a shared tag and is silent otherwise — five accounts posting the same
+       * news item with different tags, or with none, currently penalize each
+       * other not at all. Seeing one more post about politics is a preference;
+       * seeing the fifth telling of one event is the thing that makes a feed
+       * feel broken, and it is the case the existing penalties cannot see.
+       *
+       * The story comes from the trend batch's co-occurrence clusters, so this
+       * only ever fires on terms the network is actually converging on — a post
+       * belonging to no story is untouched, which is most of them.
+       */
+      sameStoryPenalty: 0.7,
+      /**
        * Minimum number of OTHER items that must appear between two items by the
        * same author in the emitted page. The soft multiplicative `sameAuthorPenalty`
        * above only nudges scores and a high-scoring author easily overpowers it,
