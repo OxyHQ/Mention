@@ -55,8 +55,11 @@ import {
   canManageChannel,
   canViewChannel,
 } from '../services/channelAccess';
+import { serializeChannel, type ChannelLean } from '../services/channelDto';
+import { MAX_CHANNEL_SEARCH_OFFSET, searchChannels } from '../services/channelSearch';
 import { createNotification } from '../utils/notificationUtils';
 import { validateBody, validateObjectId } from '../middleware/validate';
+import { queryInt, queryString } from '../utils/queryParams';
 import { channelReadRateLimiter, channelWriteRateLimiter } from '../middleware/security';
 import { config } from '../config';
 import { sendErrorResponse, sendSuccessResponse } from '../utils/apiHelpers';
@@ -145,46 +148,6 @@ const followSchema = z.object({
   notify: z.boolean(),
 });
 
-/** Shape of a `Channel` document as the routes below read it back. */
-interface ChannelLean {
-  _id: unknown;
-  handle: string;
-  title: string;
-  description?: string;
-  avatar?: string;
-  banner?: string;
-  ownerOxyUserId: string;
-  visibility: string;
-  signPosts?: boolean;
-  followerCount?: number;
-  memberCount?: number;
-  postCount?: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-function serialize(doc: ChannelLean, viewerState?: ChannelViewerState): ChannelDTO {
-  return {
-    id: String(doc._id),
-    handle: doc.handle,
-    title: doc.title,
-    ...(doc.description ? { description: doc.description } : {}),
-    ...(doc.avatar ? { avatar: doc.avatar } : {}),
-    ...(doc.banner ? { banner: doc.banner } : {}),
-    ownerOxyUserId: doc.ownerOxyUserId,
-    // The stored value is the authority; the cast is safe because the schema enum
-    // is the same list the DTO type is built from.
-    visibility: 'public',
-    signPosts: doc.signPosts === true,
-    followerCount: doc.followerCount ?? 0,
-    memberCount: doc.memberCount ?? 0,
-    postCount: doc.postCount ?? 0,
-    createdAt: doc.createdAt.toISOString(),
-    updatedAt: doc.updatedAt.toISOString(),
-    ...(viewerState ? { viewerState } : {}),
-  };
-}
-
 /**
  * Resolve a channel by its `_id` OR its handle — the one place both spellings are
  * accepted, so a URL can carry the readable one while the feed descriptor keeps
@@ -254,15 +217,38 @@ export const publicChannelsRouter = Router();
 
 /**
  * GET /channels?cursor=<followerCount>_<id>&limit=&excludeFollowed=true
+ * GET /channels?search=<term>&offset=&limit=&excludeFollowed=true
  *
- * The directory, most-followed first. Keyset-paged on
- * `{ followerCount: -1, _id: -1 }`, which is exactly what
- * `{ visibility, followerCount, _id }` stores — the same shape
- * `GET /feeds/marketplace` uses, and for the same reason: a skip/limit directory
- * duplicates and drops rows as follower counts move underneath it.
+ * ONE route, TWO questions, and which one is being asked is decided by the
+ * presence of `search` — the same shape `GET /lists`, `GET /feeds` and
+ * `GET /starter-packs` already take, which is why the search screen can drive
+ * all four through one client facade.
+ *
+ *  - **BROWSE** (no `search`): the directory, most-followed first. Keyset-paged
+ *    on `{ followerCount: -1, _id: -1 }`, which is exactly what
+ *    `{ visibility, followerCount, _id }` stores — the same shape
+ *    `GET /feeds/marketplace` uses, and for the same reason: a skip/limit
+ *    directory duplicates and drops rows as follower counts move underneath it.
+ *  - **SEARCH** (`search` present): ranked by relevance
+ *    (`services/channelSearch.ts`), offset-paged.
+ *
+ * **The two pagination modes cannot be confused for one another**, which is the
+ * failure worth engineering out — a cursor reinterpreted on the wrong axis
+ * returns plausible, wrong rows on page 2 and nothing anywhere says so. They are
+ * kept disjoint on BOTH sides: browse reads `cursor` and answers `nextCursor`,
+ * search reads `offset` and answers `nextOffset`, and each mode ignores the
+ * other's parameter outright. A client that sends the wrong one is served page 1
+ * — a visible bug — never a silently misaligned page.
+ *
+ * Relevance paging is offset rather than keyset because the sort key is a
+ * COMPUTED rank: a keyset would have to carry that rank in the cursor and
+ * re-derive it identically on every page, which is a second definition of the
+ * ranking waiting to drift from the first.
  *
  * `excludeFollowed` needs a caller, so it is a no-op for an anonymous reader
- * rather than an error — the directory is the same list either way.
+ * rather than an error — the directory is the same list either way. It applies
+ * to BOTH modes: a documented parameter must not quietly stop meaning anything
+ * because a search term appeared next to it.
  */
 publicChannelsRouter.get('/', ...readLimiters, async (req: AuthRequest, res: Response) => {
   try {
@@ -272,7 +258,43 @@ publicChannelsRouter.get('/', ...readLimiters, async (req: AuthRequest, res: Res
       ? Math.min(rawLimit, DIRECTORY_MAX_LIMIT)
       : DIRECTORY_PAGE_SIZE;
 
+    // Shared by both modes, and the only thing that is: the caller's own
+    // exclusion set, which is about WHICH channels are eligible rather than about
+    // how the answer is ordered or paged.
+    let excludedIds: mongoose.Types.ObjectId[] = [];
+    if (viewerId && req.query.excludeFollowed === 'true') {
+      const followed = await ChannelFollow.find({ oxyUserId: viewerId })
+        .select('channelId')
+        .limit(MAX_CALLER_CHANNEL_ROWS)
+        .lean<Array<{ channelId: string }>>();
+      excludedIds = followed
+        .map((row) => row.channelId)
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+        .map((id) => new mongoose.Types.ObjectId(id));
+    }
+
+    // SEARCH mode returns from here, before the keyset cursor is so much as
+    // parsed. That is the point: the two modes share no paging state at all, so
+    // there is no arrangement of parameters in which a follower-count cursor can
+    // be applied to a relevance-ordered page.
+    const search = queryString(req.query.search)?.trim() ?? '';
+    if (search) {
+      const offset = Math.min(
+        Math.max(queryInt(req.query.offset) ?? 0, 0),
+        MAX_CHANNEL_SEARCH_OFFSET,
+      );
+      const found = await searchChannels(search, { limit, offset, excludeChannelIds: excludedIds });
+      return sendSuccessResponse(res, 200, {
+        items: found.items,
+        hasMore: found.hasMore,
+        ...(found.hasMore ? { nextOffset: offset + found.items.length } : {}),
+      });
+    }
+
     const match: Record<string, unknown> = { visibility: 'public' };
+    if (excludedIds.length > 0) {
+      match._id = { $nin: excludedIds };
+    }
 
     // `<followerCount>_<id>`: the two-part keyset the sort needs. A malformed
     // cursor is ignored rather than rejected — it can only cost the caller a
@@ -294,20 +316,6 @@ publicChannelsRouter.get('/', ...readLimiters, async (req: AuthRequest, res: Res
       }
     }
 
-    if (viewerId && req.query.excludeFollowed === 'true') {
-      const followed = await ChannelFollow.find({ oxyUserId: viewerId })
-        .select('channelId')
-        .limit(MAX_CALLER_CHANNEL_ROWS)
-        .lean<Array<{ channelId: string }>>();
-      const followedIds = followed
-        .map((row) => row.channelId)
-        .filter((id) => mongoose.Types.ObjectId.isValid(id))
-        .map((id) => new mongoose.Types.ObjectId(id));
-      if (followedIds.length > 0) {
-        match._id = { $nin: followedIds };
-      }
-    }
-
     const overfetched = await Channel.find(match)
       .sort({ followerCount: -1, _id: -1 })
       .limit(limit + 1)
@@ -318,7 +326,7 @@ publicChannelsRouter.get('/', ...readLimiters, async (req: AuthRequest, res: Res
     const last = page[page.length - 1];
 
     return sendSuccessResponse(res, 200, {
-      items: page.map((channel) => serialize(channel)),
+      items: page.map((channel) => serializeChannel(channel)),
       hasMore,
       ...(hasMore && last
         ? { nextCursor: `${last.followerCount ?? 0}_${String(last._id)}` }
@@ -373,7 +381,7 @@ publicChannelsRouter.get('/:idOrHandle', ...readLimiters, async (req: AuthReques
       return sendErrorResponse(res, 404, 'Not Found', 'Channel not found');
     }
     const viewerState = await loadViewerState(String(channel._id), req.user?.id);
-    return sendSuccessResponse(res, 200, serialize(channel, viewerState));
+    return sendSuccessResponse(res, 200, serializeChannel(channel, viewerState));
   } catch (err) {
     logger.error('[Channels] Error loading channel:', { error: err });
     return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to load channel');
@@ -468,7 +476,7 @@ router.get('/mine', ...readLimiters, async (req: AuthRequest, res: Response) => 
       .sort({ createdAt: -1 })
       .limit(MAX_CALLER_CHANNEL_ROWS)
       .lean<ChannelLean[]>();
-    return sendSuccessResponse(res, 200, channels.map((channel) => serialize(channel)));
+    return sendSuccessResponse(res, 200, channels.map((channel) => serializeChannel(channel)));
   } catch (err) {
     logger.error('[Channels] Error listing own channels:', { userId: req.user?.id, error: err });
     return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to list channels');
@@ -493,7 +501,7 @@ router.get('/invites', ...readLimiters, async (req: AuthRequest, res: Response) 
       .sort({ createdAt: -1 })
       .limit(MAX_CALLER_CHANNEL_ROWS)
       .lean<ChannelLean[]>();
-    return sendSuccessResponse(res, 200, channels.map((channel) => serialize(channel)));
+    return sendSuccessResponse(res, 200, channels.map((channel) => serializeChannel(channel)));
   } catch (err) {
     logger.error('[Channels] Error listing channel invites:', { userId: req.user?.id, error: err });
     return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to list invites');
@@ -611,7 +619,7 @@ router.get('/following', ...readLimiters, async (req: AuthRequest, res: Response
       if (!channel) continue;
       const membership = membershipByChannel.get(follow.channelId);
       items.push(
-        serialize(channel, {
+        serializeChannel(channel, {
           isFollowing: true,
           notify: follow.notify === true,
           ...(membership ? { role: membership.role, memberStatus: membership.status } : {}),
@@ -698,7 +706,7 @@ router.post('/', ...writeLimiters, validateBody(createChannelSchema), async (req
     return sendSuccessResponse(
       res,
       201,
-      serialize(created.toObject() as ChannelLean, {
+      serializeChannel(created.toObject() as ChannelLean, {
         isFollowing: false,
         notify: false,
         role: 'owner',
@@ -765,7 +773,7 @@ router.put(
       return sendSuccessResponse(
         res,
         200,
-        serialize(channel.toObject() as ChannelLean),
+        serializeChannel(channel.toObject() as ChannelLean),
         'Channel updated',
       );
     } catch (err) {

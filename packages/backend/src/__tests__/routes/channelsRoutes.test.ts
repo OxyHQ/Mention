@@ -45,8 +45,10 @@ const channelCreate = vi.fn();
 const channelCount = vi.fn();
 const channelDeleteOne = vi.fn();
 const channelUpdateOne = vi.fn();
+const channelAggregate = vi.fn();
 vi.mock('../../models/Channel', () => ({
   Channel: {
+    aggregate: (...args: unknown[]) => channelAggregate(...args),
     find: (...args: unknown[]) => channelFind(...args),
     findOne: (...args: unknown[]) => channelFindOne(...args),
     findById: (...args: unknown[]) => channelFindById(...args),
@@ -161,6 +163,7 @@ vi.mock('@oxyhq/core/server', async (importOriginal) => {
 });
 
 import channelsRouter, { publicChannelsRouter } from '../../routes/channels.routes';
+import { MAX_CHANNEL_SEARCH_OFFSET } from '../../services/channelSearch';
 
 /**
  * A chainable stand-in for the query builders these routes use.
@@ -191,6 +194,17 @@ function chain<T>(value: T) {
       Promise.resolve(value).then(onFulfilled, onRejected),
   };
   return link;
+}
+
+/**
+ * A stand-in for the search aggregation's builder. Records the pipeline so the
+ * relevance path can be told apart from the browse path by what it actually
+ * ASKED FOR, not merely by what came back.
+ */
+const aggregatePipelines: unknown[][] = [];
+function aggregateChain<T>(rows: T[]) {
+  const exec = () => Promise.resolve(rows);
+  return { option: () => ({ exec }), exec };
 }
 
 function channelDoc(overrides: Record<string, unknown> = {}) {
@@ -234,9 +248,10 @@ beforeEach(() => {
   writes.length = 0;
   sortCalls.length = 0;
   limitCalls.length = 0;
+  aggregatePipelines.length = 0;
   for (const fn of [
     channelFind, channelFindOne, channelFindById, channelCreate, channelCount,
-    channelDeleteOne, channelUpdateOne,
+    channelDeleteOne, channelUpdateOne, channelAggregate,
     memberFind, memberFindOne, memberFindOneAndUpdate, memberCreate, memberCount,
     memberExists, memberDeleteMany,
     followFind, followFindOne, followFindOneAndUpdate, followCreate, followDeleteOne,
@@ -249,6 +264,10 @@ beforeEach(() => {
   channelFind.mockReturnValue(chain([]));
   channelFindOne.mockReturnValue(chain(null));
   channelFindById.mockReturnValue(chain(null));
+  channelAggregate.mockImplementation((pipeline: unknown[]) => {
+    aggregatePipelines.push(pipeline);
+    return aggregateChain([]);
+  });
   channelCount.mockResolvedValue(0);
   channelUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   channelDeleteOne.mockResolvedValue({ deletedCount: 1 });
@@ -901,6 +920,133 @@ describe('GET /channels — the directory', () => {
     expect(channelFind).toHaveBeenCalledWith(
       expect.objectContaining({ _id: { $nin: [new mongoose.Types.ObjectId(CHANNEL_ID)] } }),
     );
+  });
+});
+
+/**
+ * `?search=` — the SAME route, answering a different question.
+ *
+ * Two pagination modes on one endpoint is the arrangement that breaks on page 2
+ * while page 1 looks perfect, so the tests here are mostly about the SEAM rather
+ * than about matching: which query ran, and that neither mode can be handed the
+ * other's paging parameter and silently act on it. The ranking and the escaping
+ * are `services/channelSearch.test.ts`'s job, and their ordering is proven
+ * against a real mongod separately.
+ */
+describe('GET /channels?search= — the same route, ranked', () => {
+  /** The `$match` of the search aggregation the last request issued. */
+  function searchMatch(): Record<string, unknown> {
+    const pipeline = aggregatePipelines[aggregatePipelines.length - 1];
+    const stage = pipeline.find((entry) => typeof entry === 'object' && entry !== null && '$match' in entry);
+    return (stage as { $match: Record<string, unknown> }).$match;
+  }
+
+  it('runs the ranked aggregation, not the directory query', async () => {
+    const res = await request(buildApp()).get('/channels?search=news');
+
+    expect(res.status).toBe(200);
+    expect(channelAggregate).toHaveBeenCalledTimes(1);
+    expect(channelFind).not.toHaveBeenCalled();
+    expect(searchMatch()).toMatchObject({ visibility: 'public' });
+  });
+
+  it('CONTROL: no search term means the directory query, and no aggregation', async () => {
+    await request(buildApp()).get('/channels');
+
+    expect(channelFind).toHaveBeenCalledTimes(1);
+    expect(channelAggregate).not.toHaveBeenCalled();
+  });
+
+  it('an empty or whitespace-only term is not a search', async () => {
+    await request(buildApp()).get('/channels?search=%20%20');
+
+    expect(channelAggregate).not.toHaveBeenCalled();
+    expect(channelFind).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers with items and offset paging, never a keyset cursor', async () => {
+    channelAggregate.mockReturnValue(aggregateChain([
+      channelDoc({ _id: 'a' }),
+      channelDoc({ _id: 'b' }),
+      channelDoc({ _id: 'c' }),
+    ]));
+
+    const res = await request(buildApp()).get('/channels?search=news&limit=2&offset=10');
+
+    expect(res.body.data.items.map((item: { id: string }) => item.id)).toEqual(['a', 'b']);
+    expect(res.body.data.hasMore).toBe(true);
+    expect(res.body.data.nextOffset).toBe(12);
+    expect(res.body.data).not.toHaveProperty('nextCursor');
+  });
+
+  it('omits nextOffset on the last page', async () => {
+    channelAggregate.mockReturnValue(aggregateChain([channelDoc({ _id: 'a' })]));
+
+    const res = await request(buildApp()).get('/channels?search=news&limit=2');
+
+    expect(res.body.data.hasMore).toBe(false);
+    expect(res.body.data).not.toHaveProperty('nextOffset');
+  });
+
+  /**
+   * The failure this seam exists to prevent: a follower-count cursor read as a
+   * position in the RELEVANCE order would return plausible, wrong rows on page 2.
+   * The search path returns before that cursor is parsed at all, so the caller
+   * gets the first page of results — visibly wrong rather than quietly wrong.
+   */
+  it('a browse cursor cannot move a searched page', async () => {
+    const lastId = new mongoose.Types.ObjectId().toString();
+
+    await request(buildApp()).get(`/channels?search=news&cursor=9_${lastId}`);
+
+    expect(JSON.stringify(aggregatePipelines)).not.toContain(lastId);
+    expect(JSON.stringify(searchMatch())).not.toContain('followerCount');
+    // `$skip` is the search path's only positional argument, and no cursor moved it.
+    expect(aggregatePipelines[0]).toContainEqual({ $skip: 0 });
+  });
+
+  it('ignores a search offset while browsing', async () => {
+    channelFind.mockReturnValue(chain([]));
+
+    await request(buildApp()).get('/channels?offset=200');
+
+    // The browse path pages by keyset and never skips: an offset it silently
+    // honoured would be a third pagination mode nobody documented.
+    expect(channelFind).toHaveBeenCalledWith(expect.not.objectContaining({ $or: expect.anything() }));
+    expect(channelAggregate).not.toHaveBeenCalled();
+  });
+
+  it('clamps the search offset before it reaches the database', async () => {
+    await request(buildApp()).get('/channels?search=news&offset=99999999');
+
+    expect(aggregatePipelines[0]).toContainEqual({ $skip: MAX_CHANNEL_SEARCH_OFFSET });
+  });
+
+  it('shares the directory limit — one page size for one route', async () => {
+    await request(buildApp()).get('/channels?search=news&limit=9999');
+
+    // 50 is the directory ceiling; the `+ 1` is the overfetched hasMore row.
+    expect(aggregatePipelines[0]).toContainEqual({ $limit: 51 });
+  });
+
+  it('honours excludeFollowed while searching, so the parameter keeps meaning something', async () => {
+    followFind.mockReturnValue(chain([{ channelId: CHANNEL_ID }]));
+
+    await request(buildApp()).get('/channels?search=news&excludeFollowed=true');
+
+    expect(searchMatch()).toMatchObject({
+      _id: { $nin: [new mongoose.Types.ObjectId(CHANNEL_ID)] },
+    });
+  });
+
+  it('500s rather than answering a partial page when the aggregation fails', async () => {
+    channelAggregate.mockImplementation(() => {
+      throw new Error('aggregation exploded');
+    });
+
+    const res = await request(buildApp()).get('/channels?search=news');
+
+    expect(res.status).toBe(500);
   });
 });
 
