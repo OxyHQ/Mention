@@ -35,9 +35,10 @@ jobs:
         run: bun install --frozen-lockfile --ignore-scripts
       - name: Verify workspace, build, lint and typecheck
         run: bun run check
-      - name: Verify deployment transaction safeguards
+      - name: Verify CI and deployment safeguards
         run: |
           bash -n .github/scripts/*.sh
+          bash .github/scripts/test-ci-scope.sh
           bash .github/scripts/test-deploy-ecs-image.sh
           bash .github/scripts/test-smoke-mention.sh
           bun .github/scripts/test-runtime-image-audit.mjs
@@ -117,22 +118,41 @@ jobs:
             command: bun run --cwd packages/mcp test
             coverage: false
     steps:
+      # fetch-depth: 0 so the scope diff below has both ends of the comparison.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      # Gating the STEPS rather than the job, deliberately. A `needs:` on a
+      # scope job measured 8s on this repo's deploy workflow and would sit on
+      # the critical path of every run, including the ones that skip nothing —
+      # while a leg that no-ops in its own runner costs nobody anything.
+      # It also keeps every check reporting `success` instead of `skipped`,
+      # which is what branch protection wants.
+      - name: Decide whether this package's suite must run
+        id: scope
+        env:
+          CI_SCOPE_BASE: ${{ github.base_ref && format('origin/{0}', github.base_ref) || github.event.before }}
+        run: bash .github/scripts/ci-scope.sh ${{ matrix.package }}
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        if: steps.scope.outputs.run == 'true'
         with:
           bun-version: ${{ env.BUN_VERSION }}
       - name: Set up pinned Node test runtime
+        if: steps.scope.outputs.run == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Install exact dependency graph
+        if: steps.scope.outputs.run == 'true'
         run: bun install --frozen-lockfile --ignore-scripts
       - name: Build shared runtime package
+        if: steps.scope.outputs.run == 'true'
         run: bun run build:shared-types
       - name: Run complete package test suite
+        if: steps.scope.outputs.run == 'true'
         run: ${{ matrix.command }}
       - name: Upload coverage summary
-        if: always() && matrix.coverage
+        if: always() && matrix.coverage && steps.scope.outputs.run == 'true'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: mention-${{ matrix.package }}-coverage-${{ github.sha }}
@@ -154,14 +174,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
+      # fetch-depth: 0 so the scope diff below has both ends of the comparison.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: ${{ env.BUN_VERSION }}
-      - name: Set up pinned Node bundle runtime
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: ${{ env.NODE_VERSION }}
+          fetch-depth: 0
+      # The bundle is built from packages/frontend, so it answers to the same
+      # scope question the frontend test leg does.
+      - name: Decide whether the bundle changed at all
+        id: scope
+        env:
+          CI_SCOPE_BASE: ${{ github.base_ref && format('origin/{0}', github.base_ref) || github.event.before }}
+        run: bash .github/scripts/ci-scope.sh frontend
       # A hit means this exact commit was already measured by an earlier run of
       # this job, and the cache is only written after the budgets pass, so
       # skipping the rebuild cannot skip a failing gate.
@@ -171,35 +194,66 @@ jobs:
         with:
           path: ${{ runner.temp }}/mention-bundle-report.json
           key: mention-bundle-baseline-${{ github.sha }}
+      # Every commit on main has to remain addressable as a baseline, because
+      # that is what frontend-bundle restores against — so a commit that changed
+      # nothing the bundle is built from carries the previous commit's
+      # measurement forward under its own key rather than being skipped
+      # outright. Skipping outright would push the cost onto the next pull
+      # request instead of removing it, by sending it down the fallback path
+      # that exports the base commit itself.
+      #
+      # Nothing here widens what the budgets cover: the scope says frontend when
+      # anything under packages/frontend or packages/shared-types moved, and its
+      # catch-all says frontend for the lockfile, the manifests, tsconfig and
+      # patches too. A miss (an evicted entry, a force push, the first run after
+      # this landed) falls through to the full export.
+      - name: Inherit the previous commit's baseline
+        id: inherit_baseline
+        if: steps.scope.outputs.run != 'true' && !steps.restore_baseline.outputs.cache-hit
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/mention-bundle-report.json
+          key: mention-bundle-baseline-${{ github.event.before }}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        if: ${{ !steps.restore_baseline.outputs.cache-hit && !steps.inherit_baseline.outputs.cache-hit }}
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - name: Set up pinned Node bundle runtime
+        if: ${{ !steps.restore_baseline.outputs.cache-hit && !steps.inherit_baseline.outputs.cache-hit }}
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
       - name: Install exact dependency graph
-        if: ${{ !steps.restore_baseline.outputs.cache-hit }}
+        if: ${{ !steps.restore_baseline.outputs.cache-hit && !steps.inherit_baseline.outputs.cache-hit }}
         run: bun install --frozen-lockfile --ignore-scripts
       - name: Build shared runtime package
-        if: ${{ !steps.restore_baseline.outputs.cache-hit }}
+        if: ${{ !steps.restore_baseline.outputs.cache-hit && !steps.inherit_baseline.outputs.cache-hit }}
         run: bun run build:shared-types
       - name: Export production web bundle
-        if: ${{ !steps.restore_baseline.outputs.cache-hit }}
+        if: ${{ !steps.restore_baseline.outputs.cache-hit && !steps.inherit_baseline.outputs.cache-hit }}
         run: bun run --cwd packages/frontend build:analyze
         env:
           NODE_ENV: production
           EXPO_PUBLIC_ENV: production
           EXPO_PUBLIC_API_URL: https://api.mention.earth
       - name: Validate static hosting contract
-        if: ${{ !steps.restore_baseline.outputs.cache-hit }}
+        if: ${{ !steps.restore_baseline.outputs.cache-hit && !steps.inherit_baseline.outputs.cache-hit }}
         run: bun .github/scripts/validate-frontend-static-output.mjs packages/frontend/dist
       - name: Enforce bundle budgets
-        if: ${{ !steps.restore_baseline.outputs.cache-hit }}
+        if: ${{ !steps.restore_baseline.outputs.cache-hit && !steps.inherit_baseline.outputs.cache-hit }}
         run: >-
           bun run --cwd packages/frontend analyze-bundle --
           --ci
           --json "${{ runner.temp }}/mention-bundle-report.json"
           --markdown "${{ runner.temp }}/mention-bundle-summary.md"
       - name: Publish bundle summary
-        if: always() && !steps.restore_baseline.outputs.cache-hit
+        if: always() && !steps.restore_baseline.outputs.cache-hit && !steps.inherit_baseline.outputs.cache-hit
         run: |
           if [ -f "$RUNNER_TEMP/mention-bundle-summary.md" ]; then
             cat "$RUNNER_TEMP/mention-bundle-summary.md" >> "$GITHUB_STEP_SUMMARY"
           fi
+      # Saves whichever report is on disk — the one just exported, or the one
+      # inherited from the previous commit.
       - name: Save bundle baseline for this commit
         if: ${{ !steps.restore_baseline.outputs.cache-hit }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -218,10 +272,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+      - name: Decide whether the bundle changed at all
+        id: scope
+        env:
+          CI_SCOPE_BASE: ${{ github.base_ref && format('origin/{0}', github.base_ref) || github.event.before }}
+        run: bash .github/scripts/ci-scope.sh frontend
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        if: steps.scope.outputs.run == 'true'
         with:
           bun-version: ${{ env.BUN_VERSION }}
       - name: Set up pinned Node bundle runtime
+        if: steps.scope.outputs.run == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -231,6 +292,7 @@ jobs:
       # main is running.
       - name: Resolve baseline commit
         id: baseline_commit
+        if: steps.scope.outputs.run == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
@@ -238,6 +300,7 @@ jobs:
           echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Restore bundle baseline from the base branch
         id: restore_baseline
+        if: steps.scope.outputs.run == 'true'
         # Restore-only prevents PR-scoped fallback builds from creating caches.
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -249,7 +312,7 @@ jobs:
       # this branch added on disk as untracked, and the baseline export would
       # then bundle them and understate the delta.
       - name: Build the baseline bundle at the base commit
-        if: ${{ !steps.restore_baseline.outputs.cache-hit }}
+        if: steps.scope.outputs.run == 'true' && !steps.restore_baseline.outputs.cache-hit
         env:
           BASELINE_SHA: ${{ steps.baseline_commit.outputs.sha }}
           HEAD_SHA: ${{ steps.baseline_commit.outputs.head }}
@@ -278,20 +341,25 @@ jobs:
           # produces it, so drop the baseline's tree rather than install over it.
           rm -rf node_modules packages/*/node_modules
       - name: Install exact dependency graph
+        if: steps.scope.outputs.run == 'true'
         run: bun install --frozen-lockfile --ignore-scripts
       - name: Build shared runtime package
+        if: steps.scope.outputs.run == 'true'
         run: bun run build:shared-types
       - name: Export production web bundle
+        if: steps.scope.outputs.run == 'true'
         run: bun run --cwd packages/frontend build:analyze
         env:
           NODE_ENV: production
           EXPO_PUBLIC_ENV: production
           EXPO_PUBLIC_API_URL: https://api.mention.earth
       - name: Validate static hosting contract
+        if: steps.scope.outputs.run == 'true'
         run: bun .github/scripts/validate-frontend-static-output.mjs packages/frontend/dist
       # The comparison is advisory and never fails on its own; the absolute
       # ceilings in bundle-budgets.json remain the only hard gate.
       - name: Enforce bundle budgets and compare against the baseline
+        if: steps.scope.outputs.run == 'true'
         run: >-
           bun run --cwd packages/frontend analyze-bundle --
           --ci
@@ -303,16 +371,73 @@ jobs:
       # that forks never receive, and `pull_request_target` would run untrusted
       # code with a write token.
       - name: Publish bundle summary
-        if: always()
+        if: always() && steps.scope.outputs.run == 'true'
         run: |
           if [ -f "$RUNNER_TEMP/mention-bundle-summary.md" ]; then
             cat "$RUNNER_TEMP/mention-bundle-summary.md" >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Upload bundle report
-        if: always()
+        if: always() && steps.scope.outputs.run == 'true'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: mention-frontend-bundle-${{ github.sha }}
           path: ${{ runner.temp }}/mention-bundle-report.json
           if-no-files-found: warn
           retention-days: 14
+
+  # The single check branch protection should require, so that auto-merge has
+  # something stable to wait on. Requiring the jobs themselves does not work
+  # here: frontend-bundle-baseline and frontend-bundle are mutually exclusive on
+  # event type, so one of the pair reports `skipped` on every run, and a
+  # required check that reports `skipped` never becomes satisfied.
+  #
+  # `if: always()` so this still runs — and still fails — when something above
+  # it failed or was cancelled.
+  ci-complete:
+    name: CI complete
+    needs: [quality, lockfile, tests, frontend-bundle-baseline, frontend-bundle]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every CI job to have passed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "$RESULTS"
+
+          failures=()
+
+          # These three have no `if:` and run on every event, so `skipped` here
+          # is never legitimate — it means a future edit gated them, and a gate
+          # that reads "skipped" as "fine" is how a required check stops
+          # checking. `tests` is a matrix: its result is success only when every
+          # leg succeeded.
+          for job in quality lockfile tests; do
+            result="$(jq -r --arg job "$job" '.[$job].result' <<<"$RESULTS")"
+            if [ "$result" != success ]; then
+              failures+=("$job did not pass: $result")
+            fi
+          done
+
+          # Exactly one of the bundle pair runs, chosen by event type. Asserting
+          # the pairing rather than tolerating both being skipped is what stops a
+          # future `if:` edit retiring the bundle budget on both paths at once.
+          baseline="$(jq -r '."frontend-bundle-baseline".result' <<<"$RESULTS")"
+          pull_request="$(jq -r '."frontend-bundle".result' <<<"$RESULTS")"
+          case "$baseline/$pull_request" in
+            success/skipped | skipped/success) ;;
+            *)
+              failures+=("the bundle budget did not run on exactly one path: baseline=$baseline pull-request=$pull_request")
+              ;;
+          esac
+
+          if [ ${#failures[@]} -gt 0 ]; then
+            for failure in "${failures[@]}"; do
+              echo "::error::$failure"
+            done
+            exit 1
+          fi
+
+          echo 'Every CI job passed, or was skipped by the event type it does not apply to.'
