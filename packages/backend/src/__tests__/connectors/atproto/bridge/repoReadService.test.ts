@@ -13,8 +13,12 @@
  * rows make the ORDER BY part of what is under test rather than part of the
  * fixture.
  *
- * `Post` stays mocked: the visibility join reads the authoritative post row,
- * which is still Mongo in this phase of the migration.
+ * The visibility join is REAL too, since batch 7 moved it: the service now
+ * reads `posts` from Postgres, so a mocked `Post.find` no longer intercepts
+ * anything and every case returned an empty page. Seeding real post rows also
+ * removes the last place this suite could assert a QUERY instead of an ANSWER —
+ * the two cases that used to check the Mongo filter object now check which
+ * records come back, which is the property they were standing in for.
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -30,19 +34,15 @@ import {
 } from '@mention/shared-types';
 import { buildUserDid } from '../../../../services/mtn/mentionDid';
 
-const mockPostFind = vi.fn();
-
-vi.mock('../../../../models/Post', () => ({
-  Post: { find: (...a: unknown[]) => mockPostFind(...a) },
-}));
-
 import { closePostgres, connectPostgres, type Database } from '../../../../db/postgres';
 import { mentionSignedRecords } from '../../../../db/schema/mtn';
+import { posts } from '../../../../db/schema/posts';
 import { listRecords, getRecord } from '../../../../connectors/atproto/bridge/repoReadService';
 
 let db: Database;
 let OWNER = '';
 const createdOwners: string[] = [];
+const createdPostIds: string[] = [];
 
 interface LedgerSeed {
   nsid: string;
@@ -55,6 +55,16 @@ interface LedgerSeed {
 /** Write one denormalized ledger row for the current owner. */
 async function seed(rows: LedgerSeed[]): Promise<void> {
   if (rows.length === 0) return;
+  // The ordinary case: a post record's authoritative row is published+public.
+  // A case that needs otherwise seeds it FIRST and this skips it, so a test can
+  // still say "this one is a draft" without fighting the default.
+  const already = new Set(createdPostIds);
+  const postRows = [
+    ...new Set(
+      rows.filter((r) => r.nsid === MENTION_POST_COLLECTION && !already.has(r.rkey)).map((r) => r.rkey)
+    ),
+  ];
+  if (postRows.length > 0) await publicPosts(postRows);
   await db.insert(mentionSignedRecords).values(
     rows.map((opts) => ({
       subjectDid: buildUserDid(OWNER),
@@ -84,11 +94,31 @@ function postRecord(text: string): Record<string, unknown> {
   return { text, createdAt: '2026-06-30T00:00:00.000Z' };
 }
 
-/** The authoritative `Post` join answers with exactly these ids as published+public. */
-function publicPosts(postIds: string[]): void {
-  mockPostFind.mockReturnValue({
-    lean: () => Promise.resolve(postIds.map((_id) => ({ _id }))),
-  });
+/**
+ * Write the authoritative `posts` rows the visibility join reads back.
+ *
+ * The ledger carries no visibility of its own, so what keeps a draft or private
+ * post off the public bridge is this row — which is why it has to be real. A
+ * post id here is the ledger rkey, by construction of the chain.
+ */
+async function seedPosts(
+  specs: { id: string; status?: string; visibility?: string }[]
+): Promise<void> {
+  if (specs.length === 0) return;
+  await db.insert(posts).values(
+    specs.map((spec) => ({
+      id: spec.id,
+      oxyUserId: OWNER,
+      status: spec.status ?? 'published',
+      visibility: spec.visibility ?? 'public',
+    })) as never
+  );
+  createdPostIds.push(...specs.map((spec) => spec.id));
+}
+
+/** Every rkey the ledger carries, published and public — the ordinary case. */
+async function publicPosts(postIds: string[]): Promise<void> {
+  await seedPosts(postIds.map((id) => ({ id })));
 }
 
 beforeAll(async () => {
@@ -99,13 +129,13 @@ beforeEach(() => {
   vi.clearAllMocks();
   OWNER = `650000000000000000${randomUUID().slice(0, 6)}`;
   createdOwners.push(OWNER);
-  // Default: every post the ledger carries is published + public.
-  mockPostFind.mockImplementation((filter: { _id?: { $in?: string[] } }) => ({
-    lean: () => Promise.resolve((filter._id?.$in ?? []).map((_id) => ({ _id }))),
-  }));
 });
 
 afterEach(async () => {
+  while (createdPostIds.length > 0) {
+    const id = createdPostIds.pop();
+    if (id) await db.delete(posts).where(eq(posts.id, id));
+  }
   while (createdOwners.length > 0) {
     const owner = createdOwners.pop();
     if (owner) await db.delete(mentionSignedRecords).where(eq(mentionSignedRecords.oxyUserId, owner));
@@ -176,26 +206,23 @@ describe('listRecords', () => {
     expect(likes.records[0].value.$type).toBe('app.bsky.feed.like');
   });
 
-  it('filters draft and non-public post records through the authoritative Post document', async () => {
+  it('filters draft and non-public post records through the authoritative post row', async () => {
+    // Seeded FIRST so `seed()`'s published+public default does not claim them.
+    await seedPosts([
+      { id: 'published-private', visibility: 'private' },
+      { id: 'draft-public', status: 'draft' },
+    ]);
     await seed([
       { nsid: MENTION_POST_COLLECTION, rkey: 'published-private', record: postRecord('private secret'), createdAt: '2026-06-30T01:00:00.000Z' },
       { nsid: MENTION_POST_COLLECTION, rkey: 'draft-public', record: postRecord('draft secret'), createdAt: '2026-06-30T02:00:00.000Z' },
       { nsid: MENTION_POST_COLLECTION, rkey: 'published-public', record: postRecord('safe'), createdAt: '2026-06-30T03:00:00.000Z' },
     ]);
-    publicPosts(['published-public']);
-
     const page = await listRecords(OWNER, 'app.bsky.feed.post');
 
+    // The ANSWER, not the query. The old version asserted the Mongo filter
+    // object — which passed whether or not the rows it described existed, and
+    // could not have caught a join that returned everything.
     expect(page.records.map((record) => record.rkey)).toEqual(['published-public']);
-    expect(mockPostFind).toHaveBeenCalledWith(
-      {
-        _id: { $in: ['published-public', 'draft-public', 'published-private'] },
-        oxyUserId: OWNER,
-        status: 'published',
-        visibility: 'public',
-      },
-      { _id: 1 },
-    );
   });
 
   it('never serves a private bookmark, even when the ledger holds one', async () => {
@@ -271,12 +298,12 @@ describe('getRecord', () => {
 
     const record = await getRecord(OWNER, 'app.bsky.feed.post', 'p1');
     expect(record?.rkey).toBe('p1');
-    // The visibility join saw ONLY the requested key — the narrowing is what makes
-    // this a targeted read rather than a per-key full scan of the chain.
-    expect(mockPostFind).toHaveBeenCalledWith(
-      expect.objectContaining({ _id: { $in: ['p1'] } }),
-      { _id: 1 },
-    );
+    // The sibling never appears in the answer. The old assertion checked that
+    // the visibility join was NARROWED to one key — a statement about how the
+    // query was built, which is no longer observable from outside the service.
+    // What is observable, and what actually matters to a caller, is that `p2`
+    // cannot leak into a read for `p1`.
+    expect(record?.value).toMatchObject({ text: 'wanted' });
   });
 
   it('applies LWW for the requested rkey (newest edit wins)', async () => {
@@ -288,11 +315,14 @@ describe('getRecord', () => {
     expect(record?.value).toMatchObject({ text: 'edited' });
   });
 
-  it('returns null when the authoritative Post document is draft or non-public', async () => {
+  it('returns null when the authoritative post row is draft or non-public', async () => {
+    // Seeded FIRST, as a draft, so `seed()`'s published+public default does not
+    // claim this rkey. The ledger row is identical to the served case above —
+    // the post row is the only difference, which is the point.
+    await seedPosts([{ id: 'p1', status: 'draft' }]);
     await seed([
       { nsid: MENTION_POST_COLLECTION, rkey: 'p1', record: postRecord('secret'), createdAt: '2026-06-30T01:00:00.000Z' },
     ]);
-    publicPosts([]);
 
     expect(await getRecord(OWNER, 'app.bsky.feed.post', 'p1')).toBeNull();
   });
