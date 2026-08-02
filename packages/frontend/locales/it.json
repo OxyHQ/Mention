@@ -1529,5 +1529,66 @@
       "science": "Scienza",
       "other": ""
     }
+  },
+  "lanes": {
+    "title": "Corsie",
+    "description": "Tieni tracce separate dei tuoi post e decidi quali arrivano al tuo profilo.",
+    "addLane": "Nuova corsia",
+    "namePlaceholder": "Nome della corsia",
+    "atCap": "Puoi avere al massimo {{count}} corsie.",
+    "yourLanes": "Le tue corsie",
+    "empty": "Nessuna corsia",
+    "loadFailed": "Impossibile caricare le tue corsie",
+    "created": "Corsia creata",
+    "createFailed": "Impossibile creare la corsia",
+    "rename": "Rinomina",
+    "renameFailed": "Impossibile rinominare la corsia",
+    "displayModeFailed": "Impossibile aggiornare la corsia",
+    "delete": "Elimina corsia",
+    "deleted": "Corsia eliminata",
+    "deleteFailed": "Impossibile eliminare la corsia",
+    "deleteConfirm": "Eliminare «{{lane}}»? I suoi post restano esattamente dove sono: smettono semplicemente di stare su una corsia, e quelli che tenevi fuori dal profilo tornano a comparire.",
+    "signInRequired": "Accedi per gestire le tue corsie",
+    "signInRequiredDesc": "Le corsie ti permettono di tenere tracce separate dei tuoi post e di decidere quali arrivano al tuo profilo.",
+    "postCount_one": "{{count}} post",
+    "postCount_other": "{{count}} post",
+    "mode": {
+      "mixed": "Nella scheda principale",
+      "mixedDesc": "Questi post stanno nella tua scheda principale come tutti gli altri.",
+      "tab": "Solo nella sua scheda",
+      "tabDesc": "Fuori dalla scheda principale. I lettori trovano questi post nella scheda della corsia stessa.",
+      "hidden": "Fuori dal tuo profilo",
+      "hiddenDesc": "Fuori dal profilo del tutto, anche per te. I post continuano ad arrivare ai feed e restano apribili dal link: questa è curatela, non privacy."
+    },
+    "picker": {
+      "title": "Corsia del post",
+      "none": "Nessuna corsia",
+      "noneSubtitle": "Il post compare nella tua scheda principale",
+      "current": "Attuale",
+      "empty": "Le corsie ti permettono di tenere tracce separate dei tuoi post e di decidere quali arrivano al tuo profilo.",
+      "manage": "Gestisci le corsie"
+    },
+    "compose": {
+      "choose": "Scegli una corsia"
+    },
+    "postActions": {
+      "moveToLane": "Sposta in una corsia…",
+      "moveFailed": "Impossibile spostare questo post",
+      "muteLane": "Silenzia «{{lane}}» di @{{username}}",
+      "muteLaneConfirm": "I post su «{{lane}}» smettono di comparire nei tuoi feed. Continui a seguire @{{username}}, e tutto il resto che pubblica ti arriva comunque.",
+      "laneMuted": "«{{lane}}» silenziata",
+      "muteLaneFailed": "Impossibile silenziare questa corsia"
+    },
+    "muted": {
+      "title": "Corsie silenziate",
+      "settingsDesc": "Nascondi una traccia di un account che segui",
+      "description": "Una corsia silenziata smette di comparire nei tuoi feed. Continui a seguirne l’autore, e tutto il resto che pubblica ti arriva comunque.",
+      "empty": "Nessuna corsia silenziata",
+      "loadFailed": "Impossibile caricare le corsie silenziate",
+      "unmute": "Riattiva",
+      "unmuted": "Corsia riattivata",
+      "unmuteFailed": "Impossibile riattivare la corsia",
+      "signInRequired": "Accedi per gestire le corsie silenziate"
+    }
   }
 }

@@ -34,6 +34,7 @@ import { migrationBlocklistProposalIndexes } from './0020-blocklist-proposal-ind
 import { migrationBlocklistProposalRunIndexes } from './0021-blocklist-proposal-run-indexes';
 import { migrationLaneIndexes } from './0022-lane-indexes';
 import { migrationPostLaneIndex } from './0023-post-lane-index';
+import { migrationChannelIndexes } from './0024-channel-indexes';
 import { MIGRATIONS_COLLECTION } from './constants';
 
 export interface Migration {
@@ -93,6 +94,7 @@ const MIGRATIONS: readonly Migration[] = [
   migrationBlocklistProposalRunIndexes,
   migrationLaneIndexes,
   migrationPostLaneIndex,
+  migrationChannelIndexes,
 ];
 
 /**

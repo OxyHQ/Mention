@@ -28,6 +28,7 @@ import {
     type FeedMemoryCacheEntry,
 } from '@/stores/feedScrollStore';
 import { isFeedCacheStale } from '@/stores/engagementInvalidation';
+import { isLaneFeedCacheStale } from '@/stores/laneInvalidation';
 
 // Re-export so callers that already imported from here keep working.
 export { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
@@ -494,6 +495,15 @@ export function useFeedState({
 
             const feedTypeToCheck = showOnlySaved ? 'saved' : type;
 
+            // A retained slice is only good if it postdates BOTH classes of write
+            // that change which posts a list CONTAINS: an engagement (like/boost/
+            // save) and a lane write (a post moved between lanes, a lane's
+            // displayMode changed, a lane muted). They live in separate authority
+            // modules and neither can see the other's writes, so both are asked.
+            const cacheIsStale = (retainedAt: number): boolean =>
+                isFeedCacheStale(feedTypeToCheck, userId, currentUserId, retainedAt)
+                || isLaneFeedCacheStale(userId, currentUserId, filters?.laneId, retainedAt);
+
             // Check SQLite for cached data (cold-start optimization).
             // Only relevant when using the SQLite path (useMemoryFeed === false).
             if (!useMemoryFeed && !forceRefresh && !showOnlySaved && !filters?.searchQuery) {
@@ -509,7 +519,7 @@ export function useFeedState({
                     hasDbData
                     && ui?.lastUpdated
                     && ui.lastUpdated > 0
-                    && !isFeedCacheStale(feedTypeToCheck, userId, currentUserId, ui.lastUpdated)
+                    && !cacheIsStale(ui.lastUpdated)
                 ) {
                     logger.debug('Skipping — feed has SQLite cache');
                     isFetchingRef.current = false;
@@ -545,20 +555,22 @@ export function useFeedState({
             // replies list has no deep-scroll/pagination context worth keeping.
             //
             // SECOND EXCEPTION — a slice that predates an engagement the viewer
-            // has since made. Liking, boosting and saving change which posts these
-            // lists CONTAIN, and no optimistic update can know the server's paging
-            // or ordering. The seed still renders (no flash), but the fetch below
-            // has to run or the list keeps showing its pre-write membership until
-            // a reload. See `stores/engagementInvalidation`.
+            // has since made — or a lane write. Liking, boosting and saving change
+            // which posts these lists CONTAIN, as does moving a post between lanes,
+            // changing a lane's displayMode, or muting one; no optimistic update can
+            // know the server's paging or ordering. The seed still renders (no
+            // flash), but the fetch below has to run or the list keeps showing its
+            // pre-write membership until a reload. See `stores/engagementInvalidation`
+            // and `stores/laneInvalidation`.
             const seeded = seededCacheRef.current;
             if (useMemoryFeed && !forceRefresh && seeded && type !== 'replies') {
                 seededCacheRef.current = undefined;
-                if (!isFeedCacheStale(feedTypeToCheck, userId, currentUserId, seeded.retainedAt)) {
+                if (!cacheIsStale(seeded.retainedAt)) {
                     logger.debug('Skipping — memory feed warm-started from cache');
                     isFetchingRef.current = false;
                     return;
                 }
-                logger.debug('Warm cache predates an engagement write — revalidating');
+                logger.debug('Warm cache predates an engagement or lane write — revalidating');
             }
 
             try {

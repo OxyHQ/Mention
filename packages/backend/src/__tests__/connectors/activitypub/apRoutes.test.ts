@@ -419,6 +419,63 @@ describe('GET /ap/users/:username/collections/featured — pinned posts', () => 
   });
 });
 
+/**
+ * A post published to a CHANNEL never leaves through an author surface.
+ *
+ * The outbox and the featured collection are author surfaces, and channels have
+ * no ActivityPub presence in v1 — so listing one here would publish it to the
+ * fediverse under the WRITER's actor, which is the opposite of what the channel
+ * signs and, on a `signPosts: false` channel, a straight de-anonymization.
+ *
+ * The featured collection is the more consequential of the two: Mastodon does not
+ * backfill a freshly-discovered account's timeline from the outbox, so `featured`
+ * is what a discovered profile actually renders.
+ */
+describe('channel posts are excluded from every author-facing AP surface', () => {
+  const captureQuery = () => {
+    const findSpy = vi.fn().mockReturnValue({
+      sort: () => ({ limit: () => ({ lean: async () => [] }) }),
+    });
+    mocks.postFind.mockImplementation((query: unknown) => findSpy(query));
+    return findSpy;
+  };
+
+  it('excludes them from the outbox PAGE', async () => {
+    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' });
+    mocks.postCountDocuments.mockResolvedValue(0);
+    const findSpy = captureQuery();
+
+    await request(app).get('/ap/users/alice/outbox?page=true').set('Accept', AP_ACCEPT).expect(200);
+
+    expect(findSpy.mock.calls[0][0]).toMatchObject({ channelId: { $exists: false } });
+  });
+
+  it('excludes them from the outbox COUNT with the same filter', async () => {
+    // The count and the page must use ONE filter, or `totalItems` promises items
+    // no page will ever yield.
+    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' });
+    mocks.postCountDocuments.mockResolvedValue(0);
+
+    await request(app).get('/ap/users/alice/outbox').set('Accept', AP_ACCEPT).expect(200);
+
+    expect(mocks.postCountDocuments).toHaveBeenCalledWith(
+      expect.objectContaining({ channelId: { $exists: false } }),
+    );
+  });
+
+  it('excludes them from the featured collection', async () => {
+    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' });
+    const findSpy = captureQuery();
+
+    await request(app)
+      .get('/ap/users/alice/collections/featured')
+      .set('Accept', AP_ACCEPT)
+      .expect(200);
+
+    expect(findSpy.mock.calls[0][0]).toMatchObject({ channelId: { $exists: false } });
+  });
+});
+
 describe('GET /ap/users/:username/followers — Oxy follow graph (local + federated)', () => {
   beforeEach(() => {
     // The resolved profile carries the TRUE Oxy follow count as `_count`.

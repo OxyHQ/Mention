@@ -157,6 +157,7 @@ const UnpublishedSheet = lazy(() => import('@/components/Compose/UnpublishedShee
 const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'));
 const AltTextSheet = lazy(() => import('@/components/Compose/AltTextSheet'));
 const LanguagePickerSheet = lazy(() => import('@/components/Compose/LanguagePickerSheet'));
+const LanePickerSheet = lazy(() => import('@/components/Compose/LanePickerSheet'));
 const EmojiPickerSheet = lazy(() => import('@/components/Compose/EmojiPickerSheet'));
 const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
 const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
@@ -210,6 +211,10 @@ const ComposeScreenBody = () => {
   // The collaborator search is opened from the attachment row's people icon, so
   // its open/closed state belongs to the composer rather than to the picker.
   const [collaboratorSearchOpen, setCollaboratorSearchOpen] = useState(false);
+  // The author's own lane for this post. In THREAD mode it belongs to the root
+  // (the continuations are replies and carry none), which is exactly what
+  // sending it on the main post achieves.
+  const [laneId, setLaneId] = useState<string | null>(null);
 
   // Use custom hooks for state management
   const mediaManager = useMediaManager();
@@ -492,6 +497,19 @@ const ComposeScreenBody = () => {
    */
   const collaboratorsEligible =
     !replyToPostId && threadItems.length === 0 && (!isEditMode || editCollabEligible);
+
+  /**
+   * Whether this post can be put on a lane from HERE.
+   *
+   * A reply cannot carry one at all — the server refuses it (400) and
+   * `CreateReplyRequest` drops what it does not name, so offering the choice
+   * would end in a 201 and a silently discarded lane. An edit cannot either: the
+   * edit payload is an `UpdatePostRequest` and moving a post between lanes is a
+   * separate write with no edit window (`PATCH /posts/:id/lane`), reached from
+   * the post's own ⋯ menu. Both are hidden rather than disabled: there is
+   * nothing the author could do here to make either work.
+   */
+  const laneEligible = !replyToPostId && !isEditMode;
 
   // Schedule manager
   const scheduleManager = useScheduleManager({
@@ -1047,6 +1065,9 @@ const ComposeScreenBody = () => {
         isSensitive,
         quotedPostId: quotedPost?.id,
         collaboratorIds: collaborators.length > 0 ? collaborators.map((c) => c.id) : undefined,
+        // Guarded by the same predicate that hides the affordance, so a lane
+        // chosen before a quote turned into a reply can never reach the wire.
+        laneId: laneEligible && laneId ? laneId : undefined,
         variantContent: mainVariantContent,
       });
       allPosts.push(mainPost);
@@ -1567,6 +1588,19 @@ const ComposeScreenBody = () => {
   const handleCollaboratorsPress = useCallback(() => {
     setCollaboratorSearchOpen((open) => !open);
   }, []);
+
+  const handleLanePress = useCallback(() => {
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <LanePickerSheet
+          selectedLaneId={laneId}
+          onSelect={setLaneId}
+          onClose={() => bottomSheet.openBottomSheet(false)}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, laneId]);
 
   // Main post toolbar handlers — stable references for memoized ComposeToolbar
   const handleMainGifPress = useCallback(() => {
@@ -2430,6 +2464,11 @@ const ComposeScreenBody = () => {
                       onCollaboratorsPress={collaboratorsEligible ? handleCollaboratorsPress : undefined}
                       hasCollaborators={collaborators.length > 0}
                       collaboratorsEnabled={collaborators.length < MAX_POST_COLLABORATORS}
+                      // Main toolbar only (one lane per post, and in a thread it
+                      // is the root's), and omitted outright where the post
+                      // cannot take one — see `laneEligible`.
+                      onLanePress={laneEligible ? handleLanePress : undefined}
+                      hasLane={Boolean(laneId)}
                       hasLocation={!!location}
                       isGettingLocation={isGettingLocation}
                       hasPoll={showPollCreator}

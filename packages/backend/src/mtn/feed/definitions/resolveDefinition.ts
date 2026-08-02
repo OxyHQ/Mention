@@ -32,6 +32,7 @@ import {
   trendDefinition,
   listDefinition,
   laneDefinition,
+  channelDefinition,
 } from './presets';
 
 /** Viewer context needed to resolve viewer-scoped descriptors (custom feeds). */
@@ -99,6 +100,13 @@ export async function resolveDefinition(
       // to encode the owner's TYPE.
       const laneId = params[0];
       return laneId ? laneDefinition(laneId) : null;
+    }
+    case 'channel': {
+      // The channel's `_id`, never its handle — a rename must not break a tab
+      // somebody pinned. `GET /channels/:idOrHandle` is where both spellings
+      // resolve; a feed descriptor takes only the stable one.
+      const channelId = params[0];
+      return channelId ? channelDefinition(channelId) : null;
     }
     case 'custom':
       // Viewer-scoped: needs a context to owner/visibility-check the stored feed.

@@ -98,9 +98,11 @@ describe('PATCH /posts/:id/lane', () => {
       { _id: POST_ID, oxyUserId: USER_ID },
       { $set: { laneId: LANE_ID } },
     );
-    expect(res.body).toMatchObject({
-      postId: POST_ID,
-      lane: { id: LANE_ID, name: 'Dev', displayMode: 'tab' },
+    // The `{data}` envelope, matching every OTHER lane endpoint — this handler
+    // sits on the posts router but its only client reads the Lanes feature.
+    expect(res.body).toEqual({
+      data: { postId: POST_ID, lane: { id: LANE_ID, name: 'Dev', displayMode: 'tab' } },
+      message: 'Post lane updated',
     });
   });
 
@@ -116,7 +118,7 @@ describe('PATCH /posts/:id/lane', () => {
       { _id: POST_ID, oxyUserId: USER_ID },
       { $unset: { laneId: '' } },
     );
-    expect(res.body).toMatchObject({ lane: null });
+    expect(res.body).toMatchObject({ data: { lane: null } });
   });
 
   it('has NO edit window — an old post moves exactly like a new one', async () => {

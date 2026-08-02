@@ -8,6 +8,8 @@ import mongoose from 'mongoose';
 import { isAuthorFeedFilter, PostType, PostVisibility } from '@mention/shared-types';
 import { Post } from '../../../../models/Post';
 import { Lane } from '../../../../models/Lane';
+import { Channel } from '../../../../models/Channel';
+import { canViewChannel } from '../../../../services/channelAccess';
 import UserSettings from '../../../../models/UserSettings';
 import { ProfileVisibility, requiresAccessCheck } from '../../../../utils/privacyHelpers';
 import { buildAuthorFeedMatch } from '../../../../utils/postAuthorship';
@@ -348,7 +350,11 @@ export const authoredSource: SourceModule = {
  * The query is `{ laneId }` plus the publisher's scope, deliberately NOT
  * `buildAuthorFeedMatch`: that multikey `authorship` clause would pull the
  * planner onto `post_author_chrono_v1` instead of `post_lane_chrono_v1`, and the
- * literal `laneId` term is also what lets the PARTIAL index be used at all.
+ * literal `laneId` term is also what lets the PARTIAL index be used at all. Which
+ * scope that is depends on the owner: `oxyUserId` for a user's lane, `channelId`
+ * for a channel's — a lane's posts and its publisher's posts are the same set by
+ * construction (`assertLaneAssignable` refuses any other pairing), so the scope
+ * term is a narrowing, not a second source of truth.
  *
  * No `restrictToRoots`: replies and boosts are refused a lane at the write
  * boundary, so filtering them here would be code that can never match.
@@ -370,15 +376,25 @@ export const laneSource: SourceModule = {
     // unreadable through this descriptor.
     if (lane.displayMode !== 'tab') return [];
 
-    // Gate 1. Channels have no visibility rule of their own yet, and no post can
-    // carry a channel lane until they do, so a channel-owned lane serves nothing
-    // rather than serving unguarded.
-    if (lane.ownerType !== 'user') return [];
-    if (!(await canViewAuthorFeed(ctx, lane.ownerId))) return [];
+    // Gate 1, branching on WHICH publisher owns the lane. A channel curates its
+    // page the way a user curates a profile, so a channel-owned lane is a real
+    // tab — it just answers to `canViewChannel` rather than `canViewAuthorFeed`.
+    const scope: Record<string, unknown> = {};
+    if (lane.ownerType === 'channel') {
+      if (!mongoose.Types.ObjectId.isValid(lane.ownerId)) return [];
+      const channel = await Channel.findById(lane.ownerId)
+        .select('visibility')
+        .lean<{ visibility: string } | null>();
+      if (!channel || !canViewChannel(channel, ctx.currentUserId)) return [];
+      scope.channelId = lane.ownerId;
+    } else {
+      if (!(await canViewAuthorFeed(ctx, lane.ownerId))) return [];
+      scope.oxyUserId = lane.ownerId;
+    }
 
     const match: Record<string, unknown> = {
       laneId,
-      oxyUserId: lane.ownerId,
+      ...scope,
       visibility: PostVisibility.PUBLIC,
       status: 'published',
     };
@@ -387,6 +403,58 @@ export const laneSource: SourceModule = {
     // Sorted on the CURSOR's axis — `{ createdAt, _id }`, never `_id` alone —
     // the same rule every source here follows and the same order
     // `post_lane_chrono_v1` stores.
+    return (await Post.find(match)
+      .select(FEED_FIELDS)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(cap)
+      .maxTimeMS(5000)
+      .lean()) as unknown as CandidatePost[];
+  },
+};
+
+/**
+ * `channel`: ONE channel's page. Param `{ channelId }`.
+ *
+ * This is the ONLY surface a channel post is reachable from in a feed. Every
+ * author-relationship query excludes it unconditionally
+ * (`EXCLUDE_CHANNEL_POSTS`), which is the whole point: a channel post belongs to
+ * the channel, and what appears on the writer's profile is a BOOST of it, if they
+ * made one.
+ *
+ * The gate is `canViewChannel`, which is trivially true in v1 (public-only) and
+ * exists so a restricted level later is a branch in ONE function rather than an
+ * audit of every read surface for the one that forgot to ask.
+ *
+ * The query is a literal `{ channelId }` plus visibility/status, which is exactly
+ * what `post_channel_chrono_v1` stores and what lets its PARTIAL filter be proven
+ * — deliberately NOT `buildAuthorFeedMatch`, whose multikey `authorship` clause
+ * would pull the planner onto `post_author_chrono_v1` AND whose channel exclusion
+ * would empty this feed outright.
+ *
+ * No `restrictToRoots`: a channel post can never be a reply (the write path
+ * refuses it, and the reply gate refuses replies TO it), so filtering them here
+ * would be code that can never match.
+ */
+export const channelSource: SourceModule = {
+  id: 'channel',
+  kind: 'source',
+  userComposable: false,
+  gather: async (ctx, params, cap) => {
+    const channelId = typeof params.channelId === 'string' ? params.channelId : '';
+    if (!channelId || !mongoose.Types.ObjectId.isValid(channelId)) return [];
+
+    const channel = await Channel.findById(channelId)
+      .select('visibility')
+      .lean<{ visibility: string } | null>();
+    if (!channel || !canViewChannel(channel, ctx.currentUserId)) return [];
+
+    const match: Record<string, unknown> = {
+      channelId,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+    };
+    ChronoCursor.applyToQuery(match, ctx.cursor);
+
     return (await Post.find(match)
       .select(FEED_FIELDS)
       .sort({ createdAt: -1, _id: -1 })
@@ -483,6 +551,7 @@ export const userSourceModules: SourceModule[] = [
   accountsSource,
   authoredSource,
   laneSource,
+  channelSource,
   savedSource,
   mutualsSource,
 ];

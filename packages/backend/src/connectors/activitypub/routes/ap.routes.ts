@@ -14,6 +14,7 @@ import {
   resolveOxyUser,
 } from '../constants';
 import { ChronoCursor } from '../../../mtn/feed/CursorBuilder';
+import { EXCLUDE_CHANNEL_POSTS } from '../../../utils/postAuthorship';
 import { isFediverseSharingEnabledFromUser } from '../../../services/fediverseSharing';
 
 /**
@@ -57,11 +58,19 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
     }
 
     const userId = user._id || user.id;
+    // The outbox is an AUTHOR surface, so a channel post is excluded from it for
+    // the same reason it is excluded from the profile: the post belongs to the
+    // channel, and channels have no ActivityPub presence in v1. Listing one here
+    // would publish it to the fediverse under the writer's actor — the opposite of
+    // what the channel signs, and a de-anonymization when `signPosts` is false. The
+    // count and the page window use the SAME filter, or `totalItems` would promise
+    // items no page ever yields.
     const totalPosts = await Post.countDocuments({
       oxyUserId: userId,
       visibility: 'public',
       status: 'published',
       parentPostId: null,
+      ...EXCLUDE_CHANNEL_POSTS,
     });
 
     if (!page) {
@@ -91,6 +100,7 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
       visibility: 'public',
       status: 'published',
       parentPostId: null,
+      ...EXCLUDE_CHANNEL_POSTS,
     };
     ChronoCursor.applyToQuery(pageMatch, cursor);
 
@@ -197,6 +207,10 @@ router.get('/users/:username/collections/featured', async (req: Request, res: Re
       visibility: 'public',
       status: 'published',
       parentPostId: null,
+      // Identical to the outbox filter, channel exclusion included — this is the
+      // collection a freshly-discovered profile actually renders, so a leak here
+      // would be the MOST visible one.
+      ...EXCLUDE_CHANNEL_POSTS,
     })
       .sort({ createdAt: -1, _id: -1 })
       .limit(FEATURED_LIMIT)

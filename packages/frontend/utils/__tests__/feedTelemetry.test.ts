@@ -96,6 +96,27 @@ describe('resolveFeedDescriptor', () => {
         expect(resolveFeedDescriptor('topic', undefined, { topic: 'tech' })).toBe('topic|tech');
         expect(resolveFeedDescriptor('custom', undefined, { customFeedId: 'cf1' })).toBe('custom|cf1');
     });
+
+    // A lane tab is fetched by `lane|<id>` (`feedService`'s own branch), so
+    // attributing it to the author feed would file every impression on that tab
+    // against the wrong feed — silently, with nothing failing. The lane branch
+    // therefore has to WIN over `userId`, not merely exist.
+    it('maps a lane tab to lane|<laneId>, ahead of the author feed', () => {
+        expect(resolveFeedDescriptor('posts', undefined, { laneId: 'lane-1' })).toBe('lane|lane-1');
+        expect(resolveFeedDescriptor('posts', 'user-123', { laneId: 'lane-1' })).toBe('lane|lane-1');
+    });
+
+    it('keeps the saved feed ahead of a lane filter', () => {
+        expect(resolveFeedDescriptor('posts', undefined, { laneId: 'lane-1' }, true)).toBe('saved');
+    });
+
+    // Same trap as the lane tab above, and a worse one to hit: a channel's posts
+    // belong to nobody's profile, so `author|<id>` would not merely be the wrong
+    // feed — it would be a feed those posts are excluded from entirely.
+    it('maps a channel page to channel|<channelId>, ahead of the author feed', () => {
+        expect(resolveFeedDescriptor('mixed', undefined, { channelId: 'channel-1' })).toBe('channel|channel-1');
+        expect(resolveFeedDescriptor('mixed', 'user-123', { channelId: 'channel-1' })).toBe('channel|channel-1');
+    });
 });
 
 describe('FeedImpressionTracker', () => {

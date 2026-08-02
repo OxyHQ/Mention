@@ -19,6 +19,7 @@ import PostHeader, { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from '../Post
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import PostContentText from '../Post/PostContentText';
 import PostLanguageChip from '../Post/PostLanguageChip';
+import PostLaneChip from '../Post/PostLaneChip';
 import ContentWarning from '../Post/ContentWarning';
 import PostActions from '../Post/PostActions';
 import PostDetailStats from '../Post/PostDetailStats';
@@ -632,6 +633,29 @@ const PostItem: React.FC<PostItemProps> = ({
         ? `${postAuthor}: ${postTextSummary}`
         : `Post by ${postAuthor}`;
 
+    // The lane chip, in the identity line right after the time.
+    //
+    // The lane rides on `viewPost.lane` — the DTO — and is deliberately NOT a
+    // prop on this component. `PostItem`'s `React.memo` comparator enumerates
+    // every prop, so lane data arriving as one and missed there would leave a
+    // recycled FlashList row showing the PREVIOUS row's lane; reading it off the
+    // post makes that class of bug unreachable. (The comparator still compares
+    // `lane.id` explicitly, so the row re-renders when the lane changes without
+    // relying on `metadata.updatedAt` moving with it.)
+    //
+    // Suppressed on the two header shapes whose identity line is already saying
+    // something more important about who published the post: a boost (the line
+    // belongs to the reposter's reason) and a collaborative byline (the line is
+    // already a list of authors). The third suppression — a row inside the lane's
+    // own tab — lives in the chip, which is where the feed descriptor is known.
+    const laneSlot = viewPost.lane && !viewPost.boost && !isCollab ? (
+        <PostLaneChip
+            lane={viewPost.lane}
+            authorHandle={authorHandle || ''}
+            feedDescriptor={feedDescriptor}
+        />
+    ) : null;
+
     // Thread line positioning: center on avatar, use shared style constants from composeLayout
     const THREAD_LINE_LEFT = HPAD + AVATAR_SIZE / 2 - 1;
     const THREAD_LINE_W = THREAD_LINE_WIDTH;
@@ -786,6 +810,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         date={metadata.createdAt}
                         showBoost={Boolean(viewPost.boost) && !isNested}
                         showReply={false}
+                        laneSlot={laneSlot}
                         contextTop={contextRows.length > 0 ? contextRows : undefined}
                         avatarSource={avatarSource}
                         avatarVariant={avatarVariant}
@@ -969,6 +994,11 @@ export default React.memo(PostItem, (prevProps, nextProps) => {
         prev?.engagement?.boosts === next?.engagement?.boosts &&
         prev?.engagement?.replies === next?.engagement?.replies &&
         prev?.metadata?.updatedAt === next?.metadata?.updatedAt &&
+        // A lane move is not an edit — the server writes no `updatedAt` for it,
+        // deliberately (`PATCH /posts/:id/lane` sets no `isEdited` and carries no
+        // edit window). So the lane is compared on its own rather than riding an
+        // implicit coupling to a timestamp that does not move with it.
+        prev?.lane?.id === next?.lane?.id &&
         prevProps.isNested === nextProps.isNested &&
         prevProps.nestingDepth === nextProps.nestingDepth &&
         prevProps.isThreadParent === nextProps.isThreadParent &&

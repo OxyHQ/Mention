@@ -1778,5 +1778,66 @@
       "malware": "Malware or phishing",
       "unmoderated": "Unmoderated"
     }
+  },
+  "lanes": {
+    "title": "Lanes",
+    "description": "Keep separate tracks of your posts and decide which ones reach your profile.",
+    "addLane": "New lane",
+    "namePlaceholder": "Lane name",
+    "atCap": "You can have at most {{count}} lanes.",
+    "yourLanes": "Your lanes",
+    "empty": "No lanes yet",
+    "loadFailed": "Failed to load your lanes",
+    "created": "Lane created",
+    "createFailed": "Failed to create lane",
+    "rename": "Rename",
+    "renameFailed": "Failed to rename lane",
+    "displayModeFailed": "Failed to update lane",
+    "delete": "Delete lane",
+    "deleted": "Lane deleted",
+    "deleteFailed": "Failed to delete lane",
+    "deleteConfirm": "Delete «{{lane}}»? Its posts stay exactly where they are — they simply stop being on a lane, and any of them you were keeping off your profile come back.",
+    "signInRequired": "Sign in to manage your lanes",
+    "signInRequiredDesc": "Lanes let you keep separate tracks of your posts and decide which ones reach your profile.",
+    "postCount_one": "{{count}} post",
+    "postCount_other": "{{count}} posts",
+    "mode": {
+      "mixed": "On your main tab",
+      "mixedDesc": "These posts sit on your main tab like any other.",
+      "tab": "Its own tab only",
+      "tabDesc": "Off the main tab. Readers find these posts on the lane’s own tab.",
+      "hidden": "Off your profile",
+      "hiddenDesc": "Off your profile entirely, including for you. The posts still reach feeds and still open by link — this is curation, not privacy."
+    },
+    "picker": {
+      "title": "Post lane",
+      "none": "No lane",
+      "noneSubtitle": "The post appears on your main profile tab",
+      "current": "Current",
+      "empty": "Lanes let you keep separate tracks of your posts and decide which ones reach your profile.",
+      "manage": "Manage lanes"
+    },
+    "compose": {
+      "choose": "Choose a lane"
+    },
+    "postActions": {
+      "moveToLane": "Move to lane…",
+      "moveFailed": "Failed to move this post",
+      "muteLane": "Mute «{{lane}}» from @{{username}}",
+      "muteLaneConfirm": "Posts on «{{lane}}» stop appearing in your feeds. You keep following @{{username}}, and everything else they post still reaches you.",
+      "laneMuted": "«{{lane}}» muted",
+      "muteLaneFailed": "Failed to mute this lane"
+    },
+    "muted": {
+      "title": "Muted lanes",
+      "settingsDesc": "Hide one track of an account you follow",
+      "description": "A muted lane stops appearing in your feeds. You keep following its author, and everything else they post still reaches you.",
+      "empty": "No muted lanes",
+      "loadFailed": "Failed to load muted lanes",
+      "unmute": "Unmute",
+      "unmuted": "Lane unmuted",
+      "unmuteFailed": "Failed to unmute lane",
+      "signInRequired": "Sign in to manage muted lanes"
+    }
   }
 }

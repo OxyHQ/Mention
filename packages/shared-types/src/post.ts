@@ -4,6 +4,7 @@
 
 import type { UserNameResponse } from '@oxyhq/contracts';
 import { GeoJSONPoint } from './common';
+import type { ChannelSummary } from './channel';
 import type { LaneSummary } from './lane';
 
 export enum PostType {
@@ -706,6 +707,16 @@ export interface CreatePostRequest {
    * one: it is an original post with its own body and its own profile row.
    */
   laneId?: string;
+  /**
+   * Publish this post TO a channel, which is a destination rather than a lens: the
+   * post belongs to the channel and ONLY to the channel — it never appears on the
+   * author's profile or in their followers' timeline, and it accepts no replies.
+   *
+   * The caller must be an ACCEPTED member of the channel (403 otherwise). To put a
+   * channel post on your own profile you boost it; there is no field for that,
+   * because a boost is already the right row with the right owner.
+   */
+  channelId?: string;
 }
 
 export interface CreateThreadPostRequest {
@@ -1037,6 +1048,18 @@ export interface HydratedPostSummary {
    * makes unreachable.
    */
   lane?: LaneSummary;
+  /**
+   * The channel this post was published to, when it has one — the SIGNATURE of the
+   * row, not a chip: a channel post renders with the channel's avatar and name.
+   *
+   * It is a separate field precisely so nothing can collapse it into `user`. Oxy
+   * owns identity and a channel is not a person; a fabricated `PostUser` would
+   * break `/@handle` links and poison the identity cache.
+   *
+   * When `channel.signPosts` is `false`, `user` carries NO real identity and
+   * `authors` is empty — the anonymity is in the DTO, not in the renderer.
+   */
+  channel?: ChannelSummary;
   parentPostId?: string;
   /**
    * Set on every post that IS a reply, on every surface, whatever the feed did

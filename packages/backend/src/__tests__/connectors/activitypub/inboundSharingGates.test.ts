@@ -42,6 +42,7 @@ const mocks = vi.hoisted(() => ({
   actorFindOne: vi.fn(),
   followExists: vi.fn(),
   postFindOne: vi.fn(),
+  postFindById: vi.fn(),
   postExists: vi.fn(),
   postUpdateOne: vi.fn(),
   postDeleteOne: vi.fn(),
@@ -91,6 +92,7 @@ vi.mock('../../../models/Post', () => ({
   POST_CLASSIFICATION_PENDING: 'pending',
   Post: {
     findOne: mocks.postFindOne,
+    findById: mocks.postFindById,
     exists: mocks.postExists,
     updateOne: mocks.postUpdateOne,
     deleteOne: mocks.postDeleteOne,
@@ -176,6 +178,14 @@ function stubPostFindOne(options: {
 beforeEach(() => {
   vi.clearAllMocks();
 
+  // The channel reply gate (`utils/channelReplyGate`) reads the parent post
+  // through `Post.findById`. Nothing in this file involves a channel, so the
+  // default is a parent with no `channelId` — which is what makes these replies
+  // reach the assertions below instead of being dropped by the gate.
+  mocks.postFindById.mockImplementation(() => ({
+    select: () => ({ lean: async () => ({ channelId: undefined }) }),
+  }));
+
   mocks.followExists.mockResolvedValue({ _id: 'follow_1' });
   mocks.postExists.mockResolvedValue(null);
   mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
@@ -231,6 +241,40 @@ describe('handleCreate — reply targeting an opted-out parent-post owner', () =
     await inboxProcessingService.processInboxActivity(replyActivity(), ACTOR_URI);
 
     expect(mocks.isFediverseSharingEnabled).not.toHaveBeenCalled();
+    expect(mocks.postCreatorCreate).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * A CHANNEL POST TAKES NO REPLIES, from a remote instance either — site 3 of
+   * four for `utils/channelReplyGate`, at its real call site.
+   *
+   * The SHAPE of the refusal is the load-bearing part here and is asserted
+   * explicitly: a DROP. `processInboxActivity` must RESOLVE, because a throw
+   * fails the BullMQ inbox job into permanent retry, and any 4xx from an inbox
+   * POST makes Mastodon stop delivering to this instance entirely — killing every
+   * follow, accept, like and reply from that server, not just this one.
+   */
+  it('drops a reply to a CHANNEL post silently — resolves, never throws', async () => {
+    mocks.postFindById.mockImplementation(() => ({
+      select: () => ({ lean: async () => ({ channelId: 'chan_1' }) }),
+    }));
+
+    await expect(
+      inboxProcessingService.processInboxActivity(replyActivity(), ACTOR_URI),
+    ).resolves.not.toThrow();
+
+    expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
+  });
+
+  it('CONTROL: a parent carrying only a laneId still accepts the reply', async () => {
+    // A lane is a lens, not a destination — the gate must key off `channelId`
+    // alone, or every lane post would silently stop accepting federated replies.
+    mocks.postFindById.mockImplementation(() => ({
+      select: () => ({ lean: async () => ({ channelId: undefined, laneId: 'lane_1' }) }),
+    }));
+
+    await inboxProcessingService.processInboxActivity(replyActivity(), ACTOR_URI);
+
     expect(mocks.postCreatorCreate).toHaveBeenCalledTimes(1);
   });
 });

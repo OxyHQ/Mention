@@ -202,3 +202,15 @@ export const MIGRATION_LANE_INDEXES = '0022-lane-indexes';
  * See {@link ./0023-post-lane-index}.
  */
 export const MIGRATION_POST_LANE_INDEX = '0023-post-lane-index';
+
+/**
+ * Create every Channels index: the UNIQUE `{handleLower}` that makes a channel
+ * handle a GLOBAL identity (and is what the create/rename 409 actually comes
+ * from), the directory keyset, the UNIQUE `{channelId, oxyUserId}` membership row
+ * behind the publish-time authorization check, the `{channelId, notify, _id}`
+ * keyset the notification fan-out walks, and the PARTIAL `post_channel_chrono_v1`
+ * on `posts` that serves a channel's page from the index rather than a collection
+ * scan. Production disables Mongoose auto-indexing, so this migration is the
+ * schema authority. See {@link ./0024-channel-indexes}.
+ */
+export const MIGRATION_CHANNEL_INDEXES = '0024-channel-indexes';

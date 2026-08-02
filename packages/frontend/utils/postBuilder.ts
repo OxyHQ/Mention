@@ -58,6 +58,29 @@ interface BuildMainPostParams {
   quotedPostId?: string;
   collaboratorIds?: string[];
   /**
+   * The author's own lane for this post.
+   *
+   * Only ever set on an ORIGINAL post: the server refuses a lane on a reply or a
+   * boost (400), and the composer hides the affordance entirely while replying
+   * rather than letting the author pick one that gets dropped. A quote takes one
+   * — it is an original post with its own body and its own row on the profile.
+   */
+  laneId?: string;
+  /**
+   * The channel this post is published TO.
+   *
+   * A destination rather than a lens: the post belongs to the channel and only to
+   * the channel — never the author's profile, never their followers' timeline,
+   * and it accepts no replies. Only ever set on an ORIGINAL post: the server
+   * refuses a channel on a reply, a boost and a federated ingest (400/403), and
+   * the composer hides the affordance on those paths rather than letting the
+   * author pick a destination that gets dropped.
+   *
+   * To put a channel post on your own profile you BOOST it; there is no field
+   * for that, because a boost is already the right row with the right owner.
+   */
+  channelId?: string;
+  /**
    * The author renditions of this post, PRIMARY FIRST — order is what names the
    * primary. `null` when the author declared no language, which keeps a
    * single-language post's payload exactly what it has always been and leaves the
@@ -91,6 +114,8 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     isSensitive,
     quotedPostId,
     collaboratorIds,
+    laneId,
+    channelId,
     variantContent,
   } = params;
 
@@ -175,6 +200,8 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     quotesDisabled: quotesDisabled,
     ...(quotedPostId ? { quotedPostId } : {}),
     ...(collaboratorIds && collaboratorIds.length > 0 ? { collaboratorIds } : {}),
+    ...(laneId ? { laneId } : {}),
+    ...(channelId ? { channelId } : {}),
     ...(isSensitive ? { metadata: { isSensitive: true } } : {}),
     ...(wasScheduled && scheduledAt ? {
       status: 'scheduled' as const,

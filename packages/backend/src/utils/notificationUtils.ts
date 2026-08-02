@@ -17,9 +17,9 @@ import {
 export interface CreateNotificationData {
   recipientId: string;
   actorId: string;
-  type: 'like' | 'reply' | 'mention' | 'follow' | 'boost' | 'quote' | 'welcome' | 'post' | 'poke' | 'collab_invite' | 'collab_accepted' | 'collab_declined';
+  type: 'like' | 'reply' | 'mention' | 'follow' | 'boost' | 'quote' | 'welcome' | 'post' | 'poke' | 'collab_invite' | 'collab_accepted' | 'collab_declined' | 'channel_invite';
   entityId: string;
-  entityType: 'post' | 'reply' | 'profile';
+  entityType: 'post' | 'reply' | 'profile' | 'channel';
 }
 
 /**

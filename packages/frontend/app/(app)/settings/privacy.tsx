@@ -272,6 +272,18 @@ export default function PrivacySettingsScreen() {
                         description={t('settings.privacy.hiddenWordsDesc', { defaultValue: 'Filter posts containing specific words' })}
                         onPress={() => router.push('/settings/privacy/hidden-words')}
                     />
+                    {/* Beside muted words because a reader looking for "stop
+                        showing me this" looks in one place — but a separate
+                        screen, because the two are different rules: a muted word
+                        is a safety filter that reaches search and notifications,
+                        a muted lane is a timeline preference that reaches feeds
+                        only. */}
+                    <SettingsListItem
+                        icon={<RowIcon name="git-branch-outline" />}
+                        title={t('lanes.muted.title', { defaultValue: 'Muted lanes' })}
+                        description={t('lanes.muted.settingsDesc', { defaultValue: 'Hide one track of an account you follow' })}
+                        onPress={() => router.push('/settings/privacy/muted-lanes')}
+                    />
                     <SettingsListItem
                         icon={<RowIcon name="heart-outline" />}
                         title={t('settings.privacy.hideLikeShareCounts')}

@@ -22,6 +22,22 @@ export interface FeedFilters extends SharedFeedFilters {
     customFeedId?: string;
     hashtag?: string;
     topic?: string;
+    /**
+     * One lane's tab. The lane already knows its own publisher, so this is the
+     * whole scope — a lane feed is NOT an author feed and must never be fetched
+     * as one. Three files have to agree on that: this field, the explicit branch
+     * in `feedService`, and the matching branch in `feedTelemetry`.
+     */
+    laneId?: string;
+    /**
+     * ONE channel's page. The channel is a DESTINATION, not a lens: its posts
+     * exist nowhere else, so this is the whole scope and a channel feed is never
+     * an author feed. The same three files have to agree as for `laneId` — this
+     * field, the explicit branch in `feedService`, and the matching branch in
+     * `feedTelemetry`, or every impression on the page is attributed to the wrong
+     * feed with nothing failing.
+     */
+    channelId?: string;
     /** Reply ordering, as the replies feed sends it to the API. */
     sort?: string;
     [key: string]: string | boolean | undefined;

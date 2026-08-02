@@ -1749,5 +1749,66 @@
       "science": "Ciencia",
       "other": ""
     }
+  },
+  "lanes": {
+    "title": "Carriles",
+    "description": "Mantén registros separados de tus publicaciones y decide cuáles llegan a tu perfil.",
+    "addLane": "Nuevo carril",
+    "namePlaceholder": "Nombre del carril",
+    "atCap": "Puedes tener como máximo {{count}} carriles.",
+    "yourLanes": "Tus carriles",
+    "empty": "Todavía no tienes carriles",
+    "loadFailed": "No se pudieron cargar tus carriles",
+    "created": "Carril creado",
+    "createFailed": "No se pudo crear el carril",
+    "rename": "Cambiar el nombre",
+    "renameFailed": "No se pudo cambiar el nombre del carril",
+    "displayModeFailed": "No se pudo actualizar el carril",
+    "delete": "Eliminar carril",
+    "deleted": "Carril eliminado",
+    "deleteFailed": "No se pudo eliminar el carril",
+    "deleteConfirm": "¿Eliminar «{{lane}}»? Sus publicaciones se quedan exactamente donde están: simplemente dejan de estar en un carril, y las que mantenías fuera de tu perfil vuelven a aparecer.",
+    "signInRequired": "Inicia sesión para gestionar tus carriles",
+    "signInRequiredDesc": "Los carriles te permiten mantener registros separados de tus publicaciones y decidir cuáles llegan a tu perfil.",
+    "postCount_one": "{{count}} publicación",
+    "postCount_other": "{{count}} publicaciones",
+    "mode": {
+      "mixed": "En tu pestaña principal",
+      "mixedDesc": "Estas publicaciones aparecen en tu pestaña principal como cualquier otra.",
+      "tab": "Solo en su propia pestaña",
+      "tabDesc": "Fuera de la pestaña principal. Los lectores encuentran estas publicaciones en la pestaña del propio carril.",
+      "hidden": "Fuera de tu perfil",
+      "hiddenDesc": "Fuera de tu perfil por completo, también para ti. Las publicaciones siguen llegando a los feeds y siguen abriéndose por enlace: esto es curación, no privacidad."
+    },
+    "picker": {
+      "title": "Carril de la publicación",
+      "none": "Sin carril",
+      "noneSubtitle": "La publicación aparece en tu pestaña principal",
+      "current": "Actual",
+      "empty": "Los carriles te permiten mantener registros separados de tus publicaciones y decidir cuáles llegan a tu perfil.",
+      "manage": "Gestionar carriles"
+    },
+    "compose": {
+      "choose": "Elegir un carril"
+    },
+    "postActions": {
+      "moveToLane": "Mover a un carril…",
+      "moveFailed": "No se pudo mover esta publicación",
+      "muteLane": "Silenciar «{{lane}}» de @{{username}}",
+      "muteLaneConfirm": "Las publicaciones de «{{lane}}» dejan de aparecer en tus feeds. Sigues siguiendo a @{{username}}, y todo lo demás que publique te sigue llegando.",
+      "laneMuted": "«{{lane}}» silenciado",
+      "muteLaneFailed": "No se pudo silenciar este carril"
+    },
+    "muted": {
+      "title": "Carriles silenciados",
+      "settingsDesc": "Oculta un registro de una cuenta que sigues",
+      "description": "Un carril silenciado deja de aparecer en tus feeds. Sigues siguiendo a su autor, y todo lo demás que publique te sigue llegando.",
+      "empty": "No hay carriles silenciados",
+      "loadFailed": "No se pudieron cargar los carriles silenciados",
+      "unmute": "Dejar de silenciar",
+      "unmuted": "Carril no silenciado",
+      "unmuteFailed": "No se pudo dejar de silenciar el carril",
+      "signInRequired": "Inicia sesión para gestionar los carriles silenciados"
+    }
   }
 }

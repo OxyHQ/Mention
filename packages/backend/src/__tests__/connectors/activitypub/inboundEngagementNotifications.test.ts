@@ -42,6 +42,7 @@ const mocks = vi.hoisted(() => ({
   actorFindOne: vi.fn(),
   followExists: vi.fn(),
   postFindOne: vi.fn(),
+  postFindById: vi.fn(),
   postExists: vi.fn(),
   postUpdateOne: vi.fn(),
   postDeleteOne: vi.fn(),
@@ -93,6 +94,7 @@ vi.mock('../../../models/Post', () => ({
   POST_CLASSIFICATION_PENDING: 'pending',
   Post: {
     findOne: mocks.postFindOne,
+    findById: mocks.postFindById,
     exists: mocks.postExists,
     updateOne: mocks.postUpdateOne,
     deleteOne: mocks.postDeleteOne,
@@ -190,6 +192,14 @@ function stubPostFindOne(options: {
 
 beforeEach(() => {
   vi.clearAllMocks();
+
+  // The channel reply gate (`utils/channelReplyGate`) reads the parent post
+  // through `Post.findById`. Nothing in this file involves a channel, so the
+  // default is a parent with no `channelId` — which is what makes these replies
+  // reach the assertions below instead of being dropped by the gate.
+  mocks.postFindById.mockImplementation(() => ({
+    select: () => ({ lean: async () => ({ channelId: undefined }) }),
+  }));
 
   mocks.followExists.mockResolvedValue({ _id: 'follow_1' });
   mocks.postExists.mockResolvedValue(null);

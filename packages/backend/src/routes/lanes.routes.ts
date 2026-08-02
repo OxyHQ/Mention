@@ -14,6 +14,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
+import mongoose from 'mongoose';
 import { z } from 'zod';
 import {
   LANE_DISPLAY_MODES,
@@ -33,6 +34,8 @@ import {
 import { Lane, normalizeLaneName } from '../models/Lane';
 import { LaneMute } from '../models/LaneMute';
 import { Post } from '../models/Post';
+import { Channel } from '../models/Channel';
+import { canManageChannel } from '../services/channelAccess';
 import { resolveUserSummaries } from '../services/PostHydrationService';
 import { validateBody, validateObjectId } from '../middleware/validate';
 import { sendErrorResponse, sendSuccessResponse } from '../utils/apiHelpers';
@@ -52,6 +55,13 @@ const createLaneSchema = z.object({
     .max(MAX_LANE_NAME_LENGTH, `name must be ${MAX_LANE_NAME_LENGTH} characters or less`)
     .transform((value) => value.trim()),
   displayMode: laneDisplayModeSchema.optional(),
+  /**
+   * Create the lane on a CHANNEL rather than on the caller. A channel curates its
+   * own page exactly the way a user curates a profile, and only the channel's
+   * OWNER manages its lanes — a publisher publishes into them, it does not define
+   * them.
+   */
+  channelId: z.string().optional(),
 });
 
 const updateLaneSchema = z.object({
@@ -108,6 +118,56 @@ function serialize(doc: LaneLean, postCount?: number): SerializedLane {
  * maintained on create, on a lane move, on delete and in every admin purge, and
  * a wrong count is worse than no count.
  */
+/**
+ * Resolve which PUBLISHER a lane write is for, and refuse unless the caller may
+ * manage it.
+ *
+ * A lane belongs to a user OR a channel, and the two answer to different rules:
+ * your own lanes are yours, and a CHANNEL's lanes belong to the channel's owner
+ * alone. Both refusals are 404-shaped for a channel that does not exist and
+ * 403-shaped for one that does — the channel is public, so its existence is no
+ * secret, but managing it is not open.
+ *
+ * Returns the `{ ownerType, ownerId }` pair every query below scopes by, so the
+ * two ownership models cannot drift between create, update and delete.
+ */
+async function resolveLanePublisher(
+  channelId: string | undefined,
+  userId: string,
+): Promise<{ ownerType: LaneOwnerType; ownerId: string } | { error: [number, string, string] }> {
+  if (!channelId) return { ownerType: 'user', ownerId: userId };
+  if (!mongoose.Types.ObjectId.isValid(channelId)) {
+    return { error: [404, 'Not Found', 'Channel not found'] };
+  }
+  const channel = await Channel.findById(channelId)
+    .select('ownerOxyUserId')
+    .lean<{ ownerOxyUserId: string } | null>();
+  if (!channel) {
+    return { error: [404, 'Not Found', 'Channel not found'] };
+  }
+  if (!canManageChannel(channel, userId)) {
+    return { error: [403, 'Forbidden', "Only the channel's owner can manage its lanes"] };
+  }
+  return { ownerType: 'channel', ownerId: channelId };
+}
+
+/**
+ * Whether this caller may edit or delete THIS lane, read from the lane's own
+ * owner rather than from anything the request supplied — so a caller cannot name
+ * a publisher they happen to control and reach a lane belonging to another.
+ */
+async function callerManagesLane(
+  lane: { ownerType: LaneOwnerType; ownerId: string },
+  userId: string,
+): Promise<boolean> {
+  if (lane.ownerType === 'user') return lane.ownerId === userId;
+  if (!mongoose.Types.ObjectId.isValid(lane.ownerId)) return false;
+  const channel = await Channel.findById(lane.ownerId)
+    .select('ownerOxyUserId')
+    .lean<{ ownerOxyUserId: string } | null>();
+  return channel != null && canManageChannel(channel, userId);
+}
+
 async function countPostsByLane(laneIds: string[]): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
   if (laneIds.length === 0) return counts;
@@ -172,13 +232,22 @@ const router = Router();
 router.use(requireAuth);
 
 /**
- * GET /lanes/mine
+ * GET /lanes/mine[?channelId=<id>]
  * The caller's own lanes, newest first, each with its current post count.
+ *
+ * With `channelId`, the lanes of a channel the caller OWNS — the management view,
+ * so unlike the public list it includes `mixed` and `hidden` lanes. A channel the
+ * caller does not own answers 403/404 rather than a filtered list.
  */
 router.get('/mine', async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
-    const lanes = await Lane.find({ ownerType: 'user', ownerId: userId })
+    const channelId = typeof req.query.channelId === 'string' ? req.query.channelId : undefined;
+    const publisher = await resolveLanePublisher(channelId, userId);
+    if ('error' in publisher) {
+      return sendErrorResponse(res, ...publisher.error);
+    }
+    const lanes = await Lane.find({ ownerType: publisher.ownerType, ownerId: publisher.ownerId })
       .sort({ createdAt: -1 })
       .lean<LaneLean[]>();
 
@@ -253,14 +322,24 @@ router.get('/muted', async (req: AuthRequest, res: Response) => {
 router.post('/', validateBody(createLaneSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
-    const { name, displayMode } = req.body as z.infer<typeof createLaneSchema>;
+    const { name, displayMode, channelId } = req.body as z.infer<typeof createLaneSchema>;
 
     const nameLower = normalizeLaneName(name);
     if (!nameLower) {
       return sendErrorResponse(res, 400, 'Bad Request', 'name must not be empty after normalization');
     }
 
-    const count = await Lane.countDocuments({ ownerType: 'user', ownerId: userId });
+    const publisher = await resolveLanePublisher(channelId, userId);
+    if ('error' in publisher) {
+      return sendErrorResponse(res, ...publisher.error);
+    }
+
+    // The cap is PER PUBLISHER, so a channel's lanes and its owner's own lanes
+    // are counted separately — a prolific channel must not eat its owner's budget.
+    const count = await Lane.countDocuments({
+      ownerType: publisher.ownerType,
+      ownerId: publisher.ownerId,
+    });
     if (count >= MAX_LANES_PER_OWNER) {
       return sendErrorResponse(
         res,
@@ -272,8 +351,8 @@ router.post('/', validateBody(createLaneSchema), async (req: AuthRequest, res: R
 
     try {
       const created = await Lane.create({
-        ownerType: 'user',
-        ownerId: userId,
+        ownerType: publisher.ownerType,
+        ownerId: publisher.ownerId,
         name,
         displayMode: displayMode ?? 'mixed',
       });
@@ -311,8 +390,11 @@ router.patch(
         return sendErrorResponse(res, 400, 'Bad Request', 'Nothing to update');
       }
 
-      const lane = await Lane.findOne({ _id: req.params.id, ownerType: 'user', ownerId: userId });
-      if (!lane) {
+      // Scoped by the lane's OWN publisher, resolved from the row rather than
+      // from the request, so a channel lane is editable by the channel's owner and
+      // by nobody else — and somebody else's lane stays a 404, not an oracle.
+      const lane = await Lane.findById(req.params.id);
+      if (!lane || !(await callerManagesLane(lane, userId))) {
         return sendErrorResponse(res, 404, 'Not Found', 'Lane not found');
       }
 
@@ -369,16 +451,25 @@ router.delete('/:id', validateObjectId('id'), async (req: AuthRequest, res: Resp
     const userId = getAuthenticatedUserId(req);
     const laneId = String(req.params.id);
 
-    const lane = await Lane.findOne({ _id: laneId, ownerType: 'user', ownerId: userId })
-      .select('_id')
-      .lean<{ _id: unknown } | null>();
-    if (!lane) {
+    const lane = await Lane.findById(laneId)
+      .select('_id ownerType ownerId')
+      .lean<{ _id: unknown; ownerType: LaneOwnerType; ownerId: string } | null>();
+    if (!lane || !(await callerManagesLane(lane, userId))) {
       return sendErrorResponse(res, 404, 'Not Found', 'Lane not found');
     }
 
-    await Post.updateMany({ oxyUserId: userId, laneId }, { $unset: { laneId: '' } });
+    // Scoped by the lane's PUBLISHER, not by the caller: a channel lane's posts
+    // are the channel's, and `{ oxyUserId: userId }` would miss every one written
+    // by a publisher other than the owner — leaving them pointing at a lane that
+    // is about to stop existing.
+    await Post.updateMany(
+      lane.ownerType === 'channel'
+        ? { channelId: lane.ownerId, laneId }
+        : { oxyUserId: lane.ownerId, laneId },
+      { $unset: { laneId: '' } },
+    );
     await LaneMute.deleteMany({ laneId });
-    await Lane.deleteOne({ _id: laneId, ownerType: 'user', ownerId: userId });
+    await Lane.deleteOne({ _id: laneId });
 
     return sendSuccessResponse(res, 200, { success: true }, 'Lane deleted');
   } catch (err) {
@@ -412,6 +503,23 @@ router.post('/:id/mute', validateObjectId('id'), async (req: AuthRequest, res: R
     }
     if (lane.ownerType === 'user' && lane.ownerId === userId) {
       return sendErrorResponse(res, 400, 'Bad Request', 'You cannot mute your own lane');
+    }
+    // **A CHANNEL's lane cannot be muted, and that is a decision, not a gap.**
+    // A lane mute is a TIMELINE preference — "do not push me this carriageway" —
+    // and a channel post is never pushed anywhere: it is excluded from every
+    // author surface and reaches a reader only through the channel's own page,
+    // which is somewhere you GO. There is nothing here to suppress. Storing the
+    // mute anyway would also put a CHANNEL id into `laneOwnerOxyUserId`, which
+    // `GET /lanes/muted` resolves through `resolveUserSummaries` as a user id —
+    // contaminating a set of user ids exactly the way `Mute` would have.
+    // Unfollowing the channel is the affordance for "less of this".
+    if (lane.ownerType === 'channel') {
+      return sendErrorResponse(
+        res,
+        400,
+        'Bad Request',
+        'A channel lane cannot be muted — unfollow the channel instead',
+      );
     }
 
     const existing = await LaneMute.findOne({ viewerOxyUserId: userId, laneId })

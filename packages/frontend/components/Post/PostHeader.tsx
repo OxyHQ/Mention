@@ -98,6 +98,17 @@ interface PostHeaderProps {
    */
   timeSlot?: React.ReactNode;
   /**
+   * Rendered immediately AFTER the time in the identity line — the slot the lane
+   * chip occupies (`PostLaneChip`).
+   *
+   * After the time rather than on a context row of its own: a lane is a lens on
+   * a post, not a reason it is in the feed, so it belongs on the identity line
+   * with the other quiet facts about the post rather than costing an 18px row
+   * above it. Whatever goes here must carry its own shrink rank — the identity
+   * line's other children are already ranked against each other.
+   */
+  laneSlot?: React.ReactNode;
+  /**
    * Oxy user id of the post author. When that author is currently live in a Syra
    * room, the avatar shows a live badge and tapping it joins the room instead of
    * opening the profile. Omit it for non-user avatars (e.g. the compose preview).
@@ -143,6 +154,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   avatarVariant,
   avatarSize = 36,
   timeSlot,
+  laneSlot,
   authorUserId,
   placeholderColor,
   onPressUser,
@@ -316,6 +328,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                 {'\u00B7'} {timeLabel}
               </Text>
             ))}
+            {laneSlot}
             {showBoost && (
               <View accessibilityRole="image" accessibilityLabel="Reposted">
                 <BoostIcon size={INDICATOR_ICON_SIZE} className="text-muted-foreground" />

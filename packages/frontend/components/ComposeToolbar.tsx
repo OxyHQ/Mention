@@ -36,6 +36,14 @@ interface ComposeToolbarProps {
      * take collaborators at all.
      */
     onCollaboratorsPress?: () => void;
+    /**
+     * Choose the author's own lane for this post — composer-wide, so main
+     * toolbar only, and omitted entirely on a REPLY: the server refuses a lane
+     * there (400) and `CreateReplyRequest` drops fields it does not name, so an
+     * affordance on that path would take the author's choice, answer 201 and
+     * throw the lane away with nothing to tell them.
+     */
+    onLanePress?: () => void;
     hasLocation?: boolean;
     isGettingLocation?: boolean;
     hasPoll?: boolean;
@@ -52,6 +60,8 @@ interface ComposeToolbarProps {
     languageEnabled?: boolean;
     /** The post already names at least one collaborator. */
     hasCollaborators?: boolean;
+    /** The post is already assigned to one of the author's lanes. */
+    hasLane?: boolean;
     /** False once the post holds the maximum collaborators. */
     collaboratorsEnabled?: boolean;
     hasSourceErrors?: boolean;
@@ -73,6 +83,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     onPodcastPress,
     onLanguagePress,
     onCollaboratorsPress,
+    onLanePress,
     hasLocation = false,
     isGettingLocation = false,
     hasPoll = false,
@@ -87,6 +98,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     languageEnabled = true,
     hasCollaborators = false,
     collaboratorsEnabled = true,
+    hasLane = false,
     hasSourceErrors = false,
     disabled = false,
 }) => {
@@ -306,6 +318,29 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                         color={disabled || !collaboratorsEnabled
                             ? theme.colors.textTertiary
                             : hasCollaborators
+                                ? theme.colors.primary
+                                : theme.colors.textSecondary}
+                    />
+                </PressableScale>
+            )}
+
+            {onLanePress && (
+                <PressableScale
+                    onPress={withHaptic(onLanePress)}
+                    disabled={disabled}
+                    className="p-1"
+                    accessibilityRole="button"
+                    accessibilityLabel={t('lanes.compose.choose', { defaultValue: 'Choose a lane' })}
+                >
+                    {/* A signpost, in the two states this row uses everywhere
+                        else: filled once the post is on a lane, outline while it
+                        is not. */}
+                    <Ionicons
+                        name={hasLane ? 'git-branch' : 'git-branch-outline'}
+                        size={20}
+                        color={disabled
+                            ? theme.colors.textTertiary
+                            : hasLane
                                 ? theme.colors.primary
                                 : theme.colors.textSecondary}
                     />

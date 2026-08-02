@@ -20,6 +20,15 @@ import {
 interface UseProfileScrollOptions {
   profileId?: string;
   currentTab: ProfileTab;
+  /**
+   * Set while a LANE tab is open. A lane tab renders as `posts`, so the
+   * author-feed narrowing below cannot tell it apart on `currentTab` alone — and
+   * paging it as an author feed writes a page of the profile's whole output into
+   * `user:<id>:posts`, a feed the lane tab does not read. Its `<Feed>` owns its
+   * own pagination (it is fetched by the lane descriptor), so this pager stands
+   * down entirely.
+   */
+  currentLaneId?: string;
 }
 
 interface ScrollSlice {
@@ -33,7 +42,7 @@ interface ScrollSlice {
  * Hook for managing profile scroll behavior
  * Handles infinite scroll, scroll registration, and scroll-to functionality
  */
-export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOptions) {
+export function useProfileScroll({ profileId, currentTab, currentLaneId }: UseProfileScrollOptions) {
   const {
     scrollY,
     createAnimatedScrollHandler,
@@ -129,6 +138,9 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
     // rather than asserting the tab into `FeedType`, so a tab added to
     // `TAB_NAMES` without a feed behind it stops here too.
     if (!isAuthorFeedFilter(currentTab)) return;
+    // A lane tab renders as `posts` and would pass the check above (see
+    // `currentLaneId`): its feed is its own descriptor and pages itself.
+    if (currentLaneId) return;
     // Native media/video grids own pagination through FlashList.onEndReached.
     // Running the profile's generic scroll detector too would issue a duplicate
     // request. On WEB there is no such owner — the web grid does not wire
@@ -153,7 +165,7 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
         }
       })();
     }
-  }, [profileId, currentTab]);
+  }, [profileId, currentTab, currentLaneId]);
 
   // NATIVE scroll event handler with throttling + infinite scroll.
   const handleScrollEvent = useCallback((event: ScrollEvent) => {

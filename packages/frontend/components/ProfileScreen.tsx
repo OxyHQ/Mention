@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { toast } from '@oxyhq/bloom/toast';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BloomColorScope, useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -20,7 +21,9 @@ import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
 import { usePostsStore } from '@/stores/postsStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { muteService } from '@/services/muteService';
+import { lanesService } from '@/services/lanesService';
 import { reportService } from '@/services/reportService';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { showActionMenu } from '@/components/common/ActionMenu';
 import type { ActionMenuAction } from '@/components/common/actionMenuGroups';
 import { ReportModal } from '@/components/report/ReportModal';
@@ -65,10 +68,13 @@ import {
     ProfileTabs,
     useSubscription,
     useProfileScroll,
+    buildProfileTabDescriptors,
+    laneTabKey,
+    profileTabIndex,
     LAYOUT,
-    TAB_NAMES,
     shouldFeedOwnProfileScroll,
     shouldGridOwnProfileScroll,
+    type LaneTabInput,
     type ProfileScreenProps,
     type ProfileTab,
 } from './Profile';
@@ -93,17 +99,8 @@ const isProfilePrivate = (
     );
 };
 
-const tabToIndex = (tabName: string): number => {
-    const index = TAB_NAMES.indexOf(tabName as ProfileTab);
-    return index >= 0 ? index : 0;
-};
-
 // Feed types for clearing cache
 const FEED_TYPES: FeedType[] = ['posts', 'replies', 'media', 'likes', 'boosts'];
-
-// Tab indices within TAB_NAMES used by the profile stats navigation
-const REPLIES_TAB_INDEX = 1;
-const BOOSTS_TAB_INDEX = 5;
 
 // Top-right header action icon metrics (IconButton `variant="icon"` renders a
 // 32×32 touch target; the cluster uses NativeWind `gap-1` = 4px). Used to size
@@ -125,6 +122,7 @@ interface MentionProfileContentProps extends ProfileScreenProps {
 
 const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
     tab = 'posts',
+    laneId,
     username,
     isFederated,
     profileData,
@@ -144,9 +142,52 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
     const panelStickyTopInset = usePanelStickyTopInset();
     const panelStickyTabsTopInset = usePanelStickyTabsTopInset();
 
-    // Active tab — use local state so tab switching doesn't trigger router navigation.
-    // Initialize from the route prop, then manage locally.
-    const [activeTab, setActiveTab] = useState(() => tabToIndex(tab));
+    // Active tab — use local state so tab switching doesn't trigger router
+    // navigation. Held as the tab's KEY, not its index: the strip's length now
+    // depends on how many lanes the publisher has, so an index means a different
+    // tab before and after that list loads. A lane deep link therefore paints
+    // `posts` for one frame and settles on the lane once its key resolves.
+    const [activeTabKey, setActiveTabKey] = useState<string>(
+        () => (laneId ? laneTabKey(laneId) : tab),
+    );
+
+    // The publisher's lanes that HAVE a tab. Public and reader-agnostic, so a
+    // signed-out visitor sees the same strip; keyed by viewer anyway, like every
+    // other private read, so an account switch drops it with the namespace.
+    const { data: laneTabs = [] } = useQuery<LaneTabInput[]>({
+        queryKey: viewerQueryKeys.lanesForOwner(currentUser?.id, 'user', profileData?.id),
+        enabled: Boolean(profileData?.id) && !isFederated,
+        queryFn: async () => {
+            const lanes = await lanesService.listForOwner(profileData?.id ?? '');
+            return lanes.map((lane) => ({ id: lane.id, name: lane.name }));
+        },
+    });
+
+    // Tabs — all users (including federated) get the full static strip since the
+    // data is in Oxy/Mention DB; lane tabs are spliced in after `posts`.
+    const tabDescriptors = useMemo(
+        () =>
+            buildProfileTabDescriptors(
+                {
+                    posts: t('profile.tabs.posts'),
+                    replies: t('profile.tabs.replies'),
+                    media: t('profile.tabs.media'),
+                    videos: t('profile.tabs.videos'),
+                    likes: t('profile.tabs.likes'),
+                    boosts: t('profile.tabs.boosts'),
+                    feeds: t('profile.tabs.feeds', { defaultValue: 'Feeds' }),
+                    starter_packs: t('profile.tabs.starter_packs', { defaultValue: 'Starter Packs' }),
+                    lists: t('profile.tabs.lists', { defaultValue: 'Lists' }),
+                },
+                laneTabs,
+            ),
+        [t, laneTabs],
+    );
+
+    const activeTab = profileTabIndex(tabDescriptors, activeTabKey);
+    const activeDescriptor = tabDescriptors[activeTab];
+    const activeProfileTab: ProfileTab = activeDescriptor?.tab ?? 'posts';
+    const activeLaneId = activeDescriptor?.laneId;
 
     const safeBack = useSafeBack();
 
@@ -156,7 +197,8 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
     // Scroll handling
     const { scrollY, onScroll, assignScrollRef, scrollToContent } = useProfileScroll({
         profileId: profileData?.id,
-        currentTab: TAB_NAMES[activeTab] || 'posts',
+        currentTab: activeProfileTab,
+        currentLaneId: activeLaneId,
     });
 
     // Follow data — federated users are stored in Oxy, so useFollow works with their Oxy ID
@@ -228,22 +270,6 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
         [profileData]
     );
 
-    // Tabs — all users (including federated) get full tabs since data is in Oxy/Mention DB
-    const tabs = useMemo(
-        () => [
-            t('profile.tabs.posts'),
-            t('profile.tabs.replies'),
-            t('profile.tabs.media'),
-            t('profile.tabs.videos'),
-            t('profile.tabs.likes'),
-            t('profile.tabs.boosts'),
-            t('profile.tabs.feeds', { defaultValue: 'Feeds' }),
-            t('profile.tabs.starter_packs', { defaultValue: 'Starter Packs' }),
-            t('profile.tabs.lists', { defaultValue: 'Lists' }),
-        ],
-        [t]
-    );
-    const activeProfileTab = TAB_NAMES[activeTab] || 'posts';
     const nativeFeedOwnsScroll = shouldFeedOwnProfileScroll({
         tab: activeProfileTab,
         isWeb: IS_WEB,
@@ -273,39 +299,41 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
     const onTabPress = useCallback(
         (index: number) => {
             if (!username) return;
-            setActiveTab(index);
-            // Update URL silently for deep-linking / sharing without triggering navigation
-            const tabName = TAB_NAMES[index];
-            const path: Href =
-                index === 0 ? `/@${profileHandle}` : `/@${profileHandle}/${tabName}`;
+            const descriptor = tabDescriptors[index];
+            if (!descriptor) return;
+            setActiveTabKey(descriptor.key);
+            // Update URL silently for deep-linking / sharing without triggering
+            // navigation. A lane tab routes by id under its own segment, so it
+            // can never collide with a static tab's file name.
+            const path: Href = descriptor.laneId
+                ? `/@${profileHandle}/lane/${descriptor.laneId}`
+                : descriptor.tab === 'posts'
+                    ? `/@${profileHandle}`
+                    : `/@${profileHandle}/${descriptor.tab}`;
             router.replace(path);
         },
-        [username, profileHandle]
+        [username, profileHandle, tabDescriptors]
     );
 
-    const handlePostsPress = useCallback(() => {
-        if (activeTab === 0) {
-            scrollToContent(profileContentHeight);
-        } else {
-            onTabPress(0);
-        }
-    }, [activeTab, profileContentHeight, onTabPress, scrollToContent]);
+    // The stats row jumps to a tab BY NAME. Resolving the index at press time is
+    // the whole reason `REPLIES_TAB_INDEX = 1` / `BOOSTS_TAB_INDEX = 5` are gone:
+    // one lane on the profile shifts every tab after `posts`, and a stale
+    // constant sends the reader somewhere else without failing anything.
+    const scrollOrSwitch = useCallback(
+        (key: string) => {
+            const index = profileTabIndex(tabDescriptors, key);
+            if (index === activeTab) {
+                scrollToContent(profileContentHeight);
+            } else {
+                onTabPress(index);
+            }
+        },
+        [activeTab, profileContentHeight, onTabPress, scrollToContent, tabDescriptors],
+    );
 
-    const handleBoostsPress = useCallback(() => {
-        if (activeTab === BOOSTS_TAB_INDEX) {
-            scrollToContent(profileContentHeight);
-        } else {
-            onTabPress(BOOSTS_TAB_INDEX);
-        }
-    }, [activeTab, profileContentHeight, onTabPress, scrollToContent]);
-
-    const handleRepliesPress = useCallback(() => {
-        if (activeTab === REPLIES_TAB_INDEX) {
-            scrollToContent(profileContentHeight);
-        } else {
-            onTabPress(REPLIES_TAB_INDEX);
-        }
-    }, [activeTab, profileContentHeight, onTabPress, scrollToContent]);
+    const handlePostsPress = useCallback(() => scrollOrSwitch('posts'), [scrollOrSwitch]);
+    const handleBoostsPress = useCallback(() => scrollOrSwitch('boosts'), [scrollOrSwitch]);
+    const handleRepliesPress = useCallback(() => scrollOrSwitch('replies'), [scrollOrSwitch]);
 
     const handleShare = useCallback(async () => {
         if (!profileData) return;
@@ -601,17 +629,17 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
     const profileTabBar = useMemo(
         () => (
             <AnimatedTabBar
-                tabs={tabs.map((tabLabel, i) => ({
-                    id: String(i),
-                    label: tabLabel,
+                tabs={tabDescriptors.map((descriptor) => ({
+                    id: descriptor.key,
+                    label: descriptor.label,
                 }))}
-                activeTabId={String(activeTab)}
-                onTabPress={(id) => onTabPress(parseInt(id))}
+                activeTabId={activeDescriptor?.key ?? 'posts'}
+                onTabPress={(id) => onTabPress(profileTabIndex(tabDescriptors, id))}
                 scrollEnabled
                 instanceId={username || 'default'}
             />
         ),
-        [activeTab, onTabPress, tabs, username],
+        [activeDescriptor?.key, onTabPress, tabDescriptors, username],
     );
 
     return (
@@ -966,6 +994,7 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                 {/* Tab content */}
                                 <ProfileTabs
                                     tab={activeProfileTab}
+                                    laneId={activeLaneId}
                                     profileId={profileData?.id}
                                     isPrivate={isPrivate}
                                     isOwnProfile={isOwnProfile}
@@ -986,6 +1015,7 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                             >
                                 <ProfileTabs
                                     tab={activeProfileTab}
+                                    laneId={activeLaneId}
                                     profileId={profileData.id}
                                     isPrivate={isPrivate}
                                     isOwnProfile={isOwnProfile}
@@ -1022,6 +1052,7 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                 {/* Tab content */}
                                 <ProfileTabs
                                     tab={activeProfileTab}
+                                    laneId={activeLaneId}
                                     profileId={profileData.id}
                                     isPrivate={isPrivate}
                                     isOwnProfile={isOwnProfile}
@@ -1075,7 +1106,7 @@ const webStickyChrome = StyleSheet.create({
     },
 });
 
-const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
+const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts', laneId }) => {
     let { username: urlUsername } = useLocalSearchParams<{ username: string }>();
     if (urlUsername?.startsWith('@')) {
         urlUsername = urlUsername.slice(1);
@@ -1097,6 +1128,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
             <View className="flex-1 bg-background web:z-auto">
                 <MentionProfileContent
                     tab={tab}
+                    laneId={laneId}
                     username={username}
                     isFederated={isFederated}
                     profileData={profileData}

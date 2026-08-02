@@ -32,6 +32,7 @@ import { normalizeMediaItems } from '../utils/mediaInput';
 import { queryString } from '../utils/queryParams';
 import { buildAuthorship } from '../utils/postAuthorship';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
+import { isChannelPost } from '../utils/channelReplyGate';
 import { baselineContentClassifier } from '../services/BaselineContentClassifier';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { federateAsResolvedActor } from '../connectors/outboundFederation';
@@ -70,7 +71,7 @@ type FollowerRef = string | { id?: string; _id?: string };
  */
 class FeedController {
   /** Optimized field selection for feed queries - reduces data transfer by 60-80% */
-  private readonly FEED_FIELDS = '_id oxyUserId authorship federation createdAt visibility type parentPostId boostOf quoteOf laneId threadId content stats metadata hashtags mentions language';
+  private readonly FEED_FIELDS = '_id oxyUserId authorship federation createdAt visibility type parentPostId boostOf quoteOf laneId channelId threadId content stats metadata hashtags mentions language';
 
   /**
    * Transform posts to include full profile data and engagement stats
@@ -245,6 +246,23 @@ class FeedController {
         .lean();
       if (!parentPost) {
         return res.status(404).json({ error: 'Post not found' });
+      }
+
+      // A CHANNEL POST TAKES NO REPLIES, and this gate sits ABOVE the whole
+      // reply-permission block below on purpose — twice over:
+      //
+      //  - that block is skipped entirely when the permissions include `'anyone'`,
+      //    which is every ordinary post, so a check inside it would simply not run;
+      //  - and it contains an unconditional escape (`parentAuthorId ===
+      //    currentUserId`) that lets an author answer their own post even under
+      //    `replyPermission: ['nobody']`. For a channel the rule is STRUCTURAL, not
+      //    a per-post preference: neither the writer nor the channel's owner replies.
+      //
+      // It reads `channelId` and never `replyPermission` — see
+      // `utils/channelReplyGate` for why leaning on that field would let a later
+      // `PATCH /posts/:id/settings` reopen the post.
+      if (isChannelPost(parentPost)) {
+        return res.status(403).json({ error: 'This post does not accept replies' });
       }
 
       // Check reply permissions
