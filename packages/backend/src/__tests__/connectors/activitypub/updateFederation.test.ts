@@ -26,13 +26,11 @@ const {
   enqueueDelivery,
   isFediverseSharingEnabled,
   getUserById,
-  postFindByIdLean,
   insertMany,
 } = vi.hoisted(() => ({
   enqueueDelivery: vi.fn(),
   isFediverseSharingEnabled: vi.fn(),
   getUserById: vi.fn(),
-  postFindByIdLean: vi.fn(),
   insertMany: vi.fn(),
 }));
 
@@ -47,9 +45,6 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({ getPublicKey: vi.fn()
 vi.mock('../../../queue/producers', () => ({ enqueueDelivery, enqueueInboxActivity: vi.fn() }));
 vi.mock('../../../models/FederationDeliveryQueue', () => ({
   default: { insertMany, create: vi.fn() },
-}));
-vi.mock('../../../models/Post', () => ({
-  Post: { findById: () => ({ select: () => ({ lean: () => postFindByIdLean() }) }) },
 }));
 vi.mock('../../../models/UserSettings', () => ({ default: {} }));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
@@ -70,6 +65,7 @@ import {
   federationScope,
   seedActor,
   seedFollowerWithInbox,
+  seedPost,
 } from '../../helpers/federationFixtures';
 import { followService } from '../../../connectors/activitypub/follow.service';
 
@@ -80,7 +76,7 @@ const AP_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 
 /** An editable post as the seam hands it to `federateUpdate`. */
 function editedPost(overrides: Record<string, unknown> = {}): {
-  _id: string;
+  id: string;
   content: { variants: Array<{ source: 'author'; text: string; tag: string }> };
   createdAt: string;
   visibility: string;
@@ -88,7 +84,7 @@ function editedPost(overrides: Record<string, unknown> = {}): {
   boostOf?: string;
 } {
   return {
-    _id: 'post1',
+    id: 'post1',
     content: { variants: [{ source: 'author', text: 'edited body', tag: 'en' }] },
     createdAt: ISO,
     visibility: 'public',
@@ -129,7 +125,6 @@ beforeEach(async () => {
   await clearFederationScope(scope);
   enqueueDelivery.mockResolvedValue(true);
   isFediverseSharingEnabled.mockResolvedValue(true);
-  postFindByIdLean.mockResolvedValue(null);
   getUserById.mockResolvedValue({ id: 'u', username: 'bob' });
 });
 
@@ -164,16 +159,16 @@ describe('federateUpdate — top-level edit', () => {
     // The Note carries the SAME `updated` marker as the envelope.
     expect(note.updated).toBe(activity.updated);
 
-    // A top-level edit never resolves a parent.
-    expect(postFindByIdLean).not.toHaveBeenCalled();
     expect(deliveredInboxes()).toEqual([followerInbox]);
   });
 });
 
 describe('federateUpdate — reply edit to a FEDERATED parent', () => {
   it('keeps inReplyTo + parent Mention and delivers to followers AND the parent inbox', async () => {
-    postFindByIdLean.mockResolvedValue({
-      oxyUserId: 'parent-owner',
+    // A REAL mirrored parent row, so the edit's `inReplyTo` comes from a stored
+    // `federation.activity_id` rather than from a double.
+    const parent = await seedPost(scope, {
+      oxyUserId: scope.user('parent-owner'),
       federation: { activityId: PARENT_NOTE, actorUri: PARENT_ACTOR },
     });
     await seedActor(scope, {
@@ -184,7 +179,11 @@ describe('federateUpdate — reply edit to a FEDERATED parent', () => {
     });
     const followerInbox = await seedFollowerWithInbox(scope, USER_REPLIER_OXY, { username: 'x' });
 
-    await followService.federateUpdate(editedPost({ parentPostId: 'parent1' }), USER_REPLIER_OXY, 'alice');
+    await followService.federateUpdate(
+      editedPost({ parentPostId: parent.id }),
+      USER_REPLIER_OXY,
+      'alice',
+    );
 
     const activity = deliveredActivity();
     expect(activity.type).toBe('Update');
