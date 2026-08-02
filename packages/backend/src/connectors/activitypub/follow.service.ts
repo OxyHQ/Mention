@@ -5,7 +5,9 @@ import {
 } from '../../db/federation/actorRepository';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import { loadPostRecord } from '../../db/posts/postRepository';
-import Poll from '../../models/Poll';
+import { asc, inArray } from 'drizzle-orm';
+import { getDb } from '../../db/postgres';
+import { pollOptions, pollVotes, polls } from '../../db/schema/polls';
 import { AP_CONTEXT } from '@oxyhq/federation';
 import {
   FEDERATION_DOMAIN,
@@ -255,10 +257,63 @@ export interface NoteQuoteContext {
 
 /** The Poll fields {@link buildPollContext} reads from a lean `Poll` document. */
 interface PollContextSource {
-  _id: unknown;
-  options: Array<{ text: string; votes?: string[] }>;
+  id: string;
+  options: Array<{ text: string; votes: string[] }>;
   endsAt: Date;
-  isMultipleChoice?: boolean;
+  isMultipleChoice: boolean;
+}
+
+/**
+ * Load polls with their options and ballots, as {@link PollContextSource}.
+ *
+ * Three tables where Mongo had one document: the options are their own rows
+ * (`position` is what preserves the order the author wrote them in) and each
+ * ballot is a row rather than an id inside `options[].votes`. Reading the
+ * Mongoose model instead — which is what this did until the posts port — returns
+ * nothing, so every poll post federated as a PLAIN NOTE and no remote server
+ * ever saw a Question. Nothing errored: `null` is also how "this post has no
+ * poll" is spelled.
+ */
+async function loadPollContextSources(pollIds: string[]): Promise<PollContextSource[]> {
+  if (pollIds.length === 0) return [];
+  const db = getDb();
+  const [pollRows, optionRows, voteRows] = await Promise.all([
+    db
+      .select({ id: polls.id, endsAt: polls.endsAt, isMultipleChoice: polls.isMultipleChoice })
+      .from(polls)
+      .where(inArray(polls.id, pollIds)),
+    db
+      .select({ id: pollOptions.id, pollId: pollOptions.pollId, text: pollOptions.text })
+      .from(pollOptions)
+      .where(inArray(pollOptions.pollId, pollIds))
+      .orderBy(asc(pollOptions.pollId), asc(pollOptions.position)),
+    db
+      .select({ optionId: pollVotes.optionId, userId: pollVotes.userId })
+      .from(pollVotes)
+      .where(inArray(pollVotes.pollId, pollIds)),
+  ]);
+
+  const votersByOption = new Map<string, string[]>();
+  for (const vote of voteRows) {
+    const existing = votersByOption.get(vote.optionId);
+    if (existing) existing.push(vote.userId);
+    else votersByOption.set(vote.optionId, [vote.userId]);
+  }
+
+  const optionsByPoll = new Map<string, Array<{ text: string; votes: string[] }>>();
+  for (const option of optionRows) {
+    const entry = { text: option.text, votes: votersByOption.get(option.id) ?? [] };
+    const existing = optionsByPoll.get(option.pollId);
+    if (existing) existing.push(entry);
+    else optionsByPoll.set(option.pollId, [entry]);
+  }
+
+  return pollRows.map((poll) => ({
+    id: poll.id,
+    endsAt: poll.endsAt,
+    isMultipleChoice: poll.isMultipleChoice,
+    options: optionsByPoll.get(poll.id) ?? [],
+  }));
 }
 
 /**
@@ -855,9 +910,7 @@ export class FollowService {
     const pollId = post.content?.pollId;
     if (!pollId) return null;
     try {
-      const poll = await Poll.findById(pollId)
-        .select('options endsAt isMultipleChoice')
-        .lean<PollContextSource | null>();
+      const [poll] = await loadPollContextSources([String(pollId)]);
       return poll ? buildPollContext(poll) : null;
     } catch (err) {
       logger.warn('[FedDeliver] failed to resolve poll context', err);
@@ -888,11 +941,9 @@ export class FollowService {
     if (pollIdToPostIds.size === 0) return result;
 
     try {
-      const polls = await Poll.find({ _id: { $in: [...pollIdToPostIds.keys()] } })
-        .select('options endsAt isMultipleChoice')
-        .lean<PollContextSource[]>();
-      for (const poll of polls) {
-        const postIds = pollIdToPostIds.get(String(poll._id));
+      const sources = await loadPollContextSources([...pollIdToPostIds.keys()]);
+      for (const poll of sources) {
+        const postIds = pollIdToPostIds.get(poll.id);
         if (!postIds) continue;
         const context = buildPollContext(poll);
         for (const postId of postIds) result.set(postId, context);
