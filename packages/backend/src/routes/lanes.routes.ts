@@ -203,14 +203,13 @@ async function countPostsByLane(laneIds: string[]): Promise<Map<string, number>>
 
 export const publicLanesRouter = Router();
 
-// Its only route is a read, and it is the ANONYMOUS-reachable surface, where the
-// key generator falls back to a hashed IP.
+// The ANONYMOUS-reachable surface — no account needed — so the limiter is earned
+// rather than cosmetic: an unauthenticated caller keys to a hashed IP.
 //
-// Guarded: the list is EMPTY outside production, and `use(...[])` is `use()` with
-// no arguments, which Express rejects outright.
-if (readLimiters.length > 0) {
-  publicLanesRouter.use(...readLimiters);
-}
+// Mounted PER ROUTE below rather than with `router.use`: an empty spread makes
+// `use()` throw outside production, AND a `use` behind an `if` is invisible to
+// CodeQL, whose dataflow does not follow a conditional. See the sibling note in
+// `channels.routes.ts`.
 
 /**
  * GET /lanes?ownerType=user|channel&ownerId=<id>
@@ -224,7 +223,7 @@ if (readLimiters.length > 0) {
  * all is enforced where the posts are served (`laneSource`'s
  * `canViewAuthorFeed`), not here — a lane name is not a post.
  */
-publicLanesRouter.get('/', async (req: Request, res: Response) => {
+publicLanesRouter.get('/', ...readLimiters, async (req: Request, res: Response) => {
   try {
     const ownerTypeParam = typeof req.query.ownerType === 'string' ? req.query.ownerType : 'user';
     if (ownerTypeParam !== 'user' && ownerTypeParam !== 'channel') {

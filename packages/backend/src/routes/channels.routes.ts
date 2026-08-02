@@ -235,16 +235,22 @@ async function loadViewerState(
 
 export const publicChannelsRouter = Router();
 
-// Every route on this router is a read, so one `use` covers them all. It is the
-// ANONYMOUS-reachable surface, where the key generator falls back to a hashed IP.
+// This router is the ANONYMOUS-reachable surface — no account needed — so its
+// limiter earns its place on merit rather than to quiet a scanner: the key
+// generator falls back to a hashed IP, which is the only budget an unauthenticated
+// caller has.
 //
-// Guarded because the list is EMPTY outside production, and `use(...[])` is
-// `use()` with no arguments — which Express rejects outright ("argument handler
-// is required"). The per-route spreads below are unaffected: they always still
-// carry their handler.
-if (readLimiters.length > 0) {
-  publicChannelsRouter.use(...readLimiters);
-}
+// Mounted PER ROUTE below, deliberately, and NOT with `router.use`. Two reasons,
+// and the second is the one that cost a round:
+//
+//  1. `use(...[])` is `use()` with no arguments outside production, which Express
+//     rejects outright ("argument handler is required"). A per-route spread always
+//     still carries its handler.
+//  2. A `use` guarded by `if (readLimiters.length > 0)` covers every route at
+//     RUNTIME but is invisible to CodeQL's `js/missing-rate-limiting`, whose
+//     dataflow looks for a limiter in the route's own chain and does not follow a
+//     conditional. Runtime coverage and static coverage are different questions;
+//     this shape answers both.
 
 /**
  * GET /channels?cursor=<followerCount>_<id>&limit=&excludeFollowed=true
@@ -258,7 +264,7 @@ if (readLimiters.length > 0) {
  * `excludeFollowed` needs a caller, so it is a no-op for an anonymous reader
  * rather than an error — the directory is the same list either way.
  */
-publicChannelsRouter.get('/', async (req: AuthRequest, res: Response) => {
+publicChannelsRouter.get('/', ...readLimiters, async (req: AuthRequest, res: Response) => {
   try {
     const viewerId = req.user?.id;
     const rawLimit = Number.parseInt(String(req.query.limit ?? ''), 10);
@@ -348,8 +354,18 @@ function couldNameAChannel(segment: string): boolean {
  *
  * Resolves either spelling (see {@link findChannelByIdOrHandle}). The posts come
  * from the feed engine's `channel|<id>` descriptor, not from here.
+ *
+ * NOTE on the limiter: this route also fields `/mine`, `/invites` and
+ * `/following` before handing them on (they are reserved handles, so
+ * `couldNameAChannel` declines them and calls `next()`). The limiter runs BEFORE
+ * that hand-off, so those three requests increment the read counter twice — once
+ * here and once on the authenticated route that answers them — leaving them an
+ * effective 150/min out of 300. That is deliberate: they are management screens
+ * that spend one request per visit, and the alternative is either leaving a
+ * genuinely anonymous route unlimited or moving the reserved-segment check into
+ * middleware to save a counter increment nobody will reach.
  */
-publicChannelsRouter.get('/:idOrHandle', async (req: AuthRequest, res: Response, next: NextFunction) => {
+publicChannelsRouter.get('/:idOrHandle', ...readLimiters, async (req: AuthRequest, res: Response, next: NextFunction) => {
   if (!couldNameAChannel(String(req.params.idOrHandle))) return next();
   try {
     const channel = await findChannelByIdOrHandle(String(req.params.idOrHandle));
@@ -375,7 +391,7 @@ publicChannelsRouter.get('/:idOrHandle', async (req: AuthRequest, res: Response,
  * Members are resolved through {@link resolveUserSummaries}, the same identity
  * path every post author goes through, never assembled by hand.
  */
-publicChannelsRouter.get('/:idOrHandle/members', async (req: AuthRequest, res: Response, next: NextFunction) => {
+publicChannelsRouter.get('/:idOrHandle/members', ...readLimiters, async (req: AuthRequest, res: Response, next: NextFunction) => {
   if (!couldNameAChannel(String(req.params.idOrHandle))) return next();
   try {
     const channel = await findChannelByIdOrHandle(String(req.params.idOrHandle));
