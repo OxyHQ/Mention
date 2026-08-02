@@ -129,8 +129,6 @@ const OPERATIONAL_BLOCK: PublishedFederationBlock = {
  */
 notifyManager.setScheduler((callback) => callback());
 
-const mounted: TestRenderer.ReactTestRenderer[] = [];
-
 async function renderScreen(): Promise<ReactTestInstance> {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
@@ -144,28 +142,11 @@ async function renderScreen(): Promise<ReactTestInstance> {
       </QueryClientProvider>,
     );
   });
-  mounted.push(renderer);
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
   return renderer.root;
 }
-
-/**
- * The screen's query declares a five-minute `staleTime`, so every mounted
- * observer arms a `setTimeout(…, 300000)` that only a teardown clears. Left
- * mounted, those handles hold node's event loop open for five minutes after the
- * last assertion passes — the suite reports itself green in under a second and
- * the process then sits there, which is invisible locally and is real time on
- * every CI run.
- */
-afterEach(async () => {
-  for (const renderer of mounted.splice(0)) {
-    await act(async () => {
-      renderer.unmount();
-    });
-  }
-});
 
 /** Every string the screen actually put on the page. */
 function renderedTexts(root: ReactTestInstance): string[] {
