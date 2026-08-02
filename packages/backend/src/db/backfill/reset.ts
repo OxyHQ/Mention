@@ -39,6 +39,39 @@ import { clearState } from './checkpointStore';
 import { COLLECTION_PLANS } from './collectionMap';
 import { planTables, tableName } from './plan';
 
+/** Raised when `--start-from-empty` is combined with a read-only mode. */
+export class ResetNotAllowedError extends Error {
+  constructor(readonly mode: string) {
+    super(
+      `--start-from-empty cannot be combined with ${mode}: that mode inspects ` +
+        'and writes nothing BY CONTRACT, and --start-from-empty DESTROYS every ' +
+        'row in every target table. An operator reaching for both has asked for ' +
+        'two incompatible things, and guessing which one they meant is not ' +
+        'something a tool that truncates production may do.'
+    );
+    this.name = 'ResetNotAllowedError';
+  }
+}
+
+/**
+ * Refuse the destructive flag alongside a mode that promises to touch nothing.
+ *
+ * A function rather than a condition inside the CLI, so the promise `--audit-only`
+ * and `--verify-only` make is ONE checkable thing rather than a branch someone
+ * later reads as redundant and simplifies away.
+ *
+ * @throws {ResetNotAllowedError} When both are requested.
+ */
+export function assertResetIsAllowed(request: {
+  readonly startFromEmpty: boolean;
+  readonly auditOnly: boolean;
+  readonly verifyOnly: boolean;
+}): void {
+  if (!request.startFromEmpty) return;
+  if (request.auditOnly) throw new ResetNotAllowedError('--audit-only');
+  if (request.verifyOnly) throw new ResetNotAllowedError('--verify-only');
+}
+
 /** Every table any plan writes to, deduplicated. */
 export function targetTables(): string[] {
   const names = new Set<string>();
