@@ -11,7 +11,7 @@ import {
     Platform,
 } from 'react-native';
 import { toast } from '@oxyhq/bloom/toast';
-import { router, useLocalSearchParams, type Href } from 'expo-router';
+import { Redirect, router, useLocalSearchParams, usePathname, type Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BloomColorScope, useTheme } from '@oxyhq/bloom/theme';
@@ -37,7 +37,7 @@ import { logger } from '@oxyhq/core/logger';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
 import { EmptyState } from '@/components/common/EmptyState';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle, type AccountNode } from '@oxyhq/core';
 import { usePanelStickyTopInset, usePanelStickyTabsTopInset, PANEL_HEADER_HEIGHT } from '@/components/shell/PanelChrome';
 
 // Icons
@@ -157,7 +157,7 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
     // signed-out visitor sees the same strip; keyed by viewer anyway, like every
     // other private read, so an account switch drops it with the namespace.
     const { data: laneTabs = [] } = useQuery<LaneTabInput[]>({
-        queryKey: viewerQueryKeys.lanesForOwner(currentUser?.id, 'user', profileData?.id),
+        queryKey: viewerQueryKeys.lanesForOwner(currentUser?.id, profileData?.id),
         enabled: Boolean(profileData?.id) && !isFederated,
         queryFn: async () => {
             const lanes = await lanesService.listForOwner(profileData?.id ?? '');
@@ -259,6 +259,30 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
         }) || username;
     }, [profileData?.username, profileData?.instance, profileData?.isFederated, username]);
 
+    // A CHANNEL account's page lives at `/c/<handle>`, a person's at
+    // `/@<handle>`. Two routes that are never interchangeable, and the account's
+    // own kind is the only thing that decides which — nothing about the URL the
+    // reader arrived on does.
+    const isChannelAccount = profileData?.kind === 'channel';
+    const profileBasePath = isChannelAccount ? `/c/${profileHandle}` : `/@${profileHandle}`;
+
+    // Whether the viewer OPERATES this channel, which is what puts its settings
+    // in reach. A channel account has no login of its own, so `isOwnProfile` can
+    // never be true for one and there is no other signal on the profile itself.
+    //
+    // Gated on the profile actually BEING a channel: the account graph is a real
+    // request, and every other profile in the app would pay for it to answer a
+    // question that can only be yes on this one.
+    const operatedAccountsQuery = useQuery<AccountNode[]>({
+        queryKey: viewerQueryKeys.operatedAccounts(currentUser?.id),
+        queryFn: () => oxyServices.listAccounts(),
+        enabled: isChannelAccount && Boolean(currentUser?.id) && Boolean(profileData?.id),
+    });
+    const operatesThisChannel = Boolean(
+        profileData?.id &&
+        operatedAccountsQuery.data?.some((account) => account.accountId === profileData.id),
+    );
+
     // Memoized checks
     const isOwnProfile = useMemo(() => {
         if (isFederated) return false;
@@ -304,6 +328,11 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
             const descriptor = tabDescriptors[index];
             if (!descriptor) return;
             setActiveTabKey(descriptor.key);
+            // A channel account's page is ONE route (`/c/<handle>`) with no tab
+            // segments beneath it, so its tabs are local state and there is
+            // nothing to replace. Writing `/@<handle>/media` here would navigate
+            // a channel out of its own URL family.
+            if (isChannelAccount) return;
             // Update URL silently for deep-linking / sharing without triggering
             // navigation. A lane tab routes by id under its own segment, so it
             // can never collide with a static tab's file name.
@@ -314,7 +343,7 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                     : `/@${profileHandle}/${descriptor.tab}`;
             router.replace(path);
         },
-        [username, profileHandle, tabDescriptors]
+        [username, profileHandle, tabDescriptors, isChannelAccount]
     );
 
     // The stats row jumps to a tab BY NAME. Resolving the index at press time is
@@ -341,7 +370,7 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
         if (!profileData) return;
 
         try {
-            const shareUrl = `https://mention.earth/@${profileHandle}`;
+            const shareUrl = `https://mention.earth${profileBasePath}`;
             const shareMessage = t('profile.share.message', {
                 name: profileData.design.displayName,
                 defaultValue: `Check out ${profileData.design.displayName}'s profile on Mention!`,
@@ -358,7 +387,7 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
         } catch {
             logger.error('Error sharing profile');
         }
-    }, [profileData, profileHandle, t]);
+    }, [profileData, profileBasePath, t]);
 
     // More options menu (block, mute, report)
     const handleMoreOptions = useCallback(() => {
@@ -439,6 +468,16 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
         };
 
         const actions: ActionMenuAction[] = [
+            // Operators only, and first: it is the one action here that is about
+            // running this account rather than about the viewer's relationship
+            // to it. Everyone else never sees a row that would refuse them.
+            ...(operatesThisChannel
+                ? [{
+                    icon: <Icon name="settings-outline" size={22} className="text-foreground" />,
+                    label: t('channels.settings.title', { defaultValue: 'Channel settings' }),
+                    onPress: () => router.push(`/c/${profileHandle}/settings`),
+                }]
+                : []),
             {
                 icon: <ListIcon size={22} className="text-foreground" />,
                 label: t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' }),
@@ -481,7 +520,7 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
         }
 
         openMenu();
-    }, [profileData, isOwnProfile, theme, t, bottomSheet, oxyServices]);
+    }, [profileData, isOwnProfile, theme, t, bottomSheet, oxyServices, operatesThisChannel, profileHandle]);
 
     // DM button handler
     const handleDM = useCallback(() => {
@@ -1142,6 +1181,22 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts', laneId })
         username,
         designColor: profileData?.design?.color,
     });
+
+    // A channel account's page is `/c/<handle>`; everybody else's is
+    // `/@<handle>`. The kind is only knowable once the account has resolved, so
+    // this is a CANONICALIZATION rather than a gate: whichever URL a reader
+    // arrives on, the one they end up sitting on is the one that account owns.
+    //
+    // Both directions matter. A post row links every author to `/@<handle>` —
+    // the DTO says nothing about account kind — so that is how a reader reaches
+    // a channel, and it must land them at `/c/`. And a `/c/<handle>` that names
+    // a person is a URL nobody should keep.
+    const routedAsChannel = usePathname().startsWith('/c/');
+    const isChannelAccount = profileData?.kind === 'channel';
+    if (profileData && routedAsChannel !== isChannelAccount) {
+        const canonical: Href = isChannelAccount ? `/c/${username}` : `/@${username}`;
+        return <Redirect href={canonical} />;
+    }
 
     return (
         <BloomColorScope colorPreset={profileColorName} asChild>

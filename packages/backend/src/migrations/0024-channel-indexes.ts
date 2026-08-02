@@ -49,14 +49,20 @@
  * creates a collection on first run, and nothing is backfilled — a post written
  * before channels existed simply carries no `channelId`, which is exactly what the
  * partial filter excludes.
+ *
+ * HISTORY: the three collections and the `posts` field this created were removed
+ * by `0026-channel-accounts`, when a channel became an Oxy account rather than a
+ * Mention row. This migration is kept, and does exactly what it always did, so a
+ * database's ledger still tells the truth about what ran on it — an already-applied
+ * migration is skipped forever, so rewriting one to "not have happened" only
+ * changes what a FRESH database does. The collection names are literals now
+ * because the models they came from are gone; they are the same names Mongoose
+ * derived from `Channel` / `ChannelMember` / `ChannelFollow`.
  */
 
 import mongoose from 'mongoose';
 import { logger } from '../utils/logger';
 import { MIGRATION_CHANNEL_INDEXES } from './constants';
-import { Channel } from '../models/Channel';
-import { ChannelMember } from '../models/ChannelMember';
-import { ChannelFollow } from '../models/ChannelFollow';
 import { Post } from '../models/Post';
 import type { Migration } from './runner';
 
@@ -64,17 +70,17 @@ export const migrationChannelIndexes: Migration = {
   id: MIGRATION_CHANNEL_INDEXES,
 
   async run(db: mongoose.mongo.Db): Promise<void> {
-    const channels = db.collection(Channel.collection.collectionName);
+    const channels = db.collection('channels');
     await channels.createIndex({ handleLower: 1 }, { unique: true });
     await channels.createIndex({ ownerOxyUserId: 1, createdAt: -1 });
     await channels.createIndex({ visibility: 1, followerCount: -1, _id: -1 });
 
-    const members = db.collection(ChannelMember.collection.collectionName);
+    const members = db.collection('channelmembers');
     await members.createIndex({ channelId: 1, oxyUserId: 1 }, { unique: true });
     await members.createIndex({ channelId: 1, status: 1 });
     await members.createIndex({ oxyUserId: 1, status: 1 });
 
-    const follows = db.collection(ChannelFollow.collection.collectionName);
+    const follows = db.collection('channelfollows');
     await follows.createIndex({ oxyUserId: 1, channelId: 1 }, { unique: true });
     await follows.createIndex({ channelId: 1, notify: 1, _id: 1 });
 

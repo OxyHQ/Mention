@@ -523,10 +523,11 @@ const PostDetailScreen: React.FC = () => {
                             to pin it on web. `bg-background` matches the feed rows,
                             so replies never show through it while it overlays them.
 
-                            Absent on a post that takes no replies — a channel post,
-                            or one closed to everybody. The rule is read off the POST
-                            (`postAcceptsReplies`), the same call the row's action bar
-                            makes, so the two surfaces cannot disagree. */}
+                            Absent on a post that takes no replies — the server
+                            refused them, or its author closed them to everybody.
+                            The rule is read off the POST (`postAcceptsReplies`),
+                            the same call the row's action bar makes, so the two
+                            surfaces cannot disagree. */}
                         {!!user && postAcceptsReplies(post) && (
                             <PanelStickyFooter className="bg-background" style={stickyComposerStyle}>
                                 <FeedHeader

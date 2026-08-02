@@ -6,14 +6,15 @@ import PostDetailStats from '@/components/Post/PostDetailStats';
 import { reportableReplyPermission } from '@/utils/postReplies';
 
 /**
- * The pair that has to stay distinguishable under a focused post: a CHANNEL post
- * says nothing about replies, and a post whose AUTHOR closed them still says so.
+ * The pair that has to stay distinguishable under a focused post: a post whose
+ * AUTHOR closed replies says so, and one the SERVER simply refused the viewer
+ * (a channel account's post, an audience the viewer is outside of) says nothing
+ * — there is no decision to report.
  *
  * Rendered through `reportableReplyPermission` rather than by handing the prop a
- * literal, because the whole bug lives in the derivation. A channel post carries
- * `replyPermission: ['nobody']` on its own DTO — the server persists it as
- * defence in depth — so any test that passes the prop directly proves only that
- * `PostDetailStats` can be told to stay quiet, never that it IS.
+ * literal, because the whole bug lives in the derivation: passing the prop
+ * directly proves only that `PostDetailStats` can be told to stay quiet, never
+ * that it IS.
  */
 
 jest.mock('react-i18next', () => ({
@@ -39,15 +40,8 @@ jest.mock('@/components/Post/KnownLikersRow', () => ({ KnownLikersRow: () => nul
 
 const TIMESTAMP = '9:20 PM · Jun 11, 2026';
 
-const CHANNEL: NonNullable<HydratedPostSummary['channel']> = {
-  id: 'channel-1',
-  handle: 'news',
-  title: 'News',
-  signPosts: true,
-};
-
 function makePost(overrides: {
-  channel?: HydratedPostSummary['channel'];
+  canReply?: boolean;
   replyPermission?: ReplyPermission[];
 }): HydratedPostSummary {
   return {
@@ -58,7 +52,7 @@ function makePost(overrides: {
       visibility: 'public',
       ...(overrides.replyPermission ? { replyPermission: overrides.replyPermission } : {}),
     },
-    ...(overrides.channel ? { channel: overrides.channel } : {}),
+    ...(overrides.canReply === undefined ? {} : { permissions: { canReply: overrides.canReply } }),
   } as HydratedPostSummary;
 }
 
@@ -99,12 +93,14 @@ describe('PostDetailStats — the reply-restriction line', () => {
       .IS_REACT_ACT_ENVIRONMENT = true;
   });
 
-  it('says NOTHING about replies on a channel post', () => {
-    const tree = render(makePost({ channel: CHANNEL, replyPermission: ['nobody'] }));
+  it('says NOTHING about replies when only the server refused them', () => {
+    // The shape a CHANNEL account's post arrives in: the server says no, the
+    // author set nothing.
+    const tree = render(makePost({ canReply: false }));
 
     const text = textContent(tree);
-    // Neither wording: replies being impossible is what a channel IS, so there
-    // is no fact here to report and no reader to wonder who switched it off.
+    // Neither wording: nobody switched anything off, so there is no fact here to
+    // report and no reader to wonder who did.
     expect(text).not.toContain('post.restrictions.repliesOff');
     expect(text).not.toContain('post.restrictions.repliesLimited');
     // The rest of the block is untouched — this suppresses one line, not the row.
@@ -138,15 +134,15 @@ describe('PostDetailStats — the reply-restriction line', () => {
   });
 
   /**
-   * The channel case must not fall through to the `repliesLimited` branch
-   * either. `['nobody']` is non-empty and does not contain `'anyone'`, so a fix
-   * that only suppressed the `nobody` branch would swap one wrong sentence for
-   * a worse one — and the first assertion above would still pass.
+   * A server refusal must not SUPPRESS the author's own restriction either: the
+   * two are independent, and the audience the author chose stays worth saying
+   * even to a reader who falls outside it — that is precisely who benefits from
+   * reading it rather than discovering it from a rejected reply.
    */
-  it('does not downgrade a channel post to "replies are limited"', () => {
-    const tree = render(makePost({ channel: CHANNEL, replyPermission: ['following'] }));
+  it('still reports the author\'s narrowed audience to a viewer outside it', () => {
+    const tree = render(makePost({ canReply: false, replyPermission: ['following'] }));
 
-    expect(textContent(tree)).not.toContain('post.restrictions.replies');
+    expect(textContent(tree)).toContain('post.restrictions.repliesLimited');
 
     act(() => tree.unmount());
   });

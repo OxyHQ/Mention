@@ -27,7 +27,7 @@ import { PanelStickyHeader, PanelChromeTopInsetProvider, PANEL_HEADER_HEIGHT, PA
  * lands with that tab selected.
  */
 
-type ExploreTab = 'all' | 'media' | 'trending' | 'people' | 'starter-packs' | 'channels';
+type ExploreTab = 'all' | 'media' | 'trending' | 'people' | 'starter-packs';
 
 /** Tab id → its route. Drives navigation on tap and (in reverse) active detection. */
 const TAB_ROUTES: Record<ExploreTab, Href> = {
@@ -36,7 +36,6 @@ const TAB_ROUTES: Record<ExploreTab, Href> = {
   trending: '/explore/trending',
   people: '/explore/who-to-follow',
   'starter-packs': '/explore/starter-packs',
-  channels: '/explore/channels',
 };
 
 /** Resolve the active tab from the current pathname (route is the source of truth). */
@@ -45,9 +44,6 @@ function tabFromPathname(pathname: string | null): ExploreTab {
   if (pathname?.endsWith('/trending')) return 'trending';
   if (pathname?.endsWith('/who-to-follow')) return 'people';
   if (pathname?.endsWith('/starter-packs')) return 'starter-packs';
-  // `/explore/channels`, never the standalone `/channels` — that one is outside
-  // this layout, so its pathname never reaches here.
-  if (pathname?.endsWith('/channels')) return 'channels';
   return 'all';
 }
 
@@ -110,7 +106,6 @@ export default function ExploreLayout() {
       { id: 'trending', label: t('Trending') },
       { id: 'people', label: t('Who to follow') },
       { id: 'starter-packs', label: t('Starter Packs') },
-      { id: 'channels', label: t('channels.title', { defaultValue: 'Channels' }) },
     ],
     [t],
   );

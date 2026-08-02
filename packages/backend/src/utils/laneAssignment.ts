@@ -7,9 +7,11 @@
  * Two things are enforced, and both are REFUSALS rather than silent drops — an
  * author who is told nothing would go on believing they published in a lane:
  *
- *  1. **A lane's publisher must be the post's publisher.** A post destined for a
- *     channel takes a lane of THAT channel; a post with no channel takes a lane
- *     of its author. A post never mixes a user's lane with a channel destination.
+ *  1. **A lane's publisher must be the post's publisher.** A lane belongs to one
+ *     `ownerId`, and the post's publisher is its OWNER — which for a post
+ *     published as a channel is the channel account itself, because that account
+ *     authors the post. So there is one comparison here, not a branch: a lane of
+ *     any other publisher is a 404.
  *  2. **Replies and boosts carry no lane.** A lane is an editorial decision about
  *     ORIGINAL content: a boost has no body of its own, and a reply belongs to
  *     its parent's conversation. Refusing them here is also what keeps the two
@@ -28,7 +30,6 @@
 
 import mongoose from 'mongoose';
 import { Lane } from '../models/Lane';
-import type { LaneOwnerType } from '@mention/shared-types';
 
 /** A refusal carrying the status the HTTP layer should answer with. */
 export class LaneAssignmentError extends Error {
@@ -44,16 +45,13 @@ export class LaneAssignmentError extends Error {
 export interface LaneAssignmentParams {
   /** The lane the post is being put in. `null`/`undefined` = no lane; nothing to check. */
   laneId?: string | null;
-  /** The post's author (its owner), the publisher when the post has no channel. */
-  authorId?: string | null;
   /**
-   * The channel the post is published to, when it has one — then THAT channel is
-   * the publisher whose lanes are eligible. Channels are not implemented yet, so
-   * today this is always absent and the author branch is the live one; the branch
-   * still matters now, because it is what refuses a channel-owned lane on a post
-   * that has no channel.
+   * The post's OWNER — the publisher whose lanes are eligible. For a post
+   * published as a channel this is the channel account, because that account is
+   * the post's author; the human who wrote it is recorded outside `authorship`
+   * and owns none of this.
    */
-  channelId?: string | null;
+  authorId?: string | null;
   /** Present ⇒ the post is a reply ⇒ no lane. */
   parentPostId?: string | null;
   /** Present ⇒ the post is a boost ⇒ no lane. */
@@ -75,8 +73,7 @@ export async function assertLaneAssignable(params: LaneAssignmentParams): Promis
     throw new LaneAssignmentError(400, 'A boost cannot be assigned to a lane');
   }
 
-  const ownerType: LaneOwnerType = params.channelId ? 'channel' : 'user';
-  const ownerId = params.channelId ?? params.authorId ?? '';
+  const ownerId = params.authorId ?? '';
   if (!ownerId) {
     throw new LaneAssignmentError(400, 'A post with no publisher cannot be assigned to a lane');
   }
@@ -88,7 +85,7 @@ export async function assertLaneAssignable(params: LaneAssignmentParams): Promis
     throw new LaneAssignmentError(404, 'Lane not found');
   }
 
-  const exists = await Lane.exists({ _id: laneId, ownerType, ownerId });
+  const exists = await Lane.exists({ _id: laneId, ownerId });
   if (!exists) {
     throw new LaneAssignmentError(404, 'Lane not found');
   }

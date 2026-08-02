@@ -32,7 +32,7 @@ import { normalizeMediaItems } from '../utils/mediaInput';
 import { queryString } from '../utils/queryParams';
 import { buildAuthorship } from '../utils/postAuthorship';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
-import { isChannelPost } from '../utils/channelReplyGate';
+import { postIsAuthoredByChannel } from '../utils/channelReplyGate';
 import { baselineContentClassifier } from '../services/BaselineContentClassifier';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { federateAsResolvedActor } from '../connectors/outboundFederation';
@@ -71,7 +71,7 @@ type FollowerRef = string | { id?: string; _id?: string };
  */
 class FeedController {
   /** Optimized field selection for feed queries - reduces data transfer by 60-80% */
-  private readonly FEED_FIELDS = '_id oxyUserId authorship federation createdAt visibility type parentPostId boostOf quoteOf laneId channelId threadId content stats metadata hashtags mentions language';
+  private readonly FEED_FIELDS = '_id oxyUserId authorship federation createdAt visibility type parentPostId boostOf quoteOf laneId threadId content stats metadata hashtags mentions language';
 
   /**
    * Transform posts to include full profile data and engagement stats
@@ -279,10 +279,10 @@ class FeedController {
       //    `replyPermission: ['nobody']`. For a channel the rule is STRUCTURAL, not
       //    a per-post preference: neither the writer nor the channel's owner replies.
       //
-      // It reads `channelId` and never `replyPermission` — see
-      // `utils/channelReplyGate` for why leaning on that field would let a later
-      // `PATCH /posts/:id/settings` reopen the post.
-      if (isChannelPost(parentPost)) {
+      // It reads the parent AUTHOR's Oxy account kind and never
+      // `replyPermission` — see `utils/channelReplyGate` for why leaning on that
+      // field would let a later `PATCH /posts/:id/settings` reopen the post.
+      if (await postIsAuthoredByChannel(parentPost)) {
         return res.status(403).json({ error: 'This post does not accept replies' });
       }
 

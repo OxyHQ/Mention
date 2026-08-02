@@ -60,16 +60,18 @@ describe('assertLaneAssignable — replies and boosts', () => {
 });
 
 describe('assertLaneAssignable — ownership', () => {
-  it('scopes the lookup to the AUTHOR when the post has no channel', async () => {
+  it('scopes the lookup to the post\'s OWNER', async () => {
     await assertLaneAssignable({ laneId: LANE_ID, authorId: 'u1' });
-    expect(laneExists).toHaveBeenCalledWith({ _id: LANE_ID, ownerType: 'user', ownerId: 'u1' });
+    expect(laneExists).toHaveBeenCalledWith({ _id: LANE_ID, ownerId: 'u1' });
   });
 
-  it('scopes the lookup to the CHANNEL when the post has one', async () => {
-    await assertLaneAssignable({ laneId: LANE_ID, authorId: 'u1', channelId: 'c1' });
-    // The publisher is the channel, so a lane of the AUTHOR'S is not eligible —
-    // this is what stops a post mixing a user's lane with a channel destination.
-    expect(laneExists).toHaveBeenCalledWith({ _id: LANE_ID, ownerType: 'channel', ownerId: 'c1' });
+  it('scopes it to the CHANNEL when the channel is the post\'s owner', async () => {
+    // A channel is an Oxy account and authors its own posts, so the caller passes
+    // the channel as `authorId` and the same single comparison applies — a lane of
+    // the WRITER'S is not eligible, which is what stops a channel post being filed
+    // under a personal lane tab.
+    await assertLaneAssignable({ laneId: LANE_ID, authorId: 'channel-account' });
+    expect(laneExists).toHaveBeenCalledWith({ _id: LANE_ID, ownerId: 'channel-account' });
   });
 
   it('answers 404 for a lane belonging to somebody else', async () => {

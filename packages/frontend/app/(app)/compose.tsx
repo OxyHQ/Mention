@@ -14,7 +14,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { logger } from '@oxyhq/core/logger';
 import { classifyApiError, normalizeApiError, type ApiErrorReason } from '@/utils/apiError';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
-import { getNormalizedUserHandle, type FileMetadata } from '@oxyhq/core';
+import { getNormalizedUserHandle, type AccountNode, type FileMetadata } from '@oxyhq/core';
 import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';
 import { ThemedView } from '@/components/ThemedView';
@@ -34,7 +34,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from '@oxyhq/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
-import type { Channel, CreatePostRequest, HydratedPost } from '@mention/shared-types';
+import type { CreatePostRequest, HydratedPost } from '@mention/shared-types';
 import { MAX_POST_COLLABORATORS, MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useTheme } from '@oxyhq/bloom/theme';
 import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTextInput';
@@ -158,7 +158,7 @@ const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'))
 const AltTextSheet = lazy(() => import('@/components/Compose/AltTextSheet'));
 const LanguagePickerSheet = lazy(() => import('@/components/Compose/LanguagePickerSheet'));
 const LanePickerSheet = lazy(() => import('@/components/Compose/LanePickerSheet'));
-const ChannelPickerSheet = lazy(() => import('@/components/Compose/ChannelPickerSheet'));
+const PublishAsSheet = lazy(() => import('@/components/Compose/PublishAsSheet'));
 const EmojiPickerSheet = lazy(() => import('@/components/Compose/EmojiPickerSheet'));
 const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
 const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
@@ -216,13 +216,15 @@ const ComposeScreenBody = () => {
   // (the continuations are replies and carry none), which is exactly what
   // sending it on the main post achieves.
   const [laneId, setLaneId] = useState<string | null>(null);
-  // The channel this post is published TO, held as the whole DTO rather than its
-  // id: the lane picker needs the channel's owner to know which of the two lane
-  // endpoints it may call, and the picker already read the list it came from.
-  const [channel, setChannel] = useState<Channel | null>(null);
-  // Whether a copy of the channel post is boosted onto the author's own profile
-  // once it publishes. ON by default — a channel post exists ONLY in the channel,
-  // and silently disappearing from your own profile is the surprising outcome.
+  // The account this post is published AS, held as the whole account node rather
+  // than its id: the lane picker needs the publisher's role to know which of the
+  // two lane endpoints it may call, and the picker already read the list it came
+  // from.
+  const [publishAs, setPublishAs] = useState<AccountNode | null>(null);
+  // Whether a copy of the channel's post is boosted onto the author's own profile
+  // once it publishes. ON by default — the post is authored by the CHANNEL, so it
+  // lands on the channel's profile and not on the author's, and silently
+  // disappearing from your own profile is the surprising outcome.
   const [alsoPostToProfile, setAlsoPostToProfile] = useState(true);
 
   // Use custom hooks for state management
@@ -521,18 +523,18 @@ const ComposeScreenBody = () => {
   const laneEligible = !replyToPostId && !isEditMode;
 
   /**
-   * Whether this post can be published TO a channel from HERE.
+   * Whether this post can be published AS another account from HERE.
    *
    * The same three exclusions the affordances above make, and each for its own
-   * reason. A REPLY: a channel accepts none at all, and `CreateReplyRequest`
-   * drops what it does not name — so offering the choice ends in a 201 with the
-   * post on the author's own profile and nothing saying so. An EDIT: an
-   * `UpdatePostRequest` carries no destination, and moving a published post into
-   * a channel is not an edit, it is a different post with a different byline. A
-   * THREAD: the continuations are replies to their predecessor, which is exactly
-   * what a channel post cannot have.
+   * reason. A REPLY: a channel takes none at all, and `CreateReplyRequest` drops
+   * what it does not name — so offering the choice ends in a 201 with the post
+   * under the author's own name and nothing saying so. An EDIT: an
+   * `UpdatePostRequest` carries no author, and re-signing a published post is not
+   * an edit, it is a different post with a different byline. A THREAD: the
+   * continuations are replies to their predecessor, which is exactly what a
+   * channel post cannot have.
    */
-  const channelEligible = !replyToPostId && !isEditMode && threadItems.length === 0;
+  const publishAsEligible = !replyToPostId && !isEditMode && threadItems.length === 0;
 
   // Schedule manager
   const scheduleManager = useScheduleManager({
@@ -1091,10 +1093,11 @@ const ComposeScreenBody = () => {
         // Guarded by the same predicate that hides the affordance, so a lane
         // chosen before a quote turned into a reply can never reach the wire.
         laneId: laneEligible && laneId ? laneId : undefined,
-        // Same guard, and the stakes are higher: a `channelId` that slipped
-        // through onto a reply or a thread would be dropped by the server with a
-        // 201, publishing under the author's own name instead of the channel's.
-        channelId: channelEligible && channel ? channel.id : undefined,
+        // Same guard, and the stakes are higher: a `publishAsOxyUserId` that
+        // slipped through onto a reply or a thread would be dropped by the server
+        // with a 201, publishing under the author's own name instead of the
+        // channel's.
+        publishAsOxyUserId: publishAsEligible && publishAs ? publishAs.accountId : undefined,
         variantContent: mainVariantContent,
       });
       allPosts.push(mainPost);
@@ -1144,15 +1147,15 @@ const ComposeScreenBody = () => {
         const created = await createPost(allPosts[0]);
 
         // "Also post to my profile" is a BOOST of the channel's post, made after
-        // it exists — which is why there is no `channelOnly` field anywhere: the
-        // boost is a real row with the author as its owner, and every surface
-        // already renders it as "reposted by X" above the channel's own post.
+        // it exists — the boost is a real row with the AUTHOR as its owner, and
+        // every surface already renders it as "reposted by X" above the channel's
+        // own post. Nothing on the post itself has to say where it may appear.
         //
         // A SCHEDULED post cannot have one yet: it is not published, so there is
         // nothing on anyone's profile to repost, and the client is long gone by
         // the time it goes out. Saying so is the only honest option — the switch
         // promised something this path cannot deliver.
-        if (mainPost.channelId && alsoPostToProfile) {
+        if (mainPost.publishAsOxyUserId && alsoPostToProfile) {
           if (wasScheduled) {
             toast(
               t('channels.compose.scheduledNoRepost', {
@@ -1658,36 +1661,36 @@ const ComposeScreenBody = () => {
         <LanePickerSheet
           selectedLaneId={laneId}
           onSelect={setLaneId}
-          // Publishing into a channel means the lanes on offer are the CHANNEL's:
+          // Publishing as a channel means the lanes on offer are the CHANNEL's:
           // a lane belongs to its publisher, and the server checks that before it
           // assigns one.
-          channel={channel}
+          publishAs={publishAs}
           onClose={() => bottomSheet.openBottomSheet(false)}
         />
       </Suspense>
     );
     bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, laneId, channel]);
+  }, [bottomSheet, laneId, publishAs]);
 
   /**
-   * Changing the destination CLEARS the lane, in both directions.
+   * Changing the author CLEARS the lane, in both directions.
    *
    * A lane belongs to one publisher, so a lane picked for the author is not a
    * lane the channel has, and vice versa. Carrying the old choice across would
    * send a lane its new publisher does not own — which the server refuses, after
    * the author has already pressed post.
    */
-  const handleChannelSelect = useCallback((next: Channel | null) => {
-    setChannel(next);
+  const handlePublishAsSelect = useCallback((next: AccountNode | null) => {
+    setPublishAs(next);
     setLaneId(null);
   }, []);
 
-  const handleChannelPress = useCallback(() => {
+  const handlePublishAsPress = useCallback(() => {
     bottomSheet.setBottomSheetContent(
       <Suspense fallback={null}>
-        <ChannelPickerSheet
-          selectedChannelId={channel?.id ?? null}
-          onSelect={handleChannelSelect}
+        <PublishAsSheet
+          selectedOxyUserId={publishAs?.accountId ?? null}
+          onSelect={handlePublishAsSelect}
           alsoPostToProfile={alsoPostToProfile}
           onAlsoPostToProfileChange={setAlsoPostToProfile}
           onClose={() => bottomSheet.openBottomSheet(false)}
@@ -1695,7 +1698,7 @@ const ComposeScreenBody = () => {
       </Suspense>
     );
     bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, channel?.id, handleChannelSelect, alsoPostToProfile]);
+  }, [bottomSheet, publishAs?.accountId, handlePublishAsSelect, alsoPostToProfile]);
 
   // Main post toolbar handlers — stable references for memoized ComposeToolbar
   const handleMainGifPress = useCallback(() => {
@@ -2566,9 +2569,9 @@ const ComposeScreenBody = () => {
                       hasLane={Boolean(laneId)}
                       // Where the post GOES, as opposed to which of the
                       // publisher's tracks it lands on. Omitted wherever the
-                      // server would drop the choice — see `channelEligible`.
-                      onChannelPress={channelEligible ? handleChannelPress : undefined}
-                      hasChannel={Boolean(channel)}
+                      // server would drop the choice — see `publishAsEligible`.
+                      onPublishAsPress={publishAsEligible ? handlePublishAsPress : undefined}
+                      hasPublishAs={Boolean(publishAs)}
                       hasLocation={!!location}
                       isGettingLocation={isGettingLocation}
                       hasPoll={showPollCreator}

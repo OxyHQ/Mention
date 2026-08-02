@@ -30,11 +30,17 @@ const logger = createLogger('Schema');
  * signature while the same post fetched fresh rendered correctly, which reads
  * like a render bug and is not one.
  *
+ * v8 REMOVES `channel`: a channel is an Oxy account now, so a channel post is
+ * authored by it and `post.user` IS the channel. A row still on disk from v7
+ * carries a `channel` object beside a `user` the old backend deliberately
+ * degraded to "Unknown user" — precisely the production bug above, arriving from
+ * the other direction. Dropping the cache is what stops it.
+ *
  * `db/__tests__/cacheShapeVersion.test.ts` fails when the persisted key set
  * changes without this number moving, so the rule is enforced rather than
  * remembered.
  */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 /**
  * Create the full schema from scratch. Idempotent (IF NOT EXISTS).

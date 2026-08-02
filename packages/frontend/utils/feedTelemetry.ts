@@ -118,16 +118,16 @@ export function flushFeedInteractions(): void {
  * `feedService` routes the fetch:
  *  - saved feed → 'saved'
  *  - a lane tab → 'lane|<laneId>'
- *  - a channel page → 'channel|<channelId>'
  *  - a profile feed (userId present) → 'author|<userId>'
  *  - hashtag/topic/custom scoped filters → their descriptor form
  *  - everything else → the FeedType used directly (for_you/following/explore/…)
  *
- * The lane and channel branches come BEFORE the author one because each is served
- * by its own descriptor and never by the author feed — a lane already knows its
- * publisher, and a channel's posts belong to nobody's profile at all. Attributing
- * either one's impressions to `author|<id>` would be silently wrong: nothing
- * fails, the ranking signal just lands on the wrong feed.
+ * The lane branch comes BEFORE the author one because a lane is served by its own
+ * descriptor and never by the author feed — it already knows its publisher.
+ * Attributing its impressions to `author|<id>` would be silently wrong: nothing
+ * fails, the ranking signal just lands on the wrong feed. A CHANNEL's page needs
+ * no branch of its own: a channel is an Oxy account, so its page IS the author
+ * feed of that account and `author|<id>` is the correct attribution.
  */
 export function resolveFeedDescriptor(
     type: FeedType,
@@ -137,7 +137,6 @@ export function resolveFeedDescriptor(
 ): string {
     if (showOnlySaved) return 'saved';
     if (filters?.laneId) return `lane|${filters.laneId}`;
-    if (filters?.channelId) return `channel|${filters.channelId}`;
     if (userId) return `author|${userId}`;
     if (filters?.hashtag) return `hashtag|${filters.hashtag}`;
     if (filters?.topic) return `topic|${filters.topic}`;

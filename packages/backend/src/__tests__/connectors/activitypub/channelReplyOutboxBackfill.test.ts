@@ -118,7 +118,17 @@ vi.mock('../../../models/FederatedFollow', () => ({
   default: { exists: vi.fn().mockResolvedValue({ _id: 'follow_1' }) },
 }));
 
+// The gate resolves the parent AUTHOR's account kind here — the one module that
+// knows what a channel account is. Mocked so this file needs no Oxy identity
+// path, and so a test that expects a SKIP has to say the author is a channel.
+vi.mock('../../../services/publishAsAccount', () => ({
+  isChannelAccount: (oxyUserId: string) => Promise.resolve(oxyUserId === CHANNEL_ACCOUNT),
+}));
+
 import { outboxSyncService } from '../../../connectors/activitypub/outbox.service';
+
+/** Hoisted above the `vi.mock` factory that reads it — `vi.mock` calls are hoisted too. */
+const CHANNEL_ACCOUNT = 'oxy-channel-account';
 
 const ACTOR_URI = 'https://mastodon.social/users/alice';
 const OUTBOX_URL = 'https://mastodon.social/users/alice/outbox';
@@ -209,7 +219,10 @@ beforeEach(() => {
   // a SKIP has to set the channel itself, and cannot pass by accident.
   mocks.postFindById.mockImplementation((id: string) => ({
     select: () => ({
-      lean: async () => (id === LOCAL_CHANNEL_POST_ID ? { channelId: 'chan_1' } : { channelId: undefined }),
+      lean: async () =>
+        id === LOCAL_CHANNEL_POST_ID
+          ? { oxyUserId: CHANNEL_ACCOUNT }
+          : { oxyUserId: 'oxy-person' },
     }),
     lean: vi.fn().mockResolvedValue(null),
   }));
@@ -268,9 +281,9 @@ describe('outbox backfill — a reply to a channel post never reaches insertMany
   });
 
   it('CONTROL: a reply to a REMOTE post is imported without any gate lookup', async () => {
-    // A remote object is a federated post and can never carry a `channelId`, so
-    // the URI parse short-circuits before the query. This is what keeps the gate
-    // free on the ordinary remote-to-remote reply.
+    // A remote object is authored by a remote actor, which is never a local
+    // channel account, so the URI parse short-circuits before the query. This is
+    // what keeps the gate free on the ordinary remote-to-remote reply.
     stubOutbox([createNote('to-remote', REMOTE_POST_URI)]);
 
     await runOutboxSync();

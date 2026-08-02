@@ -420,18 +420,21 @@ describe('GET /ap/users/:username/collections/featured — pinned posts', () => 
 });
 
 /**
- * A post published to a CHANNEL never leaves through an author surface.
+ * A channel's posts DO leave through its own author surfaces, and that is the
+ * point of a channel being an Oxy account.
  *
- * The outbox and the featured collection are author surfaces, and channels have
- * no ActivityPub presence in v1 — so listing one here would publish it to the
- * fediverse under the WRITER's actor, which is the opposite of what the channel
- * signs and, on a `signPosts: false` channel, a straight de-anonymization.
+ * The outbox and the featured collection are author surfaces, and a channel
+ * AUTHORS its posts — `/ap/users/<channel>/outbox` is the channel's own outbox.
+ * The exclusion these queries used to carry existed because a channel post was
+ * authored by a PERSON and listing it here would have published it under the
+ * writer's actor. There is no writer on these surfaces any more, so a
+ * re-introduced exclusion would silently empty a channel's fediverse presence.
  *
  * The featured collection is the more consequential of the two: Mastodon does not
  * backfill a freshly-discovered account's timeline from the outbox, so `featured`
  * is what a discovered profile actually renders.
  */
-describe('channel posts are excluded from every author-facing AP surface', () => {
+describe('an author surface filters on the AUTHOR and nothing else', () => {
   const captureQuery = () => {
     const findSpy = vi.fn().mockReturnValue({
       sort: () => ({ limit: () => ({ lean: async () => [] }) }),
@@ -440,17 +443,20 @@ describe('channel posts are excluded from every author-facing AP surface', () =>
     return findSpy;
   };
 
-  it('excludes them from the outbox PAGE', async () => {
+  /** The keys an author-surface query is allowed to carry. */
+  const OUTBOX_KEYS = ['oxyUserId', 'visibility', 'status', 'parentPostId'];
+
+  it('queries the outbox PAGE on the author alone', async () => {
     mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' });
     mocks.postCountDocuments.mockResolvedValue(0);
     const findSpy = captureQuery();
 
     await request(app).get('/ap/users/alice/outbox?page=true').set('Accept', AP_ACCEPT).expect(200);
 
-    expect(findSpy.mock.calls[0][0]).toMatchObject({ channelId: { $exists: false } });
+    expect(Object.keys(findSpy.mock.calls[0][0] as object).sort()).toEqual([...OUTBOX_KEYS].sort());
   });
 
-  it('excludes them from the outbox COUNT with the same filter', async () => {
+  it('counts the outbox with the SAME filter it pages with', async () => {
     // The count and the page must use ONE filter, or `totalItems` promises items
     // no page will ever yield.
     mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' });
@@ -458,12 +464,12 @@ describe('channel posts are excluded from every author-facing AP surface', () =>
 
     await request(app).get('/ap/users/alice/outbox').set('Accept', AP_ACCEPT).expect(200);
 
-    expect(mocks.postCountDocuments).toHaveBeenCalledWith(
-      expect.objectContaining({ channelId: { $exists: false } }),
+    expect(Object.keys(mocks.postCountDocuments.mock.calls[0][0] as object).sort()).toEqual(
+      [...OUTBOX_KEYS].sort(),
     );
   });
 
-  it('excludes them from the featured collection', async () => {
+  it('queries the featured collection on the author plus the pinned flag', async () => {
     mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' });
     const findSpy = captureQuery();
 
@@ -472,7 +478,9 @@ describe('channel posts are excluded from every author-facing AP surface', () =>
       .set('Accept', AP_ACCEPT)
       .expect(200);
 
-    expect(findSpy.mock.calls[0][0]).toMatchObject({ channelId: { $exists: false } });
+    expect(Object.keys(findSpy.mock.calls[0][0] as object).sort()).toEqual(
+      [...OUTBOX_KEYS, 'metadata.isPinned'].sort(),
+    );
   });
 });
 

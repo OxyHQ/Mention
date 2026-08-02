@@ -2,7 +2,7 @@
  * Post-related types for Mention social network
  */
 
-import type { UserNameResponse } from '@oxyhq/contracts';
+import type { AccountKind, UserNameResponse } from '@oxyhq/contracts';
 import { GeoJSONPoint } from './common';
 import type { LaneSummary } from './lane';
 
@@ -833,6 +833,25 @@ export interface PostUser {
   /** Bare Oxy file id (resolved by Bloom's ImageResolver) OR an absolute remote URL. */
   avatar?: string | null;
   verified?: boolean;
+  /**
+   * What the account IS — `personal`, `organization`, `project`, `bot`,
+   * `channel`. Oxy's user DTO already carries it (verified live: a profile read
+   * returns `kind: 'personal'`), and this interface is the canonical Oxy `User`
+   * shape passed through unchanged, so omitting it was the anomaly.
+   *
+   * It earns its place rather than merely fitting: a post authored by a channel
+   * account is an ORDINARY post whose author happens to be a channel, and the
+   * row has to link to `/c/<handle>` instead of `/@<handle>`. Without this the
+   * renderer cannot tell, and the only alternative is to send every author link
+   * to `/@<handle>` and let the profile screen bounce — correct, but a wasted
+   * navigation on every channel post.
+   *
+   * `AccountKind` comes from `@oxyhq/contracts`, which owns the account graph
+   * and which this file already imports from — restating the union here would
+   * be a second definition free to drift from the one the server validates
+   * against.
+   */
+  kind?: AccountKind;
   isFederated?: boolean;
   federation?: { domain?: string; actorUri?: string; actorId?: string };
   instance?: string;

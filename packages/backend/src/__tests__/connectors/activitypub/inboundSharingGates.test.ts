@@ -133,6 +133,11 @@ vi.mock('../../../services/fediverseSharing', () => ({
   isFediverseSharingEnabled: (...args: unknown[]) => mocks.isFediverseSharingEnabled(...args),
 }));
 
+// The channel reply gate resolves the parent author's account kind here.
+vi.mock('../../../services/publishAsAccount', () => ({
+  isChannelAccount: (oxyUserId: string) => Promise.resolve(oxyUserId === 'oxy-channel-account'),
+}));
+
 vi.mock('../../../connectors/activitypub/outbox.service', () => ({
   outboxSyncService: {
     ensureFederatedReplyLink: (...args: unknown[]) => mocks.ensureFederatedReplyLink(...args),
@@ -178,12 +183,13 @@ function stubPostFindOne(options: {
 beforeEach(() => {
   vi.clearAllMocks();
 
-  // The channel reply gate (`utils/channelReplyGate`) reads the parent post
-  // through `Post.findById`. Nothing in this file involves a channel, so the
-  // default is a parent with no `channelId` — which is what makes these replies
-  // reach the assertions below instead of being dropped by the gate.
+  // The channel reply gate (`utils/channelReplyGate`) reads the parent post's
+  // AUTHOR through `Post.findById`, then that author's Oxy account kind. Nothing
+  // in this file involves a channel, so the default is a parent written by a
+  // person — which is what makes these replies reach the assertions below instead
+  // of being dropped by the gate.
   mocks.postFindById.mockImplementation(() => ({
-    select: () => ({ lean: async () => ({ channelId: undefined }) }),
+    select: () => ({ lean: async () => ({ oxyUserId: 'oxy-person' }) }),
   }));
 
   mocks.followExists.mockResolvedValue({ _id: 'follow_1' });
@@ -245,7 +251,7 @@ describe('handleCreate — reply targeting an opted-out parent-post owner', () =
   });
 
   /**
-   * A CHANNEL POST TAKES NO REPLIES, from a remote instance either — site 3 of
+   * A CHANNEL'S POST TAKES NO REPLIES, from a remote instance either — site 3 of
    * four for `utils/channelReplyGate`, at its real call site.
    *
    * The SHAPE of the refusal is the load-bearing part here and is asserted
@@ -254,9 +260,9 @@ describe('handleCreate — reply targeting an opted-out parent-post owner', () =
    * POST makes Mastodon stop delivering to this instance entirely — killing every
    * follow, accept, like and reply from that server, not just this one.
    */
-  it('drops a reply to a CHANNEL post silently — resolves, never throws', async () => {
+  it('drops a reply to a CHANNEL-authored post silently — resolves, never throws', async () => {
     mocks.postFindById.mockImplementation(() => ({
-      select: () => ({ lean: async () => ({ channelId: 'chan_1' }) }),
+      select: () => ({ lean: async () => ({ oxyUserId: 'oxy-channel-account' }) }),
     }));
 
     await expect(
@@ -266,11 +272,11 @@ describe('handleCreate — reply targeting an opted-out parent-post owner', () =
     expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
   });
 
-  it('CONTROL: a parent carrying only a laneId still accepts the reply', async () => {
-    // A lane is a lens, not a destination — the gate must key off `channelId`
-    // alone, or every lane post would silently stop accepting federated replies.
+  it('CONTROL: a parent carrying a laneId still accepts the reply', async () => {
+    // A lane is a lens, not a publisher — the gate must key off the AUTHOR alone,
+    // or every lane post would silently stop accepting federated replies.
     mocks.postFindById.mockImplementation(() => ({
-      select: () => ({ lean: async () => ({ channelId: undefined, laneId: 'lane_1' }) }),
+      select: () => ({ lean: async () => ({ oxyUserId: 'oxy-person', laneId: 'lane_1' }) }),
     }));
 
     await inboxProcessingService.processInboxActivity(replyActivity(), ACTOR_URI);

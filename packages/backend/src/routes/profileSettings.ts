@@ -7,7 +7,8 @@ import Like from '../models/Like';
 // Block and Restrict routes removed - frontend should use Oxy services directly
 import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { buildSettingsResponseForViewer, ensureUserSettings } from '../utils/userSettings';
-import { ensureProfileMediaPublic } from '../utils/oxyHelpers';
+import { createUserScopedOxyServices, ensureProfileMediaPublic } from '../utils/oxyHelpers';
+import { assertCanPublishAsAccount, PublishAsAccessError } from '../services/publishAsAccount';
 import { canViewProfileDesign } from '../utils/privacyHelpers';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxyhq/core/server';
@@ -86,6 +87,79 @@ router.get('/settings/:userId', async (req: AuthRequest, res: Response) => {
   } catch (err) {
     logger.error('[ProfileSettings] Error fetching user settings:', { userId: req.user?.id, targetUserId: req.params.userId, error: err });
     return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to fetch settings');
+  }
+});
+
+/**
+ * PUT /api/profile/settings/:userId — settings of an account the caller OPERATES.
+ *
+ * A channel account has no login, so nobody can ever authenticate AS one and use
+ * `PUT /settings` below: without this route its settings are unreachable and the
+ * `signPosts` toggle is a control that writes nowhere. That is the whole reason
+ * the route takes an id at all.
+ *
+ * It is deliberately NOT a general "write someone else's settings" endpoint. The
+ * body accepts exactly one field, and authorization is `assertCanPublishAsAccount`
+ * — the same gate the publish path uses, which answers "may this person act for
+ * that account" out of Oxy's account graph rather than a Mention-side copy. Using
+ * the same gate is what keeps the two answers from drifting: whoever may publish
+ * as the channel is whoever may configure how it signs.
+ */
+router.put('/settings/:userId', async (req: AuthRequest, res: Response) => {
+  const targetUserId = req.params.userId as string;
+  try {
+    const callerId = getAuthenticatedUserId(req);
+
+    const validationError = validateRequired(targetUserId, 'userId');
+    if (validationError) {
+      return sendErrorResponse(res, 400, 'Bad Request', validationError);
+    }
+
+    const signPosts = (req.body as { channel?: { signPosts?: unknown } } | undefined)?.channel
+      ?.signPosts;
+    // Strictly boolean: this decides whether the human who wrote a post is
+    // disclosed, so a truthy non-boolean (`"false"` from a form, `1`) must not
+    // read as consent to disclose.
+    if (typeof signPosts !== 'boolean') {
+      return sendErrorResponse(res, 400, 'Bad Request', 'channel.signPosts must be a boolean');
+    }
+
+    try {
+      await assertCanPublishAsAccount({
+        publishAsOxyUserId: targetUserId,
+        callerId,
+        memberReader: createUserScopedOxyServices(req),
+      });
+    } catch (error) {
+      if (error instanceof PublishAsAccessError) {
+        return sendErrorResponse(res, error.status, 'Forbidden', error.message);
+      }
+      throw error;
+    }
+    // `assertCanPublishAsAccount` returns the caller unchanged when the target IS
+    // the caller, which would let a person write `channel.signPosts` onto their own
+    // personal settings — a field with no meaning there. The target must be a
+    // channel, so say so rather than relying on the gate's publish-shaped answer.
+    if (targetUserId === callerId) {
+      return sendErrorResponse(res, 400, 'Bad Request', 'That account cannot be published as');
+    }
+
+    const doc = await UserSettings.findOneAndUpdate(
+      { oxyUserId: targetUserId },
+      { $set: { 'channel.signPosts': signPosts } },
+      { new: true, upsert: true },
+    )
+      .lean()
+      .exec();
+
+    return sendSuccessResponse(res, 200, { channel: { signPosts: doc?.channel?.signPosts === true } });
+  } catch (err) {
+    logger.error('[ProfileSettings] Error updating operated account settings:', {
+      userId: req.user?.id,
+      targetUserId,
+      error: err,
+    });
+    return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to update settings');
   }
 });
 

@@ -36,6 +36,7 @@ import { migrationLaneIndexes } from './0022-lane-indexes';
 import { migrationPostLaneIndex } from './0023-post-lane-index';
 import { migrationChannelIndexes } from './0024-channel-indexes';
 import { migrationChannelFollowUserIndex } from './0025-channel-follow-user-index';
+import { migrationChannelAccounts } from './0026-channel-accounts';
 import { MIGRATIONS_COLLECTION } from './constants';
 
 export interface Migration {
@@ -97,6 +98,7 @@ const MIGRATIONS: readonly Migration[] = [
   migrationPostLaneIndex,
   migrationChannelIndexes,
   migrationChannelFollowUserIndex,
+  migrationChannelAccounts,
 ];
 
 /**

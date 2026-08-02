@@ -169,10 +169,6 @@ describe('PostCreationService.create — laneId', () => {
       skipNotifications: true,
     });
 
-    expect(laneExists).toHaveBeenCalledWith({
-      _id: LANE_ID,
-      ownerType: 'user',
-      ownerId: USER_ID,
-    });
+    expect(laneExists).toHaveBeenCalledWith({ _id: LANE_ID, ownerId: USER_ID });
   });
 });

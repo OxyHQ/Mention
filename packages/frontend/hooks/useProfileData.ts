@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useUserByUsername, queryKeys as sdkQueryKeys } from '@oxyhq/services';
 import { useAuth } from '@oxyhq/services/ui/client';
-import type { User } from '@oxyhq/core';
+import type { AccountKind, User } from '@oxyhq/core';
 import { useAppearanceStore, type UserAppearance, type ProfileMedia } from '@/stores/appearanceStore';
 import { APP_COLOR_PRESETS, HEX_TO_APP_COLOR } from '@oxyhq/bloom/theme';
 import { MEDIA_VARIANT_BANNER } from '@mention/shared-types/post';
@@ -39,6 +39,13 @@ export interface ProfileDesign {
 export interface ProfileData {
   id: string;
   username: string;
+  /**
+   * What KIND of Oxy account this is. `channel` is the one Mention routes
+   * differently — a channel's page lives at `/c/<handle>` rather than at
+   * `/@<handle>` — so it is named here rather than read off the permissive index
+   * signature below, where it would arrive as `unknown` and tempt a cast.
+   */
+  kind?: AccountKind;
   name: User['name'];
   bio?: string;
   verified?: boolean;
@@ -226,6 +233,7 @@ export function useProfileData(username?: string): {
     return {
       ...profile,
       id: profile.id || '',
+      kind: profile.kind,
       communities,
       username: profile.username || '',
       avatar: profile.avatar ?? undefined,

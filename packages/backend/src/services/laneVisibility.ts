@@ -23,7 +23,7 @@
 
 import { Lane } from '../models/Lane';
 import { logger } from '../utils/logger';
-import type { AuthorFeedFilter, LaneDisplayMode, LaneOwnerType } from '@mention/shared-types';
+import type { AuthorFeedFilter, LaneDisplayMode } from '@mention/shared-types';
 
 /** Display modes that never appear on ANY profile tab. */
 const HIDDEN_ONLY: readonly LaneDisplayMode[] = ['hidden'];
@@ -43,23 +43,22 @@ export function excludedDisplayModesForTab(filter: AuthorFeedFilter): readonly L
 }
 
 /**
- * The publisher's lane ids in any of `modes` — the ids a profile/channel query
- * excludes with `laneId: { $nin: … }`.
+ * The publisher's lane ids in any of `modes` — the ids a profile query excludes
+ * with `laneId: { $nin: … }`.
  *
- * One indexed lookup per feed request, served by
- * `{ ownerType, ownerId, displayMode }`. Fail-soft to `[]`: a lookup error must
- * degrade to an UNCURATED profile rather than an empty one — showing a post the
- * owner meant to tuck away is a far smaller harm than showing them nothing.
+ * One indexed lookup per feed request, served by `{ ownerId, displayMode }`.
+ * Fail-soft to `[]`: a lookup error must degrade to an UNCURATED profile rather
+ * than an empty one — showing a post the owner meant to tuck away is a far
+ * smaller harm than showing them nothing.
  */
 export async function loadExcludedLaneIds(
-  ownerType: LaneOwnerType,
   ownerId: string,
   modes: readonly LaneDisplayMode[],
 ): Promise<string[]> {
   if (!ownerId || modes.length === 0) return [];
   try {
     const lanes = await Lane.find(
-      { ownerType, ownerId, displayMode: { $in: modes } },
+      { ownerId, displayMode: { $in: modes } },
       { _id: 1 },
     ).lean<Array<{ _id: unknown }>>();
     return lanes.map((lane) => String(lane._id));
@@ -82,7 +81,6 @@ export async function ownerHasProfileAffectingLane(ownerId: string): Promise<boo
   if (!ownerId) return false;
   try {
     const lane = await Lane.exists({
-      ownerType: 'user',
       ownerId,
       displayMode: { $in: OFF_MAIN_TAB },
     });

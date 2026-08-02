@@ -46,6 +46,31 @@ export function createScopedOxyClient(req: ScopedOxyRequest): OxyClient | undefi
 }
 
 /**
+ * A full `OxyServices` scoped to the caller's OWN verified bearer, for the Oxy
+ * endpoints that are authorized against the authenticated USER and honour no
+ * service-token delegation — today, the account-graph membership read behind
+ * `publishAsOxyUserId` (`GET /accounts/:id/members`).
+ *
+ * Deliberately NOT {@link createScopedOxyClient}: that one narrows to the
+ * privacy-graph surface and, for an MCP request, answers with a SERVICE-delegated
+ * client. A service credential cannot read that route at all, so an MCP caller
+ * gets `undefined` here and the publish-as gate refuses — which is the correct
+ * answer, not a gap.
+ *
+ * A fresh instance per request, so the SDK's own GET cache is empty: an
+ * authorization decision must never be served from another caller's cached
+ * membership list.
+ */
+export function createUserScopedOxyServices(req: ScopedOxyRequest): OxyServices | undefined {
+  if (req.mcp) return undefined;
+  const token = req.accessToken || bearerToken(req.headers?.authorization);
+  if (!token) return undefined;
+  const client = new OxyServices({ baseURL: OXY_BASE_URL });
+  client.setTokens(token);
+  return client;
+}
+
+/**
  * Module-level singleton OxyServices instance authenticated with the service token.
  * Used for server-side operations on behalf of the system (e.g. resolving federated actors).
  *

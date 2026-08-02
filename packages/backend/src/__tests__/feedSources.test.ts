@@ -70,7 +70,7 @@ vi.mock('../models/Bookmark', () => ({
  * `laneDoc` is what `Lane.findById` answers (the lane a lane tab addresses).
  */
 let ownerLanes: Array<{ _id: unknown }> = [];
-let laneDoc: { ownerType: string; ownerId: string; displayMode: string } | null = null;
+let laneDoc: { ownerId: string; displayMode: string } | null = null;
 vi.mock('../models/Lane', () => {
   const chain = <T>(value: T) => {
     const link = { select: () => link, sort: () => link, lean: () => Promise.resolve(value) };
@@ -497,7 +497,7 @@ describe('lane source', () => {
   const LANE_ID = oid(40).toString();
 
   it('serves a `tab` lane, scoped to its publisher, on the chrono keyset', async () => {
-    laneDoc = { ownerType: 'user', ownerId: 'owner-1', displayMode: 'tab' };
+    laneDoc = { ownerId: 'owner-1', displayMode: 'tab' };
     findRouter = () => [makePost(41)];
 
     const posts = await laneSource.gather({ currentUserId: 'viewer' }, { laneId: LANE_ID }, 31);
@@ -514,7 +514,7 @@ describe('lane source', () => {
   });
 
   it.each(['mixed', 'hidden'])('serves nothing for a `%s` lane', async (displayMode) => {
-    laneDoc = { ownerType: 'user', ownerId: 'owner-1', displayMode };
+    laneDoc = { ownerId: 'owner-1', displayMode };
     findRouter = () => [makePost(42)];
 
     const posts = await laneSource.gather({ currentUserId: 'viewer' }, { laneId: LANE_ID }, 31);
@@ -526,7 +526,7 @@ describe('lane source', () => {
   });
 
   it('serves nothing when the reader cannot see the publisher', async () => {
-    laneDoc = { ownerType: 'user', ownerId: 'owner-1', displayMode: 'tab' };
+    laneDoc = { ownerId: 'owner-1', displayMode: 'tab' };
     profileVisibility = 'private';
     findRouter = () => [makePost(43)];
 
@@ -541,7 +541,7 @@ describe('lane source', () => {
   });
 
   it('serves a private publisher to a follower', async () => {
-    laneDoc = { ownerType: 'user', ownerId: 'owner-1', displayMode: 'tab' };
+    laneDoc = { ownerId: 'owner-1', displayMode: 'tab' };
     profileVisibility = 'private';
     findRouter = () => [makePost(44)];
 
@@ -554,14 +554,16 @@ describe('lane source', () => {
     expect(posts.map((p) => String(p._id))).toEqual([oid(44).toString()]);
   });
 
-  it('serves nothing for a channel-owned lane, which has no visibility rule yet', async () => {
-    laneDoc = { ownerType: 'channel', ownerId: 'channel-1', displayMode: 'tab' };
+  it('serves a CHANNEL account\'s lane through the same publisher gate', async () => {
+    // A channel is an Oxy account, so its lane tab answers to `canViewAuthorFeed`
+    // exactly as a person's does — one publisher, one check, no second branch.
+    laneDoc = { ownerId: 'oxy-channel-account', displayMode: 'tab' };
     findRouter = () => [makePost(45)];
 
     const posts = await laneSource.gather({ currentUserId: 'viewer' }, { laneId: LANE_ID }, 31);
 
-    expect(posts).toEqual([]);
-    expect(findCalls).toHaveLength(0);
+    expect(posts.map((p) => String(p._id))).toEqual([oid(45).toString()]);
+    expect(findCalls[0].oxyUserId).toBe('oxy-channel-account');
   });
 
   it('serves nothing for a missing lane, a malformed id, or no id at all', async () => {
@@ -573,7 +575,7 @@ describe('lane source', () => {
   });
 
   it('pages on the compound createdAt keyset, never a bare _id boundary', async () => {
-    laneDoc = { ownerType: 'user', ownerId: 'owner-1', displayMode: 'tab' };
+    laneDoc = { ownerId: 'owner-1', displayMode: 'tab' };
     findRouter = () => [makePost(46)];
     const anchor = { createdAt: new Date('2026-02-03T04:05:06.000Z'), _id: oid(46) };
     const cursor = ChronoCursor.build(String(anchor._id), anchor.createdAt);

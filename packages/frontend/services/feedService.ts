@@ -318,22 +318,6 @@ class FeedService {
             });
           }
 
-          // Handle one channel's page.
-          //
-          // Its own explicit branch, for the same reason the lane has one: a
-          // channel is not a `FeedType`, so the fallback at the bottom of this
-          // chain would emit the carrier type as the descriptor and serve an
-          // entirely different feed with a 200. The descriptor takes the channel's
-          // `_id`, never its handle — `GET /channels/:idOrHandle` is where both
-          // spellings are resolved, so a rename cannot break a pinned home tab.
-          if (request.filters?.channelId) {
-            return await this.getMtnFeed(buildFeedDescriptor('channel', request.filters.channelId), {
-              cursor: request.cursor,
-              limit: request.limit || 20,
-              signal: options?.signal,
-            });
-          }
-
           // Handle hashtag feed
           if (request.type === 'hashtag' && request.filters?.hashtag) {
             const tag = encodeURIComponent(request.filters.hashtag);
@@ -514,10 +498,10 @@ class FeedService {
       // returns and this object omits vanishes on the way out with a 201 and no
       // error anywhere.
       ...(request.laneId && { laneId: request.laneId }),
-      // The channel the author published to — same whitelist rule as `laneId`
-      // above, and the stakes are higher: a dropped `channelId` publishes to the
-      // author's own timeline instead of to the channel, with a 201 either way.
-      ...(request.channelId && { channelId: request.channelId }),
+      // The account the post is published AS — same whitelist rule as `laneId`
+      // above, and the stakes are higher: dropped, the post is authored by the
+      // person instead of by the channel, with a 201 either way.
+      ...(request.publishAsOxyUserId && { publishAsOxyUserId: request.publishAsOxyUserId }),
     };
 
     const response = await authenticatedClient.post<{ success?: boolean; post?: HydratedPost }>('/posts', backendRequest);

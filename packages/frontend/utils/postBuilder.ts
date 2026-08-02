@@ -67,19 +67,20 @@ interface BuildMainPostParams {
    */
   laneId?: string;
   /**
-   * The channel this post is published TO.
+   * Publish this post AS another Oxy account the caller operates — today, a
+   * `channel` account.
    *
-   * A destination rather than a lens: the post belongs to the channel and only to
-   * the channel — never the author's profile, never their followers' timeline,
-   * and it accepts no replies. Only ever set on an ORIGINAL post: the server
-   * refuses a channel on a reply, a boost and a federated ingest (400/403), and
-   * the composer hides the affordance on those paths rather than letting the
-   * author pick a destination that gets dropped.
+   * The post is AUTHORED BY that account: it lands on the channel's profile and
+   * in the timelines of the channel's followers, and it renders with the
+   * channel's avatar and name because `user` IS the channel. Only ever set on an
+   * ORIGINAL post: the server refuses it on a reply, a boost and a federated
+   * ingest (400/403), and the composer hides the affordance on those paths
+   * rather than letting the author pick an identity that gets dropped.
    *
-   * To put a channel post on your own profile you BOOST it; there is no field
+   * To put a channel's post on your own profile you BOOST it; there is no field
    * for that, because a boost is already the right row with the right owner.
    */
-  channelId?: string;
+  publishAsOxyUserId?: string;
   /**
    * The author renditions of this post, PRIMARY FIRST — order is what names the
    * primary. `null` when the author declared no language, which keeps a
@@ -115,7 +116,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     quotedPostId,
     collaboratorIds,
     laneId,
-    channelId,
+    publishAsOxyUserId,
     variantContent,
   } = params;
 
@@ -201,7 +202,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     ...(quotedPostId ? { quotedPostId } : {}),
     ...(collaboratorIds && collaboratorIds.length > 0 ? { collaboratorIds } : {}),
     ...(laneId ? { laneId } : {}),
-    ...(channelId ? { channelId } : {}),
+    ...(publishAsOxyUserId ? { publishAsOxyUserId } : {}),
     ...(isSensitive ? { metadata: { isSensitive: true } } : {}),
     ...(wasScheduled && scheduledAt ? {
       status: 'scheduled' as const,

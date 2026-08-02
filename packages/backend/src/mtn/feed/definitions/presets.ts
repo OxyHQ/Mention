@@ -495,33 +495,6 @@ export function laneDefinition(laneId: string): FeedDefinition {
   };
 }
 
-/**
- * Channel feed — ONE channel's page (chronological).
- *
- * `title` is deliberately not the channel's name, for the same reason
- * {@link laneDefinition} and {@link trendDefinition} avoid it: this definition is
- * reachable from a descriptor alone, the screen already knows the name, and
- * inventing one it cannot know is how a stale label survives a rename.
- *
- * `hydrateMaxDepth: 1`, unlike the lane tab's `0`. A channel post may be a QUOTE
- * (quoting is explicitly allowed — a citation is a new post on the citer's
- * timeline, not conversation inside the channel), and a quote whose original is
- * not embedded renders as a card with a hole in it. The boost case cannot arise —
- * a boost never carries a `channelId` — but the quote case can, and one depth
- * covers both.
- */
-export function channelDefinition(channelId: string): FeedDefinition {
-  return {
-    id: `channel|${channelId}`,
-    title: 'Channel',
-    mode: 'chronological',
-    sources: [enabled('channel', { channelId })],
-    signals: [],
-    filters: [enabled('safety')],
-    execution: { threadGrouping: false, replyContext: false, hydrateMaxDepth: 1 },
-  };
-}
-
 /** List feed — posts from an AccountList's members (chronological). */
 export function listDefinition(listId: string): FeedDefinition {
   return {

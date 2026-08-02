@@ -122,4 +122,4 @@ export interface FeedAPI {
  * first and falls back to the slug-only `topics`; it treats an absent /
  * un-baselined classification as NEUTRAL.
  */
-export const FEED_FIELDS = '_id oxyUserId authorship federation createdAt visibility type parentPostId boostOf quoteOf laneId channelId threadId content stats metadata hashtags mentions language postClassification.scores postClassification.status postClassification.version postClassification.sensitive postClassification.topics postClassification.topicRefs postClassification.languages postClassification.sentiment';
+export const FEED_FIELDS = '_id oxyUserId authorship federation createdAt visibility type parentPostId boostOf quoteOf laneId threadId content stats metadata hashtags mentions language postClassification.scores postClassification.status postClassification.version postClassification.sensitive postClassification.topics postClassification.topicRefs postClassification.languages postClassification.sentiment';

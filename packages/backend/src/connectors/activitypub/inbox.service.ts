@@ -566,7 +566,7 @@ export class InboxProcessingService {
       return;
     }
 
-    // A CHANNEL POST TAKES NO REPLIES, from this instance or any other.
+    // A CHANNEL'S POST TAKES NO REPLIES, from this instance or any other.
     //
     // **A SILENT DROP, never a throw and never a 4xx** — the shape of the refusal
     // matters more here than anywhere else. A throw fails the BullMQ inbox job,
@@ -576,7 +576,7 @@ export class InboxProcessingService {
     // reply is discarded exactly the way the sharing-disabled case above discards
     // one: `debug`, and a normal return that lets the activity be acknowledged.
     if (threadLink && (await parentIsChannelPost(threadLink.parentPostId))) {
-      logger.debug('[Federation] dropped reply to a channel post');
+      logger.debug('[Federation] dropped reply to a channel-authored post');
       return;
     }
 

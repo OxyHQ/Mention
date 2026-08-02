@@ -1,10 +1,10 @@
 /**
  * Lane — a publisher's own named carriageway through their output.
  *
- * A lane belongs to ONE publisher, and a publisher is a user OR a channel
- * (`ownerType` + `ownerId`). Channels curate their own page exactly the way a
- * user curates a profile, so the polymorphic owner is here from the first row:
- * bolting it on later would mean migrating every lane already written.
+ * A lane belongs to ONE publisher, identified by a single `ownerId` — an Oxy
+ * `oxyUserId`. A channel is an Oxy account, so a channel curating its page and a
+ * person curating their profile are THE SAME CASE: there is no second id space
+ * and nothing to discriminate between.
  *
  * Deliberately ABSENT, both times for the same reason — the cheapest correct
  * thing is no field at all:
@@ -19,21 +19,19 @@
  *    served by `post_lane_chrono_v1`.
  *
  * `autoIndex`/`autoCreate` are OFF in production, so the indexes declared below
- * are created by migration `0022-lane-indexes`, not on model load.
+ * are created by migrations `0022-lane-indexes` and `0026-channel-accounts`
+ * (which re-keys all three onto `ownerId` alone), not on model load.
  */
 
 import mongoose, { Schema, Document } from 'mongoose';
 import {
   LANE_DISPLAY_MODES,
-  LANE_OWNER_TYPES,
   MAX_LANE_NAME_LENGTH,
   type LaneDisplayMode,
-  type LaneOwnerType,
 } from '@mention/shared-types';
 
 export interface ILane extends Document {
-  ownerType: LaneOwnerType;
-  /** The publisher's id: an `oxyUserId` for `user`, a channel id for `channel`. */
+  /** The publisher's `oxyUserId` — a person or a channel account alike. */
   ownerId: string;
   name: string;
   /** Case/whitespace-normalized identity, so uniqueness is per publisher and case-insensitive. */
@@ -55,11 +53,6 @@ export function normalizeLaneName(name: string): string {
 
 const LaneSchema = new Schema<ILane>(
   {
-    ownerType: {
-      type: String,
-      enum: LANE_OWNER_TYPES as LaneOwnerType[],
-      required: true,
-    },
     ownerId: { type: String, required: true },
     name: { type: String, required: true, trim: true, maxlength: MAX_LANE_NAME_LENGTH },
     nameLower: { type: String, required: true },
@@ -84,11 +77,11 @@ LaneSchema.pre('validate', function () {
 });
 
 /** The publisher's own list, newest first — the management screen. */
-LaneSchema.index({ ownerType: 1, ownerId: 1, createdAt: -1 });
+LaneSchema.index({ ownerId: 1, createdAt: -1 });
 /** One name per publisher. The 409 on create is this constraint, not a count. */
-LaneSchema.index({ ownerType: 1, ownerId: 1, nameLower: 1 }, { unique: true });
-/** The exclusion lookup, which runs on EVERY profile / channel feed request. */
-LaneSchema.index({ ownerType: 1, ownerId: 1, displayMode: 1 });
+LaneSchema.index({ ownerId: 1, nameLower: 1 }, { unique: true });
+/** The exclusion lookup, which runs on EVERY profile feed request. */
+LaneSchema.index({ ownerId: 1, displayMode: 1 });
 
 export const Lane = mongoose.model<ILane>('Lane', LaneSchema);
 export default Lane;

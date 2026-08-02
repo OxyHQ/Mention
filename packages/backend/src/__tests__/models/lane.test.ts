@@ -35,7 +35,6 @@ describe('Lane model', () => {
     // and the sync form skips it entirely — which is also why every other test
     // here builds a document that would be valid without the hook.
     const lane = new Lane({
-      ownerType: 'user',
       ownerId: 'u1',
       name: '  Fotos  De  Viaje ',
       nameLower: 'anything-else',
@@ -45,42 +44,45 @@ describe('Lane model', () => {
   });
 
   it('defaults displayMode to mixed — a new lane behaves like no lane at all', () => {
-    const lane = new Lane({ ownerType: 'user', ownerId: 'u1', name: 'Dev' });
+    const lane = new Lane({ ownerId: 'u1', name: 'Dev' });
     expect(lane.displayMode).toBe('mixed');
   });
 
-  it('rejects an owner type outside the enum', () => {
-    const lane = new Lane({ ownerType: 'group', ownerId: 'u1', name: 'Dev' });
-    expect(lane.validateSync()?.errors.ownerType).toBeDefined();
-  });
-
   it('rejects a display mode outside the enum', () => {
-    const lane = new Lane({ ownerType: 'user', ownerId: 'u1', name: 'Dev', displayMode: 'secret' });
+    const lane = new Lane({ ownerId: 'u1', name: 'Dev', displayMode: 'secret' });
     expect(lane.validateSync()?.errors.displayMode).toBeDefined();
   });
 
   it('requires an owner and a name', () => {
     const errors = new Lane({}).validateSync()?.errors ?? {};
-    expect(errors.ownerType).toBeDefined();
     expect(errors.ownerId).toBeDefined();
     expect(errors.name).toBeDefined();
   });
 
+  it('accepts a lane with no ownerType at all — the discriminator is gone', async () => {
+    // A channel is an Oxy account, so `ownerId` is an `oxyUserId` whoever the
+    // publisher is. A model that still REQUIRED an owner type would reject every
+    // lane the current routes write.
+    //
+    // `validate()`, not `validateSync()`: `nameLower` comes from the async
+    // `pre('validate')` hook, which the sync form skips entirely.
+    await expect(new Lane({ ownerId: 'u1', name: 'Dev' }).validate()).resolves.toBeUndefined();
+  });
+
   it('enforces the shared name-length cap, so the API and the model agree', () => {
     const lane = new Lane({
-      ownerType: 'user',
       ownerId: 'u1',
       name: 'x'.repeat(MAX_LANE_NAME_LENGTH + 1),
     });
     expect(lane.validateSync()?.errors.name).toBeDefined();
   });
 
-  it('declares the three indexes migration 0022 creates, with the same uniqueness', () => {
+  it('declares the three indexes migration 0026 re-keys onto ownerId, with the same uniqueness', () => {
     const declared = Lane.schema.indexes().map(([key, options]) => ({ key, unique: options?.unique }));
     expect(declared).toEqual([
-      { key: { ownerType: 1, ownerId: 1, createdAt: -1 }, unique: undefined },
-      { key: { ownerType: 1, ownerId: 1, nameLower: 1 }, unique: true },
-      { key: { ownerType: 1, ownerId: 1, displayMode: 1 }, unique: undefined },
+      { key: { ownerId: 1, createdAt: -1 }, unique: undefined },
+      { key: { ownerId: 1, nameLower: 1 }, unique: true },
+      { key: { ownerId: 1, displayMode: 1 }, unique: undefined },
     ]);
   });
 });

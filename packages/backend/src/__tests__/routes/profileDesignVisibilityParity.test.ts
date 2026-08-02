@@ -44,6 +44,20 @@ vi.mock('../../utils/oxyHelpers', () => ({
       Promise.resolve({ following: followingByViewer.get(userId) ?? [] }),
   }),
   ensureProfileMediaPublic: vi.fn().mockResolvedValue(undefined),
+  createUserScopedOxyServices: vi.fn(() => undefined),
+}));
+
+// `profileSettings` reaches this through `PUT /settings/:userId`, whose gate
+// resolves an account's kind via `PostHydrationService` — which imports the
+// ActivityPub connector and reads `config.federation` at module scope. This suite
+// stubs `../../config` down to what IT needs, so the real module would throw on
+// import. Nothing here exercises the gate; it is stubbed so the parity assertions
+// below stay about profile-design visibility.
+vi.mock('../../services/publishAsAccount', () => ({
+  PublishAsAccessError: class extends Error {
+    readonly status = 403;
+  },
+  assertCanPublishAsAccount: vi.fn(async () => null),
 }));
 
 vi.mock('../../models/UserSettings', () => ({

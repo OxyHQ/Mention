@@ -31,18 +31,9 @@ describe('viewer-scoped private cache', () => {
       viewerQueryKeys.lanesRoot(viewerId),
       viewerQueryKeys.ownedLanes(viewerId),
       viewerQueryKeys.mutedLanes(viewerId),
-      viewerQueryKeys.lanesForOwner(viewerId, 'user', 'owner-1'),
-      viewerQueryKeys.channelsRoot(viewerId),
-      viewerQueryKeys.channelDirectory(viewerId),
-      viewerQueryKeys.channel(viewerId, 'channel-1'),
-      viewerQueryKeys.channelMembers(viewerId, 'channel-1'),
-      viewerQueryKeys.ownedChannels(viewerId),
-      viewerQueryKeys.followedChannels(viewerId),
-      viewerQueryKeys.channelInvites(viewerId),
-      viewerQueryKeys.channelInviteSearch(viewerId, 'nate'),
-      viewerQueryKeys.channelLanes(viewerId, 'channel-1', true),
-      viewerQueryKeys.channelLanes(viewerId, 'channel-1', false),
-      viewerQueryKeys.channelTitles(viewerId, ['channel-1']),
+      viewerQueryKeys.lanesForOwner(viewerId, 'owner-1'),
+      viewerQueryKeys.operatedLanes(viewerId, 'channel-account-1'),
+      viewerQueryKeys.operatedAccounts(viewerId),
       viewerQueryKeys.pokesRoot(viewerId),
       viewerQueryKeys.pokes(viewerId, 'received'),
       viewerQueryKeys.notificationsRoot(viewerId),
@@ -123,7 +114,7 @@ describe('viewer-scoped private cache', () => {
     expect(viewerQueryKeys.profileStarterPacks('viewer-a', undefined, true)).toContain('');
     expect(viewerQueryKeys.profileLists('viewer-a', undefined, true)).toContain('');
     expect(viewerQueryKeys.postActivity('viewer-a', undefined)).toContain('');
-    expect(viewerQueryKeys.lanesForOwner('viewer-a', 'user', undefined)).toContain('');
+    expect(viewerQueryKeys.lanesForOwner('viewer-a', undefined)).toContain('');
     expect(viewerQueryKeys.feedInterstitial(
       'viewer-a',
       'suggested-starter-packs',

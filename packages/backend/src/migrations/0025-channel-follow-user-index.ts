@@ -27,19 +27,23 @@
  * Idempotent and data-free: `createIndex` with an identical spec is a no-op, and
  * nothing is backfilled — every existing follow row already carries the
  * `createdAt` the index orders by.
+ *
+ * HISTORY: `channelfollows` was dropped by `0026-channel-accounts` — following a
+ * channel is now an ordinary Oxy follow. Kept, and unchanged in effect, for the
+ * reason `0024` states; the collection name is a literal because the model it
+ * came from is gone.
  */
 
 import mongoose from 'mongoose';
 import { logger } from '../utils/logger';
 import { MIGRATION_CHANNEL_FOLLOW_USER_INDEX } from './constants';
-import { ChannelFollow } from '../models/ChannelFollow';
 import type { Migration } from './runner';
 
 export const migrationChannelFollowUserIndex: Migration = {
   id: MIGRATION_CHANNEL_FOLLOW_USER_INDEX,
 
   async run(db: mongoose.mongo.Db): Promise<void> {
-    const follows = db.collection(ChannelFollow.collection.collectionName);
+    const follows = db.collection('channelfollows');
     await follows.createIndex(
       { oxyUserId: 1, createdAt: -1, _id: -1 },
       { name: 'channel_follow_by_user_v1' },

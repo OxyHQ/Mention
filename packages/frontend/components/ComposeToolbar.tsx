@@ -45,14 +45,14 @@ interface ComposeToolbarProps {
      */
     onLanePress?: () => void;
     /**
-     * Choose the post's DESTINATION — the author's own profile, or a channel they
-     * may publish to. Main toolbar only, and omitted entirely on a reply, an edit
-     * and a thread: the server refuses a channel on all three, and the reply and
-     * update payloads drop fields they do not name, so an affordance there would
-     * take the author's choice, answer 201 and publish to their own profile with
-     * nothing to tell them.
+     * Choose WHO the post is by — the author themselves, or a channel account
+     * they operate. Main toolbar only, and omitted entirely on a reply, an edit
+     * and a thread: the server refuses another author on all three, and the reply
+     * and update payloads drop fields they do not name, so an affordance there
+     * would take the author's choice, answer 201 and publish under their own name
+     * with nothing to tell them.
      */
-    onChannelPress?: () => void;
+    onPublishAsPress?: () => void;
     hasLocation?: boolean;
     isGettingLocation?: boolean;
     hasPoll?: boolean;
@@ -71,8 +71,8 @@ interface ComposeToolbarProps {
     hasCollaborators?: boolean;
     /** The post is already assigned to one of the author's lanes. */
     hasLane?: boolean;
-    /** The post is going to a channel rather than to the author's own profile. */
-    hasChannel?: boolean;
+    /** The post is authored by a channel account rather than by the author. */
+    hasPublishAs?: boolean;
     /** False once the post holds the maximum collaborators. */
     collaboratorsEnabled?: boolean;
     hasSourceErrors?: boolean;
@@ -95,7 +95,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     onLanguagePress,
     onCollaboratorsPress,
     onLanePress,
-    onChannelPress,
+    onPublishAsPress,
     hasLocation = false,
     isGettingLocation = false,
     hasPoll = false,
@@ -111,7 +111,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     hasCollaborators = false,
     collaboratorsEnabled = true,
     hasLane = false,
-    hasChannel = false,
+    hasPublishAs = false,
     hasSourceErrors = false,
     disabled = false,
 }) => {
@@ -337,22 +337,22 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                 </PressableScale>
             )}
 
-            {onChannelPress && (
+            {onPublishAsPress && (
                 <PressableScale
-                    onPress={withHaptic(onChannelPress)}
+                    onPress={withHaptic(onPublishAsPress)}
                     disabled={disabled}
                     className="p-1"
                     accessibilityRole="button"
-                    accessibilityLabel={t('channels.compose.choose', { defaultValue: 'Choose where to post' })}
+                    accessibilityLabel={t('channels.compose.choose', { defaultValue: 'Choose who posts' })}
                 >
                     {/* A megaphone — a channel is a broadcast, and this is the
                         only control on the row that changes WHO the post is by. */}
                     <Ionicons
-                        name={hasChannel ? 'megaphone' : 'megaphone-outline'}
+                        name={hasPublishAs ? 'megaphone' : 'megaphone-outline'}
                         size={20}
                         color={disabled
                             ? theme.colors.textTertiary
-                            : hasChannel
+                            : hasPublishAs
                                 ? theme.colors.primary
                                 : theme.colors.textSecondary}
                     />

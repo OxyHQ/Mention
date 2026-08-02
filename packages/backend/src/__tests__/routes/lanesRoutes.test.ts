@@ -82,11 +82,6 @@ vi.mock('../../models/Post', () => ({
   },
 }));
 
-const channelFindById = vi.fn();
-vi.mock('../../models/Channel', () => ({
-  Channel: { findById: (...args: unknown[]) => channelFindById(...args) },
-}));
-
 const resolveUserSummaries = vi.fn();
 vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: (...args: unknown[]) => resolveUserSummaries(...args),
@@ -121,7 +116,6 @@ function chain<T>(value: T) {
 function laneDoc(overrides: Record<string, unknown> = {}) {
   return {
     _id: LANE_ID,
-    ownerType: 'user',
     ownerId: VIEWER_ID,
     name: 'Dev',
     nameLower: 'dev',
@@ -149,11 +143,10 @@ beforeEach(() => {
   for (const fn of [
     laneFind, laneFindOne, laneFindById, laneCreate, laneCount, laneDeleteOne,
     muteFind, muteFindOne, muteCreate, muteCount, muteDeleteOne, muteDeleteMany,
-    postUpdateMany, postAggregate, resolveUserSummaries, channelFindById,
+    postUpdateMany, postAggregate, resolveUserSummaries,
   ]) {
     fn.mockReset();
   }
-  channelFindById.mockReturnValue(chain(null));
   laneFind.mockReturnValue(chain([]));
   laneFindOne.mockReturnValue(chain(null));
   laneFindById.mockReturnValue(chain(null));
@@ -180,7 +173,6 @@ describe('GET /lanes (public)', () => {
     // `mixed` has no tab of its own and `hidden` is off the showcase — a list
     // whose only purpose is drawing tabs must contain neither.
     expect(laneFind).toHaveBeenCalledWith({
-      ownerType: 'user',
       ownerId: 'author-1',
       displayMode: 'tab',
     });
@@ -189,17 +181,15 @@ describe('GET /lanes (public)', () => {
     ]);
   });
 
-  it('accepts a channel publisher', async () => {
-    await request(buildApp()).get('/lanes').query({ ownerType: 'channel', ownerId: 'c1' });
+  it('accepts a channel account as the publisher — one id space, no discriminator', async () => {
+    await request(buildApp()).get('/lanes').query({ ownerId: 'oxy-channel-account' });
     expect(laneFind).toHaveBeenCalledWith(
-      expect.objectContaining({ ownerType: 'channel', ownerId: 'c1' }),
+      expect.objectContaining({ ownerId: 'oxy-channel-account' }),
     );
   });
 
-  it('rejects a missing owner and an unknown owner type', async () => {
-    const app = buildApp();
-    expect((await request(app).get('/lanes')).status).toBe(400);
-    expect((await request(app).get('/lanes').query({ ownerType: 'group', ownerId: 'x' })).status).toBe(400);
+  it('rejects a missing owner', async () => {
+    expect((await request(buildApp()).get('/lanes')).status).toBe(400);
   });
 });
 
@@ -211,7 +201,7 @@ describe('GET /lanes/mine', () => {
     const res = await request(buildApp()).get('/lanes/mine');
 
     expect(res.status).toBe(200);
-    expect(laneFind).toHaveBeenCalledWith({ ownerType: 'user', ownerId: VIEWER_ID });
+    expect(laneFind).toHaveBeenCalledWith({ ownerId: VIEWER_ID });
     // A lane absent from the aggregate reads as zero — there is no stored
     // counter to drift.
     expect(res.body.data.map((lane: { postCount: number }) => lane.postCount)).toEqual([7, 0]);
@@ -270,7 +260,6 @@ describe('POST /lanes', () => {
 
     expect(res.status).toBe(201);
     expect(laneCreate).toHaveBeenCalledWith({
-      ownerType: 'user',
       ownerId: VIEWER_ID,
       name: 'Dev',
       displayMode: 'mixed',
@@ -369,7 +358,7 @@ describe('PATCH /lanes/:id', () => {
 
 describe('DELETE /lanes/:id', () => {
   it('unsets the posts BEFORE dropping the mutes and the lane', async () => {
-    laneFindById.mockReturnValue(chain({ _id: LANE_ID, ownerType: 'user', ownerId: VIEWER_ID }));
+    laneFindById.mockReturnValue(chain({ _id: LANE_ID, ownerId: VIEWER_ID }));
 
     const res = await request(buildApp()).delete(`/lanes/${LANE_ID}`);
 
@@ -381,7 +370,7 @@ describe('DELETE /lanes/:id', () => {
   });
 
   it('$unsets rather than writing a null, which the partial index would still cover', async () => {
-    laneFindById.mockReturnValue(chain({ _id: LANE_ID, ownerType: 'user', ownerId: VIEWER_ID }));
+    laneFindById.mockReturnValue(chain({ _id: LANE_ID, ownerId: VIEWER_ID }));
 
     await request(buildApp()).delete(`/lanes/${LANE_ID}`);
 
@@ -392,7 +381,7 @@ describe('DELETE /lanes/:id', () => {
   });
 
   it('answers 404 for somebody else\'s lane and writes nothing', async () => {
-    laneFindById.mockReturnValue(chain({ _id: LANE_ID, ownerType: 'user', ownerId: OTHER_USER_ID }));
+    laneFindById.mockReturnValue(chain({ _id: LANE_ID, ownerId: OTHER_USER_ID }));
 
     const res = await request(buildApp()).delete(`/lanes/${LANE_ID}`);
 
@@ -412,7 +401,7 @@ describe('DELETE /lanes/:id', () => {
 
 describe('POST /lanes/:id/mute', () => {
   it('mutes another publisher\'s lane and denormalizes its owner', async () => {
-    laneFindById.mockReturnValue(chain({ ownerType: 'user', ownerId: OTHER_USER_ID }));
+    laneFindById.mockReturnValue(chain({ ownerId: OTHER_USER_ID }));
 
     const res = await request(buildApp()).post(`/lanes/${LANE_ID}/mute`);
 
@@ -425,7 +414,7 @@ describe('POST /lanes/:id/mute', () => {
   });
 
   it('refuses to mute your OWN lane', async () => {
-    laneFindById.mockReturnValue(chain({ ownerType: 'user', ownerId: VIEWER_ID }));
+    laneFindById.mockReturnValue(chain({ ownerId: VIEWER_ID }));
 
     const res = await request(buildApp()).post(`/lanes/${LANE_ID}/mute`);
 
@@ -435,7 +424,7 @@ describe('POST /lanes/:id/mute', () => {
   });
 
   it('is idempotent — a repeat succeeds and writes nothing', async () => {
-    laneFindById.mockReturnValue(chain({ ownerType: 'user', ownerId: OTHER_USER_ID }));
+    laneFindById.mockReturnValue(chain({ ownerId: OTHER_USER_ID }));
     muteFindOne.mockReturnValue(chain({ _id: 'mute-1' }));
 
     const res = await request(buildApp()).post(`/lanes/${LANE_ID}/mute`);
@@ -445,7 +434,7 @@ describe('POST /lanes/:id/mute', () => {
   });
 
   it('swallows the unique-index race, which reached the caller\'s own outcome', async () => {
-    laneFindById.mockReturnValue(chain({ ownerType: 'user', ownerId: OTHER_USER_ID }));
+    laneFindById.mockReturnValue(chain({ ownerId: OTHER_USER_ID }));
     muteCreate.mockRejectedValue(Object.assign(new Error('E11000'), { code: 11000 }));
 
     const res = await request(buildApp()).post(`/lanes/${LANE_ID}/mute`);
@@ -454,7 +443,7 @@ describe('POST /lanes/:id/mute', () => {
   });
 
   it('enforces the mute cap', async () => {
-    laneFindById.mockReturnValue(chain({ ownerType: 'user', ownerId: OTHER_USER_ID }));
+    laneFindById.mockReturnValue(chain({ ownerId: OTHER_USER_ID }));
     muteCount.mockResolvedValue(MAX_MUTED_LANES);
 
     const res = await request(buildApp()).post(`/lanes/${LANE_ID}/mute`);
@@ -483,103 +472,34 @@ describe('DELETE /lanes/:id/mute', () => {
 });
 
 /**
- * A CHANNEL's lanes, managed through the same three handlers.
+ * A CHANNEL ACCOUNT as a lane publisher.
  *
- * A channel curates its own page the way a user curates a profile, so this is a
- * second PUBLISHER rather than a parallel mechanism — the create/update/delete
- * handlers resolve which publisher a write is for and scope every query by it.
- *
- * Only the channel's OWNER manages them: a publisher publishes into a lane, it
- * does not define one.
+ * A channel is an Oxy account, so its lanes are ordinary lanes owned by an
+ * ordinary `oxyUserId` — there is no second publisher model, no `ownerType`, and
+ * no channel-shaped branch in any handler. What these cases pin is that the
+ * single owner comparison behaves the same whoever the publisher is, INCLUDING
+ * the two places the old channel branch used to differ: the delete cascade, and
+ * the mute.
  */
-describe('channel-owned lanes', () => {
-  const CHANNEL_ID = '65b0c9178fcdefaf81988fff';
+describe('a channel account is just another publisher', () => {
+  const CHANNEL_ACCOUNT = 'oxy-channel-account';
 
-  function ownedChannel() {
-    return chain({ ownerOxyUserId: VIEWER_ID });
-  }
+  it('serves its tabs through the same public list', async () => {
+    laneFind.mockReturnValue(chain([laneDoc({ ownerId: CHANNEL_ACCOUNT, displayMode: 'tab' })]));
 
-  it('creates a lane on a channel the caller owns', async () => {
-    channelFindById.mockReturnValue(ownedChannel());
-    laneCreate.mockResolvedValue({
-      toObject: () => laneDoc({ ownerType: 'channel', ownerId: CHANNEL_ID }),
-    });
-
-    const res = await request(buildApp())
-      .post('/lanes')
-      .send({ name: 'Editoriales', channelId: CHANNEL_ID });
-
-    expect(res.status).toBe(201);
-    expect(laneCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ ownerType: 'channel', ownerId: CHANNEL_ID }),
-    );
-  });
-
-  it('counts the cap PER PUBLISHER, not against the caller\'s own lanes', async () => {
-    channelFindById.mockReturnValue(ownedChannel());
-    laneCreate.mockResolvedValue({ toObject: () => laneDoc() });
-
-    await request(buildApp()).post('/lanes').send({ name: 'X', channelId: CHANNEL_ID });
-
-    expect(laneCount).toHaveBeenCalledWith({ ownerType: 'channel', ownerId: CHANNEL_ID });
-  });
-
-  it('403s a caller who is not the channel\'s owner', async () => {
-    channelFindById.mockReturnValue(chain({ ownerOxyUserId: OTHER_USER_ID }));
-
-    const res = await request(buildApp())
-      .post('/lanes')
-      .send({ name: 'Editoriales', channelId: CHANNEL_ID });
-
-    expect(res.status).toBe(403);
-    expect(laneCreate).not.toHaveBeenCalled();
-  });
-
-  it('404s an unknown or malformed channel — no existence oracle', async () => {
-    channelFindById.mockReturnValue(chain(null));
-    expect(
-      (await request(buildApp()).post('/lanes').send({ name: 'X', channelId: CHANNEL_ID })).status,
-    ).toBe(404);
-    expect(
-      (await request(buildApp()).post('/lanes').send({ name: 'X', channelId: 'not-an-id' })).status,
-    ).toBe(404);
-  });
-
-  it('GET /lanes/mine?channelId= serves the channel\'s management view', async () => {
-    // The management view, so unlike the public list it includes `mixed` and
-    // `hidden` lanes — the owner has to be able to see what they tucked away.
-    channelFindById.mockReturnValue(ownedChannel());
-    laneFind.mockReturnValue(chain([laneDoc({ ownerType: 'channel', ownerId: CHANNEL_ID })]));
-
-    const res = await request(buildApp()).get(`/lanes/mine?channelId=${CHANNEL_ID}`);
+    const res = await request(buildApp()).get('/lanes').query({ ownerId: CHANNEL_ACCOUNT });
 
     expect(res.status).toBe(200);
-    expect(laneFind).toHaveBeenCalledWith({ ownerType: 'channel', ownerId: CHANNEL_ID });
+    expect(res.body.data).toEqual([
+      expect.objectContaining({ id: LANE_ID, ownerId: CHANNEL_ACCOUNT }),
+    ]);
   });
 
-  it('deletes by the LANE\'s publisher, so it releases every publisher\'s posts', async () => {
-    // `{ oxyUserId: caller }` would miss every post written into the lane by a
-    // publisher other than the owner, leaving them pointing at a dead lane.
-    channelFindById.mockReturnValue(ownedChannel());
-    laneFindById.mockReturnValue(
-      chain({ _id: LANE_ID, ownerType: 'channel', ownerId: CHANNEL_ID }),
-    );
-
-    const res = await request(buildApp()).delete(`/lanes/${LANE_ID}`);
-
-    expect(res.status).toBe(200);
-    expect(postUpdateMany).toHaveBeenCalledWith(
-      { channelId: CHANNEL_ID, laneId: LANE_ID },
-      { $unset: { laneId: '' } },
-    );
-    expect(writes).toEqual(['post.updateMany', 'laneMute.deleteMany', 'lane.deleteOne']);
-  });
-
-  it('404s deleting a channel lane the caller does not own', async () => {
-    channelFindById.mockReturnValue(chain({ ownerOxyUserId: OTHER_USER_ID }));
-    laneFindById.mockReturnValue(
-      chain({ _id: LANE_ID, ownerType: 'channel', ownerId: CHANNEL_ID }),
-    );
+  it('releases its posts by the LANE\'s owner on delete, not by the caller', async () => {
+    // The scope is the PUBLISHER because that is what the invariant is about: a
+    // post left pointing at a deleted lane reappears on the profile its owner had
+    // tucked it away from.
+    laneFindById.mockReturnValue(chain({ _id: LANE_ID, ownerId: CHANNEL_ACCOUNT }));
 
     const res = await request(buildApp()).delete(`/lanes/${LANE_ID}`);
 
@@ -587,16 +507,20 @@ describe('channel-owned lanes', () => {
     expect(writes).toEqual([]);
   });
 
-  it('refuses to MUTE a channel lane — there is no push to suppress', async () => {
-    // A lane mute is a timeline preference, and a channel post is never pushed:
-    // it reaches a reader only through the channel's page, which is somewhere you
-    // GO. Storing the mute would also put a CHANNEL id into
-    // `laneOwnerOxyUserId`, which `GET /lanes/muted` resolves as a USER id.
-    laneFindById.mockReturnValue(chain({ ownerType: 'channel', ownerId: CHANNEL_ID }));
+  it('CAN be muted — a channel\'s posts DO reach a follower\'s timeline', async () => {
+    // The old refusal existed because a channel post was pushed nowhere and
+    // because a channel id in `laneOwnerOxyUserId` would have contaminated a set
+    // of user ids. Neither is true of an account: `GET /lanes/muted` resolves it
+    // through `resolveUserSummaries` like any other publisher.
+    laneFindById.mockReturnValue(chain({ ownerId: CHANNEL_ACCOUNT }));
 
     const res = await request(buildApp()).post(`/lanes/${LANE_ID}/mute`);
 
-    expect(res.status).toBe(400);
-    expect(muteCreate).not.toHaveBeenCalled();
+    expect(res.status).toBe(201);
+    expect(muteCreate).toHaveBeenCalledWith({
+      viewerOxyUserId: VIEWER_ID,
+      laneId: LANE_ID,
+      laneOwnerOxyUserId: CHANNEL_ACCOUNT,
+    });
   });
 });
