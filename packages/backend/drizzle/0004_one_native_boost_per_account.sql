@@ -53,11 +53,19 @@
 -- deletion is NOT performed here: removing rows is a data decision, and a DDL
 -- migration is the wrong place to make one silently.
 --
--- STATUS AT WRITING: every database reachable from the workstation this was
--- written on carries zero duplicates — and all of them are EMPTY (one post
--- between `mention-development`, `mention-dev` and Postgres `mention_dev`), so
--- that number establishes nothing about production. The production count is an
--- OUTSTANDING PREREQUISITE. Run against production Mongo before the cutover:
+-- PRODUCTION HAS BEEN COUNTED, and the answer is zero:
+--
+--   {"db":"mention-production","duplicateNativeBoostGroups":0,
+--    "duplicateNativeBoostRows":0,"totalPosts":577091}
+--
+-- measured 2026-08-02 against `mention-production` from a read-only one-shot
+-- Fargate task on the Mention task definition. So this applies cleanly on
+-- today's data and the block below will pass rather than abort.
+--
+-- The zero matters because of the 577,091, not because it is a zero: the same
+-- query returned zero against three development databases holding ONE post
+-- between them, and that number established nothing. Re-run it before the
+-- cutover if you want the current figure rather than this one:
 --
 --   db.posts.aggregate([
 --     { $match: { type: 'boost', boostOf: { $ne: null },
@@ -67,8 +75,16 @@
 --     { $count: 'duplicateGroups' },
 --   ])
 --
--- The block below makes discovering it late loud rather than cryptic; it does
--- not make discovering it late acceptable.
+-- (Driving that from an ad-hoc script needs an isolated `mongodb` driver
+-- installed in the task — the app image's own `bson@7.3.1` fails to import under
+-- bun with `node:v8 isBuildingSnapshot is not yet implemented`, through the ESM
+-- entry too, which reads like production Mongo being unreachable and is not.)
+--
+-- KEEP THE BLOCK BELOW ANYWAY. It guards the window between that measurement and
+-- the cutover, which is the one interval nobody can measure in advance — a
+-- single double-tapped boost in it is enough to fail the index creation, and the
+-- block is what makes that a named count and a repair instruction instead of one
+-- example key discovered mid-cutover.
 --
 -- NOT online. `CREATE INDEX CONCURRENTLY` cannot run inside the migrator's
 -- transaction, and it would also defeat the preflight — a concurrent build fails
