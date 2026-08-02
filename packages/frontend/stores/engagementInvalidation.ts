@@ -68,18 +68,20 @@ export function engagementKindForFeed(
 /**
  * Whether a feed cache retained at `retainedAt` predates the write it must show.
  *
- * `<=`, not `<`: both stamps come from `Date.now()`, so a retain and a write that
- * land in the SAME millisecond are indistinguishable in order. A slice retained no
- * later than the write cannot be known to reflect it, so treat it as stale. The
- * error that choice can make is one unnecessary refetch; the other direction warm-
- * starts a list that is missing the write — an unliked post still sitting in the
- * likes tab.
+ * The bound is INCLUSIVE, and that is the whole of it: both sides are
+ * `Date.now()`, whose resolution is a millisecond, so a retain and a write that
+ * happen close enough together carry the SAME number and `<` reads them as
+ * "already reflects it". A slice retained no later than the write cannot be
+ * known to reflect it, so treat it as stale. The error `<=` can make is one
+ * unnecessary refetch; the error `<` makes is rendering a list the viewer has
+ * already changed — the likes tab still showing the post they just unliked.
  *
- * The margin is not theoretical: the retain and the invalidate are ~1ms apart in a
- * test, so whether they share a millisecond is decided by where in one the sequence
- * happens to start. In production a human navigates between them and the gap is
- * seconds, which is why this surfaced as an intermittent test failure rather than a
- * bug report.
+ * Not hypothetical: the two stamps land about a millisecond apart in
+ * `hooks/__tests__/engagementListRevalidation.test.tsx`, so which side of a
+ * boundary they fall on is decided by where in a millisecond the sequence
+ * started, and CI drew the short straw. Freezing `Date.now` to a constant turns
+ * that coin-flip into a deterministic failure of three cases in that file — the
+ * reproduction, if this ever needs re-deriving.
  */
 export function isFeedCacheStale(
   type: FeedType,

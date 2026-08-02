@@ -51,11 +51,14 @@ const listeners = new Set<SafetyFilterListener>();
  * safety rules — in which case it may still hold content those rules exclude, or
  * still be missing content they now allow.
  *
- * `<=`, not `<`, for the same reason as `isFeedCacheStale`: both stamps are
- * `Date.now()`, so a retain and a rule change in the same millisecond cannot be
- * ordered. Erring toward stale costs one refetch; erring the other way keeps
- * showing content the viewer just asked not to see, which is the worse half of a
- * safety rule.
+ * Inclusive for the reason `isFeedCacheStale` in `engagementInvalidation`
+ * documents at length: two `Date.now()` stamps can share a millisecond, and a
+ * slice retained no later than the change cannot be known to reflect it. Nothing
+ * has caught this half yet — a safety rule is changed from a settings screen, so
+ * the two stamps are a human apart rather than a millisecond — but the shape is
+ * identical and leaving it `<` is choosing to be surprised later. Here the
+ * wrong answer is also worse: it leaves up content the viewer just asked not to
+ * see.
  */
 export function isFeedCacheStaleForSafety(retainedAt: number): boolean {
   return retainedAt <= changedAt;
