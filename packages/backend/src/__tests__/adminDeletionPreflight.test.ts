@@ -26,6 +26,7 @@ import {
   federationDeliveryQueue,
 } from '../db/schema/federation';
 import {
+  customFeedMembers,
   customFeeds,
   feedGenerators,
   feedInteractions,
@@ -34,7 +35,13 @@ import {
   userFeedPreferences,
 } from '../db/schema/feeds';
 import { postgates, threadgates } from '../db/schema/gates';
-import { accountLists, starterPacks } from '../db/schema/lists';
+import {
+  accountListMembers,
+  accountLists,
+  starterPackMembers,
+  starterPackUses,
+  starterPacks,
+} from '../db/schema/lists';
 import {
   mentionNodeIngestWitnesses,
   mentionRepoHeads,
@@ -42,9 +49,9 @@ import {
   mentionUserNodes,
 } from '../db/schema/mtn';
 import { endorsementOutbox, engagementOutbox } from '../db/schema/outbox';
-import { polls } from '../db/schema/polls';
-import { postRecentRepliers } from '../db/schema/postContent';
-import { userBehaviors, userSettings } from '../db/schema/userProfile';
+import { pollOptions, pollVotes, polls } from '../db/schema/polls';
+import { postMentions, postRecentRepliers } from '../db/schema/postContent';
+import { userBehaviorAuthors, userBehaviors, userSettings } from '../db/schema/userProfile';
 import {
   bookmarks,
   entityFollows,
@@ -105,6 +112,15 @@ interface ScannedProbe {
   readonly line: number;
   /** Which members of {@link POSTGRES_READ_HELPERS} the probe body reaches. */
   readonly reads: readonly string[];
+  /**
+   * How many arms the probe's predicate disjoins — `1` for a plain predicate,
+   * and one more for every extra `or(...)` argument and every `||`.
+   *
+   * A probe with three arms needs three planted rows, because a mistyped column
+   * in the second arm still answers "no reference" while the first arm keeps
+   * the probe looking alive.
+   */
+  readonly disjuncts: number;
 }
 
 /**
@@ -141,6 +157,28 @@ function scanPreflightProbes(): ScannedProbe[] {
   const lineOf = (node: TypeScript.Node): number =>
     sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
 
+  const disjunctsOf = (body: TypeScript.Node): number => {
+    let extra = 0;
+    const count = (child: TypeScript.Node): void => {
+      if (
+        ts.isCallExpression(child)
+        && ts.isIdentifier(child.expression)
+        && child.expression.text === 'or'
+      ) {
+        extra += child.arguments.length - 1;
+      }
+      if (
+        ts.isBinaryExpression(child)
+        && child.operatorToken.kind === ts.SyntaxKind.BarBarToken
+      ) {
+        extra += 1;
+      }
+      ts.forEachChild(child, count);
+    };
+    count(body);
+    return 1 + extra;
+  };
+
   const visit = (node: TypeScript.Node, owner: string): void => {
     const scope = ts.isFunctionDeclaration(node) && node.name ? node.name.text : owner;
 
@@ -156,7 +194,13 @@ function scanPreflightProbes(): ScannedProbe[] {
         if (property.name.text === 'hasReference') hasReference = property.initializer;
       }
       if (name !== undefined && hasReference !== undefined) {
-        probes.push({ name, owner: scope, line: lineOf(node), reads: readsOf(hasReference) });
+        probes.push({
+          name,
+          owner: scope,
+          line: lineOf(node),
+          reads: readsOf(hasReference),
+          disjuncts: disjunctsOf(hasReference),
+        });
       }
 
       // Shape 2 — the post builder's string-literal-keyed record. Anchored on
@@ -170,6 +214,7 @@ function scanPreflightProbes(): ScannedProbe[] {
             owner: scope,
             line: lineOf(property),
             reads: readsOf(property.initializer),
+            disjuncts: disjunctsOf(property.initializer),
           });
         }
       }
@@ -616,11 +661,21 @@ describe('assertPostsSafeToDelete — against real rows', () => {
  * probe past that point must block WITHOUT the acknowledgement and must go quiet
  * WITH it, while a probe before it must block either way.
  *
- * SCOPE, STATED RATHER THAN IMPLIED: a compound probe (`mutes.user_id/muted_id`,
- * `starter_packs owner/member/used_by`, …) is exercised through ONE of its
- * disjuncts. That proves the probe reaches a live table and fires; it does not
- * prove every column in the disjunction is spelled right. The exhaustiveness
- * assertion at the end covers PROBES, and says so.
+ * A compound probe's REMAINING arms live in `disjunctCases` below, and the two
+ * ledgers at the end assert both dimensions off the AST: one case per probe, and
+ * one case per disjunct within it.
+ *
+ * IF YOU ARE PLANTING ROWS BROADLY, START FROM THE LIVE SCHEMA, NOT THE MODULES.
+ * These probes span ~46 tables, and the cost that decides whether a job like this
+ * is affordable is discovering what each insert requires. Two queries answer it:
+ * `information_schema.columns` filtered to `is_nullable='NO' AND column_default
+ * IS NULL` gives the required columns (at most 7 per table here), and
+ * `pg_constraint` with `contype='c'` gives the closed value sets that would
+ * otherwise fail the insert one enum at a time. Add the foreign keys from
+ * `information_schema.table_constraints` and the parents to seed are 8. Reading
+ * fourteen schema modules instead is the same information at many times the
+ * price — this table was written from those three queries and 61 of its 62 cases
+ * passed on the first run.
  */
 describe('assertActorSafeToDelete — one planted row per probe', () => {
   /** Which arm of the builder a probe lives in, which decides how it is called. */
@@ -1283,7 +1338,339 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
     },
   ];
 
-  it.each(cases)('BLOCKS on $probe ($arm)', async (testCase) => {
+  /**
+   * The REMAINING disjuncts, one case each.
+   *
+   * `cases` above plants one row per PROBE, which proves the probe reaches a
+   * live table and fires. It does not reach the second arm of an `or()`: a
+   * mistyped column there still returns a clean "no reference", and a wrong
+   * column in the second arm of a disjunction is precisely what a mechanical
+   * Mongo-to-Postgres translation produces — which is what happened to 36 of
+   * these probes this month.
+   *
+   * Kept as a separate table only so the first-disjunct cases stay untouched;
+   * the ledger below counts BOTH against the arity the AST reports, so a
+   * disjunct that is neither exercised nor accounted for fails by name.
+   */
+  const disjunctCases: readonly (ActorProbeCase & {
+    /** Which arm of the disjunction this row is aimed at. */
+    readonly disjunct: string;
+    /**
+     * Probes that CANNOT be kept quiet while this arm is exercised, declared
+     * exactly rather than tolerated. Isolation is impossible only where two
+     * probes read the same row from opposite sides; an undeclared third
+     * blocker still fails.
+     */
+    readonly alsoBlocks?: readonly string[];
+  })[] = [
+    {
+      probe: 'mutes.user_id/muted_id',
+      disjunct: 'mutes.muted_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(mutes).values({ userId: s.other, mutedId: s.oxyUserId });
+      },
+      clear: async (s) => {
+        await getDb().delete(mutes).where(eq(mutes.mutedId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'post_subscriptions.subscriber_id/author_id',
+      disjunct: 'post_subscriptions.author_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb()
+          .insert(postSubscriptions)
+          .values({ subscriberId: s.other, authorId: s.oxyUserId });
+      },
+      clear: async (s) => {
+        await getDb().delete(postSubscriptions).where(eq(postSubscriptions.authorId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'pokes.poker_id/poked_id',
+      disjunct: 'pokes.poked_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(pokes).values({ pokerId: s.other, pokedId: s.oxyUserId });
+      },
+      clear: async (s) => {
+        await getDb().delete(pokes).where(eq(pokes.pokedId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'reports.reporter/reported_id(user)',
+      disjunct: 'reports.reported_id + reported_type',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(reports).values({
+          reportedType: ReportedType.USER,
+          reportedId: s.oxyUserId,
+          reporter: s.other,
+          categories: ['spam'],
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(reports).where(eq(reports.reportedId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'polls.created_by/poll_votes.user_id',
+      disjunct: 'poll_votes.user_id (EXISTS arm)',
+      arm: 'always',
+      plant: async (s) => {
+        const db = getDb();
+        const [poll] = await db
+          .insert(polls)
+          .values({
+            question: 'probe?',
+            createdBy: s.other,
+            endsAt: new Date(Date.now() + 60_000),
+          })
+          .returning({ id: polls.id });
+        const [option] = await db
+          .insert(pollOptions)
+          .values({ pollId: poll.id, position: 0, text: 'yes' })
+          .returning({ id: pollOptions.id });
+        await db
+          .insert(pollVotes)
+          .values({ pollId: poll.id, optionId: option.id, userId: s.oxyUserId });
+      },
+      clear: async (s) => {
+        // CASCADEs the option and the ballot with it.
+        await getDb().delete(polls).where(eq(polls.createdBy, s.other));
+      },
+    },
+    {
+      probe: 'engagement_outbox.payload actor/owner',
+      disjunct: 'engagement_outbox.payload_post_owner_oxy_user_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(engagementOutbox).values({
+          id: randomUUID(),
+          kind: 'post.like',
+          revision: 1,
+          payloadActorOxyUserId: s.other,
+          payloadPostOwnerOxyUserId: s.oxyUserId,
+          payloadPostId: await foreignPost(),
+          payloadRelationshipId: `probe-owner-${s.oxyUserId}`,
+          expiresAt: new Date(Date.now() + 60_000),
+        });
+      },
+      clear: async () => {},
+    },
+    {
+      probe: 'account_lists owner/member',
+      disjunct: 'account_list_members.oxy_user_id',
+      arm: 'always',
+      plant: async (s) => {
+        const [list] = await getDb()
+          .insert(accountLists)
+          .values({ ownerOxyUserId: s.other, title: 'probe' })
+          .returning({ id: accountLists.id });
+        await getDb()
+          .insert(accountListMembers)
+          .values({ listId: list.id, oxyUserId: s.oxyUserId, position: 0 });
+      },
+      clear: async (s) => {
+        await getDb().delete(accountLists).where(eq(accountLists.ownerOxyUserId, s.other));
+      },
+    },
+    {
+      probe: 'custom_feeds owner/member',
+      disjunct: 'custom_feed_members.oxy_user_id',
+      arm: 'always',
+      plant: async (s) => {
+        const [feed] = await getDb()
+          .insert(customFeeds)
+          .values({ ownerOxyUserId: s.other, title: 'probe' })
+          .returning({ id: customFeeds.id });
+        await getDb()
+          .insert(customFeedMembers)
+          .values({ feedId: feed.id, oxyUserId: s.oxyUserId, position: 0 });
+      },
+      clear: async (s) => {
+        await getDb().delete(customFeeds).where(eq(customFeeds.ownerOxyUserId, s.other));
+      },
+    },
+    {
+      probe: 'starter_packs owner/member/used_by',
+      disjunct: 'starter_pack_members.oxy_user_id',
+      arm: 'always',
+      plant: async (s) => {
+        const [pack] = await getDb()
+          .insert(starterPacks)
+          .values({ ownerOxyUserId: s.other, name: 'probe' })
+          .returning({ id: starterPacks.id });
+        await getDb()
+          .insert(starterPackMembers)
+          .values({ packId: pack.id, oxyUserId: s.oxyUserId, position: 0 });
+      },
+      clear: async (s) => {
+        await getDb().delete(starterPacks).where(eq(starterPacks.ownerOxyUserId, s.other));
+      },
+    },
+    {
+      probe: 'starter_packs owner/member/used_by',
+      disjunct: 'starter_pack_uses.oxy_user_id',
+      arm: 'always',
+      plant: async (s) => {
+        const [pack] = await getDb()
+          .insert(starterPacks)
+          .values({ ownerOxyUserId: s.other, name: 'probe' })
+          .returning({ id: starterPacks.id });
+        await getDb()
+          .insert(starterPackUses)
+          .values({ packId: pack.id, oxyUserId: s.oxyUserId });
+      },
+      clear: async (s) => {
+        await getDb().delete(starterPacks).where(eq(starterPacks.ownerOxyUserId, s.other));
+      },
+    },
+    {
+      probe: 'content_labels created_by/target_id(user)',
+      disjunct: 'content_labels.created_by',
+      arm: 'always',
+      plant: async (s) => {
+        const [labeler] = await getDb()
+          .insert(labelers)
+          .values({ name: `probe-created-${s.oxyUserId}`, creatorId: s.other })
+          .returning({ id: labelers.id });
+        await getDb().insert(contentLabels).values({
+          labelerId: labeler.id,
+          targetType: 'user',
+          targetId: s.other,
+          labelSlug: 'spam',
+          createdBy: s.oxyUserId,
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(labelers).where(eq(labelers.creatorId, s.other));
+      },
+    },
+    {
+      probe: 'endorsement_outbox pending owner/member',
+      disjunct: 'endorsement_outbox.pending_remove_member_ids (array containment)',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(endorsementOutbox).values({
+          source: 'accountList',
+          sourceId: `probe-member-${s.oxyUserId}`,
+          pendingRemoveMemberIds: [s.oxyUserId],
+        });
+      },
+      clear: async (s) => {
+        await getDb()
+          .delete(endorsementOutbox)
+          .where(eq(endorsementOutbox.sourceId, `probe-member-${s.oxyUserId}`));
+      },
+    },
+    {
+      probe: 'user_behaviors references from another viewer',
+      disjunct: 'user_behavior_authors.author_id (EXISTS arm)',
+      arm: 'always',
+      plant: async (s) => {
+        const [behavior] = await getDb()
+          .insert(userBehaviors)
+          .values({ oxyUserId: s.other })
+          .returning({ id: userBehaviors.id });
+        await getDb()
+          .insert(userBehaviorAuthors)
+          .values({ behaviorId: behavior.id, authorId: s.oxyUserId });
+      },
+      clear: async (s) => {
+        await getDb().delete(userBehaviors).where(eq(userBehaviors.oxyUserId, s.other));
+      },
+    },
+    {
+      probe: 'user_behaviors references from another viewer',
+      disjunct: 'user_behaviors.muted_authors',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb()
+          .insert(userBehaviors)
+          .values({ oxyUserId: s.other, mutedAuthors: [s.oxyUserId] });
+      },
+      clear: async (s) => {
+        await getDb().delete(userBehaviors).where(eq(userBehaviors.oxyUserId, s.other));
+      },
+    },
+    {
+      probe: 'user_behaviors references from another viewer',
+      disjunct: 'user_behaviors.blocked_authors',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb()
+          .insert(userBehaviors)
+          .values({ oxyUserId: s.other, blockedAuthors: [s.oxyUserId] });
+      },
+      clear: async (s) => {
+        await getDb().delete(userBehaviors).where(eq(userBehaviors.oxyUserId, s.other));
+      },
+    },
+    {
+      probe: 'posts non-owner authorship/federation.actor_uri',
+      disjunct: 'posts.federation_actor_uri',
+      arm: 'always',
+      plant: async (s) => {
+        await foreignPost({ federation: { actorUri: s.actorUri } });
+      },
+      clear: async () => {},
+    },
+    {
+      probe: 'posts owner/authorship/mentions',
+      disjunct: 'post_authorships.oxy_user_id (EXISTS arm)',
+      arm: 'beyondCascade',
+      // Isolation is IMPOSSIBLE for this arm and the reason is structural: a
+      // post that lists this actor as a collaborator without being owned by
+      // them satisfies `posts non-owner authorship` by definition — the two
+      // probes read the same row from opposite sides. Declared exactly, so an
+      // unexpected third blocker still fails.
+      alsoBlocks: ['posts non-owner authorship/federation.actor_uri'],
+      plant: async (s) => {
+        await foreignPost({
+          authorship: [
+            { oxyUserId: s.other, role: 'owner', status: 'accepted' },
+            { oxyUserId: s.oxyUserId, role: 'collaborator', status: 'accepted' },
+          ],
+        });
+      },
+      clear: async () => {},
+    },
+    {
+      probe: 'posts owner/authorship/mentions',
+      disjunct: 'post_mentions.oxy_user_id (EXISTS arm)',
+      arm: 'beyondCascade',
+      plant: async (s) => {
+        await getDb()
+          .insert(postMentions)
+          .values({ postId: await foreignPost(), oxyUserId: s.oxyUserId });
+      },
+      clear: async () => {},
+    },
+    {
+      probe: 'notifications recipient/actor',
+      disjunct: 'notifications.actor_id',
+      arm: 'beyondCascade',
+      plant: async (s) => {
+        await getDb().insert(notifications).values({
+          recipientId: s.other,
+          actorId: s.oxyUserId,
+          type: 'follow',
+          entityType: 'profile',
+          entityId: `probe-actor-${s.oxyUserId}`,
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(notifications).where(eq(notifications.actorId, s.oxyUserId));
+      },
+    },
+  ];
+
+  async function runProbeCase(
+    testCase: ActorProbeCase,
+    alsoBlocks: readonly string[] = [],
+  ): Promise<void> {
     // The control, first: with nothing planted the gate must CLEAR. A gate that
     // refused unconditionally would pass every assertion below while being
     // useless, and this is the only place that distinction is visible.
@@ -1294,18 +1681,31 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
     // `always` probes run before the gone-actor cascade returns, so they must
     // block WITH the acknowledgement; everything else must block WITHOUT it.
     const acknowledged = testCase.arm === 'always';
-    expect(await blockersFrom(callGate(testCase.arm, acknowledged))).toEqual([testCase.probe]);
+    const expected = [testCase.probe, ...alsoBlocks].sort();
+    expect((await blockersFrom(callGate(testCase.arm, acknowledged))).sort()).toEqual(expected);
 
     if (testCase.arm === 'beyondCascade') {
       // …and go quiet with it, which is what makes the arm a claim and not a
-      // coincidence of ordering.
-      expect(await blockersFrom(callGate(testCase.arm, true))).toEqual([]);
+      // coincidence of ordering. A declared co-firing probe that lives BEFORE
+      // the early return is not waived and must still be there — so the waiver
+      // is asserted to remove exactly the one probe, not to silence the gate.
+      expect((await blockersFrom(callGate(testCase.arm, true))).sort()).toEqual(
+        [...alsoBlocks].sort(),
+      );
     }
 
     await testCase.clear(subject);
     for (const id of subject.posts.splice(0).reverse()) {
       await deletePostRecord(id, undefined);
     }
+  }
+
+  it.each(cases)('BLOCKS on $probe ($arm)', async (testCase) => {
+    await runProbeCase(testCase);
+  });
+
+  it.each(disjunctCases)('BLOCKS on $probe via $disjunct', async (testCase) => {
+    await runProbeCase(testCase, testCase.alsoBlocks ?? []);
   });
 
   /**
@@ -1324,9 +1724,43 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
         .filter((probe) => probe.owner !== 'buildPostReferenceProbes')
         .map((probe) => probe.name),
     );
-    const exercised = new Set(cases.map((testCase) => testCase.probe));
+    const exercised = new Set(
+      [...cases, ...disjunctCases].map((testCase) => testCase.probe),
+    );
 
     expect([...declared].filter((probe) => !exercised.has(probe)).sort()).toEqual([]);
     expect([...exercised].filter((probe) => !declared.has(probe)).sort()).toEqual([]);
+  });
+
+  /**
+   * …and every DISJUNCT within each probe.
+   *
+   * The arity comes off the AST rather than from a number written here, so
+   * widening an `or()` raises the count and this fails by probe name until a
+   * row is planted for the new arm. It is deliberately an ARITY check and not a
+   * column-identity one: proving WHICH column an arm reads is the row cases'
+   * job, and this only has to guarantee a case exists for each arm to do it to.
+   */
+  it('exercises every DISJUNCT of every probe', () => {
+    const planted = new Map<string, number>();
+    for (const testCase of [...cases, ...disjunctCases]) {
+      planted.set(testCase.probe, (planted.get(testCase.probe) ?? 0) + 1);
+    }
+
+    const summedArity = scanPreflightProbes()
+      .filter((probe) => probe.owner !== 'buildPostReferenceProbes')
+      .map((probe) => ({ probe: probe.name, arity: probe.disjuncts }))
+      // A name declared in two functions contributes its arity twice, and both
+      // declarations get their own case, so compare on the summed arity.
+      .reduce<Map<string, number>>((totals, entry) => {
+        totals.set(entry.probe, (totals.get(entry.probe) ?? 0) + entry.arity);
+        return totals;
+      }, new Map());
+
+    const shortfall = [...summedArity.entries()]
+      .filter(([probe, arity]) => (planted.get(probe) ?? 0) !== arity)
+      .map(([probe, arity]) => `${probe}: ${arity} disjunct(s), ${planted.get(probe) ?? 0} planted`);
+
+    expect(shortfall).toEqual([]);
   });
 });
