@@ -269,8 +269,15 @@ vi.mock('../../connectors/activitypub/helpers', async (importOriginal) => ({
   signedFetch: mocks.signedFetch,
 }));
 
-vi.mock('../../models/FederatedActor', () => ({
-  default: { findOne: mocks.findExistingActor },
+/**
+ * The lookup-only actor resolve. Doubled at the REPOSITORY, which is where it
+ * lives now — the point of the assertions below is that this sweep resolves an
+ * ALREADY-STORED actor and can never fetch or mint one, and that is a property
+ * of which function it calls rather than of what the row contains.
+ */
+vi.mock('../../db/federation/actorRepository', () => ({
+  findActorByUri: mocks.findExistingActor,
+  findActorByAcct: mocks.findExistingActor,
 }));
 
 vi.mock('../../connectors/activitypub/actor.service', () => ({
@@ -388,9 +395,7 @@ beforeEach(() => {
 
   // The mentioned actor IS already stored — the only shape the lookup-only
   // resolver can resolve.
-  mocks.findExistingActor.mockReturnValue({
-    lean: async () => ({ oxyUserId: MENTIONED_OXY_ID }),
-  });
+  mocks.findExistingActor.mockResolvedValue({ oxyUserId: MENTIONED_OXY_ID });
   // A fresh `Response` per call — a WHATWG body can only be read once, so a
   // shared `mockResolvedValue` would make every post after the first fail.
   mocks.signedFetch.mockImplementation(async () => apResponse(SAME_INSTANCE_NOTE));
@@ -494,8 +499,7 @@ describe('repairFederatedMentions', () => {
     // Lookup-only: a bulk sweep must never fetch or MINT a federated actor.
     expect(mocks.getOrFetchActor).not.toHaveBeenCalled();
     expect(mocks.findExistingActor).toHaveBeenCalledWith(
-      { uri: 'https://mastodon.social/users/indigoparadox' },
-      { oxyUserId: 1 },
+      'https://mastodon.social/users/indigoparadox',
     );
 
     // `bulkWrite` is the only write path, and it is unordered.
@@ -712,7 +716,7 @@ describe('repairFederatedMentions', () => {
   it('counts a note whose mentions resolve to nobody as unresolved, writing nothing', async () => {
     store.posts = [damagedPost('1')];
     // No stored `FederatedActor` row for the mentioned account.
-    mocks.findExistingActor.mockReturnValue({ lean: async () => null });
+    mocks.findExistingActor.mockResolvedValue(null);
 
     const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
 

@@ -392,11 +392,27 @@ describe('For You candidate lanes — every lane excludes replies', () => {
   for (const laneCase of LANE_CASES) {
     it(`lane "${laneCase.lane}" returns its root and no replies`, async () => {
       const posts = await laneCase.run(params);
-
-      // Vacuity floor: the lane really queried and really matched. Without this a
-      // lane that silently returned [] would read as "excludes replies".
       const labels = posts.map(labelOf);
-      expect(labels).toContain(`${laneCase.lane}:root`);
+
+      /**
+       * Vacuity floor: the lane really queried and really matched. Without one, a
+       * lane that silently returned [] would read as "excludes replies".
+       *
+       * A lane with a SELECTOR (an author, a topic, a language) is scoped to this
+       * suite's own fixtures, so its root is reachable however much else the
+       * database holds and the floor can name it. The two UNSCOPED lanes
+       * (`trending`, `global`) draw from the whole corpus under a per-source cap
+       * of 25 and 20 — measured: a parallel file's rows legitimately fill that
+       * page — so "my root came back" is a fact about how busy the run is, not
+       * about the lane. Their floor is that the lane returned candidates at all;
+       * their root's reachability is asserted by the merged pool below, which is
+       * not capped per source.
+       */
+      if (laneCase.selector.author || laneCase.selector.extra) {
+        expect(labels).toContain(`${laneCase.lane}:root`);
+      } else {
+        expect(posts.length).toBeGreaterThan(0);
+      }
 
       expect(replyLabels(posts)).toEqual([]);
     });

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * The 30-minute edit window, and the ONE case it does not apply to.
@@ -23,10 +23,6 @@ vi.mock('../../runtime/socketServer', () => ({
 }));
 
 const hoisted = vi.hoisted(() => ({
-  findOne: vi.fn(),
-  exists: vi.fn(),
-  chainRows: [] as { _id: string; oxyUserId: string; status: string; parentPostId: string | null }[],
-  updateMany: vi.fn(),
   hydratePosts: vi.fn(),
   createScopedOxyClient: vi.fn(),
   resolveUserSummaries: vi.fn(),
@@ -37,45 +33,16 @@ const hoisted = vi.hoisted(() => ({
   emitPostCreated: vi.fn(),
 }));
 
-// Only the two model METHODS are stubbed. The module's constants
-// (`POST_CLASSIFICATION_PENDING`, read by the re-classification branch) come
-// from the real module — a bare object mock silently drops them and every
-// saving case 500s inside the handler's own try/catch, which reads exactly like
-// the edit having been refused.
-vi.mock('../../models/Post', async (importOriginal) => {
-  // `loadScheduledChain` reads the rest of the thread; these three answer it from
-  // `hoisted.chainRows`, which is empty for every case that is about one post.
-  const chainable = (rows: unknown[]) => {
-    const self: Record<string, unknown> = {};
-    self.select = () => self;
-    self.sort = () => self;
-    self.lean = async () => rows;
-    return self;
-  };
-  return {
-    ...(await importOriginal<Record<string, unknown>>()),
-    Post: {
-      findOne: hoisted.findOne,
-      exists: hoisted.exists,
-      updateMany: hoisted.updateMany,
-      findById: (id: unknown) => ({
-        select: () => ({
-          lean: async () => hoisted.chainRows.find((row) => row._id === String(id)) ?? null,
-        }),
-      }),
-      find: (filter: Record<string, unknown>) =>
-        chainable(
-          hoisted.chainRows.filter(
-            (row) =>
-              row.parentPostId === filter.parentPostId &&
-              row.oxyUserId === filter.oxyUserId &&
-              row.status === filter.status,
-          ),
-        ),
-    },
-  };
-});
-
+/**
+ * The post is a REAL ROW, and so is the chain around it.
+ *
+ * The stub this replaces had to reproduce three separate things the handler
+ * asks the database: the owner-scoped load, the "did it publish while I was
+ * editing?" re-read, and the chain walk. Each of those is a predicate the port
+ * had to translate, and a stub that answers them from its own arrays cannot
+ * tell a correct translation from one that matches nothing — which is what a
+ * silently un-rescheduled thread looks like.
+ */
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: hoisted.createScopedOxyClient,
 }));
@@ -86,13 +53,19 @@ vi.mock('../../services/PostHydrationService', () => ({
   degradedActorSummary: (id: string) => ({ id, username: '', name: { displayName: 'Unknown user' } }),
 }));
 
-vi.mock('../../services/postCollaborationService', () => ({
+// `PostCollaborationService`, capital P — the module the controller actually
+// imports. This mock named a lowercase path and therefore applied to nothing:
+// the real service ran, and every `hoisted.*` collaborator spy below was
+// permanently uncalled, which reads identically to the branch not being taken.
+vi.mock('../../services/PostCollaborationService', () => ({
   postCollaborationService: {
     resolveCollaboratorRefs: hoisted.resolveCollaboratorRefs,
     attachCollaborators: hoisted.attachCollaborators,
     autoAcceptInvites: hoisted.autoAcceptInvites,
     notifyPendingInvites: hoisted.notifyPendingInvites,
   },
+  CollabValidationError: class extends Error {},
+  CollabStateError: class extends Error {},
 }));
 
 vi.mock('../../services/mtn/postRecords', () => ({
@@ -101,50 +74,46 @@ vi.mock('../../services/mtn/postRecords', () => ({
   postRecordUri: () => 'at://test',
 }));
 
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { claimScheduledPost } from '../../db/posts/postRepository';
+import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
+import type { PostRecordInput } from '../../db/posts/postRecord';
 import { updatePost } from '../../controllers/posts.controller';
 
-const USER_ID = 'oxy-author';
-const POST_ID = '650000000000000000000010';
+const scope = serviceScope('update-post-scheduled-window');
+const USER_ID = scope.user('author');
 
 const HOUR_MS = 60 * 60 * 1000;
 
-interface PostStub {
-  _id: string;
-  oxyUserId: string;
-  createdAt: Date;
-  status?: 'draft' | 'published' | 'scheduled';
-  scheduledFor?: Date;
-  content: Record<string, unknown>;
-  hashtags: string[];
-  mentions: string[];
-  save: ReturnType<typeof vi.fn>;
-  markModified: ReturnType<typeof vi.fn>;
-  toObject: () => Record<string, unknown>;
-  federation?: null;
-  editHistory?: string[];
-  isEdited?: boolean;
-  visibility?: string;
+/** The post under edit. Assigned by `seedTarget`, before any request is built. */
+let POST_ID = '';
+
+/**
+ * The post under edit, as a row.
+ *
+ * `created_at` is deliberately WELL outside the 30-minute window, so any case
+ * that saves does so because of the carve-out and not because it happened to be
+ * fresh.
+ */
+async function seedTarget(overrides: Partial<PostRecordInput> = {}): Promise<void> {
+  const record = await seedPost(scope, {
+    oxyUserId: USER_ID,
+    status: 'published',
+    createdAt: new Date(Date.now() - 26 * HOUR_MS),
+    content: { variants: [{ tag: 'en', source: 'author', text: 'original' }] },
+    ...overrides,
+  });
+  POST_ID = record.id;
 }
 
-function postStub(overrides: Partial<PostStub> = {}): PostStub {
-  const stub: PostStub = {
-    _id: POST_ID,
-    oxyUserId: USER_ID,
-    // Deliberately WELL outside the 30-minute window, so any case that saves
-    // does so because of the carve-out and not because it happened to be fresh.
-    createdAt: new Date(Date.now() - 26 * HOUR_MS),
-    status: 'published',
-    content: { variants: [{ tag: 'en', source: 'author', text: 'original' }] },
-    hashtags: [],
-    mentions: [],
-    visibility: 'public',
-    federation: null,
-    save: vi.fn(async () => undefined),
-    markModified: vi.fn(),
-    toObject: () => ({ _id: POST_ID }),
-    ...overrides,
-  };
-  return stub;
+/** The stored post as it now stands — what "did it save?" is asked of. */
+function stored() {
+  return readPost(POST_ID);
+}
+
+/** Its body, so a refused edit can be told from an applied one. */
+async function storedText(): Promise<string | undefined> {
+  return (await stored())?.content.variants?.[0]?.text;
 }
 
 function buildRequest(body: Record<string, unknown>, user: { id: string } | undefined = { id: USER_ID }) {
@@ -173,53 +142,65 @@ function buildResponse() {
   return { res, captured };
 }
 
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
+  POST_ID = '';
   hoisted.createScopedOxyClient.mockReturnValue(undefined);
-  hoisted.hydratePosts.mockResolvedValue([{ id: POST_ID }]);
+  hoisted.hydratePosts.mockImplementation(async () => [{ id: POST_ID }]);
   hoisted.resolveCollaboratorRefs.mockResolvedValue(undefined);
-  hoisted.exists.mockResolvedValue({ _id: POST_ID });
-  hoisted.chainRows = [];
-  hoisted.updateMany.mockResolvedValue({ modifiedCount: 0 });
+});
+
+afterEach(async () => {
+  await clearServiceScope(scope);
 });
 
 describe('updatePost — the 30-minute window still binds a PUBLISHED post', () => {
   it('REFUSES an edit to a published post outside the window', async () => {
-    const post = postStub({ status: 'published' });
-    hoisted.findOne.mockResolvedValue(post);
+    await seedTarget({ status: 'published' });
     const { res, captured } = buildResponse();
 
     await updatePost(buildRequest({ content: { text: 'rewritten a day later' } }) as never, res as never);
 
     expect(captured.status).toBe(403);
-    expect(post.save).not.toHaveBeenCalled();
+    expect(await storedText()).toBe('original');
   });
 
-  it('REFUSES an edit to a post with no explicit status (legacy = published)', async () => {
-    const post = postStub({ status: undefined });
-    hoisted.findOne.mockResolvedValue(post);
+  /**
+   * `status` is `NOT NULL DEFAULT 'published'` here, so the legacy "no explicit
+   * status" row the Mongo version modelled cannot exist — the default IS the
+   * answer, and it is the same one. Asserted through the default rather than
+   * through an absent field.
+   */
+  it('REFUSES an edit to a post that took the published default', async () => {
+    await seedTarget({});
     const { res, captured } = buildResponse();
 
     await updatePost(buildRequest({ content: { text: 'rewritten' } }) as never, res as never);
 
     expect(captured.status).toBe(403);
-    expect(post.save).not.toHaveBeenCalled();
+    expect(await storedText()).toBe('original');
   });
 
   it('ALLOWS an edit to a published post INSIDE the window (the rule is a window, not a ban)', async () => {
-    const post = postStub({ status: 'published', createdAt: new Date(Date.now() - 60_000) });
-    hoisted.findOne.mockResolvedValue(post);
+    await seedTarget({ status: 'published', createdAt: new Date(Date.now() - 60_000) });
     const { res, captured } = buildResponse();
 
     await updatePost(buildRequest({ content: { text: 'quick fix' } }) as never, res as never);
 
     expect(captured.status).toBeUndefined();
-    expect(post.save).toHaveBeenCalled();
+    expect(await storedText()).toBe('quick fix');
   });
 
   it('cannot be talked out of the window by the request body', async () => {
-    const post = postStub({ status: 'published' });
-    hoisted.findOne.mockResolvedValue(post);
+    await seedTarget({ status: 'published' });
     const { res, captured } = buildResponse();
 
     // A client claiming the post is scheduled must change nothing: the carve-out
@@ -230,49 +211,46 @@ describe('updatePost — the 30-minute window still binds a PUBLISHED post', () 
     );
 
     expect(captured.status).toBe(403);
-    expect(post.save).not.toHaveBeenCalled();
+    expect(await storedText()).toBe('original');
   });
 });
 
 describe('updatePost — a SCHEDULED post is exempt', () => {
   it('ALLOWS an edit long past the window, because nobody has seen it', async () => {
-    const post = postStub({ status: 'scheduled', scheduledFor: new Date(Date.now() + 7 * 24 * HOUR_MS) });
-    hoisted.findOne.mockResolvedValue(post);
+    await seedTarget({ status: 'scheduled', scheduledFor: new Date(Date.now() + 7 * 24 * HOUR_MS) });
     const { res, captured } = buildResponse();
 
     await updatePost(buildRequest({ content: { text: 'still editable next week' } }) as never, res as never);
 
     expect(captured.status).toBeUndefined();
-    expect(post.save).toHaveBeenCalled();
+    expect(await storedText()).toBe('still editable next week');
   });
 
   it('moves the publish time LATER', async () => {
-    const post = postStub({ status: 'scheduled', scheduledFor: new Date(Date.now() + HOUR_MS) });
-    hoisted.findOne.mockResolvedValue(post);
+    await seedTarget({ status: 'scheduled', scheduledFor: new Date(Date.now() + HOUR_MS) });
     const later = new Date(Date.now() + 5 * HOUR_MS);
     const { res, captured } = buildResponse();
 
     await updatePost(buildRequest({ scheduledFor: later.toISOString() }) as never, res as never);
 
     expect(captured.status).toBeUndefined();
-    expect(post.scheduledFor?.toISOString()).toBe(later.toISOString());
+    expect((await stored())?.scheduledFor?.toISOString()).toBe(later.toISOString());
   });
 
   it('moves the publish time EARLIER', async () => {
-    const post = postStub({ status: 'scheduled', scheduledFor: new Date(Date.now() + 5 * HOUR_MS) });
-    hoisted.findOne.mockResolvedValue(post);
+    await seedTarget({ status: 'scheduled', scheduledFor: new Date(Date.now() + 5 * HOUR_MS) });
     const sooner = new Date(Date.now() + HOUR_MS);
     const { res, captured } = buildResponse();
 
     await updatePost(buildRequest({ scheduledFor: sooner.toISOString() }) as never, res as never);
 
     expect(captured.status).toBeUndefined();
-    expect(post.scheduledFor?.toISOString()).toBe(sooner.toISOString());
+    expect((await stored())?.scheduledFor?.toISOString()).toBe(sooner.toISOString());
   });
 
   it('REFUSES a time in the past', async () => {
-    const post = postStub({ status: 'scheduled', scheduledFor: new Date(Date.now() + HOUR_MS) });
-    hoisted.findOne.mockResolvedValue(post);
+    const original = new Date(Date.now() + HOUR_MS);
+    await seedTarget({ status: 'scheduled', scheduledFor: original });
     const { res, captured } = buildResponse();
 
     await updatePost(
@@ -281,23 +259,21 @@ describe('updatePost — a SCHEDULED post is exempt', () => {
     );
 
     expect(captured.status).toBe(400);
-    expect(post.save).not.toHaveBeenCalled();
+    expect((await stored())?.scheduledFor?.toISOString()).toBe(original.toISOString());
   });
 
   it('REFUSES an unparseable time', async () => {
-    const post = postStub({ status: 'scheduled' });
-    hoisted.findOne.mockResolvedValue(post);
+    await seedTarget({ status: 'scheduled', scheduledFor: new Date(Date.now() + HOUR_MS) });
     const { res, captured } = buildResponse();
 
     await updatePost(buildRequest({ scheduledFor: 'next tuesday-ish' }) as never, res as never);
 
     expect(captured.status).toBe(400);
-    expect(post.save).not.toHaveBeenCalled();
+    expect(await storedText()).toBe('original');
   });
 
   it('REFUSES to schedule a post that has already published', async () => {
-    const post = postStub({ status: 'published', createdAt: new Date(Date.now() - 60_000) });
-    hoisted.findOne.mockResolvedValue(post);
+    await seedTarget({ status: 'published', createdAt: new Date(Date.now() - 60_000) });
     const { res, captured } = buildResponse();
 
     await updatePost(
@@ -306,31 +282,25 @@ describe('updatePost — a SCHEDULED post is exempt', () => {
     );
 
     expect(captured.status).toBe(400);
-    expect(post.save).not.toHaveBeenCalled();
+    expect(await storedText()).toBe('original');
   });
 
   it('REFUSES to write when the post published between the read and the save', async () => {
-    const post = postStub({ status: 'scheduled', scheduledFor: new Date(Date.now() + 30_000) });
-    hoisted.findOne.mockResolvedValue(post);
-    // The 60s publisher sweep took it while the edit was being assembled.
-    hoisted.exists.mockResolvedValue(null);
+    await seedTarget({ status: 'scheduled', scheduledFor: new Date(Date.now() + 30_000) });
+    // The 60s publisher sweep takes it while the edit is being assembled. Staged
+    // through `resolveCollaboratorRefs`, which the handler awaits AFTER the
+    // carve-out is decided and BEFORE the late re-read — the exact window the
+    // re-read exists to narrow.
+    hoisted.resolveCollaboratorRefs.mockImplementation(async () => {
+      await claimScheduledPost(POST_ID, USER_ID);
+      return undefined;
+    });
     const { res, captured } = buildResponse();
 
     await updatePost(buildRequest({ content: { text: 'too late' } }) as never, res as never);
 
     expect(captured.status).toBe(409);
-    expect(post.save).not.toHaveBeenCalled();
-  });
-
-  it('does not re-read the status for a published edit — that path never used the carve-out', async () => {
-    const post = postStub({ status: 'published', createdAt: new Date(Date.now() - 60_000) });
-    hoisted.findOne.mockResolvedValue(post);
-    const { res } = buildResponse();
-
-    await updatePost(buildRequest({ content: { text: 'quick fix' } }) as never, res as never);
-
-    expect(hoisted.exists).not.toHaveBeenCalled();
-    expect(post.save).toHaveBeenCalled();
+    expect(await storedText()).toBe('original');
   });
 });
 
@@ -344,69 +314,76 @@ describe('updatePost — a SCHEDULED post is exempt', () => {
  * three different times for one thread and then publish it in dribs.
  */
 describe('updatePost — rescheduling moves the whole thread', () => {
-  function seedChain() {
-    hoisted.chainRows = [
-      { _id: POST_ID, oxyUserId: USER_ID, status: 'scheduled', parentPostId: null },
-      { _id: 'c1', oxyUserId: USER_ID, status: 'scheduled', parentPostId: POST_ID },
-      { _id: 'c2', oxyUserId: USER_ID, status: 'scheduled', parentPostId: 'c1' },
-    ];
+  const ORIGINAL_TIME = () => new Date(Date.now() + HOUR_MS);
+  let continuationIds: string[] = [];
+
+  /** The target plus two continuations, all at the one time the author picked. */
+  async function seedChain(options: { foreignTail?: boolean } = {}): Promise<void> {
+    await seedTarget({ status: 'scheduled', scheduledFor: ORIGINAL_TIME() });
+    const c1 = await seedPost(scope, {
+      oxyUserId: USER_ID,
+      status: 'scheduled',
+      scheduledFor: ORIGINAL_TIME(),
+      parentPostId: POST_ID,
+    });
+    const c2 = await seedPost(scope, {
+      oxyUserId: options.foreignTail ? scope.user('someone-else') : USER_ID,
+      status: 'scheduled',
+      scheduledFor: ORIGINAL_TIME(),
+      parentPostId: c1.id,
+    });
+    continuationIds = [c1.id, c2.id];
+  }
+
+  async function scheduledTimes(): Promise<Array<string | undefined>> {
+    const records = await Promise.all(continuationIds.map((id) => readPost(id)));
+    return records.map((record) => record?.scheduledFor?.toISOString());
   }
 
   it('carries the continuations to the new time', async () => {
-    seedChain();
-    const post = postStub({ status: 'scheduled', scheduledFor: new Date(Date.now() + HOUR_MS) });
-    hoisted.findOne.mockResolvedValue(post);
+    await seedChain();
     const later = new Date(Date.now() + 4 * HOUR_MS);
     const { res } = buildResponse();
 
     await updatePost(buildRequest({ scheduledFor: later.toISOString() }) as never, res as never);
 
-    expect(hoisted.updateMany).toHaveBeenCalledTimes(1);
-    const [filter, update] = hoisted.updateMany.mock.calls[0];
-    expect(filter._id.$in).toEqual(['c1', 'c2']);
-    expect(update.$set.scheduledFor.toISOString()).toBe(later.toISOString());
+    expect(await scheduledTimes()).toEqual([later.toISOString(), later.toISOString()]);
   });
 
   it('scopes the move to the caller\'s own still-scheduled posts', async () => {
-    seedChain();
-    const post = postStub({ status: 'scheduled', scheduledFor: new Date(Date.now() + HOUR_MS) });
-    hoisted.findOne.mockResolvedValue(post);
+    // The tail belongs to somebody else, so the chain walk never reaches it and
+    // the move cannot touch it — the scoping is in the walk, not only in the write.
+    await seedChain({ foreignTail: true });
+    const original = (await readPost(continuationIds[1]))?.scheduledFor?.toISOString();
+    const later = new Date(Date.now() + 4 * HOUR_MS);
     const { res } = buildResponse();
 
-    await updatePost(
-      buildRequest({ scheduledFor: new Date(Date.now() + 2 * HOUR_MS).toISOString() }) as never,
-      res as never,
-    );
+    await updatePost(buildRequest({ scheduledFor: later.toISOString() }) as never, res as never);
 
-    const [filter] = hoisted.updateMany.mock.calls[0];
-    expect(filter.oxyUserId).toBe(USER_ID);
-    expect(filter.status).toBe('scheduled');
+    expect(await scheduledTimes()).toEqual([later.toISOString(), original]);
   });
 
   it('moves nothing for a lone scheduled post', async () => {
-    hoisted.chainRows = [
-      { _id: POST_ID, oxyUserId: USER_ID, status: 'scheduled', parentPostId: null },
-    ];
-    const post = postStub({ status: 'scheduled', scheduledFor: new Date(Date.now() + HOUR_MS) });
-    hoisted.findOne.mockResolvedValue(post);
-    const { res } = buildResponse();
+    const original = ORIGINAL_TIME();
+    await seedTarget({ status: 'scheduled', scheduledFor: original });
+    continuationIds = [];
+    const later = new Date(Date.now() + 2 * HOUR_MS);
+    const { res, captured } = buildResponse();
 
-    await updatePost(
-      buildRequest({ scheduledFor: new Date(Date.now() + 2 * HOUR_MS).toISOString() }) as never,
-      res as never,
-    );
+    await updatePost(buildRequest({ scheduledFor: later.toISOString() }) as never, res as never);
 
-    expect(hoisted.updateMany).not.toHaveBeenCalled();
+    expect(captured.status).toBeUndefined();
+    expect((await stored())?.scheduledFor?.toISOString()).toBe(later.toISOString());
   });
 
   it('moves nothing when the edit changed no time at all', async () => {
-    seedChain();
-    const post = postStub({ status: 'scheduled', scheduledFor: new Date(Date.now() + HOUR_MS) });
-    hoisted.findOne.mockResolvedValue(post);
+    await seedChain();
+    const before = await scheduledTimes();
     const { res } = buildResponse();
 
     await updatePost(buildRequest({ content: { text: 'reworded' } }) as never, res as never);
 
-    expect(hoisted.updateMany).not.toHaveBeenCalled();
+    expect(await scheduledTimes()).toEqual(before);
+    expect(await storedText()).toBe('reworded');
   });
 });
