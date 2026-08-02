@@ -5,6 +5,7 @@ import {
   clearFederationScope,
   federationScope,
   seedActor,
+  seedPost,
 } from '../../../__tests__/helpers/federationFixtures';
 
 const scope = federationScope('atproto-post-mapper');
@@ -17,23 +18,25 @@ const scope = federationScope('atproto-post-mapper');
  *    richtext hashtags, langs, adult self-labels), with the actor-match guard.
  *  - `importAuthorFeed`: getAuthorFeed → dedup on the AT-URI → import the new
  *    posts via `getPostCreator().create`, skipping reposts. The XRPC fetch, the
- *    Post model, the post creator, and media materialization are mocked.
+ *    post creator, and media materialization are mocked.
+ *
+ * The POSTS are real. Batch 7 moved the dedup query and the thread/quote
+ * resolution to Postgres, so the `Post.find` mock — and the `select(fields)`
+ * branch that answered the two of them differently — stopped intercepting
+ * anything: nothing was ever seen as already-imported, and no parent or quoted
+ * post ever resolved. A row states the same fact without the suite having to
+ * model which projection the production code asked for, which was itself a
+ * standing invitation to drift.
  */
 
 const mocks = vi.hoisted(() => ({
   xrpcGet: vi.fn(),
-  postFind: vi.fn(),
   create: vi.fn(),
   materialize: vi.fn(),
   fetchProfile: vi.fn(),
 }));
 
 vi.mock('../../../connectors/atproto/xrpcClient', () => ({ xrpcGet: mocks.xrpcGet }));
-
-vi.mock('../../../models/Post', () => ({
-  POST_CLASSIFICATION_PENDING: 'pending',
-  Post: { find: mocks.postFind },
-}));
 
 // Mention resolution goes through the atproto profile path; mocked so the mapper's
 // mention/quote/reply resolution never reaches the heavy identity chain.
@@ -93,7 +96,6 @@ const ACTOR: NormalizedExternalActor = {
 beforeEach(async () => {
   await clearFederationScope(scope);
   vi.clearAllMocks();
-  mocks.postFind.mockReturnValue({ select: () => ({ lean: async () => [] }) });
   mocks.create.mockResolvedValue({ _id: 'created1' });
   mocks.materialize.mockImplementation(async (media: unknown, attachments: unknown) => ({ media, attachments }));
   mocks.fetchProfile.mockResolvedValue(null);
@@ -324,9 +326,9 @@ describe('importAuthorFeed', () => {
         { post: postView('c', 'already here') },
       ],
     });
-    mocks.postFind.mockReturnValue({
-      select: () => ({ lean: async () => [{ federation: { activityId: atUri('c') } }] }),
-    });
+    // 'c' is ALREADY IMPORTED — a real row carrying its AT-URI, which is what
+    // the dedup query matches on.
+    await seedPost(scope, { federation: { activityId: atUri('c'), actorUri: DID } });
 
     const result = await importAuthorFeed(ACTOR);
 
@@ -372,25 +374,23 @@ describe('importAuthorFeed', () => {
     mocks.xrpcGet.mockResolvedValue({
       feed: [{ post: postView('reply', 'a reply', { record: { reply: { parent: { uri: PARENT_URI } } } }) }],
     });
-    // The dedup query selects only the activityId; the thread/quote resolver
-    // selects `_id threadId federation.activityId` — branch on that to return the
-    // parent for the resolver but nothing for the dedup.
-    mocks.postFind.mockImplementation(() => ({
-      select: (fields: string) => ({
-        lean: async () =>
-          fields === 'federation.activityId'
-            ? []
-            : [{ _id: 'parent1', threadId: 'root1', federation: { activityId: PARENT_URI } }],
-      }),
-    }));
+    // The parent is a REAL imported post that already sits in a thread, so
+    // `threadId` is inherited from it rather than falling back to its own id —
+    // the branch the old mock hard-coded, and the one a mis-stamped reply would
+    // silently take.
+    const root = await seedPost(scope, { federation: { activityId: 'at://did:plc:parent/app.bsky.feed.post/thread-root' } });
+    const parent = await seedPost(scope, {
+      federation: { activityId: PARENT_URI, actorUri: 'did:plc:parent' },
+      threadId: root.id,
+    });
 
     await importAuthorFeed(ACTOR);
 
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
         federation: expect.objectContaining({ inReplyTo: PARENT_URI }),
-        parentPostId: 'parent1',
-        threadId: 'root1',
+        parentPostId: parent.id,
+        threadId: root.id,
       }),
     );
   });
@@ -409,16 +409,11 @@ describe('importAuthorFeed', () => {
         },
       ],
     });
-    mocks.postFind.mockImplementation(() => ({
-      select: (fields: string) => ({
-        lean: async () =>
-          fields === 'federation.activityId' ? [] : [{ _id: 'quoted1', federation: { activityId: QUOTED_URI } }],
-      }),
-    }));
+    const quoted = await seedPost(scope, { federation: { activityId: QUOTED_URI, actorUri: 'did:plc:quoted' } });
 
     await importAuthorFeed(ACTOR);
 
-    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ quoteOf: 'quoted1' }));
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ quoteOf: quoted.id }));
   });
 
   it('resolves a mention facet (via the synced FederatedActor) into a placeholder + post.mentions', async () => {
@@ -502,11 +497,9 @@ describe('importPostViews', () => {
       if (actor === DID2) return makeActor(DID2, 'a2.bsky.social', 'oxy-a2');
       return null;
     });
-    // `uri3` was already imported → the dedup query returns it → not re-created, but
-    // still returned in order (it has a local Post).
-    mocks.postFind.mockReturnValue({
-      select: () => ({ lean: async () => [{ federation: { activityId: uri3 } }] }),
-    });
+    // `uri3` was already imported → the dedup query finds its row → not
+    // re-created, but still returned in order (it has a local post).
+    await seedPost(scope, { federation: { activityId: uri3, actorUri: DID1 } });
 
     const uris = await importPostViews([
       viewBy(DID1, 'a1.bsky.social', 'p1', 'from a1'),
