@@ -755,7 +755,20 @@ export const MtnConfig = {
        * gone by name, `right` (4 posts) is gone by count, and `music` (5) and
        * `politics` (11) survive — which is the list this network actually has.
        */
-      minVolume: 5,
+      /*
+       * MEASURED against the live corpus (2026-08-02): a 24h window of 531
+       * posts, in which `trump` (4 posts, 4 distinct authors), `gaza` (4/3) and
+       * `ai` (4/4) were excluded by exactly one post, leaving `news` and
+       * `sports` as the only survivors — so the list read as generic not
+       * because vocabulary was winning but because the subjects were being cut
+       * one post short.
+       *
+       * 3 is measurably too low: it admits `zeit` and `menschen` (German for
+       * "time" and "people") and `united`, hashtag residue from a two-account
+       * spray. 4 is where the data stops being subjects and starts being
+       * vocabulary.
+       */
+      minVolume: 4,
       /**
        * VOCABULARY CEILING: the share of ALL posts in the window a term may
        * appear in before it is treated as vocabulary rather than a subject.
@@ -832,9 +845,13 @@ export const MtnConfig = {
        * left the list empty.
        *
        * So this returns to being an evidence floor and nothing more. Whether a
-       * term is a name is no longer this number's question to answer.
+       * term is a name is no longer this number's question to answer — which is
+       * why it now equals {@link minVolume} exactly. Two different numbers for
+       * "enough evidence to measure" only made sense while this one was also
+       * answering a second question, and a top-up bar ABOVE the detection floor
+       * silently excluded every subject that qualified but did not burst.
        */
-      minPopularVolume: 5,
+      minPopularVolume: 4,
       /**
        * How far above its own baseline a term must sit to be reported, in
        * standard deviations of the Poisson count it is compared against.
