@@ -428,6 +428,7 @@
   "settings.privacy.failedToLoadMutedWords": "No se pudieron cargar las palabras silenciadas",
   "common.remove": "Eliminar",
   "common.tryAgain": "Reintentar",
+  "common.loadMore": "Cargar más",
   "common.saving": "Guardando...",
   "settings.sections.preferences": "Preferencias",
   "Select your preferred language": "Selecciona tu idioma preferido",
@@ -895,6 +896,10 @@
     "notFound": {
       "title": "Página No Encontrada - Mention",
       "description": "La página que buscas no existe."
+    },
+    "trendGraph": {
+      "title": "Relaciones entre tendencias - Mention",
+      "description": "Cómo se relacionan entre sí los términos detrás de las tendencias de Mention."
     }
   },
   "lists": {
@@ -1928,21 +1933,19 @@
       "region": "Región",
       "all": "Todos"
     },
-    "legend": {
-      "solid": "Línea continua: los dos términos se han unido en una historia.",
-      "dashed": "Línea discontinua: relacionados, pero sin unir.",
-      "size": "El tamaño del círculo es cuántas publicaciones llevan el término.",
-      "truncated": "Se han dejado fuera {{count}} relaciones más."
-    },
     "node": {
-      "counts": "{{posts}} publicaciones · {{authors}} autores distintos",
-      "languages": "Idiomas: {{list}}",
-      "regions": "Regiones: {{list}}",
-      "story": "Forma parte de la historia: {{story}}"
+      "counts": "{{posts}} publicaciones · {{authors}} autores distintos"
     },
     "edge": {
-      "merged": "Unido con {{term}} — {{posts}} publicaciones en común",
       "related": "Relacionado con {{term}} — {{posts}} publicaciones en común, sin unir"
+    },
+    "sections": {
+      "stories": "Historias unidas",
+      "ungrouped": "Términos por su cuenta"
+    },
+    "eyebrow": "Detrás de la lista",
+    "badge": {
+      "merged": "{{count}} unidos"
     }
   }
 }

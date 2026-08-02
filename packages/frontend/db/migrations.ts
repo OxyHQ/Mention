@@ -16,10 +16,25 @@ import { createLogger } from '@oxyhq/core/logger';
 const logger = createLogger('Schema');
 
 /**
- * Schema version. Bump this whenever the table definitions below change —
- * the next `getDb()` will drop the old cache and recreate it cleanly.
+ * Schema version. Bump this whenever the table definitions below change **or
+ * the shape of anything stored inside them does** — the next `getDb()` drops
+ * the old cache and recreates it cleanly.
+ *
+ * The second half of that sentence is the one that has actually bitten. Most of
+ * a post lives in `raw_json` as a serialized `FeedItem`, and that payload's
+ * shape moves independently of every column: `toFeedItem` gaining a field
+ * changes what NEW rows carry while every row already on disk keeps answering
+ * with the old shape, forever, because `rowToFeedItem` faithfully spreads what
+ * it was given. It shipped once — `lane` and `channel` were added to the
+ * converter without a bump, so a post read from cache rendered without its
+ * signature while the same post fetched fresh rendered correctly, which reads
+ * like a render bug and is not one.
+ *
+ * `db/__tests__/cacheShapeVersion.test.ts` fails when the persisted key set
+ * changes without this number moving, so the rule is enforced rather than
+ * remembered.
  */
-const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 /**
  * Create the full schema from scratch. Idempotent (IF NOT EXISTS).

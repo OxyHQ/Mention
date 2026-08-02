@@ -31,15 +31,16 @@ interface Props {
   boosts: StatCount;
   quotes: StatCount;
   saves: StatCount;
-  /** Who the author allows to reply. Absent or `['anyone']` = no restriction to report. */
-  replyPermission?: ReplyPermission[];
   /**
-   * The post takes no replies whatever `replyPermission` says — a channel post,
-   * where the refusal is structural and keyed off the channel rather than off a
-   * setting a later write could flip. Reported in the same words, because a
-   * reader does not care which of the two reasons it was.
+   * The reply restriction the AUTHOR chose, which is the only kind this block
+   * reports. Absent or `['anyone']` = no restriction to report.
+   *
+   * Callers derive it with `reportableReplyPermission`, which is what makes a
+   * CHANNEL post absent here: the server persists `['nobody']` on one as defence
+   * in depth, but a channel refusing replies is what a channel is rather than
+   * something somebody switched off, so this block says nothing about it at all.
    */
-  repliesDisabled?: boolean;
+  replyPermission?: ReplyPermission[];
   /** Whether the author turned off quote posts. */
   quotesDisabled?: boolean;
   /**
@@ -71,7 +72,6 @@ const PostDetailStats = memo<Props>(function PostDetailStats({
   quotes,
   saves,
   replyPermission,
-  repliesDisabled,
   quotesDisabled,
   postId,
   onLikesPress,
@@ -99,7 +99,7 @@ const PostDetailStats = memo<Props>(function PostDetailStats({
   // only existed in the composer, so a reader learned that replies were closed
   // by having one rejected. `anyone` is the default and says nothing worth a row.
   const restrictions: string[] = [];
-  if (repliesDisabled || replyPermission?.includes('nobody')) {
+  if (replyPermission?.includes('nobody')) {
     restrictions.push(t('post.restrictions.repliesOff'));
   } else if (replyPermission?.length && !replyPermission.includes('anyone')) {
     restrictions.push(t('post.restrictions.repliesLimited'));

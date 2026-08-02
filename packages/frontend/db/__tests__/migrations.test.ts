@@ -19,6 +19,6 @@ describe('post cache schema migration', () => {
     expect(execSync).toHaveBeenCalledWith('DROP TABLE IF EXISTS "posts"');
     expect(execSync).toHaveBeenCalledWith('DROP TABLE IF EXISTS "feed_items"');
     expect(execSync).toHaveBeenCalledWith('DROP TABLE IF EXISTS "cache_metadata"');
-    expect(execSync).toHaveBeenLastCalledWith('PRAGMA user_version = 6');
+    expect(execSync).toHaveBeenLastCalledWith('PRAGMA user_version = 7');
   });
 });
