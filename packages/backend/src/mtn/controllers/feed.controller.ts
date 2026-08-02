@@ -7,7 +7,7 @@
 
 import { Response } from 'express';
 import { isValidFeedDescriptor, MtnConfig, createPostUri, parseFeedDescriptor } from '@mention/shared-types';
-import type { FeedDescriptor, SlicedFeedResponse } from '@mention/shared-types';
+import type { FeedDescriptor, FeedPostViewCounts, SlicedFeedResponse } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { resolveDefinition } from '../feed/definitions/resolveDefinition';
 import { forYouUsesSocialProof } from '../feed/definitions/presets';
@@ -520,6 +520,11 @@ class MtnFeedController {
    * of posts. A feed reports many rows in one pass, so accepting one row per
    * request put a scrolling client over the per-IP feed rate limiter and dropped
    * the overflow. Validation lives in `parseFeedInteractionBatch`.
+   *
+   * Answers with the view totals the batch actually MOVED (`viewCounts`), so the
+   * viewer's own screens can show the view they just caused instead of waiting
+   * for the next feed fetch. Additive to the previous body — `success` is
+   * unchanged, and a client that ignores the field behaves exactly as before.
    */
   async recordInteraction(req: AuthRequest, res: Response): Promise<void> {
     try {
@@ -561,7 +566,20 @@ class MtnFeedController {
         });
       }
 
-      res.json({ success: true });
+      // Positional pairing: `allSettled` preserves the input order, so result i
+      // belongs to interaction i. Only entries that COUNTED a view resolve to a
+      // number — everything else (a click, a duplicate impression, a self-view)
+      // resolves to null and is left out, so the map stays the honest "what
+      // changed" set rather than a mirror of the request.
+      const viewCounts: FeedPostViewCounts = {};
+      results.forEach((result, index) => {
+        const entry = parsed.interactions[index];
+        if (!entry || result.status !== 'fulfilled' || result.value === null) return;
+        viewCounts[entry.postUri] = result.value;
+      });
+
+      const counted = Object.keys(viewCounts).length > 0;
+      res.json({ success: true, ...(counted ? { viewCounts } : {}) });
     } catch (error) {
       logger.error('[MtnFeedController] recordInteraction error', error);
       res.status(500).json({ success: false, error: 'Failed to record interaction' });

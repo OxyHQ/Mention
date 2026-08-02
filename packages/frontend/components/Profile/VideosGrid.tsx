@@ -9,7 +9,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { Video } from '@/assets/icons/video-icon';
 import { videoPosterUrl } from '@/utils/imageUrlCache';
 import type { HydratedPostSummary, MediaItem } from '@mention/shared-types';
-import VideoPosterCell from '@/components/common/VideoPosterCell';
+import LiveVideoPosterCell from './LiveVideoPosterCell';
 import { isVideoMediaRef, readMediaDurationSec } from '@/utils/mediaTypes';
 import { useProfileMediaFeed } from './useProfileMediaFeed';
 import { ProfileGridList, type ProfileGridEntry } from './ProfileGridList';
@@ -35,8 +35,10 @@ interface VideoGridEntry extends ProfileGridEntry {
      */
     posterUri?: string;
     /**
-     * Play count of the post this cell's video came from. Per-POST, so two
-     * videos in one post repeat it.
+     * Play count of the post this cell's video came from, as it stood when the
+     * page was fetched. Per-POST, so two videos in one post repeat it. The cell
+     * subscribes to the post itself and prefers the live count; this is what it
+     * shows until (and unless) that post is in the shared cache.
      */
     views?: number | null;
     /** Duration of THIS item's video, in seconds. Per-item, so per-cell correct. */
@@ -131,11 +133,17 @@ const VideosGrid: React.FC<VideosGridProps> = ({
 
         return (
             <TouchableOpacity activeOpacity={0.8} style={{ width: itemSize, height: itemSize }} onPress={handlePress}>
-                <VideoPosterCell
+                {/*
+                  Every entry here is built from the post it navigates to, so the
+                  post to subscribe to and the post to open are the same one —
+                  unlike the media grid, where an embedded original splits them.
+                */}
+                <LiveVideoPosterCell
                     posterUri={item.posterUri}
                     size={itemSize}
                     placeholderColor={theme.colors.textSecondary}
-                    views={item.views}
+                    viewsPostId={item.postId}
+                    fallbackViews={item.views}
                     durationSec={item.durationSec}
                 />
             </TouchableOpacity>

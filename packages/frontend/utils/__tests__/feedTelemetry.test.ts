@@ -18,16 +18,20 @@
  *      one — whenever the descriptor or the reset key changes. The reel is what
  *      makes this load-bearing: it switches feed (`videos` ↔ `following`) and
  *      resolves its viewer without ever unmounting.
+ *   8. The batch's RESPONSE is consumed, not discarded: the server's view totals
+ *      reach the shared post cache. Dropping them is what left a watched video's
+ *      count stale until the next feed fetch.
  *
- * The tracker's only outward effect is `feedService.sendFeedInteractions`, which
- * is mocked so the test never touches the network/SDK layer. `@oxyhq/core/logger` is
- * mocked for the same reason.
+ * The tracker's outward effects are `feedService.sendFeedInteractions` and the
+ * post cache, both mocked so the test never touches the network/SDK/SQLite
+ * layers. `@oxyhq/core/logger` is mocked for the same reason.
  */
 
 import { createElement } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import { feedService } from '@/services/feedService';
+import { applyServerViewCounts } from '@/stores/postsStore';
 import {
     FeedImpressionTracker,
     flushFeedInteractions,
@@ -37,8 +41,18 @@ import {
 } from '../feedTelemetry';
 
 Object.assign(globalThis, { __DEV__: false });
+// Resolves an EMPTY count map, which is the real transport's answer whenever the
+// server counted nothing (the common case) or the write failed.
 jest.mock('@/services/feedService', () => ({
-    feedService: { sendFeedInteractions: jest.fn().mockResolvedValue(undefined) },
+    feedService: { sendFeedInteractions: jest.fn().mockResolvedValue({}) },
+}));
+
+// The post cache the returned counts are written into. Mocked at the store's own
+// boundary: the real module reaches SQLite and the SDK, neither of which loads
+// here — `stores/__tests__/postsStoreGranularReactivity` covers the other half of
+// this seam, that `applyServerViewCounts` actually writes through the store.
+jest.mock('@/stores/postsStore', () => ({
+    applyServerViewCounts: jest.fn(),
 }));
 
 // The module's other transport (`reportTrendEvent` → `POST /trending/events`).
@@ -54,6 +68,7 @@ jest.mock('@oxyhq/core/logger', () => ({
 }));
 
 const mockSendFeedInteractions = feedService.sendFeedInteractions as jest.Mock;
+const mockApplyServerViewCounts = applyServerViewCounts as jest.Mock;
 
 /** Every interaction handed to the transport, flattened across batches. */
 function sentInteractions(): { postUri: string; event: string; durationMs?: number }[] {
@@ -416,5 +431,83 @@ describe('reportFeedInteraction', () => {
         reportFeedInteraction('for_you', '', 'click');
         jest.advanceTimersByTime(1000);
         expect(mockSendFeedInteractions).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * The half of the impression round trip that used to be thrown away.
+ *
+ * The client cannot decide whether a view counted — the dedupe window, the
+ * self-view guard and the eligibility filter are all server-side — so the only
+ * way a screen learns about the view it just caused is by reading the answer.
+ * Discarding it left the count stale until the next feed fetch, which is the
+ * user-visible bug (watch a video, go back, the number has not moved).
+ */
+describe('server view counts from the batch response', () => {
+    beforeEach(() => {
+        jest.useFakeTimers();
+        // Anchor the clock, as the tracker suites above do: the dwell gate measures
+        // against `Date.now()` at `setVisible`, so a later `setSystemTime` must move
+        // the clock FORWARD from a known origin, not backward from the real one.
+        jest.setSystemTime(0);
+        mockSendFeedInteractions.mockClear();
+        mockApplyServerViewCounts.mockClear();
+        mockSendFeedInteractions.mockResolvedValue({});
+    });
+
+    afterEach(() => {
+        flushFeedInteractions();
+        jest.useRealTimers();
+    });
+
+    /** Let the transport promise settle; the queue drains on a microtask. */
+    const settle = () => act(async () => { await Promise.resolve(); });
+
+    it('writes the returned totals into the post cache', async () => {
+        mockSendFeedInteractions.mockResolvedValue({ p1: 42, p2: 7 });
+
+        reportFeedInteraction('videos', 'p1', 'click');
+        jest.advanceTimersByTime(1000);
+        await settle();
+
+        expect(mockApplyServerViewCounts).toHaveBeenCalledTimes(1);
+        expect(mockApplyServerViewCounts).toHaveBeenCalledWith({ p1: 42, p2: 7 });
+    });
+
+    it('applies the totals reported on a teardown flush, not only a timed one', async () => {
+        // The reel's own path: the impression is emitted as the screen goes away,
+        // so the response lands after the flush that navigation triggered.
+        mockSendFeedInteractions.mockResolvedValue({ p1: 9 });
+
+        const tracker = new FeedImpressionTracker('videos');
+        tracker.setVisible('p1');
+        jest.setSystemTime(3000);
+        tracker.dispose();
+        await settle();
+
+        expect(mockApplyServerViewCounts).toHaveBeenCalledWith({ p1: 9 });
+    });
+
+    it('never writes anything when the transport fails', async () => {
+        mockSendFeedInteractions.mockRejectedValue(new Error('offline'));
+
+        reportFeedInteraction('videos', 'p1', 'click');
+        jest.advanceTimersByTime(1000);
+        await settle();
+
+        expect(mockApplyServerViewCounts).not.toHaveBeenCalled();
+    });
+
+    it('swallows a throw from the cache write, so telemetry cannot break a render', async () => {
+        mockSendFeedInteractions.mockResolvedValue({ p1: 42 });
+        mockApplyServerViewCounts.mockImplementationOnce(() => {
+            throw new Error('cache unavailable');
+        });
+
+        reportFeedInteraction('videos', 'p1', 'click');
+        expect(() => jest.advanceTimersByTime(1000)).not.toThrow();
+        await settle();
+
+        expect(mockApplyServerViewCounts).toHaveBeenCalledTimes(1);
     });
 });

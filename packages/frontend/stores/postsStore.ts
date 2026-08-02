@@ -14,6 +14,7 @@ import type {
   HydratedPostSummary,
   FeedInterstitialSlot,
   FeedPostSlice,
+  FeedPostViewCounts,
 } from '@mention/shared-types';
 import { createLogger } from '@oxyhq/core/logger';
 import { feedService, type ExtendedFeedRequest } from '../services/feedService';
@@ -127,6 +128,39 @@ const syncVoteStateFromServer = (
       },
     }));
   }
+};
+
+/**
+ * The save/unsave counterpart of {@link syncVoteStateFromServer}: replace the
+ * optimistic ±1 with the count the server actually holds.
+ *
+ * A ±1 applied to a stale base stays wrong forever — it moves by the right
+ * amount from the wrong number, so nothing about it ever looks like an error and
+ * no later save corrects it. The count is authoritative on the server (it is the
+ * number of Bookmark rows) and both `POST` and `DELETE /posts/:id/save` return
+ * it, so the reconcile is a straight assignment. It also repairs a post whose
+ * cached `saves` was never a number at all, which the optimistic branch
+ * deliberately skips.
+ *
+ * `isSaved` comes from the CALL, not the body: a 200 means the post is in the
+ * requested state whether or not this request is what changed it (an idempotent
+ * retry answers "Post already saved"), and the response carries no saved flag.
+ */
+const syncSaveStateFromServer = (
+  get: () => PostsStoreState,
+  postId: string,
+  responseData: unknown,
+  isSaved: boolean
+) => {
+  const data = responseData as Record<string, unknown> | undefined;
+  const serverSavesCount = data?.savesCount;
+  if (typeof serverSavesCount !== 'number') return;
+
+  get().updatePostEverywhere(postId, (prev) => ({
+    ...prev,
+    viewerState: { ...prev.viewerState, isSaved },
+    engagement: { ...prev.engagement, saves: serverSavesCount },
+  }));
 };
 
 // ── Store types ──────────────────────────────────────────────────
@@ -1209,6 +1243,7 @@ export const usePostsStore = create<PostsStoreState>()(
           if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
           throw new Error('Failed to save');
         }
+        syncSaveStateFromServer(get, postId, response.data, true);
         invalidateEngagementLists('save');
       } catch (error) {
         if (!isCurrentViewerStateEpoch(operationEpoch)) return;
@@ -1258,6 +1293,7 @@ export const usePostsStore = create<PostsStoreState>()(
           if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
           throw new Error('Failed to unsave');
         }
+        syncSaveStateFromServer(get, postId, response.data, false);
         invalidateEngagementLists('save');
       } catch (error) {
         if (!isCurrentViewerStateEpoch(operationEpoch)) return;
@@ -1524,6 +1560,39 @@ export const usePostsStore = create<PostsStoreState>()(
     },
   }))
 );
+
+// ── Server-authoritative view counts ─────────────────────────────
+
+/**
+ * Write the server's view totals into the shared post cache.
+ *
+ * View counting is decided ENTIRELY server-side — a 24h per-viewer dedupe
+ * window, the self-view guard, the public+published eligibility filter — so the
+ * client cannot know whether a view it reported was counted. An optimistic +1
+ * would therefore be wrong in exactly the cases the server declined, and a wrong
+ * count never converges, while a late one does. Every caller passes numbers the
+ * server actually wrote (`POST /feed/mtn/interactions` → `viewCounts`, and the
+ * post-detail view ack), never one it derived.
+ *
+ * Goes through `updatePostEverywhere`, the single client write authority, so one
+ * call reaches Zustand, SQLite, the web memory store and that post's subscribers
+ * together. Returning `undefined` from the updater when the value already
+ * matches makes the write a no-op rather than a re-render nothing would see.
+ */
+export const applyServerViewCounts = (viewCounts: FeedPostViewCounts): void => {
+  const { updatePostEverywhere } = usePostsStore.getState();
+  for (const [postId, views] of Object.entries(viewCounts)) {
+    // These arrive as parsed JSON, so the declared type is a claim about the
+    // wire, not a guarantee about the value: a malformed payload would otherwise
+    // render as "NaN views" with nothing to trace it back to.
+    if (!isValidId(postId) || !Number.isFinite(views)) continue;
+    updatePostEverywhere(postId, (prev) => (
+      prev.engagement.views === views
+        ? undefined
+        : { ...prev, engagement: { ...prev.engagement, views } }
+    ));
+  }
+};
 
 // ── Reactive SQLite selectors ────────────────────────────────────
 // SQLite is EXTERNAL MUTABLE state, so all render-time reads of it go through

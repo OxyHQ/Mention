@@ -56,22 +56,31 @@ export async function isPostEligibleForViewTelemetry(postId: string): Promise<bo
 
 /**
  * Increment a post's view count for `viewerId`, deduped within the configured
- * window. Returns `true` when this call counted a NEW view (and thus performed
- * the increment), `false` when it was a duplicate or Redis was unavailable.
+ * window. Returns the post's NEW `stats.viewsCount` when this call counted a new
+ * view, and `null` when it did not — a duplicate inside the window, an
+ * ineligible post, or Redis being unavailable. A returned number therefore also
+ * means "this post exists and was counted"; callers that only care whether the
+ * view landed test for `!== null`.
+ *
+ * The count comes back on the increment's OWN round trip (`findOneAndUpdate`
+ * with `new: true`), not a follow-up read: the client that reported the
+ * impression is the one surface that cannot derive this number for itself — the
+ * dedupe window, the self-view guard and the eligibility filter all live here —
+ * so throwing away a value we already hold forces the whole UI to wait for the
+ * next feed fetch to learn what it just caused.
  *
  * Resolves `postId` defensively: a non-ObjectId `postId` (e.g. a federated URI
- * that is not a local post) is ignored rather than throwing. The Mongo `$inc`
- * is fire-and-forget at the call site's discretion (this function awaits it so
- * callers can surface failures, but never throws — it logs at debug).
+ * that is not a local post) is ignored rather than throwing. The Mongo write is
+ * awaited so callers can surface failures, but never throws — it logs at debug.
  */
-export async function recordDedupedView(postId: string, viewerId: string): Promise<boolean> {
+export async function recordDedupedView(postId: string, viewerId: string): Promise<number | null> {
   if (!postId || !viewerId || !mongoose.isValidObjectId(postId)) {
-    return false;
+    return null;
   }
 
   const eligible = await isPostEligibleForViewTelemetry(postId);
   if (!eligible) {
-    return false;
+    return null;
   }
 
   const redis = getRedisClient();
@@ -92,20 +101,21 @@ export async function recordDedupedView(postId: string, viewerId: string): Promi
   );
 
   if (!claimed) {
-    return false;
+    return null;
   }
 
   try {
-    await Post.updateOne(
+    const updated = await Post.findOneAndUpdate(
       { _id: postId, visibility: PostVisibility.PUBLIC, status: 'published' },
       { $inc: { 'stats.viewsCount': 1 } },
-    );
-    return true;
+      { new: true, projection: { 'stats.viewsCount': 1 } },
+    ).lean();
+    return updated?.stats?.viewsCount ?? null;
   } catch (error) {
     logger.debug('[FeedViewCounter] viewsCount increment failed', {
       postId,
       reason: error instanceof Error ? error.message : 'unknown',
     });
-    return false;
+    return null;
   }
 }

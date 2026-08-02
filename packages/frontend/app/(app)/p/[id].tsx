@@ -17,7 +17,7 @@ import { PanelStickyFooter } from '@/components/shell/PanelChrome';
 import { useBottomBarReservedSpace } from '@/components/BottomBar';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { useThreadPreferences, SORT_TO_API } from '@/hooks/useThreadPreferences';
-import { usePostsStore, usePostSelector } from '@/stores/postsStore';
+import { applyServerViewCounts, usePostsStore, usePostSelector } from '@/stores/postsStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import ReplyPreferencesSheet from '@/components/ReplyPreferencesSheet';
 import type {
@@ -36,8 +36,11 @@ import { useTranslation } from 'react-i18next';
 import { insightsService } from '@/services/insightsService';
 import { feedService } from '@/services/feedService';
 import { SEO } from '@/components/SEO';
+import { createLogger } from '@oxyhq/core/logger';
 
 type PostDetailEntity = HydratedPost | Reply | Boost;
+
+const postDetailLogger = createLogger('PostDetail');
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -182,9 +185,21 @@ const PostDetailScreen: React.FC = () => {
         // Likewise drop the previous post's continuation spine.
         setContinuations([]);
 
-        // Track view in background (non-blocking) regardless of cache state.
+        // Track view in background (non-blocking) regardless of cache state. The
+        // ack carries the post's fresh total — the server reads it back
+        // specifically to return it — so it goes into the shared cache rather
+        // than being dropped: this screen renders that number, and the view it
+        // just recorded is precisely the one it would otherwise be missing.
         if (user) {
-            insightsService.trackPostView(postId).catch(() => {});
+            insightsService
+                .trackPostView(postId)
+                .then((ack) => applyServerViewCounts({ [postId]: ack.viewsCount }))
+                .catch((error) => {
+                    // View tracking is best-effort and must never reach the
+                    // reader, but a count that silently stops updating should
+                    // still be diagnosable.
+                    postDetailLogger.debug('Post view tracking failed', { error });
+                });
         }
 
         // Fetch the author's self-thread continuation spine (root → c1 … cN) ONLY

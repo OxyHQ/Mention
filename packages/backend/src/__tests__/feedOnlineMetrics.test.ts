@@ -15,7 +15,8 @@ vi.mock('../models/Post', () => ({
   Post: { findOne: vi.fn() },
 }));
 vi.mock('../services/feedViewCounter', () => ({
-  recordDedupedView: vi.fn(async () => true),
+  // A counted view resolves to the post's new total (null when it did not count).
+  recordDedupedView: vi.fn(async () => 1),
 }));
 vi.mock('../services/dwellAggregate', () => ({
   recordDwell: vi.fn(async () => undefined),
