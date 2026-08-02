@@ -9,8 +9,8 @@
  * the viewer follows. This module owns that union so the two cannot diverge.
  */
 
-import FederatedFollow from '../models/FederatedFollow';
-import FederatedActor from '../models/FederatedActor';
+import { findActorsByUris } from '../db/federation/actorRepository';
+import { distinctRemoteActorUris } from '../db/federation/followRepository';
 import { extractFollowingIds, type OxyClient } from '../utils/privacyHelpers';
 import { logger } from '../utils/logger';
 
@@ -19,17 +19,18 @@ import { logger } from '../utils/logger';
  * `followingIds`, deduplicating in-place.
  */
 export async function mergeFederatedFollowIds(localUserId: string, followingIds: string[]): Promise<void> {
-  const fedFollowUris = await FederatedFollow.distinct('remoteActorUri', {
+  const fedFollowUris = await distinctRemoteActorUris({
     localUserId,
     direction: 'outbound',
-    status: 'accepted',
+    statuses: ['accepted'],
   });
   if (fedFollowUris.length === 0) return;
 
-  const fedActors = await FederatedActor.find(
-    { uri: { $in: fedFollowUris }, oxyUserId: { $ne: null } },
-    { oxyUserId: 1 },
-  ).lean();
+  // The Mongo filter also carried `{ oxyUserId: { $ne: null } }`. It is dropped
+  // rather than translated: the loop below already skips an actor with no
+  // `oxyUserId`, and `<> null` in SQL is NULL — not true — so the literal
+  // translation would have matched nothing and quietly emptied the follow graph.
+  const fedActors = await findActorsByUris(fedFollowUris);
 
   const existing = new Set(followingIds);
   for (const actor of fedActors) {

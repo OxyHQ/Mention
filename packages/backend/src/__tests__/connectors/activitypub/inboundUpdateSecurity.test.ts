@@ -1,4 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedFollow,
+} from '../../helpers/federationFixtures';
+
+const scope = federationScope('inbound-update-security');
 
 /**
  * Security + edit-semantics coverage for `handleUpdate` (inbound AP `Update` of
@@ -18,16 +28,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * body through the shared builder.
  */
 
-const ACTOR_URI = 'https://mastodon.social/users/bob';
-const OTHER_ACTOR_URI = 'https://evil.example/users/mallory';
+const ACTOR_URI = `${scope.origin}/users/bob`;
+const OTHER_ACTOR_URI = `${scope.origin}/users/mallory`;
 const OWNER_OXY_ID = 'oxy_bob';
 
 const mocks = vi.hoisted(() => ({
   getPublicKey: vi.fn(),
   signViaOxy: vi.fn(),
   signRequest: vi.fn(),
-  actorFindOne: vi.fn(),
-  followExists: vi.fn(),
   postFindOne: vi.fn(),
   postExists: vi.fn(),
   postUpdateOne: vi.fn(),
@@ -59,14 +67,6 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   getPublicKey: mocks.getPublicKey,
   signViaOxy: mocks.signViaOxy,
   signRequest: mocks.signRequest,
-}));
-
-vi.mock('../../../models/FederatedActor', () => ({
-  default: { findOne: mocks.actorFindOne },
-}));
-
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: { exists: mocks.followExists },
 }));
 
 vi.mock('../../../models/FederationDeliveryQueue', () => ({
@@ -148,11 +148,28 @@ function updateActivity(objectOverrides: Record<string, unknown> = {}): Record<s
   };
 }
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
+  await clearFederationScope(scope);
+  // The sending actor, resolved. `handleUpdate` falls back to it for the owner
+  // id when the edited post has none.
+  await seedActor(scope, { username: 'bob', uri: ACTOR_URI, oxyUserId: OWNER_OXY_ID, lastFetchedAt: new Date() });
+  await seedFollow(scope, { remoteActorUri: ACTOR_URI, direction: 'outbound', status: 'accepted' });
   // The edited post is found (scoped lookup) and belongs to a local-linked owner.
   mocks.postFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue({ oxyUserId: OWNER_OXY_ID }) });
   mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 describe('handleUpdate — NoSQL-injection safety + ownership scope', () => {

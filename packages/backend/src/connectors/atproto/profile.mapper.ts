@@ -1,6 +1,7 @@
 import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
 import { logger } from '../../utils/logger';
-import FederatedActor, { IFederatedActor } from '../../models/FederatedActor';
+import type { FederatedActorRecord } from '../../db/federation/actorRecord';
+import { setActorOxyUserId, upsertActor } from '../../db/federation/actorRepository';
 import { resolveOxyExternalUser } from '../identity';
 import type { NormalizedExternalActor } from '@oxyhq/federation';
 import { xrpcGet } from './xrpcClient';
@@ -8,7 +9,7 @@ import { BSKY_NETWORK_DOMAIN, PUBLIC_APPVIEW } from './constants';
 
 /**
  * Maps an `app.bsky.actor.getProfile` response into a network-neutral actor,
- * upserts the backing `FederatedActor` row (`protocol:'atproto'`), and mints /
+ * upserts the backing `federated_actors` row (`protocol:'atproto'`), and mints /
  * stamps the Oxy user it maps to through the shared identity bridge.
  */
 
@@ -113,7 +114,7 @@ export function mapProfileToNormalizedActor(profile: AtprotoProfileView): Normal
 }
 
 /**
- * Upsert the `FederatedActor` row for a normalized atproto actor and resolve its
+ * Upsert the `federated_actors` row for a normalized atproto actor and resolve its
  * Oxy user. Returns the actor with `oxyUserId` populated when Oxy resolved it.
  *
  * Fails soft: if `resolveOxyExternalUser` returns null (e.g. oxy-api does not yet
@@ -125,32 +126,39 @@ export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promis
   const did = actor.externalId;
   const { username, domain } = splitHandle(actor.handle);
 
-  let fedActor: IFederatedActor | null = null;
+  let fedActor: FederatedActorRecord | null = null;
   try {
-    fedActor = await FederatedActor.findOneAndUpdate(
-      { uri: did },
+    // The AP-shaped columns this profile has no analogue for are written at their
+    // schema defaults rather than left alone. That is safe precisely because this
+    // is the ONLY writer of an `atproto` actor row: a Bluesky account has no AP
+    // inbox, no locked-followers flag and no verified-links table, so there is no
+    // other writer whose values could be clobbered — and an empty `fields` list
+    // therefore clears nothing that was ever populated.
+    fedActor = await upsertActor(
+      did,
       {
-        $set: {
-          protocol: 'atproto',
-          uri: did,
-          username,
-          domain,
-          acct: actor.handle,
-          // Normalized again (idempotent) rather than trusted: this function is
-          // exported and does not require its caller to have gone through
-          // `mapProfileToNormalizedActor`.
-          summary: normalizeMultilineText(actor.bio ?? ''),
-          avatarUrl: actor.avatarUrl,
-          headerUrl: actor.bannerUrl,
-          type: 'Person',
-          followersCount: actor.followersCount ?? 0,
-          followingCount: actor.followingCount ?? 0,
-          postsCount: actor.postsCount ?? 0,
-          lastFetchedAt: new Date(),
-        },
+        protocol: 'atproto',
+        username,
+        domain,
+        acct: actor.handle,
+        // Normalized again (idempotent) rather than trusted: this function is
+        // exported and does not require its caller to have gone through
+        // `mapProfileToNormalizedActor`.
+        summary: normalizeMultilineText(actor.bio ?? ''),
+        avatarUrl: actor.avatarUrl,
+        headerUrl: actor.bannerUrl,
+        type: 'Person',
+        manuallyApprovesFollowers: false,
+        discoverable: true,
+        memorial: false,
+        suspended: false,
+        followersCount: actor.followersCount ?? 0,
+        followingCount: actor.followingCount ?? 0,
+        postsCount: actor.postsCount ?? 0,
+        lastFetchedAt: new Date(),
       },
-      { upsert: true, returnDocument: 'after', lean: true },
-    ) as IFederatedActor | null;
+      [],
+    );
   } catch (err) {
     // A rare unique-key collision (a handle reassigned across DIDs) must not
     // abort discovery — log and continue with no stamped row.
@@ -167,14 +175,14 @@ export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promis
   }
 
   if (fedActor && fedActor.oxyUserId !== oxyId) {
-    await FederatedActor.updateOne({ _id: fedActor._id }, { $set: { oxyUserId: oxyId } });
+    await setActorOxyUserId(fedActor.id, oxyId);
   }
   return { ...actor, oxyUserId: oxyId };
 }
 
 /**
  * Fetch a Bluesky profile (`app.bsky.actor.getProfile`), normalize it, upsert the
- * `FederatedActor`, and resolve its Oxy user. `actor` may be a handle or a DID.
+ * `federated_actors` row, and resolve its Oxy user. `actor` may be a handle or a DID.
  * Returns null when the profile cannot be fetched / mapped.
  */
 export async function fetchAndUpsertAtprotoProfile(actor: string): Promise<NormalizedExternalActor | null> {

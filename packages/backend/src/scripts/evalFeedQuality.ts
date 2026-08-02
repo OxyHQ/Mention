@@ -640,7 +640,8 @@ async function main(): Promise<void> {
   const { logger } = await import('../utils/logger');
   const { MtnConfig } = await import('@mention/shared-types');
   const { Post } = await import('../models/Post');
-  const FederatedActor = (await import('../models/FederatedActor')).default;
+  const { findActorByAcct, findActorByUri, findActorsByUris } = await import('../db/federation/actorRepository');
+  const { connectPostgres, closePostgres } = await import('../db/postgres');
   const { FEED_FIELDS } = await import('../mtn/feed/FeedAPI');
   const { baselineContentClassifier } = await import('../services/BaselineContentClassifier');
   const { feedRankingService } = await import('../services/FeedRankingService');
@@ -657,7 +658,9 @@ async function main(): Promise<void> {
 
   try {
     await mongoose.connect(mongoUri, { dbName });
-    logger.info('[evalFeedQuality] connected to MongoDB');
+    // Posts are still Mongo; the federated actors this labels them by are not.
+    await connectPostgres();
+    logger.info('[evalFeedQuality] connected');
 
     registerAllModules();
 
@@ -676,14 +679,14 @@ async function main(): Promise<void> {
       uri: doc.uri, acct: doc.acct, domain: doc.domain, type: doc.type, oxyUserId: doc.oxyUserId,
     });
 
-    // ---- Labeled set (acct → FederatedActor → recent posts) ----
+    // ---- Labeled set (acct → federated actor → recent posts) ----
     const labelDeps: LabelResolverDeps<CandidatePost> = {
       async findActorByAcct(acct) {
-        const doc = await FederatedActor.findOne({ acct }).lean();
+        const doc = await findActorByAcct(acct);
         return doc ? toActor(doc) : null;
       },
       async findActorByUri(uri) {
-        const doc = await FederatedActor.findOne({ uri }).lean();
+        const doc = await findActorByUri(uri);
         return doc ? toActor(doc) : null;
       },
       async findRecentPostsForActor(actor, limit) {
@@ -741,9 +744,7 @@ async function main(): Promise<void> {
     );
     const actorByUri = new Map<string, LabeledActor>();
     if (actorUris.length > 0) {
-      const actors = await FederatedActor.find({ uri: { $in: actorUris } })
-        .select({ uri: 1, acct: 1, domain: 1, type: 1, oxyUserId: 1 })
-        .lean();
+      const actors = await findActorsByUris(actorUris);
       for (const a of actors) actorByUri.set(a.uri, toActor(a));
     }
 
@@ -799,11 +800,13 @@ async function main(): Promise<void> {
     logger.info(`[evalFeedQuality] done in ${elapsed}s`);
 
     await mongoose.disconnect();
+    await closePostgres();
     process.exit(0);
   } catch (error) {
     const { logger } = await import('../utils/logger');
     logger.error('[evalFeedQuality] failed', error);
     await mongoose.disconnect();
+    await closePostgres();
     process.exit(1);
   }
 }

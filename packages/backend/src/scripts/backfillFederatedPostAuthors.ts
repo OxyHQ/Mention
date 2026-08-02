@@ -61,7 +61,7 @@
 
 import mongoose from 'mongoose';
 import { Post } from '../models/Post';
-import FederatedActor from '../models/FederatedActor';
+import { findActorByUri } from '../db/federation/actorRepository';
 import { actorService } from '../connectors/activitypub/actor.service';
 import { extractActorUri, signedFetch, asRecord } from '../connectors/activitypub/helpers';
 import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
@@ -140,10 +140,7 @@ export async function resolveAuthorOxyUserId(
     let oxyUserId: string | null = null;
     try {
       if (!allowIdentityMutation) {
-        const actor = await FederatedActor.findOne(
-          { uri: actorUri },
-          { oxyUserId: 1 },
-        ).lean<{ oxyUserId?: string | null } | null>();
+        const actor = await findActorByUri(actorUri);
         oxyUserId = actor?.oxyUserId ?? null;
       } else {
         const actor = await actorService.getOrFetchActor(actorUri);

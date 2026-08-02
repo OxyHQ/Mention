@@ -8,7 +8,7 @@ import type {
   FetchPostsOptions,
   FetchPostsResult,
 } from '@oxyhq/federation';
-import type { IFederatedActor } from '../../models/FederatedActor';
+import { withEngineId, type FederatedActorRecord } from '../../db/federation/actorRecord';
 import { resolveOxyExternalUser } from '../identity';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorService } from './actor.service';
@@ -210,8 +210,8 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     return resolveOxyExternalUser(actor);
   }
 
-  /** Map a stored {@link IFederatedActor} to the network-neutral shape. */
-  private normalizeActor(actor: IFederatedActor): NormalizedExternalActor {
+  /** Map a stored {@link FederatedActorRecord} to the network-neutral shape. */
+  private normalizeActor(actor: FederatedActorRecord): NormalizedExternalActor {
     return {
       network: 'activitypub',
       externalId: actor.uri,
@@ -241,16 +241,21 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     return actorService.resolveWebFinger(acct);
   }
 
-  fetchRemoteActor(actorUri: string, forceAvatarRefresh = false, acctHint?: string): Promise<IFederatedActor | null> {
+  fetchRemoteActor(actorUri: string, forceAvatarRefresh = false, acctHint?: string): Promise<FederatedActorRecord | null> {
     return actorService.fetchRemoteActor(actorUri, forceAvatarRefresh, acctHint);
   }
 
-  getOrFetchActor(actorUri: string): Promise<IFederatedActor | null> {
+  getOrFetchActor(actorUri: string): Promise<FederatedActorRecord | null> {
     return actorService.getOrFetchActor(actorUri);
   }
 
-  refreshActorInBackground(actorUri: string, existing?: IFederatedActor): void {
-    actorService.refreshActorInBackground(actorUri, existing);
+  refreshActorInBackground(actorUri: string, existing?: FederatedActorRecord): void {
+    // `withEngineId` because the resolver is generic over the record shape it
+    // stores, and that shape carries the engine's `_id` alias. Nothing on THIS
+    // path reads it — the recency/incompleteness skip only looks at
+    // `lastFetchedAt` and the profile fields — so the alias is here purely to
+    // satisfy the generic, and callers keep passing plain records.
+    actorService.refreshActorInBackground(actorUri, existing && withEngineId(existing));
   }
 
   fetchPublicKey(keyId: string): Promise<{ publicKeyPem: string; actorUri: string } | null> {
@@ -263,21 +268,21 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
   // ============================================================
 
   syncOutboxPosts(
-    actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string },
+    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string },
     limit = 20,
   ): Promise<number> {
     return outboxSyncService.syncOutboxPosts(actor, limit);
   }
 
   syncOutboxPostsDetailed(
-    actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string },
+    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string },
     limitOrOptions: number | OutboxSyncOptions = 20,
   ): Promise<OutboxSyncResult> {
     return outboxSyncService.syncOutboxPostsDetailed(actor, limitOrOptions);
   }
 
   markOutboxBackfillUnavailable(
-    actor: Pick<IFederatedActor, 'outboxUrl' | 'acct'> & { _id: unknown },
+    actor: Pick<FederatedActorRecord, 'id' | 'outboxUrl'>,
     reason?: string,
   ): Promise<void> {
     return outboxSyncService.markOutboxBackfillUnavailable(actor, reason);

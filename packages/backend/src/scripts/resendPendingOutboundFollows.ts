@@ -18,7 +18,8 @@
  */
 
 import mongoose from 'mongoose';
-import FederatedFollow from '../models/FederatedFollow';
+import { findFollows } from '../db/federation/followRepository';
+import { connectPostgres, closePostgres } from '../db/postgres';
 import { deliveryService } from '../connectors/activitypub/delivery.service';
 import { actorService } from '../connectors/activitypub/actor.service';
 import {
@@ -34,7 +35,6 @@ import {
 } from './lib/adminScriptLifecycle';
 
 interface PendingFollowRow {
-  _id: mongoose.Types.ObjectId;
   localUserId: string;
   remoteActorUri: string;
   activityId?: string;
@@ -88,12 +88,15 @@ async function resendPendingOutboundFollows(): Promise<void> {
     }
 
     await mongoose.connect(mongoUri, { dbName });
-    logger.info('[resendPendingOutboundFollows] connected to MongoDB', { dryRun });
+    // The follow rows are in Postgres; the Mongo connection stays open for the
+    // process's other imported singletons.
+    await connectPostgres();
+    logger.info('[resendPendingOutboundFollows] connected', { dryRun });
 
-    const pending = await FederatedFollow.find(
-      { direction: 'outbound', status: 'pending' },
-      { _id: 1, localUserId: 1, remoteActorUri: 1, activityId: 1 },
-    ).lean<PendingFollowRow[]>();
+    const pending: PendingFollowRow[] = await findFollows({
+      direction: 'outbound',
+      statuses: ['pending'],
+    });
 
     logger.info(`[resendPendingOutboundFollows] ${pending.length} pending outbound follows to re-deliver`);
 
@@ -149,6 +152,7 @@ async function resendPendingOutboundFollows(): Promise<void> {
   } finally {
     await closeAdminScriptResources();
     await mongoose.disconnect();
+    await closePostgres();
   }
 }
 

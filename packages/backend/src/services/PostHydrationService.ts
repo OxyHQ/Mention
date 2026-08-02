@@ -3,7 +3,11 @@ import { Post, type PostFederationData } from '../models/Post';
 import Poll from '../models/Poll';
 import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
-import { FederatedActor } from '../models/FederatedActor';
+import type { FederatedActorRecord } from '../db/federation/actorRecord';
+import {
+  findActorsByOxyUserIds,
+  findActorsByUris,
+} from '../db/federation/actorRepository';
 import { UserSettings } from '../models/UserSettings';
 import { actorService } from '../connectors/activitypub/actor.service';
 import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
@@ -256,7 +260,7 @@ export function isFallbackUserSummary(user: PostUser): boolean {
 
 /**
  * Enrich any author that degraded (Oxy resolution failed transiently) with its
- * canonical FEDERATED identity from Mention's own {@link FederatedActor} record.
+ * canonical FEDERATED identity from Mention's own {@link FederatedActorRecord}.
  *
  * Unlike a local author, a federated author's `username@domain` + remote avatar
  * are knowable WITHOUT Oxy. This fills the MISSING `username` / `federation.domain`
@@ -264,7 +268,7 @@ export function isFallbackUserSummary(user: PostUser): boolean {
  * instead of a neutral "Unknown user" whenever Oxy is momentarily unreachable (or
  * in the brief window right after the bridge mints the Oxy user).
  *
- * It NEVER invents `name.displayName` — the FederatedActor has no display-name
+ * It NEVER invents `name.displayName` — the actor row has no display-name
  * field, so an enriched author renders its handle. Enriched (still-incomplete)
  * users are NOT cached (see {@link resolveUserSummaries}), so they self-heal once
  * Oxy recovers. Mutates `resolved` in place; batched, best-effort.
@@ -278,11 +282,9 @@ async function enrichDegradedFederatedUsers(resolved: Map<string, CachedUserSumm
   }
   if (degradedIds.length === 0) return;
 
-  let actors: Array<{ oxyUserId?: string; acct?: string; username?: string; domain?: string; avatarUrl?: string }>;
+  let actors: FederatedActorRecord[];
   try {
-    actors = await FederatedActor.find({ oxyUserId: { $in: degradedIds } })
-      .select('oxyUserId acct username domain avatarUrl')
-      .lean();
+    actors = await findActorsByOxyUserIds(degradedIds);
   } catch (error) {
     logger.warn('[PostHydration] Federated author enrich lookup failed', {
       count: degradedIds.length,
@@ -657,7 +659,7 @@ function federatedHost(...urls: Array<string | undefined>): string | undefined {
 const inFlightOrphanActorSyncs = new Set<string>();
 
 /**
- * Fire-and-forget: lazily resolve (fetch + create) the FederatedActor + Oxy
+ * Fire-and-forget: lazily resolve (fetch + create) the federated actor + Oxy
  * federated user for a set of actor URIs DERIVED from legacy brid.gy/Bluesky
  * orphan posts. This is the SAME on-demand sync the inbound Like/Announce/mention
  * paths use ({@link actorService.getOrFetchActor}), run DETACHED so it never
@@ -693,18 +695,18 @@ function scheduleOrphanActorSync(actorUris: Set<string>): void {
  * was enforced, so `oxyUserId` is null. Such a post is NOT dropped: its CONTENT
  * (text/media) must still render so a boost/quote referencing it — and the post
  * itself — is not blank. The author is derived ONLY from the post's own
- * federation data + Mention's own {@link FederatedActor} record, NEVER from a raw
+ * federation data + Mention's own {@link FederatedActorRecord}, NEVER from a raw
  * id (the ghost-handle rule):
  *
  *  1. Resolve each orphan's author actor URI: the stored `federation.actorUri`,
  *     or — for a brid.gy/Bluesky orphan that stored only the object URL — the
  *     actor URI deterministically {@link deriveBridgyActorUri | derived} from the
  *     atproto DID embedded in `federation.activityId`/`federation.url` (no network).
- *  2. If a {@link FederatedActor} exists for that URI, use its authoritative
+ *  2. If a {@link FederatedActorRecord} exists for that URI, use its authoritative
  *     `username@domain` + avatar — the SAME enrichment
  *     {@link enrichDegradedFederatedUsers} applies, keyed here by actor URI since
  *     there is no `oxyUserId`. It NEVER invents a `name.displayName`.
- *  3. If the URI was DERIVED and has no FederatedActor row yet (the common brid.gy
+ *  3. If the URI was DERIVED and has no actor row yet (the common brid.gy
  *     case — the actor was never synced), kick a fire-and-forget
  *     {@link scheduleOrphanActorSync} that mints the actor + Oxy user off the
  *     request path, and degrade WITH the bridge origin this pass so the DTO
@@ -714,7 +716,7 @@ function scheduleOrphanActorSync(actorUris: Set<string>): void {
  *     derivable. The empty handle suppresses the `@handle` line and the profile
  *     link, so no misleading handle is ever emitted.
  *
- * Batched (single FederatedActor query), best-effort, and never cached — the DTO
+ * Batched (single federated_actors query), best-effort, and never cached — the DTO
  * self-heals once the actor resolves or the post's `oxyUserId` is backfilled and
  * normal Oxy resolution takes over. Keyed by post id (orphans have no `oxyUserId`
  * to key on).
@@ -743,18 +745,12 @@ export async function resolveOrphanFederatedAuthors(
     }
   }
 
-  const actorByUri = new Map<
-    string,
-    { username?: string; acct?: string; domain?: string; avatarUrl?: string; oxyUserId?: string }
-  >();
+  const actorByUri = new Map<string, FederatedActorRecord>();
   if (lookupUris.size > 0) {
     try {
-      const actors = await FederatedActor.find({ uri: { $in: Array.from(lookupUris) } })
-        .select('uri username acct domain avatarUrl oxyUserId')
-        .lean();
+      const actors = await findActorsByUris(Array.from(lookupUris));
       for (const actor of actors) {
-        const uri = (actor as { uri?: string }).uri;
-        if (uri) actorByUri.set(uri, actor);
+        actorByUri.set(actor.uri, actor);
       }
     } catch (error) {
       logger.warn('[PostHydration] Orphan federated author lookup failed', {
@@ -775,7 +771,7 @@ export async function resolveOrphanFederatedAuthors(
     const username = actor?.username || (actor?.acct ? actor.acct.split('@')[0] : '');
 
     if (actor && username) {
-      // Authoritative federated identity from Mention's own FederatedActor record
+      // Authoritative federated identity from Mention's own federated_actors row
       // (never invents a display name — the renderer falls back to the handle).
       result.set(postId, {
         id: actor.oxyUserId || actorUri || postId,
@@ -1448,7 +1444,7 @@ export class PostHydrationService {
     }
 
     // `resolveUserSummaries` returns raw Oxy users (Oxy owns identity) and
-    // already enriches any degraded FEDERATED author from the FederatedActor
+    // already enriches any degraded FEDERATED author from the federated_actors
     // record — no separate repair step here.
     const resolved = await resolveUserSummaries([...userIds]);
 

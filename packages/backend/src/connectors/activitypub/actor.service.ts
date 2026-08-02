@@ -9,7 +9,14 @@ import {
   type WebFingerJrd,
 } from '@oxyhq/federation/node';
 import { logger } from '../../utils/logger';
-import FederatedActor, { type IFederatedActor } from '../../models/FederatedActor';
+import { withEngineId, type EngineFederatedActorRecord } from '../../db/federation/actorRecord';
+import {
+  findActorByPublicKeyId,
+  findActorByUri,
+  setActorOxyUserId,
+  tombstoneActor,
+  upsertActor,
+} from '../../db/federation/actorRepository';
 import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
@@ -38,29 +45,25 @@ const WEBFINGER_TIMEOUT_MS = 10000;
 const WEBFINGER_MAX_BYTES = 256 * 1024;
 
 /**
- * Mention's actor CACHE store: the AP-specific `FederatedActor` rows stay in
- * Mention's Mongo, reached through this adapter. The exact Mongoose calls are
- * unchanged from the previous `ActorService`.
+ * Mention's actor CACHE store: the AP-specific `federated_actors` rows stay in
+ * Mention's Postgres, reached through this adapter. Every query lives in
+ * `db/federation/actorRepository.ts`; this only adapts the shapes the engine's
+ * interface names.
  */
-const store: FederatedActorStore<IFederatedActor> = {
-  findActorByUri: (uri) => FederatedActor.findOne({ uri }).lean<IFederatedActor>(),
-  upsertActor: (uri, update: FederatedActorUpsert) =>
-    FederatedActor.findOneAndUpdate(
-      { uri },
-      { $set: update },
-      { upsert: true, returnDocument: 'after', lean: true },
-    ) as Promise<IFederatedActor | null>,
-  findActorByPublicKeyId: (keyId) =>
-    FederatedActor.findOne({ publicKeyId: keyId }).lean<IFederatedActor>(),
-  setActorOxyUserId: async (actorId, oxyUserId) => {
-    await FederatedActor.updateOne({ _id: actorId }, { $set: { oxyUserId } });
+const store: FederatedActorStore<EngineFederatedActorRecord> = {
+  findActorByUri: async (uri) => withEngineId(await findActorByUri(uri)),
+  upsertActor: async (uri, update: FederatedActorUpsert) => {
+    // `fields` is the one part of the write that is a second TABLE rather than a
+    // column, so it is split out here and the repository replaces the whole list
+    // inside the same transaction as the row.
+    const { fields, uri: _uri, ...columns } = update;
+    return withEngineId(await upsertActor(uri, columns, fields));
   },
-  tombstoneActor: (uri) =>
-    FederatedActor.findOneAndUpdate(
-      { uri },
-      { $set: { suspended: true } },
-      { returnDocument: 'after', projection: { oxyUserId: 1 } },
-    ).lean<Pick<IFederatedActor, 'oxyUserId'>>(),
+  findActorByPublicKeyId: async (keyId) => withEngineId(await findActorByPublicKeyId(keyId)),
+  setActorOxyUserId: async (actorId, oxyUserId) => {
+    await setActorOxyUserId(String(actorId), oxyUserId);
+  },
+  tombstoneActor: (uri) => tombstoneActor(uri),
 };
 
 /**
@@ -89,7 +92,7 @@ const fetchWebFinger: WebFingerFetch = async (url) => {
  * tombstoneGoneActor / refreshActorInBackground / fetchPublicKey /
  * resolveActorOxyUserId` unchanged.
  */
-export const actorService = createActorResolver<IFederatedActor>({
+export const actorService = createActorResolver<EngineFederatedActorRecord>({
   federationEnabled: FEDERATION_ENABLED,
   signedFetch,
   fetchWebFinger,

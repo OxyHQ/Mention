@@ -1,6 +1,14 @@
 import express from 'express';
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+} from '../../__tests__/helpers/federationFixtures';
+
+const scope = federationScope('connectors-routes-sharing-gate');
 
 /**
  * Contract test for the `fediverseSharing` gate on `POST /federation/follow`
@@ -84,18 +92,6 @@ vi.mock('../../utils/oxyHelpers', () => ({
 }));
 
 vi.mock('../../models/Post', () => ({ Post: { find: vi.fn() } }));
-
-vi.mock('../../models/FederatedFollow', () => ({
-  default: { find: vi.fn(() => ({ lean: async () => [] })) },
-}));
-
-vi.mock('../../models/FederatedActor', () => ({
-  // Both `resolveTargetConnector`'s stored-protocol lookup and the follow
-  // route's post-deliver read-back chain `.select(...).lean()`; a stored actor
-  // is irrelevant to the sharing gate itself, so every call resolves `null`
-  // and dispatch falls through to `connectorFor`.
-  default: { findOne: vi.fn(() => ({ select: () => ({ lean: async () => null }) })) },
-}));
 
 vi.mock('../../services/fediverseSharing', () => ({
   isFediverseSharingEnabled: (...args: unknown[]) => isFediverseSharingEnabled(...args),

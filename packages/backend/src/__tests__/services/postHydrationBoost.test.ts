@@ -1,4 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+} from '../../__tests__/helpers/federationFixtures';
+
+const scope = federationScope('hydration-boost');
 import type { CachedUserSummary } from '../../services/userSummaryCache';
 
 /**
@@ -26,13 +35,12 @@ const BOOSTER_OXY_ID = 'oxy-booster';
 const ORIGINAL_AUTHOR_OXY_ID = 'oxy-original-author';
 const VIEWER_ID = 'oxy-viewer';
 
-const { getUserById, getUsersByIds, cacheStore, postFind, postFindOne, federatedActorFind } = vi.hoisted(() => ({
+const { getUserById, getUsersByIds, cacheStore, postFind, postFindOne } = vi.hoisted(() => ({
   getUserById: vi.fn(),
   getUsersByIds: vi.fn(),
   cacheStore: new Map<string, CachedUserSummary>(),
   postFind: vi.fn(),
   postFindOne: vi.fn(),
-  federatedActorFind: vi.fn(),
 }));
 
 vi.mock('../../runtime/oxyClient', () => ({
@@ -95,14 +103,8 @@ vi.mock('../../models/StarterPack', () => ({
 
 // FederatedActor lookup, shared by two paths: the degraded-author enrichment
 // (keyed by `oxyUserId`) and the orphan-federated-author resolution (keyed by
-// `uri`). Routed by query via `federatedActorFind`; defaults to no rows so an
 // unresolved federated author degrades to a neutral "Unknown user" (but its
 // content STILL renders — orphans are no longer dropped).
-vi.mock('../../models/FederatedActor', () => ({
-  FederatedActor: { find: (...args: unknown[]) => ({ select: () => ({ lean: async () => federatedActorFind(...args) }) }) },
-  default: { find: (...args: unknown[]) => ({ select: () => ({ lean: async () => federatedActorFind(...args) }) }) },
-}));
-
 vi.mock('../../services/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
@@ -169,15 +171,22 @@ function originalRow() {
 describe('PostHydrationService — boost original embedding is deterministic', () => {
   let service: PostHydrationService;
 
-  beforeEach(() => {
+  beforeAll(async () => {
+    await connectPostgres();
+  });
+
+  afterAll(async () => {
+    await closePostgres();
+  });
+
+  beforeEach(async () => {
+    await clearFederationScope(scope);
     cacheStore.clear();
     getUserById.mockReset();
     getUsersByIds.mockReset();
     postFind.mockReset();
     postFindOne.mockReset();
-    federatedActorFind.mockReset();
-    // No FederatedActor rows unless a test opts in.
-    federatedActorFind.mockResolvedValue([]);
+    // No federated actor rows unless a test opts in.
 
     // Both authors resolve via the bulk Oxy fetch.
     getUsersByIds.mockResolvedValue([
@@ -409,13 +418,13 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       return [];
     });
     getUsersByIds.mockResolvedValue([makeOxyUser(BOOSTER_OXY_ID, 'booster', 'Booster')]);
-    // The orphan-author resolution queries FederatedActor by `uri`.
-    federatedActorFind.mockImplementation((query: Record<string, unknown> | undefined) => {
-      const uriIn = (query?.uri as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(uriIn) && uriIn.some((v) => String(v) === ACTOR_URI)) {
-        return [{ uri: ACTOR_URI, username: 'kaleidotrope', acct: 'kaleidotrope@mastodon.online', domain: 'mastodon.online', avatarUrl: 'https://mastodon.online/a.png' }];
-      }
-      return [];
+    // The orphan-author resolution looks the actor up by `uri`.
+    await seedActor(scope, {
+      uri: ACTOR_URI,
+      username: 'kaleidotrope',
+      acct: 'kaleidotrope@mastodon.online',
+      domain: 'mastodon.online',
+      avatarUrl: 'https://mastodon.online/a.png',
     });
 
     const [hydrated] = await hydrateBoost(undefined);

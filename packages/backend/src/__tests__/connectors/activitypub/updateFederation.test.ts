@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Outbound edit federation (PART 3): an edited local post re-federates as an
@@ -26,18 +26,12 @@ const {
   enqueueDelivery,
   isFediverseSharingEnabled,
   getUserById,
-  followFindLean,
-  actorFindLean,
-  actorFindOneLean,
   postFindByIdLean,
   insertMany,
 } = vi.hoisted(() => ({
   enqueueDelivery: vi.fn(),
   isFediverseSharingEnabled: vi.fn(),
   getUserById: vi.fn(),
-  followFindLean: vi.fn(),
-  actorFindLean: vi.fn(),
-  actorFindOneLean: vi.fn(),
   postFindByIdLean: vi.fn(),
   insertMany: vi.fn(),
 }));
@@ -51,15 +45,6 @@ vi.mock('../../../connectors/activitypub/constants', async () => {
 vi.mock('../../../connectors/activitypub/actor.service', () => ({ actorService: {} }));
 vi.mock('../../../connectors/activitypub/crypto', () => ({ getPublicKey: vi.fn(), signRequest: vi.fn() }));
 vi.mock('../../../queue/producers', () => ({ enqueueDelivery, enqueueInboxActivity: vi.fn() }));
-vi.mock('../../../models/FederatedActor', () => ({
-  default: {
-    find: () => ({ lean: () => actorFindLean() }),
-    findOne: () => ({ lean: () => actorFindOneLean() }),
-  },
-}));
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: { find: () => ({ lean: () => followFindLean() }) },
-}));
 vi.mock('../../../models/FederationDeliveryQueue', () => ({
   default: { insertMany, create: vi.fn() },
 }));
@@ -79,6 +64,13 @@ vi.mock('../../../utils/mediaResolver', () => ({
 vi.mock('../../../services/fediverseSharing', () => ({ isFediverseSharingEnabled }));
 vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ getUserById }) }));
 
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedFollowerWithInbox,
+} from '../../helpers/federationFixtures';
 import { followService } from '../../../connectors/activitypub/follow.service';
 
 const ISO = '2024-05-06T07:08:09.000Z';
@@ -119,23 +111,41 @@ function deliveredNote(): Record<string, unknown> {
   return deliveredActivity().object as Record<string, unknown>;
 }
 
-beforeEach(() => {
+const scope = federationScope('update-federation');
+const PARENT_ACTOR = `${scope.origin}/users/bob`;
+const PARENT_INBOX = `${scope.origin}/parent-inbox`;
+const PARENT_NOTE = `${PARENT_ACTOR}/statuses/9`;
+
+const USER_AUTHOR_OXY = scope.user('author-oxy');
+
+const USER_REPLIER_OXY = scope.user('replier-oxy');
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
+  await clearFederationScope(scope);
   enqueueDelivery.mockResolvedValue(true);
   isFediverseSharingEnabled.mockResolvedValue(true);
-  followFindLean.mockResolvedValue([]);
-  actorFindLean.mockResolvedValue([]);
-  actorFindOneLean.mockResolvedValue(null);
   postFindByIdLean.mockResolvedValue(null);
   getUserById.mockResolvedValue({ id: 'u', username: 'bob' });
 });
 
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 describe('federateUpdate — top-level edit', () => {
   it('emits an Update(Note) with an `updated` stamp and no inReplyTo', async () => {
-    followFindLean.mockResolvedValue([{ remoteActorUri: 'https://foo.example/users/x' }]);
-    actorFindLean.mockResolvedValue([{ sharedInboxUrl: 'https://foo.example/inbox' }]);
+    const followerInbox = await seedFollowerWithInbox(scope, USER_AUTHOR_OXY, { username: 'x' });
 
-    await followService.federateUpdate(editedPost(), 'author-oxy', 'alice');
+    await followService.federateUpdate(editedPost(), USER_AUTHOR_OXY, 'alice');
 
     const activity = deliveredActivity();
     expect(activity.type).toBe('Update');
@@ -156,7 +166,7 @@ describe('federateUpdate — top-level edit', () => {
 
     // A top-level edit never resolves a parent.
     expect(postFindByIdLean).not.toHaveBeenCalled();
-    expect(deliveredInboxes()).toEqual(['https://foo.example/inbox']);
+    expect(deliveredInboxes()).toEqual([followerInbox]);
   });
 });
 
@@ -164,51 +174,46 @@ describe('federateUpdate — reply edit to a FEDERATED parent', () => {
   it('keeps inReplyTo + parent Mention and delivers to followers AND the parent inbox', async () => {
     postFindByIdLean.mockResolvedValue({
       oxyUserId: 'parent-owner',
-      federation: {
-        activityId: 'https://remote.example/users/bob/statuses/9',
-        actorUri: 'https://remote.example/users/bob',
-      },
+      federation: { activityId: PARENT_NOTE, actorUri: PARENT_ACTOR },
     });
-    actorFindOneLean.mockResolvedValue({
-      sharedInboxUrl: 'https://remote.example/inbox',
-      acct: 'bob@remote.example',
+    await seedActor(scope, {
+      username: 'bob',
+      uri: PARENT_ACTOR,
+      sharedInboxUrl: PARENT_INBOX,
+      inboxUrl: PARENT_INBOX,
     });
-    followFindLean.mockResolvedValue([{ remoteActorUri: 'https://foo.example/users/x' }]);
-    actorFindLean.mockResolvedValue([{ sharedInboxUrl: 'https://foo.example/inbox' }]);
+    const followerInbox = await seedFollowerWithInbox(scope, USER_REPLIER_OXY, { username: 'x' });
 
-    await followService.federateUpdate(editedPost({ parentPostId: 'parent1' }), 'replier-oxy', 'alice');
+    await followService.federateUpdate(editedPost({ parentPostId: 'parent1' }), USER_REPLIER_OXY, 'alice');
 
     const activity = deliveredActivity();
     expect(activity.type).toBe('Update');
 
     const note = deliveredNote();
-    expect(note.inReplyTo).toBe('https://remote.example/users/bob/statuses/9');
+    expect(note.inReplyTo).toBe(PARENT_NOTE);
     expect(note.tag).toContainEqual({
       type: 'Mention',
-      href: 'https://remote.example/users/bob',
-      name: '@bob@remote.example',
+      href: PARENT_ACTOR,
+      name: `@bob@${scope.domain}`,
     });
     expect(note.updated).toBe(activity.updated);
-    expect(activity.cc).toEqual([ALICE_FOLLOWERS, 'https://remote.example/users/bob']);
+    expect(activity.cc).toEqual([ALICE_FOLLOWERS, PARENT_ACTOR]);
 
-    expect(deliveredInboxes().sort()).toEqual(
-      ['https://foo.example/inbox', 'https://remote.example/inbox'].sort(),
-    );
+    expect(deliveredInboxes().sort()).toEqual([followerInbox, PARENT_INBOX].sort());
   });
 });
 
 describe('federateUpdate — skipped cases', () => {
   it('skips a boost (no editable body)', async () => {
-    followFindLean.mockResolvedValue([{ remoteActorUri: 'https://foo.example/users/x' }]);
-    actorFindLean.mockResolvedValue([{ sharedInboxUrl: 'https://foo.example/inbox' }]);
+    await seedFollowerWithInbox(scope, USER_AUTHOR_OXY, { username: 'x' });
 
-    await followService.federateUpdate(editedPost({ boostOf: 'orig1' }), 'author-oxy', 'alice');
+    await followService.federateUpdate(editedPost({ boostOf: 'orig1' }), USER_AUTHOR_OXY, 'alice');
 
     expect(enqueueDelivery).not.toHaveBeenCalled();
   });
 
   it('skips a non-public post', async () => {
-    await followService.federateUpdate(editedPost({ visibility: 'private' }), 'author-oxy', 'alice');
+    await followService.federateUpdate(editedPost({ visibility: 'private' }), USER_AUTHOR_OXY, 'alice');
 
     expect(enqueueDelivery).not.toHaveBeenCalled();
   });
@@ -216,7 +221,7 @@ describe('federateUpdate — skipped cases', () => {
   it('skips entirely when sharing is disabled', async () => {
     isFediverseSharingEnabled.mockResolvedValue(false);
 
-    await followService.federateUpdate(editedPost(), 'author-oxy', 'alice');
+    await followService.federateUpdate(editedPost(), USER_AUTHOR_OXY, 'alice');
 
     expect(enqueueDelivery).not.toHaveBeenCalled();
   });

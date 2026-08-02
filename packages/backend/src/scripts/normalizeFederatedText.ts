@@ -32,9 +32,9 @@
  *                                    the author's prose — it is a one-line label,
  *                                    and until the write boundary enforced the rule
  *                                    the composer's value was stored verbatim.
- *   - `FederatedActor.username`    — INLINE
- *   - `FederatedActor.summary`     — MULTILINE (a bio is a body)
- *   - `FederatedActor.fields[].name` / `.value` — INLINE
+ *   - `federated_actors.username`  — INLINE
+ *   - `federated_actors.summary`   — MULTILINE (a bio is a body)
+ *   - `federated_actor_fields.name` / `.value` — INLINE
  *
  * Post BODIES are rewritten only on FEDERATED posts: a native body is the local
  * author's own text and is not ours to touch. Media `alt` is the one field this
@@ -79,7 +79,14 @@
 import mongoose from 'mongoose';
 import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
 import { Post } from '../models/Post';
-import FederatedActor from '../models/FederatedActor';
+import {
+  countActors,
+  loadActorFields,
+  scanActors,
+  updateActorText,
+  type ActorTextPatch,
+} from '../db/federation/actorRepository';
+import { connectPostgres, closePostgres } from '../db/postgres';
 import { normalizeAlt } from '../services/MediaMetadataService';
 import { htmlToInlineLabel } from '../utils/federation/htmlToPlainText';
 import { logger } from '../utils/logger';
@@ -117,7 +124,7 @@ export interface FederatedPostRow {
 
 /** The fields this script reads off a federated actor. */
 export interface FederatedActorRow {
-  _id: mongoose.Types.ObjectId;
+  id: string;
   uri?: string;
   username?: unknown;
   summary?: unknown;
@@ -472,9 +479,54 @@ async function normalizePosts(dryRun: boolean): Promise<CollectionResult<PostCou
   return { scanned, changed, written, counts, samples };
 }
 
-/** Normalize the remote text on every federated actor (both protocols). */
+/**
+ * Translate the dotted `$set` paths {@link buildActorUpdate} produces into the
+ * column + verified-link writes the actor table takes.
+ *
+ * `buildActorUpdate` keeps emitting dot paths because the dry-run reporter reads
+ * the SAME paths back off the document (`describeChanges` / `readPath`) to print
+ * a before/after, and because those paths are what its unit tests pin. Only three
+ * shapes exist — `username`, `summary`, and `fields.<n>.<name|value>` — and an
+ * unrecognized one throws rather than being skipped: a silently-dropped path is a
+ * normalization that reports as applied and is not.
+ */
+function toActorTextPatch(update: DocumentUpdate): ActorTextPatch {
+  const patch: ActorTextPatch = {};
+  const fields = new Map<number, { position: number; name?: string; value?: string }>();
+
+  for (const [path, raw] of Object.entries(update.set)) {
+    const value = String(raw);
+    if (path === 'username') {
+      patch.username = value;
+      continue;
+    }
+    if (path === 'summary') {
+      patch.summary = value;
+      continue;
+    }
+    const field = /^fields\.(\d+)\.(name|value)$/.exec(path);
+    if (!field) {
+      throw new Error(`[normalizeFederatedText] unsupported actor update path: ${path}`);
+    }
+    const position = Number(field[1]);
+    const entry = fields.get(position) ?? { position };
+    entry[field[2] as 'name' | 'value'] = value;
+    fields.set(position, entry);
+  }
+
+  if (fields.size > 0) patch.fields = [...fields.values()];
+  return patch;
+}
+
+/**
+ * Normalize the remote text on every federated actor (both protocols).
+ *
+ * There is no bulk-write equivalent here and none is wanted: an actor's rewrite
+ * spans two tables and has to be atomic, so each changed actor is one small
+ * transaction. The scan itself is still paged on the `id` cursor.
+ */
 async function normalizeActors(dryRun: boolean): Promise<CollectionResult<ActorCounts>> {
-  const total = await FederatedActor.countDocuments({});
+  const total = await countActors({});
   logger.info(`[normalizeFederatedText] ${total} federated actors to scan`);
 
   const counts: ActorCounts = { username: 0, summary: 0, fields: 0 };
@@ -482,36 +534,23 @@ async function normalizeActors(dryRun: boolean): Promise<CollectionResult<ActorC
   let scanned = 0;
   let changed = 0;
   let written = 0;
-  let lastId: mongoose.Types.ObjectId | null = null;
-  let pendingOps: mongoose.AnyBulkWriteOperation<typeof FederatedActor>[] = [];
-
-  const flush = async (): Promise<void> => {
-    if (pendingOps.length === 0) return;
-    if (dryRun) {
-      pendingOps = [];
-      return;
-    }
-    const result = await FederatedActor.bulkWrite(pendingOps, { ordered: false });
-    written += result.modifiedCount;
-    pendingOps = [];
-  };
+  let lastId: string | undefined;
 
   for (;;) {
-    const pageFilter: Record<string, unknown> = {};
-    if (lastId) pageFilter._id = { $gt: lastId };
+    const rows = await scanActors({}, { afterId: lastId, limit: PAGE_SIZE });
+    if (rows.length === 0) break;
 
-    const page = await FederatedActor.find(pageFilter, {
-      _id: 1,
-      uri: 1,
-      username: 1,
-      summary: 1,
-      fields: 1,
-    })
-      .sort({ _id: 1 })
-      .limit(PAGE_SIZE)
-      .lean<FederatedActorRow[]>();
-
-    if (page.length === 0) break;
+    // The verified links are a second table and are NOT part of an actor record,
+    // so they are read per page rather than per actor.
+    const page: FederatedActorRow[] = await Promise.all(
+      rows.map(async (row) => ({
+        id: row.id,
+        uri: row.uri,
+        username: row.username,
+        summary: row.summary,
+        fields: await loadActorFields(row.id),
+      })),
+    );
 
     for (const actor of page) {
       const { update, counts: actorCounts } = buildActorUpdate(actor);
@@ -521,25 +560,20 @@ async function normalizeActors(dryRun: boolean): Promise<CollectionResult<ActorC
       counts.summary += actorCounts.summary;
       counts.fields += actorCounts.fields;
       if (dryRun && samples.length < DRY_RUN_SAMPLE_SIZE) {
-        samples.push({ id: actor._id.toString(), changes: describeChanges(actor, update) });
+        samples.push({ id: actor.id, changes: describeChanges(actor, update) });
+        continue;
       }
-      pendingOps.push({
-        updateOne: {
-          filter: { _id: actor._id },
-          update: toUpdateDocument(update),
-        },
-      });
-      if (pendingOps.length >= BULK_CHUNK_SIZE) await flush();
+      if (dryRun) continue;
+      if (await updateActorText(actor.id, toActorTextPatch(update))) written += 1;
     }
 
     scanned += page.length;
-    lastId = page[page.length - 1]._id;
+    lastId = rows[rows.length - 1].id;
     logger.info(
       `[normalizeFederatedText] actors: scanned ${scanned}/${total}, ${dryRun ? 'would rewrite' : 'rewriting'} ${changed}`,
     );
   }
 
-  await flush();
   return { scanned, changed, written, counts, samples };
 }
 
@@ -588,14 +622,18 @@ async function normalizeFederatedText(): Promise<void> {
       dryRun,
     });
     await mongoose.connect(mongoUri, { dbName });
+    // Posts are still Mongo; the federated actors this also normalizes are not.
+    await connectPostgres();
     logger.info('[normalizeFederatedText] connected to MongoDB', { dryRun });
 
     await normalizeStoredText(dryRun);
 
     await mongoose.disconnect();
+    await closePostgres();
   } catch (error) {
     logger.error('[normalizeFederatedText] failed', error);
     await mongoose.disconnect();
+    await closePostgres();
     process.exit(1);
   }
 }

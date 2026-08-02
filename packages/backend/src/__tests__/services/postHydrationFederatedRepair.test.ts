@@ -1,4 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+} from '../../__tests__/helpers/federationFixtures';
+
+const scope = federationScope('hydration-fed-repair');
 
 /**
  * Regression harness for the "federated author renders without its real handle"
@@ -14,8 +23,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * variant where the fallback used the raw Mongo id as the handle.
  */
 
-const { federatedActorFind, getUsersByIds, getUserById } = vi.hoisted(() => ({
-  federatedActorFind: vi.fn(),
+const { getUsersByIds, getUserById } = vi.hoisted(() => ({
   getUsersByIds: vi.fn(),
   getUserById: vi.fn(),
 }));
@@ -69,18 +77,21 @@ vi.mock('../../services/userSummaryCache', () => ({
   invalidate: vi.fn(async () => undefined),
 }));
 
-vi.mock('../../models/FederatedActor', () => ({
-  FederatedActor: { find: (...args: unknown[]) => ({ select: () => ({ lean: () => federatedActorFind(...args) }) }) },
-  default: { find: (...args: unknown[]) => ({ select: () => ({ lean: () => federatedActorFind(...args) }) }) },
-}));
-
 import { resolveUserSummaries, degradedActorSummary, isFallbackUserSummary } from '../../services/PostHydrationService';
 
 const FED_ID = '6a38fbdd272930c46a785b1f';
 
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 describe('resolveUserSummaries federated enrichment', () => {
-  beforeEach(() => {
-    federatedActorFind.mockReset();
+  beforeEach(async () => {
+    await clearFederationScope(scope);
     getUsersByIds.mockReset();
     getUserById.mockReset();
     // Force degradation: Oxy returns nothing from the bulk call and the per-id
@@ -97,9 +108,13 @@ describe('resolveUserSummaries federated enrichment', () => {
   });
 
   it('enriches a degraded federated author with its FederatedActor handle + avatar, never a name', async () => {
-    federatedActorFind.mockResolvedValue([
-      { oxyUserId: FED_ID, acct: 'kaleidotrope@mastodon.online', username: 'kaleidotrope', domain: 'mastodon.online', avatarUrl: 'https://mastodon.online/a.png' },
-    ]);
+    await seedActor(scope, {
+      username: 'kaleidotrope',
+      uri: `${scope.origin}/users/kaleidotrope`,
+      acct: `kaleidotrope@${scope.domain}`,
+      oxyUserId: FED_ID,
+      avatarUrl: `${scope.origin}/a.png`,
+    });
 
     const resolved = await resolveUserSummaries([FED_ID]);
     const user = resolved.get(FED_ID)?.user;
@@ -108,18 +123,23 @@ describe('resolveUserSummaries federated enrichment', () => {
     expect(user?.username).not.toBe('');
     expect(user?.username).not.toBe(FED_ID);
     expect(user?.isFederated).toBe(true);
-    expect(user?.instance).toBe('mastodon.online');
-    expect(user?.federation?.domain).toBe('mastodon.online');
-    expect(user?.avatar).toBe('https://mastodon.online/a.png');
+    expect(user?.instance).toBe(scope.domain);
+    expect(user?.federation?.domain).toBe(scope.domain);
+    expect(user?.avatar).toBe(`${scope.origin}/a.png`);
     // Never invent a display name — the FederatedActor has none.
     expect(user?.name.displayName).toBeUndefined();
     expect(isFallbackUserSummary(user!)).toBe(false);
   });
 
   it('derives the username from acct when the username field is absent', async () => {
-    federatedActorFind.mockResolvedValue([
-      { oxyUserId: FED_ID, acct: 'kaleidotrope@mastodon.online', domain: 'mastodon.online' },
-    ]);
+    // `username` is written as an empty string, which is what a legacy row that
+    // only ever carried an `acct` reads as — the derivation is from `acct`.
+    await seedActor(scope, {
+      username: '',
+      uri: `${scope.origin}/users/kaleidotrope`,
+      acct: `kaleidotrope@${scope.domain}`,
+      oxyUserId: FED_ID,
+    });
 
     const resolved = await resolveUserSummaries([FED_ID]);
     expect(resolved.get(FED_ID)?.user.username).toBe('kaleidotrope');
@@ -133,18 +153,20 @@ describe('resolveUserSummaries federated enrichment', () => {
     const resolved = await resolveUserSummaries([FED_ID]);
     const user = resolved.get(FED_ID)?.user;
 
-    expect(federatedActorFind).not.toHaveBeenCalled();
     expect(user?.username).toBe('kaleidotrope');
     expect(user?.name.displayName).toBe('Kaleidotrope');
   });
 
-  it('stays degraded (never throws) when the FederatedActor lookup fails', async () => {
-    federatedActorFind.mockRejectedValue(new Error('db down'));
+  it('stays degraded (never throws) when the actor lookup fails', async () => {
+    // A closed pool is the real "database unavailable" failure this soft-fails on.
+    await closePostgres();
 
     const resolved = await resolveUserSummaries([FED_ID]);
     const user = resolved.get(FED_ID)?.user;
 
     expect(user?.username).toBe('');
     expect(isFallbackUserSummary(user!)).toBe(true);
+
+    await connectPostgres();
   });
 });

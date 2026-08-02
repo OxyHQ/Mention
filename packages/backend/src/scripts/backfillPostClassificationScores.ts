@@ -38,7 +38,7 @@ import mongoose from 'mongoose';
 import type { PostContent } from '@mention/shared-types';
 import { resolveVariant } from '../services/postVariants';
 import { Post } from '../models/Post';
-import { FederatedActor } from '../models/FederatedActor';
+import { findActorsByUris } from '../db/federation/actorRepository';
 import { BASELINE_CLASSIFIER_VERSION } from '../services/BaselineContentClassifier';
 import {
   computeDeterministicScores,
@@ -96,10 +96,7 @@ async function resolveActorContexts(rows: PostScoreRow[]): Promise<Map<string, A
     return contexts;
   }
 
-  const actors = await FederatedActor.find(
-    { uri: { $in: actorUris } },
-    { uri: 1, type: 1, domain: 1 },
-  ).lean<Array<{ uri: string; type?: string; domain?: string }>>();
+  const actors = await findActorsByUris(actorUris);
 
   for (const actor of actors) {
     contexts.set(actor.uri, { type: actor.type, domain: actor.domain });
@@ -109,8 +106,8 @@ async function resolveActorContexts(rows: PostScoreRow[]): Promise<Map<string, A
 
 /**
  * Recompute + backfill deterministic scores over the qualifying corpus. Operates
- * on the `Post` / `FederatedActor` models only — the caller owns the Mongo
- * connection lifecycle — so it is unit-testable with mocked models and reusable
+ * on `Post` plus the `federated_actors` table only — the caller owns the
+ * connection lifecycles — so it stays reusable
  * from an in-process caller.
  */
 export async function backfillPostClassificationScores(

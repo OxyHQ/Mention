@@ -1,21 +1,26 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  readActor,
+  seedActor,
+} from '../../helpers/federationFixtures';
+
+const scope = federationScope('actor-tombstone');
 
 /**
  * Live "dead federated actor" tombstone: a definitive 410 Gone on the actor fetch
- * marks the stored `FederatedActor` `suspended` and asks oxy-api to archive the
+ * marks the stored actor row `suspended` and asks oxy-api to archive the
  * linked identity (`reportFederatedActorGone`). Both best-effort and fail-soft —
  * a 410 is authoritative, but the tombstone must never throw out of
  * `fetchRemoteActor`, and a 404/5xx must NOT trigger it (only 410 is definitive).
  */
 
 const mocks = vi.hoisted(() => ({
-  findOneAndUpdate: vi.fn(),
   reportFederatedActorGone: vi.fn(),
   signedFetch: vi.fn(),
-}));
-
-vi.mock('../../../models/FederatedActor', () => ({
-  default: { findOneAndUpdate: mocks.findOneAndUpdate },
 }));
 
 vi.mock('../../../connectors/identity', () => ({
@@ -32,56 +37,66 @@ vi.mock('../../../connectors/activitypub/helpers', () => ({
 
 import { actorService } from '../../../connectors/activitypub/actor.service';
 
-const ACTOR_URI = 'https://mastodon.social/users/ghost';
+const ACTOR_URI = `${scope.origin}/users/ghost`;
 
-/** A `findOneAndUpdate(...).lean()` result stub. */
-function leanReturning(value: unknown): { lean: () => Promise<unknown> } {
-  return { lean: () => Promise.resolve(value) };
-}
+beforeAll(async () => {
+  await connectPostgres();
+});
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
+  await clearFederationScope(scope);
   mocks.reportFederatedActorGone.mockResolvedValue('archived');
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 describe('actorService.tombstoneGoneActor', () => {
   it('suspends the stored row and reports the linked identity gone to Oxy', async () => {
-    mocks.findOneAndUpdate.mockReturnValue(leanReturning({ oxyUserId: 'oxy-ghost' }));
+    await seedActor(scope, { username: 'ghost', uri: ACTOR_URI, oxyUserId: 'oxy-ghost' });
 
     await actorService.tombstoneGoneActor(ACTOR_URI);
 
-    expect(mocks.findOneAndUpdate).toHaveBeenCalledWith(
-      { uri: ACTOR_URI },
-      { $set: { suspended: true } },
-      expect.objectContaining({ returnDocument: 'after' }),
-    );
+    // The ROW is suspended — the previous version asserted only that
+    // `findOneAndUpdate` had been called with a `$set`, which a write that never
+    // reached the database satisfies just as well.
+    expect((await readActor(ACTOR_URI))?.suspended).toBe(true);
     expect(mocks.reportFederatedActorGone).toHaveBeenCalledWith('oxy-ghost');
   });
 
   it('suspends but does NOT report when the actor has no linked Oxy identity', async () => {
-    mocks.findOneAndUpdate.mockReturnValue(leanReturning({ oxyUserId: undefined }));
+    await seedActor(scope, { username: 'ghost', uri: ACTOR_URI, oxyUserId: null });
 
     await actorService.tombstoneGoneActor(ACTOR_URI);
 
-    expect(mocks.findOneAndUpdate).toHaveBeenCalledTimes(1);
+    expect((await readActor(ACTOR_URI))?.suspended).toBe(true);
     expect(mocks.reportFederatedActorGone).not.toHaveBeenCalled();
   });
 
   it('is a no-op (no report) when no stored actor row matches', async () => {
-    mocks.findOneAndUpdate.mockReturnValue(leanReturning(null));
-
+    // No row seeded at all.
     await actorService.tombstoneGoneActor(ACTOR_URI);
 
+    expect(await readActor(ACTOR_URI)).toBeNull();
     expect(mocks.reportFederatedActorGone).not.toHaveBeenCalled();
   });
 
-  it('never throws when the Mongo write fails (fail-soft)', async () => {
-    mocks.findOneAndUpdate.mockImplementation(() => {
-      throw new Error('mongo down');
-    });
+  it('never throws when the database write fails (fail-soft)', async () => {
+    await seedActor(scope, { username: 'ghost', uri: ACTOR_URI, oxyUserId: 'oxy-ghost' });
+    // The store adapter is the seam that can fail; a closed pool reproduces the
+    // "database unavailable mid-tombstone" case without a fake in the query path.
+    await closePostgres();
 
     await expect(actorService.tombstoneGoneActor(ACTOR_URI)).resolves.toBeUndefined();
     expect(mocks.reportFederatedActorGone).not.toHaveBeenCalled();
+
+    await connectPostgres();
   });
 });
 

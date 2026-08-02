@@ -11,7 +11,7 @@
  *
  *   `syncOnProfileView(oxyUserId)` → `pending`
  *
- * The ONLY request-path work is a single indexed `FederatedActor.findOne` to
+ * The ONLY request-path work is a single indexed `federated_actors` lookup to
  * decide whether to report the feed as `pending`; ALL federation network I/O
  * (Oxy user lookup, actor fetch, outbox sync, media downloads) runs detached.
  * A feed response must never block on remote I/O.
@@ -22,7 +22,12 @@
 
 import type { User } from '@oxyhq/core';
 import { Post } from '../models/Post';
-import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
+import type { FederatedActorRecord } from '../db/federation/actorRecord';
+import {
+  findActorByOxyUserId,
+  setActorOxyUserId,
+  stampLastOutboxSyncAt,
+} from '../db/federation/actorRepository';
 import { logger } from '../utils/logger';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { activityPubConnector, isPermanentlyUnavailableOutboxReason } from './activitypub/ActivityPubConnector';
@@ -65,9 +70,9 @@ class FederatedProfileSync {
   async syncOnProfileView(oxyUserId: string): Promise<boolean> {
     if (!FEDERATION_ENABLED && !ATPROTO_ENABLED) return false;
 
-    let cachedActor: IFederatedActor | null = null;
+    let cachedActor: FederatedActorRecord | null = null;
     try {
-      cachedActor = await FederatedActor.findOne({ oxyUserId }).lean<IFederatedActor>();
+      cachedActor = await findActorByOxyUserId(oxyUserId);
     } catch (error) {
       // A failed actor lookup must not fail the feed — it only costs us the
       // background sync for this view.
@@ -111,7 +116,7 @@ class FederatedProfileSync {
    * Never throws; all errors are logged. Returns void synchronously to the
    * caller (the work runs detached).
    */
-  private runInBackground(syncUserId: string, cachedActor?: IFederatedActor): void {
+  private runInBackground(syncUserId: string, cachedActor?: FederatedActorRecord): void {
     void (async () => {
       try {
         // Dispatch by the cached actor's network. atproto profiles backfill
@@ -154,13 +159,13 @@ class FederatedProfileSync {
           // atproto path never touches the ActivityPub outbox code that normally
           // stamps `lastOutboxSyncAt`, so without this an atproto profile with an
           // empty local feed would report `pending:true` on EVERY view forever.
-          await this.stampPostBackfill(cachedActor._id);
+          await this.stampPostBackfill(cachedActor.id);
           return;
         }
 
         if (!FEDERATION_ENABLED) return;
 
-        let actor: IFederatedActor | null = cachedActor ?? null;
+        let actor: FederatedActorRecord | null = cachedActor ?? null;
         let refreshedActorForSync = false;
         let oxyIdentity: { actorUri?: string; acctHint?: string } | undefined;
 
@@ -188,7 +193,7 @@ class FederatedProfileSync {
 
         const stampActorOxyUserId = async (): Promise<void> => {
           if (!actor || actor.oxyUserId) return;
-          await FederatedActor.updateOne({ _id: actor._id }, { $set: { oxyUserId: syncUserId } });
+          await setActorOxyUserId(actor.id, syncUserId);
           actor.oxyUserId = syncUserId;
         };
 
@@ -286,7 +291,7 @@ class FederatedProfileSync {
 
         // Ensure the actor has oxyUserId before syncing so posts get the right author
         if (!actor.oxyUserId) {
-          await FederatedActor.updateOne({ _id: actor._id }, { $set: { oxyUserId: syncUserId } });
+          await setActorOxyUserId(actor.id, syncUserId);
           actor.oxyUserId = syncUserId;
         }
 
@@ -300,10 +305,7 @@ class FederatedProfileSync {
         } else if (syncResult.shouldStampCooldown) {
           // Stamp the sync time so subsequent views honour the cooldown only
           // after a fetch that actually exposed an inspectable outbox.
-          await FederatedActor.updateOne(
-            { _id: actor._id },
-            { $set: { lastOutboxSyncAt: new Date() } },
-          );
+          await stampLastOutboxSyncAt(actor.id);
         } else {
           logger.info('[FedSync] did not stamp outbox cooldown', {
             result: syncResult.reason ?? 'unknown',
@@ -345,9 +347,9 @@ class FederatedProfileSync {
    * how many posts were imported. Fail-soft: a stamp failure only costs one more
    * poll, never the detached task.
    */
-  private async stampPostBackfill(actorId: IFederatedActor['_id']): Promise<void> {
+  private async stampPostBackfill(actorId: string): Promise<void> {
     try {
-      await FederatedActor.updateOne({ _id: actorId }, { $set: { lastOutboxSyncAt: new Date() } });
+      await stampLastOutboxSyncAt(actorId);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
         logger.warn('[FedSync] failed to stamp post backfill', {
@@ -356,7 +358,7 @@ class FederatedProfileSync {
     }
   }
 
-  private shouldRefreshActorBeforeOutboxSync(actor: IFederatedActor): boolean {
+  private shouldRefreshActorBeforeOutboxSync(actor: FederatedActorRecord): boolean {
     if (!actor.outboxUrl) return true;
     const fetchedAt = actor.lastFetchedAt?.getTime();
     if (typeof fetchedAt !== 'number') return true;
@@ -364,7 +366,7 @@ class FederatedProfileSync {
     return Date.now() - fetchedAt > FEDERATED_ACTOR_PROFILE_STALE_MS;
   }
 
-  private currentOutboxBackfillStatus(actor: IFederatedActor): string | undefined {
+  private currentOutboxBackfillStatus(actor: FederatedActorRecord): string | undefined {
     if (!actor.outboxUrl) return undefined;
     if (actor.outboxBackfill?.outboxUrl !== actor.outboxUrl) return undefined;
     return actor.outboxBackfill?.status;
@@ -376,7 +378,7 @@ class FederatedProfileSync {
    * (`unavailable`) outbox will never produce posts, so the client must render
    * the empty profile instead of spinning.
    */
-  private shouldReportPending(actor: IFederatedActor): boolean {
+  private shouldReportPending(actor: FederatedActorRecord): boolean {
     // An atproto actor with zero upstream posts has nothing to import, so it
     // must never poll. Short-circuit the common empty case on the VERY first
     // view — before the background backfill has stamped `lastOutboxSyncAt` — so

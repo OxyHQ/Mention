@@ -1,4 +1,14 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedFollow,
+} from '../__tests__/helpers/federationFixtures';
+
+const scope = federationScope('feed-controller-mutuals');
 
 /**
  * Group E — the controller populates `ctx.mutualIds` (Oxy mutuals ∪ federated
@@ -43,12 +53,6 @@ vi.mock('../services/ListSubscriptionService', () => ({
 }));
 vi.mock('../services/UserPreferenceService', () => ({
   userPreferenceService: { getUserBehavior: vi.fn(async () => undefined), getTopRegion: vi.fn(() => undefined) },
-}));
-vi.mock('../models/FederatedFollow', () => ({
-  default: { distinct: vi.fn(async () => ['uriB']) },
-}));
-vi.mock('../models/FederatedActor', () => ({
-  default: { find: vi.fn(() => ({ lean: vi.fn(async () => [{ oxyUserId: 'fedmutual' }]) })) },
 }));
 vi.mock('../models/MuteWord', () => ({ MuteWord: { find: vi.fn(() => ({ lean: vi.fn(async () => []) })) } }));
 vi.mock('../models/UserSettings', () => ({ default: { findOne: vi.fn(() => ({ lean: vi.fn(async () => null) })) } }));

@@ -1,4 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedFollow,
+} from '../../helpers/federationFixtures';
 
 /**
  * Sharing-consent gate on the shared-inbox handlers that target an EXISTING
@@ -24,12 +32,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * Drives the REAL `InboxProcessingService` (same mocking convention as the
  * sibling `inboundFollowBridge.test.ts` / `inboxOxyUserIdInvariant.test.ts`:
  * mock the models + `services/fediverseSharing`, let `actor.service.ts` run
- * for real against the mocked `FederatedActor` model). `outbox.service.ts` is
+ * for real against REAL `federated_actors` / `federated_follows` rows).
+ * `outbox.service.ts` is
  * mocked wholesale — its own thread-linking/boost-import logic has its own
  * dedicated test coverage; here only the GATE matters.
  */
 
-const ACTOR_URI = 'https://mastodon.social/users/bob';
+const scope = federationScope('inbound-sharing-gates');
+const ACTOR_URI = `${scope.origin}/users/bob`;
 const TARGET_POST_ID = '507f1f77bcf86cd799439011';
 const TARGET_POST_URI = `https://mention.earth/ap/users/alice/posts/${TARGET_POST_ID}`;
 const OWNER_OXY_ID = 'oxy_alice';
@@ -39,8 +49,6 @@ const mocks = vi.hoisted(() => ({
   getPublicKey: vi.fn(),
   signViaOxy: vi.fn(),
   signRequest: vi.fn(),
-  actorFindOne: vi.fn(),
-  followExists: vi.fn(),
   postFindOne: vi.fn(),
   postExists: vi.fn(),
   postUpdateOne: vi.fn(),
@@ -72,19 +80,6 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   getPublicKey: mocks.getPublicKey,
   signViaOxy: mocks.signViaOxy,
   signRequest: mocks.signRequest,
-}));
-
-vi.mock('../../../models/FederatedActor', () => ({
-  default: { findOne: mocks.actorFindOne },
-}));
-
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: { exists: mocks.followExists },
-}));
-
-vi.mock('../../../models/FederationDeliveryQueue', () => ({
-  default: {},
-  getNextRetryTime: vi.fn(),
 }));
 
 vi.mock('../../../models/Post', () => ({
@@ -139,17 +134,17 @@ vi.mock('../../../connectors/activitypub/outbox.service', () => ({
   },
 }));
 
+import { actorService } from '../../../connectors/activitypub/actor.service';
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
 
-/** Stub the remote actor (author/liker/booster) resolved via `FederatedActor.findOne`. */
-function stubRemoteActor(oxyUserId: string | null): void {
-  mocks.actorFindOne.mockReturnValue({
-    lean: vi.fn().mockResolvedValue(
-      oxyUserId
-        ? { uri: ACTOR_URI, oxyUserId, lastFetchedAt: new Date() }
-        : { uri: ACTOR_URI, lastFetchedAt: new Date() },
-    ),
-  });
+/**
+ * The remote actor (author/liker/booster) the handlers resolve, as a real row.
+ *
+ * `lastFetchedAt: new Date()` makes the cached row FRESH, which is what keeps
+ * `getOrFetchActor` from attempting a network fetch.
+ */
+function seedRemoteActor(oxyUserId: string | null): Promise<unknown> {
+  return seedActor(scope, { username: 'bob', uri: ACTOR_URI, oxyUserId, lastFetchedAt: new Date() });
 }
 
 /**
@@ -173,10 +168,19 @@ function stubPostFindOne(options: {
   }));
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
+// `expect(actorFindOne).not.toHaveBeenCalled()` used to stand for "the gate ran
+// before any actor resolution". With real rows there is no model call to count,
+// so the claim is made against the resolver seam the handlers actually use.
+const resolveActorSpy = vi.spyOn(actorService, 'resolveActorOxyUserId');
 
-  mocks.followExists.mockResolvedValue({ _id: 'follow_1' });
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
+  vi.clearAllMocks();
+  await clearFederationScope(scope);
+
   mocks.postExists.mockResolvedValue(null);
   mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.postDeleteOne.mockResolvedValue({ deletedCount: 1 });
@@ -186,7 +190,14 @@ beforeEach(() => {
   mocks.ensureFederatedReplyLink.mockResolvedValue({ parentPostId: TARGET_POST_ID, threadId: TARGET_POST_ID });
   mocks.importAnnounce.mockResolvedValue(true);
   mocks.isFediverseSharingEnabled.mockResolvedValue(true);
-  stubRemoteActor(BOOSTER_OXY_ID);
+  await seedRemoteActor(BOOSTER_OXY_ID);
+  // At least one local user follows the actor, so `handleCreate`'s follower gate
+  // passes and the sharing gate is what the assertions below are measuring.
+  await seedFollow(scope, {
+    remoteActorUri: ACTOR_URI,
+    direction: 'outbound',
+    status: 'accepted',
+  });
   stubPostFindOne();
 });
 
@@ -267,7 +278,7 @@ describe('handleLike (gated) / handleUndoLike (ungated teardown) — target owne
 
     expect(mocks.materializeEngagementRelationship).not.toHaveBeenCalled();
     expect(mocks.postUpdateOne).not.toHaveBeenCalled();
-    expect(mocks.actorFindOne).not.toHaveBeenCalled();
+    expect(resolveActorSpy).not.toHaveBeenCalled();
   });
 
   it('handleUndoLike: removes the like and decrements the counter as today when enabled', async () => {
@@ -343,7 +354,7 @@ describe('handleAnnounce (gated) / handleUndoAnnounce (ungated teardown) — tar
     await inboxProcessingService.processInboxActivity(announceActivity(), ACTOR_URI);
 
     expect(mocks.importAnnounce).not.toHaveBeenCalled();
-    expect(mocks.actorFindOne).not.toHaveBeenCalled();
+    expect(resolveActorSpy).not.toHaveBeenCalled();
   });
 
   it('handleUndoAnnounce: removes the boost and decrements the counter as today when enabled', async () => {
@@ -388,4 +399,12 @@ describe('handleAnnounce (gated) / handleUndoAnnounce (ungated teardown) — tar
     expect(mocks.isFediverseSharingEnabled).not.toHaveBeenCalled();
     expect(mocks.importAnnounce).toHaveBeenCalledTimes(1);
   });
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });

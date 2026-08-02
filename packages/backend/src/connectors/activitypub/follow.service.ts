@@ -1,5 +1,9 @@
 import { logger } from '../../utils/logger';
-import FederatedActor, { IFederatedActor } from '../../models/FederatedActor';
+import {
+  findActorByUri,
+  findActorsByOxyUserIds,
+} from '../../db/federation/actorRepository';
+import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import { Post } from '../../models/Post';
 import Poll from '../../models/Poll';
 import { AP_CONTEXT } from '@oxyhq/federation';
@@ -42,7 +46,7 @@ interface FederationTarget {
   /**
    * The author's fediverse acct (`user@domain`) — the source of a reply's
    * `Mention` tag `name` (`@<acct>`). For a federated original it is the stored
-   * `FederatedActor.acct`; for a local original it is `<username>@<domain>`.
+   * the actor's `acct`; for a local original it is `<username>@<domain>`.
    */
   authorAcct?: string;
 }
@@ -196,7 +200,7 @@ interface ResolvedMentionEntry {
 /**
  * The mention addressing a Note carries: everything resolved from the post's
  * declared `mentions` (Oxy user ids → `[mention:<id>]` placeholders in the body).
- * Resolved by the async federation caller (a batched `FederatedActor` read + one
+ * Resolved by the async federation caller (a batched `federated_actors` read + one
  * bulk Oxy lookup) and passed into the PURE Note builder so
  * {@link FollowService.buildCreateNoteActivity} never touches the database.
  *
@@ -716,7 +720,7 @@ export class FollowService {
    * ({@link ResolvedMentionEntry}) in AT MOST two batched reads — no N+1 per
    * mention:
    *
-   *  1. ONE {@link FederatedActor} query resolves every FEDERATED mention at once,
+   *  1. ONE {@link FederatedActorRecord} query resolves every FEDERATED mention at once,
    *     yielding its actor URI (`href`), `acct` (`user@domain` handle) AND the
    *     delivery inbox from the same row.
    *  2. The remaining ids are LOCAL Oxy users (or a federated user whose actor row
@@ -737,13 +741,9 @@ export class FollowService {
 
     // 1. Federated mentions — one read gives href (actor uri), handle (acct) and
     //    the delivery inbox.
-    let federatedActors: Array<
-      Pick<IFederatedActor, 'oxyUserId' | 'uri' | 'acct' | 'sharedInboxUrl' | 'inboxUrl'>
-    > = [];
+    let federatedActors: FederatedActorRecord[] = [];
     try {
-      federatedActors = await FederatedActor.find({ oxyUserId: { $in: unique } })
-        .select('oxyUserId uri acct sharedInboxUrl inboxUrl')
-        .lean<Array<Pick<IFederatedActor, 'oxyUserId' | 'uri' | 'acct' | 'sharedInboxUrl' | 'inboxUrl'>>>();
+      federatedActors = await findActorsByOxyUserIds(unique);
     } catch (err) {
       logger.warn('[FedDeliver] mention federated-actor lookup failed', {
         count: unique.length,
@@ -973,7 +973,7 @@ export class FollowService {
    * ORIGINAL post (plus, for a federated original, its author's remote inbox).
    *
    *  - FEDERATED original → the remote `federation.activityId` IS its canonical
-   *    AP id; the author's inbox is resolved from the stored `FederatedActor`.
+   *    AP id; the author's inbox is resolved from the stored actor row.
    *  - LOCAL original → we mint our own note URI
    *    `https://<domain>/ap/users/<owner-username>/posts/<postId>` (the exact id
    *    `buildCreateNoteActivity` / the outbox / the per-post dereference route
@@ -991,12 +991,10 @@ export class FollowService {
     if (activityId) {
       const authorActorUri = original.federation?.actorUri;
       // ONE actor read yields both the delivery inbox and the acct (`user@domain`)
-      // a reply's `Mention` name is built from — the same `FederatedActor` row
+      // a reply's `Mention` name is built from — the same `federated_actors` row
       // `resolveActorInbox` reads. (`resolveActorInbox` remains the standalone
       // inbox resolver for callers that have only an actor uri.)
-      const actor = authorActorUri
-        ? await FederatedActor.findOne({ uri: authorActorUri }).lean()
-        : null;
+      const actor = authorActorUri ? await findActorByUri(authorActorUri) : null;
       return {
         objectUri: activityId,
         authorActorUri,

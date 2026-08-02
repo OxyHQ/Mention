@@ -1,9 +1,18 @@
 import { createDeliveryService, type DeliveryService } from '@oxyhq/federation/node';
 import { assertSafePublicUrl } from '@oxyhq/core/server';
 import { logger } from '../../utils/logger';
-import FederatedActor, { type IFederatedActor } from '../../models/FederatedActor';
-import FederatedFollow from '../../models/FederatedFollow';
-import FederationDeliveryQueue from '../../models/FederationDeliveryQueue';
+import { withEngineId, type EngineFederatedActorRecord } from '../../db/federation/actorRecord';
+import { findActorInboxesByUris, findActorByUri } from '../../db/federation/actorRepository';
+import {
+  deleteFollowById,
+  distinctRemoteActorUris,
+  findFollow,
+  upsertOutboundPending,
+} from '../../db/federation/followRepository';
+import {
+  insertDeliveries,
+  insertDelivery,
+} from '../../db/federation/deliveryQueueRepository';
 import UserSettings from '../../models/UserSettings';
 import { getPublicKey, signViaOxy } from './crypto';
 import {
@@ -28,15 +37,15 @@ import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
  * `@oxyhq/federation`'s `createDeliveryService` so every Oxy app federates
  * identically. This module is the Mention wiring: it binds the engine to Mention's
  * private-key custody (oxy-api, via `crypto.ts`), the SSRF-safe single-hop POST
- * (`fetchUpstreamSingleHop`), the BullMQ producer + the Mongo `FederationDeliveryQueue`
- * fallback, the `FederatedActor` / `FederatedFollow` stores, the actor resolver,
+ * (`fetchUpstreamSingleHop`), the BullMQ producer + the `federation_delivery_queue`
+ * fallback, the `federated_actors` / `federated_follows` stores, the actor resolver,
  * the fediverse-sharing consent gate, and the canonical actor builder.
  *
  * The CONTENT federate methods (`federateNewPost` / `federateBoost` / … in
  * `follow.service.ts`) keep building their Notes/boosts/likes and call
  * `deliveryService.deliverToFollowers` / `queueDelivery` / `resolveActorInbox`.
  */
-export const deliveryService: DeliveryService = createDeliveryService<IFederatedActor>({
+export const deliveryService: DeliveryService = createDeliveryService<EngineFederatedActorRecord>({
   federationEnabled: FEDERATION_ENABLED,
   userAgent: USER_AGENT,
   apContentType: AP_CONTENT_TYPE,
@@ -63,41 +72,32 @@ export const deliveryService: DeliveryService = createDeliveryService<IFederated
     // delivery producer is a runtime dependency, never touched just to load).
     enqueueDelivery: (job) => enqueueDelivery(job),
     fallbackQueue: {
-      create: (job) => FederationDeliveryQueue.create(job),
-      insertMany: (jobs) => FederationDeliveryQueue.insertMany(jobs, { ordered: false }),
+      create: (job) => insertDelivery(job),
+      insertMany: (jobs) => insertDeliveries(jobs),
     },
   },
   store: {
-    findActorByUri: (uri) => FederatedActor.findOne({ uri }).lean<IFederatedActor>(),
-    findActorInboxesByUris: (uris) =>
-      FederatedActor.find({ uri: { $in: uris } })
-        .lean<Array<Pick<IFederatedActor, 'sharedInboxUrl' | 'inboxUrl'>>>(),
+    // `_id` is what the engine embeds in the Follow / Undo(Follow) activity ids
+    // remote servers already hold — see `EngineFederatedActorRecord`.
+    findActorByUri: async (uri) => withEngineId(await findActorByUri(uri)),
+    findActorInboxesByUris: (uris) => findActorInboxesByUris(uris),
   },
   follows: {
-    listAcceptedInboundFollowerActorUris: async (localOxyUserId) => {
-      const follows = await FederatedFollow.find({
+    // DISTINCT in SQL rather than a `Set` here: this is the first step of every
+    // outbound fan-out, and a popular local account has one row per follower.
+    listAcceptedInboundFollowerActorUris: (localOxyUserId) =>
+      distinctRemoteActorUris({
         localUserId: localOxyUserId,
         direction: 'inbound',
-        status: 'accepted',
-      }).lean<Array<{ remoteActorUri: string }>>();
-      return follows.map((f) => f.remoteActorUri);
+        statuses: ['accepted'],
+      }),
+    upsertOutboundPending: (localOxyUserId, remoteActorUri, activityId) =>
+      upsertOutboundPending(localOxyUserId, remoteActorUri, activityId),
+    findOutbound: async (localOxyUserId, remoteActorUri) => {
+      const follow = await findFollow(localOxyUserId, remoteActorUri, 'outbound');
+      return follow === null ? null : { _id: follow.id, activityId: follow.activityId };
     },
-    upsertOutboundPending: async (localOxyUserId, remoteActorUri, activityId) => {
-      await FederatedFollow.findOneAndUpdate(
-        { localUserId: localOxyUserId, remoteActorUri, direction: 'outbound' },
-        { $set: { status: 'pending', activityId } },
-        { upsert: true, returnDocument: 'after' },
-      );
-    },
-    findOutbound: (localOxyUserId, remoteActorUri) =>
-      FederatedFollow.findOne({
-        localUserId: localOxyUserId,
-        remoteActorUri,
-        direction: 'outbound',
-      }).lean<{ _id: unknown; activityId?: string } | null>(),
-    deleteById: async (id) => {
-      await FederatedFollow.deleteOne({ _id: id });
-    },
+    deleteById: (id) => deleteFollowById(String(id)),
   },
   actorRefresh: {
     refreshActorInBackground: (actorUri, existing) =>

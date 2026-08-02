@@ -18,7 +18,7 @@
  * matched.
  *
  * It is idempotent and re-runnable (after a clean run nothing matches) and pages
- * by a stable ascending `_id` cursor. Before deleting each row, a fail-closed
+ * by a stable ascending `id` cursor. Before deleting each row, a fail-closed
  * preflight proves there are no known Mention references by actor URI or linked
  * Oxy user id. Referenced rows are never deleted.
  *
@@ -32,7 +32,8 @@
  */
 
 import mongoose from 'mongoose';
-import FederatedActor from '../models/FederatedActor';
+import { deleteActorsByUris, scanActors } from '../db/federation/actorRepository';
+import { connectPostgres, closePostgres } from '../db/postgres';
 import { connectToDatabase } from '../utils/database';
 import { isBlockedDomain } from '../connectors/activitypub/constants';
 import { logger } from '../utils/logger';
@@ -43,7 +44,7 @@ import {
   closeAdminScriptResources,
 } from './lib/adminScriptLifecycle';
 
-/** Actors scanned per page (stable `_id` cursor pagination). */
+/** Actors scanned per page (stable `id` cursor pagination). */
 const PAGE_SIZE = 500;
 
 /** Deletes flushed per `deleteMany` chunk. */
@@ -52,7 +53,7 @@ const DELETE_CHUNK_SIZE = 500;
 const DRY_RUN = ['1', 'true', 'yes'].includes((process.env.DRY_RUN || '').trim().toLowerCase());
 
 interface FederatedActorRow {
-  _id: mongoose.Types.ObjectId;
+  id: string;
   uri: string;
   acct: string;
   domain: string;
@@ -87,36 +88,31 @@ async function purgeOwnDomainFederatedActors(): Promise<void> {
       dryRun: DRY_RUN,
     });
     await connectToDatabase();
+    // Actor rows are in Postgres; the deletion preflight still probes Mongo.
+    await connectPostgres();
     logger.info(
-      `[purgeOwnDomainFederatedActors] connected to MongoDB${DRY_RUN ? ' — DRY_RUN (no writes)' : ''}`,
+      `[purgeOwnDomainFederatedActors] connected${DRY_RUN ? ' — DRY_RUN (no writes)' : ''}`,
     );
 
     let scanned = 0;
     let matched = 0;
     let deleted = 0;
-    let lastId: mongoose.Types.ObjectId | null = null;
-    let pendingIds: mongoose.Types.ObjectId[] = [];
+    let lastId: string | undefined;
+    // Batched by URI rather than by primary key: `uri` is what the operator sees
+    // in the report and what the preflight authorized, and it is unique, so the
+    // delete addresses exactly the rows that were checked.
+    let pendingUris: string[] = [];
 
     const flush = async (): Promise<void> => {
-      if (pendingIds.length === 0) return;
+      if (pendingUris.length === 0) return;
       if (!DRY_RUN) {
-        const result = await FederatedActor.deleteMany({ _id: { $in: pendingIds } });
-        deleted += result.deletedCount ?? 0;
+        deleted += await deleteActorsByUris(pendingUris);
       }
-      pendingIds = [];
+      pendingUris = [];
     };
 
     for (;;) {
-      const pageFilter: Record<string, unknown> = {};
-      if (lastId) pageFilter._id = { $gt: lastId };
-
-      const page = await FederatedActor.find(
-        pageFilter,
-        { _id: 1, uri: 1, acct: 1, domain: 1, oxyUserId: 1 },
-      )
-        .sort({ _id: 1 })
-        .limit(PAGE_SIZE)
-        .lean<FederatedActorRow[]>();
+      const page: FederatedActorRow[] = await scanActors({}, { afterId: lastId, limit: PAGE_SIZE });
 
       if (page.length === 0) break;
 
@@ -127,18 +123,18 @@ async function purgeOwnDomainFederatedActors(): Promise<void> {
             `purgeOwnDomainFederatedActors:${row.acct}`,
             { oxyUserId: row.oxyUserId, actorUri: row.uri },
           );
-          pendingIds.push(row._id);
+          pendingUris.push(row.uri);
     logger.info('[purgeOwnDomainFederatedActors] matched actor processed', {
       dryRun: DRY_RUN,
     });
-          if (pendingIds.length >= DELETE_CHUNK_SIZE) {
+          if (pendingUris.length >= DELETE_CHUNK_SIZE) {
             await flush();
           }
         }
       }
 
       scanned += page.length;
-      lastId = page[page.length - 1]._id;
+      lastId = page[page.length - 1].id;
     }
 
     await flush();
@@ -157,6 +153,7 @@ async function purgeOwnDomainFederatedActors(): Promise<void> {
   } finally {
     await closeAdminScriptResources();
     await mongoose.disconnect();
+    await closePostgres();
   }
 }
 

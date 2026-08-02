@@ -5,8 +5,15 @@ import type { User as OxyUser } from '@oxyhq/core';
 import { PostVisibility, type PostContent } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import { activityPubConnector, isPermanentlyUnavailableOutboxReason } from './activitypub/ActivityPubConnector';
-import FederatedActor from '../models/FederatedActor';
-import FederatedFollow from '../models/FederatedFollow';
+import {
+  findActorByUri,
+  findActorByUriOrAcct,
+  findActorsByUris,
+} from '../db/federation/actorRepository';
+import {
+  existsFollow,
+  findFollows,
+} from '../db/federation/followRepository';
 import { Post } from '../models/Post';
 import { FEDERATION_ENABLED } from './activitypub/constants';
 import { ATPROTO_ENABLED, isDid, isAtUri, isAtprotoHandle } from './atproto/constants';
@@ -28,7 +35,7 @@ import { runSharingCleanup } from './activitypub/sharingCleanup.service';
  * frontend). Generalized from the ActivityPub-only `federation.api.routes`:
  * follow / unfollow now dispatch to the connector that owns the target's
  * protocol, `/resolve` performs unified cross-network handle resolution, and the
- * `actor/posts` empty-state sync dispatches by `FederatedActor.protocol`. The
+ * `actor/posts` empty-state sync dispatches by `federated_actors.protocol`. The
  * `following`/`followers` list queries are already protocol-agnostic.
  */
 const router = Router();
@@ -57,7 +64,7 @@ function isFollowableActorRef(value: string): boolean {
 }
 
 /**
- * A STORED `FederatedActor.uri` is always canonical: an ActivityPub actor URI
+ * A STORED `federated_actors.uri` is always canonical: an ActivityPub actor URI
  * (absolute http(s) URL) or an atproto DID — never a handle/acct/AT-URI.
  */
 function isStoredActorUri(value: string): boolean {
@@ -135,11 +142,11 @@ function resolveUserOr401(req: AuthRequest, res: Response): string | null {
 
 /**
  * Resolve the connector that owns a follow/unfollow target. Prefers the stored
- * `FederatedActor.protocol` (authoritative once an actor is known), falling back
+ * `federated_actors.protocol` (authoritative once an actor is known), falling back
  * to shape-based `matches` (an http URI → ActivityPub, a DID → atproto).
  */
 async function resolveTargetConnector(target: string): Promise<NetworkConnector<PostContent> | undefined> {
-  const stored = await FederatedActor.findOne({ uri: target }).select('protocol').lean();
+  const stored = await findActorByUri(target);
   if (stored?.protocol) {
     const byProtocol = connectorRegistry.list().find((connector) => connector.id === stored.protocol);
     if (byProtocol) return byProtocol;
@@ -160,7 +167,7 @@ function hasUnavailableCurrentOutbox(actor: { outboxUrl?: string; outboxBackfill
  * keyed by actor URI.
  *
  * Display names are owned by the Oxy API (`name.displayName`) and are the SINGLE
- * source of truth — Mention never reads a local `FederatedActor` name copy.
+ * source of truth — Mention never reads a local `federated_actors` name copy.
  * Actors are batch-resolved by their `oxyUserId` through the service client
  * (mirrors `PostHydrationService.resolveUserSummaries`). An actor whose Oxy user
  * is missing from the response is omitted, so the caller falls back to the
@@ -230,13 +237,12 @@ router.get('/resolve', async (req: AuthRequest, res: Response) => {
     let followed = false;
     const viewerId = req.user?.id;
     if (viewerId) {
-      const follow = await FederatedFollow.findOne({
+      followed = await existsFollow({
         localUserId: viewerId,
         remoteActorUri: actor.externalId,
         direction: 'outbound',
-        status: { $in: ['accepted', 'pending'] },
-      }).lean();
-      followed = Boolean(follow);
+        statuses: ['accepted', 'pending'],
+      });
     }
 
     return res.json({
@@ -301,11 +307,7 @@ router.post('/follow', async (req: AuthRequest, res: Response) => {
     // stored the follow under the raw input).
     // `pending` reflects whether the target manually approves followers (an
     // ActivityPub locked account); atproto actors never do, so this is false.
-    const actor = await FederatedActor.findOne({
-      $or: [{ uri: parsed.data.actorUri }, { acct: parsed.data.actorUri }],
-    })
-      .select('uri manuallyApprovesFollowers')
-      .lean();
+    const actor = await findActorByUriOrAcct(parsed.data.actorUri);
     const canonicalActorUri = actor?.uri ?? parsed.data.actorUri;
     const pending = actor?.manuallyApprovesFollowers === true;
 
@@ -418,14 +420,14 @@ router.get('/following', async (req: AuthRequest, res: Response) => {
   if (!userId) return;
 
   try {
-    const follows = await FederatedFollow.find({
+    const follows = await findFollows({
       localUserId: userId,
       direction: 'outbound',
-      status: { $in: ['accepted', 'pending'] },
-    }).lean();
+      statuses: ['accepted', 'pending'],
+    });
 
     const actorUris = follows.map((f) => f.remoteActorUri);
-    const actors = await FederatedActor.find({ uri: { $in: actorUris } }).lean();
+    const actors = await findActorsByUris(actorUris);
     const actorMap = new Map(actors.map((a) => [a.uri, a]));
     const displayNameByUri = await resolveActorDisplayNamesByUri(actors);
 
@@ -462,14 +464,14 @@ router.get('/followers', async (req: AuthRequest, res: Response) => {
   if (!userId) return;
 
   try {
-    const follows = await FederatedFollow.find({
+    const follows = await findFollows({
       localUserId: userId,
       direction: 'inbound',
-      status: 'accepted',
-    }).lean();
+      statuses: ['accepted'],
+    });
 
     const actorUris = follows.map((f) => f.remoteActorUri);
-    const actors = await FederatedActor.find({ uri: { $in: actorUris } }).lean();
+    const actors = await findActorsByUris(actorUris);
     const actorMap = new Map(actors.map((a) => [a.uri, a]));
     const displayNameByUri = await resolveActorDisplayNamesByUri(actors);
 
@@ -506,7 +508,7 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
 
   try {
-    const actor = await FederatedActor.findOne({ uri: parsed.data.uri }).lean();
+    const actor = await findActorByUri(parsed.data.uri);
     if (!actor) return res.json({ posts: [], hasMore: false });
 
     const limit = 20;

@@ -31,8 +31,8 @@ import { logger } from '../../utils/logger';
 import { getRuntimeOxyClient } from '../../runtime/oxyClient';
 import { extractFollowingIds, type OxyClient } from '../../utils/privacyHelpers';
 import { createScopedOxyClient } from '../../utils/oxyHelpers';
-import FederatedFollow from '../../models/FederatedFollow';
-import FederatedActor from '../../models/FederatedActor';
+import { findActorsByUris } from '../../db/federation/actorRepository';
+import { distinctRemoteActorUris } from '../../db/federation/followRepository';
 import { listSubscriptionService } from '../../services/ListSubscriptionService';
 import { anonFeedCache } from '../../services/anonFeedCache';
 import { loadMuteWords } from '../../services/safety/viewerSafety';
@@ -51,17 +51,18 @@ const MAX_MUTUAL_IDS = 5000;
  */
 async function getFederatedMutualIds(localUserId: string): Promise<string[]> {
   const [outbound, inbound] = await Promise.all([
-    FederatedFollow.distinct('remoteActorUri', { localUserId, direction: 'outbound', status: 'accepted' }),
-    FederatedFollow.distinct('remoteActorUri', { localUserId, direction: 'inbound', status: 'accepted' }),
+    distinctRemoteActorUris({ localUserId, direction: 'outbound', statuses: ['accepted'] }),
+    distinctRemoteActorUris({ localUserId, direction: 'inbound', statuses: ['accepted'] }),
   ]);
-  const outboundSet = new Set(outbound as string[]);
-  const mutualUris = (inbound as string[]).filter((uri) => outboundSet.has(uri));
+  const outboundSet = new Set(outbound);
+  const mutualUris = inbound.filter((uri) => outboundSet.has(uri));
   if (mutualUris.length === 0) return [];
 
-  const actors = await FederatedActor.find(
-    { uri: { $in: mutualUris }, oxyUserId: { $ne: null } },
-    { oxyUserId: 1 },
-  ).lean();
+  // `{ oxyUserId: { $ne: null } }` is dropped rather than translated — the
+  // filter below already discards an unlinked actor, and `<> null` in SQL is
+  // NULL, which `WHERE` treats as no match, so the literal translation would
+  // have made every viewer's Mutuals feed empty.
+  const actors = await findActorsByUris(mutualUris);
   return actors
     .map((actor) => actor.oxyUserId)
     .filter((id): id is string => typeof id === 'string' && id.length > 0);

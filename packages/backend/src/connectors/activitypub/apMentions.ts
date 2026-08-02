@@ -1,5 +1,5 @@
 import { logger } from '../../utils/logger';
-import FederatedActor from '../../models/FederatedActor';
+import { findActorByUri } from '../../db/federation/actorRepository';
 import { actorService } from './actor.service';
 import { getApContentMap } from './apLanguage';
 import { primaryApType } from './apSchemas';
@@ -204,7 +204,7 @@ const fetchOrCreateRemoteActorOxyId: RemoteMentionResolver = async (href) => {
 
 /**
  * Repair-path remote resolver: resolve the remote actor against ALREADY-STORED
- * `FederatedActor` rows ONLY (keyed by its URI, exactly as `getOrFetchActor` keys
+ * `federated_actors` rows ONLY (keyed by its URI, exactly as `getOrFetchActor` keys
  * its own lookup). NEVER performs a network fetch and NEVER creates a row — an
  * actor with no stored row (or a stored row not yet linked to an Oxy user)
  * resolves to `null`, so the caller SKIPS it. That is what keeps a bulk one-shot
@@ -212,10 +212,8 @@ const fetchOrCreateRemoteActorOxyId: RemoteMentionResolver = async (href) => {
  * post happened to mention (including deleted/spam accounts that now 410 Gone).
  */
 const lookupExistingRemoteActorOxyId: RemoteMentionResolver = async (href) => {
-  const actor = await FederatedActor.findOne({ uri: href }, { oxyUserId: 1 }).lean<{
-    oxyUserId?: string;
-  } | null>();
-  return actor?.oxyUserId ? String(actor.oxyUserId) : null;
+  const actor = await findActorByUri(href);
+  return actor?.oxyUserId ?? null;
 };
 
 /**
@@ -326,7 +324,7 @@ async function buildResolvedInboundMentions(
  * bare text. Returns empty maps/arrays when the Note carries no `Mention` tags.
  *
  * This is the LIVE inbox path: an unknown remote actor is fetched-and-synced (a
- * `FederatedActor` row is created) so a first-seen mention still links. For the
+ * `federated_actors` row is created) so a first-seen mention still links. For the
  * one-shot repair use {@link resolveInboundMentionsExisting}, which never fetches
  * or creates an actor.
  */
@@ -341,7 +339,7 @@ export async function resolveInboundMentions(
 /**
  * Lookup-only variant of {@link resolveInboundMentions} for the one-shot repair
  * path: resolve each mention against ALREADY-KNOWN identities only — local Oxy
- * users and EXISTING `FederatedActor` rows — and NEVER fetch or create a remote
+ * users and EXISTING `federated_actors` rows — and NEVER fetch or create a remote
  * actor. A mentioned actor that is not already stored is SKIPPED (its anchor is
  * left as raw text), which is strictly better than minting a 0-post ghost
  * federated actor for every account a legacy post happened to mention (deleted or

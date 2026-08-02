@@ -1,4 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+} from '../../../__tests__/helpers/federationFixtures';
+
+const scope = federationScope('atproto-post-mapper');
 
 /**
  * atproto post mapping + import.
@@ -16,7 +25,6 @@ const mocks = vi.hoisted(() => ({
   postFind: vi.fn(),
   create: vi.fn(),
   materialize: vi.fn(),
-  federatedActorFindOne: vi.fn(),
   fetchProfile: vi.fn(),
 }));
 
@@ -25,10 +33,6 @@ vi.mock('../../../connectors/atproto/xrpcClient', () => ({ xrpcGet: mocks.xrpcGe
 vi.mock('../../../models/Post', () => ({
   POST_CLASSIFICATION_PENDING: 'pending',
   Post: { find: mocks.postFind },
-}));
-
-vi.mock('../../../models/FederatedActor', () => ({
-  default: { findOne: mocks.federatedActorFindOne },
 }));
 
 // Mention resolution goes through the atproto profile path; mocked so the mapper's
@@ -86,12 +90,12 @@ const ACTOR: NormalizedExternalActor = {
   oxyUserId: 'oxy-alice',
 };
 
-beforeEach(() => {
+beforeEach(async () => {
+  await clearFederationScope(scope);
   vi.clearAllMocks();
   mocks.postFind.mockReturnValue({ select: () => ({ lean: async () => [] }) });
   mocks.create.mockResolvedValue({ _id: 'created1' });
   mocks.materialize.mockImplementation(async (media: unknown, attachments: unknown) => ({ media, attachments }));
-  mocks.federatedActorFindOne.mockReturnValue({ select: () => ({ lean: async () => null }) });
   mocks.fetchProfile.mockResolvedValue(null);
 });
 
@@ -435,15 +439,19 @@ describe('importAuthorFeed', () => {
         },
       ],
     });
-    // The mentioned DID is already a synced actor → resolved from the cache (no
-    // network fetch through `fetchAndUpsertAtprotoProfile`).
-    mocks.federatedActorFindOne.mockReturnValue({
-      select: () => ({ lean: async () => ({ oxyUserId: 'oxy-bob' }) }),
+    // The mentioned DID is already a synced actor → resolved from the stored row
+    // (no network fetch through `fetchAndUpsertAtprotoProfile`).
+    await seedActor(scope, {
+      uri: MENTION_DID,
+      protocol: 'atproto',
+      username: 'bob',
+      acct: 'bob.bsky.social',
+      domain: 'bsky.social',
+      oxyUserId: 'oxy-bob',
     });
 
     await importAuthorFeed(ACTOR);
 
-    expect(mocks.federatedActorFindOne).toHaveBeenCalledWith({ uri: MENTION_DID });
     expect(mocks.fetchProfile).not.toHaveBeenCalled();
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -534,4 +542,16 @@ describe('importPostViews', () => {
     expect(mocks.create).toHaveBeenCalledTimes(1);
     expect(mocks.create.mock.calls[0][0].oxyUserId).toBe('oxy-good');
   });
+});
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });

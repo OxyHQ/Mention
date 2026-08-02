@@ -1,4 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+} from '../../helpers/federationFixtures';
+
+const scope = federationScope('ap-mentions-bridgy');
 
 /**
  * Inbound Bridgy Fed (brid.gy) @mention resolution.
@@ -19,7 +28,6 @@ const mocks = vi.hoisted(() => ({
   getOrFetchActor: vi.fn(),
   isBlockedDomain: vi.fn(() => false),
   resolveOxyUser: vi.fn(),
-  findExistingActor: vi.fn(),
 }));
 
 vi.mock('../../../connectors/activitypub/actor.service', () => ({
@@ -28,9 +36,6 @@ vi.mock('../../../connectors/activitypub/actor.service', () => ({
 vi.mock('../../../connectors/activitypub/constants', () => ({
   isBlockedDomain: mocks.isBlockedDomain,
   resolveOxyUser: mocks.resolveOxyUser,
-}));
-vi.mock('../../../models/FederatedActor', () => ({
-  default: { findOne: mocks.findExistingActor },
 }));
 vi.mock('../../../utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -47,9 +52,13 @@ const HANDLE = 'alice.bsky.social';
 const BRIDGY_ACTOR = `https://bsky.brid.gy/ap/${DID}`;
 const BRIDGED_OXY_ID = 'oxy_bridged_alice';
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
+  await clearFederationScope(scope);
   mocks.getOrFetchActor.mockReset();
-  mocks.findExistingActor.mockReset();
   mocks.isBlockedDomain.mockReturnValue(false);
 });
 
@@ -101,28 +110,23 @@ describe('inbound brid.gy @mention resolution', () => {
  */
 describe('lookup-only inbound @mention resolution (repair path)', () => {
   it('resolves an already-stored federated actor without fetching/creating one', async () => {
-    mocks.findExistingActor.mockReturnValue({
-      lean: () => Promise.resolve({ oxyUserId: 'oxy_bob' }),
-    });
+    const mentionedUri = `${scope.origin}/users/bob`;
+    await seedActor(scope, { username: 'bob', uri: mentionedUri, oxyUserId: 'oxy_bob' });
     const object = {
-      content: '<p><a href="https://mastodon.social/@bob" class="u-url mention">@bob</a></p>',
-      tag: [{ type: 'Mention', href: 'https://mastodon.social/users/bob', name: '@bob@mastodon.social' }],
+      content: `<p><a href="${scope.origin}/@bob" class="u-url mention">@bob</a></p>`,
+      tag: [{ type: 'Mention', href: mentionedUri, name: `@bob@${scope.domain}` }],
     };
 
     const resolved = await resolveInboundMentionsExisting(object);
     expect(resolved.ids).toContain('oxy_bob');
     expect(mocks.getOrFetchActor).not.toHaveBeenCalled();
-    expect(mocks.findExistingActor).toHaveBeenCalledWith(
-      { uri: 'https://mastodon.social/users/bob' },
-      { oxyUserId: 1 },
-    );
 
     const rewritten = applyMentionPlaceholders(object, resolved.anchorMap);
     expect(rewritten.content).toBe('<p>[mention:oxy_bob]</p>');
   });
 
   it('skips an unknown actor: leaves the raw anchor and never fetches/creates one', async () => {
-    mocks.findExistingActor.mockReturnValue({ lean: () => Promise.resolve(null) });
+    // No stored actor row at all — the repair path must leave the anchor alone.
     const content = `<p>hi <a href="https://bsky.app/profile/${HANDLE}">@${HANDLE}</a></p>`;
     const object = {
       content,
@@ -137,4 +141,12 @@ describe('lookup-only inbound @mention resolution (repair path)', () => {
     const rewritten = applyMentionPlaceholders(object, resolved.anchorMap);
     expect(rewritten.content).toBe(content);
   });
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });

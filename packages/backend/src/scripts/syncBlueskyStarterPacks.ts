@@ -44,7 +44,8 @@
 
 import mongoose from 'mongoose';
 import { logger } from '../utils/logger';
-import FederatedActor from '../models/FederatedActor';
+import { countActors, scanActors, type ActorScanFilter } from '../db/federation/actorRepository';
+import { connectPostgres, closePostgres } from '../db/postgres';
 import { ATPROTO_ENABLED } from '../connectors/atproto/constants';
 import { syncAtprotoProfileGraph } from '../connectors/atproto/profileGraph';
 import { mapWithConcurrency, DEFAULT_CONCURRENCY, MAX_CONCURRENCY } from '../utils/concurrency';
@@ -63,7 +64,7 @@ interface Flags {
 
 /** The lean `FederatedActor` fields the sweep reads. */
 interface AtprotoActorRow {
-  _id: mongoose.Types.ObjectId;
+  id: string;
   uri: string;
   acct?: string;
   oxyUserId?: string;
@@ -116,14 +117,13 @@ function parseFlags(argv: string[]): Flags {
   return { dryRun, limit, actor, concurrency };
 }
 
-/** Build the Mongo filter: atproto actors with a resolved Oxy owner (+ optional single-actor scope). */
-function buildFilter(actor: string | undefined): Record<string, unknown> {
-  const filter: Record<string, unknown> = {
+/** atproto actors with a resolved Oxy owner (+ optional single-actor scope). */
+function buildFilter(actor: string | undefined): ActorScanFilter {
+  return {
     protocol: 'atproto',
-    oxyUserId: { $exists: true, $ne: null },
+    hasOxyUserId: true,
+    ...(actor ? { uriOrAcct: actor } : {}),
   };
-  if (actor) filter.$or = [{ uri: actor }, { acct: actor }];
-  return filter;
 }
 
 async function syncBlueskyStarterPacks(): Promise<void> {
@@ -148,9 +148,11 @@ async function syncBlueskyStarterPacks(): Promise<void> {
       dryRun: flags.dryRun,
     });
     await mongoose.connect(mongoUri, { dbName });
+    // Actors are in Postgres; the starter-pack rows this mints are still Mongo.
+    await connectPostgres();
     const baseFilter = buildFilter(flags.actor);
-    const total = await FederatedActor.countDocuments(baseFilter);
-    logger.info('[syncBlueskyStarterPacks] connected to MongoDB', {
+    const total = await countActors(baseFilter);
+    logger.info('[syncBlueskyStarterPacks] connected', {
       dryRun: flags.dryRun,
       concurrency: flags.concurrency,
       limit: flags.limit,
@@ -158,18 +160,15 @@ async function syncBlueskyStarterPacks(): Promise<void> {
       narrowedScope: Boolean(flags.actor),
     });
 
-    let lastId: mongoose.Types.ObjectId | null = null;
+    let lastId: string | undefined;
     for (;;) {
       if (remaining !== undefined && remaining <= 0) break;
 
-      const pageFilter: Record<string, unknown> = { ...baseFilter };
-      if (lastId) pageFilter._id = { $gt: lastId };
-
       const pageLimit = remaining !== undefined ? Math.min(PAGE_SIZE, remaining) : PAGE_SIZE;
-      const page = await FederatedActor.find(pageFilter, { _id: 1, uri: 1, acct: 1, oxyUserId: 1 })
-        .sort({ _id: 1 })
-        .limit(pageLimit)
-        .lean<AtprotoActorRow[]>();
+      const page: AtprotoActorRow[] = await scanActors(baseFilter, {
+        afterId: lastId,
+        limit: pageLimit,
+      });
       if (page.length === 0) break;
 
       if (flags.dryRun) {
@@ -205,7 +204,7 @@ async function syncBlueskyStarterPacks(): Promise<void> {
         }
       }
 
-      lastId = page[page.length - 1]._id;
+      lastId = page[page.length - 1].id;
       logger.info(
         `[syncBlueskyStarterPacks] progress: scanned ${counters.scanned}, synced ${counters.synced}, failed ${counters.failed}`,
       );
@@ -225,6 +224,7 @@ async function syncBlueskyStarterPacks(): Promise<void> {
     throw error;
   } finally {
     await mongoose.disconnect();
+    await closePostgres();
   }
 }
 
