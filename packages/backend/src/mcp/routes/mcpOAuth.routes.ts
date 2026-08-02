@@ -378,6 +378,24 @@ async function handleRefreshTokenGrant(req: Request, res: Response): Promise<Res
   // live family — the loser matches no row. Only the winner then blocklists the
   // outgoing `jti`; a loser doing it would revoke the family the winner just
   // rotated to nothing, since the row it read is already superseded.
+  //
+  // This is the FORGIVING half of rotation semantics, and it is a decision
+  // rather than the only option. The strict alternative is reuse-detection:
+  // treat a replayed refresh token as possible THEFT and revoke the whole
+  // family, on the theory that the legitimate holder and an attacker cannot
+  // both present the same token innocently. That is the right default for a
+  // browser session, where a replay is anomalous.
+  //
+  // It is the wrong default HERE, because an MCP connector's clients
+  // legitimately race their own refreshes — Claude holds one grant per URL and
+  // may have several requests in flight when a short access token expires
+  // together. Under strict semantics that ordinary race logs the user out and
+  // costs them the entire OAuth flow to recover, since Claude allows only one
+  // connector per URL. Failing only the loser makes the race a retry instead.
+  //
+  // If reuse-detection is ever wanted, it needs a way to tell a client race
+  // from a replay — a per-client rotation nonce, or a grace window in which the
+  // PREVIOUS hash is still accepted once — not just flipping this branch.
   const newJti = generateJti();
   const newRefresh = generateRefreshToken();
   const rotated = await rotateRefreshTokenFamily(connection.id, presentedHash, {

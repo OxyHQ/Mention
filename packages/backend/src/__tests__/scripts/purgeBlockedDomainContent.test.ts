@@ -694,6 +694,53 @@ describe('purgeBlockedDomainContent — re-running', () => {
     expect(second.issues.preflightBlocked).toBe(0);
   });
 
+  it('REFUSES to run when a Mongo-paged phase finds a cursor that is not an ObjectId', async () => {
+    // The tripwire for the port that has not happened yet. `orphan-posts` and
+    // `media` still page Mongo, so their cursors are ObjectIds and the check
+    // cannot fire today — which is exactly what makes it dangerous: the moment
+    // those phases move to Postgres every cursor becomes a uuid, and a guard
+    // that answered "start from the beginning" would silently re-walk the whole
+    // corpus on every attempt of a DESTRUCTIVE sweep.
+    //
+    // The first version of that helper did answer null. This pins the loud
+    // direction so a future porter cannot reintroduce the quiet one and still
+    // see green.
+    await seed();
+    await run();
+
+    const orphanScope = (await cursorRows()).find((row) => row.scope.startsWith('orphan-posts'));
+    expect(orphanScope, 'the orphan-posts phase recorded a cursor').toBeDefined();
+
+    // Exactly what a ported phase would leave behind.
+    await getDb()
+      .update(adminScriptCursors)
+      .set({ cursor: '01924f3c-0000-7000-8000-0123456789ab' })
+      .where(eq(adminScriptCursors.id, orphanScope!.id));
+
+    await expect(run()).rejects.toThrow(/not an ObjectId/);
+  });
+
+  it('COUNTS a boost target whose id cannot be cast, rather than skipping it quietly', async () => {
+    // Same shape one lane over: `Post` is still Mongo, so `boostOf` is an
+    // ObjectId and this cannot fire either. When posts port it would skip EVERY
+    // boost-counter repair while the run still reported success, so the skip is
+    // an ISSUE — which `assertAdminRunComplete` turns into a non-zero exit.
+    const ids = await seed();
+    await Post.collection.insertOne({
+      _id: new mongoose.Types.ObjectId(),
+      oxyUserId: 'oxy-blocked',
+      type: 'boost',
+      boostOf: 'not-an-object-id',
+      federation: { actorUri: BLOCKED_ACTOR_URI, activityId: `https://${BLOCKED}/notes/boost-bad` },
+      read: false,
+    } as never);
+    expect(ids).toBeDefined();
+
+    const report = await run();
+
+    expect(report.issues.boostTargetUncastable).toBe(1);
+  });
+
   it('records a resume cursor per phase on a live run', async () => {
     await seed();
 

@@ -485,6 +485,11 @@ interface RunIssues {
   engagementResidue: number;
   /** References the cascade claimed to remove but that survived the batch. */
   cascadeResidue: number;
+  /**
+   * Boost targets whose id could not be cast to a Mongo `_id`, so their counter
+   * was left stale. Non-zero means the post store moved and this lane did not.
+   */
+  boostTargetUncastable: number;
 }
 
 /**
@@ -711,6 +716,7 @@ async function repairBoostCounters(
   options: PurgeOptions,
   report: PurgeReport,
   domain: string,
+  issues: RunIssues,
 ): Promise<void> {
   const survivingTargets = removed
     .filter((post) => typeof post.boostOf === 'string' && !removedIds.has(post.boostOf))
@@ -718,7 +724,16 @@ async function repairBoostCounters(
   if (survivingTargets.length === 0) return;
 
   for (const target of survivingTargets) {
-    if (!mongoose.isValidObjectId(target.boostOf)) continue;
+    // A `boostOf` that is not an ObjectId cannot be cast into a Mongo query, so
+    // it is skipped rather than crashing the sweep — but it is COUNTED, because
+    // the silent `continue` this replaces is the same latent trap as the cursor
+    // guard above. `Post` still lives in Mongo, so the check cannot fire today;
+    // once posts port, `boostOf` is a uuid and this would skip EVERY boost
+    // counter repair while the run still reported success.
+    if (!mongoose.isValidObjectId(target.boostOf)) {
+      issues.boostTargetUncastable += 1;
+      continue;
+    }
     if (options.dryRun) {
       // The post must still exist for a decrement to be meaningful; counting the
       // same predicate the live write uses keeps the dry-run figure honest.
@@ -879,7 +894,7 @@ async function purgePostBatch(
   }
 
   await measureSurvivingDependents(removedIdStrings, removedIdSet, report, domain);
-  await repairBoostCounters(removed, removedIdSet, options, report, domain);
+  await repairBoostCounters(removed, removedIdSet, options, report, domain, issues);
 
   // Engagement and side tables FIRST, so nothing can be left pointing at a post
   // id that no longer resolves if the run dies mid-batch.
@@ -1346,18 +1361,37 @@ async function resumePoint(
 /**
  * A stored cursor as a Mongo `_id`, for the two phases that still page Mongo.
  *
- * The shape guard is CORRECT here and only here: `orphan-posts` and `media`
- * still read collections whose ids really are ObjectIds, and each phase has its
- * own `scope`, so a cursor from another phase can never arrive. It answers
- * `null` — "start from the beginning" — for anything else, which for an
- * idempotent resumable sweep costs a re-scan rather than a miss.
+ * `orphan-posts` and `media` read collections whose ids really are ObjectIds,
+ * and each phase has its own `scope`, so the only writer of a given scope is the
+ * phase that reads it. A stored cursor that is not an ObjectId is therefore
+ * IMPOSSIBLE rather than merely unexpected — and this THROWS instead of
+ * answering `null`.
  *
- * DELETE IT when those two phases port. On a Postgres table the same guard
- * returns false for every uuid v7 and the cursor silently stops resuming, which
- * is precisely what {@link resumePoint} no longer does.
+ * The first version of this returned `null`, meaning "start from the
+ * beginning". That is the same silent-restart defect this task removed from
+ * {@link resumePoint} twenty lines above, reintroduced by the helper written to
+ * fix it: the guard cannot fire today, but the moment these two phases port,
+ * every cursor becomes a uuid v7, the check fails on all of them, and a
+ * DESTRUCTIVE sweep quietly re-walks the corpus forever. A comment saying
+ * "delete this when you port" is not a mechanism; a throw is, because the
+ * porter cannot miss it.
+ *
+ * Throwing is also this file's established policy for unreadable resume state —
+ * `readAdminScriptCursor` is deliberately un-caught for the same reason: a
+ * sweep that cannot read its own cursor must not silently start over.
+ *
+ * @throws {Error} When `cursor` is not a Mongo ObjectId.
  */
 function toMongoCursor(cursor: string | null): mongoose.Types.ObjectId | null {
-  if (!cursor || !mongoose.isValidObjectId(cursor)) return null;
+  if (!cursor) return null;
+  if (!mongoose.isValidObjectId(cursor)) {
+    throw new Error(
+      `[${SCRIPT_NAME}] a Mongo-paged phase read a resume cursor that is not an `
+      + 'ObjectId. If this phase has been ported to Postgres, its cursor is now a '
+      + 'uuid and this helper must go with it — do NOT relax the check, which '
+      + 'would silently restart a destructive sweep from the beginning.'
+    );
+  }
   return new mongoose.Types.ObjectId(cursor);
 }
 
@@ -1642,6 +1676,7 @@ export async function purgeBlockedDomainContent(
     cursorWriteFailed: 0,
     engagementResidue: 0,
     cascadeResidue: 0,
+    boostTargetUncastable: 0,
   };
   const report: PurgeReport = {
     dryRun: options.dryRun,
@@ -1834,6 +1869,7 @@ async function main(): Promise<void> {
       cursorWriteFailed: report.issues.cursorWriteFailed,
       engagementResidue: report.issues.engagementResidue,
       cascadeResidue: report.issues.cascadeResidue,
+      boostTargetUncastable: report.issues.boostTargetUncastable,
     });
   } catch (error) {
     logger.error(`[${SCRIPT_NAME}] failed`, error);
