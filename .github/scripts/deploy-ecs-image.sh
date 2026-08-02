@@ -74,7 +74,7 @@ if ! jq -e '
     (
       .value
       | type == "string" and
-        test("^arn:aws(-[a-z]+)?:ssm:[a-z0-9-]+:[0-9]{12}:parameter/[A-Za-z0-9_.\\-/]+$")
+        test("^arn:aws(-[a-z]+)?:ssm:[a-z0-9-]+:[0-9]{12}:parameter/[A-Za-z0-9_./-]+$")
     )
   )
 ' <<<"$TASK_SECRET_OVERRIDES_JSON" >/dev/null; then
@@ -359,8 +359,13 @@ if [[ -n "$INTERNAL_METRICS_PARAMETER" ]]; then
       echo "::error::AWS_ACCOUNT_ID must be a 12-digit account id when INTERNAL_METRICS_PARAMETER is a parameter name."
       exit 1
     fi
+    # The hyphen is LAST on purpose. This is a POSIX bracket expression, where a
+    # backslash is an ordinary character rather than an escape, so the `\-/` that
+    # reads as an escaped hyphen in PCRE is really a reversed `\`-to-`/` range and
+    # the class then matches no hyphen at all. Every `/oxy/<app>/...` parameter
+    # path whose app name contains one was silently rejected.
     if [[ ! "$AWS_PARTITION" =~ ^aws(-[a-z]+)?$ ||
-          ! "$INTERNAL_METRICS_PARAMETER" =~ ^/[A-Za-z0-9_.\-/]+$ ]]; then
+          ! "$INTERNAL_METRICS_PARAMETER" =~ ^/[A-Za-z0-9_./-]+$ ]]; then
       echo "::error::AWS partition or INTERNAL_METRICS_PARAMETER name is invalid."
       exit 1
     fi
