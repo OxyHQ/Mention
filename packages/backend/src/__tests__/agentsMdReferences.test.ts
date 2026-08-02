@@ -39,6 +39,10 @@ const UNRESOLVABLE_BY_DESIGN: ReadonlyMap<string, string> = new Map([
   ['_worker.js', 'the deleted Cloudflare Pages Advanced-Mode worker; cited as history, must not come back'],
   ['_routes.json', 'deleted alongside that worker; cited as history'],
   ['services/FederationService.ts', 'the removed facade the connectors module replaced; cited as history'],
+  [
+    '.expo/types/router.d.ts',
+    "expo-router's generated route types — written into a gitignored .expo/ by the dev server, absent on a clean checkout",
+  ],
 ]);
 
 /**

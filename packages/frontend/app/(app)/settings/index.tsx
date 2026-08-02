@@ -169,7 +169,7 @@ export default function SettingsScreen() {
                         <SettingsListItem
                             icon={<RowIcon name="globe-outline" />}
                             title={t('fediverse.settings.title')}
-                            description={t('fediverse.settings.description')}
+                            description={t('fediverse.settings.entryDescription')}
                             onPress={() => router.push('/settings/fediverse')}
                         />
                         <SettingsListItem
@@ -200,12 +200,6 @@ export default function SettingsScreen() {
                             title={t('feed.tuning.title', { defaultValue: 'For You' })}
                             description={t('feed.tuning.entryDescription', { defaultValue: 'Tune the quality, engagement, and content filters on your For You feed' })}
                             onPress={() => router.push('/settings/for-you')}
-                        />
-                        <SettingsListItem
-                            icon={<RowIcon name="cube-outline" />}
-                            title={t('settings.node.title', { defaultValue: 'Your Mention node' })}
-                            description={t('settings.node.description', { defaultValue: 'Your own copy of your signed posts' })}
-                            onPress={() => router.push('/settings/node')}
                         />
                         <SettingsListItem
                             icon={<RowIcon name="radio-outline" />}

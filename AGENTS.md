@@ -70,6 +70,18 @@ Two cheap defences, both required:
 
 The general form is the one this repo keeps relearning: a cleanup you did not verify is a cleanup you did not do.
 
+## `typedRoutes` is ON and INERT — moving a route file breaks NO build
+
+`app.config.js` sets `typedRoutes: true`, so it is reasonable to assume a moved or deleted screen surfaces as a type error at every stale `router.push`. It does not. On expo-router **57.0.9**, measured in this repo: `router.push('/settings/fediverse/nodez')` type-checks clean, and `const bogus: Href = '/definitely-not-a-route-xyz'` is accepted — both **with and without** `.expo/types/router.d.ts` generated (`.expo/` is gitignored, so on a fresh checkout it does not even exist, but generating it changes nothing). The probe is not vacuous: a deliberate `const x: number = 'string'` in the SAME file IS reported, while the bogus `Href` beside it is not.
+
+Consequences, in order of how much they bite:
+
+- A row left pointing at a moved screen compiles, ships, and fails only under a user's thumb as **"This screen does not exist."** `tsc` is not a gate for route strings; do not let a green typecheck stand in for one.
+- Verifying a route move means **grep for every old route string** plus **loading the route in a real foregrounded browser tab** — including the NEGATIVE case, that the old path no longer resolves. Those are the only two defences.
+- `app/(app)/settings/__tests__/settingsRouteTargets.test.ts` is the gate for the settings subtree: it walks the real `app/` tree (`(group)` segments transparent, `index` = the directory) and asserts every route a settings screen navigates to exists. It is scoped to settings on purpose — those routes are all static, so it has no dynamic-segment false positives to litigate. Widen it before trusting it elsewhere.
+
+This is not Mention-specific — it applies to every Expo app in the ecosystem on this expo-router major, so it likely belongs in `~/Oxy/AGENTS.md`; it is recorded here because here is where it was measured.
+
 ## Bumping an Oxy SDK package (CRITICAL — `bun add` reports success and changes nothing)
 
 **Shared versions live in exactly one place: `workspaces.catalog` in the root `package.json`.** Workspace manifests and the root `overrides` both name the package as `"catalog:"`, and `scripts/doctor.mjs` reads the Bloom pin out of the catalog rather than repeating it. A bump is therefore ONE edit (the catalog entry) plus `bun install` for `bun.lock`.
@@ -195,7 +207,8 @@ ActivityPub is implemented as the `activitypub/ActivityPubConnector` inside the 
 - **Per-user consent**: Oxy owns `privacySettings.fediverseSharing` (default `true`); user DTOs expose the PUBLIC derived boolean `fediverseSharing` (absent ⇒ enabled). Mention NEVER stores the flag.
 - **Read path**: `packages/backend/src/services/fediverseSharing.ts` is the ONLY read path — Mention Redis `fedisharing:v1:<id>` is the single cache authority; all SDK reads for consent use `{ cache:false }` (the SDK's own 5-min GET cache must never feed consent decisions). Gates: webfinger + all user AP surfaces 404 when off (indistinguishable from unknown user); inbound NEW engagement (Follow/reply/Like/Announce) dropped for local OFF owners; Undo handlers stay UNGATED (teardown must converge); outbound gated at `ConnectorRegistry.deliver` + `/federation/follow|unfollow` routes (403). Fail-open on Oxy outage everywhere EXCEPT the cleanup job's guard (tri-state; `'unavailable'` throws for BullMQ retry) and inbox POST (`'unavailable'` proceeds 202 — a 4xx makes Mastodon drop deliveries forever).
 - **Toggle flow**: frontend writes to Oxy (SDK `updatePrivacySettings`) then calls Mention `POST /federation/sharing-changed` (re-reads the flag server-side; ON→OFF enqueues `federation-sharing-cleanup`: `Delete(actor)` broadcast → bridge-unfollow → ID-scoped row deletion, throw-on-partial for retry; also invalidates the webfinger JRD cache).
-- **UI**: `FediverseInfoSheet` (Bloom `BottomSheet`, 3 steps) + `FediverseBadge` + `settings/fediverse.tsx`; i18n `fediverse.*` (en/es/it).
+- **UI**: `FediverseInfoSheet` (Bloom `BottomSheet`, 3 steps) + `FediverseBadge` + `settings/fediverse/index.tsx`; i18n `fediverse.*` (en/es/it).
+- **One door in settings.** Everything federation-related lives under `app/(app)/settings/fediverse/` — the hub (`index.tsx`: sharing switch, preferred language, node, transparency link) plus its subscreens (`node.tsx`). Do NOT add a federation row beside it in `settings/index.tsx`; add a row inside the hub. Two deliberate exclusions: `settings/external-media.tsx` gates third-party embed players (YouTube/Spotify/Twitch), which is a privacy/bandwidth setting and not federation; and `/transparency` stays a PUBLIC top-level route, because it is a statement addressed to people who are not signed in and gets cited by URL — the hub links to it rather than owning it.
 - **Author hydration rule** (from the ghost-handle bug, `1301f07b`): author hydration must NEVER emit a raw `oxyUserId` as `handle`/`displayName` — unresolved authors get the degraded summary (empty handle, `'Unknown user'`), never cached in Redis. No `/@<id>` links.
 
 Spec/plan: `docs/superpowers/specs/2026-07-02-fediverse-sharing-consent-design.md`, `docs/superpowers/plans/2026-07-02-fediverse-sharing-consent.md`.

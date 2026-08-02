@@ -54,6 +54,7 @@ vi.mock('../../services/TopicService', () => ({
 }));
 
 import { trendingService } from '../../services/TrendingService';
+import { trendTermMatch } from '../../services/trending/termSpace';
 
 // `aggregateTermCandidates` is private; reach it through a typed index signature
 // rather than `as any` so the tests stay type-safe.
@@ -157,7 +158,7 @@ describe('aggregateTermCandidates — what is allowed to count', () => {
 });
 
 describe('aggregateTermCandidates — ONE term space', () => {
-  it('unions extracted terms, hashtags and classified topic slugs', async () => {
+  it('unions extracted terms and hashtags — what the AUTHOR asserted', async () => {
     stageTerms([]);
 
     await svc.aggregateTermCandidates(new Date());
@@ -167,9 +168,34 @@ describe('aggregateTermCandidates — ONE term space', () => {
       $setUnion: [
         { $ifNull: ['$postClassification.trendTerms', []] },
         { $ifNull: ['$hashtags', []] },
-        { $ifNull: ['$postClassification.topics', []] },
       ],
     });
+  });
+
+  it('does NOT let our own topic slugs propose a trend', async () => {
+    // A topic slug is a drawer WE file a post into, so its count answers "how
+    // many posts did we shelve here" rather than "how many people are talking
+    // about this". Counted as a candidate it put `News` and `Politics` on the
+    // list with five posts and no burst — a bookshop announcing that its
+    // bestseller is "Fiction". The category still labels a trend; it is not one.
+    stageTerms([]);
+
+    await svc.aggregateTermCandidates(new Date());
+
+    const addFields = stage(termPipeline(), '$addFields').$addFields;
+    expect(JSON.stringify(addFields._terms)).not.toContain('postClassification.topics');
+  });
+
+  it('still MATCHES a topic slug when serving a trend it did not propose', () => {
+    // The asymmetry is the point, and only in this direction: a feed matching
+    // less than detection counted would open a trend onto a screen missing the
+    // posts that made it trend. Matching more can only add posts that are about
+    // it — one we filed under `ukraine` belongs in Ukraine's feed whether or not
+    // its author ever typed the word.
+    const fields = trendTermMatch('ukraine').$or.flatMap((clause) => Object.keys(clause));
+    expect(fields).toContain('postClassification.topics');
+    expect(fields).toContain('hashtags');
+    expect(fields).toContain('postClassification.trendTerms');
   });
 
   it('groups on the unified term, so a hashtag and the bare word are ONE candidate', async () => {
