@@ -3,7 +3,6 @@ import mongoose from 'mongoose';
 import { migrationChannelIndexes } from '../../migrations/0024-channel-indexes';
 import { migrationChannelFollowUserIndex } from '../../migrations/0025-channel-follow-user-index';
 import { MIGRATION_CHANNEL_FOLLOW_USER_INDEX, MIGRATION_CHANNEL_INDEXES } from '../../migrations/constants';
-import { ChannelFollow } from '../../models/ChannelFollow';
 import { Post } from '../../models/Post';
 
 /**
@@ -25,6 +24,13 @@ import { Post } from '../../models/Post';
  *  - the migration's index specs match what the SCHEMA declares. A migration that
  *    drifted from its schema would create the wrong index in production and
  *    nothing local would ever notice, because local runs use `autoIndex`.
+ *
+ * That last comparison now covers `posts` ONLY. `Channel`, `ChannelMember` and
+ * `ChannelFollow` moved to Postgres and their Mongoose models are gone, so a
+ * drift check against them has no referent left — and these two migrations are
+ * FROZEN HISTORY that repairs pre-cutover Mongo collections, which is why they
+ * name those collections with literals of their own and no longer read one off a
+ * model. `Post` is still a Mongoose model, so its comparison survives unchanged.
  */
 
 interface CreateIndexCall {
@@ -155,19 +161,6 @@ describe('migration 0025 — channel_follow_by_user_v1', () => {
     await migrationChannelFollowUserIndex.run(db);
 
     expect(Object.keys(calls[0].key)).toEqual(['oxyUserId', 'createdAt', '_id']);
-  });
-
-  it('matches the spec the ChannelFollow SCHEMA declares — the two cannot drift', async () => {
-    const { db, calls } = makeDb();
-
-    await migrationChannelFollowUserIndex.run(db);
-
-    const declared = ChannelFollow.schema
-      .indexes()
-      .find(([, options]) => options?.name === 'channel_follow_by_user_v1');
-
-    expect(declared).toBeDefined();
-    expect(calls[0].key).toEqual(declared?.[0]);
   });
 
   it('0024 does NOT create it — that is what makes 0025 necessary', async () => {
