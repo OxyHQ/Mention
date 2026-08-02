@@ -69,7 +69,7 @@
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import type { CollectionPlan, EnumAudit, NumericAudit, UniquenessNormalization } from './plan';
 import { allowedValues, describeNumericBound, numericIsAccepted, tableName } from './plan';
-import type { MongoSource } from './mongoSource';
+import type { MongoSource, ReadOnlyCollection } from './mongoSource';
 import { streamCollection } from './mongoSource';
 import type { ResolutionContext, ResolutionRule } from './resolutions';
 import { parentKeysFrom, transformDocument } from './resolutions';
@@ -116,6 +116,80 @@ export interface AuditFinding {
 const SAMPLE_LIMIT = 5;
 
 /**
+ * Which STRICT prefixes of a dotted path hold an ARRAY in this collection.
+ *
+ * Asked of the DATA rather than declared on the plan, because the plan already
+ * says the only thing it can know statically — which TABLE a value lands in —
+ * and the shape of the document underneath a path is a property of the
+ * documents. One indexed-or-not `find(...).limit(1)` per prefix answers it, and
+ * a prefix that is an array in no document at all is correctly reported as not
+ * an array: nothing below it can produce a row.
+ */
+async function arrayPrefixes(
+  collection: ReadOnlyCollection,
+  path: string
+): Promise<ReadonlySet<string>> {
+  const segments = path.split('.');
+  const arrays = new Set<string>();
+  for (let index = 1; index < segments.length; index += 1) {
+    const prefix = segments.slice(0, index).join('.');
+    const hit = await collection
+      .find({ [prefix]: { $type: 'array' } }, { projection: { _id: 1 }, limit: 1 })
+      .toArray();
+    if (hit.length > 0) arrays.add(prefix);
+  }
+  return arrays;
+}
+
+/**
+ * The filter for "a row WOULD be emitted here, and its required field is absent",
+ * for a path that runs through one or more arrays.
+ *
+ * `$elemMatch` at every array boundary is what makes this a question about
+ * ELEMENTS. The four shapes it deliberately does NOT match are the four that
+ * emit no child row at all, so none of them can violate a `NOT NULL`:
+ *
+ *  - the array is ABSENT (a post with no media);
+ *  - the array is EMPTY (`[]`);
+ *  - a NULL sits where the array should be (`content.media: null`, which 251,470
+ *    production posts do — a null SCALAR is not an element missing a field, and
+ *    the transform reads no elements out of it);
+ *  - a subdocument between two arrays is absent (`variants[].media` never set).
+ *
+ * It also catches the case the old plain `{path: {$exists:false}}` MISSED, in
+ * the opposite direction: an array whose elements DISAGREE. `$exists:false` on a
+ * dotted path is false as soon as ONE element carries the field, so a mixed
+ * array — `[{type:'image'}, {}]` — read as clean while its second element was
+ * exactly the row that would fail.
+ */
+function missingWithinStructure(
+  segments: readonly string[],
+  absolutePrefix: string,
+  arrays: ReadonlySet<string>
+): Record<string, unknown> {
+  for (let index = 1; index < segments.length; index += 1) {
+    const relative = segments.slice(0, index).join('.');
+    const absolute = absolutePrefix === '' ? relative : `${absolutePrefix}.${relative}`;
+    if (!arrays.has(absolute)) continue;
+    return {
+      [relative]: { $elemMatch: missingWithinStructure(segments.slice(index), absolute, arrays) },
+    };
+  }
+  // No array boundary left. Inside an `$elemMatch` the element itself is the
+  // subject and exists by construction, so a single remaining segment is the
+  // leaf and its absence is the whole question.
+  const leaf = segments.join('.');
+  if (segments.length === 1) return { [leaf]: { $exists: false } };
+  // A plain subdocument between here and the leaf. It has to EXIST for a row to
+  // be emitted — two keys in one object, which is an implicit AND, rather than
+  // `$and`, so this composes inside an `$elemMatch` unchanged.
+  return {
+    [segments.slice(0, -1).join('.')]: { $exists: true },
+    [leaf]: { $exists: false },
+  };
+}
+
+/**
  * A document where a REQUIRED field is missing entirely — which `distinct`
  * cannot see.
  *
@@ -138,6 +212,30 @@ const SAMPLE_LIMIT = 5;
  * difference is the same trap in the other direction: `{field: null}` matches
  * BOTH a missing field and an explicit null, so it would double-report every
  * value `distinct` already found. Together the two are exact and disjoint.
+ *
+ * ## Which question `$exists: false` answers, and where it answers the wrong one
+ *
+ * The predicate above is right for a field OF THE DOCUMENT and wrong for a field
+ * of an array ELEMENT, because a dotted path through an array resolves against
+ * every element at once: `{'content.media.type': {$exists:false}}` matches a post
+ * with NO media just as readily as one whose media lacks a type. Measured
+ * against production before this was fixed — six findings, 1,591,772 documents,
+ * and **zero** rows Postgres would have refused. The tell was
+ * `content.variants.media.type` reported missing from exactly all 583,665 posts:
+ * a path that exists in no document at all cannot reject a row.
+ *
+ * That is fatal rather than untidy, because every finding blocks the copy and
+ * the defaulted-column and referential passes only run once nothing blocks — so
+ * an inflated count here does not merely mislead, it stops the audit finishing.
+ *
+ * The two questions are told apart by WHICH TABLE the value lands in, which the
+ * plan already knows:
+ *
+ *  - the plan's PRIMARY table gets one row per document unconditionally, so an
+ *    absent path is a violation whatever sits above it. Unchanged.
+ *  - a CHILD table is "filled from this collection's subdocument arrays"
+ *    ({@link CollectionPlan.childTables}), so a row exists only where an element
+ *    does — see {@link missingWithinStructure}.
  */
 async function auditMissingRequired(
   source: MongoSource,
@@ -149,7 +247,11 @@ async function auditMissingRequired(
   resolvedBy: ResolutionRule | undefined
 ): Promise<AuditFinding | null> {
   const collection = source.collection(plan.collection);
-  const filter = { [path]: { $exists: false } } as Record<string, unknown>;
+  const filter = await missingRequiredFilter(collection, plan, path, column);
+  // A child-table column whose path IS the array has no field below it to be
+  // missing: an absent or empty array emits no rows, and an element is a scalar
+  // whose null `distinct` already reports. There is nothing here to check.
+  if (filter === null) return null;
   const documents = await collection.countDocuments(filter);
   if (documents === 0) return null;
   const samples = await collection
@@ -167,6 +269,28 @@ async function auditMissingRequired(
     sampleIds: samples.map((doc) => String(doc._id)),
     ...(resolvedBy === undefined ? {} : { resolvedBy }),
   };
+}
+
+/**
+ * Build the filter {@link auditMissingRequired} counts with, or `null` when the
+ * path cannot describe a missing required value at all.
+ *
+ * Separated from the audit so the DECISION — document field or array element —
+ * can be exercised on its own, and so a reader can see that the primary-table
+ * branch is byte-for-byte the predicate that was always there.
+ */
+async function missingRequiredFilter(
+  collection: ReadOnlyCollection,
+  plan: CollectionPlan,
+  path: string,
+  column: PgColumn
+): Promise<Record<string, unknown> | null> {
+  if (tableName(column.table) === tableName(plan.table)) {
+    return { [path]: { $exists: false } };
+  }
+  const segments = path.split('.');
+  if (segments.length === 1) return null;
+  return missingWithinStructure(segments, '', await arrayPrefixes(collection, path));
 }
 
 /**
