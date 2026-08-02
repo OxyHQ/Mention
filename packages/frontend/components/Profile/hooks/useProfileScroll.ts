@@ -10,6 +10,7 @@ import {
 import { usePostsStore } from '@/stores/postsStore';
 import { getFeedMeta } from '@/db/feedQueries';
 import type { FeedType } from '@mention/shared-types';
+import { isAuthorFeedFilter } from '@mention/shared-types/mtn/feedDescriptor';
 import {
   isVirtualizedProfileGridTab,
   LAYOUT,
@@ -119,6 +120,15 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
     if (!profileId || loadingMoreRef.current || !fetchUserFeedRef.current || !getUserSliceRef.current) {
       return;
     }
+    // Three of the nine tabs — feeds, starter packs, lists — are not backed by an
+    // author feed at all, and paging them is not merely pointless: the slice
+    // getter below reports `hasMore: true` for a feed key nothing has ever
+    // written, so scrolling one of those tabs to the bottom fires a real request
+    // that `feedService.getUserFeed` coerces back to `posts` and files under
+    // `user:<id>:feeds`. Narrow honestly against the descriptor's own filter set
+    // rather than asserting the tab into `FeedType`, so a tab added to
+    // `TAB_NAMES` without a feed behind it stops here too.
+    if (!isAuthorFeedFilter(currentTab)) return;
     // Native media/video grids own pagination through FlashList.onEndReached.
     // Running the profile's generic scroll detector too would issue a duplicate
     // request. On WEB there is no such owner — the web grid does not wire
@@ -127,14 +137,14 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
     // descriptor, with its own cursor.
     if (Platform.OS !== 'web' && isVirtualizedProfileGridTab(currentTab)) return;
 
-    const slice = getUserSliceRef.current(profileId, currentTab as FeedType);
+    const slice = getUserSliceRef.current(profileId, currentTab);
     if (slice && slice.hasMore && !slice.isLoading) {
       loadingMoreRef.current = true;
       const fetchUserFeed = fetchUserFeedRef.current;
       void (async () => {
         try {
           await fetchUserFeed(profileId, {
-            type: currentTab as FeedType,
+            type: currentTab,
             cursor: slice.nextCursor,
             limit: LAYOUT.FEED_LIMIT,
           });

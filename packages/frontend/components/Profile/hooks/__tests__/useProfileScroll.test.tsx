@@ -207,4 +207,21 @@ describe('useProfileScroll load-more targeting', () => {
 
     act(() => renderer.unmount());
   });
+
+  // Feeds, starter packs and lists are tabs with no author feed behind them. The
+  // "no more to page" answer cannot come from the slice: an unwritten feed key
+  // has no meta row, and the getter reads a missing row as `hasMore: true` so a
+  // fresh feed can make its first request. So a tab that never had a feed looks
+  // exactly like one whose first page has not loaded, and the detector pages it.
+  it.each<ProfileTab>(['feeds', 'starter_packs', 'lists'])(
+    'does not page %s, which is not backed by an author feed',
+    async (tab) => {
+      const renderer = await mount('user-1', tab);
+
+      scrollToBottom();
+      expect(mockFetchUserFeed).not.toHaveBeenCalled();
+
+      act(() => renderer.unmount());
+    },
+  );
 });
