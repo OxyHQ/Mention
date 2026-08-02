@@ -1,5 +1,25 @@
 import { PassThrough } from 'node:stream';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+} from '../../helpers/federationFixtures';
+
+const scope = federationScope('outbox-validation');
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
 
 /**
  * Zod validation of the OUTBOX-BACKFILL ActivityPub ingest.
@@ -22,8 +42,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   getPublicKey: vi.fn(),
   signViaOxy: vi.fn(),
-  actorFind: vi.fn(),
-  actorFindOne: vi.fn(),
   findOneAndUpdate: vi.fn(),
   updateOne: vi.fn(),
   postFind: vi.fn(),
@@ -65,15 +83,6 @@ vi.mock('../../../utils/safeUpstreamFetch', async (importOriginal) => {
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
   assertSafePublicUrl: mocks.assertSafePublicUrl,
-}));
-
-vi.mock('../../../models/FederatedActor', () => ({
-  default: {
-    findOne: mocks.actorFindOne,
-    find: mocks.actorFind,
-    findOneAndUpdate: mocks.findOneAndUpdate,
-    updateOne: mocks.updateOne,
-  },
 }));
 
 vi.mock('../../../models/Post', () => ({
@@ -182,8 +191,6 @@ beforeEach(() => {
   mocks.signViaOxy.mockResolvedValue('c2lnbmF0dXJl'); // base64 stub signature
   mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({ _id: 'actor_1', ...update.$set }));
   mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
-  mocks.actorFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
-  mocks.actorFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
   mocks.postFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
   mocks.postFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
   mocks.postFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
