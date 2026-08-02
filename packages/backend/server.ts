@@ -10,6 +10,8 @@ import { config, validateEnvironment } from './src/config';
 import { isAllowedOrigin } from "./src/utils/allowedOrigins";
 import { assertMigrationsApplied, runMigrations } from "./src/migrations/runner";
 import { assertMongoTransactionalTopology } from "./src/utils/mongoTopology";
+import { closePostgres, connectPostgres, getPostgresClient } from "./src/db/postgres";
+import { assertPostgresMigrationsCurrent } from "./src/db/migrationLedger";
 import { leaderElection } from "./src/services/LeaderElection";
 import {
   markMigrationsComplete,
@@ -677,6 +679,11 @@ const bootServer = async () => {
   validateEnvironment();
   markRuntimeNotReady('booting');
   await connectToDatabase();
+  // Both stores open before anything can be asked to serve. `getDb()` throws
+  // until this resolves, and the port has moved most reads onto Postgres — a
+  // task that skipped this would answer the health check and then fail every
+  // query that is no longer Mongo's.
+  await connectPostgres();
 
   // Production migrations run as a deployment one-shot with the exact image
   // that will be rolled out. Web tasks never mutate schema during a scale-out;
@@ -684,9 +691,18 @@ const bootServer = async () => {
   // is the primary topology barrier; this startup check is defense in depth if
   // a task is launched outside the normal deployment workflow. It is not run in
   // the readiness endpoint, avoiding a Mongo command on every health probe.
+  //
+  // The Postgres half is the same posture against the same failure, and it is
+  // load-bearing during the cutover rather than defence in depth: the drizzle
+  // migrations are applied by the deploy's one-shot, and a task that boots
+  // against a database that one-shot never reached becomes ready and then
+  // fails every Postgres query — after traffic has been routed to it. Outside
+  // production the migrator is a developer command (`bun run db:migrate`), so
+  // there is nothing here to assert against.
   if (config.runtime.isProduction) {
     await assertMongoTransactionalTopology();
     await assertMigrationsApplied();
+    await assertPostgresMigrationsCurrent(getPostgresClient());
   } else {
     await runMigrations();
   }
@@ -832,10 +848,11 @@ const gracefulShutdown = (signal: string): void => {
       pubSubShutdown(),
       closeRedisConnection(),
       mongoose.disconnect(),
+      closePostgres(),
     ]);
 
     clearTimeout(hardTimeout);
-    logger.info('HTTP, sockets, queues, Redis, and MongoDB closed');
+    logger.info('HTTP, sockets, queues, Redis, MongoDB and PostgreSQL closed');
     process.exit(0);
   })();
 };

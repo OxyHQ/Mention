@@ -21,6 +21,37 @@ AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
 AWS_PARTITION="${AWS_PARTITION:-aws}"
 POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
 POST_DEPLOY_TASK_COMMAND_JSON="${POST_DEPLOY_TASK_COMMAND_JSON:-}"
+# What `RUN_MIGRATIONS=true` runs, in order, each as its own one-shot task on the
+# image being rolled out. A non-zero exit from any of them stops the release
+# before `update-service`.
+#
+# ORDER IS LOAD-BEARING, AND POSTGRES IS FIRST.
+#
+# The two stores fail differently. The Mongo migrations are data migrations
+# against a schema that already exists, and skipping them leaves the previous
+# release's behaviour in place. The Postgres migrations are the SCHEMA: a task
+# that boots against a database they never reached connects, answers the health
+# check, is given traffic, and only then fails every query — the damage lands
+# after the point of no return rather than before it. So the store that can
+# invalidate the whole rollout is settled first, and a failure there costs
+# nothing because nothing has been routed yet.
+#
+# `assertPostgresMigrationsCurrent` in packages/backend/src/db/migrationLedger.ts
+# is the other half: it refuses to let a task become ready when this step did not
+# run. Neither replaces the other — this one applies the migrations, that one
+# survives the case where somebody bypassed this one.
+#
+# Both entries run during the dual-run. Postgres does not replace Mongo yet.
+MIGRATION_TASK_COMMANDS_JSON='[
+  {
+    "label": "Postgres migration",
+    "command": ["bun", "packages/backend/dist/src/db/migrate.js"]
+  },
+  {
+    "label": "Mongo migration",
+    "command": ["bun", "packages/backend/dist/scripts/migrate.js"]
+  }
+]'
 # Exit code a smoke script uses to say "this failed, and rolling back cannot fix
 # it" — a check that crosses a boundary this deploy does not own (a CDN in front
 # of the origin, another service the route consults). Reverting the image for one
@@ -481,11 +512,16 @@ if [[ "$RUN_MIGRATIONS" == "true" || -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]]; the
 fi
 
 if [[ "$RUN_MIGRATIONS" == "true" ]]; then
-  if ! run_one_shot_command \
-    "Migration" \
-    '["bun","packages/backend/dist/scripts/migrate.js"]'; then
-    exit 1
-  fi
+  # Read with process substitution rather than a pipe: a pipe runs the loop in a
+  # subshell, where `exit 1` ends only that subshell and the release carries on
+  # past a failed migration to `update-service`.
+  while IFS= read -r migration_entry; do
+    if ! run_one_shot_command \
+      "$(jq -r '.label' <<<"$migration_entry")" \
+      "$(jq -c '.command' <<<"$migration_entry")"; then
+      exit 1
+    fi
+  done < <(jq -c '.[]' <<<"$MIGRATION_TASK_COMMANDS_JSON")
 fi
 
 if [[ -n "${DEPLOY_SHA:-}" ]]; then
