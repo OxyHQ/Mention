@@ -1,36 +1,34 @@
-import mongoose from 'mongoose';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CaseEnvelopeSchema } from '@oxyhq/crowdsource-contracts';
+import { PostType, PostVisibility } from '@mention/shared-types';
 
 /**
  * The subject-provider seam — the part a second application actually writes.
  *
- * These assert the two things a provider can get wrong in a way nothing else would
- * catch: producing material a jury cannot use, and producing DIFFERENT material for
- * the same object on two deliveries. The second one is the dangerous half — ingress
- * fingerprints the whole envelope, so an unstable snapshot turns a legitimate outbox
- * retry into a permanent 409, days later.
+ * These assert the two things a provider can get wrong in a way nothing else
+ * would catch: producing material a jury cannot use, and producing DIFFERENT
+ * material for the same object on two deliveries. The second one is the
+ * dangerous half — ingress fingerprints the whole envelope, so an unstable
+ * snapshot turns a legitimate outbox retry into a permanent 409, days later.
+ *
+ * ## What changed with the Postgres port
+ *
+ * `postSubject.loadPost` is `loadPostRecord` now, so the provider reads an
+ * assembled record: the body comes out of `post_content_variants`, the author
+ * out of `post_authorships`, and the parent/quote context out of two more reads
+ * of the same table. The old suite mocked `models/Post.findById` over a `Map`
+ * and handed the provider hand-built documents, which meant the snapshot was
+ * assembled from the literal the test wrote — it could not see a variant that
+ * failed to round-trip, an authorship row that did not land, or a language tag
+ * the column normalized.
+ *
+ * That matters more here than in most suites, because the property under test is
+ * BYTE STABILITY across two deliveries. A snapshot built from a fixed literal is
+ * stable by construction; a snapshot built from two independent reads of a
+ * normalized schema is stable only if the reads agree — including the ORDER the
+ * variants and the authorship rows come back in, which is exactly the kind of
+ * thing that silently differs between two queries.
  */
-
-type Doc = Record<string, unknown>;
-
-/** Posts by id, so a parent/quote lookup resolves like the real collection. */
-let posts: Map<string, Doc>;
-
-vi.mock('../../../models/Post', () => ({
-  default: {
-    findById: vi.fn((id: string) => {
-      const query = {
-        select: () => query,
-        lean: async () => {
-          const post = posts.get(String(id));
-          return post ? { ...post } : null;
-        },
-      };
-      return query;
-    }),
-  },
-}));
 
 const getUserById = vi.fn();
 
@@ -38,27 +36,41 @@ vi.mock('../../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({ getUserById }),
 }));
 
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import { clearServiceScope, seedPost, serviceScope } from '../../helpers/serviceFixtures';
+import type { PostRecord, PostRecordInput } from '../../../db/posts/postRecord';
 import { buildModerationReportInput } from '../../../services/moderation/EvidenceSnapshotService';
 import { ReportCategory, ReportedType } from '../../../models/Report.model';
 import { createPostSubjectProvider } from '../../../services/moderation/subjects/postSubject';
 import { createUserSubjectProvider } from '../../../services/moderation/subjects/userSubject';
 
-const POST_ID = '507f1f77bcf86cd799439022';
-const PARENT_ID = '507f1f77bcf86cd799439033';
+const scope = serviceScope('moderation-subjects');
+const AUTHOR = scope.user('author');
+const REPORTER = scope.user('reporter');
 
-function textPost(id: string, text: string, extra: Doc = {}): Doc {
-  return {
-    _id: new mongoose.Types.ObjectId(id),
+/** A published, public, Spanish text post owned by this suite's author. */
+function textPost(text: string, extra: Partial<PostRecordInput> = {}): Promise<PostRecord> {
+  return seedPost(scope, {
+    oxyUserId: AUTHOR,
+    type: PostType.TEXT,
+    visibility: PostVisibility.PUBLIC,
     content: { variants: [{ source: 'author', tag: 'es-ES', text }] },
-    authorship: [{ oxyUserId: 'oxy-author', role: 'owner', status: 'accepted' }],
     createdAt: new Date('2026-07-20T10:00:00.000Z'),
     ...extra,
-  };
+  });
 }
 
 const postProvider = createPostSubjectProvider({
   reportedType: ReportedType.POST,
   subjectType: 'social.post',
+});
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 describe('post subject provider', () => {
@@ -173,7 +185,6 @@ describe('post subject provider', () => {
 
 describe('user subject provider', () => {
   beforeEach(() => {
-    posts = new Map();
     vi.clearAllMocks();
   });
 
@@ -230,12 +241,13 @@ describe('user subject provider', () => {
 });
 
 describe('report input — what the SDK is handed', () => {
-  beforeEach(() => {
-    posts = new Map();
+  beforeEach(async () => {
+    await clearServiceScope(scope);
     vi.clearAllMocks();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await clearServiceScope(scope);
     vi.restoreAllMocks();
   });
 

@@ -16,9 +16,10 @@
  *    authenticated caller. That is closed here, and the case naming it is the
  *    reason this block exists.
  *
- * The timeline route reads POSTS, which belong to a different batch of this
- * migration and are still Mongo — so the post query and the hydration behind it
- * are stubbed. Everything about the LIST half of that route runs for real.
+ * The timeline route reads POSTS, and those are real rows too. Only the
+ * hydration behind them is stubbed — it is another suite's subject — and the
+ * stub maps the records the QUERY returned, so an assertion about which posts a
+ * timeline page contains is an assertion about the query.
  */
 
 import express, { type NextFunction, type Response } from 'express';
@@ -29,13 +30,12 @@ import { asc, eq, inArray } from 'drizzle-orm';
 import type { OxyAuthRequest } from '@oxyhq/core/server';
 
 const mocks = vi.hoisted(() => ({
-  postFind: vi.fn(),
   transformPostsWithProfiles: vi.fn(),
 }));
 
-// Posts and their hydration belong to another batch and still read Mongo. The
-// LIST half of the timeline route — lookup, visibility, membership — is real.
-vi.mock('../../models/Post', () => ({ Post: { find: mocks.postFind } }));
+// Hydration belongs to another suite. The stub maps the records the real query
+// returned rather than answering with a canned list, so which posts a timeline
+// page contains stays a fact about the query.
 vi.mock('../../controllers/feed.controller', () => ({
   feedController: { transformPostsWithProfiles: mocks.transformPostsWithProfiles },
 }));
@@ -51,7 +51,10 @@ vi.mock('../../services/EndorsementSignalService', () => ({
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { accountListMembers, accountLists } from '../../db/schema/lists';
 import { uuidv7 } from '../../db/schema/columns';
+import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import listRoutes from '../../routes/lists';
+
+const scope = postScope('lists-routes');
 
 let db: Database;
 const run = randomUUID();
@@ -125,11 +128,17 @@ beforeAll(async () => {
 
 beforeEach(() => {
   authUserId = VIEWER_ID;
-  mocks.postFind.mockReset();
-  mocks.transformPostsWithProfiles.mockReset().mockResolvedValue([]);
+  mocks.transformPostsWithProfiles.mockReset().mockImplementation(
+    async (records: Array<{ id: string; createdAt: Date; updatedAt: Date }>) =>
+      records.map((record) => ({
+        id: record.id,
+        metadata: { createdAt: record.createdAt, updatedAt: record.updatedAt },
+      })),
+  );
 });
 
 afterEach(async () => {
+  await clearPostScope(scope);
   if (createdListIds.length > 0) {
     await db.delete(accountLists).where(inArray(accountLists.id, createdListIds));
     createdListIds.length = 0;
@@ -480,35 +489,99 @@ describe('wire format parity', () => {
 });
 
 describe('GET /lists/:id/timeline', () => {
+  const MEMBER_A = `${VIEWER_ID}-member-a`;
+  const MEMBER_B = `${VIEWER_ID}-member-b`;
+  const OUTSIDER = `${VIEWER_ID}-outsider`;
+
+  async function seedMemberPost(author: string, overrides: Parameters<typeof seedPost>[1] = {}) {
+    return seedPost(scope, {
+      oxyUserId: author,
+      authorship: [{ oxyUserId: author, role: 'owner', status: 'accepted' }],
+      ...overrides,
+    });
+  }
+
+  interface TimelineBody {
+    items: Array<{ id: string }>;
+    hasMore: boolean;
+    nextCursor?: string;
+    totalCount: number;
+  }
+
+  async function timeline(
+    listId: string,
+    query: Record<string, string | number> = {},
+  ): Promise<TimelineBody> {
+    const res = await request(app).get(`/lists/${listId}/timeline`).query(query).expect(200);
+    return res.body as TimelineBody;
+  }
+
   it('404s a list that does not exist', async () => {
     await request(app).get(`/lists/${uuidv7()}/timeline`).expect(404);
-    expect(mocks.postFind).not.toHaveBeenCalled();
+    expect(mocks.transformPostsWithProfiles).not.toHaveBeenCalled();
   });
 
   it('403s a stranger on a private list, before reading any post', async () => {
-    const listId = await seedList({ isPublic: false, members: ['secret-member'] });
+    const listId = await seedList({ isPublic: false, members: [MEMBER_A] });
+    await seedMemberPost(MEMBER_A);
 
     await request(app).get(`/lists/${listId}/timeline`).expect(403);
 
-    expect(mocks.postFind).not.toHaveBeenCalled();
+    expect(mocks.transformPostsWithProfiles).not.toHaveBeenCalled();
   });
 
-  it('feeds the post query the list members, in the owner order', async () => {
-    const listId = await seedList({ isPublic: true, members: ['charlie', 'alpha'] });
-    mocks.postFind.mockReturnValue({
-      sort: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockReturnThis(),
-      lean: vi.fn().mockResolvedValue([]),
-    });
+  it('serves the members’ public posts and nobody else’s', async () => {
+    const listId = await seedList({ isPublic: true, members: [MEMBER_A, MEMBER_B] });
+    const fromA = await seedMemberPost(MEMBER_A);
+    const fromB = await seedMemberPost(MEMBER_B);
+    await seedMemberPost(OUTSIDER);
+    // A member's non-public post is still the member's, and still excluded.
+    await seedMemberPost(MEMBER_A, { visibility: 'followers_only' });
 
-    const res = await request(app).get(`/lists/${listId}/timeline`).expect(200);
+    const body = await timeline(listId, { limit: 50 });
 
-    // The membership junction is what the (still-Mongo) post query is given, and
-    // it arrives in the order the owner arranged rather than an arbitrary one.
-    expect(mocks.postFind).toHaveBeenCalledWith({
-      oxyUserId: { $in: ['charlie', 'alpha'] },
-      visibility: 'public',
-    });
-    expect(res.body).toEqual({ items: [], hasMore: false, totalCount: 0 });
+    expect(body.items.map((item) => item.id).sort()).toEqual([fromA.id, fromB.id].sort());
+    expect(body.totalCount).toBe(2);
+  });
+
+  it('returns an empty page for a list with no members, without querying posts', async () => {
+    const listId = await seedList({ isPublic: true, members: [] });
+    await seedMemberPost(OUTSIDER);
+
+    expect(await timeline(listId)).toEqual({ items: [], hasMore: false, totalCount: 0 });
+  });
+
+  it('pages chronologically and never repeats or skips a post', async () => {
+    // Two pre-cutover ObjectId ids and two uuid v7 ids, all sharing one
+    // `createdAt`, so the page boundary rests entirely on the id tie-break. Ids
+    // of ONE shape cannot reproduce the interleaving: under text collation every
+    // uuid ('0…') sorts below every ObjectId ('6…').
+    const listId = await seedList({ isPublic: true, members: [MEMBER_A] });
+    const SAME = new Date('2026-04-01T00:00:00.000Z');
+    const ids = [
+      '65fdc8c8c8c8c8c8c8c8c8d8',
+      '65fdc8c8c8c8c8c8c8c8c8d9',
+      '019616a0-0000-7000-8000-00000000001a',
+      '019616a0-0000-7000-8000-00000000001b',
+    ];
+    for (const id of ids) {
+      await seedMemberPost(MEMBER_A, { id, createdAt: SAME });
+    }
+
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < 5; page += 1) {
+      const body: TimelineBody = await timeline(listId, {
+        limit: 3,
+        ...(cursor ? { cursor } : {}),
+      });
+      seen.push(...body.items.map((item) => item.id));
+      if (!body.hasMore) break;
+      expect(body.nextCursor).toBeTruthy();
+      cursor = body.nextCursor;
+    }
+
+    expect(new Set(seen).size).toBe(ids.length);
+    expect(seen.sort()).toEqual([...ids].sort());
   });
 });

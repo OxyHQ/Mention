@@ -1,6 +1,7 @@
 import express from 'express';
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PostType, PostVisibility } from '@mention/shared-types';
 
 /**
  * `GET /profile/design/:userId` and `GET /profile/settings/:userId` serve the
@@ -11,13 +12,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * through the settings route by any authenticated account that followed nobody.
  *
  * Both handlers now share ONE rule (`canViewProfileDesign`), and these tests run
- * the REAL handlers, the REAL DTO builders and the REAL gate — only the Mongo
- * document and the Oxy follow graph are stubbed — so the two routes are asserted
- * to agree on the same seeded document.
+ * the REAL handlers, the REAL DTO builders and the REAL gate — only the Oxy
+ * follow graph and the (still-Mongo) `UserSettings` document are stubbed — so the
+ * two routes are asserted to agree on the same seeded document.
+ *
+ * The design route also reports the profile's post counters, and those are a
+ * REAL grouped query over `posts` now: one pass with three `count(*) filter (…)`
+ * aggregates. A stubbed `countDocuments` could not tell that pass from one whose
+ * filters select nothing, which is what the counts test below is for.
  */
 
-const TARGET = 'target-user';
-const VIEWER = 'viewer-user';
+/** Namespaced: one database serves the whole parallel run and the counts are real. */
+const TARGET = 'oxy-profile-design-parity-target';
+const VIEWER = 'oxy-profile-design-parity-viewer';
 
 /** viewerId → the ids that viewer follows, as the Oxy graph would report them. */
 const followingByViewer = new Map<string, string[]>();
@@ -28,9 +35,16 @@ let targetDoc: Record<string, unknown> | null = null;
 /** The viewer each route sees; `undefined` models an anonymous design request. */
 let currentViewer: string | undefined = VIEWER;
 
-vi.mock('../../config', () => ({
-  config: { publicApiUrl: 'https://api.mention.earth' },
-}));
+// Only `publicApiUrl` is pinned — the rest of the config is REAL, because
+// `connectPostgres` reads `config.postgres.url` from the same object and a
+// wholesale replacement leaves it undefined.
+vi.mock('../../config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../config')>();
+  return {
+    ...actual,
+    config: { ...actual.config, publicApiUrl: 'https://api.mention.earth' },
+  };
+});
 
 // One stub stands in for both Oxy seams these routes reach: media URL
 // construction (mediaResolver) and the follow graph the visibility gate reads.
@@ -60,13 +74,6 @@ vi.mock('../../models/UserSettings', () => ({
   },
 }));
 
-// Post counts are unrelated to visibility; the design route only needs them to
-// resolve so the handler reaches its response.
-vi.mock('../../models/Post', () => ({
-  default: { countDocuments: vi.fn().mockResolvedValue(0) },
-  Post: { countDocuments: vi.fn().mockResolvedValue(0) },
-}));
-
 vi.mock('@oxyhq/core/server', () => ({
   requireOxyAuth: (req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (!currentViewer) {
@@ -87,8 +94,12 @@ vi.mock('../../models/UserBehavior', () => ({ default: {} }));
 vi.mock('../../models/Bookmark', () => ({ default: {} }));
 vi.mock('../../models/Like', () => ({ default: {} }));
 
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import profileDesignRoutes from '../../routes/profileDesign';
 import profileSettingsRoutes from '../../routes/profileSettings';
+
+const scope = postScope('profile-design-parity');
 
 const app = express();
 app.use(express.json());
@@ -107,6 +118,9 @@ interface ProfileDesignPayload {
   profileHeaderImage?: string;
   profileCustomization?: { coverPhotoEnabled: boolean; minimalistMode: boolean };
   profileMedia?: { type: string };
+  postsCount?: number;
+  boostsCount?: number;
+  repliesCount?: number;
 }
 
 async function getDesign(): Promise<ProfileDesignPayload> {
@@ -152,11 +166,23 @@ function seedTarget(profileVisibility: 'public' | 'private' | 'followers_only') 
   };
 }
 
+beforeAll(async () => {
+  await connectPostgres();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   followingByViewer.clear();
   currentViewer = VIEWER;
   targetDoc = null;
+});
+
+afterEach(async () => {
+  await clearPostScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 describe('GET /profile/settings/:userId profile-design visibility', () => {
@@ -222,6 +248,56 @@ describe('GET /profile/settings/:userId profile-design visibility', () => {
 
     expect(settings.profileHeaderImage).toBe('private-banner-file');
     expect(settings.appearance).toEqual({ themeMode: 'dark', primaryColor: '#ff0000' });
+  });
+});
+
+describe('GET /profile/design/:userId post counters', () => {
+  /** A post by TARGET. `overrides` decides which of the three counters it lands in. */
+  async function seedTargetPost(overrides: Parameters<typeof seedPost>[1] = {}) {
+    return seedPost(scope, {
+      oxyUserId: TARGET,
+      authorship: [{ oxyUserId: TARGET, role: 'owner', status: 'accepted' }],
+      ...overrides,
+    });
+  }
+
+  it('splits the profile’s public posts into posts / boosts / replies', async () => {
+    // `postsCount` counts NON-replies and deliberately includes boosts, matching
+    // what the `posts` profile tab actually serves; `repliesCount` is its
+    // inverse. Three counters over one pass, so a filter that selects nothing —
+    // or everything — is only visible against known rows.
+    const root = await seedTargetPost();
+    await seedTargetPost({ parentPostId: root.id, threadId: root.id });
+    await seedTargetPost({ parentPostId: root.id, threadId: root.id });
+    await seedTargetPost({ type: PostType.BOOST, boostOf: root.id });
+    // Neither of these is public+published, so neither may be counted.
+    await seedTargetPost({ visibility: PostVisibility.PRIVATE });
+    await seedTargetPost({ status: 'draft' });
+    // Somebody else's post, to prove the pass is scoped to this profile.
+    await seedPost(scope, {
+      oxyUserId: VIEWER,
+      authorship: [{ oxyUserId: VIEWER, role: 'owner', status: 'accepted' }],
+    });
+
+    seedTarget('public');
+    followingByViewer.set(VIEWER, []);
+
+    const design = await getDesign();
+
+    expect(design.postsCount).toBe(2);
+    expect(design.boostsCount).toBe(1);
+    expect(design.repliesCount).toBe(2);
+  });
+
+  it('reports zero for a profile with no posts at all', async () => {
+    seedTarget('public');
+    followingByViewer.set(VIEWER, []);
+
+    expect(await getDesign()).toMatchObject({
+      postsCount: 0,
+      boostsCount: 0,
+      repliesCount: 0,
+    });
   });
 });
 

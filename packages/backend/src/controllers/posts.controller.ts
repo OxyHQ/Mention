@@ -3,16 +3,20 @@ import {
   and,
   arrayContains,
   asc,
+  desc,
   eq,
   exists,
   ilike,
   inArray,
+  isNotNull,
+  lt,
   or,
   sql,
   type SQL,
 } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { getDb } from '../db/postgres';
+import { bookmarks as bookmarksTable, likes as likesTable } from '../db/schema/engagement';
 import { posts as postsTable } from '../db/schema/posts';
 import { postContentVariants } from '../db/schema/postContent';
 import {
@@ -28,8 +32,6 @@ import { POST_CLASSIFICATION_PENDING, type PostRecord } from '../db/posts/postRe
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../mtn/feed/CursorBuilder';
 import { baselineContentClassifier } from '../services/BaselineContentClassifier';
 import Poll from '../models/Poll';
-import Like from '../models/Like';
-import Bookmark from '../models/Bookmark';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import mongoose from 'mongoose';
 import { createMentionNotifications } from '../utils/notificationUtils';
@@ -1813,10 +1815,11 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
         post.content.pollId
           ? Poll.deleteOne({ _id: post.content.pollId }).exec()
           : Promise.resolve(),
-        // Delete likes for this post
-        Like.deleteMany({ postId }).exec(),
-        // Delete bookmarks for this post
-        Bookmark.deleteMany({ postId }).exec(),
+        // Likes and bookmarks are NOT swept here: `likes.post_id` and
+        // `bookmarks.post_id` both carry `ON DELETE CASCADE` to `posts.id`, so
+        // the row goes with the post inside the same statement. Sweeping them
+        // through the Mongoose models — which nothing has written since
+        // engagement moved — deleted nothing and made the cascade look explicit.
         // Delete post subscriptions
         PostSubscription.deleteMany({ postId }).exec(),
         // Delete notifications referencing this post
@@ -1998,15 +2001,17 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
     const folderFilter = queryString(req.query.folder);
 
     // Get saved post IDs for the user, optionally filtered by folder
-    const bookmarkQuery: Record<string, unknown> = { userId };
-    if (folderFilter) {
-      bookmarkQuery.folder = folderFilter;
-    }
-    const savedPosts = await Bookmark.find(bookmarkQuery)
-      .sort({ createdAt: -1 })
-      .lean();
+    const savedPosts = await getDb()
+      .select({ postId: bookmarksTable.postId })
+      .from(bookmarksTable)
+      .where(
+        folderFilter
+          ? and(eq(bookmarksTable.userId, userId), eq(bookmarksTable.folder, folderFilter))
+          : eq(bookmarksTable.userId, userId),
+      )
+      .orderBy(desc(bookmarksTable.createdAt));
 
-    const postIds = savedPosts.map((saved) => String(saved.postId));
+    const postIds = savedPosts.map((saved) => saved.postId);
 
     // Build query for posts
     // Don't filter by visibility - users should be able to see their saved posts regardless of visibility
@@ -2080,8 +2085,14 @@ export const getBookmarkFolders = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const folders = await Bookmark.distinct('folder', { userId, folder: { $ne: null } });
-    res.json({ folders });
+    // `is not null`, never `<> null`: Mongo's `$ne: null` also excluded a MISSING
+    // field, while SQL's `<>` against NULL evaluates to NULL and matches nothing,
+    // so the literal translation returns an empty folder list for everyone.
+    const rows = await getDb()
+      .selectDistinct({ folder: bookmarksTable.folder })
+      .from(bookmarksTable)
+      .where(and(eq(bookmarksTable.userId, userId), isNotNull(bookmarksTable.folder)));
+    res.json({ folders: rows.map((row) => row.folder) });
   } catch (error) {
     logger.error('Error fetching bookmark folders', error);
     res.status(500).json({ message: 'Error fetching bookmark folders' });
@@ -2431,19 +2442,35 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Post ID is required' });
     }
 
-    const query: Record<string, unknown> = { postId: String(id) };
-    if (cursor) {
-      query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
+    // `(created_at DESC, id DESC)`, not `_id DESC`. `likes.id` is `text` holding
+    // an ObjectId hex for a row migrated from Mongo and a uuid v7 for anything
+    // written since, and the two spaces interleave under text collation — so an
+    // id-only bound behind an id-only sort is neither chronological nor stable
+    // across the boundary, and would skip and repeat rows at every page edge.
+    // Same keyset `getPostBoosts` below already uses.
+    const conditions: SQL[] = [eq(likesTable.postId, String(id))];
+    const parsedCursor = ChronoCursor.parse(cursor);
+    if (parsedCursor?.ts !== undefined) {
+      const boundaryAt = new Date(parsedCursor.ts);
+      conditions.push(
+        or(
+          lt(likesTable.createdAt, boundaryAt),
+          and(eq(likesTable.createdAt, boundaryAt), lt(likesTable.id, parsedCursor.id)),
+        ) as SQL,
+      );
     }
 
-    const likes = await Like.find(query)
-      .sort({ _id: -1 })
-      .limit(limit + 1)
-      .lean();
+    const likes = await getDb()
+      .select({ id: likesTable.id, userId: likesTable.userId, createdAt: likesTable.createdAt })
+      .from(likesTable)
+      .where(and(...conditions))
+      .orderBy(desc(likesTable.createdAt), desc(likesTable.id))
+      .limit(limit + 1);
 
     const hasMore = likes.length > limit;
     const likesToReturn = hasMore ? likes.slice(0, limit) : likes;
-    const nextCursor = hasMore ? likes[limit - 1]._id.toString() : undefined;
+    const last = likesToReturn[likesToReturn.length - 1];
+    const nextCursor = hasMore && last ? ChronoCursor.build(last.id, last.createdAt) : undefined;
 
     // Get unique user IDs, then resolve actor summaries through the same shared
     // resolver PostHydrationService uses (canonical `name.displayName`, batched
@@ -2536,25 +2563,31 @@ export const getKnownPostLikers = async (req: AuthRequest, res: Response) => {
       return res.json({ likers: [], total: 0 });
     }
 
-    const filter = {
-      userId: { $in: followingIds },
-      postId: id,
-      value: 1,
-    };
+    const filter = and(
+      inArray(likesTable.userId, followingIds),
+      eq(likesTable.postId, id),
+      eq(likesTable.value, 1),
+    );
 
-    // Unsorted on purpose: the index is keyed on `{ userId, postId }`, so any
-    // recency sort would add a blocking in-memory sort over every match just to
-    // pick three avatars whose order carries no meaning. `total` is exact.
-    const [likes, total] = await Promise.all([
-      Like.find(filter).limit(KNOWN_LIKERS_SAMPLE_LIMIT).select({ userId: 1, _id: 0 }).lean(),
-      Like.countDocuments(filter),
+    // Unsorted on purpose: the unique `(user_id, post_id)` index answers this
+    // with one seek per followed id, so any recency sort would add a blocking
+    // sort over every match just to pick three avatars whose order carries no
+    // meaning. `total` is exact.
+    const db = getDb();
+    const [likes, [totals]] = await Promise.all([
+      db
+        .select({ userId: likesTable.userId })
+        .from(likesTable)
+        .where(filter)
+        .limit(KNOWN_LIKERS_SAMPLE_LIMIT),
+      db.select({ total: sql<number>`count(*)::int` }).from(likesTable).where(filter),
     ]);
 
     const likerIds = [...new Set(likes.map((like) => like.userId))];
     const summaries = await resolveUserSummaries(likerIds);
     const likers = likerIds.map((likerId) => mapActorSummary(likerId, summaries.get(likerId)?.user));
 
-    return res.json({ likers, total });
+    return res.json({ likers, total: totals?.total ?? 0 });
   } catch (error) {
     logger.error('Error fetching known post likers', error);
     return res.status(500).json({ message: 'Error fetching known post likers' });

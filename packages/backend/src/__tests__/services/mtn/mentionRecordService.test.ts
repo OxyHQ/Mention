@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   verifyEnvelopeSignature,
   isAuthorizedKey,
@@ -20,6 +20,22 @@ import type { SignedRecordEnvelope } from '@oxyhq/contracts';
  *  - a like writes an `app.mention.feed.like` record,
  *  - `signAndAppend` retries on a `chain_conflict`,
  *  - a FEDERATED post does NOT emit.
+ *
+ * ## What changed with the Postgres port
+ *
+ * The chain STORE is still in-memory here on purpose — `MentionRecordStore` is
+ * Mongo and is not part of this port, and an in-memory `RecordStore` is what
+ * lets the real `@oxyhq/protocol` engine run end to end.
+ *
+ * What did change is the emitter's INPUT. `emitPostCreated` takes a `PostRecord`
+ * and reads `post.id` for the record's `rkey`, `post.content.variants` for the
+ * body, and the stored `status`/`visibility`/`federation` for its three gates.
+ * The old suite hand-built objects carrying a Mongo-shaped `_id`, so the record
+ * key it asserted on came from the literal the test wrote — and a post whose id
+ * never survived a round trip would have looked identical. Every post the
+ * emitter block hands over is now a real row, read back through
+ * `insertPostRecord`, so the `rkey` on the chain is the id the database actually
+ * holds.
  */
 
 // --- A fixed custodial secp256k1 keypair the resolver will authorize (issuer ===
@@ -175,6 +191,9 @@ vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ resolveDid }),
 }));
 
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import { clearServiceScope, seedPost, serviceScope } from '../../helpers/serviceFixtures';
+import { PostVisibility } from '@mention/shared-types';
 import { signAndAppend } from '../../../services/mtn/MentionRecordService';
 import { mentionVerificationResolver, clearVerificationMethodCache } from '../../../services/mtn/mentionVerificationResolver';
 import {
@@ -188,7 +207,18 @@ import {
   createPostUri,
 } from '@mention/shared-types';
 
-beforeEach(() => {
+const scope = serviceScope('mtn-record-service');
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+beforeEach(async () => {
+  await clearServiceScope(scope);
   process.env.MENTION_DID = MENTION_DID;
   process.env.MENTION_PRIVATE_KEY = CUSTODIAL_PRIVATE;
   process.env.MENTION_PUBLIC_KEY = CUSTODIAL_PUBLIC;
@@ -201,7 +231,8 @@ beforeEach(() => {
   clearVerificationMethodCache();
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await clearServiceScope(scope);
   delete process.env.MENTION_DID;
   delete process.env.MENTION_PRIVATE_KEY;
   delete process.env.MENTION_PUBLIC_KEY;
@@ -450,75 +481,77 @@ describe('MentionRecordEmitter dual-write gate', () => {
     });
   });
 
-  it('does NOT emit for a federated post', async () => {
-    const federatedPost = {
-      _id: 'fed-post-1',
+  it('does NOT emit for a FEDERATED post', async () => {
+    const federatedPost = await seedPost(scope, {
       oxyUserId: SUBJECT_OXY_ID,
-      federation: { activityId: 'https://remote.example/notes/1', actorUri: 'https://remote.example/u/a' },
-      content: { text: 'remote post' },
-      createdAt: new Date().toISOString(),
-    } as unknown as Parameters<typeof emitPostCreated>[0];
+      federation: {
+        activityId: 'https://remote.example/notes/1',
+        actorUri: 'https://remote.example/u/a',
+      },
+      content: { variants: [{ source: 'author', text: 'remote post', tag: 'en' }] },
+    });
+    expect(federatedPost.federation?.activityId).toBe('https://remote.example/notes/1');
 
     await emitPostCreated(federatedPost);
     expect(memoryStore.rows).toHaveLength(0);
   });
 
-  it('emits an app.mention.feed.post for a LOCAL post', async () => {
-    const localPost = {
-      _id: 'local-post-1',
+  it('emits an app.mention.feed.post keyed on the post row’s own id', async () => {
+    const localPost = await seedPost(scope, {
       oxyUserId: SUBJECT_OXY_ID,
-      federation: undefined,
-      content: { variants: [{ source: 'author', text: 'native post' }], sources: [], media: [] },
-      visibility: 'public',
-      status: 'published',
       hashtags: ['mtn'],
       language: 'en',
-      createdAt: new Date().toISOString(),
-    } as unknown as Parameters<typeof emitPostCreated>[0];
+      content: { variants: [{ source: 'author', text: 'native post', tag: 'en' }], media: [] },
+    });
 
     await emitPostCreated(localPost);
+
     expect(memoryStore.rows).toHaveLength(1);
     const stored = memoryStore.rows[0].env;
     expect(stored.collection).toBe(MENTION_POST_COLLECTION);
-    expect(stored.rkey).toBe('local-post-1');
+    // The chain key is the STORED id — a uuid v7 for a post written today, an
+    // ObjectId hex for one that predates the cutover. Reading it off the row
+    // rather than off a literal is the whole difference here.
+    expect(stored.rkey).toBe(localPost.id);
     expect(stored.record).toMatchObject({ text: 'native post', tags: ['mtn'], langs: ['en'] });
+    expect(stored.subject).toBe(SUBJECT_DID);
+    expect(await verifyEnvelopeSignature(stored)).toBe(true);
   });
 
   it('does NOT emit a record for a DRAFT or non-public LOCAL post', async () => {
     // A record is readable on the public atproto bridge, so an unpublished or
-    // non-public post must never reach the chain in the first place.
-    const draftPost = {
-      _id: 'draft-post-1',
+    // non-public post must never reach the chain in the first place. Each of the
+    // three is a real row, so the gate is read off stored columns.
+    const draftPost = await seedPost(scope, {
       oxyUserId: SUBJECT_OXY_ID,
-      federation: undefined,
-      content: { variants: [{ source: 'author', text: 'draft secret' }], sources: [], media: [] },
-      visibility: 'public',
       status: 'draft',
-      createdAt: new Date().toISOString(),
-    } as unknown as Parameters<typeof emitPostCreated>[0];
-    const privatePost = {
-      _id: 'private-post-1',
+      content: { variants: [{ source: 'author', text: 'draft secret', tag: 'en' }] },
+    });
+    const privatePost = await seedPost(scope, {
       oxyUserId: SUBJECT_OXY_ID,
-      federation: undefined,
-      content: { variants: [{ source: 'author', text: 'private secret' }], sources: [], media: [] },
-      visibility: 'private',
-      status: 'published',
-      createdAt: new Date().toISOString(),
-    } as unknown as Parameters<typeof emitPostCreated>[0];
-    const followersOnlyPost = {
-      _id: 'followers-post-1',
+      visibility: PostVisibility.PRIVATE,
+      content: { variants: [{ source: 'author', text: 'private secret', tag: 'en' }] },
+    });
+    const followersOnlyPost = await seedPost(scope, {
       oxyUserId: SUBJECT_OXY_ID,
-      federation: undefined,
-      content: { variants: [{ source: 'author', text: 'followers only' }], sources: [], media: [] },
-      visibility: 'followers_only',
-      status: 'published',
-      createdAt: new Date().toISOString(),
-    } as unknown as Parameters<typeof emitPostCreated>[0];
+      visibility: PostVisibility.FOLLOWERS_ONLY,
+      content: { variants: [{ source: 'author', text: 'followers only', tag: 'en' }] },
+    });
 
     await emitPostCreated(draftPost);
     await emitPostCreated(privatePost);
     await emitPostCreated(followersOnlyPost);
 
     expect(memoryStore.rows).toHaveLength(0);
+
+    // Vacuity floor: the same emitter DOES write for a published public post, so
+    // "nothing was emitted" cannot be satisfied by an emitter that never works.
+    const publicPost = await seedPost(scope, {
+      oxyUserId: SUBJECT_OXY_ID,
+      content: { variants: [{ source: 'author', text: 'perfectly public', tag: 'en' }] },
+    });
+    await emitPostCreated(publicPost);
+    expect(memoryStore.rows).toHaveLength(1);
+    expect(memoryStore.rows[0].env.rkey).toBe(publicPost.id);
   });
 });
