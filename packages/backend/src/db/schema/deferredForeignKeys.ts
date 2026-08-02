@@ -141,6 +141,34 @@ export function isOxyAccountColumn(column: PgColumn): boolean {
 /**
  * Every id-shaped column that is NOT an Oxy account id and still carries no
  * foreign key. Each has its own reason; none of them is "we forgot".
+ *
+ * ## The pattern in these reasons: right for the schema, wrong for the domain
+ *
+ * Referential hygiene has a DEFAULT ANSWER — an id-shaped column should
+ * reference the table it names — and three entries below are places that answer
+ * is wrong. They arrived within two commits of each other, which is what makes
+ * it a pattern rather than three exceptions:
+ *
+ * - **An identifier from another namespace.** An OAuth `client_id` may name a
+ *   STATICALLY CONFIGURED client that has no row in any table
+ *   (`mcp/config/mcpClients.ts`), so a key pointing at the dynamically
+ *   registered half would refuse every connection made by a configured one. The
+ *   constraint would have looked like correct hygiene while denying service.
+ * - **A grouping token with no parent row.** A `bundle_id`, a purge `run_id` —
+ *   the group IS the set of rows sharing the value, so there is nothing to
+ *   reference. `blocked_domain_purges.run_id` additionally must not tie the
+ *   state row's lifetime to its history.
+ * - **An EVIDENCE row, which must outlive its subject.**
+ *   `repair_fetch_failures.post_id` records that a re-fetch failed at a moment.
+ *   CASCADE would erase the record of the failure along with the thing it
+ *   failed on — precisely backwards for an audit row — and SET NULL cannot
+ *   apply to the column that IS the identifier.
+ *
+ * The third is the one worth carrying forward: **audit and evidence tables are
+ * where the default answer is reliably wrong**, because a constraint expresses
+ * "this row is about a thing that exists" and an evidence row is about a thing
+ * that may not. Ask what the row MEANS before asking what its column looks
+ * like.
  */
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
   {
