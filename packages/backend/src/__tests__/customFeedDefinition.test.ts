@@ -1,18 +1,49 @@
-import { beforeEach, describe, it, expect, vi } from 'vitest';
-import mongoose from 'mongoose';
+import { afterAll, afterEach, beforeAll, describe, it, expect } from 'vitest';
+import { eq } from 'drizzle-orm';
 
 /**
- * Task 4 — custom feeds resolve to runnable engine definitions:
+ * Custom feeds resolve to runnable engine definitions:
  * `buildCustomFeedDefinition` (stored definition or legacy fallback + execution
  * profile) and `loadCustomFeedDefinition` (id/owner/visibility gate).
+ *
+ * `buildCustomFeedDefinition` is pure and is called directly. The LOADER is
+ * exercised against real rows: it used to mock `models/CustomFeed`, which
+ * nothing writes any more — every write goes through
+ * `routes/customFeeds.routes.ts` into `custom_feeds` — so the mock stood in for
+ * a read that could never succeed, and a feed created after that move loaded as
+ * "not found". A mocked `findById` returns whatever it is handed regardless of
+ * which store the code is actually asking.
  */
 
-let feedDoc: Record<string, unknown> | null = null;
-vi.mock('../models/CustomFeed', () => ({
-  default: { findById: vi.fn(() => ({ lean: async () => feedDoc })) },
-}));
-
+import { closePostgres, connectPostgres, getDb } from '../db/postgres';
+import { customFeedDefinitionModules, customFeeds } from '../db/schema/feeds';
 import { buildCustomFeedDefinition, loadCustomFeedDefinition } from '../mtn/feed/definitions/customFeedDefinition';
+
+/** Scoped to this file: `custom_feeds` is shared by every parallel suite. */
+const OWNER = 'oxy-cfd-owner';
+const VIEWER = 'oxy-cfd-viewer';
+
+/** Insert a feed carrying the stored composable definition; returns its id. */
+async function seedFeed(options: { owner: string; isPublic: boolean }): Promise<string> {
+  const [row] = await getDb()
+    .insert(customFeeds)
+    .values({
+      ownerOxyUserId: options.owner,
+      title: 'cfd feed',
+      isPublic: options.isPublic,
+      definitionMode: 'chronological',
+    })
+    .returning({ id: customFeeds.id });
+  await getDb().insert(customFeedDefinitionModules).values({
+    feedId: row.id,
+    kind: 'source',
+    position: 0,
+    module: 'keywords',
+    enabled: true,
+    params: { hashtags: ['comics'] },
+  });
+  return row.id;
+}
 
 const storedDefinition = {
   mode: 'chronological' as const,
@@ -21,9 +52,18 @@ const storedDefinition = {
   filters: [],
 };
 
-beforeEach(() => {
-  feedDoc = null;
-  vi.clearAllMocks();
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterEach(async () => {
+  // `custom_feed_definition_modules` cascades from `custom_feeds`.
+  await getDb().delete(customFeeds).where(eq(customFeeds.ownerOxyUserId, OWNER));
+  await getDb().delete(customFeeds).where(eq(customFeeds.ownerOxyUserId, VIEWER));
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 describe('buildCustomFeedDefinition', () => {
@@ -120,29 +160,40 @@ describe('buildCustomFeedDefinition', () => {
 });
 
 describe('loadCustomFeedDefinition', () => {
-  it('returns null for an invalid id (no DB read)', async () => {
-    expect(await loadCustomFeedDefinition('not-an-id', 'viewer')).toBeNull();
+  it('returns null for an empty id', async () => {
+    expect(await loadCustomFeedDefinition('', VIEWER)).toBeNull();
+    expect(await loadCustomFeedDefinition(undefined, VIEWER)).toBeNull();
   });
 
-  it('returns null when the feed is missing', async () => {
-    feedDoc = null;
-    expect(await loadCustomFeedDefinition(new mongoose.Types.ObjectId().toString(), 'viewer')).toBeNull();
+  it('returns null when no feed has that id', async () => {
+    expect(await loadCustomFeedDefinition('cfd-no-such-feed', VIEWER)).toBeNull();
   });
 
   it('returns null for a private feed the viewer does not own', async () => {
-    feedDoc = { _id: 'f1', title: 't', isPublic: false, ownerOxyUserId: 'someone-else', definition: storedDefinition };
-    expect(await loadCustomFeedDefinition(new mongoose.Types.ObjectId().toString(), 'viewer')).toBeNull();
+    const feedId = await seedFeed({ owner: OWNER, isPublic: false });
+    expect(await loadCustomFeedDefinition(feedId, VIEWER)).toBeNull();
   });
 
   it('resolves a public feed for any viewer', async () => {
-    feedDoc = { _id: 'f1', title: 't', isPublic: true, ownerOxyUserId: 'someone-else', definition: storedDefinition };
-    const def = await loadCustomFeedDefinition(new mongoose.Types.ObjectId().toString(), 'viewer');
+    const feedId = await seedFeed({ owner: OWNER, isPublic: true });
+    const def = await loadCustomFeedDefinition(feedId, VIEWER);
     expect(def?.mode).toBe('chronological');
+    // The stored MODULE came back too, which is what says the child-table
+    // reassembly ran rather than just the parent row.
+    expect(def?.sources.some((source) => source.module === 'keywords')).toBe(true);
   });
 
   it('resolves a private feed for its owner', async () => {
-    feedDoc = { _id: 'f1', title: 't', isPublic: false, ownerOxyUserId: 'viewer', definition: storedDefinition };
-    const def = await loadCustomFeedDefinition(new mongoose.Types.ObjectId().toString(), 'viewer');
-    expect(def).not.toBeNull();
+    const feedId = await seedFeed({ owner: VIEWER, isPublic: false });
+    expect(await loadCustomFeedDefinition(feedId, VIEWER)).not.toBeNull();
+  });
+
+  it('resolves a feed whose id is a uuid, which the old shape guard refused', async () => {
+    // The regression this port fixes. `custom_feeds.id` is uuid v7, and the
+    // previous `ObjectId.isValid` guard returned null before any read — so a
+    // feed the user had just built loaded as "not found".
+    const feedId = await seedFeed({ owner: OWNER, isPublic: true });
+    expect(feedId).not.toMatch(/^[0-9a-f]{24}$/);
+    expect(await loadCustomFeedDefinition(feedId, VIEWER)).not.toBeNull();
   });
 });

@@ -17,10 +17,16 @@ import {
 import { qualified } from '../db/casing';
 import { getDb, type DatabaseOrTransaction } from '../db/postgres';
 import {
+  definitionOf,
+  emptyRelations,
+  loadFeed,
+  loadFeedRelations,
+  type FeedRelations,
+  type FeedRow,
+} from '../db/feeds/customFeedRepository';
+import {
   customFeedDefinitionModules,
   customFeedMembers,
-  customFeedSourceLists,
-  customFeedTopics,
   customFeeds,
   FEED_CATEGORIES,
   feedGenerators,
@@ -31,7 +37,6 @@ import { validateBody, validateObjectId, schemas } from '../middleware/validate'
 import { buildCustomFeedCreatePayload, buildCustomFeedUpdatePatch } from './customFeedWrite';
 import { buildCustomFeedDefinition } from '../mtn/feed/definitions/customFeedDefinition';
 import type { StoredFeedDefinition } from '../models/CustomFeed';
-import type { ModuleRef } from '../mtn/feed/engine/types';
 import { loadViewerFeedContext } from '../mtn/feed/feedContext';
 import { feedEngine } from '../mtn/feed/engine/FeedEngine';
 import { resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
@@ -131,120 +136,11 @@ async function resolveUserProfiles(oxyUserIds: string[]): Promise<Map<string, Us
 // ---------------------------------------------------------------------------
 // Reassembling a feed document out of its five tables
 // ---------------------------------------------------------------------------
-
-type FeedRow = typeof customFeeds.$inferSelect;
-
-/**
- * The child rows a feed needs before it can be serialized.
- *
- * Mongo carried all four of these INSIDE the document (`definition.sources` /
- * `.signals` / `.filters`, `memberOxyUserIds`, `sourceListIds`, `topicIds`), and
- * the API published every one of them. They are separate tables now, so every
- * read that serializes a feed has to gather them back — the wire format is the
- * contract, not the storage shape.
- */
-interface FeedRelations {
-  /** `sources` / `signals` / `filters`, each already in `position` order. */
-  sources: ModuleRef[];
-  signals: ModuleRef[];
-  filters: ModuleRef[];
-  memberOxyUserIds: string[];
-  sourceListIds: string[];
-  topicIds: string[];
-}
-
-function emptyRelations(): FeedRelations {
-  return { sources: [], signals: [], filters: [], memberOxyUserIds: [], sourceListIds: [], topicIds: [] };
-}
-
-/** A module's `params` is `jsonb` and therefore `unknown`; only an object is one. */
-function isParamsObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/**
- * Load the child rows for a page of feeds.
- *
- * Four queries rather than four-per-feed, and each is ordered so the arrays come
- * back the way the document held them. **Module order is EVALUATION order** —
- * the engine runs sources, then signals, then filters, in list order — so
- * `position` is not cosmetic and every read has to honour it.
- *
- * `custom_feed_source_lists` and `custom_feed_topics` carry no `position`
- * column, so their original array order is not recoverable; they are ordered by
- * `id` to be at least deterministic. Neither is order-sensitive (a source list
- * is a set union, a topic id is a set membership test).
- */
-async function loadFeedRelations(
-  db: DatabaseOrTransaction,
-  feedIds: string[],
-): Promise<Map<string, FeedRelations>> {
-  const byFeed = new Map<string, FeedRelations>(feedIds.map((id) => [id, emptyRelations()]));
-  if (feedIds.length === 0) return byFeed;
-
-  // `inArray`, never a hand-built `= any(${ids})`: a raw JS array interpolated
-  // into `sql` binds as a ROW constructor and Postgres rejects it at runtime.
-  const [modules, members, sourceLists, topics] = await Promise.all([
-    db
-      .select()
-      .from(customFeedDefinitionModules)
-      .where(inArray(customFeedDefinitionModules.feedId, feedIds))
-      .orderBy(asc(customFeedDefinitionModules.position)),
-    db
-      .select({ feedId: customFeedMembers.feedId, oxyUserId: customFeedMembers.oxyUserId })
-      .from(customFeedMembers)
-      .where(inArray(customFeedMembers.feedId, feedIds))
-      .orderBy(asc(customFeedMembers.position)),
-    db
-      .select({ feedId: customFeedSourceLists.feedId, listId: customFeedSourceLists.listId })
-      .from(customFeedSourceLists)
-      .where(inArray(customFeedSourceLists.feedId, feedIds))
-      .orderBy(asc(customFeedSourceLists.id)),
-    db
-      .select({ feedId: customFeedTopics.feedId, topicId: customFeedTopics.topicId })
-      .from(customFeedTopics)
-      .where(inArray(customFeedTopics.feedId, feedIds))
-      .orderBy(asc(customFeedTopics.id)),
-  ]);
-
-  for (const row of modules) {
-    const relations = byFeed.get(row.feedId);
-    if (!relations) continue;
-    const ref: ModuleRef = {
-      module: row.module,
-      enabled: row.enabled,
-      ...(isParamsObject(row.params) ? { params: row.params } : {}),
-      ...(row.weight === null ? {} : { weight: row.weight }),
-    };
-    if (row.kind === 'source') relations.sources.push(ref);
-    else if (row.kind === 'signal') relations.signals.push(ref);
-    else relations.filters.push(ref);
-  }
-  for (const row of members) byFeed.get(row.feedId)?.memberOxyUserIds.push(row.oxyUserId);
-  for (const row of sourceLists) byFeed.get(row.feedId)?.sourceListIds.push(row.listId);
-  for (const row of topics) byFeed.get(row.feedId)?.topicIds.push(row.topicId);
-
-  return byFeed;
-}
-
-/**
- * The composable definition, or `undefined` for a feed that predates Phase 3.
- *
- * `definition_mode IS NULL` is exactly Mongoose's absent `definition`
- * subdocument, and the request-time fallback in `customFeedDefinition.ts`
- * depends on telling the two apart — a feed given an empty definition instead of
- * no definition would render empty rather than falling back to its legacy
- * filters.
- */
-function definitionOf(row: FeedRow, relations: FeedRelations): StoredFeedDefinition | undefined {
-  if (row.definitionMode === null) return undefined;
-  return {
-    mode: row.definitionMode,
-    sources: relations.sources,
-    signals: relations.signals,
-    filters: relations.filters,
-  };
-}
+//
+// The gather itself lives in `db/feeds/customFeedRepository.ts`, because the
+// feed ENGINE needs the same reassembly and a second hand-rolled one would be a
+// second place for `position` order to be lost. The WIRE format below stays
+// here: it is this route's contract, not the storage shape.
 
 /**
  * A feed exactly as it goes on the wire.
@@ -296,17 +192,6 @@ function serializeFeed(row: FeedRow, relations: FeedRelations) {
 /** The `topicCount` the feed cards render — it counts KEYWORDS, not `topicIds`. */
 function topicCountOf(row: FeedRow): number {
   return (row.keywords ?? []).length;
-}
-
-/** Load one feed with its child rows, or `null`. */
-async function loadFeed(
-  db: DatabaseOrTransaction,
-  feedId: string,
-): Promise<{ row: FeedRow; relations: FeedRelations } | null> {
-  const [row] = await db.select().from(customFeeds).where(eq(customFeeds.id, feedId)).limit(1);
-  if (!row) return null;
-  const relations = await loadFeedRelations(db, [row.id]);
-  return { row, relations: relations.get(row.id) ?? emptyRelations() };
 }
 
 /**

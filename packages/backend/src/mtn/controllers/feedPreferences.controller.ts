@@ -11,13 +11,12 @@
  */
 
 import { Response } from 'express';
-import mongoose from 'mongoose';
 import { PRESET_FEEDS, isValidFeedDescriptor, parseFeedDescriptor, validateForYouTuning } from '@mention/shared-types';
 import type { FeedDescriptor, SavedFeed } from '@mention/shared-types';
 import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import UserFeedPreference from '../../models/UserFeedPreference';
 import { loadUserSettings, updateUserSettings } from '../../db/userProfile/userSettingsRepository';
-import CustomFeed from '../../models/CustomFeed';
+import { loadCustomFeedSource } from '../../db/feeds/customFeedRepository';
 import { sendErrorResponse, sendSuccessResponse } from '../../utils/apiHelpers';
 import { logger } from '../../utils/logger';
 
@@ -52,8 +51,13 @@ type CustomFeedAccess = 'ok' | 'invalid' | 'forbidden';
  * owned by the viewer or public.
  */
 async function resolveCustomFeedAccess(feedId: string | undefined, userId: string): Promise<CustomFeedAccess> {
-  if (!feedId || !mongoose.Types.ObjectId.isValid(feedId)) return 'invalid';
-  const feed = await CustomFeed.findById(feedId).lean();
+  // Emptiness only, for the same reason as the definition loader: an
+  // `ObjectId.isValid` guard here answered 'invalid' for every feed created
+  // since the cutover, so saving a feed you had just made was refused as
+  // malformed.
+  if (!feedId) return 'invalid';
+  // Postgres — the Mongo `CustomFeed` collection has no writer left.
+  const feed = await loadCustomFeedSource(feedId);
   if (!feed) return 'invalid';
   if (feed.ownerOxyUserId === userId || feed.isPublic === true) return 'ok';
   return 'forbidden';

@@ -1,9 +1,17 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, it, expect, beforeEach, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
 
 /**
- * Group F — GET/PUT /feed/preferences. Models are mocked; the controller's
- * default-seed merge, whitelist, descriptor validation, custom-feed ownership
- * check, upsert, and auth guard are asserted directly.
+ * Group F — GET/PUT /feed/preferences. The preference store and the settings
+ * repository are mocked (this suite is about the controller's validation, not
+ * about storage), but the CUSTOM FEED is a real row.
+ *
+ * It has to be: the ownership check used to read a mocked `models/CustomFeed`,
+ * which nothing writes any more — every write goes through
+ * `routes/customFeeds.routes.ts` into `custom_feeds`. A mocked `findById`
+ * answers whatever it is handed no matter which store the controller asks, so
+ * the check passed while the real one refused every feed created since the
+ * cutover as `invalid`.
  */
 
 let storedDoc: { savedFeeds: unknown[] } | null = null;
@@ -15,11 +23,6 @@ vi.mock('../models/UserFeedPreference', () => ({
     findOne: vi.fn(() => ({ lean: async () => storedDoc })),
     findOneAndUpdate: (...a: unknown[]) => findOneAndUpdate(...(a as [unknown, { $set: { savedFeeds: unknown[] } }])),
   },
-}));
-
-let customFeedDoc: { ownerOxyUserId: string; isPublic: boolean } | null = null;
-vi.mock('../models/CustomFeed', () => ({
-  default: { findById: vi.fn(() => ({ lean: async () => customFeedDoc })) },
 }));
 
 let settingsDoc: { feedTuning?: { forYou?: unknown } } | null = null;
@@ -39,7 +42,33 @@ vi.mock('../db/userProfile/userSettingsRepository', () => ({
     settingsUpdate(...(a as [string, { set: Record<string, unknown> }])),
 }));
 
+import { closePostgres, connectPostgres, getDb } from '../db/postgres';
+import { customFeeds } from '../db/schema/feeds';
 import { feedPreferencesController } from '../mtn/controllers/feedPreferences.controller';
+
+/** Scoped to this file: `custom_feeds` is shared by every parallel suite. */
+const FEED_OWNER = 'oxy-fp-someone-else';
+
+/** A real feed owned by someone OTHER than the authenticated viewer. */
+async function seedCustomFeed(options: { isPublic: boolean }): Promise<string> {
+  const [row] = await getDb()
+    .insert(customFeeds)
+    .values({ ownerOxyUserId: FEED_OWNER, title: 'fp feed', isPublic: options.isPublic })
+    .returning({ id: customFeeds.id });
+  return row.id;
+}
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterEach(async () => {
+  await getDb().delete(customFeeds).where(eq(customFeeds.ownerOxyUserId, FEED_OWNER));
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
 
 function makeRes() {
   const res = {
@@ -54,7 +83,6 @@ const authed = (body?: unknown) => ({ user: { id: 'viewer' }, body }) as never;
 
 beforeEach(() => {
   storedDoc = null;
-  customFeedDoc = null;
   settingsDoc = null;
   vi.clearAllMocks();
 });
@@ -118,10 +146,10 @@ describe('PUT /feed/preferences', () => {
   });
 
   it('403s a custom feed the viewer does not own and is not public', async () => {
-    customFeedDoc = { ownerOxyUserId: 'someone-else', isPublic: false };
+    const feedId = await seedCustomFeed({ isPublic: false });
     const res = makeRes();
     await feedPreferencesController.update(
-      authed({ savedFeeds: [{ key: 'c', descriptor: 'custom|507f1f77bcf86cd799439011', pinned: false, order: 0 }] }),
+      authed({ savedFeeds: [{ key: 'c', descriptor: `custom|${feedId}`, pinned: false, order: 0 }] }),
       res as never,
     );
     expect(res.statusCode).toBe(403);
@@ -129,13 +157,26 @@ describe('PUT /feed/preferences', () => {
   });
 
   it('accepts a public custom feed owned by someone else', async () => {
-    customFeedDoc = { ownerOxyUserId: 'someone-else', isPublic: true };
+    const feedId = await seedCustomFeed({ isPublic: true });
     const res = makeRes();
     await feedPreferencesController.update(
-      authed({ savedFeeds: [{ key: 'c', descriptor: 'custom|507f1f77bcf86cd799439011', pinned: false, order: 0 }] }),
+      authed({ savedFeeds: [{ key: 'c', descriptor: `custom|${feedId}`, pinned: false, order: 0 }] }),
       res as never,
     );
     expect(res.statusCode).toBe(200);
+  });
+
+  it('400s a custom feed id that names no row', async () => {
+    // `invalid` is the answer for a feed that does not exist. The uuid-shaped id
+    // matters: the previous `ObjectId.isValid` guard rejected every real feed id
+    // here before any lookup, so this case and the two above all passed for the
+    // wrong reason.
+    const res = makeRes();
+    await feedPreferencesController.update(
+      authed({ savedFeeds: [{ key: 'c', descriptor: 'custom|fp-no-such-feed', pinned: false, order: 0 }] }),
+      res as never,
+    );
+    expect(res.statusCode).toBe(400);
   });
 
   it('401s an anonymous request', async () => {
