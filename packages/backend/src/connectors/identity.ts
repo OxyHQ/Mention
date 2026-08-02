@@ -154,7 +154,23 @@ export async function resolveFederatedActorIdentity(
     // derivation is broken, most likely yielding a constant, and merging on it
     // would collapse every actor on that domain into one person. Refuse; never
     // merge. Cheapest possible guard against the worst possible outcome.
-    const sourceDomain = actor.handle.slice(actor.handle.lastIndexOf('@') + 1);
+    // The domain the actor itself came from. An ActivityPub acct carries it after
+    // the `@`; an atproto handle is a whole DNS name with NO `@` at all
+    // (`georgemonbiot.bsky.social`), and for those the source domain is the
+    // network — which is what `instanceDomain` holds.
+    //
+    // Reading it off the handle unconditionally made this guard INERT on the
+    // atproto path: `lastIndexOf('@')` returns -1, `slice(0)` hands back the whole
+    // handle, and comparing `georgemonbiot.bsky.social` against a stored domain of
+    // `bsky.social` can never match. So the one guard built to catch a broken
+    // derivation collapsing a domain onto one identity would not have fired for
+    // native Bluesky rows. It is unreachable today — a default handle's local part
+    // is a single label and a custom-domain handle must contain a dot, so the two
+    // cannot derive the same string — but that is a property of Bluesky's handle
+    // rules, not of this code, and it is not what the guard should rest on.
+    const sourceDomain = actor.handle.includes('@')
+      ? actor.handle.slice(actor.handle.lastIndexOf('@') + 1)
+      : actor.instanceDomain;
     if (owner && owner.domain === sourceDomain) {
       logger.error(
         '[FedSync] two actors on one source domain resolve to the same identity — '

@@ -245,6 +245,29 @@ describe('resolveFederatedActorIdentity — the cross-PROTOCOL case', () => {
     expect(mocks.loggerError).not.toHaveBeenCalled();
   });
 
+  it('fires the same-domain refusal for two NATIVE atproto rows', async () => {
+    // The positive direction, which the cross-source tests do not cover. An
+    // atproto handle carries no `@`, so reading the source domain off the handle
+    // left this guard permanently inert on that path — `georgemonbiot.bsky.social`
+    // could never equal a stored `bsky.social`. Two native rows resolving to one
+    // identity means the handle rule is broken, and merging them would attribute
+    // one person's posts to another.
+    findOneReturns({
+      uri: 'did:plc:someone-else',
+      domain: 'bsky.social',
+      oxyUserId: 'other-user',
+    });
+    await expect(resolveFederatedActorIdentity({
+      network: 'atproto',
+      externalId: 'did:plc:codfx2epdduamfycuyi5fjpb',
+      handle: 'georgemonbiot.bsky.social',
+      federatedUsername: 'georgemonbiot@bsky.social',
+      instanceDomain: 'bsky.social',
+    })).resolves.toBeNull();
+    expect(mocks.resolveOxyExternalUser).not.toHaveBeenCalled();
+    expect(mocks.loggerError).toHaveBeenCalled();
+  });
+
   it('merges in the other direction too, so arrival order cannot matter', async () => {
     // A Bluesky actor coming in over atproto, when the Bridgy copy landed first.
     findOneReturns({
