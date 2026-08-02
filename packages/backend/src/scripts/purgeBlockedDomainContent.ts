@@ -273,8 +273,19 @@ function readOptions(): PurgeOptions {
 
 /**
  * The canonical comparison form, re-exported from the policy module so this
- * script and the live `isBlockedDomain` decide "same domain" with the SAME
- * function rather than two that agree by inspection.
+ * script and the transparency page share ONE function inside Mention instead of
+ * two that agree by inspection.
+ *
+ * It does NOT mean the duplication is gone, and nobody reading this should
+ * conclude that it is. `@oxyhq/federation` keeps its own `canonicalDomainHost`
+ * PRIVATE — `apUri.ts` exports only `extractActorUriFromActivityId`,
+ * `createDomainPolicy` and two types — so `canonicalBlockedDomain` is a
+ * hand-copy of it. Two implementations still have to agree, and the one that
+ * actually decides what gets refused at the wire is the engine's. What holds
+ * them together is behavioural, not structural: the agreement test drives the
+ * REAL `createDomainPolicy` rather than a mock, so a divergence fails loudly.
+ * The end state under the fix-upstream rule is the engine exporting
+ * `canonicalDomainHost`, Mention importing it, and this mirror deleted.
  *
  * It deliberately does not strip a trailing dot. An earlier copy here did, which
  * made this script strictly more aggressive than the engine: `example.com.` in

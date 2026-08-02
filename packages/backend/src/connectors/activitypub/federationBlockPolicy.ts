@@ -124,6 +124,17 @@ export const FEDERATION_BLOCK_POLICY: readonly FederationBlockPolicyEntry[] = []
  * the dot would decide a host was blocked when the engine had not, and for a
  * consumer whose action is irreversible that difference is content deleted for a
  * domain we never actually blocked.
+ *
+ * This is a MIRROR, not the engine's own function. `@oxyhq/federation` keeps
+ * `canonicalDomainHost` private (`apUri.ts` exports only
+ * `extractActorUriFromActivityId`, `createDomainPolicy` and two types), so
+ * exporting this removes the duplication INSIDE Mention and no further. Two
+ * implementations still have to agree, and the engine's is the one that decides
+ * what is refused at the wire. Nothing structural keeps them in step — only the
+ * tests that drive the real `createDomainPolicy` and assert the same verdict.
+ * Under the fix-upstream rule the resolution is for the engine to export
+ * `canonicalDomainHost` and for this to be deleted, not for the copy to be
+ * maintained.
  */
 export function canonicalBlockedDomain(domain: string): string {
   const value = domain.trim().toLowerCase();
