@@ -214,3 +214,13 @@ export const MIGRATION_POST_LANE_INDEX = '0023-post-lane-index';
  * schema authority. See {@link ./0024-channel-indexes}.
  */
 export const MIGRATION_CHANNEL_INDEXES = '0024-channel-indexes';
+
+/**
+ * Create `channel_follow_by_user_v1` on `channelfollows` so a reader's own
+ * subscription list (`GET /channels/following`) pages from the index rather than
+ * a collection scan. Kept apart from `0024` because the runner skips an
+ * already-applied migration, which would make an edit there a silent no-op.
+ * Production disables Mongoose auto-indexing, so this migration is the schema
+ * authority. See {@link ./0025-channel-follow-user-index}.
+ */
+export const MIGRATION_CHANNEL_FOLLOW_USER_INDEX = '0025-channel-follow-user-index';

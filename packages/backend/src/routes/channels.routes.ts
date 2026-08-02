@@ -9,9 +9,10 @@
  *  - {@link default} (the authenticated router) is everything that writes, plus
  *    everything scoped to the caller.
  *
- * EXPRESS ORDERING: `/mine` and `/invites` are declared BEFORE `/:id`, or `:id`
- * swallows them — the same dodge `routes/lanes.routes.ts` and `routes/posts.ts`
- * already make.
+ * EXPRESS ORDERING: `/mine`, `/invites` and `/following` are declared BEFORE
+ * `/:id`, or `:id` swallows them — the same dodge `routes/lanes.routes.ts` and
+ * `routes/posts.ts` already make. All three are also RESERVED handles, which is
+ * what lets the public param route hand them on instead of 404ing them.
  *
  * SEPARATION OF POWERS, enforced through `services/channelAccess` and nowhere
  * else, so "may publish" cannot come to mean one thing here and another in the
@@ -66,18 +67,53 @@ const DIRECTORY_MAX_LIMIT = 50;
 /** Member-list page size — bounded by {@link MAX_CHANNEL_MEMBERS} anyway. */
 const MEMBER_PAGE_SIZE = MAX_CHANNEL_MEMBERS;
 
+/**
+ * Ceiling on the per-CALLER channel lists that have no cursor of their own:
+ * `GET /channels/mine`, `GET /channels/invites`, and the `excludeFollowed` set.
+ *
+ * Nothing caps how many channels one person may join, be invited to, or follow,
+ * so each of those reads is unbounded without this — and `/invites` is the one
+ * that matters, because **third parties grow that set, not its owner**: anyone
+ * who runs a channel can invite you, so the size of the read is not under the
+ * victim's control. The `$in` / `$nin` these feed then inherit the same size.
+ *
+ * Truncating is the safe direction for all three. `excludeFollowed` is a
+ * convenience on a directory, not a permission — a follow past the ceiling means
+ * a channel the reader already follows shows up in the directory, never a channel
+ * they cannot see. The other two are management views, and a caller with more
+ * than this many needs pagination, which is a feature request rather than a
+ * silent unbounded query.
+ */
+const MAX_CALLER_CHANNEL_ROWS = 500;
+
 const handleSchema = z
   .string()
   .min(CHANNEL_HANDLE_MIN_LENGTH)
   .max(CHANNEL_HANDLE_MAX_LENGTH + 1)
   .transform((value) => value.trim());
 
+/**
+ * A channel's avatar/banner is a BARE Oxy file id, exactly as the DTO documents
+ * — never a URL.
+ *
+ * Enforced rather than merely documented because Bloom's `ImageResolver` passes
+ * `http:`/`https:`/`data:` through untouched: a URL stored here would be fetched
+ * by every visitor to the channel's page AND by everyone who sees any post it
+ * signs, handing the channel's owner the IP, User-Agent and Referer of readers
+ * who never visited their host. The repo validates the same field the same loose
+ * way elsewhere (`profileSettings.ts`), so this is not a hole opened here — it is
+ * two lines that decline to inherit it on a NEW public surface.
+ */
+const mediaIdSchema = z
+  .string()
+  .regex(/^[a-f0-9]{24}$/, 'must be a bare Oxy file id, not a URL');
+
 const createChannelSchema = z.object({
   handle: handleSchema,
   title: z.string().min(1, 'title is required').max(MAX_CHANNEL_TITLE_LENGTH).transform((v) => v.trim()),
   description: z.string().max(MAX_CHANNEL_DESCRIPTION_LENGTH).optional(),
-  avatar: z.string().optional(),
-  banner: z.string().optional(),
+  avatar: mediaIdSchema.optional(),
+  banner: mediaIdSchema.optional(),
   signPosts: z.boolean().optional(),
 });
 
@@ -85,8 +121,8 @@ const updateChannelSchema = z.object({
   handle: handleSchema.optional(),
   title: z.string().min(1).max(MAX_CHANNEL_TITLE_LENGTH).transform((v) => v.trim()).optional(),
   description: z.string().max(MAX_CHANNEL_DESCRIPTION_LENGTH).optional(),
-  avatar: z.string().optional(),
-  banner: z.string().optional(),
+  avatar: mediaIdSchema.optional(),
+  banner: mediaIdSchema.optional(),
   signPosts: z.boolean().optional(),
 });
 
@@ -233,6 +269,7 @@ publicChannelsRouter.get('/', async (req: AuthRequest, res: Response) => {
     if (viewerId && req.query.excludeFollowed === 'true') {
       const followed = await ChannelFollow.find({ oxyUserId: viewerId })
         .select('channelId')
+        .limit(MAX_CALLER_CHANNEL_ROWS)
         .lean<Array<{ channelId: string }>>();
       const followedIds = followed
         .map((row) => row.channelId)
@@ -381,6 +418,7 @@ router.get('/mine', async (req: AuthRequest, res: Response) => {
     const userId = getAuthenticatedUserId(req);
     const memberships = await ChannelMember.find({ oxyUserId: userId, status: 'accepted' })
       .select('channelId')
+      .limit(MAX_CALLER_CHANNEL_ROWS)
       .lean<Array<{ channelId: string }>>();
     const channelIds = memberships
       .map((row) => row.channelId)
@@ -390,6 +428,7 @@ router.get('/mine', async (req: AuthRequest, res: Response) => {
     }
     const channels = await Channel.find({ _id: { $in: channelIds } })
       .sort({ createdAt: -1 })
+      .limit(MAX_CALLER_CHANNEL_ROWS)
       .lean<ChannelLean[]>();
     return sendSuccessResponse(res, 200, channels.map((channel) => serialize(channel)));
   } catch (err) {
@@ -404,6 +443,7 @@ router.get('/invites', async (req: AuthRequest, res: Response) => {
     const userId = getAuthenticatedUserId(req);
     const invites = await ChannelMember.find({ oxyUserId: userId, status: 'pending' })
       .select('channelId')
+      .limit(MAX_CALLER_CHANNEL_ROWS)
       .lean<Array<{ channelId: string }>>();
     const channelIds = invites
       .map((row) => row.channelId)
@@ -413,11 +453,145 @@ router.get('/invites', async (req: AuthRequest, res: Response) => {
     }
     const channels = await Channel.find({ _id: { $in: channelIds } })
       .sort({ createdAt: -1 })
+      .limit(MAX_CALLER_CHANNEL_ROWS)
       .lean<ChannelLean[]>();
     return sendSuccessResponse(res, 200, channels.map((channel) => serialize(channel)));
   } catch (err) {
     logger.error('[Channels] Error listing channel invites:', { userId: req.user?.id, error: err });
     return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to list invites');
+  }
+});
+
+/**
+ * GET /channels/following?cursor=<createdAtMs>_<followId>&limit=
+ *
+ * The channels this reader SUBSCRIBES to — the other half of the loop from
+ * `POST /:id/follow`, and the list the whole feature promises: what you follow
+ * without following anybody.
+ *
+ * Distinct from `GET /channels/mine`, which answers a different question with a
+ * different model — that one is publishing RIGHTS (`ChannelMember`), this one is
+ * readership (`ChannelFollow`). A reader typically has many of these and none of
+ * those.
+ *
+ * **Keyset-paged, on the follow rows.** `{ createdAt: -1, _id: -1 }` within one
+ * `oxyUserId` is exactly what `channel_follow_by_user_v1` stores. A skip/limit
+ * page would duplicate and drop rows as the reader follows and unfollows
+ * underneath their own list.
+ *
+ * Each row carries the caller's `viewerState` so the client can paint the mute
+ * switch without a second request per channel: `notify` comes free off the follow
+ * row being paged, and membership is resolved for the WHOLE page in one batched
+ * query rather than per row — a partial `viewerState` would be worse than none,
+ * because an absent `role` is documented to mean "not a member".
+ */
+router.get('/following', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const rawLimit = Number.parseInt(String(req.query.limit ?? ''), 10);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0
+      ? Math.min(rawLimit, DIRECTORY_MAX_LIMIT)
+      : DIRECTORY_PAGE_SIZE;
+
+    const match: Record<string, unknown> = { oxyUserId: userId };
+
+    // `<createdAtMs>_<followId>` — the same two-part shape the directory's cursor
+    // uses, over this list's own axis. A malformed cursor is ignored rather than
+    // rejected: it can only cost the caller a first page, and a 400 would break a
+    // client holding an older format.
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : '';
+    const separator = cursor.lastIndexOf('_');
+    if (separator > 0) {
+      const followedAtMs = Number.parseInt(cursor.slice(0, separator), 10);
+      const lastId = cursor.slice(separator + 1);
+      if (Number.isFinite(followedAtMs) && mongoose.Types.ObjectId.isValid(lastId)) {
+        // A two-part keyset needs an `$or`, and this query has NO `ChronoCursor`
+        // anywhere near it — the clobber rule that forbids `$or` applies to the
+        // feed match objects `ChronoCursor.applyToQuery` ASSIGNS into, not here.
+        match.$or = [
+          { createdAt: { $lt: new Date(followedAtMs) } },
+          {
+            createdAt: new Date(followedAtMs),
+            _id: { $lt: new mongoose.Types.ObjectId(lastId) },
+          },
+        ];
+      }
+    }
+
+    const overfetched = await ChannelFollow.find(match)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1)
+      .select('_id channelId notify createdAt')
+      .lean<Array<{
+        _id: mongoose.Types.ObjectId;
+        channelId: string;
+        notify?: boolean;
+        createdAt: Date;
+      }>>();
+
+    // `hasMore` and the cursor are BOTH taken from the FOLLOW rows, before any
+    // channel is resolved. They describe how far this request consumed the
+    // reader's subscription list, and a follow whose channel has since been
+    // deleted must not be mistaken for reaching the end of it.
+    const hasMore = overfetched.length > limit;
+    const page = hasMore ? overfetched.slice(0, limit) : overfetched;
+    const lastFollow = page[page.length - 1];
+
+    const nextCursor = hasMore && lastFollow
+      ? `${lastFollow.createdAt.getTime()}_${String(lastFollow._id)}`
+      : undefined;
+
+    if (page.length === 0) {
+      return sendSuccessResponse(res, 200, { items: [], hasMore, ...(nextCursor ? { nextCursor } : {}) });
+    }
+
+    const channelIds = page
+      .map((row) => row.channelId)
+      .filter((id) => mongoose.Types.ObjectId.isValid(id));
+
+    const [channels, memberships] = await Promise.all([
+      Channel.find({ _id: { $in: channelIds } }).lean<ChannelLean[]>(),
+      ChannelMember.find({ channelId: { $in: channelIds }, oxyUserId: userId })
+        .select('channelId role status')
+        .lean<Array<{
+          channelId: string;
+          role: ChannelMemberSummary['role'];
+          status: ChannelMemberSummary['status'];
+        }>>(),
+    ]);
+
+    const channelById = new Map(channels.map((channel) => [String(channel._id), channel]));
+    const membershipByChannel = new Map(memberships.map((row) => [row.channelId, row]));
+
+    const items: ChannelDTO[] = [];
+    for (const follow of page) {
+      const channel = channelById.get(follow.channelId);
+      // A follow whose channel is GONE. The delete cascade drops these rows, so
+      // this is only reachable if that cascade was interrupted — drop the row
+      // from the list rather than render a blank card or fail the page. The
+      // cursor above already advanced past it, so the next page is unaffected.
+      if (!channel) continue;
+      const membership = membershipByChannel.get(follow.channelId);
+      items.push(
+        serialize(channel, {
+          isFollowing: true,
+          notify: follow.notify === true,
+          ...(membership ? { role: membership.role, memberStatus: membership.status } : {}),
+        }),
+      );
+    }
+
+    return sendSuccessResponse(res, 200, {
+      items,
+      hasMore,
+      ...(nextCursor ? { nextCursor } : {}),
+    });
+  } catch (err) {
+    logger.error('[Channels] Error listing followed channels:', {
+      userId: req.user?.id,
+      error: err,
+    });
+    return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to list followed channels');
   }
 });
 
@@ -806,18 +980,28 @@ router.delete(
         return sendErrorResponse(res, 400, 'Bad Request', 'The owner cannot be removed');
       }
 
+      // `new: false` — the PRE-image, and that is the whole point. Only an
+      // ACCEPTED member was ever counted (`accept` is the only path that
+      // increments), so only that transition may decrement. With `new: true` the
+      // returned row always reads `status: 'removed'` and the previous state is
+      // unrecoverable, so cancelling a still-PENDING invitation decremented a
+      // count it had never contributed to — and `bumpChannelCounter` has no
+      // floor, so a channel that cancels a few invites goes negative.
       const removed = await ChannelMember.findOneAndUpdate(
         { channelId, oxyUserId: memberId, status: { $in: ['accepted', 'pending'] } },
         { $set: { status: 'removed', respondedAt: new Date() } },
-        { new: true, projection: { status: 1 } },
+        { new: false, projection: { status: 1 } },
       ).lean<{ status: string } | null>();
       if (!removed) {
         return sendErrorResponse(res, 404, 'Not Found', 'Member not found');
       }
 
-      // Only an ACCEPTED member was ever counted, so only that transition
-      // decrements. The claim above is what makes this exactly once.
-      await bumpChannelCounter(channelId, 'memberCount', -1);
+      // The filtered update above is the CLAIM, so this runs at most once per
+      // member; the pre-image is what makes it run only for the transition that
+      // actually changes the population.
+      if (removed.status === 'accepted') {
+        await bumpChannelCounter(channelId, 'memberCount', -1);
+      }
 
       return sendSuccessResponse(res, 200, { success: true }, 'Member removed');
     } catch (err) {

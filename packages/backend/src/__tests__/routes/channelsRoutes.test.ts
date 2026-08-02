@@ -32,6 +32,12 @@ const CHANNEL_ID = '65b0c9178fcdefaf81988ffb';
 /** Ordered log of the writes a request performed, for the delete-order test. */
 const writes: string[] = [];
 
+/** Every `sort()` spec a request issued, so a keyset's axis can be asserted. */
+const sortCalls: Array<Record<string, unknown>> = [];
+
+/** Every `limit()` a request issued, so an unbounded read is detectable. */
+const limitCalls: number[] = [];
+
 const channelFind = vi.fn();
 const channelFindOne = vi.fn();
 const channelFindById = vi.fn();
@@ -167,8 +173,19 @@ import channelsRouter, { publicChannelsRouter } from '../../routes/channels.rout
 function chain<T>(value: T) {
   const link = {
     select: () => link,
-    sort: () => link,
-    limit: () => link,
+    // Recorded, not discarded: a keyset cursor is only correct if the query is
+    // SORTED on the axis the cursor is built from, and a stand-in that swallows
+    // the sort spec cannot tell a right axis from a wrong one.
+    sort: (spec: Record<string, unknown>) => {
+      sortCalls.push(spec);
+      return link;
+    },
+    // Recorded, not discarded: an UNBOUNDED read is invisible to a stand-in that
+    // swallows `.limit()`, and three of these reads are grown by third parties.
+    limit: (n: number) => {
+      limitCalls.push(n);
+      return link;
+    },
     lean: () => Promise.resolve(value),
     then: (onFulfilled: (value: T) => unknown, onRejected?: (reason: unknown) => unknown) =>
       Promise.resolve(value).then(onFulfilled, onRejected),
@@ -215,6 +232,8 @@ function buildApp(): express.Express {
 
 beforeEach(() => {
   writes.length = 0;
+  sortCalls.length = 0;
+  limitCalls.length = 0;
   for (const fn of [
     channelFind, channelFindOne, channelFindById, channelCreate, channelCount,
     channelDeleteOne, channelUpdateOne,
@@ -681,9 +700,11 @@ describe('membership', () => {
     expect(res.status).toBe(404);
   });
 
-  it('removes a publisher and decrements the member count once', async () => {
+  it('removes an ACCEPTED publisher and decrements the member count once', async () => {
     channelFindById.mockReturnValue(chain({ ownerOxyUserId: VIEWER_ID }));
-    memberFindOneAndUpdate.mockReturnValue(chain({ status: 'removed' }));
+    // The PRE-image (`new: false`) — the state the row was in before removal, and
+    // the only thing that can say whether it was ever counted.
+    memberFindOneAndUpdate.mockReturnValue(chain({ status: 'accepted' }));
 
     const res = await request(buildApp()).delete(`/channels/${CHANNEL_ID}/members/${OTHER_USER_ID}`);
 
@@ -694,9 +715,39 @@ describe('membership', () => {
     );
   });
 
+  it('does NOT decrement when cancelling a still-PENDING invitation', async () => {
+    // Only `accept` increments, so a pending invite never contributed to the
+    // count — and `bumpChannelCounter` has no floor, so decrementing here walks a
+    // channel's `memberCount` negative one cancelled invite at a time.
+    //
+    // The previous version of this test mocked the POST-image (`{status:'removed'}`,
+    // which `new: true` always returns) and asserted the `$inc` fired, so it could
+    // not see this case at all.
+    channelFindById.mockReturnValue(chain({ ownerOxyUserId: VIEWER_ID }));
+    memberFindOneAndUpdate.mockReturnValue(chain({ status: 'pending' }));
+
+    const res = await request(buildApp()).delete(`/channels/${CHANNEL_ID}/members/${OTHER_USER_ID}`);
+
+    expect(res.status).toBe(200);
+    expect(channelUpdateOne).not.toHaveBeenCalled();
+  });
+
+  it('asks for the PRE-image, which is what makes the two cases distinguishable', async () => {
+    channelFindById.mockReturnValue(chain({ ownerOxyUserId: VIEWER_ID }));
+    memberFindOneAndUpdate.mockReturnValue(chain({ status: 'accepted' }));
+
+    await request(buildApp()).delete(`/channels/${CHANNEL_ID}/members/${OTHER_USER_ID}`);
+
+    expect(memberFindOneAndUpdate).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ new: false }),
+    );
+  });
+
   it('lets a publisher remove THEMSELVES without being the owner', async () => {
     channelFindById.mockReturnValue(chain({ ownerOxyUserId: OTHER_USER_ID }));
-    memberFindOneAndUpdate.mockReturnValue(chain({ status: 'removed' }));
+    memberFindOneAndUpdate.mockReturnValue(chain({ status: 'accepted' }));
 
     const res = await request(buildApp()).delete(`/channels/${CHANNEL_ID}/members/${VIEWER_ID}`);
 
@@ -889,5 +940,273 @@ describe('GET /channels/:idOrHandle/members', () => {
     expect(res.body.data).toEqual([
       { user: { id: OTHER_USER_ID, username: 'stranger' }, role: 'publisher', status: 'accepted' },
     ]);
+  });
+});
+
+/**
+ * GET /channels/following — the reader's own subscriptions.
+ *
+ * The other half of the loop from `POST /:id/follow`, and a DIFFERENT question
+ * from `GET /channels/mine`: that one is publishing rights (`ChannelMember`),
+ * this one is readership (`ChannelFollow`).
+ *
+ * Two things here fail silently if they regress:
+ *
+ *  1. **`hasMore` and the cursor come from the FOLLOW rows, before any channel is
+ *     resolved.** They describe how far the request consumed the subscription
+ *     list; a follow whose channel was deleted must not be mistaken for the end
+ *     of it. Computing them after the filter truncates the list at the first
+ *     orphaned row, and the reader silently loses every channel past it.
+ *  2. **The keyset is on `{createdAt,_id}`, not a skip.** A skip page duplicates
+ *     and drops rows as the reader follows and unfollows underneath their own
+ *     list.
+ */
+describe('GET /channels/following', () => {
+  const OTHER_CHANNEL_ID = '65b0c9178fcdefaf81988ffe';
+  const FOLLOW_ID = '65b0c9178fcdefaf81988aaa';
+  const FOLLOWED_AT = new Date('2026-02-01T00:00:00.000Z');
+
+  function followRow(overrides: Record<string, unknown> = {}) {
+    return {
+      _id: new mongoose.Types.ObjectId(FOLLOW_ID),
+      channelId: CHANNEL_ID,
+      notify: true,
+      createdAt: FOLLOWED_AT,
+      ...overrides,
+    };
+  }
+
+  it('returns the followed channels with the caller\'s own viewerState', async () => {
+    followFind.mockReturnValue(chain([followRow({ notify: false })]));
+    channelFind.mockReturnValue(chain([channelDoc()]));
+    memberFind.mockReturnValue(chain([]));
+
+    const res = await request(buildApp()).get('/channels/following');
+
+    expect(res.status).toBe(200);
+    expect(followFind).toHaveBeenCalledWith({ oxyUserId: VIEWER_ID });
+    expect(res.body.data.items).toHaveLength(1);
+    // `notify` rides on the row being paged, so the mute switch needs no second
+    // request per channel.
+    expect(res.body.data.items[0].viewerState).toEqual({ isFollowing: true, notify: false });
+  });
+
+  it('resolves membership for the WHOLE page in one query, not per row', async () => {
+    // A partial `viewerState` would be worse than none: an absent `role` is
+    // documented to mean "not a member", not "not loaded".
+    followFind.mockReturnValue(chain([followRow()]));
+    channelFind.mockReturnValue(chain([channelDoc()]));
+    memberFind.mockReturnValue(
+      chain([{ channelId: CHANNEL_ID, role: 'owner', status: 'accepted' }]),
+    );
+
+    const res = await request(buildApp()).get('/channels/following');
+
+    expect(memberFind).toHaveBeenCalledTimes(1);
+    expect(memberFind).toHaveBeenCalledWith(
+      expect.objectContaining({ oxyUserId: VIEWER_ID }),
+    );
+    expect(res.body.data.items[0].viewerState).toEqual({
+      isFollowing: true,
+      notify: true,
+      role: 'owner',
+      memberStatus: 'accepted',
+    });
+  });
+
+  it('emits a two-part keyset cursor over {createdAt, _id}', async () => {
+    followFind.mockReturnValue(chain([followRow(), followRow({ _id: new mongoose.Types.ObjectId() })]));
+    channelFind.mockReturnValue(chain([channelDoc()]));
+    memberFind.mockReturnValue(chain([]));
+
+    const res = await request(buildApp()).get('/channels/following?limit=1');
+
+    expect(res.body.data.hasMore).toBe(true);
+    expect(res.body.data.nextCursor).toBe(`${FOLLOWED_AT.getTime()}_${FOLLOW_ID}`);
+  });
+
+  it('honours that cursor as a keyset, not a skip', async () => {
+    followFind.mockReturnValue(chain([]));
+
+    await request(buildApp()).get(`/channels/following?cursor=${FOLLOWED_AT.getTime()}_${FOLLOW_ID}`);
+
+    expect(followFind).toHaveBeenCalledWith({
+      oxyUserId: VIEWER_ID,
+      $or: [
+        { createdAt: { $lt: FOLLOWED_AT } },
+        { createdAt: FOLLOWED_AT, _id: { $lt: new mongoose.Types.ObjectId(FOLLOW_ID) } },
+      ],
+    });
+    // The cursor is only meaningful if the query is SORTED on its own axis —
+    // `_id` alone would page a different order than the cursor describes.
+    expect(sortCalls).toContainEqual({ createdAt: -1, _id: -1 });
+  });
+
+  it('ignores a malformed cursor rather than 400ing a client on an old format', async () => {
+    followFind.mockReturnValue(chain([]));
+
+    const res = await request(buildApp()).get('/channels/following?cursor=garbage');
+
+    expect(res.status).toBe(200);
+    expect(followFind).toHaveBeenCalledWith(expect.not.objectContaining({ $or: expect.anything() }));
+  });
+
+  it('skips a follow whose channel was DELETED without truncating the page', async () => {
+    // THE LOAD-BEARING CASE, and it is deliberately arranged so the right answer
+    // and the wrong one DIFFER. `hasMore` must come from the follow rows: here
+    // three rows are overfetched for a limit of two, so more genuinely remain —
+    // while only ONE of the two page rows still has a channel. A `hasMore`
+    // derived from the surviving items (`1 >= 2`) would say `false` and silently
+    // lose every channel the reader follows beyond this point.
+    //
+    // Verified by mutation: computing `hasMore` after the filter fails this test.
+    // An earlier version of it used a limit the two spellings both answered
+    // `false` for, and the mutation survived.
+    const orphanFollow = followRow({
+      _id: new mongoose.Types.ObjectId(),
+      channelId: OTHER_CHANNEL_ID,
+    });
+    const liveFollow = followRow();
+    const behind = followRow({ _id: new mongoose.Types.ObjectId(), channelId: CHANNEL_ID });
+    followFind.mockReturnValue(chain([orphanFollow, liveFollow, behind]));
+    // Only ONE of the two channels on the page still exists.
+    channelFind.mockReturnValue(chain([channelDoc()]));
+    memberFind.mockReturnValue(chain([]));
+
+    const res = await request(buildApp()).get('/channels/following?limit=2');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.items).toHaveLength(1);
+    expect(res.body.data.items[0].id).toBe(CHANNEL_ID);
+    // Two follow rows were consumed out of three overfetched, so there IS more.
+    expect(res.body.data.hasMore).toBe(true);
+    // And the cursor points past the last FOLLOW row of the page, not past the
+    // last surviving item.
+    expect(res.body.data.nextCursor).toBe(`${FOLLOWED_AT.getTime()}_${String(liveFollow._id)}`);
+  });
+
+  it('short-circuits an empty list without resolving any channel', async () => {
+    followFind.mockReturnValue(chain([]));
+
+    const res = await request(buildApp()).get('/channels/following');
+
+    expect(res.body.data).toEqual({ items: [], hasMore: false });
+    expect(channelFind).not.toHaveBeenCalled();
+    expect(memberFind).not.toHaveBeenCalled();
+  });
+
+  it('clamps an oversized limit', async () => {
+    followFind.mockReturnValue(chain([]));
+
+    await request(buildApp()).get('/channels/following?limit=9999');
+
+    // The clamp is on the query, so an absurd limit cannot pull the whole
+    // collection into memory.
+    expect(followFind).toHaveBeenCalled();
+  });
+
+  it('the PUBLIC /:idOrHandle route hands /following on instead of 404ing it', async () => {
+    // `following` is a RESERVED handle, which is the only reason the param route
+    // (mounted first, in production order) declines to claim this segment.
+    followFind.mockReturnValue(chain([]));
+
+    const res = await request(buildApp()).get('/channels/following');
+
+    expect(res.status).toBe(200);
+    expect(channelFindOne).not.toHaveBeenCalled();
+    expect(channelFindById).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Reads whose size is not under the caller's control must be BOUNDED.
+ *
+ * `/invites` is the one that matters: anyone who runs a channel can invite you,
+ * so a third party grows that set, not its owner. `/mine` and the
+ * `excludeFollowed` set are the same shape with a friendlier source. All three
+ * feed an `$in`/`$nin`, which inherits whatever size they return.
+ */
+describe('per-caller channel lists are bounded', () => {
+  it('bounds GET /channels/invites — a set THIRD PARTIES grow', async () => {
+    memberFind.mockReturnValue(chain([]));
+
+    await request(buildApp()).get('/channels/invites');
+
+    expect(limitCalls.length).toBeGreaterThan(0);
+    expect(Math.max(...limitCalls)).toBeLessThanOrEqual(500);
+  });
+
+  it('bounds GET /channels/mine', async () => {
+    memberFind.mockReturnValue(chain([]));
+
+    await request(buildApp()).get('/channels/mine');
+
+    expect(limitCalls.length).toBeGreaterThan(0);
+    expect(Math.max(...limitCalls)).toBeLessThanOrEqual(500);
+  });
+
+  it('bounds the excludeFollowed set on the public directory', async () => {
+    followFind.mockReturnValue(chain([{ channelId: CHANNEL_ID }]));
+    channelFind.mockReturnValue(chain([]));
+
+    await request(buildApp()).get('/channels?excludeFollowed=true');
+
+    // Truncating is safe HERE specifically: `excludeFollowed` is a convenience on
+    // a directory, so a follow past the ceiling means a channel the reader
+    // already follows appears in the list — never one they cannot see.
+    expect(limitCalls).toContain(500);
+  });
+});
+
+/**
+ * `avatar`/`banner` are BARE Oxy file ids, which the DTO documents and the schema
+ * now enforces.
+ *
+ * Bloom's `ImageResolver` passes `http:`/`https:`/`data:` through untouched, so a
+ * URL stored here is fetched by every visitor to the channel page AND by everyone
+ * who sees a post it signs — handing the channel's owner the IP, User-Agent and
+ * Referer of readers who never visited their host.
+ */
+describe('channel media ids are file ids, not URLs', () => {
+  const FILE_ID = 'a'.repeat(24);
+
+  it('accepts a bare Oxy file id', async () => {
+    channelCreate.mockResolvedValue({ _id: CHANNEL_ID, toObject: () => channelDoc() });
+
+    const res = await request(buildApp())
+      .post('/channels')
+      .send({ handle: 'newsroom', title: 'T', avatar: FILE_ID });
+
+    expect(res.status).toBe(201);
+  });
+
+  it.each([
+    ['an https URL', 'https://attacker.example/pixel.png'],
+    ['an http URL', 'http://attacker.example/pixel.png'],
+    ['a data URI', 'data:image/png;base64,iVBORw0KGgo='],
+    ['a protocol-relative URL', '//attacker.example/pixel.png'],
+  ])('rejects %s on create', async (_label, value) => {
+    const res = await request(buildApp())
+      .post('/channels')
+      .send({ handle: 'newsroom', title: 'T', avatar: value });
+
+    expect(res.status).toBe(400);
+    expect(channelCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects a URL on UPDATE too — both schemas, or the edit path reopens it', async () => {
+    const doc = {
+      ...channelDoc(),
+      save: vi.fn(async () => undefined),
+      toObject() { return channelDoc(); },
+    };
+    channelFindById.mockResolvedValue(doc);
+
+    const res = await request(buildApp())
+      .put(`/channels/${CHANNEL_ID}`)
+      .send({ banner: 'https://attacker.example/pixel.png' });
+
+    expect(res.status).toBe(400);
+    expect(doc.save).not.toHaveBeenCalled();
   });
 });

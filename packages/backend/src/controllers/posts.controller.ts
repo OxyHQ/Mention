@@ -1004,7 +1004,12 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     // give it. In BEAST mode every entry is an independent top-level post, so
     // every entry may carry its own lane.
     for (let i = 0; i < posts.length; i++) {
-      const requestedLaneId = posts[i]?.laneId;
+      // Narrowed with `typeof`, matching what the creation loop below passes to
+      // `PostCreationService`. Without it a NON-string `laneId` (a number, say)
+      // reaches the pre-flight as-is and 404s, while the create call narrows it to
+      // `null` and drops it silently — two different answers to one request,
+      // depending on which of the two read it.
+      const requestedLaneId = typeof posts[i]?.laneId === 'string' ? posts[i].laneId : undefined;
       if (!requestedLaneId) continue;
       if (mode === 'thread' && i > 0) {
         return res.status(400).json({ message: 'A reply cannot be assigned to a lane' });
@@ -1924,17 +1929,36 @@ export const updatePostLane = async (req: AuthRequest, res: Response) => {
     }
 
     const post = await Post.findOne({ _id: req.params.id, oxyUserId: userId })
-      .select('parentPostId boostOf laneId')
-      .lean<{ _id: unknown; parentPostId?: string; boostOf?: string; laneId?: string } | null>();
+      .select('parentPostId boostOf laneId channelId')
+      .lean<{
+        _id: unknown;
+        parentPostId?: string;
+        boostOf?: string;
+        laneId?: string;
+        channelId?: string;
+      } | null>();
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
     }
 
     // The SAME rule the create path applies, from the same definition: a lane
     // belongs to its publisher, and replies/boosts carry none.
+    //
+    // **`channelId` is not optional here, and omitting it was a deanonymization.**
+    // `assertLaneAssignable` derives the publisher as `channelId ? 'channel' :
+    // 'user'`, so without it a CHANNEL post is measured against the CALLER's own
+    // personal lanes and can be moved into one. `laneSource`'s user branch then
+    // serves that lane scoped by `{ laneId, oxyUserId: <author> }` — and it
+    // deliberately does NOT apply `EXCLUDE_CHANNEL_POSTS`, precisely because this
+    // pairing is supposed to be impossible by construction. The DTO still renders
+    // anonymous under `signPosts: false`, but the SURFACE is the author's own lane
+    // tab, so anyone reading it learns which author wrote every "Unknown user"
+    // post on it. `PostCreationService.create` has always passed this; this was
+    // the one write path that did not.
     await assertLaneAssignable({
       laneId,
       authorId: userId,
+      channelId: post.channelId,
       parentPostId: post.parentPostId,
       boostOf: post.boostOf,
     });

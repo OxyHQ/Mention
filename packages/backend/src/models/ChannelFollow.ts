@@ -51,6 +51,22 @@ const ChannelFollowSchema = new Schema<IChannelFollow>(
 /** One row per (reader, channel) — what makes following idempotent. */
 ChannelFollowSchema.index({ oxyUserId: 1, channelId: 1 }, { unique: true });
 /**
+ * The reader's OWN list — `GET /channels/following`, newest follow first.
+ *
+ * Named and compound-with-`_id` on purpose: the route pages by keyset on
+ * `{ createdAt: -1, _id: -1 }`, and without `_id` in the index the tiebreak
+ * becomes a residual in-memory sort that a keyset cursor cannot rely on. The
+ * unique index above cannot serve this — it orders by `channelId`, which bears no
+ * relation to when the reader followed.
+ *
+ * NOTE: `autoIndex`/`autoCreate` are OFF in production — created by migration
+ * `0025-channel-follow-user-index`, not on model load.
+ */
+ChannelFollowSchema.index(
+  { oxyUserId: 1, createdAt: -1, _id: -1 },
+  { name: 'channel_follow_by_user_v1' },
+);
+/**
  * The notification fan-out's keyset: the followers of ONE channel who want to be
  * notified, paged by `_id` so a large channel is walked rather than loaded.
  */

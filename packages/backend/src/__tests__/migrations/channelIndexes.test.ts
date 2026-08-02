@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import mongoose from 'mongoose';
 import { migrationChannelIndexes } from '../../migrations/0024-channel-indexes';
-import { MIGRATION_CHANNEL_INDEXES } from '../../migrations/constants';
+import { migrationChannelFollowUserIndex } from '../../migrations/0025-channel-follow-user-index';
+import { MIGRATION_CHANNEL_FOLLOW_USER_INDEX, MIGRATION_CHANNEL_INDEXES } from '../../migrations/constants';
+import { ChannelFollow } from '../../models/ChannelFollow';
 import { Post } from '../../models/Post';
 
 /**
@@ -114,5 +116,67 @@ describe('migration 0024 — channel indexes', () => {
     expect(created?.options?.partialFilterExpression).toEqual(
       declared?.[1]?.partialFilterExpression,
     );
+  });
+});
+
+/**
+ * Migration 0025 — the reader's own subscription list.
+ *
+ * Its own file rather than an edit to 0024 BECAUSE the runner records an applied
+ * migration and skips it forever: appending to 0024 would be a silent no-op on
+ * any database that already ran it, which is the same trap
+ * `POST_HOT_PATH_INDEXES` documents for migration 0010.
+ */
+describe('migration 0025 — channel_follow_by_user_v1', () => {
+  it('is registered under its own id, after the channel indexes', () => {
+    expect(migrationChannelFollowUserIndex.id).toBe(MIGRATION_CHANNEL_FOLLOW_USER_INDEX);
+    expect(MIGRATION_CHANNEL_FOLLOW_USER_INDEX).toBe('0025-channel-follow-user-index');
+    expect(MIGRATION_CHANNEL_FOLLOW_USER_INDEX > MIGRATION_CHANNEL_INDEXES).toBe(true);
+  });
+
+  it('creates the keyset index the following list pages on', async () => {
+    const { db, calls } = makeDb();
+
+    await migrationChannelFollowUserIndex.run(db);
+
+    expect(calls).toEqual([
+      {
+        collection: 'channelfollows',
+        key: { oxyUserId: 1, createdAt: -1, _id: -1 },
+        options: { name: 'channel_follow_by_user_v1' },
+      },
+    ]);
+  });
+
+  it('carries `_id` IN the index, not as a residual tiebreak', async () => {
+    // A keyset cursor cannot rely on an ordering the index does not produce.
+    const { db, calls } = makeDb();
+
+    await migrationChannelFollowUserIndex.run(db);
+
+    expect(Object.keys(calls[0].key)).toEqual(['oxyUserId', 'createdAt', '_id']);
+  });
+
+  it('matches the spec the ChannelFollow SCHEMA declares — the two cannot drift', async () => {
+    const { db, calls } = makeDb();
+
+    await migrationChannelFollowUserIndex.run(db);
+
+    const declared = ChannelFollow.schema
+      .indexes()
+      .find(([, options]) => options?.name === 'channel_follow_by_user_v1');
+
+    expect(declared).toBeDefined();
+    expect(calls[0].key).toEqual(declared?.[0]);
+  });
+
+  it('0024 does NOT create it — that is what makes 0025 necessary', async () => {
+    // If 0024 grew this index instead, a database that already recorded 0024 as
+    // applied would never get it, and nothing local would notice.
+    const { db, calls } = makeDb();
+
+    await migrationChannelIndexes.run(db);
+
+    expect(calls.some((call) => call.options?.name === 'channel_follow_by_user_v1')).toBe(false);
   });
 });

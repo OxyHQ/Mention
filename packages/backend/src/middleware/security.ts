@@ -220,6 +220,44 @@ export const statisticsRateLimiter = rateLimit({
 });
 
 /**
+ * Rate limiter for `GET /lanes/mine`.
+ *
+ * The only lanes route whose cost scales with the CALLER'S OWN HISTORY and is not
+ * cached: `countPostsByLane` runs a `$group` aggregation that walks one index
+ * entry per lane-bearing post the caller has ever written, with no page and no
+ * cache. Every other route on that router is a point lookup or a bounded list, so
+ * this is a bound on one aggregation rather than a limiter on a surface.
+ *
+ * Its OWN store prefix, deliberately. `rate-limit-redis` keys are
+ * `<prefix><key>`, so two limiters sharing a prefix share a counter — the exact
+ * collision `rate-limit:api:` already suffers between `apiRateLimiter` and
+ * `createOxyRateLimit`, where two windows (60s vs 15min) decrement one budget.
+ * Reusing `statisticsRateLimiter` would repeat it.
+ *
+ * 120/minute: a management screen spends one request per visit, so this bounds
+ * the aggregation without being reachable by ordinary use.
+ */
+const lanesStore = new RedisStore({
+  prefix: 'rate-limit:lanes:',
+  windowMs: 60 * 1000,
+});
+export const lanesRateLimiter = rateLimit({
+  store: lanesStore,
+  windowMs: 60 * 1000,
+  max: 120,
+  keyGenerator: (req: Request) => {
+    const authReq = req as AuthRequest;
+    if (authReq.user?.id) {
+      return `user:${authReq.user.id}`;
+    }
+    return hashedIpKey(req);
+  },
+  message: 'Too many lane requests. Please slow down.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+/**
  * Rate limiter for `POST /statistics/post/:postId/view`.
  *
  * The only WRITE on the statistics router, and the only route there that reaches

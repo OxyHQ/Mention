@@ -38,6 +38,8 @@ import { Channel } from '../models/Channel';
 import { canManageChannel } from '../services/channelAccess';
 import { resolveUserSummaries } from '../services/PostHydrationService';
 import { validateBody, validateObjectId } from '../middleware/validate';
+import { lanesRateLimiter } from '../middleware/security';
+import { config } from '../config';
 import { sendErrorResponse, sendSuccessResponse } from '../utils/apiHelpers';
 import { logger } from '../utils/logger';
 
@@ -239,26 +241,34 @@ router.use(requireAuth);
  * so unlike the public list it includes `mixed` and `hidden` lanes. A channel the
  * caller does not own answers 403/404 rather than a filtered list.
  */
-router.get('/mine', async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = getAuthenticatedUserId(req);
-    const channelId = typeof req.query.channelId === 'string' ? req.query.channelId : undefined;
-    const publisher = await resolveLanePublisher(channelId, userId);
-    if ('error' in publisher) {
-      return sendErrorResponse(res, ...publisher.error);
-    }
-    const lanes = await Lane.find({ ownerType: publisher.ownerType, ownerId: publisher.ownerId })
-      .sort({ createdAt: -1 })
-      .lean<LaneLean[]>();
+router.get(
+  '/mine',
+  // The one lanes route whose cost scales with the caller's own history:
+  // `countPostsByLane` aggregates over every lane-bearing post they have written,
+  // uncached and unpaged. Production-gated like every other limiter here, so tests
+  // and local development are unaffected.
+  ...(config.runtime.isProduction ? [lanesRateLimiter] : []),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = getAuthenticatedUserId(req);
+      const channelId = typeof req.query.channelId === 'string' ? req.query.channelId : undefined;
+      const publisher = await resolveLanePublisher(channelId, userId);
+      if ('error' in publisher) {
+        return sendErrorResponse(res, ...publisher.error);
+      }
+      const lanes = await Lane.find({ ownerType: publisher.ownerType, ownerId: publisher.ownerId })
+        .sort({ createdAt: -1 })
+        .lean<LaneLean[]>();
 
-    const counts = await countPostsByLane(lanes.map((lane) => String(lane._id)));
-    const items = lanes.map((lane) => serialize(lane, counts.get(String(lane._id)) ?? 0));
-    return sendSuccessResponse(res, 200, items);
-  } catch (err) {
-    logger.error('[Lanes] Error listing own lanes:', { userId: req.user?.id, error: err });
-    return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to list lanes');
-  }
-});
+      const counts = await countPostsByLane(lanes.map((lane) => String(lane._id)));
+      const items = lanes.map((lane) => serialize(lane, counts.get(String(lane._id)) ?? 0));
+      return sendSuccessResponse(res, 200, items);
+    } catch (err) {
+      logger.error('[Lanes] Error listing own lanes:', { userId: req.user?.id, error: err });
+      return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to list lanes');
+    }
+  },
+);
 
 /**
  * GET /lanes/muted

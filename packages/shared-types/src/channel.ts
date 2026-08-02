@@ -118,9 +118,9 @@ export const CHANNEL_NOTIFY_FANOUT_CAP = 5000;
  * Matched against the CANONICAL form (see {@link normalizeChannelHandle}), so the
  * list needs one spelling of each, not every casing of it.
  *
- * **`mine` and `invites` are load-bearing, not decorative.** The API serves one
- * channel at `GET /channels/:idOrHandle` on the PUBLIC router and the
- * caller-scoped lists at `GET /channels/mine` / `GET /channels/invites` on the
+ * **`mine`, `invites` and `following` are load-bearing, not decorative.** The API
+ * serves one channel at `GET /channels/:idOrHandle` on the PUBLIC router and the
+ * caller-scoped lists at `GET /channels/mine` / `/invites` / `/following` on the
  * AUTHENTICATED one, and the public router is mounted first — so the param route
  * sees those segments before the lists do. It hands them on precisely because
  * they cannot name a channel, which is only true while they are reserved here.
@@ -139,6 +139,7 @@ export const RESERVED_CHANNEL_HANDLES: readonly string[] = [
   'explore',
   'feed',
   'feeds',
+  'following',
   'help',
   'home',
   'invites',
