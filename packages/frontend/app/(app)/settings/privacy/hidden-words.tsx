@@ -25,6 +25,7 @@ import {
     type SerializedMuteWord,
 } from '@/services/muteWordsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { invalidateSafetyFilters } from '@/stores/safetyInvalidation';
 
 const hiddenWordsLogger = createLogger('HiddenWords');
 
@@ -57,17 +58,6 @@ export default function HiddenWordsScreen() {
         enabled: canUsePrivateApi,
     });
 
-    // Muting/unmuting changes which posts are filtered out of the MTN feed.
-    // The home feed is store-based (postsStore + feedService), not React-Query
-    // cached, so it re-filters on its next fetchInitial(true)/pull-to-refresh.
-    // We still invalidate the ['feed'] key to cover any React-Query feed
-    // consumers and prime a refetch on next navigation.
-    const invalidateFeed = () => {
-        queryClient.invalidateQueries({
-            queryKey: viewerQueryKeys.feedsRoot(user?.id),
-        });
-    };
-
     const addMutation = useMutation<SerializedMuteWord, unknown, string>({
         mutationFn: (rawInput: string) => muteWordsService.create(rawInput),
         onSuccess: () => {
@@ -75,7 +65,10 @@ export default function HiddenWordsScreen() {
             queryClient.invalidateQueries({
                 queryKey: viewerQueryKeys.muteWords(user?.id),
             });
-            invalidateFeed();
+            // Muting decides what the SERVER sends, so every surface holding
+            // content fetched under the old rules is now wrong. One authority
+            // tells both read caches: `stores/safetyInvalidation`.
+            invalidateSafetyFilters();
             toast(t('settings.privacy.wordMuted', { defaultValue: 'Word muted' }), { type: 'success' });
         },
         onError: (error) => {
@@ -92,7 +85,9 @@ export default function HiddenWordsScreen() {
             queryClient.invalidateQueries({
                 queryKey: viewerQueryKeys.muteWords(user?.id),
             });
-            invalidateFeed();
+            // Unmuting can only be honoured by asking again: the posts it lets
+            // back in were never sent to this device.
+            invalidateSafetyFilters();
             toast(t('settings.privacy.wordUnmuted', { defaultValue: 'Word unmuted' }), { type: 'success' });
         },
         onError: (error) => {
