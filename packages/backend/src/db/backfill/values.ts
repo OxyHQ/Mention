@@ -188,7 +188,7 @@ export function childRowId(
   const preserved = id(entry, '_id');
   if (preserved !== null) return preserved;
 
-  const digest = createHash('sha256').update(`${parentId} ${path} ${ordinal}`).digest();
+  const digest = createHash('sha256').update(`${parentId}\u0000${path}\u0000${ordinal}`).digest();
   // RFC 4122 layout: version 5 (name-based — SHA-1 by spec, SHA-256 truncated
   // here, which is strictly stronger and still deterministic) and the RFC 4122
   // variant.
