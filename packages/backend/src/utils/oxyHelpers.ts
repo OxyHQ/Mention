@@ -15,10 +15,19 @@ interface ScopedOxyRequest {
   mcp?: { activeUserId?: string };
 }
 
+/**
+ * Parsed by slicing rather than with a regex. `/^Bearer\s+(.+)$/` puts two greedy
+ * quantifiers side by side over a caller-supplied header, which is quadratic on a
+ * long run of whitespace (`js/polynomial-redos`). This is linear and says the
+ * same thing.
+ */
 function bearerToken(header: string | undefined): string | undefined {
-  const match = header ? /^Bearer\s+(.+)$/i.exec(header) : null;
-  const token = match?.[1]?.trim();
-  return token && token.length > 0 ? token : undefined;
+  if (!header) return undefined;
+  const scheme = 'bearer ';
+  if (header.length <= scheme.length) return undefined;
+  if (header.slice(0, scheme.length).toLowerCase() !== scheme) return undefined;
+  const token = header.slice(scheme.length).trim();
+  return token.length > 0 ? token : undefined;
 }
 
 /**

@@ -241,6 +241,38 @@ const lanesStore = new RedisStore({
   prefix: 'rate-limit:lanes:',
   windowMs: 60 * 1000,
 });
+/**
+ * `PUT /profile/settings/:userId` — the settings of an account the caller
+ * OPERATES. Every OTHER route on the profile router resolves its target from the
+ * authenticated subject; this one takes an id, and answering it costs a
+ * membership read against Oxy. So a caller who is a member of nothing can still
+ * spend one upstream round trip per request, which is what this bounds.
+ *
+ * Its OWN store prefix, for the reason spelled out above `lanesStore`: two
+ * limiters sharing a prefix share a counter. The prefix is written as a LITERAL
+ * because `rateLimitPrefixUniqueness.test.ts` resolves prefixes by reading
+ * SOURCE — built through a factory, every store reads as the default and the
+ * guard fails.
+ *
+ * 30/minute: configuring a channel is a handful of requests per sitting.
+ */
+const operatedAccountSettingsStore = new RedisStore({
+  prefix: 'rate-limit:operated-account-settings:',
+  windowMs: 60 * 1000,
+});
+export const operatedAccountSettingsRateLimiter = rateLimit({
+  store: operatedAccountSettingsStore,
+  windowMs: 60 * 1000,
+  max: 30,
+  keyGenerator: (req: Request) => {
+    const authReq = req as AuthRequest;
+    return authReq.user?.id ? `user:${authReq.user.id}` : hashedIpKey(req);
+  },
+  message: 'Too many account settings requests. Please slow down.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 export const lanesRateLimiter = rateLimit({
   store: lanesStore,
   windowMs: 60 * 1000,

@@ -31,15 +31,23 @@ function getDoc(oxyUserId: string): Record<string, unknown> {
   return doc;
 }
 
+// The paths here come from the route's own `$set`, but a helper that walks a
+// dotted path and assigns is a prototype-pollution primitive whatever feeds it,
+// and CodeQL reads it as one. Same guard the sibling settings tests carry.
+const FORBIDDEN_DOT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 function setDot(obj: Record<string, unknown>, path: string, value: unknown): void {
   const parts = path.split('.');
   let cur = obj;
   for (let i = 0; i < parts.length - 1; i++) {
+    if (FORBIDDEN_DOT_KEYS.has(parts[i])) return;
     const next = cur[parts[i]];
     if (typeof next !== 'object' || next === null) cur[parts[i]] = {};
     cur = cur[parts[i]] as Record<string, unknown>;
   }
-  cur[parts[parts.length - 1]] = value;
+  const last = parts[parts.length - 1];
+  if (FORBIDDEN_DOT_KEYS.has(last)) return;
+  cur[last] = value;
 }
 
 vi.mock('@oxyhq/core/server', () => ({

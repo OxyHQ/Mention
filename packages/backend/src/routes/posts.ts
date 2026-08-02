@@ -149,7 +149,7 @@ router.post('/:id/collaborators/accept', acceptCollabInvite);
 router.post('/:id/collaborators/decline', declineCollabInvite);
 router.post('/:id/collaborators/stop-sharing', stopCollabSharing);
 router.put('/:id', ...postWriteRateLimiters, updatePost);
-router.patch('/:id/settings', updatePostSettings);
+router.patch('/:id/settings', ...postWriteRateLimiters, updatePostSettings);
 // Moving a post between the author's own lanes is NOT an edit — no edit window
 // and no federation. See `updatePostLane`.
 //
