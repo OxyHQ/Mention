@@ -14,16 +14,12 @@ import { eq } from 'drizzle-orm';
  * cutover as `invalid`.
  */
 
-let storedDoc: { savedFeeds: unknown[] } | null = null;
-const findOneAndUpdate = vi.fn((_q: unknown, update: { $set: { savedFeeds: unknown[] } }) => ({
-  lean: async () => ({ savedFeeds: update.$set.savedFeeds }),
-}));
-vi.mock('../models/UserFeedPreference', () => ({
-  default: {
-    findOne: vi.fn(() => ({ lean: async () => storedDoc })),
-    findOneAndUpdate: (...a: unknown[]) => findOneAndUpdate(...(a as [unknown, { $set: { savedFeeds: unknown[] } }])),
-  },
-}));
+// The preference store is REAL rows too, and for a sharper reason than the
+// custom feed above: the GET handler branches on whether the viewer has EVER
+// stored a layout, which is not the same question as whether their layout is
+// empty. A stub answering `{ savedFeeds: [] }` or `null` reproduces whichever
+// the author had in mind, so the distinction — and the re-pinning bug that
+// collapsing it causes — is invisible to it.
 
 let settingsDoc: { feedTuning?: { forYou?: unknown } } | null = null;
 const settingsUpdate = vi.fn(
@@ -43,7 +39,8 @@ vi.mock('../db/userProfile/userSettingsRepository', () => ({
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
-import { customFeeds } from '../db/schema/feeds';
+import { customFeeds, userFeedPreferences } from '../db/schema/feeds';
+import { loadFeedLayout, replaceFeedLayout } from '../db/feeds/feedPreferenceRepository';
 import { feedPreferencesController } from '../mtn/controllers/feedPreferences.controller';
 
 /** Scoped to this file: `custom_feeds` is shared by every parallel suite. */
@@ -64,6 +61,8 @@ beforeAll(async () => {
 
 afterEach(async () => {
   await getDb().delete(customFeeds).where(eq(customFeeds.ownerOxyUserId, FEED_OWNER));
+  // `user_saved_feeds` cascades from `user_feed_preferences`.
+  await getDb().delete(userFeedPreferences).where(eq(userFeedPreferences.oxyUserId, VIEWER));
 });
 
 afterAll(async () => {
@@ -79,10 +78,17 @@ function makeRes() {
   };
   return res;
 }
-const authed = (body?: unknown) => ({ user: { id: 'viewer' }, body }) as never;
+/** Scoped to this file: `user_feed_preferences` is shared by every parallel suite. */
+const VIEWER = 'oxy-fp-viewer';
+const authed = (body?: unknown) => ({ user: { id: VIEWER }, body }) as never;
 
-beforeEach(() => {
-  storedDoc = null;
+/** The layout as the store actually holds it. */
+async function storedLayout() {
+  return loadFeedLayout(VIEWER);
+}
+
+beforeEach(async () => {
+  await getDb().delete(userFeedPreferences).where(eq(userFeedPreferences.oxyUserId, VIEWER));
   settingsDoc = null;
   vi.clearAllMocks();
 });
@@ -101,7 +107,9 @@ describe('GET /feed/preferences', () => {
   });
 
   it('appends not-yet-stored presets as unpinned on top of stored feeds', async () => {
-    storedDoc = { savedFeeds: [{ key: 'for_you', descriptor: 'for_you', pinned: false, order: 0 }] };
+    await replaceFeedLayout(VIEWER, [
+      { key: 'for_you', descriptor: 'for_you', pinned: false, order: 0 },
+    ]);
     const res = makeRes();
     await feedPreferencesController.get(authed(), res as never);
     const saved = (res.body as { data: { savedFeeds: Array<{ descriptor: string; pinned: boolean }> } }).data.savedFeeds;
@@ -124,9 +132,9 @@ describe('PUT /feed/preferences', () => {
       res as never,
     );
     expect(res.statusCode).toBe(200);
-    const persisted = findOneAndUpdate.mock.calls[0][1].$set.savedFeeds as Array<Record<string, unknown>>;
+    const { savedFeeds: persisted } = await storedLayout();
     expect(persisted[0]).toEqual({ key: 'for_you', descriptor: 'for_you', pinned: true, order: 0 });
-    expect(persisted[0].evil).toBeUndefined();
+    expect((persisted[0] as unknown as Record<string, unknown>).evil).toBeUndefined();
   });
 
   it('400s an invalid descriptor', async () => {
@@ -136,7 +144,8 @@ describe('PUT /feed/preferences', () => {
       res as never,
     );
     expect(res.statusCode).toBe(400);
-    expect(findOneAndUpdate).not.toHaveBeenCalled();
+    // Nothing was stored — a rejected layout must not half-apply.
+    expect(await storedLayout()).toEqual({ savedFeeds: [], hasStored: false });
   });
 
   it('400s when savedFeeds is not an array', async () => {
@@ -153,7 +162,7 @@ describe('PUT /feed/preferences', () => {
       res as never,
     );
     expect(res.statusCode).toBe(403);
-    expect(findOneAndUpdate).not.toHaveBeenCalled();
+    expect(await storedLayout()).toEqual({ savedFeeds: [], hasStored: false });
   });
 
   it('accepts a public custom feed owned by someone else', async () => {
