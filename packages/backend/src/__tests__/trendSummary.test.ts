@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
 
 /**
  * On-demand trend summaries — the ONE place this feature can spend money.
@@ -11,8 +12,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const mocks = vi.hoisted(() => ({
-  findOne: vi.fn(),
-  create: vi.fn(),
   aliaChat: vi.fn(),
   isAliaEnabled: vi.fn(() => true),
   incr: vi.fn(),
@@ -21,37 +20,61 @@ const mocks = vi.hoisted(() => ({
   getRedisClient: vi.fn(),
 }));
 
-vi.mock('../models/TrendSummary', () => ({
-  __esModule: true,
-  default: { findOne: mocks.findOne, create: mocks.create, collection: {} },
-  TREND_SUMMARY_TTL_SECONDS: 30 * 24 * 60 * 60,
-}));
 vi.mock('../utils/alia', () => ({
   aliaChat: (...args: unknown[]) => mocks.aliaChat(...args),
   isAliaEnabled: () => mocks.isAliaEnabled(),
 }));
 vi.mock('../utils/redis', () => ({ getRedisClient: () => mocks.getRedisClient() }));
 
+const { and, eq } = await import('drizzle-orm');
+const { closePostgres, connectPostgres, getDb } = await import('../db/postgres');
+const { trendSummaries } = await import('../db/schema/discovery');
 const { resolveTrendSummary } = await import('../services/trending/trendSummary');
 const { MtnConfig } = await import('@mention/shared-types');
 
 const RUN_STARTED_AT = new Date('2026-08-01T00:00:00.000Z');
 const POSTS = ['Orioles trading Dean Kremer', 'Kremer to the Twins', 'the trade is done'];
 
-/** A query chain ending in `.lean()`. */
-function leanChain(value: unknown) {
-  return { lean: () => Promise.resolve(value) };
+/**
+ * The term, namespaced per run. `trend_summaries` is keyed `(term,
+ * run_started_at)` and vitest runs files in parallel against one database, so a
+ * bare `orioles` would be a claim about every other file — and the stored-answer
+ * case would start passing or failing on what somebody else wrote.
+ */
+const TERM = `orioles-${randomUUID().slice(0, 8)}`;
+
+/** The stored summary for this run, read straight from the table. */
+async function storedSummary(): Promise<string | undefined> {
+  const [row] = await getDb()
+    .select({ description: trendSummaries.description })
+    .from(trendSummaries)
+    .where(and(eq(trendSummaries.term, TERM), eq(trendSummaries.runStartedAt, RUN_STARTED_AT)));
+  return row?.description;
+}
+
+async function store(description: string): Promise<void> {
+  await getDb()
+    .insert(trendSummaries)
+    .values({ term: TERM, runStartedAt: RUN_STARTED_AT, description, generatedAt: new Date() });
 }
 
 function call(loadExcerpts = () => Promise.resolve(POSTS)) {
-  return resolveTrendSummary({ term: 'orioles', runStartedAt: RUN_STARTED_AT, loadExcerpts });
+  return resolveTrendSummary({ term: TERM, runStartedAt: RUN_STARTED_AT, loadExcerpts });
 }
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await getDb().delete(trendSummaries).where(eq(trendSummaries.term, TERM));
+  await closePostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
+  await getDb().delete(trendSummaries).where(eq(trendSummaries.term, TERM));
   mocks.isAliaEnabled.mockReturnValue(true);
-  mocks.findOne.mockReturnValue(leanChain(null));
-  mocks.create.mockResolvedValue({});
   mocks.aliaChat.mockResolvedValue('The Orioles traded Dean Kremer to the Twins.');
   mocks.incr.mockResolvedValue(MtnConfig.trending.summary.minViews);
   mocks.expire.mockResolvedValue(1);
@@ -65,7 +88,7 @@ beforeEach(() => {
 
 describe('resolveTrendSummary — the stored answer wins', () => {
   it('serves an existing summary without counting or generating', async () => {
-    mocks.findOne.mockReturnValue(leanChain({ description: 'already written' }));
+    await store('already written');
 
     expect(await call()).toEqual({ description: 'already written' });
     expect(mocks.incr).not.toHaveBeenCalled();
@@ -86,7 +109,9 @@ describe('resolveTrendSummary — demand pays for it', () => {
 
     expect((await call()).description).toBe('The Orioles traded Dean Kremer to the Twins.');
     expect(mocks.aliaChat).toHaveBeenCalledOnce();
-    expect(mocks.create).toHaveBeenCalledOnce();
+    // Stored, not merely returned: the next reader must get it without paying
+    // for a second generation.
+    expect(await storedSummary()).toBe('The Orioles traded Dean Kremer to the Twins.');
   });
 
   it('sets the counter TTL once, on the first view only', async () => {
@@ -95,7 +120,7 @@ describe('resolveTrendSummary — demand pays for it', () => {
     expect(mocks.expire).toHaveBeenCalledOnce();
 
     vi.clearAllMocks();
-    mocks.findOne.mockReturnValue(leanChain(null));
+    await getDb().delete(trendSummaries).where(eq(trendSummaries.term, TERM));
     mocks.incr.mockResolvedValue(2);
     mocks.getRedisClient.mockResolvedValue({ incr: mocks.incr, expire: mocks.expire, set: mocks.set });
     mocks.isAliaEnabled.mockReturnValue(true);
@@ -146,24 +171,26 @@ describe('resolveTrendSummary — failure is invisible to the reader', () => {
   it('answers empty when the model returns nothing usable', async () => {
     mocks.aliaChat.mockResolvedValue('   ');
     expect(await call()).toEqual({});
-    expect(mocks.create).not.toHaveBeenCalled();
+    expect(await storedSummary()).toBeUndefined();
   });
 
   it('reads the winner of a race rather than reporting the duplicate as an error', async () => {
-    const duplicate = Object.assign(new Error('E11000 duplicate key'), { code: 11000 });
-    mocks.create.mockRejectedValue(duplicate);
-    mocks.findOne
-      .mockReturnValueOnce(leanChain(null))
-      .mockReturnValueOnce(leanChain({ description: 'written by the other task' }));
-
-    expect(await call()).toEqual({ description: 'written by the other task' });
-  });
-
-  it('answers empty when the stored lookup itself fails', async () => {
-    mocks.findOne.mockImplementation(() => {
-      throw new Error('mongo down');
+    /**
+     * The race, STAGED rather than simulated: the competing row is written from
+     * inside `loadExcerpts`, which runs after this call's own "is one stored?"
+     * read and before its insert. So the insert really does raise `23505`
+     * against the real unique constraint, which is the whole mechanism —
+     * `(term, run_started_at)` is what makes one generation per run true by
+     * construction rather than by remembering to check.
+     */
+    const result = await call(async () => {
+      await store('written by the other task');
+      return POSTS;
     });
-    expect(await call()).toEqual({});
+
+    expect(result).toEqual({ description: 'written by the other task' });
+    // The loser did not overwrite the winner.
+    expect(await storedSummary()).toBe('written by the other task');
   });
 });
 
@@ -171,9 +198,25 @@ describe('resolveTrendSummary — what gets stored', () => {
   it('stores the summary under the term AND the run', async () => {
     await call();
 
-    expect(mocks.create).toHaveBeenCalledWith(
-      expect.objectContaining({ term: 'orioles', runStartedAt: RUN_STARTED_AT }),
-    );
+    const rows = await getDb()
+      .select()
+      .from(trendSummaries)
+      .where(eq(trendSummaries.term, TERM));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].runStartedAt).toEqual(RUN_STARTED_AT);
+    // A run is part of the IDENTITY, not metadata: `orioles` is a trade this
+    // week and a no-hitter next month, and a summary written for one would be
+    // actively wrong for the other.
+    const otherRun = new Date(RUN_STARTED_AT.getTime() + 86_400_000);
+    expect(
+      await resolveTrendSummary({
+        term: TERM,
+        runStartedAt: otherRun,
+        loadExcerpts: () => Promise.resolve(POSTS),
+      }),
+    ).toEqual({ description: 'The Orioles traded Dean Kremer to the Twins.' });
+    expect(await getDb().select().from(trendSummaries).where(eq(trendSummaries.term, TERM)))
+      .toHaveLength(2);
   });
 
   it('truncates a runaway answer to the configured length', async () => {
@@ -190,10 +233,12 @@ describe('resolveTrendSummary — what gets stored', () => {
 
   it('lowercases the term it stores under, so one run has one key', async () => {
     await resolveTrendSummary({
-      term: '  ORIOLES ',
+      term: `  ${TERM.toUpperCase()} `,
       runStartedAt: RUN_STARTED_AT,
       loadExcerpts: () => Promise.resolve(POSTS),
     });
-    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ term: 'orioles' }));
+    // Stored under the NORMALIZED term, so one run has one key however the
+    // reader spelled it.
+    expect(await storedSummary()).toBe('The Orioles traded Dean Kremer to the Twins.');
   });
 });

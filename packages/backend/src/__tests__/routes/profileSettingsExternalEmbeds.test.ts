@@ -1,6 +1,6 @@
 import express from 'express';
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Route-level coverage for the `externalEmbeds` whitelist in the
@@ -12,50 +12,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // In-memory settings store keyed by oxyUserId. Mirrors Mongo's findOneAndUpdate
 // upsert with dot-notation $set/$unset so the handler's exact mutation shape is
 // what we assert on.
-const store = new Map<string, Record<string, unknown>>();
-const TEST_USER = 'user-1';
-
-function getDoc(oxyUserId: string): Record<string, unknown> {
-  let doc = store.get(oxyUserId);
-  if (!doc) {
-    doc = { oxyUserId };
-    store.set(oxyUserId, doc);
-  }
-  return doc;
-}
-
-// Keys that could pollute Object.prototype if assigned via dot-notation.
-const FORBIDDEN_DOT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-
-function setDot(obj: Record<string, unknown>, path: string, value: unknown): void {
-  const parts = path.split('.');
-  let cur = obj;
-  for (let i = 0; i < parts.length - 1; i++) {
-    if (FORBIDDEN_DOT_KEYS.has(parts[i])) return;
-    const next = cur[parts[i]];
-    if (typeof next !== 'object' || next === null) {
-      cur[parts[i]] = {};
-    }
-    cur = cur[parts[i]] as Record<string, unknown>;
-  }
-  const last = parts[parts.length - 1];
-  if (FORBIDDEN_DOT_KEYS.has(last)) return;
-  cur[last] = value;
-}
-
-function unsetDot(obj: Record<string, unknown>, path: string): void {
-  const parts = path.split('.');
-  let cur = obj;
-  for (let i = 0; i < parts.length - 1; i++) {
-    if (FORBIDDEN_DOT_KEYS.has(parts[i])) return;
-    const next = cur[parts[i]];
-    if (typeof next !== 'object' || next === null) return;
-    cur = next as Record<string, unknown>;
-  }
-  const last = parts[parts.length - 1];
-  if (FORBIDDEN_DOT_KEYS.has(last)) return;
-  delete cur[last];
-}
+/**
+ * The account under test, namespaced: vitest runs files in parallel against one
+ * database and `user_settings.oxy_user_id` is unique, so a bare `user-1` would
+ * be a claim about every other file in the run.
+ */
+const TEST_USER = 'profileSettingsExternalEmbeds-user';
 
 // Auth: inject a fixed authenticated user so the route runs without real tokens.
 vi.mock('@oxyhq/core/server', () => ({
@@ -68,27 +30,22 @@ vi.mock('@oxyhq/core/server', () => ({
 }));
 
 // UserSettings model: only findOneAndUpdate is exercised by the PUT path.
-vi.mock('../../models/UserSettings', () => ({
-  default: {
-    findOneAndUpdate: vi.fn((filter: { oxyUserId: string }, operation: Record<string, Record<string, unknown>>) => {
-      const doc = getDoc(filter.oxyUserId);
-      if (operation.$set) {
-        for (const [path, value] of Object.entries(operation.$set)) setDot(doc, path, value);
-      }
-      if (operation.$unset) {
-        for (const path of Object.keys(operation.$unset)) unsetDot(doc, path);
-      }
-      return { lean: () => Promise.resolve(JSON.parse(JSON.stringify(doc))) };
-    }),
-  },
-}));
+/**
+ * `user_settings` is REAL here.
+ *
+ * The route writes through `updateUserSettings`, which maps a dotted settings
+ * path onto flat columns. The double this replaces reproduced that mapping in
+ * the test with its own `setDot`/`unsetDot` pair, so it could only ever confirm
+ * the test's model of it — and these cases are precisely about which paths
+ * survive the mapping. A key the repository silently drops looks identical to a
+ * key the route rejected; only a row tells them apart.
+ */
 
-// ensureUserSettings / buildSettingsResponseForViewer are reproduced faithfully
-// here (the real module pulls mediaResolver -> oxyHelpers -> the server
-// entrypoint, a circular import). The owner branch returns the doc as-is, which
-// is exactly what lets externalEmbeds flow out of GET /settings/me.
+// `buildSettingsResponseForViewer` is reproduced faithfully here: the real
+// module pulls mediaResolver -> oxyHelpers -> the server entrypoint, a circular
+// import. The owner branch returns the doc as-is, which is what lets the fields
+// under test flow out of GET /settings/me.
 vi.mock('../../utils/userSettings', () => ({
-  ensureUserSettings: (oxyUserId: string) => Promise.resolve(JSON.parse(JSON.stringify(getDoc(oxyUserId)))),
   buildSettingsResponseForViewer: (
     doc: unknown,
     targetUserId: string,
@@ -96,8 +53,6 @@ vi.mock('../../utils/userSettings', () => ({
   ) => (targetUserId === viewerUserId ? doc : {}),
 }));
 
-// oxyHelpers + syraPodcast pull the server entrypoint / @syra.fm/sdk; neither is
-// needed for the externalEmbeds path, so stub the symbols the route imports.
 vi.mock('../../utils/oxyHelpers', () => ({
   ensureProfileMediaPublic: vi.fn().mockResolvedValue(undefined),
 }));
@@ -111,6 +66,9 @@ vi.mock('../../models/Post', () => ({ default: {} }));
 vi.mock('../../models/Bookmark', () => ({ default: {} }));
 vi.mock('../../models/Like', () => ({ default: {} }));
 
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { userSettings } from '../../db/schema/userProfile';
 import profileSettingsRoutes from '../../routes/profileSettings';
 
 const app = express();
@@ -123,8 +81,17 @@ async function getSettings() {
 }
 
 describe('PUT /profile/settings externalEmbeds whitelist', () => {
-  beforeEach(() => {
-    store.clear();
+  beforeAll(async () => {
+    await connectPostgres();
+  });
+
+  afterAll(async () => {
+    await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, TEST_USER));
+    await closePostgres();
+  });
+
+  beforeEach(async () => {
+    await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, TEST_USER));
     vi.clearAllMocks();
   });
 
