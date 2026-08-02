@@ -13,7 +13,6 @@ import {
   insertDeliveries,
   insertDelivery,
 } from '../../db/federation/deliveryQueueRepository';
-import UserSettings from '../../models/UserSettings';
 import { getPublicKey, signViaOxy } from './crypto';
 import {
   AP_CONTENT_TYPE,
@@ -23,7 +22,7 @@ import {
   resolveOxyUser,
 } from './constants';
 import { actorService } from './actor.service';
-import { buildLocalActorObject } from './actorObject';
+import { buildLocalActorObject, loadProfileBanner } from './actorObject';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import { enqueueDelivery } from '../../queue/producers';
 import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
@@ -107,11 +106,7 @@ export const deliveryService: DeliveryService = createDeliveryService<EngineFede
   consent: { isSharingEnabled: (oxyUserId) => isFediverseSharingEnabled(oxyUserId) },
   identity: { resolveUserByUsername: (username) => resolveOxyUser(username) },
   profile: {
-    getBanner: async (oxyUserId) => {
-      const settings = await UserSettings.findOne({ oxyUserId }, { profileHeaderImage: 1 })
-        .lean<{ profileHeaderImage?: string } | null>();
-      return settings?.profileHeaderImage ?? null;
-    },
+    getBanner: (oxyUserId) => loadProfileBanner(oxyUserId),
   },
   buildLocalActorObject,
   logger: {

@@ -12,9 +12,8 @@ import { getRedisClient } from '../../../utils/redis';
 import { RedisStore } from '../../../middleware/rateLimitStore';
 import { hashedIpKey } from '../../../utils/ipKey';
 import { getServiceOxyClient } from '../../../utils/oxyHelpers';
-import UserSettings from '../../../models/UserSettings';
 import { getPublicKey } from '../crypto';
-import { buildLocalActorObject } from '../actorObject';
+import { buildLocalActorObject, loadProfileBanner } from '../actorObject';
 import { actorService } from '../actor.service';
 import { inboxProcessingService } from '../inbox.service';
 import { enqueueInboxActivity } from '../../../queue/producers';
@@ -142,11 +141,7 @@ export const actorRouter = createActorRouter({
     getSharingStateByUsername: (username) => getFediverseSharingStateByUsername(username),
   },
   buildLocalActorObject,
-  getBanner: async (oxyUserId) => {
-    const settings = await UserSettings.findOne({ oxyUserId }, { profileHeaderImage: 1 })
-      .lean<{ profileHeaderImage?: string } | null>();
-    return settings?.profileHeaderImage ?? null;
-  },
+  getBanner: (oxyUserId) => loadProfileBanner(oxyUserId),
   inbound: {
     fetchPublicKey: (keyId) => actorService.fetchPublicKey(keyId),
     // The apex (mention.earth) is CF-proxied → ALB → backend, which rewrites the

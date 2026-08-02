@@ -3,18 +3,36 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Contract tests for the ActivityPub actor/outbox/dereference routes:
+ * Contract tests for the ActivityPub actor/outbox/dereference routes, against
+ * REAL POST ROWS:
  *
  *  1. The actor JSON advertises the profile banner as AP `image` (Mastodon
  *     header) when the user has one, and omits it cleanly when absent.
  *  2. The outbox page reuses `activityPubConnector.buildCreateNoteActivity`
- *     (ONE Note builder shared with push delivery), not a hand-rolled mapping.
+ *     (ONE Note builder shared with push delivery), and SELECTS the right posts
+ *     in the right order with a working keyset cursor.
  *  3. A single post dereferences to its AP Note (200) only when PUBLIC +
  *     PUBLISHED and owned by the named user; otherwise 404.
  *
- * The heavy connector/crypto/model graph is stubbed so the router mounts in
- * isolation; `../constants` stays real (URL builders + Accept negotiation) with
- * only `resolveOxyUser` overridden.
+ * The Note BUILDER stays mocked — it is a pure function with its own suite
+ * (`buildCreateNoteActivity.test.ts`), and stubbing it is what lets these
+ * assertions be about which posts the route selected and what context it
+ * threaded. Everything that decides WHICH posts, and the banner, is a real row.
+ *
+ * That distinction is the whole reason for the rewrite. The previous version
+ * mocked `Post.find` and asserted the FILTER OBJECT (`parentPostId: null`,
+ * `$or: …`), which cannot tell a correct query from one that matches nothing —
+ * and pinned a Mongo spelling that has since become SQL, so it would go red on a
+ * correct port and green on a broken one. Two user-visible bugs live exactly
+ * there and are now covered by rows:
+ *
+ *   - the outbox scope is `is_reply = false`, NOT `parent_post_id IS NULL`.
+ *     `parent_post_id` is `ON DELETE SET NULL`, so an ORPHANED REPLY has a null
+ *     parent and the old predicate would publish it to the fediverse as a
+ *     top-level Note;
+ *   - the page cursor is `(created_at, id)` with `id` an opaque `text`. Reading
+ *     a timestamp out of the id, or validating it as an ObjectId, strands every
+ *     post created since the uuid cutover.
  */
 
 const AP_ACCEPT = 'application/activity+json';
@@ -32,10 +50,6 @@ const mocks = vi.hoisted(() => ({
   resolvePollContextByPost: vi.fn(),
   resolveQuoteContext: vi.fn(),
   resolveQuoteContextByPost: vi.fn(),
-  userSettingsFindOne: vi.fn(),
-  postFind: vi.fn(),
-  postCountDocuments: vi.fn(),
-  postFindOne: vi.fn(),
   resolveAvatarUrl: vi.fn(),
   resolveMediaRef: vi.fn(),
   getServiceOxyClient: vi.fn(),
@@ -93,22 +107,22 @@ vi.mock('../../../utils/mediaResolver', () => ({
   resolveMediaRef: (...args: unknown[]) => mocks.resolveMediaRef(...args),
 }));
 
-vi.mock('../../../models/Post', () => ({
-  Post: {
-    countDocuments: (...args: unknown[]) => mocks.postCountDocuments(...args),
-    find: (...args: unknown[]) => mocks.postFind(...args),
-    findOne: (...args: unknown[]) => mocks.postFindOne(...args),
-  },
-}));
-
-vi.mock('../../../models/UserSettings', () => ({
-  default: { findOne: (...args: unknown[]) => mocks.userSettingsFindOne(...args) },
-}));
-
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: (...args: unknown[]) => mocks.getServiceOxyClient(...args),
 }));
 
+import { afterAll, afterEach, beforeAll } from 'vitest';
+import { eq } from 'drizzle-orm';
+import { PostVisibility } from '@mention/shared-types';
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { posts } from '../../../db/schema/posts';
+import { userSettings } from '../../../db/schema/userProfile';
+import {
+  clearFederationScope,
+  federationScope,
+  seedPost,
+} from '../../helpers/federationFixtures';
+import type { PostRecord } from '../../../db/posts/postRecord';
 import apRoutes from '../../../connectors/activitypub/routes/ap.routes';
 import { actorRouter } from '../../../connectors/activitypub/routes/engine.routes';
 import { AP_CONTEXT } from '@oxyhq/federation';
@@ -120,6 +134,35 @@ app.use(express.json());
 app.use('/ap', actorRouter);
 app.use('/ap', apRoutes);
 
+const scope = federationScope('ap-routes');
+const ALICE = scope.user('alice');
+
+/** Overwrite the banner setting for ALICE, or clear it when passed null. */
+async function setBanner(profileHeaderImage: string | null): Promise<void> {
+  await getDb()
+    .insert(userSettings)
+    .values({ oxyUserId: ALICE, profileHeaderImage })
+    .onConflictDoUpdate({ target: userSettings.oxyUserId, set: { profileHeaderImage } });
+}
+
+/** A post owned by ALICE — the outbox/featured/dereference subject. */
+async function alicePost(overrides: Partial<Parameters<typeof seedPost>[1]> = {}): Promise<PostRecord> {
+  return seedPost(scope, { oxyUserId: ALICE, ...overrides });
+}
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+  await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, ALICE));
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.getPublicKey.mockResolvedValue({
@@ -127,7 +170,6 @@ beforeEach(() => {
     publicKeyPem: 'PEM',
   });
   mocks.resolveAvatarUrl.mockReturnValue(undefined);
-  mocks.userSettingsFindOne.mockReturnValue({ lean: async () => null });
   // The follow collections read the Oxy follow graph through the service client.
   mocks.getServiceOxyClient.mockReturnValue({
     getUserFollowers: mocks.getUserFollowers,
@@ -155,7 +197,7 @@ beforeEach(() => {
 describe('GET /ap/users/:username — actor image (banner)', () => {
   beforeEach(() => {
     mocks.resolveOxyUser.mockResolvedValue({
-      _id: 'u1',
+      _id: ALICE,
       name: { displayName: 'Alice' },
       avatar: null,
       createdAt: '2020-01-01T00:00:00.000Z',
@@ -163,7 +205,10 @@ describe('GET /ap/users/:username — actor image (banner)', () => {
   });
 
   it('advertises the banner as AP image when the user has a profileHeaderImage', async () => {
-    mocks.userSettingsFindOne.mockReturnValue({ lean: async () => ({ profileHeaderImage: 'banner-id' }) });
+    // A REAL `user_settings` row. Under the previous mock this passed while the
+    // production read went to a Mongoose model nothing writes any more, so every
+    // actor JSON omitted `image` and no banner ever reached Mastodon.
+    await setBanner('banner-id');
     mocks.resolveMediaRef.mockReturnValue({ url: 'https://cloud.oxy.so/banner-id' });
 
     const res = await request(app).get('/ap/users/alice').set('Accept', AP_ACCEPT).expect(200);
@@ -172,12 +217,20 @@ describe('GET /ap/users/:username — actor image (banner)', () => {
     expect(res.body.image).toEqual({ type: 'Image', url: 'https://cloud.oxy.so/banner-id' });
   });
 
-  it('omits image when the user has no banner', async () => {
-    mocks.userSettingsFindOne.mockReturnValue({ lean: async () => null });
-
+  it('omits image when the user has no settings row at all', async () => {
     const res = await request(app).get('/ap/users/alice').set('Accept', AP_ACCEPT).expect(200);
 
     expect(res.body.image).toBeUndefined();
+    expect('image' in res.body).toBe(false);
+  });
+
+  it('omits image when the settings row exists but carries no banner', async () => {
+    // Distinct from the case above: the row is present and the column is NULL,
+    // which is what a user who opened settings and never set a header looks like.
+    await setBanner(null);
+
+    const res = await request(app).get('/ap/users/alice').set('Accept', AP_ACCEPT).expect(200);
+
     expect('image' in res.body).toBe(false);
   });
 
@@ -187,7 +240,7 @@ describe('GET /ap/users/:username — actor image (banner)', () => {
   });
 
   it('omits image when the banner cannot resolve to an absolute URL', async () => {
-    mocks.userSettingsFindOne.mockReturnValue({ lean: async () => ({ profileHeaderImage: 'banner-id' }) });
+    await setBanner('banner-id');
     // Degraded passthrough (unresolvable id) — not an absolute http(s) URL.
     mocks.resolveMediaRef.mockReturnValue({ url: 'banner-id' });
 
@@ -198,17 +251,17 @@ describe('GET /ap/users/:username — actor image (banner)', () => {
 });
 
 describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteActivity', () => {
-  it('maps each post through buildCreateNoteActivity into orderedItems', async () => {
-    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' });
-    mocks.postCountDocuments.mockResolvedValue(2);
-    const posts = [{ _id: 'p1' }, { _id: 'p2' }];
-    mocks.postFind.mockReturnValue({
-      sort: () => ({ limit: () => ({ lean: async () => posts }) }),
-    });
-    mocks.buildCreateNoteActivity.mockImplementation((post: { _id: string }) => ({
+  beforeEach(() => {
+    mocks.resolveOxyUser.mockResolvedValue({ _id: ALICE });
+    mocks.buildCreateNoteActivity.mockImplementation((post: PostRecord) => ({
       type: 'Create',
-      object: { id: `https://mention.earth/ap/users/alice/posts/${post._id}` },
+      object: { id: `https://mention.earth/ap/users/alice/posts/${post.id}` },
     }));
+  });
+
+  it('maps each post through buildCreateNoteActivity into orderedItems', async () => {
+    const older = await alicePost();
+    const newer = await alicePost();
 
     const res = await request(app)
       .get('/ap/users/alice/outbox?page=true')
@@ -219,23 +272,73 @@ describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteAct
     // The outbox passes NO reply context and the per-post mention + poll + quote
     // contexts (all undefined here — the batch resolvers returned empty maps) as
     // args 3-6.
-    expect(mocks.buildCreateNoteActivity).toHaveBeenNthCalledWith(1, posts[0], 'alice', undefined, undefined, undefined, undefined);
+    expect(mocks.buildCreateNoteActivity).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ id: newer.id }),
+      'alice',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    );
     expect(res.body.type).toBe('OrderedCollectionPage');
-    expect(res.body.orderedItems).toEqual([
-      { type: 'Create', object: { id: 'https://mention.earth/ap/users/alice/posts/p1' } },
-      { type: 'Create', object: { id: 'https://mention.earth/ap/users/alice/posts/p2' } },
+    // Newest first, and the ids are the ones actually stored.
+    expect(res.body.orderedItems.map((item: { object: { id: string } }) => item.object.id)).toEqual([
+      `https://mention.earth/ap/users/alice/posts/${newer.id}`,
+      `https://mention.earth/ap/users/alice/posts/${older.id}`,
     ]);
+    expect(res.body.totalItems).toBe(2);
     // A page that does not overfetch past the window has no further page.
     expect(res.body.next).toBeUndefined();
   });
 
+  it('publishes only PUBLIC, PUBLISHED, non-reply posts owned by the named user', async () => {
+    const published = await alicePost();
+    await alicePost({ visibility: PostVisibility.PRIVATE });
+    await alicePost({ visibility: PostVisibility.FOLLOWERS_ONLY });
+    await alicePost({ status: 'draft' });
+    await alicePost({ oxyUserId: scope.user('mallory') });
+    await alicePost({ parentPostId: published.id, isReply: true });
+
+    const res = await request(app)
+      .get('/ap/users/alice/outbox?page=true')
+      .set('Accept', AP_ACCEPT)
+      .expect(200);
+
+    expect(res.body.orderedItems.map((item: { object: { id: string } }) => item.object.id)).toEqual([
+      `https://mention.earth/ap/users/alice/posts/${published.id}`,
+    ]);
+  });
+
+  it('never publishes an ORPHANED REPLY as a top-level Note', async () => {
+    // `parent_post_id` is `ON DELETE SET NULL`, so deleting the parent leaves a
+    // reply whose parent id is NULL while `is_reply` stays true. Scoping the
+    // outbox on `parent_post_id IS NULL` — the literal translation of the Mongo
+    // filter — publishes it to the fediverse as if the author had posted it on
+    // its own. `is_reply = false` is what prevents that, and this is the only
+    // test that can tell the two predicates apart.
+    const parent = await alicePost();
+    const reply = await alicePost({ parentPostId: parent.id, isReply: true });
+    await getDb().delete(posts).where(eq(posts.id, parent.id));
+
+    const res = await request(app)
+      .get('/ap/users/alice/outbox?page=true')
+      .set('Accept', AP_ACCEPT)
+      .expect(200);
+
+    const [orphan] = await getDb()
+      .select({ parentPostId: posts.parentPostId, isReply: posts.isReply })
+      .from(posts)
+      .where(eq(posts.id, reply.id));
+    // The premise, asserted rather than assumed: without this the test could
+    // pass because the cascade removed the reply outright.
+    expect(orphan).toEqual({ parentPostId: null, isReply: true });
+    expect(res.body.orderedItems).toEqual([]);
+    expect(res.body.totalItems).toBe(0);
+  });
+
   it('threads the resolved poll context into the builder so a poll post serializes as a Question', async () => {
-    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' });
-    mocks.postCountDocuments.mockResolvedValue(1);
-    const posts = [{ _id: 'poll-post' }];
-    mocks.postFind.mockReturnValue({
-      sort: () => ({ limit: () => ({ lean: async () => posts }) }),
-    });
+    const pollPost = await alicePost();
     const pollContext = {
       multiple: false,
       options: [{ name: 'A', votes: 1 }],
@@ -243,7 +346,7 @@ describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteAct
       closed: false,
       votersCount: 1,
     };
-    mocks.resolvePollContextByPost.mockResolvedValue(new Map([['poll-post', pollContext]]));
+    mocks.resolvePollContextByPost.mockResolvedValue(new Map([[pollPost.id, pollContext]]));
     mocks.buildCreateNoteActivity.mockImplementation(
       (_post: unknown, _username: unknown, _reply: unknown, _mentions: unknown, poll: unknown) => ({
         type: 'Create',
@@ -258,28 +361,26 @@ describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteAct
 
     // The batch-resolved poll context is passed as the 5th arg for its post (the
     // 6th quote arg is undefined — no quote resolved for this post).
-    expect(mocks.buildCreateNoteActivity).toHaveBeenCalledWith(posts[0], 'alice', undefined, undefined, pollContext, undefined);
+    expect(mocks.buildCreateNoteActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ id: pollPost.id }),
+      'alice',
+      undefined,
+      undefined,
+      pollContext,
+      undefined,
+    );
     expect(res.body.orderedItems).toEqual([{ type: 'Create', object: { type: 'Question' } }]);
   });
 
   it('threads the resolved quote context into the builder as the 6th arg for a quote post', async () => {
-    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' });
-    mocks.postCountDocuments.mockResolvedValue(1);
-    const posts = [{ _id: 'quote-post' }];
-    mocks.postFind.mockReturnValue({
-      sort: () => ({ limit: () => ({ lean: async () => posts }) }),
-    });
+    const quotePost = await alicePost();
     const quoteContext = { uri: 'https://remote.example/users/bob/statuses/99' };
-    mocks.resolveQuoteContextByPost.mockResolvedValue(new Map([['quote-post', quoteContext]]));
-    mocks.buildCreateNoteActivity.mockImplementation(
-      (post: { _id: string }) => ({ type: 'Create', object: { id: `x/${post._id}` } }),
-    );
+    mocks.resolveQuoteContextByPost.mockResolvedValue(new Map([[quotePost.id, quoteContext]]));
 
     await request(app).get('/ap/users/alice/outbox?page=true').set('Accept', AP_ACCEPT).expect(200);
 
-    // The batch-resolved quote context is passed as the 6th arg for its post.
     expect(mocks.buildCreateNoteActivity).toHaveBeenCalledWith(
-      posts[0],
+      expect.objectContaining({ id: quotePost.id }),
       'alice',
       undefined,
       undefined,
@@ -290,22 +391,41 @@ describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteAct
 });
 
 describe('GET /ap/users/:username/outbox?page=true — keyset pagination', () => {
-  it('returns 20 items + a `next` cursor when more posts exist (fixes unreachable posts past page 1)', async () => {
-    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' });
-    mocks.postCountDocuments.mockResolvedValue(42);
-    // Overfetch: the handler asks for PAGE_SIZE + 1 (21). Return 21 so it detects
-    // a further page, trims to 20, and emits a `next` keyed on the 20th item.
-    const posts = Array.from({ length: 21 }, (_, i) => ({
-      _id: `p${i}`,
-      createdAt: new Date(Date.UTC(2020, 0, 1, 0, 0, i)).toISOString(),
-    }));
-    mocks.postFind.mockReturnValue({
-      sort: () => ({ limit: () => ({ lean: async () => posts }) }),
-    });
-    mocks.buildCreateNoteActivity.mockImplementation((post: { _id: string }) => ({
+  beforeEach(() => {
+    mocks.resolveOxyUser.mockResolvedValue({ _id: ALICE });
+    mocks.buildCreateNoteActivity.mockImplementation((post: PostRecord) => ({
       type: 'Create',
-      object: { id: `https://mention.earth/ap/users/alice/posts/${post._id}` },
+      object: { id: post.id },
     }));
+  });
+
+  it('walks every post across pages, newest first, with no repeat and no gap', async () => {
+    // 25 > the 20-post window, so the first page overfetches, trims, and emits a
+    // `next`. Walking it has to reach the 5 the old handler stranded.
+    const created: string[] = [];
+    for (let index = 0; index < 25; index += 1) {
+      created.push((await alicePost()).id);
+    }
+    const newestFirst = [...created].reverse();
+
+    const seen: string[] = [];
+    let url: string | undefined = '/ap/users/alice/outbox?page=true';
+    let guard = 0;
+    while (url) {
+      const res = await request(app).get(url).set('Accept', AP_ACCEPT).expect(200);
+      seen.push(...res.body.orderedItems.map((item: { object: { id: string } }) => item.object.id));
+      expect(res.body.totalItems).toBe(25);
+      const next: string | undefined = res.body.next;
+      url = next ? next.replace('https://mention.earth', '') : undefined;
+      if ((guard += 1) > 5) throw new Error('pagination did not terminate');
+    }
+
+    expect(seen).toEqual(newestFirst);
+    expect(new Set(seen).size).toBe(seen.length);
+  });
+
+  it('emits exactly one window plus a cursor keyed on the LAST item of that window', async () => {
+    for (let index = 0; index < 21; index += 1) await alicePost();
 
     const res = await request(app)
       .get('/ap/users/alice/outbox?page=true')
@@ -315,74 +435,76 @@ describe('GET /ap/users/:username/outbox?page=true — keyset pagination', () =>
     // Only the window is serialized, not the overfetched probe row.
     expect(res.body.orderedItems).toHaveLength(20);
     expect(mocks.buildCreateNoteActivity).toHaveBeenCalledTimes(20);
-    expect(res.body.totalItems).toBe(42);
-    // `next` exists and is a same-collection page cursor — walking it reaches
-    // the remaining 22 posts that the old handler stranded.
-    expect(typeof res.body.next).toBe('string');
     expect(res.body.next).toContain('/ap/users/alice/outbox?page=true&cursor=');
-    // The cursor is keyed on the LAST item of the window (p19), timestamp:id.
+
+    const lastServed = res.body.orderedItems[19].object.id as string;
     const cursorValue = decodeURIComponent(new URL(res.body.next).searchParams.get('cursor') ?? '');
-    expect(cursorValue).toBe(`${Date.UTC(2020, 0, 1, 0, 0, 19)}:p19`);
+    // The cursor's id half is the id as STORED — a uuid v7 for a post created
+    // after the cutover. Deriving it from an ObjectId, or validating it as one,
+    // strands the whole corpus behind page 1.
+    expect(cursorValue.endsWith(`:${lastServed}`)).toBe(true);
   });
 
-  it('follows a `cursor` param into a keyset filter and self-references the page id', async () => {
-    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' });
-    mocks.postCountDocuments.mockResolvedValue(42);
-    const posts = [
-      { _id: 'p20', createdAt: new Date(Date.UTC(2020, 0, 1, 0, 0, 20)).toISOString() },
-    ];
-    const findSpy = vi.fn().mockReturnValue({
-      sort: () => ({ limit: () => ({ lean: async () => posts }) }),
-    });
-    mocks.postFind.mockImplementation((query: unknown) => findSpy(query));
-    mocks.buildCreateNoteActivity.mockImplementation((post: { _id: string }) => ({
-      type: 'Create',
-      object: { id: `https://mention.earth/ap/users/alice/posts/${post._id}` },
-    }));
+  it('self-references the cursor in the page id and stops when the page is short', async () => {
+    for (let index = 0; index < 21; index += 1) await alicePost();
 
-    const cursor = `${Date.UTC(2020, 0, 1, 0, 0, 19)}:507f1f77bcf86cd799439011`;
-    const res = await request(app)
+    const first = await request(app)
+      .get('/ap/users/alice/outbox?page=true')
+      .set('Accept', AP_ACCEPT)
+      .expect(200);
+    const cursor = new URL(first.body.next).searchParams.get('cursor') ?? '';
+
+    const second = await request(app)
       .get(`/ap/users/alice/outbox?page=true&cursor=${encodeURIComponent(cursor)}`)
       .set('Accept', AP_ACCEPT)
       .expect(200);
 
-    // The keyset boundary is applied to the Mongo filter as an $or clause.
-    const query = findSpy.mock.calls[0][0] as Record<string, unknown>;
-    expect(query.$or).toBeDefined();
-    // No further page (1 item < window) → no `next`. The page id echoes the cursor.
-    expect(res.body.next).toBeUndefined();
-    expect(res.body.id).toContain(`cursor=${encodeURIComponent(cursor)}`);
+    expect(second.body.orderedItems).toHaveLength(1);
+    expect(second.body.next).toBeUndefined();
+    expect(second.body.id).toContain(`cursor=${encodeURIComponent(cursor)}`);
+  });
+
+  it('serves the first page for a malformed cursor rather than 500ing', async () => {
+    // The cursor is client-supplied and reaches a `text` column and a timestamp
+    // parse. An unparseable one must degrade to "no keyset bound", which is what
+    // a remote server retrying with a stale or truncated cursor looks like.
+    const post = await alicePost();
+
+    const res = await request(app)
+      .get('/ap/users/alice/outbox?page=true&cursor=not-a-cursor')
+      .set('Accept', AP_ACCEPT)
+      .expect(200);
+
+    expect(res.body.orderedItems.map((item: { object: { id: string } }) => item.object.id)).toEqual([
+      post.id,
+    ]);
   });
 });
 
 describe('GET /ap/users/:username/collections/featured — pinned posts', () => {
-  it('returns an OrderedCollection of bare Note objects for the user\'s pinned posts', async () => {
-    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' });
-    const pinned = [{ _id: 'p1' }, { _id: 'p2' }];
-    const findSpy = vi.fn().mockReturnValue({
-      sort: () => ({ limit: () => ({ lean: async () => pinned }) }),
-    });
-    mocks.postFind.mockImplementation((query: unknown) => findSpy(query));
-    mocks.buildCreateNoteActivity.mockImplementation((post: { _id: string }) => ({
+  beforeEach(() => {
+    mocks.resolveOxyUser.mockResolvedValue({ _id: ALICE });
+    mocks.buildCreateNoteActivity.mockImplementation((post: PostRecord) => ({
       '@context': AP_CONTEXT,
       type: 'Create',
-      object: { id: `https://mention.earth/ap/users/alice/posts/${post._id}`, type: 'Note' },
+      object: { id: `https://mention.earth/ap/users/alice/posts/${post.id}`, type: 'Note' },
     }));
+  });
+
+  it("returns an OrderedCollection of bare Note objects for the user's pinned posts", async () => {
+    const pinnedOlder = await alicePost({ metadata: { isPinned: true } });
+    const pinnedNewer = await alicePost({ metadata: { isPinned: true } });
+    // Everything the featured query must exclude, one row each.
+    await alicePost();
+    await alicePost({ metadata: { isPinned: true }, visibility: PostVisibility.PRIVATE });
+    await alicePost({ metadata: { isPinned: true }, status: 'draft' });
+    await alicePost({ metadata: { isPinned: true }, oxyUserId: scope.user('mallory') });
+    await alicePost({ metadata: { isPinned: true }, parentPostId: pinnedOlder.id, isReply: true });
 
     const res = await request(app)
       .get('/ap/users/alice/collections/featured')
       .set('Accept', AP_ACCEPT)
       .expect(200);
-
-    // Query filters on the pinned flag + the outbox's exact ownership/visibility.
-    const query = findSpy.mock.calls[0][0] as Record<string, unknown>;
-    expect(query).toMatchObject({
-      oxyUserId: 'u1',
-      'metadata.isPinned': true,
-      visibility: 'public',
-      status: 'published',
-      parentPostId: null,
-    });
 
     // The collection is NOT paginated: inline orderedItems, no `first`.
     expect(res.body.type).toBe('OrderedCollection');
@@ -392,14 +514,13 @@ describe('GET /ap/users/:username/collections/featured — pinned posts', () => 
     // orderedItems are the BARE Note objects (Create envelope unwrapped), NOT
     // Create activities.
     expect(res.body.orderedItems).toEqual([
-      { id: 'https://mention.earth/ap/users/alice/posts/p1', type: 'Note' },
-      { id: 'https://mention.earth/ap/users/alice/posts/p2', type: 'Note' },
+      { id: `https://mention.earth/ap/users/alice/posts/${pinnedNewer.id}`, type: 'Note' },
+      { id: `https://mention.earth/ap/users/alice/posts/${pinnedOlder.id}`, type: 'Note' },
     ]);
   });
 
   it('returns an empty OrderedCollection when the user has no pinned posts', async () => {
-    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' });
-    mocks.postFind.mockReturnValue({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) });
+    await alicePost();
 
     const res = await request(app)
       .get('/ap/users/alice/collections/featured')
@@ -415,7 +536,7 @@ describe('GET /ap/users/:username/collections/featured — pinned posts', () => 
   it('404s an unknown user', async () => {
     mocks.resolveOxyUser.mockResolvedValue(null);
     await request(app).get('/ap/users/ghost/collections/featured').set('Accept', AP_ACCEPT).expect(404);
-    expect(mocks.postFind).not.toHaveBeenCalled();
+    expect(mocks.buildCreateNoteActivity).not.toHaveBeenCalled();
   });
 });
 
@@ -590,76 +711,118 @@ describe('GET /ap/users/:username/following — Oxy follow graph (local + federa
 });
 
 describe('GET /ap/users/:username/posts/:id — dereference', () => {
-  const NOTE = {
-    id: 'https://mention.earth/ap/users/alice/posts/' + VALID_ID,
-    type: 'Note',
-    attributedTo: 'https://mention.earth/ap/users/alice',
-    content: 'hello',
-  };
-
   beforeEach(() => {
-    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' });
+    mocks.resolveOxyUser.mockResolvedValue({ _id: ALICE });
+  });
+
+  function noteFor(post: PostRecord) {
+    return {
+      id: `https://mention.earth/ap/users/alice/posts/${post.id}`,
+      type: 'Note',
+      attributedTo: 'https://mention.earth/ap/users/alice',
+      content: 'hello',
+    };
+  }
+
+  function stubBuilder(post: PostRecord) {
     mocks.buildCreateNoteActivity.mockReturnValue({
       '@context': ['https://www.w3.org/ns/activitystreams'],
       type: 'Create',
-      object: NOTE,
+      object: noteFor(post),
     });
-  });
+  }
 
   it('returns the AP Note (with its own @context) for a public published post', async () => {
-    mocks.postFindOne.mockReturnValue({ lean: async () => ({ _id: VALID_ID, content: { text: 'hello' } }) });
+    const post = await alicePost();
+    stubBuilder(post);
 
     const res = await request(app)
-      .get(`/ap/users/alice/posts/${VALID_ID}`)
+      .get(`/ap/users/alice/posts/${post.id}`)
       .set('Accept', AP_ACCEPT)
       .expect(200);
 
-    // Gating clause is exactly public + published + owned by the named user.
-    expect(mocks.postFindOne).toHaveBeenCalledWith(
-      expect.objectContaining({ _id: VALID_ID, oxyUserId: 'u1', visibility: 'public', status: 'published' }),
-    );
-    expect(res.body).toEqual({ '@context': AP_CONTEXT, ...NOTE });
+    expect(res.body).toEqual({ '@context': AP_CONTEXT, ...noteFor(post) });
   });
 
-  it('404s when the post is not public/published/owned (query returns null)', async () => {
-    mocks.postFindOne.mockReturnValue({ lean: async () => null });
+  it('serves a post whose id is a uuid v7, which the removed ObjectId gate would have 404d', async () => {
+    const post = await alicePost();
+    stubBuilder(post);
 
-    await request(app).get(`/ap/users/alice/posts/${VALID_ID}`).set('Accept', AP_ACCEPT).expect(404);
+    // The premise, asserted rather than assumed — a fixture that happened to
+    // mint an ObjectId-shaped id would make this case vacuous.
+    expect(post.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    await request(app).get(`/ap/users/alice/posts/${post.id}`).set('Accept', AP_ACCEPT).expect(200);
+  });
+
+  it.each([
+    ['private', { visibility: PostVisibility.PRIVATE }],
+    ['followers-only', { visibility: PostVisibility.FOLLOWERS_ONLY }],
+    ['unpublished', { status: 'draft' as const }],
+  ])('404s a %s post', async (_label, overrides) => {
+    const post = await alicePost(overrides);
+
+    await request(app).get(`/ap/users/alice/posts/${post.id}`).set('Accept', AP_ACCEPT).expect(404);
     expect(mocks.buildCreateNoteActivity).not.toHaveBeenCalled();
   });
 
+  it("404s a post owned by someone else, even though it is public and published", async () => {
+    const post = await alicePost({ oxyUserId: scope.user('mallory') });
+
+    await request(app).get(`/ap/users/alice/posts/${post.id}`).set('Accept', AP_ACCEPT).expect(404);
+    expect(mocks.buildCreateNoteActivity).not.toHaveBeenCalled();
+  });
+
+  it('DOES serve a reply — a remote server asked for this exact Note by id', async () => {
+    // Unlike the outbox, which must not publish a reply as a top-level Note.
+    const parent = await alicePost();
+    const reply = await alicePost({ parentPostId: parent.id, isReply: true });
+    stubBuilder(reply);
+
+    await request(app).get(`/ap/users/alice/posts/${reply.id}`).set('Accept', AP_ACCEPT).expect(200);
+  });
+
   it('passes the resolved reply context into the Note builder for a reply post', async () => {
-    const replyDoc = { _id: VALID_ID, content: { text: 'a reply' }, parentPostId: 'parent1' };
-    mocks.postFindOne.mockReturnValue({ lean: async () => replyDoc });
+    const parent = await alicePost();
+    const reply = await alicePost({ parentPostId: parent.id, isReply: true });
+    stubBuilder(reply);
     const replyContext = {
       inReplyTo: 'https://remote.example/users/bob/statuses/9',
       mention: { href: 'https://remote.example/users/bob', name: '@bob@remote.example' },
     };
     mocks.resolveReplyContext.mockResolvedValue(replyContext);
 
-    await request(app).get(`/ap/users/alice/posts/${VALID_ID}`).set('Accept', AP_ACCEPT).expect(200);
+    await request(app).get(`/ap/users/alice/posts/${reply.id}`).set('Accept', AP_ACCEPT).expect(200);
 
-    // The route resolves the reply addressing from the served post and threads it
+    // The route resolves the reply addressing from the SERVED row and threads it
     // into the pure Note builder as the third argument.
-    expect(mocks.resolveReplyContext).toHaveBeenCalledWith(replyDoc);
-    // The dereference route threads the resolved reply context + (null →) undefined
-    // mention + poll + quote contexts into the Note builder.
-    expect(mocks.buildCreateNoteActivity).toHaveBeenCalledWith(replyDoc, 'alice', replyContext, undefined, undefined, undefined);
+    expect(mocks.resolveReplyContext).toHaveBeenCalledWith(expect.objectContaining({ id: reply.id }));
+    expect(mocks.buildCreateNoteActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ id: reply.id }),
+      'alice',
+      replyContext,
+      undefined,
+      undefined,
+      undefined,
+    );
   });
 
   it('passes the resolved quote context into the Note builder for a quote post', async () => {
-    const quoteDoc = { _id: VALID_ID, content: { text: 'quoting this' }, quoteOf: 'quoted-1' };
-    mocks.postFindOne.mockReturnValue({ lean: async () => quoteDoc });
+    const quoted = await alicePost();
+    const quotePost = await alicePost({ quoteOf: quoted.id });
+    stubBuilder(quotePost);
     const quoteContext = { uri: 'https://remote.example/users/bob/statuses/99' };
     mocks.resolveQuoteContext.mockResolvedValue(quoteContext);
 
-    await request(app).get(`/ap/users/alice/posts/${VALID_ID}`).set('Accept', AP_ACCEPT).expect(200);
+    await request(app)
+      .get(`/ap/users/alice/posts/${quotePost.id}`)
+      .set('Accept', AP_ACCEPT)
+      .expect(200);
 
-    // The route resolves the quote reference from the served post and threads it
-    // into the pure Note builder as the sixth argument.
-    expect(mocks.resolveQuoteContext).toHaveBeenCalledWith(quoteDoc);
+    expect(mocks.resolveQuoteContext).toHaveBeenCalledWith(
+      expect.objectContaining({ id: quotePost.id }),
+    );
     expect(mocks.buildCreateNoteActivity).toHaveBeenCalledWith(
-      quoteDoc,
+      expect.objectContaining({ id: quotePost.id }),
       'alice',
       undefined,
       undefined,
@@ -668,14 +831,21 @@ describe('GET /ap/users/:username/posts/:id — dereference', () => {
     );
   });
 
-  it('404s a malformed post id without touching the database', async () => {
-    await request(app).get('/ap/users/alice/posts/not-an-objectid').set('Accept', AP_ACCEPT).expect(404);
-    expect(mocks.resolveOxyUser).not.toHaveBeenCalled();
-    expect(mocks.postFindOne).not.toHaveBeenCalled();
+  it('404s an id that matches no row, without an id-shape guard', async () => {
+    // `posts.id` is `text`, so an arbitrary path segment is a bound parameter
+    // that matches nothing — a 404, not a cast error and not a 500.
+    await request(app)
+      .get('/ap/users/alice/posts/not-an-objectid')
+      .set('Accept', AP_ACCEPT)
+      .expect(404);
+    expect(mocks.buildCreateNoteActivity).not.toHaveBeenCalled();
   });
 
   it('redirects a non-ActivityPub request to the on-site post URL', async () => {
-    const res = await request(app).get(`/ap/users/alice/posts/${VALID_ID}`).set('Accept', 'text/html').expect(302);
+    const res = await request(app)
+      .get(`/ap/users/alice/posts/${VALID_ID}`)
+      .set('Accept', 'text/html')
+      .expect(302);
     expect(res.headers.location).toBe(`https://mention.earth/@alice/posts/${VALID_ID}`);
   });
 });
