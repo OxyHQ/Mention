@@ -104,7 +104,8 @@ export async function trackFeedInteraction(interaction: FeedInteractionData): Pr
 
 /**
  * Apply the deduped view-count increment and the UserBehavior learning signal
- * for a feed impression. `postUri` is the local post id (Mongo `_id` string);
+ * for a feed impression. `postUri` is the local post id (`posts.id`, a `text`
+ * column holding ObjectId hex before the cutover and uuid v7 after);
  * federated/non-local uris that are not valid ObjectIds are skipped.
  *
  * Impression telemetry is CLIENT-controlled, so its side effects are hardened
@@ -130,6 +131,11 @@ export async function applyImpressionSignals(
   interaction: FeedInteractionData,
 ): Promise<number | null> {
   const postId = interaction.postUri;
+  // Emptiness only. There is deliberately NO id-shape check: `posts.id` is
+  // `text` holding pre-cutover ObjectId hex AND post-cutover uuid v7, so an
+  // `isValidObjectId` guard would reject every post this instance has minted
+  // since the cutover — and the observable would be a view counter that quietly
+  // stopped moving. What replaces it is the bound-parameter read below.
   if (!postId) {
     return null; // Nothing to count or learn from.
   }
