@@ -1,7 +1,7 @@
 import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
 import { logger } from '../../utils/logger';
 import FederatedActor, { IFederatedActor } from '../../models/FederatedActor';
-import { resolveOxyExternalUser } from '../identity';
+import { resolveFederatedActorIdentity } from '../identity';
 import {
   BSKY_NETWORK_DOMAIN,
   blueskyUsernameFromHandle,
@@ -160,7 +160,13 @@ export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promis
   }
 
   const existingOxyId = fedActor?.oxyUserId ?? undefined;
-  const oxyId = await resolveOxyExternalUser({ ...actor, oxyUserId: existingOxyId });
+  // Routed through the shared merge rather than straight at the identity bridge:
+  // the SAME Bluesky account can also reach us over ActivityPub through Bridgy
+  // Fed, and whichever protocol arrives second must adopt the first's Oxy user
+  // instead of minting a second identity under a username that is uniquely
+  // indexed. Both directions have to go through it or the merge only works when
+  // the bridged copy happens to arrive last.
+  const oxyId = await resolveFederatedActorIdentity({ ...actor, oxyUserId: existingOxyId });
   if (!oxyId) {
     // Hard runtime dependency: oxy-api `PUT /users/resolve` must accept a `did:`
     // actorUri. Until it does this returns null — fail soft (no throw, no orphan).

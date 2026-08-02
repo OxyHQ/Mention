@@ -1,7 +1,6 @@
 import sanitizeHtml from 'sanitize-html';
 import { decode as decodeEntities } from 'he';
 import { normalizeInlineText } from '@oxyhq/core';
-import type { NormalizedExternalActor } from '@oxyhq/federation';
 import {
   createActorResolver,
   type FederatedActorStore,
@@ -22,7 +21,7 @@ import {
   domainFromAcct,
 } from './helpers';
 import { readBoundedResponseBody } from '../shared/httpBody';
-import { reportFederatedActorGone, resolveOxyExternalUser } from '../identity';
+import { reportFederatedActorGone, resolveFederatedActorIdentity } from '../identity';
 
 /**
  * Resolution, caching and refresh of remote ActivityPub actors.
@@ -91,98 +90,6 @@ const fetchWebFinger: WebFingerFetch = async (url) => {
   const body = await readBoundedResponseBody(response, WEBFINGER_MAX_BYTES);
   return JSON.parse(Buffer.from(body).toString('utf8')) as WebFingerJrd;
 };
-
-/**
- * Resolve a normalized actor to its Oxy user, MERGING two bridges' copies of the
- * same upstream person into one identity.
- *
- * An upstream handle is globally unique on its own network — there is exactly one
- * `@wired` on X — so two actor rows that re-label onto `wired@x.com` are not two
- * people who happen to collide, they are one person mirrored twice. Measured on
- * production: of 458 distinct X handles held across the two X bridges, 17 are
- * mirrored by both, and 79 of 815 Bridgy Fed Bluesky actors are accounts the
- * atproto connector already holds directly.
- *
- * Minting a second Oxy identity for the second copy is not merely untidy, it does
- * not work: `PUT /users/resolve` keys on the actor URI but the username carries a
- * unique index, so the second copy would be refused. So the second row ADOPTS the
- * first row's Oxy user instead of minting its own.
- *
- * This is reversible by construction. Nothing is rewritten and nothing is
- * deleted — the absorbed row keeps its own URI, acct, domain and content, and the
- * only thing it shares is which Oxy identity it points at. Removing a bridge from
- * the policy makes its rows re-derive their own identity again on the next
- * refresh.
- *
- * De-duplication is confined to actors that were actually RE-LABELLED (`networkAcct`
- * is set). An ordinary federated actor is untouched: its identity is its acct,
- * which is already unique per host, so there is nothing to merge and this function
- * is a straight pass-through for the overwhelming majority of actors.
- *
- * Two ingests of the same handle racing each other can both find no owner and both
- * try to mint; oxy-api's unique index refuses the loser, which the identity bridge
- * reports as an unresolved actor (no orphan is written) and the next refresh
- * settles. That is a rare, self-correcting outcome, and the alternative — a lock
- * around a cross-service call — would be a worse trade.
- *
- * Exported so the merge rule can be exercised directly: it decides which person a
- * piece of writing is attributed to, and that decision deserves to be readable in
- * a test rather than reachable only through a full actor fetch.
- */
-export async function resolveFederatedActorIdentity(
-  actor: NormalizedExternalActor,
-  opts?: { forceAvatarRefresh?: boolean },
-): Promise<string | null> {
-  // Only a re-labelled actor can share an identity with another row. `handle` is
-  // the protocol acct and `federatedUsername` the stored identity; they differ
-  // exactly when the bridge policy relabelled this actor.
-  if (actor.federatedUsername === actor.handle) {
-    return resolveOxyExternalUser(actor, opts);
-  }
-
-  try {
-    const owner = await FederatedActor.findOne(
-      {
-        networkAcct: actor.federatedUsername,
-        uri: { $ne: actor.externalId },
-        oxyUserId: { $exists: true, $ne: null },
-      },
-      { uri: 1, domain: 1, oxyUserId: 1 },
-    ).lean<Pick<IFederatedActor, 'uri' | 'domain' | 'oxyUserId'>>();
-
-    // A valid collision has EXACTLY ONE actor per bridge domain. A bridge holds
-    // one actor per upstream handle, so two actors on the SAME domain deriving to
-    // one identity is impossible under a correct rule — it means the derivation is
-    // broken, most likely yielding a constant, and merging on it would collapse
-    // every actor on that domain into one person. Refuse and say so; never merge.
-    const bridgeDomain = actor.handle.slice(actor.handle.lastIndexOf('@') + 1);
-    if (owner && owner.domain === bridgeDomain) {
-      logger.error(
-        '[FedSync] two actors on one bridge domain derive the same identity — '
-        + 'the derivation rule is broken; refusing to merge',
-        { actor: actor.externalId, owner: owner.uri, networkAcct: actor.federatedUsername },
-      );
-      return null;
-    }
-
-    if (owner?.oxyUserId) {
-      // Identifiers ride in the structured payload, never interpolated into the
-      // message — the backend logging policy holds every call site to that.
-      logger.info(
-        '[FedSync] bridged identity is already held by another actor; adopting its Oxy user',
-        { actor: actor.externalId, networkAcct: actor.federatedUsername, owner: owner.uri },
-      );
-      return owner.oxyUserId;
-    }
-  } catch (err) {
-    // A failed lookup must not lose the actor: fall through and resolve normally.
-    // The worst case is the duplicate this merge exists to avoid, which oxy-api
-    // then refuses — a visible, recoverable outcome, unlike dropping the actor.
-    logger.warn('[FedSync] bridged-identity owner lookup failed', { actor: actor.externalId, err });
-  }
-
-  return resolveOxyExternalUser(actor, opts);
-}
 
 /**
  * The remote-actor resolver instance. Every consumer keeps using

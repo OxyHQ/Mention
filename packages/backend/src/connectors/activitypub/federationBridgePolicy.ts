@@ -202,12 +202,15 @@ export const FEDERATION_BRIDGE_POLICY: readonly FederationBridgeEntry[] = [
       return handle === undefined ? undefined : blueskyUsernameFromHandle(handle);
     },
     caseRule: 'preserve',
-    // INERT ON PURPOSE. Re-labelling here derives `@handle@bsky.social`, which is
-    // exactly what the atproto connector already renders for the same account —
-    // 79 of our 815 Bridgy actors are accounts we hold natively, so enabling this
-    // without the merge would produce certain, visible twins. The entry is
-    // committed and its derivation is tested; only the application waits.
-    relabel: 'pending_dedup',
+    // Enabled now that the merge sees ACROSS protocols. Re-labelling here derives
+    // `@handle@bsky.social`, which is exactly what the atproto connector already
+    // renders for the same account — 79 of our 815 Bridgy actors are accounts we
+    // hold natively — so this was deliberately inert until a bridged copy could
+    // adopt the native row's Oxy user rather than mint a twin. Both directions now
+    // route through `resolveFederatedActorIdentity`, and it matches a native row
+    // by its `username@domain` identity as well as by `networkAcct`, so no
+    // backfill of the 10,066 native rows is required for it to work.
+    relabel: 'enabled',
     upstreamIdStability: 'stable',
     boilerplate: [
       /\s*🌉\s*\S+\s+from\s+🦋\s+\S+, follow (?:@bsky\.brid\.gy|\S+) to interact\s*$/u,

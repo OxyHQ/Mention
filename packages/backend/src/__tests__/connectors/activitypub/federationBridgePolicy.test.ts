@@ -31,18 +31,10 @@ const EXPECTED_IDENTITY: Readonly<Record<string, string>> = {
   'https://mastox.eu/ap/users/116193264000459783': 'mehdirhasan@x.com',
   'https://mastox.eu/users/FranceskAlbs': 'franceskalbs@x.com',
   'https://mastox.eu/users/gbsumudflotilla': 'gbsumudflotilla@x.com',
+  'https://bsky.brid.gy/ap/did:plc:m4jmanw3astpwhqp54g6yslu': 'thistleandmoss.com@bsky.social',
+  'https://bsky.brid.gy/ap/did:plc:codfx2epdduamfycuyi5fjpb': 'georgemonbiot@bsky.social',
+  'https://bsky.brid.gy/ap/did:plc:vcmpg73bt2wudku3nqgx33yx': 'assignedmale@bsky.social',
 };
-
-/**
- * `bsky.brid.gy` actors are captured and their rule is exercised, but they are
- * NOT in the table above: the entry is `pending_dedup`, so re-labelling them is
- * deliberately inert until the merge lands.
- */
-const PENDING_ACTOR_URIS: readonly string[] = [
-  'https://bsky.brid.gy/ap/did:plc:m4jmanw3astpwhqp54g6yslu',
-  'https://bsky.brid.gy/ap/did:plc:codfx2epdduamfycuyi5fjpb',
-  'https://bsky.brid.gy/ap/did:plc:vcmpg73bt2wudku3nqgx33yx',
-];
 
 function fixture(suffix: string): NetworkIdentityCandidate {
   const found = BRIDGED_ACTOR_FIXTURES.find((candidate) => candidate.actorUri.endsWith(suffix));
@@ -61,7 +53,7 @@ const ENABLED_FIXTURES = BRIDGED_ACTOR_FIXTURES.filter((f) => f.actorUri in EXPE
 describe('bridge entries — derivation round-trips against real actors', () => {
   it('accounts for every captured fixture, enabled or pending', () => {
     expect(BRIDGED_ACTOR_FIXTURES.length).toBe(12);
-    expect(ENABLED_FIXTURES.length + PENDING_ACTOR_URIS.length).toBe(BRIDGED_ACTOR_FIXTURES.length);
+    expect(ENABLED_FIXTURES.length).toBe(BRIDGED_ACTOR_FIXTURES.length);
     expect(new Set(BRIDGED_ACTOR_FIXTURES.map((f) => f.host)).size).toBe(4);
   });
 
@@ -98,28 +90,25 @@ describe('bridge entries — derivation round-trips against real actors', () => 
 
 describe('bridge entries — the pending_dedup gate', () => {
   /**
-   * Re-labelling a Bridgy actor derives `@handle@bsky.social`, which is exactly
-   * what the atproto connector already renders for the same account — 79 of our
-   * 815 Bridgy actors are accounts we hold natively. Enabling this without the
-   * merge would produce certain, visible twins.
+   * Nothing is pending any more: the merge now sees ACROSS protocols, so a
+   * Bridgy actor adopts the natively-held Bluesky account instead of becoming a
+   * twin of it. The gate itself stays, because it is what makes adding the next
+   * bridge safe before its collision set has been measured.
    */
-  it.each(PENDING_ACTOR_URIS)('does not re-label %s yet', (actorUri) => {
-    const candidate = BRIDGED_ACTOR_FIXTURES.find((f) => f.actorUri === actorUri);
-    if (!candidate) throw new Error(`missing fixture ${actorUri}`);
-    expect(federationBridges.deriveNetworkIdentity(candidate)).toBeUndefined();
+  it('has no entry still waiting on de-duplication', () => {
+    expect(FEDERATION_BRIDGE_POLICY.filter((e) => e.relabel === 'pending_dedup')).toEqual([]);
   });
 
-  it('still derives the correct handle underneath, so enabling it is a one-word change', () => {
-    // The rule is exercised even while inert: `.bsky.social` is stripped so the
-    // result matches what the direct atproto connector stores for the account.
-    const candidate = fixture('did:plc:codfx2epdduamfycuyi5fjpb');
-    const entry = entryFor('bsky.brid.gy');
-    expect(entry.derive(candidate)).toBe('georgemonbiot');
+  it('strips the Bridgy notice, which only runs now that the entry is enabled', () => {
+    expect(federationBridges.deriveNetworkIdentity(fixture('did:plc:codfx2epdduamfycuyi5fjpb'))?.bio)
+      .toBe('Ungainly on land');
   });
 
-  it('marks exactly the entries whose network has a non-empty collision set', () => {
-    const pending = FEDERATION_BRIDGE_POLICY.filter((e) => e.relabel === 'pending_dedup');
-    expect(pending.map((e) => e.host)).toEqual(['bsky.brid.gy']);
+  it('applies the same .bsky.social rule the native connector applies', () => {
+    // If these ever disagreed the same person would be two accounts, which is
+    // exactly what the merge would then have to paper over.
+    expect(entryFor('bsky.brid.gy').derive(fixture('did:plc:codfx2epdduamfycuyi5fjpb')))
+      .toBe('georgemonbiot');
   });
 });
 

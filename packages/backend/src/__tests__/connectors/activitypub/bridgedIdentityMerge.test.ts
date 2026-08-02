@@ -23,26 +23,31 @@ const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
 }));
 
-vi.mock('../../../connectors/identity', () => ({
-  resolveOxyExternalUser: mocks.resolveOxyExternalUser,
-  reportFederatedActorGone: mocks.reportFederatedActorGone,
-}));
-
 vi.mock('../../../models/FederatedActor', () => ({
   default: { findOne: mocks.actorFindOne },
   FederatedActor: { findOne: mocks.actorFindOne },
 }));
 
-vi.mock('../../../connectors/activitypub/constants', () => ({
-  FEDERATION_ENABLED: true,
-  isBlockedDomain: () => false,
+vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: vi.fn() }));
+vi.mock('../../../services/userSummaryCache', () => ({ invalidate: vi.fn() }));
+vi.mock('../../../services/mediaCache/cacheWorker', () => ({
+  persistRemoteMediaForFederatedOwnerDetailed: vi.fn(),
+}));
+vi.mock('../../../models/UserSettings', () => ({ default: { updateOne: vi.fn() } }));
+vi.mock('@oxyhq/federation/node', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  createIdentityBridge: () => ({
+    resolveExternalUser: mocks.resolveOxyExternalUser,
+    reportActorGone: mocks.reportFederatedActorGone,
+    deleteActorIdentity: vi.fn(),
+  }),
 }));
 
 vi.mock('../../../utils/logger', () => ({
   logger: { info: mocks.loggerInfo, warn: mocks.loggerWarn, error: mocks.loggerError, debug: vi.fn() },
 }));
 
-import { resolveFederatedActorIdentity } from '../../../connectors/activitypub/actor.service';
+import { resolveFederatedActorIdentity } from '../../../connectors/identity';
 import type { NormalizedExternalActor } from '@oxyhq/federation';
 
 /** A bridged actor: its identity (`federatedUsername`) differs from its acct (`handle`). */
@@ -95,8 +100,15 @@ describe('resolveFederatedActorIdentity — merging bridged duplicates', () => {
 
     expect(mocks.actorFindOne).toHaveBeenCalledWith(
       expect.objectContaining({
-        networkAcct: 'wired@x.com',
         uri: { $ne: 'https://mastox.eu/users/WIRED' },
+        // BOTH identity shapes: a bridged row carries `networkAcct`, while every
+        // other row's identity is `username@domain` — which is how the atproto
+        // connector stores a Bluesky account. Matching only the first would miss
+        // every natively-held account.
+        $or: [
+          { networkAcct: 'wired@x.com' },
+          { networkAcct: { $exists: false }, username: 'wired', domain: 'x.com' },
+        ],
       }),
       expect.anything(),
     );
@@ -190,5 +202,63 @@ describe('resolveFederatedActorIdentity — what it leaves alone', () => {
     // exists to prevent, so a failed lookup degrades to an ordinary resolve.
     await expect(resolveFederatedActorIdentity(bridged())).resolves.toBe('minted-user');
     expect(mocks.loggerWarn).toHaveBeenCalled();
+  });
+});
+
+describe('resolveFederatedActorIdentity — the cross-PROTOCOL case', () => {
+  /**
+   * The largest duplicate population is not two bridges: it is one Bluesky
+   * account held NATIVELY over atproto and AGAIN over ActivityPub through Bridgy
+   * Fed. 79 of our 815 Bridgy actors are accounts we already hold. The native row
+   * stores its identity as `username` + `domain` and carries no `networkAcct`, so
+   * a merge that matched only `networkAcct` would never see it.
+   */
+  const nativeAtprotoRow = {
+    uri: 'did:plc:codfx2epdduamfycuyi5fjpb',
+    domain: 'bsky.social',
+    oxyUserId: 'native-bluesky-user',
+  };
+
+  /** The same account arriving over ActivityPub through Bridgy Fed. */
+  function viaBridgy(): NormalizedExternalActor {
+    return {
+      network: 'activitypub',
+      externalId: 'https://bsky.brid.gy/ap/did:plc:codfx2epdduamfycuyi5fjpb',
+      handle: 'georgemonbiot.bsky.social@bsky.brid.gy',
+      federatedUsername: 'georgemonbiot@bsky.social',
+      instanceDomain: 'bsky.social',
+    };
+  }
+
+  it('adopts the natively-held account rather than minting a Bluesky twin', async () => {
+    findOneReturns(nativeAtprotoRow);
+    await expect(resolveFederatedActorIdentity(viaBridgy())).resolves.toBe('native-bluesky-user');
+    expect(mocks.resolveOxyExternalUser).not.toHaveBeenCalled();
+  });
+
+  it('does not mistake the native row for a broken same-domain collision', async () => {
+    // The native row's domain is `bsky.social`; the bridged actor arrived from
+    // `bsky.brid.gy`. Different domains, so this is the VALID cross-source case
+    // and the same-domain refusal must not fire.
+    findOneReturns(nativeAtprotoRow);
+    await resolveFederatedActorIdentity(viaBridgy());
+    expect(mocks.loggerError).not.toHaveBeenCalled();
+  });
+
+  it('merges in the other direction too, so arrival order cannot matter', async () => {
+    // A Bluesky actor coming in over atproto, when the Bridgy copy landed first.
+    findOneReturns({
+      uri: 'https://bsky.brid.gy/ap/did:plc:codfx2epdduamfycuyi5fjpb',
+      domain: 'bsky.brid.gy',
+      oxyUserId: 'bridged-user',
+    });
+    await expect(resolveFederatedActorIdentity({
+      network: 'atproto',
+      externalId: 'did:plc:codfx2epdduamfycuyi5fjpb',
+      handle: 'georgemonbiot.bsky.social',
+      federatedUsername: 'georgemonbiot@bsky.social',
+      instanceDomain: 'bsky.social',
+    })).resolves.toBe('bridged-user');
+    expect(mocks.resolveOxyExternalUser).not.toHaveBeenCalled();
   });
 });
