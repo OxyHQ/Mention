@@ -19,7 +19,7 @@
  * when it appears BELOW as well.
  *
  * This is not hypothetical and the omission is not random — it tracks the
- * PORTING FRONTIER. Measured 2026-08-02: ten models declare a TTL index, eight
+ * PORTING FRONTIER. Measured 2026-08-02: ten models declared a TTL index, eight
  * were registered, and the two gaps were exactly the two collections nobody had
  * ported yet (`mcp/models/McpAuthCode.ts`, `models/TrendGraph.ts`). The rule
  * held everywhere it had been applied; the exceptions were both in flight.
@@ -29,6 +29,14 @@
  * that produced the original "seven" read `src/models/` only and could not see
  * `src/mcp/models/McpAuthCode.ts`, which is the same directory blind spot that
  * hid three whole collections from the migration's collection map.
+ *
+ * **A finished port DELETES the Mongoose model but must never delete the
+ * registry entry.** `mcp/models/McpAuthCode.ts` is gone — its call sites all
+ * read `mcp_auth_codes` now — so the walk can no longer see the obligation that
+ * put `mcp_auth_codes` below. The entry is what stands between a ported table
+ * and unbounded growth, and it is the LAST thing a completed port should tidy
+ * away; the test names such entries explicitly rather than requiring a model to
+ * vouch for them.
  *
  * ## The shape
  *

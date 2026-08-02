@@ -1,6 +1,15 @@
 import crypto from 'crypto';
 import { getMcpJwtSecret } from '../../config';
-import { McpConnection, type IMcpConnection } from '../models/McpConnection';
+import {
+  countLiveBundleMembers,
+  ensureBundleFields as persistBundleFields,
+  findLiveBundleMember,
+  findLiveConnectionByJti,
+  listLiveBundleMembers,
+  setBundleActiveAccount,
+  type BundledMcpConnection,
+  type McpBundleMember,
+} from '../../db/mcp/mcpConnectionRepository';
 import { getRedisClient } from '../../utils/redis';
 import { withRedisFallback } from '../../utils/redisHelpers';
 import { logger } from '../../utils/logger';
@@ -26,22 +35,20 @@ function linkUsedKey(token: string): string {
 }
 
 /** Lazy backfill for connections created before bundles shipped. */
-export async function ensureBundleFields(connection: IMcpConnection): Promise<IMcpConnection> {
+export async function ensureBundleFields(
+  connection: Parameters<typeof persistBundleFields>[0],
+): Promise<BundledMcpConnection> {
   if (connection.bundleId) {
-    return connection;
+    return { ...connection, bundleId: connection.bundleId };
   }
-  const bundleId = crypto.randomUUID();
-  connection.bundleId = bundleId;
-  connection.isBundlePrimary = true;
-  connection.activeOxyUserId = connection.oxyUserId;
-  await connection.save();
-  await setActiveAccount(bundleId, connection.oxyUserId);
-  return connection;
+  const backfilled = await persistBundleFields(connection, crypto.randomUUID());
+  await setActiveAccount(backfilled.bundleId, backfilled.oxyUserId);
+  return backfilled;
 }
 
 /** Load a non-revoked connection by token-family id. */
-export async function findConnectionByJti(jti: string): Promise<IMcpConnection | null> {
-  const row = await McpConnection.findOne({ jti, revokedAt: null });
+export async function findConnectionByJti(jti: string): Promise<BundledMcpConnection | null> {
+  const row = await findLiveConnectionByJti(jti);
   if (!row) return null;
   return ensureBundleFields(row);
 }
@@ -71,13 +78,9 @@ export async function setActiveAccount(bundleId: string, oxyUserId: string): Pro
     redisOk = false;
   }
 
-  let mongoOk = false;
+  let durableOk = false;
   try {
-    const result = await McpConnection.updateOne(
-      { bundleId, isBundlePrimary: true, revokedAt: null },
-      { activeOxyUserId: oxyUserId },
-    );
-    mongoOk = result.matchedCount > 0;
+    durableOk = await setBundleActiveAccount(bundleId, oxyUserId);
   } catch (error: unknown) {
     logger.warn('[McpBundle] Failed to set active account on primary connection', {
       bundleId,
@@ -85,7 +88,7 @@ export async function setActiveAccount(bundleId: string, oxyUserId: string): Pro
     });
   }
 
-  return redisOk || mongoOk;
+  return redisOk || durableOk;
 }
 
 export async function getActiveAccount(
@@ -121,11 +124,7 @@ export async function resolveActiveBundleMember(
   primaryOxyUserId: string,
   activeOxyUserId: string,
 ): Promise<string> {
-  const member = await McpConnection.findOne({
-    bundleId,
-    oxyUserId: activeOxyUserId,
-    revokedAt: null,
-  }).lean();
+  const member = await findLiveBundleMember(bundleId, activeOxyUserId);
   if (member) {
     return activeOxyUserId;
   }
@@ -224,12 +223,12 @@ export async function consumeLinkToken(token: string): Promise<boolean> {
   );
 }
 
-export async function listBundleMembers(bundleId: string): Promise<IMcpConnection[]> {
-  return McpConnection.find({ bundleId, revokedAt: null }).sort({ isBundlePrimary: -1, createdAt: 1 });
+export async function listBundleMembers(bundleId: string): Promise<McpBundleMember[]> {
+  return listLiveBundleMembers(bundleId);
 }
 
 export async function countBundleMembers(bundleId: string): Promise<number> {
-  return McpConnection.countDocuments({ bundleId, revokedAt: null });
+  return countLiveBundleMembers(bundleId);
 }
 
 export async function intersectWithBundleMembers(

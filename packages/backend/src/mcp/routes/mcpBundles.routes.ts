@@ -1,6 +1,11 @@
 import { Router, Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import { McpConnection } from '../models/McpConnection';
+import {
+  createConnection,
+  findLiveBundleMember,
+  findLiveBundlePrimary,
+} from '../../db/mcp/mcpConnectionRepository';
+import { isUniqueViolation } from '../../db/pgErrors';
 import {
   listBundleMembers,
   setActiveAccount,
@@ -134,11 +139,7 @@ router.post('/link/complete', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Link token already used or unavailable' });
     }
 
-    const existing = await McpConnection.findOne({
-      bundleId: parsed.bundleId,
-      oxyUserId,
-      revokedAt: null,
-    }).lean();
+    const existing = await findLiveBundleMember(parsed.bundleId, oxyUserId);
     if (existing) {
       const summary = await hydrateUserSummary(oxyUserId);
       return res.json({
@@ -148,12 +149,7 @@ router.post('/link/complete', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const primary = await McpConnection.findOne({
-      bundleId: parsed.bundleId,
-      isBundlePrimary: true,
-      revokedAt: null,
-      clientId: parsed.clientId,
-    });
+    const primary = await findLiveBundlePrimary(parsed.bundleId, parsed.clientId);
     if (!primary) {
       return res.status(404).json({ message: 'Bundle not found' });
     }
@@ -172,7 +168,7 @@ router.post('/link/complete', async (req: AuthRequest, res: Response) => {
 
     const refresh = generateRefreshToken();
     try {
-      await McpConnection.create({
+      await createConnection({
         oxyUserId,
         clientId: parsed.clientId,
         clientLabel: client.label,
@@ -184,10 +180,12 @@ router.post('/link/complete', async (req: AuthRequest, res: Response) => {
         lastUsedAt: new Date(),
       });
     } catch (createError: unknown) {
-      const code = createError && typeof createError === 'object' && 'code' in createError
-        ? (createError as { code?: number }).code
-        : undefined;
-      if (code === 11000) {
+      // The PARTIAL unique index — one LIVE connection per (bundle, account) —
+      // refusing a concurrent duplicate. Named, because an unnamed
+      // unique-violation check would also swallow a clash on
+      // `refresh_token_hash`, which is a token-generation defect and must not be
+      // reported to the user as "already linked".
+      if (isUniqueViolation(createError, 'mcp_connections_bundle_id_oxy_user_id_key')) {
         const summary = await hydrateUserSummary(oxyUserId);
         return res.json({
           message: 'Already linked',
@@ -238,11 +236,7 @@ router.post('/active', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'handle or oxyUserId is required' });
     }
 
-    const member = await McpConnection.findOne({
-      bundleId: mcp.bundleId,
-      oxyUserId: targetUserId,
-      revokedAt: null,
-    }).lean();
+    const member = await findLiveBundleMember(mcp.bundleId, targetUserId);
     if (!member) {
       return res.status(404).json({ message: 'Account is not linked to this connector' });
     }

@@ -99,7 +99,7 @@ describe('the sweep registry', () => {
   it('has one entry per model that declares a Mongo TTL index, found by WALKING', () => {
     // This case exists because the list above was wrong, and wrong in a way that
     // repeats. Its comment used to read "the seven enumerated by reading every
-    // `expireAfterSeconds` in `src/models/`" — and `McpAuthCode` declares one in
+    // `expireAfterSeconds` in `src/models/`" — and `McpAuthCode` declared one in
     // `src/mcp/models/`, so the enumeration that produced "seven" could not see
     // it. That is the SAME directory blind spot that hid all three MCP
     // collections from the migration's own collection map, found twice in two
@@ -115,9 +115,6 @@ describe('the sweep registry', () => {
       .filter((file) => !file.includes(`${sep}__tests__${sep}`))
       .filter((file) => readFileSync(file, 'utf8').includes('expireAfterSeconds'));
 
-    // `trend_summaries` is in the registry AND has a Mongo model, so the two
-    // sides line up one-for-one today. The assertion is the equality, not a
-    // number, so neither side can drift without naming which files disagree.
     expect(
       ttlModels.map((file) => file.slice(file.lastIndexOf(sep) + 1)).sort(),
       'Mongo models declaring a TTL index'
@@ -125,14 +122,36 @@ describe('the sweep registry', () => {
       'AuthorFollowerSnapshot.ts',
       'EngagementOutbox.ts',
       'FeedInteraction.ts',
-      'McpAuthCode.ts',
       'ModerationEvent.ts',
       'ModerationOutbox.ts',
       'Notification.ts',
       'TrendSummary.ts',
       'Trending.ts',
     ]);
-    expect(EXPIRY_SWEEP_TARGETS).toHaveLength(ttlModels.length);
+
+    // The two sides do NOT line up one-for-one, and the difference is the point:
+    // a collection whose call sites are fully ported has its Mongoose model
+    // DELETED, while its registry entry must stay forever — the sweep is the
+    // only thing standing between the ported table and unbounded growth. So the
+    // registry is the walk PLUS an explicit list of ported collections, each
+    // named. An equality would have made finishing a port look like a
+    // regression, and the obvious repair (deleting the entry with the model) is
+    // precisely the failure this whole file exists to prevent.
+    const REGISTERED_WITHOUT_A_MODEL = [
+      // `mcp/models/McpAuthCode.ts`, deleted when the MCP OAuth surface moved to
+      // `mcp_auth_codes`. Mongo reaped these for free; nothing does now but the
+      // registry entry.
+      'mcp_auth_codes',
+    ];
+    expect(EXPIRY_SWEEP_TARGETS).toHaveLength(
+      ttlModels.length + REGISTERED_WITHOUT_A_MODEL.length
+    );
+    const registered = new Set(
+      EXPIRY_SWEEP_TARGETS.map((target) => getTableName(target.table))
+    );
+    for (const table of REGISTERED_WITHOUT_A_MODEL) {
+      expect(registered, `${table} lost its sweep along with its Mongoose model`).toContain(table);
+    }
 
     // Vacuity floor: a walk that found nothing would satisfy an equality
     // between two empty lists.

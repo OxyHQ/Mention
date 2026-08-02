@@ -10,14 +10,14 @@
  *     published by Anthropic (Claude) and OpenAI (ChatGPT). Redirect URIs are
  *     configurable per client via env (comma-separated) so a new first-party
  *     callback can be added without a code change.
- *  2. DYNAMICALLY-registered clients (RFC 7591) persisted in Mongo as
- *     `McpRegisteredClient` — created by `POST /mcp/oauth/register`. Clients
+ *  2. DYNAMICALLY-registered clients (RFC 7591) persisted in
+ *     `mcp_registered_clients` — created by `POST /mcp/oauth/register`. Clients
  *     that refuse to use a pre-shared `client_id` (Claude) register themselves
  *     this way. Use {@link getMcpClientAsync} to resolve a client id against
  *     BOTH sources; the sync {@link getMcpClient} only sees static clients.
  */
 import { config } from '../../config';
-import { McpRegisteredClient } from '../models/McpRegisteredClient';
+import { findRegisteredClient } from '../../db/mcp/mcpRegisteredClientRepository';
 
 export interface McpClient {
   clientId: string;
@@ -49,8 +49,8 @@ export function getMcpClient(clientId: string | undefined | null): McpClient | u
 }
 
 /**
- * Look up a client by id across BOTH the static config AND the Mongo
- * `McpRegisteredClient` store (RFC 7591 dynamic registration). Static clients
+ * Look up a client by id across BOTH the static config AND the
+ * `mcp_registered_clients` table (RFC 7591 dynamic registration). Static clients
  * take precedence. Returns `undefined` for an unknown client id.
  */
 export async function getMcpClientAsync(
@@ -60,7 +60,7 @@ export async function getMcpClientAsync(
   const staticClient = CLIENTS[clientId];
   if (staticClient) return staticClient;
 
-  const registered = await McpRegisteredClient.findOne({ clientId }).lean();
+  const registered = await findRegisteredClient(clientId);
   if (!registered) return undefined;
   return {
     clientId: registered.clientId,
