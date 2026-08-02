@@ -48,9 +48,18 @@ class LanesService {
     return res.data?.data ?? [];
   }
 
-  /** The caller's own lanes, newest first, each with its current post count. */
-  async listMine(): Promise<Lane[]> {
-    const res = await authenticatedClient.get<Lane[]>(`${LANES_PATH}/mine`);
+  /**
+   * The caller's own lanes, newest first, each with its current post count.
+   *
+   * With `channelId`, the lanes of a CHANNEL instead — the management view, so
+   * unlike {@link listForOwner} it includes `mixed` and `hidden` lanes. The
+   * server allows it only to the channel's OWNER (403 otherwise), so a mere
+   * publisher has to read that channel's lanes through the public list.
+   */
+  async listMine(channelId?: string): Promise<Lane[]> {
+    const res = channelId
+      ? await authenticatedClient.get<Lane[]>(`${LANES_PATH}/mine`, { params: { channelId } })
+      : await authenticatedClient.get<Lane[]>(`${LANES_PATH}/mine`);
     return res.data ?? [];
   }
 

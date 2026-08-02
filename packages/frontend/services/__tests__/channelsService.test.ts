@@ -62,6 +62,33 @@ describe('channelsService', () => {
     expect(mockPublicGet).not.toHaveBeenCalled();
   });
 
+  it('reads the subscription list on its own path, keyset-paged, always authenticated', async () => {
+    mockAuthenticated.get.mockResolvedValue({
+      data: {
+        items: [{ id: 'channel-1', viewerState: { isFollowing: true, notify: false } }],
+        hasMore: true,
+        nextCursor: '1754000000000_follow-1',
+      },
+    });
+
+    // `/channels/following` is READERSHIP (`ChannelFollow`), a different question
+    // from `/channels/mine`, which is publishing rights (`ChannelMember`) — the
+    // two are easy to conflate and answer different lists. There is no anonymous
+    // form: a subscription list needs a subscriber.
+    await expect(
+      channelsService.listFollowing({ cursor: '1754000000000_follow-1' }),
+    ).resolves.toEqual({
+      items: [{ id: 'channel-1', viewerState: { isFollowing: true, notify: false } }],
+      hasMore: true,
+      nextCursor: '1754000000000_follow-1',
+    });
+
+    expect(mockAuthenticated.get).toHaveBeenCalledWith('/channels/following', {
+      params: { cursor: '1754000000000_follow-1' },
+    });
+    expect(mockPublicGet).not.toHaveBeenCalled();
+  });
+
   it('reads one channel by whichever spelling the URL carried', async () => {
     mockAuthenticated.get.mockResolvedValue({ data: { id: 'channel-1', handle: 'dispatch' } });
 
@@ -84,6 +111,10 @@ describe('channelsService', () => {
     ).resolves.toEqual([]);
     await expect(channelsService.listMine()).resolves.toEqual([]);
     await expect(channelsService.listInvites()).resolves.toEqual([]);
+    await expect(channelsService.listFollowing()).resolves.toEqual({
+      items: [],
+      hasMore: false,
+    });
   });
 
   it('sends every write authenticated, on the paths the backend actually serves', async () => {

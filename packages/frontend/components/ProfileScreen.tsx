@@ -5,6 +5,7 @@ import {
     StatusBar,
     StyleSheet,
     Text,
+    TouchableOpacity,
     View,
     Share,
     Platform,
@@ -41,6 +42,7 @@ import { usePanelStickyTopInset, usePanelStickyTabsTopInset, PANEL_HEADER_HEIGHT
 
 // Icons
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
+import { Icon } from '@/lib/icons';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
 import { MailIcon } from '@/assets/icons/mail-icon';
@@ -626,20 +628,42 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
         username,
     ]);
 
+    // The tab bar, and — on the viewer's OWN profile only — the way in to their
+    // lanes. It belongs beside these tabs because a lane's whole effect is on
+    // which of them a post lands on, and because the composer's lane icon was
+    // otherwise the only door to the screen that manages them. Not a sidebar
+    // entry: every item there needs an `icon`/`iconActive` pair and no lane glyph
+    // exists. The row carries the hairline so it stays continuous under the
+    // button, which sits outside the tab bar's own bordered box.
     const profileTabBar = useMemo(
         () => (
-            <AnimatedTabBar
-                tabs={tabDescriptors.map((descriptor) => ({
-                    id: descriptor.key,
-                    label: descriptor.label,
-                }))}
-                activeTabId={activeDescriptor?.key ?? 'posts'}
-                onTabPress={(id) => onTabPress(profileTabIndex(tabDescriptors, id))}
-                scrollEnabled
-                instanceId={username || 'default'}
-            />
+            <View className="flex-row items-center border-b border-border bg-background">
+                <View className="flex-1" style={{ minWidth: 0 }}>
+                    <AnimatedTabBar
+                        tabs={tabDescriptors.map((descriptor) => ({
+                            id: descriptor.key,
+                            label: descriptor.label,
+                        }))}
+                        activeTabId={activeDescriptor?.key ?? 'posts'}
+                        onTabPress={(id) => onTabPress(profileTabIndex(tabDescriptors, id))}
+                        scrollEnabled
+                        instanceId={username || 'default'}
+                    />
+                </View>
+                {isOwnProfile ? (
+                    <TouchableOpacity
+                        onPress={() => router.push('/lanes')}
+                        activeOpacity={0.7}
+                        accessibilityRole="link"
+                        accessibilityLabel={t('lanes.title', { defaultValue: 'Lanes' })}
+                        className="px-3 py-2.5"
+                    >
+                        <Icon name="git-branch-outline" size={20} className="text-muted-foreground" />
+                    </TouchableOpacity>
+                ) : null}
+            </View>
         ),
-        [activeDescriptor?.key, onTabPress, tabDescriptors, username],
+        [activeDescriptor?.key, onTabPress, tabDescriptors, username, isOwnProfile, t],
     );
 
     return (

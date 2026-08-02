@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Item } from '@oxyhq/bloom/item';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useAuth } from '@oxyhq/services/ui/client';
-import type { Lane } from '@mention/shared-types';
+import type { Channel, Lane } from '@mention/shared-types';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { IconButton } from '@/components/ui/Button';
 import { lanesService } from '@/services/lanesService';
@@ -17,6 +17,15 @@ interface LanePickerSheetProps {
   selectedLaneId: string | null;
   /** `null` clears the lane — the post goes out on no carriageway at all. */
   onSelect: (laneId: string | null) => void;
+  /**
+   * The channel this post is being published TO, when there is one.
+   *
+   * A lane belongs to its PUBLISHER, and for a channel post the publisher is the
+   * channel — so the list has to be the channel's lanes, not the author's. The
+   * author's own lane on a channel post is not merely irrelevant, it is refused:
+   * the server checks a lane's owner before assigning it.
+   */
+  channel?: Channel | null;
   onClose: () => void;
 }
 
@@ -37,14 +46,28 @@ const keyExtractor = (lane: Lane) => lane.id;
 const LanePickerSheet = memo(function LanePickerSheet({
   selectedLaneId,
   onSelect,
+  channel,
   onClose,
 }: LanePickerSheetProps) {
   const { t } = useTranslation();
   const { user, canUsePrivateApi } = useAuth();
 
+  // Only the channel's OWNER may read its management list; a publisher gets the
+  // public one, which is tab lanes only. The owner test comes off the DTO the
+  // composer already holds, so it costs no extra request — and asking the wrong
+  // endpoint would answer 403 rather than an empty list.
+  const managesChannel = channel != null && channel.ownerOxyUserId === user?.id;
+
   const { data: lanes = [], isLoading } = useQuery<Lane[]>({
-    queryKey: viewerQueryKeys.ownedLanes(user?.id),
-    queryFn: () => lanesService.listMine(),
+    queryKey: channel
+      ? viewerQueryKeys.channelLanes(user?.id, channel.id, managesChannel)
+      : viewerQueryKeys.ownedLanes(user?.id),
+    queryFn: () => {
+      if (!channel) return lanesService.listMine();
+      return managesChannel
+        ? lanesService.listMine(channel.id)
+        : lanesService.listForOwner(channel.id, 'channel');
+    },
     enabled: canUsePrivateApi,
   });
 
@@ -97,9 +120,15 @@ const LanePickerSheet = memo(function LanePickerSheet({
       <Item
         onPress={() => handleSelect(null)}
         title={t('lanes.picker.none', { defaultValue: 'No lane' })}
-        subtitle={t('lanes.picker.noneSubtitle', {
-          defaultValue: 'The post appears on your main profile tab',
-        })}
+        subtitle={
+          channel
+            ? t('lanes.picker.noneSubtitleChannel', {
+                defaultValue: 'The post appears on the channel’s main tab',
+              })
+            : t('lanes.picker.noneSubtitle', {
+                defaultValue: 'The post appears on your main profile tab',
+              })
+        }
         trailing={
           selectedLaneId === null ? (
             <Text className="text-primary text-[13px] font-semibold">
@@ -129,17 +158,23 @@ const LanePickerSheet = memo(function LanePickerSheet({
         />
       )}
 
-      <View className="mt-2 mx-4">
-        <TouchableOpacity
-          onPress={handleManage}
-          className="flex-row items-center justify-center py-3 rounded-full border border-border"
-          activeOpacity={0.85}
-        >
-          <Text className="text-sm font-semibold text-primary">
-            {t('lanes.picker.manage', { defaultValue: 'Manage lanes' })}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      {/* `/lanes` manages the AUTHOR's lanes, which are not the ones listed while
+          publishing to a channel. A channel's lanes have no management screen of
+          their own yet, so the way out is omitted rather than pointed somewhere
+          that would edit the wrong publisher's lanes. */}
+      {channel ? null : (
+        <View className="mt-2 mx-4">
+          <TouchableOpacity
+            onPress={handleManage}
+            className="flex-row items-center justify-center py-3 rounded-full border border-border"
+            activeOpacity={0.85}
+          >
+            <Text className="text-sm font-semibold text-primary">
+              {t('lanes.picker.manage', { defaultValue: 'Manage lanes' })}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 });

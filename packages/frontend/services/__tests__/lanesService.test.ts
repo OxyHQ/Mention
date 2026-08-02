@@ -78,6 +78,21 @@ describe('lanesService', () => {
     expect(mockPublicGet).not.toHaveBeenCalled();
   });
 
+  it('scopes the owned-lane read to a CHANNEL when one is given, and not otherwise', async () => {
+    mockAuthenticated.get.mockResolvedValue({ data: [] });
+
+    await lanesService.listMine();
+    await lanesService.listMine('channel-1');
+
+    // Two different lists behind one path: the caller's own lanes, and the lanes
+    // of a channel they own. The query param is the whole difference, so a
+    // dropped one silently offers the wrong publisher's lanes.
+    expect(mockAuthenticated.get).toHaveBeenCalledWith('/lanes/mine');
+    expect(mockAuthenticated.get).toHaveBeenCalledWith('/lanes/mine', {
+      params: { channelId: 'channel-1' },
+    });
+  });
+
   it('reads the lane out of the peeled move response', async () => {
     // The linked client already removed the `{ data, message }` envelope, so the
     // payload the service sees is the inner object and nothing else.
