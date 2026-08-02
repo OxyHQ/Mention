@@ -55,7 +55,6 @@ vi.mock('../../../db/federation/deliveryQueueRepository', () => ({
   insertDeliveries: insertMany,
   insertDelivery: fallbackCreate,
 }));
-vi.mock('../../../models/UserSettings', () => ({ default: {} }));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxyhq/core/server')>()),

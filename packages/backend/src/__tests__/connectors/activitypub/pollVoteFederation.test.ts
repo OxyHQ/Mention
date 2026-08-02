@@ -100,7 +100,6 @@ vi.mock('../../../services/PollVoteService', () => ({
 vi.mock('../../../models/FederationDeliveryQueue', () => ({ default: {}, getNextRetryTime: vi.fn() }));
 
 vi.mock('../../../models/Like', () => ({ default: { create: vi.fn(), findOneAndDelete: vi.fn() } }));
-vi.mock('../../../models/UserSettings', () => ({ default: { updateOne: vi.fn() } }));
 vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: vi.fn() }));
 vi.mock('../../../services/mediaCache/cacheWorker', () => ({ persistRemoteMediaForFederatedOwnerDetailed: vi.fn() }));
 vi.mock('../../../services/mediaCache/cacheStore', () => ({ recordAccessAndMaybeEnqueue: vi.fn() }));

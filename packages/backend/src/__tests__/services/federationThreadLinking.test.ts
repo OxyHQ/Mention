@@ -76,7 +76,6 @@ vi.mock('../../models/Like', () => ({
   default: { create: h.likeCreate, findOneAndDelete: h.likeFindOneAndDelete },
 }));
 
-vi.mock('../../models/UserSettings', () => ({ default: { updateOne: h.userSettingsUpdateOne } }));
 
 vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: h.getServiceOxyClient }));
 

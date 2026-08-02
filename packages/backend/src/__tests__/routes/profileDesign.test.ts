@@ -24,10 +24,6 @@ const { findOne } = vi.hoisted(() => ({ findOne: vi.fn() }));
 // isolation. No live Oxy client should be constructed by this unit test.
 vi.mock('../../runtime/oxyClient', () => ({ getRuntimeOxyClient: () => ({}) }));
 
-vi.mock('../../models/UserSettings', () => ({
-  default: { findOne },
-}));
-
 // Mock privacyHelpers directly: this route test only needs the visibility
 // contract, not the helper's Oxy graph dependencies. The two exports the route
 // uses are reproduced faithfully; the gate resolves to "visible" so the counts

@@ -101,12 +101,6 @@ vi.mock('@oxyhq/core/server', async (importOriginal) => ({
   assertSafePublicUrl: mocks.assertSafePublicUrl,
 }));
 
-vi.mock('../../../models/UserSettings', () => ({
-  default: {
-    updateOne: vi.fn(),
-  },
-}));
-
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: mocks.getServiceOxyClient,
 }));

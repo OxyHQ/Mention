@@ -103,10 +103,6 @@ vi.mock('../../../models/Like', () => ({
   default: { create: vi.fn(), findOneAndDelete: vi.fn() },
 }));
 
-vi.mock('../../../models/UserSettings', () => ({
-  default: { updateOne: vi.fn() },
-}));
-
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     getProfileByUsername: mocks.getProfileByUsername,

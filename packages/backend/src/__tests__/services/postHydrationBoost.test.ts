@@ -94,9 +94,6 @@ function chainable(rows: unknown[] | null) {
 vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/UserSettings', () => ({
-  UserSettings: { find: () => chainable([]), findOne: () => chainable(null) },
-}));
 // The starter-pack CURATION aggregation runs on the cache-fill path (it stamps the
 // ranking-side `starterPackScore`). No DB here → no packs → no scores.
 vi.mock('../../models/StarterPack', () => ({

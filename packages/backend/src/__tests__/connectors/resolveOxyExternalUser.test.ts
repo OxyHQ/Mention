@@ -26,12 +26,6 @@ vi.mock('../../services/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMedia,
 }));
 
-vi.mock('../../models/UserSettings', () => ({
-  default: {
-    updateOne: mocks.userSettingsUpdateOne,
-  },
-}));
-
 vi.mock('../../utils/logger', () => ({
   logger: { info: vi.fn(), warn: mocks.loggerWarn, error: vi.fn(), debug: vi.fn() },
 }));
