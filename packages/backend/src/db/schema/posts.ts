@@ -37,6 +37,7 @@
  * genuinely changes behaviour and is escalated rather than settled here.
  */
 
+import { channels, lanes } from './channels';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
@@ -199,6 +200,35 @@ export const posts = pgTable(
      * already renders as an unavailable card.
      */
     quoteOf: text().references((): AnyPgColumn => posts.id, { onDelete: 'set null' }),
+
+    /**
+     * The author's own lane for this post — purely local curation. It never
+     * federates, never enters an MTN record, and never changes who the post
+     * reaches. Only ORIGINAL local posts carry one; replies and boosts are
+     * refused at the write boundary.
+     *
+     * CASCADE: deleting a lane removes the curation, not the posts — so the
+     * column is nulled rather than the row deleted. See the FK below.
+     */
+    laneId: text().references(() => lanes.id, { onDelete: 'set null' }),
+
+    /**
+     * The channel this post was published TO.
+     *
+     * A lane is a lens; a channel is a DESTINATION. A post carrying one belongs
+     * to the channel and only to the channel: it is excluded unconditionally
+     * from every author-relationship query (`followedAuthorsSql` in
+     * `utils/postAuthorship`) and accepts no replies.
+     *
+     * There is deliberately NO companion boolean — the presence of this value IS
+     * the rule. In Mongo that mattered because the exclusion had to stay a flat
+     * conjunctive term (`ChronoCursor.applyToQuery` ASSIGNS `match.$or`, so a
+     * disjunctive spelling silently stopped filtering after page one). Here the
+     * exclusion is `channel_id is null`, which is total: it matches every post
+     * written before channels existed as well as every ordinary post, so no
+     * backfill is owed and no second clause is needed.
+     */
+    channelId: text().references(() => channels.id, { onDelete: 'cascade' }),
 
     /**
      * The post this one replies to.
@@ -606,6 +636,30 @@ export const posts = pgTable(
     index('posts_scheduled_idx')
       .on(t.scheduledFor)
       .where(sql`${t.status} = 'scheduled'`),
+
+    /**
+     * The lane tab's keyset — `laneSource` pages ONE lane on `(created_at, id)`,
+     * and this serves the predicate and the order end to end.
+     *
+     * PARTIAL on `lane_id is not null`, which is what Mongo's
+     * `partialFilterExpression: { laneId: { $exists: true } }` meant and is the
+     * whole point: nearly every post carries no lane, so a full index would be
+     * the size of the table to serve a set that is a rounding error of it. Mongo
+     * additionally had to forbid storing an explicit `null` (it satisfies
+     * `$exists` and would have bloated the index back); here `null` IS "no lane",
+     * so the two states cannot diverge and there is nothing to forbid.
+     */
+    index('post_lane_chrono_v1')
+      .on(t.laneId, t.visibility, t.status, t.createdAt.desc(), t.id.desc())
+      .where(sql`${t.laneId} is not null`),
+    /**
+     * The channel page's keyset, on the same reasoning as the lane index above —
+     * and doing double duty as the index behind `channel_id is null`'s
+     * complement, the only set this table's author queries ever exclude.
+     */
+    index('post_channel_chrono_v1')
+      .on(t.channelId, t.visibility, t.status, t.createdAt.desc(), t.id.desc())
+      .where(sql`${t.channelId} is not null`),
 
     // Multikey → GIN. These are the array predicates the feed engine actually
     // runs (`hashtags: {$in}`, `postClassification.languages: {$in}`,

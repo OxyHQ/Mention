@@ -28,6 +28,21 @@ describe('viewer-scoped private cache', () => {
       viewerQueryKeys.followedLists(viewerId),
       viewerQueryKeys.list(viewerId, 'list-1'),
       viewerQueryKeys.listMembers(viewerId, 'list-1', ['user-1']),
+      viewerQueryKeys.lanesRoot(viewerId),
+      viewerQueryKeys.ownedLanes(viewerId),
+      viewerQueryKeys.mutedLanes(viewerId),
+      viewerQueryKeys.lanesForOwner(viewerId, 'user', 'owner-1'),
+      viewerQueryKeys.channelsRoot(viewerId),
+      viewerQueryKeys.channelDirectory(viewerId),
+      viewerQueryKeys.channel(viewerId, 'channel-1'),
+      viewerQueryKeys.channelMembers(viewerId, 'channel-1'),
+      viewerQueryKeys.ownedChannels(viewerId),
+      viewerQueryKeys.followedChannels(viewerId),
+      viewerQueryKeys.channelInvites(viewerId),
+      viewerQueryKeys.channelInviteSearch(viewerId, 'nate'),
+      viewerQueryKeys.channelLanes(viewerId, 'channel-1', true),
+      viewerQueryKeys.channelLanes(viewerId, 'channel-1', false),
+      viewerQueryKeys.channelTitles(viewerId, ['channel-1']),
       viewerQueryKeys.pokesRoot(viewerId),
       viewerQueryKeys.pokes(viewerId, 'received'),
       viewerQueryKeys.notificationsRoot(viewerId),
@@ -108,6 +123,7 @@ describe('viewer-scoped private cache', () => {
     expect(viewerQueryKeys.profileStarterPacks('viewer-a', undefined, true)).toContain('');
     expect(viewerQueryKeys.profileLists('viewer-a', undefined, true)).toContain('');
     expect(viewerQueryKeys.postActivity('viewer-a', undefined)).toContain('');
+    expect(viewerQueryKeys.lanesForOwner('viewer-a', 'user', undefined)).toContain('');
     expect(viewerQueryKeys.feedInterstitial(
       'viewer-a',
       'suggested-starter-packs',
@@ -124,6 +140,7 @@ describe('viewer-scoped private cache', () => {
       publicQueryKeys.marketplaceCategories(),
       publicQueryKeys.trendingHistory(),
       publicQueryKeys.trendSummary('kremer trade'),
+      publicQueryKeys.trendGraph(null, null),
     ];
 
     keys.forEach((key) => {
@@ -132,6 +149,25 @@ describe('viewer-scoped private cache', () => {
     });
     expect(mentionQueryKeys.public).toBe(publicQueryKeys);
     expect(mentionQueryKeys.private).toBe(viewerQueryKeys);
+  });
+
+  it('keys the trend graph on BOTH of its filters', () => {
+    // The server returns a different graph per scope. One key for every scope
+    // would hand a reader the unfiltered graph's edges after they picked a
+    // language — edges whose endpoints are no longer on screen.
+    expect(publicQueryKeys.trendGraph('es', null)).not.toEqual(
+      publicQueryKeys.trendGraph('en', null),
+    );
+    expect(publicQueryKeys.trendGraph('es', 'es')).not.toEqual(
+      publicQueryKeys.trendGraph('es', null),
+    );
+    expect(publicQueryKeys.trendGraph(null, null)).toEqual([
+      'mention',
+      'public',
+      'trend-graph',
+      'all',
+      'all',
+    ]);
   });
 
   it('matches cross-viewer invalidation families without matching public keys', () => {

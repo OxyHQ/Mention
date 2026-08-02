@@ -23,6 +23,8 @@ import gifsRoutes from './routes/gifs';
 import articlesRoutes from './routes/articles';
 import muteRoutes from './routes/mute.routes';
 import muteWordsRoutes from './routes/muteWords.routes';
+import lanesRoutes, { publicLanesRouter } from './routes/lanes.routes';
+import channelsRoutes, { publicChannelsRouter } from './routes/channels.routes';
 import reportsRoutes from './routes/reports.routes';
 import { createCrowdSourceWebhookRoutes } from './routes/crowdSourceWebhook.routes';
 import trendingRoutes from './routes/trending.routes';
@@ -107,6 +109,12 @@ export function createAppRoutes({
   publicApi.use('/feeds', optionalAuth, customFeedsRoutes);
   publicApi.use('/recommendations', optionalAuth, recommendationsRoutes);
   publicApi.use('/starter-packs', optionalAuth, starterPacksRoutes);
+  // Reader-agnostic: the lanes a visitor needs to draw a publisher's tabs.
+  publicApi.use('/lanes', optionalAuth, publicLanesRouter);
+  // The channel directory and one channel's page header. `optionalAuth` because
+  // the caller's own `viewerState` (following / membership) rides on the DTO when
+  // there IS a caller, and the page is fully readable when there is not.
+  publicApi.use('/channels', optionalAuth, publicChannelsRouter);
   publicApi.use('/mtn/nodes', optionalAuth, mtnNodesRoutes);
   publicApi.use('/statistics', optionalAuth, publicStatisticsRouter);
 
@@ -125,6 +133,8 @@ export function createAppRoutes({
   authenticatedApi.use('/gifs', gifsRoutes);
   authenticatedApi.use('/mute', muteRoutes);
   authenticatedApi.use('/mute-words', muteWordsRoutes);
+  authenticatedApi.use('/lanes', lanesRoutes);
+  authenticatedApi.use('/channels', channelsRoutes);
   authenticatedApi.use('/reports', reportsRoutes);
   authenticatedApi.use('/pokes', pokesRoutes);
   authenticatedApi.use('/entity-follows', entityFollowRoutes);

@@ -27,6 +27,7 @@ import { UserPrivacyManager } from '../UserPrivacyManager';
 import { trackFeedInteraction } from '../feed/FeedInteractionTracker';
 import { parseFeedInteractionBatch } from '../feed/interactionTelemetry';
 import { federatedProfileSync } from '../../connectors/federatedProfileSync';
+import { ownerHasProfileAffectingLane } from '../../services/laneVisibility';
 import { logger } from '../../utils/logger';
 import { getRuntimeOxyClient } from '../../runtime/oxyClient';
 import { extractFollowingIds, type OxyClient } from '../../utils/privacyHelpers';
@@ -160,6 +161,16 @@ const ANON_FEED_CACHE_NAMESPACE = 'mtn';
  * Nothing here blocks on remote I/O — `syncOnProfileView` awaits one indexed
  * lookup and detaches the network work. A later page (`cursor` present) is a
  * genuine end-of-feed, and a page WITH items needs no sync.
+ *
+ * LANES change what an empty first page MEANS. An author who curated every one of
+ * their lanes off the profile has an empty tab and a full archive — that page is
+ * CURATION, not federated data we failed to import. `syncOnProfileView` would
+ * still answer `false` for a local author (no `FederatedActor` row), so nothing
+ * would be marked pending and no polling loop would start; but it calls
+ * `runInBackground` UNCONDITIONALLY, which costs an Oxy `getUserById` per profile
+ * view. Lanes turn that from a rare path into a routine one, so the probe below
+ * short-circuits it: one indexed `exists`, only on the already-rare empty first
+ * page.
  */
 async function resolveAuthorFeedPending(
   descriptor: FeedDescriptor,
@@ -171,6 +182,7 @@ async function resolveAuthorFeedPending(
   if (source !== 'author') return false;
   const authorId = params[0];
   if (!authorId) return false;
+  if (await ownerHasProfileAffectingLane(authorId)) return false;
   return federatedProfileSync.syncOnProfileView(authorId);
 }
 

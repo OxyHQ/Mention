@@ -39,6 +39,7 @@ import { normalizeMediaItems } from '../utils/mediaInput';
 import { queryString } from '../utils/queryParams';
 import { buildAuthorship } from '../utils/postAuthorship';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
+import { isChannelPost } from '../utils/channelReplyGate';
 import { baselineContentClassifier } from '../services/BaselineContentClassifier';
 import { toStoredContent } from '../services/postVariants';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
@@ -305,6 +306,23 @@ class FeedController {
       const parentPost = await loadPostRecord(postId);
       if (!parentPost) {
         return res.status(404).json({ error: 'Post not found' });
+      }
+
+      // A CHANNEL POST TAKES NO REPLIES, and this gate sits ABOVE the whole
+      // reply-permission block below on purpose — twice over:
+      //
+      //  - that block is skipped entirely when the permissions include `'anyone'`,
+      //    which is every ordinary post, so a check inside it would simply not run;
+      //  - and it contains an unconditional escape (`parentAuthorId ===
+      //    currentUserId`) that lets an author answer their own post even under
+      //    `replyPermission: ['nobody']`. For a channel the rule is STRUCTURAL, not
+      //    a per-post preference: neither the writer nor the channel's owner replies.
+      //
+      // It reads `channelId` and never `replyPermission` — see
+      // `utils/channelReplyGate` for why leaning on that field would let a later
+      // `PATCH /posts/:id/settings` reopen the post.
+      if (isChannelPost(parentPost)) {
+        return res.status(403).json({ error: 'This post does not accept replies' });
       }
 
       // Check reply permissions

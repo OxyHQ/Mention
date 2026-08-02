@@ -1,9 +1,11 @@
 /**
- * Discovery and delivery: `trendings` `trendbatches` `topicstats`
- * `authorfollowersnapshots` `gifs` `notifications` `pushtokens`.
+ * Discovery and delivery: `trendings` `trendbatches` `trendsummaries`
+ * `trendgraphs` `topicstats` `authorfollowersnapshots` `gifs` `notifications`
+ * `pushtokens`.
  *
- * Seven collections, one row each, no child tables. What makes them worth
- * reading rather than skimming is that six of the seven carry a DENORMALIZED
+ * Nine collections, one row each, no child tables — the last two arrived on
+ * merges from `main` and are documented at their own plans. What makes them
+ * worth reading rather than skimming is that six of the nine carry a DENORMALIZED
  * COUNTER with a `>= 0` CHECK, which is the class the numeric audit was built
  * for: Mongoose's `min:` never ran here (`runValidators` is set nowhere in this
  * package), so a counter driven below zero by a decrement race is legal in the
@@ -37,11 +39,14 @@ import {
   topicStats,
   trendSummaries,
   trendBatches,
+  trendGraphs,
   trending,
+  type StoredTrendGraphNode,
 } from '../../schema/discovery';
+import type { TrendGraphEdgeDTO } from '@mention/shared-types';
 import type { CollectionPlan } from '../plan';
 import { buildRow } from '../rowBuilder';
-import { bool, id, int, num, ownId, reqDate, reqId, reqInt, reqNum, reqStr, str, strArray } from '../values';
+import { bool, id, int, jsonArray, num, ownId, reqDate, reqId, reqInt, reqNum, reqStr, str, strArray } from '../values';
 import { optionalDate, timestamps, updatedOnly } from './timestamps';
 
 /** `trendings` → `trending`. */
@@ -406,10 +411,67 @@ const trendSummariesPlan: CollectionPlan = {
   },
 };
 
+/**
+ * `trendgraphs` → `trend_graphs`.
+ *
+ * Arrived on the same merge as `main`'s Channels/Lanes work, one release after
+ * `trendsummaries` arrived the same way — which is the pattern the completeness
+ * gate exists for and the reason it is written rather than argued away.
+ *
+ * The argument for skipping it is real and still loses: a graph is DERIVED, it
+ * has a 7-day TTL, and the next trending batch writes a fresh one within thirty
+ * minutes of cutover, so at most a few hundred rows of picture are at stake. But
+ * "nothing would notice" is exactly what a silently-empty table looks like, and
+ * the plan is eight lines.
+ *
+ * `nodes` and `edges` are copied as WHOLE ARRAYS into their `jsonb` columns,
+ * which is what the table stores and why it stores it that way — see the schema.
+ * A Mongo subdocument array arrives as plain objects here, so there is no
+ * per-element shape to rebuild.
+ *
+ * `calculatedAt` is copied rather than defaulted, and load-bearing twice for the
+ * same reason `trendsummaries.generatedAt` is: it is also the column Postgres'
+ * own sweep reads, so a defaulted value would hand every migrated graph a fresh
+ * 7-day lease on data Mongo had already scheduled for deletion. It puts this
+ * collection in the shrinking-source class too — a document counted during
+ * discovery can be reaped before the stream reaches it.
+ */
+const trendGraphsPlan: CollectionPlan = {
+  collection: 'trendgraphs',
+  table: trendGraphs,
+  uniquenessAudits: [
+    // One graph per batch. The model declares this unique so a retried batch
+    // cannot leave two, so a duplicate here would mean the source violated its
+    // own constraint.
+    {
+      index: 'trend_graphs_calculated_at_key',
+      key: [{ path: 'calculatedAt', normalize: 'exact' }],
+    },
+  ],
+  transform: (doc, emit) => {
+    const rowId = ownId(doc);
+    emit(
+      trendGraphs,
+      buildRow(
+        trendGraphs,
+        {
+          id: rowId,
+          calculatedAt: reqDate(doc, 'calculatedAt'),
+          nodes: (jsonArray(doc, 'nodes') ?? []) as StoredTrendGraphNode[],
+          edges: (jsonArray(doc, 'edges') ?? []) as TrendGraphEdgeDTO[],
+          droppedEdges: int(doc, 'droppedEdges'),
+        },
+        rowId
+      )
+    );
+  },
+};
+
 export const DISCOVERY_PLANS: readonly CollectionPlan[] = [
   trendingPlan,
   trendBatchesPlan,
   trendSummariesPlan,
+  trendGraphsPlan,
   topicStatsPlan,
   authorFollowerSnapshotsPlan,
   gifsPlan,

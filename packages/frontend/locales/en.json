@@ -541,8 +541,9 @@
   "fediverse.sheet.done": "Got it",
   "fediverse.sheet.enable": "Turn on sharing",
   "fediverse.sheet.cancel": "Cancel",
-  "fediverse.settings.title": "Fediverse sharing",
+  "fediverse.settings.title": "Fediverse",
   "fediverse.settings.description": "Share your profile and posts across the fediverse",
+  "fediverse.settings.entryDescription": "Sharing, your node, and moderation across the fediverse",
   "fediverse.settings.preferredLanguage.title": "Preferred language",
   "fediverse.settings.preferredLanguage.description": "The main language your posts are written in. It becomes the primary version shown across the fediverse; leave it automatic to let it be detected per post.",
   "fediverse.settings.preferredLanguage.automatic": "Automatic",
@@ -1002,6 +1003,10 @@
     "notFound": {
       "title": "Page Not Found - Mention",
       "description": "The page you're looking for doesn't exist."
+    },
+    "trendGraph": {
+      "title": "Trend relations - Mention",
+      "description": "How the terms behind Mention's trends relate to each other."
     }
   },
   "lists": {
@@ -1777,6 +1782,198 @@
       "spam": "Spam",
       "malware": "Malware or phishing",
       "unmoderated": "Unmoderated"
+    }
+  },
+  "lanes": {
+    "title": "Lanes",
+    "description": "Keep separate tracks of your posts and decide which ones reach your profile.",
+    "addLane": "New lane",
+    "namePlaceholder": "Lane name",
+    "atCap": "You can have at most {{count}} lanes.",
+    "yourLanes": "Your lanes",
+    "empty": "No lanes yet",
+    "loadFailed": "Failed to load your lanes",
+    "created": "Lane created",
+    "createFailed": "Failed to create lane",
+    "rename": "Rename",
+    "renameFailed": "Failed to rename lane",
+    "displayModeFailed": "Failed to update lane",
+    "delete": "Delete lane",
+    "deleted": "Lane deleted",
+    "deleteFailed": "Failed to delete lane",
+    "deleteConfirm": "Delete «{{lane}}»? Its posts stay exactly where they are — they simply stop being on a lane, and any of them you were keeping off your profile come back.",
+    "signInRequired": "Sign in to manage your lanes",
+    "signInRequiredDesc": "Lanes let you keep separate tracks of your posts and decide which ones reach your profile.",
+    "postCount_one": "{{count}} post",
+    "postCount_other": "{{count}} posts",
+    "mode": {
+      "mixed": "On your main tab",
+      "mixedDesc": "These posts sit on your main tab like any other.",
+      "tab": "Its own tab only",
+      "tabDesc": "Off the main tab. Readers find these posts on the lane’s own tab.",
+      "hidden": "Off your profile",
+      "hiddenDesc": "Off your profile entirely, including for you. The posts still reach feeds and still open by link — this is curation, not privacy."
+    },
+    "picker": {
+      "title": "Post lane",
+      "none": "No lane",
+      "noneSubtitle": "The post appears on your main profile tab",
+      "current": "Current",
+      "empty": "Lanes let you keep separate tracks of your posts and decide which ones reach your profile.",
+      "manage": "Manage lanes",
+      "noneSubtitleChannel": "The post appears on the channel’s main tab"
+    },
+    "compose": {
+      "choose": "Choose a lane"
+    },
+    "postActions": {
+      "moveToLane": "Move to lane…",
+      "moveFailed": "Failed to move this post",
+      "muteLane": "Mute «{{lane}}» from @{{username}}",
+      "muteLaneConfirm": "Posts on «{{lane}}» stop appearing in your feeds. You keep following @{{username}}, and everything else they post still reaches you.",
+      "laneMuted": "«{{lane}}» muted",
+      "muteLaneFailed": "Failed to mute this lane"
+    },
+    "muted": {
+      "title": "Muted lanes",
+      "settingsDesc": "Hide one track of an account you follow",
+      "description": "A muted lane stops appearing in your feeds. You keep following its author, and everything else they post still reaches you.",
+      "empty": "No muted lanes",
+      "loadFailed": "Failed to load muted lanes",
+      "unmute": "Unmute",
+      "unmuted": "Lane unmuted",
+      "unmuteFailed": "Failed to unmute lane",
+      "signInRequired": "Sign in to manage muted lanes"
+    }
+  },
+  "notification.channel_invite": "{{actorName}} invited you to publish to a channel",
+  "channels": {
+    "title": "Channels",
+    "description": "Publications people follow without following their authors.",
+    "detailTitle": "Channel",
+    "untitled": "Channel",
+    "follow": "Follow",
+    "following": "Following",
+    "followFailed": "Failed to update this channel",
+    "notifyToggle": "Notify me about new posts",
+    "notifyFailed": "Failed to update notifications",
+    "pinToHome": "Pin to home",
+    "followersWord": "followers",
+    "postsWord": "posts",
+    "followerCount_one": "{{count}} follower",
+    "followerCount_other": "{{count}} followers",
+    "postCount_one": "{{count}} post",
+    "postCount_other": "{{count}} posts",
+    "byWriter": "by {{writer}}",
+    "actionInvite": "invited you to publish to a channel",
+    "invitations": "Invitations",
+    "invitePending": "You have been invited to publish to «{{channel}}».",
+    "acceptInvite": "Accept",
+    "declineInvite": "Decline",
+    "inviteAccepted": "You can now publish to this channel",
+    "inviteDeclined": "Invitation declined",
+    "inviteFailed": "Failed to answer the invitation",
+    "invitePublisher": "Invite a publisher",
+    "pendingInvites": "Invitations sent",
+    "roleOwner": "Owner",
+    "rolePublisher": "Publisher",
+    "yourChannels": "Your channels",
+    "yourChannelsFooter": "The channels you may publish to — the ones you own, and the ones you were invited to.",
+    "newChannel": "New channel",
+    "newChannelFooter": "The handle is permanent enough to matter — it is the /c/ address people share. Everything else can be edited afterwards.",
+    "handlePlaceholder": "handle",
+    "titlePlaceholder": "Channel name",
+    "create": "Create channel",
+    "createFailed": "Failed to create the channel",
+    "discover": "Discover",
+    "loadFailed": "Failed to load channels",
+    "notFound": "Channel not found",
+    "emptyDirectory": "No channels to discover yet",
+    "emptyMine": "You publish to no channels yet",
+    "emptyMembers": "No publishers yet",
+    "signInRequired": "Sign in to manage your channels",
+    "signInRequiredDesc": "A channel is a shared destination people follow without following its authors.",
+    "tabs": {
+      "posts": "Posts",
+      "members": "Publishers"
+    },
+    "compose": {
+      "choose": "Choose where to post",
+      "repostFailed": "Published to the channel, but reposting it to your profile failed.",
+      "scheduledNoRepost": "Scheduled. Repost it to your own profile once it goes out."
+    },
+    "picker": {
+      "title": "Post to",
+      "none": "My profile",
+      "noneSubtitle": "The post goes out under your own name, as always",
+      "current": "Current",
+      "empty": "A channel is a publication people follow without following its authors. You publish to the ones you own or were invited to.",
+      "manage": "Browse channels",
+      "alsoPostToProfile": "Also post to my profile",
+      "alsoPostToProfileHint": "Reposts the channel’s post onto your own profile once it is published."
+    },
+    "settings": {
+      "title": "Channel settings",
+      "ownerOnly": "Only the channel’s owner can manage it",
+      "profile": "Channel profile",
+      "titleLabel": "Name",
+      "titlePlaceholder": "Channel name",
+      "handleLabel": "Handle",
+      "handlePlaceholder": "handle",
+      "handleHint": "The channel will live at /c/{{handle}}. Renaming breaks existing links.",
+      "handleInvalid": "3–30 characters of a–z, 0–9 or _, and not a reserved word.",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "What this channel publishes",
+      "saved": "Channel updated",
+      "saveFailed": "Failed to update the channel",
+      "byline": "Byline",
+      "signPosts": "Name the writer",
+      "signPostsFooter": "The channel always signs its posts. With this on, the person who wrote one is named alongside it — with it off, they never leave the server at all.",
+      "publishers": "Publishers",
+      "atCap": "A channel can have at most {{count}} publishers.",
+      "searchPlaceholder": "Find someone to invite",
+      "invite": "Invite",
+      "invited": "Invitation sent to @{{user}}",
+      "inviteFailed": "Failed to send the invitation",
+      "alreadyInvited": "Already invited",
+      "statusPending": "Invitation pending",
+      "removeMember": "Remove publisher",
+      "removeConfirm": "Remove {{user}}? They stop being able to publish here. Everything they already published stays in the channel.",
+      "removed": "Publisher removed",
+      "removeFailed": "Failed to remove that publisher",
+      "delete": "Delete channel",
+      "deleteConfirm": "Delete «{{channel}}»? Its posts are released back to the people who wrote them — they stop being channel posts and appear on their authors’ own profiles. The handle becomes free for anyone to take.",
+      "deleted": "Channel deleted",
+      "deleteFailed": "Failed to delete the channel"
+    },
+    "followingSection": "Following",
+    "emptyFollowing": "You follow no channels yet"
+  },
+  "trendGraph": {
+    "title": "Trend relations",
+    "subtitle": "Which terms share posts, and which of them the detector merged into one story.",
+    "error": "The relation graph could not be loaded.",
+    "retry": "Try again",
+    "empty": "No relations in this batch yet.",
+    "openLink": "See how these relate",
+    "filters": {
+      "language": "Language",
+      "region": "Region",
+      "all": "All"
+    },
+    "node": {
+      "counts": "{{posts}} posts · {{authors}} distinct authors"
+    },
+    "edge": {
+      "related": "Related to {{term}} — {{posts}} shared posts, not merged"
+    },
+    "sections": {
+      "stories": "Merged stories",
+      "ungrouped": "Terms on their own"
+    },
+    "eyebrow": "Behind the list",
+    "badge": {
+      "merged": "{{count}} merged"
     }
   }
 }

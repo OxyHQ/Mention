@@ -17,11 +17,13 @@ import {
   doublePrecision,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   unique,
 } from 'drizzle-orm/pg-core';
 import { TREND_CATEGORIES } from '@mention/shared-types';
+import type { TrendGraphEdgeDTO, TrendGraphNodeDTO } from '@mention/shared-types';
 import { createdAt, generatedId, inList, timestamptz, tsvector, updatedAt } from './columns';
 
 /** `TrendingType`. */
@@ -44,10 +46,12 @@ export const NOTIFICATION_TYPES = [
   'collab_invite',
   'collab_accepted',
   'collab_declined',
+  // Channels (merged from main): an invitation to publish to a channel.
+  'channel_invite',
 ] as const;
 
 /** `NotificationEntityType`. */
-export const NOTIFICATION_ENTITY_TYPES = ['post', 'reply', 'profile'] as const;
+export const NOTIFICATION_ENTITY_TYPES = ['post', 'reply', 'profile', 'channel'] as const;
 
 /** `PushToken.type`. */
 export const PUSH_TOKEN_TYPES = ['fcm', 'apns', 'unknown'] as const;
@@ -156,6 +160,21 @@ export const trending = pgTable(
      * `MtnConfig.trending.detection.maxActors`. Oxy account ids, no foreign key.
      */
     actorIds: text().array(),
+    /**
+     * Every term this row stands for, `name` first.
+     *
+     * A story arrives as several names at once and co-occurrence merges them
+     * into ONE row, so the row's feed has to match all of them. Without this the
+     * merge would be actively harmful: `Ukraine` would absorb `Kyiv`'s evidence
+     * into its score and then open onto a screen missing every post that only
+     * said `Kyiv`.
+     *
+     * NULLABLE for the same reason `display_name` is — 90 days of rows predate
+     * clustering. A reader falls back to `[name]`, which is what an unmerged row
+     * means anyway, so NULL and `{name}` are the same fact and neither needs a
+     * backfill.
+     */
+    terms: text().array(),
     rank: integer().notNull(),
     /** An Oxy Topic-registry id — no foreign key (the registry lives in Oxy). */
     topicId: text(),
@@ -220,6 +239,67 @@ export const trendSummaries = pgTable(
     index('trend_summaries_generated_at_idx').on(t.generatedAt),
   ]
 );
+
+/**
+ * `trend_graphs` — one batch's CO-OCCURRENCE GRAPH, the structure behind the
+ * trend list.
+ *
+ * ONE ROW PER BATCH, not a row per edge. A graph is a snapshot: its nodes and
+ * edges are only meaningful against each other and against the batch that
+ * produced them, so the batch is the natural unit — one insert, one read, and no
+ * way to serve half of one graph beside half of another. That is also why `nodes`
+ * and `edges` are `jsonb` rather than the two child tables the migration
+ * contract would otherwise ask for: nothing queries an edge or a node
+ * individually (the ONLY read is `trendGraphQuery`, which loads a whole batch and
+ * filters in memory), and splitting them would buy per-element predicates nobody
+ * writes at the cost of making a graph assemblable from two batches.
+ *
+ * NORMALIZED against `trending`: a node carries structure only. Its display
+ * label is NOT stored here — merged rows already have one on their `trending`
+ * row and the read path joins them, so there is no second place for a label to
+ * be wrong; most nodes are not trends at all and have no label to copy.
+ *
+ * `calculated_at` is the expiry column — see `db/expiry.ts`. Mongo reaped these
+ * with a TTL index and Postgres will not, so the registry entry is what keeps
+ * the table bounded.
+ */
+
+/**
+ * A stored node — the wire DTO MINUS `display_name`.
+ *
+ * The omission is the normalization rule stated above, written into the type so
+ * it cannot be violated by a writer that happens to have a label to hand: a
+ * label lives on the term's `trending` row and is joined at read time.
+ */
+export type StoredTrendGraphNode = Omit<TrendGraphNodeDTO, 'displayName'>;
+export const trendGraphs = pgTable(
+  'trend_graphs',
+  {
+    id: generatedId(),
+    // (see `StoredTrendGraphNode` below for why the node type is not the DTO)
+    /**
+     * The batch stamp, and the identity. UNIQUE so a retried batch REPLACES its
+     * own graph rather than leaving two — the property `saveTrendGraph`'s upsert
+     * relies on.
+     */
+    calculatedAt: timestamptz().notNull().unique('trend_graphs_calculated_at_key'),
+    nodes: jsonb().$type<StoredTrendGraphNode[]>().notNull().default([]),
+    edges: jsonb().$type<TrendGraphEdgeDTO[]>().notNull().default([]),
+    /**
+     * Edges dropped for size, if any. A cap that is not reported reads as "this
+     * is the whole graph" when it is not.
+     */
+    droppedEdges: integer(),
+  },
+  (t) => [
+    // The unique constraint above already indexes `calculated_at`, which is what
+    // the expiry sweep's `calculated_at <= now() - N` needs; no second index.
+    check('trend_graphs_dropped_edges_check', sql`${t.droppedEdges} is null or ${t.droppedEdges} >= 0`),
+  ]
+);
+
+/** 7 days. Long enough to compare a few days of batches, short enough to stay small. */
+export const TREND_GRAPH_RETENTION_SECONDS = 7 * 24 * 60 * 60;
 
 /** `trend_batches` — one row per published batch, for the history index. */
 export const trendBatches = pgTable(

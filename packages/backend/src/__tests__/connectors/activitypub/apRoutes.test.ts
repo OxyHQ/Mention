@@ -120,6 +120,7 @@ import { userSettings } from '../../../db/schema/userProfile';
 import {
   clearFederationScope,
   federationScope,
+  seedChannel,
   seedPost,
 } from '../../helpers/federationFixtures';
 import type { PostRecord } from '../../../db/posts/postRecord';
@@ -537,6 +538,87 @@ describe('GET /ap/users/:username/collections/featured — pinned posts', () => 
     mocks.resolveOxyUser.mockResolvedValue(null);
     await request(app).get('/ap/users/ghost/collections/featured').set('Accept', AP_ACCEPT).expect(404);
     expect(mocks.buildCreateNoteActivity).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A post published to a CHANNEL never leaves through an author surface.
+ *
+ * The outbox and the featured collection are author surfaces, and channels have
+ * no ActivityPub presence in v1 — so listing one here would publish it to the
+ * fediverse under the WRITER's actor, which is the opposite of what the channel
+ * signs and, on a `signPosts: false` channel, a straight de-anonymization.
+ *
+ * The featured collection is the more consequential of the two: Mastodon does not
+ * backfill a freshly-discovered account's timeline from the outbox, so `featured`
+ * is what a discovered profile actually renders.
+ */
+/**
+ * A channel post never leaves over ActivityPub.
+ *
+ * The outbox, its count and the featured collection are AUTHOR surfaces, and a
+ * channel post belongs to the CHANNEL — which has no ActivityPub presence in v1.
+ * Listing one would publish it to the fediverse under the WRITER's actor, the
+ * opposite of what the channel signs, and a de-anonymization when `signPosts` is
+ * false.
+ *
+ * Asserted on the SERVED COLLECTION rather than on a captured query object. The
+ * exclusion lives in one shared scope precisely so the count, the page window and
+ * the featured collection cannot drift; reading the response is what can tell
+ * that they have not, and a query assertion for each would be three separate
+ * claims about three separate strings.
+ */
+describe('channel posts are excluded from every author-facing AP surface', () => {
+  beforeEach(() => {
+    mocks.resolveOxyUser.mockResolvedValue({ _id: ALICE });
+    mocks.buildCreateNoteActivity.mockImplementation((post: PostRecord) => ({
+      type: 'Create',
+      object: { id: `https://mention.earth/ap/users/alice/posts/${post.id}` },
+    }));
+  });
+
+  it('excludes them from the outbox PAGE and keeps the ordinary post', async () => {
+    const channelId = await seedChannel(scope);
+    const ordinary = await alicePost();
+    const inChannel = await alicePost({ channelId });
+
+    const res = await request(app)
+      .get('/ap/users/alice/outbox?page=true')
+      .set('Accept', AP_ACCEPT)
+      .expect(200);
+
+    const served = (res.body.orderedItems as Array<{ object: { id: string } }>).map(
+      (item) => item.object.id,
+    );
+    expect(served).toEqual([`https://mention.earth/ap/users/alice/posts/${ordinary.id}`]);
+    expect(served.join(' ')).not.toContain(inChannel.id);
+  });
+
+  it('excludes them from the outbox COUNT with the same filter', async () => {
+    // The count and the page must agree, or `totalItems` promises items no page
+    // will ever yield.
+    const channelId = await seedChannel(scope);
+    await alicePost();
+    await alicePost({ channelId });
+
+    const res = await request(app).get('/ap/users/alice/outbox').set('Accept', AP_ACCEPT).expect(200);
+
+    expect(res.body.totalItems).toBe(1);
+  });
+
+  it('excludes them from the featured collection', async () => {
+    const channelId = await seedChannel(scope);
+    const pinned = await alicePost({ metadata: { isPinned: true } });
+    const pinnedInChannel = await alicePost({ channelId, metadata: { isPinned: true } });
+
+    const res = await request(app)
+      .get('/ap/users/alice/collections/featured')
+      .set('Accept', AP_ACCEPT)
+      .expect(200);
+
+    expect(res.body.totalItems).toBe(1);
+    expect(JSON.stringify(res.body)).toContain(pinned.id);
+    expect(JSON.stringify(res.body)).not.toContain(pinnedInChannel.id);
   });
 });
 

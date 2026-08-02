@@ -63,6 +63,7 @@ import { is } from 'drizzle-orm';
 import * as schema from '../schema';
 import type { CollectionPlan, ExcludedCollection } from './plan';
 import { planTables, tableName } from './plan';
+import { CHANNEL_PLANS } from './plans/channels';
 import { CONTENT_PLANS } from './plans/content';
 import { DISCOVERY_PLANS } from './plans/discovery';
 import { ENGAGEMENT_PLANS } from './plans/engagement';
@@ -129,6 +130,7 @@ import { USER_PROFILE_PLANS } from './plans/userProfile';
  */
 export const COLLECTION_PLANS: readonly CollectionPlan[] = [
   ...ENGAGEMENT_PLANS,
+  ...CHANNEL_PLANS,
   ...DISCOVERY_PLANS,
   ...CONTENT_PLANS,
   ...MTN_PLANS,

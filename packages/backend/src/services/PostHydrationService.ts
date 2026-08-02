@@ -1,8 +1,10 @@
 import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostUser, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostReplyContext, PostViewerState, PostVisibility, PostAuthorshipEntry, MEDIA_VARIANT_THUMB } from '@mention/shared-types';
+import type { ChannelSummary, LaneDisplayMode, LaneSummary } from '@mention/shared-types';
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { bookmarks as bookmarksTable, likes as likesTable } from '../db/schema/engagement';
 import { pollOptions, pollVotes, polls as pollsTable } from '../db/schema/polls';
+import { channels as channelsTable, lanes as lanesTable } from '../db/schema/channels';
 import { posts } from '../db/schema/posts';
 import { userSettings } from '../db/schema/userProfile';
 import {
@@ -90,6 +92,10 @@ interface RawPost {
   };
   boostOf?: unknown;
   quoteOf?: unknown;
+  /** The author's lane for this post — the `› Lane name` chip. Local curation only. */
+  laneId?: string;
+  /** The channel this post was published to — the row's SIGNATURE, not a chip. */
+  channelId?: string;
   originalPostId?: unknown;
   parentPostId?: unknown;
   threadId?: unknown;
@@ -892,6 +898,8 @@ export class PostHydrationService {
       linkPreviewMap,
       orphanAuthorMap,
       quoteCountMap,
+      laneMap,
+      channelMap,
     ] = await Promise.all([
       this.populateViewerInteractions(postIds, viewerContext),
       (async () => {
@@ -928,6 +936,8 @@ export class PostHydrationService {
       options.includeQuoteCounts === true
         ? this.buildQuoteCountMap(postIds)
         : Promise.resolve(undefined),
+      this.buildLaneMap(postsForHydration),
+      this.buildChannelMap(postsForHydration),
     ]);
     const mentionCache: Map<string, PostUser> = new Map(userMap);
 
@@ -949,6 +959,8 @@ export class PostHydrationService {
           quoteCountMap,
           replyParentAuthorIdByPostId,
           selfContinuationPostIds,
+          laneMap,
+          channelMap,
         })
       )
     );
@@ -1519,6 +1531,122 @@ export class PostHydrationService {
     }
   }
 
+  /**
+   * The lanes of every post in the graph, in ONE indexed query keyed by lane id.
+   *
+   * Emitting it on the summary is what propagates it to `originalPost` /
+   * `quotedPost` / `boost.originalPost` for free: those are the SAME objects out
+   * of `summaryMap`, so a quoted post shows its own lane without a second pass.
+   *
+   * `displayMode` travels with the name because it is what the chip's own menu
+   * needs (an owner looking at their own post can see, and change, whether that
+   * lane shows on the profile) — it is public curation state, not a permission.
+   *
+   * Fail-soft: a lookup failure yields an empty map, so the post renders without
+   * a chip rather than not rendering at all.
+   */
+  private async buildLaneMap(nodes: HydratedGraphNode[]): Promise<Map<string, LaneSummary>> {
+    const laneIds = Array.from(
+      new Set(
+        nodes
+          .map(({ post }) => post?.laneId)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0),
+      ),
+    );
+
+    if (laneIds.length === 0) {
+      return new Map();
+    }
+
+    try {
+      const rows = await getDb()
+        .select({
+          id: lanesTable.id,
+          name: lanesTable.name,
+          displayMode: lanesTable.displayMode,
+        })
+        .from(lanesTable)
+        .where(inArray(lanesTable.id, laneIds));
+
+      const map = new Map<string, LaneSummary>();
+      for (const lane of rows) {
+        map.set(lane.id, {
+          id: lane.id,
+          name: lane.name,
+          displayMode: lane.displayMode as LaneDisplayMode,
+        });
+      }
+      return map;
+    } catch (error) {
+      logger.error('[PostHydration] Failed to build lane map:', error);
+      return new Map();
+    }
+  }
+
+  /**
+   * The channels of every post in the graph, in ONE indexed query keyed by channel
+   * id. Sits in the same `Promise.all` as {@link buildLaneMap}, and propagates to
+   * `originalPost` / `quotedPost` / `boost.originalPost` for free, because those
+   * are the SAME objects out of `summaryMap` — which is what makes a BOOST of a
+   * channel post render as "the channel posted, reposted by X" with no extra work.
+   *
+   * `signPosts` travels with the summary because it is what tells the renderer
+   * whether a `· by @author` line exists at all — and, more importantly, it is the
+   * value {@link buildPostSummary} reads to decide whether the author travels in
+   * the DTO in the first place.
+   *
+   * Fail-soft: a lookup failure yields an empty map, so the post renders under its
+   * author rather than not rendering at all. That is the RIGHT failure for a
+   * `signPosts: true` channel and the wrong one for a `signPosts: false` channel,
+   * so {@link buildPostSummary} treats a post whose channel is missing from this
+   * map as anonymous anyway — see there.
+   */
+  private async buildChannelMap(nodes: HydratedGraphNode[]): Promise<Map<string, ChannelSummary>> {
+    const channelIds = Array.from(
+      new Set(
+        nodes
+          .map(({ post }) => post?.channelId)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0),
+      ),
+    );
+
+    if (channelIds.length === 0) {
+      return new Map();
+    }
+
+    try {
+      const rows = await getDb()
+        .select({
+          id: channelsTable.id,
+          handle: channelsTable.handle,
+          title: channelsTable.title,
+          avatar: channelsTable.avatar,
+          signPosts: channelsTable.signPosts,
+        })
+        .from(channelsTable)
+        .where(inArray(channelsTable.id, channelIds));
+
+      const map = new Map<string, ChannelSummary>();
+      for (const channel of rows) {
+        map.set(channel.id, {
+          id: channel.id,
+          handle: channel.handle,
+          title: channel.title,
+          ...(channel.avatar ? { avatar: channel.avatar } : {}),
+          // `=== true` is kept rather than trusting the column's NOT NULL
+          // default: this value decides whether the WRITER travels in the DTO,
+          // and the safe answer for anything that is not exactly `true` is
+          // anonymous. See `buildPostSummary`.
+          signPosts: channel.signPosts === true,
+        });
+      }
+      return map;
+    } catch (error) {
+      logger.error('[PostHydration] Failed to build channel map:', error);
+      return new Map();
+    }
+  }
+
   private async buildUserMap(
     nodes: HydratedGraphNode[],
     extraLocalUserIds?: Set<string>,
@@ -2072,8 +2200,12 @@ export class PostHydrationService {
     replyParentAuthorIdByPostId: Map<string, string>;
     /** Replies to their OWN author's post — self-thread continuations, which carry no reply context. */
     selfContinuationPostIds: Set<string>;
+    /** The author's lanes, keyed by lane id — the `› Lane name` chip in the name row. */
+    laneMap: Map<string, LaneSummary>;
+    /** The channels posts were published to, keyed by channel id — the row's SIGNATURE. */
+    channelMap: Map<string, ChannelSummary>;
   }): Promise<HydratedPostSummary | null> {
-    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap, replyParentAuthorIdByPostId, selfContinuationPostIds } = params;
+    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap, replyParentAuthorIdByPostId, selfContinuationPostIds, laneMap, channelMap } = params;
 
     const postId = this.resolveId(post);
     if (!postId) return null;
@@ -2111,8 +2243,41 @@ export class PostHydrationService {
     // federated post uses its federation-derived author (its `oxyUserId` is null,
     // so there is nothing in `userMap`), and its authorship carries no usable
     // owner — the byline falls back to `user` from an empty `authors[]`.
-    const user = orphanAuthor ?? userMap.get(authorId) ?? degradedActorSummary(authorId);
-    const headerEntries = orphanAuthor ? [] : getHeaderAuthorshipEntries(authorship);
+    // The channel this post was published to, when it has one. It is the row's
+    // SIGNATURE — the renderer paints the channel's avatar and name — and it is a
+    // separate field precisely so nothing can collapse it into `user`: Oxy owns
+    // identity, and a `PostUser` fabricated from a channel would break `/@handle`
+    // links and poison the identity cache.
+    const channel = typeof post.channelId === 'string'
+      ? channelMap.get(post.channelId)
+      : undefined;
+
+    // **ANONYMITY IS ENFORCED IN THE DTO, NOT IN THE RENDERER.** With
+    // `signPosts: false` the writer must not travel at all — hiding them only in
+    // the UI is not anonymity when anyone can read the API response.
+    //
+    // The condition is deliberately written as "the post has a channel and that
+    // channel did not say to sign it", NOT as "the channel says not to sign it":
+    // a channel row that failed to load leaves `channel` undefined, and treating
+    // THAT as "sign it" would publish the author on a lookup failure. Fail closed.
+    //
+    // It does not vary by viewer — including for the writer's own view. A
+    // viewer-conditional identity is how a cached DTO leaks one, and `viewerState`
+    // plus `authorship` (emitted only to a participant) already carry everything
+    // the writer's own affordances need.
+    const anonymousUnderChannel = typeof post.channelId === 'string' && channel?.signPosts !== true;
+
+    // `degradedActorSummary(postId)` — the POST's id, never the author's, so not
+    // even an opaque identifier for the writer travels. It is the shape the repo
+    // already uses for "there is no identity to show here" (empty username, so no
+    // `@handle` line and no profile link), which means every existing renderer
+    // handles it correctly with no new case.
+    const user = anonymousUnderChannel
+      ? degradedActorSummary(postId)
+      : orphanAuthor ?? userMap.get(authorId) ?? degradedActorSummary(authorId);
+    const headerEntries = orphanAuthor || anonymousUnderChannel
+      ? []
+      : getHeaderAuthorshipEntries(authorship);
     const authors: HydratedAuthor[] = headerEntries.map((entry) => {
       const summary = userMap.get(entry.oxyUserId) ?? degradedActorSummary(entry.oxyUserId);
       return {
@@ -2224,6 +2389,20 @@ export class PostHydrationService {
       viewerState,
       permissions,
       metadata,
+      // Absent when the post has no lane, and absent when its lane row is gone
+      // (the delete cascade unsets `laneId` before removing the Lane, so this is
+      // only reachable if that cascade was interrupted — a missing chip, which
+      // is harmless).
+      ...(typeof post.laneId === 'string' && laneMap.has(post.laneId)
+        ? { lane: laneMap.get(post.laneId) }
+        : {}),
+      // The channel signature. Absent when the post has no channel, and absent
+      // when its channel row is gone (the delete cascade `$unset`s `channelId`
+      // before removing the Channel, so this is only reachable if that cascade was
+      // interrupted). Note that an ABSENT channel on a post that HAS a `channelId`
+      // still anonymizes the author above — the row loses its signature rather
+      // than gaining the writer's.
+      ...(channel ? { channel } : {}),
       // Include parentPostId for thread hierarchy in replies
       ...(post.parentPostId ? { parentPostId: String(post.parentPostId) } : {}),
       // The reply marker rides on the POST, so every surface that renders one —

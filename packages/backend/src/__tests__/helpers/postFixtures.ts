@@ -23,8 +23,9 @@
  */
 
 import { PostType, PostVisibility } from '@mention/shared-types';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
+import { channels, lanes } from '../../db/schema/channels';
 import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepository';
 import type { PostRecord, PostRecordInput } from '../../db/posts/postRecord';
 import { posts } from '../../db/schema/posts';
@@ -37,6 +38,17 @@ export interface PostScope {
 }
 
 const seededIds = new Map<string, string[]>();
+/**
+ * Channels and lanes a scope created.
+ *
+ * Cleaned AFTER the posts, always: `posts.channel_id` is `ON DELETE CASCADE`, so
+ * a channel removed first takes its posts with it — and a post the suite thinks
+ * it deleted itself is a post whose absence proves nothing.
+ */
+const seededChannelIds = new Map<string, string[]>();
+const seededLaneIds = new Map<string, string[]>();
+/** Handles and lane names are unique; a counter keeps a suite's own distinct. */
+let fixtureSeq = 0;
 
 /** Derive a per-file fixture scope. Pass the suite's own name. */
 export function postScope(name: string): PostScope {
@@ -71,6 +83,57 @@ export async function seedPost(
 }
 
 /**
+ * Insert one public channel owned by `ownerOxyUserId` (default: the scope's own
+ * author), and return its id.
+ *
+ * A channel exists in these suites for exactly one reason — `posts.channel_id`
+ * carries a foreign key, so "a post that belongs to a channel" is not a fixture
+ * a suite can state without one.
+ */
+export async function seedChannel(
+  scope: PostScope,
+  overrides: Partial<typeof channels.$inferInsert> = {},
+): Promise<string> {
+  const handle = overrides.handle ?? `${scope.name}-chan-${fixtureSeq++}`;
+  const [row] = await getDb()
+    .insert(channels)
+    .values({
+      handle,
+      handleLower: handle.toLowerCase(),
+      title: overrides.title ?? 'a channel',
+      ownerOxyUserId: overrides.ownerOxyUserId ?? scope.user('author'),
+      ...overrides,
+    })
+    .returning({ id: channels.id });
+  const existing = seededChannelIds.get(scope.name);
+  if (existing) existing.push(row.id);
+  else seededChannelIds.set(scope.name, [row.id]);
+  return row.id;
+}
+
+/** Insert one lane and return its id. Defaults to a `mixed` lane owned by a user. */
+export async function seedLane(
+  scope: PostScope,
+  overrides: Partial<typeof lanes.$inferInsert> = {},
+): Promise<string> {
+  const name = overrides.name ?? `${scope.name}-lane-${fixtureSeq++}`;
+  const [row] = await getDb()
+    .insert(lanes)
+    .values({
+      ownerType: overrides.ownerType ?? 'user',
+      ownerId: overrides.ownerId ?? scope.user('author'),
+      name,
+      nameLower: name.toLowerCase(),
+      ...overrides,
+    })
+    .returning({ id: lanes.id });
+  const existing = seededLaneIds.get(scope.name);
+  if (existing) existing.push(row.id);
+  else seededLaneIds.set(scope.name, [row.id]);
+  return row.id;
+}
+
+/**
  * Record an id the PRODUCTION code under test created, so teardown removes it.
  *
  * A suite that exercises a create path owns rows it never seeded; without this
@@ -100,5 +163,14 @@ export async function clearPostScope(scope: PostScope): Promise<void> {
   const ids = seededIds.get(scope.name) ?? [];
   for (const id of ids.splice(0).reverse()) {
     await deletePostRecord(id, undefined);
+  }
+  // After the posts — see `seededChannelIds`.
+  const channelIds = seededChannelIds.get(scope.name) ?? [];
+  if (channelIds.length > 0) {
+    await getDb().delete(channels).where(inArray(channels.id, channelIds.splice(0)));
+  }
+  const laneIds = seededLaneIds.get(scope.name) ?? [];
+  if (laneIds.length > 0) {
+    await getDb().delete(lanes).where(inArray(lanes.id, laneIds.splice(0)));
   }
 }

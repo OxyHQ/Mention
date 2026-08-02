@@ -33,6 +33,13 @@ interface Props {
   saves: StatCount;
   /** Who the author allows to reply. Absent or `['anyone']` = no restriction to report. */
   replyPermission?: ReplyPermission[];
+  /**
+   * The post takes no replies whatever `replyPermission` says — a channel post,
+   * where the refusal is structural and keyed off the channel rather than off a
+   * setting a later write could flip. Reported in the same words, because a
+   * reader does not care which of the two reasons it was.
+   */
+  repliesDisabled?: boolean;
   /** Whether the author turned off quote posts. */
   quotesDisabled?: boolean;
   /**
@@ -64,6 +71,7 @@ const PostDetailStats = memo<Props>(function PostDetailStats({
   quotes,
   saves,
   replyPermission,
+  repliesDisabled,
   quotesDisabled,
   postId,
   onLikesPress,
@@ -91,7 +99,7 @@ const PostDetailStats = memo<Props>(function PostDetailStats({
   // only existed in the composer, so a reader learned that replies were closed
   // by having one rejected. `anyone` is the default and says nothing worth a row.
   const restrictions: string[] = [];
-  if (replyPermission?.includes('nobody')) {
+  if (repliesDisabled || replyPermission?.includes('nobody')) {
     restrictions.push(t('post.restrictions.repliesOff'));
   } else if (replyPermission?.length && !replyPermission.includes('anyone')) {
     restrictions.push(t('post.restrictions.repliesLimited'));

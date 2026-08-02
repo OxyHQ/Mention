@@ -28,6 +28,7 @@ import {
     type FeedMemoryCacheEntry,
 } from '@/stores/feedScrollStore';
 import { isFeedCacheStale } from '@/stores/engagementInvalidation';
+import { isLaneFeedCacheStale } from '@/stores/laneInvalidation';
 import {
     isFeedCacheStaleForSafety,
     subscribeToSafetyFilterChanges,
@@ -498,6 +499,20 @@ export function useFeedState({
 
             const feedTypeToCheck = showOnlySaved ? 'saved' : type;
 
+            // A retained slice is only good if it postdates ALL THREE classes of
+            // change that decide what a list contains: an engagement (like/boost/
+            // save), a lane write (a post moved between lanes, a lane's displayMode
+            // changed, a lane muted), and a safety-rule change (muted words, the
+            // sensitive-content toggle — these decide what the server is willing to
+            // send at all). Each lives in its own authority module and none can see
+            // another's writes, so all three are asked. Ask them HERE rather than at
+            // each call site: a caller that consults two of the three still returns
+            // a plausible feed, which is why that mistake survives review.
+            const cacheIsStale = (retainedAt: number): boolean =>
+                isFeedCacheStale(feedTypeToCheck, userId, currentUserId, retainedAt)
+                || isLaneFeedCacheStale(userId, currentUserId, filters?.laneId, retainedAt)
+                || isFeedCacheStaleForSafety(retainedAt);
+
             // Check SQLite for cached data (cold-start optimization).
             // Only relevant when using the SQLite path (useMemoryFeed === false).
             if (!useMemoryFeed && !forceRefresh && !showOnlySaved && !filters?.searchQuery) {
@@ -513,8 +528,7 @@ export function useFeedState({
                     hasDbData
                     && ui?.lastUpdated
                     && ui.lastUpdated > 0
-                    && !isFeedCacheStale(feedTypeToCheck, userId, currentUserId, ui.lastUpdated)
-                    && !isFeedCacheStaleForSafety(ui.lastUpdated)
+                    && !cacheIsStale(ui.lastUpdated)
                 ) {
                     logger.debug('Skipping — feed has SQLite cache');
                     isFetchingRef.current = false;
@@ -550,11 +564,13 @@ export function useFeedState({
             // replies list has no deep-scroll/pagination context worth keeping.
             //
             // SECOND EXCEPTION — a slice that predates an engagement the viewer
-            // has since made. Liking, boosting and saving change which posts these
-            // lists CONTAIN, and no optimistic update can know the server's paging
-            // or ordering. The seed still renders (no flash), but the fetch below
-            // has to run or the list keeps showing its pre-write membership until
-            // a reload. See `stores/engagementInvalidation`.
+            // has since made — or a lane write. Liking, boosting and saving change
+            // which posts these lists CONTAIN, as does moving a post between lanes,
+            // changing a lane's displayMode, or muting one; no optimistic update can
+            // know the server's paging or ordering. The seed still renders (no
+            // flash), but the fetch below has to run or the list keeps showing its
+            // pre-write membership until a reload. See `stores/engagementInvalidation`
+            // and `stores/laneInvalidation`.
             //
             // THIRD EXCEPTION — a slice that predates a safety rule the viewer has
             // since changed. Muted words and the sensitive-content toggle decide
@@ -564,15 +580,12 @@ export function useFeedState({
             const seeded = seededCacheRef.current;
             if (useMemoryFeed && !forceRefresh && seeded && type !== 'replies') {
                 seededCacheRef.current = undefined;
-                if (
-                    !isFeedCacheStale(feedTypeToCheck, userId, currentUserId, seeded.retainedAt)
-                    && !isFeedCacheStaleForSafety(seeded.retainedAt)
-                ) {
+                if (!cacheIsStale(seeded.retainedAt)) {
                     logger.debug('Skipping — memory feed warm-started from cache');
                     isFetchingRef.current = false;
                     return;
                 }
-                logger.debug('Warm cache predates an engagement or safety change — revalidating');
+                logger.debug('Warm cache predates an engagement, lane write or safety change — revalidating');
             }
 
             try {

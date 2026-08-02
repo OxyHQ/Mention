@@ -33,8 +33,11 @@ import PostInsightsSheet from '@/components/Post/PostInsightsSheet';
 import ReplySettingsSheet from '@/components/Compose/ReplySettingsSheet';
 import { ReportModal } from '@/components/report/ReportModal';
 import { muteService } from '@/services/muteService';
+import { lanesService } from '@/services/lanesService';
+import { noteLaneListsChanged } from '@/stores/laneInvalidation';
 import { reportService } from '@/services/reportService';
 import { AddToListSheet } from '@/components/Lists/AddToListSheet';
+import LanePickerSheet from '@/components/Compose/LanePickerSheet';
 import { List as ListIcon } from '@/assets/icons/list-icon';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
@@ -207,6 +210,51 @@ export function usePostActions({
             });
         }
 
+        // Moving a post between the author's own lanes sits beside pinning, and
+        // for the same reason: neither is an EDIT. There is no 30-minute window
+        // here — the write changes no text, does not federate, emits no MTN
+        // record and never sets `isEdited` (see `updatePostLane`) — so it is
+        // offered for the life of the post, exactly like pin/unpin.
+        //
+        // A reply or a boost cannot carry a lane at all, so the action is absent
+        // rather than present-and-failing.
+        const isReplyOrBoost = Boolean(viewPost?.parentPostId) || Boolean(viewPost?.boost);
+        if (isOwner && !isReplyOrBoost) {
+            saveActionGroup.push({
+                icon: <Ionicons name="git-branch-outline" size={20} color={theme.colors.textSecondary} />,
+                label: t('lanes.postActions.moveToLane', { defaultValue: 'Move to lane…' }),
+                onPress: () => {
+                    bottomSheet.setBottomSheetContent(
+                        <LanePickerSheet
+                            selectedLaneId={viewPost?.lane?.id ?? null}
+                            onSelect={async (nextLaneId) => {
+                                try {
+                                    const lane = await lanesService.setPostLane(postId, nextLaneId);
+                                    updatePostEverywhere(postId, (prev) => ({
+                                        ...prev,
+                                        lane: lane ?? undefined,
+                                    }));
+                                    // The chip flips instantly through the store
+                                    // above; WHICH profile tab the post now sits
+                                    // on is server-ordered and paged, so both
+                                    // post-list caches have to be told.
+                                    noteLaneListsChanged('assignment');
+                                } catch (e) {
+                                    logger.error('Failed to move post to lane', e);
+                                    toast(
+                                        t('lanes.postActions.moveFailed', { defaultValue: 'Failed to move this post' }),
+                                        { type: 'error' },
+                                    );
+                                }
+                            }}
+                            onClose={() => bottomSheet.openBottomSheet(false)}
+                        />
+                    );
+                    bottomSheet.openBottomSheet(true);
+                },
+            });
+        }
+
         if (isOwner) {
             const isHidden = Boolean(viewPost?.metadata?.hideEngagementCounts);
             saveActionGroup.push({
@@ -359,10 +407,71 @@ export function usePostActions({
             bottomSheet.openBottomSheet(true);
         };
 
+        const postLane = viewPost?.lane;
+
+        /**
+         * Silence ONE track of one publisher, without unfollowing them — the
+         * reader's half of the feature.
+         *
+         * Narrower than muting the author on purpose, so it is offered first: a
+         * reader who does not want the dev notes still wants the person.
+         */
+        const handleMuteLane = async (username: string) => {
+            if (!postLane) return;
+
+            const confirmed = await confirmDialog({
+                title: t('lanes.postActions.muteLane', {
+                    lane: postLane.name,
+                    username,
+                    defaultValue: 'Mute «{{lane}}» from @{{username}}',
+                }),
+                message: t('lanes.postActions.muteLaneConfirm', {
+                    lane: postLane.name,
+                    username,
+                    defaultValue: "Posts on «{{lane}}» stop appearing in your feeds. You keep following @{{username}}, and everything else they post still reaches you.",
+                }),
+                okText: t('postActions.mute'),
+                cancelText: t('postActions.cancel'),
+                destructive: false,
+            });
+            if (!confirmed) return;
+
+            try {
+                await lanesService.mute(postLane.id);
+                // A mute is a filter over EVERY feed this reader opens, so the
+                // retained slices all have to be revalidated.
+                noteLaneListsChanged('mute');
+                toast(
+                    t('lanes.postActions.laneMuted', {
+                        lane: postLane.name,
+                        defaultValue: '«{{lane}}» muted',
+                    }),
+                    { type: 'success' },
+                );
+            } catch (e) {
+                logger.error('Failed to mute lane', e);
+                toast(
+                    t('lanes.postActions.muteLaneFailed', { defaultValue: 'Failed to mute this lane' }),
+                    { type: 'error' },
+                );
+            }
+        };
+
         const muteReportAction: ActionMenuAction[] = [];
 
         if (!isOwner) {
             const username = getNormalizedUserHandle(viewPost?.user) || viewPost?.user?.name?.displayName || 'user';
+            if (postLane) {
+                muteReportAction.push({
+                    icon: <MuteIcon size={20} className="text-muted-foreground" />,
+                    label: t('lanes.postActions.muteLane', {
+                        lane: postLane.name,
+                        username,
+                        defaultValue: 'Mute «{{lane}}» from @{{username}}',
+                    }),
+                    onPress: () => handleMuteLane(username),
+                });
+            }
             muteReportAction.push({
                 icon: <MuteIcon size={20} className="text-muted-foreground" />,
                 label: t('postActions.muteUser', { username }),

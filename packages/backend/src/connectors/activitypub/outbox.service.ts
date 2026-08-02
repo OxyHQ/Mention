@@ -27,7 +27,9 @@ import {
   FEDERATION_MAX_CONTENT_LENGTH,
   AP_CONTENT_TYPE,
   isBlockedDomain,
+  extractLocalPostIdFromApUri,
 } from './constants';
+import { parentIsChannelPost } from '../../utils/channelReplyGate';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import { buildFederatedNoteContent, buildFederatedNoteVariants } from './apPostContent';
@@ -780,6 +782,28 @@ export class OutboxSyncService {
         // clean string URI. Stored on `federation.inReplyTo` and used by the
         // post-insert thread-linking pass below to resolve `parentPostId`/`threadId`.
         const inReplyToUri = extractInReplyToUri(note.inReplyTo);
+
+        // A CHANNEL POST TAKES NO REPLIES, and this batch bypasses every write
+        // guard: `Post.collection.insertMany` below skips Mongoose middleware,
+        // schema defaults and `PostCreationService` entirely, so a candidate that
+        // is not filtered out HERE is stored unchallenged.
+        //
+        // Only a LOCAL `inReplyTo` can name a channel post — a remote object,
+        // imported or not, is a federated post and can never carry a `channelId`
+        // (`PostCreationService` refuses that combination outright). So the parse
+        // runs first and the lookup only happens for the URIs that could possibly
+        // matter, which keeps the gate free on the ordinary remote-to-remote reply
+        // that makes up nearly every backfilled thread.
+        //
+        // Silently skipped, like every other refusal in this loop: a backfill has
+        // no caller to answer and no job to fail.
+        if (inReplyToUri) {
+          const localParentId = extractLocalPostIdFromApUri(inReplyToUri);
+          if (localParentId && (await parentIsChannelPost(localParentId))) {
+            logger.debug('[FedSync] skipped outbox reply to a channel post');
+            continue;
+          }
+        }
 
         // Preserve the ORIGINAL remote publish date (validated) so the post is
         // ordered by when it was authored, not when we backfilled it. The raw

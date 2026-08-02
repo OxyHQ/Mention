@@ -50,6 +50,13 @@
       "when": 1785678555752,
       "tag": "0006_trend_labels_and_bridged_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785699583736,
+      "tag": "0011_channels_lanes_trend_graphs",
+      "breakpoints": true
     }
   ]
 }

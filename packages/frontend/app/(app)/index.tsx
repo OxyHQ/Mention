@@ -10,6 +10,7 @@ import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import Feed from '@/components/Feed/Feed';
 import { customFeedsService } from '@/services/customFeedsService';
+import { channelsService } from '@/services/channelsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
 import { PRESET_FEEDS } from '@mention/shared-types/mtn/presetFeeds';
 import { parseFeedDescriptor } from '@mention/shared-types/mtn/feedDescriptor';
@@ -38,11 +39,19 @@ type HomeTab = string;
 
 /**
  * A resolved home tab derived from a pinned {@link SavedFeed}. `descriptor` tabs
- * render an inline `<Feed>`; `custom` tabs render the engine timeline.
+ * render an inline `<Feed>`; `custom` tabs render the engine timeline; `channel`
+ * tabs render ONE channel's page as a tab.
+ *
+ * `channel` cannot be folded into `descriptor`: `FeedType` and
+ * `FeedDescriptorSource` are two overlapping unions, and the `source as FeedType`
+ * cast below type-checks for a source that is not a feed type at all — producing
+ * a tab that fetches nothing, at runtime, with no error. A channel is scoped by a
+ * FILTER, exactly as a custom feed is, so it takes the same shape.
  */
 type HomeTabModel =
     | { key: string; label: string; kind: 'descriptor'; type: FeedType }
-    | { key: string; label: string; kind: 'custom'; feedId: string };
+    | { key: string; label: string; kind: 'custom'; feedId: string }
+    | { key: string; label: string; kind: 'channel'; channelId: string };
 
 const HomeScreen: React.FC = () => {
     const { t } = useTranslation();
@@ -102,6 +111,45 @@ const HomeScreen: React.FC = () => {
 
     const customTitles = customTitlesQuery.data;
 
+    // The channel ids somebody pinned as a home tab. A channel descriptor carries
+    // the stable `_id`, never the handle (a rename must not break a pinned tab),
+    // so the readable name has to be fetched — same shape as the custom-feed
+    // titles above, and gated the same way so a viewer with no pinned channels
+    // never fires it.
+    const pinnedChannelIds = useMemo(
+        () =>
+            pinnedFeeds
+                .map((sf) => parseFeedDescriptor(sf.descriptor))
+                .filter((parsed) => parsed.source === 'channel')
+                .map((parsed) => parsed.params[0])
+                .filter((id): id is string => Boolean(id)),
+        [pinnedFeeds],
+    );
+
+    const channelTitlesQuery = useQuery<Map<string, string>>({
+        queryKey: viewerQueryKeys.channelTitles(user?.id, pinnedChannelIds),
+        enabled: canUsePrivateApi && pinnedChannelIds.length > 0,
+        staleTime: 5 * 60 * 1000,
+        queryFn: async () => {
+            const resolved = await Promise.all(
+                pinnedChannelIds.map(async (channelId) => {
+                    try {
+                        const channel = await channelsService.get(channelId, { authenticated: true });
+                        return channel ? ([channelId, channel.title] as const) : null;
+                    } catch (error) {
+                        // One unreachable channel must not cost every other tab its
+                        // label — that tab falls back to the generic word below.
+                        logger.warn('Failed to load channel title', { channelId, error });
+                        return null;
+                    }
+                }),
+            );
+            return new Map(resolved.filter((entry): entry is readonly [string, string] => entry !== null));
+        },
+    });
+
+    const channelTitles = channelTitlesQuery.data;
+
     const homeTabs = useMemo<HomeTabModel[]>(() => {
         return pinnedFeeds
             .filter((sf) => {
@@ -122,6 +170,15 @@ const HomeScreen: React.FC = () => {
                         label: customTitles?.get(feedId) ?? t('feeds.untitled', { defaultValue: 'Feed' }),
                     };
                 }
+                if (source === 'channel') {
+                    const channelId = params[0] ?? '';
+                    return {
+                        key: sf.key,
+                        kind: 'channel',
+                        channelId,
+                        label: channelTitles?.get(channelId) ?? t('channels.untitled', { defaultValue: 'Channel' }),
+                    };
+                }
                 const preset = presetById.get(sf.key);
                 return {
                     key: sf.key,
@@ -130,7 +187,7 @@ const HomeScreen: React.FC = () => {
                     label: preset ? t(preset.labelKey) : sf.descriptor,
                 };
             });
-    }, [pinnedFeeds, canUsePrivateApi, presetById, customTitles, t]);
+    }, [pinnedFeeds, canUsePrivateApi, presetById, customTitles, channelTitles, t]);
 
     useEffect(() => {
         // Keep the active tab valid as the pinned set changes (e.g. logout removes
@@ -222,6 +279,21 @@ const HomeScreen: React.FC = () => {
                     key={`custom-${tab.feedId}-${feedIdentity}`}
                     type="custom"
                     filters={{ customFeedId: tab.feedId }}
+                    reloadKey={refreshKey}
+                    {...composeProps}
+                />
+            );
+        }
+
+        // A channel page as a home tab. `type` is the carrier only: the
+        // `channelId` FILTER is what routes the fetch (`feedService`) and what
+        // names the descriptor for impressions (`feedTelemetry`).
+        if (tab.kind === 'channel') {
+            return (
+                <Feed
+                    key={`channel-${tab.channelId}-${feedIdentity}`}
+                    type="mixed"
+                    filters={{ channelId: tab.channelId }}
                     reloadKey={refreshKey}
                     {...composeProps}
                 />

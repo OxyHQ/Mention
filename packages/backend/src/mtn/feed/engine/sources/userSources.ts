@@ -4,24 +4,30 @@
  */
 
 import { isAuthorFeedFilter, PostType, PostVisibility } from '@mention/shared-types';
-import { and, arrayOverlaps, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, arrayOverlaps, desc, eq, inArray, isNull, lt, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../../../../db/postgres';
 import {
   bookmarks,
+  channels,
+  lanes,
   likes,
   postAttachments,
   postContentVariants,
   postMedia,
   posts,
+  trending,
   userSettings,
 } from '../../../../db/schema';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { assemblePostRecords } from '../../../../db/posts/postRepository';
 import { ProfileVisibility, requiresAccessCheck } from '../../../../utils/privacyHelpers';
 import { authorFeedSql } from '../../../../utils/postAuthorship';
+import { canViewChannel } from '../../../../services/channelAccess';
+import { excludedDisplayModesForTab, loadExcludedLaneIds } from '../../../../services/laneVisibility';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { notABoostSql } from '../../../../utils/feedQueryBuilder';
 import { trendTermMatchSql } from '../../../../services/trending/termSpace';
+import { logger } from '../../../../utils/logger';
 import type { AuthorFeedFilter } from '@mention/shared-types';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
@@ -110,6 +116,11 @@ export const keywordsSource: SourceModule = {
  * detection counted would open a reported trend onto a screen missing exactly
  * the posts that made it trend, which is why the two must not be able to drift.
  *
+ * That is also why the descriptor's term is not the end of it: a row may stand
+ * for several terms after co-occurrence merged them, and those live on the trend
+ * ROW rather than in the descriptor — a descriptor carrying the whole list would
+ * go stale the moment the next batch reshaped the story.
+ *
  * `fetchChrono` orders on the CURSOR's own keyset (`created_at`, then `id`) —
  * never `id` alone. `posts.id` holds pre-cutover ObjectId hex AND post-cutover
  * uuid v7, so it is not a chronological axis at all: an `id` sort behind a
@@ -118,6 +129,35 @@ export const keywordsSource: SourceModule = {
  * possible place for that. (Same rule as the `authored` source; see AGENTS.md
  * § Profile feed.)
  */
+/**
+ * Every term the trend named `term` stands for — itself, plus anything merged
+ * into it.
+ *
+ * Reads the most recent row for the name, served by
+ * `trending_name_calculated_at_type_key` as an exact prefix on `name`. Fail-soft
+ * to the bare term: a lookup that finds nothing is the ordinary case for an
+ * unmerged trend, and a lookup that throws should cost the extra posts, never
+ * the feed.
+ *
+ * `terms` is nullable — 90 days of rows predate clustering — and a NULL there
+ * means the same thing an unmerged row means, so both fall back to `[term]`.
+ */
+async function resolveTrendTerms(term: string): Promise<string[]> {
+  try {
+    const [row] = await getDb()
+      .select({ terms: trending.terms })
+      .from(trending)
+      .where(eq(trending.name, term))
+      .orderBy(desc(trending.calculatedAt))
+      .limit(1);
+    const terms = row?.terms ?? [];
+    return terms.length > 1 ? terms : [term];
+  } catch (error) {
+    logger.warn('[Feed] Trend term lookup failed; matching the bare term', { term, error });
+    return [term];
+  }
+}
+
 export const trendTermsSource: SourceModule = {
   id: 'trendTerms',
   kind: 'source',
@@ -128,7 +168,7 @@ export const trendTermsSource: SourceModule = {
 
     return fetchChrono(
       [
-        trendTermMatchSql(term),
+        trendTermMatchSql(await resolveTrendTerms(term)),
         eq(posts.visibility, 'public'),
         eq(posts.status, 'published'),
       ],
@@ -173,12 +213,34 @@ function hasMediaSql(): SQL {
 }
 
 /** Author query: posts owned by or accepted-collaborated by the profile user. */
-function buildAuthoredConditions(authorId: string, filter: AuthorFeedFilter): SQL[] {
+function buildAuthoredConditions(
+  authorId: string,
+  filter: AuthorFeedFilter,
+  excludedLaneIds: readonly string[],
+): SQL[] {
   const conditions: SQL[] = [
     authorFeedSql(authorId),
     eq(posts.visibility, PostVisibility.PUBLIC),
     eq(posts.status, 'published'),
   ];
+
+  // The author's own curation (see `services/laneVisibility` for which modes are
+  // excluded from which tab).
+  //
+  // The `is null` branch is REQUIRED and is not what Mongo needed: `$nin`
+  // matched a document with no `laneId` at all, but SQL's `lane_id not in (…)`
+  // evaluates to NULL — not true — for a NULL column, so it would drop every
+  // post outside every lane. That is nearly the whole profile, and it would fail
+  // as an empty feed rather than as an error.
+  //
+  // A disjunction is safe here where it never was in Mongo: drizzle's `and()`
+  // composes, so no cursor keyset can clobber it the way
+  // `ChronoCursor.applyToQuery`'s ASSIGNED `$or` could.
+  if (excludedLaneIds.length > 0) {
+    conditions.push(
+      or(isNull(posts.laneId), notInArray(posts.laneId, [...excludedLaneIds])) as SQL,
+    );
+  }
 
   switch (filter) {
     case 'posts':
@@ -377,15 +439,165 @@ export const authoredSource: SourceModule = {
     if (!(await canViewAuthorFeed(ctx, authorId))) return [];
 
     if (filter === 'likes') {
+      // The likes tab lists OTHER people's posts, so the profile owner's own
+      // lane curation has no bearing on it.
       return gatherAuthorLikes(authorId, ctx);
     }
 
+    const excludedLaneIds = await loadExcludedLaneIds(
+      'user',
+      authorId,
+      excludedDisplayModesForTab(filter),
+    );
     // Sorted by `created_at` — never by id — to match the chronological keyset.
     // A federated post's import-time id bears no relation to its remote
     // `createdAt`, so an id sort behind a `createdAt` cursor permanently skips
     // backfilled posts at the page boundary (the "boost disappears from the
     // profile feed" bug).
-    return fetchChrono(buildAuthoredConditions(authorId, filter), ctx.cursor, cap);
+    return fetchChrono(
+      buildAuthoredConditions(authorId, filter, excludedLaneIds),
+      ctx.cursor,
+      cap,
+    );
+  },
+};
+
+/**
+ * `lane`: ONE lane's own tab. Param `{ laneId }` — one parameter, because a lane
+ * already knows its publisher.
+ *
+ * TWO GATES, and the feed is a back door without either of them:
+ *
+ *  1. **The publisher's own visibility.** A private / followers-only profile
+ *     answers an empty feed to a non-follower here exactly as it does on every
+ *     other profile tab (`canViewAuthorFeed`). A lane must never become a side
+ *     entrance to a publisher the reader cannot see.
+ *  2. **`displayMode === 'tab'` and nothing else.** `mixed` has no tab of its own
+ *     (its posts are on the main one) and `hidden` is off the showcase
+ *     altogether — serving either would make this descriptor the way to read a
+ *     lane its owner took down.
+ *
+ * The query is `lane_id = …` plus the publisher's scope, deliberately NOT
+ * `authorFeedSql`: that correlated `EXISTS` over `post_authorships` would pull
+ * the planner onto `post_author_chrono_v1` instead of `post_lane_chrono_v1`, and
+ * the literal `lane_id` term is also what lets the PARTIAL index be used at all.
+ * Which scope that is depends on the owner: `oxy_user_id` for a user's lane,
+ * `channel_id` for a channel's — a lane's posts and its publisher's posts are the
+ * same set by construction (`assertLaneAssignable` refuses any other pairing), so
+ * the scope term is a narrowing, not a second source of truth.
+ *
+ * No root filter: replies and boosts are refused a lane at the write boundary,
+ * so filtering them here would be code that can never match.
+ */
+export const laneSource: SourceModule = {
+  id: 'lane',
+  kind: 'source',
+  userComposable: false,
+  gather: async (ctx, params, cap) => {
+    const laneId = typeof params.laneId === 'string' ? params.laneId : '';
+    // No id-SHAPE guard. Ids here are pre-cutover ObjectId hex AND post-cutover
+    // uuid v7, so an `ObjectId.isValid` gate would answer `false` for every lane
+    // created since — and `false` here means an empty tab, which fails toward
+    // silence and is invisible until somebody reports a lane that shows nothing.
+    // A `text` id that matches no row already returns no rows.
+    if (!laneId) return [];
+
+    const [lane] = await getDb()
+      .select({
+        ownerType: lanes.ownerType,
+        ownerId: lanes.ownerId,
+        displayMode: lanes.displayMode,
+      })
+      .from(lanes)
+      .where(eq(lanes.id, laneId))
+      .limit(1);
+    if (!lane) return [];
+
+    // Gate 2 first: it is free, and it is the one that makes an unlisted lane
+    // unreadable through this descriptor.
+    if (lane.displayMode !== 'tab') return [];
+
+    // Gate 1, branching on WHICH publisher owns the lane. A channel curates its
+    // page the way a user curates a profile, so a channel-owned lane is a real
+    // tab — it just answers to `canViewChannel` rather than `canViewAuthorFeed`.
+    let scope: SQL;
+    if (lane.ownerType === 'channel') {
+      const [channel] = await getDb()
+        .select({ visibility: channels.visibility })
+        .from(channels)
+        .where(eq(channels.id, lane.ownerId))
+        .limit(1);
+      if (!channel || !canViewChannel(channel, ctx.currentUserId)) return [];
+      scope = eq(posts.channelId, lane.ownerId);
+    } else {
+      if (!(await canViewAuthorFeed(ctx, lane.ownerId))) return [];
+      scope = eq(posts.oxyUserId, lane.ownerId);
+    }
+
+    // Ordered on the CURSOR's axis — `(created_at, id)`, never `id` alone — the
+    // same rule every source here follows and the same order
+    // `post_lane_chrono_v1` stores.
+    return fetchChrono(
+      [
+        eq(posts.laneId, laneId),
+        scope,
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+      ],
+      ctx.cursor,
+      cap,
+    );
+  },
+};
+
+/**
+ * `channel`: ONE channel's page. Param `{ channelId }`.
+ *
+ * This is the ONLY surface a channel post is reachable from in a feed. Every
+ * author-relationship query excludes it unconditionally
+ * (`EXCLUDE_CHANNEL_POSTS`), which is the whole point: a channel post belongs to
+ * the channel, and what appears on the writer's profile is a BOOST of it, if they
+ * made one.
+ *
+ * The gate is `canViewChannel`, which is trivially true in v1 (public-only) and
+ * exists so a restricted level later is a branch in ONE function rather than an
+ * audit of every read surface for the one that forgot to ask.
+ *
+ * The query is a literal `channel_id = …` plus visibility/status, which is
+ * exactly what `post_channel_chrono_v1` stores and what lets its PARTIAL filter
+ * be proven — deliberately NOT `authorFeedSql`, whose correlated `EXISTS` would
+ * pull the planner onto `post_author_chrono_v1` AND whose `channel_id is null`
+ * exclusion would empty this feed outright.
+ *
+ * No root filter: a channel post can never be a reply (the write path refuses
+ * it, and the reply gate refuses replies TO it), so filtering them here would be
+ * code that can never match.
+ */
+export const channelSource: SourceModule = {
+  id: 'channel',
+  kind: 'source',
+  userComposable: false,
+  gather: async (ctx, params, cap) => {
+    const channelId = typeof params.channelId === 'string' ? params.channelId : '';
+    // No id-SHAPE guard, for the reason spelled out on `laneSource` above.
+    if (!channelId) return [];
+
+    const [channel] = await getDb()
+      .select({ visibility: channels.visibility })
+      .from(channels)
+      .where(eq(channels.id, channelId))
+      .limit(1);
+    if (!channel || !canViewChannel(channel, ctx.currentUserId)) return [];
+
+    return fetchChrono(
+      [
+        eq(posts.channelId, channelId),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+      ],
+      ctx.cursor,
+      cap,
+    );
   },
 };
 
@@ -463,6 +675,8 @@ export const userSourceModules: SourceModule[] = [
   trendTermsSource,
   accountsSource,
   authoredSource,
+  laneSource,
+  channelSource,
   savedSource,
   mutualsSource,
 ];

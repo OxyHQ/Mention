@@ -106,6 +106,10 @@ function item(overrides: Partial<TrendItemInput> & { name: string }): TrendItemI
     startedAt: new Date(),
     actorIds: [],
     languages: [],
+    // Every term the row stands for, its own name first. One element unless
+    // co-occurrence merged it — and the writer only STORES the column when there
+    // is more than one, so the default here is what an unmerged row looks like.
+    terms: [overrides.name],
     ...overrides,
   };
 }

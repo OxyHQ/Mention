@@ -30,6 +30,7 @@ import { getTableColumns, getTableName } from 'drizzle-orm';
 import { sqlColumnName } from '../casing';
 import { entityFollows } from './engagement';
 import { actorKeyPairs, federatedActors, federatedMediaCache } from './federation';
+import { channelMembers, laneMutes, lanes } from './channels';
 import { gifs } from './discovery';
 import {
   contentLabels,
@@ -132,6 +133,41 @@ export function isOxyAccountColumn(column: PgColumn): boolean {
  * foreign key. Each has its own reason; none of them is "we forgot".
  */
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  {
+    table: channelMembers,
+    column: channelMembers.invitedByOxyUserId,
+    reason:
+      'The Oxy account that sent the invite. An Oxy account id like every ' +
+      'other, and it is listed here only because the name is not one the ' +
+      'predicate recognizes — there is no users table for it to point at.',
+  },
+  {
+    table: lanes,
+    column: lanes.ownerId,
+    reason:
+      'POLYMORPHIC: an Oxy account id when `owner_type` is `user`, a ' +
+      '`channels.id` when it is `channel`. A constraint can name only one ' +
+      'target, and half of the values point at a service Postgres cannot see ' +
+      'anyway. The polymorphism is deliberate — it is what lets a channel own a ' +
+      'lane with no migration — and `owner_type` is the discriminator every ' +
+      'reader branches on.',
+  },
+  {
+    table: laneMutes,
+    column: laneMutes.viewerOxyUserId,
+    reason:
+      'The reader who muted the lane. An Oxy account id; see the module ' +
+      'docblock for why no id-shaped Oxy column can carry a constraint.',
+  },
+  {
+    table: laneMutes,
+    column: laneMutes.laneOwnerOxyUserId,
+    reason:
+      'DENORMALIZED from the lane\'s publisher so the settings screen can group ' +
+      'a viewer\'s mutes by publisher with no join. An Oxy account id when the ' +
+      'lane belongs to a user; it follows `lanes.owner_id`, which is itself ' +
+      'polymorphic and unconstrainable for the reason stated above.',
+  },
   {
     table: trending,
     column: trending.actorIds,

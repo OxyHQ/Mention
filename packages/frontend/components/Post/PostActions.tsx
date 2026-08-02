@@ -39,7 +39,13 @@ interface Props {
   isDownvoted?: boolean;
   isBoosted?: boolean;
   isSaved?: boolean;
-  onReply: () => void;
+  /**
+   * Omitted on a post that takes no replies at all — a channel post, or one whose
+   * author set `replyPermission: ['nobody']` — and the button is then not rendered
+   * rather than rendered dead. The caller derives that from the POST
+   * (`postAcceptsReplies`), never from a flag threaded down through `PostItem`.
+   */
+  onReply?: () => void;
   onBoost: () => void;
   onLike: () => void;
   onDownvote?: () => void;
@@ -126,17 +132,19 @@ const PostActions: React.FC<Props> = ({
         </PressableScale>
       )}
 
-      <PressableScale
-        style={styles.iconButton}
-        onPress={() => {
-          haptic('light');
-          onReply();
-        }}
-        hitSlop={HIT_SLOP_MD}
-        accessibilityLabel="Reply"
-      >
-        <CommentIcon size={ICON_SIZE} className="text-muted-foreground" />
-      </PressableScale>
+      {onReply ? (
+        <PressableScale
+          style={styles.iconButton}
+          onPress={() => {
+            haptic('light');
+            onReply();
+          }}
+          hitSlop={HIT_SLOP_MD}
+          accessibilityLabel="Reply"
+        >
+          <CommentIcon size={ICON_SIZE} className="text-muted-foreground" />
+        </PressableScale>
+      ) : null}
 
       <PressableScale
         style={styles.iconButton}

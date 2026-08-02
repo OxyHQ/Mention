@@ -68,12 +68,15 @@ describe('the retention constants still equal the Mongoose models\'', () => {
 
 describe('the sweep registry', () => {
   it('covers every model that had a Mongo TTL index', () => {
-    // Eight: the seven enumerated by reading every `expireAfterSeconds` in
+    // Nine: the seven enumerated by reading every `expireAfterSeconds` in
     // `src/models/`, plus `trend_summaries`, which was born on Postgres and
-    // therefore never had a Mongo TTL index to be found that way. A vacuity
+    // therefore never had a Mongo TTL index to be found that way, plus
+    // `trend_graphs`, whose model arrived from `main` DURING the port and which
+    // is exactly the case this list exists to catch — a TTL'd collection that
+    // grows forever the moment it is ported without a registry entry. A vacuity
     // floor as much as a count: a broken registry export would make every
     // assertion below iterate nothing.
-    expect(EXPIRY_SWEEP_TARGETS).toHaveLength(8);
+    expect(EXPIRY_SWEEP_TARGETS).toHaveLength(9);
     expect(EXPIRY_SWEEP_TARGETS.map((target) => getTableName(target.table)).sort()).toEqual([
       'author_follower_snapshots',
       'engagement_outbox',
@@ -81,6 +84,7 @@ describe('the sweep registry', () => {
       'moderation_events',
       'moderation_outbox',
       'notifications',
+      'trend_graphs',
       'trend_summaries',
       'trending',
     ]);

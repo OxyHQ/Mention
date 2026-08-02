@@ -12,9 +12,21 @@ export type NotificationType =
   | 'poke'
   | 'collab_invite'
   | 'collab_accepted'
-  | 'collab_declined';
+  | 'collab_declined'
+  /**
+   * An invitation to publish to a channel.
+   *
+   * This is the ONE channel notification that earns a type of its own. A new post
+   * in a channel deliberately reuses `'post'`, because the unique
+   * `{recipientId, actorId, type, entityId}` index below IS the deduplication
+   * between "I follow this channel" and "I subscribe to this author" — a separate
+   * type there would produce TWO notifications for one post. An invite has no such
+   * twin, and no existing type carries its meaning: an invitation the invitee
+   * never sees is a broken feature.
+   */
+  | 'channel_invite';
 
-export type NotificationEntityType = 'post' | 'reply' | 'profile';
+export type NotificationEntityType = 'post' | 'reply' | 'profile' | 'channel';
 
 /**
  * Retention window for notifications, in seconds (90 days).
@@ -44,13 +56,13 @@ const NotificationSchema = new Schema({
   type: { 
     type: String, 
     required: true,
-  enum: ['like', 'reply', 'mention', 'follow', 'boost', 'quote', 'welcome', 'post', 'poke', 'collab_invite', 'collab_accepted', 'collab_declined']
+  enum: ['like', 'reply', 'mention', 'follow', 'boost', 'quote', 'welcome', 'post', 'poke', 'collab_invite', 'collab_accepted', 'collab_declined', 'channel_invite']
   },
   entityId: { type: Schema.Types.ObjectId, required: true },
   entityType: { 
     type: String, 
     required: true,
-    enum: ['post', 'reply', 'profile']
+    enum: ['post', 'reply', 'profile', 'channel']
   },
   read: { type: Boolean, default: false },
 }, { 

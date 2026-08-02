@@ -642,16 +642,35 @@ async function purgeMediaForUrls(
         // Deleting the row now would strand the bytes permanently. Keep both and
         // fail the run: cached copies of blocked-domain media surviving a purge
         // is exactly the outcome that must never be reported as success.
+        //
+        // Said out loud, because the counter alone reaches the operator as a
+        // bare `mediaObjectDeleteFailed=N` with no cause — and this cause is a
+        // deployment setting they can actually change.
+        logger.warn(`[${SCRIPT_NAME}] media cache is disabled, so cached bytes cannot be deleted`, {
+          domain,
+          fileCount: fileIds.length,
+        });
         issues.mediaObjectDeleteFailed += fileIds.length;
         continue;
       }
 
       const results = await Promise.allSettled(fileIds.map((id) => deleteCachedMedia(id)));
-      const failed = results.filter((result) => result.status === 'rejected');
+      const failed = results.filter(
+        (result): result is PromiseRejectedResult => result.status === 'rejected',
+      );
       if (failed.length > 0) {
         logger.warn(`[${SCRIPT_NAME}] cached media delete failed; keeping its row for retry`, {
           domain,
           failedCount: failed.length,
+          // The REASONS, not just the count. `assertAdminRunComplete` correctly
+          // fails the run on a single survivor, so without these the operator is
+          // handed a failure they cannot act on: the rejection is settled,
+          // counted, and thrown away. Observed in production — nine objects
+          // survived an otherwise complete purge and the log could say only that
+          // they had.
+          reasons: failed.map((result) =>
+            result.reason instanceof Error ? result.reason.message : String(result.reason),
+          ),
         });
         issues.mediaObjectDeleteFailed += failed.length;
         continue;

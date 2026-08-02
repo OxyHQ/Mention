@@ -1,4 +1,10 @@
-import type { PostUser, TrendCategory, TrendEventInput, TrendStatus } from "@mention/shared-types";
+import type {
+  PostUser,
+  TrendCategory,
+  TrendEventInput,
+  TrendGraphResponse,
+  TrendStatus,
+} from "@mention/shared-types";
 import { logger } from '@oxyhq/core/logger';
 import { authenticatedClient, publicClient } from "@/utils/api";
 
@@ -84,6 +90,23 @@ class TrendingService {
       logger.debug("Failed to fetch trend detail", { term, error });
       return {};
     }
+  }
+
+  /**
+   * The co-occurrence graph behind the current batch (`GET /trending/graph`).
+   *
+   * Public client, like the list it explains — the screen renders for a
+   * signed-out visitor.
+   *
+   * Does NOT swallow its failures, unlike the summary above. A missing summary
+   * is the ordinary case and has to look like one; an unreachable graph is the
+   * screen's entire content, and returning an empty one would render "no
+   * relations found" over an outage — a reader would conclude the network has
+   * no stories rather than that the request failed.
+   */
+  async getTrendGraph(params: { language?: string; region?: string } = {}): Promise<TrendGraphResponse> {
+    const res = await publicClient.get<TrendGraphResponse>("/trending/graph", { params });
+    return res.data;
   }
 
   /**

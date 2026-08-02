@@ -18,7 +18,7 @@
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { inArray } from 'drizzle-orm';
+import { and, inArray } from 'drizzle-orm';
 import { MtnConfig } from '@mention/shared-types';
 
 // Trending pulls in side-effecting collaborators the aggregation never touches.
@@ -28,6 +28,7 @@ vi.mock('../../utils/alia', () => ({ aliaChat: vi.fn(), isAliaEnabled: () => fal
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { trendingService } from '../../services/TrendingService';
+import { trendTermMatchSql, TREND_CANDIDATE_COLUMNS, TREND_TERM_COLUMNS } from '../../services/trending/termSpace';
 
 /**
  * `aggregateTermCandidates` is private; reach it through a typed structural view
@@ -45,9 +46,18 @@ interface TermCandidateView {
   hashtagVolume: number;
   topicVolume: number;
   languages: string[];
+  regions: string[];
+  members: string[];
 }
 type PrivateTrending = {
-  aggregateTermCandidates(now: Date): Promise<TermCandidateView[]>;
+  /**
+   * Returns the candidates AND the co-occurrence graph behind them. The graph is
+   * `null` when clustering is off — the only thing these cases read is
+   * `candidates`, but destructuring it here keeps the shape honest.
+   */
+  aggregateTermCandidates(
+    now: Date,
+  ): Promise<{ candidates: TermCandidateView[]; graph: unknown }>;
 };
 const svc = trendingService as unknown as PrivateTrending;
 
@@ -124,7 +134,8 @@ function mine(candidates: TermCandidateView[], terms: string[]): TermCandidateVi
 }
 
 async function candidatesFor(terms: string[]): Promise<TermCandidateView[]> {
-  return mine(await svc.aggregateTermCandidates(new Date()), terms);
+  const { candidates } = await svc.aggregateTermCandidates(new Date());
+  return mine(candidates, terms);
 }
 
 beforeAll(async () => {
@@ -199,7 +210,7 @@ describe('aggregateTermCandidates — what is allowed to count', () => {
     // the blocklist matches the bare term, so it must be seeded bare.
     await seedMany(MIN_VOLUME, { trendTerms: [ordinary, 'porn'] });
 
-    const candidates = await svc.aggregateTermCandidates(new Date());
+    const { candidates } = await svc.aggregateTermCandidates(new Date());
 
     expect(candidates.map((c) => c.measurement.term)).toContain(ordinary);
     expect(candidates.map((c) => c.measurement.term)).not.toContain('porn');
@@ -302,9 +313,14 @@ describe('aggregateTermCandidates — provenance is carried, not scored', () => 
   it('counts how often the term arrived as a hashtag and as a topic slug', async () => {
     // Provenance decides the row's `type` and gates the topic-registry lookup.
     // Nothing about the score depends on it, which is why it travels separately.
+    //
+    // Note the shape of the fixture: the topic-slug posts ALSO carry the term as
+    // an extracted one. A post carrying it only as a slug we assigned is not a
+    // candidate at all — see the two cases below — so seeding one here would
+    // measure the candidate rule rather than the provenance counters.
     const mixed = term('mixed');
     await seedMany(2, { hashtags: [mixed] });
-    await seedMany(2, { classificationTopics: [mixed] });
+    await seedMany(2, { trendTerms: [mixed], classificationTopics: [mixed] });
     await seedMany(2, { trendTerms: [mixed] });
 
     const [candidate] = await candidatesFor([mixed]);
@@ -312,6 +328,36 @@ describe('aggregateTermCandidates — provenance is carried, not scored', () => 
     expect(candidate.measurement.volume).toBe(6);
     expect(candidate.hashtagVolume).toBe(2);
     expect(candidate.topicVolume).toBe(2);
+  });
+
+  it('does NOT let our own topic slugs propose a trend', async () => {
+    // A topic slug is a drawer WE file a post into, so its count answers "how
+    // many posts did we shelve here" rather than "how many people are talking
+    // about this". Counted as a candidate it put `News` and `Politics` on the
+    // live list with five posts and no burst — a bookshop announcing that its
+    // bestseller is "Fiction". The category still LABELS a trend; it is not one.
+    const shelved = term('shelved');
+    await seedMany(MIN_VOLUME + 2, { classificationTopics: [shelved] });
+
+    expect(await candidatesFor([shelved])).toEqual([]);
+    expect(TREND_CANDIDATE_COLUMNS).not.toContain(posts.classificationTopics);
+  });
+
+  it('still MATCHES a topic slug when serving a trend it did not propose', async () => {
+    // The asymmetry is the point, and only in this direction: a feed matching
+    // less than detection counted would open a trend onto a screen missing the
+    // posts that made it trend. Matching more can only add posts that are about
+    // it — one we filed under `ukraine` belongs in Ukraine's feed whether or not
+    // its author ever typed the word.
+    const served = term('served');
+    await seedPost({ classificationTopics: [served] });
+
+    const rows = await db
+      .select({ id: posts.id })
+      .from(posts)
+      .where(and(inArray(posts.id, createdPostIds), trendTermMatchSql(served)));
+    expect(rows).toHaveLength(1);
+    expect(TREND_TERM_COLUMNS).toContain(posts.classificationTopics);
   });
 
   it('carries the primary languages of the posts behind the term, ignoring the unset ones', async () => {

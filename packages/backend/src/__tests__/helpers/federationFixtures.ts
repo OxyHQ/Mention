@@ -21,6 +21,7 @@
 import { eq, inArray, like, or } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { getDb } from '../../db/postgres';
+import { channels, lanes } from '../../db/schema/channels';
 import { federatedActorFields, federatedActors, federatedFollows } from '../../db/schema/federation';
 import { assembleActorRecord } from '../../db/federation/actorRepository';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
@@ -53,6 +54,19 @@ const seededUris = new Map<string, Set<string>>();
  * only scoping that cannot reach another file's rows.
  */
 const seededPostIds = new Map<string, string[]>();
+
+/**
+ * Every channel id a scope has seeded, tracked for the same reason post ids are:
+ * `channels` carries no column naming the suite that made the row.
+ *
+ * Cleaned AFTER the posts, never before — `posts.channel_id` is
+ * `ON DELETE CASCADE`, so deleting a channel first would take its posts with it
+ * and hide whichever assertion was about them.
+ */
+const seededChannelIds = new Map<string, string[]>();
+
+/** Every lane id a scope has seeded. `posts.lane_id` is `ON DELETE SET NULL`. */
+const seededLaneIds = new Map<string, string[]>();
 
 function recordSeeded(scope: FederationScope, uri: string): void {
   const existing = seededUris.get(scope.origin);
@@ -237,6 +251,64 @@ export async function seedPost(
   return record;
 }
 
+/**
+ * Insert one channel, so a suite can seed a post that belongs to one.
+ *
+ * The only reason a federation suite needs a channel is `posts.channel_id`'s
+ * foreign key: the CHANNEL itself is never the subject of these tests, the
+ * post's membership of one is (`utils/channelReplyGate`). Public by default,
+ * because a visibility gate would be a second reason a case failed.
+ */
+export async function seedChannel(
+  scope: FederationScope,
+  overrides: Partial<typeof channels.$inferInsert> = {},
+): Promise<string> {
+  const handle = overrides.handle ?? scope.user('channel');
+  const [row] = await getDb()
+    .insert(channels)
+    .values({
+      handle,
+      handleLower: handle.toLowerCase(),
+      title: overrides.title ?? 'a channel',
+      ownerOxyUserId: overrides.ownerOxyUserId ?? scope.user('channel-owner'),
+      ...overrides,
+    })
+    .returning({ id: channels.id });
+  const existing = seededChannelIds.get(scope.origin);
+  if (existing) existing.push(row.id);
+  else seededChannelIds.set(scope.origin, [row.id]);
+  return row.id;
+}
+
+/**
+ * Insert one lane, so a suite can seed a post that carries one.
+ *
+ * A LENS, not a destination: a lane changes nothing about distribution,
+ * visibility, replies or federation. Federation suites seed one precisely to
+ * assert that — it is the control that keeps `utils/channelReplyGate` honest
+ * about keying off `channel_id` and nothing beside it.
+ */
+export async function seedLane(
+  scope: FederationScope,
+  overrides: Partial<typeof lanes.$inferInsert> = {},
+): Promise<string> {
+  const name = overrides.name ?? scope.user('lane');
+  const [row] = await getDb()
+    .insert(lanes)
+    .values({
+      ownerType: overrides.ownerType ?? 'user',
+      ownerId: overrides.ownerId ?? scope.user('lane-owner'),
+      name,
+      nameLower: name.toLowerCase(),
+      ...overrides,
+    })
+    .returning({ id: lanes.id });
+  const existing = seededLaneIds.get(scope.origin);
+  if (existing) existing.push(row.id);
+  else seededLaneIds.set(scope.origin, [row.id]);
+  return row.id;
+}
+
 /** Every follow edge a suite created, for asserting what a handler wrote. */
 export async function readFollows(
   scope: FederationScope,
@@ -279,6 +351,15 @@ export async function clearFederationScope(
   const postIds = seededPostIds.get(scope.origin) ?? [];
   for (const id of postIds.splice(0).reverse()) {
     await deletePostRecord(id, undefined);
+  }
+  // After the posts: see `seededChannelIds`.
+  const channelIds = seededChannelIds.get(scope.origin) ?? [];
+  if (channelIds.length > 0) {
+    await db.delete(channels).where(inArray(channels.id, channelIds.splice(0)));
+  }
+  const laneIds = seededLaneIds.get(scope.origin) ?? [];
+  if (laneIds.length > 0) {
+    await db.delete(lanes).where(inArray(lanes.id, laneIds.splice(0)));
   }
   // EITHER identifier, because a suite's rows are reachable by two different
   // handles: its own sender ids (which carry the scope name) and the remote

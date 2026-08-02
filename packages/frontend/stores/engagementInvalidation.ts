@@ -29,6 +29,13 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
  * namespace (`clearViewerQueryCache`) and every retained feed slice
  * (`clearAllFeedMemoryCaches`), so "this family, whoever it belongs to" and
  * "this family, for the signed-in viewer" describe the same entries.
+ *
+ * This module is the authority for ENGAGEMENT writes only. A lane write — moving
+ * a post between lanes, changing a lane's `displayMode`, muting one — changes
+ * list membership too, but it is a different write class reaching different
+ * surfaces, and `stores/laneInvalidation` owns it. Both must be consulted by any
+ * feed deciding whether its retained slice is still good; neither subsumes the
+ * other.
  */
 export type EngagementKind = 'like' | 'boost' | 'save';
 

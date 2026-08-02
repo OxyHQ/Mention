@@ -12,7 +12,7 @@ import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
 import { BoostIcon } from '@/assets/icons/boost-icon';
 import { formatTimeAgo } from '@/utils/dateUtils';
 import { displayNameOrHandle } from '@/utils/displayName';
-import type { HydratedAuthor } from '@mention/shared-types';
+import type { ChannelSummary, HydratedAuthor } from '@mention/shared-types';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
@@ -54,6 +54,28 @@ interface User {
 
 interface PostHeaderProps {
   user: User;
+  /**
+   * The channel this post was published to, straight off `post.channel`.
+   *
+   * When set, the CHANNEL is the signature: the identity line renders its title
+   * and `@handle` instead of the author's, and the caller points `avatarSource`,
+   * `onPressAvatar` and `onPressUser` at the channel too.
+   *
+   * It is its own prop rather than a `user` assembled from the channel, because a
+   * channel is not a person: no hover card previews it, no verified or federated
+   * badge applies to it, and `/@handle` is not where it lives. Collapsing the two
+   * shapes is exactly what the DTO refuses to do, and the renderer has no better
+   * claim to it.
+   */
+  channel?: ChannelSummary;
+  /**
+   * Rendered immediately BELOW the identity line, inside the same content column
+   * — a newspaper byline's position. The writer attribution on a channel post
+   * that names its writers goes here: it is a fact about authorship, so it does
+   * not belong in the identity line's trailing run of quiet facts where it would
+   * compete with the time and the lane chip.
+   */
+  bylineSlot?: React.ReactNode;
   /** Owner + accepted collaborators for collab posts. Falls back to `user` when omitted. */
   authors?: HydratedAuthor[];
   date?: string;
@@ -98,6 +120,17 @@ interface PostHeaderProps {
    */
   timeSlot?: React.ReactNode;
   /**
+   * Rendered immediately AFTER the time in the identity line — the slot the lane
+   * chip occupies (`PostLaneChip`).
+   *
+   * After the time rather than on a context row of its own: a lane is a lens on
+   * a post, not a reason it is in the feed, so it belongs on the identity line
+   * with the other quiet facts about the post rather than costing an 18px row
+   * above it. Whatever goes here must carry its own shrink rank — the identity
+   * line's other children are already ranked against each other.
+   */
+  laneSlot?: React.ReactNode;
+  /**
    * Oxy user id of the post author. When that author is currently live in a Syra
    * room, the avatar shows a live badge and tapping it joins the room instead of
    * opening the profile. Omit it for non-user avatars (e.g. the compose preview).
@@ -132,6 +165,8 @@ interface HeaderAuthor {
 
 const PostHeader: React.FC<PostHeaderProps> = ({
   user,
+  channel,
+  bylineSlot,
   authors,
   date,
   showBoost,
@@ -143,6 +178,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   avatarVariant,
   avatarSize = 36,
   timeSlot,
+  laneSlot,
   authorUserId,
   placeholderColor,
   onPressUser,
@@ -174,7 +210,12 @@ const PostHeader: React.FC<PostHeaderProps> = ({
       }),
     [authors],
   );
-  const isCollabHeader = headerAuthors.length > 1;
+  // A channel post's signature is the CHANNEL, whatever its authorship says: an
+  // unsigned one carries no authors at all, and a signed one names its writer in
+  // `bylineSlot` rather than in the identity line. So the channel branch wins
+  // over the collaborative one rather than the two competing for the same row.
+  const isChannelHeader = channel !== undefined;
+  const isCollabHeader = !isChannelHeader && headerAuthors.length > 1;
   const hasDisplayName = !isCollabHeader && !!user.displayName?.trim();
 
   // Collaborative posts render a single cluster of every author's avatar in the
@@ -206,7 +247,19 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   return (
     <View style={{ paddingHorizontal }}>
       <View className="flex-row items-start justify-between">
-        {isCollabHeader ? (
+        {isChannelHeader ? (
+          // The channel's own avatar, squircle like every other channel surface
+          // and with no hover card behind it: there is no profile to preview.
+          <LiveAvatar
+            source={avatarSource}
+            variant={avatarVariant}
+            size={avatarSize}
+            shape="squircle"
+            placeholderColor={placeholderColor}
+            onPress={onPressAvatar}
+            style={{ marginTop: headerTopOffset, marginRight: 12 }}
+          />
+        ) : isCollabHeader ? (
           // The collab avatar represents the whole group: a magnetic bubble
           // cluster of every author's avatar that opens the collaborators list
           // on tap (the sheet lists each @username). `size` is the cluster box
@@ -247,7 +300,31 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                 aggressively); the trailing "\u00B7 time" never wraps and stays visible.
                 With NO display name the @handle becomes the bold primary (rendered
                 ONCE here \u2014 the trailing muted handle is suppressed), never blank. */}
-            {isCollabHeader ? (
+            {isChannelHeader && channel ? (
+              // The channel's title takes the space it needs and its `@handle`
+              // gives way first — the same ranking the author line uses. No
+              // verified or federated marker: those describe a person's account,
+              // and a channel has neither.
+              <View className="flex-row items-end flex-shrink" style={{ minWidth: 0 }}>
+                <Text
+                  className="text-foreground text-[15px] font-semibold leading-tight"
+                  style={{ flexShrink: 0 }}
+                  numberOfLines={1}
+                  onPress={onPressUser}
+                  accessibilityRole={onPressUser ? 'link' : undefined}
+                >
+                  {channel.title}
+                </Text>
+                <Text
+                  className="text-muted-foreground text-[15px] leading-tight"
+                  style={{ flexShrink: 10, minWidth: 0 }}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {`\u00A0@${channel.handle}`}
+                </Text>
+              </View>
+            ) : isCollabHeader ? (
               <View className="flex-row items-end flex-shrink" style={{ minWidth: 0 }}>
                 <Text
                   className="text-foreground text-[15px] font-semibold leading-tight"
@@ -316,6 +393,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                 {'\u00B7'} {timeLabel}
               </Text>
             ))}
+            {laneSlot}
             {showBoost && (
               <View accessibilityRole="image" accessibilityLabel="Reposted">
                 <BoostIcon size={INDICATOR_ICON_SIZE} className="text-muted-foreground" />
@@ -328,6 +406,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               </View>
             )}
           </View>
+          {bylineSlot}
           {children ? <View>{children}</View> : null}
         </View>
         {onPressMenu ? (

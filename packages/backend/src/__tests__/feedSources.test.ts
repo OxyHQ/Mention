@@ -51,7 +51,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 import { closePostgres, connectPostgres, type Database } from '../db/postgres';
-import { bookmarks, posts, userSettings } from '../db/schema';
+import { bookmarks, channels, lanes, likes, posts, userSettings } from '../db/schema';
 import { insertPostRecord } from '../db/posts/postRepository';
 import type { PostRecord, PostRecordInput } from '../db/posts/postRecord';
 import {
@@ -62,7 +62,9 @@ import {
 import { videosSource } from '../mtn/feed/engine/sources/discoverySources';
 import {
   authoredSource,
+  channelSource,
   keywordsSource,
+  laneSource,
   savedSource,
 } from '../mtn/feed/engine/sources/userSources';
 import { ChronoCursor } from '../mtn/feed/CursorBuilder';
@@ -71,6 +73,30 @@ import type { CandidatePost, FeedEngineContext } from '../mtn/feed/engine/types'
 let db: Database;
 const created: string[] = [];
 const settingsOwners: string[] = [];
+/**
+ * Lanes and channels the suite created, cleaned in the same `afterEach`.
+ *
+ * ORDER MATTERS on the way out: `posts.channel_id` is `ON DELETE CASCADE`, so a
+ * channel deleted before its posts takes them with it — and a post the suite
+ * believes it deleted itself is a post whose absence proves nothing. Posts go
+ * first, then lanes and channels.
+ */
+const laneIds: string[] = [];
+const channelIds: string[] = [];
+const likedPostIds: string[] = [];
+/** Lane and channel names have a per-suite unique index; a counter is enough. */
+let laneSeq = 0;
+
+/** One public channel owned by this suite's author. */
+async function channel(): Promise<string> {
+  const handle = `feedsrc-chan-${laneSeq++}`;
+  const [row] = await db
+    .insert(channels)
+    .values({ handle, handleLower: handle, title: 'a channel', ownerOxyUserId: AUTHOR })
+    .returning({ id: channels.id });
+  channelIds.push(row.id);
+  return row.id;
+}
 
 const VIEWER = 'feedsrc-viewer';
 const FOLLOW = 'feedsrc-follow';
@@ -141,6 +167,13 @@ afterEach(async () => {
   const ids = created.splice(0);
   // Child rows (authorships, media, bookmarks) go with the post by cascade.
   if (ids.length > 0) await db.delete(posts).where(inArray(posts.id, ids));
+  const liked = likedPostIds.splice(0);
+  if (liked.length > 0) await db.delete(likes).where(inArray(likes.postId, liked));
+  // After the posts — see `laneIds`.
+  const usedLanes = laneIds.splice(0);
+  if (usedLanes.length > 0) await db.delete(lanes).where(inArray(lanes.id, usedLanes));
+  const usedChannels = channelIds.splice(0);
+  if (usedChannels.length > 0) await db.delete(channels).where(inArray(channels.id, usedChannels));
   const owners = settingsOwners.splice(0);
   if (owners.length > 0) await db.delete(userSettings).where(inArray(userSettings.oxyUserId, owners));
 });
@@ -649,6 +682,193 @@ describe('the authored source (the profile feed)', () => {
       );
       expect(idsOf(owner)).toEqual([post.id]);
     });
+  });
+
+  /**
+   * The author's own lane curation.
+   *
+   * The SQL here is not a transliteration of the Mongo `$nin` it replaces, and
+   * the difference is the whole reason these are row assertions. `$nin` matched
+   * a document with NO `laneId` at all; `lane_id not in (…)` evaluates to NULL —
+   * not true — for a NULL column and would drop every post outside every lane,
+   * which is nearly the entire profile. That failure has no error and no partial
+   * symptom: the tab is simply empty. The `carries no lane` case below is the one
+   * that catches it, and it is why the exclusion is written as a disjunction with
+   * `is null`.
+   */
+  describe('lane curation', () => {
+    /** One lane owned by `AUTHOR`, cleaned up with the suite's other rows. */
+    async function lane(displayMode: 'mixed' | 'tab' | 'hidden'): Promise<string> {
+      const name = `feedsrc-${displayMode}-${laneSeq++}`;
+      const [row] = await db
+        .insert(lanes)
+        .values({ ownerType: 'user', ownerId: AUTHOR, name, nameLower: name, displayMode })
+        .returning({ id: lanes.id });
+      laneIds.push(row.id);
+      return row.id;
+    }
+
+    it('drops the curated-away lanes and KEEPS every post that carries no lane', async () => {
+      const tabbed = await create({ laneId: await lane('tab'), createdAt: at(3) });
+      const hidden = await create({ laneId: await lane('hidden'), createdAt: at(2) });
+      const mixed = await create({ laneId: await lane('mixed'), createdAt: at(1) });
+      const laneless = await create({ createdAt: at(0) });
+
+      const main = await authoredSource.gather(
+        { currentUserId: VIEWER },
+        { authorId: AUTHOR, filter: 'posts' },
+        31,
+      );
+      // `mixed` belongs on the main tab; `tab` and `hidden` do not; and the
+      // laneless post — the common case — must survive the exclusion.
+      expect(idsOf(main)).toEqual([mixed.id, laneless.id]);
+      expect(idsOf(main)).not.toContain(tabbed.id);
+      expect(idsOf(main)).not.toContain(hidden.id);
+    });
+
+    it('removes only `hidden` from a non-main tab — `tab` posts belong on theirs', async () => {
+      // `is_reply` is DERIVED by the repository from the parent link, never set
+      // by a writer, so a reply fixture needs a real parent.
+      const root = await create({ createdAt: at(9) });
+      const tabbed = await create({
+        laneId: await lane('tab'),
+        parentPostId: root.id,
+        createdAt: at(1),
+      });
+      const hidden = await create({
+        laneId: await lane('hidden'),
+        parentPostId: root.id,
+        createdAt: at(0),
+      });
+
+      const replies = await authoredSource.gather(
+        { currentUserId: VIEWER },
+        { authorId: AUTHOR, filter: 'replies' },
+        31,
+      );
+      expect(idsOf(replies)).toEqual([tabbed.id]);
+      expect(idsOf(replies)).not.toContain(hidden.id);
+    });
+
+    it('leaves the likes tab alone — it lists other people\'s posts', async () => {
+      // The profile owner's curation has no bearing on posts they did not write,
+      // so the likes tab never loads their lanes at all.
+      await lane('hidden');
+      const liked = await create({ oxyUserId: STRANGER, createdAt: at(0) });
+      await db.insert(likes).values({ userId: AUTHOR, postId: liked.id, value: 1 });
+      likedPostIds.push(liked.id);
+
+      const tab = await authoredSource.gather(
+        { currentUserId: AUTHOR },
+        { authorId: AUTHOR, filter: 'likes' },
+        31,
+      );
+      expect(idsOf(tab)).toEqual([liked.id]);
+    });
+  });
+});
+
+/**
+ * `laneSource` — ONE lane's own tab, and the two gates without which the
+ * descriptor is a back door.
+ *
+ * Note what is NOT here: an "a malformed id serves nothing" case. The guard that
+ * would have made one meaningful (`ObjectId.isValid`) was REMOVED, because on
+ * this branch `posts.id` and `lanes.id` are `text` holding uuid v7 — it answered
+ * `false` for every lane created since the cutover, which is an empty tab and no
+ * error. A `text` id that names no row already returns no rows, which the
+ * unknown-lane case states.
+ */
+describe('the lane source', () => {
+  async function lane(
+    displayMode: 'mixed' | 'tab' | 'hidden',
+    owner: { ownerType: 'user' | 'channel'; ownerId: string },
+  ): Promise<string> {
+    const name = `feedsrc-src-${laneSeq++}`;
+    const [row] = await db
+      .insert(lanes)
+      .values({ ...owner, name, nameLower: name, displayMode })
+      .returning({ id: lanes.id });
+    laneIds.push(row.id);
+    return row.id;
+  }
+
+  it('serves a `tab` lane, scoped to its publisher', async () => {
+    const laneId = await lane('tab', { ownerType: 'user', ownerId: AUTHOR });
+    const mine = await create({ laneId, createdAt: at(1) });
+    // Same lane id, DIFFERENT publisher. Unreachable through the write path
+    // (`assertLaneAssignable` refuses the pairing), which is exactly why the
+    // scope term is worth pinning: it is the narrowing nothing else enforces.
+    await create({ oxyUserId: STRANGER, laneId, createdAt: at(0) });
+
+    const served = await laneSource.gather({ currentUserId: VIEWER }, { laneId }, 31);
+    expect(idsOf(served)).toEqual([mine.id]);
+  });
+
+  it.each(['mixed', 'hidden'] as const)('serves nothing for a `%s` lane', async (displayMode) => {
+    const laneId = await lane(displayMode, { ownerType: 'user', ownerId: AUTHOR });
+    await create({ laneId });
+
+    // The gate that stops this descriptor being the way to read a lane its owner
+    // took off the showcase.
+    expect(await laneSource.gather({ currentUserId: VIEWER }, { laneId }, 31)).toEqual([]);
+  });
+
+  it('withholds a private publisher\'s lane from a non-follower', async () => {
+    await setProfileVisibility(AUTHOR, 'private');
+    const laneId = await lane('tab', { ownerType: 'user', ownerId: AUTHOR });
+    await create({ laneId });
+
+    expect(
+      await laneSource.gather({ currentUserId: VIEWER, followingIds: [STRANGER] }, { laneId }, 31),
+    ).toEqual([]);
+    expect(await laneSource.gather({ currentUserId: AUTHOR }, { laneId }, 31)).toHaveLength(1);
+  });
+
+  it('serves a channel-owned lane through the channel gate instead', async () => {
+    const channelId = await channel();
+    const laneId = await lane('tab', { ownerType: 'channel', ownerId: channelId });
+    const post = await create({ laneId, channelId, createdAt: at(0) });
+
+    const served = await laneSource.gather({ currentUserId: VIEWER }, { laneId }, 31);
+    expect(idsOf(served)).toEqual([post.id]);
+  });
+
+  it('serves nothing for an unknown lane id or no id at all', async () => {
+    expect(await laneSource.gather({}, { laneId: 'feedsrc-no-such-lane' }, 31)).toEqual([]);
+    expect(await laneSource.gather({}, {}, 31)).toEqual([]);
+  });
+});
+
+/**
+ * `channelSource` — the ONLY feed surface a channel post is reachable from.
+ *
+ * The second case is the one that matters and it is a DEANONYMIZATION guard, not
+ * a tidiness rule: under `signPosts: false` the DTO hides the writer, so a
+ * channel post appearing on its author's own profile tab tells every reader who
+ * wrote every "Unknown user" post there. The exclusion lives inside
+ * `authorFeedSql` so a new profile query inherits it.
+ */
+describe('the channel source', () => {
+  it('serves the channel\'s posts, and keeps them off their author\'s profile', async () => {
+    const channelId = await channel();
+    const inChannel = await create({ channelId, createdAt: at(1) });
+    const onProfile = await create({ createdAt: at(0) });
+
+    const channelTab = await channelSource.gather({ currentUserId: VIEWER }, { channelId }, 31);
+    expect(idsOf(channelTab)).toEqual([inChannel.id]);
+
+    const profile = await authoredSource.gather(
+      { currentUserId: VIEWER },
+      { authorId: AUTHOR, filter: 'posts' },
+      31,
+    );
+    expect(idsOf(profile)).toEqual([onProfile.id]);
+  });
+
+  it('serves nothing for an unknown channel id or no id at all', async () => {
+    expect(await channelSource.gather({}, { channelId: 'feedsrc-no-such-channel' }, 31)).toEqual([]);
+    expect(await channelSource.gather({}, {}, 31)).toEqual([]);
   });
 });
 

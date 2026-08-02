@@ -34,7 +34,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from '@oxyhq/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
-import type { CreatePostRequest, HydratedPost } from '@mention/shared-types';
+import type { Channel, CreatePostRequest, HydratedPost } from '@mention/shared-types';
 import { MAX_POST_COLLABORATORS, MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useTheme } from '@oxyhq/bloom/theme';
 import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTextInput';
@@ -157,6 +157,8 @@ const UnpublishedSheet = lazy(() => import('@/components/Compose/UnpublishedShee
 const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'));
 const AltTextSheet = lazy(() => import('@/components/Compose/AltTextSheet'));
 const LanguagePickerSheet = lazy(() => import('@/components/Compose/LanguagePickerSheet'));
+const LanePickerSheet = lazy(() => import('@/components/Compose/LanePickerSheet'));
+const ChannelPickerSheet = lazy(() => import('@/components/Compose/ChannelPickerSheet'));
 const EmojiPickerSheet = lazy(() => import('@/components/Compose/EmojiPickerSheet'));
 const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
 const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
@@ -181,7 +183,7 @@ const ComposeScreenBody = () => {
   const isScreenNotMobile = useIsScreenNotMobile();
   const keyboardVisible = useKeyboardVisibility();
   const bottomBarVisible = isAuthenticated && !isScreenNotMobile && !keyboardVisible;
-  const { createPost, createThread, createReply, cachePosts } = usePostsStore();
+  const { createPost, createThread, createReply, cachePosts, boostPost } = usePostsStore();
   const queryClient = useQueryClient();
   const { t, i18n } = useTranslation();
   const rawParams = useLocalSearchParams() as ComposeIntentRawParams;
@@ -210,6 +212,18 @@ const ComposeScreenBody = () => {
   // The collaborator search is opened from the attachment row's people icon, so
   // its open/closed state belongs to the composer rather than to the picker.
   const [collaboratorSearchOpen, setCollaboratorSearchOpen] = useState(false);
+  // The author's own lane for this post. In THREAD mode it belongs to the root
+  // (the continuations are replies and carry none), which is exactly what
+  // sending it on the main post achieves.
+  const [laneId, setLaneId] = useState<string | null>(null);
+  // The channel this post is published TO, held as the whole DTO rather than its
+  // id: the lane picker needs the channel's owner to know which of the two lane
+  // endpoints it may call, and the picker already read the list it came from.
+  const [channel, setChannel] = useState<Channel | null>(null);
+  // Whether a copy of the channel post is boosted onto the author's own profile
+  // once it publishes. ON by default — a channel post exists ONLY in the channel,
+  // and silently disappearing from your own profile is the surprising outcome.
+  const [alsoPostToProfile, setAlsoPostToProfile] = useState(true);
 
   // Use custom hooks for state management
   const mediaManager = useMediaManager();
@@ -492,6 +506,33 @@ const ComposeScreenBody = () => {
    */
   const collaboratorsEligible =
     !replyToPostId && threadItems.length === 0 && (!isEditMode || editCollabEligible);
+
+  /**
+   * Whether this post can be put on a lane from HERE.
+   *
+   * A reply cannot carry one at all — the server refuses it (400) and
+   * `CreateReplyRequest` drops what it does not name, so offering the choice
+   * would end in a 201 and a silently discarded lane. An edit cannot either: the
+   * edit payload is an `UpdatePostRequest` and moving a post between lanes is a
+   * separate write with no edit window (`PATCH /posts/:id/lane`), reached from
+   * the post's own ⋯ menu. Both are hidden rather than disabled: there is
+   * nothing the author could do here to make either work.
+   */
+  const laneEligible = !replyToPostId && !isEditMode;
+
+  /**
+   * Whether this post can be published TO a channel from HERE.
+   *
+   * The same three exclusions the affordances above make, and each for its own
+   * reason. A REPLY: a channel accepts none at all, and `CreateReplyRequest`
+   * drops what it does not name — so offering the choice ends in a 201 with the
+   * post on the author's own profile and nothing saying so. An EDIT: an
+   * `UpdatePostRequest` carries no destination, and moving a published post into
+   * a channel is not an edit, it is a different post with a different byline. A
+   * THREAD: the continuations are replies to their predecessor, which is exactly
+   * what a channel post cannot have.
+   */
+  const channelEligible = !replyToPostId && !isEditMode && threadItems.length === 0;
 
   // Schedule manager
   const scheduleManager = useScheduleManager({
@@ -1047,6 +1088,13 @@ const ComposeScreenBody = () => {
         isSensitive,
         quotedPostId: quotedPost?.id,
         collaboratorIds: collaborators.length > 0 ? collaborators.map((c) => c.id) : undefined,
+        // Guarded by the same predicate that hides the affordance, so a lane
+        // chosen before a quote turned into a reply can never reach the wire.
+        laneId: laneEligible && laneId ? laneId : undefined,
+        // Same guard, and the stakes are higher: a `channelId` that slipped
+        // through onto a reply or a thread would be dropped by the server with a
+        // 201, publishing under the author's own name instead of the channel's.
+        channelId: channelEligible && channel ? channel.id : undefined,
         variantContent: mainVariantContent,
       });
       allPosts.push(mainPost);
@@ -1093,7 +1141,43 @@ const ComposeScreenBody = () => {
         // refresh, since the detail only revalidates on its original mount.
         cachePosts([updatedPost]);
       } else if (allPosts.length === 1) {
-        await createPost(allPosts[0]);
+        const created = await createPost(allPosts[0]);
+
+        // "Also post to my profile" is a BOOST of the channel's post, made after
+        // it exists — which is why there is no `channelOnly` field anywhere: the
+        // boost is a real row with the author as its owner, and every surface
+        // already renders it as "reposted by X" above the channel's own post.
+        //
+        // A SCHEDULED post cannot have one yet: it is not published, so there is
+        // nothing on anyone's profile to repost, and the client is long gone by
+        // the time it goes out. Saying so is the only honest option — the switch
+        // promised something this path cannot deliver.
+        if (mainPost.channelId && alsoPostToProfile) {
+          if (wasScheduled) {
+            toast(
+              t('channels.compose.scheduledNoRepost', {
+                defaultValue: 'Scheduled. Repost it to your own profile once it goes out.',
+              }),
+              { type: 'info' },
+            );
+          } else if (created?.id) {
+            try {
+              await boostPost({ postId: String(created.id) });
+            } catch (error) {
+              // The post itself published — only the copy failed, and the author
+              // can still repost it by hand, so this never fails the publish.
+              logger.error('Failed to repost a channel post to the profile', error, {
+                postId: String(created.id),
+              });
+              toast(
+                t('channels.compose.repostFailed', {
+                  defaultValue: 'Published to the channel, but reposting it to your profile failed.',
+                }),
+                { type: 'error' },
+              );
+            }
+          }
+        }
       } else {
         await createThread({
           mode: postingMode,
@@ -1567,6 +1651,51 @@ const ComposeScreenBody = () => {
   const handleCollaboratorsPress = useCallback(() => {
     setCollaboratorSearchOpen((open) => !open);
   }, []);
+
+  const handleLanePress = useCallback(() => {
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <LanePickerSheet
+          selectedLaneId={laneId}
+          onSelect={setLaneId}
+          // Publishing into a channel means the lanes on offer are the CHANNEL's:
+          // a lane belongs to its publisher, and the server checks that before it
+          // assigns one.
+          channel={channel}
+          onClose={() => bottomSheet.openBottomSheet(false)}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, laneId, channel]);
+
+  /**
+   * Changing the destination CLEARS the lane, in both directions.
+   *
+   * A lane belongs to one publisher, so a lane picked for the author is not a
+   * lane the channel has, and vice versa. Carrying the old choice across would
+   * send a lane its new publisher does not own — which the server refuses, after
+   * the author has already pressed post.
+   */
+  const handleChannelSelect = useCallback((next: Channel | null) => {
+    setChannel(next);
+    setLaneId(null);
+  }, []);
+
+  const handleChannelPress = useCallback(() => {
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <ChannelPickerSheet
+          selectedChannelId={channel?.id ?? null}
+          onSelect={handleChannelSelect}
+          alsoPostToProfile={alsoPostToProfile}
+          onAlsoPostToProfileChange={setAlsoPostToProfile}
+          onClose={() => bottomSheet.openBottomSheet(false)}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, channel?.id, handleChannelSelect, alsoPostToProfile]);
 
   // Main post toolbar handlers — stable references for memoized ComposeToolbar
   const handleMainGifPress = useCallback(() => {
@@ -2430,6 +2559,16 @@ const ComposeScreenBody = () => {
                       onCollaboratorsPress={collaboratorsEligible ? handleCollaboratorsPress : undefined}
                       hasCollaborators={collaborators.length > 0}
                       collaboratorsEnabled={collaborators.length < MAX_POST_COLLABORATORS}
+                      // Main toolbar only (one lane per post, and in a thread it
+                      // is the root's), and omitted outright where the post
+                      // cannot take one — see `laneEligible`.
+                      onLanePress={laneEligible ? handleLanePress : undefined}
+                      hasLane={Boolean(laneId)}
+                      // Where the post GOES, as opposed to which of the
+                      // publisher's tracks it lands on. Omitted wherever the
+                      // server would drop the choice — see `channelEligible`.
+                      onChannelPress={channelEligible ? handleChannelPress : undefined}
+                      hasChannel={Boolean(channel)}
                       hasLocation={!!location}
                       isGettingLocation={isGettingLocation}
                       hasPoll={showPollCreator}
@@ -3601,7 +3740,7 @@ const styles = StyleSheet.create({
  * session, so mount the (hook-heavy) composer body only once auth has resolved
  * and a private bearer is available — otherwise show a spinner during the SSO
  * cold boot, or an `OxyAuthPrompt` for a signed-out viewer. Mirrors the
- * settings-screen pattern (settings/fediverse.tsx) and prevents the composer
+ * settings-screen pattern (settings/fediverse/index.tsx) and prevents the composer
  * from running its submit path with no session.
  */
 const ComposeScreen = () => {

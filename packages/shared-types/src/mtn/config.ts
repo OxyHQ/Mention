@@ -113,6 +113,22 @@ export const MtnConfig = {
       sameAuthorPenalty: 0.85, // was 0.95
       sameTopicPenalty: 0.80, // was 0.92
       /**
+       * Penalty for a post about a STORY already shown on this page.
+       *
+       * Stronger than the topic penalty because it is a stronger claim. The
+       * topic penalty above reads `post.hashtags` and nothing else, so it fires
+       * on a shared tag and is silent otherwise — five accounts posting the same
+       * news item with different tags, or with none, currently penalize each
+       * other not at all. Seeing one more post about politics is a preference;
+       * seeing the fifth telling of one event is the thing that makes a feed
+       * feel broken, and it is the case the existing penalties cannot see.
+       *
+       * The story comes from the trend batch's co-occurrence clusters, so this
+       * only ever fires on terms the network is actually converging on — a post
+       * belonging to no story is untouched, which is most of them.
+       */
+      sameStoryPenalty: 0.7,
+      /**
        * Minimum number of OTHER items that must appear between two items by the
        * same author in the emitted page. The soft multiplicative `sameAuthorPenalty`
        * above only nudges scores and a high-scoring author easily overpowers it,
@@ -755,7 +771,20 @@ export const MtnConfig = {
        * gone by name, `right` (4 posts) is gone by count, and `music` (5) and
        * `politics` (11) survive — which is the list this network actually has.
        */
-      minVolume: 5,
+      /*
+       * MEASURED against the live corpus (2026-08-02): a 24h window of 531
+       * posts, in which `trump` (4 posts, 4 distinct authors), `gaza` (4/3) and
+       * `ai` (4/4) were excluded by exactly one post, leaving `news` and
+       * `sports` as the only survivors — so the list read as generic not
+       * because vocabulary was winning but because the subjects were being cut
+       * one post short.
+       *
+       * 3 is measurably too low: it admits `zeit` and `menschen` (German for
+       * "time" and "people") and `united`, hashtag residue from a two-account
+       * spray. 4 is where the data stops being subjects and starts being
+       * vocabulary.
+       */
+      minVolume: 4,
       /**
        * VOCABULARY CEILING: the share of ALL posts in the window a term may
        * appear in before it is treated as vocabulary rather than a subject.
@@ -832,9 +861,13 @@ export const MtnConfig = {
        * left the list empty.
        *
        * So this returns to being an evidence floor and nothing more. Whether a
-       * term is a name is no longer this number's question to answer.
+       * term is a name is no longer this number's question to answer — which is
+       * why it now equals {@link minVolume} exactly. Two different numbers for
+       * "enough evidence to measure" only made sense while this one was also
+       * answering a second question, and a top-up bar ABOVE the detection floor
+       * silently excluded every subject that qualified but did not burst.
        */
-      minPopularVolume: 5,
+      minPopularVolume: 4,
       /**
        * How far above its own baseline a term must sit to be reported, in
        * standard deviations of the Poisson count it is compared against.
@@ -875,6 +908,69 @@ export const MtnConfig = {
        * not a directory of them.
        */
       maxActors: 5,
+    },
+
+    /**
+     * CLUSTERING — one story, one row.
+     *
+     * A story arrives as several names at once. `Ukraine`, `Zelensky`, `Kyiv`
+     * and `Russia` are four candidates competing for four slots, each holding a
+     * quarter of the evidence for the same event — which also suppresses the
+     * burst statistic that decides whether anything is happening at all, since
+     * a rate split four ways clears no bar. Merging them concentrates the
+     * signal and spends one row on what is one subject.
+     *
+     * The measure is CO-OCCURRENCE — how often two terms appear in the same
+     * post — and it is deliberately not a synonym table. A table has to be
+     * written in advance, in every language, for stories that have not happened
+     * yet, and it is exactly the hand-maintained list this system keeps
+     * refusing to grow. Two terms belonging to one story is a fact already
+     * present in the posts.
+     */
+    clustering: {
+      /**
+       * Off switch. Clustering changes what a row MEANS — one story rather than
+       * one word — so it must be possible to turn back off in one edit without
+       * unpicking the pipeline.
+       */
+      enabled: true,
+      /**
+       * Posts two terms must SHARE before their link is considered at all.
+       *
+       * Ratios computed over one or two posts are noise: two rare terms that
+       * happen to meet once score a perfect 1.0 in both directions. This is the
+       * evidence floor for the link itself, the same role `minVolume` plays for
+       * a term.
+       */
+      minPairPosts: 3,
+      /**
+       * How tightly the DEPENDENT term must bring the other: the larger of the
+       * two directional ratios.
+       *
+       * `Kyiv` almost never appears without `Ukraine`, and that asymmetry is
+       * the signal — a subordinate name belongs to the story it cannot be
+       * mentioned without.
+       */
+      strongLinkRatio: 0.6,
+      /**
+       * How much the DOMINANT term must return: the smaller of the two ratios.
+       *
+       * Required in BOTH directions on purpose. One direction alone merges any
+       * niche term into whatever broad term it happens to accompany, and a
+       * single common word shared by two unrelated stories would fuse them. A
+       * dominant term does not have to bring the other back often — only often
+       * enough to show they are the same conversation.
+       */
+      weakLinkRatio: 0.2,
+      /**
+       * Ceiling on how many terms one row may absorb.
+       *
+       * Merging is transitive, so a chain of individually reasonable links can
+       * walk a cluster across unrelated stories. A cluster that wants to be
+       * bigger than this is evidence the links are too loose, not that the
+       * story is: the merge is refused and reported rather than trusted.
+       */
+      maxClusterSize: 6,
     },
 
     /**
@@ -1062,6 +1158,23 @@ export const MtnConfig = {
 } as const;
 
 export type MtnConfigType = typeof MtnConfig;
+
+/**
+ * The clustering knobs, named so the pure clusterer can take them as an
+ * argument rather than importing the whole config — which is what keeps it
+ * testable against values no deployment uses.
+ *
+ * Declared rather than derived from {@link MtnConfig}: `as const` would freeze
+ * `enabled` to the literal `true`, and a test that cannot express the disabled
+ * case cannot check the off switch works.
+ */
+export interface MtnTrendClusteringConfig {
+  enabled: boolean;
+  minPairPosts: number;
+  strongLinkRatio: number;
+  weakLinkRatio: number;
+  maxClusterSize: number;
+}
 
 /**
  * Classify an originating feed surface (a feed-descriptor string, e.g. `videos`,

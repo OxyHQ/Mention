@@ -20,6 +20,7 @@ import {
 } from './ranking/signalContext';
 import { engagementScore } from './ranking/signals/engagement';
 import { authorityScore } from './ranking/signals/authority';
+import { getStoryIndex, storyOf } from './trending/storyIndex';
 import {
   coldStartBoost,
   conversationalBoost,
@@ -361,6 +362,8 @@ export class FeedRankingService {
     post: RankablePost,
     recentAuthorsSet: Set<string>,
     recentTopicsSet: Set<string>,
+    recentStories: Set<string>,
+    story: string | null,
     diversitySettings?: FeedRankingSettings['diversity'],
   ): number {
     // If diversity is disabled, return no penalty
@@ -388,6 +391,14 @@ export class FeedRankingService {
       if (recentTopicMatches.length > 0) {
         penalty *= sameTopicPenalty;
       }
+    }
+
+    // Penalize the fifth telling of one event, which the two penalties above
+    // cannot see: they key on author and on hashtag, and a story told by five
+    // accounts under five different tags matches neither. Only posts belonging
+    // to a story the trend batch actually found are affected.
+    if (story && recentStories.has(story)) {
+      penalty *= this.R.diversity.sameStoryPenalty;
     }
 
     return penalty;
@@ -580,7 +591,13 @@ export class FeedRankingService {
     // (same threadId + same oxyUserId) only penalize once for their author
     const recentAuthorsSet = new Set<string>();
     const recentTopicsSet = new Set<string>();
+    const recentStories = new Set<string>();
     const penalizedThreadIds = new Set<string>();
+    // One read for the whole page, and a synchronous one: the index is a small
+    // in-process map that refreshes itself in the background, so ranking never
+    // waits on the database for a refinement it can do without. Empty until the
+    // first refresh lands, which costs that page nothing but the penalty.
+    const storyIndex = getStoryIndex();
     const safe = (v: number, fallback: number = 1) => Number.isFinite(v) ? v : fallback;
 
     const postsWithScores = postsWithBaseScores.map((item) => {
@@ -591,12 +608,15 @@ export class FeedRankingService {
         : null;
       const isAlreadyPenalizedThread = threadKey && penalizedThreadIds.has(threadKey);
 
+      const story = storyOf(item.post.postClassification?.trendTerms, storyIndex);
       const diversityPenalty = isAlreadyPenalizedThread
         ? 1.0 // Skip penalty — this post will be grouped with its thread root
         : safe(this.calculateDiversityPenalty(
             item.post,
             recentAuthorsSet,
             recentTopicsSet,
+            recentStories,
+            story,
             context.feedSettings?.diversity
           ));
 
@@ -608,6 +628,9 @@ export class FeedRankingService {
         item.post.hashtags.forEach((tag: string) => {
           recentTopicsSet.add(tag.toLowerCase());
         });
+      }
+      if (story && !isAlreadyPenalizedThread) {
+        recentStories.add(story);
       }
       if (threadKey) {
         penalizedThreadIds.add(threadKey);

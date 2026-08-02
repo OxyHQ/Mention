@@ -17,6 +17,17 @@
  * `expiresAt` column (the column IS the deadline) and `expireAfterSeconds: N` on
  * a birth column (`createdAt`, `at`, `calculatedAt`).
  *
+ * ## THE RULE: a TTL index ported without a registry entry is unbounded growth
+ *
+ * Mongo reaped a TTL'd collection whether or not anybody remembered it existed.
+ * Postgres does not, so porting a model that declares `expireAfterSeconds` and
+ * NOT adding it here converts a self-limiting table into one that grows forever
+ * — with no error, no failing test and no symptom at all until the disk fills.
+ * There is nothing to notice, which is why this is a rule and not a habit:
+ * porting a TTL'd model is TWO edits, the table and this registry, and neither
+ * is optional. `__tests__/db/expiry.test.ts` is the gate — it pins the registry
+ * to an exact table LIST, so a new TTL'd table fails it until it is named.
+ *
  * ## Every entry was checked for INTENT, not just replicated
  *
  * A Mongo TTL index DELETES the document. The sibling oxy-api port found one
@@ -49,10 +60,12 @@ import type { Database } from './postgres';
 import {
   AUTHOR_FOLLOWER_SNAPSHOT_RETENTION_SECONDS,
   NOTIFICATION_RETENTION_SECONDS,
+  TREND_GRAPH_RETENTION_SECONDS,
   TREND_SUMMARY_RETENTION_SECONDS,
   TRENDING_RETENTION_SECONDS,
   authorFollowerSnapshots,
   notifications,
+  trendGraphs,
   trendSummaries,
   trending,
 } from './schema/discovery';
@@ -110,6 +123,18 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'Derived text. A summary is regenerated on demand for whichever run is ' +
       'live, so deleting an old one costs nothing but a regeneration that ' +
       'demand would have to justify all over again.',
+  },
+  {
+    table: trendGraphs,
+    column: trendGraphs.calculatedAt,
+    retentionSeconds: TREND_GRAPH_RETENTION_SECONDS,
+    reason:
+      'A rolling picture of recent batches, and the ONLY reader ' +
+      '(`trendGraphQuery`) loads one batch by its own `calculated_at`, so a ' +
+      'graph older than the window is already unreachable. It is also the ' +
+      'largest row in the schema by some way — a whole batch of nodes and ' +
+      'edges in two jsonb columns — which is why it kept a 7-day TTL where ' +
+      'the trend rows it explains keep 90.',
   },
   {
     table: notifications,

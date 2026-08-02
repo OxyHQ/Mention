@@ -525,6 +525,8 @@ function assembleRecord(row: PostRow, children: PostChildRows): PostRecord {
     quotesDisabled: row.quotesDisabled,
 
     boostOf: row.boostOf,
+    laneId: row.laneId,
+    channelId: row.channelId,
     quoteOf: row.quoteOf,
     parentPostId: row.parentPostId,
     threadId: row.threadId,
@@ -736,6 +738,15 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     quotesDisabled: input.quotesDisabled ?? false,
 
     boostOf: input.boostOf ?? null,
+    // Ordinary nullable values. Mongo had to set them ONLY when present,
+    // because `post_lane_chrono_v1`'s partial filter was `{ laneId: { $exists:
+    // true } }` and a stored `null` SATISFIED it — indexing the whole
+    // collection and defeating the partial index. The Postgres filter is
+    // `where lane_id is not null`, so NULL is exactly the state that stays out
+    // of it: "absent" and "null" are one state here rather than two that can
+    // disagree.
+    laneId: input.laneId ?? null,
+    channelId: input.channelId ?? null,
     quoteOf: input.quoteOf ?? null,
     parentPostId: input.parentPostId ?? null,
     threadId: input.threadId ?? null,

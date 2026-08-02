@@ -9,7 +9,9 @@ import {
   clearFederationScope,
   federationScope,
   seedActor,
+  seedChannel,
   seedFollow,
+  seedLane,
   seedPost,
 } from '../../helpers/federationFixtures';
 import type { PostRecord } from '../../../db/posts/postRecord';
@@ -268,6 +270,43 @@ describe('handleCreate — reply targeting an opted-out parent-post owner', () =
     await inboxProcessingService.processInboxActivity(replyActivity(), ACTOR_URI);
 
     expect(mocks.isFediverseSharingEnabled).not.toHaveBeenCalled();
+    expect(mocks.postCreatorCreate).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * A CHANNEL POST TAKES NO REPLIES, from a remote instance either — site 3 of
+   * four for `utils/channelReplyGate`, at its real call site.
+   *
+   * The SHAPE of the refusal is the load-bearing part here and is asserted
+   * explicitly: a DROP. `processInboxActivity` must RESOLVE, because a throw
+   * fails the BullMQ inbox job into permanent retry, and any 4xx from an inbox
+   * POST makes Mastodon stop delivering to this instance entirely — killing every
+   * follow, accept, like and reply from that server, not just this one.
+   */
+  it('drops a reply to a CHANNEL post silently — resolves, never throws', async () => {
+    // A REAL `channel_id` on a REAL parent row, not a mocked lookup.
+    // `parentIsChannelPost` reads the column with `posts.id = <text>`, and the
+    // guard it replaced (`ObjectId.isValid`) answered `false` for every uuid v7
+    // id while looking present — a mocked `findById` cannot tell those apart,
+    // because it never runs the predicate that was wrong.
+    await seedTarget({ channelId: await seedChannel(scope) });
+
+    await expect(
+      inboxProcessingService.processInboxActivity(replyActivity(), ACTOR_URI),
+    ).resolves.not.toThrow();
+
+    expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
+  });
+
+  it('CONTROL: a parent carrying only a laneId still accepts the reply', async () => {
+    // A lane is a lens, not a destination — the gate must key off `channel_id`
+    // alone, or every lane post would silently stop accepting federated replies.
+    // This is also the case that makes the one above non-vacuous: the same
+    // seeding path, one column different, opposite outcome.
+    await seedTarget({ laneId: await seedLane(scope, { ownerId: OWNER_OXY_ID }) });
+
+    await inboxProcessingService.processInboxActivity(replyActivity(), ACTOR_URI);
+
     expect(mocks.postCreatorCreate).toHaveBeenCalledTimes(1);
   });
 });

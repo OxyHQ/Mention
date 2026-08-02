@@ -175,6 +175,20 @@ export interface PostRecord {
   threadId: string | null;
   scheduledFor: Date | null;
 
+  /**
+   * The author's own lane for this post — a LENS. Purely local curation: it
+   * never changes distribution, visibility, replies or federation.
+   */
+  laneId: string | null;
+  /**
+   * The channel this post was published TO — a DESTINATION, and the opposite of
+   * a lane in every way that matters. A post carrying one belongs to the
+   * channel and only to the channel: `authorFeedSql` excludes it from its
+   * author's profile and from their followers' timelines unconditionally, and
+   * neither federation nor the MTN chain ever sees it.
+   */
+  channelId: string | null;
+
   /** The stored renditions plus the shared media/article/poll/location. */
   content: StoredPostContent;
   /** The resolved @mention allowlist (Oxy user ids). */
@@ -202,6 +216,23 @@ export interface PostRecord {
  * writer set it independently would reintroduce exactly the disagreement the
  * CHECK constraints exist to make unrepresentable. {@link declaredReply} is not
  * that — see its own note.
+ *
+ * ## A COLUMN MISSING FROM THIS TYPE IS SILENTLY NEVER WRITTEN
+ *
+ * The typed literal catches a STRAY key — an unknown one is a `tsc` error rather
+ * than a column that never gets written. It does not catch the opposite, and the
+ * opposite is what actually happened: `lane_id` and `channel_id` were added to
+ * the table by a merge, `PostCreationService` passed them, and neither existed
+ * here — so `toPostInsert` never mapped them, every write stored NULL, and
+ * nothing anywhere raised. There is no error and no partial symptom, because
+ * "the writer set nothing" and "the writer set it and we dropped it" are the same
+ * stored value. It would have surfaced weeks later as "lanes don't work".
+ *
+ * So adding a column is THREE edits, not one: the table, this type (plus
+ * {@link PostRecord} for the read side), and `toPostInsert`. The round-trip cases
+ * in `__tests__/laneHydration.test.ts` and `__tests__/channelHydration.test.ts`
+ * are the gate — they assert a written value comes back, which is the only
+ * assertion shape that can tell the two states apart.
  */
 export interface PostRecordInput {
   /**
@@ -241,6 +272,8 @@ export interface PostRecordInput {
   parentPostId?: string | null;
   threadId?: string | null;
   scheduledFor?: Date | null;
+  laneId?: string | null;
+  channelId?: string | null;
   content: StoredPostContent;
   mentions?: string[];
   metadata?: PostMetadata;

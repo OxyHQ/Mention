@@ -1,5 +1,6 @@
-import { eq } from 'drizzle-orm';
+import { and, asc, eq, gt } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
+import { channelFollows } from '../db/schema/channels';
 import { postSubscriptions } from '../db/schema/engagement';
 import { posts } from '../db/schema/posts';
 import {
@@ -48,6 +49,9 @@ import { enrichIngestedPosts } from './postEnrichment';
 import { authorVariants, declaredBaseLanguages, toStoredContent } from './postVariants';
 import { recordRecentReplierForPost } from './PostRecentReplierService';
 import { parentHasPublished } from './scheduledChain';
+import { assertLaneAssignable } from '../utils/laneAssignment';
+import { assertCanPublishToChannel, ChannelAccessError, bumpChannelCounter } from './channelAccess';
+import { CHANNEL_NOTIFY_FANOUT_CAP } from '@mention/shared-types';
 
 export interface CreatePostParams {
   oxyUserId: string | null;
@@ -57,6 +61,26 @@ export interface CreatePostParams {
   threadId?: string | null;
   quoteOf?: string | null;
   boostOf?: string | null;
+  /**
+   * The author's own lane for this post — local curation only: it never
+   * federates, never enters an MTN record, and never changes distribution.
+   * Validated by {@link assertLaneAssignable} before the document is built, so a
+   * lane belonging to somebody else, or one attached to a reply or a boost, is
+   * REFUSED rather than silently dropped (an author told nothing would go on
+   * believing they published in a lane).
+   */
+  laneId?: string | null;
+  /**
+   * Publish this post TO a channel — a DESTINATION, unlike a lane, which is a lens.
+   *
+   * Validated by {@link assertCanPublishToChannel} before the document is built: a
+   * channel the author is not an accepted member of is a 403, an unknown one a
+   * 404. Setting it changes three things about the post, all of them here in
+   * {@link PostCreationService.create} rather than scattered across callers:
+   * `replyPermission` is forced to `['nobody']`, the MTN dual-write is skipped, and
+   * outbound federation is skipped. See there for why.
+   */
+  channelId?: string | null;
   hashtags?: string[];
   mentions?: string[];
   language?: string;
@@ -103,6 +127,16 @@ export interface CreatePostParams {
   updatedAt?: Date;
 }
 
+/**
+ * How many channel followers one keyset page reads while fanning out notifications.
+ *
+ * Only the page size — {@link CHANNEL_NOTIFY_FANOUT_CAP} is the total bound. It
+ * exists so a channel with thousands of followers is WALKED rather than loaded
+ * into one array, which is the difference between a bounded allocation and a spike
+ * inside the awaited publish path.
+ */
+const CHANNEL_FOLLOWER_PAGE_SIZE = 500;
+
 function derivePostType(params: CreatePostParams): PostType {
   if (params.boostOf) return PostType.BOOST;
   if (params.quoteOf) return PostType.QUOTE;
@@ -123,6 +157,10 @@ function derivePostType(params: CreatePostParams): PostType {
  * gets written — and the language has to reach BOTH the row's `language` column
  * and the primary variant's tag, which a single mutation site cannot express
  * without the caller re-reading its own scratch object.
+ *
+ * That catches a stray key and NOT a missing one, which is the direction that has
+ * actually bitten: a column absent from `PostRecordInput` is silently never
+ * written, whatever this service passes. See the note on that type.
  */
 interface BaselineClassification {
   postClassification?: Partial<PostRecordClassification>;
@@ -220,6 +258,17 @@ class PostCreationService {
         return;
       }
 
+      // A CHANNEL post emits no record. The MTN chain is per-AUTHOR and
+      // author-signed, and the lexicon has no channel field in v1 — so a record
+      // here would republish, under the writer's own signed identity, the very
+      // post the channel signs, and `PostMaterializer` would project it back as an
+      // ordinary post on that author's profile. With `signPosts: false` that is a
+      // de-anonymization; with `signPosts: true` it is still an attribution the
+      // channel did not make. Channels get their own lexicon or none.
+      if (post.channelId) {
+        return;
+      }
+
       if (post.boostOf) {
         const original = await loadPostRecord(post.boostOf);
         await emitRepostCreated(post, post.boostOf, original?.oxyUserId ?? undefined);
@@ -260,6 +309,41 @@ class PostCreationService {
    */
   async create(params: CreatePostParams): Promise<PostRecord> {
     const isScheduled = params.status === 'scheduled';
+
+    // BEFORE anything is built or written: a lane the author does not own, or a
+    // lane on a reply/boost, must never reach storage. Enforced here rather than
+    // in the controller so no future caller can route around it; free (no query)
+    // for the posts that carry no lane, which is nearly all of them.
+    // A post destined for a channel must clear TWO gates before anything is built,
+    // and the channel gate runs first because it decides which publisher the lane
+    // gate then measures the lane against.
+    //
+    // A reply, a boost and a federated ingest can never carry a channel: a channel
+    // takes no replies at all, a boost has no body of its own (it renders unwrapped
+    // and its own row belongs to the booster), and a channel has no ActivityPub
+    // surface in v1, so nothing arriving over federation has one to name. Each is a
+    // REFUSAL rather than a silent drop — an author told nothing would go on
+    // believing they published to the channel.
+    if (params.channelId) {
+      if (params.parentPostId) {
+        throw new ChannelAccessError(400, 'A reply cannot be published to a channel');
+      }
+      if (params.boostOf) {
+        throw new ChannelAccessError(400, 'A boost cannot be published to a channel');
+      }
+      if (params.federation != null) {
+        throw new ChannelAccessError(400, 'A federated post cannot be published to a channel');
+      }
+    }
+    await assertCanPublishToChannel(params.channelId, params.oxyUserId);
+
+    await assertLaneAssignable({
+      laneId: params.laneId,
+      authorId: params.oxyUserId,
+      channelId: params.channelId,
+      parentPostId: params.parentPostId,
+      boostOf: params.boostOf,
+    });
 
     let content = params.content;
     if (Array.isArray(content.media) && content.media.length > 0) {
@@ -336,13 +420,22 @@ class PostCreationService {
       visibility: params.visibility ?? PostVisibility.PUBLIC,
       status: params.status ?? 'published',
       hashtags: params.hashtags ?? [],
-      replyPermission: (params.replyPermission ?? ['anyone']) as ReplyPermission[],
       reviewReplies: params.reviewReplies ?? false,
       quotesDisabled: params.quotesDisabled ?? false,
       quoteOf: params.quoteOf ?? null,
       boostOf: params.boostOf ?? null,
       parentPostId: params.parentPostId ?? null,
       threadId: params.threadId ?? null,
+      // A channel post is persisted with `['nobody']` whatever the caller asked
+      // for — DEFENCE IN DEPTH, and it buys the client's existing reply-button
+      // suppression with no new UI. It is NOT what the server's refusal rests
+      // on: `utils/channelReplyGate` reads `channel_id`, because this field is
+      // mutable and a later settings write must not be able to reopen the post.
+      replyPermission: (params.channelId
+        ? ['nobody']
+        : params.replyPermission ?? ['anyone']) as ReplyPermission[],
+      laneId: params.laneId ?? null,
+      channelId: params.channelId ?? null,
       content: storedContent,
       // Reconciled from the FINALIZED stored bodies. Incoming metadata alone must
       // never create a notification recipient.
@@ -360,6 +453,13 @@ class PostCreationService {
       ...(params.updatedAt != null ? { updatedAt: params.updatedAt } : {}),
     };
 
+    // `lane_id` / `channel_id` go in as ordinary nullable values. Mongo had to
+    // set them ONLY when present, because `post_lane_chrono_v1`'s partial filter
+    // is `{ laneId: { $exists: true } }` and a stored `null` satisfies it —
+    // indexing every post in the collection and defeating the partial index. The
+    // Postgres partial index is `where lane_id is not null`, so NULL is the
+    // state that stays out of it, and "absent" and "null" are one state rather
+    // than two that can disagree.
     let post = await insertPostRecord(input);
     await recordRecentReplierForPost(post);
 
@@ -374,6 +474,14 @@ class PostCreationService {
     // never had one.
     if (isPublished) {
       enrichIngestedPosts([post]);
+    }
+
+    // The channel's own post count. Best-effort and only once the post is actually
+    // live — a scheduled post has no readers, and `publishScheduledPost` runs the
+    // same bump when it does. See `bumpChannelCounter` for why losing one of these
+    // must never fail a publish.
+    if (isPublished && post.channelId) {
+      await bumpChannelCounter(String(post.channelId), 'postCount', 1);
     }
 
     if (
@@ -395,7 +503,13 @@ class PostCreationService {
     const skipFederation =
       params.skipFederationDelivery ||
       hasPendingInvites ||
-      post.metadata.federationDelivered === true;
+      post.metadata.federationDelivered === true ||
+      // A CHANNEL post never leaves over ActivityPub. Channels have no AP
+      // surface in v1 (no Group actor, no key, no consent record), so the only
+      // thing an outbound `Create(Note)` could say is that the AUTHOR wrote it —
+      // the opposite of what the channel signs, and under `signPosts: false` a
+      // straight de-anonymization of a post whose whole point was anonymity.
+      post.channelId !== null;
 
     // MTN Protocol dual-write (best-effort, never blocks, never changes output).
     // Postgres is authoritative; this emits a signed `app.mention.feed.*` record
@@ -492,6 +606,15 @@ class PostCreationService {
     // belongs — `create()` deliberately skipped it while the post was scheduled.
     // The SAME entry point the immediate create and the federated backfill use.
     enrichIngestedPosts([published]);
+
+    // The channel's post count follows VISIBILITY, not creation — `create()`
+    // deliberately skipped it while the post was scheduled. Through the SAME
+    // helper the create path uses, so the counter has one writer rather than two
+    // that can drift in how they fail: this one is best-effort and logs, and a
+    // second inline `update` here would fail the publish over a display number.
+    if (published.channelId) {
+      await bumpChannelCounter(published.channelId, 'postCount', 1);
+    }
 
     const ownerId = getOwnerId(published.authorship) ?? null;
     const hasPendingInvites = hasPendingCollabInvites(published.authorship);
@@ -644,10 +767,35 @@ class PostCreationService {
           }
         }
       })(),
-      // Subscriber notifications (top-level posts only)
+      // "Somebody I follow posted" — ONE stage covering BOTH ways a reader can ask
+      // for that: subscribing to the author (`PostSubscription`) and following the
+      // channel it was published to (`ChannelFollow` with `notify`). Top-level
+      // posts only.
+      //
+      // TWO properties are load-bearing here, and both are lost if this is split
+      // into a second `Promise.allSettled` entry:
+      //
+      //  - **The recipients are UNIONED before anything is written.** A reader who
+      //    both subscribes to the author and follows the channel is one recipient,
+      //    not two. Two concurrent stages would race: `createNotification` is
+      //    check-then-act, so both can read "no row" and both write, leaving the
+      //    unique `{recipientId, actorId, type, entityId}` index as the only
+      //    backstop — and its E11000 is swallowed by that function's own catch.
+      //  - **The type stays `'post'`.** That same tuple is the dedup key, so a
+      //    channel-post notification and an author-subscription notification about
+      //    the same post COLLAPSE into one row. A new `channel_post` type would
+      //    produce two notifications for one post — the exact failure to avoid.
+      //    The row does not itself say "in #channel", and it does not need to: the
+      //    notifications screen hydrates the post through `PostHydrationService`,
+      //    so once the DTO carries `post.channel` the row reads correctly with no
+      //    schema change.
       (async () => {
         const isTopLevelPost = !parentPostId;
         if (!oxyUserId || !isTopLevelPost) return;
+        // Subscribers of the AUTHOR, plus — for a channel post — everyone who
+        // follows the channel with `notify`.
+        const recipientIds = new Set<string>();
+
         // Postgres: nothing has written the Mongo collection since post
         // subscriptions moved, so this fan-out had stopped finding subscribers
         // and new-post notifications quietly stopped being sent to anyone who
@@ -656,11 +804,58 @@ class PostCreationService {
           .select({ subscriberId: postSubscriptions.subscriberId })
           .from(postSubscriptions)
           .where(eq(postSubscriptions.authorId, oxyUserId));
-        if (subs.length === 0) return;
-        const notifications = subs
-          .filter((s) => s.subscriberId !== oxyUserId)
-          .map((s) => ({
-            recipientId: s.subscriberId,
+        for (const sub of subs) recipientIds.add(sub.subscriberId);
+
+        if (post.channelId) {
+          // Keyset-paged rather than loaded whole: a channel is followable by
+          // everyone, and this stage is AWAITED inside the publish pipeline.
+          // Truncation is logged at `warn` on purpose — a fan-out limit nobody
+          // can see is a limit that gets blamed on something else. Past this cap
+          // the fan-out belongs in a BullMQ job, and the log is the signal to
+          // build one.
+          //
+          // The keyset is `id` alone, which is safe HERE and nowhere near a feed:
+          // it is a full scan of one channel's followers in an arbitrary but
+          // TOTAL order, not a chronological page. `channel_follows.id` is uuid
+          // v7 and the index `(channel_id, notify, id)` serves it directly.
+          const channelId = post.channelId;
+          let lastId: string | undefined;
+          let scanned = 0;
+          for (;;) {
+            const remaining = CHANNEL_NOTIFY_FANOUT_CAP - scanned;
+            if (remaining <= 0) break;
+            const batch = await getDb()
+              .select({ id: channelFollows.id, oxyUserId: channelFollows.oxyUserId })
+              .from(channelFollows)
+              .where(and(
+                eq(channelFollows.channelId, channelId),
+                eq(channelFollows.notify, true),
+                ...(lastId ? [gt(channelFollows.id, lastId)] : []),
+              ))
+              .orderBy(asc(channelFollows.id))
+              .limit(Math.min(remaining, CHANNEL_FOLLOWER_PAGE_SIZE));
+            if (batch.length === 0) break;
+            for (const follow of batch) recipientIds.add(follow.oxyUserId);
+            scanned += batch.length;
+            lastId = batch[batch.length - 1].id;
+          }
+          if (scanned >= CHANNEL_NOTIFY_FANOUT_CAP) {
+            logger.warn('PostCreationService: channel notification fan-out truncated', {
+              channelId,
+              postId: post.id,
+              cap: CHANNEL_NOTIFY_FANOUT_CAP,
+            });
+          }
+        }
+
+        // The author never notifies themselves. `createNotification` refuses that
+        // too, but dropping it here keeps the batch honest about its own size.
+        recipientIds.delete(oxyUserId);
+        if (recipientIds.size === 0) return;
+
+        const notifications = [...recipientIds]
+          .map((recipientId) => ({
+            recipientId,
             actorId: oxyUserId,
             type: 'post' as const,
             entityId: post.id,

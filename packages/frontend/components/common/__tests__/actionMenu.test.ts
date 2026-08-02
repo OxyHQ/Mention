@@ -89,6 +89,10 @@ describe('action menu wiring', () => {
       .filter((f) => f !== join('components', 'common', 'ActionMenu.tsx'));
 
     expect(callers.sort()).toEqual([
+      // The lane management screen's per-lane menu (rename / where it shows /
+      // delete) — the same surface as the two below, so it goes through the same
+      // host rather than hand-rolling a third one.
+      join('app', '(app)', 'lanes.tsx'),
       join('components', 'Feed', 'PostItem.tsx'),
       join('components', 'ProfileScreen.tsx'),
     ]);

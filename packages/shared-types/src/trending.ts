@@ -24,7 +24,21 @@
 export type TrendEventName = 'click' | 'seen';
 
 /** The kind of thing trending; mirrors `Trending.type` on the server. */
-export type TrendEventType = 'hashtag' | 'topic' | 'entity';
+export type TrendEventType =
+  | 'hashtag'
+  | 'topic'
+  | 'entity'
+  /**
+   * A measured term that is not a classified row.
+   *
+   * The relation graph opens terms most of which never became trends, so they
+   * have no provenance to report. A real member of the union rather than an
+   * absent field: `type` is a metric label, and a surface that could omit it
+   * would silently create an unlabelled series — while guessing one of the
+   * other three would put an invented value in the metric, which is worse than
+   * saying plainly that there is none.
+   */
+  | 'unclassified';
 
 /**
  * The category taxonomy a trend is filed under — the coarse hint shown beneath
@@ -99,7 +113,9 @@ export type TrendEventSurface =
   | 'search'
   | 'interstitial'
   | 'history'
-  | 'feeds';
+  | 'feeds'
+  /** The relation graph, where a term is opened from a node rather than a row. */
+  | 'graph';
 
 export interface TrendEventInput {
   event: TrendEventName;
@@ -123,4 +139,63 @@ export interface TrendEventInput {
    * reader acted on is still the current one.
    */
   recId?: string;
+}
+
+/**
+ * One node of the co-occurrence graph behind a trend batch — a term, with the
+ * measurements that decide whether it links to anything.
+ */
+export interface TrendGraphNodeDTO {
+  /** The term. Lowercase, possibly a phrase. */
+  term: string;
+  /**
+   * What a reader is shown, when there is anything better than the term.
+   *
+   * Present only for terms that became a reported trend, since a label is
+   * derived per trend and most nodes are not trends. Joined at read time from
+   * the same batch's rows rather than stored twice.
+   */
+  displayName?: string;
+  /** Posts carrying the term in the window. */
+  volume: number;
+  /** DISTINCT authors of those posts. */
+  authorCount: number;
+  /** Primary languages of those posts (ISO 639-1). */
+  languages: string[];
+  /** Coarse regions of those posts, where known. Often empty — the signal is sparse. */
+  regions: string[];
+  /** The term this node was merged into, when it is part of a story. */
+  story?: string;
+}
+
+/** One co-occurrence: two terms and how many posts contain both. */
+export interface TrendGraphEdgeDTO {
+  a: string;
+  b: string;
+  posts: number;
+  /**
+   * Whether the clusterer accepted this exact pair.
+   *
+   * An unlinked edge is the interesting one: it is the visible answer to why
+   * two terms are still two rows.
+   */
+  linked: boolean;
+}
+
+/** The graph behind one batch, plus the filter values its own data supports. */
+export interface TrendGraphResponse {
+  calculatedAt: string;
+  nodes: TrendGraphNodeDTO[];
+  edges: TrendGraphEdgeDTO[];
+  /**
+   * Every language present in the UNFILTERED graph, and every region.
+   *
+   * Sent so a client can offer exactly the filters the data supports rather
+   * than a fixed list that promises coverage the network may not have — region
+   * in particular is sparse and is frequently empty.
+   */
+  availableLanguages: string[];
+  availableRegions: string[];
+  /** Edges the batch dropped for size, if any. */
+  droppedEdges?: number;
 }

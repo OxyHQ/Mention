@@ -181,3 +181,46 @@ export const MIGRATION_BLOCKLIST_PROPOSAL_INDEXES = '0020-blocklist-proposal-ind
  * authority. See {@link ./0021-blocklist-proposal-run-indexes}.
  */
 export const MIGRATION_BLOCKLIST_PROPOSAL_RUN_INDEXES = '0021-blocklist-proposal-run-indexes';
+
+/**
+ * Create the `Lane` and `LaneMute` indexes: the UNIQUE `{ownerType, ownerId,
+ * nameLower}` identity that stops one publisher owning two lanes of the same
+ * name (the create route's 409 IS that constraint — its cap check is not a
+ * lock), the `{ownerType, ownerId, displayMode}` exclusion lookup that runs on
+ * every profile feed request, and the UNIQUE `{viewerOxyUserId, laneId}` that
+ * makes muting a lane idempotent. Production disables Mongoose auto-indexing, so
+ * this migration is the schema authority. See {@link ./0022-lane-indexes}.
+ */
+export const MIGRATION_LANE_INDEXES = '0022-lane-indexes';
+
+/**
+ * Create the PARTIAL `post_lane_chrono_v1` index on `posts` so a lane's tab (and
+ * the per-lane counts the management screen aggregates) is served from the index
+ * rather than a collection scan. Kept apart from `0022` because it is the only
+ * lane index touching a large collection. Production disables Mongoose
+ * auto-indexing, so this migration is the schema authority.
+ * See {@link ./0023-post-lane-index}.
+ */
+export const MIGRATION_POST_LANE_INDEX = '0023-post-lane-index';
+
+/**
+ * Create every Channels index: the UNIQUE `{handleLower}` that makes a channel
+ * handle a GLOBAL identity (and is what the create/rename 409 actually comes
+ * from), the directory keyset, the UNIQUE `{channelId, oxyUserId}` membership row
+ * behind the publish-time authorization check, the `{channelId, notify, _id}`
+ * keyset the notification fan-out walks, and the PARTIAL `post_channel_chrono_v1`
+ * on `posts` that serves a channel's page from the index rather than a collection
+ * scan. Production disables Mongoose auto-indexing, so this migration is the
+ * schema authority. See {@link ./0024-channel-indexes}.
+ */
+export const MIGRATION_CHANNEL_INDEXES = '0024-channel-indexes';
+
+/**
+ * Create `channel_follow_by_user_v1` on `channelfollows` so a reader's own
+ * subscription list (`GET /channels/following`) pages from the index rather than
+ * a collection scan. Kept apart from `0024` because the runner skips an
+ * already-applied migration, which would make an edit there a silent no-op.
+ * Production disables Mongoose auto-indexing, so this migration is the schema
+ * authority. See {@link ./0025-channel-follow-user-index}.
+ */
+export const MIGRATION_CHANNEL_FOLLOW_USER_INDEX = '0025-channel-follow-user-index';
