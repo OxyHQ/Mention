@@ -821,8 +821,20 @@ export const MtnConfig = {
        * that size, and no stop-word list will ever contain every inflected
        * form of every common verb. The honest fix is to require the popular
        * path to actually be popular.
+       *
+       * RECALIBRATED once a term had to NAME something. This bar was doing two
+       * jobs: proving there was enough evidence, and standing in for "is this a
+       * subject at all?" — which it could only ever do by proxy, because the
+       * term space was then full of ordinary words whose volume came from
+       * everyone who happened to use them. The naming rule answers the second
+       * question upstream now, and it shrank every count with it: `Ukraine`, a
+       * real subject, measured exactly 10, fell short on the next batch, and
+       * left the list empty.
+       *
+       * So this returns to being an evidence floor and nothing more. Whether a
+       * term is a name is no longer this number's question to answer.
        */
-      minPopularVolume: 10,
+      minPopularVolume: 5,
       /**
        * How far above its own baseline a term must sit to be reported, in
        * standard deviations of the Poisson count it is compared against.
