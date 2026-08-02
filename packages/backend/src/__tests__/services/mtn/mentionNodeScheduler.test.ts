@@ -12,14 +12,14 @@ import type * as TypeScript from 'typescript';
  *    pending first-ticks.
  *  - The sync sweep routes `pull` nodes to ingest and `push` nodes to export.
  *  - READ INVARIANT (static guard): NO feed / hydration / controller code on the
- *    hot read path references `MentionUserNode`, the node endpoints, or the node
+ *    hot read path references the node table/repository, the node endpoints, or the node
  *    sync/registry services. All node I/O is background-only.
  */
 
 const mockSweepLiveness = vi.fn();
 const mockIngest = vi.fn();
 const mockExport = vi.fn();
-const mockNodeFind = vi.fn();
+const mockFindNodesToSync = vi.fn();
 
 vi.mock('../../../services/mtn/MentionNodeRegistryService', () => ({
   sweepNodeLiveness: (...a: unknown[]) => mockSweepLiveness(...a),
@@ -28,9 +28,14 @@ vi.mock('../../../services/mtn/MentionNodeSyncService', () => ({
   ingestFromNode: (...a: unknown[]) => mockIngest(...a),
   exportToNode: (...a: unknown[]) => mockExport(...a),
 }));
-vi.mock('../../../models/MentionUserNode', () => ({
-  __esModule: true,
-  default: { find: (...a: unknown[]) => mockNodeFind(...a) },
+// The SEAM, not the store. What this file tests is the scheduler's timer and
+// routing behaviour; which rows the sweep query returns — and the `NULLS FIRST`
+// ordering that decides whether a new node is ever serviced at all — is pinned
+// against real rows in `__tests__/db/mtnNodeRepository.test.ts`. Stubbing a
+// named repository function keeps those two questions apart; stubbing the old
+// Mongoose model conflated them and left the ordering covered by nothing.
+vi.mock('../../../db/mtn/nodeRepository', () => ({
+  findNodesToSync: (...a: unknown[]) => mockFindNodesToSync(...a),
 }));
 
 import { MentionNodeScheduler } from '../../../services/mtn/MentionNodeScheduler';
@@ -39,10 +44,6 @@ import {
   MENTION_NODE_INGEST_SWEEP_INTERVAL_MS,
 } from '../../../services/mtn/mentionNodes.constants';
 
-function findLean(rows: unknown) {
-  return { sort: () => ({ limit: () => ({ select: () => ({ lean: () => Promise.resolve(rows) }) }) }) };
-}
-
 describe('MentionNodeScheduler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -50,7 +51,7 @@ describe('MentionNodeScheduler', () => {
     mockSweepLiveness.mockResolvedValue(undefined);
     mockIngest.mockResolvedValue(undefined);
     mockExport.mockResolvedValue(undefined);
-    mockNodeFind.mockReturnValue(findLean([]));
+    mockFindNodesToSync.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -62,17 +63,15 @@ describe('MentionNodeScheduler', () => {
     scheduler.start();
     // Nothing fired yet — both sweeps are deferred behind a startup timer.
     expect(mockSweepLiveness).not.toHaveBeenCalled();
-    expect(mockNodeFind).not.toHaveBeenCalled();
+    expect(mockFindNodesToSync).not.toHaveBeenCalled();
     scheduler.stop();
   });
 
   it('runs the liveness + sync sweeps after their startup delay', async () => {
-    mockNodeFind.mockReturnValue(
-      findLean([
-        { oxyUserId: 'u-pull', mode: 'pull' },
-        { oxyUserId: 'u-push', mode: 'push' },
-      ]),
-    );
+    mockFindNodesToSync.mockResolvedValue([
+      { oxyUserId: 'u-pull', mode: 'pull' },
+      { oxyUserId: 'u-push', mode: 'push' },
+    ]);
     const scheduler = new MentionNodeScheduler();
     scheduler.start();
 
@@ -142,7 +141,7 @@ describe('MentionNodeScheduler', () => {
   it('does NOT overlap sync sweeps when one outlasts its interval', async () => {
     // A sync sweep blocks in ingest: hold it open and assert no second sweep
     // starts (the node query is not re-run) on the following ticks.
-    mockNodeFind.mockReturnValue(findLean([{ oxyUserId: 'u-pull', mode: 'pull' }]));
+    mockFindNodesToSync.mockResolvedValue([{ oxyUserId: 'u-pull', mode: 'pull' }]);
     let releaseIngest: (() => void) | undefined;
     mockIngest.mockImplementation(
       () => new Promise<void>((resolve) => { releaseIngest = resolve; }),
@@ -153,19 +152,19 @@ describe('MentionNodeScheduler', () => {
 
     // First sync tick (after its 90s startup delay) begins and blocks in ingest.
     await vi.advanceTimersByTimeAsync(91_000);
-    expect(mockNodeFind).toHaveBeenCalledTimes(1);
+    expect(mockFindNodesToSync).toHaveBeenCalledTimes(1);
     expect(mockIngest).toHaveBeenCalledTimes(1);
 
     // Interval boundaries pass while ingest is blocked — the guard skips them, so
     // the node query is not re-run and ingest is not re-invoked.
     await vi.advanceTimersByTimeAsync(MENTION_NODE_INGEST_SWEEP_INTERVAL_MS * 3);
-    expect(mockNodeFind).toHaveBeenCalledTimes(1);
+    expect(mockFindNodesToSync).toHaveBeenCalledTimes(1);
     expect(mockIngest).toHaveBeenCalledTimes(1);
 
     // Unblock the sweep; the next tick is then free to run a fresh sweep.
     releaseIngest?.();
     await vi.advanceTimersByTimeAsync(MENTION_NODE_INGEST_SWEEP_INTERVAL_MS);
-    expect(mockNodeFind).toHaveBeenCalledTimes(2);
+    expect(mockFindNodesToSync).toHaveBeenCalledTimes(2);
 
     scheduler.stop();
   });
@@ -183,7 +182,14 @@ describe('Read-path invariant — feeds/hydration never touch a node', () => {
   // The node layer itself is the ONLY place node I/O is allowed — exclude it.
   const NODE_LAYER = `${path.join('src', 'services', 'mtn')}${path.sep}`;
   const FORBIDDEN = [
-    'MentionUserNode',
+    // Re-expressed when the Mongoose `MentionUserNode` model gave way to
+    // Postgres. The invariant is unchanged — no hot-path module may reach the
+    // node table — but the symbol that names it is now the drizzle table, so
+    // the token had to move with it or it would match nothing and enforce
+    // nothing. The floor below is what forced this rather than letting the
+    // check quietly retire.
+    'mentionUserNodes',
+    'nodeRepository',
     'MentionNodeSyncService',
     'MentionNodeRegistryService',
     'MentionNodeScheduler',
@@ -229,7 +235,7 @@ describe('Read-path invariant — feeds/hydration never touch a node', () => {
    * documents replaced behaviour everywhere — so the check that fires is as
    * likely to be describing the node layer as calling it. Identifiers match
    * exactly; string literals match on substring, because that is how an import
-   * specifier (`'../../models/MentionUserNode'`) and an endpoint path
+   * specifier (`'../../db/mtn/nodeRepository'`) and an endpoint path
    * (`'/oxy-node.json'`) carry the reference.
    */
   function referencedTokens(sourceFile: TypeScript.SourceFile): string[] {
@@ -265,17 +271,18 @@ describe('Read-path invariant — feeds/hydration never touch a node', () => {
       parse(
         path.join(__dirname, 'referencedTokens.control.ts'),
         [
-          "import MentionUserNode from '../models/MentionUserNode';",
+          "import { findUserNode } from '../db/mtn/nodeRepository';",
+          'const table = mentionUserNodes;',
           "const endpoint = '/oxy-node.json';",
           '// A comment naming MentionNodeSyncService must NOT count.',
           '/** Nor a docblock naming MentionNodeScheduler and exportToNode. */',
-          'export const model = MentionUserNode;',
+          'export const model = table;',
           'export const url = `${endpoint}?x=1`;',
         ].join('\n'),
       ),
     );
 
-    expect(detected).toEqual(['MentionUserNode', 'oxy-node.json']);
+    expect(detected).toEqual(['mentionUserNodes', 'nodeRepository', 'oxy-node.json']);
   });
 
   it('no hot-path module references a node model / endpoint / sync service', () => {
@@ -299,8 +306,8 @@ describe('Read-path invariant — feeds/hydration never touch a node', () => {
     ).toEqual([]);
 
     // FLOOR — every forbidden token still NAMES something. A token whose symbol
-    // has been deleted (`MentionUserNode` the moment the Mongoose model gives
-    // way to `db/schema/mtn`'s `mentionUserNodes`) can never match again, and
+    // has been deleted (as `MentionUserNode` was, the moment the Mongoose model
+    // gave way to `db/schema/mtn`'s `mentionUserNodes`) can never match again, and
     // the invariant it stood for quietly stops being enforced. When this fails,
     // re-express the token against the replacement symbol — do not delete it.
     const reachable = new Set(scanned.flatMap((entry) => entry.tokens));

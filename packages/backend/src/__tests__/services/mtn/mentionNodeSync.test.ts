@@ -41,9 +41,6 @@ const mockGetHead = vi.fn();
 const mockGetPublicLogSince = vi.fn();
 const mockSignMessage = vi.fn();
 const mockComputeRecordId = vi.fn();
-const mockNodeFindOne = vi.fn();
-const mockNodeUpdateOne = vi.fn();
-const mockWitnessCreate = vi.fn();
 
 // NodeClient is mocked to a stub that returns the canned head/log/push responses.
 vi.mock('@oxyhq/protocol/node', () => ({
@@ -76,20 +73,18 @@ vi.mock('../../../services/mtn/MentionRepoLogService', () => ({
   getHead: (...a: unknown[]) => mockGetHead(...a),
   getPublicLogSince: (...a: unknown[]) => mockGetPublicLogSince(...a),
 }));
-vi.mock('../../../models/MentionUserNode', () => ({
-  __esModule: true,
-  default: {
-    findOne: (...a: unknown[]) => mockNodeFindOne(...a),
-    updateOne: (...a: unknown[]) => mockNodeUpdateOne(...a),
-  },
-}));
-vi.mock('../../../models/MentionNodeIngestWitness', () => ({
-  __esModule: true,
-  default: { create: (...a: unknown[]) => mockWitnessCreate(...a) },
-}));
+// The node row and its witness ledger are REAL. They used to be Mongo statics
+// whose `$set` argument the assertions read, which measured what the service
+// ASKED FOR rather than what the store kept — so a cursor the column would
+// reject (`mention_user_nodes_cursor_check` refuses the `-1` sentinel) and a
+// witness whose second write silently replaced the first were both invisible.
 
 import { closePostgres, connectPostgres, type Database } from '../../../db/postgres';
-import { mentionSignedRecords } from '../../../db/schema/mtn';
+import {
+  mentionNodeIngestWitnesses,
+  mentionSignedRecords,
+  mentionUserNodes,
+} from '../../../db/schema/mtn';
 import { MTN_CHAIN_STATUS } from '../../../services/mtn/MentionRecordStore';
 import { ingestFromNode, exportToNode } from '../../../services/mtn/MentionNodeSyncService';
 
@@ -103,7 +98,20 @@ async function ledgerRows() {
     .where(eq(mentionSignedRecords.oxyUserId, OXY_USER_ID));
 }
 
-const OXY_USER_ID = '650000000000000000000abc';
+/**
+ * OWNED BY THIS FILE.
+ *
+ * `mention_user_nodes.oxy_user_id` is UNIQUE, so seeding a node row under an id
+ * another parallel file also seeds is a duplicate-key failure in whichever file
+ * loses the race — nothing to do with what either is testing. This used to be
+ * the shared `650000000000000000000abc`, which was harmless while these suites
+ * only wrote chain records (no unique constraint on the owner there) and became
+ * a collision the moment the node row became real.
+ *
+ * `fixtureIdOwnership.test.ts` cannot catch this: it inspects `id:` FIELD
+ * literals, and this is an owner column.
+ */
+const OXY_USER_ID = '650000000000000000000a51';
 const SUBJECT_DID = `did:web:oxy.so:u:${OXY_USER_ID}`;
 const PUBLIC_KEY = 'ab'.repeat(33);
 
@@ -127,18 +135,23 @@ function envelope(seq: number, overrides: Record<string, unknown> = {}): Record<
   };
 }
 
-/** Chainable `.select().lean()`. */
-function selectLean(value: unknown) {
-  return { select: () => ({ lean: () => Promise.resolve(value) }) };
+/** The stored node row for this suite's subject. */
+async function nodeRow() {
+  const [row] = await db
+    .select()
+    .from(mentionUserNodes)
+    .where(eq(mentionUserNodes.oxyUserId, OXY_USER_ID))
+    .limit(1);
+  return row;
 }
-/** The update arg (`{ $set, $unset, ... }`) of a Mongo-static mock's last call. */
-function lastUpdate(mock: { mock: { calls: unknown[][] } }): {
-  $set?: Record<string, unknown>;
-  $unset?: Record<string, unknown>;
-} {
-  const { calls } = mock.mock;
-  const last = calls[calls.length - 1];
-  return (last?.[1] ?? {}) as { $set?: Record<string, unknown>; $unset?: Record<string, unknown> };
+
+/** How many records this suite's subject has had counter-signed. */
+async function witnessCount(): Promise<number> {
+  const rows = await db
+    .select({ id: mentionNodeIngestWitnesses.id })
+    .from(mentionNodeIngestWitnesses)
+    .where(eq(mentionNodeIngestWitnesses.oxyUserId, OXY_USER_ID));
+  return rows.length;
 }
 
 beforeAll(async () => {
@@ -155,11 +168,15 @@ beforeEach(async () => {
   process.env.MENTION_PUBLIC_KEY = PUBLIC_KEY;
   await db.delete(mentionSignedRecords).where(eq(mentionSignedRecords.oxyUserId, OXY_USER_ID));
 
-  mockNodeFindOne.mockReturnValue(selectLean({ endpoint: 'https://node.example.com', cursor: undefined }));
+  await db.delete(mentionNodeIngestWitnesses).where(eq(mentionNodeIngestWitnesses.oxyUserId, OXY_USER_ID));
+  await db.delete(mentionUserNodes).where(eq(mentionUserNodes.oxyUserId, OXY_USER_ID));
+  await db.insert(mentionUserNodes).values({
+    oxyUserId: OXY_USER_ID,
+    endpoint: 'https://node.example.com',
+    nodePublicKey: PUBLIC_KEY,
+  });
   mockGetHead.mockResolvedValue(null); // local head -1
   mockGetPublicLogSince.mockResolvedValue([]); // export: nothing to push by default
-  mockNodeUpdateOne.mockResolvedValue({ modifiedCount: 1 });
-  mockWitnessCreate.mockResolvedValue({});
   mockSignMessage.mockResolvedValue('witness-sig');
   mockProjectRecord.mockResolvedValue({ ok: true, kind: 'post', id: 'r' });
   mockComputeRecordId.mockImplementation(async (env: { seq?: number }) => `rid-${env.seq}`);
@@ -188,13 +205,13 @@ describe('ingestFromNode — happy path', () => {
     // EVERY verified record was materialized into the feed-readable store.
     expect(mockProjectRecord).toHaveBeenCalledTimes(3);
     // EVERY ingested record was counter-signed into the witness ledger.
-    expect(mockWitnessCreate).toHaveBeenCalledTimes(3);
+    expect(await witnessCount()).toBe(3);
 
     // Cursor advanced to the node head (2) + lastSyncedAt stamped + error cleared.
-    const update = lastUpdate(mockNodeUpdateOne);
-    expect(update.$set).toMatchObject({ cursor: 2 });
-    expect(update.$set?.lastSyncedAt).toBeInstanceOf(Date);
-    expect(update.$unset).toEqual({ lastError: '' });
+    const row = await nodeRow();
+    expect(row?.cursor).toBe(2);
+    expect(row?.lastSyncedAt).toBeInstanceOf(Date);
+    expect(row?.lastError).toBeNull();
   });
 
   it('is a caught-up no-op (no log fetch) when the node head is not ahead', async () => {
@@ -206,8 +223,7 @@ describe('ingestFromNode — happy path', () => {
     expect(mockLog).not.toHaveBeenCalled();
     expect(mockVerifyAndStore).not.toHaveBeenCalled();
     expect(mockProjectRecord).not.toHaveBeenCalled();
-    const update = mockNodeUpdateOne.mock.calls[0];
-    expect(update[1].$set).toMatchObject({ cursor: 5 });
+    expect((await nodeRow())?.cursor).toBe(5);
   });
 });
 
@@ -222,10 +238,9 @@ describe('ingestFromNode — bad-signature rejection', () => {
     // It WAS re-verified (the trust boundary ran) but rejected.
     expect(mockVerifyAndStore).toHaveBeenCalledTimes(1);
     expect(mockProjectRecord).not.toHaveBeenCalled(); // not materialized
-    expect(mockWitnessCreate).not.toHaveBeenCalled(); // not witnessed
+    expect(await witnessCount()).toBe(0); // not witnessed
     expect(await ledgerRows()).toEqual([]); // no fork mirror
-    const update = mockNodeUpdateOne.mock.calls[0];
-    expect(update[1].$set.lastError).toContain('rejected:bad_signature');
+    expect((await nodeRow())?.lastError).toContain('rejected:bad_signature');
   });
 
   it('rejects a record forged with a key that is not a current verification method', async () => {
@@ -239,9 +254,8 @@ describe('ingestFromNode — bad-signature rejection', () => {
     await ingestFromNode(OXY_USER_ID);
 
     expect(mockProjectRecord).not.toHaveBeenCalled();
-    expect(mockWitnessCreate).not.toHaveBeenCalled();
-    const update = mockNodeUpdateOne.mock.calls[0];
-    expect(update[1].$set.lastError).toContain('rejected:public_key_not_a_current_verification_method');
+    expect(await witnessCount()).toBe(0);
+    expect((await nodeRow())?.lastError).toContain('rejected:public_key_not_a_current_verification_method');
   });
 
   it('rejects a malformed envelope that fails the contract schema', async () => {
@@ -252,8 +266,7 @@ describe('ingestFromNode — bad-signature rejection', () => {
 
     expect(mockVerifyAndStore).not.toHaveBeenCalled(); // never reached the engine
     expect(mockProjectRecord).not.toHaveBeenCalled();
-    const update = mockNodeUpdateOne.mock.calls[0];
-    expect(update[1].$set.lastError).toContain('rejected:invalid_envelope');
+    expect((await nodeRow())?.lastError).toContain('rejected:invalid_envelope');
   });
 });
 
@@ -284,9 +297,9 @@ describe('ingestFromNode — last-writer-wins', () => {
     // The loser is NOT stored: the ledger still holds only the incumbent.
     expect((await ledgerRows()).map((row) => row.recordId)).toEqual(['rid-existing']);
     expect(mockProjectRecord).not.toHaveBeenCalled(); // not materialized
-    expect(mockWitnessCreate).not.toHaveBeenCalled();
+    expect(await witnessCount()).toBe(0);
     // Clean skip → cursor stamped, lastError cleared.
-    expect(mockNodeUpdateOne.mock.calls[0][1].$unset).toEqual({ lastError: '' });
+    expect((await nodeRow())?.lastError).toBeNull();
   });
 
   it('preserves a genuine chain fork as a non-chained archive and materializes it', async () => {
@@ -310,7 +323,7 @@ describe('ingestFromNode — last-writer-wins', () => {
       rkey: forked.rkey,
     });
     expect(mockProjectRecord).toHaveBeenCalledTimes(1);
-    expect(mockWitnessCreate).toHaveBeenCalledTimes(1);
+    expect(await witnessCount()).toBe(1);
   });
 
   it('is idempotent when the same fork is re-pulled', async () => {
@@ -326,7 +339,7 @@ describe('ingestFromNode — last-writer-wins', () => {
     // a duplicate archive — and it must not re-materialize or re-witness either.
     expect(await ledgerRows()).toHaveLength(1);
     expect(mockProjectRecord).toHaveBeenCalledTimes(1);
-    expect(mockWitnessCreate).toHaveBeenCalledTimes(1);
+    expect(await witnessCount()).toBe(1);
   });
 });
 
@@ -340,11 +353,11 @@ describe('ingestFromNode — counter-sign witness', () => {
     await ingestFromNode(OXY_USER_ID);
 
     expect(mockSignMessage).not.toHaveBeenCalled();
-    expect(mockWitnessCreate).not.toHaveBeenCalled();
+    expect(await witnessCount()).toBe(0);
     // Ingest + materialization still happened; the cursor moved.
     expect(mockVerifyAndStore).toHaveBeenCalledTimes(1);
     expect(mockProjectRecord).toHaveBeenCalledTimes(1);
-    expect(lastUpdate(mockNodeUpdateOne).$set).toMatchObject({ cursor: 0 });
+    expect((await nodeRow())?.cursor).toBe(0);
   });
 });
 
@@ -356,16 +369,36 @@ describe('ingestFromNode — resilience', () => {
 
     expect(mockVerifyAndStore).not.toHaveBeenCalled();
     expect(mockProjectRecord).not.toHaveBeenCalled();
-    expect(mockNodeUpdateOne.mock.calls[0][1].$set.lastError).toContain('ECONNREFUSED');
+    expect((await nodeRow())?.lastError).toContain('ECONNREFUSED');
   });
 
   it('no-ops when the user has no registered node', async () => {
-    mockNodeFindOne.mockReturnValueOnce(selectLean(null));
+    await db.delete(mentionUserNodes).where(eq(mentionUserNodes.oxyUserId, OXY_USER_ID));
 
     await ingestFromNode(OXY_USER_ID);
 
     expect(mockHead).not.toHaveBeenCalled();
-    expect(mockNodeUpdateOne).not.toHaveBeenCalled();
+    expect(await nodeRow()).toBeUndefined();
+  });
+
+  /**
+   * A REVOKED node is not "no node" — the row is still there — and every write
+   * on this path carries `status <> 'revoked'`. Without that term a sweep
+   * already in flight when the user revoked would go on stamping cursors and
+   * errors onto a registration they had just withdrawn.
+   */
+  it('does not sync a node the user revoked', async () => {
+    await db
+      .update(mentionUserNodes)
+      .set({ status: 'revoked' })
+      .where(eq(mentionUserNodes.oxyUserId, OXY_USER_ID));
+
+    await ingestFromNode(OXY_USER_ID);
+
+    expect(mockHead).not.toHaveBeenCalled();
+    const row = await nodeRow();
+    expect(row?.status).toBe('revoked');
+    expect(row?.lastSyncedAt).toBeNull();
   });
 });
 
@@ -381,10 +414,10 @@ describe('ingestFromNode — malformed (untrusted) node response', () => {
     // cursor cleanly so the next scheduled run retries.
     expect(mockVerifyAndStore).not.toHaveBeenCalled();
     expect(mockProjectRecord).not.toHaveBeenCalled();
-    expect(mockWitnessCreate).not.toHaveBeenCalled();
-    const update = lastUpdate(mockNodeUpdateOne);
-    expect(update.$set?.lastSyncedAt).toBeInstanceOf(Date);
-    expect(update.$unset).toEqual({ lastError: '' });
+    expect(await witnessCount()).toBe(0);
+    const row = await nodeRow();
+    expect(row?.lastSyncedAt).toBeInstanceOf(Date);
+    expect(row?.lastError).toBeNull();
   });
 });
 
@@ -399,8 +432,12 @@ describe('exportToNode — malformed (untrusted) push response', () => {
 
     // The export stopped cleanly at the last accepted cursor (no indexing crash);
     // lastSyncedAt is stamped so the next run retries the unacknowledged batch.
-    const update = lastUpdate(mockNodeUpdateOne);
-    expect(update.$set?.lastSyncedAt).toBeInstanceOf(Date);
+    const row = await nodeRow();
+    expect(row?.lastSyncedAt).toBeInstanceOf(Date);
+    // The node's head was `-1` (an empty remote chain), which is the ingest
+    // loop's "nothing mirrored yet" sentinel and is stored as NULL — the column
+    // CHECK refuses a negative, so passing it through would abort the export.
+    expect(row?.cursor).toBeNull();
   });
 
   it('advances the cursor for accepted records on a well-formed push response', async () => {
@@ -415,8 +452,8 @@ describe('exportToNode — malformed (untrusted) push response', () => {
 
     await exportToNode(OXY_USER_ID);
 
-    const update = lastUpdate(mockNodeUpdateOne);
-    expect(update.$set).toMatchObject({ cursor: 0 });
-    expect(update.$unset).toEqual({ lastError: '' });
+    const row = await nodeRow();
+    expect(row?.cursor).toBe(0);
+    expect(row?.lastError).toBeNull();
   });
 });

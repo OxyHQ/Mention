@@ -44,9 +44,6 @@ const mockProjectRecord = vi.fn();
 const mockRepoLogHead = vi.fn();
 const mockSignMessage = vi.fn();
 const mockComputeRecordId = vi.fn();
-const mockNodeFindOne = vi.fn();
-const mockNodeUpdateOne = vi.fn();
-const mockWitnessCreate = vi.fn();
 
 vi.mock('@oxyhq/protocol/node', () => ({
   NodeClient: class {
@@ -75,20 +72,17 @@ vi.mock('../../../services/mtn/MentionRepoLogService', () => ({
   getHead: (...a: unknown[]) => mockRepoLogHead(...a),
   getPublicLogSince: vi.fn(async () => []),
 }));
-vi.mock('../../../models/MentionUserNode', () => ({
-  __esModule: true,
-  default: {
-    findOne: (...a: unknown[]) => mockNodeFindOne(...a),
-    updateOne: (...a: unknown[]) => mockNodeUpdateOne(...a),
-  },
-}));
-vi.mock('../../../models/MentionNodeIngestWitness', () => ({
-  __esModule: true,
-  default: { create: (...a: unknown[]) => mockWitnessCreate(...a) },
-}));
+// The node row and its witness ledger are REAL rows — see the same change in
+// `mentionNodeSync.test.ts`. Counting witnesses off a mocked `create` measured
+// the call, not the ledger, so it could not tell a second attestation that was
+// written from one the unique index correctly refused.
 
 import { closePostgres, connectPostgres, type Database } from '../../../db/postgres';
-import { mentionSignedRecords } from '../../../db/schema/mtn';
+import {
+  mentionNodeIngestWitnesses,
+  mentionSignedRecords,
+  mentionUserNodes,
+} from '../../../db/schema/mtn';
 import { uuidv7 } from '../../../db/schema/columns';
 import {
   MTN_CHAIN_STATUS,
@@ -214,6 +208,24 @@ async function stagedCreatedAt(owner: string): Promise<number[]> {
   return rows.map((row) => row.createdAt.getTime());
 }
 
+/** Give `owner` a live registered node so the ingest path has one to read. */
+async function seedNode(owner: string): Promise<void> {
+  await db.insert(mentionUserNodes).values({
+    oxyUserId: owner,
+    endpoint: 'https://node.example.com',
+    nodePublicKey: PUBLIC_KEY,
+  });
+}
+
+/** How many records `owner` has had counter-signed into the witness ledger. */
+async function witnessCount(owner: string): Promise<number> {
+  const rows = await db
+    .select({ id: mentionNodeIngestWitnesses.id })
+    .from(mentionNodeIngestWitnesses)
+    .where(eq(mentionNodeIngestWitnesses.oxyUserId, owner));
+  return rows.length;
+}
+
 async function ledgerRecordIds(owner: string): Promise<(string | null)[]> {
   const rows = await db
     .select({ recordId: mentionSignedRecords.recordId })
@@ -231,8 +243,6 @@ beforeEach(() => {
   process.env.MENTION_PRIVATE_KEY = 'aa'.repeat(32);
   process.env.MENTION_PUBLIC_KEY = PUBLIC_KEY;
   mockRepoLogHead.mockResolvedValue(null);
-  mockNodeUpdateOne.mockResolvedValue({ modifiedCount: 1 });
-  mockWitnessCreate.mockResolvedValue({});
   mockSignMessage.mockResolvedValue('witness-sig');
   mockProjectRecord.mockResolvedValue({ ok: true, kind: 'post', id: 'r' });
 });
@@ -241,6 +251,10 @@ afterEach(async () => {
   while (createdUserIds.length > 0) {
     const owner = createdUserIds.pop();
     if (owner) {
+      await db
+        .delete(mentionNodeIngestWitnesses)
+        .where(eq(mentionNodeIngestWitnesses.oxyUserId, owner));
+      await db.delete(mentionUserNodes).where(eq(mentionUserNodes.oxyUserId, owner));
       await db.delete(mentionSignedRecords).where(eq(mentionSignedRecords.oxyUserId, owner));
     }
   }
@@ -377,9 +391,7 @@ describe('node ingest — LWW compares against the incumbent that is really curr
     ]);
 
     const incoming = { ...envelopeV2(owner, { issuedAt: BASE_ISSUED_AT + 5_000 }), seq: 1, prev: null };
-    mockNodeFindOne.mockReturnValue({
-      select: () => ({ lean: () => Promise.resolve({ endpoint: 'https://node.example.com' }) }),
-    });
+    await seedNode(owner);
     mockHead.mockResolvedValue({ seq: 1, headRecordId: 'h', recordCount: 2 });
     mockLog.mockResolvedValue({ records: [incoming], count: 1, head: null });
     mockVerifyAndStore.mockResolvedValue({ ok: false, reason: 'stale_issued_at' });
@@ -391,7 +403,7 @@ describe('node ingest — LWW compares against the incumbent that is really curr
     expect((await ledgerRecordIds(owner)).sort()).toEqual([R('inc-live'), R('inc-stale')]);
     // …and nothing re-rendered the post from it, or counter-signed it.
     expect(mockProjectRecord).not.toHaveBeenCalled();
-    expect(mockWitnessCreate).not.toHaveBeenCalled();
+    expect(await witnessCount(owner)).toBe(0);
   });
 
   it('still adopts a record that genuinely beats the live incumbent', async () => {
@@ -411,9 +423,7 @@ describe('node ingest — LWW compares against the incumbent that is really curr
       seq: 1,
       prev: null,
     };
-    mockNodeFindOne.mockReturnValue({
-      select: () => ({ lean: () => Promise.resolve({ endpoint: 'https://node.example.com' }) }),
-    });
+    await seedNode(owner);
     mockHead.mockResolvedValue({ seq: 1, headRecordId: 'h', recordCount: 2 });
     mockLog.mockResolvedValue({ records: [incoming], count: 1, head: null });
     mockVerifyAndStore.mockResolvedValue({ ok: false, reason: 'stale_issued_at' });
@@ -427,6 +437,6 @@ describe('node ingest — LWW compares against the incumbent that is really curr
       R('adopt-stale'),
     ]);
     expect(mockProjectRecord).toHaveBeenCalledTimes(1);
-    expect(mockWitnessCreate).toHaveBeenCalledTimes(1);
+    expect(await witnessCount(owner)).toBe(1);
   });
 });

@@ -22,7 +22,7 @@
  * in the background scheduler. NOTHING in a request's read path ever calls this.
  * A down/slow/malicious node leaves Mention's mirror STALE — never wrong and
  * never slow. `ingestFromNode` / `exportToNode` NEVER throw into a caller; they
- * log and record `lastError` on the {@link MentionUserNode} row. Ingest batches
+ * log and record `lastError` on the `mention_user_nodes` row. Ingest batches
  * are bounded so a backfill never contends with the hot path.
  *
  * ## Trust model — verify everything, trust nothing the node says
@@ -51,7 +51,7 @@
  * ## Anti-rewrite counter-signature
  *
  * Every recordId Mention ingests is COUNTER-SIGNED with the Mention custodial key
- * into an append-only {@link MentionNodeIngestWitness}. When the custodial key is
+ * into an append-only `mention_node_ingest_witnesses` row. When the custodial key is
  * unconfigured (dev/pre-prod) witnessing is skipped (logged once) but ingest
  * still proceeds.
  *
@@ -82,8 +82,15 @@ import {
   MENTION_POST_COLLECTION,
   mentionPostRecordSchema,
 } from '@mention/shared-types';
-import MentionUserNode from '../../models/MentionUserNode';
-import MentionNodeIngestWitness from '../../models/MentionNodeIngestWitness';
+import {
+  findIngestTarget,
+  findNodeEndpoint,
+  markNodeSynced,
+  markNodeSyncStopped,
+  recordNodeSyncError,
+  witnessIngestedRecord,
+  type IngestNodeTarget,
+} from '../../db/mtn/nodeRepository';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { isUniqueViolation } from '../../db/pgErrors';
@@ -111,12 +118,6 @@ import {
 
 /** True only once the missing-custodial-key warning has been logged (avoid spam). */
 let warnedMissingCustodialKey = false;
-
-/** The cached node fields the ingest worker needs. */
-interface IngestNode {
-  endpoint: string;
-  cursor?: number;
-}
 
 /** Per-record ingest outcome, used to drive cursor advance + loop control. */
 type IngestOutcome =
@@ -181,13 +182,11 @@ async function witnessRecord(oxyUserId: string, recordId: string, ingestedAt: nu
       canonicalize({ recordId, oxyUserId, ingestedAt }),
       privateKey,
     );
-    await MentionNodeIngestWitness.create({ oxyUserId, recordId, witnessSignature, ingestedAt });
+    // Idempotent: a record re-pulled on a later sweep leaves the FIRST
+    // attestation exactly as it was, which is the whole point of the table.
+    // `ON CONFLICT DO NOTHING` replaces a caught duplicate-key error.
+    await witnessIngestedRecord({ oxyUserId, recordId, witnessSignature, ingestedAt });
   } catch (err) {
-    // A duplicate recordId (E11000) means we already witnessed it — expected on a
-    // re-pull. Anything else is logged, never thrown (background-safe).
-    if (typeof err === 'object' && err !== null && (err as { code?: number }).code === 11000) {
-      return;
-    }
     logger.warn('MentionNodeSync: ingest counter-signature failed (non-fatal)', {
       oxyUserId,
       error: err instanceof Error ? err.message : String(err),
@@ -417,15 +416,13 @@ async function ingestEnvelope(
  *
  * Background-safe: NEVER throws. A missing/revoked/unreachable node is a no-op
  * (or records `lastError`) — the mirror simply stays as-is. On success the
- * {@link MentionUserNode} cursor (= Mention's local head seq) and `lastSyncedAt`
+ * `mention_user_nodes` cursor (= Mention's local head seq) and `lastSyncedAt`
  * advance. Bounded iterations cap how much a single run ingests so a long backlog
  * is caught up across several scheduled runs (the hot path is never contended).
  */
 export async function ingestFromNode(oxyUserId: string): Promise<void> {
   try {
-    const node = await MentionUserNode.findOne({ oxyUserId, status: { $ne: 'revoked' } })
-      .select('endpoint cursor')
-      .lean<IngestNode | null>();
+    const node: IngestNodeTarget | undefined = await findIngestTarget(oxyUserId);
     if (!node) {
       return; // no registered node — nothing to ingest
     }
@@ -517,9 +514,10 @@ export async function ingestFromNode(oxyUserId: string): Promise<void> {
     }
 
     if (stopReason && stopReason !== 'lww_tiebreak') {
-      await MentionUserNode.updateOne(
-        { oxyUserId, status: { $ne: 'revoked' } },
-        { $set: { cursor, lastSyncedAt: new Date(), lastError: stopReason.slice(0, MENTION_NODE_LAST_ERROR_MAX_LEN) } },
+      await markNodeSyncStopped(
+        oxyUserId,
+        cursor,
+        stopReason.slice(0, MENTION_NODE_LAST_ERROR_MAX_LEN),
       );
     } else {
       await markSynced(oxyUserId, cursor, true);
@@ -553,14 +551,12 @@ export async function ingestFromNode(oxyUserId: string): Promise<void> {
  */
 export async function exportToNode(oxyUserId: string): Promise<void> {
   try {
-    const node = await MentionUserNode.findOne({ oxyUserId, status: { $ne: 'revoked' } })
-      .select('endpoint')
-      .lean<{ endpoint: string } | null>();
-    if (!node) {
+    const endpoint = await findNodeEndpoint(oxyUserId);
+    if (!endpoint) {
       return;
     }
 
-    const client = makeNodeClient(node.endpoint);
+    const client = makeNodeClient(endpoint);
 
     // The node's head seq is the high-water mark of what it already has.
     let remoteHeadSeq: number;
@@ -641,21 +637,12 @@ export async function exportToNode(oxyUserId: string): Promise<void> {
 
 /** Advance the cursor + stamp `lastSyncedAt`; clear `lastError` when requested. */
 async function markSynced(oxyUserId: string, cursor: number, clearError: boolean): Promise<void> {
-  await MentionUserNode.updateOne(
-    { oxyUserId, status: { $ne: 'revoked' } },
-    {
-      $set: { cursor, lastSyncedAt: new Date() },
-      ...(clearError ? { $unset: { lastError: '' } } : {}),
-    },
-  );
+  await markNodeSynced(oxyUserId, cursor, clearError);
 }
 
 /** Record a non-throwing sync failure as `lastError` on the node row. */
 async function recordIngestError(oxyUserId: string, err: unknown): Promise<void> {
   const message = err instanceof Error ? err.message : String(err);
   logger.debug('MentionNodeSync: node fetch failed', { oxyUserId, error: message });
-  await MentionUserNode.updateOne(
-    { oxyUserId, status: { $ne: 'revoked' } },
-    { $set: { lastError: message.slice(0, MENTION_NODE_LAST_ERROR_MAX_LEN), lastSyncedAt: new Date() } },
-  );
+  await recordNodeSyncError(oxyUserId, message.slice(0, MENTION_NODE_LAST_ERROR_MAX_LEN));
 }
