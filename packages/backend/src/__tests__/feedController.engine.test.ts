@@ -57,6 +57,17 @@ vi.mock('../models/FederatedFollow', () => ({ default: { distinct: vi.fn(async (
 vi.mock('../models/FederatedActor', () => ({ default: { find: vi.fn(() => ({ lean: vi.fn(async () => []) })) } }));
 vi.mock('../models/MuteWord', () => ({ MuteWord: { find: vi.fn(() => ({ lean: vi.fn(async () => []) })) } }));
 vi.mock('../models/UserSettings', () => ({ default: { findOne: vi.fn(() => ({ lean: vi.fn(async () => null) })) } }));
+vi.mock('../models/LaneMute', () => ({
+  LaneMute: { find: vi.fn(() => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) })) },
+}));
+
+/**
+ * Whether the profile's owner has a lane that removes posts from their profile.
+ * Defaults to "no lanes", so every pre-lane expectation below is unchanged; the
+ * curation test drives it to `true`.
+ */
+const laneExists = vi.hoisted(() => vi.fn(async (): Promise<{ _id: string } | null> => null));
+vi.mock('../models/Lane', () => ({ Lane: { exists: laneExists } }));
 
 // Driveable anon-feed cache: read defaults to a miss so the engine still runs
 // (existing tests unaffected); individual tests override to assert hit/gating.
@@ -222,6 +233,24 @@ describe('MtnFeedController.getFeed → federated profile sync-on-view', () => {
     await mtnFeedController.getFeed(req, res as never);
 
     expect(syncOnProfileView).not.toHaveBeenCalled();
+  });
+
+  it('does not sync when the author curated their profile empty with lanes', async () => {
+    // An empty first page used to mean "nobody has imported this actor's posts".
+    // With lanes it can also mean the author tucked every post off the tab —
+    // curation, not missing federated data. `syncOnProfileView` would answer
+    // `false` for a local author anyway, but it calls `runInBackground`
+    // unconditionally, which costs an Oxy `getUserById` per profile view.
+    engineReturnsEmpty();
+    laneExists.mockResolvedValueOnce({ _id: 'lane-1' });
+    const req = { query: { descriptor: 'author|local1' }, user: { id: 'viewer1' } } as never;
+    const res = makeRes();
+
+    await mtnFeedController.getFeed(req, res as never);
+
+    expect(syncOnProfileView).not.toHaveBeenCalled();
+    const body = res.body as { data: { pending?: boolean } };
+    expect(body.data.pending).toBeUndefined();
   });
 
   it('never caches a pending page for anonymous viewers', async () => {

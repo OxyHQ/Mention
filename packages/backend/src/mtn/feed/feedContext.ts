@@ -20,7 +20,7 @@ import { listSubscriptionService } from '../../services/ListSubscriptionService'
 import { userPreferenceService } from '../../services/UserPreferenceService';
 import { resolveUserSummaries } from '../../services/PostHydrationService';
 import { mergeFederatedFollowIds } from '../../services/viewerFollowGraph';
-import { loadShowSensitiveContent } from '../../services/safety/viewerSafety';
+import { loadMutedLaneIds, loadShowSensitiveContent } from '../../services/safety/viewerSafety';
 import type { IUserBehavior } from '../../models/UserBehavior';
 import { logger } from '../../utils/logger';
 import type { FeedEngineContext } from './engine/types';
@@ -84,6 +84,7 @@ export async function loadViewerFeedContext(
   let showSensitiveContent = false;
   let feedTuning: FeedTuning | undefined;
   let viewerLanguages: string[] = [];
+  let mutedLaneIds: string[] = [];
 
   if (currentUserId) {
     // Every branch is INDEPENDENT except the federated-follow merge, which chains
@@ -147,6 +148,10 @@ export async function loadViewerFeedContext(
     // Already soft-fails to `[]` internally; served from the Redis identity cache.
     const languagesPromise = loadViewerLanguages(currentUserId);
 
+    // Already soft-fails to `[]` internally. One small indexed read, and `[]` for
+    // almost every reader — the engine's predicate is then `undefined`, i.e. free.
+    const mutedLanesPromise = loadMutedLaneIds(currentUserId);
+
     [
       followingIds,
       followerIds,
@@ -155,6 +160,7 @@ export async function loadViewerFeedContext(
       showSensitiveContent,
       feedTuning,
       viewerLanguages,
+      mutedLaneIds,
     ] = await Promise.all([
       followingPromise,
       followerPromise,
@@ -163,6 +169,7 @@ export async function loadViewerFeedContext(
       sensitivePromise,
       tuningPromise,
       languagesPromise,
+      mutedLanesPromise,
     ]);
   }
 
@@ -180,5 +187,8 @@ export async function loadViewerFeedContext(
     // anonymous viewer, an account with no languages, or any lookup failure, in
     // which case `languageMismatchPenalty` stays neutral.
     viewerLanguages,
+    // Lanes this reader silenced. Applied by `FeedEngine` as an in-memory
+    // predicate — EMPTY for almost everybody, in which case it costs nothing.
+    mutedLaneIds,
   };
 }

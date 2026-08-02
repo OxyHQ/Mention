@@ -34,6 +34,7 @@ import { applyMentionPlaceholders, resolveInboundMentions } from './apMentions';
 import { isMentionBroadcast } from '@mention/shared-types/mentions';
 import { normalizeMentionIds } from '../../utils/textProcessing';
 import { getRemoteHost } from '../shared/url';
+import { parentIsChannelPost } from '../../utils/channelReplyGate';
 import { parseInboundActivity, parseNote, primaryApType } from './apSchemas';
 import type { z } from 'zod';
 import {
@@ -562,6 +563,20 @@ export class InboxProcessingService {
     // rather than materialize it against an opted-out account.
     if (threadLink && !(await this.isLocalPostOwnerSharingEnabled(threadLink.parentPostId))) {
       logger.debug('[Federation] dropped reply because sharing is disabled');
+      return;
+    }
+
+    // A CHANNEL POST TAKES NO REPLIES, from this instance or any other.
+    //
+    // **A SILENT DROP, never a throw and never a 4xx** — the shape of the refusal
+    // matters more here than anywhere else. A throw fails the BullMQ inbox job,
+    // which then retries this activity forever; a 4xx from the inbox POST makes
+    // Mastodon stop delivering to this instance PERMANENTLY, killing every follow,
+    // accept, like and reply from that server rather than just this one. So the
+    // reply is discarded exactly the way the sharing-disabled case above discards
+    // one: `debug`, and a normal return that lets the activity be acknowledged.
+    if (threadLink && (await parentIsChannelPost(threadLink.parentPostId))) {
+      logger.debug('[Federation] dropped reply to a channel post');
       return;
     }
 

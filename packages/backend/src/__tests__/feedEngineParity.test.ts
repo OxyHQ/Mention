@@ -66,6 +66,16 @@ vi.mock('../models/UserSettings', () => ({
   default: { findOne: vi.fn(() => ({ lean: () => Promise.resolve(null) })) },
 }));
 
+// No lanes = no curation, so the author feed keeps the golden ids parity was
+// proven on.
+vi.mock('../models/Lane', () => {
+  const chain = <T>(value: T) => {
+    const link = { select: () => link, sort: () => link, lean: () => Promise.resolve(value) };
+    return link;
+  };
+  return { Lane: { find: vi.fn(() => chain([])), findById: vi.fn(() => chain(null)) } };
+});
+
 vi.mock('../services/FeedRankingService', () => ({
   feedRankingService: {
     rankPosts: vi.fn(async (posts: Array<Record<string, unknown>>) => {

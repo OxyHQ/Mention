@@ -32,6 +32,10 @@ import { migrationBlockedDomainPurgeIndexes } from './0018-blocked-domain-purge-
 import { migrationBlockedDomainPurgeRunIndexes } from './0019-blocked-domain-purge-run-indexes';
 import { migrationBlocklistProposalIndexes } from './0020-blocklist-proposal-indexes';
 import { migrationBlocklistProposalRunIndexes } from './0021-blocklist-proposal-run-indexes';
+import { migrationLaneIndexes } from './0022-lane-indexes';
+import { migrationPostLaneIndex } from './0023-post-lane-index';
+import { migrationChannelIndexes } from './0024-channel-indexes';
+import { migrationChannelFollowUserIndex } from './0025-channel-follow-user-index';
 import { MIGRATIONS_COLLECTION } from './constants';
 
 export interface Migration {
@@ -89,6 +93,10 @@ const MIGRATIONS: readonly Migration[] = [
   migrationBlockedDomainPurgeRunIndexes,
   migrationBlocklistProposalIndexes,
   migrationBlocklistProposalRunIndexes,
+  migrationLaneIndexes,
+  migrationPostLaneIndex,
+  migrationChannelIndexes,
+  migrationChannelFollowUserIndex,
 ];
 
 /**

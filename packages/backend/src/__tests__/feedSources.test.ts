@@ -61,6 +61,39 @@ vi.mock('../models/Bookmark', () => ({
   },
 }));
 
+/**
+ * Lanes. `authoredSource` loads the profile owner's non-`mixed` lanes on every
+ * gather, and `laneSource` loads the one lane it serves — both are stubbed here
+ * so the tests drive the QUERY the sources build.
+ *
+ * `ownerLanes` is what `Lane.find` answers (the author's curated-away lanes);
+ * `laneDoc` is what `Lane.findById` answers (the lane a lane tab addresses).
+ */
+let ownerLanes: Array<{ _id: unknown }> = [];
+let laneDoc: { ownerType: string; ownerId: string; displayMode: string } | null = null;
+vi.mock('../models/Lane', () => {
+  const chain = <T>(value: T) => {
+    const link = { select: () => link, sort: () => link, lean: () => Promise.resolve(value) };
+    return link;
+  };
+  return {
+    Lane: {
+      find: vi.fn(() => chain(ownerLanes)),
+      findById: vi.fn(() => chain(laneDoc)),
+    },
+  };
+});
+
+/** The likes tab reaches for `Like` instead of the author query. */
+vi.mock('../models/Like', () => ({
+  default: {
+    find: vi.fn(() => ({
+      sort: () => ({ limit: () => ({ select: () => ({ lean: async () => [] }) }) }),
+    })),
+  },
+}));
+
+import { Lane } from '../models/Lane';
 import {
   followingSource,
   topicSource,
@@ -70,6 +103,7 @@ import { videosSource } from '../mtn/feed/engine/sources/discoverySources';
 import {
   keywordsSource,
   authoredSource,
+  laneSource,
   savedSource,
   mutualsSource,
 } from '../mtn/feed/engine/sources/userSources';
@@ -116,6 +150,8 @@ beforeEach(() => {
   findRouter = () => [];
   bookmarkDocs.length = 0;
   profileVisibility = undefined;
+  ownerLanes = [];
+  laneDoc = null;
   vi.clearAllMocks();
 });
 
@@ -385,6 +421,171 @@ describe('authored source', () => {
       expect(posts).toEqual([]);
       expect(findCalls).toHaveLength(0);
     });
+  });
+
+  /**
+   * The author's own lane curation. `$nin` on a key of its OWN — never
+   * `match.$or`, which `ChronoCursor.applyToQuery` assigns and would therefore
+   * clobber on every page after the first.
+   */
+  describe('lane curation', () => {
+    it('excludes the author\'s curated-away lanes with a flat $nin term', async () => {
+      ownerLanes = [{ _id: oid(30) }, { _id: oid(31) }];
+      findRouter = () => [makePost(32)];
+
+      await authoredSource.gather({ currentUserId: 'viewer' }, { authorId: 'a32', filter: 'posts' }, 31);
+
+      expect(findCalls[0].laneId).toEqual({
+        $nin: [oid(30).toString(), oid(31).toString()],
+      });
+    });
+
+    it('adds no lane clause at all when the author curated nothing', async () => {
+      ownerLanes = [];
+      findRouter = () => [makePost(33)];
+
+      await authoredSource.gather({ currentUserId: 'viewer' }, { authorId: 'a33', filter: 'posts' }, 31);
+
+      expect(findCalls[0].laneId).toBeUndefined();
+    });
+
+    it('keeps the exclusion OUT of $or, so a cursor cannot clobber it', async () => {
+      ownerLanes = [{ _id: oid(34) }];
+      findRouter = () => [makePost(35)];
+      const anchor = { createdAt: new Date('2026-01-02T03:04:05.000Z'), _id: oid(35) };
+      const cursor = ChronoCursor.build(String(anchor._id), anchor.createdAt);
+
+      await authoredSource.gather(
+        { currentUserId: 'viewer', cursor },
+        { authorId: 'a35', filter: 'posts' },
+        31,
+      );
+
+      const match = findCalls[0];
+      // The cursor owns `$or` outright; the lane term survives beside it.
+      expect(match.$or).toHaveLength(2);
+      expect(match.laneId).toEqual({ $nin: [oid(34).toString()] });
+    });
+
+    it('coexists with the $and the media tab assigns', async () => {
+      ownerLanes = [{ _id: oid(36) }];
+      findRouter = () => [];
+
+      await authoredSource.gather({ currentUserId: 'viewer' }, { authorId: 'a36', filter: 'media' }, 31);
+
+      const match = findCalls[0];
+      expect(Array.isArray(match.$and)).toBe(true);
+      expect(match.laneId).toEqual({ $nin: [oid(36).toString()] });
+    });
+
+    it('never applies the author\'s curation to the likes tab', async () => {
+      // The likes tab lists OTHER people's posts, so the profile owner's lanes
+      // have no bearing on it — and it takes an entirely different code path.
+      ownerLanes = [{ _id: oid(37) }];
+      const posts = await authoredSource.gather(
+        { currentUserId: 'viewer' },
+        { authorId: 'a37', filter: 'likes' },
+        31,
+      );
+      expect(posts).toEqual([]);
+      expect(Lane.find).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe('lane source', () => {
+  const LANE_ID = oid(40).toString();
+
+  it('serves a `tab` lane, scoped to its publisher, on the chrono keyset', async () => {
+    laneDoc = { ownerType: 'user', ownerId: 'owner-1', displayMode: 'tab' };
+    findRouter = () => [makePost(41)];
+
+    const posts = await laneSource.gather({ currentUserId: 'viewer' }, { laneId: LANE_ID }, 31);
+
+    expect(posts.map((p) => String(p._id))).toEqual([oid(41).toString()]);
+    const match = findCalls[0];
+    // The LITERAL `laneId` term is what lets the PARTIAL index be used at all,
+    // and `oxyUserId` is the publisher scope. `authorship` must NOT appear — its
+    // multikey clause would pull the planner onto `post_author_chrono_v1`.
+    expect(match.laneId).toBe(LANE_ID);
+    expect(match.oxyUserId).toBe('owner-1');
+    expect(match.authorship).toBeUndefined();
+    expect(sortCalls[0]).toEqual({ createdAt: -1, _id: -1 });
+  });
+
+  it.each(['mixed', 'hidden'])('serves nothing for a `%s` lane', async (displayMode) => {
+    laneDoc = { ownerType: 'user', ownerId: 'owner-1', displayMode };
+    findRouter = () => [makePost(42)];
+
+    const posts = await laneSource.gather({ currentUserId: 'viewer' }, { laneId: LANE_ID }, 31);
+
+    // The gate that stops this descriptor being the way to read a lane its owner
+    // took down: no query is even issued.
+    expect(posts).toEqual([]);
+    expect(findCalls).toHaveLength(0);
+  });
+
+  it('serves nothing when the reader cannot see the publisher', async () => {
+    laneDoc = { ownerType: 'user', ownerId: 'owner-1', displayMode: 'tab' };
+    profileVisibility = 'private';
+    findRouter = () => [makePost(43)];
+
+    const posts = await laneSource.gather(
+      { currentUserId: 'viewer', followingIds: [] },
+      { laneId: LANE_ID },
+      31,
+    );
+
+    expect(posts).toEqual([]);
+    expect(findCalls).toHaveLength(0);
+  });
+
+  it('serves a private publisher to a follower', async () => {
+    laneDoc = { ownerType: 'user', ownerId: 'owner-1', displayMode: 'tab' };
+    profileVisibility = 'private';
+    findRouter = () => [makePost(44)];
+
+    const posts = await laneSource.gather(
+      { currentUserId: 'viewer', followingIds: ['owner-1'] },
+      { laneId: LANE_ID },
+      31,
+    );
+
+    expect(posts.map((p) => String(p._id))).toEqual([oid(44).toString()]);
+  });
+
+  it('serves nothing for a channel-owned lane, which has no visibility rule yet', async () => {
+    laneDoc = { ownerType: 'channel', ownerId: 'channel-1', displayMode: 'tab' };
+    findRouter = () => [makePost(45)];
+
+    const posts = await laneSource.gather({ currentUserId: 'viewer' }, { laneId: LANE_ID }, 31);
+
+    expect(posts).toEqual([]);
+    expect(findCalls).toHaveLength(0);
+  });
+
+  it('serves nothing for a missing lane, a malformed id, or no id at all', async () => {
+    laneDoc = null;
+    expect(await laneSource.gather({}, { laneId: LANE_ID }, 31)).toEqual([]);
+    expect(await laneSource.gather({}, { laneId: 'not-an-object-id' }, 31)).toEqual([]);
+    expect(await laneSource.gather({}, {}, 31)).toEqual([]);
+    expect(findCalls).toHaveLength(0);
+  });
+
+  it('pages on the compound createdAt keyset, never a bare _id boundary', async () => {
+    laneDoc = { ownerType: 'user', ownerId: 'owner-1', displayMode: 'tab' };
+    findRouter = () => [makePost(46)];
+    const anchor = { createdAt: new Date('2026-02-03T04:05:06.000Z'), _id: oid(46) };
+    const cursor = ChronoCursor.build(String(anchor._id), anchor.createdAt);
+
+    await laneSource.gather({ currentUserId: 'viewer', cursor }, { laneId: LANE_ID }, 31);
+
+    const match = findCalls[0];
+    expect(match._id).toBeUndefined();
+    expect(match.$or).toEqual([
+      { createdAt: { $lt: anchor.createdAt } },
+      { createdAt: anchor.createdAt, _id: { $lt: anchor._id } },
+    ]);
   });
 });
 

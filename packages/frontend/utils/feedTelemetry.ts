@@ -117,9 +117,17 @@ export function flushFeedInteractions(): void {
  * Derive the feed descriptor a Feed instance reports against. Mirrors how
  * `feedService` routes the fetch:
  *  - saved feed → 'saved'
+ *  - a lane tab → 'lane|<laneId>'
+ *  - a channel page → 'channel|<channelId>'
  *  - a profile feed (userId present) → 'author|<userId>'
  *  - hashtag/topic/custom scoped filters → their descriptor form
  *  - everything else → the FeedType used directly (for_you/following/explore/…)
+ *
+ * The lane and channel branches come BEFORE the author one because each is served
+ * by its own descriptor and never by the author feed — a lane already knows its
+ * publisher, and a channel's posts belong to nobody's profile at all. Attributing
+ * either one's impressions to `author|<id>` would be silently wrong: nothing
+ * fails, the ranking signal just lands on the wrong feed.
  */
 export function resolveFeedDescriptor(
     type: FeedType,
@@ -128,6 +136,8 @@ export function resolveFeedDescriptor(
     showOnlySaved?: boolean,
 ): string {
     if (showOnlySaved) return 'saved';
+    if (filters?.laneId) return `lane|${filters.laneId}`;
+    if (filters?.channelId) return `channel|${filters.channelId}`;
     if (userId) return `author|${userId}`;
     if (filters?.hashtag) return `hashtag|${filters.hashtag}`;
     if (filters?.topic) return `topic|${filters.topic}`;

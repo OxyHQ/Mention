@@ -114,6 +114,34 @@ function hasPortraitVideo(post: RankedCandidate): boolean {
     && media.some((item) => item?.type === 'video' && item?.orientation === 'portrait');
 }
 
+/**
+ * The reader's muted-lane predicate, or `undefined` when they have muted none.
+ *
+ * **Why it lives in the engine and not in a `FilterModule`.** A filter module only
+ * runs if a definition LISTS it in `filters`, and `authorDefinition` declares
+ * `filters: []` — so a reader's mute would silently not apply on the very surface
+ * lanes are most visible, and every future definition would have to remember to
+ * opt in. The engine is the one place every definition passes through.
+ *
+ * **Why an in-memory predicate and not a Mongo `$nin`.** The muted set is
+ * per-reader and tiny (empty for almost everyone). A clause would have to be
+ * threaded into a dozen query builders, cannot be applied selectively by index,
+ * and would still have to avoid `match.$or` (which `ChronoCursor` clobbers). This
+ * is a `Set.has` per candidate, and literally free — `undefined`, never called —
+ * for a reader with no mutes.
+ */
+function buildMutedLanePredicate(
+  ctx: FeedEngineContext,
+): ((post: CandidatePost) => boolean) | undefined {
+  const mutedLaneIds = ctx.mutedLaneIds;
+  if (!mutedLaneIds || mutedLaneIds.length === 0) return undefined;
+  const muted = new Set(mutedLaneIds);
+  return (post) => {
+    const laneId = post.laneId;
+    return typeof laneId !== 'string' || !muted.has(laneId);
+  };
+}
+
 export class FeedEngine {
   constructor(private readonly registry: FeedModuleRegistry = feedModuleRegistry) {}
 
@@ -302,6 +330,12 @@ export class FeedEngine {
     // discovery keeps carry their module id so a rejection can be attributed to the
     // exact filter (the `reason` metric label).
     const poolKeeps = this.resolveKeepPredicates(definition.filters, ctx);
+    // The reader's own muted lanes ride alongside the definition's filters, so
+    // they apply to EVERY definition — presets, author feeds, the lane tab
+    // itself, ordered feeds, `peekLatest`, and both mount points (`/feed/mtn`
+    // and `/feeds/:id/timeline`). `undefined` for a reader who muted nothing.
+    const mutedLaneKeep = buildMutedLanePredicate(ctx);
+    if (mutedLaneKeep) poolKeeps.push(mutedLaneKeep);
     const discoveryKeeps = this.resolveKeepPredicatesWithId(definition.discoveryFilters ?? [], ctx);
 
     // MEASURE-ONLY when EITHER the global shadow config is on (Phase 4 ships the
@@ -752,7 +786,7 @@ export class FeedEngine {
 
     const candidates = await source.gather({ ...ctx, cursor, pageLimit: limit }, {}, limit + 1);
     const hasMore = candidates.length > limit;
-    const page = hasMore ? candidates.slice(0, limit) : candidates;
+    const sourceWindow = hasMore ? candidates.slice(0, limit) : candidates;
 
     // Continue on the axis the source SORTED on. This used to emit a bare
     // ObjectId, which the popular sources then either ignored outright (so every
@@ -761,7 +795,17 @@ export class FeedEngine {
     // less-engaged ones. `asOf` is carried forward so the recency window cannot
     // shift under an in-progress pagination session, and `excludeIds` keeps the
     // page boundary stable while engagement counts move underneath it.
-    const nextCursor = hasMore ? buildPopularCursor(page, cursor) : undefined;
+    //
+    // `hasMore` and the cursor are BOTH taken from the unfiltered window below,
+    // deliberately: they describe how far this request consumed the SOURCE, and
+    // dropping a muted post must not be mistaken for reaching the end of it.
+    const nextCursor = hasMore ? buildPopularCursor(sourceWindow, cursor) : undefined;
+
+    // The ONE path that never passes through `gatherPool`, so the reader's muted
+    // lanes have to be applied here too — `neverBlank` reaches it from an
+    // authenticated ranked feed, which is exactly the reader who has mutes.
+    const mutedLaneKeep = buildMutedLanePredicate(ctx);
+    const page = mutedLaneKeep ? sourceWindow.filter(mutedLaneKeep) : sourceWindow;
 
     const hydrated = await postHydrationService.hydratePosts(page, {
       // The authenticated never-blank path reaches here too, and hydrating it as

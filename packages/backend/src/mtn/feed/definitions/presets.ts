@@ -472,6 +472,56 @@ export function topicDefinition(slug: string): FeedDefinition {
   };
 }
 
+/**
+ * Lane feed — ONE lane's own tab (chronological).
+ *
+ * `title` is deliberately not the lane's name: this definition is reachable from
+ * a descriptor alone, the screen already has the name, and inventing one it
+ * cannot know is how a stale label ends up on a renamed lane. Same reasoning as
+ * {@link trendDefinition}.
+ *
+ * `hydrateMaxDepth: 0` — a lane holds original posts only (replies and boosts are
+ * refused a lane at the write boundary), so there is no boost body to embed.
+ */
+export function laneDefinition(laneId: string): FeedDefinition {
+  return {
+    id: `lane|${laneId}`,
+    title: 'Lane',
+    mode: 'chronological',
+    sources: [enabled('lane', { laneId })],
+    signals: [],
+    filters: [enabled('safety')],
+    execution: { threadGrouping: true, replyContext: false, hydrateMaxDepth: 0 },
+  };
+}
+
+/**
+ * Channel feed — ONE channel's page (chronological).
+ *
+ * `title` is deliberately not the channel's name, for the same reason
+ * {@link laneDefinition} and {@link trendDefinition} avoid it: this definition is
+ * reachable from a descriptor alone, the screen already knows the name, and
+ * inventing one it cannot know is how a stale label survives a rename.
+ *
+ * `hydrateMaxDepth: 1`, unlike the lane tab's `0`. A channel post may be a QUOTE
+ * (quoting is explicitly allowed — a citation is a new post on the citer's
+ * timeline, not conversation inside the channel), and a quote whose original is
+ * not embedded renders as a card with a hole in it. The boost case cannot arise —
+ * a boost never carries a `channelId` — but the quote case can, and one depth
+ * covers both.
+ */
+export function channelDefinition(channelId: string): FeedDefinition {
+  return {
+    id: `channel|${channelId}`,
+    title: 'Channel',
+    mode: 'chronological',
+    sources: [enabled('channel', { channelId })],
+    signals: [],
+    filters: [enabled('safety')],
+    execution: { threadGrouping: false, replyContext: false, hydrateMaxDepth: 1 },
+  };
+}
+
 /** List feed — posts from an AccountList's members (chronological). */
 export function listDefinition(listId: string): FeedDefinition {
   return {

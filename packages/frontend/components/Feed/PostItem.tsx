@@ -19,6 +19,7 @@ import PostHeader, { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from '../Post
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import PostContentText from '../Post/PostContentText';
 import PostLanguageChip from '../Post/PostLanguageChip';
+import PostLaneChip from '../Post/PostLaneChip';
 import ContentWarning from '../Post/ContentWarning';
 import PostActions from '../Post/PostActions';
 import PostDetailStats from '../Post/PostDetailStats';
@@ -49,6 +50,7 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 import { reportFeedInteraction } from '@/utils/feedTelemetry';
 import { formatFullTimestamp } from '@/utils/dateUtils';
 import { displayNameOrHandle } from '@/utils/displayName';
+import { postAcceptsReplies } from '@/utils/postReplies';
 import { resolveReplyContextRow } from '@/utils/replyContextRow';
 
 // Lazy load modals/sheets only when the user opens them.
@@ -261,7 +263,15 @@ const PostItem: React.FC<PostItemProps> = ({
     // when resolving a bare Oxy file id, so there's nothing for this
     // component to detect or branch on. We no longer pre-resolve the file id
     // with `useImageUrl`.
-    const avatarSource = viewPost?.user?.avatar;
+    //
+    // A CHANNEL post signs with the channel: the row's avatar is the channel's,
+    // and it rides on `viewPost.channel` — the DTO — rather than arriving as a
+    // prop, for the same reason the lane does. `PostItem`'s `React.memo`
+    // comparator enumerates every prop, so channel data passed as one and missed
+    // there would leave a recycled FlashList row wearing the PREVIOUS row's
+    // signature. (The comparator compares `channel.id` explicitly all the same.)
+    const channel = viewPost?.channel;
+    const avatarSource = channel ? channel.avatar : viewPost?.user?.avatar;
     const avatarVariant = MEDIA_VARIANT_AVATAR;
 
     // Preload only makes sense when the avatar is already an absolute URL —
@@ -328,7 +338,24 @@ const PostItem: React.FC<PostItemProps> = ({
         [viewPost.user],
     );
 
-    const goToUser = useCallback(() => {
+    // The avatar and the identity line point at whoever SIGNED the row — the
+    // channel when there is one, the author otherwise. Two routes that are never
+    // interchangeable: `/c/<handle>` is a channel and `/@<handle>` is a person.
+    const goToSignature = useCallback(() => {
+        if (channel) {
+            router.push(`/c/${channel.handle}`);
+            return;
+        }
+        if (authorHandle) {
+            router.push(`/@${authorHandle}`);
+        }
+    }, [router, channel, authorHandle]);
+
+    // The writer's own profile, from the byline under a signing channel's
+    // signature. Stops propagation: the byline sits inside the post's press
+    // target, and opening a profile must not also open the post.
+    const goToWriter = useCallback((event?: GestureResponderEvent) => {
+        event?.stopPropagation?.();
         if (authorHandle) {
             router.push(`/@${authorHandle}`);
         }
@@ -622,7 +649,11 @@ const PostItem: React.FC<PostItemProps> = ({
     // rule and why it lives there rather than in each caller.
     const replyContextRow = resolveReplyContextRow({ post: viewPost, isNested });
 
-    const postAuthor = displayNameOrHandle(viewPost.user.name?.displayName, authorHandle ? `@${authorHandle}` : '');
+    // A channel post is BY the channel as far as a screen reader is concerned —
+    // and on an unsigned one there is no author name in the DTO to fall back to.
+    const postAuthor = channel
+        ? channel.title
+        : displayNameOrHandle(viewPost.user.name?.displayName, authorHandle ? `@${authorHandle}` : '');
     const postTextSummary = content.text
         ? content.text.length > 80
             ? content.text.substring(0, 80) + '...'
@@ -631,6 +662,58 @@ const PostItem: React.FC<PostItemProps> = ({
     const postAccessibilityLabel = postTextSummary
         ? `${postAuthor}: ${postTextSummary}`
         : `Post by ${postAuthor}`;
+
+    // The lane chip, in the identity line right after the time.
+    //
+    // The lane rides on `viewPost.lane` — the DTO — and is deliberately NOT a
+    // prop on this component. `PostItem`'s `React.memo` comparator enumerates
+    // every prop, so lane data arriving as one and missed there would leave a
+    // recycled FlashList row showing the PREVIOUS row's lane; reading it off the
+    // post makes that class of bug unreachable. (The comparator still compares
+    // `lane.id` explicitly, so the row re-renders when the lane changes without
+    // relying on `metadata.updatedAt` moving with it.)
+    //
+    // Suppressed on the two header shapes whose identity line is already saying
+    // something more important about who published the post: a boost (the line
+    // belongs to the reposter's reason) and a collaborative byline (the line is
+    // already a list of authors). The third suppression — a row inside the lane's
+    // own tab — lives in the chip, which is where the feed descriptor is known.
+    // A CHANNEL's lane belongs to the channel, not to whoever wrote the post, so
+    // the chip is handed an empty handle: `/@<writer>/lane/<id>` is a tab that
+    // does not contain these posts, and on an unsigned channel post there is no
+    // handle at all. With none, the chip renders as plain text — it still names
+    // the lane and never links somewhere wrong. (A channel has no lane tab route
+    // of its own yet; when one exists, this is where it goes.)
+    const laneSlot = viewPost.lane && !viewPost.boost && !isCollab ? (
+        <PostLaneChip
+            lane={viewPost.lane}
+            authorHandle={channel ? '' : authorHandle || ''}
+            feedDescriptor={feedDescriptor}
+        />
+    ) : null;
+
+    // The byline under a signing channel's signature — "by Nate", the position a
+    // newspaper puts it. There is nothing to render for a channel that does not
+    // sign: the writer never travels in the DTO at all, so the absence here is a
+    // consequence of the data, not a second place enforcing the anonymity.
+    const channelBylineSlot = channel?.signPosts && authorHandle ? (
+        <TouchableOpacity
+            onPress={goToWriter}
+            activeOpacity={0.7}
+            accessibilityRole="link"
+            className="self-start"
+        >
+            <Text className="text-muted-foreground text-[13px] leading-tight" numberOfLines={1}>
+                {t('channels.byWriter', {
+                    writer: displayNameOrHandle(
+                        viewPost.user.name?.displayName,
+                        `@${authorHandle}`,
+                    ),
+                    defaultValue: 'by {{writer}}',
+                })}
+            </Text>
+        </TouchableOpacity>
+    ) : null;
 
     // Thread line positioning: center on avatar, use shared style constants from composeLayout
     const THREAD_LINE_LEFT = HPAD + AVATAR_SIZE / 2 - 1;
@@ -782,16 +865,21 @@ const PostItem: React.FC<PostItemProps> = ({
                             isFederated: viewPost.user.isFederated,
                             instance: viewPost.user.instance,
                         }}
+                        channel={channel}
+                        bylineSlot={channelBylineSlot}
                         authors={viewPost.authors && viewPost.authors.length > 0 ? viewPost.authors : undefined}
                         date={metadata.createdAt}
                         showBoost={Boolean(viewPost.boost) && !isNested}
                         showReply={false}
+                        laneSlot={laneSlot}
                         contextTop={contextRows.length > 0 ? contextRows : undefined}
                         avatarSource={avatarSource}
                         avatarVariant={avatarVariant}
-                        authorUserId={viewPost.user.id || undefined}
-                        onPressUser={goToUser}
-                        onPressAvatar={goToUser}
+                        // The live badge belongs to a PERSON's avatar. A channel's
+                        // avatar is the channel's, so it never carries one.
+                        authorUserId={channel ? undefined : viewPost.user.id || undefined}
+                        onPressUser={goToSignature}
+                        onPressAvatar={goToSignature}
                         onPressCollaborators={isCollab ? openCollaboratorsList : undefined}
                         onPressAuthor={goToAuthor}
                         onPressMenu={openMenu}
@@ -881,7 +969,10 @@ const PostItem: React.FC<PostItemProps> = ({
                             isDownvoted={isDownvoted}
                             isBoosted={isBoosted}
                             isSaved={isSaved}
-                            onReply={handleReply}
+                            // Derived from the POST — a channel post takes no
+                            // replies at all, structurally — so the affordance is
+                            // absent rather than present and refused.
+                            onReply={postAcceptsReplies(viewPost) ? handleReply : undefined}
                             onBoost={handleBoost}
                             onLike={handleLike}
                             onDownvote={handleDownvote}
@@ -909,6 +1000,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         quotes={metadata.quotesDisabled ? null : engagementSummary?.quotes}
                         saves={engagementSummary?.saves}
                         replyPermission={metadata.replyPermission}
+                        repliesDisabled={!postAcceptsReplies(viewPost)}
                         quotesDisabled={metadata.quotesDisabled}
                         postId={viewPostId}
                         onLikesPress={openLikesList}
@@ -969,6 +1061,19 @@ export default React.memo(PostItem, (prevProps, nextProps) => {
         prev?.engagement?.boosts === next?.engagement?.boosts &&
         prev?.engagement?.replies === next?.engagement?.replies &&
         prev?.metadata?.updatedAt === next?.metadata?.updatedAt &&
+        // A lane move is not an edit — the server writes no `updatedAt` for it,
+        // deliberately (`PATCH /posts/:id/lane` sets no `isEdited` and carries no
+        // edit window). So the lane is compared on its own rather than riding an
+        // implicit coupling to a timestamp that does not move with it.
+        prev?.lane?.id === next?.lane?.id &&
+        // The channel is the row's SIGNATURE and rides on the DTO rather than on
+        // a prop, so it is compared here for the same reason the lane is: nothing
+        // in `metadata.updatedAt` moves when a recycled row is handed a post from
+        // a different channel, and the row would keep the previous one's avatar
+        // and name. `signPosts` too — flipping it changes whether the byline
+        // under that signature exists at all.
+        prev?.channel?.id === next?.channel?.id &&
+        prev?.channel?.signPosts === next?.channel?.signPosts &&
         prevProps.isNested === nextProps.isNested &&
         prevProps.nestingDepth === nextProps.nestingDepth &&
         prevProps.isThreadParent === nextProps.isThreadParent &&

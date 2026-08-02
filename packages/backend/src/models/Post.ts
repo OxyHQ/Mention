@@ -53,6 +53,25 @@ export interface IPost extends Document {
   hashtags?: string[];
   boostOf?: string; // original post id
   quoteOf?: string; // quoted post id
+  /**
+   * The author's own lane for this post, when it has one — see `models/Lane`.
+   * Purely local curation: it never federates, never enters an MTN record, and
+   * never changes who the post reaches. Only ORIGINAL local posts carry one
+   * (replies and boosts are refused at the write boundary).
+   */
+  laneId?: string;
+  /**
+   * The channel this post was published TO, when it has one — see `models/Channel`.
+   *
+   * A lane is a lens; a channel is a DESTINATION. A post that carries one belongs
+   * to the channel and only to the channel: it is excluded unconditionally from
+   * every author-relationship query (see `EXCLUDE_CHANNEL_POSTS` in
+   * `utils/postAuthorship`), and it accepts no replies (see
+   * `utils/channelReplyGate`). There is deliberately no companion boolean — the
+   * presence of this field IS the rule, which is what keeps the exclusion a flat
+   * conjunctive term rather than a disjunction `ChronoCursor` would clobber.
+   */
+  channelId?: string;
   parentPostId?: string; // for replies
   threadId?: string; // for thread posts
   replyPermission?: ReplyPermission[]; // Who can reply and quote this post
@@ -555,6 +574,15 @@ const PostSchema = new Schema<IPost>({
   hashtags: [{ type: String, index: true }],
   boostOf: { type: String, index: true },
   quoteOf: { type: String, index: true },
+  // No `index:` of its own — the only query that reaches a lane is the compound
+  // `post_lane_chrono_v1` declared further down, and a redundant single-field
+  // index would be pure write cost.
+  laneId: { type: String },
+  // No `index:` of its own — the only query that reaches a channel is the
+  // compound `post_channel_chrono_v1` declared further down. The author-surface
+  // EXCLUSION (`{ channelId: { $exists: false } }`) is a residual filter after the
+  // seek on `post_author_chrono_v1`, so it needs no index either.
+  channelId: { type: String },
   parentPostId: { type: String, index: true },
   threadId: { type: String, index: true },
   replyPermission: {
@@ -826,6 +854,45 @@ PostSchema.index(
 PostSchema.index(
   { 'postClassification.trendTerms': 1, visibility: 1, status: 1, createdAt: -1 },
   { name: 'trend_terms_idx' }
+);
+
+// The lane tab: one lane's posts, newest first, on the `ChronoCursor` keyset.
+//
+// `partialFilterExpression`, NOT `sparse`. A compound SPARSE index covers every
+// document carrying ANY of its keys, and every post has `visibility`, `status`
+// and `createdAt` — so `sparse` here would index the entire collection and save
+// nothing. The partial filter genuinely excludes the posts with no lane, which
+// is the overwhelming majority. Precedent: `MTN_RECORD_ID_INDEX` in
+// `indexes/manifest.ts`.
+//
+// Every query against it must carry a LITERAL `laneId` term so the planner can
+// prove the predicate is a subset of the filter — `laneSource` does.
+//
+// NOTE: `autoIndex`/`autoCreate` are OFF in production — created by migration
+// `0023-post-lane-index`, not on model load.
+PostSchema.index(
+  { laneId: 1, visibility: 1, status: 1, createdAt: -1, _id: -1 },
+  { name: 'post_lane_chrono_v1', partialFilterExpression: { laneId: { $exists: true } } },
+);
+
+// The channel page: one channel's posts, newest first, on the `ChronoCursor`
+// keyset. Same shape and the same reasoning as `post_lane_chrono_v1` above —
+// `partialFilterExpression`, NOT `sparse`, because a compound sparse index covers
+// every document carrying ANY of its keys and every post has `visibility`.
+//
+// The partial filter is `{ $type: 'string' }` rather than `{ $exists: true }`: a
+// stored `null` satisfies `$exists`, so the `$exists` form would index every post
+// the moment some writer set the field to null. Nothing here writes one (the
+// create path sets `channelId` only when there IS a channel, and the delete
+// cascade `$unset`s it), and the type filter is what keeps that true regardless.
+//
+// Deliberately NOT a combined lane+channel index: no query filters on both.
+//
+// NOTE: `autoIndex`/`autoCreate` are OFF in production — created by migration
+// `0024-channel-indexes`, not on model load.
+PostSchema.index(
+  { channelId: 1, visibility: 1, status: 1, createdAt: -1, _id: -1 },
+  { name: 'post_channel_chrono_v1', partialFilterExpression: { channelId: { $type: 'string' } } },
 );
 
 // Saved posts with text search: optimizes saved posts queries with a regex over

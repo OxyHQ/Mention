@@ -105,14 +105,40 @@ export function collectAuthorshipUserIds(authorship: PostAuthorshipEntry[] | und
   return [...ids];
 }
 
+/**
+ * A post published to a channel belongs to the CHANNEL and only to the channel: it
+ * never appears on its author's profile, and it never reaches their followers'
+ * timeline. To put one on your own profile you BOOST it — a separate row, owned by
+ * you, that says so.
+ *
+ * The exclusion is unconditional and lives in the two author-relationship matchers
+ * below rather than at their call sites, so a new profile or following query
+ * inherits it instead of having to remember it.
+ *
+ * **It is a flat conjunctive term, and it can never become an `$or`.**
+ * `ChronoCursor.applyToQuery` ASSIGNS `match.$or` rather than merging into it, so
+ * a disjunctive spelling of this filter would work on page one and then silently
+ * stop filtering on every page after — a channel post leaking onto its author's
+ * profile only once the reader scrolls. `$exists: false` also matches every post
+ * written before channels existed, so no backfill is needed and no second clause
+ * covers the ordinary post.
+ *
+ * A stored `null` would satisfy `$exists` and wrongly exclude the post, which is
+ * why nothing ever writes one: `PostCreationService` sets `channelId` only when
+ * there IS a channel, and the delete cascade `$unset`s it.
+ */
+export const EXCLUDE_CHANNEL_POSTS = { channelId: { $exists: false } } as const;
+
 export function buildAuthorFeedMatch(authorId: string): Record<string, unknown> {
   return {
     authorship: { $elemMatch: { oxyUserId: authorId, status: 'accepted' } },
+    ...EXCLUDE_CHANNEL_POSTS,
   };
 }
 
 export function buildFollowedAuthorsMatch(authorIds: string[]): Record<string, unknown> {
   return {
     authorship: { $elemMatch: { oxyUserId: { $in: authorIds }, status: 'accepted' } },
+    ...EXCLUDE_CHANNEL_POSTS,
   };
 }

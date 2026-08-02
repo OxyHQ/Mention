@@ -49,6 +49,7 @@ interface ProfileTabsRuntimeProps extends ProfileTabsProps {
  */
 export const ProfileTabs = memo(function ProfileTabs({
   tab,
+  laneId,
   profileId,
   isPrivate,
   isOwnProfile,
@@ -70,10 +71,13 @@ export const ProfileTabs = memo(function ProfileTabs({
   // gated to `tab === 'posts'` — otherwise every profile tab fired this fetch.
   // Pin/unpin still invalidates correctly because pinning happens from the
   // posts tab, where this query is enabled.
+  // A lane tab is `tab === 'posts'` too, but it shows ONE lane — a pinned post
+  // that lives on another lane (or on none) has no business heading it, so the
+  // query is gated off there as well.
   const pinnedPostQuery = useQuery<HydratedPost | null>({
     queryKey: viewerQueryKeys.pinnedPost(user?.id, profileId ?? ''),
     queryFn: () => feedService.getPinnedPost(profileId as string),
-    enabled: tab === 'posts' && Boolean(profileId) && !(isPrivate && !isOwnProfile),
+    enabled: tab === 'posts' && !laneId && Boolean(profileId) && !(isPrivate && !isOwnProfile),
   });
   const pinnedPost = pinnedPostQuery.data ?? null;
 
@@ -182,11 +186,19 @@ export const ProfileTabs = memo(function ProfileTabs({
     </React.Suspense>
   ) : null;
 
+  // A lane tab is served by the lane's OWN descriptor (`lane|<id>`), which
+  // already knows its publisher — so it goes out as a filter with NO `userId`.
+  // Passing the profile id too would route the fetch through
+  // `feedService.getUserFeed`, i.e. the author descriptor, and quietly render
+  // the whole profile instead of the lane.
+  const laneFilters = laneId ? { laneId } : undefined;
+
   if (listOwnsScroll) {
     return (
       <Feed
         type={tab as FeedType}
-        userId={profileId}
+        userId={laneId ? undefined : profileId}
+        filters={laneFilters}
         hideHeader
         scrollEnabled
         listHeaderComponent={listHeaderComponent}
@@ -206,7 +218,8 @@ export const ProfileTabs = memo(function ProfileTabs({
       {pinnedPostElement}
       <Feed
         type={tab as FeedType}
-        userId={profileId}
+        userId={laneId ? undefined : profileId}
+        filters={laneFilters}
         hideHeader={true}
         scrollEnabled={IS_WEB ? undefined : false}
         contentContainerStyle={{ paddingBottom: 100 }}

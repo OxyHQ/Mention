@@ -42,6 +42,12 @@ import { warmLinkPreviewForText } from '../utils/linkPreviewWarm';
 import { authorVariants, buildPrimaryVariant, resolveVariant, validateAuthorVariants } from '../services/postVariants';
 import { postTranslationService, TranslationRequestError } from '../services/PostTranslationService';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
+import { assertLaneAssignable, LaneAssignmentError } from '../utils/laneAssignment';
+import { assertParentAcceptsReplies, ChannelReplyError, isChannelPost } from '../utils/channelReplyGate';
+import { ChannelAccessError } from '../services/channelAccess';
+import { Lane } from '../models/Lane';
+import { sendSuccessResponse } from '../utils/apiHelpers';
+import type { LaneDisplayMode } from '@mention/shared-types';
 import { sanitizePodcast, resolvePodcastContent } from '../utils/syraPodcast';
 import {
   emitPostCreated,
@@ -394,7 +400,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { content, hashtags, mentions, quoted_post_id, boost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, quotesDisabled, status: incomingStatus, scheduledFor, collaboratorIds, collaboratorHandles } = req.body;
+    const { content, hashtags, mentions, quoted_post_id, boost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, quotesDisabled, status: incomingStatus, scheduledFor, collaboratorIds, collaboratorHandles, laneId, channelId } = req.body;
 
     // Transitional request aliases are measured with a bounded label so their
     // retirement is evidence-based. They never become part of the stored DTO.
@@ -697,6 +703,19 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // A CHANNEL POST TAKES NO REPLIES — and this is the path where that has to be
+    // enforced from scratch. `POST /posts` will happily create a reply when the
+    // body carries `parentPostId` / `in_reply_to_status_id`, and it looks the
+    // parent up NOWHERE: the two validations above cover `quoted_post_id` and
+    // `boost_of` only. There is no reply-permission check on this route at all, so
+    // there is nothing here to hang the gate off — it needs its own lookup, or the
+    // refusal in `feed.controller.createReply` is a front door with the back one
+    // open.
+    const replyTargetId = parentPostId || in_reply_to_status_id;
+    if (replyTargetId) {
+      await assertParentAcceptsReplies(String(replyTargetId));
+    }
+
     const rawVisibility = typeof req.body.visibility === 'string' ? req.body.visibility : undefined;
     let resolvedVisibility = PostVisibility.PUBLIC;
     if (rawVisibility === 'followers' || rawVisibility === 'followers_only') {
@@ -724,6 +743,17 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       autoAcceptCollaboratorIds,
       quoteOf: quoted_post_id || null,
       boostOf: boost_of || null,
+      // Validated inside `create` (see `assertLaneAssignable`): a lane the author
+      // does not own is a 404, and one on a reply or a boost is a 400 — both
+      // refusals, never a silent drop.
+      laneId: typeof laneId === 'string' ? laneId : null,
+      // Validated inside `create` (see `assertCanPublishToChannel`): a channel the
+      // author is not an accepted member of is a 403 and an unknown one a 404 —
+      // both refusals, never a silent drop, and both raised before anything is
+      // written. `create` is also where a channel post picks up its
+      // `replyPermission: ['nobody']` and loses its MTN and federation fan-out, so
+      // no caller can route around any of it.
+      channelId: typeof channelId === 'string' ? channelId : null,
       parentPostId: parentPostId || in_reply_to_status_id || null,
       threadId: threadId || null,
       visibility: resolvedVisibility,
@@ -797,6 +827,12 @@ export const createPost = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     if (error instanceof CollabValidationError) {
       return res.status(400).json({ message: error.message });
+    }
+    if (error instanceof LaneAssignmentError) {
+      return res.status(error.status).json({ message: error.message });
+    }
+    if (error instanceof ChannelReplyError || error instanceof ChannelAccessError) {
+      return res.status(error.status).json({ message: error.message });
     }
     logger.error('Error creating post', error);
     res.status(500).json({ message: 'Error creating post' });
@@ -938,6 +974,54 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
     if (!Array.isArray(posts) || posts.length === 0) {
       return res.status(400).json({ message: 'Posts array is required and cannot be empty' });
+    }
+
+    // A THREAD CANNOT BE PUBLISHED TO A CHANNEL. In `thread` mode the
+    // continuations are replies, and a channel post accepts no replies — so the
+    // thread would be a root in the channel with its body scattered across posts
+    // the channel refuses. In `beast` mode the entries are independent posts and
+    // could each carry one, but a batch endpoint is the wrong place to introduce
+    // a second membership check, and nothing asks for it. Refused for the whole
+    // request, before anything is written; the same shape the collaborator refusal
+    // above takes, and for the same reason (a partial thread cannot be undone in
+    // one action).
+    const threadNamesAChannel =
+      typeof req.body.channelId === 'string' ||
+      posts.some((p: { channelId?: unknown }) => typeof p?.channelId === 'string');
+    if (threadNamesAChannel) {
+      return res.status(400).json({ message: 'Threads cannot be published to a channel' });
+    }
+
+    // Lanes are validated for the WHOLE batch before a single post is written.
+    // The loop below creates posts one at a time, so a lane refused on entry 3
+    // would otherwise leave entries 1 and 2 already published — a half-thread
+    // nobody asked for and nobody can undo in one action.
+    //
+    // In THREAD mode only the root takes a lane: its continuations are replies,
+    // and the feed renders the whole thread as one slice anchored on that root,
+    // so the chip appears once and in the right place. A continuation that
+    // carries one is refused with the same message the shared validator would
+    // give it. In BEAST mode every entry is an independent top-level post, so
+    // every entry may carry its own lane.
+    for (let i = 0; i < posts.length; i++) {
+      // Narrowed with `typeof`, matching what the creation loop below passes to
+      // `PostCreationService`. Without it a NON-string `laneId` (a number, say)
+      // reaches the pre-flight as-is and 404s, while the create call narrows it to
+      // `null` and drops it silently — two different answers to one request,
+      // depending on which of the two read it.
+      const requestedLaneId = typeof posts[i]?.laneId === 'string' ? posts[i].laneId : undefined;
+      if (!requestedLaneId) continue;
+      if (mode === 'thread' && i > 0) {
+        return res.status(400).json({ message: 'A reply cannot be assigned to a lane' });
+      }
+      try {
+        await assertLaneAssignable({ laneId: requestedLaneId, authorId: userId });
+      } catch (laneError) {
+        if (laneError instanceof LaneAssignmentError) {
+          return res.status(laneError.status).json({ message: laneError.message });
+        }
+        throw laneError;
+      }
     }
 
     const createdPostObjects: Array<{ content?: StoredPostContent }> = [];
@@ -1087,6 +1171,9 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         reviewReplies: reviewReplies || false,
         quotesDisabled: quotesDisabled || false,
         metadata: buildPostMetadata(metadata),
+        // Already validated for the whole batch above; a continuation never
+        // reaches here carrying one.
+        laneId: typeof postData.laneId === 'string' ? postData.laneId : null,
         // For thread mode: chain each continuation post to the immediately
         // previous post (sequential thread), with a shared threadId root.
         // For beast mode: all posts are independent.
@@ -1749,6 +1836,18 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
     }
 
     if (replyPermission !== undefined) {
+      // A channel post's `replyPermission` is not the author's to change. The
+      // server's refusal does not depend on this field (see
+      // `utils/channelReplyGate`), so a change here could not actually reopen the
+      // post — but it WOULD un-hide the client's reply button and leave every
+      // reader hitting a 403 they were invited to attempt. The stored `['nobody']`
+      // is defence in depth precisely because it is what the client reads, so it
+      // has to stay put.
+      if (isChannelPost(post)) {
+        return res.status(400).json({
+          message: 'A post published to a channel does not accept replies',
+        });
+      }
       const validPermissions = ['anyone', 'followers', 'following', 'mentioned', 'nobody'];
       if (!Array.isArray(replyPermission) || replyPermission.length === 0) {
         return res.status(400).json({ message: 'replyPermission must be a non-empty array' });
@@ -1788,6 +1887,115 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     logger.error('Error updating post settings', error);
     res.status(500).json({ message: 'Error updating post settings' });
+  }
+};
+
+/**
+ * PATCH /posts/:id/lane — move one of the author's own posts between their lanes,
+ * or (with `laneId: null`) out of every lane.
+ *
+ * **There is deliberately NO edit window here, and nobody should add one by
+ * copying the 30-minute guard out of `updatePost`.** That window exists because
+ * REWRITING THE TEXT of a post people have already read is a trust problem.
+ * Moving a post between the author's own organizational carriageways changes no
+ * text: it does not federate, does not emit an MTN record, does not set
+ * `isEdited`, and does not re-classify. Pinning/unpinning already has no window
+ * for exactly the same reason, which is why this is modelled on
+ * `updatePostSettings` rather than on `updatePost`.
+ *
+ * Owner-only, and scoped by `oxyUserId` in the query, so somebody else's post is
+ * a 404 rather than a 403 that confirms it exists.
+ *
+ * **The success body uses `sendSuccessResponse`'s `{data}` envelope, unlike every
+ * other handler in this file — that is deliberate, not an oversight.** This is a
+ * Lanes endpoint that happens to live on the posts router because it addresses a
+ * post; its only client is `lanesService`, which reads every OTHER lane endpoint
+ * (all of `routes/lanes.routes.ts`) through that envelope. Matching the feature
+ * the client sees beats matching the file the handler sits in. The error paths
+ * deliberately stay on this file's bare `{message}` shape, which is what the rest
+ * of the posts API — and this controller's own `LaneAssignmentError` mapping in
+ * `createPost` — already returns.
+ */
+export const updatePostLane = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const { laneId } = req.body;
+    if (laneId !== null && typeof laneId !== 'string') {
+      return res.status(400).json({ message: 'laneId must be a lane id or null' });
+    }
+
+    const post = await Post.findOne({ _id: req.params.id, oxyUserId: userId })
+      .select('parentPostId boostOf laneId channelId')
+      .lean<{
+        _id: unknown;
+        parentPostId?: string;
+        boostOf?: string;
+        laneId?: string;
+        channelId?: string;
+      } | null>();
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    // The SAME rule the create path applies, from the same definition: a lane
+    // belongs to its publisher, and replies/boosts carry none.
+    //
+    // **`channelId` is not optional here, and omitting it was a deanonymization.**
+    // `assertLaneAssignable` derives the publisher as `channelId ? 'channel' :
+    // 'user'`, so without it a CHANNEL post is measured against the CALLER's own
+    // personal lanes and can be moved into one. `laneSource`'s user branch then
+    // serves that lane scoped by `{ laneId, oxyUserId: <author> }` — and it
+    // deliberately does NOT apply `EXCLUDE_CHANNEL_POSTS`, precisely because this
+    // pairing is supposed to be impossible by construction. The DTO still renders
+    // anonymous under `signPosts: false`, but the SURFACE is the author's own lane
+    // tab, so anyone reading it learns which author wrote every "Unknown user"
+    // post on it. `PostCreationService.create` has always passed this; this was
+    // the one write path that did not.
+    await assertLaneAssignable({
+      laneId,
+      authorId: userId,
+      channelId: post.channelId,
+      parentPostId: post.parentPostId,
+      boostOf: post.boostOf,
+    });
+
+    // `$unset`, never a stored `null`: the `post_lane_chrono_v1` partial filter
+    // is `{ laneId: { $exists: true } }`, which a null satisfies — leaving a
+    // laneless post indexed forever.
+    await Post.updateOne(
+      { _id: post._id, oxyUserId: userId },
+      laneId ? { $set: { laneId } } : { $unset: { laneId: '' } },
+    );
+
+    const lane = laneId
+      ? await Lane.findById(laneId).select('name displayMode').lean<{
+        _id: unknown;
+        name: string;
+        displayMode: LaneDisplayMode;
+      } | null>()
+      : null;
+
+    return sendSuccessResponse(
+      res,
+      200,
+      {
+        postId: String(post._id),
+        lane: lane
+          ? { id: String(lane._id), name: lane.name, displayMode: lane.displayMode }
+          : null,
+      },
+      'Post lane updated',
+    );
+  } catch (error) {
+    if (error instanceof LaneAssignmentError) {
+      return res.status(error.status).json({ message: error.message });
+    }
+    logger.error('Error updating post lane', error);
+    res.status(500).json({ message: 'Error updating post lane' });
   }
 };
 

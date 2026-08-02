@@ -51,6 +51,9 @@ vi.mock('../models/FederatedActor', () => ({
   default: { find: vi.fn(() => ({ lean: vi.fn(async () => [{ oxyUserId: 'fedmutual' }]) })) },
 }));
 vi.mock('../models/MuteWord', () => ({ MuteWord: { find: vi.fn(() => ({ lean: vi.fn(async () => []) })) } }));
+vi.mock('../models/LaneMute', () => ({
+  LaneMute: { find: vi.fn(() => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) })) },
+}));
 vi.mock('../models/UserSettings', () => ({ default: { findOne: vi.fn(() => ({ lean: vi.fn(async () => null) })) } }));
 
 import { mtnFeedController } from '../mtn/controllers/feed.controller';
