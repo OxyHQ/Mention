@@ -24,13 +24,24 @@
  *
  *   bun packages/backend/dist/src/scripts/rebaselineTrendTerms.js [--hours=48] [--dry-run]
  *
- * `NODE_ENV=production` is mandatory or it silently reads `mention-development`.
+ * ## The window is `created_at`; the cursor is NOT
+ *
+ * Paging is a keyset over `id`, which is `text` holding an ObjectId hex for a
+ * pre-cutover row and a uuid v7 after it (`db/ids.ts`) — a total order, but NOT
+ * a chronological one, so it cannot stand in for the window. The
+ * `created_at >= since` term is therefore carried in the filter on every page
+ * rather than expressed as a cursor bound, which is what keeps a backfilled
+ * post (old `created_at`, new id) inside the window it belongs to.
  */
 
-import mongoose from 'mongoose';
-import { Post } from '../models/Post';
+import { and, asc, gt, gte, type SQL } from 'drizzle-orm';
+import { resolveVariant } from '../services/postVariants';
+import { connectPostgres } from '../db/postgres';
+import { posts } from '../db/schema/posts';
+import { findPostRecords, updatePostRecord } from '../db/posts/postRepository';
 import { baselineContentClassifier, BASELINE_CLASSIFIER_VERSION } from '../services/BaselineContentClassifier';
 import { logger } from '../utils/logger';
+import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 
 /**
  * Default window. Twice the trending window, so a batch computed moments after
@@ -39,17 +50,12 @@ import { logger } from '../utils/logger';
  */
 const DEFAULT_HOURS = 48;
 
-/** Posts read per page. Bulk cursor, no per-document query — safe over a tunnel. */
+/** Posts read per page (stable ascending `id` cursor pagination). */
 const PAGE_SIZE = 500;
 
-/** Bulk writes flushed per round trip. */
-const BULK_CHUNK = 500;
-
-interface PostRow {
-  _id: mongoose.Types.ObjectId;
-  hashtags?: string[];
-  content?: { variants?: Array<{ text?: string }> };
-  postClassification?: { version?: number; trendTerms?: string[] };
+export interface RebaselineTrendTermsResult {
+  scanned: number;
+  updated: number;
 }
 
 function parseHours(): number {
@@ -58,46 +64,29 @@ function parseHours(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_HOURS;
 }
 
-async function main(): Promise<void> {
-  const dryRun = process.argv.includes('--dry-run');
-  const hours = parseHours();
+/**
+ * Re-derive trend terms over the window. The caller owns the connection
+ * lifecycle, so this is reusable from an in-process caller.
+ */
+export async function rebaselineTrendTerms(
+  opts: { hours?: number; batchSize?: number; dryRun?: boolean } = {},
+): Promise<RebaselineTrendTermsResult> {
+  const pageSize = opts.batchSize ?? PAGE_SIZE;
+  const dryRun = opts.dryRun ?? false;
+  const hours = opts.hours ?? DEFAULT_HOURS;
   const since = new Date(Date.now() - hours * 60 * 60 * 1000);
 
-  await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/mention', {
-    dbName: `mention-${process.env.NODE_ENV || 'development'}`,
-  });
-  logger.info('[rebaselineTrendTerms] started', { hours, dryRun, version: BASELINE_CLASSIFIER_VERSION });
+  const windowFilter = gte(posts.createdAt, since) as SQL;
 
-  let lastId: mongoose.Types.ObjectId | undefined;
   let scanned = 0;
   let updated = 0;
-  let pending: mongoose.AnyBulkWriteOperation[] = [];
-
-  const flush = async (): Promise<void> => {
-    if (pending.length === 0 || dryRun) {
-      pending = [];
-      return;
-    }
-    await Post.bulkWrite(pending, { ordered: false });
-    pending = [];
-  };
+  let lastId: string | null = null;
 
   for (;;) {
-    const page = await Post.find(
-      {
-        createdAt: { $gte: since },
-        ...(lastId ? { _id: { $gt: lastId } } : {}),
-      },
-      {
-        hashtags: 1,
-        'content.variants.text': 1,
-        'postClassification.version': 1,
-        'postClassification.trendTerms': 1,
-      },
-    )
-      .sort({ _id: 1 })
-      .limit(PAGE_SIZE)
-      .lean<PostRow[]>();
+    const page = await findPostRecords(
+      lastId ? and(windowFilter, gt(posts.id, lastId)) : windowFilter,
+      { orderBy: [asc(posts.id)], limit: pageSize },
+    );
 
     if (page.length === 0) break;
 
@@ -106,50 +95,74 @@ async function main(): Promise<void> {
       // The PRIMARY rendition — the author's own words, the same text ingest
       // classifies. A machine translation would re-derive terms from a
       // translator's word choices.
-      const text = post.content?.variants?.[0]?.text ?? '';
-      const signals = baselineContentClassifier.classify({ text, hashtags: post.hashtags });
+      const signals = baselineContentClassifier.classify({
+        text: resolveVariant(post.content).text,
+        hashtags: post.hashtags,
+      });
 
       // Skip a post whose terms are already what the current rules produce:
       // most of a 48-hour window is untouched by any given rule change, and a
       // no-op write is still a write.
       const current = post.postClassification?.trendTerms ?? [];
       if (
-        post.postClassification?.version === BASELINE_CLASSIFIER_VERSION &&
-        current.length === signals.trendTerms.length &&
-        current.every((term, index) => term === signals.trendTerms[index])
+        post.postClassification?.version === BASELINE_CLASSIFIER_VERSION
+        && current.length === signals.trendTerms.length
+        && current.every((term, index) => term === signals.trendTerms[index])
       ) {
         continue;
       }
 
       updated += 1;
-      pending.push({
-        updateOne: {
-          filter: { _id: post._id },
-          update: {
-            $set: {
-              'postClassification.trendTerms': signals.trendTerms,
-              'postClassification.version': BASELINE_CLASSIFIER_VERSION,
-            },
-          },
+      if (dryRun) continue;
+
+      // A per-post PARTIAL patch, not a batched whole-column write: the
+      // classification fields are a MERGE onto the existing subdocument, and
+      // rewriting the column would destroy every sibling signal (languages,
+      // topics, the quality/spam scores) this script never computed.
+      await updatePostRecord(post.id, {
+        postClassification: {
+          trendTerms: signals.trendTerms,
+          version: BASELINE_CLASSIFIER_VERSION,
         },
       });
-      if (pending.length >= BULK_CHUNK) await flush();
     }
 
-    lastId = page[page.length - 1]._id;
+    lastId = page[page.length - 1].id;
     logger.info('[rebaselineTrendTerms] progress', { scanned, updated });
   }
 
-  await flush();
-  logger.info('[rebaselineTrendTerms] done', { scanned, updated, dryRun });
-
-  // One-shot scripts MUST disconnect and exit: imported singletons otherwise
-  // keep a Fargate task alive forever. See AGENTS.md § one-shot scripts.
-  await mongoose.disconnect();
-  process.exit(0);
+  return { scanned, updated };
 }
 
-main().catch((error) => {
-  logger.error('[rebaselineTrendTerms] failed', error);
-  process.exit(1);
-});
+async function main(): Promise<void> {
+  const dryRun = process.argv.includes('--dry-run');
+  const hours = parseHours();
+
+  try {
+    await connectPostgres();
+    logger.info('[rebaselineTrendTerms] started', {
+      hours,
+      dryRun,
+      version: BASELINE_CLASSIFIER_VERSION,
+    });
+
+    const result = await rebaselineTrendTerms({ hours, dryRun });
+    logger.info('[rebaselineTrendTerms] done', { ...result, dryRun });
+  } catch (error) {
+    logger.error('[rebaselineTrendTerms] failed', error);
+    throw error;
+  } finally {
+    // One-shot scripts MUST release their resources and exit: imported
+    // singletons otherwise keep a Fargate task alive forever.
+    await closeAdminScriptResources();
+  }
+}
+
+if (require.main === module) {
+  main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      logger.error('[rebaselineTrendTerms] unhandled failure', error);
+      process.exit(1);
+    });
+}
