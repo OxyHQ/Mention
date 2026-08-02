@@ -214,8 +214,37 @@ export const DROP_UNREAD_FEED_ENTITY_FOLLOWS: ResolutionRule = {
     'row is reported BY ID under this rule.',
 };
 
+export const MAP_LEGACY_PUSH_TOKEN_TYPE: ResolutionRule = {
+  id: 'map-legacy-push-token-type',
+  collection: 'pushtokens',
+  finding:
+    'pushtokens.type = "android" is not one of fcm | apns | unknown. The CHECK ' +
+    'on push_tokens.type would reject these rows.',
+  decision:
+    '"android" is REWRITTEN to "fcm"; any other unaccepted value becomes ' +
+    '"unknown". Measured on the whole collection — 11 documents — before ' +
+    'choosing: all eleven carry `platform: "android"` and a 142-character ' +
+    'token, ten of them already say `type: "fcm"`, and the single "android" row ' +
+    'is the OLDEST (2026-06-15) while every row written after 2026-07-12 says ' +
+    '"fcm". The decisive one: the same user (6981c9178fcdefaf81988ffb) owns ' +
+    'both that row AND two later "fcm" rows, so this is one device family ' +
+    'either side of a writer change, not a different transport. FCM *is* the ' +
+    'Android transport, so the two spellings name the same thing and the value ' +
+    'is a historical one rather than a bad one. Dropping the row instead would ' +
+    'discard a live push registration (`enabled: true`) to avoid writing a ' +
+    'value the target vocabulary already has a place for. The fallback to ' +
+    '"unknown" is what keeps the rule NARROW BY CONSTRUCTION: it is defined ' +
+    'over the complement of the accepted set, which the column supplies, so a ' +
+    'future unaccepted value is handled honestly instead of being silently ' +
+    'mapped to a transport nobody verified. Every rewritten row is reported by ' +
+    'id, carrying the value it had.',
+};
+
 /** Rules that act on a VALUE rather than on a missing parent. */
-const VALUE_RESOLUTIONS: readonly ResolutionRule[] = [DROP_UNREAD_FEED_ENTITY_FOLLOWS];
+const VALUE_RESOLUTIONS: readonly ResolutionRule[] = [
+  DROP_UNREAD_FEED_ENTITY_FOLLOWS,
+  MAP_LEGACY_PUSH_TOKEN_TYPE,
+];
 
 /**
  * Every declared orphan resolution.

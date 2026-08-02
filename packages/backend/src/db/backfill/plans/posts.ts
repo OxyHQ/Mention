@@ -159,7 +159,20 @@ const postsPlan: CollectionPlan = {
     },
     // Paths INTO arrays: `distinct` returns the elements' values, which is the
     // set each of these CHECKs constrains.
-    { path: 'replyPermission', column: posts.replyPermission },
+    //
+    // `replyPermission` is array-VALUED but lives on `posts` itself, so it is
+    // the document's own field and not a path into a child table's array — see
+    // `auditMissingRequired`, which asks a different question of each.
+    //
+    // 147,198 production posts have no `replyPermission` at all, every one of
+    // them federated: `OutboxSyncService` batch-inserts raw documents, which
+    // bypasses the Mongoose default the composer path gets. `absentAs` is a
+    // DECLARATION of what the transform already does (`replyPermission:
+    // strArray(doc, 'replyPermission') ?? ['anyone']` below), not a new choice —
+    // and `['anyone']` is what every other layer independently supplies: the
+    // column's own `default array['anyone']::text[]`, the Mongoose default, the
+    // request validator's `.default(['anyone'])`, and both controller paths.
+    { path: 'replyPermission', column: posts.replyPermission, absentAs: 'anyone' },
     { path: 'authorship.role', column: postAuthorships.role },
     { path: 'authorship.status', column: postAuthorships.status },
     { path: 'content.variants.source', column: postContentVariants.source },

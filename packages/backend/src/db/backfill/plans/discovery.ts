@@ -45,6 +45,10 @@ import {
 } from '../../schema/discovery';
 import type { TrendGraphEdgeDTO } from '@mention/shared-types';
 import type { CollectionPlan } from '../plan';
+import { allowedValues } from '../plan';
+import type { MongoDocument } from '../values';
+import type { ResolutionContext } from '../resolutions';
+import { MAP_LEGACY_PUSH_TOKEN_TYPE } from '../resolutions';
 import { buildRow } from '../rowBuilder';
 import { bool, id, int, jsonArray, num, ownId, reqDate, reqId, reqInt, reqNum, reqStr, str, strArray } from '../values';
 import { optionalDate, timestamps, updatedOnly } from './timestamps';
@@ -324,18 +328,57 @@ const notificationsPlan: CollectionPlan = {
   },
 };
 
+/**
+ * The transport a push token registers under, rewriting the legacy spelling.
+ *
+ * NARROW BY CONSTRUCTION, in the same sense as
+ * {@link DROP_UNREAD_FEED_ENTITY_FOLLOWS}: the accepted set is read off the
+ * column rather than restated, so a value the schema later admits passes
+ * through untouched and only a value it refuses is ever rewritten. `'android'`
+ * has the evidence behind it recorded on the rule; anything else lands on the
+ * vocabulary's own `'unknown'`, because mapping an unexamined value onto a real
+ * transport would be inventing a fact rather than migrating one.
+ */
+function pushTokenType(doc: MongoDocument, resolutions: ResolutionContext): string {
+  const raw = str(doc, 'type');
+  // Absent is not the same question — `absentAs` declares that one, and this
+  // line is the transform doing exactly what it declares.
+  if (raw === null) return 'unknown';
+  if (allowedValues(pushTokens.type).includes(raw)) return raw;
+
+  const mapped = raw === 'android' ? 'fcm' : 'unknown';
+  resolutions.record({
+    rule: MAP_LEGACY_PUSH_TOKEN_TYPE,
+    documentId: ownId(doc),
+    detail: `type ${JSON.stringify(raw)} rewritten to ${JSON.stringify(mapped)}`,
+    // The original value is the only thing that stops existing once the row is
+    // written, so it is what the report carries.
+    evidence: { 'push_tokens.type (source)': raw, 'push_tokens.type (written)': mapped },
+  });
+  return mapped;
+}
+
 /** `pushtokens` → `push_tokens`. */
 const pushTokensPlan: CollectionPlan = {
   collection: 'pushtokens',
   table: pushTokens,
   enumAudits: [
-    { path: 'type', column: pushTokens.type, absentAs: 'unknown' },
+    // This is what REPORTS the legacy `'android'` spelling before anything is
+    // copied; the rule below is what answers the finding. `absentAs` covers a
+    // MISSING type, which is a different question from a present-but-unaccepted
+    // one — the transform substitutes for the first and rewrites the second.
+    {
+      path: 'type',
+      column: pushTokens.type,
+      absentAs: 'unknown',
+      resolvedBy: MAP_LEGACY_PUSH_TOKEN_TYPE,
+    },
     { path: 'platform', column: pushTokens.platform, absentAs: 'unknown' },
   ],
   uniquenessAudits: [
     { index: 'push_tokens_token_key', key: [{ path: 'token', normalize: 'exact' }] },
   ],
-  transform: (doc, emit) => {
+  transform: (doc, emit, resolutions) => {
     emit(
       pushTokens,
       buildRow(
@@ -344,7 +387,7 @@ const pushTokensPlan: CollectionPlan = {
           id: ownId(doc),
           userId: reqStr(doc, 'userId'),
           token: reqStr(doc, 'token'),
-          type: str(doc, 'type') ?? 'unknown',
+          type: pushTokenType(doc, resolutions),
           platform: str(doc, 'platform') ?? 'unknown',
           // Both nullable, and both stay NULL when absent rather than becoming
           // `''` — an empty locale is a VALUE and would be matched by a lookup
