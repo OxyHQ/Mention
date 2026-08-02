@@ -36,6 +36,7 @@ import { mongoSourceFromDb, type MongoSource } from '../../db/backfill/mongoSour
 import { COLLECTION_PLANS } from '../../db/backfill/collectionMap';
 import { tableName, type CollectionPlan } from '../../db/backfill/plan';
 import { posts as postsTable } from '../../db/schema/posts';
+import { reports } from '../../db/schema/moderation';
 
 let mongod: MongoMemoryServer;
 let client: MongoClient;
@@ -74,6 +75,7 @@ beforeAll(async () => {
 
 afterEach(async () => {
   await mongo.collection('posts').deleteMany({});
+  await mongo.collection('reports').deleteMany({});
 });
 
 afterAll(async () => {
@@ -206,44 +208,51 @@ describe('auditMissingRequired, through auditEnums, on an array-nested path', ()
 
 describe('auditMissingRequired on a field of the DOCUMENT', () => {
   /**
-   * The same fixture, audited by a plan that declares NO substitute.
+   * An array-VALUED column on the plan's OWN table, `NOT NULL` with no default.
    *
-   * The real `posts` plan declares `absentAs: 'anyone'` on this path, which
-   * short-circuits the probe before it runs — correct, and it is why the
-   * production finding goes away. But that would also hide a fix that widened
-   * the array branch to swallow array-VALUED columns, so the branch decision is
-   * asserted against a plan built here, where nothing can declare it away.
+   * `posts.replyPermission` was the obvious fixture and stopped being usable:
+   * it carries a database default, and the probe now skips a defaulted column
+   * entirely — correctly, since Postgres would supply the value rather than
+   * raise a `23502`. That exclusion happens BEFORE the branch this file is
+   * about, so a fix that widened the array branch to swallow array-valued
+   * columns would go unnoticed against it.
+   *
+   * `reports.categories` is the same shape without the default, so the guard
+   * survives on a column where the probe genuinely has a question to answer.
    */
-  const undeclared: CollectionPlan = {
-    ...planFor('posts'),
-    enumAudits: [{ path: 'replyPermission', column: postsTable.replyPermission }],
+  const arrayValuedOnItsOwnTable: CollectionPlan = {
+    ...planFor('reports'),
+    enumAudits: [{ path: 'categories', column: reports.categories }],
   };
 
   it('still reports an absent top-level field that happens to be array-VALUED', async () => {
-    // `replyPermission` holds an array and lands on `posts` itself, so one row
-    // is emitted per document whatever the field contains — `{$exists:false}`
-    // is the right question and 147,198 production posts answer yes to it. What
-    // makes a path ambiguous is an array BETWEEN the document and the leaf,
-    // never an array AT the leaf.
-    await mongo.collection('posts').insertMany([
-      { _id: id('f1'), content: { text: 'no replyPermission' } },
-      { _id: id('f2'), replyPermission: REPLY_PERMISSION, content: { text: 'has one' } },
+    // The field holds an array and lands on the plan's own table, so one row is
+    // emitted per document whatever it contains — `{$exists:false}` is the
+    // right question. What makes a path ambiguous is an array BETWEEN the
+    // document and the leaf, never an array AT the leaf.
+    await mongo.collection('reports').insertMany([
+      { _id: id('f1'), reportedType: 'post', status: 'pending' },
+      { _id: id('f2'), reportedType: 'post', status: 'pending', categories: ['spam'] },
     ]);
 
-    const finding = findingFor(await auditEnums(source, undeclared), 'replyPermission');
+    const findings = await auditEnums(source, arrayValuedOnItsOwnTable);
+    const finding = findings.find((entry) => entry.detail.startsWith('reports.categories is MISSING'));
 
     expect(finding?.documents).toBe(1);
     expect(finding?.sampleIds).toEqual([String(id('f1'))]);
   });
 
-  it('is silenced on the REAL plan, which declares the substitute the transform applies', async () => {
-    // Not a weaker assertion than the one above — a different one. The probe
-    // still finds the document; the plan states that the transform fills the
-    // value in, so it is not a row Postgres would ever see missing.
+  it('is silenced for a DEFAULTED column, which is a different question', async () => {
+    // `posts.replyPermission` is `NOT NULL` WITH a default, so no row is ever
+    // refused for lacking it — `auditDefaultedColumns` owns that case, and the
+    // real plan additionally declares `absentAs: 'anyone'` because the transform
+    // supplies the value itself. Two independent reasons, and the finding is
+    // absent under either.
     await mongo.collection('posts').insertMany([
       { _id: id('f3'), content: { text: 'no replyPermission' } },
     ]);
 
+    expect(postsTable.replyPermission.hasDefault).toBe(true);
     const audit = planFor('posts').enumAudits?.find((entry) => entry.path === 'replyPermission');
     expect(audit?.absentAs).toBe('anyone');
     expect(findingFor(await auditEnums(source, planFor('posts')), 'replyPermission')).toBeUndefined();
