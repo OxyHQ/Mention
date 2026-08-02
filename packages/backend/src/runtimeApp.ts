@@ -21,6 +21,11 @@ export function createRuntimeApp() {
   const oxy = new OxyServices({ baseURL: config.oxyApiUrl });
   setRuntimeOxyClient(oxy);
 
+  // `rate-limit:api:` belongs to THIS limiter — the app-wide one, whose scope is
+  // the entire API surface. Route-level limiters must not reuse it: they key
+  // authenticated callers as `user:<id>` exactly as this one does, so a shared
+  // prefix is a shared counter, and the Lua in `rateLimitStore` hands the whole
+  // key one TTL — whichever limiter creates it. See `middleware/rateLimiter.ts`.
   const redisStore = new RedisStore({
     prefix: 'rate-limit:api:',
     windowMs: 15 * 60 * 1000,
