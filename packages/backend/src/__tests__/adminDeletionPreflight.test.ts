@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -8,16 +9,52 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 import {
   DeletionPreflightError,
   POST_REFERENCE_PROBE_NAMES,
+  assertActorAnchorSafeToDelete,
+  assertActorSafeToDelete,
   assertNoDeletionBlockers,
   assertPostsSafeToDelete,
   collectReferenceBlockers,
 } from '../scripts/lib/adminDeletionPreflight';
 import { assertAdminRunComplete } from '../scripts/lib/adminScriptLifecycle';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
-import { contentLabels, labelers } from '../db/schema/moderation';
-import { feedInteractions } from '../db/schema/feeds';
-import { likes } from '../db/schema/engagement';
-import { notifications } from '../db/schema/discovery';
+import { ReportedType } from '../models/Report.model';
+import { contentLabels, labelers, reports } from '../db/schema/moderation';
+import { articles } from '../db/schema/articles';
+import {
+  actorKeyPairs,
+  federatedFollows,
+  federationDeliveryQueue,
+} from '../db/schema/federation';
+import {
+  customFeeds,
+  feedGenerators,
+  feedInteractions,
+  feedLikes,
+  feedReviews,
+  userFeedPreferences,
+} from '../db/schema/feeds';
+import { postgates, threadgates } from '../db/schema/gates';
+import { accountLists, starterPacks } from '../db/schema/lists';
+import {
+  mentionNodeIngestWitnesses,
+  mentionRepoHeads,
+  mentionSignedRecords,
+  mentionUserNodes,
+} from '../db/schema/mtn';
+import { endorsementOutbox, engagementOutbox } from '../db/schema/outbox';
+import { polls } from '../db/schema/polls';
+import { postRecentRepliers } from '../db/schema/postContent';
+import { userBehaviors, userSettings } from '../db/schema/userProfile';
+import {
+  bookmarks,
+  entityFollows,
+  likes,
+  muteWords,
+  mutes,
+  pokes,
+  postSubscriptions,
+} from '../db/schema/engagement';
+import { authorFollowerSnapshots, notifications, pushTokens } from '../db/schema/discovery';
 import { deletePostRecord, insertPostRecord } from '../db/posts/postRepository';
 import type { PostRecordInput } from '../db/posts/postRecord';
 
@@ -554,5 +591,742 @@ describe('assertPostsSafeToDelete — against real rows', () => {
     await expect(
       assertPostsSafeToDelete('preflight-test', [{ id: root }, { id: reply }]),
     ).resolves.toBeUndefined();
+  });
+});
+
+/**
+ * `assertActorSafeToDelete` — ONE PLANTED ROW PER PROBE.
+ *
+ * This gate is the last thing between a purge and the irreversible deletion of a
+ * federated actor that something still references, and until now nothing
+ * exercised it. Every way of being wrong produces the same output as a genuinely
+ * clean actor — a probe against the wrong table, a mistyped column, or one whose
+ * store stopped being written all answer "no reference", and the gate says SAFE.
+ * It has the history to match: three of its checks read Postgres while the rest
+ * read Mongo, and after that cutover every Mongo probe would have answered "no
+ * references" and the gate would have passed by default.
+ *
+ * So each case plants exactly one row that only ONE probe can see and asserts
+ * the gate refuses with `blockers` EQUAL to that probe — not merely containing
+ * it. A second probe firing means the row was not specific and the case proves
+ * less than it claims.
+ *
+ * Each case also carries the control in the other direction, because the arm a
+ * probe lives in is itself a claim: `allowGoneActorCascade` returns early, so a
+ * probe past that point must block WITHOUT the acknowledgement and must go quiet
+ * WITH it, while a probe before it must block either way.
+ *
+ * SCOPE, STATED RATHER THAN IMPLIED: a compound probe (`mutes.user_id/muted_id`,
+ * `starter_packs owner/member/used_by`, …) is exercised through ONE of its
+ * disjuncts. That proves the probe reaches a live table and fires; it does not
+ * prove every column in the disjunction is spelled right. The exhaustiveness
+ * assertion at the end covers PROBES, and says so.
+ */
+describe('assertActorSafeToDelete — one planted row per probe', () => {
+  /** Which arm of the builder a probe lives in, which decides how it is called. */
+  type ProbeArm = 'always' | 'withoutOxyUser' | 'beyondCascade' | 'anchor';
+
+  interface ActorSubject {
+    /** The actor under deletion. */
+    readonly oxyUserId: string;
+    readonly actorUri: string;
+    /** Somebody else, for the probes that are about a reference FROM a third party. */
+    readonly other: string;
+    /** Posts to remove afterwards; their children cascade. */
+    readonly posts: string[];
+  }
+
+  interface ActorProbeCase {
+    readonly probe: string;
+    readonly arm: ProbeArm;
+    readonly plant: (subject: ActorSubject) => Promise<void>;
+    readonly clear: (subject: ActorSubject) => Promise<void>;
+  }
+
+  let subject: ActorSubject;
+
+  beforeAll(async () => {
+    await connectPostgres();
+  });
+
+  afterAll(async () => {
+    await closePostgres();
+  });
+
+  beforeEach(() => {
+    // A fresh identity per case, so no case can be satisfied by another's row
+    // and the `blockers` equality below means what it says.
+    const suffix = randomUUID();
+    subject = {
+      oxyUserId: `probe-actor-${suffix}`,
+      other: `probe-other-${suffix}`,
+      actorUri: `https://remote.invalid/users/${suffix}`,
+      posts: [],
+    };
+  });
+
+  /** A post owned by somebody ELSE, so seeding one never trips an owner probe. */
+  async function foreignPost(overrides: Partial<PostRecordInput> = {}): Promise<string> {
+    const record = await insertPostRecord({
+      oxyUserId: subject.other,
+      authorship: [{ oxyUserId: subject.other, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: { variants: [{ source: 'author', text: 'referenced', tag: 'en' }] },
+      ...overrides,
+    });
+    subject.posts.push(record.id);
+    return record.id;
+  }
+
+  function callGate(arm: ProbeArm, allowGoneActorCascade: boolean): Promise<void> {
+    if (arm === 'anchor') {
+      return assertActorAnchorSafeToDelete('probe-test', { actorUri: subject.actorUri });
+    }
+    const target = arm === 'withoutOxyUser'
+      ? { actorUri: subject.actorUri }
+      : { oxyUserId: subject.oxyUserId, actorUri: subject.actorUri };
+    return assertActorSafeToDelete('probe-test', target, { allowGoneActorCascade });
+  }
+
+  async function blockersFrom(gate: Promise<void>): Promise<string[]> {
+    try {
+      await gate;
+      return [];
+    } catch (error) {
+      if (error instanceof DeletionPreflightError) return [...error.blockers];
+      throw error;
+    }
+  }
+
+  const cases: readonly ActorProbeCase[] = [
+    {
+      probe: 'bookmarks.user_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(bookmarks).values({ userId: s.oxyUserId, postId: await foreignPost() });
+      },
+      // Cascades with the post.
+      clear: async () => {},
+    },
+    {
+      probe: 'mutes.user_id/muted_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(mutes).values({ userId: s.oxyUserId, mutedId: s.other });
+      },
+      clear: async (s) => {
+        await getDb().delete(mutes).where(eq(mutes.userId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'mute_words.user_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(muteWords).values({ userId: s.oxyUserId, value: 'probe' });
+      },
+      clear: async (s) => {
+        await getDb().delete(muteWords).where(eq(muteWords.userId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'feed_interactions.user_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(feedInteractions).values({
+          userId: s.oxyUserId,
+          feedDescriptor: 'for_you',
+          postUri: `mtn://probe/${s.oxyUserId}`,
+          event: 'impression',
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(feedInteractions).where(eq(feedInteractions.userId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'feed_likes.user_id',
+      arm: 'always',
+      plant: async (s) => {
+        const [feed] = await getDb()
+          .insert(customFeeds)
+          .values({ ownerOxyUserId: s.other, title: 'probe feed' })
+          .returning({ id: customFeeds.id });
+        await getDb().insert(feedLikes).values({ userId: s.oxyUserId, feedId: feed.id });
+      },
+      clear: async (s) => {
+        await getDb().delete(feedLikes).where(eq(feedLikes.userId, s.oxyUserId));
+        await getDb().delete(customFeeds).where(eq(customFeeds.ownerOxyUserId, s.other));
+      },
+    },
+    {
+      probe: 'feed_reviews.reviewer_id',
+      arm: 'always',
+      plant: async (s) => {
+        const [feed] = await getDb()
+          .insert(customFeeds)
+          .values({ ownerOxyUserId: s.other, title: 'probe feed' })
+          .returning({ id: customFeeds.id });
+        await getDb()
+          .insert(feedReviews)
+          .values({ feedId: feed.id, reviewerId: s.oxyUserId, rating: 4 });
+      },
+      clear: async (s) => {
+        await getDb().delete(feedReviews).where(eq(feedReviews.reviewerId, s.oxyUserId));
+        await getDb().delete(customFeeds).where(eq(customFeeds.ownerOxyUserId, s.other));
+      },
+    },
+    {
+      probe: 'post_subscriptions.subscriber_id/author_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb()
+          .insert(postSubscriptions)
+          .values({ subscriberId: s.oxyUserId, authorId: s.other });
+      },
+      clear: async (s) => {
+        await getDb().delete(postSubscriptions).where(eq(postSubscriptions.subscriberId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'push_tokens.user_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(pushTokens).values({ userId: s.oxyUserId, token: `probe-${s.oxyUserId}` });
+      },
+      clear: async (s) => {
+        await getDb().delete(pushTokens).where(eq(pushTokens.userId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'pokes.poker_id/poked_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(pokes).values({ pokerId: s.oxyUserId, pokedId: s.other });
+      },
+      clear: async (s) => {
+        await getDb().delete(pokes).where(eq(pokes.pokerId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'reports.reporter/reported_id(user)',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(reports).values({
+          reportedType: ReportedType.USER,
+          reportedId: s.other,
+          reporter: s.oxyUserId,
+          categories: ['spam'],
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(reports).where(eq(reports.reporter, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'polls.created_by/poll_votes.user_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(polls).values({
+          question: 'probe?',
+          createdBy: s.oxyUserId,
+          endsAt: new Date(Date.now() + 60_000),
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(polls).where(eq(polls.createdBy, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'articles.created_by',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(articles).values({ createdBy: s.oxyUserId });
+      },
+      clear: async (s) => {
+        await getDb().delete(articles).where(eq(articles.createdBy, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'postgates.created_by',
+      arm: 'always',
+      plant: async (s) => {
+        const postId = await foreignPost();
+        await getDb().insert(postgates).values({
+          postId,
+          postUri: `mtn://probe/${postId}`,
+          createdBy: s.oxyUserId,
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(postgates).where(eq(postgates.createdBy, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'threadgates.created_by',
+      arm: 'always',
+      plant: async (s) => {
+        const postId = await foreignPost();
+        await getDb().insert(threadgates).values({
+          postId,
+          postUri: `mtn://probe/${postId}`,
+          createdBy: s.oxyUserId,
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(threadgates).where(eq(threadgates.createdBy, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'post_recent_repliers.oxy_user_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(postRecentRepliers).values({
+          postId: await foreignPost(),
+          oxyUserId: s.oxyUserId,
+          repliedAt: new Date(),
+        });
+      },
+      clear: async () => {},
+    },
+    {
+      probe: 'engagement_outbox.payload actor/owner',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(engagementOutbox).values({
+          // The one table here whose `id` has no client-side default; every
+          // other insert in this file legitimately omits it.
+          id: randomUUID(),
+          kind: 'post.like',
+          revision: 1,
+          payloadActorOxyUserId: s.oxyUserId,
+          payloadPostId: await foreignPost(),
+          payloadRelationshipId: `probe-${s.oxyUserId}`,
+          expiresAt: new Date(Date.now() + 60_000),
+        });
+      },
+      clear: async () => {},
+    },
+    {
+      probe: 'account_lists owner/member',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(accountLists).values({ ownerOxyUserId: s.oxyUserId, title: 'probe' });
+      },
+      clear: async (s) => {
+        await getDb().delete(accountLists).where(eq(accountLists.ownerOxyUserId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'custom_feeds owner/member',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(customFeeds).values({ ownerOxyUserId: s.oxyUserId, title: 'probe' });
+      },
+      clear: async (s) => {
+        await getDb().delete(customFeeds).where(eq(customFeeds.ownerOxyUserId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'starter_packs owner/member/used_by',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(starterPacks).values({ ownerOxyUserId: s.oxyUserId, name: 'probe' });
+      },
+      clear: async (s) => {
+        await getDb().delete(starterPacks).where(eq(starterPacks.ownerOxyUserId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'feed_generators.created_by',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(feedGenerators).values({
+          uri: `mtn://probe/gen/${s.oxyUserId}`,
+          name: 'probe',
+          algorithm: 'probe',
+          createdBy: s.oxyUserId,
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(feedGenerators).where(eq(feedGenerators.createdBy, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'labelers.creator_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(labelers).values({ name: `probe-${s.oxyUserId}`, creatorId: s.oxyUserId });
+      },
+      clear: async (s) => {
+        await getDb().delete(labelers).where(eq(labelers.creatorId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'content_labels created_by/target_id(user)',
+      arm: 'always',
+      plant: async (s) => {
+        // Authored by somebody else, so `labelers.creator_id` stays quiet and
+        // only the `target_id` disjunct can be what fires.
+        const [labeler] = await getDb()
+          .insert(labelers)
+          .values({ name: `probe-${s.oxyUserId}`, creatorId: s.other })
+          .returning({ id: labelers.id });
+        await getDb().insert(contentLabels).values({
+          labelerId: labeler.id,
+          targetType: 'user',
+          targetId: s.oxyUserId,
+          labelSlug: 'spam',
+          createdBy: s.other,
+        });
+      },
+      clear: async (s) => {
+        // CASCADEs the label with it.
+        await getDb().delete(labelers).where(eq(labelers.creatorId, s.other));
+      },
+    },
+    {
+      probe: 'federation_delivery_queue.sender_oxy_user_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(federationDeliveryQueue).values({
+          activityJson: { type: 'Probe' },
+          targetInbox: 'https://remote.invalid/inbox',
+          senderOxyUserId: s.oxyUserId,
+          nextAttemptAt: new Date(),
+        });
+      },
+      clear: async (s) => {
+        await getDb()
+          .delete(federationDeliveryQueue)
+          .where(eq(federationDeliveryQueue.senderOxyUserId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'endorsement_outbox pending owner/member',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(endorsementOutbox).values({
+          source: 'starterPack',
+          sourceId: `probe-${s.oxyUserId}`,
+          pendingRemoveOwnerId: s.oxyUserId,
+        });
+      },
+      clear: async (s) => {
+        await getDb()
+          .delete(endorsementOutbox)
+          .where(eq(endorsementOutbox.sourceId, `probe-${s.oxyUserId}`));
+      },
+    },
+    {
+      probe: 'user_behaviors references from another viewer',
+      arm: 'always',
+      plant: async (s) => {
+        // SOMEBODY ELSE's behaviour row naming this actor. The `hiddenAuthors`
+        // arm is a `text[]` containment test, which an `eq` would silently miss.
+        await getDb()
+          .insert(userBehaviors)
+          .values({ oxyUserId: s.other, hiddenAuthors: [s.oxyUserId] });
+      },
+      clear: async (s) => {
+        await getDb().delete(userBehaviors).where(eq(userBehaviors.oxyUserId, s.other));
+      },
+    },
+    {
+      probe: 'posts non-owner authorship/federation.actor_uri',
+      arm: 'always',
+      plant: async (s) => {
+        await foreignPost({
+          authorship: [
+            { oxyUserId: s.other, role: 'owner', status: 'accepted' },
+            { oxyUserId: s.oxyUserId, role: 'collaborator', status: 'accepted' },
+          ],
+        });
+      },
+      clear: async () => {},
+    },
+    {
+      probe: 'federated_follows.local_user_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(federatedFollows).values({
+          localUserId: s.oxyUserId,
+          remoteActorUri: 'https://elsewhere.invalid/users/someone',
+          direction: 'outbound',
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(federatedFollows).where(eq(federatedFollows.localUserId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'posts.federation_actor_uri without linked Oxy identity',
+      arm: 'withoutOxyUser',
+      plant: async (s) => {
+        await foreignPost({ federation: { actorUri: s.actorUri } });
+      },
+      clear: async () => {},
+    },
+    {
+      probe: 'federated_follows.remote_actor_uri',
+      arm: 'beyondCascade',
+      plant: async (s) => {
+        await getDb().insert(federatedFollows).values({
+          localUserId: s.other,
+          remoteActorUri: s.actorUri,
+          direction: 'inbound',
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(federatedFollows).where(eq(federatedFollows.remoteActorUri, s.actorUri));
+      },
+    },
+    {
+      probe: 'posts owner/authorship/mentions',
+      arm: 'beyondCascade',
+      plant: async (s) => {
+        const record = await insertPostRecord({
+          oxyUserId: s.oxyUserId,
+          authorship: [{ oxyUserId: s.oxyUserId, role: 'owner', status: 'accepted' }],
+          type: PostType.TEXT,
+          visibility: PostVisibility.PUBLIC,
+          status: 'published',
+          content: { variants: [{ source: 'author', text: 'mine', tag: 'en' }] },
+        });
+        s.posts.push(record.id);
+      },
+      clear: async () => {},
+    },
+    {
+      probe: 'likes.user_id',
+      arm: 'beyondCascade',
+      plant: async (s) => {
+        await getDb().insert(likes).values({ userId: s.oxyUserId, postId: await foreignPost() });
+      },
+      clear: async () => {},
+    },
+    {
+      probe: 'entity_follows.user_id',
+      arm: 'beyondCascade',
+      plant: async (s) => {
+        await getDb()
+          .insert(entityFollows)
+          .values({ userId: s.oxyUserId, entityType: 'list', entityId: `probe-${s.oxyUserId}` });
+      },
+      clear: async (s) => {
+        await getDb().delete(entityFollows).where(eq(entityFollows.userId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'notifications recipient/actor',
+      arm: 'beyondCascade',
+      plant: async (s) => {
+        await getDb().insert(notifications).values({
+          recipientId: s.oxyUserId,
+          actorId: s.other,
+          type: 'follow',
+          entityType: 'profile',
+          entityId: `probe-${s.oxyUserId}`,
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(notifications).where(eq(notifications.recipientId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'user_settings.oxy_user_id',
+      arm: 'beyondCascade',
+      plant: async (s) => {
+        await getDb().insert(userSettings).values({ oxyUserId: s.oxyUserId });
+      },
+      clear: async (s) => {
+        await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'user_behaviors.oxy_user_id',
+      arm: 'beyondCascade',
+      plant: async (s) => {
+        await getDb().insert(userBehaviors).values({ oxyUserId: s.oxyUserId });
+      },
+      clear: async (s) => {
+        await getDb().delete(userBehaviors).where(eq(userBehaviors.oxyUserId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'user_feed_preferences.oxy_user_id',
+      arm: 'beyondCascade',
+      plant: async (s) => {
+        await getDb().insert(userFeedPreferences).values({ oxyUserId: s.oxyUserId });
+      },
+      clear: async (s) => {
+        await getDb()
+          .delete(userFeedPreferences)
+          .where(eq(userFeedPreferences.oxyUserId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'author_follower_snapshots.oxy_user_id',
+      arm: 'beyondCascade',
+      plant: async (s) => {
+        await getDb()
+          .insert(authorFollowerSnapshots)
+          .values({ oxyUserId: s.oxyUserId, followerCount: 1 });
+      },
+      clear: async (s) => {
+        await getDb()
+          .delete(authorFollowerSnapshots)
+          .where(eq(authorFollowerSnapshots.oxyUserId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'actor_key_pairs.oxy_user_id',
+      arm: 'beyondCascade',
+      plant: async (s) => {
+        await getDb().insert(actorKeyPairs).values({
+          oxyUserId: s.oxyUserId,
+          publicKeyPem: 'probe-public',
+          privateKeyPem: 'probe-private',
+          keyId: `${s.actorUri}#main-key`,
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(actorKeyPairs).where(eq(actorKeyPairs.oxyUserId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'mention_user_nodes.oxy_user_id',
+      arm: 'beyondCascade',
+      plant: async (s) => {
+        await getDb().insert(mentionUserNodes).values({
+          oxyUserId: s.oxyUserId,
+          endpoint: 'https://node.invalid',
+          nodePublicKey: 'probe-key',
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(mentionUserNodes).where(eq(mentionUserNodes.oxyUserId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'mention_repo_heads.oxy_user_id',
+      arm: 'beyondCascade',
+      plant: async (s) => {
+        await getDb().insert(mentionRepoHeads).values({
+          oxyUserId: s.oxyUserId,
+          subjectDid: `did:probe:${s.oxyUserId}`,
+          seq: 1,
+          headRecordId: `probe-${s.oxyUserId}`,
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(mentionRepoHeads).where(eq(mentionRepoHeads.oxyUserId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'mention_signed_records.oxy_user_id',
+      arm: 'beyondCascade',
+      plant: async (s) => {
+        await getDb().insert(mentionSignedRecords).values({
+          subjectDid: `did:probe:${s.oxyUserId}`,
+          oxyUserId: s.oxyUserId,
+          type: 'app.mention.feed.post',
+          envelope: { probe: true },
+          publicKey: 'probe-key',
+        });
+      },
+      clear: async (s) => {
+        await getDb()
+          .delete(mentionSignedRecords)
+          .where(eq(mentionSignedRecords.oxyUserId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'mention_node_ingest_witnesses.oxy_user_id',
+      arm: 'beyondCascade',
+      plant: async (s) => {
+        await getDb().insert(mentionNodeIngestWitnesses).values({
+          oxyUserId: s.oxyUserId,
+          recordId: `probe-${s.oxyUserId}`,
+          witnessSignature: 'probe-signature',
+          ingestedAt: 1,
+        });
+      },
+      clear: async (s) => {
+        await getDb()
+          .delete(mentionNodeIngestWitnesses)
+          .where(eq(mentionNodeIngestWitnesses.oxyUserId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'posts.federation_actor_uri',
+      arm: 'anchor',
+      plant: async (s) => {
+        await foreignPost({ federation: { actorUri: s.actorUri } });
+      },
+      clear: async () => {},
+    },
+    {
+      probe: 'federated_follows.remote_actor_uri',
+      arm: 'anchor',
+      plant: async (s) => {
+        await getDb().insert(federatedFollows).values({
+          localUserId: s.other,
+          remoteActorUri: s.actorUri,
+          direction: 'inbound',
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(federatedFollows).where(eq(federatedFollows.remoteActorUri, s.actorUri));
+      },
+    },
+  ];
+
+  it.each(cases)('BLOCKS on $probe ($arm)', async (testCase) => {
+    // The control, first: with nothing planted the gate must CLEAR. A gate that
+    // refused unconditionally would pass every assertion below while being
+    // useless, and this is the only place that distinction is visible.
+    expect(await blockersFrom(callGate(testCase.arm, false))).toEqual([]);
+
+    await testCase.plant(subject);
+
+    // `always` probes run before the gone-actor cascade returns, so they must
+    // block WITH the acknowledgement; everything else must block WITHOUT it.
+    const acknowledged = testCase.arm === 'always';
+    expect(await blockersFrom(callGate(testCase.arm, acknowledged))).toEqual([testCase.probe]);
+
+    if (testCase.arm === 'beyondCascade') {
+      // …and go quiet with it, which is what makes the arm a claim and not a
+      // coincidence of ordering.
+      expect(await blockersFrom(callGate(testCase.arm, true))).toEqual([]);
+    }
+
+    await testCase.clear(subject);
+    for (const id of subject.posts.splice(0).reverse()) {
+      await deletePostRecord(id, undefined);
+    }
+  });
+
+  /**
+   * Coverage cannot silently become a subset.
+   *
+   * The probe list is read off the AST — the same scan the floor test uses — so
+   * a probe added later is either exercised above or named here with a reason,
+   * and anything else fails by name. Without this the table would quietly cover
+   * whatever it happened to cover, which is the failure mode that makes a
+   * partially-tested gate worse than an untested one: the coverage is what buys
+   * it trust.
+   */
+  it('exercises every probe the module declares', () => {
+    const declared = new Set(
+      scanPreflightProbes()
+        .filter((probe) => probe.owner !== 'buildPostReferenceProbes')
+        .map((probe) => probe.name),
+    );
+    const exercised = new Set(cases.map((testCase) => testCase.probe));
+
+    expect([...declared].filter((probe) => !exercised.has(probe)).sort()).toEqual([]);
+    expect([...exercised].filter((probe) => !declared.has(probe)).sort()).toEqual([]);
   });
 });
