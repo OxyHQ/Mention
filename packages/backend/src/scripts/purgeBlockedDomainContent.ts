@@ -132,6 +132,7 @@
  *     bun packages/backend/dist/src/scripts/purgeBlockedDomainContent.js
  */
 
+import { createHash } from 'node:crypto';
 import mongoose from 'mongoose';
 import type { FilterQuery, Model } from 'mongoose';
 import { PostType } from '@mention/shared-types';
@@ -149,6 +150,7 @@ import FederatedActor from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
 import { EntityFollow } from '../models/EntityFollow';
 import FederatedMediaCache from '../models/FederatedMediaCache';
+import BlockedDomainPurge, { toLedgerCounts } from '../models/BlockedDomainPurge';
 import { Postgate } from '../models/Postgate';
 import { Threadgate } from '../models/Threadgate';
 import { FeedInteraction } from '../models/FeedInteraction';
@@ -393,6 +395,13 @@ export interface PurgeCounts {
   /** Posts a blocked actor was de-linked from in `mentions[]`. */
   mentionsDelinked: number;
   federatedFollows: number;
+  /**
+   * Of those, ACCEPTED OUTBOUND edges — a local user who chose to follow an
+   * account there. The sharpest signal that a domain is one real people here
+   * wanted: across all 196 measured blocklist domains it is zero, so any
+   * non-zero value is the shape of a mistake and the automatic path stops on it.
+   */
+  localFollowsRemoved: number;
   entityFollows: number;
   /** `FederatedMediaCache` rows removed. */
   mediaCacheRows: number;
@@ -429,6 +438,7 @@ const COUNT_KEYS: readonly (keyof PurgeCounts)[] = [
   'recentReplierEntriesPulled',
   'mentionsDelinked',
   'federatedFollows',
+  'localFollowsRemoved',
   'entityFollows',
   'mediaCacheRows',
   'mediaObjects',
@@ -454,10 +464,27 @@ interface RunIssues {
   cascadeResidue: number;
 }
 
+/**
+ * How big the corpus this run measured itself against actually is.
+ *
+ * Read off the SAME paged scans the run already performs, so it costs nothing
+ * extra and can never disagree with what was swept. It exists because an
+ * absolute ceiling tuned on today's numbers silently becomes either meaningless
+ * or unreachable as the corpus grows — the automatic path's limits are shares of
+ * these, not fixed counts.
+ */
+export interface PurgeCorpus {
+  /** Posts carrying `federation.actorUri`, i.e. everything we hold from anywhere. */
+  federatedPosts: number;
+  /** `FederatedActor` rows, all domains. */
+  federatedActors: number;
+}
+
 /** The full result of a run — returned so tests can assert on it directly. */
 export interface PurgeReport {
   dryRun: boolean;
   domains: number;
+  corpus: PurgeCorpus;
   totals: PurgeCounts;
   /** Per-domain breakdown, so a review can see which domain costs what. */
   byDomain: Map<string, PurgeCounts>;
@@ -1157,6 +1184,16 @@ async function purgeActorContent(
     );
   }
 
+  // Counted BEFORE the delete, because after it there is nothing left to count —
+  // and this is the number the automatic path's circuit breaker refuses on.
+  record(
+    report, domain, 'localFollowsRemoved',
+    await FederatedFollow.countDocuments({
+      remoteActorUri: actor.uri,
+      direction: 'outbound',
+      status: 'accepted',
+    }).exec(),
+  );
   record(
     report, domain, 'federatedFollows',
     await countOrDelete(FederatedFollow, { remoteActorUri: actor.uri }, options.dryRun),
@@ -1164,6 +1201,30 @@ async function purgeActorContent(
 }
 
 // --- phases ------------------------------------------------------------------
+
+/**
+ * A phase's cursor scope, namespaced by the DOMAIN SET this run is sweeping.
+ *
+ * A resume cursor records how far a sweep got through a collection, which only
+ * means anything relative to the territory it was sweeping. Without this, a
+ * second run over a DIFFERENT set of domains would resume from the first run's
+ * completed cursor — sitting at the end of the collection — scan nothing, and
+ * report a clean zero. That is the worst shape a bug in this script can take:
+ * a blocklist that looks enforced while the content is still served, arriving
+ * silently and only on the SECOND domain ever blocked.
+ *
+ * The namespace is derived here rather than passed in, so no caller can forget
+ * it. Identical sets resume each other (the point of a cursor); any change of
+ * set starts fresh, and re-running an identical set deliberately is what
+ * `RESET_CURSOR` is for.
+ */
+function cursorScope(phase: string, domains: ReadonlySet<string>): string {
+  const namespace = createHash('sha256')
+    .update([...domains].sort().join(','))
+    .digest('hex')
+    .slice(0, 12);
+  return `${phase}:${namespace}`;
+}
 
 /** Where a phase resumes from, honouring `RESET_CURSOR`. */
 async function resumePoint(
@@ -1296,7 +1357,7 @@ async function purgeBlockedActorContent(
   report: PurgeReport,
   issues: RunIssues,
 ): Promise<void> {
-  await forEachBlockedActor(SCOPE_ACTORS, domains, options, issues, (actor) =>
+  await forEachBlockedActor(cursorScope(SCOPE_ACTORS, domains), domains, options, issues, (actor) =>
     purgeActorContent(actor, options, report, issues));
 }
 
@@ -1317,7 +1378,7 @@ async function dropBlockedActorAnchors(
   report: PurgeReport,
   issues: RunIssues,
 ): Promise<void> {
-  await forEachBlockedActor(SCOPE_ANCHORS, domains, options, issues, async (actor) => {
+  await forEachBlockedActor(cursorScope(SCOPE_ANCHORS, domains), domains, options, issues, async (actor) => {
     const domain = domainOf(actor);
 
     // A dry run never entered the world this preflight asks about: the posts that
@@ -1363,7 +1424,7 @@ async function purgeOrphanBlockedPosts(
   report: PurgeReport,
   issues: RunIssues,
 ): Promise<void> {
-  const { lastId: resumeId, scanned: alreadyScanned } = await resumePoint(SCOPE_ORPHAN_POSTS, options);
+  const { lastId: resumeId, scanned: alreadyScanned } = await resumePoint(cursorScope(SCOPE_ORPHAN_POSTS, domains), options);
   let lastId = resumeId;
   let scanned = alreadyScanned;
 
@@ -1376,7 +1437,7 @@ async function purgeOrphanBlockedPosts(
       .limit(PAGE_SIZE)
       .lean<PostRow[]>();
     if (page.length === 0) {
-      if (lastId) await saveProgress(SCOPE_ORPHAN_POSTS, options, lastId, scanned, issues, true);
+      if (lastId) await saveProgress(cursorScope(SCOPE_ORPHAN_POSTS, domains), options, lastId, scanned, issues, true);
       break;
     }
 
@@ -1405,7 +1466,7 @@ async function purgeOrphanBlockedPosts(
     }
 
     lastId = page[page.length - 1]._id;
-    await saveProgress(SCOPE_ORPHAN_POSTS, options, lastId, scanned, issues);
+    await saveProgress(cursorScope(SCOPE_ORPHAN_POSTS, domains), options, lastId, scanned, issues);
     logger.info(`[${SCRIPT_NAME}] phase orphan-posts progress`, { scanned });
   }
 }
@@ -1417,7 +1478,7 @@ async function purgeBlockedMediaCache(
   report: PurgeReport,
   issues: RunIssues,
 ): Promise<void> {
-  const { lastId: resumeId, scanned: alreadyScanned } = await resumePoint(SCOPE_MEDIA, options);
+  const { lastId: resumeId, scanned: alreadyScanned } = await resumePoint(cursorScope(SCOPE_MEDIA, domains), options);
   let lastId = resumeId;
   let scanned = alreadyScanned;
 
@@ -1430,7 +1491,7 @@ async function purgeBlockedMediaCache(
       .limit(PAGE_SIZE)
       .lean<Array<{ _id: mongoose.Types.ObjectId; remoteUrl: string }>>();
     if (page.length === 0) {
-      if (lastId) await saveProgress(SCOPE_MEDIA, options, lastId, scanned, issues, true);
+      if (lastId) await saveProgress(cursorScope(SCOPE_MEDIA, domains), options, lastId, scanned, issues, true);
       break;
     }
 
@@ -1448,7 +1509,7 @@ async function purgeBlockedMediaCache(
     }
 
     lastId = page[page.length - 1]._id;
-    await saveProgress(SCOPE_MEDIA, options, lastId, scanned, issues);
+    await saveProgress(cursorScope(SCOPE_MEDIA, domains), options, lastId, scanned, issues);
   }
 }
 
@@ -1474,6 +1535,7 @@ export async function purgeBlockedDomainContent(
   const report: PurgeReport = {
     dryRun: options.dryRun,
     domains: domains.size,
+    corpus: { federatedPosts: 0, federatedActors: 0 },
     totals: emptyCounts(),
     byDomain: new Map(),
     issues,
@@ -1484,12 +1546,69 @@ export async function purgeBlockedDomainContent(
   // number of actors on the blocklist, which is the same set phase 1 walks.
   const blockedOwnerIds = await loadBlockedOwnerIds(domains);
 
+  // The denominators the automatic path's ceilings are shares of, measured
+  // before anything is removed. Counted directly rather than accumulated during
+  // the paged scans: a RESUMED run only pages the remainder of its range, which
+  // would report a corpus smaller than reality and quietly move every ceiling.
+  report.corpus = {
+    federatedPosts: await Post.countDocuments({ 'federation.actorUri': { $exists: true } }),
+    federatedActors: await FederatedActor.countDocuments({}),
+  };
+
   await purgeBlockedActorContent(domains, options, report, issues);
   await purgeOrphanBlockedPosts(domains, blockedOwnerIds, options, report, issues);
   await purgeBlockedMediaCache(domains, options, report, issues);
   await dropBlockedActorAnchors(domains, options, report, issues);
 
   return report;
+}
+
+/**
+ * Record a REVIEWED MANUAL run in the same ledger the automatic path writes.
+ *
+ * Without this the two paths tell different stories: the reviewed run that
+ * clears the pre-existing backlog would leave every one of those domains
+ * recorded as `baseline` — never purged — for as long as the ledger lives, and
+ * any surface reading it (a transparency page, the next reconciliation, a human)
+ * would be looking at a record that is simply false. One action, one record,
+ * whoever started it.
+ *
+ * Never blocks the run: the deletion has already happened by the time this is
+ * called, and failing to write its receipt must not make a completed purge look
+ * like a failed one. It is logged loudly instead.
+ */
+async function recordManualRunInLedger(
+  report: PurgeReport,
+  options: PurgeOptions,
+): Promise<void> {
+  if (options.dryRun) return;
+
+  const now = new Date();
+  const runId = `manual-${now.toISOString()}`;
+  try {
+    for (const [domain, counts] of report.byDomain) {
+      await BlockedDomainPurge.updateOne(
+        { domain },
+        {
+          $set: {
+            inPolicy: true,
+            state: 'purged',
+            purgedAt: now,
+            runId,
+            lastObservedAt: now,
+            removed: toLedgerCounts(counts),
+          },
+          $setOnInsert: { firstObservedAt: now },
+        },
+        { upsert: true },
+      );
+    }
+  } catch (error) {
+    logger.error(
+      `[${SCRIPT_NAME}] the purge completed but its ledger record could not be written`,
+      error,
+    );
+  }
 }
 
 /** The per-domain table, ranked by what each domain costs, one line per row. */
@@ -1562,6 +1681,7 @@ async function main(): Promise<void> {
     });
 
     const report = await purgeBlockedDomainContent(domains, options);
+    await recordManualRunInLedger(report, options);
 
     // One record per line: the backend logger caps a single string field, and a
     // table in one field is truncated exactly where the tail of the ranking is.

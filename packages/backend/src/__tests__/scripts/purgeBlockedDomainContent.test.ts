@@ -532,10 +532,27 @@ describe('purgeBlockedDomainContent — re-running', () => {
 
     await run();
 
-    const scopes = (await AdminScriptCursor.find({ script: 'purgeBlockedDomainContent' }).lean())
-      .map((row) => row.scope)
+    const phases = (await AdminScriptCursor.find({ script: 'purgeBlockedDomainContent' }).lean())
+      .map((row) => row.scope.split(':')[0])
       .sort();
-    expect(scopes).toEqual(['actors', 'anchors', 'media', 'orphan-posts']);
+    expect(phases).toEqual(['actors', 'anchors', 'media', 'orphan-posts']);
+  });
+
+  it('does NOT inherit a completed cursor when the next run sweeps a DIFFERENT domain set', async () => {
+    // The failure this guards is silent and arrives on the SECOND domain ever
+    // blocked: run one finishes with its cursors parked at the end of each
+    // collection, run two resumes from there, scans nothing, and reports a clean
+    // zero — a blocklist that looks enforced while the content is still served.
+    const ids = await seed();
+    await purgeBlockedDomainContent(new Set(['unrelated.example']), options());
+
+    // A second, different set must start from the top and actually find things.
+    const report = await purgeBlockedDomainContent(new Set([BLOCKED]), options());
+
+    expect(await postExists(ids.blockedPost)).toBe(false);
+    expect(await postExists(ids.orphanPost)).toBe(false);
+    expect(report.totals.posts).toBeGreaterThan(0);
+    expect(report.totals.orphanPosts).toBe(1);
   });
 });
 

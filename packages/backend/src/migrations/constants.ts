@@ -143,3 +143,12 @@ export const MIGRATION_ADMIN_SCRIPT_CURSOR_INDEX = '0016-admin-script-cursor-ind
  * authority. See {@link ./0017-repair-fetch-failure-indexes}.
  */
 export const MIGRATION_REPAIR_FETCH_FAILURE_INDEXES = '0017-repair-fetch-failure-indexes';
+
+/**
+ * Create the `BlockedDomainPurge` ledger indexes: the UNIQUE `{domain}` identity
+ * the policy reconciliation addresses one row by, plus the `{state, claimedAt}`
+ * index its stale-claim re-arm sweep reads. Production disables Mongoose
+ * auto-indexing, so this migration is the schema authority.
+ * See {@link ./0018-blocked-domain-purge-indexes}.
+ */
+export const MIGRATION_BLOCKED_DOMAIN_PURGE_INDEXES = '0018-blocked-domain-purge-indexes';

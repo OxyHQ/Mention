@@ -28,6 +28,7 @@ import { migrationPostTrendTermsIndex } from './0014-post-trend-terms-index';
 import { migrationTrendSummaryIndexes } from './0015-trend-summary-indexes';
 import { migrationAdminScriptCursorIndex } from './0016-admin-script-cursor-index';
 import { migrationRepairFetchFailureIndexes } from './0017-repair-fetch-failure-indexes';
+import { migrationBlockedDomainPurgeIndexes } from './0018-blocked-domain-purge-indexes';
 import { MIGRATIONS_COLLECTION } from './constants';
 
 export interface Migration {
@@ -81,6 +82,7 @@ const MIGRATIONS: readonly Migration[] = [
   migrationTrendSummaryIndexes,
   migrationAdminScriptCursorIndex,
   migrationRepairFetchFailureIndexes,
+  migrationBlockedDomainPurgeIndexes,
 ];
 
 /**
