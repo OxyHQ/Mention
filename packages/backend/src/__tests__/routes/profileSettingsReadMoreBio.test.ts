@@ -1,43 +1,26 @@
 import express from 'express';
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Route-level coverage for `postReadMoreAction` + `collapseLongBio` in the
- * `PUT /profile/settings` handler. Same harness shape as
- * `profileSettingsExternalEmbeds.test.ts` — exercises the real route handler
- * against an in-memory UserSettings store.
+ * `PUT /profile/settings` handler, against a REAL `user_settings` row.
+ *
+ * It used to run against an in-memory map standing in for the Mongoose model,
+ * with a hand-written `setDot` reimplementing Mongo's `$set` semantics. That
+ * asserted the fake agreed with itself: the store applied dotted paths the way
+ * the test author believed Mongo did, and the route was never observed writing
+ * anything. The port to Postgres made the pretence visible — every case
+ * returned 500 because the mocks no longer intercepted the path the handler
+ * takes.
+ *
+ * Now the handler writes through `userSettingsRepository` into the real table
+ * and every assertion reads the row back. That matters most for the last case:
+ * the whole-subdocument-replace regression can only be observed in what was
+ * actually STORED, never in what a mock recorded.
  */
 
-const store = new Map<string, Record<string, unknown>>();
-const TEST_USER = 'user-1';
-
-function getDoc(oxyUserId: string): Record<string, unknown> {
-  let doc = store.get(oxyUserId);
-  if (!doc) {
-    doc = { oxyUserId };
-    store.set(oxyUserId, doc);
-  }
-  return doc;
-}
-
-const FORBIDDEN_DOT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-
-function setDot(obj: Record<string, unknown>, path: string, value: unknown): void {
-  const parts = path.split('.');
-  let cur = obj;
-  for (let i = 0; i < parts.length - 1; i++) {
-    if (FORBIDDEN_DOT_KEYS.has(parts[i])) return;
-    const next = cur[parts[i]];
-    if (typeof next !== 'object' || next === null) {
-      cur[parts[i]] = {};
-    }
-    cur = cur[parts[i]] as Record<string, unknown>;
-  }
-  const last = parts[parts.length - 1];
-  if (FORBIDDEN_DOT_KEYS.has(last)) return;
-  cur[last] = value;
-}
+const TEST_USER = 'readmorebio-user-1';
 
 vi.mock('@oxyhq/core/server', () => ({
   requireOxyAuth: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
@@ -46,27 +29,6 @@ vi.mock('@oxyhq/core/server', () => ({
     next();
   },
   getRequiredOxyUserId: (req: express.Request & { user?: { id: string } }) => req.user?.id ?? '',
-}));
-
-vi.mock('../../models/UserSettings', () => ({
-  default: {
-    findOneAndUpdate: vi.fn((filter: { oxyUserId: string }, operation: Record<string, Record<string, unknown>>) => {
-      const doc = getDoc(filter.oxyUserId);
-      if (operation.$set) {
-        for (const [path, value] of Object.entries(operation.$set)) setDot(doc, path, value);
-      }
-      return { lean: () => Promise.resolve(JSON.parse(JSON.stringify(doc))) };
-    }),
-  },
-}));
-
-vi.mock('../../utils/userSettings', () => ({
-  ensureUserSettings: (oxyUserId: string) => Promise.resolve(JSON.parse(JSON.stringify(getDoc(oxyUserId)))),
-  buildSettingsResponseForViewer: (
-    doc: unknown,
-    targetUserId: string,
-    viewerUserId: string,
-  ) => (targetUserId === viewerUserId ? doc : {}),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -80,6 +42,9 @@ vi.mock('../../models/Post', () => ({ default: {} }));
 vi.mock('../../models/Bookmark', () => ({ default: {} }));
 vi.mock('../../models/Like', () => ({ default: {} }));
 
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { userSettings } from '../../db/schema/userProfile';
 import profileSettingsRoutes from '../../routes/profileSettings';
 
 const app = express();
@@ -92,9 +57,25 @@ async function getSettings() {
 }
 
 describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () => {
-  beforeEach(() => {
-    store.clear();
+  beforeAll(async () => {
+    await connectPostgres();
+  });
+
+  afterAll(async () => {
+    await closePostgres();
+  });
+
+  // Scoped to THIS suite's user id. An unscoped delete against the shared test
+  // database reaches other files' rows — vitest runs one worker per file
+  // against one server, and that failure surfaces in the file it hits rather
+  // than the file that caused it.
+  beforeEach(async () => {
     vi.clearAllMocks();
+    await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, TEST_USER));
+  });
+
+  afterEach(async () => {
+    await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, TEST_USER));
   });
 
   it('persists a valid postReadMoreAction value', async () => {
@@ -107,14 +88,21 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
     expect((settings.appearance as Record<string, unknown>).postReadMoreAction).toBe('expandInline');
   });
 
-  it('rejects an invalid postReadMoreAction value (field left unset)', async () => {
+  it('rejects an invalid postReadMoreAction value (field keeps its default)', async () => {
     await request(app)
       .put('/profile/settings')
       .send({ appearance: { postReadMoreAction: 'bogus' } })
       .expect(200);
 
-    const settings = await getSettings();
-    expect((settings.appearance as Record<string, unknown> | undefined)?.postReadMoreAction).toBeUndefined();
+    // The guarantee is that the invalid value was NOT persisted. What "not
+    // persisted" LOOKS like changed with the store: Mongo left the field
+    // absent, and `appearance_post_read_more_action` is NOT NULL DEFAULT
+    // 'openPost', so the column holds its default instead. Asserting
+    // `toBeUndefined()` here would now be asserting the old store's shape, and
+    // asserting only "not bogus" would pass against a column that silently
+    // accepted anything else.
+    const appearance = (await getSettings()).appearance as Record<string, unknown>;
+    expect(appearance.postReadMoreAction).toBe('openPost');
   });
 
   it('persists collapseLongBio as a boolean', async () => {
@@ -127,14 +115,16 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
     expect((settings.appearance as Record<string, unknown>).collapseLongBio).toBe(false);
   });
 
-  it('rejects a non-boolean collapseLongBio value (field left unset)', async () => {
+  it('rejects a non-boolean collapseLongBio value (field keeps its default)', async () => {
     await request(app)
       .put('/profile/settings')
       .send({ appearance: { collapseLongBio: 'yes' } })
       .expect(200);
 
-    const settings = await getSettings();
-    expect((settings.appearance as Record<string, unknown> | undefined)?.collapseLongBio).toBeUndefined();
+    // Same reasoning as the postReadMoreAction case above:
+    // `appearance_collapse_long_bio` is NOT NULL DEFAULT true.
+    const appearance = (await getSettings()).appearance as Record<string, unknown>;
+    expect(appearance.collapseLongBio).toBe(true);
   });
 
   it('still persists themeMode alongside the two new fields in the same request', async () => {
@@ -143,8 +133,13 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
       .send({ appearance: { themeMode: 'dark', postReadMoreAction: 'expandInline', collapseLongBio: false } })
       .expect(200);
 
+    // `toMatchObject`, not `toEqual`: every appearance column is NOT NULL with
+    // a default, so the DTO now always carries the full set. An exact match
+    // would pin unrelated defaults and fail the day any of them changes, which
+    // is not what this case is about — it is about all three surviving ONE
+    // request together.
     const settings = await getSettings();
-    expect(settings.appearance).toEqual({
+    expect(settings.appearance).toMatchObject({
       themeMode: 'dark',
       postReadMoreAction: 'expandInline',
       collapseLongBio: false,
@@ -170,7 +165,7 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
       .expect(200);
 
     const settings = await getSettings();
-    expect(settings.appearance).toEqual({
+    expect(settings.appearance).toMatchObject({
       postReadMoreAction: 'expandInline',
       themeMode: 'dark',
       primaryColor: '#ff0000',
