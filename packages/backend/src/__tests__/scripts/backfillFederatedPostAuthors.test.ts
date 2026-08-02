@@ -1,4 +1,25 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+} from '../helpers/federationFixtures';
+
+const scope = federationScope('backfill-federated-post-authors');
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
 
 /**
  * Concurrency test for the federated-post author backfill's actor resolution.
@@ -12,10 +33,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * other module imports) so ONLY the dedup logic runs — no DB, no network.
  */
 
-const { getOrFetchActor, fetchRemoteActor, findFederatedActor } = vi.hoisted(() => ({
+const { getOrFetchActor, fetchRemoteActor } = vi.hoisted(() => ({
   getOrFetchActor: vi.fn(),
   fetchRemoteActor: vi.fn(),
-  findFederatedActor: vi.fn(),
 }));
 
 vi.mock('../../connectors/activitypub/actor.service', () => ({
@@ -31,11 +51,6 @@ vi.mock('../../connectors/activitypub/helpers', () => ({
 }));
 vi.mock('../../connectors/activitypub/constants', () => ({ AP_CONTENT_TYPE: 'application/activity+json' }));
 vi.mock('../../models/Post', () => ({ Post: {} }));
-vi.mock('../../models/FederatedActor', () => ({
-  default: {
-    findOne: findFederatedActor,
-  },
-}));
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
   assertSafePublicUrl: vi.fn(),
@@ -56,7 +71,6 @@ describe('backfillFederatedPostAuthors — resolveAuthorOxyUserId in-flight dedu
   beforeEach(() => {
     getOrFetchActor.mockReset();
     fetchRemoteActor.mockReset();
-    findFederatedActor.mockReset();
   });
 
   it('collapses two CONCURRENT resolves of the same actor onto ONE getOrFetchActor', async () => {
@@ -93,14 +107,12 @@ describe('backfillFederatedPostAuthors — resolveAuthorOxyUserId in-flight dedu
   });
 
   it('keeps dry-run resolution lookup-only', async () => {
-    const uri = 'https://example.social/users/read-only';
-    findFederatedActor.mockReturnValueOnce({
-      lean: vi.fn().mockResolvedValue({ oxyUserId: 'oxy-existing' }),
-    });
+    const uri = `${scope.origin}/users/read-only`;
+    await seedActor(scope, { username: 'read-only', uri, oxyUserId: 'oxy-existing' });
 
     await expect(resolveAuthorOxyUserId(uri, false)).resolves.toBe('oxy-existing');
 
-    expect(findFederatedActor).toHaveBeenCalledWith({ uri }, { oxyUserId: 1 });
+    // Lookup-only: the row answered, and neither resolver was reached.
     expect(getOrFetchActor).not.toHaveBeenCalled();
     expect(fetchRemoteActor).not.toHaveBeenCalled();
   });
