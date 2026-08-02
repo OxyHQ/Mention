@@ -3,7 +3,8 @@ import { Text, StyleProp, TextStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
-import { URL_PATTERN_SOURCE, toOpenableUrl, trimUrlTrailingPunct } from '@/utils/extractUrls';
+import { toOpenableUrl, trimUrlTrailingPunct } from '@/utils/extractUrls';
+import { LINKIFY_PATTERN } from '@/utils/linkifyPattern';
 import { openExternalLink } from '@/utils/openExternalLink';
 
 interface LinkifiedTextProps {
@@ -15,19 +16,6 @@ interface LinkifiedTextProps {
   /** Clamp the rendered text to N lines (forwarded to the root <Text>). */
   numberOfLines?: number;
 }
-
-// Precompiled once at module scope (the source is static) so re-rendering many
-// LinkifiedText rows never re-`new RegExp(...)` on every render. The global flag
-// keeps `lastIndex` state, so the matching loop below always drains to completion
-// (exec → null resets lastIndex to 0) before returning, keeping it reusable.
-//
-// 1) Mentions in format [@DisplayName](username) - from backend
-// 2) URLs: http(s)://... or www.... (shared source from utils/extractUrls)
-// 3) Entities with preceding boundary capture: hashtags, cashtags
-const LINKIFY_PATTERN = new RegExp(
-  `(\\[@([^\\]]+)\\]\\(([^)]+)\\))|(${URL_PATTERN_SOURCE})|(^|[^A-Za-z0-9_])(#[A-Za-z][A-Za-z0-9_]*|\\$[A-Z]{1,6}(?:\\.[A-Z]{1,2})?)`,
-  'g',
-);
 
 // Renders text with clickable @mentions, #hashtags, $cashtags, and URLs
 export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, className, linkStyle, suffix, numberOfLines }) => {

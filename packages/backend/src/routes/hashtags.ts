@@ -1,4 +1,5 @@
 import express, { Request, Response } from "express";
+import { HASHTAG_TOKEN_SOURCE } from "@mention/shared-types/hashtags";
 import Post from "../models/Post";
 import { resolveVariant } from "../services/postVariants";
 import { logger } from "../utils/logger";
@@ -182,7 +183,11 @@ router.get("/", async (req: Request, res: Response) => {
         // `IPost.createdAt` is declared as a string but mongoose stores a Date;
         // normalize to a Date for comparison/sorting.
         const createdAt = new Date(p.createdAt);
-        const matches = text.match(/#([A-Za-z0-9_]+)/g) || [];
+        // Same shared hashtag definition the extractor and the linkifiers use,
+        // so this fallback cannot count a different set of tags than the stored
+        // one. Occurrences are NOT deduplicated here — a tag repeated within a
+        // post counts once per use, which is what the primary aggregation does.
+        const matches = text.match(new RegExp(HASHTAG_TOKEN_SOURCE, 'gu')) || [];
         for (const raw of matches) {
           const tag = raw.replace(/^#/, '').toLowerCase();
           if (!counts[tag]) counts[tag] = { c: 0, latest: createdAt };

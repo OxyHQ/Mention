@@ -209,6 +209,7 @@
       },
       "devDependencies": {
         "@types/node": "catalog:",
+        "regexpu-core": "^6.4.0",
         "typescript": "catalog:",
       },
     },

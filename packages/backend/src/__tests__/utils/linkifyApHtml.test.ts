@@ -64,6 +64,25 @@ describe('linkifyApHtml — #hashtags', () => {
   it('leaves #tags as plain text when no hashtagHref is supplied', () => {
     expect(linkifyApHtml('big #News', {})).toBe('<p>big #News</p>');
   });
+
+  // The reported bug, on the outbound-federation path: the ASCII-only class cut
+  // the anchor at the first non-ASCII letter, so remote instances received a
+  // link to `#Bundesl` plus a stray `änderTurnier` in the text.
+  it('wraps a non-ASCII #tag WHOLE, not truncated at the first accent', () => {
+    expect(linkifyApHtml('Das #BundesländerTurnier war toll', opts)).toBe(
+      '<p>Das <a href="https://mention.earth/hashtag/bundesl%C3%A4nderturnier" class="mention hashtag" rel="tag">#BundesländerTurnier</a> war toll</p>',
+    );
+  });
+
+  it('wraps a #tag in a non-Latin script', () => {
+    expect(linkifyApHtml('big #東京 today', opts)).toBe(
+      '<p>big <a href="https://mention.earth/hashtag/%E6%9D%B1%E4%BA%AC" class="mention hashtag" rel="tag">#東京</a> today</p>',
+    );
+  });
+
+  it('does not link a digit-leading tag', () => {
+    expect(linkifyApHtml('see you in #2026', opts)).toBe('<p>see you in #2026</p>');
+  });
 });
 
 describe('linkifyApHtml — URLs', () => {

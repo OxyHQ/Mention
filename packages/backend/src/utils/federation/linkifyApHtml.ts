@@ -1,3 +1,4 @@
+import { HASHTAG_BODY_SOURCE } from '@mention/shared-types/hashtags';
 import { escapeApHtml, escapeApHtmlAttr, normalizeApBody, wrapApParagraphs } from './plainTextToApHtml';
 
 /**
@@ -38,10 +39,15 @@ export interface LinkifyApHtmlOptions {
  * a link is consumed by the URL token and never re-matched as a hashtag.
  *  - `url`       — a bare `http(s)://…` run (up to whitespace or `<`)
  *  - `mentionId` — the id inside a `[mention:<id>]` placeholder
- *  - `hashtag`   — the tag text after `#` (ASCII word chars, mirroring the stored
- *                  hashtag extraction so a content `#tag` matches the `tag` array)
+ *  - `hashtag`   — the tag text after `#`, compiled from the shared definition in
+ *                  `@mention/shared-types/hashtags` so a content `#tag` matches
+ *                  the stored `hashtags` array (which the same source produces).
+ *                  Needs the `u` flag: the class bodies carry astral escapes.
  */
-const TOKEN_REGEX = /(?<url>https?:\/\/[^\s<]+)|\[mention:(?<mentionId>[^\]]+)\]|#(?<hashtag>[A-Za-z0-9_]+)/g;
+const TOKEN_REGEX = new RegExp(
+  `(?<url>https?:\\/\\/[^\\s<]+)|\\[mention:(?<mentionId>[^\\]]+)\\]|#(?<hashtag>${HASHTAG_BODY_SOURCE})`,
+  'gu',
+);
 
 /**
  * Sentence punctuation that is almost never part of a URL and should stay OUTSIDE
