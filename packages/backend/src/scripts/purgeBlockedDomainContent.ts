@@ -139,7 +139,7 @@ import { count, eq } from 'drizzle-orm';
 import { PostType } from '@mention/shared-types';
 import { config } from '../config';
 import { connectToDatabase } from '../utils/database';
-import { getDb } from '../db/postgres';
+import { connectPostgres, getDb } from '../db/postgres';
 import { bookmarks, likes } from '../db/schema/engagement';
 import { Post } from '../models/Post';
 import Like from '../models/Like';
@@ -1777,7 +1777,13 @@ async function main(): Promise<void> {
       options.domain,
     );
 
-    await connectToDatabase();
+    // BOTH stores, because this script is a genuine hybrid: posts, engagement,
+    // notifications and the media cache are still Mongo, while the federation
+    // anchors, the engagement counters, the ledger and the resume cursors are
+    // Postgres. `closeAdminScriptResources` already closed a Postgres pool this
+    // never opened, so every Postgres read here died on "PostgreSQL is not
+    // connected".
+    await Promise.all([connectToDatabase(), connectPostgres()]);
     logger.info(`[${SCRIPT_NAME}] connected`, {
       dryRun: options.dryRun,
       domains: domains.size,
