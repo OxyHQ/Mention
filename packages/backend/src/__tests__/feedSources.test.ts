@@ -75,6 +75,18 @@ const settingsOwners: string[] = [];
 const VIEWER = 'feedsrc-viewer';
 const FOLLOW = 'feedsrc-follow';
 const STRANGER = 'feedsrc-stranger';
+/**
+ * The two extremes this file needs, owned by this file.
+ *
+ * Only their ORDER matters — the fixture is "an older post carrying a larger
+ * id" — so the values are free, and they must not be values another suite also
+ * inserts as a post id: files run in parallel against one database and
+ * `posts.id` is the primary key. `feedCursor.test.ts` used to insert both of
+ * these, so whichever file got there second died on a duplicate key.
+ */
+const FEED_SOURCES_LOW_ID = '5e07ce0000000000000000a1';
+const FEED_SOURCES_HIGH_ID = '5e07cefffffffffffffffff1';
+
 const AUTHOR = 'feedsrc-author';
 
 /** See the module docblock — every fixture leads the corpus in `created_at`. */
@@ -524,12 +536,12 @@ describe('the authored source (the profile feed)', () => {
   it('sorts and pages on created_at even when the id order disagrees', async () => {
     const newer = await create({
       oxyUserId: AUTHOR,
-      id: '000000000000000000000001',
+      id: FEED_SOURCES_LOW_ID,
       createdAt: at(0),
     });
     const older = await create({
       oxyUserId: AUTHOR,
-      id: 'ffffffffffffffffffffffff',
+      id: FEED_SOURCES_HIGH_ID,
       createdAt: at(-60_000),
     });
 
