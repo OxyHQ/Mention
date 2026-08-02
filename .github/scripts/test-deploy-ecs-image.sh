@@ -223,10 +223,32 @@ aws() {
       printf '{}\n'
       ;;
     "ecs run-task")
-      printf 'reconcile\n' >>"$DEPLOY_TEST_LOG"
+      # Log the command this one-shot was actually given, not a fixed token. The
+      # release runs several one-shots (each migration, then the reconciliation
+      # task) through the SAME call, so a mock that logged a constant could not
+      # tell them apart -- it recorded a migration task as "reconcile" and was
+      # blind to their order, which is the one property worth asserting here.
+      local overrides="" take_next=false argument
+      for argument in "$@"; do
+        if [[ "$take_next" == "true" ]]; then
+          overrides="$argument"
+          take_next=false
+          continue
+        fi
+        if [[ "$argument" == "--overrides" ]]; then
+          take_next=true
+        fi
+      done
+      if [[ -z "$overrides" ]]; then
+        echo "Mocked run-task received no --overrides." >&2
+        return 1
+      fi
+      printf 'task:%s\n' \
+        "$(jq -r '.containerOverrides[0].command | join(" ")' <<<"$overrides")" \
+        >>"$DEPLOY_TEST_LOG"
       printf '%s\n' '{
         "failures": [],
-        "tasks": [{"taskArn": "arn:aws:ecs:test:task/deploy-test-reconcile"}]
+        "tasks": [{"taskArn": "arn:aws:ecs:test:task/deploy-test-one-shot"}]
       }'
       ;;
     "ecs describe-tasks")
@@ -338,7 +360,7 @@ printf '%s\n' \
   metrics:arn \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
-  reconcile \
+  task:reconcile \
   >"$test_directory/success/expected.log"
 diff -u \
   "$test_directory/success/expected.log" \
@@ -361,7 +383,7 @@ printf '%s\n' \
   metrics:arn \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
-  reconcile \
+  task:reconcile \
   >"$test_directory/hyphenated-metrics-parameter/expected.log"
 diff -u \
   "$test_directory/hyphenated-metrics-parameter/expected.log" \
@@ -372,7 +394,7 @@ printf '%s\n' \
   task-secret:arn \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
-  reconcile \
+  task:reconcile \
   >"$test_directory/explicit-task-secret/expected.log"
 diff -u \
   "$test_directory/explicit-task-secret/expected.log" \
@@ -382,7 +404,7 @@ run_release reconciliation-failure false false false 1
 printf '%s\n' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
-  reconcile \
+  task:reconcile \
   tasklogs \
   'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1' \
   >"$test_directory/reconciliation-failure/expected.log"
@@ -390,9 +412,13 @@ diff -u \
   "$test_directory/reconciliation-failure/expected.log" \
   "$test_directory/reconciliation-failure/aws.log"
 
+# A migration one-shot that exits non-zero stops the release. The FIRST task run
+# is the Postgres migrator, and the Mongo one never runs -- previously this case
+# expected a bare "reconcile" here, because the mock could not tell a migration
+# task from the reconciliation task and so recorded the wrong one by name.
 run_release migration-failure false true false 1
 printf '%s\n' \
-  reconcile \
+  'task:bun packages/backend/dist/src/db/migrate.js' \
   tasklogs \
   >"$test_directory/migration-failure/expected.log"
 diff -u \
@@ -406,6 +432,28 @@ if grep -q '^service:' "$test_directory/migration-failure/aws.log"; then
   echo "Failed migration reached update-service." >&2
   exit 1
 fi
+if grep -qF 'packages/backend/dist/scripts/migrate.js' \
+  "$test_directory/migration-failure/aws.log"; then
+  echo "A failed Postgres migration still ran the Mongo migration." >&2
+  exit 1
+fi
+
+# Both stores migrate on one release, and the ORDER is the assertion: Postgres
+# first, because a task that boots without its schema becomes ready and then
+# fails every query, while a missed Mongo data migration leaves the previous
+# release's behaviour standing. A `diff` of the whole log is what notices a
+# reordering -- grepping for both entries would pass either way round.
+run_release migration-order true true false 0
+printf '%s\n' \
+  'task:bun packages/backend/dist/src/db/migrate.js' \
+  'task:bun packages/backend/dist/scripts/migrate.js' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  smoke \
+  task:reconcile \
+  >"$test_directory/migration-order/expected.log"
+diff -u \
+  "$test_directory/migration-order/expected.log" \
+  "$test_directory/migration-order/aws.log"
 
 run_release zero-desired-count false false false 0 false 0
 grep -F \
@@ -421,7 +469,7 @@ run_release transient-zero-deployment true false false 0 false 1 transient-zero-
 printf '%s\n' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
-  reconcile \
+  task:reconcile \
   >"$test_directory/transient-zero-deployment/expected.log"
 diff -u \
   "$test_directory/transient-zero-deployment/expected.log" \
@@ -481,7 +529,7 @@ run_release smoke-no-rollback-failure false false false 0 false 1 healthy 75
 printf '%s\n' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
-  reconcile \
+  task:reconcile \
   >"$test_directory/smoke-no-rollback-failure/expected.log"
 diff -u \
   "$test_directory/smoke-no-rollback-failure/expected.log" \
