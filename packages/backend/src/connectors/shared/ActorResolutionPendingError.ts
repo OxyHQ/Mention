@@ -1,4 +1,4 @@
-import type { IFederatedActor } from '../../models/FederatedActor';
+import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 
 /**
  * Thrown when a federated Post is about to be created but the remote actor has
@@ -42,7 +42,7 @@ export class ActorResolutionPendingError extends Error {
  * ancestor import) handle the null case locally rather than calling this.
  */
 export function requireActorOxyUserId(
-  actor: Pick<IFederatedActor, 'oxyUserId'> | null | undefined,
+  actor: Pick<FederatedActorRecord, 'oxyUserId'> | null | undefined,
   actorUri: string,
   context?: string,
 ): string {

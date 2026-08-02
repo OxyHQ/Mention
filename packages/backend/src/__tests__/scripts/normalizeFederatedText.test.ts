@@ -1,5 +1,17 @@
 import mongoose from 'mongoose';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  readActor,
+  seedActor,
+} from '../helpers/federationFixtures';
+
+const scope = federationScope('normalize-federated-text');
+const DIRTY_ACTOR_URI = `${scope.origin}/users/alice`;
+const CLEAN_ACTOR_URI = `${scope.origin}/users/bob`;
 
 /**
  * The one-shot backfill that cleans the remote text ALREADY stored in Mongo.
@@ -83,15 +95,9 @@ const h = vi.hoisted(() => {
   return {
     state,
     postCount: vi.fn(async () => state.posts.length),
-    actorCount: vi.fn(async () => state.actors.length),
     postFind: makeFind(() => state.posts),
-    actorFind: makeFind(() => state.actors),
     postBulkWrite: vi.fn(async (ops: BulkOp[]) => {
       state.postOps.push(...ops);
-      return { modifiedCount: ops.length };
-    }),
-    actorBulkWrite: vi.fn(async (ops: BulkOp[]) => {
-      state.actorOps.push(...ops);
       return { modifiedCount: ops.length };
     }),
   };
@@ -99,10 +105,6 @@ const h = vi.hoisted(() => {
 
 vi.mock('../../models/Post', () => ({
   Post: { countDocuments: h.postCount, find: h.postFind, bulkWrite: h.postBulkWrite },
-}));
-
-vi.mock('../../models/FederatedActor', () => ({
-  default: { countDocuments: h.actorCount, find: h.actorFind, bulkWrite: h.actorBulkWrite },
 }));
 
 vi.mock('../../utils/logger', () => ({
@@ -413,41 +415,59 @@ function seedPosts(): void {
   ];
 }
 
-/** One dirty actor and one already-clean actor. */
-function seedActors(): void {
-  h.state.actors = [
-    { _id: oid('4'), username: '  alice\n ', summary: '  hola   \n  \n  \n  adiós ' },
-    { _id: oid('5'), username: 'bob', summary: 'hola\n\nadiós' },
-  ];
+/** One dirty actor and one already-clean actor, as REAL rows. */
+async function seedActors(): Promise<void> {
+  await clearFederationScope(scope);
+  await seedActor(scope, {
+    uri: DIRTY_ACTOR_URI,
+    username: '  alice\n ',
+    acct: `alice@${scope.domain}`,
+    summary: '  hola   \n  \n  \n  adiós ',
+  });
+  await seedActor(scope, {
+    uri: CLEAN_ACTOR_URI,
+    username: 'bob',
+    acct: `bob@${scope.domain}`,
+    summary: 'hola\n\nadiós',
+  });
 }
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+beforeEach(async () => {
   h.state.posts = [];
-  h.state.actors = [];
   h.state.postOps = [];
-  h.state.actorOps = [];
   h.postBulkWrite.mockClear();
-  h.actorBulkWrite.mockClear();
   h.postFind.mockClear();
-  h.actorFind.mockClear();
+  await clearFederationScope(scope);
 });
 
 describe('normalizeStoredText — DRY RUN', () => {
   it('performs NO write at all', async () => {
     seedPosts();
-    seedActors();
+    await seedActors();
 
     await normalizeStoredText(true);
 
     expect(h.postBulkWrite).not.toHaveBeenCalled();
-    expect(h.actorBulkWrite).not.toHaveBeenCalled();
     expect(h.state.postOps).toHaveLength(0);
-    expect(h.state.actorOps).toHaveLength(0);
+    // Nothing was rewritten: the dirty actor still holds its dirty text.
+    expect((await readActor(DIRTY_ACTOR_URI))?.username).toBe('  alice\n ');
   });
 
   it('reports the documents that WOULD change — not the ones it merely scanned', async () => {
     seedPosts();
-    seedActors();
+    await seedActors();
 
     const summary = await normalizeStoredText(true);
 
@@ -461,16 +481,23 @@ describe('normalizeStoredText — DRY RUN', () => {
     // its content warning and its one dirty media alt.
     expect(summary.posts.counts).toEqual({ text: 1, spoilerText: 1, mediaAlt: 1 });
 
-    // 2 actors seen, 1 dirty (username + bio).
-    expect(summary.actors.scanned).toBe(2);
+    // 1 dirty actor (username + bio), and STRICTLY fewer changed than scanned —
+    // which is the distinction this test is about.
+    //
+    // `scanned` is deliberately not pinned to an absolute. The actor sweep is
+    // GLOBAL by construction (it normalizes every row in the table), the rows are
+    // real, and vitest runs files in parallel against one database — so another
+    // file's fixtures are legitimately in the scan. `changed` stays exact because
+    // no other suite seeds text that normalizes to something different.
     expect(summary.actors.changed).toBe(1);
+    expect(summary.actors.scanned).toBeGreaterThan(summary.actors.changed);
     expect(summary.actors.written).toBe(0);
     expect(summary.actors.counts).toEqual({ username: 1, summary: 1, fields: 0 });
   });
 
   it('samples the real before/after values, whitespace visible', async () => {
     seedPosts();
-    seedActors();
+    await seedActors();
 
     const summary = await normalizeStoredText(true);
 
@@ -499,7 +526,13 @@ describe('normalizeStoredText — DRY RUN', () => {
 
   it('finds nothing to change on a second (already-normalized) run', async () => {
     h.state.posts = [{ _id: oid('1'), content: { variants: [{ source: 'author', text: CLEAN_TEXT }] } }];
-    h.state.actors = [{ _id: oid('4'), username: 'alice', summary: 'hola\n\nadiós' }];
+    await clearFederationScope(scope);
+    await seedActor(scope, {
+      uri: DIRTY_ACTOR_URI,
+      username: 'alice',
+      acct: `alice@${scope.domain}`,
+      summary: 'hola\n\nadiós',
+    });
 
     const summary = await normalizeStoredText(true);
 
@@ -513,12 +546,12 @@ describe('normalizeStoredText — DRY RUN', () => {
 describe('normalizeStoredText — real run', () => {
   it('writes exactly the dirty documents, and the dry-run plan matches what it wrote', async () => {
     seedPosts();
-    seedActors();
+    await seedActors();
 
     const planned = await normalizeStoredText(true);
 
     seedPosts();
-    seedActors();
+    await seedActors();
     const applied = await normalizeStoredText(false);
 
     // What the dry run said would change is what the real run actually wrote.
@@ -537,10 +570,15 @@ describe('normalizeStoredText — real run', () => {
       'content.media.1.alt': 'un perro',
     });
 
-    expect(h.state.actorOps).toHaveLength(1);
-    expect(h.state.actorOps[0].updateOne.filter._id.toString()).toBe(oid('4').toString());
-    expect(h.state.actorOps[0].updateOne.update.$set).toEqual({
+    // The dirty actor's ROW carries the normalized text, and the clean one is
+    // byte-identical to what it was seeded with — a rewrite of an already-clean
+    // row is the thing that makes a second run non-idempotent.
+    expect(await readActor(DIRTY_ACTOR_URI)).toMatchObject({
       username: 'alice',
+      summary: 'hola\n\nadiós',
+    });
+    expect(await readActor(CLEAN_ACTOR_URI)).toMatchObject({
+      username: 'bob',
       summary: 'hola\n\nadiós',
     });
   });

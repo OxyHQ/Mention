@@ -92,7 +92,7 @@
 import mongoose from 'mongoose';
 import { PostType, type MediaItem, type PostContentVariant } from '@mention/shared-types';
 import { Post } from '../models/Post';
-import FederatedActor from '../models/FederatedActor';
+import { findActorByUri } from '../db/federation/actorRepository';
 import { logger } from '../utils/logger';
 import { normalizePostHashtags } from '../utils/textProcessing';
 import type { ExtractedMediaAttachment } from '../connectors/shared/federatedMedia';
@@ -164,13 +164,6 @@ interface StoredPostRow {
     sensitive?: boolean;
     spoilerText?: string;
   } | null;
-}
-
-/** The lean `FederatedActor` fields the handle repair reads. */
-interface FederatedActorRow {
-  acct: string;
-  username: string;
-  domain: string;
 }
 
 interface Counters {
@@ -538,9 +531,7 @@ async function repairActorHandles(
 ): Promise<void> {
   for (const did of dids) {
     counters.scanned += 1;
-    const actor = await FederatedActor.findOne({ uri: did }, { acct: 1, username: 1, domain: 1 }).lean<
-      FederatedActorRow | null
-    >();
+    const actor = await findActorByUri(did);
     if (!actor || !actor.acct) {
       counters.missing += 1;
       continue;

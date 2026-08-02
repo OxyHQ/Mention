@@ -1,4 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+} from '../../helpers/federationFixtures';
+
+const scope = federationScope('ap-mentions-same-instance');
 
 /**
  * Inbound @mention resolution when the mention is SAME-INSTANCE.
@@ -30,7 +39,6 @@ const mocks = vi.hoisted(() => ({
   getOrFetchActor: vi.fn(),
   isBlockedDomain: vi.fn(() => false),
   resolveOxyUser: vi.fn(),
-  findExistingActor: vi.fn(),
 }));
 
 vi.mock('../../../connectors/activitypub/actor.service', () => ({
@@ -39,9 +47,6 @@ vi.mock('../../../connectors/activitypub/actor.service', () => ({
 vi.mock('../../../connectors/activitypub/constants', () => ({
   isBlockedDomain: mocks.isBlockedDomain,
   resolveOxyUser: mocks.resolveOxyUser,
-}));
-vi.mock('../../../models/FederatedActor', () => ({
-  default: { findOne: mocks.findExistingActor },
 }));
 vi.mock('../../../utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -81,9 +86,13 @@ const CROSS_INSTANCE_NOTE = {
   ],
 };
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
+  await clearFederationScope(scope);
   mocks.getOrFetchActor.mockReset();
-  mocks.findExistingActor.mockReset();
   mocks.isBlockedDomain.mockReturnValue(false);
 });
 
@@ -116,8 +125,10 @@ describe('same-instance mention (bare `@user` tag name)', () => {
   });
 
   it('resolves on the lookup-only repair path too', async () => {
-    mocks.findExistingActor.mockReturnValue({
-      lean: async () => ({ oxyUserId: MENTIONED_OXY_ID }),
+    await seedActor(scope, {
+      username: 'indigoparadox',
+      uri: 'https://mastodon.social/users/indigoparadox',
+      oxyUserId: MENTIONED_OXY_ID,
     });
 
     const resolved = await resolveInboundMentionsExisting(SAME_INSTANCE_NOTE);
@@ -158,4 +169,12 @@ describe('same-instance mention (bare `@user` tag name)', () => {
     // servers whose actor URI carries an opaque id (Misskey).
     expect([...anchorMap.keys()]).toEqual(['https://mastodon.social/users/indigoparadox']);
   });
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });

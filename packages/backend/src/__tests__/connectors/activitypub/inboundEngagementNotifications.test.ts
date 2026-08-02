@@ -1,4 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedFollow,
+} from '../../helpers/federationFixtures';
+
+const scope = federationScope('inbound-engagement-notifications');
 
 /**
  * Inbound federated engagement → LOCAL owner notification parity.
@@ -27,7 +37,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * wholesale (its thread-link/boost-import logic has its own coverage).
  */
 
-const ACTOR_URI = 'https://mastodon.social/users/bob';
+const ACTOR_URI = `${scope.origin}/users/bob`;
 const TARGET_POST_ID = '507f1f77bcf86cd799439011';
 const TARGET_POST_URI = `https://mention.earth/ap/users/alice/posts/${TARGET_POST_ID}`;
 const CREATED_REPLY_ID = 'created_post_1';
@@ -39,8 +49,6 @@ const mocks = vi.hoisted(() => ({
   getPublicKey: vi.fn(),
   signViaOxy: vi.fn(),
   signRequest: vi.fn(),
-  actorFindOne: vi.fn(),
-  followExists: vi.fn(),
   postFindOne: vi.fn(),
   postExists: vi.fn(),
   postUpdateOne: vi.fn(),
@@ -74,19 +82,6 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   getPublicKey: mocks.getPublicKey,
   signViaOxy: mocks.signViaOxy,
   signRequest: mocks.signRequest,
-}));
-
-vi.mock('../../../models/FederatedActor', () => ({
-  default: { findOne: mocks.actorFindOne },
-}));
-
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: { exists: mocks.followExists },
-}));
-
-vi.mock('../../../models/FederationDeliveryQueue', () => ({
-  default: {},
-  getNextRetryTime: vi.fn(),
 }));
 
 vi.mock('../../../models/Post', () => ({
@@ -154,14 +149,8 @@ vi.mock('../../../connectors/activitypub/outbox.service', () => ({
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
 
 /** Stub the remote actor (liker/booster/reply-author) resolved via `FederatedActor.findOne`. */
-function stubRemoteActor(oxyUserId: string | null): void {
-  mocks.actorFindOne.mockReturnValue({
-    lean: vi.fn().mockResolvedValue(
-      oxyUserId
-        ? { uri: ACTOR_URI, oxyUserId, lastFetchedAt: new Date() }
-        : { uri: ACTOR_URI, lastFetchedAt: new Date() },
-    ),
-  });
+async function seedRemoteActor(oxyUserId: string | null): Promise<void> {
+  await seedActor(scope, { username: 'bob', uri: ACTOR_URI, oxyUserId, lastFetchedAt: new Date() });
 }
 
 /**
@@ -188,10 +177,14 @@ function stubPostFindOne(options: {
   }));
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
+beforeAll(async () => {
+  await connectPostgres();
+});
 
-  mocks.followExists.mockResolvedValue({ _id: 'follow_1' });
+beforeEach(async () => {
+  vi.clearAllMocks();
+  await clearFederationScope(scope);
+
   mocks.postExists.mockResolvedValue(null);
   mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.materializeEngagementRelationship.mockResolvedValue({ changed: true });
@@ -201,7 +194,9 @@ beforeEach(() => {
   mocks.importAnnounce.mockResolvedValue(true);
   mocks.isFediverseSharingEnabled.mockResolvedValue(true);
   mocks.createPostAuthorNotifications.mockResolvedValue(undefined);
-  stubRemoteActor(ACTOR_OXY_ID);
+  await seedRemoteActor(ACTOR_OXY_ID);
+  // A local user follows the actor, so `handleCreate`'s follower gate passes.
+  await seedFollow(scope, { remoteActorUri: ACTOR_URI, direction: 'outbound', status: 'accepted' });
   stubPostFindOne();
 });
 
@@ -250,7 +245,10 @@ describe('handleLike — local owner like notification', () => {
   });
 
   it('does NOT notify when the liker actor is unresolved', async () => {
-    stubRemoteActor(null);
+    // The actor exists but was never linked to an Oxy account.
+    await clearFederationScope(scope);
+    await seedRemoteActor(null);
+    await seedFollow(scope, { remoteActorUri: ACTOR_URI, direction: 'outbound', status: 'accepted' });
 
     await inboxProcessingService.processInboxActivity(likeActivity(), ACTOR_URI);
 
@@ -326,7 +324,10 @@ describe('handleAnnounce — local owner boost notification', () => {
   });
 
   it('does NOT notify when the booster actor is unresolved', async () => {
-    stubRemoteActor(null);
+    // The actor exists but was never linked to an Oxy account.
+    await clearFederationScope(scope);
+    await seedRemoteActor(null);
+    await seedFollow(scope, { remoteActorUri: ACTOR_URI, direction: 'outbound', status: 'accepted' });
 
     await inboxProcessingService.processInboxActivity(announceActivity(), ACTOR_URI);
 
@@ -418,4 +419,12 @@ describe('handleCreate — reply notification to the local parent owner', () => 
     expect(mocks.postCreatorCreate).toHaveBeenCalledTimes(1);
     expect(mocks.createPostAuthorNotifications).not.toHaveBeenCalled();
   });
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });

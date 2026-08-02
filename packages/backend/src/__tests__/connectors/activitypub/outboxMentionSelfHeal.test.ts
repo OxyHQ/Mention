@@ -1,5 +1,25 @@
 import { PassThrough } from 'node:stream';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+} from '../../helpers/federationFixtures';
+
+const scope = federationScope('outbox-mention-self-heal');
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
 
 /**
  * Organic SELF-HEAL of federated @mentions during outbox re-sync.
@@ -27,8 +47,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   getPublicKey: vi.fn(),
   signViaOxy: vi.fn(),
-  actorFind: vi.fn(),
-  actorFindOne: vi.fn(),
   findOneAndUpdate: vi.fn(),
   updateOne: vi.fn(),
   postFind: vi.fn(),
@@ -76,15 +94,6 @@ vi.mock('../../../connectors/activitypub/actor.service', () => ({
   actorService: {
     getOrFetchActor: mocks.getOrFetchActor,
     fetchRemoteActor: mocks.fetchRemoteActor,
-  },
-}));
-
-vi.mock('../../../models/FederatedActor', () => ({
-  default: {
-    findOne: mocks.actorFindOne,
-    find: mocks.actorFind,
-    findOneAndUpdate: mocks.findOneAndUpdate,
-    updateOne: mocks.updateOne,
   },
 }));
 
@@ -208,8 +217,6 @@ beforeEach(() => {
   mocks.signViaOxy.mockResolvedValue('c2lnbmF0dXJl');
   mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({ _id: 'actor_1', ...update.$set }));
   mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
-  mocks.actorFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
-  mocks.actorFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
   mocks.postFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
   mocks.postFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
   mocks.postFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });

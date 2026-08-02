@@ -31,8 +31,8 @@
 
 import mongoose from 'mongoose';
 import { Post } from '../models/Post';
-import FederatedFollow from '../models/FederatedFollow';
-import FederatedActor from '../models/FederatedActor';
+import { findActorsByUris } from '../db/federation/actorRepository';
+import { findFollows } from '../db/federation/followRepository';
 import { followService, type NoteSourcePost } from '../connectors/activitypub/follow.service';
 import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
 import { isFediverseSharingEnabled } from '../services/fediverseSharing';
@@ -66,7 +66,7 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
 /**
  * Resolve the target's remote follower inboxes for REPORTING only (the header and
  * dry-run output). This mirrors the exact ownership query `deliverToFollowers`
- * uses — accepted inbound `FederatedFollow`s → `FederatedActor` shared/personal
+ * uses — accepted inbound `federated_follows` → `federated_actors` shared/personal
  * inbox, deduped by shared inbox — but never sends anything itself. Actual
  * delivery goes through `federateNewPost` (which re-runs this resolution). Not a
  * second delivery/signing path; purely read-only enumeration for the operator.
@@ -74,19 +74,13 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
 async function resolveFollowerInboxes(
   oxyUserId: string,
 ): Promise<{ followerCount: number; inboxes: string[] }> {
-  const follows = await FederatedFollow.find(
-    { localUserId: oxyUserId, direction: 'inbound', status: 'accepted' },
-    { remoteActorUri: 1 },
-  ).lean<{ remoteActorUri: string }[]>();
+  const follows = await findFollows({
+    localUserId: oxyUserId,
+    direction: 'inbound',
+    statuses: ['accepted'],
+  });
 
-  const actorUris = follows.map((f) => f.remoteActorUri);
-  const actors =
-    actorUris.length > 0
-      ? await FederatedActor.find(
-          { uri: { $in: actorUris } },
-          { uri: 1, sharedInboxUrl: 1, inboxUrl: 1 },
-        ).lean<{ uri: string; sharedInboxUrl?: string; inboxUrl?: string }[]>()
-      : [];
+  const actors = await findActorsByUris(follows.map((f) => f.remoteActorUri));
 
   const seen = new Set<string>();
   const inboxes: string[] = [];

@@ -28,7 +28,8 @@ interface PostRow {
   _id: mongoose.Types.ObjectId;
 }
 interface ActorRow {
-  _id: mongoose.Types.ObjectId;
+  /** The cursor the paging loop advances on. */
+  id: string;
   uri: string;
   acct: string;
   oxyUserId?: string;
@@ -73,22 +74,42 @@ const h = vi.hoisted(() => {
     countDocuments: vi.fn((_filter: unknown) => countQuery(1)),
   });
 
+  // The three Postgres-backed federation repositories keep DOUBLES here, and the
+  // reason is the suite's subject rather than convenience: this file asserts the
+  // ORDER of a fourteen-step destructive cascade — above all that the actor
+  // anchor is dropped LAST, only after the Oxy identity delete is confirmed, so a
+  // failed Oxy call always leaves a retryable row. Eleven of those fourteen steps
+  // are Mongo models that are still doubles, so the call log is the only place
+  // the order is observable at all; making three of them real would not make the
+  // ordering assertion stronger, it would only make it partial. Nothing here
+  // asserts anything about the SHAPE of a query.
   const federatedActor = {
-    countDocuments: vi.fn((_filter: unknown) => countQuery(state.actors.length)),
-    find: vi.fn((query: { _id?: { $gt?: unknown } }) => ({
-      sort: () => ({
-        limit: () => ({
-          lean: async () => (query._id?.$gt ? [] : state.actors),
-        }),
-      }),
-    })),
-    updateOne: vi.fn(async (_filter: unknown, _update: unknown) => {
+    countActors: vi.fn(async () => state.actors.length),
+    scanActors: vi.fn(async (_filter: unknown, page: { afterId?: string }) =>
+      (page.afterId ? [] : state.actors),
+    ),
+    updateActorSuspended: vi.fn(async () => {
       callLog.push('FederatedActor.updateOne');
-      return { modifiedCount: 1 };
     }),
-    deleteOne: vi.fn(async (_filter: unknown) => {
+    deleteActorsByUris: vi.fn(async () => {
       callLog.push('FederatedActor.deleteOne');
-      return { deletedCount: 1 };
+      return 1;
+    }),
+  };
+
+  const federatedFollowRepo = {
+    findFollows: vi.fn(async () => [{ id: 'f1' }]),
+    deleteFollowsFor: vi.fn(async () => {
+      callLog.push('FederatedFollow');
+      return 1;
+    }),
+  };
+
+  const actorKeyPairRepo = {
+    hasActorKeyPair: vi.fn(async () => true),
+    deleteActorKeyPair: vi.fn(async () => {
+      callLog.push('ActorKeyPair');
+      return 1;
     }),
   };
 
@@ -121,11 +142,12 @@ const h = vi.hoisted(() => {
     if (state.signed.throwErr) throw state.signed.throwErr;
     return { status: state.signed.status, ok: state.signed.ok, statusText: state.signed.statusText };
   });
-
   return {
     callLog,
     state,
     federatedActor,
+    federatedFollowRepo,
+    actorKeyPairRepo,
     post,
     oxyDelete,
     signedFetch,
@@ -134,14 +156,12 @@ const h = vi.hoisted(() => {
     closeAdminScriptResources: vi.fn(async () => undefined),
     like: makeSimple('Like'),
     bookmark: makeSimple('Bookmark'),
-    federatedFollow: makeSimple('FederatedFollow'),
     entityFollow: makeSimple('EntityFollow'),
     notification: makeSimple('Notification'),
     userSettings: makeSimple('UserSettings'),
     userBehavior: makeSimple('UserBehavior'),
     userFeedPreference: makeSimple('UserFeedPreference'),
     authorFollowerSnapshot: makeSimple('AuthorFollowerSnapshot'),
-    actorKeyPair: makeSimple('ActorKeyPair'),
     mentionUserNode: makeSimple('MentionUserNode'),
     mentionNodeIngestWitness: makeSimple('MentionNodeIngestWitness'),
   };
@@ -164,18 +184,29 @@ vi.mock('../../scripts/lib/adminScriptLifecycle', async (importOriginal) => ({
   closeAdminScriptResources: h.closeAdminScriptResources,
 }));
 
-vi.mock('../../models/FederatedActor', () => ({ default: h.federatedActor }));
+vi.mock('../../db/federation/actorRepository', () => ({
+  countActors: h.federatedActor.countActors,
+  scanActors: h.federatedActor.scanActors,
+  updateActorSuspended: h.federatedActor.updateActorSuspended,
+  deleteActorsByUris: h.federatedActor.deleteActorsByUris,
+}));
+vi.mock('../../db/federation/followRepository', () => ({
+  findFollows: h.federatedFollowRepo.findFollows,
+  deleteFollowsFor: h.federatedFollowRepo.deleteFollowsFor,
+}));
+vi.mock('../../db/federation/actorKeyPairRepository', () => ({
+  hasActorKeyPair: h.actorKeyPairRepo.hasActorKeyPair,
+  deleteActorKeyPair: h.actorKeyPairRepo.deleteActorKeyPair,
+}));
 vi.mock('../../models/Post', () => ({ Post: h.post }));
 vi.mock('../../models/Like', () => ({ default: h.like }));
 vi.mock('../../models/Bookmark', () => ({ default: h.bookmark }));
-vi.mock('../../models/FederatedFollow', () => ({ default: h.federatedFollow }));
 vi.mock('../../models/EntityFollow', () => ({ EntityFollow: h.entityFollow }));
 vi.mock('../../models/Notification', () => ({ default: h.notification }));
 vi.mock('../../models/UserSettings', () => ({ default: h.userSettings }));
 vi.mock('../../models/UserBehavior', () => ({ default: h.userBehavior }));
 vi.mock('../../models/UserFeedPreference', () => ({ default: h.userFeedPreference }));
 vi.mock('../../models/AuthorFollowerSnapshot', () => ({ AuthorFollowerSnapshot: h.authorFollowerSnapshot }));
-vi.mock('../../models/ActorKeyPair', () => ({ default: h.actorKeyPair }));
 vi.mock('../../models/MentionUserNode', () => ({ default: h.mentionUserNode }));
 vi.mock('../../models/MentionNodeIngestWitness', () => ({ default: h.mentionNodeIngestWitness }));
 
@@ -230,7 +261,7 @@ async function chainRowCounts(): Promise<[number, number]> {
 
 function makeActor(oxyUserId: string = 'X'): ActorRow {
   return {
-    _id: new mongoose.Types.ObjectId(),
+    id: `actor-${oxyUserId}`,
     uri: 'https://mastodon.social/users/ghost',
     acct: 'ghost@mastodon.social',
     oxyUserId,
@@ -343,12 +374,9 @@ describe('purgeGoneFederatedActors', () => {
 
     // The ONLY write is clearing the tombstone — nothing is deleted.
     expect(h.callLog).toEqual(['FederatedActor.updateOne']);
-    expect(h.federatedActor.updateOne).toHaveBeenCalledWith(
-      { _id: actor._id },
-      { $set: { suspended: false } },
-    );
+    expect(h.federatedActor.updateActorSuspended).toHaveBeenCalledWith(actor.id, false);
     expect(h.oxyDelete).not.toHaveBeenCalled();
-    expect(h.federatedActor.deleteOne).not.toHaveBeenCalled();
+    expect(h.federatedActor.deleteActorsByUris).not.toHaveBeenCalled();
   });
 
   it('unverified gate: a non-410 (404) actor is left fully intact — no deletes, no tombstone change', async () => {
@@ -359,8 +387,8 @@ describe('purgeGoneFederatedActors', () => {
 
     expect(h.callLog).toEqual([]);
     expect(h.oxyDelete).not.toHaveBeenCalled();
-    expect(h.federatedActor.updateOne).not.toHaveBeenCalled();
-    expect(h.federatedActor.deleteOne).not.toHaveBeenCalled();
+    expect(h.federatedActor.updateActorSuspended).not.toHaveBeenCalled();
+    expect(h.federatedActor.deleteActorsByUris).not.toHaveBeenCalled();
   });
 
   it('unverified gate: a transient re-verify error leaves the actor intact', async () => {
@@ -385,7 +413,7 @@ describe('purgeGoneFederatedActors', () => {
     expect(h.callLog).toContain('FederatedFollow');
     // ...but the anchor is KEPT so a later run reconciles the still-live Oxy user.
     expect(h.callLog).not.toContain('FederatedActor.deleteOne');
-    expect(h.federatedActor.deleteOne).not.toHaveBeenCalled();
+    expect(h.federatedActor.deleteActorsByUris).not.toHaveBeenCalled();
   });
 
   it('partial: a permanent (skipped) Oxy delete rejection also keeps the anchor', async () => {
@@ -395,7 +423,7 @@ describe('purgeGoneFederatedActors', () => {
     await expect(run()).rejects.toThrow('partial=1');
 
     expect(h.oxyDelete).toHaveBeenCalledTimes(1);
-    expect(h.federatedActor.deleteOne).not.toHaveBeenCalled();
+    expect(h.federatedActor.deleteActorsByUris).not.toHaveBeenCalled();
   });
 
   it('--dry-run performs ZERO destructive work (no delete, no tombstone clear, no oxy-api call)', async () => {
@@ -411,11 +439,11 @@ describe('purgeGoneFederatedActors', () => {
     // …and the chain rows a live run would remove are still there.
     expect(await chainRowCounts()).toEqual([1, 1]);
     expect(h.oxyDelete).not.toHaveBeenCalled();
-    expect(h.federatedActor.deleteOne).not.toHaveBeenCalled();
-    expect(h.federatedActor.updateOne).not.toHaveBeenCalled();
+    expect(h.federatedActor.deleteActorsByUris).not.toHaveBeenCalled();
+    expect(h.federatedActor.updateActorSuspended).not.toHaveBeenCalled();
     // It still COUNTS what it would delete (read-only), so the summary is accurate.
     expect(h.like.countDocuments).toHaveBeenCalled();
-    expect(h.federatedFollow.countDocuments).toHaveBeenCalled();
+    expect(h.federatedFollowRepo.findFollows).toHaveBeenCalled();
   });
 
   it('purges an owner-less legacy row: uri-keyed refs + anchor, with no Oxy identity call', async () => {
@@ -442,6 +470,6 @@ describe('purgeGoneFederatedActors', () => {
 
     expect(h.callLog).toEqual([]);
     expect(h.oxyDelete).not.toHaveBeenCalled();
-    expect(h.federatedActor.deleteOne).not.toHaveBeenCalled();
+    expect(h.federatedActor.deleteActorsByUris).not.toHaveBeenCalled();
   });
 });

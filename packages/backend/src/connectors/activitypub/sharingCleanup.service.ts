@@ -1,6 +1,9 @@
 import { logger } from '../../utils/logger';
-import FederatedActor from '../../models/FederatedActor';
-import FederatedFollow from '../../models/FederatedFollow';
+import { findActorsByUris } from '../../db/federation/actorRepository';
+import {
+  deleteFollowsByIds,
+  findFollows,
+} from '../../db/federation/followRepository';
 import { deliveryService } from './delivery.service';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { AP_CONTEXT } from '@oxyhq/federation';
@@ -60,7 +63,7 @@ export interface SharingCleanupResult {
  *     both run their own bridge call BEFORE the matching local Mongo mutation
  *     for the same reason: a bridge failure must leave the row in place so a
  *     retry re-attempts it, never delete-then-hope.
- *  3. Only deletable rows are removed, ID-scoped (`_id: { $in: ... }`) so a
+ *  3. Only deletable rows are removed, ID-scoped (`id IN (...)`) so a
  *     row that arrives between the initial `find` and this delete (a fresh
  *     inbound Follow racing the toggle-off) is never swept up by accident.
  *  4. If any bridge call failed, THROW after the scoped delete — the caller
@@ -88,11 +91,11 @@ export async function runSharingCleanup(
   // 'disabled' or 'unknown-user' — both proceed with cleanup (see the doc
   // comment above for why 'unknown-user' still tears down).
 
-  const inboundFollows = await FederatedFollow.find({
+  const inboundFollows = await findFollows({
     localUserId: oxyUserId,
     direction: 'inbound',
-    status: 'accepted',
-  }).lean();
+    statuses: ['accepted'],
+  });
 
   if (inboundFollows.length === 0) {
     return { deletesSent: 0, followersRemoved: 0 };
@@ -112,9 +115,7 @@ export async function runSharingCleanup(
   await deliveryService.deliverToFollowers(deleteActivity, oxyUserId, username);
 
   const actorUris = inboundFollows.map((f) => f.remoteActorUri);
-  const remoteActors = await FederatedActor.find({ uri: { $in: actorUris } })
-    .select('uri oxyUserId')
-    .lean();
+  const remoteActors = await findActorsByUris(actorUris);
   const followerOxyUserIdByActorUri = new Map(
     remoteActors
       .filter((a): a is typeof a & { oxyUserId: string } => Boolean(a.oxyUserId))
@@ -123,14 +124,14 @@ export async function runSharingCleanup(
 
   let followersRemoved = 0;
   let bridgeFailures = 0;
-  const deletableIds: (typeof inboundFollows)[number]['_id'][] = [];
+  const deletableIds: string[] = [];
 
   for (const follow of inboundFollows) {
     const followerOxyUserId = followerOxyUserIdByActorUri.get(follow.remoteActorUri);
 
     if (!followerOxyUserId) {
       // Nothing to bridge for this row — safe to delete regardless.
-      deletableIds.push(follow._id);
+      deletableIds.push(follow.id);
       continue;
     }
 
@@ -141,7 +142,7 @@ export async function runSharingCleanup(
         action: 'unfollow',
       });
       followersRemoved += 1;
-      deletableIds.push(follow._id);
+      deletableIds.push(follow.id);
     } catch (err) {
       bridgeFailures += 1;
     logger.warn(
@@ -152,7 +153,7 @@ export async function runSharingCleanup(
   }
 
   if (deletableIds.length > 0) {
-    await FederatedFollow.deleteMany({ _id: { $in: deletableIds } });
+    await deleteFollowsByIds(deletableIds);
   }
 
   if (bridgeFailures > 0) {

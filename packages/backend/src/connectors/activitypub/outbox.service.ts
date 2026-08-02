@@ -1,5 +1,9 @@
 import { logger } from '../../utils/logger';
-import FederatedActor, { IFederatedActor } from '../../models/FederatedActor';
+import type { FederatedActorRecord } from '../../db/federation/actorRecord';
+import {
+  findActorsByUris,
+  markOutboxBackfillUnavailable as markActorOutboxBackfillUnavailable,
+} from '../../db/federation/actorRepository';
 import { Post } from '../../models/Post';
 import { extractActorUriFromActivityId } from '@oxyhq/federation';
 import {
@@ -318,45 +322,25 @@ export class OutboxSyncService {
    * Fetch a remote actor's outbox and store posts in the DB.
    * Uses the same storage format as handleCreate so posts go through normal hydration.
    */
-  async syncOutboxPosts(actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string }, limit = 20): Promise<number> {
+  async syncOutboxPosts(actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string }, limit = 20): Promise<number> {
     const result = await this.syncOutboxPostsDetailed(actor, limit);
     return result.syncedCount;
   }
 
   async markOutboxBackfillUnavailable(
-    actor: Pick<IFederatedActor, 'outboxUrl' | 'acct'> & { _id: unknown },
+    actor: Pick<FederatedActorRecord, 'id' | 'outboxUrl'>,
     reason?: string,
   ): Promise<void> {
     if (!actor.outboxUrl) return;
 
-    await FederatedActor.updateOne(
-      { _id: String(actor._id) },
-      {
-        $set: {
-          'outboxBackfill.status': 'unavailable',
-          'outboxBackfill.outboxUrl': actor.outboxUrl,
-          'outboxBackfill.processedCount': 0,
-          'outboxBackfill.importedCount': 0,
-          'outboxBackfill.existingCount': 0,
-          'outboxBackfill.pageCount': 0,
-          'outboxBackfill.lastRunAt': new Date(),
-          'outboxBackfill.completedAt': new Date(),
-        },
-        $unset: {
-          'outboxBackfill.cursorUrl': '',
-          'outboxBackfill.lockedUntil': '',
-          'outboxBackfill.lastError': '',
-          lastOutboxSyncAt: '',
-        },
-      },
-    );
+    await markActorOutboxBackfillUnavailable(actor.id, actor.outboxUrl);
     logger.info('[FedSync] marked outbox unavailable', {
       result: reason ?? 'unknown',
     });
   }
 
   async syncOutboxPostsDetailed(
-    actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string },
+    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string },
     limitOrOptions: number | OutboxSyncOptions = 20,
   ): Promise<OutboxSyncResult> {
     if (!actor.outboxUrl) {
@@ -630,10 +614,11 @@ export class OutboxSyncService {
         actorOxyMap.set(actor.uri, actor.oxyUserId);
       }
       if (actorUris.size > 0) {
-        const actors = await FederatedActor.find(
-          { uri: { $in: [...actorUris] }, oxyUserId: { $ne: null } },
-          { uri: 1, oxyUserId: 1 },
-        ).lean();
+        // `{ oxyUserId: { $ne: null } }` is dropped rather than translated: the
+        // loop already skips an actor with no `oxyUserId`, so filtering in SQL
+        // would only duplicate the guard — and `<> null` is NULL (not true) in
+        // Postgres, so the literal translation would have matched nothing at all.
+        const actors = await findActorsByUris([...actorUris]);
         for (const a of actors) {
           if (a.oxyUserId) actorOxyMap.set(a.uri, a.oxyUserId);
         }

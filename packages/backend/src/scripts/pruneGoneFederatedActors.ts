@@ -45,7 +45,7 @@
  *                      suspend, no oxy-api archive call). The re-fetch still runs
  *                      so the summary is accurate.
  *   --limit N          cap the number of actors processed (a canary budget).
- *   --actor <uri>      restrict to one actor by its stored `FederatedActor.uri`.
+ *   --actor <uri>      restrict to one actor by its stored `federated_actors.uri`.
  *   --all              scan every non-atproto actor, not just `postsCount: 0`.
  *   --concurrency N    how many actors to probe in parallel (default 8, clamped to
  *                      32). The sweep is I/O-bound (signed actor re-fetch + the
@@ -53,7 +53,7 @@
  *                      network waits for ~8-10x wall-clock. Keep it conservative to
  *                      avoid hammering oxy-api's actor-gone endpoint.
  *
- * Idempotent + forward-only: batched by a stable ASCENDING `_id` cursor; a
+ * Idempotent + forward-only: batched by a stable ASCENDING `id` cursor; a
  * tombstoned actor re-fetched on a second run 410s again and re-applies the same
  * (idempotent) tombstone, so re-running is safe.
  *
@@ -71,7 +71,12 @@
  */
 
 import mongoose from 'mongoose';
-import FederatedActor from '../models/FederatedActor';
+import {
+  countActors,
+  scanActors,
+  type ActorScanFilter,
+} from '../db/federation/actorRepository';
+import { connectPostgres, closePostgres } from '../db/postgres';
 import { connectToDatabase } from '../utils/database';
 import { actorService } from '../connectors/activitypub/actor.service';
 import { signedFetch } from '../connectors/activitypub/helpers';
@@ -84,7 +89,7 @@ import {
   closeAdminScriptResources,
 } from './lib/adminScriptLifecycle';
 
-/** Actors scanned per page (stable `_id` cursor pagination). */
+/** Actors scanned per page (stable `id` cursor pagination). */
 const PAGE_SIZE = 500;
 
 /**
@@ -104,9 +109,9 @@ interface Flags {
   concurrency: number;
 }
 
-/** The lean `FederatedActor` fields the sweep reads. */
+/** The `federated_actors` fields the sweep reads. */
 interface ActorRow {
-  _id: mongoose.Types.ObjectId;
+  id: string;
   uri: string;
   acct: string;
 }
@@ -238,16 +243,9 @@ async function processActor(actor: ActorRow, flags: Flags): Promise<ScanOutcome>
  * the cheapest, highest-signal candidates — unless `--all` widens it to every
  * (non-atproto) actor.
  */
-function buildFilter(flags: Flags): Record<string, unknown> {
-  const filter: Record<string, unknown> = { protocol: { $ne: 'atproto' } };
-  if (flags.actor) {
-    filter.uri = flags.actor;
-    return filter;
-  }
-  if (!flags.all) {
-    filter.$or = [{ postsCount: 0 }, { postsCount: { $exists: false } }];
-  }
-  return filter;
+function buildFilter(flags: Flags): ActorScanFilter {
+  if (flags.actor) return { protocolNot: 'atproto', uri: flags.actor };
+  return { protocolNot: 'atproto', ...(flags.all ? {} : { zeroPostsCount: true }) };
 }
 
 async function pruneGoneFederatedActors(): Promise<void> {
@@ -263,6 +261,9 @@ async function pruneGoneFederatedActors(): Promise<void> {
       dryRun: flags.dryRun,
     });
     await connectToDatabase();
+    // Actor rows are in Postgres; the Mongo connection stays for the tombstone
+    // path's other reads.
+    await connectPostgres();
     const scope = flags.actor ? `actor ${flags.actor}` : flags.all ? 'all' : 'postsCount:0';
     logger.info(
       `[pruneGoneFederatedActors] connected — mode: ${flags.dryRun ? 'DRY-RUN' : 'LIVE'}, ` +
@@ -271,22 +272,16 @@ async function pruneGoneFederatedActors(): Promise<void> {
     );
 
     const baseFilter = buildFilter(flags);
-    const total = await FederatedActor.countDocuments(baseFilter);
+    const total = await countActors(baseFilter);
     logger.info(`[pruneGoneFederatedActors] ${total} candidate actor(s) to scan`);
 
-    let lastId: mongoose.Types.ObjectId | null = null;
+    let lastId: string | undefined;
 
     for (;;) {
       if (remaining !== undefined && remaining <= 0) break;
 
-      const pageFilter: Record<string, unknown> = { ...baseFilter };
-      if (lastId) pageFilter._id = { $gt: lastId };
-
       const pageLimit = remaining !== undefined ? Math.min(PAGE_SIZE, remaining) : PAGE_SIZE;
-      const page = await FederatedActor.find(pageFilter, { _id: 1, uri: 1, acct: 1 })
-        .sort({ _id: 1 })
-        .limit(pageLimit)
-        .lean<ActorRow[]>();
+      const page: ActorRow[] = await scanActors(baseFilter, { afterId: lastId, limit: pageLimit });
       if (page.length === 0) break;
 
       // The page is already sliced to at most the remaining budget (`pageLimit`), so
@@ -297,7 +292,7 @@ async function pruneGoneFederatedActors(): Promise<void> {
         processActor(actor, flags),
       );
 
-      // Tally sequentially in `_id` order AFTER the pool drains: every counter and
+      // Tally sequentially in `id` order AFTER the pool drains: every counter and
       // the shared budget are mutated exactly once per actor on a single call
       // stack, so no concurrent update can race or double-count.
       for (let i = 0; i < page.length; i++) {
@@ -338,7 +333,7 @@ async function pruneGoneFederatedActors(): Promise<void> {
         }
       }
 
-      lastId = page[page.length - 1]._id;
+      lastId = page[page.length - 1].id;
       logger.info(
         `[pruneGoneFederatedActors] progress: scanned ${counters.scanned}, tombstoned ${counters.tombstoned}, ` +
           `still-live ${counters.stillLive}, transient-failed ${counters.transientFailed}`,
@@ -361,6 +356,7 @@ async function pruneGoneFederatedActors(): Promise<void> {
   } finally {
     await closeAdminScriptResources();
     await mongoose.disconnect();
+    await closePostgres();
   }
 }
 

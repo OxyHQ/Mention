@@ -377,7 +377,7 @@ class ThreadSlicingService {
     }
 
     // `resolveUserSummaries` returns raw Oxy users and already enriches any
-    // degraded FEDERATED parent author from the FederatedActor record, so a
+    // degraded FEDERATED parent author from the federated_actors row, so a
     // "Replying to @…" header never blanks for a known federated author.
     const resolved = await resolveUserSummaries([...authorIds]);
     const summaries = new Map<string, PostUser>();

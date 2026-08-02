@@ -1,8 +1,16 @@
 import mongoose from 'mongoose';
 import { createInboundDispatcher } from '@oxyhq/federation/node';
 import { logger } from '../../utils/logger';
-import FederatedActor from '../../models/FederatedActor';
-import FederatedFollow from '../../models/FederatedFollow';
+import { findActorByUri } from '../../db/federation/actorRepository';
+import {
+  deleteFollowById,
+  existsFollow,
+  findInboundFollow,
+  markOutboundAcceptedAnyPending,
+  markOutboundAcceptedByActivityId,
+  markOutboundRejected,
+  upsertInboundAccepted,
+} from '../../db/federation/followRepository';
 import { Post } from '../../models/Post';
 import {
   FEDERATION_MAX_CONTENT_LENGTH,
@@ -462,10 +470,10 @@ export class InboxProcessingService {
     if (await this.handlePollVote(object, actorUri)) return;
 
     // Only process if the actor is followed by at least one local user
-    const hasFollower = await FederatedFollow.exists({
+    const hasFollower = await existsFollow({
       remoteActorUri: actorUri,
       direction: 'outbound',
-      status: 'accepted',
+      statuses: ['accepted'],
     });
     if (!hasFollower) return;
 
@@ -939,48 +947,30 @@ const inboundDispatcher = createInboundDispatcher({
   consent: { isSharingEnabledFromUser: (user) => isFediverseSharingEnabledFromUser(user) },
   actorResolver: { getOrFetchActor: (actorUri) => actorService.getOrFetchActor(actorUri) },
   follows: {
-    upsertInboundAccepted: async (localUserId, remoteActorUri, activityId) => {
-      await FederatedFollow.findOneAndUpdate(
-        { localUserId, remoteActorUri, direction: 'inbound' },
-        { $set: { status: 'accepted', activityId } },
-        { upsert: true, returnDocument: 'after' },
-      );
+    upsertInboundAccepted: (localUserId, remoteActorUri, activityId) =>
+      upsertInboundAccepted(localUserId, remoteActorUri, activityId),
+    findInboundFollow: async (remoteActorUri, localUserId) => {
+      const follow = await findInboundFollow(remoteActorUri, localUserId || undefined);
+      return follow === null ? null : { _id: follow.id, localUserId: follow.localUserId };
     },
-    findInboundFollow: (remoteActorUri, localUserId) => {
-      const filter: Record<string, unknown> = { remoteActorUri, direction: 'inbound' };
-      if (localUserId) filter.localUserId = localUserId;
-      return FederatedFollow.findOne(filter).lean<{ _id: unknown; localUserId: string } | null>();
-    },
-    deleteFollowById: async (id) => {
-      await FederatedFollow.deleteOne({ _id: id });
-    },
+    deleteFollowById: (id) => deleteFollowById(String(id)),
     findActorOxyUserId: async (uri) => {
-      const actor = await FederatedActor.findOne({ uri }).lean<{ oxyUserId?: string } | null>();
+      const actor = await findActorByUri(uri);
       return actor?.oxyUserId ?? null;
     },
     // Accept (string ref / Follow object): match the outbound-pending row by its
     // activity id, or ANY pending row for this actor. Two methods so the engine
     // reproduces the exact original fallback (string ref tries id THEN any-pending;
-    // a Follow object with an id tries id ONLY).
-    markOutboundAcceptedByActivityId: async (remoteActorUri, activityId) => {
-      const result = await FederatedFollow.updateOne(
-        { remoteActorUri, direction: 'outbound', status: 'pending', activityId },
-        { $set: { status: 'accepted' } },
-      );
-      return (result?.modifiedCount ?? 0) > 0;
-    },
-    markOutboundAcceptedAnyPending: async (remoteActorUri) => {
-      const result = await FederatedFollow.updateOne(
-        { remoteActorUri, direction: 'outbound', status: 'pending' },
-        { $set: { status: 'accepted' } },
-      );
-      return (result?.modifiedCount ?? 0) > 0;
-    },
-    markOutboundRejected: async (remoteActorUri, activityId) => {
-      const filter: Record<string, unknown> = { remoteActorUri, direction: 'outbound', status: 'pending' };
-      if (activityId) filter.activityId = activityId;
-      await FederatedFollow.updateOne(filter, { $set: { status: 'rejected' } });
-    },
+    // a Follow object with an id tries id ONLY). Both write exactly ONE row —
+    // `updateOne` semantics — which matters for the id-less fallback: two local
+    // users may have a pending follow to the same actor, and one Accept answers
+    // one of them.
+    markOutboundAcceptedByActivityId: (remoteActorUri, activityId) =>
+      markOutboundAcceptedByActivityId(remoteActorUri, activityId),
+    markOutboundAcceptedAnyPending: (remoteActorUri) =>
+      markOutboundAcceptedAnyPending(remoteActorUri),
+    markOutboundRejected: (remoteActorUri, activityId) =>
+      markOutboundRejected(remoteActorUri, activityId || undefined),
   },
   delivery: {
     sendAccept: (localOxyUserId, localUsername, followActivityId, remoteActorUri) =>
@@ -1007,7 +997,7 @@ const inboundDispatcher = createInboundDispatcher({
   },
   // Fire-and-forget: backfill the newly-followed actor's recent posts after Accept.
   onOutboundFollowAccepted: async (actorUri) => {
-    const actor = await FederatedActor.findOne({ uri: actorUri }).lean();
+    const actor = await findActorByUri(actorUri);
     if (actor) {
       outboxSyncService.syncOutboxPosts(actor, 20).catch((err) => {
         const message = err instanceof Error ? err.message : String(err);

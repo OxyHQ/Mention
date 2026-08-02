@@ -2,7 +2,7 @@ import { PostVisibility } from '@mention/shared-types';
 import { normalizeMultilineText } from '@oxyhq/core';
 import { logger } from '../../utils/logger';
 import { Post } from '../../models/Post';
-import FederatedActor from '../../models/FederatedActor';
+import { findActorByUri } from '../../db/federation/actorRepository';
 import { normalizeAlt } from '../../services/MediaMetadataService';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { mapWithConcurrency } from '../../utils/concurrency';
@@ -400,7 +400,7 @@ function isDuplicateKeyError(err: unknown): boolean {
 
 /**
  * Resolve a mentioned atproto DID to its Oxy user id. Prefers an already-synced
- * `FederatedActor` (no network round trip); otherwise resolves + mints the actor
+ * `federated_actors` row (no network round trip); otherwise resolves + mints the actor
  * through the shared atproto profile path (`fetchAndUpsertAtprotoProfile`). Returns
  * undefined (fail-soft) when the DID cannot be resolved to an Oxy user — the caller
  * then leaves the bare `@handle` display text rather than minting a broken link.
@@ -410,10 +410,8 @@ async function resolveAtprotoMentionOxyId(
   allowIdentityMutation = true,
 ): Promise<string | undefined> {
   try {
-    const existing = await FederatedActor.findOne({ uri: did })
-      .select('oxyUserId')
-      .lean<{ oxyUserId?: string } | null>();
-    if (existing?.oxyUserId) return String(existing.oxyUserId);
+    const existing = await findActorByUri(did);
+    if (existing?.oxyUserId) return existing.oxyUserId;
   } catch (err) {
       logger.warn('[atproto] mention actor lookup failed', err);
   }

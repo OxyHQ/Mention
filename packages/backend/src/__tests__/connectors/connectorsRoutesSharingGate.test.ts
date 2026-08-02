@@ -1,6 +1,14 @@
 import express from 'express';
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+} from '../../__tests__/helpers/federationFixtures';
+
+const scope = federationScope('connectors-routes-sharing-gate');
 
 /**
  * Contract test for the `fediverseSharing` gate on `POST /federation/follow`
@@ -85,18 +93,6 @@ vi.mock('../../utils/oxyHelpers', () => ({
 
 vi.mock('../../models/Post', () => ({ Post: { find: vi.fn() } }));
 
-vi.mock('../../models/FederatedFollow', () => ({
-  default: { find: vi.fn(() => ({ lean: async () => [] })) },
-}));
-
-vi.mock('../../models/FederatedActor', () => ({
-  // Both `resolveTargetConnector`'s stored-protocol lookup and the follow
-  // route's post-deliver read-back chain `.select(...).lean()`; a stored actor
-  // is irrelevant to the sharing gate itself, so every call resolves `null`
-  // and dispatch falls through to `connectorFor`.
-  default: { findOne: vi.fn(() => ({ select: () => ({ lean: async () => null }) })) },
-}));
-
 vi.mock('../../services/fediverseSharing', () => ({
   isFediverseSharingEnabled: (...args: unknown[]) => isFediverseSharingEnabled(...args),
 }));
@@ -110,7 +106,16 @@ app.use('/federation', connectorsRoutes);
 const TARGET_ACTOR_URI = 'https://remote.example/users/bob';
 const DISABLED_BODY = { error: 'Fediverse sharing is disabled' };
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+beforeEach(async () => {
+  await clearFederationScope(scope);
   vi.clearAllMocks();
   connectorFor.mockReturnValue({ deliver });
   deliver.mockResolvedValue(undefined);
@@ -185,4 +190,8 @@ describe('POST /federation/unfollow — fediverseSharing gate', () => {
     expect(deliver).not.toHaveBeenCalled();
     expect(getUserById).not.toHaveBeenCalled();
   });
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
 });

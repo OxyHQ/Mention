@@ -1,12 +1,32 @@
 import { PassThrough } from 'node:stream';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  loadActorFields,
+  readActor,
+  seedActor,
+  seedFollow,
+} from '../helpers/federationFixtures';
+
+const scope = federationScope('federation-service');
+const BOB_URI = 'https://mastodon.social/users/bob';
+const ALICE_URI = 'https://mastodon.social/users/alice';
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
 
 const mocks = vi.hoisted(() => ({
   getPublicKey: vi.fn(),
   signViaOxy: vi.fn(),
   signRequest: vi.fn(),
-  actorFind: vi.fn(),
-  actorFindOne: vi.fn(),
   findOneAndUpdate: vi.fn(),
   updateOne: vi.fn(),
   postFind: vi.fn(),
@@ -24,7 +44,6 @@ const mocks = vi.hoisted(() => ({
   persistRemoteMedia: vi.fn(),
   recordAccess: vi.fn(),
   postCreatorCreate: vi.fn(),
-  followExists: vi.fn(),
   assertSafePublicUrl: vi.fn(),
   fetchUpstreamFollowingRedirects: vi.fn(),
   fetchUpstreamSingleHop: vi.fn(),
@@ -35,21 +54,6 @@ vi.mock('../../connectors/activitypub/crypto', () => ({
   getPublicKey: mocks.getPublicKey,
   signViaOxy: mocks.signViaOxy,
   signRequest: mocks.signRequest,
-}));
-
-vi.mock('../../models/FederatedActor', () => ({
-  default: {
-    findOne: mocks.actorFindOne,
-    find: mocks.actorFind,
-    findOneAndUpdate: mocks.findOneAndUpdate,
-    updateOne: mocks.updateOne,
-  },
-}));
-
-vi.mock('../../models/FederatedFollow', () => ({
-  default: {
-    exists: mocks.followExists,
-  },
 }));
 
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
@@ -150,7 +154,12 @@ function createNoteActivity(id: string, actorUri = 'https://mastodon.social/user
   };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  await clearFederationScope(scope, [BOB_URI, ALICE_URI]);
+  // The default fixture: the inbound Create path's follower gate passes, because
+  // at least one local user follows the note author.
+  await seedFollow(scope, { remoteActorUri: ALICE_URI, direction: 'outbound', status: 'accepted' });
+  await seedFollow(scope, { remoteActorUri: BOB_URI, direction: 'outbound', status: 'accepted' });
   vi.clearAllMocks();
 
   mocks.getPublicKey.mockResolvedValue({
@@ -168,12 +177,6 @@ beforeEach(() => {
     ...update.$set,
   }));
   mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
-  mocks.actorFind.mockReturnValue({
-    lean: vi.fn().mockResolvedValue([]),
-  });
-  mocks.actorFindOne.mockReturnValue({
-    lean: vi.fn().mockResolvedValue(null),
-  });
   mocks.postFind.mockReturnValue({
     lean: vi.fn().mockResolvedValue([]),
   });
@@ -187,7 +190,6 @@ beforeEach(() => {
   mocks.postDeleteOne.mockResolvedValue({ deletedCount: 1 });
   mocks.postInsertMany.mockResolvedValue({ insertedCount: 0 });
   mocks.postExists.mockResolvedValue(null);
-  mocks.followExists.mockResolvedValue({ _id: 'follow_1' });
   mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   mocks.materializeEngagementRelationship.mockResolvedValue({ changed: true });
   mocks.materializeEngagementTombstone.mockResolvedValue({ changed: false });
@@ -324,18 +326,14 @@ describe('federationService.fetchRemoteActor', () => {
       expect.stringContaining('https://threads.net/ap/users/mosseri/'),
       expect.anything(),
     );
-    expect(mocks.findOneAndUpdate).toHaveBeenCalledWith(
-      { uri: 'https://www.threads.net/ap/users/mosseri/' },
-      expect.objectContaining({
-        $set: expect.objectContaining({
-          uri: 'https://www.threads.net/ap/users/mosseri/',
-          acct: 'mosseri@threads.net',
-          domain: 'threads.net',
-          outboxUrl: 'https://www.threads.net/ap/users/mosseri/outbox',
-        }),
-      }),
-      expect.anything(),
-    );
+    // The stored ROW, not the shape of an upsert call: a `toHaveBeenCalledWith`
+    // here passed whether or not the write reached a database.
+    expect(await readActor('https://www.threads.net/ap/users/mosseri/')).toMatchObject({
+      uri: 'https://www.threads.net/ap/users/mosseri/',
+      acct: 'mosseri@threads.net',
+      domain: 'threads.net',
+      outboxUrl: 'https://www.threads.net/ap/users/mosseri/outbox',
+    });
     expect(mocks.makeServiceRequest).toHaveBeenCalledWith(
       'PUT',
       '/users/resolve',
@@ -433,17 +431,11 @@ describe('federationService.fetchRemoteActor', () => {
       'victim@trusted.example',
     );
 
-    expect(mocks.findOneAndUpdate).toHaveBeenCalledWith(
-      { uri: 'https://evil.example/users/mallory' },
-      expect.objectContaining({
-        $set: expect.objectContaining({
-          uri: 'https://evil.example/users/mallory',
-          acct: 'mallory@evil.example',
-          domain: 'evil.example',
-        }),
-      }),
-      expect.anything(),
-    );
+    expect(await readActor('https://evil.example/users/mallory')).toMatchObject({
+      uri: 'https://evil.example/users/mallory',
+      acct: 'mallory@evil.example',
+      domain: 'evil.example',
+    });
     expect(mocks.makeServiceRequest).toHaveBeenCalledWith(
       'PUT',
       '/users/resolve',
@@ -555,21 +547,18 @@ describe('federationService.fetchRemoteActor', () => {
 
     await federationService.fetchRemoteActor('https://remote.example/users/carol');
 
-    expect(mocks.findOneAndUpdate).toHaveBeenCalledWith(
-      { uri: 'https://remote.example/users/carol' },
-      expect.objectContaining({
-        $set: expect.objectContaining({
-          username: 'carol',
-          // The bio is a body: the author's paragraph break survives, the
-          // markup's indentation and blank line do not.
-          summary: 'Primera línea\n\nSegunda línea',
-          fields: [
-            { name: 'Sitio web', value: '<a href="https://carol.example">carol.example</a>', verifiedAt: undefined },
-          ],
-        }),
-      }),
-      expect.anything(),
-    );
+    const stored = await readActor('https://remote.example/users/carol');
+    expect(stored).toMatchObject({
+      username: 'carol',
+      // The bio is a body: the author's paragraph break survives, the markup's
+      // indentation and blank line do not.
+      summary: 'Primera línea\n\nSegunda línea',
+    });
+    // The verified-links table is a SECOND table now, so it is read back rather
+    // than compared inside the upsert payload.
+    expect(await loadActorFields(stored!.id)).toEqual([
+      { name: 'Sitio web', value: '<a href="https://carol.example">carol.example</a>', verifiedAt: undefined },
+    ]);
     // The display name that crosses into Oxy is collapsed to a single line.
     expect(mocks.makeServiceRequest).toHaveBeenCalledWith(
       'PUT',
@@ -767,16 +756,28 @@ describe('federationService.syncOutboxPostsDetailed', () => {
 });
 
 /**
- * Make `getOrFetchActor`/`resolveActorOxyUserId` resolve a remote actor to a
- * fresh (non-stale) federated Oxy user so no background refresh fires.
+ * Seed the remote actor `getOrFetchActor`/`resolveActorOxyUserId` resolve, as a
+ * FRESH row so no background refresh fires.
+ *
+ * `null` seeds NO row at all — the "never seen this actor" state, which is what
+ * the unresolved-actor branches are about. A row present but unlinked is a
+ * different state and is seeded explicitly where a test needs it.
  */
-function stubResolvedActor(oxyUserId: string | null) {
-  mocks.actorFindOne.mockReturnValue({
-    lean: vi.fn().mockResolvedValue(
-      oxyUserId
-        ? { uri: 'https://mastodon.social/users/bob', oxyUserId, lastFetchedAt: new Date() }
-        : null,
-    ),
+async function seedResolvedActor(oxyUserId: string | null): Promise<void> {
+  await clearFederationScope(scope, [BOB_URI]);
+  // Re-seed the follower gate the file-level `beforeEach` established: clearing
+  // the scope takes the follow rows with it, and `handleCreate` drops any Create
+  // from an actor nobody here follows.
+  await seedFollow(scope, { remoteActorUri: ALICE_URI, direction: 'outbound', status: 'accepted' });
+  await seedFollow(scope, { remoteActorUri: BOB_URI, direction: 'outbound', status: 'accepted' });
+  if (oxyUserId === null) return;
+  await seedActor(scope, {
+    username: 'bob',
+    uri: BOB_URI,
+    acct: 'bob@mastodon.social',
+    domain: 'mastodon.social',
+    oxyUserId,
+    lastFetchedAt: new Date(),
   });
 }
 
@@ -792,7 +793,7 @@ describe('federationService.processInboxActivity → handleLike', () => {
   const actorUri = 'https://mastodon.social/users/bob';
 
   it('records a native Like and increments the counter in lockstep', async () => {
-    stubResolvedActor('oxy_bob');
+    await seedResolvedActor('oxy_bob');
     stubResolvedPost('local_post_1');
 
     await federationService.processInboxActivity(
@@ -811,7 +812,7 @@ describe('federationService.processInboxActivity → handleLike', () => {
   });
 
   it('is a no-op when the booster cannot be resolved to an Oxy user', async () => {
-    stubResolvedActor(null);
+    await seedResolvedActor(null);
     stubResolvedPost('local_post_1');
 
     await federationService.processInboxActivity(
@@ -824,7 +825,7 @@ describe('federationService.processInboxActivity → handleLike', () => {
   });
 
   it('does not move the counter when the transactional command reports a redelivered Like', async () => {
-    stubResolvedActor('oxy_bob');
+    await seedResolvedActor('oxy_bob');
     stubResolvedPost('local_post_1');
     mocks.materializeEngagementRelationship.mockResolvedValueOnce({ changed: false });
 
@@ -847,7 +848,7 @@ describe('federationService.processInboxActivity → handleUndoLike', () => {
   const actorUri = 'https://mastodon.social/users/bob';
 
   it('deletes the Like and decrements the counter when a record existed', async () => {
-    stubResolvedActor('oxy_bob');
+    await seedResolvedActor('oxy_bob');
     stubResolvedPost('local_post_1');
     mocks.materializeEngagementTombstone.mockResolvedValueOnce({ changed: true });
 
@@ -865,7 +866,7 @@ describe('federationService.processInboxActivity → handleUndoLike', () => {
   });
 
   it('does not decrement when no Like record was deleted', async () => {
-    stubResolvedActor('oxy_bob');
+    await seedResolvedActor('oxy_bob');
     stubResolvedPost('local_post_1');
     mocks.materializeEngagementTombstone.mockResolvedValueOnce({ changed: false });
 
@@ -889,7 +890,7 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
   const announceId = 'https://mastodon.social/users/bob/statuses/200/activity';
 
   it('creates a native boost Post deduped by Announce id and increments boostsCount', async () => {
-    stubResolvedActor('oxy_bob');
+    await seedResolvedActor('oxy_bob');
     stubResolvedPost('local_post_2');
     // The boosted post must be public + published for the boost to be imported.
     mocks.postFindById.mockReturnValue({
@@ -929,7 +930,7 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
   });
 
   it('skips when the booster is unresolved (no record, no counter move)', async () => {
-    stubResolvedActor(null);
+    await seedResolvedActor(null);
 
     await federationService.processInboxActivity(
       { type: 'Announce', id: announceId, actor: actorUri, object: announcedUri },
@@ -941,7 +942,7 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
   });
 
   it('does not double-create when the Announce was already imported', async () => {
-    stubResolvedActor('oxy_bob');
+    await seedResolvedActor('oxy_bob');
     stubResolvedPost('local_post_2');
     mocks.postExists.mockResolvedValue({ _id: 'existing_boost' });
 
@@ -956,7 +957,7 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
 
   it('blocks unsafe boosted object fetches before contacting the network', async () => {
     const unsafeUri = 'http://127.0.0.1/latest/meta-data';
-    stubResolvedActor('oxy_bob');
+    await seedResolvedActor('oxy_bob');
     mocks.postFindOne.mockReturnValue({
       lean: vi.fn().mockResolvedValue(null),
     });
@@ -1026,7 +1027,7 @@ describe('federationService.processInboxActivity → handleUndoAnnounce', () => 
     mocks.postFindOne.mockReturnValue({
       lean: vi.fn().mockResolvedValue(null),
     });
-    stubResolvedActor(null);
+    await seedResolvedActor(null);
 
     await federationService.processInboxActivity(
       { type: 'Undo', actor: actorUri, object: { type: 'Announce', id: announceId, object: announcedUri } },
@@ -1144,7 +1145,7 @@ describe('federationService.processInboxActivity → handleCreate', () => {
   }
 
   it('stores the ORIGINAL Note published date as the post createdAt (not sync time)', async () => {
-    stubResolvedActor('oxy_bob');
+    await seedResolvedActor('oxy_bob');
     mocks.postExists.mockResolvedValue(null); // not a duplicate
 
     await federationService.processInboxActivity(
@@ -1162,7 +1163,7 @@ describe('federationService.processInboxActivity → handleCreate', () => {
   });
 
   it('falls back to the Create activity published when the Note omits one', async () => {
-    stubResolvedActor('oxy_bob');
+    await seedResolvedActor('oxy_bob');
     mocks.postExists.mockResolvedValue(null);
 
     await federationService.processInboxActivity(
@@ -1176,7 +1177,7 @@ describe('federationService.processInboxActivity → handleCreate', () => {
   });
 
   it('omits createdAt (schema default = now) when no valid published date is present', async () => {
-    stubResolvedActor('oxy_bob');
+    await seedResolvedActor('oxy_bob');
     mocks.postExists.mockResolvedValue(null);
 
     await federationService.processInboxActivity(createActivity(), actorUri);
@@ -1416,4 +1417,8 @@ describe('Stage-A baseline classification on federated outbox backfill', () => {
     const classification = insertedDoc().postClassification as Record<string, unknown>;
     expect(classification.region).toBe('DE');
   });
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope, [BOB_URI, ALICE_URI]);
 });

@@ -13,7 +13,10 @@ import EngagementOutbox from '../../models/EngagementOutbox';
 import Report, { ReportedType } from '../../models/Report.model';
 import ContentLabel from '../../models/ContentLabel';
 import { FeedInteraction } from '../../models/FeedInteraction';
-import FederationDeliveryQueue from '../../models/FederationDeliveryQueue';
+import {
+  hasDeliveriesFromSender,
+  hasDeliveriesReferencingObjects,
+} from '../../db/federation/deliveryQueueRepository';
 import Mute from '../../models/Mute';
 import { MuteWord } from '../../models/MuteWord';
 import FeedLike from '../../models/FeedLike';
@@ -28,12 +31,12 @@ import { FeedGenerator } from '../../models/FeedGenerator';
 import Labeler from '../../models/Labeler';
 import EndorsementOutbox from '../../models/EndorsementOutbox';
 import UserBehavior from '../../models/UserBehavior';
-import FederatedFollow from '../../models/FederatedFollow';
+import { existsFollow } from '../../db/federation/followRepository';
 import { EntityFollow } from '../../models/EntityFollow';
 import UserSettings from '../../models/UserSettings';
 import UserFeedPreference from '../../models/UserFeedPreference';
 import { AuthorFollowerSnapshot } from '../../models/AuthorFollowerSnapshot';
-import ActorKeyPair from '../../models/ActorKeyPair';
+import { hasActorKeyPair } from '../../db/federation/actorKeyPairRepository';
 import MentionUserNode from '../../models/MentionUserNode';
 import MentionNodeIngestWitness from '../../models/MentionNodeIngestWitness';
 import { getDb } from '../../db/postgres';
@@ -215,17 +218,10 @@ export async function assertPostsSafeToDelete(
         exists(FeedInteraction.exists({ postUri: { $in: postKeys } })),
     },
     {
-      name: 'FederationDeliveryQueue.activityJson',
-      hasReference: () =>
-        exists(
-          FederationDeliveryQueue.exists({
-            $or: [
-              { 'activityJson.id': { $in: postKeys } },
-              { 'activityJson.object.id': { $in: postKeys } },
-              { 'activityJson.object': { $in: postKeys } },
-            ],
-          }),
-        ),
+      // The probe NAME follows the storage: a blocker message has to name
+      // something an operator can go and look at.
+      name: 'federation_delivery_queue.activity_json',
+      hasReference: () => hasDeliveriesReferencingObjects(postKeys),
     },
   ];
 
@@ -407,9 +403,8 @@ function actorReferenceProbes(
           ),
       },
       {
-        name: 'FederationDeliveryQueue.senderOxyUserId',
-        hasReference: () =>
-          exists(FederationDeliveryQueue.exists({ senderOxyUserId: oxyUserId })),
+        name: 'federation_delivery_queue.sender_oxy_user_id',
+        hasReference: () => hasDeliveriesFromSender(oxyUserId),
       },
       {
         name: 'EndorsementOutbox pending owner/member',
@@ -452,8 +447,8 @@ function actorReferenceProbes(
           ),
       },
       {
-        name: 'FederatedFollow.localUserId',
-        hasReference: () => exists(FederatedFollow.exists({ localUserId: oxyUserId })),
+        name: 'federated_follows.local_user_id',
+        hasReference: () => existsFollow({ localUserId: oxyUserId }),
       },
     );
   } else {
@@ -468,8 +463,8 @@ function actorReferenceProbes(
   }
 
   probes.push({
-    name: 'FederatedFollow.remoteActorUri',
-    hasReference: () => exists(FederatedFollow.exists({ remoteActorUri: actorUri })),
+    name: 'federated_follows.remote_actor_uri',
+    hasReference: () => existsFollow({ remoteActorUri: actorUri }),
   });
 
   if (oxyUserId) {
@@ -521,8 +516,8 @@ function actorReferenceProbes(
         hasReference: () => exists(AuthorFollowerSnapshot.exists({ oxyUserId })),
       },
       {
-        name: 'ActorKeyPair.oxyUserId',
-        hasReference: () => exists(ActorKeyPair.exists({ oxyUserId })),
+        name: 'actor_key_pairs.oxy_user_id',
+        hasReference: () => hasActorKeyPair(oxyUserId),
       },
       {
         name: 'MentionUserNode.oxyUserId',

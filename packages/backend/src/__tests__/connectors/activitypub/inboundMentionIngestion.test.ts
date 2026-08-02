@@ -1,4 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedFollow,
+} from '../../../__tests__/helpers/federationFixtures';
+
+const scope = federationScope('inbound-mention-ingestion');
 
 /**
  * Inbound federated @mention ingestion.
@@ -26,7 +36,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * `FederatedActor` model / Oxy client, and mock `outbox.service.ts` wholesale.
  */
 
-const REMOTE = 'https://remote.example';
+const REMOTE = scope.origin;
 const AUTHOR_URI = `${REMOTE}/users/carol`;
 const AUTHOR_OXY_ID = 'oxy_carol';
 
@@ -44,8 +54,6 @@ const LOCAL_MENTION_OXY_ID = 'oxy_alice_local';
 const CREATED_POST_ID = 'created_post_1';
 
 const mocks = vi.hoisted(() => ({
-  actorFindOne: vi.fn(),
-  followExists: vi.fn(),
   postFindOne: vi.fn(),
   postExists: vi.fn(),
   postUpdateOne: vi.fn(),
@@ -78,19 +86,6 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   getPublicKey: vi.fn(),
   signViaOxy: vi.fn(),
   signRequest: vi.fn(),
-}));
-
-vi.mock('../../../models/FederatedActor', () => ({
-  default: { findOne: mocks.actorFindOne },
-}));
-
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: { exists: mocks.followExists },
-}));
-
-vi.mock('../../../models/FederationDeliveryQueue', () => ({
-  default: {},
-  getNextRetryTime: vi.fn(),
 }));
 
 vi.mock('../../../models/Post', () => ({
@@ -157,14 +152,18 @@ vi.mock('../../../connectors/activitypub/outbox.service', () => ({
 
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
 
-/** Map each actor URI (author + federated mentions) to its resolved Oxy id. */
-function stubActors(byUri: Record<string, string>): void {
-  mocks.actorFindOne.mockImplementation((filter: { uri?: string }) => ({
-    lean: async () => {
-      const oxyUserId = filter.uri ? byUri[filter.uri] : undefined;
-      return oxyUserId ? { uri: filter.uri, oxyUserId, lastFetchedAt: new Date() } : null;
-    },
-  }));
+/** Seed each actor URI (author + federated mentions) with its resolved Oxy id. */
+async function seedActors(byUri: Record<string, string>): Promise<void> {
+  let index = 0;
+  for (const [uri, oxyUserId] of Object.entries(byUri)) {
+    index += 1;
+    await seedActor(scope, {
+      username: `actor${index}`,
+      uri,
+      oxyUserId,
+      lastFetchedAt: new Date(),
+    });
+  }
 }
 
 /** The captured `create()` params of the single stored post. */
@@ -202,24 +201,30 @@ function createActivity(
   };
 }
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
-  mocks.followExists.mockResolvedValue({ _id: 'follow_1' });
+  await clearFederationScope(scope);
   mocks.postExists.mockResolvedValue(null);
   mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.postCreatorCreate.mockResolvedValue({ _id: CREATED_POST_ID });
   mocks.ensureFederatedReplyLink.mockResolvedValue(null);
   mocks.isFediverseSharingEnabled.mockResolvedValue(true);
   mocks.postFindOne.mockReturnValue({ lean: async () => null });
-  stubActors({ [AUTHOR_URI]: AUTHOR_OXY_ID, [FED_MENTION_URI]: FED_MENTION_OXY_ID });
+  await seedActors({ [AUTHOR_URI]: AUTHOR_OXY_ID, [FED_MENTION_URI]: FED_MENTION_OXY_ID });
+  // A local user follows the author, so `handleCreate`'s follower gate passes.
+  await seedFollow(scope, { remoteActorUri: AUTHOR_URI, direction: 'outbound', status: 'accepted' });
 });
 
 describe('handleCreate — inbound @mention ingestion', () => {
   it('rewrites a FEDERATED mention anchor to a [mention:<oxyUserId>] placeholder and stores post.mentions', async () => {
     const content =
-      '<p>hey <span class="h-card"><a href="https://remote.example/@bob" class="u-url mention">@<span>bob</span></a></span> look</p>';
+      `<p>hey <span class="h-card"><a href="${REMOTE}/@bob" class="u-url mention">@<span>bob</span></a></span> look</p>`;
     const activity = createActivity(content, [
-      { type: 'Mention', href: FED_MENTION_URI, name: '@bob@remote.example' },
+      { type: 'Mention', href: FED_MENTION_URI, name: `@bob@${scope.domain}` },
     ]);
 
     await inboxProcessingService.processInboxActivity(activity, AUTHOR_URI);
@@ -301,11 +306,14 @@ describe('handleCreate — inbound @mention ingestion', () => {
   it('does NOT rewrite an anchor whose href matches no resolved mention (degrades gracefully)', async () => {
     // An unresolvable mention actor (getOrFetchActor returns no oxyUserId): the
     // anchor stays, no placeholder, no stored mention — the prior bare-text behavior.
-    stubActors({ [AUTHOR_URI]: AUTHOR_OXY_ID });
+    // Only the author resolves; the mentioned actor has no row at all.
+    await clearFederationScope(scope);
+    await seedActors({ [AUTHOR_URI]: AUTHOR_OXY_ID });
+    await seedFollow(scope, { remoteActorUri: AUTHOR_URI, direction: 'outbound', status: 'accepted' });
     const content =
-      '<p>hi <a href="https://remote.example/@ghost" class="u-url mention">@<span>ghost</span></a></p>';
+      `<p>hi <a href="${REMOTE}/@ghost" class="u-url mention">@<span>ghost</span></a></p>`;
     const activity = createActivity(content, [
-      { type: 'Mention', href: `${REMOTE}/users/ghost`, name: '@ghost@remote.example' },
+      { type: 'Mention', href: `${REMOTE}/users/ghost`, name: `@ghost@${scope.domain}` },
     ]);
 
     await inboxProcessingService.processInboxActivity(activity, AUTHOR_URI);
@@ -314,4 +322,12 @@ describe('handleCreate — inbound @mention ingestion', () => {
     expect(primaryVariantText()).not.toContain('[mention:');
     expect(mocks.createMentionNotifications).not.toHaveBeenCalled();
   });
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });

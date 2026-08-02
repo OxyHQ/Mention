@@ -30,6 +30,20 @@ for (const key of POSTGRES_ENV_KEYS) {
   if (value && !process.env[key]) process.env[key] = value;
 }
 
+/**
+ * One connection per pool in the suite, because a pool is per TEST FILE.
+ *
+ * `connectPostgres()` opens `PG_MAX_POOL_SIZE` (default 20) connections, and
+ * vitest runs files in parallel workers — so every file that touches Postgres
+ * multiplies against one server's `max_connections`. Past ~5 concurrent files
+ * the run starts producing `CONNECT_TIMEOUT` from `postgres.js` and tipping
+ * timing-sensitive suites that have nothing to do with the database. A suite
+ * issues its queries sequentially, so one connection is all any file needs.
+ *
+ * A value already in the real environment wins, like the two keys above.
+ */
+if (!process.env.PG_MAX_POOL_SIZE) process.env.PG_MAX_POOL_SIZE = '1';
+
 export default defineConfig({
   root: backendRoot,
   test: {

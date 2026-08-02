@@ -1,4 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  readActor,
+} from '../../helpers/federationFixtures';
+
+const scope = federationScope('atproto-profile-mapper');
 import { getNormalizedUserHandle } from '@oxyhq/core';
 
 /**
@@ -11,19 +20,10 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 
 const mocks = vi.hoisted(() => ({
   xrpcGet: vi.fn(),
-  findOneAndUpdate: vi.fn(),
-  updateOne: vi.fn(),
   resolveOxyExternalUser: vi.fn(),
 }));
 
 vi.mock('../../../connectors/atproto/xrpcClient', () => ({ xrpcGet: mocks.xrpcGet }));
-
-vi.mock('../../../models/FederatedActor', () => ({
-  default: {
-    findOneAndUpdate: mocks.findOneAndUpdate,
-    updateOne: mocks.updateOne,
-  },
-}));
 
 vi.mock('../../../connectors/identity', () => ({
   resolveOxyExternalUser: mocks.resolveOxyExternalUser,
@@ -49,10 +49,9 @@ const PROFILE = {
   postsCount: 99,
 };
 
-beforeEach(() => {
+beforeEach(async () => {
+  await clearFederationScope(scope, [DID]);
   vi.clearAllMocks();
-  mocks.findOneAndUpdate.mockResolvedValue({ _id: 'fa1', oxyUserId: undefined });
-  mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.resolveOxyExternalUser.mockResolvedValue('oxy-alice');
 });
 
@@ -177,19 +176,14 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     const actor = await fetchAndUpsertAtprotoProfile(DID);
 
     expect(mocks.xrpcGet).toHaveBeenCalledWith('public.api.bsky.app', 'app.bsky.actor.getProfile', { actor: DID });
-    // Upsert keyed on the DID, carrying protocol + uri (the DID) + handle acct.
-    expect(mocks.findOneAndUpdate).toHaveBeenCalledWith(
-      { uri: DID },
-      expect.objectContaining({
-        $set: expect.objectContaining({
-          protocol: 'atproto',
-          uri: DID,
-          acct: 'alice.bsky.social',
-          headerUrl: PROFILE.banner,
-        }),
-      }),
-      expect.objectContaining({ upsert: true }),
-    );
+    // The ROW is keyed on the DID and carries protocol + acct + banner.
+    const stored = await readActor(DID);
+    expect(stored).toMatchObject({
+      protocol: 'atproto',
+      uri: DID,
+      acct: 'alice.bsky.social',
+      headerUrl: PROFILE.banner,
+    });
     // Oxy resolution is handed the canonical federated identity (`handle@domain`
     // username + instance domain) — the exact shape oxy-api's username↔domain
     // binding requires for a `did:` actor. Passing the bare handle here would
@@ -203,12 +197,13 @@ describe('fetchAndUpsertAtprotoProfile', () => {
         bannerUrl: PROFILE.banner,
       }),
     );
-    // Oxy user resolved + stamped (the upsert returned no prior oxyUserId).
-    expect(mocks.updateOne).toHaveBeenCalledWith({ _id: 'fa1' }, { $set: { oxyUserId: 'oxy-alice' } });
+    // Oxy user resolved + stamped ON THE ROW (the upsert carried no prior one).
+    expect((await readActor(DID))?.oxyUserId).toBe('oxy-alice');
     expect(actor?.oxyUserId).toBe('oxy-alice');
   });
 
   it('fails soft (no oxyUserId, no throw, no stamp) when Oxy cannot resolve the did:', async () => {
+    await clearFederationScope(scope, [DID]);
     mocks.xrpcGet.mockResolvedValue(PROFILE);
     mocks.resolveOxyExternalUser.mockResolvedValue(null);
 
@@ -216,7 +211,7 @@ describe('fetchAndUpsertAtprotoProfile', () => {
 
     expect(actor).not.toBeNull();
     expect(actor?.oxyUserId).toBeUndefined();
-    expect(mocks.updateOne).not.toHaveBeenCalled();
+    expect((await readActor(DID))?.oxyUserId).toBeUndefined();
   });
 
   it('returns null when the profile cannot be fetched', async () => {
@@ -224,4 +219,16 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     const actor = await fetchAndUpsertAtprotoProfile('ghost.example');
     expect(actor).toBeNull();
   });
+});
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope, [DID]);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });

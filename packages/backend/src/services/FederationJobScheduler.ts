@@ -1,9 +1,22 @@
 import { logger } from '../utils/logger';
-import type { Types } from 'mongoose';
 import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
-import FederatedActor, { type FederatedOutboxBackfillState } from '../models/FederatedActor';
-import FederatedFollow from '../models/FederatedFollow';
-import FederationDeliveryQueue, { getNextRetryTime } from '../models/FederationDeliveryQueue';
+import {
+  claimOutboxBackfill,
+  findActorsWithOutboxByUris,
+  findOutboxBackfillCandidates,
+  findStaleActorsForRefresh,
+  updateOutboxBackfill,
+  type OutboxBackfillCandidate,
+  type OutboxBackfillPatch,
+} from '../db/federation/actorRepository';
+import { distinctRemoteActorUris } from '../db/federation/followRepository';
+import {
+  findDueDeliveries,
+  findUnmigratedDeliveries,
+  getNextRetryTime,
+  markDeliveriesMigrated,
+  recordDeliveryAttempt,
+} from '../db/federation/deliveryQueueRepository';
 import { activityPubConnector, isPermanentlyUnavailableOutboxReason } from '../connectors/activitypub/ActivityPubConnector';
 import { runCacheWorkerOnce } from './mediaCache/cacheWorker';
 import { runEvictionOnce } from './mediaCache/evictionJob';
@@ -65,15 +78,6 @@ const OUTBOX_RECENT_BACKFILL_ACTOR_BATCH_SIZE = 10;
 
 /** Per-actor distributed lock TTL for recent outbox backfill. */
 const OUTBOX_RECENT_BACKFILL_LOCK_MS = 10 * 60 * 1000;
-
-type RecentOutboxBackfillActor = {
-  _id: Types.ObjectId;
-  uri: string;
-  acct: string;
-  outboxUrl?: string;
-  oxyUserId?: string;
-  outboxBackfill?: FederatedOutboxBackfillState;
-};
 
 class FederationJobScheduler {
   private actorRefreshInterval: ReturnType<typeof setInterval> | null = null;
@@ -265,7 +269,7 @@ class FederationJobScheduler {
   }
 
   /**
-   * Drain any `FederationDeliveryQueue` rows left in `pending` (written by an
+   * Drain any `federation_delivery_queue` rows left in `pending` (written by an
    * older build or while the queue was unavailable) into the BullMQ delivery
    * queue, then mark them migrated so a re-run never re-enqueues the same row.
    *
@@ -279,22 +283,16 @@ class FederationJobScheduler {
 
     // Page through pending, not-yet-migrated rows to bound memory.
     for (;;) {
-      const rows = await FederationDeliveryQueue.find({
-        status: 'pending',
-        migratedToBullmq: { $ne: true },
-      })
-        .sort({ nextAttemptAt: 1 })
-        .limit(DELIVERY_DRAIN_PAGE_SIZE)
-        .lean();
+      const rows = await findUnmigratedDeliveries(DELIVERY_DRAIN_PAGE_SIZE);
 
       if (rows.length === 0) break;
 
-      const migratedIds: Types.ObjectId[] = [];
+      const migratedIds: string[] = [];
       for (const row of rows) {
-        const jobId = `delivery:migrated:${String(row._id)}`;
+        const jobId = `delivery:migrated:${row.id}`;
         const enqueued = await enqueueDeliveryWithJobId(
           {
-            activityJson: row.activityJson as Record<string, unknown>,
+            activityJson: row.activityJson,
             targetInbox: row.targetInbox,
             senderOxyUserId: row.senderOxyUserId,
           },
@@ -308,15 +306,12 @@ class FederationJobScheduler {
         });
 
         if (enqueued) {
-          migratedIds.push(row._id);
+          migratedIds.push(row.id);
         }
       }
 
       if (migratedIds.length > 0) {
-        await FederationDeliveryQueue.updateMany(
-          { _id: { $in: migratedIds } },
-          { $set: { migratedToBullmq: true } },
-        );
+        await markDeliveriesMigrated(migratedIds);
         totalDrained += migratedIds.length;
       }
 
@@ -427,32 +422,16 @@ class FederationJobScheduler {
     const staleThreshold = new Date(Date.now() - ACTOR_STALE_MS);
 
     // Actors that have active follows (followed in either direction).
-    const followedUris = await FederatedFollow.distinct('remoteActorUri', {
-      status: 'accepted',
-    });
+    const followedUris = await distinctRemoteActorUris({ statuses: ['accepted'] });
 
     // Refresh anything that is stale AND either followed or has been resolved
     // locally (oxyUserId set ⇒ a Mention user can view this profile). This keeps
-    // viewed-but-not-followed profiles fresh too.
-    const staleActors = await FederatedActor.find({
-      $and: [
-        {
-          $or: [
-            { lastFetchedAt: { $lt: staleThreshold } },
-            { lastFetchedAt: null },
-          ],
-        },
-        {
-          $or: [
-            ...(followedUris.length > 0 ? [{ uri: { $in: followedUris } }] : []),
-            { oxyUserId: { $ne: null } },
-          ],
-        },
-      ],
-    })
-      .select('uri acct')
-      .limit(ACTOR_REFRESH_BATCH_SIZE) // Process in batches to avoid fan-out storms
-      .lean();
+    // viewed-but-not-followed profiles fresh too. Batched to avoid fan-out storms.
+    const staleActors = await findStaleActorsForRefresh(
+      staleThreshold,
+      followedUris,
+      ACTOR_REFRESH_BATCH_SIZE,
+    );
 
     if (staleActors.length === 0) return;
 
@@ -489,19 +468,16 @@ class FederationJobScheduler {
     }
     this.isSyncFollowedActorsPostsRunning = true;
     try {
-      const followedActorUris = await FederatedFollow.distinct('remoteActorUri', {
+      const followedActorUris = await distinctRemoteActorUris({
         direction: 'outbound',
-        status: 'accepted',
+        statuses: ['accepted'],
       });
 
       if (followedActorUris.length === 0) return;
 
-      const actors = await FederatedActor.find({
-        uri: { $in: followedActorUris },
-        outboxUrl: { $ne: null },
-      })
-        .select('uri acct outboxUrl oxyUserId')
-        .lean();
+      // `{ outboxUrl: { $ne: null } }` becomes `outbox_url IS NOT NULL` — the
+      // total predicate. `<> null` would be NULL for every row and select none.
+      const actors = await findActorsWithOutboxByUris(followedActorUris);
 
       if (actors.length === 0) return;
 
@@ -543,30 +519,10 @@ class FederationJobScheduler {
     this.isSyncRecentOutboxBackfillsRunning = true;
     try {
       const now = new Date();
-      const actors = await FederatedActor.find({
-        outboxUrl: { $exists: true, $ne: null },
-        oxyUserId: { $ne: null },
-        $and: [
-          {
-            $or: [
-              { 'outboxBackfill.status': { $exists: false } },
-              { 'outboxBackfill.status': { $in: ['pending', 'failed'] } },
-              { $expr: { $ne: ['$outboxBackfill.outboxUrl', '$outboxUrl'] } },
-            ],
-          },
-          {
-            $or: [
-              { 'outboxBackfill.lockedUntil': { $exists: false } },
-              { 'outboxBackfill.lockedUntil': null },
-              { 'outboxBackfill.lockedUntil': { $lte: now } },
-            ],
-          },
-        ],
-      })
-        .select('uri acct outboxUrl oxyUserId outboxBackfill')
-        .sort({ 'outboxBackfill.lastRunAt': 1, updatedAt: 1 })
-        .limit(OUTBOX_RECENT_BACKFILL_ACTOR_BATCH_SIZE)
-        .lean<RecentOutboxBackfillActor[]>();
+      const actors = await findOutboxBackfillCandidates(
+        now,
+        OUTBOX_RECENT_BACKFILL_ACTOR_BATCH_SIZE,
+      );
 
       if (actors.length === 0) return;
 
@@ -580,7 +536,7 @@ class FederationJobScheduler {
     }
   }
 
-  private async runRecentOutboxBackfillForActor(actor: RecentOutboxBackfillActor): Promise<void> {
+  private async runRecentOutboxBackfillForActor(actor: OutboxBackfillCandidate): Promise<void> {
     const outboxUrl = actor.outboxUrl;
     if (!outboxUrl) return;
 
@@ -592,69 +548,44 @@ class FederationJobScheduler {
     const previousPageCount = outboxChanged ? 0 : Math.max(0, previousState?.pageCount ?? 0);
 
     if (!outboxChanged && previousProcessedCount >= OUTBOX_RECENT_BACKFILL_LIMIT) {
-      await FederatedActor.updateOne(
-        { _id: actor._id },
-        {
-          $set: {
-            'outboxBackfill.status': 'complete',
-            'outboxBackfill.outboxUrl': outboxUrl,
-            'outboxBackfill.processedCount': OUTBOX_RECENT_BACKFILL_LIMIT,
-            'outboxBackfill.completedAt': new Date(),
-          },
-          $unset: {
-            'outboxBackfill.cursorUrl': '',
-            'outboxBackfill.lockedUntil': '',
-            'outboxBackfill.lastError': '',
-          },
-        },
-      );
+      await updateOutboxBackfill(actor.id, {
+        status: 'complete',
+        outboxUrl,
+        processedCount: OUTBOX_RECENT_BACKFILL_LIMIT,
+        completedAt: new Date(),
+        cursorUrl: null,
+        lockedUntil: null,
+        lastError: null,
+      });
       return;
     }
 
     const now = new Date();
     const lockUntil = new Date(now.getTime() + OUTBOX_RECENT_BACKFILL_LOCK_MS);
-    const claimUpdate: {
-      $set: Record<string, unknown>;
-      $unset: Record<string, ''>;
-    } = {
-      $set: {
-        'outboxBackfill.status': 'pending',
-        'outboxBackfill.outboxUrl': outboxUrl,
-        'outboxBackfill.lockedUntil': lockUntil,
-        'outboxBackfill.lastRunAt': now,
-      },
-      $unset: {
-        'outboxBackfill.lastError': '',
-      },
+    const claimPatch: OutboxBackfillPatch = {
+      status: 'pending',
+      outboxUrl,
+      lockedUntil: lockUntil,
+      lastRunAt: now,
+      lastError: null,
     };
 
+    // The remote MOVED its outbox: the stored counters describe a collection
+    // that no longer exists, so the whole cursor is reset rather than resumed.
     if (outboxChanged) {
-      Object.assign(claimUpdate.$set, {
-        'outboxBackfill.cursorItemOffset': 0,
-        'outboxBackfill.processedCount': 0,
-        'outboxBackfill.importedCount': 0,
-        'outboxBackfill.existingCount': 0,
-        'outboxBackfill.pageCount': 0,
-      });
-      Object.assign(claimUpdate.$unset, {
-        'outboxBackfill.cursorUrl': '',
-        'outboxBackfill.completedAt': '',
-      });
+      claimPatch.cursorItemOffset = 0;
+      claimPatch.processedCount = 0;
+      claimPatch.importedCount = 0;
+      claimPatch.existingCount = 0;
+      claimPatch.pageCount = 0;
+      claimPatch.cursorUrl = null;
+      claimPatch.completedAt = null;
     }
 
-    const claim = await FederatedActor.updateOne(
-      {
-        _id: actor._id,
-        $or: [
-          { 'outboxBackfill.lockedUntil': { $exists: false } },
-          { 'outboxBackfill.lockedUntil': null },
-          { 'outboxBackfill.lockedUntil': { $lte: now } },
-        ],
-      },
-      claimUpdate,
-    );
-
-    if ((claim.modifiedCount ?? 0) === 0) return;
+    // Re-tests the lock inside the UPDATE, so two schedulers that selected the
+    // same actor cannot both proceed.
+    const claimed = await claimOutboxBackfill(actor.id, now, claimPatch);
+    if (!claimed) return;
 
     const remaining = Math.max(0, OUTBOX_RECENT_BACKFILL_LIMIT - previousProcessedCount);
     const result = await activityPubConnector.syncOutboxPostsDetailed(
@@ -678,62 +609,43 @@ class FederationJobScheduler {
     const existingCount = previousExistingCount + (result.existingCount ?? 0);
     const pageCount = previousPageCount + (result.pagesFetched ?? 0);
 
-    const update: {
-      $set: Record<string, unknown>;
-      $unset: Record<string, ''>;
-    } = {
-      $set: {
-        'outboxBackfill.outboxUrl': outboxUrl,
-        'outboxBackfill.processedCount': processedCount,
-        'outboxBackfill.importedCount': importedCount,
-        'outboxBackfill.existingCount': existingCount,
-        'outboxBackfill.pageCount': pageCount,
-        'outboxBackfill.lastRunAt': new Date(),
-      },
-      $unset: {
-        'outboxBackfill.lockedUntil': '',
-        'outboxBackfill.lastError': '',
-      },
+    // The lease is released and the error cleared in every branch; the failure
+    // branch then re-sets `lastError`, which is why it is written LAST rather
+    // than conditionally omitted from the base patch.
+    const patch: OutboxBackfillPatch = {
+      outboxUrl,
+      processedCount,
+      importedCount,
+      existingCount,
+      pageCount,
+      lastRunAt: new Date(),
+      lockedUntil: null,
+      lastError: null,
     };
 
     if (isPermanentlyUnavailableOutboxReason(result.reason)) {
-      Object.assign(update.$set, {
-        'outboxBackfill.status': 'unavailable',
-        'outboxBackfill.completedAt': new Date(),
-      });
-      Object.assign(update.$unset, {
-        'outboxBackfill.cursorUrl': '',
-      });
+      patch.status = 'unavailable';
+      patch.completedAt = new Date();
+      patch.cursorUrl = null;
     } else if (!result.shouldStampCooldown) {
-      Object.assign(update.$set, {
-        'outboxBackfill.status': 'failed',
-        'outboxBackfill.lastError': result.reason ?? 'unknown',
-      });
-      delete update.$unset['outboxBackfill.lastError'];
+      patch.status = 'failed';
+      patch.lastError = result.reason ?? 'unknown';
     } else if (processedCount >= OUTBOX_RECENT_BACKFILL_LIMIT || result.reachedEnd || !result.nextCursor) {
-      Object.assign(update.$set, {
-        'outboxBackfill.status': 'complete',
-        'outboxBackfill.completedAt': new Date(),
-      });
-      Object.assign(update.$unset, {
-        'outboxBackfill.cursorUrl': '',
-      });
+      patch.status = 'complete';
+      patch.completedAt = new Date();
+      patch.cursorUrl = null;
     } else {
-      Object.assign(update.$set, {
-        'outboxBackfill.status': 'pending',
-        'outboxBackfill.cursorUrl': result.nextCursor.url,
-        'outboxBackfill.cursorItemOffset': result.nextCursor.itemOffset,
-      });
-      Object.assign(update.$unset, {
-        'outboxBackfill.completedAt': '',
-      });
+      patch.status = 'pending';
+      patch.cursorUrl = result.nextCursor.url;
+      patch.cursorItemOffset = result.nextCursor.itemOffset;
+      patch.completedAt = null;
     }
 
-    await FederatedActor.updateOne({ _id: actor._id }, update);
+    await updateOutboxBackfill(actor.id, patch);
     logger.info(
       '[FedSync] recent backfill completed',
       {
-        status: String(update.$set['outboxBackfill.status']),
+        status: String(patch.status),
         processedCount,
         processingLimit: OUTBOX_RECENT_BACKFILL_LIMIT,
         importedCount,
@@ -754,13 +666,8 @@ class FederationJobScheduler {
     try {
       const now = new Date();
 
-      const pending = await FederationDeliveryQueue.find({
-        status: 'pending',
-        nextAttemptAt: { $lte: now },
-      })
-        .limit(200) // Process in larger batches to avoid backlog
-        .sort({ nextAttemptAt: 1 })
-        .lean();
+      // Larger batches to avoid backlog.
+      const pending = await findDueDeliveries(now, 200);
 
       if (pending.length === 0) return;
 
@@ -788,54 +695,52 @@ class FederationJobScheduler {
           // Need the sender's username to sign the request.
           const user = senders.get(delivery.senderOxyUserId);
           if (!user?.username) {
-            await FederationDeliveryQueue.updateOne(
-              { _id: delivery._id },
-              { $set: { status: 'failed', error: 'Sender user not found' } },
-            );
+            await recordDeliveryAttempt(delivery.id, {
+              status: 'failed',
+              error: 'Sender user not found',
+            });
             continue;
           }
 
           const success = await activityPubConnector.deliverActivity(
-            delivery.activityJson as Record<string, unknown>,
+            delivery.activityJson,
             delivery.targetInbox,
             delivery.senderOxyUserId,
             user.username,
           );
 
           if (success) {
-            await FederationDeliveryQueue.updateOne(
-              { _id: delivery._id },
-              { $set: { status: 'delivered', lastAttemptAt: now, error: undefined } },
-            );
+            // `error` is deliberately not cleared. The Mongo write said
+            // `error: undefined`, which Mongoose STRIPS from a `$set`, so a
+            // delivered row has always kept whatever a prior failed attempt
+            // left there. Clearing it here would be a behaviour change.
+            await recordDeliveryAttempt(delivery.id, {
+              status: 'delivered',
+              lastAttemptAt: now,
+            });
           } else {
             const nextAttempt = getNextRetryTime(delivery.attempts + 1);
             if (!nextAttempt) {
-              await FederationDeliveryQueue.updateOne(
-                { _id: delivery._id },
-                { $set: { status: 'failed', lastAttemptAt: now, error: 'Max retries exceeded' } },
-              );
+              await recordDeliveryAttempt(delivery.id, {
+                status: 'failed',
+                lastAttemptAt: now,
+                error: 'Max retries exceeded',
+              });
             } else {
-              await FederationDeliveryQueue.updateOne(
-                { _id: delivery._id },
-                {
-                  $set: { lastAttemptAt: now, nextAttemptAt: nextAttempt },
-                  $inc: { attempts: 1 },
-                },
-              );
+              await recordDeliveryAttempt(delivery.id, {
+                lastAttemptAt: now,
+                nextAttemptAt: nextAttempt,
+                incrementAttempts: true,
+              });
             }
           }
         } catch (err) {
           logger.debug('Delivery retry failed', err);
-          await FederationDeliveryQueue.updateOne(
-            { _id: delivery._id },
-            {
-              $set: {
-                lastAttemptAt: now,
-                error: err instanceof Error ? err.message : String(err),
-              },
-              $inc: { attempts: 1 },
-            },
-          );
+          await recordDeliveryAttempt(delivery.id, {
+            lastAttemptAt: now,
+            error: err instanceof Error ? err.message : String(err),
+            incrementAttempts: true,
+          });
         }
       }
     } finally {
