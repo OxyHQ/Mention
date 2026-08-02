@@ -2,13 +2,17 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import type { User as OxyUser } from '@oxyhq/core';
-import { PostVisibility, type PostContent } from '@mention/shared-types';
+import {
+  PostVisibility,
+  type FederationBlocksResponse,
+  type PostContent,
+} from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import { activityPubConnector, isPermanentlyUnavailableOutboxReason } from './activitypub/ActivityPubConnector';
 import FederatedActor from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
 import { Post } from '../models/Post';
-import { FEDERATION_ENABLED } from './activitypub/constants';
+import { FEDERATION_BLOCKS, FEDERATION_ENABLED } from './activitypub/constants';
 import { ATPROTO_ENABLED, isDid, isAtUri, isAtprotoHandle } from './atproto/constants';
 import { normalizeFederatedAcct } from './activitypub/helpers';
 import { isAbsoluteHttpUrl } from './shared/url';
@@ -202,6 +206,26 @@ async function resolveActorDisplayNamesByUri(
 // Note: Local profile search/lookup is handled by OxyHQServices
 // (/profiles/search, /profiles/resolve). These routes handle cross-network
 // federation operations (resolve, follows, posts).
+
+/**
+ * GET /federation/blocked-domains
+ *
+ * The instances Mention refuses to federate with, and why — public, because
+ * moderation policy is a statement to the outside world and every instance whose
+ * published blocklist we read makes the same one.
+ *
+ * Served from {@link FEDERATION_BLOCKS}, the SAME array the federation policy
+ * derives its enforced set from, so what this returns and what the server
+ * actually does cannot drift apart. Our own domains and the Oxy identity apex are
+ * rejected by that policy too but are not moderation decisions, and are not in
+ * this list — see `activitypub/federationBlockPolicy`.
+ *
+ * No auth: an unauthenticated reader is the audience.
+ */
+router.get('/blocked-domains', (_req: AuthRequest, res: Response) => {
+  const body: FederationBlocksResponse = { blocks: [...FEDERATION_BLOCKS] };
+  return res.json(body);
+});
 
 /**
  * GET /federation/resolve?handle=...

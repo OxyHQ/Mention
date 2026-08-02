@@ -1727,5 +1727,45 @@
       "science": "Science",
       "other": ""
     }
+  },
+  "transparency": {
+    "title": "Transparency",
+    "heading": "Who we federate with",
+    "intro": "Mention is part of the fediverse — a network of independently run social sites that pass posts and follows between one another. Anyone can run one, and that openness is the point. It also means some are run by people who host things we will not carry.",
+    "introSource": "This page lists every instance Mention refuses to exchange with, and why. It is rendered from the same list the server enforces, so it cannot quietly fall out of date.",
+    "whatItDoes": {
+      "title": "What a block does",
+      "body": "Nothing from a blocked instance reaches Mention. Posts, follows, likes and boosts it sends are refused as they arrive, we stop fetching its accounts and timelines, and its accounts can no longer be found or followed from here.",
+      "bluntness": "It applies to a whole site, not to the individual people on it. That is a blunt instrument, so we would rather use it rarely and explain it every time.",
+      "limits": "Worth knowing: a block governs what reaches Mention. Anything you post publicly here stays public and can still be read from anywhere, including the instances on this list."
+    },
+    "howWeDecide": {
+      "title": "How a decision is taken",
+      "corroboration": "Most fediverse servers publish the instances they have blocked, as open data. We read several of those lists and look for the same decision reached independently by more than one of them before treating it as a signal — one server’s list is one server’s opinion, and some published blocks are contested.",
+      "judgement": "Corroboration is not the decision. Before anything is added we look at what we actually hold from that instance and what a block would cost the people here, and a person makes the call. Where another server’s published decision is what prompted ours, it is named below.",
+      "audit": "The list lives in Mention’s source code, so every entry arrives as a reviewed change carrying a date and a written reason — and can be argued with, or undone. We publish ours as open data at /federation/blocked-domains, the same way we read everyone else’s."
+    },
+    "list": {
+      "title": "Instances we do not federate with",
+      "count_one": "{{count}} instance is blocked.",
+      "count_other": "{{count}} instances are blocked.",
+      "empty": "No instances are blocked. Mention federates with the whole network today; if that changes, every decision will appear here with its reason and the date it took effect.",
+      "error": "This list could not be loaded right now. It is served at /federation/blocked-domains if you would rather read it directly."
+    },
+    "severity": {
+      "suspend": "Not federated"
+    },
+    "blockMeta": "{{category}} · Blocked since {{since}}",
+    "corroboratedBy": "Also published by {{sources}}",
+    "decidedHere": "Decided from reports and moderation on Mention.",
+    "operationalBlock": "Blocked urgently by an operator, ahead of a written policy entry. Its reason has not been published yet.",
+    "category": {
+      "childSafety": "Child safety",
+      "hateSpeech": "Hate speech",
+      "harassment": "Targeted harassment",
+      "spam": "Spam",
+      "malware": "Malware or phishing",
+      "unmoderated": "Unmoderated"
+    }
   }
 }
