@@ -116,6 +116,37 @@ describe('canonical post cache contract', () => {
     expect(item).not.toHaveProperty('quoted');
   });
 
+  /**
+   * `PostItem` reads `storePost ?? post`, so this converter decides what a post
+   * looks like on every feed surface — the cached copy WINS over the API
+   * response. A channel is the signature of the row (its avatar, its name) and
+   * the reason a channel post says nothing about replies; drop it here and a
+   * channel post renders under its author's face and reports "Replies are off",
+   * because the `['nobody']` the server persists as defence in depth survives in
+   * `metadata` while the channel that explains it does not.
+   *
+   * `FeedItem` extends `HydratedPost`, so a field this function forgets is a
+   * runtime-only loss — nothing about it is visible to the type-check.
+   */
+  it('carries the channel that signs a post, through SQLite too', () => {
+    const channel = { id: 'channel-1', handle: 'news', title: 'News', signPosts: true };
+    const post = makePost('channel-post', {
+      channel,
+      metadata: {
+        visibility: PostVisibility.PUBLIC,
+        createdAt: '2026-07-26T00:00:00.000Z',
+        updatedAt: '2026-07-26T00:00:00.000Z',
+        replyPermission: ['nobody'],
+      },
+    });
+
+    const item = toFeedItem(post);
+    expect(item.channel).toEqual(channel);
+
+    const restored = rowToFeedItem(postToRow(item));
+    expect(restored?.channel).toEqual(channel);
+  });
+
   it('rehydrates mutable state from columns but rejects legacy raw rows', () => {
     const row = postToRow(toFeedItem(makePost('stored')));
     row.is_liked = 1;
