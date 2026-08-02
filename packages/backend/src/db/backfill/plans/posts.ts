@@ -77,6 +77,7 @@
  * settle which of two duplicates is authoritative is a count, not a guess.
  */
 
+import { articles } from '../../schema/articles';
 import { posts } from '../../schema/posts';
 import {
   postAttachments,
@@ -87,6 +88,7 @@ import {
   postMentions,
   postSources,
   postVariantAltTexts,
+  postRecentRepliers,
   postVariantMedia,
 } from '../../schema/postContent';
 import type { CollectionPlan, Emit } from '../plan';
@@ -101,13 +103,15 @@ import {
   num,
   numArray,
   ownId,
+  reqDate,
+  reqId,
   reqStr,
   str,
   strArray,
   subdocuments,
   type MongoDocument,
 } from '../values';
-import { timestampsCreatedFromId } from './timestamps';
+import { timestamps, timestampsCreatedFromId } from './timestamps';
 
 /** Every classification score is a probability; the CHECK is `between 0 and 1`. */
 const SCORE_PATHS = [
@@ -661,5 +665,136 @@ function emitTopicRefs(doc: MongoDocument, postId: string, emit: Emit): void {
   }
 }
 
-/** The posts plan. */
-export const POST_PLANS: readonly CollectionPlan[] = [postsPlan];
+/**
+ * `articles` -> `articles`. The long-form body of a post.
+ *
+ * Mongo carried the linkage BOTH ways (`Article.postId` and
+ * `Post.content.article.articleId`) and the two could disagree. The schema
+ * settled that: `articles.post_id` is the OWNING side and the only one with a
+ * constraint, while `posts.content_article_id` stays a denormalized read
+ * shortcut. This transform copies each side from its own source field and
+ * RECONCILES NEITHER -- a migration that quietly repaired a disagreement would
+ * destroy the evidence that one existed, and which of the two is right is a
+ * question about the data, not about the copy.
+ *
+ * `post_id` is NULLABLE here because the Mongoose field is not `required`: a
+ * draft article can exist before its post. So an absent one is a real state and
+ * not a defect, which is why there is no throw and no audit for it.
+ */
+const articlesPlan: CollectionPlan = {
+  collection: 'articles',
+  table: articles,
+  transform: (doc, emit) => {
+    const articleId = ownId(doc);
+    emit(
+      articles,
+      buildRow(
+        articles,
+        {
+          id: articleId,
+          // A plain `String` in Mongo holding a stringified `posts._id`, and a
+          // REAL foreign key here -- so `id`, which accepts either shape and
+          // treats an empty string as absent rather than as a reference to
+          // nothing. An article naming a deleted post becomes a referential
+          // finding rather than a silent `23503` at hour three.
+          postId: id(doc, 'postId'),
+          createdBy: reqStr(doc, 'createdBy'),
+          // Both NULLABLE and both `trim: true` in Mongoose, which ran on save.
+          // Copied verbatim: re-trimming here would be this migration editing
+          // content, and a title that is whitespace-only in Mongo is a fact
+          // about the data worth preserving rather than laundering.
+          title: str(doc, 'title'),
+          body: str(doc, 'body'),
+          ...timestamps(doc),
+        },
+        articleId
+      )
+    );
+  },
+};
+
+/**
+ * `post_recent_repliers` -> `post_recent_repliers`. ONE document becomes N ROWS.
+ *
+ * The only plan in the migration whose PRIMARY table takes several rows per
+ * document without a parent table above them: Mongo stored one document per
+ * post holding a bounded `repliers[]` array, and Postgres stores one row per
+ * (post, replier). There is no parent row to emit, so the document `_id` serves
+ * only as the namespace the derived row ids hash from.
+ *
+ * ## Copying a WRITE-DEAD projection into a LIVE table
+ *
+ * This is the one collection where the Postgres side is already authoritative:
+ * `PostRecentReplierService` and `EngagementProjectionReconciliationService`
+ * maintain the table, and the Mongo model survives only for the historical
+ * migration and the deletion preflight. So the copy is not filling an empty
+ * table -- it is merging history into a table with live writers.
+ *
+ * That is safe in the direction that matters and worth stating precisely.
+ * `ON CONFLICT DO NOTHING` fires on
+ * `post_recent_repliers_post_id_oxy_user_id_key`, so a replier the live service
+ * already recorded keeps the LIVE row and its `replied_at`; only a (post,
+ * replier) pair Postgres does not have is inserted. Nothing live is
+ * overwritten.
+ *
+ * What it CAN do is re-add a replier the cap already evicted, leaving a post
+ * with more than `POST_RECENT_REPLIER_LIMIT` rows. That is a read-model
+ * artefact rather than a loss -- the projection is fully recomputable from the
+ * replies themselves, and the reconciliation service is what corrects it. The
+ * alternative, excluding the collection, risks the opposite and worse failure:
+ * a post whose repliers the live table has not yet learned would lose them
+ * outright. Copying loses nothing, so copying is the conservative answer.
+ */
+const postRecentRepliersPlan: CollectionPlan = {
+  collection: 'post_recent_repliers',
+  table: postRecentRepliers,
+  transform: (doc, emit) => {
+    const documentId = ownId(doc);
+    // A real foreign key, and NOT NULL -- an entry naming a deleted post is a
+    // referential finding, which is the right outcome for a projection of it.
+    const postId = reqId(doc, 'postId');
+    const stamps = timestamps(doc);
+
+    // `(post_id, oxy_user_id)` is unique and the embedded array could hold the
+    // same replier twice, so dedup on the replier. FIRST occurrence wins: the
+    // array is maintained newest-first by the writer, so the first entry is the
+    // most recent `repliedAt` -- taking the later duplicate would move the
+    // replier BACKWARDS in a list ordered by exactly that column.
+    const seen = new Set<string>();
+    for (const [entry, ordinal] of subdocuments(doc, 'repliers')) {
+      const oxyUserId = reqStr(entry, 'oxyUserId');
+      if (seen.has(oxyUserId)) continue;
+      seen.add(oxyUserId);
+      emit(
+        postRecentRepliers,
+        buildRow(
+          postRecentRepliers,
+          {
+            // `{ _id: false }` on the subschema, so DERIVED -- from the
+            // DOCUMENT id rather than the post id, because the document is what
+            // the ordinal indexes into.
+            id: childRowId(entry, documentId, 'repliers', ordinal),
+            postId,
+            oxyUserId,
+            // `required: true` in Mongo and NOT NULL with no default here. The
+            // whole point of the row is WHEN, and the read is ordered by it, so
+            // an absent one is a loud failure rather than an invented `now()`
+            // that would sort the entry to the top of the list.
+            repliedAt: reqDate(entry, 'repliedAt'),
+            // The document's timestamps, applied to every row it produces: the
+            // projection row was written when the document was.
+            ...stamps,
+          },
+          documentId
+        )
+      );
+    }
+  },
+};
+
+/** The posts plans, plus the two post-owned tables that are their own collections. */
+export const POST_PLANS: readonly CollectionPlan[] = [
+  postsPlan,
+  articlesPlan,
+  postRecentRepliersPlan,
+];

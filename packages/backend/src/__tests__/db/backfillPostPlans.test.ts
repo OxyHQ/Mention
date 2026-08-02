@@ -27,6 +27,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { articles } from '../../db/schema/articles';
 import { posts } from '../../db/schema/posts';
 import {
   postAttachments,
@@ -35,6 +36,7 @@ import {
   postContentVariants,
   postMedia,
   postMentions,
+  postRecentRepliers,
   postSources,
   postVariantAltTexts,
   postVariantMedia,
@@ -65,6 +67,17 @@ const postsPlan = () => {
   if (!plan) throw new Error('no plan for posts');
   return plan;
 };
+
+async function copy(collection: string) {
+  const plan = COLLECTION_PLANS.find((entry) => entry.collection === collection);
+  if (!plan) throw new Error(`no plan for ${collection}`);
+  return copyCollection(plan, {
+    db: getDb(),
+    source,
+    resolutions: createResolutionContext(await planResolutions(source), new ResolutionLog()),
+    parents: parentKeysFrom(new Map()),
+  });
+}
 
 async function copyPosts() {
   return copyCollection(postsPlan(), {
@@ -114,7 +127,9 @@ beforeAll(async () => {
 }, 120_000);
 
 afterEach(async () => {
-  // Every child table CASCADEs from `posts`.
+  // Every child table CASCADEs from `posts` -- but a DRAFT article has no post
+  // to cascade from, so it is deleted on its own scope.
+  await getDb().delete(articles).where(eq(articles.createdBy, OWNER));
   await getDb().delete(posts).where(eq(posts.oxyUserId, OWNER));
   for (const name of await mongo.listCollections({}, { nameOnly: true }).toArray()) {
     await mongo.collection(name.name).deleteMany({});
@@ -550,5 +565,219 @@ describe('a post with no createdAt', () => {
     const [row] = await getDb().select().from(posts).where(eq(posts.id, id.toHexString()));
     expect(row?.createdAt).toStrictEqual(createdAt);
     expect(row?.createdAt.getMilliseconds()).toBe(7);
+  });
+});
+
+
+describe('articles', () => {
+  it('keeps a DRAFT article whose post does not exist yet', async () => {
+    const id = new ObjectId();
+    await mongo.collection('articles').insertOne({
+      _id: id,
+      createdBy: OWNER,
+      title: 'bfx draft',
+      body: 'bfx body',
+    });
+    await copy('articles');
+
+    const [row] = await getDb().select().from(articles).where(eq(articles.id, id.toHexString()));
+
+    // NULLABLE because the Mongoose field is not `required`: an article can be
+    // written before its post exists. Refusing it would drop a real draft.
+    expect(row?.postId).toBeNull();
+    expect(row?.title).toBe('bfx draft');
+  });
+
+  it('copies title and body VERBATIM rather than re-trimming them', async () => {
+    const id = new ObjectId();
+    await mongo.collection('articles').insertOne({
+      _id: id,
+      createdBy: OWNER,
+      // Mongoose `trim: true` ran on save, so surrounding whitespace in a
+      // stored document is a FACT about the data. Re-trimming here would be the
+      // migration editing content on the way past, and it would hide that a
+      // write path had bypassed the setter.
+      title: '  bfx padded  ',
+      body: '\n  bfx body  \n',
+    });
+    await copy('articles');
+
+    const [row] = await getDb().select().from(articles).where(eq(articles.id, id.toHexString()));
+    expect(row?.title).toBe('  bfx padded  ');
+    expect(row?.body).toBe('\n  bfx body  \n');
+  });
+
+  it('links to its post without reconciling the denormalized shortcut', async () => {
+    const postId = new ObjectId();
+    const articleId = new ObjectId();
+    await mongo.collection('posts').insertOne(
+      basePost(postId, {
+        // The DENORMALIZED read shortcut, and it deliberately names a DIFFERENT
+        // article. Mongo carried the link both ways and the two could disagree;
+        // the schema made `articles.post_id` the owning side. A migration that
+        // reconciled them would destroy the evidence that they ever disagreed.
+        content: { article: { articleId: 'bfx-other-article', title: 'bfx' } },
+      })
+    );
+    await mongo.collection('articles').insertOne({
+      _id: articleId,
+      postId: postId.toHexString(),
+      createdBy: OWNER,
+      title: 'bfx real',
+    });
+    await copyPosts();
+    await copy('articles');
+
+    const [article] = await getDb()
+      .select()
+      .from(articles)
+      .where(eq(articles.id, articleId.toHexString()));
+    const [post] = await getDb().select().from(posts).where(eq(posts.id, postId.toHexString()));
+
+    expect(article?.postId).toBe(postId.toHexString());
+    // Each side copied from its OWN source field, disagreement preserved.
+    expect(post?.contentArticleId).toBe('bfx-other-article');
+  });
+});
+
+describe('recent repliers', () => {
+  it('turns ONE document into one row per replier', async () => {
+    const postId = new ObjectId();
+    await mongo.collection('posts').insertOne(basePost(postId));
+    await mongo.collection('post_recent_repliers').insertOne({
+      _id: new ObjectId(),
+      postId: postId.toHexString(),
+      repliers: [
+        { oxyUserId: 'bfx-r1', repliedAt: new Date('2025-01-03T00:00:00.000Z') },
+        { oxyUserId: 'bfx-r2', repliedAt: new Date('2025-01-02T00:00:00.000Z') },
+      ],
+    });
+    await copyPosts();
+    await copy('post_recent_repliers');
+
+    const rows = await getDb()
+      .select()
+      .from(postRecentRepliers)
+      .where(eq(postRecentRepliers.postId, postId.toHexString()))
+      .orderBy(postRecentRepliers.oxyUserId);
+
+    // The only plan whose PRIMARY table takes several rows per document with no
+    // parent row above them.
+    expect(rows.map((row) => row.oxyUserId)).toStrictEqual(['bfx-r1', 'bfx-r2']);
+    expect(rows[0]?.repliedAt).toStrictEqual(new Date('2025-01-03T00:00:00.000Z'));
+  });
+
+  it('dedupes on the replier, keeping the FIRST (newest) entry', async () => {
+    const postId = new ObjectId();
+    await mongo.collection('posts').insertOne(basePost(postId));
+    await mongo.collection('post_recent_repliers').insertOne({
+      _id: new ObjectId(),
+      postId: postId.toHexString(),
+      repliers: [
+        { oxyUserId: 'bfx-r1', repliedAt: new Date('2025-01-03T00:00:00.000Z') },
+        { oxyUserId: 'bfx-r2', repliedAt: new Date('2025-01-02T00:00:00.000Z') },
+        { oxyUserId: 'bfx-r1', repliedAt: new Date('2025-01-01T00:00:00.000Z') },
+      ],
+    });
+    await copyPosts();
+    await copy('post_recent_repliers');
+
+    const rows = await getDb()
+      .select()
+      .from(postRecentRepliers)
+      .where(eq(postRecentRepliers.postId, postId.toHexString()))
+      .orderBy(postRecentRepliers.oxyUserId);
+
+    expect(rows).toHaveLength(2);
+    // The writer maintains the array newest-first, so the FIRST entry carries
+    // the most recent `repliedAt`. Taking the later duplicate would move the
+    // replier BACKWARDS in a list the read orders by exactly that column.
+    expect(rows[0]?.repliedAt).toStrictEqual(new Date('2025-01-03T00:00:00.000Z'));
+  });
+
+  it('EMITS one row per surviving replier, which is what the verifier counts', async () => {
+    // Measured, and it corrected this file: deleting the dedup leaves every
+    // row-level assertion above GREEN, because `ON CONFLICT DO NOTHING` fires
+    // on the natural key and collapses the duplicate within the same statement
+    // — first inserted wins, which is the array order, which is the answer the
+    // dedup produces anyway. So those cases cannot see the dedup at all.
+    //
+    // What the dedup actually carries is the EMITTED count. `verify.ts` re-runs
+    // the transforms to compute how many rows each table should hold, so a
+    // transform emitting three rows where the table can hold two makes the
+    // verifier report a shortfall that is not one — a real run failing its own
+    // check on healthy data. That is the subject this case asserts.
+    const plan = COLLECTION_PLANS.find((entry) => entry.collection === 'post_recent_repliers');
+    if (!plan) throw new Error('no plan for post_recent_repliers');
+
+    const resolutions = createResolutionContext(
+      await planResolutions(source),
+      new ResolutionLog()
+    );
+    let emitted = 0;
+    plan.transform(
+      {
+        _id: new ObjectId(),
+        postId: new ObjectId().toHexString(),
+        repliers: [
+          { oxyUserId: 'bfx-r1', repliedAt: new Date('2025-01-03T00:00:00.000Z') },
+          { oxyUserId: 'bfx-r2', repliedAt: new Date('2025-01-02T00:00:00.000Z') },
+          { oxyUserId: 'bfx-r1', repliedAt: new Date('2025-01-01T00:00:00.000Z') },
+        ],
+      },
+      () => {
+        emitted += 1;
+      },
+      resolutions
+    );
+
+    expect(emitted).toBe(2);
+  });
+
+  it('REFUSES an entry with no repliedAt rather than inventing now()', async () => {
+    const postId = new ObjectId();
+    await mongo.collection('posts').insertOne(basePost(postId));
+    await mongo.collection('post_recent_repliers').insertOne({
+      _id: new ObjectId(),
+      postId: postId.toHexString(),
+      repliers: [{ oxyUserId: 'bfx-r3' }],
+    });
+    await copyPosts();
+
+    // WHEN is the entire content of the row, and the read is ordered by it — an
+    // invented `now()` would sort the entry straight to the top of the list.
+    await expect(copy('post_recent_repliers')).rejects.toThrow(/repliedAt/);
+  });
+
+  it('keeps the LIVE row when one already exists for that pair', async () => {
+    const postId = new ObjectId();
+    await mongo.collection('posts').insertOne(basePost(postId));
+    await mongo.collection('post_recent_repliers').insertOne({
+      _id: new ObjectId(),
+      postId: postId.toHexString(),
+      repliers: [{ oxyUserId: 'bfx-r4', repliedAt: new Date('2020-01-01T00:00:00.000Z') }],
+    });
+    await copyPosts();
+
+    // This is the one table whose Postgres side is ALREADY authoritative: the
+    // live services maintain it, so the copy merges history into a table with
+    // live writers. Simulate the live row first.
+    const live = new Date('2026-01-01T00:00:00.000Z');
+    await getDb()
+      .insert(postRecentRepliers)
+      .values({ postId: postId.toHexString(), oxyUserId: 'bfx-r4', repliedAt: live });
+
+    await copy('post_recent_repliers');
+
+    const rows = await getDb()
+      .select()
+      .from(postRecentRepliers)
+      .where(eq(postRecentRepliers.postId, postId.toHexString()));
+
+    // `ON CONFLICT DO NOTHING` fires on the natural key, so the LIVE row and its
+    // `replied_at` survive and the stale historical one is skipped. Nothing live
+    // is overwritten — which is what makes copying into a live table safe.
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.repliedAt).toStrictEqual(live);
   });
 });

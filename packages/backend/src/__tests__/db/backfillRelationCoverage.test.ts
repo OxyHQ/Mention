@@ -35,7 +35,11 @@ import {
   type DeployedRelation,
   type ReferentialIntegrityReport,
 } from '../../db/backfill/referentialIntegrity';
-import { COLLECTION_PLANS, allSchemaTables } from '../../db/backfill/collectionMap';
+import {
+  COLLECTION_PLANS,
+  allSchemaTables,
+  tablesWithoutAPlan,
+} from '../../db/backfill/collectionMap';
 import { planTables, tableName, type CollectionPlan } from '../../db/backfill/plan';
 import { buildRow } from '../../db/backfill/rowBuilder';
 import { mongoSourceFromDb, type MongoSource } from '../../db/backfill/mongoSource';
@@ -391,11 +395,23 @@ describe('coverage of the current plan set', () => {
         plannedTables()
       );
 
-      // While 24 collections are unplanned this is the large number, and it is
-      // NOT a defect — a relation on an unplanned table is expected to be
-      // uncovered. Conflating the two would make the gate fire permanently on a
+      // A relation on an unplanned table is expected to be uncovered and is NOT
+      // a defect — conflating the two would make the gate fire permanently on a
       // state nobody can fix, which is how a gate gets disabled.
-      expect(coverage.outOfScope).toBeGreaterThan(0);
+      //
+      // The count is DERIVED rather than asserted against a literal, and that
+      // correction is the point of this comment. It used to read
+      // `toBeGreaterThan(0)`, which was true while collections were unplanned
+      // and became FALSE the moment the last one landed — a green assertion
+      // that had stopped testing what it names, then a red one that reads like
+      // a defect in the checker. A literal encoding the current state of the
+      // migration has a half-life of one batch; the honest form is the
+      // relationship, which holds at every point including the finish line.
+      const unplanned = new Set(tablesWithoutAPlan());
+      const expectedOutOfScope = deployed.filter((relation) =>
+        unplanned.has(relation.tableName)
+      ).length;
+      expect(coverage.outOfScope).toBe(expectedOutOfScope);
       expect(coverage.outOfScope + coverage.deployedInScope).toBe(deployed.length);
     } finally {
       await closePostgres();
