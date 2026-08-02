@@ -62,6 +62,7 @@ import {
   num,
   ownId,
   reqId,
+  reqBool,
   reqInt,
   reqStr,
   str,
@@ -505,20 +506,6 @@ const userFeedPreferencesPlan: CollectionPlan = {
     }
   },
 };
-
-/** A `NOT NULL` boolean with no default — absent is a failure, not `false`. */
-function reqBool(entry: MongoDocument, path: string, documentId: string): boolean {
-  const value = bool(entry, path);
-  if (value === null) {
-    throw new Error(
-      `customfeeds ${documentId}: ${path} is absent, and ` +
-        'custom_feed_definition_modules.enabled is NOT NULL with no default. ' +
-        'Defaulting it to true would silently switch a disabled module on; ' +
-        'defaulting to false would silently switch an enabled one off.'
-    );
-  }
-  return value;
-}
 
 /** Every feed plan. */
 export const FEED_PLANS: readonly CollectionPlan[] = [

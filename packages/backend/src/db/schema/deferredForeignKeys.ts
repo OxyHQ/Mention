@@ -28,6 +28,11 @@
 import type { PgColumn, PgTable, UpdateDeleteAction } from 'drizzle-orm/pg-core';
 import { getTableColumns, getTableName } from 'drizzle-orm';
 import { sqlColumnName } from '../casing';
+import {
+  blockedDomainPurgeRuns,
+  blockedDomainPurges,
+  blocklistProposalRuns,
+} from './blocklist';
 import { mcpAuthCodes, mcpConnections, mcpRegisteredClients } from './mcp';
 import { entityFollows } from './engagement';
 import { actorKeyPairs, federatedActors, federatedMediaCache } from './federation';
@@ -521,6 +526,33 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'The client identifier this table MINTS — its own natural key, carried ' +
       'under a unique index. It is id-shaped by name only; there is no other ' +
       'table for it to point at, because this is the one that defines it.',
+  },
+  {
+    table: blocklistProposalRuns,
+    column: blocklistProposalRuns.runId,
+    reason:
+      'This table MINTS the run id — its own natural key, carried under a unique ' +
+      'index. Id-shaped by name only; there is no other table for it to point ' +
+      'at, because this is the one that defines it.',
+  },
+  {
+    table: blockedDomainPurges,
+    column: blockedDomainPurges.runId,
+    reason:
+      'The run that last claimed or completed this domain, kept as the audit ' +
+      'JOIN KEY into `blocked_domain_purge_runs`. Deliberately unconstrained: a ' +
+      'run is not a table — it is the set of rows sharing the id, one per domain ' +
+      'swept — so there is no single parent row to reference. A constraint would ' +
+      'also make the state row undeletable independently of its history, which ' +
+      'is the opposite of the split these two tables exist to express.',
+  },
+  {
+    table: blockedDomainPurgeRuns,
+    column: blockedDomainPurgeRuns.runId,
+    reason:
+      'The grouping token for every domain swept by one run, half of this ' +
+      "table's `(domain, run_id)` unique key. Same reason as above: the run has " +
+      'no row of its own anywhere, so nothing exists to reference.',
   },
 ];
 

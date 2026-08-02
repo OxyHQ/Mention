@@ -225,6 +225,29 @@ export function bool(doc: MongoDocument, path: string): boolean | null {
   return fail(doc, path, `expected a boolean, got ${typeName(value)}`);
 }
 
+/**
+ * A boolean field that MUST be present — for a `NOT NULL` column with no default.
+ *
+ * Distinct from `bool(...) ?? false`, and the distinction is the whole point: a
+ * default silently picks one of the two answers, and for a flag the difference
+ * between them is usually the reason the flag exists — a DISABLED module
+ * switched on, a run that could not look reported as one that found nothing, an
+ * operator credited with publishing something it actually masked. Absent is a
+ * loud failure here.
+ */
+export function reqBool(doc: MongoDocument, path: string, documentId?: string): boolean {
+  const value = bool(doc, path);
+  if (value === null) {
+    throw new BackfillValueError(
+      path,
+      'is required but absent, and the column is NOT NULL with no default — ' +
+        'defaulting a flag picks one of the two answers it exists to distinguish',
+      documentId ?? describeId(doc)
+    );
+  }
+  return value;
+}
+
 /** A `double precision` field, or `null` when absent. */
 export function num(doc: MongoDocument, path: string): number | null {
   const value = at(doc, path);

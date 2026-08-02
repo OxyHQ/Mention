@@ -31,6 +31,22 @@
  * asymmetry is the point: for `articles` the data matters and the constraint is
  * loose, and here it is the other way round.
  *
+ * ## Where this copy actually lands, measured rather than assumed
+ *
+ * The Postgres table has live writers ON THIS BRANCH and NONE in production:
+ * the port has never deployed, so at cutover `post_recent_repliers` is EMPTY
+ * and the Mongo collection holds 139,340 documents (measured against
+ * `mention-production`, 2026-08-02). The service is frozen for the copy, so
+ * there are no live writers to order against.
+ *
+ * That is worth stating because the natural description — "the live services
+ * maintain it, the Mongo model is write-dead" — is true of the branch and false
+ * of the system, and a plan written against branch state would be reasoning
+ * about a race that cannot occur. `ON CONFLICT DO NOTHING` on the natural key
+ * makes the copy safe EITHER way, so the design does not change; what changes
+ * is that the cap-eviction artefact below cannot arise from a race at all, only
+ * from history that already exceeded the cap.
+ *
  * ## A duplicate WITHIN one array is not auditable, and is normalized instead
  *
  * `UniquenessAudit` `$group`s over DOCUMENTS — one group per document key — so

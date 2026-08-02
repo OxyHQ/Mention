@@ -15,6 +15,7 @@
  * adding a table.
  */
 export * from './articles';
+export * from './blocklist';
 export * from './discovery';
 export * from './engagement';
 export * from './federation';
