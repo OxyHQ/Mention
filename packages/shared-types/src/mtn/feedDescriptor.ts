@@ -51,14 +51,6 @@ export type FeedDescriptor =
    * an author-feed filter: those are static profile tabs, a lane is dynamic).
    */
   | `lane|${string}`
-  /**
-   * ONE channel's page. The parameter is the channel's `_id`, NOT its handle —
-   * exactly as `list|<id>` works, and for the same reason: a handle can be
-   * renamed, and a renamed channel must not break a tab somebody pinned to their
-   * home screen. `GET /channels/:idOrHandle` resolves both spellings; the feed
-   * descriptor resolves only the stable one.
-   */
-  | `channel|${string}`
   | `feedgen|${string}`;
 
 export type FeedDescriptorSource =
@@ -79,7 +71,6 @@ export type FeedDescriptorSource =
   | 'trend'
   | 'list'
   | 'lane'
-  | 'channel'
   | 'feedgen';
 
 export interface ParsedFeedDescriptor {
@@ -132,7 +123,7 @@ export function isValidFeedDescriptor(value: string): value is FeedDescriptor {
   }
   // `trend` takes a term that may legitimately contain spaces (`trend|todd
   // blanche`), which the `|`-delimited split leaves in one param untouched.
-  if (['custom', 'hashtag', 'topic', 'trend', 'list', 'lane', 'channel', 'feedgen'].includes(source)) {
+  if (['custom', 'hashtag', 'topic', 'trend', 'list', 'lane', 'feedgen'].includes(source)) {
     return params.length === 1 && isNonEmptyParam(params[0]);
   }
   return false;
