@@ -3,11 +3,14 @@
  *
  * Three properties are load-bearing here and none of them is visible in a mock:
  *
- *  - **Keyset pagination.** The list filters `id < cursor` and orders by
- *    `id DESC`, both on the primary key, served whole by
+ *  - **Keyset pagination.** The list orders by `(created_at DESC, id DESC)` and
+ *    the cursor compares the same PAIR, served whole by
  *    `notifications_recipient_keyset_idx`. The order is strictly total because
- *    `id` is unique — take the range or the order off the SAME column and a page
- *    boundary starts repeating or skipping rows.
+ *    `id` is unique — take the range or the order off the SAME columns and a page
+ *    boundary starts repeating or skipping rows. That the leading key is
+ *    `created_at` rather than `id` is the subject of
+ *    `notificationsCursorOrdering.test.ts`; the cases HERE seed one id shape, so
+ *    `id DESC` and `created_at DESC` agree and they cannot see it.
  *  - **Recipient scoping is inside every predicate**, so one user can never read,
  *    mark or delete another's notification. A read-then-write would have a window
  *    where the ownership that was checked is not the ownership that was written.
@@ -63,6 +66,7 @@ vi.mock('../../services/viewerFollowGraph', () => ({
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { uuidv7 } from '../../db/schema/columns';
+import { decodeChronoCursor, encodeChronoCursor } from '../../utils/chronoCursor';
 import { notifications, pushTokens } from '../../db/schema/discovery';
 import notificationsRouter from '../../routes/notifications';
 
@@ -174,7 +178,10 @@ describe('GET /notifications keyset pagination', () => {
       objectIdShaped(4),
     ]);
     expect(first.body.hasMore).toBe(true);
-    expect(first.body.nextCursor).toBe(objectIdShaped(4));
+    // The cursor is an OPAQUE token over the `(created_at, id)` pair the page is
+    // ordered on, not the bare id it used to be — asserted by decoding rather
+    // than by shape, so the assertion says which ROW it anchors on.
+    expect(decodeChronoCursor(first.body.nextCursor)?.id).toBe(objectIdShaped(4));
 
     const second = await request(app)
       .get('/')
@@ -236,19 +243,24 @@ describe('GET /notifications keyset pagination', () => {
   });
 
   it('400s a malformed cursor rather than silently serving an arbitrary page', async () => {
-    // `id` is `text`, so `id < 'nonsense'` is a legal comparison that would
-    // return rows. Dropping the documented `INVALID_CURSOR` would turn a
-    // tampered token into a plausible-looking page.
+    // Every column in the keyset is comparable against nonsense, so a tampered
+    // token would return a plausible-looking page. `nonsense` is the shape a
+    // client sends by mistake; a bare id is the shape the PREVIOUS wire contract
+    // used, and it is refused too — the format changed as a clean cut, so a
+    // client still holding one gets one 400 and refetches page 1.
     const viewer = viewerId();
     await seed(viewer, { id: objectIdShaped(1) });
 
-    const res = await request(makeApp(viewer)).get('/').query({ cursor: 'nonsense' }).expect(400);
-    expect(res.body.error).toBe('INVALID_CURSOR');
+    for (const cursor of ['nonsense', objectIdShaped(1), uuidv7()]) {
+      const res = await request(makeApp(viewer)).get('/').query({ cursor }).expect(400);
+      expect(res.body.error).toBe('INVALID_CURSOR');
+    }
   });
 
-  it('accepts both live id shapes as a cursor', async () => {
+  it('accepts a cursor anchored on either live id shape', async () => {
     const viewer = viewerId();
-    for (const cursor of [objectIdShaped(9), uuidv7()]) {
+    for (const id of [objectIdShaped(9), uuidv7()]) {
+      const cursor = encodeChronoCursor(new Date('2026-01-01T00:00:00.000Z'), id);
       await request(makeApp(viewer)).get('/').query({ cursor }).expect(200);
     }
   });

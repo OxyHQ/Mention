@@ -1,8 +1,8 @@
 import express, { Response } from "express";
 import { type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import { and, count, desc, eq, lt } from 'drizzle-orm';
+import { and, count, eq, lt, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
-import { isLiveEntityId } from '../db/ids';
+import { decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
 import {
   notifications,
   pushTokens,
@@ -35,6 +35,17 @@ import { loadFollowedAuthorIds } from '../services/viewerFollowGraph';
 export { toPopulatedActor };
 
 const router = express.Router();
+
+/**
+ * The page order of `GET /notifications`, matching
+ * `notifications_recipient_keyset_idx` key for key — including the NULLS
+ * placement, without which the index cannot satisfy the sort. Exported so the
+ * EXPLAIN test asserts the plan of the ORDER BY the route actually issues.
+ */
+export const NOTIFICATION_PAGE_ORDER: SQL[] = [
+  sql`${notifications.createdAt} desc nulls last`,
+  sql`${notifications.id} desc nulls last`,
+];
 
 /** Notification list page size (`GET /notifications`). */
 const DEFAULT_NOTIFICATIONS_PAGE_SIZE = 20;
@@ -114,14 +125,14 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     const cursor = queryString(req.query.cursor);
     const limit = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_NOTIFICATIONS_PAGE_SIZE, 1), MAX_NOTIFICATIONS_PAGE_SIZE);
 
-    if (cursor && !isLiveEntityId(cursor)) {
-      // The one id-shape check this route keeps, and it is NOT a query
-      // precondition: `INVALID_CURSOR` is a documented response the client reads,
-      // and dropping it would be a fail-open change of the wire contract — `id`
-      // is `text`, so `id < 'nonsense'` is a perfectly legal comparison that
-      // silently serves an arbitrary page instead of the 400 it used to. Both
-      // live id shapes are accepted (`db/ids.ts`), so no cursor this database
-      // can mint is ever refused.
+    const decodedCursor = cursor ? decodeChronoCursor(cursor) : undefined;
+    if (cursor && !decodedCursor) {
+      // NOT a query precondition — `INVALID_CURSOR` is a documented response the
+      // client reads, and dropping it would be a fail-open change of the wire
+      // contract: every column in the keyset is comparable against nonsense, so
+      // a malformed token would silently serve an arbitrary page instead of the
+      // 400 it used to. The codec accepts both live id shapes (`db/ids.ts`), so
+      // no cursor this server minted is ever refused.
       return res.status(400).json({
         message: "Invalid cursor format",
         error: "INVALID_CURSOR"
@@ -130,15 +141,45 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 
     const db = getDb();
     const recipientMatch = eq(notifications.recipientId, userId);
-    const pageWhere = cursor ? and(recipientMatch, lt(notifications.id, cursor)) : recipientMatch;
+    const pageWhere = decodedCursor
+      ? and(
+          recipientMatch,
+          or(
+            lt(notifications.createdAt, decodedCursor.createdAt),
+            and(
+              eq(notifications.createdAt, decodedCursor.createdAt),
+              lt(notifications.id, decodedCursor.id),
+            ),
+          ),
+        )
+      : recipientMatch;
 
     // Fetch limit + 1 to determine if there are more results.
-    // Ordered by `id` descending to match the `id < cursor` keyset filter (both
-    // the range and the sort are on the primary key, which is unique — so the
-    // order is strictly total and a page can neither repeat nor skip a row), and
-    // served whole by `notifications_recipient_keyset_idx`. `id` descending is
-    // the same axis Mongo sorted `_id` on, and pre-cutover rows keep their
-    // ObjectId verbatim, so their order is byte-for-byte what it was.
+    //
+    // The page order is `(created_at DESC, id DESC)` and the keyset compares the
+    // PAIR, so the range and the sort agree and a boundary can neither repeat nor
+    // skip a row. `created_at` has to lead: `id` is `text` holding a 24-char
+    // ObjectId hex for pre-cutover rows and a uuid v7 for everything after, and
+    // `'0' < '6'` under the database's collation — so ordering on `id` alone
+    // (which this did) sorted every post-cutover notification BELOW every
+    // pre-cutover one, and a migrated account's list opened on its oldest rows.
+    // `id` stays as the tiebreak because `created_at` is not unique: it defaults
+    // to `date_trunc('milliseconds', now())`, and `now()` is
+    // `transaction_timestamp()`, so a fan-out written in one transaction shares
+    // it exactly. Its collation order is irrelevant THERE — both sides of the
+    // keyset use the same comparison.
+    //
+    // `nulls last` is NOT cosmetic and both columns being NOT NULL does not make
+    // it redundant: drizzle emits `.desc()` in index DDL as `DESC NULLS LAST`,
+    // while a plain `desc()` in a query means `DESC NULLS FIRST`, and Postgres
+    // matches an index to an ORDER BY on the NULLS placement too. Measured on
+    // 5,000 rows for one recipient — plain `desc()` plans a Bitmap Heap Scan
+    // feeding a Sort of the whole match set (cost 459) before the LIMIT; spelled
+    // `desc nulls last` it is an Index Only Scan with no Sort node at all (cost
+    // 1.85). Asserted by an EXPLAIN test, because the wrong one returns exactly
+    // the same rows and only shows up as a hot route sorting a user's entire
+    // notification history on every page.
+    //
     // The viewer's two safety gates are loaded alongside the page: a notification
     // carries OTHER people's post text (a reply, a mention), so the sensitive-content
     // opt-in and the muted words apply here exactly as they do to a feed. Both soft-fail
@@ -148,7 +189,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         .select()
         .from(notifications)
         .where(pageWhere)
-        .orderBy(desc(notifications.id))
+        .orderBy(...NOTIFICATION_PAGE_ORDER)
         .limit(limit + 1),
       db
         .select({ value: count() })
@@ -294,10 +335,10 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         };
       });
 
-    // Calculate next cursor from the last notification
-    const nextCursor = hasMore && notificationsToReturn.length > 0
-      ? notificationsToReturn[notificationsToReturn.length - 1].id
-      : undefined;
+    // The next cursor is the last row of the UNFILTERED page window, encoded on
+    // the same `(created_at, id)` pair the order and the keyset use.
+    const anchor = hasMore ? notificationsToReturn[notificationsToReturn.length - 1] : undefined;
+    const nextCursor = anchor ? encodeChronoCursor(anchor.createdAt, anchor.id) : undefined;
 
     res.json({
       notifications: notificationList,

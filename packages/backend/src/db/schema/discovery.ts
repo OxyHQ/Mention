@@ -283,8 +283,22 @@ export const notifications = pgTable(
       sql`${t.entityType} in (${sql.raw(inList(NOTIFICATION_ENTITY_TYPES))})`
     ),
     unique('notifications_dedup_key').on(t.recipientId, t.actorId, t.type, t.entityId),
-    // The keyset-paginated list: filter on recipient, order by id descending.
-    index('notifications_recipient_keyset_idx').on(t.recipientId, t.id.desc()),
+    /**
+     * The keyset-paginated list: filter on recipient, order by
+     * `(created_at DESC, id DESC)` — the same pair the cursor carries, so the
+     * index serves the whole page without a sort.
+     *
+     * It used to be `(recipient_id, id DESC)`, and that was only ever correct
+     * while `id DESC` WAS chronological order. It stopped being: `id` is `text`
+     * holding a 24-char ObjectId hex before the cutover and a uuid v7 after, and
+     * `'0' < '6'` under the database's collation, so ordering on it alone put
+     * every post-cutover notification below every pre-cutover one. The `id` half
+     * stays as the TIEBREAK, where the collation order does not matter because
+     * the ORDER BY and the keyset comparison agree on it — `created_at` defaults
+     * to `date_trunc('milliseconds', now())`, so rows written in one millisecond
+     * or one transaction share it exactly and something has to break the tie.
+     */
+    index('notifications_recipient_keyset_idx').on(t.recipientId, t.createdAt.desc(), t.id.desc()),
     // The unread badge.
     index('notifications_recipient_unread_idx')
       .on(t.recipientId, t.createdAt.desc())
