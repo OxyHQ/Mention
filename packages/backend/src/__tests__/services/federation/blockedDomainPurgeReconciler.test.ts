@@ -121,15 +121,21 @@ function stubPurge(stub: StubOptions = {}): StubbedPurge {
 }
 
 /**
- * Establish the baseline the way production will: a policy file that ALREADY
- * names domains when it first lands. The baseline is "the first policy content
- * this ledger ever saw", so seeding it with a real domain is what makes every
- * later domain a genuine delta.
+ * Put one already-handled domain in the ledger, so a later assertion about "a
+ * NEWLY blocked domain" is distinguishable from "every domain in the policy".
+ * This sweeps the seed domain, which is now the ordinary first-batch behaviour.
  */
-async function establishBaseline(purge: StubbedPurge): Promise<void> {
-  await reconcileBlockedDomainPurges({
-    policyEntries: entries([SEED_DOMAIN]),
-    runPurge: purge.runPurge,
+async function establishBaseline(_purge: StubbedPurge): Promise<void> {
+  // Written straight to the ledger rather than reconciled, so seeding costs no
+  // purge calls and cannot leak state into what a test is actually asserting.
+  await BlockedDomainPurge.create({
+    domain: SEED_DOMAIN,
+    inPolicy: true,
+    state: 'purged',
+    firstObservedAt: new Date(),
+    lastObservedAt: new Date(),
+    purgedAt: new Date(),
+    runId: 'seed-run',
   });
 }
 
@@ -138,8 +144,12 @@ async function stateOf(domain: string): Promise<string | undefined> {
   return row?.state;
 }
 
-describe('the first reconciliation establishes a baseline, it does not purge a backlog', () => {
-  it('records every pre-existing policy domain WITHOUT purging it', async () => {
+describe('the first batch takes the ordinary path — measured, then swept or held', () => {
+  it('purges a pre-existing policy on the first reconciliation', async () => {
+    // There is no "backlog" special case. Whether a batch is safe is decided by
+    // MEASURING it, never by how old the policy entry is — an earlier version
+    // recorded the first batch and skipped it, which silently suppressed the one
+    // deletion that actually had content behind it.
     const purge = stubPurge();
 
     const result = await reconcileBlockedDomainPurges({
@@ -147,20 +157,32 @@ describe('the first reconciliation establishes a baseline, it does not purge a b
       runPurge: purge.runPurge,
     });
 
-    // "Everything blocked so far" is exactly the batch an unattended run must
-    // never take on itself — it is reviewed and run by a person, once.
-    expect(result.baselined.sort()).toEqual(['a.example', 'b.example', 'c.example']);
-    expect(result.purged).toEqual([]);
-    expect(purge.calls).toEqual([]);
-    expect(await stateOf('a.example')).toBe('baseline');
+    expect(result.purged.sort()).toEqual(['a.example', 'b.example', 'c.example']);
+    expect(await stateOf('a.example')).toBe('purged');
+    expect(purge.calls[0].dryRun).toBe(true);
+    expect(purge.calls[1].dryRun).toBe(false);
   });
 
-  it('baselines the first domain it ever sees even when the policy started EMPTY', async () => {
-    // The baseline is "the first policy content this ledger ever saw", not "the
-    // first time the reconciler ran". An empty policy records nothing, so the
-    // first real domain is still the first thing seen and is held for review
-    // rather than swept unattended. Conservative on purpose: the failure
-    // direction of an automatic deleter must always be to delete less.
+  it('HOLDS an unusual first batch rather than skipping it silently', async () => {
+    // The outcome the removed baseline used to produce, except now it is a
+    // decision taken from real numbers, recorded with the ceiling that refused
+    // it, and resolvable by a human. Skipping and holding look the same from
+    // outside; only one of them leaves evidence.
+    const purge = stubPurge({ localFollows: { 'huge.example': 4 } });
+
+    const result = await reconcileBlockedDomainPurges({
+      policyEntries: entries(['huge.example']),
+      runPurge: purge.runPurge,
+    });
+
+    expect(result.purged).toEqual([]);
+    expect(result.held).toEqual(['huge.example']);
+    const row = await BlockedDomainPurge.findOne({ domain: 'huge.example' }).lean();
+    expect(row?.heldReason).toContain('localFollowsPerDomain');
+    expect(row?.measured?.localFollowsRemoved).toBe(4);
+  });
+
+  it('purges the first domain it ever sees even when the policy started EMPTY', async () => {
     const purge = stubPurge();
     await reconcileBlockedDomainPurges({ policyEntries: [], runPurge: purge.runPurge });
 
@@ -169,17 +191,16 @@ describe('the first reconciliation establishes a baseline, it does not purge a b
       runPurge: purge.runPurge,
     });
 
-    expect(result.baselined).toEqual(['first.example']);
-    expect(result.purged).toEqual([]);
-    expect(purge.calls).toEqual([]);
+    expect(result.purged).toEqual(['first.example']);
   });
 
-  it('purges a domain added AFTER the baseline exists', async () => {
+  it('sweeps only the domain added AFTER an earlier run, not the whole policy again', async () => {
     const purge = stubPurge();
     await reconcileBlockedDomainPurges({
       policyEntries: entries(['a.example']),
       runPurge: purge.runPurge,
     });
+    const callsAfterFirst = purge.calls.length;
 
     const result = await reconcileBlockedDomainPurges({
       policyEntries: entries(['a.example', 'new.example']),
@@ -188,9 +209,10 @@ describe('the first reconciliation establishes a baseline, it does not purge a b
 
     expect(result.purged).toEqual(['new.example']);
     expect(await stateOf('new.example')).toBe('purged');
-    // The baseline domain is NOT swept along with it.
-    expect(await stateOf('a.example')).toBe('baseline');
-    expect(purge.calls.map((call) => call.domains)).toEqual([['new.example'], ['new.example']]);
+    // Already handled, so it is not swept a second time.
+    expect(await stateOf('a.example')).toBe('purged');
+    expect(purge.calls.slice(callsAfterFirst).map((call) => call.domains))
+      .toEqual([['new.example'], ['new.example']]);
   });
 });
 
@@ -219,13 +241,16 @@ describe('it acts on the delta, not the whole policy', () => {
       policyEntries: entries(['old1.example', 'old2.example']),
       runPurge: purge.runPurge,
     });
+    const callsAfterFirst = purge.calls.length;
 
     await reconcileBlockedDomainPurges({
       policyEntries: entries(['old1.example', 'old2.example', 'fresh.example']),
       runPurge: purge.runPurge,
     });
 
-    for (const call of purge.calls) expect(call.domains).toEqual(['fresh.example']);
+    for (const call of purge.calls.slice(callsAfterFirst)) {
+      expect(call.domains).toEqual(['fresh.example']);
+    }
   });
 });
 
@@ -260,9 +285,17 @@ describe('removing a domain from the policy undoes nothing', () => {
       policyEntries: entries([SEED_DOMAIN, 'back.example']),
       runPurge: purge.runPurge,
     });
-    await establishBaseline(purge);
+    expect(await stateOf('back.example')).toBe('purged');
+
+    // Removed from the policy — nothing is undone, the row is just flagged.
+    await reconcileBlockedDomainPurges({
+      policyEntries: entries([SEED_DOMAIN]),
+      runPurge: purge.runPurge,
+    });
     const before = purge.calls.length;
 
+    // Re-added. Content can have arrived while it was allowed, so this is a
+    // fresh block and must be swept like the first one.
     const result = await reconcileBlockedDomainPurges({
       policyEntries: entries([SEED_DOMAIN, 'back.example']),
       runPurge: purge.runPurge,
@@ -287,6 +320,7 @@ describe('the circuit breaker', () => {
     expect(result.purged).toEqual([]);
     // Measured, then refused: the ONLY purge call is the read-only one.
     expect(purge.calls).toEqual([{ domains: ['typo.example'], dryRun: true }]);
+    expect(purge.calls.some((call) => !call.dryRun)).toBe(false);
     const row = await BlockedDomainPurge.findOne({ domain: 'typo.example' }).lean();
     expect(row?.state).toBe('held');
     expect(row?.heldReason).toContain('localFollowsPerDomain');
@@ -482,17 +516,16 @@ describe('the run history is append-only', () => {
 });
 
 describe('a reviewed manual run settles the same ledger', () => {
-  it('lets a baselined backlog become purged, so the record stops saying otherwise', async () => {
-    // The lead runs the pre-existing 196 by hand after reviewing the numbers.
-    // If that never reached the ledger, every one of those domains would read
-    // "baseline — never purged" forever, and any surface rendering it would be
-    // showing something false.
-    const purge = stubPurge();
+  it('lets a held domain become purged, so the record stops saying otherwise', async () => {
+    // A human resolves a held domain by running the reviewed one-shot. If that
+    // never reached the ledger, the domain would read "held — never purged"
+    // forever and any surface rendering it would be showing something false.
+    const purge = stubPurge({ localFollows: { 'backlog.example': 2 } });
     await reconcileBlockedDomainPurges({
       policyEntries: entries(['backlog.example']),
       runPurge: purge.runPurge,
     });
-    expect(await stateOf('backlog.example')).toBe('baseline');
+    expect(await stateOf('backlog.example')).toBe('held');
 
     // What `main()` does after a reviewed live run, through the same model.
     await BlockedDomainPurge.updateOne(

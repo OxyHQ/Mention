@@ -37,13 +37,11 @@ import mongoose, { Schema } from 'mongoose';
  */
 export type BlockedDomainPurgeState =
   /**
-   * Present in the policy the first time this ledger was ever built. NOT purged
-   * automatically: the backlog that accumulated before this mechanism existed is
-   * reviewed and run by a person, because "everything blocked so far" is exactly
-   * the batch an unattended run should never take on its own.
+   * In the policy and not yet swept. There is deliberately no separate state for
+   * "was already in the policy when this mechanism arrived": whether a batch is
+   * safe to sweep is decided by MEASURING it (see the circuit breaker), never by
+   * how old the policy entry is.
    */
-  | 'baseline'
-  /** Newly added to the policy; awaiting an automatic purge. */
   | 'pending'
   /** Claimed by a run that has not reported back. Re-armed if that run died. */
   | 'in_progress'
@@ -55,7 +53,6 @@ export type BlockedDomainPurgeState =
   | 'failed';
 
 export const BLOCKED_DOMAIN_PURGE_STATES: readonly BlockedDomainPurgeState[] = [
-  'baseline',
   'pending',
   'in_progress',
   'purged',

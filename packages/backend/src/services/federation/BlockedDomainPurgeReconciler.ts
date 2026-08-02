@@ -48,19 +48,22 @@
  * during the window when it was allowed, and that content must be purged on the
  * second block exactly as it was on the first.
  *
- * ## The backlog is not a delta
+ * ## The first batch goes through the ordinary path, like every other
  *
- * The first time this ledger is ever built, every domain already in the policy
- * is recorded as `baseline` and is NOT purged automatically. "Everything blocked
- * so far" is precisely the batch an unattended run should never take on itself —
- * it is reviewed and run by a person, once. Only domains added AFTER the ledger
- * exists are deltas, and only deltas are automatic.
+ * There is deliberately NO special case for the first reconciliation. An earlier
+ * version recorded the pre-existing policy as a `baseline` and skipped it, on
+ * the reasoning that "everything blocked so far" is too big a batch to take on
+ * unattended. That was the wrong mechanism for a real risk: the risk is a large
+ * or mistaken deletion, and the circuit breaker already guards exactly that —
+ * but it MEASURES first and then either proceeds or HOLDS with the numbers on
+ * the record, whereas the baseline decided blindly, permanently, and for the one
+ * batch that actually had content accumulated behind it.
  *
- * The baseline is "the first policy CONTENT this ledger ever saw", not "the
- * first time this function ran": a policy that is empty records nothing, so the
- * first real domain to appear is still the first thing seen and is baselined
- * rather than swept. That is deliberately conservative — the failure direction
- * of an automatic deleter must always be to delete less.
+ * Two mechanisms guarding one risk, and the weaker one suppressing the outcome
+ * the system exists to produce. So the baseline is gone and the breaker decides.
+ * A first batch that looks ordinary is purged; one that does not is `held` —
+ * which is what `baseline` was reaching for, except `held` carries the measured
+ * blast radius and the ceiling that refused it, and a human resolves it.
  *
  * ## The env var is deliberately not a trigger
  *
@@ -127,8 +130,6 @@ export interface ReconcileBlockedDomainPurgesInput {
 
 export interface ReconcileBlockedDomainPurgesResult {
   runId: string;
-  /** Recorded as the pre-existing backlog; never purged automatically. */
-  baselined: string[];
   /** Newly blocked and swept by this run. */
   purged: string[];
   /** Refused by the circuit breaker; awaiting a human. */
@@ -172,35 +173,34 @@ export function toMeasurement(report: PurgeReport): PurgeMeasurement {
  * Record what the policy currently says, WITHOUT purging anything.
  *
  * Returns the domains that are newly blocked and eligible for an automatic
- * sweep. Everything else — a first-ever backlog, a domain that departed, one
- * already purged — is recorded and excluded here rather than being filtered
+ * sweep. Everything else — a domain that departed, one already purged, one the
+ * breaker is holding — is recorded and excluded here rather than being filtered
  * later, so the eligibility rule lives in exactly one place.
  */
 async function observePolicy(
   policyEntries: readonly FederationBlockPolicyEntry[],
   now: Date,
-): Promise<{ eligible: string[]; baselined: string[]; departed: string[] }> {
+): Promise<{ eligible: string[]; departed: string[] }> {
   const wanted = [...new Set(policyEntries.map((entry) => entry.domain))].sort();
-  const isFirstEverReconciliation = (await BlockedDomainPurge.estimatedDocumentCount()) === 0;
-
-  const baselined: string[] = [];
   const eligible: string[] = [];
 
   for (const domain of wanted) {
     const existing = await BlockedDomainPurge.findOne({ domain }).lean<IBlockedDomainPurge | null>();
 
     if (!existing) {
-      const state = isFirstEverReconciliation ? 'baseline' : 'pending';
+      // A domain this ledger has never seen is eligible, whether it is the first
+      // one ever or the thousandth. Whether it is SAFE to sweep is the circuit
+      // breaker's question, answered from a measurement, not this function's
+      // answered from a row count.
       await BlockedDomainPurge.updateOne(
         { domain },
         {
-          $set: { inPolicy: true, state, lastObservedAt: now },
+          $set: { inPolicy: true, state: 'pending', lastObservedAt: now },
           $setOnInsert: { firstObservedAt: now },
         },
         { upsert: true },
       );
-      if (state === 'baseline') baselined.push(domain);
-      else eligible.push(domain);
+      eligible.push(domain);
       continue;
     }
 
@@ -231,7 +231,7 @@ async function observePolicy(
     );
   }
 
-  return { eligible, baselined, departed };
+  return { eligible, departed };
 }
 
 /** Re-arm claims from a run that never reported back. */
@@ -263,7 +263,6 @@ export async function reconcileBlockedDomainPurges(
   const runId = randomUUID();
   const result: ReconcileBlockedDomainPurgesResult = {
     runId,
-    baselined: [],
     purged: [],
     held: [],
     failed: [],
@@ -274,17 +273,9 @@ export async function reconcileBlockedDomainPurges(
 
   await reArmStaleClaims(now);
 
-  const { eligible, baselined, departed } = await observePolicy(input.policyEntries, now);
-  result.baselined = baselined;
+  const { eligible, departed } = await observePolicy(input.policyEntries, now);
   result.departed = departed;
 
-  if (baselined.length > 0) {
-    logger.warn(
-      '[BlockedDomainPurge] recorded a pre-existing blocklist as the baseline; '
-      + 'its content is NOT purged automatically and needs a reviewed run',
-      { count: baselined.length },
-    );
-  }
   if (eligible.length === 0) {
     logger.info('[BlockedDomainPurge] policy reconciled; no newly blocked domain to purge');
     return result;
