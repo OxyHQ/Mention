@@ -246,7 +246,19 @@ describe('GET /profile/settings/:userId profile-design visibility', () => {
     const settings = await getSettings();
 
     expect(settings.profileHeaderImage).toBe('private-banner-file');
-    expect(settings.appearance).toEqual({ themeMode: 'dark', primaryColor: '#ff0000' });
+    // The OWNER sees their whole appearance object, defaults included. That is
+    // not a wire change: the Mongoose schema declared the same defaults and
+    // applied them on document creation, so a real settings document always
+    // carried these three. The previous expectation was written against a
+    // hand-built partial fixture that production could not produce — the port
+    // just made it impossible to fake.
+    expect(settings.appearance).toEqual({
+      themeMode: 'dark',
+      primaryColor: '#ff0000',
+      postTextExpand: 'default',
+      postReadMoreAction: 'openPost',
+      collapseLongBio: true,
+    });
   });
 });
 
@@ -304,7 +316,7 @@ describe('profile design and profile settings agree on visibility', () => {
   it.each(['private', 'followers_only', 'public'] as const)(
     'returns the same design fields from both routes for a %s profile',
     async (profileVisibility) => {
-      seedTarget(profileVisibility);
+      await seedTarget(profileVisibility);
       followingByViewer.set(VIEWER, []);
 
       expect(designFields(await getSettings())).toEqual(designFields(await getDesign()));
