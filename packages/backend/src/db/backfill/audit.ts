@@ -66,11 +66,14 @@
  * carrying the rule that answers it.
  */
 
-import type { PgColumn } from 'drizzle-orm/pg-core';
+import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import type { CollectionPlan, EnumAudit, NumericAudit, UniquenessNormalization } from './plan';
-import { allowedValues, describeNumericBound, numericIsAccepted } from './plan';
+import { allowedValues, describeNumericBound, numericIsAccepted, tableName } from './plan';
 import type { MongoSource } from './mongoSource';
+import { streamCollection } from './mongoSource';
 import type { ResolutionContext, ResolutionRule } from './resolutions';
+import { parentKeysFrom, transformDocument } from './resolutions';
+import { tableShape } from './rowBuilder';
 
 /** One thing the schema would refuse — or one thing wrong with a rule. */
 export interface AuditFinding {
@@ -88,7 +91,9 @@ export interface AuditFinding {
     | 'referential-integrity'
     | 'undetected-relation'
     | 'dropped-document'
-    | 'resolution-overreach';
+    | 'resolution-overreach'
+    | 'defaulted-column'
+    | 'stale-acknowledgement';
   /** Human-readable, and specific enough to act on without opening the code. */
   readonly detail: string;
   /** Documents affected, where the audit can count them. */
@@ -409,6 +414,142 @@ async function describeNumericFinding(
  * `String.toLowerCase()` that applies FULL case mapping and differs, and no
  * part of this audit uses it.)
  */
+/**
+ * Every `NOT NULL DEFAULT` column the transform leaves to the database, and how
+ * many documents it leaves it for.
+ *
+ * ## Why silence from the other audits is not evidence here
+ *
+ * The audits above ask what the DATA contains. This one asks what the TRANSFORM
+ * omits, which is a different question and the only one that can see this class.
+ * A `NOT NULL` column with no default raises `23502` when a value is missing, so
+ * `buildRow` catches it while the document is in hand. A `NOT NULL` column WITH
+ * a default raises nothing: the row inserts, Postgres supplies the value, and a
+ * source field that was absent silently becomes a value nobody chose.
+ *
+ * Measured, which is why this exists at all: six posts of 577,526 in production
+ * carry no `createdAt`, and `posts.created_at` is exactly this shape. Left
+ * alone, all six would take `now()` and sit at the top of every chronological
+ * feed on day one — no error, no finding, nothing to notice.
+ *
+ * ## It reports rather than decides
+ *
+ * Both answers are legitimate and they are not interchangeable. A counter with
+ * no source field genuinely should default to zero; a creation timestamp should
+ * not be invented. So the finding carries the COUNT and sample ids, and the plan
+ * records which answer it took — deriving the value (`posts` now does) or
+ * declaring the default correct (`defaultedColumns`).
+ *
+ * ## The acknowledgement list is re-measured, never trusted
+ *
+ * An acknowledgement for a column the transform ALWAYS supplies is reported as
+ * `stale-acknowledgement`. An exemption list nobody re-checks is how a gate
+ * becomes a formality, and this one describes transform behaviour that changes
+ * under it — the same reason the referential audit reconciles its derived
+ * relations against `pg_constraint` instead of believing its own derivation.
+ *
+ * Streaming, because the question is about emitted ROWS and only running the
+ * transform can answer it. Nothing is written and nothing is inserted.
+ */
+export async function auditDefaultedColumns(
+  source: MongoSource,
+  plan: CollectionPlan,
+  resolutions: ResolutionContext,
+  options: { readonly batchSize?: number } = {}
+): Promise<AuditFinding[]> {
+  const batchSize = options.batchSize ?? 1000;
+
+  // (table property name, column property name) -> how many rows omitted it.
+  const omissions = new Map<string, { table: PgTable; property: string; rows: number; ids: string[] }>();
+  const rowsPerTable = new Map<string, number>();
+
+  // The rules cannot be asked anything here: their parent sets belong to the
+  // referential audit's own two phases, and an empty `ParentKeys` throws rather
+  // than answering from an empty map.
+  const noParents = parentKeysFrom(new Map());
+
+  for await (const documents of streamCollection(source, plan.collection, batchSize)) {
+    for (const doc of documents) {
+      const documentId = describeDocumentId(doc);
+      transformDocument(plan, doc, resolutions, noParents, (row) => {
+        // `source`, not `written`: a row a rule drops still says what the
+        // transform decided, and measuring only surviving rows would let a rule
+        // hide the omission rather than answer it.
+        const name = tableName(row.table);
+        rowsPerTable.set(name, (rowsPerTable.get(name) ?? 0) + 1);
+        for (const property of tableShape(row.table).defaulted) {
+          if (property in row.source) continue;
+          const key = `${name}.${property}`;
+          const entry = omissions.get(key) ?? {
+            table: row.table,
+            property,
+            rows: 0,
+            ids: [],
+          };
+          entry.rows += 1;
+          if (entry.ids.length < SAMPLE_LIMIT && documentId !== undefined) {
+            entry.ids.push(documentId);
+          }
+          omissions.set(key, entry);
+        }
+      });
+    }
+  }
+
+  const acknowledged = new Map(
+    (plan.defaultedColumns ?? []).map((entry) => [
+      `${entry.column.name}`,
+      entry,
+    ])
+  );
+
+  const findings: AuditFinding[] = [];
+  const seenProperties = new Set<string>();
+
+  for (const [key, entry] of [...omissions].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+    seenProperties.add(entry.property);
+    if (acknowledged.has(entry.property)) continue;
+    const total = rowsPerTable.get(tableName(entry.table)) ?? 0;
+    findings.push({
+      collection: plan.collection,
+      kind: 'defaulted-column',
+      detail:
+        `${key} is NOT NULL with a DEFAULT and the transform omits it for ` +
+        `${entry.rows} of ${total} rows, so Postgres supplies the value. That is ` +
+        'silent by construction — no error, no rejected row. Decide which it is: ' +
+        'DERIVE the value (as `posts.created_at` now does from the ObjectId), or ' +
+        'declare the default correct for this column in the plan\'s ' +
+        '`defaultedColumns` with the reason it is right.',
+      documents: entry.rows,
+      sampleIds: entry.ids,
+    });
+  }
+
+  for (const [property, entry] of acknowledged) {
+    if (seenProperties.has(property)) continue;
+    findings.push({
+      collection: plan.collection,
+      kind: 'stale-acknowledgement',
+      detail:
+        `${tableName(plan.table)}.${property} carries a defaultedColumns ` +
+        `acknowledgement ("${entry.reason}") but the transform SUPPLIES it for ` +
+        'every row, so the acknowledgement describes behaviour that no longer ' +
+        'happens. Remove it — an exemption nobody re-measures is how this gate ' +
+        'turns into a formality.',
+      documents: 0,
+      sampleIds: [],
+    });
+  }
+
+  return findings;
+}
+
+/** The document `_id` as a string, for a sample list. */
+function describeDocumentId(doc: Record<string, unknown>): string | undefined {
+  const id = doc._id;
+  return id === null || id === undefined ? undefined : String(id);
+}
+
 export async function auditUniqueness(
   source: MongoSource,
   plan: CollectionPlan,
@@ -548,6 +689,23 @@ export function auditWouldBlockCopy(finding: AuditFinding): boolean {
     // The other one, and the mirror image: a documented rule that acted on a
     // row whose parent EXISTS is removing or altering live data. Nothing may
     // clear it — least of all another rule.
-    finding.kind === 'resolution-overreach'
+    finding.kind === 'resolution-overreach' ||
+    // A `NOT NULL DEFAULT` column the transform omits. It blocks even though
+    // the row would insert cleanly, and BECAUSE it would: every other blocking
+    // class is something Postgres refuses, so stopping the run is the cheaper
+    // of two failures. This one Postgres accepts, which means an un-blocked
+    // finding is a value nobody chose landing in production with nothing left
+    // to notice it afterwards. The way past is a DECISION recorded in the plan
+    // (derive the value, or `defaultedColumns` with the reason the default is
+    // right), which is the same shape as the other two ways forward and not a
+    // switch. `resolvedBy` cannot clear it either — nothing sets one on this
+    // kind, because a resolution rule answering a question about the
+    // TRANSFORM's behaviour would be the migration agreeing with itself.
+    finding.kind === 'defaulted-column' ||
+    // An acknowledgement for a column the transform always supplies. A defect
+    // in the PLAN rather than in the data, same family as
+    // `undetected-relation`: there is nothing to fix in Mongo, and a stale
+    // exemption is exactly how this gate would decay into a formality.
+    finding.kind === 'stale-acknowledgement'
   );
 }

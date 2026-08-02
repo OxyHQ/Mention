@@ -227,6 +227,43 @@ export interface UniquenessAudit {
   readonly resolvedBy?: ResolutionRule;
 }
 
+/**
+ * A `NOT NULL DEFAULT` column the transform deliberately leaves to the database,
+ * and the reason that is the right answer for it.
+ *
+ * ## The class this exists for
+ *
+ * A `NOT NULL` column with NO default fails loudly when the source field is
+ * absent: `buildRow` names the table, the column and the document. A `NOT NULL`
+ * column WITH a default fails silently — the row inserts, the database supplies
+ * a value, and nobody decided anything. It is the one shape where an audit's
+ * silence is not evidence, so `auditDefaultedColumns` counts every omission
+ * instead of assuming.
+ *
+ * Measured rather than imagined: six posts of 577,526 in production have no
+ * `createdAt` at all, and `posts.created_at` is exactly this shape. Left alone
+ * they would take `now()` and sit at the top of every chronological feed on day
+ * one. The fix there was to derive the value; the point of this type is that the
+ * OTHER answer — "the default is genuinely correct here" — is equally legitimate
+ * and has to be written down rather than reached by default.
+ *
+ * ## An acknowledgement is checked, not trusted
+ *
+ * Declaring one for a column the transform never actually omits is itself a
+ * finding. A list of exemptions that nobody re-measures is how a gate rots into
+ * a formality — the same reason the referential audit reconciles its derived
+ * relations against `pg_constraint` rather than trusting the derivation.
+ */
+export interface DefaultedColumnAcknowledgement {
+  /** The `NOT NULL DEFAULT` column the transform omits. */
+  readonly column: PgColumn;
+  /**
+   * Why the database default is the RIGHT value for a document that lacks the
+   * source field — not merely that it is acceptable.
+   */
+  readonly reason: string;
+}
+
 /** One Mongo collection and everything the backfill needs to move it. */
 export interface CollectionPlan {
   /**
@@ -250,6 +287,15 @@ export interface CollectionPlan {
   readonly numericAudits?: readonly NumericAudit[];
   /** Uniqueness Postgres now enforces and Mongo did not. */
   readonly uniquenessAudits?: readonly UniquenessAudit[];
+  /**
+   * `NOT NULL DEFAULT` columns this transform deliberately leaves to the
+   * database — see {@link DefaultedColumnAcknowledgement}.
+   *
+   * Never a list of columns to skip: it is a list of DECISIONS, each of which
+   * the audit re-measures. An entry for a column the transform always supplies
+   * is reported, so the list cannot quietly outlive the behaviour it describes.
+   */
+  readonly defaultedColumns?: readonly DefaultedColumnAcknowledgement[];
   /**
    * Build every row one document produces.
    *

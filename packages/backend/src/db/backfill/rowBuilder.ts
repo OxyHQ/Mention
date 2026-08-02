@@ -74,6 +74,18 @@ interface TableShape {
   readonly generated: ReadonlySet<string>;
   /** Property names that are `NOT NULL` with no default and not generated. */
   readonly required: ReadonlySet<string>;
+  /**
+   * Property names that are `NOT NULL` **with** a default and not generated.
+   *
+   * The complement of {@link required}, and the reason it is worth naming: the
+   * two behave in OPPOSITE ways when a transform omits them. A `required`
+   * column omitted is a loud `23502` that `buildRow` already turns into a named
+   * throw. A `defaulted` column omitted is SILENT — the database supplies a
+   * value and the row inserts cleanly — so a source field that is absent
+   * becomes a substituted value nobody decided on. That is what
+   * `auditDefaultedColumns` counts.
+   */
+  readonly defaulted: ReadonlySet<string>;
 }
 
 const shapeCache = new WeakMap<PgTable, TableShape>();
@@ -93,6 +105,7 @@ export function tableShape(table: PgTable): TableShape {
   const properties = new Set<string>();
   const generated = new Set<string>();
   const required = new Set<string>();
+  const defaulted = new Set<string>();
 
   for (const column of config.columns) {
     // `column.name` on a drizzle column is the TypeScript PROPERTY name, which
@@ -106,9 +119,10 @@ export function tableShape(table: PgTable): TableShape {
       continue;
     }
     if (column.notNull && !column.hasDefault) required.add(property);
+    if (column.notNull && column.hasDefault) defaulted.add(property);
   }
 
-  const shape: TableShape = { properties, generated, required };
+  const shape: TableShape = { properties, generated, required, defaulted };
   shapeCache.set(table, shape);
   return shape;
 }

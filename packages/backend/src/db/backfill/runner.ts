@@ -44,6 +44,7 @@ import { eq, getTableColumns, is } from 'drizzle-orm';
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { getPostgresClient, type Database } from '../postgres';
 import {
+  auditDefaultedColumns,
   auditEnums,
   auditNumerics,
   auditUniqueness,
@@ -250,10 +251,32 @@ export async function runAudits(
   // the colliding pair the operator has to act on. The copy is refused either
   // way; the report says NOT RUN rather than printing a clean answer.
   const blocked = findings.filter(auditWouldBlockCopy);
+
+  // The defaulted-column pass runs the TRANSFORMS, so it carries the same
+  // hazard as the referential pass below and sits behind the same guard: a
+  // transform throws on a document an earlier audit already reported, and
+  // running it first would replace that report with a `BackfillValueError`.
+  //
+  // It costs one more full read of every mapped collection. That is stated
+  // rather than hidden — it could be folded into the referential audit's first
+  // phase, which already streams and runs each transform, and the reason it is
+  // not is that a separate function is the one that can be exercised on its own.
+  if (blocked.length === 0) {
+    for (const { plan, documents } of discovery.migrated) {
+      if (documents === 0) continue;
+      findings.push(
+        ...(await auditDefaultedColumns(source, plan, resolutions, {
+          batchSize: options.batchSize,
+        }))
+      );
+    }
+  }
+
+  const stillBlocked = findings.filter(auditWouldBlockCopy);
   const referentialIntegrity =
-    blocked.length > 0
+    stillBlocked.length > 0
       ? referentialIntegrityNotRun(
-          `${blocked.length} earlier finding(s) already block the copy, and this ` +
+          `${stillBlocked.length} earlier finding(s) already block the copy, and this ` +
             'pass runs the transforms — which refuse exactly those documents. ' +
             'Fix them and re-run: referential integrity is UNKNOWN, not clean.'
         )
