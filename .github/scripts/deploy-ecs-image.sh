@@ -512,9 +512,19 @@ if [[ "$RUN_MIGRATIONS" == "true" || -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]]; the
 fi
 
 if [[ "$RUN_MIGRATIONS" == "true" ]]; then
-  # Read with process substitution rather than a pipe: a pipe runs the loop in a
-  # subshell, where `exit 1` ends only that subshell and the release carries on
-  # past a failed migration to `update-service`.
+  # PROCESS SUBSTITUTION, NOT A PIPE, and the reason is not the obvious one.
+  #
+  # `set -e` catches the failing pipeline either way, so both forms do stop the
+  # release before `update-service` — measured, so do not "simplify" this on the
+  # theory that the pipe is equivalent. What a pipe loses is the loop body's
+  # WRITES: it runs in a subshell, so `run_one_shot_command`'s
+  # `active_one_shot_task_arn` / `_label` / `_stopped` never reach the parent,
+  # and the EXIT trap reads their initial values. The warning that a migration
+  # task may STILL BE RUNNING against the database after the deploy gave up —
+  # the one thing telling an operator the schema may be moving under them, and
+  # unrecoverable because the deploy role cannot call `ecs:StopTask` — silently
+  # stops being emitted. The `migration-task-never-stops` case in
+  # test-deploy-ecs-image.sh is what notices.
   while IFS= read -r migration_entry; do
     if ! run_one_shot_command \
       "$(jq -r '.label' <<<"$migration_entry")" \
