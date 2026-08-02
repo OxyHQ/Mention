@@ -1,15 +1,15 @@
 import { Router, Response } from 'express';
 import type { ProfileMedia } from '../db/userProfile/userSettingsRecord';
 import UserBehavior from '../models/UserBehavior';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { posts } from '../db/schema/posts';
 import { findPostRecords } from '../db/posts/postRepository';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../mtn/feed/CursorBuilder';
 
 /** Posts assembled per page while streaming a user's data export. */
 const EXPORT_PAGE_SIZE = 200;
-import Bookmark from '../models/Bookmark';
-import Like from '../models/Like';
+import { getDb } from '../db/postgres';
+import { bookmarks, likes } from '../db/schema/engagement';
 // Block and Restrict routes removed - frontend should use Oxy services directly
 import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { buildSettingsResponseForViewer } from '../utils/userSettings';
@@ -523,11 +523,55 @@ router.post('/export', async (req: AuthRequest, res: Response) => {
       const last = page[page.length - 1];
       exportCursor = ChronoCursor.build(last.id, last.createdAt);
     }
-    for await (const bookmark of Bookmark.find({ userId: oxyUserId }).sort({ createdAt: -1 }).lean().cursor()) {
-      writeLine('bookmark', bookmark);
+    // Postgres, like the posts above. These two read Mongo until now, which had
+    // stopped receiving engagement when the command service moved — so this
+    // export, the artefact a user downloads to have their own data, would have
+    // silently omitted every like and bookmark made after the cutover while
+    // still listing their posts. An export that is quietly incomplete is worse
+    // than one that fails.
+    //
+    // Paged rather than streamed through a cursor: postgres.js materialises a
+    // result set, so an unbounded select would hold every row of a heavy
+    // account in memory at once. The keyset is `(created_at, id)` — `created_at`
+    // alone is not unique, since every row written in one transaction shares
+    // `transaction_timestamp()`, and a bare `created_at` cursor would then skip
+    // or repeat rows at a page boundary.
+    // Written out per table rather than looped over `[bookmarks, likes]`: the
+    // two are different drizzle table types, and a union of them makes the
+    // builder's row type unresolvable (TS7022) — recoverable only with a cast
+    // that would erase the column types this export writes verbatim.
+    let bookmarkCursor: { createdAt: Date; id: string } | null = null;
+    for (;;) {
+      const keyset: SQL | undefined = bookmarkCursor
+        ? sql`(${bookmarks.createdAt}, ${bookmarks.id}) < (${bookmarkCursor.createdAt}, ${bookmarkCursor.id})`
+        : undefined;
+      const page: (typeof bookmarks.$inferSelect)[] = await getDb()
+        .select()
+        .from(bookmarks)
+        .where(and(eq(bookmarks.userId, oxyUserId), keyset))
+        .orderBy(desc(bookmarks.createdAt), desc(bookmarks.id))
+        .limit(EXPORT_PAGE_SIZE);
+      for (const row of page) writeLine('bookmark', row);
+      if (page.length < EXPORT_PAGE_SIZE) break;
+      const last = page[page.length - 1];
+      bookmarkCursor = { createdAt: last.createdAt, id: last.id };
     }
-    for await (const like of Like.find({ userId: oxyUserId }).sort({ createdAt: -1 }).lean().cursor()) {
-      writeLine('like', like);
+
+    let likeCursor: { createdAt: Date; id: string } | null = null;
+    for (;;) {
+      const keyset: SQL | undefined = likeCursor
+        ? sql`(${likes.createdAt}, ${likes.id}) < (${likeCursor.createdAt}, ${likeCursor.id})`
+        : undefined;
+      const page: (typeof likes.$inferSelect)[] = await getDb()
+        .select()
+        .from(likes)
+        .where(and(eq(likes.userId, oxyUserId), keyset))
+        .orderBy(desc(likes.createdAt), desc(likes.id))
+        .limit(EXPORT_PAGE_SIZE);
+      for (const row of page) writeLine('like', row);
+      if (page.length < EXPORT_PAGE_SIZE) break;
+      const last = page[page.length - 1];
+      likeCursor = { createdAt: last.createdAt, id: last.id };
     }
 
     const settings = await loadUserSettings(oxyUserId);

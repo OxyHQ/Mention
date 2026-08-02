@@ -1,8 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+/**
+ * Account lists are REAL rows here; starter packs are still mocked.
+ *
+ * The difference is which store each one lives in. `AccountList` moved to
+ * Postgres and nothing writes the Mongo collection any more, so a mocked
+ * `AccountList.findById` was intercepting an import the service no longer
+ * performs — and the case that matters most (`null` means DELETED, so the caller
+ * RETRACTS endorsements) would have been proven against a fake. `StarterPack` is
+ * still a Mongo model with a live writer, so its mock still stands for something.
+ */
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { inArray } from 'drizzle-orm';
 
 const mocks = vi.hoisted(() => ({
   packFindById: vi.fn(),
-  listFindById: vi.fn(),
   outboxUpdateOne: vi.fn(),
   outboxFindOne: vi.fn(),
   outboxFind: vi.fn(),
@@ -11,7 +21,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../models/StarterPack', () => ({ default: { findById: mocks.packFindById } }));
-vi.mock('../../models/AccountList', () => ({ default: { findById: mocks.listFindById } }));
 
 vi.mock('../../models/EndorsementOutbox', () => ({
   default: {
@@ -23,7 +32,27 @@ vi.mock('../../models/EndorsementOutbox', () => ({
   getEndorsementNextAttempt: (attempts: number) => new Date(1000 + attempts),
 }));
 
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { accountListMembers, accountLists } from '../../db/schema/lists';
 import { EndorsementSignalService } from '../../services/EndorsementSignalService';
+
+/** List ids this file created, so teardown never touches another suite's rows. */
+const seededListIds: string[] = [];
+
+/** Insert a real list plus its ordered members; returns the generated id. */
+async function seedList(ownerId: string, memberIds: string[]): Promise<string> {
+  const [list] = await getDb()
+    .insert(accountLists)
+    .values({ ownerOxyUserId: ownerId, title: 'endorsement fixture' })
+    .returning({ id: accountLists.id });
+  seededListIds.push(list.id);
+  if (memberIds.length > 0) {
+    await getDb().insert(accountListMembers).values(
+      memberIds.map((oxyUserId, position) => ({ listId: list.id, oxyUserId, position })),
+    );
+  }
+  return list.id;
+}
 
 /** `findById(...).select(...).lean()` chain returning `doc`. */
 function findByIdLean(doc: unknown) {
@@ -37,6 +66,21 @@ const signalsClient = { pushEndorsements: mocks.pushEndorsements, pushInterests:
 function makeService() {
   return new EndorsementSignalService(signalsClient as unknown as never);
 }
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterEach(async () => {
+  if (seededListIds.length === 0) return;
+  // `accountListMembers` cascades from `accountLists`, so one delete is enough.
+  await getDb().delete(accountLists).where(inArray(accountLists.id, seededListIds));
+  seededListIds.length = 0;
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -86,16 +130,14 @@ describe('EndorsementSignalService.syncScope', () => {
   });
 
   it('leaves the outbox row PENDING with backoff when Oxy is down', async () => {
-    mocks.listFindById.mockImplementation(
-      findByIdLean({ ownerOxyUserId: 'owner', memberOxyUserIds: ['m1'] }),
-    );
+    const listId = await seedList('owner', ['m1']);
     mocks.pushEndorsements.mockRejectedValue(new Error('oxy down'));
     mocks.outboxFindOne.mockReturnValue({
       select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue({ attempts: 0 }) }),
     });
 
     const service = makeService();
-    await service.syncScope('accountList', 'list_1');
+    await service.syncScope('accountList', listId);
 
     const failUpdate = mocks.outboxUpdateOne.mock.calls.find(
       (c) => c[1]?.$set?.status === 'pending' && typeof c[1]?.$set?.attempts === 'number',
@@ -109,9 +151,7 @@ describe('EndorsementSignalService.syncScope', () => {
   });
 
   it('retries pending remove edges captured from an earlier failed membership change', async () => {
-    mocks.listFindById.mockImplementation(
-      findByIdLean({ ownerOxyUserId: 'owner', memberOxyUserIds: ['keep'] }),
-    );
+    const listId = await seedList('owner', ['keep']);
     mocks.outboxFindOne.mockReturnValue({
       select: vi.fn().mockReturnValue({
         lean: vi.fn().mockResolvedValue({
@@ -122,11 +162,11 @@ describe('EndorsementSignalService.syncScope', () => {
     });
 
     const service = makeService();
-    await service.syncScope('accountList', 'list_1');
+    await service.syncScope('accountList', listId);
 
     expect(mocks.pushEndorsements).toHaveBeenCalledWith([
-      { ownerId: 'owner', memberId: 'removed', op: 'remove', sourceId: 'list_1' },
-      { ownerId: 'owner', memberId: 'keep', op: 'add', sourceId: 'list_1' },
+      { ownerId: 'owner', memberId: 'removed', op: 'remove', sourceId: listId },
+      { ownerId: 'owner', memberId: 'keep', op: 'add', sourceId: listId },
     ]);
     const setSent = mocks.outboxUpdateOne.mock.calls.find((c) => c[1]?.$set?.status === 'sent');
     expect(setSent?.[1].$unset).toEqual({ pendingRemoveOwnerId: '', pendingRemoveMemberIds: '' });
@@ -146,14 +186,12 @@ describe('EndorsementSignalService.syncScope', () => {
 
 describe('EndorsementSignalService.syncScopeMembershipChange', () => {
   it('pushes remove edges for pruned members and add edges for the current members', async () => {
-    mocks.listFindById.mockImplementation(
-      findByIdLean({ ownerOxyUserId: 'owner', memberOxyUserIds: ['keep', 'added'] }),
-    );
+    const listId = await seedList('owner', ['keep', 'added']);
 
     const service = makeService();
     await service.syncScopeMembershipChange(
       'accountList',
-      'list_1',
+      listId,
       'owner',
       ['removed', 'keep', 'owner'],
       ['keep', 'added'],
@@ -162,9 +200,9 @@ describe('EndorsementSignalService.syncScopeMembershipChange', () => {
     const armUpdate = mocks.outboxUpdateOne.mock.calls[0][1];
     expect(armUpdate.$addToSet).toEqual({ pendingRemoveMemberIds: { $each: ['removed'] } });
     expect(mocks.pushEndorsements).toHaveBeenCalledWith([
-      { ownerId: 'owner', memberId: 'removed', op: 'remove', sourceId: 'list_1' },
-      { ownerId: 'owner', memberId: 'keep', op: 'add', sourceId: 'list_1' },
-      { ownerId: 'owner', memberId: 'added', op: 'add', sourceId: 'list_1' },
+      { ownerId: 'owner', memberId: 'removed', op: 'remove', sourceId: listId },
+      { ownerId: 'owner', memberId: 'keep', op: 'add', sourceId: listId },
+      { ownerId: 'owner', memberId: 'added', op: 'add', sourceId: listId },
     ]);
   });
 

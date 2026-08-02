@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
+import { postSubscriptions } from '../db/schema/engagement';
 import { posts } from '../db/schema/posts';
 import {
   claimScheduledPost,
@@ -32,7 +33,6 @@ import {
   createBatchNotifications,
   createPostAuthorNotifications,
 } from '../utils/notificationUtils';
-import PostSubscription from '../models/PostSubscription';
 import { logger } from '../utils/logger';
 import { getRuntimeSocketServer } from '../runtime/socketServer';
 import { getPostFederator, registerPostCreator } from './serviceRegistry';
@@ -648,7 +648,14 @@ class PostCreationService {
       (async () => {
         const isTopLevelPost = !parentPostId;
         if (!oxyUserId || !isTopLevelPost) return;
-        const subs = await PostSubscription.find({ authorId: oxyUserId }).lean();
+        // Postgres: nothing has written the Mongo collection since post
+        // subscriptions moved, so this fan-out had stopped finding subscribers
+        // and new-post notifications quietly stopped being sent to anyone who
+        // subscribed after the cutover.
+        const subs = await getDb()
+          .select({ subscriberId: postSubscriptions.subscriberId })
+          .from(postSubscriptions)
+          .where(eq(postSubscriptions.authorId, oxyUserId));
         if (subs.length === 0) return;
         const notifications = subs
           .filter((s) => s.subscriberId !== oxyUserId)

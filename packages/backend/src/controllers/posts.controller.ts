@@ -17,6 +17,7 @@ import {
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { getDb } from '../db/postgres';
 import { bookmarks as bookmarksTable, likes as likesTable } from '../db/schema/engagement';
+import { notifications } from '../db/schema/discovery';
 import { posts as postsTable } from '../db/schema/posts';
 import { postContentVariants } from '../db/schema/postContent';
 import {
@@ -33,9 +34,7 @@ import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../mtn/feed/Cursor
 import { baselineContentClassifier } from '../services/BaselineContentClassifier';
 import Poll from '../models/Poll';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import mongoose from 'mongoose';
 import { createMentionNotifications } from '../utils/notificationUtils';
-import PostSubscription from '../models/PostSubscription';
 import {
   PostVisibility,
   PostAttachmentDescriptor,
@@ -1952,10 +1951,23 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
         // the row goes with the post inside the same statement. Sweeping them
         // through the Mongoose models — which nothing has written since
         // engagement moved — deleted nothing and made the cascade look explicit.
-        // Delete post subscriptions
-        PostSubscription.deleteMany({ postId }).exec(),
-        // Delete notifications referencing this post
-        mongoose.model('Notification').deleteMany({ entityId: postId, entityType: 'post' }).exec(),
+        // `PostSubscription.deleteMany({ postId })` used to sit here and is
+        // GONE rather than ported: that model is `(subscriberId, authorId)` and
+        // has no `postId` field at all, so the call always matched zero
+        // documents. It described a relation that never existed.
+        //
+        // Notifications ARE a real relation and are now deleted in Postgres.
+        // `notifications.entity_id` is plain `text` with no foreign key, so
+        // nothing cascades from `posts` — and the Mongo delete this replaces had
+        // stopped matching anything once notifications moved, which meant every
+        // deleted post was leaving its notifications behind while
+        // `CASCADED_POST_REFERENCES` went on claiming they were cleaned.
+        getDb()
+          .delete(notifications)
+          .where(and(
+            eq(notifications.entityId, postId),
+            eq(notifications.entityType, 'post'),
+          )),
       ]);
     } catch (cleanupError) {
       logger.error('Error during cascading post cleanup', cleanupError);
