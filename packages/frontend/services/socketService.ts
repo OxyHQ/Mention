@@ -1,6 +1,11 @@
 import { API_URL_SOCKET } from '@/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { FeedType } from '@mention/shared-types';
+import type {
+  FeedType,
+  PostEngagementCountsPayload,
+  PostEngagementEvent,
+} from '@mention/shared-types';
+import { POST_ENGAGEMENT_EVENTS } from '@mention/shared-types';
 import { AppState, type AppStateStatus } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { usePostsStore } from '../stores/postsStore';
@@ -23,14 +28,47 @@ const logger = createLogger('SocketService');
 // Valid feed types for validation
 const VALID_FEED_TYPES: string[] = ['posts', 'media', 'replies', 'likes', 'boosts', 'mixed', 'for_you', 'following', 'saved', 'explore', 'custom'];
 
-// TypeScript interfaces for socket events
-interface EngagementEventData {
-  postId?: string;
-  originalPostId?: string;
-  userId?: string;
-  actorId?: string;
-  likesCount?: number;
-  boostsCount?: number;
+/**
+ * The counters a post-engagement event carried, keyed the way the store keys
+ * them. A counter the author hides never arrives, which is why every field is
+ * optional and an absent one means "leave the rendered value alone" rather than
+ * zero.
+ */
+type EngagementCounts = Partial<
+  Record<'likes' | 'downvotes' | 'boosts' | 'replies' | 'saves', number>
+>;
+
+const COUNT_FIELDS: ReadonlyArray<keyof EngagementCounts> = [
+  'likes',
+  'downvotes',
+  'boosts',
+  'replies',
+  'saves',
+];
+
+/**
+ * Each engagement event and the local action it echoes. The action is only ever
+ * used to ask the echo guard "did this device just do that?" — the counters in
+ * the payload are what actually gets applied.
+ */
+const ENGAGEMENT_EVENT_ACTIONS: ReadonlyArray<[PostEngagementEvent, EchoAction]> = [
+  [POST_ENGAGEMENT_EVENTS.LIKED, 'like'],
+  [POST_ENGAGEMENT_EVENTS.UNLIKED, 'unlike'],
+  [POST_ENGAGEMENT_EVENTS.BOOSTED, 'boost'],
+  [POST_ENGAGEMENT_EVENTS.UNBOOSTED, 'unboost'],
+  [POST_ENGAGEMENT_EVENTS.SAVED, 'save'],
+  [POST_ENGAGEMENT_EVENTS.UNSAVED, 'unsave'],
+  [POST_ENGAGEMENT_EVENTS.REPLIED, 'reply'],
+];
+
+function readEngagementCounts(data: PostEngagementCountsPayload): EngagementCounts {
+  const counts: EngagementCounts = {};
+  if (typeof data.likesCount === 'number') counts.likes = data.likesCount;
+  if (typeof data.downvotesCount === 'number') counts.downvotes = data.downvotesCount;
+  if (typeof data.boostsCount === 'number') counts.boosts = data.boostsCount;
+  if (typeof data.repliesCount === 'number') counts.replies = data.repliesCount;
+  if (typeof data.savesCount === 'number') counts.saves = data.savesCount;
+  return counts;
 }
 
 interface FeedUpdateData {
@@ -45,8 +83,7 @@ interface PresenceUpdateData {
 }
 
 interface EngagementUpdate {
-  type: 'like' | 'unlike' | 'boost' | 'unboost' | 'save' | 'unsave' | 'reply';
-  data: EngagementEventData;
+  counts: EngagementCounts;
   timestamp: number;
 }
 
@@ -76,6 +113,8 @@ class SocketService {
   private readonly ENGAGEMENT_PERSIST_DEBOUNCE_MS = 50;
   // Debounce timer for coalescing live-rooms update signals (participant churn)
   private liveRoomsRefetchTimer: ReturnType<typeof setTimeout> | null = null;
+  // Post rooms the mounted screens have asked for; replayed on every connect.
+  private joinedPostIds = new Set<string>();
 
   constructor() {
     this.setupEventListeners();
@@ -122,12 +161,6 @@ class SocketService {
     return '';
   }
 
-  /**
-   * Extract actor ID from event data (handles both userId and actorId fields)
-   */
-  private getActorId(data: EngagementEventData): string | undefined {
-    return data.userId || data.actorId;
-  }
 
   /**
    * Connect to the backend socket server
@@ -185,11 +218,23 @@ class SocketService {
     }
   }
 
-  private shouldIgnoreEcho(postId: string, action: string, actorId?: string) {
-    // If server includes actor identity and it's us, ignore
+  /**
+   * Is this event the echo of something this viewer just did themselves?
+   *
+   * The action was already applied optimistically, so re-applying the server's
+   * answer would only make the number flicker if the viewer has acted again
+   * since. It cannot double-count either way — every count on the wire is the
+   * value the database holds, not a delta — so this is a smoothness guard, not a
+   * correctness one.
+   *
+   * `actorId` decides it outright when the server sent one. It does not for a
+   * SAVE, where publishing the actor to a room would say who bookmarked the
+   * post; those fall back to the short local window, and the worst case there is
+   * that the viewer's own device re-applies a number it already holds.
+   */
+  private shouldIgnoreEcho(postId: string, action: EchoAction, actorId?: string) {
     if (actorId && this.currentUserId && actorId === this.currentUserId) return true;
-    // Otherwise, ignore if we performed the same action very recently
-    return wasRecent(postId, action as EchoAction);
+    return wasRecent(postId, action);
   }
 
   /**
@@ -271,6 +316,10 @@ class SocketService {
     // Clear queues
     this.feedUpdateQueue.clear();
     this.engagementUpdateQueue.clear();
+    // A full teardown ends every subscription: `disconnect()` runs on sign-out
+    // and on a credential change, and replaying one viewer's rooms onto the
+    // next viewer's socket would be a subscription they never asked for.
+    this.joinedPostIds.clear();
 
     // Clear all listener maps
     this.presenceListeners.clear();
@@ -306,19 +355,28 @@ class SocketService {
   }
 
   /**
-   * Join a post room for real-time updates
+   * Subscribe to one post's live engagement counters.
+   *
+   * The subscription is recorded whether or not there is a socket to tell right
+   * now, and replayed on every (re)connect. Room membership is server-side state
+   * that a dropped connection destroys, so without the replay a screen that
+   * survived a reconnect — or that mounted during the 5–25s auth cold boot —
+   * would sit in a room the server has no record of, showing counts that never
+   * move again and reporting no error.
    */
   joinPost(postId: string): void {
-    if (!this.socket?.connected) return;
-    this.socket.emit('joinPost', postId);
+    if (!postId) return;
+    this.joinedPostIds.add(postId);
+    if (this.socket?.connected) this.socket.emit('joinPost', postId);
   }
 
   /**
    * Leave a post room
    */
   leavePost(postId: string): void {
-    if (!this.socket?.connected) return;
-    this.socket.emit('leavePost', postId);
+    if (!postId) return;
+    this.joinedPostIds.delete(postId);
+    if (this.socket?.connected) this.socket.emit('leavePost', postId);
   }
 
   /**
@@ -331,13 +389,9 @@ class SocketService {
     this.socket.off('disconnect');
     this.socket.off('connect_error');
     this.socket.off('feed:updated');
-    this.socket.off('post:liked');
-    this.socket.off('post:unliked');
-    this.socket.off('post:replied');
-    this.socket.off('post:boosted');
-    this.socket.off('post:unboosted');
-    this.socket.off('post:saved');
-    this.socket.off('post:unsaved');
+    for (const [event] of ENGAGEMENT_EVENT_ACTIONS) {
+      this.socket.off(event);
+    }
     this.socket.off('user:presence');
     this.socket.off('user:presenceBulk');
     this.socket.off(SOCKET_EVENT_ROOMS_LIVE_UPDATED);
@@ -361,6 +415,13 @@ class SocketService {
       if (this.currentUserId && this.socket) {
         this.socket.emit('joinFeed', { userId: this.currentUserId });
       }
+
+      // Re-assert the post rooms the mounted screens are still watching. The
+      // server re-checks visibility on each one, so this grants nothing a fresh
+      // join would not.
+      for (const postId of this.joinedPostIds) {
+        this.socket?.emit('joinPost', postId);
+      }
     });
 
     this.socket.on('disconnect', () => {
@@ -382,34 +443,12 @@ class SocketService {
       this.handleFeedUpdate(data);
     });
 
-    // Post interaction events
-    this.socket.on('post:liked', (data) => {
-      this.handlePostLiked(data);
-    });
-
-    this.socket.on('post:unliked', (data) => {
-      this.handlePostUnliked(data);
-    });
-
-    this.socket.on('post:replied', (data) => {
-      this.handlePostReplied(data);
-    });
-
-    this.socket.on('post:boosted', (data) => {
-      this.handlePostBoosted(data);
-    });
-
-    this.socket.on('post:unboosted', (data) => {
-      this.handlePostUnboosted(data);
-    });
-
-    this.socket.on('post:saved', (data) => {
-      this.handlePostSaved(data);
-    });
-
-    this.socket.on('post:unsaved', (data) => {
-      this.handlePostUnsaved(data);
-    });
+    // Post engagement events, from the `post:<id>` rooms this client joined.
+    for (const [event, action] of ENGAGEMENT_EVENT_ACTIONS) {
+      this.socket.on(event, (data: PostEngagementCountsPayload) => {
+        this.handleEngagementEvent(action, data);
+      });
+    }
 
     // Presence events
     this.socket.on('user:presence', (data) => {
@@ -572,29 +611,28 @@ class SocketService {
   }
 
   /**
-   * Handle post liked event - with batching and smart conflict resolution
+   * A post's counters moved. One entry point for all six engagement events,
+   * because what a client does with them no longer depends on which one it was:
+   * the name told the echo guard what to compare against, and the payload
+   * carries the numbers.
    */
-  private handlePostLiked(data: EngagementEventData) {
-    const { postId, likesCount } = data || {};
+  private handleEngagementEvent(action: EchoAction, data: PostEngagementCountsPayload) {
+    const postId = data?.postId;
     if (!postId) return;
-    const actualActorId = this.getActorId(data);
+    if (this.shouldIgnoreEcho(postId, action, data.actorId)) return;
 
-    // Skip echo - our own actions are handled by optimistic updates
-    if (this.shouldIgnoreEcho(postId, 'like', actualActorId)) return;
+    const counts = readEngagementCounts(data);
+    // Every counter this post's author exposes was hidden, so there is nothing
+    // to apply and nothing to queue.
+    if (COUNT_FIELDS.every((field) => counts[field] === undefined)) return;
 
-    // Queue for batching
-    this.queueEngagementUpdate(postId, 'like', {
-      postId,
-      likesCount,
-      userId: actualActorId,
-      actorId: actualActorId
-    });
+    this.queueEngagementUpdate(postId, counts);
   }
-  
+
   /**
    * Queue engagement update for batching
    */
-  private queueEngagementUpdate(postId: string, type: 'like' | 'unlike' | 'boost' | 'unboost' | 'save' | 'unsave' | 'reply', data: EngagementEventData) {
+  private queueEngagementUpdate(postId: string, counts: EngagementCounts) {
     const existingQueue = this.engagementUpdateQueue.get(postId);
     const queue = existingQueue ?? [];
     if (!existingQueue) {
@@ -607,7 +645,7 @@ class SocketService {
       this.engagementUpdateQueue.set(postId, queue.slice(-50));
     }
 
-    queue.push({ type, data, timestamp: Date.now() });
+    queue.push({ counts, timestamp: Date.now() });
 
     // Clear existing timer
     if (this.engagementUpdateTimer) {
@@ -708,186 +746,39 @@ class SocketService {
         this.engagementUpdateQueue.delete(postId);
         return;
       }
-      
-      // Get the most recent update for each type (latest wins)
-      const latestByType = new Map<string, typeof updates[0]>();
-      updates.forEach(update => {
-        const existing = latestByType.get(update.type);
-        if (!existing || update.timestamp > existing.timestamp) {
-          latestByType.set(update.type, update);
+
+      // Fold the batch PER COUNTER, newest wins. Not per event type: a like and
+      // a boost move different numbers, so keeping one winner overall would drop
+      // whichever counter the loser carried. And not by applying each event in
+      // turn, which is what the counts being authoritative makes pointless —
+      // only the last value for each counter can survive, so compute it once and
+      // touch the store once.
+      //
+      // Equal timestamps resolve to arrival order (`>=` would flip that): two
+      // events stamped in the same millisecond arrived in the order they were
+      // queued, and that is the better guess at which the server wrote last.
+      const winning: EngagementCounts = {};
+      const winningAt: Partial<Record<keyof EngagementCounts, number>> = {};
+      for (const update of updates) {
+        for (const field of COUNT_FIELDS) {
+          const value = update.counts[field];
+          if (value === undefined) continue;
+          const previousAt = winningAt[field];
+          if (previousAt !== undefined && update.timestamp < previousAt) continue;
+          winning[field] = value;
+          winningAt[field] = update.timestamp;
         }
-      });
-      
-      // Apply updates, preferring server counts when available
-      latestByType.forEach((update, type) => {
-        const { data } = update;
-        
-        switch (type) {
-          case 'like':
-            store.updatePostEverywhere(postId, (prev) => {
-              const actorId = data.actorId || data.userId;
-              const isOurAction = actorId === viewerId;
-              const currentLikes = prev.engagement?.likes ?? 0;
+      }
 
-              // Use server count if available, otherwise increment
-              const newCount = data.likesCount ?? (currentLikes + 1);
+      // `viewerState` is deliberately untouched. Whether THIS viewer liked,
+      // boosted or saved the post is theirs alone; a room event describes what
+      // somebody else did, and the one time it describes this viewer it is an
+      // echo of a state they already set optimistically.
+      store.updatePostEverywhere(postId, (prev) => ({
+        ...prev,
+        engagement: { ...prev.engagement, ...winning },
+      }));
 
-              // If it's our action, echo guard should have suppressed it
-              // But if it got through, don't override optimistic update
-              if (isOurAction) {
-                // Only update count if different (socket might have server-accurate count)
-                if (currentLikes !== newCount) {
-                  return {
-                    ...prev,
-                    // Keep our optimistic isLiked state
-                    engagement: { ...prev.engagement, likes: newCount },
-                  };
-                }
-                return prev; // No change needed
-              }
-
-              // Other user's action - only update count, NOT isLiked state
-              // Don't update if count is already correct or higher
-              if (currentLikes >= newCount) return prev;
-
-              return {
-                ...prev,
-                // Keep current isLiked state (it's about OUR state, not theirs)
-                engagement: { ...prev.engagement, likes: newCount },
-              };
-            });
-            break;
-
-          case 'unlike':
-            store.updatePostEverywhere(postId, (prev) => {
-              const actorId = data.actorId || data.userId;
-              const isOurAction = actorId === viewerId;
-              const currentLikes = prev.engagement?.likes ?? 0;
-
-              const newCount = data.likesCount ?? Math.max(0, currentLikes - 1);
-
-              // If it's our action, echo guard should have suppressed it
-              if (isOurAction) {
-                // Only update count if different
-                if (currentLikes !== newCount) {
-                  return {
-                    ...prev,
-                    // Keep our optimistic isLiked state
-                    engagement: { ...prev.engagement, likes: newCount },
-                  };
-                }
-                return prev; // No change needed
-              }
-
-              // Other user's action - only update count, NOT isLiked state
-              // Don't update if count is already correct or lower
-              if (currentLikes <= newCount) return prev;
-
-              return {
-                ...prev,
-                // Keep current isLiked state (it's about OUR state, not theirs)
-                engagement: { ...prev.engagement, likes: newCount },
-              };
-            });
-            break;
-
-          case 'boost':
-            store.updatePostEverywhere(postId, (prev) => {
-              const actorId = data.actorId || data.userId;
-              const isOurAction = actorId === viewerId;
-
-              // Use server count if available, otherwise increment
-              const currentBoosts = prev.engagement?.boosts ?? 0;
-              const newCount = data.boostsCount ?? (currentBoosts + 1);
-
-              // If it's our action, echo guard should have suppressed it
-              // But if it got through, don't override optimistic update
-              if (isOurAction) {
-                // Only update count if different (socket might have server-accurate count)
-                if (currentBoosts !== newCount) {
-                  return {
-                    ...prev,
-                    // Keep our optimistic isBoosted state
-                    engagement: { ...prev.engagement, boosts: newCount },
-                  };
-                }
-                return prev; // No change needed
-              }
-
-              // Other user's action - only update count, NOT isBoosted state
-              // Don't update if count is already correct or higher
-              if (currentBoosts >= newCount) return prev;
-
-              return {
-                ...prev,
-                // Keep current isBoosted state (it's about OUR state, not theirs)
-                engagement: { ...prev.engagement, boosts: newCount },
-              };
-            });
-            break;
-
-          case 'unboost':
-            store.updatePostEverywhere(postId, (prev) => {
-              const actorId = data.actorId || data.userId;
-              const isOurAction = actorId === viewerId;
-
-              const currentBoosts = prev.engagement?.boosts ?? 0;
-              const newCount = data.boostsCount ?? Math.max(0, currentBoosts - 1);
-
-              // If it's our action, echo guard should have suppressed it
-              if (isOurAction) {
-                // Only update count if different
-                if (currentBoosts !== newCount) {
-                  return {
-                    ...prev,
-                    // Keep our optimistic isBoosted state
-                    engagement: { ...prev.engagement, boosts: newCount },
-                  };
-                }
-                return prev; // No change needed
-              }
-
-              // Other user's action - only update count, NOT isBoosted state
-              // Don't update if count is already correct or lower
-              if (currentBoosts <= newCount) return prev;
-
-              return {
-                ...prev,
-                // Keep current isBoosted state (it's about OUR state, not theirs)
-                engagement: { ...prev.engagement, boosts: newCount },
-              };
-            });
-            break;
-            
-          case 'save':
-            // Saved state is viewer-private. Never let another actor's event
-            // change this viewer's flag; only reconcile our own missed echo.
-            if (data.userId === viewerId) {
-              store.updatePostEverywhere(postId, (prev) => ({
-                ...prev,
-                viewerState: { ...prev.viewerState, isSaved: true },
-              }));
-            }
-            break;
-
-          case 'unsave':
-            if (data.userId === viewerId) {
-              store.updatePostEverywhere(postId, (prev) => ({
-                ...prev,
-                viewerState: { ...prev.viewerState, isSaved: false },
-              }));
-            }
-            break;
-            
-          case 'reply':
-            store.updatePostEverywhere(postId, (prev) => ({
-              ...prev,
-              engagement: { ...prev.engagement, replies: (prev.engagement.replies || 0) + 1 }
-            }));
-            break;
-        }
-      });
-      
       // Clear queue for this post
       this.engagementUpdateQueue.delete(postId);
     });
@@ -899,101 +790,6 @@ class SocketService {
       this.engagementPersistTimer = null;
     }
     AsyncStorage.removeItem(engagementQueueStorageKey(viewerId)).catch(() => {});
-  }
-
-  /**
-   * Handle post unliked event - with batching
-   */
-  private handlePostUnliked(data: EngagementEventData) {
-    const { postId, likesCount } = data || {};
-    if (!postId) return;
-    const actualActorId = this.getActorId(data);
-
-    // Skip echo - our own actions are handled by optimistic updates
-    if (this.shouldIgnoreEcho(postId, 'unlike', actualActorId)) return;
-
-    this.queueEngagementUpdate(postId, 'unlike', {
-      postId,
-      likesCount,
-      userId: actualActorId,
-      actorId: actualActorId
-    });
-  }
-
-  /**
-   * Handle post replied event - with batching
-   */
-  private handlePostReplied(data: EngagementEventData) {
-    const { postId } = data || {};
-    if (!postId) return;
-    const actualActorId = this.getActorId(data);
-    if (this.shouldIgnoreEcho(postId, 'reply', actualActorId)) return;
-
-    this.queueEngagementUpdate(postId, 'reply', { postId, actorId: actualActorId });
-  }
-
-  /**
-   * Handle post boosted event - with batching
-   */
-  private handlePostBoosted(data: EngagementEventData) {
-    const { originalPostId, postId, boostsCount } = data || {};
-    const targetId = originalPostId || postId;
-    if (!targetId) return;
-    const actualActorId = this.getActorId(data);
-    if (this.shouldIgnoreEcho(targetId, 'boost', actualActorId)) return;
-
-    this.queueEngagementUpdate(targetId, 'boost', {
-      postId: targetId,
-      boostsCount,
-      userId: actualActorId
-    });
-  }
-
-  /**
-   * Handle post unboosted event - with batching
-   */
-  private handlePostUnboosted(data: EngagementEventData) {
-    const { originalPostId, postId, boostsCount } = data || {};
-    const targetId = originalPostId || postId;
-    if (!targetId) return;
-    const actualActorId = this.getActorId(data);
-    if (this.shouldIgnoreEcho(targetId, 'unboost', actualActorId)) return;
-
-    this.queueEngagementUpdate(targetId, 'unboost', {
-      postId: targetId,
-      boostsCount,
-      userId: actualActorId
-    });
-  }
-
-  /**
-   * Handle post saved event - with batching
-   */
-  private handlePostSaved(data: EngagementEventData) {
-    const { postId } = data || {};
-    if (!postId) return;
-    const actualActorId = this.getActorId(data);
-    if (this.shouldIgnoreEcho(postId, 'save', actualActorId)) return;
-
-    this.queueEngagementUpdate(postId, 'save', {
-      postId,
-      userId: actualActorId
-    });
-  }
-
-  /**
-   * Handle post unsaved event - with batching
-   */
-  private handlePostUnsaved(data: EngagementEventData) {
-    const { postId } = data || {};
-    if (!postId) return;
-    const actualActorId = this.getActorId(data);
-    if (this.shouldIgnoreEcho(postId, 'unsave', actualActorId)) return;
-
-    this.queueEngagementUpdate(postId, 'unsave', {
-      postId,
-      userId: actualActorId
-    });
   }
 
   // Presence event listeners
