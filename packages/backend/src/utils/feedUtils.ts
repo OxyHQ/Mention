@@ -90,26 +90,6 @@ export function validateAndNormalizeLimit(
 }
 
 /**
- * Validate and parse cursor for pagination
- * Returns ObjectId if valid, undefined otherwise
- */
-export function parseFeedCursor(cursor: string | undefined): mongoose.Types.ObjectId | undefined {
-  if (!cursor) return undefined;
-  
-  try {
-    if (mongoose.Types.ObjectId.isValid(cursor)) {
-      return new mongoose.Types.ObjectId(cursor);
-    } else {
-      logger.warn('Invalid cursor format', cursor);
-      return undefined;
-    }
-  } catch (error) {
-    logger.warn('Error parsing cursor', { cursor, error });
-    return undefined;
-  }
-}
-
-/**
  * Build cursor from post ID
  * Returns string representation of ObjectId for cursor-based pagination
  */
