@@ -43,9 +43,6 @@ import { tablesWithoutAPlan } from '../../db/backfill/collectionMap';
  * belongs in a named constant with the reason, not silently in here.
  */
 const UNPLANNED_TABLES: readonly string[] = [
-  // The two singletons the backfill has not reached.
-  'articles',
-  'post_recent_repliers',
   // `user_behaviors` and its three child tables.
   'user_behavior_authors',
   'user_behavior_regions',
