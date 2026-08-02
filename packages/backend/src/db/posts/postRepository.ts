@@ -81,6 +81,7 @@ import {
   type PostRecordClassification,
   type PostRecordFederation,
   type PostRecordInput,
+  type PostRecordTopicRef,
 } from './postRecord';
 
 type PostRow = typeof posts.$inferSelect;
@@ -288,7 +289,19 @@ async function loadChildRows(
       .select()
       .from(postClassificationTopicRefs)
       .where(inArray(postClassificationTopicRefs.postId, [...postIds]))
-      .orderBy(asc(postClassificationTopicRefs.name)),
+      // Mongo's array preserved the order the classifier emitted, and the table
+      // has no `position` column to reproduce it. `relevance DESC` recovers the
+      // MEANING of that order wherever the classifier supplied one, with `name`
+      // as a deterministic tie-break so a page never reshuffles between reads;
+      // plain alphabetical (what this was) discards the ranking entirely. Every
+      // reader today is set-like — membership, grouping — so this is about not
+      // throwing information away rather than about a consumer that indexes
+      // `[0]`. If true insertion order ever matters, it needs a `position`
+      // column and a migration, not a different sort.
+      .orderBy(
+        sql`${postClassificationTopicRefs.relevance} desc nulls last`,
+        asc(postClassificationTopicRefs.name),
+      ),
   ]);
 
   // The variant-owned tables key on the VARIANT, so they can only be read once
@@ -1025,8 +1038,59 @@ export async function updatePostRecord(
         }),
   });
 
+  // The child table is written FIRST and unconditionally on presence, because
+  // the scalar early-return below must not be able to skip it: a patch carrying
+  // only `topicRefs` produces no column values at all.
+  if (classification?.topicRefs !== undefined) {
+    await replaceTopicRefs(postId, classification.topicRefs, db);
+  }
+
   if (Object.keys(values).length === 0) return;
   await db.update(posts).set(values).where(eq(posts.id, postId));
+}
+
+/**
+ * Replace a post's classification topic refs wholesale.
+ *
+ * Delete-then-insert in ONE transaction, the same shape as
+ * {@link replacePostAuthorship}, because an enrichment pass REPLACES the topic
+ * set rather than adding to it: a topic the classifier dropped has to disappear,
+ * and the `(post_id, name)` unique index would reject a plain re-insert anyway.
+ *
+ * This exists because `updatePostRecord` maps scalar COLUMNS, and `topicRefs` is
+ * a child table. It type-checked as part of `PostRecordPatch.postClassification`
+ * and was silently ignored — so Stage-B AI enrichment, the only producer of
+ * registry-linked refs, wrote its topics to the scalar `classification_topics`
+ * array and dropped every `topicId` linkage on the floor. Nothing errored;
+ * trending, the topic pages and personalization just stopped seeing AI topics.
+ */
+export async function replaceTopicRefs(
+  postId: string,
+  topicRefs: readonly PostRecordTopicRef[],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<void> {
+  const write = async (tx: DatabaseOrTransaction): Promise<void> => {
+    await tx
+      .delete(postClassificationTopicRefs)
+      .where(eq(postClassificationTopicRefs.postId, postId));
+    if (topicRefs.length > 0) {
+      await tx.insert(postClassificationTopicRefs).values(
+        topicRefs.map((ref) => ({
+          postId,
+          name: ref.name,
+          topicId: ref.topicId ?? null,
+          relevance: ref.relevance ?? null,
+          type: ref.type ?? null,
+        })),
+      );
+    }
+  };
+
+  if ('transaction' in db) {
+    await db.transaction(write);
+    return;
+  }
+  await write(db);
 }
 
 /**
