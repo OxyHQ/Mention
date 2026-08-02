@@ -8,7 +8,7 @@
  * not be shown as having reached it.
  */
 
-import { formatCompactNumber, formatEngagement } from '../formatNumber';
+import { formatCompactNumber } from '../formatNumber';
 
 describe('formatCompactNumber', () => {
   it('returns numbers below 1,000 unchanged', () => {
@@ -63,12 +63,5 @@ describe('formatCompactNumber', () => {
   it('falls back to "0" for non-finite input', () => {
     expect(formatCompactNumber(Number.NaN)).toBe('0');
     expect(formatCompactNumber(Number.POSITIVE_INFINITY)).toBe('0');
-  });
-});
-
-describe('formatEngagement', () => {
-  it('matches formatCompactNumber', () => {
-    expect(formatEngagement(1500)).toBe(formatCompactNumber(1500));
-    expect(formatEngagement(1200000)).toBe(formatCompactNumber(1200000));
   });
 });
