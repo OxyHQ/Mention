@@ -112,11 +112,14 @@ describe('deriveTrendLabel — a shared phrase beats the term', () => {
   });
 
   it('counts a phrase once per post, so one loud post cannot outvote the rest', () => {
+    // Written as people write names — the extractor now requires a phrase to
+    // NAME something, which is the same rule that keeps `love` and `hope` out
+    // of the trending list.
     const posts = [
       'sponsored link sponsored link sponsored link sponsored link sponsored link',
-      'dean kremer is having a rough season',
-      'dean kremer traded again apparently',
-      'dean kremer to the twins',
+      'i think Dean Kremer is having a rough season',
+      'apparently Dean Kremer traded again',
+      'so Dean Kremer to the twins',
     ];
     expect(deriveTrendLabel({ term: 'orioles', excerpts: posts }).displayName).toBe('Dean Kremer');
   });

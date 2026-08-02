@@ -247,6 +247,11 @@ export function collectTrendPhrases(text: string | null | undefined): string[] {
     phrases.push(phrase);
   };
 
+  // A post with no lower-case letter at all carries NO case information — it is
+  // shouting, not naming — so nothing in it counts as a name. Without this the
+  // rule below reads every word of an all-caps post as a proper noun.
+  const carriesCase = /\p{Ll}/u.test(text ?? '');
+
   const cleaned = stripMentionPlaceholders(text ?? '')
     // Mention links first: they are the shape most likely to contain something
     // that looks like prose, so removing them whole has to happen before the
@@ -268,25 +273,34 @@ export function collectTrendPhrases(text: string | null | undefined): string[] {
     // Each RUN is a stretch of consecutive keepable tokens. A dropped token
     // (stop word, too short, purely numeric) ends the run rather than being
     // skipped over, so phrases never span a word the writer actually used.
-    let run: string[] = [];
+    let run: { token: string; names: boolean }[] = [];
 
     const flush = (): void => {
       for (let start = 0; start < run.length; start++) {
-        push(run[start]);
+        // A single word is emitted only when it NAMES something (see
+        // `namesSomething`). A phrase is emitted when any of its words does:
+        // `Kremer trade` is a story even though `trade` is an ordinary word.
+        if (run[start].names) push(run[start].token);
         for (let size = 2; size <= maxPhraseTokens && start + size <= run.length; size++) {
-          push(run.slice(start, start + size).join(' '));
+          const words = run.slice(start, start + size);
+          if (words.some((word) => word.names)) {
+            push(words.map((word) => word.token).join(' '));
+          }
         }
       }
       run = [];
     };
 
+    let position = 0;
     for (const raw of segment.split(' ')) {
       const token = normalizeToken(raw);
       if (!token || !isKeepableToken(raw, token, minTokenLength, maxTokenLength)) {
         flush();
+        position += raw.length > 0 ? 1 : 0;
         continue;
       }
-      run.push(token);
+      run.push({ token, names: carriesCase && position > 0 && /^\p{Lu}/u.test(raw) });
+      position += 1;
     }
     flush();
   }

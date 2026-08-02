@@ -89,8 +89,17 @@ import {
  * trending still sees those posts through the hashtag/topic half of its term
  * union, so the only cost of an un-backfilled post is that its untagged prose
  * does not count yet.
+ *
+ * v7: a bare trend term must NAME something. A single word is emitted only when
+ * it is capitalized MID-SENTENCE (or arrives as a hashtag); a phrase needs one
+ * such word. The live list had become `Love`, `Mal`, `Hope` — words rather than
+ * stories — and no stop-word list closes that gap, because the next leak is
+ * always a content word in a language nobody listed. Capitalization is written
+ * in the text itself, needs no vocabulary, and in German selects exactly the
+ * nouns. Bumped so the version-gated backfill re-derives terms across the
+ * corpus; until it runs, older posts keep their broader v6 terms.
  */
-export const BASELINE_CLASSIFIER_VERSION = 6;
+export const BASELINE_CLASSIFIER_VERSION = 7;
 
 /**
  * Minimum number of non-whitespace characters required before attempting

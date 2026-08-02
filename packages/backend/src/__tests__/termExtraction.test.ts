@@ -16,13 +16,16 @@ import {
 
 describe('extractTrendTerms — hashtag and word collapse', () => {
   it('reduces a hashtag to the bare word, whatever its case', () => {
-    expect(extractTrendTerms({ text: '#FIFA is a mess' })).toContain('fifa');
-    expect(extractTrendTerms({ text: '#fifa is a mess' })).toContain('fifa');
-    expect(extractTrendTerms({ text: 'FIFA is a mess' })).toContain('fifa');
+    // The classifier hands the canonical hashtags alongside the text, so these
+    // mirror the production call rather than the text alone.
+    expect(extractTrendTerms({ text: '#FIFA is a mess', hashtags: ['fifa'] })).toContain('fifa');
+    expect(extractTrendTerms({ text: '#fifa is a mess', hashtags: ['fifa'] })).toContain('fifa');
+    // Untagged, the word still counts when it NAMES something mid-sentence.
+    expect(extractTrendTerms({ text: 'a plan even for FIFA' })).toContain('fifa');
   });
 
   it('emits the term ONCE when a post uses both spellings', () => {
-    const terms = extractTrendTerms({ text: 'FIFA again #FIFA' });
+    const terms = extractTrendTerms({ text: 'a plan for FIFA again #FIFA', hashtags: ['fifa'] });
     expect(terms.filter((term) => term === 'fifa')).toHaveLength(1);
   });
 
@@ -34,7 +37,7 @@ describe('extractTrendTerms — hashtag and word collapse', () => {
 
 describe('extractTrendTerms — phrases', () => {
   it('emits an adjacent-word phrase alongside its words', () => {
-    const terms = extractTrendTerms({ text: 'Todd Blanche testified' });
+    const terms = extractTrendTerms({ text: 'everyone is talking about Todd Blanche' });
     expect(terms).toContain('todd blanche');
     expect(terms).toContain('todd');
     expect(terms).toContain('blanche');
@@ -42,24 +45,24 @@ describe('extractTrendTerms — phrases', () => {
 
   it('never glues a phrase across a stop word', () => {
     // "Kremer and Orioles" — the pair `kremer orioles` was never written.
-    const terms = extractTrendTerms({ text: 'Kremer and Orioles' });
+    const terms = extractTrendTerms({ text: 'traded Kremer and Orioles today' });
     expect(terms).toContain('kremer');
     expect(terms).toContain('orioles');
     expect(terms).not.toContain('kremer orioles');
   });
 
   it('never glues a phrase across punctuation', () => {
-    const terms = extractTrendTerms({ text: 'Kremer, Orioles' });
+    const terms = extractTrendTerms({ text: 'traded Kremer, the Orioles won' });
     expect(terms).not.toContain('kremer orioles');
   });
 
   it('never glues a phrase across a line break', () => {
-    const terms = extractTrendTerms({ text: 'Kremer\nOrioles' });
+    const terms = extractTrendTerms({ text: 'traded Kremer\nthe Orioles won' });
     expect(terms).not.toContain('kremer orioles');
   });
 
   it('emits no phrase longer than the configured maximum', () => {
-    const terms = extractTrendTerms({ text: 'Dean Kremer Trade Rumours' });
+    const terms = extractTrendTerms({ text: 'about Dean Kremer Trade Rumours' });
     const longest = Math.max(...terms.map((term) => term.split(' ').length));
     expect(longest).toBe(MtnConfig.trending.terms.maxPhraseTokens);
   });
@@ -72,11 +75,14 @@ describe('extractTrendTerms — federated mentions never become topics', () => {
    * is a real post that reached the live trending list through this hole.
    */
   it('drops the recipient handle', () => {
-    const terms = extractTrendTerms({ text: '[@Zaph y](weedbunt@posting.onl) i doooo #gangsta' });
+    const terms = extractTrendTerms({
+      text: '[@Zaph y](weedbunt@posting.onl) i doooo #gangsta',
+      hashtags: ['gangsta'],
+    });
     expect(terms).not.toContain('weedbunt');
     expect(terms).not.toContain('posting');
     expect(terms).not.toContain('onl');
-    // …while the author's own words survive.
+    // …while the author's own tag survives.
     expect(terms).toContain('gangsta');
   });
 
@@ -92,18 +98,19 @@ describe('extractTrendTerms — federated mentions never become topics', () => {
     expect(terms).not.toContain('mention');
     expect(terms).not.toContain('earth');
     expect(terms).not.toContain('nate');
-    expect(terms).toEqual(['thanks', 'reply']);
   });
 
   it('drops a bare handle written in prose, leaving no orphaned local part', () => {
     // The `@mention` rule alone would eat `@example.com` and leave `someone`.
-    expect(extractTrendTerms({ text: 'contact me at someone@example.com about FIFA' }))
-      .toEqual(['contact', 'fifa']);
+    const terms = extractTrendTerms({ text: 'contact me at someone@example.com about FIFA' });
+    expect(terms).not.toContain('someone');
+    expect(terms).not.toContain('example');
+    expect(terms).toContain('fifa');
   });
 
   it('keeps the LABEL of an ordinary markdown link but not its target', () => {
     const terms = extractTrendTerms({
-      text: 'read [this great piece](https://example.com/a/b) about FIFA corruption',
+      text: 'read [this great Piece](https://example.com/a/b) about FIFA corruption',
     });
     expect(terms).toContain('great piece');
     expect(terms).toContain('fifa corruption');
@@ -191,7 +198,7 @@ describe('extractTrendTerms — what is dropped', () => {
     // part of the token. Cut at the apostrophe, each falls to the stop list or
     // the length floor — while the ordinary words beside them stay, which is
     // the point: this trims function words, it does not thin the vocabulary.
-    const terms = extractTrendTerms({ text: "i'll give there's always" });
+    const terms = extractTrendTerms({ text: "i'll Give there's always" });
     expect(terms).not.toContain("i'll");
     expect(terms).not.toContain("there's");
     expect(terms).toContain('give');
@@ -204,8 +211,8 @@ describe('extractTrendTerms — what is dropped', () => {
 
   it('drops question words and modals, which reached the live list as trends', () => {
     // `Why` and `Will` were rendered as trending topics on 2026-08-01.
-    expect(extractTrendTerms({ text: 'why will they do this' })).toEqual([]);
-    const terms = extractTrendTerms({ text: 'which one shall we pick' });
+    expect(extractTrendTerms({ text: 'so Why Will they do this' })).toEqual([]);
+    const terms = extractTrendTerms({ text: 'so Which Shall we Pick' });
     expect(terms).not.toContain('which');
     expect(terms).not.toContain('shall');
     // …and a content word in the same sentence still survives.
@@ -220,26 +227,81 @@ describe('extractTrendTerms — what is dropped', () => {
 
 describe('extractTrendTerms — acronyms', () => {
   it('keeps a short ALL-CAPS acronym despite the length floor', () => {
-    expect(extractTrendTerms({ text: 'EU regulators asked' })).toContain('eu');
+    expect(extractTrendTerms({ text: 'the EU regulators asked' })).toContain('eu');
   });
 
   it('drops the same short token when it is not all-caps', () => {
-    expect(extractTrendTerms({ text: 'eu regulators asked' })).not.toContain('eu');
+    expect(extractTrendTerms({ text: 'the eu regulators asked' })).not.toContain('eu');
   });
 
   it('drops a single-character token even in caps', () => {
-    expect(extractTrendTerms({ text: 'A regulators asked' })).not.toContain('a');
+    expect(extractTrendTerms({ text: 'the A regulators asked' })).not.toContain('a');
+  });
+});
+
+describe('extractTrendTerms — a bare word must NAME something', () => {
+  /*
+   * The live list was `Love`, `Mal`, `Hope`, `News`, `Mention` — words, not
+   * stories, while Bluesky's are `Kremer Trade`, `Todd Blanche`, `FIFA`. No
+   * stop-word list closes that gap: `love` and `hope` are content words, and
+   * the next leak is in a language nobody listed.
+   *
+   * What separates them is written in the text itself. A name is capitalized
+   * MID-SENTENCE; an ordinary word is not. The rule needs no vocabulary, works
+   * in every language at once, and in German — where every noun is capitalized
+   * — it selects exactly the nouns while leaving `ich`, `mal` and `dir` out.
+   */
+  it('keeps a proper noun written mid-sentence', () => {
+    expect(extractTrendTerms({ text: 'a good trade for the Orioles' })).toContain('orioles');
+    expect(extractTrendTerms({ text: 'a plan even for FIFA' })).toContain('fifa');
+  });
+
+  it('drops the ordinary words that reached the live list', () => {
+    expect(extractTrendTerms({ text: 'i love this so much, love is all you need' })).not.toContain('love');
+    expect(extractTrendTerms({ text: 'i hope so, hope everyone is well' })).not.toContain('hope');
+    expect(extractTrendTerms({ text: 'worth a mention i suppose' })).not.toContain('mention');
+  });
+
+  it('selects German nouns without knowing the text is German', () => {
+    const terms = extractTrendTerms({ text: 'wenn du von zwei Jahren ausgehst, nenne ich dich einen Optimisten' });
+    expect(terms).toContain('jahren');
+    expect(terms).toContain('optimisten');
+  });
+
+  it('learns nothing from a post that is shouting', () => {
+    // No lower-case letter anywhere means no case INFORMATION: every word would
+    // otherwise read as a name.
+    expect(extractTrendTerms({ text: 'THIS IS ALL CAPS SHOUTING ABOUT NOTHING' })).toEqual([]);
+  });
+
+  it('ignores the capital that only marks the start of a sentence', () => {
+    // `Love is all you need` names nothing. The subject of a post that opens
+    // with it is recovered from the other posts that write it mid-sentence —
+    // which is what a trend is: many people, not one sentence.
+    expect(extractTrendTerms({ text: 'Love is all you need' })).not.toContain('love');
+  });
+
+  it('keeps a phrase when ANY of its words names something', () => {
+    // `trade` is an ordinary word; `Kremer trade` is a story.
+    expect(extractTrendTerms({ text: 'about the Kremer trade today' })).toContain('kremer trade');
+  });
+
+  it('still keeps a hashtag the author chose, whatever its case', () => {
+    // An explicit tag is the author naming the subject; it needs no capital.
+    expect(extractTrendTerms({ text: 'watching #frightclub', hashtags: ['frightclub'] }))
+      .toContain('frightclub');
   });
 });
 
 describe('extractTrendTerms — bounds', () => {
   it('caps the number of terms per post', () => {
-    const text = Array.from({ length: 60 }, (_, index) => `word${index}`).join(' ');
+    // Capitalized so each word NAMES something; a lower-case run emits nothing.
+    const text = `and ${Array.from({ length: 60 }, (_, i) => `Word${i}`).join(' ')}`;
     expect(extractTrendTerms({ text }).length).toBe(MtnConfig.trending.terms.maxTermsPerPost);
   });
 
   it('keeps the OPENING of the post when it truncates', () => {
-    const text = Array.from({ length: 60 }, (_, index) => `word${index}`).join(' ');
+    const text = `and ${Array.from({ length: 60 }, (_, i) => `Word${i}`).join(' ')}`;
     expect(extractTrendTerms({ text })[0]).toBe('word0');
   });
 
