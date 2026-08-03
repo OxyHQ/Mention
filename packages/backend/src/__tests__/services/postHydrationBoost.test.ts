@@ -398,4 +398,31 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     expect(hydrated.originalPost).toBeNull();
   });
 
+  it('does not treat federated followers-only originals as public for anonymous hydration', async () => {
+    service = new PostHydrationService();
+
+    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
+      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
+      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+        return [{
+          ...originalRow(),
+          visibility: 'followers_only',
+          status: 'published',
+          federation: {
+            activityId: 'https://remote.example/users/author/statuses/private-parent',
+            actorUri: 'https://remote.example/users/author',
+          },
+          content: { text: 'federated followers-only secret' },
+        }];
+      }
+      return [];
+    });
+
+    const [hydrated] = await hydrateBoost(undefined);
+
+    expect(hydrated, 'public boost should still hydrate').toBeTruthy();
+    expect(hydrated.boost).toBeNull();
+    expect(hydrated.originalPost).toBeNull();
+  });
+
 });
