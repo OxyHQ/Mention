@@ -12,6 +12,7 @@
  *  - never populated, with a source path (the eleven);
  *  - never populated, WITHOUT a source path (weaker, and it must say so);
  *  - PARTIALLY populated, which every "is it ever non-null" test passes;
+ *  - OVER populated, which no null-based test can reach at all;
  *  - a healthy column, so a check that fired on everything would be caught;
  *  - an acknowledgement that is honest, and one that has gone stale.
  */
@@ -24,12 +25,20 @@ import {
   type PopulatedCounts,
 } from '../../db/backfill/columnCoverage';
 
-/** A stand-in table: one required column and three nullable ones. */
+/** A stand-in table: two required columns and three nullable ones. */
 const widgets = pgTable('bcc_widgets', {
   id: text().primaryKey(),
   mapped: text(),
   dropped: text(),
   partial: text(),
+  /** NOT NULL with a database default — the `?? ''` fallback's landing place. */
+  flavour: text().notNull().default(''),
+});
+
+/** A child table, filled from a subdocument array — several rows per document. */
+const widgetParts = pgTable('bcc_widget_parts', {
+  id: text().primaryKey(),
+  label: text(),
 });
 
 function counts(rows: Array<Record<string, unknown>>): PopulatedCounts {
@@ -44,6 +53,7 @@ const audit = (
 ) =>
   auditColumnCoverage({
     collection: 'bcc',
+    primaryTable: widgets,
     tables: [widgets],
     populated: counts(rows),
     rowsEmitted: rows.length,
@@ -246,9 +256,128 @@ describe('auditColumnCoverage', () => {
     // would bury the real ones. A gate that cries wolf gets disabled.
     expect(auditColumnCoverage({
       collection: 'bcc',
+      primaryTable: widgets,
       tables: [widgets],
       populated: new Map(),
       rowsEmitted: 0,
     })).toStrictEqual([]);
+  });
+
+  it('reports a column filled for MORE rows than the source has values', () => {
+    // The direction no null-based check can reach. `partial` is written for all
+    // three rows — a `?? ''` fallback, or a database DEFAULT the loader lets
+    // through by omitting the column — while only one source document holds a
+    // value. Two rows carry a constant nobody chose, and every "is it ever
+    // non-null" and "is it entirely null" test calls that fully populated.
+    const findings = audit(
+      [
+        { id: 'a', mapped: 'x', partial: 'p' },
+        { id: 'b', mapped: 'y', partial: '' },
+        { id: 'c', mapped: 'z', partial: '' },
+      ],
+      {
+        coverage: [{ table: widgets, column: widgets.partial, sourcePath: 'thing.partial' }],
+        sourceCounts: new Map([['thing.partial', 1]]),
+        unmapped: [{ table: widgets, column: widgets.dropped, reason: 'the source has no such field' }],
+      }
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.kind).toBe('over-populated');
+    expect(findings[0]?.column).toBe('bcc_widgets.partial');
+    expect(findings[0]?.populated).toBe(3);
+    expect(findings[0]?.sourceValues).toBe(1);
+    expect(findings[0]?.detail).toMatch(/2 row\(s\) carry a value the source did not supply/);
+    expect(findings[0]?.detail).toMatch(/fabricated/);
+  });
+
+  it('accepts a fallback that says WHY it fills the gap', () => {
+    // The healthy counterpart, and the point of the finding: a counter with no
+    // source field genuinely is zero. Without this case a check that fired on
+    // every surplus would pass the one above.
+    const findings = audit(
+      [
+        { id: 'a', mapped: 'x', partial: 'p' },
+        { id: 'b', mapped: 'y', partial: '' },
+      ],
+      {
+        coverage: [{
+          table: widgets,
+          column: widgets.partial,
+          sourcePath: 'thing.partial',
+          filledWhenAbsent: 'absent means the empty string, which is what the reader expects',
+        }],
+        sourceCounts: new Map([['thing.partial', 1]]),
+        unmapped: [{ table: widgets, column: widgets.dropped, reason: 'the source has no such field' }],
+      }
+    );
+    expect(findings).toStrictEqual([]);
+  });
+
+  it('measures a NOT NULL column once a source path is declared', () => {
+    // The worst-disguised member of the class, and the one BOTH existing checks
+    // miss. `auditDefaultedColumns` asks whether the transform OMITS a defaulted
+    // property; a `?? ''` fallback supplies it, so nothing is omitted and no
+    // finding is raised — while the column holds one fabricated constant on
+    // every row. 78 columns sit in that state in the rehearsed corpus. A
+    // declared path is what turns it from invisible into measured.
+    const findings = audit(
+      [
+        { id: 'a', mapped: 'x', flavour: 'sharp' },
+        { id: 'b', mapped: 'y', flavour: '' },
+        { id: 'c', mapped: 'z', flavour: '' },
+      ],
+      {
+        coverage: [{ table: widgets, column: widgets.flavour, sourcePath: 'thing.flavour' }],
+        sourceCounts: new Map([['thing.flavour', 1]]),
+        unmapped: [
+          { table: widgets, column: widgets.dropped, reason: 'the source has no such field' },
+          { table: widgets, column: widgets.partial, reason: 'retired before the port' },
+        ],
+      }
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.kind).toBe('over-populated');
+    expect(findings[0]?.column).toBe('bcc_widgets.flavour');
+    expect(findings[0]?.populated).toBe(3);
+    expect(findings[0]?.sourceValues).toBe(1);
+  });
+
+  it('says nothing about a NOT NULL column with no declaration', () => {
+    // The healthy counterpart, and the reason the skip survives: without a path
+    // there is genuinely nothing to compare, and reporting every NOT NULL column
+    // of every table would drown the findings that matter. `flavour` is unset on
+    // both rows here and must still produce nothing.
+    const findings = audit(
+      [{ id: 'a', mapped: 'x' }, { id: 'b', mapped: 'y' }],
+      {
+        unmapped: [
+          { table: widgets, column: widgets.dropped, reason: 'the source has no such field' },
+          { table: widgets, column: widgets.partial, reason: 'retired before the port' },
+        ],
+      }
+    );
+    expect(findings).toStrictEqual([]);
+  });
+
+  it('does NOT call a child table over-populated — the counts are different units', () => {
+    // `sourceCounts` counts DOCUMENTS and `populated` counts ROWS. A child table
+    // is filled from a subdocument array, so one document routinely emits
+    // several rows and a surplus is arithmetic rather than a finding. Reporting
+    // it would fire on every array-backed column in the migration, which is how
+    // a gate gets disabled by whoever hits it next.
+    const populated: PopulatedCounts = new Map();
+    for (const row of [{ id: 'a', label: 'l' }, { id: 'b', label: 'l' }, { id: 'c', label: 'l' }]) {
+      recordPopulated(populated, widgetParts, row);
+    }
+    const findings = auditColumnCoverage({
+      collection: 'bcc',
+      primaryTable: widgets,
+      tables: [widgetParts],
+      populated,
+      rowsEmitted: 3,
+      coverage: [{ table: widgetParts, column: widgetParts.label, sourcePath: 'thing.parts.label' }],
+      sourceCounts: new Map([['thing.parts.label', 1]]),
+    });
+    expect(findings).toStrictEqual([]);
   });
 });
