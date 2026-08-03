@@ -133,6 +133,8 @@
   "collab.searchPlaceholder": "Search people to collaborate with",
   "collab.noResults": "No users found",
   "collab.and": " and ",
+  "collab.by": " by ",
+  "collab.writtenByTitle": "Published by",
   "collab.acceptTitle": "Accept invite?",
   "collab.acceptSubtitle": "{{name}} invited you to collaborate on their post.",
   "collab.acceptAttribution": "Your username will be added to this post as a co-author.",

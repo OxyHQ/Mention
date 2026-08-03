@@ -474,15 +474,24 @@ const PostItem: React.FC<PostItemProps> = ({
     const collaborators = viewPost?.authors;
     const isCollab = (collaborators?.length ?? 0) > 1;
 
-    // Open the collaborators list — the byline shows first names only, so this is
-    // where the full @usernames live. Content is already on the post (no fetch).
+    // Open the author list — the byline shows first names only, so this is where
+    // the full @usernames live. Content is already on the post (no fetch).
+    //
+    // A signed CHANNEL post lands here too, and "Collaborators" is wrong for it:
+    // nobody co-authored anything, one account published what one person wrote.
+    // `writer` is the role hydration gives only that person, so it is what picks
+    // the heading.
     const openCollaboratorsList = useCallback(() => {
         if (!collaborators || collaborators.length <= 1) return;
+        const namesWriter = collaborators.some((a) => a.role === 'writer');
+        const label = namesWriter
+            ? t('collab.writtenByTitle', { defaultValue: 'Published by' })
+            : t('collab.collaboratorsTitle', { defaultValue: 'Collaborators' });
         showContentDialog({
-            label: t('collab.collaboratorsTitle', { defaultValue: 'Collaborators' }),
+            label,
             render: (close) => (
                 <Suspense fallback={null}>
-                    <CollaboratorsList authors={collaborators} onClose={close} />
+                    <CollaboratorsList authors={collaborators} onClose={close} title={label} />
                 </Suspense>
             ),
         });
@@ -819,6 +828,13 @@ const PostItem: React.FC<PostItemProps> = ({
                             instance: viewPost.user.instance,
                         }}
                         authors={viewPost.authors && viewPost.authors.length > 0 ? viewPost.authors : undefined}
+                        // `repostedBy` is the only boost that put THIS post in
+                        // front of the reader. `viewPost.boost` is the other
+                        // boost shape — the row IS the boost, so its author and
+                        // its actor are the same account and there is nothing to
+                        // pair or reorder; passing it would be a no-op wearing
+                        // the clothes of a rule.
+                        boostedBy={repostedBy}
                         date={metadata.createdAt}
                         showBoost={Boolean(viewPost.boost) && !isNested}
                         showReply={false}
