@@ -279,7 +279,41 @@ describe('TREND_LABEL_VERSION guards the labels it stamps', () => {
     expect(label.category).toBe(category);
   });
 
-  it('is at v3 — bump it in the same change that alters the table above', () => {
-    expect(TREND_LABEL_VERSION).toBe(3);
+  it('is at v4 — bump it in the same change that alters the table above', () => {
+    expect(TREND_LABEL_VERSION).toBe(4);
+  });
+});
+
+describe('a category needs enough posts behind it', () => {
+  it('reports `other` when one post among many decided the topic', () => {
+    // `US`, live: eleven posts about nothing in particular and one saying
+    // "climate change" filed the row under Science. A row labelled confidently
+    // and wrongly costs a reader more than an unlabelled one.
+    const excerpts = [
+      'a post about climate change',
+      ...Array.from({ length: 11 }, (_, index) => `an ordinary post number ${index}`),
+    ];
+
+    expect(deriveTrendLabel({ term: 'ustoday', excerpts }).category).toBe('other');
+  });
+
+  it('keeps a category the posts actually agree on', () => {
+    const excerpts = [
+      'the election result is disputed',
+      'a senate hearing today',
+      'congress voted on the policy',
+      'an ordinary post',
+    ];
+
+    expect(deriveTrendLabel({ term: 'ustoday', excerpts }).category).toBe('politics');
+  });
+
+  it('never lets one post out of two clear the share on its own', () => {
+    // 1/2 is 50% and comfortably over the share; the absolute floor is what
+    // stops a two-excerpt term being labelled by a single mention.
+    expect(
+      deriveTrendLabel({ term: 'ustoday', excerpts: ['a post about climate change', 'hello'] })
+        .category,
+    ).toBe('other');
   });
 });

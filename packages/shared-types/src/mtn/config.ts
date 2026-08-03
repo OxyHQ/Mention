@@ -1058,6 +1058,30 @@ export const MtnConfig = {
        */
       maxPerBatch: 12,
       /**
+       * Posts that must support a topic before it becomes the row's category,
+       * as a SHARE of the excerpts read.
+       *
+       * Without it the category is decided by whichever keyword family a broad
+       * term's heterogeneous posts happen to hit, often by a single mention:
+       * `US` was filed under Science because one post among a dozen said
+       * "climate change", and one saying "world cup" filed `World` under
+       * Sports.
+       *
+       * Below this the row reports `other` — the taxonomy's own word for
+       * "nothing fits". An unlabelled row costs a reader a hint; a confidently
+       * wrong one costs them trust in every other hint on the screen. `Ceuta`
+       * and `Ukraine` already read `other` because nothing matched at all, and
+       * weak evidence should look the same as none, because it is.
+       */
+      minCategorySupport: 0.25,
+      /**
+       * …and never fewer than this many posts, whatever the share works out to.
+       *
+       * A share alone cannot protect a short excerpt list: one post out of two
+       * is 50%, comfortably clear of the bar above, and still one post.
+       */
+      minCategorySupportPosts: 2,
+      /**
        * The category taxonomy offered to the labeller. Declared once in
        * `trending.ts` (with the matching type and the degrade-to-`other`
        * narrowing) and referenced here, so the list a prompt is built from and

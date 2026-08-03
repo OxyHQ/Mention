@@ -29,7 +29,7 @@
  *    phrase becomes the name.
  */
 
-import { normalizeTrendCategory } from '@mention/shared-types';
+import { MtnConfig, normalizeTrendCategory } from '@mention/shared-types';
 import type { TrendCategory } from '@mention/shared-types';
 import { ruleBasedTopicClassifier } from '../contentClassification/TopicClassifier';
 import { canonicalHashtag } from '../contentClassification/taxonomy';
@@ -52,13 +52,17 @@ import { collectTrendPhrases } from './termExtraction';
  * v2: a corpus spelling is preferred only when it adds capitalization and is
  * not shouted (see {@link presentableSurfaceForm}).
  *
+ * v4: a topic must be supported by a minimum SHARE of the posts read before it
+ * becomes the category; below that the row reports `other`. One post in twelve
+ * saying "climate change" was enough to file `US` under Science.
+ *
  * v3: the category is the topic the most posts support, rather than the first
  * slug the classifier returns — which was its rule array's line order. Missing
  * this bump reproduced the incident described above one release later: `US`
  * stayed filed under Science after the fix that would have written `other`,
  * because its run had started first and its label was reused verbatim.
  */
-export const TREND_LABEL_VERSION = 3;
+export const TREND_LABEL_VERSION = 4;
 
 /** What a trend is shown as. */
 export interface TrendLabel {
@@ -315,7 +319,17 @@ function deriveCategory(term: string, excerpts: readonly string[]): TrendCategor
     }
   }
 
-  const ranked = [...support.entries()].sort(
+  // Weak evidence has to read like no evidence: one mention among a dozen posts
+  // is not what a row is about.
+  const { minCategorySupport, minCategorySupportPosts } = MtnConfig.trending.labeling;
+  const required = Math.max(
+    minCategorySupportPosts,
+    Math.ceil(excerpts.length * minCategorySupport),
+  );
+
+  const ranked = [...support.entries()]
+    .filter(([, count]) => count >= required)
+    .sort(
     // Ties break by slug so two batches over identical posts agree.
     ([leftSlug, left], [rightSlug, right]) => right - left || leftSlug.localeCompare(rightSlug),
   );
