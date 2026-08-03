@@ -66,17 +66,6 @@ const DEFAULT_OPTIONS: ThreadSlicingOptions = {
   maxSliceSize: MtnConfig.feed.maxSliceSize,
 };
 
-/**
- * The projection for the posts the slicer pulls in itself — self-thread children
- * and reply-context parents. Both queries share it because they feed the same
- * consumer.
- *
- * `status` is part of it deliberately. These lean docs go straight to
- * `PostHydrationService`, whose unpublished guard reads `post.status ?? 'published'`:
- * leave the field unprojected and that guard reads `undefined`, defaults to
- * `'published'`, and never fires — an inert ACL rather than an enforced one.
- */
-
 class ThreadSlicingService {
   /**
    * Takes a flat array of feed posts (already ranked/sorted) and groups them

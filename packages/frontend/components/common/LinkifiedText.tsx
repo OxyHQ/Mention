@@ -3,7 +3,8 @@ import { Text, StyleProp, TextStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
-import { URL_PATTERN_SOURCE, toOpenableUrl, trimUrlTrailingPunct } from '@/utils/extractUrls';
+import { toOpenableUrl, trimUrlTrailingPunctuation } from '@mention/shared-types/textEntities';
+import { scanLinkifyEntities } from '@/utils/linkifyPattern';
 import { openExternalLink } from '@/utils/openExternalLink';
 
 interface LinkifiedTextProps {
@@ -16,19 +17,6 @@ interface LinkifiedTextProps {
   numberOfLines?: number;
 }
 
-// Precompiled once at module scope (the source is static) so re-rendering many
-// LinkifiedText rows never re-`new RegExp(...)` on every render. The global flag
-// keeps `lastIndex` state, so the matching loop below always drains to completion
-// (exec → null resets lastIndex to 0) before returning, keeping it reusable.
-//
-// 1) Mentions in format [@DisplayName](username) - from backend
-// 2) URLs: http(s)://... or www.... (shared source from utils/extractUrls)
-// 3) Entities with preceding boundary capture: hashtags, cashtags
-const LINKIFY_PATTERN = new RegExp(
-  `(\\[@([^\\]]+)\\]\\(([^)]+)\\))|(${URL_PATTERN_SOURCE})|(^|[^A-Za-z0-9_])(#[A-Za-z][A-Za-z0-9_]*|\\$[A-Z]{1,6}(?:\\.[A-Z]{1,2})?)`,
-  'g',
-);
-
 // Renders text with clickable @mentions, #hashtags, $cashtags, and URLs
 export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, className, linkStyle, suffix, numberOfLines }) => {
   const router = useRouter();
@@ -37,11 +25,7 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
 
     const elements: React.ReactNode[] = [];
 
-    const pattern = LINKIFY_PATTERN;
-    pattern.lastIndex = 0;
-
     let lastIndex = 0;
-    let match: RegExpExecArray | null;
     let key = 0;
 
     const pushText = (t: string) => {
@@ -49,23 +33,16 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
       elements.push(<Text key={`t-${key++}`}>{t}</Text>);
     };
 
-    while ((match = pattern.exec(text)) !== null) {
-      const full = match[0];
-      const mentionFull = match[1];      // [@DisplayName](username)
-      const mentionDisplay = match[2];   // DisplayName
-      const mentionUsername = match[3];  // username
-      const urlCandidate = match[4];
-      const boundary = match[5] ?? '';
-      const entity = match[6];
+    for (const entity of scanLinkifyEntities(text)) {
+      // Everything between the previous entity and this one is plain prose.
+      pushText(text.slice(lastIndex, entity.start));
+      lastIndex = entity.end;
 
-      if (mentionFull) {
-        const start = match.index;
-        pushText(text.slice(lastIndex, start));
-
+      if (entity.kind === 'mentionDisplay') {
         // One handle drives both behaviors — the profile link and the hover
         // preview — so they can never point at different profiles. `inline`
         // keeps the mention in the text flow instead of breaking the line.
-        const mentionHandle = getNormalizedUserHandle({ username: mentionUsername }) ?? undefined;
+        const mentionHandle = getNormalizedUserHandle({ username: entity.value }) ?? undefined;
         elements.push(
           <ProfileHoverCard key={`m-${key++}`} username={mentionHandle} inline>
             <Text
@@ -73,16 +50,12 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
               style={linkStyle}
               onPress={mentionHandle ? () => router.push(`/@${mentionHandle}`) : undefined}
             >
-              {mentionDisplay}
+              {entity.label}
             </Text>
           </ProfileHoverCard>
         );
-        lastIndex = start + full.length;
-      } else if (urlCandidate) {
-        const start = match.index;
-        pushText(text.slice(lastIndex, start));
-
-        const { url, trailing } = trimUrlTrailingPunct(urlCandidate);
+      } else if (entity.kind === 'url') {
+        const { url, trailing } = trimUrlTrailingPunctuation(entity.value);
         const href = toOpenableUrl(url);
         elements.push(
           <Text
@@ -94,43 +67,31 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
             {url}
           </Text>
         );
+        // Punctuation that merely trailed the URL belongs to the sentence.
         pushText(trailing);
-        lastIndex = start + full.length;
-      } else if (entity) {
-        const entityStart = match.index + boundary.length;
-        pushText(text.slice(lastIndex, match.index));
-        pushText(boundary);
-
-        if (entity.startsWith('#')) {
-          const tag = entity.slice(1);
-          elements.push(
-            <Text
-              key={`h-${key++}`}
-              className="text-primary"
-              style={linkStyle}
-              onPress={() => router.push(`/hashtag/${encodeURIComponent(tag)}`)}
-            >
-              {entity}
-            </Text>
-          );
-        } else if (entity.startsWith('$')) {
-          const symbol = entity.slice(1);
-          const q = encodeURIComponent(`$${symbol}`);
-          elements.push(
-            <Text
-              key={`c-${key++}`}
-              className="text-primary"
-              style={linkStyle}
-              onPress={() => router.push(`/search/${q}`)}
-            >
-              {entity}
-            </Text>
-          );
-        } else {
-          pushText(entity);
-        }
-
-        lastIndex = entityStart + entity.length;
+      } else if (entity.kind === 'hashtag') {
+        elements.push(
+          <Text
+            key={`h-${key++}`}
+            className="text-primary"
+            style={linkStyle}
+            onPress={() => router.push(`/hashtag/${encodeURIComponent(entity.value)}`)}
+          >
+            {entity.raw}
+          </Text>
+        );
+      } else if (entity.kind === 'cashtag') {
+        const q = encodeURIComponent(`$${entity.value}`);
+        elements.push(
+          <Text
+            key={`c-${key++}`}
+            className="text-primary"
+            style={linkStyle}
+            onPress={() => router.push(`/search/${q}`)}
+          >
+            {entity.raw}
+          </Text>
+        );
       }
     }
 

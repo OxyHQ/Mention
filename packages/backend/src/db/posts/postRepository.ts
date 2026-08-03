@@ -527,7 +527,6 @@ function assembleRecord(row: PostRow, children: PostChildRows): PostRecord {
     boostOf: row.boostOf,
     writtenByOxyUserId: row.writtenByOxyUserId,
     laneId: row.laneId,
-    channelId: row.channelId,
     quoteOf: row.quoteOf,
     parentPostId: row.parentPostId,
     threadId: row.threadId,
@@ -748,7 +747,6 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     // disagree.
     writtenByOxyUserId: input.writtenByOxyUserId ?? null,
     laneId: input.laneId ?? null,
-    channelId: input.channelId ?? null,
     quoteOf: input.quoteOf ?? null,
     parentPostId: input.parentPostId ?? null,
     threadId: input.threadId ?? null,

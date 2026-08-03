@@ -27,6 +27,11 @@
  * Idempotent and data-free: `createIndex` with an identical spec is a no-op, and
  * nothing is backfilled — every existing follow row already carries the
  * `createdAt` the index orders by.
+ *
+ * HISTORY: `channelfollows` was dropped by `0026-channel-accounts` — following a
+ * channel is now an ordinary Oxy follow. Kept, and unchanged in effect, for the
+ * reason `0024` states; the collection name is a literal because the model it
+ * came from is gone.
  */
 
 import mongoose from 'mongoose';

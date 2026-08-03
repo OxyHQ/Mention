@@ -86,6 +86,12 @@ function oneRowMatching(where: SQL | undefined): SQL {
 /** What a follow-edge listing narrows to. Every field is optional and ANDed. */
 export interface FollowFilter {
   localUserId?: string;
+  /**
+   * SEVERAL local accounts at once — the cross-account thread audience, which
+   * asks about every participant in one statement rather than one read each.
+   * Empty means "no account can match", exactly like {@link FollowFilter.statuses}.
+   */
+  localUserIds?: readonly string[];
   remoteActorUri?: string;
   direction?: FollowDirection;
   statuses?: readonly FollowStatus[];
@@ -94,6 +100,10 @@ export interface FollowFilter {
 function followClauses(filter: FollowFilter): SQL[] | null {
   const clauses: SQL[] = [];
   if (filter.localUserId !== undefined) clauses.push(eq(federatedFollows.localUserId, filter.localUserId));
+  if (filter.localUserIds !== undefined) {
+    if (filter.localUserIds.length === 0) return null;
+    clauses.push(inArray(federatedFollows.localUserId, [...filter.localUserIds]));
+  }
   if (filter.remoteActorUri !== undefined) {
     clauses.push(eq(federatedFollows.remoteActorUri, filter.remoteActorUri));
   }

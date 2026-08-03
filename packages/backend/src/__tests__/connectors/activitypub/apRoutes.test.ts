@@ -120,7 +120,6 @@ import { userSettings } from '../../../db/schema/userProfile';
 import {
   clearFederationScope,
   federationScope,
-  seedChannel,
   seedPost,
 } from '../../helpers/federationFixtures';
 import type { PostRecord } from '../../../db/posts/postRecord';
@@ -542,83 +541,90 @@ describe('GET /ap/users/:username/collections/featured — pinned posts', () => 
 });
 
 /**
- * A post published to a CHANNEL never leaves through an author surface.
+ * A channel's posts DO leave through its own author surfaces, and that is the
+ * point of a channel being an Oxy account.
  *
- * The outbox and the featured collection are author surfaces, and channels have
- * no ActivityPub presence in v1 — so listing one here would publish it to the
- * fediverse under the WRITER's actor, which is the opposite of what the channel
- * signs and, on a `signPosts: false` channel, a straight de-anonymization.
+ * The outbox and the featured collection are author surfaces, and a channel
+ * AUTHORS its posts — `/ap/users/<channel>/outbox` is the channel's own outbox.
+ * The exclusion these queries used to carry existed because a channel post was
+ * authored by a PERSON and listing it here would have published it under the
+ * writer's actor. There is no writer on these surfaces any more, so a
+ * re-introduced exclusion would silently empty a channel's fediverse presence.
  *
  * The featured collection is the more consequential of the two: Mastodon does not
  * backfill a freshly-discovered account's timeline from the outbox, so `featured`
  * is what a discovered profile actually renders.
  */
-/**
- * A channel post never leaves over ActivityPub.
- *
- * The outbox, its count and the featured collection are AUTHOR surfaces, and a
- * channel post belongs to the CHANNEL — which has no ActivityPub presence in v1.
- * Listing one would publish it to the fediverse under the WRITER's actor, the
- * opposite of what the channel signs, and a de-anonymization when `signPosts` is
- * false.
- *
- * Asserted on the SERVED COLLECTION rather than on a captured query object. The
- * exclusion lives in one shared scope precisely so the count, the page window and
- * the featured collection cannot drift; reading the response is what can tell
- * that they have not, and a query assertion for each would be three separate
- * claims about three separate strings.
- */
-describe('channel posts are excluded from every author-facing AP surface', () => {
+describe('an author surface filters on the AUTHOR and nothing else', () => {
+  /**
+   * The channel account whose surfaces these are.
+   *
+   * Its posts are ORDINARY rows authored by it, so this describe is not asserting
+   * a channel-shaped feature — it is asserting the ABSENCE of the exclusion these
+   * three queries used to carry. Read on the SERVED COLLECTION rather than on a
+   * captured query object: the scope is shared between the count, the page window
+   * and the featured collection precisely so they cannot drift, and a query
+   * assertion for each would be three separate claims about three separate
+   * strings (and would pin a Mongo spelling that is SQL now).
+   */
+  const CHANNEL = scope.user('the-daily');
+
   beforeEach(() => {
-    mocks.resolveOxyUser.mockResolvedValue({ _id: ALICE });
+    mocks.resolveOxyUser.mockResolvedValue({ _id: CHANNEL });
     mocks.buildCreateNoteActivity.mockImplementation((post: PostRecord) => ({
       type: 'Create',
-      object: { id: `https://mention.earth/ap/users/alice/posts/${post.id}` },
+      object: { id: `https://mention.earth/ap/users/thedaily/posts/${post.id}` },
     }));
   });
 
-  it('excludes them from the outbox PAGE and keeps the ordinary post', async () => {
-    const channelId = await seedChannel(scope);
-    const ordinary = await alicePost();
-    const inChannel = await alicePost({ channelId });
+  /** A post the CHANNEL authored — which is every post a channel has. */
+  function channelPost(
+    overrides: Partial<Parameters<typeof seedPost>[1]> = {},
+  ): Promise<PostRecord> {
+    return seedPost(scope, { oxyUserId: CHANNEL, ...overrides });
+  }
+
+  it('serves a channel-authored post on the outbox PAGE', async () => {
+    const post = await channelPost();
 
     const res = await request(app)
-      .get('/ap/users/alice/outbox?page=true')
+      .get('/ap/users/thedaily/outbox?page=true')
       .set('Accept', AP_ACCEPT)
       .expect(200);
 
     const served = (res.body.orderedItems as Array<{ object: { id: string } }>).map(
       (item) => item.object.id,
     );
-    expect(served).toEqual([`https://mention.earth/ap/users/alice/posts/${ordinary.id}`]);
-    expect(served.join(' ')).not.toContain(inChannel.id);
+    expect(served).toEqual([`https://mention.earth/ap/users/thedaily/posts/${post.id}`]);
   });
 
-  it('excludes them from the outbox COUNT with the same filter', async () => {
+  it('counts it in the outbox summary, with the SAME filter the page uses', async () => {
     // The count and the page must agree, or `totalItems` promises items no page
-    // will ever yield.
-    const channelId = await seedChannel(scope);
-    await alicePost();
-    await alicePost({ channelId });
+    // will ever yield — which is exactly what a re-added exclusion on one of them
+    // would produce.
+    await channelPost();
 
-    const res = await request(app).get('/ap/users/alice/outbox').set('Accept', AP_ACCEPT).expect(200);
+    const res = await request(app)
+      .get('/ap/users/thedaily/outbox')
+      .set('Accept', AP_ACCEPT)
+      .expect(200);
 
     expect(res.body.totalItems).toBe(1);
   });
 
-  it('excludes them from the featured collection', async () => {
-    const channelId = await seedChannel(scope);
-    const pinned = await alicePost({ metadata: { isPinned: true } });
-    const pinnedInChannel = await alicePost({ channelId, metadata: { isPinned: true } });
+  it('serves a pinned channel-authored post in the featured collection', async () => {
+    // The consequential one: Mastodon does not backfill a freshly-discovered
+    // account's timeline from the outbox, so `featured` is what a discovered
+    // channel profile actually renders.
+    const pinned = await channelPost({ metadata: { isPinned: true } });
 
     const res = await request(app)
-      .get('/ap/users/alice/collections/featured')
+      .get('/ap/users/thedaily/collections/featured')
       .set('Accept', AP_ACCEPT)
       .expect(200);
 
     expect(res.body.totalItems).toBe(1);
     expect(JSON.stringify(res.body)).toContain(pinned.id);
-    expect(JSON.stringify(res.body)).not.toContain(pinnedInChannel.id);
   });
 });
 

@@ -1,6 +1,5 @@
-import { and, asc, eq, gt } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
-import { channelFollows } from '../db/schema/channels';
 import { postSubscriptions } from '../db/schema/engagement';
 import { posts } from '../db/schema/posts';
 import {
@@ -29,6 +28,7 @@ import {
   mentionTextsFromContent,
 } from '@mention/shared-types/mentions';
 import { reconcileMentionIdsForPost } from '../utils/textProcessing';
+import { foldProfileLinkMentions } from './profileLinkMentions';
 import {
   createMentionNotifications,
   createBatchNotifications,
@@ -50,10 +50,23 @@ import { authorVariants, declaredBaseLanguages, toStoredContent } from './postVa
 import { recordRecentReplierForPost } from './PostRecentReplierService';
 import { parentHasPublished } from './scheduledChain';
 import { assertLaneAssignable } from '../utils/laneAssignment';
-import { assertCanPublishToChannel, ChannelAccessError, bumpChannelCounter } from './channelAccess';
-import { CHANNEL_NOTIFY_FANOUT_CAP } from '@mention/shared-types';
+import {
+  assertAnswersOperatedAccount,
+  assertContinuesOwnThread,
+} from '../utils/threadContinuation';
+import {
+  assertCanPublishAsAccount,
+  PublishAsAccessError,
+  type AccountMemberReader,
+} from './publishAsAccount';
 
 export interface CreatePostParams {
+  /**
+   * The AUTHENTICATED caller. This is the post's author UNLESS
+   * {@link CreatePostParams.publishAsOxyUserId} names another account, in which
+   * case the caller becomes `writtenByOxyUserId` and the post is authored by that
+   * account instead. `null` only on ingest paths that resolve their own author.
+   */
   oxyUserId: string | null;
   content: PostContent;
   visibility?: PostVisibility;
@@ -71,16 +84,71 @@ export interface CreatePostParams {
    */
   laneId?: string | null;
   /**
-   * Publish this post TO a channel — a DESTINATION, unlike a lane, which is a lens.
+   * Publish this post AS another Oxy account the caller operates: a `channel`,
+   * or an organization / project / bot they may act as.
    *
-   * Validated by {@link assertCanPublishToChannel} before the document is built: a
-   * channel the author is not an accepted member of is a 403, an unknown one a
-   * 404. Setting it changes three things about the post, all of them here in
-   * {@link PostCreationService.create} rather than scattered across callers:
-   * `replyPermission` is forced to `['nobody']`, the MTN dual-write is skipped, and
-   * outbound federation is skipped. See there for why.
+   * The post is AUTHORED BY that account: it carries the account's `oxyUserId`
+   * and its `authorship`, so it lands on that account's profile and in the
+   * timelines of its followers, and it renders with its avatar and name. The
+   * authenticated human moves to `writtenByOxyUserId`, OUTSIDE `authorship` —
+   * putting them inside would both break the channel's anonymity and put the post
+   * back on their own profile.
+   *
+   * Validated by {@link assertCanPublishAsAccount} before the document is built:
+   * an account the caller is not an accepted member of is a 403, and so is an
+   * act-as-eligible account they hold no `account:act_as` over. Publishing as a
+   * CHANNEL additionally forces `replyPermission: ['nobody']`; publishing as an
+   * organization does not — see there.
    */
-  channelId?: string | null;
+  publishAsOxyUserId?: string | null;
+  /**
+   * The Oxy client {@link publishAsOxyUserId} is authorized with — the CALLER'S
+   * own, because Oxy scopes `GET /accounts/:id/members` to the authenticated user
+   * and does not honour service-token delegation on that router.
+   *
+   * It is a parameter rather than something this service reaches for, because
+   * this service has no request to reach into; the alternative — checking in the
+   * controller and passing a "yes it's fine" flag — is exactly the shape that
+   * lets a future caller route around the gate. Absent ⇒ no publish-as is
+   * authorizable, so naming an account without one is a 403.
+   */
+  memberReader?: AccountMemberReader;
+  /**
+   * This post CONTINUES a thread its own author started — the single case in
+   * which a post carrying both {@link publishAsOxyUserId} and `parentPostId` is
+   * not a reply in the sense the refusal below is about. A thread is one text in
+   * several parts; a post answering itself is not a conversation.
+   *
+   * **It grants nothing on its own.** Setting it only asks for
+   * {@link assertContinuesOwnThread} to be consulted, and that reads the parent
+   * and the thread root back out of the database to confirm both are authored by
+   * the SAME account this post will be. A caller that lies is refused by exactly
+   * the same 400 it would have got for a plain reply.
+   *
+   * **Never read from a request body.** `POST /posts` builds its params from an
+   * explicit whitelist and does not name this field, so the exception is reachable
+   * only from `POST /posts/thread`, where the parent of every continuation is a
+   * post THIS SAME REQUEST just created. Adding it to a body whitelist would turn
+   * a structural property into a client claim — see `utils/threadContinuation` for
+   * why the wider "may act for the parent's account" rule is not the same thing.
+   */
+  continuesOwnThread?: boolean;
+  /**
+   * This post ANSWERS another account, in a thread the same request is composing
+   * whose entries carry different accounts — the second, separate exception.
+   *
+   * Distinct from {@link continuesOwnThread} rather than a looser setting of it,
+   * because the two authorize opposite shapes: that one says "one account, its
+   * own text"; this one says "two accounts the caller operates, talking". A
+   * CHANNEL may use only the first — a channel in a conversation is the thing
+   * `utils/channelReplyGate` refuses at five write sites, with no exception for
+   * its own operators — so {@link assertAnswersOperatedAccount} refuses a channel
+   * at BOTH ends of the link, reading both kinds from the account graph.
+   *
+   * Grants nothing on its own, and never read from a request body, for the same
+   * reasons as {@link continuesOwnThread}.
+   */
+  answersOperatedAccount?: boolean;
   hashtags?: string[];
   mentions?: string[];
   language?: string;
@@ -126,16 +194,6 @@ export interface CreatePostParams {
   createdAt?: Date;
   updatedAt?: Date;
 }
-
-/**
- * How many channel followers one keyset page reads while fanning out notifications.
- *
- * Only the page size — {@link CHANNEL_NOTIFY_FANOUT_CAP} is the total bound. It
- * exists so a channel with thousands of followers is WALKED rather than loaded
- * into one array, which is the difference between a bounded allocation and a spike
- * inside the awaited publish path.
- */
-const CHANNEL_FOLLOWER_PAGE_SIZE = 500;
 
 function derivePostType(params: CreatePostParams): PostType {
   if (params.boostOf) return PostType.BOOST;
@@ -258,17 +316,6 @@ class PostCreationService {
         return;
       }
 
-      // A CHANNEL post emits no record. The MTN chain is per-AUTHOR and
-      // author-signed, and the lexicon has no channel field in v1 — so a record
-      // here would republish, under the writer's own signed identity, the very
-      // post the channel signs, and `PostMaterializer` would project it back as an
-      // ordinary post on that author's profile. With `signPosts: false` that is a
-      // de-anonymization; with `signPosts: true` it is still an attribution the
-      // channel did not make. Channels get their own lexicon or none.
-      if (post.channelId) {
-        return;
-      }
-
       if (post.boostOf) {
         const original = await loadPostRecord(post.boostOf);
         await emitRepostCreated(post, post.boostOf, original?.oxyUserId ?? undefined);
@@ -310,37 +357,91 @@ class PostCreationService {
   async create(params: CreatePostParams): Promise<PostRecord> {
     const isScheduled = params.status === 'scheduled';
 
-    // BEFORE anything is built or written: a lane the author does not own, or a
-    // lane on a reply/boost, must never reach storage. Enforced here rather than
-    // in the controller so no future caller can route around it; free (no query)
-    // for the posts that carry no lane, which is nearly all of them.
-    // A post destined for a channel must clear TWO gates before anything is built,
-    // and the channel gate runs first because it decides which publisher the lane
-    // gate then measures the lane against.
+    // BEFORE anything is built or written, and in this order: WHO the post is
+    // authored by, then whether the lane belongs to that author. The publish-as
+    // gate runs first because it decides which publisher the lane gate then
+    // measures the lane against.
     //
-    // A reply, a boost and a federated ingest can never carry a channel: a channel
-    // takes no replies at all, a boost has no body of its own (it renders unwrapped
-    // and its own row belongs to the booster), and a channel has no ActivityPub
-    // surface in v1, so nothing arriving over federation has one to name. Each is a
-    // REFUSAL rather than a silent drop — an author told nothing would go on
-    // believing they published to the channel.
-    if (params.channelId) {
-      if (params.parentPostId) {
-        throw new ChannelAccessError(400, 'A reply cannot be published to a channel');
+    // A reply, a boost and a federated ingest can never be published as another
+    // account: a channel takes no replies at all, a boost has no body of its own
+    // (it renders unwrapped and its own row belongs to the booster), and a
+    // federated post's author is resolved from the remote actor, so a second
+    // author on the same row could only contradict it. Each is a REFUSAL rather
+    // than a silent drop — an author told nothing would go on believing they had
+    // published as the account.
+    //
+    // The reply refusal is deliberately kept for the act-as-eligible kinds too,
+    // where the channel argument does not apply: replying AS an organization is a
+    // coherent feature, but it is a feature — nothing asks for it, and admitting
+    // it here by omission would ship it unconsidered and untested.
+    //
+    // TWO EXCEPTIONS, and neither is "the author may act for the parent's
+    // account". A thread is joined by `parentPostId`, so every entry after the
+    // first is structurally a reply; whether it is a CONVERSATION depends on
+    // whose accounts are at the two ends, which is what the two checks decide:
+    //
+    //   - `continuesOwnThread` — one account, its own text. Verified: parent and
+    //     thread root both authored by the account this post will be.
+    //   - `answersOperatedAccount` — two accounts the caller operates, talking.
+    //     Verified: neither end is a CHANNEL, and the caller may act for the
+    //     parent's account too.
+    //
+    // Both are VERIFIED below rather than asserted, and a channel may only ever
+    // use the first — see `utils/threadContinuation` for why the wider rule would
+    // reopen a channel's replies to its own operators, which cannot happen.
+    if (params.publishAsOxyUserId) {
+      if (params.parentPostId && !params.continuesOwnThread && !params.answersOperatedAccount) {
+        throw new PublishAsAccessError(400, 'A reply cannot be published as another account');
       }
       if (params.boostOf) {
-        throw new ChannelAccessError(400, 'A boost cannot be published to a channel');
+        throw new PublishAsAccessError(400, 'A boost cannot be published as another account');
       }
       if (params.federation != null) {
-        throw new ChannelAccessError(400, 'A federated post cannot be published to a channel');
+        throw new PublishAsAccessError(400, 'A federated post cannot be published as another account');
       }
     }
-    await assertCanPublishToChannel(params.channelId, params.oxyUserId);
+
+    // The post's AUTHOR. Everything downstream — `oxyUserId`, `authorship`, the
+    // lane's publisher, the notification actor, the federation identity, the MTN
+    // record's subject — reads this, never `params.oxyUserId`, so the authorship
+    // and the authorization can never disagree. The authenticated human survives
+    // only as `writtenByOxyUserId`, outside `authorship`.
+    const { authorId, authorKind } = await assertCanPublishAsAccount({
+      publishAsOxyUserId: params.publishAsOxyUserId,
+      callerId: params.oxyUserId,
+      memberReader: params.memberReader,
+    });
+    const publishedAsAccount = authorId !== null && authorId !== params.oxyUserId;
+
+    // The continuation claim is verified AFTER the publish-as gate, because what
+    // it has to prove is about the RESOLVED author — the account the post will
+    // actually carry — and that is not known until the gate has answered. Still
+    // before anything is written, like every other refusal here.
+    if (params.publishAsOxyUserId && params.parentPostId) {
+      if (params.continuesOwnThread) {
+        await assertContinuesOwnThread({
+          parentPostId: params.parentPostId,
+          threadId: params.threadId,
+          authorId,
+        });
+      } else if (params.answersOperatedAccount) {
+        // `authorKind` is handed over rather than re-resolved: it is the kind the
+        // gate just decided this post's identity on, so the channel test and the
+        // authorization cannot end up disagreeing about what this account is.
+        await assertAnswersOperatedAccount({
+          parentPostId: params.parentPostId,
+          threadId: params.threadId,
+          authorId,
+          authorKind,
+          callerId: params.oxyUserId,
+          memberReader: params.memberReader,
+        });
+      }
+    }
 
     await assertLaneAssignable({
       laneId: params.laneId,
-      authorId: params.oxyUserId,
-      channelId: params.channelId,
+      authorId,
       parentPostId: params.parentPostId,
       boostOf: params.boostOf,
     });
@@ -404,18 +505,41 @@ class PostCreationService {
 
     const storedContent = toStoredContent(content, primaryLanguage);
 
+    // A profile link the author pasted is a mention, and THIS is where it becomes
+    // one: the URL is rewritten into the same `[mention:<id>]` placeholder the
+    // composer's picker produces, and the id it names is authorized alongside the
+    // ones the picker sent. See `foldProfileLinkMentions` for the whole argument
+    // — the short version is that the federated ingest has always done exactly
+    // this to exactly these URLs, so a post composed here was the odd one out.
+    //
+    // Skipped for a federated ingest, whose body already went through that same
+    // lookup against the same stored identities on the way in, on the HTML it
+    // arrived as. Re-asking here could only spend the lookups a second time for
+    // the same answers.
+    //
+    // `storedContent` is rewritten IN PLACE by the fold, so it must run before
+    // the record input reads it.
+    const authorizedMentions = params.federation != null
+      ? params.mentions
+      : (await foldProfileLinkMentions(storedContent, params.mentions)).mentions;
+
     // Collaborators defer federation: an invitee must never be leaked to the
     // fediverse before consenting, so the flag is set at INSERT rather than
     // patched afterwards — a post that federated between the two writes could
     // not be un-federated.
     const collaboratorIds = params.collaboratorIds ?? [];
-    const deferCollabFederation = params.oxyUserId != null && collaboratorIds.length > 0;
+    const deferCollabFederation = authorId != null && collaboratorIds.length > 0;
 
     const input: PostRecordInput = {
-      oxyUserId: params.oxyUserId ?? null,
-      authorship: params.oxyUserId != null
-        ? postCollaborationService.buildAuthorship(params.oxyUserId, collaboratorIds)
+      oxyUserId: authorId,
+      authorship: authorId != null
+        ? postCollaborationService.buildAuthorship(authorId, collaboratorIds)
         : [],
+      // The human behind a channel post — recorded OUTSIDE `authorship`, which is
+      // what keeps the post off their own profile and their name out of the
+      // byline. Set only when the author is somebody else, so an ordinary post
+      // never duplicates its own author here.
+      writtenByOxyUserId: publishedAsAccount ? params.oxyUserId : null,
       type: derivePostType({ ...params, content }),
       visibility: params.visibility ?? PostVisibility.PUBLIC,
       status: params.status ?? 'published',
@@ -426,20 +550,30 @@ class PostCreationService {
       boostOf: params.boostOf ?? null,
       parentPostId: params.parentPostId ?? null,
       threadId: params.threadId ?? null,
-      // A channel post is persisted with `['nobody']` whatever the caller asked
+      // A CHANNEL post is persisted with `['nobody']` whatever the caller asked
       // for — DEFENCE IN DEPTH, and it buys the client's existing reply-button
-      // suppression with no new UI. It is NOT what the server's refusal rests
-      // on: `utils/channelReplyGate` reads `channel_id`, because this field is
-      // mutable and a later settings write must not be able to reopen the post.
-      replyPermission: (params.channelId
+      // suppression with no new UI. It is NOT what the server's refusal rests on:
+      // `utils/channelReplyGate` reads the AUTHOR's account kind, because this
+      // field is mutable and a later settings write must not be able to reopen
+      // the post.
+      //
+      // Keyed on the author's KIND, not on "was this published as somebody else":
+      // "no replies, ever" is a property of channels, not of publishing as an
+      // account. An organization/project/bot post is an ORDINARY post — the reply
+      // gate lets replies through for a non-channel author, so forcing `['nobody']`
+      // here would leave the persisted field and the server's own rule disagreeing,
+      // and would silently close every organization's comments.
+      replyPermission: (authorKind === 'channel'
         ? ['nobody']
         : params.replyPermission ?? ['anyone']) as ReplyPermission[],
       laneId: params.laneId ?? null,
-      channelId: params.channelId ?? null,
       content: storedContent,
       // Reconciled from the FINALIZED stored bodies. Incoming metadata alone must
       // never create a notification recipient.
-      mentions: reconcileMentionIdsForPost(mentionTextsFromContent(storedContent), params.mentions),
+      mentions: reconcileMentionIdsForPost(
+        mentionTextsFromContent(storedContent),
+        authorizedMentions,
+      ),
       metadata: {
         ...(params.metadata ?? {}),
         ...(deferCollabFederation ? { collabFederationDeferred: true } : {}),
@@ -453,11 +587,11 @@ class PostCreationService {
       ...(params.updatedAt != null ? { updatedAt: params.updatedAt } : {}),
     };
 
-    // `lane_id` / `channel_id` go in as ordinary nullable values. Mongo had to
-    // set them ONLY when present, because `post_lane_chrono_v1`'s partial filter
-    // is `{ laneId: { $exists: true } }` and a stored `null` satisfies it —
-    // indexing every post in the collection and defeating the partial index. The
-    // Postgres partial index is `where lane_id is not null`, so NULL is the
+    // `lane_id` goes in as an ordinary nullable value. Mongo had to set it
+    // ONLY when present, because `post_lane_chrono_v1`'s partial filter is
+    // `{ laneId: { $exists: true } }` and a stored `null` satisfies it —
+    // indexing every post in the collection and defeating the partial index.
+    // The Postgres partial index is `where lane_id is not null`, so NULL is the
     // state that stays out of it, and "absent" and "null" are one state rather
     // than two that can disagree.
     let post = await insertPostRecord(input);
@@ -476,14 +610,6 @@ class PostCreationService {
       enrichIngestedPosts([post]);
     }
 
-    // The channel's own post count. Best-effort and only once the post is actually
-    // live — a scheduled post has no readers, and `publishScheduledPost` runs the
-    // same bump when it does. See `bumpChannelCounter` for why losing one of these
-    // must never fail a publish.
-    if (isPublished && post.channelId) {
-      await bumpChannelCounter(String(post.channelId), 'postCount', 1);
-    }
-
     if (
       params.autoAcceptCollaboratorIds &&
       params.autoAcceptCollaboratorIds.length > 0
@@ -496,20 +622,14 @@ class PostCreationService {
 
     const hasPendingInvites = hasPendingCollabInvites(post.authorship);
 
-    if (isPublished && hasPendingInvites && params.oxyUserId) {
-      await postCollaborationService.notifyPendingInvites(post, params.oxyUserId);
+    if (isPublished && hasPendingInvites && authorId) {
+      await postCollaborationService.notifyPendingInvites(post, authorId);
     }
 
     const skipFederation =
       params.skipFederationDelivery ||
       hasPendingInvites ||
-      post.metadata.federationDelivered === true ||
-      // A CHANNEL post never leaves over ActivityPub. Channels have no AP
-      // surface in v1 (no Group actor, no key, no consent record), so the only
-      // thing an outbound `Create(Note)` could say is that the AUTHOR wrote it —
-      // the opposite of what the channel signs, and under `signPosts: false` a
-      // straight de-anonymization of a post whose whole point was anonymity.
-      post.channelId !== null;
+      post.metadata.federationDelivered === true;
 
     // MTN Protocol dual-write (best-effort, never blocks, never changes output).
     // Postgres is authoritative; this emits a signed `app.mention.feed.*` record
@@ -524,7 +644,7 @@ class PostCreationService {
     }
 
     return this.runPostSideEffects(post, {
-      oxyUserId: params.oxyUserId ?? null,
+      oxyUserId: authorId,
       senderUsername: params.senderUsername,
       skipSocketEmit: params.skipSocketEmit,
       skipFederation,
@@ -606,15 +726,6 @@ class PostCreationService {
     // belongs — `create()` deliberately skipped it while the post was scheduled.
     // The SAME entry point the immediate create and the federated backfill use.
     enrichIngestedPosts([published]);
-
-    // The channel's post count follows VISIBILITY, not creation — `create()`
-    // deliberately skipped it while the post was scheduled. Through the SAME
-    // helper the create path uses, so the counter has one writer rather than two
-    // that can drift in how they fail: this one is best-effort and logs, and a
-    // second inline `update` here would fail the publish over a display number.
-    if (published.channelId) {
-      await bumpChannelCounter(published.channelId, 'postCount', 1);
-    }
 
     const ownerId = getOwnerId(published.authorship) ?? null;
     const hasPendingInvites = hasPendingCollabInvites(published.authorship);
@@ -767,28 +878,13 @@ class PostCreationService {
           }
         }
       })(),
-      // "Somebody I follow posted" — ONE stage covering BOTH ways a reader can ask
-      // for that: subscribing to the author (`PostSubscription`) and following the
-      // channel it was published to (`ChannelFollow` with `notify`). Top-level
-      // posts only.
+      // "Somebody I follow posted" — readers who subscribed to the AUTHOR
+      // (`PostSubscription`). Top-level posts only.
       //
-      // TWO properties are load-bearing here, and both are lost if this is split
-      // into a second `Promise.allSettled` entry:
-      //
-      //  - **The recipients are UNIONED before anything is written.** A reader who
-      //    both subscribes to the author and follows the channel is one recipient,
-      //    not two. Two concurrent stages would race: `createNotification` is
-      //    check-then-act, so both can read "no row" and both write, leaving the
-      //    unique `{recipientId, actorId, type, entityId}` index as the only
-      //    backstop — and its E11000 is swallowed by that function's own catch.
-      //  - **The type stays `'post'`.** That same tuple is the dedup key, so a
-      //    channel-post notification and an author-subscription notification about
-      //    the same post COLLAPSE into one row. A new `channel_post` type would
-      //    produce two notifications for one post — the exact failure to avoid.
-      //    The row does not itself say "in #channel", and it does not need to: the
-      //    notifications screen hydrates the post through `PostHydrationService`,
-      //    so once the DTO carries `post.channel` the row reads correctly with no
-      //    schema change.
+      // A channel needs nothing extra here: a channel is an Oxy account and
+      // authors its own posts, so following a channel is an ordinary follow of
+      // that account and its readers arrive through the same subscription rows as
+      // anyone else's.
       (async () => {
         const isTopLevelPost = !parentPostId;
         if (!oxyUserId || !isTopLevelPost) return;
@@ -805,48 +901,6 @@ class PostCreationService {
           .from(postSubscriptions)
           .where(eq(postSubscriptions.authorId, oxyUserId));
         for (const sub of subs) recipientIds.add(sub.subscriberId);
-
-        if (post.channelId) {
-          // Keyset-paged rather than loaded whole: a channel is followable by
-          // everyone, and this stage is AWAITED inside the publish pipeline.
-          // Truncation is logged at `warn` on purpose — a fan-out limit nobody
-          // can see is a limit that gets blamed on something else. Past this cap
-          // the fan-out belongs in a BullMQ job, and the log is the signal to
-          // build one.
-          //
-          // The keyset is `id` alone, which is safe HERE and nowhere near a feed:
-          // it is a full scan of one channel's followers in an arbitrary but
-          // TOTAL order, not a chronological page. `channel_follows.id` is uuid
-          // v7 and the index `(channel_id, notify, id)` serves it directly.
-          const channelId = post.channelId;
-          let lastId: string | undefined;
-          let scanned = 0;
-          for (;;) {
-            const remaining = CHANNEL_NOTIFY_FANOUT_CAP - scanned;
-            if (remaining <= 0) break;
-            const batch = await getDb()
-              .select({ id: channelFollows.id, oxyUserId: channelFollows.oxyUserId })
-              .from(channelFollows)
-              .where(and(
-                eq(channelFollows.channelId, channelId),
-                eq(channelFollows.notify, true),
-                ...(lastId ? [gt(channelFollows.id, lastId)] : []),
-              ))
-              .orderBy(asc(channelFollows.id))
-              .limit(Math.min(remaining, CHANNEL_FOLLOWER_PAGE_SIZE));
-            if (batch.length === 0) break;
-            for (const follow of batch) recipientIds.add(follow.oxyUserId);
-            scanned += batch.length;
-            lastId = batch[batch.length - 1].id;
-          }
-          if (scanned >= CHANNEL_NOTIFY_FANOUT_CAP) {
-            logger.warn('PostCreationService: channel notification fan-out truncated', {
-              channelId,
-              postId: post.id,
-              cap: CHANNEL_NOTIFY_FANOUT_CAP,
-            });
-          }
-        }
 
         // The author never notifies themselves. `createNotification` refuses that
         // too, but dropping it here keeps the batch honest about its own size.
@@ -916,25 +970,75 @@ class PostCreationService {
 
     // Federation is published-only: a draft never fans out even if a username is
     // resolvable, and the collab-pending gate is honored via `ctx.skipFederation`.
-    // The federation username is resolved server-side from the authoritative owner
-    // id (only after these gates pass), so the fan-out no longer depends on the
-    // SDK having populated `req.user.username` — which it never does, because the
-    // auth middleware runs without `loadUser:true` on every `POST /posts` path.
-    if (!ctx.skipFederation && isPublished && oxyUserId) {
-      const federationUsername = await this.resolveFederationUsername(oxyUserId, ctx.senderUsername);
-      if (federationUsername) {
-        try {
-          // Late-bound accessor avoids a circular import with the connector registry.
-          await getPostFederator().federateNewPost(post, oxyUserId, federationUsername);
-          await updatePostRecord(post.id, { metadata: { federationDelivered: true } });
-          return { ...post, metadata: { ...post.metadata, federationDelivered: true } };
-        } catch (fedError) {
-          logger.error('PostCreationService: failed to federate post', fedError);
-        }
-      }
+    if (!ctx.skipFederation) {
+      const delivered = await this.federatePublishedPost(post, {
+        oxyUserId,
+        senderUsername: ctx.senderUsername,
+      });
+      if (delivered) return delivered;
     }
 
     return post;
+  }
+
+  /**
+   * Deliver ONE published local post outbound, and stamp it as delivered.
+   *
+   * The single implementation of "federate this post", shared by the publish
+   * pipeline above and by the batch path (`connectors/threadFederation.ts`),
+   * which federates a thread/beast batch after `createThread` has written every
+   * row. Two implementations of this would drift on exactly the gates that
+   * matter — published-only, a resolvable username, the delivered stamp — so
+   * there is one, and callers differ only in WHEN they call it.
+   *
+   * The federation username is resolved server-side from the authoritative owner
+   * id, and only after the gates pass, so the fan-out never depends on the SDK
+   * having populated `req.user.username` — which it never does, because the auth
+   * middleware runs without `loadUser:true` on every `POST /posts` path.
+   *
+   * `alsoDeliverToAudiencesOf` names OTHER local accounts whose remote followers
+   * should also receive this activity. It is only ever set for a cross-account
+   * thread; see the note on it in `connectors/threadFederation.ts` for what it
+   * does and does not buy.
+   *
+   * Returns the post as it now stands, carrying `federationDelivered` — or
+   * `null` when it was not handed to the connectors. A `PostRecord` is an
+   * immutable value rather than a live document, so "was it delivered" and "the
+   * row as it now reads" are ONE answer here instead of a boolean beside a
+   * document the caller has to remember was mutated in place. The batch path
+   * reads the `null` to stop a chain at the first link that did not go out.
+   * Never throws: a delivery failure is logged and reported as `null`.
+   */
+  async federatePublishedPost(
+    post: PostRecord,
+    ctx: {
+      oxyUserId: string | null;
+      senderUsername?: string;
+      alsoDeliverToAudiencesOf?: string[];
+    },
+  ): Promise<PostRecord | null> {
+    if (post.status !== 'published' || !ctx.oxyUserId) return null;
+
+    const federationUsername = await this.resolveFederationUsername(
+      ctx.oxyUserId,
+      ctx.senderUsername,
+    );
+    if (!federationUsername) return null;
+
+    try {
+      // Late-bound accessor avoids a circular import with the connector registry.
+      await getPostFederator().federateNewPost(
+        post,
+        ctx.oxyUserId,
+        federationUsername,
+        ctx.alsoDeliverToAudiencesOf,
+      );
+      await updatePostRecord(post.id, { metadata: { federationDelivered: true } });
+      return { ...post, metadata: { ...post.metadata, federationDelivered: true } };
+    } catch (fedError) {
+      logger.error('PostCreationService: failed to federate post', fedError);
+      return null;
+    }
   }
 }
 

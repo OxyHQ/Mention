@@ -65,7 +65,8 @@ import { metrics } from '../utils/metrics';
 import { postHydrationService, resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
 import { config } from '../config';
 import { mergeHashtags, reconcileMentionIdsForPost } from '../utils/textProcessing';
-import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { foldProfileLinkMentions } from '../services/profileLinkMentions';
+import { createScopedOxyClient, createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { extractFollowingIds } from '../utils/privacyHelpers';
 import { queryInt, queryString } from '../utils/queryParams';
 import { topicSlugSql } from '../utils/postTopicMatch';
@@ -78,8 +79,17 @@ import { authorVariants, buildPrimaryVariant, resolveVariant, validateAuthorVari
 import { postTranslationService, TranslationRequestError } from '../services/PostTranslationService';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
 import { assertLaneAssignable, LaneAssignmentError } from '../utils/laneAssignment';
-import { assertParentAcceptsReplies, ChannelReplyError, isChannelPost } from '../utils/channelReplyGate';
-import { ChannelAccessError } from '../services/channelAccess';
+import {
+  assertParentAcceptsReplies,
+  ChannelReplyError,
+  postIsAuthoredByChannel,
+} from '../utils/channelReplyGate';
+import type { AccountKind } from '@oxyhq/contracts';
+import {
+  assertCanPublishAsAccount,
+  cacheAccountMemberReads,
+  PublishAsAccessError,
+} from '../services/publishAsAccount';
 import { sendSuccessResponse } from '../utils/apiHelpers';
 import { sanitizePodcast, resolvePodcastContent } from '../utils/syraPodcast';
 import {
@@ -90,6 +100,8 @@ import {
 import { postCollaborationService, CollabValidationError, CollabStateError } from '../services/PostCollaborationService';
 import { resolveMcpAutoAcceptIds } from '../mcp/utils/resolveMcpAutoAcceptIds';
 import { federateAsResolvedActor } from '../connectors/outboundFederation';
+import { toFederationPostPayload } from '../services/serviceRegistry';
+import { federatePostBatchDetached } from '../connectors/threadFederation';
 import {
   EngagementPostNotFoundError,
   removeVoteCommand,
@@ -472,7 +484,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { content, hashtags, mentions, quoted_post_id, boost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, quotesDisabled, status: incomingStatus, scheduledFor, collaboratorIds, collaboratorHandles, laneId, channelId } = req.body;
+    const { content, hashtags, mentions, quoted_post_id, boost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, quotesDisabled, status: incomingStatus, scheduledFor, collaboratorIds, collaboratorHandles, laneId, publishAsOxyUserId } = req.body;
 
     // Transitional request aliases are measured with a bounded label so their
     // retirement is evidence-based. They never become part of the stored DTO.
@@ -823,13 +835,15 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       // does not own is a 404, and one on a reply or a boost is a 400 — both
       // refusals, never a silent drop.
       laneId: typeof laneId === 'string' ? laneId : null,
-      // Validated inside `create` (see `assertCanPublishToChannel`): a channel the
-      // author is not an accepted member of is a 403 and an unknown one a 404 —
-      // both refusals, never a silent drop, and both raised before anything is
-      // written. `create` is also where a channel post picks up its
-      // `replyPermission: ['nobody']` and loses its MTN and federation fan-out, so
-      // no caller can route around any of it.
-      channelId: typeof channelId === 'string' ? channelId : null,
+      // Validated inside `create` (see `assertCanPublishAsAccount`): an account
+      // the caller is not an active member of is a 403, an act-as-eligible one
+      // they hold no `account:act_as` over is a 403, and a personal account is a
+      // 400 — all refusals, never a silent drop, and all raised before anything is
+      // written. `create` is also where the post picks up that account as its
+      // AUTHOR, the writer as `writtenByOxyUserId`, and (for a channel)
+      // `replyPermission: ['nobody']`, so no caller can route around any of it.
+      publishAsOxyUserId: typeof publishAsOxyUserId === 'string' ? publishAsOxyUserId : null,
+      memberReader: createUserScopedOxyServices(req),
       parentPostId: parentPostId || in_reply_to_status_id || null,
       threadId: threadId || null,
       visibility: resolvedVisibility,
@@ -906,7 +920,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     if (error instanceof LaneAssignmentError) {
       return res.status(error.status).json({ message: error.message });
     }
-    if (error instanceof ChannelReplyError || error instanceof ChannelAccessError) {
+    if (error instanceof ChannelReplyError || error instanceof PublishAsAccessError) {
       return res.status(error.status).json({ message: error.message });
     }
     logger.error('Error creating post', error);
@@ -1051,21 +1065,129 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Posts array is required and cannot be empty' });
     }
 
-    // A THREAD CANNOT BE PUBLISHED TO A CHANNEL. In `thread` mode the
-    // continuations are replies, and a channel post accepts no replies — so the
-    // thread would be a root in the channel with its body scattered across posts
-    // the channel refuses. In `beast` mode the entries are independent posts and
-    // could each carry one, but a batch endpoint is the wrong place to introduce
-    // a second membership check, and nothing asks for it. Refused for the whole
-    // request, before anything is written; the same shape the collaborator refusal
-    // above takes, and for the same reason (a partial thread cannot be undone in
-    // one action).
-    const threadNamesAChannel =
-      typeof req.body.channelId === 'string' ||
-      posts.some((p: { channelId?: unknown }) => typeof p?.channelId === 'string');
-    if (threadNamesAChannel) {
-      return res.status(400).json({ message: 'Threads cannot be published to a channel' });
+    // WHO PUBLISHES WHAT, in both modes.
+    //
+    // A `beast` batch is n independent top-level posts, so the account is PER
+    // ENTRY and the batch-level field is refused — there is no batch to speak of.
+    //
+    // A `thread` takes BOTH, with per-entry winning: the batch-level field is the
+    // thread's account, and an entry may name its own. Those two shapes are
+    // different threads, not two spellings of one, which is why both exist:
+    //
+    //   - ONE account for the whole thread — one text in several parts. This is
+    //     the only shape available to a CHANNEL, and it is what `channelReplyGate`
+    //     leaves room for.
+    //   - DIFFERENT accounts per entry — two organizations the caller operates,
+    //     talking to each other. Mechanically each such entry REPLIES to the one
+    //     before it, so this is a conversation between accounts, and a channel may
+    //     never be in one: "no replies, ever" has no exception for a channel's own
+    //     operators. Hence the single-voice rule enforced below.
+    //
+    // The links are stored as replies to their predecessor, which is what joins a
+    // thread at all, and `PostCreationService` normally refuses to publish a reply
+    // as another account. The two exceptions are `continuesOwnThread` and
+    // `answersOperatedAccount` on the create call below, both VERIFIED against the
+    // database rather than asserted — see `utils/threadContinuation`. Nothing here
+    // opens any account's posts to replies from a third party: every entry is
+    // authored by one of the caller's own accounts, so the reply gate refuses
+    // everybody else on a continuation exactly as it does on the root.
+    const batchAccount = req.body.publishAsOxyUserId;
+    if (mode !== 'thread' && typeof batchAccount === 'string') {
+      return res
+        .status(400)
+        .json({ message: 'Set publishAsOxyUserId on each post, not on the thread' });
     }
+
+    // Every DISTINCT account named across the batch is authorized ONCE, before a
+    // single post is written — the same shape the collaborator and lane refusals
+    // take, and for the same reason (a partial thread cannot be undone in one
+    // action). In thread mode that is literally one call for the whole request;
+    // in beast mode `cacheAccountMemberReads` is what makes it one MEMBERSHIP READ
+    // per distinct account, since the creation loop below hands every post the
+    // SAME reader and lets `PostCreationService` run the real gate itself, so
+    // nothing routes around the authorization.
+    const memberReader = createUserScopedOxyServices(req);
+    const batchMemberReader = memberReader ? cacheAccountMemberReads(memberReader) : undefined;
+    /**
+     * The account THIS request names for an entry, if any. In thread mode the
+     * entry's own field wins and the batch-level one is the default for entries
+     * that name none; in beast mode there is no batch-level field to fall back to.
+     */
+    const accountForEntry = (index: number): string | null => {
+      const named = (posts[index] as { publishAsOxyUserId?: unknown })?.publishAsOxyUserId;
+      if (typeof named === 'string') return named;
+      return mode === 'thread' && typeof batchAccount === 'string' ? batchAccount : null;
+    };
+
+    /** Entry index → the account that entry will be AUTHORED BY. */
+    const entryAuthorIds: string[] = [];
+    /** That account's Oxy kind, `null` when the entry is the caller's own post. */
+    const entryAuthorKinds: Array<AccountKind | null> = [];
+    try {
+      // Authorized once per DISTINCT account, memoized across the batch: a thread
+      // naming one account asks Oxy once however many entries it has, and one
+      // naming two asks twice. `cacheAccountMemberReads` is what makes that true
+      // end to end, since the creation loop below hands every post the SAME reader
+      // and lets `PostCreationService` run the real gate itself — nothing routes
+      // around the authorization.
+      const decided = new Map<string, { authorId: string | null; authorKind: AccountKind | null }>();
+      for (let i = 0; i < posts.length; i++) {
+        const requested = accountForEntry(i);
+        const key = requested ?? '';
+        let decision = decided.get(key);
+        if (!decision) {
+          decision = await assertCanPublishAsAccount({
+            publishAsOxyUserId: requested,
+            callerId: userId,
+            memberReader: batchMemberReader,
+          });
+          decided.set(key, decision);
+        }
+        entryAuthorIds.push(decision.authorId ?? userId);
+        entryAuthorKinds.push(decision.authorKind);
+      }
+    } catch (publishAsError) {
+      if (publishAsError instanceof PublishAsAccessError) {
+        return res.status(publishAsError.status).json({ message: publishAsError.message });
+      }
+      throw publishAsError;
+    }
+
+    // A CHANNEL'S THREAD SPEAKS WITH ONE VOICE.
+    //
+    // A thread carrying more than one account is a conversation between them —
+    // every entry whose account differs from its predecessor's is that account
+    // REPLYING to the other's post. A channel may not be in one, at either end,
+    // and that is not a preference: `utils/channelReplyGate` refuses replies to a
+    // channel's post at five write sites with no exception for the channel's own
+    // operators, so admitting it here would reopen exactly that door from inside
+    // the composer.
+    //
+    // Checked over the WHOLE thread rather than pairwise, because a channel at the
+    // head makes every later entry an answer to a channel whichever post is the
+    // immediate parent — and because a channel in the middle is the same problem
+    // read from the other side. The message names the channel, since "you cannot
+    // do that" without saying which of several accounts is the obstacle is a
+    // refusal nobody can act on.
+    const distinctThreadAccounts = new Set(entryAuthorIds);
+    if (mode === 'thread' && distinctThreadAccounts.size > 1) {
+      const channelIndex = entryAuthorKinds.findIndex((kind) => kind === 'channel');
+      if (channelIndex >= 0) {
+        return res.status(400).json({
+          message:
+            'A channel publishes alone: a thread including ' +
+            `${entryAuthorIds[channelIndex]} must use that one account for every post, ` +
+            'because a post from another account would be a reply to the channel.',
+        });
+      }
+    }
+    /**
+     * Whether this thread is one account's own text (every entry the same) rather
+     * than several accounts talking. It decides which of the two verified
+     * exceptions each link below is created under, and the two are NOT
+     * interchangeable — a channel may only ever use the first.
+     */
+    const threadSpeaksWithOneVoice = distinctThreadAccounts.size === 1;
 
     // Lanes are validated for the WHOLE batch before a single post is written.
     // The loop below creates posts one at a time, so a lane refused on entry 3
@@ -1090,7 +1212,13 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         return res.status(400).json({ message: 'A reply cannot be assigned to a lane' });
       }
       try {
-        await assertLaneAssignable({ laneId: requestedLaneId, authorId: userId });
+        // Against the entry's OWN author, which is the account it is published as
+        // when it names one — a lane belongs to a publisher, and `create` will
+        // measure it against exactly that. Checking the caller here instead would
+        // let a caller-owned lane on an account-published entry pass the
+        // pre-flight and then be refused mid-batch, which is the half-thread this
+        // whole loop exists to prevent.
+        await assertLaneAssignable({ laneId: requestedLaneId, authorId: entryAuthorIds[i] });
       } catch (laneError) {
         if (laneError instanceof LaneAssignmentError) {
           return res.status(laneError.status).json({ message: laneError.message });
@@ -1099,6 +1227,36 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    /**
+     * Each entry's author-written language renditions, PRIMARY FIRST — validated
+     * for the whole batch before a single row is written, like every other
+     * refusal above, because a variant rejected on entry 3 would otherwise leave
+     * entries 1 and 2 already published.
+     *
+     * The creation loop reads the validated array from here rather than
+     * revalidating, so the batch cannot be checked under one set of rules and
+     * written under another. An entry that sent no variants yields an empty
+     * array and its plain `content.text` stays the body, exactly as before.
+     */
+    const entryVariants: PostContentVariant[][] = [];
+    for (const entry of posts) {
+      // The shared media set the variants localize — resolved the same way the
+      // creation loop resolves it, so a variant may only override alt text for
+      // media the entry actually carries.
+      const entryMediaIds = normalizeMediaItems(entry?.content?.media).map((item) => item.id);
+      const variantResult = validateAuthorVariants(entry?.content?.variants, entryMediaIds);
+      if (!variantResult.ok) {
+        return res.status(400).json({ message: variantResult.error });
+      }
+      entryVariants.push(variantResult.variants);
+    }
+
+    /**
+     * The created posts, in publication order — read by hydration AND by outbound
+     * federation. ONE array, not two: a `PostRecord` is the row as a value, so
+     * there is no live document beside it for federation to stamp — it re-reads
+     * and returns the updated record instead.
+     */
     const createdPostObjects: PostRecord[] = [];
     let mainPostId: string | null = null;
     let previousPostId: string | null = null;
@@ -1130,10 +1288,16 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         }
       }
 
-      // Build post content
+      // Build post content. When the entry carries author language renditions the
+      // FIRST is the primary and its text IS the body — the same rule
+      // `POST /posts` applies, and the reason the plain `content.text` is only a
+      // fallback: a multilingual entry that stored `content.text` instead would
+      // lose every rendition it was written in.
+      const authorLanguageVariants = entryVariants[i];
       const postContent: PostContent = {
-        text: content?.text || '',
-        media: normalizeMediaItems(content?.media)
+        text: authorLanguageVariants[0]?.text ?? content?.text ?? '',
+        media: normalizeMediaItems(content?.media),
+        ...(authorLanguageVariants.length > 0 ? { variants: authorLanguageVariants } : {}),
       };
 
       if (processedContentLocation) {
@@ -1145,22 +1309,26 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         postContent.sources = sources;
       }
 
+      // An article belongs to the ENTRY that carries one, in both modes. This was
+      // read from the root only, so a beast batch — n independent posts that share
+      // nothing but the action that wrote them — silently discarded the article on
+      // every box but the first, and a thread did the same to a continuation.
+      // `POST /posts` puts no such condition on it (a reply may carry an article),
+      // so there was never a rule here, only a missing loop.
       let pendingArticle: PendingArticle | null = null;
-      if (i === 0) {
-        const sanitizedArticle = sanitizeArticle(content?.article);
-        if (sanitizedArticle) {
-          pendingArticle = {
-            id: newArticleId(),
-            createdBy: userId,
-            title: sanitizedArticle.title || undefined,
-            body: sanitizedArticle.body || undefined,
-          };
-          postContent.article = {
-            articleId: pendingArticle.id,
-            title: sanitizedArticle.title,
-            excerpt: sanitizedArticle.body ? sanitizedArticle.body.slice(0, MAX_ARTICLE_EXCERPT_LENGTH) : undefined,
-          };
-        }
+      const sanitizedArticle = sanitizeArticle(content?.article);
+      if (sanitizedArticle) {
+        pendingArticle = {
+          id: newArticleId(),
+          createdBy: userId,
+          title: sanitizedArticle.title || undefined,
+          body: sanitizedArticle.body || undefined,
+        };
+        postContent.article = {
+          articleId: pendingArticle.id,
+          title: sanitizedArticle.title,
+          excerpt: sanitizedArticle.body ? sanitizedArticle.body.slice(0, MAX_ARTICLE_EXCERPT_LENGTH) : undefined,
+        };
       }
 
       // Handle event data
@@ -1208,9 +1376,11 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         postContent.pollId = pollId;
       }
 
-      // Extract and merge hashtags from text with user-provided ones
-      const text = content?.text || '';
-      const uniqueTags = mergeHashtags(text, hashtags);
+      // Extract and merge hashtags from text with user-provided ones. Read off the
+      // body that is actually stored (the primary rendition when the entry has
+      // renditions), or a multilingual entry's tags would come from a string
+      // nobody will ever see.
+      const uniqueTags = mergeHashtags(postContent.text ?? '', hashtags);
 
       // Create post
       const attachmentsInput = content?.attachments || content?.attachmentOrder || postData.attachments || postData.attachmentOrder;
@@ -1253,10 +1423,36 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         // Already validated for the whole batch above; a continuation never
         // reaches here carrying one.
         laneId: typeof postData.laneId === 'string' ? postData.laneId : null,
+        // Pre-flighted for the whole batch above, and re-run HERE by `create`
+        // itself — deliberately, not wastefully. The gate is the one place that
+        // decides the author, so passing a pre-resolved id instead would be the
+        // "checked upstream, trust me" shape that lets a later caller route around
+        // it. The repeat is free: `batchMemberReader` has already answered for this
+        // account. In thread mode the account is the batch's, applied to every
+        // entry; in beast mode it is the entry's own.
+        publishAsOxyUserId: accountForEntry(i),
+        memberReader: batchMemberReader,
         // For thread mode: chain each continuation post to the immediately
         // previous post (sequential thread), with a shared threadId root.
         // For beast mode: all posts are independent.
         ...(isThreadContinuation ? { parentPostId: previousPostId, threadId: mainPostId } : {}),
+        // The two verified exceptions to "a reply cannot be published as another
+        // account", and the ONLY place either is ever asked for. Which one this
+        // link gets is decided by the THREAD, not by the adjacent pair: a
+        // single-voice thread is one account's own text end to end, and anything
+        // else is accounts talking. Asking for the wrong one is safe — both are
+        // re-derived from the database inside `create`, so a mismatch is a
+        // refusal, never a bypass.
+        //
+        // Safe to ask for here for a structural reason rather than a trusting
+        // one: `previousPostId` and `mainPostId` are ids of posts THIS request
+        // created moments ago under the authorization above. See
+        // `utils/threadContinuation`.
+        ...(isThreadContinuation
+          ? threadSpeaksWithOneVoice
+            ? { continuesOwnThread: true }
+            : { answersOperatedAccount: true }
+          : {}),
         // Every post of a scheduled batch carries the SAME time — the author
         // picked one moment for the set, not n moments. For a beast batch each
         // is then an ordinary scheduled post published independently; for a
@@ -1303,7 +1499,13 @@ export const createThread = async (req: AuthRequest, res: Response) => {
           await createMentionNotifications(
             anchored.mentions,
             anchored.id,
-            userId,
+            // The ACTOR is the post's author, read off the row `create` just
+            // wrote — the account when the entry was published as one, the caller
+            // otherwise. `PostCreationService` attributes its own mention
+            // notifications the same way; naming the caller here would put a
+            // channel's writer in the notification of a post the channel signed,
+            // which is the anonymity `writtenByOxyUserId` exists to keep.
+            anchored.oxyUserId ?? userId,
             'post'
           );
         }
@@ -1325,6 +1527,30 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       previousPostId = anchored.id;
 
       createdPostObjects.push(anchored);
+    }
+
+    // Outbound federation for the whole batch, detached, walking the chain
+    // parent-first. This is the half `skipNotifications` above removes: that
+    // flag returns from `PostCreationService.create` BEFORE its side-effect
+    // stage, and federation lives inside that stage — which is why a published
+    // thread federated nothing while the same thread scheduled federated
+    // completely, since the scheduled publisher runs the full pipeline per entry
+    // when its time arrives.
+    //
+    // A SCHEDULED batch is skipped for exactly that reason: its entries are not
+    // published, nobody may read them yet, and `ScheduledPostPublisher` will
+    // federate each one at the moment it goes live. Federating here would
+    // announce a post the ACL still refuses.
+    //
+    // Detached on purpose — each entry's fan-out runs the SSRF guard (which
+    // resolves DNS) once per target inbox, so awaiting it would put
+    // `entries × inboxes` lookups in front of the response. See
+    // `connectors/threadFederation.ts` for the ordering and consent rules.
+    if (!threadScheduledFor) {
+      federatePostBatchDetached({
+        entries: createdPostObjects,
+        shape: mode === 'thread' ? 'chain' : 'independent',
+      });
     }
 
     await Promise.all(
@@ -1358,7 +1584,11 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         io.emit('feed:updated', {
           type: 'following',
           post: mainPost,
-          authorId: userId,
+          // The FIRST entry's author, which is who a following feed would have to
+          // follow to see it — the account when that entry was published as one.
+          // Naming the caller would push an account's post into the feeds of the
+          // caller's followers, who may not follow the account at all.
+          authorId: entryAuthorIds[0] ?? userId,
           timestamp: new Date().toISOString()
         });
       }
@@ -1755,9 +1985,18 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     content.attachments = updatedAttachments ?? undefined;
 
     if (hashtags !== undefined) patch.hashtags = mergeHashtags('', hashtags || []);
+
+    // An edit is a write boundary like any other: a profile link the author has
+    // just pasted into the body becomes a mention here, on the same terms as on
+    // creation (see `foldProfileLinkMentions`). Run after the renditions above
+    // have been rewritten, so it reads the body this edit is actually storing.
+    // `content` is the object this request will persist, and the fold rewrites it
+    // in place — no `markModified` equivalent is needed, because the whole column
+    // is written back below rather than a tracked subtree of a live document.
+    const foldedMentions = { mentions: mentions !== undefined ? mentions : post.mentions }; // MUT
     const nextMentions = reconcileMentionIdsForPost(
       mentionTextsFromContent(content),
-      mentions !== undefined ? mentions : post.mentions,
+      foldedMentions.mentions,
     );
 
     const collaboratorIds = await postCollaborationService.resolveCollaboratorRefs(
@@ -1858,6 +2097,13 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // reusing the shared Note builder so a reply's `inReplyTo` + parent Mention
     // survive. Local + published + public non-boost only; the same gates as
     // creation. Username resolved server-side from the authoritative oxyUserId.
+    //
+    // The whole DOCUMENT goes through the seam. The Note builder reads more than
+    // `LocalPostEventPayload` names — `metadata.isSensitive` becomes the Note's
+    // `sensitive` flag, `quoteOf` its quote fields — so a hand-picked field list
+    // re-federated an edited sensitive post as UNMARKED and dropped the quote,
+    // which is the shape `PostCreationService` has always avoided by passing the
+    // document.
     if (
       edited.federation == null &&
       edited.oxyUserId &&
@@ -1868,15 +2114,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       const editorOxyUserId = edited.oxyUserId;
       federateAsResolvedActor(editorOxyUserId, 'post update', (username) => ({
         kind: 'post.update',
-        post: {
-          _id: edited.id,
-          content: edited.content,
-          hashtags: edited.hashtags,
-          mentions: edited.mentions,
-          visibility: edited.visibility,
-          createdAt: edited.createdAt.toISOString(),
-          parentPostId: edited.parentPostId,
-        },
+        post: toFederationPostPayload(edited),
         actorOxyUserId: editorOxyUserId,
         actorUsername: username,
       }));
@@ -1949,9 +2187,9 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
       // reader hitting a 403 they were invited to attempt. The stored `['nobody']`
       // is defence in depth precisely because it is what the client reads, so it
       // has to stay put.
-      if (isChannelPost(post)) {
+      if (await postIsAuthoredByChannel(post)) {
         return res.status(400).json({
-          message: 'A post published to a channel does not accept replies',
+          message: 'A post published by a channel does not accept replies',
         });
       }
       const validPermissions = ['anyone', 'followers', 'following', 'mentioned', 'nobody'];
@@ -2021,6 +2259,30 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
  * deliberately stay on this file's bare `{message}` shape, which is what the rest
  * of the posts API — and this controller's own `LaneAssignmentError` mapping in
  * `createPost` — already returns.
+ *
+ * ---------------------------------------------------------------------------
+ * NAMED EXCEPTION FOR THE NEXT MERGE FROM `main` — DO NOT AUTO-RESOLVE THIS ROUTE
+ *
+ * This branch re-ported Channels/Lanes against `main` at **`f54db41e`**, where a
+ * channel post is not the caller's to move: the lookup below is scoped by
+ * `oxy_user_id = userId`, so a post authored by the CHANNEL is a 404 here and the
+ * writer cannot relane it.
+ *
+ * `main` has since moved to **`036927ed`**, which answers that question
+ * DIFFERENTLY: it looks the post up by id alone and authorizes through a
+ * `postManagementRefusal` helper — a symbol that **exists nowhere in this tree** —
+ * letting the WRITER move a channel post, with the lane measured against the
+ * channel rather than against the caller.
+ *
+ * **That is an authorization decision wearing a merge conflict's clothes.** Taking
+ * either side mechanically ships a permission bug, and NO TEST ON THIS BRANCH
+ * WOULD CATCH IT: this branch's tests encode the `f54db41e` semantics, so they go
+ * green while being wrong about who may move what.
+ *
+ * So when the catch-up merge happens: read this route against main's new helper
+ * as a deliberate decision, and REWRITE its tests to whichever semantics you
+ * choose. Do not carry the ones below forward as evidence.
+ * ---------------------------------------------------------------------------
  */
 export const updatePostLane = async (req: AuthRequest, res: Response) => {
   try {
@@ -2043,7 +2305,6 @@ export const updatePostLane = async (req: AuthRequest, res: Response) => {
         parentPostId: postsTable.parentPostId,
         boostOf: postsTable.boostOf,
         laneId: postsTable.laneId,
-        channelId: postsTable.channelId,
       })
       .from(postsTable)
       .where(and(eq(postsTable.id, String(req.params.id)), eq(postsTable.oxyUserId, userId)))
@@ -2055,23 +2316,15 @@ export const updatePostLane = async (req: AuthRequest, res: Response) => {
     // The SAME rule the create path applies, from the same definition: a lane
     // belongs to its publisher, and replies/boosts carry none.
     //
-    // **`channelId` is not optional here, and omitting it was a deanonymization.**
-    // `assertLaneAssignable` derives the publisher as `channelId ? 'channel' :
-    // 'user'`, so without it a CHANNEL post is measured against the CALLER's own
-    // personal lanes and can be moved into one. `laneSource`'s user branch then
-    // serves that lane scoped by `{ laneId, oxyUserId: <author> }` — and it
-    // deliberately does NOT apply the `channel_id is null` exclusion that every
-    // author-relationship query carries (`followedAuthorsSql`,
-    // `utils/postAuthorship`), precisely because this pairing is supposed to be
-    // impossible by construction. The DTO still renders
-    // anonymous under `signPosts: false`, but the SURFACE is the author's own lane
-    // tab, so anyone reading it learns which author wrote every "Unknown user"
-    // post on it. `PostCreationService.create` has always passed this; this was
-    // the one write path that did not.
+    // The publisher is `userId` rather than something read off the post, and the
+    // two cannot disagree: the lookup above is already scoped by
+    // `oxy_user_id = userId`, so a post authored by any other account — a channel
+    // included — is a 404 here and never reaches this call. That is also the limit
+    // of this route today: a channel post's lane is not movable through it, since
+    // the channel is the author and the caller is not.
     await assertLaneAssignable({
       laneId,
       authorId: userId,
-      channelId: post.channelId,
       parentPostId: post.parentPostId,
       boostOf: post.boostOf,
     });

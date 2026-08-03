@@ -1,10 +1,10 @@
 /**
  * The Lanes API, driven through the real routers against real rows.
  *
- * This suite used to mock `Lane`, `LaneMute`, `Post` and `Channel`. Porting the
- * reads made every one of those mocks inert, so it is rewritten against
- * Postgres; only `resolveUserSummaries` is still stubbed, because identity
- * resolution is another suite's subject.
+ * This suite used to mock `Lane`, `LaneMute` and `Post`. Porting the reads made
+ * every one of those mocks inert, so it is rewritten against Postgres; only
+ * `resolveUserSummaries` is still stubbed, because identity resolution is
+ * another suite's subject.
  *
  * Four things here fail SILENTLY if they regress:
  *
@@ -20,11 +20,11 @@
  *     at all.
  *  3. **Muting your own lane is refused.** It would delete your own posts from
  *     your own Following feed.
- *  4. **A channel's lanes answer to the channel's OWNER, and to nobody else.**
- *     The lookups that decide this gated on `ObjectId.isValid` and were inert
- *     for every uuid v7 — answering `false`, which refuses. So a channel owner
- *     was locked out of their own lanes; the cases naming a channel below are
- *     what would have caught it.
+ *  4. **A channel account is just another publisher.** A lane is keyed on ONE
+ *     `ownerId`, an Oxy account id, so a channel curating its page and a person
+ *     curating their profile are the same case and the single owner comparison
+ *     is the whole gate. The last describe block pins that in the two places the
+ *     old channel branch used to differ: the delete, and the mute.
  */
 
 import express, { type NextFunction, type Response } from 'express';
@@ -50,7 +50,7 @@ vi.mock('@oxyhq/core/server', async (importOriginal) => {
 });
 
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
-import { channels, laneMutes, lanes } from '../../db/schema/channels';
+import { laneMutes, lanes } from '../../db/schema/channels';
 import { uuidv7 } from '../../db/schema/columns';
 import lanesRouter, { publicLanesRouter } from '../../routes/lanes.routes';
 import { clearPostScope, postScope, readPostRow, seedPost } from '../helpers/postFixtures';
@@ -63,7 +63,6 @@ const OTHER_USER_ID = `stranger-${run}`;
 
 let authUserId: string | undefined = VIEWER_ID;
 const createdLaneIds: string[] = [];
-const createdChannelIds: string[] = [];
 let nameSeq = 0;
 
 const app = express();
@@ -87,7 +86,6 @@ async function seedLane(
   const [row] = await getDb()
     .insert(lanes)
     .values({
-      ownerType: 'user',
       ownerId: VIEWER_ID,
       name,
       nameLower: name.trim().replace(/\s+/g, ' ').toLowerCase(),
@@ -95,18 +93,6 @@ async function seedLane(
     })
     .returning();
   createdLaneIds.push(row.id);
-  return row;
-}
-
-async function seedChannel(
-  ownerOxyUserId: string,
-): Promise<typeof channels.$inferSelect> {
-  const handle = `l${run}${(nameSeq += 1).toString().padStart(3, '0')}`;
-  const [row] = await getDb()
-    .insert(channels)
-    .values({ handle, handleLower: handle, title: 'a channel', ownerOxyUserId })
-    .returning();
-  createdChannelIds.push(row.id);
   return row;
 }
 
@@ -148,9 +134,6 @@ afterEach(async () => {
   if (createdLaneIds.length > 0) {
     await db.delete(lanes).where(inArray(lanes.id, createdLaneIds.splice(0)));
   }
-  if (createdChannelIds.length > 0) {
-    await db.delete(channels).where(inArray(channels.id, createdChannelIds.splice(0)));
-  }
 });
 
 describe('GET /lanes (public)', () => {
@@ -159,35 +142,23 @@ describe('GET /lanes (public)', () => {
     await seedLane({ displayMode: 'mixed' });
     await seedLane({ displayMode: 'hidden' });
 
-    const res = await request(app).get(`/lanes?ownerType=user&ownerId=${VIEWER_ID}`);
+    const res = await request(app).get(`/lanes?ownerId=${VIEWER_ID}`);
 
     expect(res.status).toBe(200);
+    // `mixed` has no tab of its own and `hidden` is off the showcase — a list
+    // whose only purpose is drawing tabs must contain neither.
     expect(res.body.data.map((lane: { id: string }) => lane.id)).toEqual([tab.id]);
   });
 
-  it('accepts a channel publisher', async () => {
-    const channel = await seedChannel(VIEWER_ID);
-    const lane = await seedLane({
-      ownerType: 'channel',
-      ownerId: channel.id,
-      displayMode: 'tab',
-    });
-
-    const res = await request(app).get(`/lanes?ownerType=channel&ownerId=${channel.id}`);
-
-    expect(res.body.data.map((item: { id: string }) => item.id)).toEqual([lane.id]);
-  });
-
-  it('rejects a missing owner and an unknown owner type', async () => {
-    expect((await request(app).get('/lanes?ownerType=user')).status).toBe(400);
-    expect((await request(app).get(`/lanes?ownerType=group&ownerId=${VIEWER_ID}`)).status).toBe(400);
+  it('rejects a missing owner', async () => {
+    expect((await request(app).get('/lanes')).status).toBe(400);
   });
 
   it('is reader-agnostic — an anonymous visitor gets the same list', async () => {
     const tab = await seedLane({ displayMode: 'tab' });
     authUserId = undefined;
 
-    const res = await request(app).get(`/lanes?ownerType=user&ownerId=${VIEWER_ID}`);
+    const res = await request(app).get(`/lanes?ownerId=${VIEWER_ID}`);
 
     expect(res.body.data.map((lane: { id: string }) => lane.id)).toEqual([tab.id]);
   });
@@ -274,7 +245,6 @@ describe('POST /lanes', () => {
     const res = await createLane({ name: '  Fotos  De  Viaje ' });
 
     expect(res.status).toBe(201);
-    expect(res.body.data.ownerType).toBe('user');
     expect(res.body.data.ownerId).toBe(VIEWER_ID);
     expect(res.body.data.displayMode).toBe('mixed');
     expect(res.body.data.postCount).toBe(0);
@@ -444,20 +414,6 @@ describe('POST /lanes/:id/mute', () => {
     expect(await mutesOf(VIEWER_ID)).toEqual([]);
   });
 
-  it("refuses to MUTE a channel's lane — there is no push to suppress", async () => {
-    // A channel post is never pushed anywhere, and storing the mute would put a
-    // CHANNEL id into `lane_owner_oxy_user_id`, which `GET /lanes/muted`
-    // resolves as a user id.
-    const channel = await seedChannel(OTHER_USER_ID);
-    const lane = await seedLane({ ownerType: 'channel', ownerId: channel.id });
-
-    const res = await request(app).post(`/lanes/${lane.id}/mute`);
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toContain('unfollow the channel');
-    expect(await mutesOf(VIEWER_ID)).toEqual([]);
-  });
-
   it('is idempotent — a repeat succeeds and writes no second row', async () => {
     const lane = await seedLane({ ownerId: OTHER_USER_ID });
 
@@ -474,7 +430,7 @@ describe('POST /lanes/:id/mute', () => {
       .values(
         Array.from({ length: MAX_MUTED_LANES }, (_unused, index) => {
           const name = `cap ${run} ${index}`;
-          return { ownerType: 'user' as const, ownerId: OTHER_USER_ID, name, nameLower: name };
+          return { ownerId: OTHER_USER_ID, name, nameLower: name };
         }),
       )
       .returning({ id: lanes.id });
@@ -530,109 +486,60 @@ describe('DELETE /lanes/:id/mute', () => {
 });
 
 /**
- * A channel curates its page the way a user curates a profile, and its lanes
- * belong to the channel's OWNER alone — a publisher publishes into them, it does
- * not define them.
+ * A CHANNEL ACCOUNT as a lane publisher.
+ *
+ * A channel is an Oxy account, so its lanes are ordinary lanes owned by an
+ * ordinary `oxyUserId` — there is no second publisher model, no `ownerType`, and
+ * no channel-shaped branch in any handler. What these cases pin is that the
+ * single owner comparison behaves the same whoever the publisher is, INCLUDING
+ * the two places the old channel branch used to differ: the delete, and the
+ * mute.
  */
-describe('channel-owned lanes', () => {
-  it('creates a lane on a channel the caller owns', async () => {
-    const channel = await seedChannel(VIEWER_ID);
+describe('a channel account is just another publisher', () => {
+  const CHANNEL_ACCOUNT = `channel-${run}`;
 
-    const res = await createLane({ channelId: channel.id, displayMode: 'tab' });
+  it('serves its tabs through the same public list, scoped to its own id', async () => {
+    const lane = await seedLane({ ownerId: CHANNEL_ACCOUNT, displayMode: 'tab' });
+    // A second publisher's tab lane, present and NOT returned — one id space with
+    // no discriminator means `owner_id` alone is doing the scoping, so a list
+    // asserted against a single seeded lane could not tell that from no scoping
+    // at all.
+    await seedLane({ displayMode: 'tab' });
 
-    expect(res.status).toBe(201);
-    expect(res.body.data.ownerType).toBe('channel');
-    expect(res.body.data.ownerId).toBe(channel.id);
-  });
-
-  it("counts the cap PER PUBLISHER, not against the caller's own lanes", async () => {
-    const channel = await seedChannel(VIEWER_ID);
-    for (let index = 0; index < MAX_LANES_PER_OWNER; index += 1) {
-      await seedLane();
-    }
-
-    const res = await createLane({ channelId: channel.id });
-
-    // A prolific personal lane list must not eat the channel's budget.
-    expect(res.status).toBe(201);
-  });
-
-  it("403s a caller who is not the channel's owner", async () => {
-    const channel = await seedChannel(OTHER_USER_ID);
-
-    const res = await request(app)
-      .post('/lanes')
-      .send({ name: uniqueName(), channelId: channel.id });
-
-    expect(res.status).toBe(403);
-  });
-
-  it('404s an unknown channel — no existence oracle', async () => {
-    const res = await request(app).post('/lanes').send({ name: uniqueName(), channelId: uuidv7() });
-
-    expect(res.status).toBe(404);
-  });
-
-  it("GET /lanes/mine?channelId= serves the channel's management view", async () => {
-    // Unlike the public list this includes `mixed` and `hidden` — it is the
-    // owner's own screen, not the profile's tabs.
-    const channel = await seedChannel(VIEWER_ID);
-    const hidden = await seedLane({
-      ownerType: 'channel',
-      ownerId: channel.id,
-      displayMode: 'hidden',
-    });
-
-    const res = await request(app).get(`/lanes/mine?channelId=${channel.id}`);
+    const res = await request(app).get(`/lanes?ownerId=${CHANNEL_ACCOUNT}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.map((lane: { id: string }) => lane.id)).toEqual([hidden.id]);
+    expect(res.body.data).toEqual([
+      expect.objectContaining({ id: lane.id, ownerId: CHANNEL_ACCOUNT }),
+    ]);
   });
 
-  it("releases EVERY publisher's posts when a channel lane is deleted", async () => {
-    // The Mongo delete scoped its post update to the lane's publisher, so a post
-    // written by a different publisher kept a dangling `laneId`. The foreign key
-    // is unscoped, which is what the invariant actually says.
-    const channel = await seedChannel(VIEWER_ID);
-    const lane = await seedLane({ ownerType: 'channel', ownerId: channel.id });
-    const byOwner = await seedPost(scope, {
-      oxyUserId: VIEWER_ID,
-      channelId: channel.id,
-      laneId: lane.id,
-    });
-    const byPublisher = await seedPost(scope, {
-      oxyUserId: OTHER_USER_ID,
-      channelId: channel.id,
-      laneId: lane.id,
-    });
-
-    const res = await request(app).delete(`/lanes/${lane.id}`);
-
-    expect(res.status).toBe(200);
-    expect((await readPostRow(byOwner.id))?.laneId).toBeNull();
-    expect((await readPostRow(byPublisher.id))?.laneId).toBeNull();
-  });
-
-  it('404s deleting a channel lane the caller does not own', async () => {
-    const channel = await seedChannel(OTHER_USER_ID);
-    const lane = await seedLane({ ownerType: 'channel', ownerId: channel.id });
+  it('answers the same 404 on delete to a caller who is not that account', async () => {
+    // The caller is always THEMSELVES, never the channel account — a channel can
+    // never be acted as — so a channel's lane answers exactly as any other
+    // publisher's does. There is no branch here to get wrong, which is the point.
+    const lane = await seedLane({ ownerId: CHANNEL_ACCOUNT });
+    const post = await seedPost(scope, { oxyUserId: CHANNEL_ACCOUNT, laneId: lane.id });
 
     const res = await request(app).delete(`/lanes/${lane.id}`);
 
     expect(res.status).toBe(404);
     expect(await readLane(lane.id)).toBeDefined();
+    expect((await readPostRow(post.id))?.laneId).toBe(lane.id);
   });
 
-  it('lets the channel owner edit a channel lane, which the id guard used to refuse', async () => {
-    // `callerManagesLane` short-circuited on `ObjectId.isValid(lane.ownerId)`,
-    // which is `false` for every uuid v7 channel — so this answered 404 to the
-    // one person entitled to it.
-    const channel = await seedChannel(VIEWER_ID);
-    const lane = await seedLane({ ownerType: 'channel', ownerId: channel.id });
+  it("CAN be muted — a channel's posts DO reach a follower's timeline", async () => {
+    // The old refusal existed because a channel post was pushed nowhere and
+    // because a channel id in `laneOwnerOxyUserId` would have contaminated a set
+    // of user ids. Neither is true of an account: `GET /lanes/muted` resolves it
+    // through `resolveUserSummaries` like any other publisher.
+    const lane = await seedLane({ ownerId: CHANNEL_ACCOUNT });
 
-    const res = await request(app).patch(`/lanes/${lane.id}`).send({ displayMode: 'tab' });
+    const res = await request(app).post(`/lanes/${lane.id}/mute`);
 
-    expect(res.status).toBe(200);
-    expect((await readLane(lane.id))?.displayMode).toBe('tab');
+    expect(res.status).toBe(201);
+    const stored = await mutesOf(VIEWER_ID);
+    expect(stored).toHaveLength(1);
+    expect(stored[0].laneOwnerOxyUserId).toBe(CHANNEL_ACCOUNT);
   });
 });

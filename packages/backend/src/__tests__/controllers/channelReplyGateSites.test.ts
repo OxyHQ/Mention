@@ -18,15 +18,17 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * Every refusal is paired with a control: an ordinary parent, and a parent
  * carrying a `laneId`, still accept replies. A lane is a lens, not a destination.
  *
- * Parents are REAL ROWS. `parentIsChannelPost` reads `posts.channel_id` with a
- * `text` id, and the guard it replaced (`ObjectId.isValid`) answered `false` for
- * every uuid v7 — which reads as "not a channel post" and lets the reply through.
- * A mocked `findById` cannot see that: it answers whatever it was told, without
- * the id ever reaching the predicate that was wrong.
+ * The gate keys on the parent AUTHOR's Oxy account kind, so `isChannelAccount` is
+ * the seam these tests drive — mocked at `services/publishAsAccount`, the one
+ * module that knows what a channel account is. Everything ELSE is a real row: the
+ * gate resolves the author by reading `posts` with a `text` id, and the guard it
+ * replaced (`ObjectId.isValid`) answered `false` for every uuid v7 — which reads
+ * as "not a channel post" and lets the reply through. A mocked `findById` cannot
+ * see that, because the id never reaches the predicate that was wrong.
  */
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import { clearPostScope, postScope, seedChannel, seedLane, seedPost } from '../helpers/postFixtures';
+import { clearPostScope, postScope, seedLane, seedPost } from '../helpers/postFixtures';
 
 const postCreationCreate = vi.fn();
 vi.mock('../../services/PostCreationService', () => ({
@@ -41,6 +43,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
+  createUserScopedOxyServices: vi.fn(() => undefined),
   getServiceOxyClient: vi.fn(() => ({})),
 }));
 
@@ -51,6 +54,25 @@ vi.mock('../../utils/logger', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
+const isChannelAccount = vi.fn();
+vi.mock('../../services/publishAsAccount', () => ({
+  isChannelAccount: (...args: unknown[]) => isChannelAccount(...args),
+  cacheAccountMemberReads: (reader: unknown) => reader,
+  assertCanPublishAsAccount: vi.fn(
+    async (params: { callerId: string | null }) => ({
+      authorId: params.callerId,
+      authorKind: null,
+    }),
+  ),
+  PublishAsAccessError: class PublishAsAccessError extends Error {
+    readonly status: number;
+    constructor(status: number, message: string) {
+      super(message);
+      this.status = status;
+    }
+  },
+}));
+
 import { feedController } from '../../controllers/feed.controller';
 import { createPost } from '../../controllers/posts.controller';
 import type { OxyAuthRequest } from '@oxyhq/core/server';
@@ -58,6 +80,8 @@ import type { ReplyPermission } from '@mention/shared-types';
 
 const scope = postScope('channel-reply-gate-sites');
 const USER_ID = scope.user('author');
+/** The Oxy account the mocked `isChannelAccount` answers `true` for. */
+const CHANNEL_ACCOUNT = scope.user('channel');
 
 interface MockRes {
   statusCode: number;
@@ -77,16 +101,17 @@ function makeRes(): MockRes {
 }
 
 /**
- * One parent post owned by `USER_ID` — the author-replying-to-themselves case
- * the gate has to sit above.
+ * One parent post, owned by `USER_ID` unless a channel is named.
+ *
+ * The channel IS the author now, so "a channel post" is a row whose
+ * `oxy_user_id` is the channel account — there is no marker on the row to set.
  */
 async function parent(
-  extra: { channelId?: string; laneId?: string; replyPermission?: ReplyPermission[] } = {},
+  extra: { oxyUserId?: string; laneId?: string; replyPermission?: ReplyPermission[] } = {},
 ): Promise<string> {
   const post = await seedPost(scope, {
-    oxyUserId: USER_ID,
+    oxyUserId: extra.oxyUserId ?? USER_ID,
     replyPermission: extra.replyPermission ?? ['anyone'],
-    ...(extra.channelId ? { channelId: extra.channelId } : {}),
     ...(extra.laneId ? { laneId: extra.laneId } : {}),
   });
   return post.id;
@@ -97,6 +122,8 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
+  isChannelAccount.mockReset();
+  isChannelAccount.mockImplementation(async (id: string) => id === CHANNEL_ACCOUNT);
   postCreationCreate.mockReset();
   postCreationCreate.mockResolvedValue({
     id: 'p1',
@@ -114,31 +141,43 @@ afterAll(async () => {
 });
 
 describe('site 1 — feed.controller.createReply', () => {
-  function replyReq(postId: string): OxyAuthRequest {
+  function replyReq(postId: string, callerId: string = USER_ID): OxyAuthRequest {
     return {
-      user: { id: USER_ID },
+      user: { id: callerId },
       body: { postId, content: 'a reply' },
     } as unknown as OxyAuthRequest;
   }
 
-  it('refuses a reply to a channel post with 403, even for the post\'s OWN author', async () => {
-    // The author-replying-to-themselves escape inside the reply-permission block
-    // is exactly what this gate has to sit above: the parent is owned by the
-    // caller, and its stored permission is the one that triggers that escape.
-    const channelId = await seedChannel(scope);
-    const parentId = await parent({ channelId, replyPermission: ['nobody'] });
+  it('refuses even when the caller would clear the author escape', async () => {
+    // The permission block contains an unconditional escape — `parentAuthorId ===
+    // currentUserId` allows the reply even under `['nobody']` — so the gate has to
+    // sit above the block, not inside it.
+    //
+    // The only fixture that ISOLATES that escape is a caller whose id IS the
+    // author's, which for a channel post means asking as the channel. No real
+    // session can be one (`isActAsEligibleKind` refuses `channel`), so this shape
+    // is synthetic on purpose: without it the case is answered by the `['nobody']`
+    // permission itself and cannot tell the gate from the block. Mutation-tested —
+    // stubbing `isChannelAccount` to `false` turns it red.
+    const parentId = await parent({
+      oxyUserId: CHANNEL_ACCOUNT,
+      replyPermission: ['nobody'],
+    });
 
     const res = makeRes();
-    await feedController.createReply(replyReq(parentId), res as never);
+    await feedController.createReply(replyReq(parentId, CHANNEL_ACCOUNT), res as never);
 
     expect(res.statusCode).toBe(403);
   });
 
   it('refuses even when the parent says replyPermission: ["anyone"]', async () => {
-    // The permission block is SKIPPED for `['anyone']`, so a gate placed inside it
-    // would never run on an ordinary post. This asserts it is placed above.
-    const channelId = await seedChannel(scope);
-    const parentId = await parent({ channelId, replyPermission: ['anyone'] });
+    // The discriminating case. The permission block is SKIPPED for `['anyone']`,
+    // so a gate placed inside it would never run — this one passes only if the
+    // gate sits above the whole block, escape included.
+    const parentId = await parent({
+      oxyUserId: CHANNEL_ACCOUNT,
+      replyPermission: ['anyone'],
+    });
 
     const res = makeRes();
     await feedController.createReply(replyReq(parentId), res as never);
@@ -171,8 +210,7 @@ describe('site 2 — POST /posts carrying a parent id', () => {
   }
 
   it('refuses a reply to a channel post with 403 via parentPostId', async () => {
-    const channelId = await seedChannel(scope);
-    const parentId = await parent({ channelId });
+    const parentId = await parent({ oxyUserId: CHANNEL_ACCOUNT });
 
     const res = makeRes();
     await createPost(postReq({ parentPostId: parentId }), res as never);
@@ -185,8 +223,7 @@ describe('site 2 — POST /posts carrying a parent id', () => {
     // The controller accepts BOTH spellings and hands whichever it got to
     // `PostCreationService` as `parentPostId`; a gate reading only one of them
     // would leave the other as the back door.
-    const channelId = await seedChannel(scope);
-    const parentId = await parent({ channelId });
+    const parentId = await parent({ oxyUserId: CHANNEL_ACCOUNT });
 
     const res = makeRes();
     await createPost(postReq({ in_reply_to_status_id: parentId }), res as never);
@@ -217,5 +254,6 @@ describe('site 2 — POST /posts carrying a parent id', () => {
     await createPost(postReq({}), res as never);
     expect(res.statusCode).not.toBe(403);
     expect(postCreationCreate).toHaveBeenCalled();
+    expect(isChannelAccount).not.toHaveBeenCalled();
   });
 });

@@ -91,10 +91,6 @@ export interface UserAppearance {
   repliesCount?: number;
   appearance: AppearanceSettings;
   profileHeaderImage?: string;
-  profileCustomization?: {
-    coverPhotoEnabled?: boolean;
-    minimalistMode?: boolean;
-  };
   /**
    * Pinned profile media (song XOR podcast). The public profile-design DTO
    * exposes it as a top-level field (denormalized server-side); `null`/absent
@@ -114,7 +110,6 @@ export interface UserAppearance {
 export interface UserAppearanceUpdate {
   appearance?: Partial<AppearanceSettings>;
   profileHeaderImage?: string | null;
-  profileCustomization?: UserAppearance['profileCustomization'];
   /** `ProfileMediaInput` to pin/replace the media, or `null` to remove it. */
   profileMedia?: ProfileMediaInput | null;
   interests?: UserAppearance['interests'];
@@ -126,7 +121,6 @@ export interface UserAppearanceUpdate {
  * fields the server stores VERBATIM are echoed:
  *
  * - `profileHeaderImage` — stored as sent (trimmed); `''`/`null` clears it.
- * - `profileCustomization` — plain booleans.
  * - `appearance` — plain scalars.
  *
  * `profileMedia` and `interests` are deliberately absent. A pinned song/podcast
@@ -146,12 +140,6 @@ function withOptimisticSettings(
   if (Object.prototype.hasOwnProperty.call(partial, 'profileHeaderImage')) {
     const ref = partial.profileHeaderImage?.trim();
     next.profileHeaderImage = ref ? ref : undefined;
-  }
-  if (partial.profileCustomization) {
-    next.profileCustomization = {
-      ...current.profileCustomization,
-      ...partial.profileCustomization,
-    };
   }
   if (partial.appearance) {
     next.appearance = { ...current.appearance, ...partial.appearance };
@@ -242,9 +230,6 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
         ...(partial.appearance && { appearance: partial.appearance }),
         ...(Object.prototype.hasOwnProperty.call(partial, 'profileHeaderImage') && {
           profileHeaderImage: partial.profileHeaderImage,
-        }),
-        ...(partial.profileCustomization && {
-          profileCustomization: partial.profileCustomization,
         }),
         // `profileMedia` accepts `null` (remove), so gate on key presence rather
         // than truthiness. The server resolves canonical metadata + URLs and

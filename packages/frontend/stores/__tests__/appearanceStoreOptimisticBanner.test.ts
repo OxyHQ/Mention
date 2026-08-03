@@ -50,7 +50,6 @@ const stored: UserAppearance = {
   oxyUserId: 'viewer-a',
   appearance: { themeMode: 'system', primaryColor: '#aaaaaa' },
   profileHeaderImage: 'old-banner-file',
-  profileCustomization: { coverPhotoEnabled: true, minimalistMode: false },
 };
 
 function seedStoredSettings(): void {

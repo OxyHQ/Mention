@@ -27,22 +27,24 @@ import {
   loadExcludedLaneIds,
   ownerHasProfileAffectingLane,
 } from '../services/laneVisibility';
-import type { LaneDisplayMode, LaneOwnerType } from '@mention/shared-types';
+import type { LaneDisplayMode } from '@mention/shared-types';
 
 const OWNER = 'lanevis-owner';
-const CHANNEL_OWNER = 'lanevis-channel';
+/**
+ * A CHANNEL account. Nothing distinguishes it from {@link OWNER} but the id — a
+ * channel is an Oxy account, so its curation runs through the same single
+ * `ownerId` scoping a person's does.
+ */
+const CHANNEL_ACCOUNT = 'lanevis-channel';
 const seeded: string[] = [];
 let seq = 0;
 
 /** One lane, cleaned with the rest. Returns its id. */
-async function lane(
-  displayMode: LaneDisplayMode,
-  owner: { ownerType: LaneOwnerType; ownerId: string } = { ownerType: 'user', ownerId: OWNER },
-): Promise<string> {
+async function lane(displayMode: LaneDisplayMode, ownerId: string = OWNER): Promise<string> {
   const name = `lanevis-${seq++}`;
   const [row] = await getDb()
     .insert(lanes)
-    .values({ ...owner, name, nameLower: name, displayMode })
+    .values({ ownerId, name, nameLower: name, displayMode })
     .returning({ id: lanes.id });
   seeded.push(row.id);
   return row.id;
@@ -89,27 +91,27 @@ describe('loadExcludedLaneIds', () => {
     // query matching every lane would pass an assertion that only listed two.
     await lane('mixed');
 
-    const ids = await loadExcludedLaneIds('user', OWNER, ['tab', 'hidden']);
+    const ids = await loadExcludedLaneIds(OWNER, ['tab', 'hidden']);
     expect([...ids].sort()).toEqual([tabbed, hidden].sort());
 
-    const hiddenOnly = await loadExcludedLaneIds('user', OWNER, ['hidden']);
+    const hiddenOnly = await loadExcludedLaneIds(OWNER, ['hidden']);
     expect(hiddenOnly).toEqual([hidden]);
   });
 
-  it('scopes by owner TYPE, so a channel lane never curates a user profile', async () => {
-    // Same owner ID, different owner TYPE — the pairing a type-blind query would
-    // conflate, and the reason `owner_type` is in the unique key at all.
-    const channelLane = await lane('hidden', { ownerType: 'channel', ownerId: CHANNEL_OWNER });
-    const userLane = await lane('hidden', { ownerType: 'user', ownerId: CHANNEL_OWNER });
+  it('scopes by OWNER, so one publisher\'s lane never curates another\'s profile', async () => {
+    // A channel account is just another publisher — there is no owner TYPE left
+    // to conflate, so the whole of the scoping is this one id comparison.
+    const channelLane = await lane('hidden', CHANNEL_ACCOUNT);
+    const ownerLane = await lane('hidden');
 
-    expect(await loadExcludedLaneIds('channel', CHANNEL_OWNER, ['hidden'])).toEqual([channelLane]);
-    expect(await loadExcludedLaneIds('user', CHANNEL_OWNER, ['hidden'])).toEqual([userLane]);
+    expect(await loadExcludedLaneIds(CHANNEL_ACCOUNT, ['hidden'])).toEqual([channelLane]);
+    expect(await loadExcludedLaneIds(OWNER, ['hidden'])).toEqual([ownerLane]);
   });
 
   it('skips the query entirely for a missing owner or an empty mode set', async () => {
     await lane('hidden');
-    expect(await loadExcludedLaneIds('user', '', ['hidden'])).toEqual([]);
-    expect(await loadExcludedLaneIds('user', OWNER, [])).toEqual([]);
+    expect(await loadExcludedLaneIds('', ['hidden'])).toEqual([]);
+    expect(await loadExcludedLaneIds(OWNER, [])).toEqual([]);
   });
 
   it('fails soft toward an UNCURATED profile, never an empty one', async () => {
@@ -120,7 +122,7 @@ describe('loadExcludedLaneIds', () => {
 
     // `[]` means "exclude nothing", so a lookup failure shows a post the owner
     // meant to tuck away — far smaller harm than showing them nothing at all.
-    await expect(loadExcludedLaneIds('user', OWNER, ['hidden'])).resolves.toEqual([]);
+    await expect(loadExcludedLaneIds(OWNER, ['hidden'])).resolves.toEqual([]);
   });
 });
 
@@ -154,7 +156,7 @@ describe('ownerHasProfileAffectingLane', () => {
   });
 
   it('does not confuse one publisher\'s lanes with another\'s', async () => {
-    await lane('hidden', { ownerType: 'user', ownerId: 'lanevis-somebody-else' });
+    await lane('hidden', 'lanevis-somebody-else');
     await expect(ownerHasProfileAffectingLane(OWNER)).resolves.toBe(false);
     // The other publisher's lane is really there — without this the case above
     // would pass just as well against a seeding failure.

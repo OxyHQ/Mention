@@ -18,6 +18,7 @@ import {
   ARTICLE_ATTACHMENT_KEY,
   EVENT_ATTACHMENT_KEY,
   ROOM_ATTACHMENT_KEY,
+  PODCAST_ATTACHMENT_KEY,
   createMediaAttachmentKey,
 } from './composeUtils';
 import type { ThreadItem } from '@/hooks/useThreadManager';
@@ -67,19 +68,20 @@ interface BuildMainPostParams {
    */
   laneId?: string;
   /**
-   * The channel this post is published TO.
+   * Publish this post AS another Oxy account the caller operates — today, a
+   * `channel` account.
    *
-   * A destination rather than a lens: the post belongs to the channel and only to
-   * the channel — never the author's profile, never their followers' timeline,
-   * and it accepts no replies. Only ever set on an ORIGINAL post: the server
-   * refuses a channel on a reply, a boost and a federated ingest (400/403), and
-   * the composer hides the affordance on those paths rather than letting the
-   * author pick a destination that gets dropped.
+   * The post is AUTHORED BY that account: it lands on the channel's profile and
+   * in the timelines of the channel's followers, and it renders with the
+   * channel's avatar and name because `user` IS the channel. Only ever set on an
+   * ORIGINAL post: the server refuses it on a reply, a boost and a federated
+   * ingest (400/403), and the composer hides the affordance on those paths
+   * rather than letting the author pick an identity that gets dropped.
    *
-   * To put a channel post on your own profile you BOOST it; there is no field
+   * To put a channel's post on your own profile you BOOST it; there is no field
    * for that, because a boost is already the right row with the right owner.
    */
-  channelId?: string;
+  publishAsOxyUserId?: string;
   /**
    * The author renditions of this post, PRIMARY FIRST — order is what names the
    * primary. `null` when the author declared no language, which keeps a
@@ -115,7 +117,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     quotedPostId,
     collaboratorIds,
     laneId,
-    channelId,
+    publishAsOxyUserId,
     variantContent,
   } = params;
 
@@ -201,7 +203,17 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     ...(quotedPostId ? { quotedPostId } : {}),
     ...(collaboratorIds && collaboratorIds.length > 0 ? { collaboratorIds } : {}),
     ...(laneId ? { laneId } : {}),
-    ...(channelId ? { channelId } : {}),
+    // A plain property, deliberately, where every other optional field here uses
+    // a conditional spread. TypeScript does NOT excess-property-check a spread,
+    // so a typo inside one compiles clean and the field silently never ships —
+    // measured: `...(id ? { publishAsOxyUserIdTYPO: id } : {})` produces zero
+    // errors in this file. Both builders declare their return type, so written
+    // plainly the same typo is a `TS2353`.
+    //
+    // This one field earns the inconsistency because it decides WHO AUTHORS the
+    // post: dropped, the post publishes under the caller's own name instead of
+    // the account they chose, with a 201 and nothing to see.
+    publishAsOxyUserId,
     ...(isSensitive ? { metadata: { isSensitive: true } } : {}),
     ...(wasScheduled && scheduledAt ? {
       status: 'scheduled' as const,
@@ -260,15 +272,35 @@ export const buildEditPost = (params: BuildEditPostParams): UpdatePostRequest =>
   };
 };
 
+/**
+ * @param publishAsOxyUserId The account THIS post is authored by, when it is not
+ * the caller. Passed in rather than read off `item.publishAs` because whether the
+ * payload may carry one is a property of the whole composer — BEAST mode posts
+ * are independent, so each may name its own; a THREAD's continuations are replies
+ * to their predecessor, which a channel post cannot have, so none of them may.
+ * The composer answers that once and hands down the result, so the value the
+ * header draws and the value the wire carries cannot disagree.
+ *
+ * @param laneId The lane this post goes on, and `undefined` where this box may
+ * not carry one. Passed in for the SAME reason as the account above: `POST
+ * /posts/thread` takes a lane on every entry of a beast batch but on a thread's
+ * ROOT only, and refuses one on a continuation with a 400 that fails the WHOLE
+ * batch before anything is written. So a lane chosen in beast mode and then left
+ * behind by a switch to thread must not reach the wire — the composer narrows it
+ * once, and the icon the box draws and the field it sends read the same value.
+ */
 export const buildThreadPost = (
   item: ThreadItem,
   variantContent?: PostContentVariant[] | null,
+  publishAsOxyUserId?: string,
+  laneId?: string,
 ): CreateThreadPostRequest => {
   const threadHasPoll = item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0);
   const threadHasLocation = Boolean(item.location);
   const threadHasArticle = Boolean(item.article && (item.article.title?.trim() || item.article.body?.trim()));
   const threadHasEvent = Boolean(item.event && item.event.name?.trim());
   const threadHasRoom = Boolean(item.room && item.room.roomId);
+  const threadPodcastId = item.podcast?.syraPodcastId;
   const threadFormattedSources = (item.sources || []).filter(s => s.url.trim().length > 0);
   const threadHasSources = threadFormattedSources.length > 0;
   const mentionIds = reconcileMentionIds(
@@ -289,6 +321,7 @@ export const buildThreadPost = (
     if (threadHasArticle) threadOrder.push(ARTICLE_ATTACHMENT_KEY);
     if (threadHasEvent) threadOrder.push(EVENT_ATTACHMENT_KEY);
     if (threadHasRoom) threadOrder.push(ROOM_ATTACHMENT_KEY);
+    if (threadPodcastId) threadOrder.push(PODCAST_ATTACHMENT_KEY);
     item.mediaIds.forEach((media) => {
       threadOrder.push(createMediaAttachmentKey(media.id));
     });
@@ -303,6 +336,7 @@ export const buildThreadPost = (
     includeRoom: threadHasRoom,
     includeLocation: threadHasLocation,
     includeSources: threadHasSources,
+    podcastId: threadPodcastId,
   });
 
   const threadArticlePayload = threadHasArticle && item.article ? {
@@ -354,6 +388,9 @@ export const buildThreadPost = (
           ...(item.room.host && { host: item.room.host }),
         }
       }),
+      // Read per ENTRY by `POST /posts/thread`, in both modes, so a box that is
+      // not the first may attach a show of its own.
+      ...(threadPodcastId && { podcast: { syraPodcastId: threadPodcastId } }),
       ...(threadAttachmentsPayload.length > 0 && { attachments: threadAttachmentsPayload })
     },
     mentions: mentionIds,
@@ -362,6 +399,25 @@ export const buildThreadPost = (
     reviewReplies: item.reviewReplies || false,
     quotesDisabled: item.quotesDisabled || false,
     ...(item.isSensitive ? { metadata: { isSensitive: true } } : {}),
+    // Named here as well as chosen in the composer: this object is a whitelist,
+    // so a field it omits vanishes on the way out with a 201 and no error
+    // anywhere — publishing under the author's own name instead of the chosen
+    // account's, which is the one mistake this control exists to prevent.
+    // A plain property, deliberately, where every other optional field here uses
+    // a conditional spread. TypeScript does NOT excess-property-check a spread,
+    // so a typo inside one compiles clean and the field silently never ships —
+    // measured: `...(id ? { publishAsOxyUserIdTYPO: id } : {})` produces zero
+    // errors in this file. Both builders declare their return type, so written
+    // plainly the same typo is a `TS2353`.
+    //
+    // This one field earns the inconsistency because it decides WHO AUTHORS the
+    // post: dropped, the post publishes under the caller's own name instead of
+    // the account they chose, with a 201 and nothing to see.
+    publishAsOxyUserId,
+    // Plainly, for the same reason as the account above: a typo inside a
+    // conditional spread compiles clean and ships nothing, and a lane that goes
+    // missing is a post that quietly lands off the lane it was written for.
+    laneId,
   };
 };
 
@@ -371,6 +427,7 @@ export const shouldIncludeThreadItem = (item: ThreadItem): boolean => {
          (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)) ||
          Boolean(item.article && (item.article.title?.trim() || item.article.body?.trim())) ||
          Boolean(item.event && item.event.name?.trim()) ||
+         Boolean(item.podcast?.syraPodcastId) ||
          Boolean(item.room && item.room.roomId) ||
          Boolean(item.sources && item.sources.length > 0 && item.sources.some(s => s.url.trim().length > 0));
 };

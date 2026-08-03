@@ -42,9 +42,15 @@ jest.mock('@oxyhq/bloom/theme', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/avatar', () => {
+/**
+ * The identity row is its own component with its own concerns (the account the
+ * box publishes as, the collaborative byline) and its own coverage. These cases
+ * are about the LINE BETWEEN the rows, so the header stands in as a plain View
+ * that still renders the body the author is writing into.
+ */
+jest.mock('@/components/Compose/ComposeIdentityHeader', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { Avatar: RNView };
+  return { __esModule: true, default: RNView };
 });
 
 jest.mock('@/components/ComposeToolbar', () => {
@@ -67,6 +73,13 @@ jest.mock('@/components/Compose', () => {
   };
 });
 
+// Stubbed like every other child here: this suite is about the connector STYLE,
+// and the summary reaches the Oxy SDK to resolve who a pasted link names.
+jest.mock('@/components/Compose/ComposeMentionSummary', () => {
+  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { __esModule: true, default: RNView };
+});
+
 jest.mock('@/components/Compose/InteractionSettingsPills', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return { __esModule: true, default: RNView };
@@ -85,11 +98,14 @@ const item: ThreadItem = {
   article: null,
   event: null,
   room: null,
+  podcast: null,
+  laneId: null,
   attachmentOrder: [],
   replyPermission: ['anyone'],
   reviewReplies: false,
   quotesDisabled: false,
   isSensitive: false,
+  publishAs: null,
 };
 
 /**
@@ -113,11 +129,11 @@ function renderItem(postingMode: 'thread' | 'beast') {
     tree = TestRenderer.create(
       <ComposeThreadItem
         item={item}
+        variantTexts={[]}
         isFocused
         isPosting={false}
         postingMode={postingMode}
-        userAvatar={undefined}
-        userVerified={false}
+        publishAs={null}
         onMentionValueChange={noop}
         onFocus={noop}
         onRemove={noop}
@@ -144,6 +160,8 @@ function renderItem(postingMode: 'thread' | 'beast') {
         onRoomRemove={noop}
         onReplySettingsPress={noop}
         onSensitiveToggle={noop}
+        onPodcastPress={noop}
+        onPodcastRemove={noop}
         getFileDownloadUrl={(id: string) => id}
         textInputRef={noop}
         styles={styles}

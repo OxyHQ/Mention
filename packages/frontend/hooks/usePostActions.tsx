@@ -18,6 +18,7 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 import type { HydratedPost } from '@mention/shared-types';
 import type { FeedItem } from '@/db';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
+import { LaneIcon } from '@/assets/icons/lane-icon';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { TrashIcon } from '@/assets/icons/trash-icon';
 import { SourcesIcon } from '@/assets/icons/sources-icon';
@@ -221,7 +222,7 @@ export function usePostActions({
         const isReplyOrBoost = Boolean(viewPost?.parentPostId) || Boolean(viewPost?.boost);
         if (isOwner && !isReplyOrBoost) {
             saveActionGroup.push({
-                icon: <Ionicons name="git-branch-outline" size={20} color={theme.colors.textSecondary} />,
+                icon: <LaneIcon size={20} color={theme.colors.textSecondary} />,
                 label: t('lanes.postActions.moveToLane', { defaultValue: 'Move to lane…' }),
                 onPress: () => {
                     bottomSheet.setBottomSheetContent(

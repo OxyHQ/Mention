@@ -205,11 +205,7 @@ import {
 } from '../db/blocklist/blockedDomainPurgeRepository';
 import { canonicalFederationHost } from '@oxyhq/federation';
 import { getBlockedDomainPolicy } from '../connectors/activitypub/federationBlockPolicy';
-import {
-  ACTOR_DOMAIN,
-  FEDERATION_DOMAIN,
-  OXY_IDENTITY_APEX,
-} from '../connectors/activitypub/constants';
+import { OWN_DOMAINS } from '../connectors/activitypub/ownDomain';
 import {
   materializeEngagementTombstone,
 } from '../services/PostEngagementCommandService';
@@ -2033,7 +2029,7 @@ async function main(): Promise<void> {
         ...getBlockedDomainPolicy().map((entry) => entry.domain),
         ...config.federation.blockedDomains,
       ],
-      [FEDERATION_DOMAIN, ACTOR_DOMAIN, OXY_IDENTITY_APEX],
+      OWN_DOMAINS,
       options.domain,
     );
 

@@ -9,13 +9,14 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
+import type { AccountNode } from '@oxyhq/core';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
+import { PodcastCard } from '@/components/Podcast/PodcastCard';
 import RoomCard from '@/components/RoomCard';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTextInput';
+import ComposeMentionSummary from '@/components/Compose/ComposeMentionSummary';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
@@ -23,6 +24,7 @@ import { PollIcon } from '@/assets/icons/poll-icon';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { VideoPreview, PollCreator, LocationDisplay, ComposeAltButton } from '@/components/Compose';
+import ComposeIdentityHeader from '@/components/Compose/ComposeIdentityHeader';
 import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPills';
 import type { ThreadItem } from '@/hooks/useThreadManager';
 import type { ComposerMediaItem } from '@/utils/composeUtils';
@@ -44,9 +46,6 @@ export interface ComposeThreadItemStyles {
   timelineForeground: ViewStyle;
   postContainer: ViewStyle;
   unfocusedItem: ViewStyle;
-  headerRow: ViewStyle;
-  headerMeta: ViewStyle;
-  headerChildren: ViewStyle;
   threadTextInput: TextStyle;
   toolbarWrapper: ViewStyle;
   removeThreadBtn: ViewStyle;
@@ -76,11 +75,23 @@ export interface ComposeThreadItemStyles {
 
 interface ComposeThreadItemProps {
   item: ThreadItem;
+  /**
+   * This item's language renditions, primary body excluded. A thread item is its
+   * own post, so its mentions are the union across its own renditions — the
+   * summary under it has to read all of them.
+   */
+  variantTexts: readonly string[];
   isFocused: boolean;
   isPosting: boolean;
   postingMode: 'thread' | 'beast';
-  userAvatar: string | undefined;
-  userVerified: boolean;
+  /**
+   * The account THIS post goes out as, or `null` for the author themselves.
+   *
+   * Already narrowed by the composer to what the payload will actually carry, so
+   * the header can render it unconditionally — a value the wire would drop must
+   * arrive here as `null`, or the row names an author the post will not have.
+   */
+  publishAs: AccountNode | null;
   // Stable callback refs — parent must wrap these in useCallback
   onMentionValueChange: (threadId: string, value: MentionTextValue) => void;
   onFocus: (threadId: string) => void;
@@ -108,6 +119,33 @@ interface ComposeThreadItemProps {
   onRoomRemove: (threadId: string) => void;
   onReplySettingsPress: (threadId: string) => void;
   onSensitiveToggle: (threadId: string) => void;
+  onPodcastPress: (threadId: string) => void;
+  onPodcastRemove: (threadId: string) => void;
+  /**
+   * Choose who this post is by. Omitted — leaving the avatar inert — wherever the
+   * payload cannot carry another author: a thread, whose continuations are
+   * replies a channel post cannot have, and a reply or an edit, where the server
+   * refuses one outright.
+   */
+  onPublishAsPress?: (threadId: string) => void;
+  /**
+   * Put this post on one of its publisher's lanes. Omitted — and the icon then
+   * absent from the row entirely — wherever the payload cannot carry one: in
+   * THREAD mode this box is a continuation, which is a reply, and
+   * `POST /posts/thread` refuses a lane on one with a 400 that fails the WHOLE
+   * batch. Offering it there would take the author's choice and then lose them
+   * every post in the composer.
+   */
+  onLanePress?: (threadId: string) => void;
+  /**
+   * When this post goes out, rendered in the identity row's time slot.
+   *
+   * The composer hands the SAME node to every box, because the publish time is a
+   * property of the batch: `POST /posts/thread` reads one `scheduledFor` off the
+   * top level and stamps every entry with it. A box left saying "now" beneath
+   * one showing a date would be naming a publish time its post will not get.
+   */
+  timeSlot?: React.ReactNode;
   getFileDownloadUrl: (id: string) => string;
   textInputRef: (threadId: string, el: MentionTextInputHandle | null) => void;
   // Styles from parent
@@ -116,11 +154,11 @@ interface ComposeThreadItemProps {
 
 const ComposeThreadItem = memo<ComposeThreadItemProps>(({
   item,
+  variantTexts,
   isFocused,
   isPosting,
   postingMode,
-  userAvatar,
-  userVerified,
+  publishAs,
   onMentionValueChange,
   onFocus,
   onRemove,
@@ -147,6 +185,11 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
   onRoomRemove,
   onReplySettingsPress,
   onSensitiveToggle,
+  onPodcastPress,
+  onPodcastRemove,
+  onPublishAsPress,
+  onLanePress,
+  timeSlot,
   getFileDownloadUrl,
   textInputRef,
   styles,
@@ -160,7 +203,8 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
   const itemHasEvent = Boolean(item.event && item.event.name?.trim());
   const itemHasRoom = Boolean(item.room && item.room.roomId);
   const itemHasSources = item.sources.length > 0 && item.sources.some(s => s.url.trim().length > 0);
-  const itemHasAttachments = item.showPollCreator || item.mediaIds.length > 0 || itemHasArticle || itemHasEvent || itemHasRoom || itemHasSources;
+  const itemHasPodcast = Boolean(item.podcast?.syraPodcastId);
+  const itemHasAttachments = item.showPollCreator || item.mediaIds.length > 0 || itemHasArticle || itemHasEvent || itemHasRoom || itemHasPodcast || itemHasSources;
 
   // Stable callbacks bound to this thread item's id
   const handleMentionValueChange = useCallback(
@@ -187,7 +231,21 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
   const handleRoomRemove = useCallback(() => onRoomRemove(threadId), [threadId, onRoomRemove]);
   const handleReplySettingsPress = useCallback(() => onReplySettingsPress(threadId), [threadId, onReplySettingsPress]);
   const handleSensitiveToggle = useCallback(() => onSensitiveToggle(threadId), [threadId, onSensitiveToggle]);
+  const handlePodcastPress = useCallback(() => onPodcastPress(threadId), [threadId, onPodcastPress]);
+  const handlePodcastRemove = useCallback(() => onPodcastRemove(threadId), [threadId, onPodcastRemove]);
   const handleTextInputRef = useCallback((el: MentionTextInputHandle | null) => textInputRef(threadId, el), [threadId, textInputRef]);
+  // Stays `undefined` when the parent supplied no handler, so the avatar is inert
+  // rather than opening a picker whose answer this post could not carry.
+  const handlePublishAsPress = useMemo(
+    () => (onPublishAsPress ? () => onPublishAsPress(threadId) : undefined),
+    [threadId, onPublishAsPress],
+  );
+  // Same shape, and the toolbar drops the icon entirely rather than disabling it:
+  // there is nothing the author could do in a thread to make a lane land.
+  const handleLanePress = useMemo(
+    () => (onLanePress ? () => onLanePress(threadId) : undefined),
+    [threadId, onLanePress],
+  );
 
   /**
    * The line between avatars says "this post continues the one above it", which
@@ -201,11 +259,6 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
     styles.postContainer,
     !isFocused && styles.unfocusedItem,
   ], [styles.postContainer, styles.unfocusedItem, isFocused]);
-
-  const headerRowStyle = useMemo(() => [
-    styles.headerRow,
-    { paddingHorizontal: HPAD },
-  ], [styles.headerRow]);
 
   const pollMarginStyle = useMemo(() => ({ marginLeft: BOTTOM_LEFT_PAD }), []);
   const interactionMarginStyle = useMemo(() => ({ marginLeft: BOTTOM_LEFT_PAD, paddingHorizontal: HPAD }), []);
@@ -226,58 +279,66 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
         </>
       ) : null}
       <View style={styles.threadItemWithTimeline}>
-        <View style={headerRowStyle}>
-          <TouchableOpacity activeOpacity={0.7}>
-            <Avatar
-              source={userAvatar}
-              size={40}
-              variant={MEDIA_VARIANT_AVATAR}
-              verified={userVerified}
-              style={avatarStyle}
+        {/* The SAME header the first box carries, and the same one the published
+            post will: avatar, display name and handle. In beast mode the avatar
+            is also the control that changes them, and this row is the whole
+            disclosure of which account the post goes out as. */}
+        <ComposeIdentityHeader
+          publishAs={publishAs}
+          onPressAvatar={handlePublishAsPress}
+          timeSlot={timeSlot}
+        >
+          <MentionTextInput
+            ref={handleTextInputRef}
+            style={styles.threadTextInput}
+            placeholder={t('Say more...')}
+            value={item.text}
+            mentions={item.mentions}
+            onValueChange={handleMentionValueChange}
+            onFocus={handleFocus}
+            multiline
+          />
+          {/* Who this item will address — a thread item is its own post, so it
+              carries its own mentions and its own pasted profile links. */}
+          <ComposeMentionSummary
+            texts={[item.text, ...variantTexts]}
+            mentions={item.mentions}
+          />
+          <View style={styles.toolbarWrapper}>
+            <ComposeToolbar
+              onMediaPress={handleMediaPress}
+              onPollPress={handlePollPress}
+              onLocationPress={handleLocationPress}
+              onGifPress={handleGifPress}
+              onEmojiPress={handleEmojiPress}
+              onSourcesPress={handleSourcesPress}
+              onArticlePress={handleArticlePress}
+              onEventPress={handleEventPress}
+              onRoomPress={handleRoomPress}
+              onPodcastPress={handlePodcastPress}
+              onLanePress={handleLanePress}
+              hasLocation={!!item.location}
+              hasPoll={item.showPollCreator}
+              hasMedia={item.mediaIds.length > 0}
+              hasSources={item.sources.length > 0}
+              hasArticle={itemHasArticle}
+              hasEvent={itemHasEvent}
+              hasRoom={itemHasRoom}
+              hasPodcast={itemHasPodcast}
+              hasLane={Boolean(item.laneId)}
+              disabled={isPosting}
             />
-          </TouchableOpacity>
-          <View style={styles.headerMeta}>
-            <View style={styles.headerChildren}>
-              <MentionTextInput
-                ref={handleTextInputRef}
-                style={styles.threadTextInput}
-                placeholder={t('Say more...')}
-                value={item.text}
-                mentions={item.mentions}
-                onValueChange={handleMentionValueChange}
-                onFocus={handleFocus}
-                multiline
-              />
-              <View style={styles.toolbarWrapper}>
-                <ComposeToolbar
-                  onMediaPress={handleMediaPress}
-                  onPollPress={handlePollPress}
-                  onLocationPress={handleLocationPress}
-                  onGifPress={handleGifPress}
-                  onEmojiPress={handleEmojiPress}
-                  onSourcesPress={handleSourcesPress}
-                  onArticlePress={handleArticlePress}
-                  onEventPress={handleEventPress}
-                  onRoomPress={handleRoomPress}
-                  hasLocation={!!item.location}
-                  hasPoll={item.showPollCreator}
-                  hasMedia={item.mediaIds.length > 0}
-                  hasSources={item.sources.length > 0}
-                  hasArticle={itemHasArticle}
-                  hasEvent={itemHasEvent}
-                  hasRoom={itemHasRoom}
-                  disabled={isPosting}
-                />
-              </View>
-              <TouchableOpacity
-                style={styles.removeThreadBtn}
-                onPress={handleRemove}
-              >
-                <CloseIcon size={18} color="#5e5e5e" />
-              </TouchableOpacity>
-            </View>
           </View>
-        </View>
+        </ComposeIdentityHeader>
+        {/* A sibling of the header rather than a child of it: the button is
+            absolutely positioned against this row's own box, and rendering it
+            after the header is what puts it above the content it overlaps. */}
+        <TouchableOpacity
+          style={styles.removeThreadBtn}
+          onPress={handleRemove}
+        >
+          <CloseIcon size={18} color="#5e5e5e" />
+        </TouchableOpacity>
 
         {/* Thread item attachments row */}
         {itemHasAttachments && (
@@ -449,6 +510,31 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                   </TouchableOpacity>
                 </View>
               )}
+              {/* Thread item podcast preview */}
+              {itemHasPodcast && item.podcast && (
+                <View style={styles.pollAttachmentWrapper}>
+                  <View
+                    className="border-border bg-card"
+                    style={styles.articleAttachmentWrapper}
+                  >
+                    <PodcastCard
+                      variant="card"
+                      title={item.podcast.title}
+                      author={item.podcast.author}
+                      artworkUrl={item.podcast.artworkUrl}
+                      onPress={handlePodcastPress}
+                      style={styles.articleAttachmentPreview}
+                    />
+                  </View>
+                  <TouchableOpacity
+                    onPress={handlePodcastRemove}
+                    className="bg-background" style={styles.pollAttachmentRemoveButton}
+                    hitSlop={HIT_SLOP_SM}
+                  >
+                    <CloseIcon size={16} className="text-foreground" />
+                  </TouchableOpacity>
+                </View>
+              )}
               {/* Thread item room preview */}
               {itemHasRoom && item.room && (
                 <View style={styles.pollAttachmentWrapper}>
@@ -522,7 +608,6 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
 });
 
 // Stable style objects to avoid re-creating on each render
-const avatarStyle = { marginRight: 12 };
 const pointerEventsBoxNone = { pointerEvents: 'box-none' as const };
 
 ComposeThreadItem.displayName = 'ComposeThreadItem';

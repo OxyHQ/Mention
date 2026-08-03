@@ -27,6 +27,21 @@
       "import": "./dist/mentions.js",
       "require": "./dist/mentions.js"
     },
+    "./hashtags": {
+      "types": "./dist/hashtags.d.ts",
+      "import": "./dist/hashtags.js",
+      "require": "./dist/hashtags.js"
+    },
+    "./profileUrls": {
+      "types": "./dist/profileUrls.d.ts",
+      "import": "./dist/profileUrls.js",
+      "require": "./dist/profileUrls.js"
+    },
+    "./textEntities": {
+      "types": "./dist/textEntities.d.ts",
+      "import": "./dist/textEntities.js",
+      "require": "./dist/textEntities.js"
+    },
     "./feed": {
       "types": "./dist/feed.d.ts",
       "import": "./dist/feed.js",
@@ -93,8 +108,10 @@
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit --noUnusedLocals --noUnusedParameters",
+    "generate:hashtag-ranges": "node scripts/generateHashtagRanges.mjs",
     "test": "bun test",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "bun run build",
+    "check:bundle-escapes": "node scripts/checkBundleEscapes.mjs"
   },
   "keywords": [
     "typescript",
@@ -110,7 +127,8 @@
   },
   "devDependencies": {
     "typescript": "catalog:",
-    "@types/node": "catalog:"
+    "@types/node": "catalog:",
+    "regexpu-core": "^6.4.0"
   },
   "files": [
     "dist/**/*"

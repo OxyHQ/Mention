@@ -102,10 +102,40 @@ describe('mapProfileToNormalizedActor', () => {
     expect(actor?.bio).toBe('línea uno\n\nlínea dos');
   });
 
-  it('omits a whitespace-only display name and bio rather than storing blanks', () => {
-    const actor = mapProfileToNormalizedActor({ ...PROFILE, displayName: '   \n ', description: '  \n\n ' });
+  it('omits a whitespace-only display name rather than storing a blank', () => {
+    const actor = mapProfileToNormalizedActor({ ...PROFILE, displayName: '   \n ' });
     expect(actor?.displayName).toBeUndefined();
-    expect(actor?.bio).toBeUndefined();
+  });
+
+  /**
+   * An empty bio is an ANSWER, and the one shape that cannot be sent as an
+   * omission.
+   *
+   * `PUT /users/resolve` writes `bio` only when the key is a string, and
+   * `undefined` does not survive `JSON.stringify` — so an omitted bio means
+   * "leave whatever you already have". For a field the author can DELETE that is
+   * the wrong default: this used to send `undefined` for an emptied bio, and the
+   * bio Oxy had stored on some earlier resolve stayed on the profile forever, no
+   * matter how often the actor was re-resolved.
+   */
+  it.each([
+    ['a bio the author cleared', ''],
+    ['a bio that is only whitespace', '  \n\n '],
+  ])('sends %s as an empty CLEAR, not as an omission', (_label, description) => {
+    const actor = mapProfileToNormalizedActor({ ...PROFILE, description });
+
+    expect(actor?.bio).toBe('');
+    // Pin the wire shape, not just the value: the key has to survive JSON, which
+    // is the whole difference between clearing the field and leaving it alone.
+    expect(Object.keys(JSON.parse(JSON.stringify(actor)))).toContain('bio');
+  });
+
+  it('reads a profile carrying no description at all as an empty bio', () => {
+    // `getProfile` omits `description` for an account that has never set one, and
+    // for one that cleared it — Bluesky does not distinguish the two, so neither
+    // can we. Empty is the honest reading of both: this account has no bio.
+    const { description: _omitted, ...withoutBio } = PROFILE;
+    expect(mapProfileToNormalizedActor(withoutBio)?.bio).toBe('');
   });
 
   // Every atproto handle keys to the Bluesky network host. A DEFAULT Bluesky handle

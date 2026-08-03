@@ -8,7 +8,6 @@ import { and, arrayOverlaps, desc, eq, inArray, isNull, lt, notInArray, or, sql,
 import { getDb } from '../../../../db/postgres';
 import {
   bookmarks,
-  channels,
   lanes,
   likes,
   postAttachments,
@@ -22,7 +21,6 @@ import type { PgColumn } from 'drizzle-orm/pg-core';
 import { assemblePostRecords } from '../../../../db/posts/postRepository';
 import { ProfileVisibility, requiresAccessCheck } from '../../../../utils/privacyHelpers';
 import { authorFeedSql } from '../../../../utils/postAuthorship';
-import { canViewChannel } from '../../../../services/channelAccess';
 import { excludedDisplayModesForTab, loadExcludedLaneIds } from '../../../../services/laneVisibility';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { notABoostSql } from '../../../../utils/feedQueryBuilder';
@@ -445,7 +443,6 @@ export const authoredSource: SourceModule = {
     }
 
     const excludedLaneIds = await loadExcludedLaneIds(
-      'user',
       authorId,
       excludedDisplayModesForTab(filter),
     );
@@ -481,10 +478,10 @@ export const authoredSource: SourceModule = {
  * `authorFeedSql`: that correlated `EXISTS` over `post_authorships` would pull
  * the planner onto `post_author_chrono_v1` instead of `post_lane_chrono_v1`, and
  * the literal `lane_id` term is also what lets the PARTIAL index be used at all.
- * Which scope that is depends on the owner: `oxy_user_id` for a user's lane,
- * `channel_id` for a channel's — a lane's posts and its publisher's posts are the
- * same set by construction (`assertLaneAssignable` refuses any other pairing), so
- * the scope term is a narrowing, not a second source of truth.
+ * The scope is `oxy_user_id` — ONE term, because a publisher is always an Oxy
+ * account now — and a lane's posts and its publisher's posts are the same set by
+ * construction (`assertLaneAssignable` refuses any other pairing), so the scope
+ * term is a narrowing, not a second source of truth.
  *
  * No root filter: replies and boosts are refused a lane at the write boundary,
  * so filtering them here would be code that can never match.
@@ -503,11 +500,7 @@ export const laneSource: SourceModule = {
     if (!laneId) return [];
 
     const [lane] = await getDb()
-      .select({
-        ownerType: lanes.ownerType,
-        ownerId: lanes.ownerId,
-        displayMode: lanes.displayMode,
-      })
+      .select({ ownerId: lanes.ownerId, displayMode: lanes.displayMode })
       .from(lanes)
       .where(eq(lanes.id, laneId))
       .limit(1);
@@ -517,22 +510,10 @@ export const laneSource: SourceModule = {
     // unreadable through this descriptor.
     if (lane.displayMode !== 'tab') return [];
 
-    // Gate 1, branching on WHICH publisher owns the lane. A channel curates its
-    // page the way a user curates a profile, so a channel-owned lane is a real
-    // tab — it just answers to `canViewChannel` rather than `canViewAuthorFeed`.
-    let scope: SQL;
-    if (lane.ownerType === 'channel') {
-      const [channel] = await getDb()
-        .select({ visibility: channels.visibility })
-        .from(channels)
-        .where(eq(channels.id, lane.ownerId))
-        .limit(1);
-      if (!channel || !canViewChannel(channel, ctx.currentUserId)) return [];
-      scope = eq(posts.channelId, lane.ownerId);
-    } else {
-      if (!(await canViewAuthorFeed(ctx, lane.ownerId))) return [];
-      scope = eq(posts.oxyUserId, lane.ownerId);
-    }
+    // Gate 1. One publisher, one check: a channel is an Oxy account, so a
+    // channel's lane tab answers to `canViewAuthorFeed` exactly as a person's
+    // does.
+    if (!(await canViewAuthorFeed(ctx, lane.ownerId))) return [];
 
     // Ordered on the CURSOR's axis — `(created_at, id)`, never `id` alone — the
     // same rule every source here follows and the same order
@@ -540,7 +521,7 @@ export const laneSource: SourceModule = {
     return fetchChrono(
       [
         eq(posts.laneId, laneId),
-        scope,
+        eq(posts.oxyUserId, lane.ownerId),
         eq(posts.visibility, PostVisibility.PUBLIC),
         eq(posts.status, 'published'),
       ],
@@ -550,59 +531,7 @@ export const laneSource: SourceModule = {
   },
 };
 
-/**
- * `channel`: ONE channel's page. Param `{ channelId }`.
- *
- * This is the ONLY surface a channel post is reachable from in a feed. Every
- * author-relationship query excludes it unconditionally (the
- * `isNull(posts.channelId)` term inside `followedAuthorsSql`,
- * `utils/postAuthorship`), which is the whole point: a channel post belongs to
- * the channel, and what appears on the writer's profile is a BOOST of it, if they
- * made one.
- *
- * The gate is `canViewChannel`, which is trivially true in v1 (public-only) and
- * exists so a restricted level later is a branch in ONE function rather than an
- * audit of every read surface for the one that forgot to ask.
- *
- * The query is a literal `channel_id = …` plus visibility/status, which is
- * exactly what `post_channel_chrono_v1` stores and what lets its PARTIAL filter
- * be proven — deliberately NOT `authorFeedSql`, whose correlated `EXISTS` would
- * pull the planner onto `post_author_chrono_v1` AND whose `channel_id is null`
- * exclusion would empty this feed outright.
- *
- * No root filter: a channel post can never be a reply (the write path refuses
- * it, and the reply gate refuses replies TO it), so filtering them here would be
- * code that can never match.
- */
-export const channelSource: SourceModule = {
-  id: 'channel',
-  kind: 'source',
-  userComposable: false,
-  gather: async (ctx, params, cap) => {
-    const channelId = typeof params.channelId === 'string' ? params.channelId : '';
-    // No id-SHAPE guard, for the reason spelled out on `laneSource` above.
-    if (!channelId) return [];
-
-    const [channel] = await getDb()
-      .select({ visibility: channels.visibility })
-      .from(channels)
-      .where(eq(channels.id, channelId))
-      .limit(1);
-    if (!channel || !canViewChannel(channel, ctx.currentUserId)) return [];
-
-    return fetchChrono(
-      [
-        eq(posts.channelId, channelId),
-        eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'),
-      ],
-      ctx.cursor,
-      cap,
-    );
-  },
-};
-
-/** `saved`: the viewer's bookmarks in bookmark order (ORDERED). */
+/** `saved`: the viewer's bookmarks in bookmark order (ORDERED). Wraps `SavedFeed`. */
 export const savedSource: SourceModule = {
   id: 'saved',
   kind: 'source',
@@ -677,7 +606,6 @@ export const userSourceModules: SourceModule[] = [
   accountsSource,
   authoredSource,
   laneSource,
-  channelSource,
   savedSource,
   mutualsSource,
 ];

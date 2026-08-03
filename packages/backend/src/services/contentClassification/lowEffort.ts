@@ -8,6 +8,10 @@
  *     whose letters are NOT prose), and
  *   - Unicode EMOJI-only posts (`🔥🔥🚀`).
  *
+ * URLs and hashtags are located with the shared scanner from
+ * `@mention/shared-types/textEntities`, so what this discounts as decoration is
+ * the same thing the renderer linkifies and the extractor stores.
+ *
  * It measures the REAL letter count that survives after stripping every piece of
  * non-prose scaffolding — custom-emoji shortcodes, URLs, @mentions, #hashtags,
  * and `\p{Extended_Pictographic}` emoji — then classifies the remainder. Pure,
@@ -15,14 +19,23 @@
  * (native + federated) at ingest.
  */
 
+import {
+  countTextEntities,
+  scanTextEntities,
+  stripTextEntities,
+} from '@mention/shared-types/textEntities';
+
 /** Custom-emoji shortcode token, e.g. `:oyaki:`, `:blob_cat:`, `:+1:`. */
 const SHORTCODE_PATTERN = /:[a-z0-9_+-]+:/gi;
-/** HTTP(S) URL. */
-const URL_PATTERN = /https?:\/\/\S+/gi;
-/** @-mention token. */
-const MENTION_PATTERN = /@[\p{L}\p{N}_.-]+/gu;
-/** #hashtag token. */
-const HASHTAG_PATTERN = /#[\p{L}\p{N}_]+/gu;
+/**
+ * The scaffolding kinds located by the shared scanner — the SAME definitions the
+ * renderer linkifies and the extractor stores, so what this discounts as
+ * decoration is exactly what a reader sees as a link.
+ *
+ * `bareWww: false` keeps this measuring what it has always measured: a
+ * scheme-bearing link. A bare `www.…` run stays prose here.
+ */
+const SCAFFOLD_KINDS = ['url', 'bareHandle', 'hashtag'] as const;
 /** Any Unicode emoji / pictographic glyph. */
 const EMOJI_PATTERN = /\p{Extended_Pictographic}/gu;
 /** A single "content" character — a letter or a digit (real, non-decorative text). */
@@ -78,15 +91,18 @@ export function detectLowEffort(rawText: string, cfg: LowEffortConfig): LowEffor
   // read repeatedly (unlike a stateful RegExp#test on a /g/ pattern).
   const shortcodeCount = (raw.match(SHORTCODE_PATTERN) ?? []).length;
   const emojiCount = (raw.match(EMOJI_PATTERN) ?? []).length;
-  const urlCount = (raw.match(URL_PATTERN) ?? []).length;
-  const mentionCount = (raw.match(MENTION_PATTERN) ?? []).length;
-  const hashtagCount = (raw.match(HASHTAG_PATTERN) ?? []).length;
+  // Shortcodes come out first (they can contain characters the scanner would
+  // otherwise read), and the ONE scan of what remains supplies both the tallies
+  // and the spans to strip — so a URL and the `#fragment` inside it can never be
+  // counted as two separate pieces of scaffolding.
+  const withoutShortcodes = raw.replace(SHORTCODE_PATTERN, ' ');
+  const scanOptions = { kinds: SCAFFOLD_KINDS, bareWww: false } as const;
+  const scaffold = scanTextEntities(withoutShortcodes, scanOptions);
+  const urlCount = countTextEntities(scaffold, 'url');
+  const hashtagCount = countTextEntities(scaffold, 'hashtag');
+  const mentionCount = countTextEntities(scaffold, 'bareHandle');
 
-  const stripped = raw
-    .replace(SHORTCODE_PATTERN, ' ')
-    .replace(URL_PATTERN, ' ')
-    .replace(MENTION_PATTERN, ' ')
-    .replace(HASHTAG_PATTERN, ' ')
+  const stripped = stripTextEntities(withoutShortcodes, scanOptions)
     .replace(EMOJI_PATTERN, ' ');
 
   const realTextLength = (stripped.match(LETTER_PATTERN) ?? []).length;

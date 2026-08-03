@@ -22,7 +22,6 @@ import {
   MAX_LANE_NAME_LENGTH,
   MAX_MUTED_LANES,
   type LaneDisplayMode,
-  type LaneOwnerType,
   type MutedLane,
   type PostUser,
 } from '@mention/shared-types';
@@ -33,7 +32,7 @@ import {
 } from '@oxyhq/core/server';
 import { getDb } from '../db/postgres';
 import { isUniqueViolation } from '../db/pgErrors';
-import { channels, laneMutes, lanes } from '../db/schema/channels';
+import { laneMutes, lanes } from '../db/schema/channels';
 import { posts } from '../db/schema/posts';
 import {
   insertLane,
@@ -41,7 +40,6 @@ import {
   updateLane,
   type LaneRow,
 } from '../db/channels/laneRepository';
-import { canManageChannel } from '../services/channelAccess';
 import { resolveUserSummaries } from '../services/PostHydrationService';
 import { validateBody, validateObjectId } from '../middleware/validate';
 import { laneReadRateLimiter, laneWriteRateLimiter, lanesRateLimiter } from '../middleware/security';
@@ -76,13 +74,6 @@ const createLaneSchema = z.object({
     .max(MAX_LANE_NAME_LENGTH, `name must be ${MAX_LANE_NAME_LENGTH} characters or less`)
     .transform((value) => value.trim()),
   displayMode: laneDisplayModeSchema.optional(),
-  /**
-   * Create the lane on a CHANNEL rather than on the caller. A channel curates its
-   * own page exactly the way a user curates a profile, and only the channel's
-   * OWNER manages its lanes — a publisher publishes into them, it does not define
-   * them.
-   */
-  channelId: z.string().optional(),
 });
 
 const updateLaneSchema = z.object({
@@ -105,7 +96,6 @@ const LANE_NAME_UNIQUE = 'lanes_owner_name_lower_key';
 
 interface SerializedLane {
   id: string;
-  ownerType: LaneOwnerType;
   ownerId: string;
   name: string;
   displayMode: LaneDisplayMode;
@@ -117,7 +107,6 @@ interface SerializedLane {
 function serialize(row: LaneRow, postCount?: number): SerializedLane {
   return {
     id: row.id,
-    ownerType: row.ownerType,
     ownerId: row.ownerId,
     name: row.name,
     displayMode: row.displayMode,
@@ -137,62 +126,19 @@ function serialize(row: LaneRow, postCount?: number): SerializedLane {
  * a wrong count is worse than no count.
  */
 /**
- * Resolve which PUBLISHER a lane write is for, and refuse unless the caller may
- * manage it.
- *
- * A lane belongs to a user OR a channel, and the two answer to different rules:
- * your own lanes are yours, and a CHANNEL's lanes belong to the channel's owner
- * alone. Both refusals are 404-shaped for a channel that does not exist and
- * 403-shaped for one that does — the channel is public, so its existence is no
- * secret, but managing it is not open.
- *
- * Returns the `{ ownerType, ownerId }` pair every query below scopes by, so the
- * two ownership models cannot drift between create, update and delete.
- */
-async function resolveLanePublisher(
-  channelId: string | undefined,
-  userId: string,
-): Promise<{ ownerType: LaneOwnerType; ownerId: string } | { error: [number, string, string] }> {
-  if (!channelId) return { ownerType: 'user', ownerId: userId };
-  // No id-SHAPE guard. `ObjectId.isValid` stood here and answered 404 "Channel
-  // not found" for every uuid v7, so after the cutover a channel's own owner
-  // could neither create nor list its lanes. A `text` id naming no channel
-  // already produces the 404 below.
-  const [channel] = await getDb()
-    .select({ ownerOxyUserId: channels.ownerOxyUserId })
-    .from(channels)
-    .where(eq(channels.id, channelId))
-    .limit(1);
-  if (!channel) {
-    return { error: [404, 'Not Found', 'Channel not found'] };
-  }
-  if (!canManageChannel(channel, userId)) {
-    return { error: [403, 'Forbidden', "Only the channel's owner can manage its lanes"] };
-  }
-  return { ownerType: 'channel', ownerId: channelId };
-}
-
-/**
  * Whether this caller may edit or delete THIS lane, read from the lane's own
  * owner rather than from anything the request supplied — so a caller cannot name
  * a publisher they happen to control and reach a lane belonging to another.
+ *
+ * A lane's publisher is one `ownerId` and the caller is one `oxyUserId`, so this
+ * is one comparison. A CHANNEL's lanes are not reachable here: the caller is
+ * always themselves, never the channel account, so a channel lane answers 404
+ * exactly as any other publisher's does. Managing them needs the account-graph
+ * membership check `publishAsOxyUserId` goes through, which this route does not
+ * make.
  */
-async function callerManagesLane(
-  lane: { ownerType: LaneOwnerType; ownerId: string },
-  userId: string,
-): Promise<boolean> {
-  if (lane.ownerType === 'user') return lane.ownerId === userId;
-  // The `ObjectId.isValid` short-circuit that stood here answered `false` — "you
-  // do not manage this lane" — for every uuid v7 channel, so a channel's owner
-  // was refused (404) on editing or deleting a lane they had just created. It
-  // failed toward refusal rather than exposure, which is the direction that gets
-  // reported rather than exploited, but it was still entirely inert.
-  const [channel] = await getDb()
-    .select({ ownerOxyUserId: channels.ownerOxyUserId })
-    .from(channels)
-    .where(eq(channels.id, lane.ownerId))
-    .limit(1);
-  return channel != null && canManageChannel(channel, userId);
+function callerManagesLane(lane: { ownerId: string }, userId: string): boolean {
+  return lane.ownerId === userId;
 }
 
 async function countPostsByLane(laneIds: string[]): Promise<Map<string, number>> {
@@ -228,7 +174,7 @@ export const publicLanesRouter = Router();
 // `channels.routes.ts`.
 
 /**
- * GET /lanes?ownerType=user|channel&ownerId=<id>
+ * GET /lanes?ownerId=<id>
  *
  * The publisher's lanes that HAVE a tab — `displayMode: 'tab'` and nothing else.
  * `mixed` has no tab of its own and `hidden` is off the showcase, so neither
@@ -241,10 +187,6 @@ export const publicLanesRouter = Router();
  */
 publicLanesRouter.get('/', ...readLimiters, async (req: Request, res: Response) => {
   try {
-    const ownerTypeParam = typeof req.query.ownerType === 'string' ? req.query.ownerType : 'user';
-    if (ownerTypeParam !== 'user' && ownerTypeParam !== 'channel') {
-      return sendErrorResponse(res, 400, 'Bad Request', 'ownerType must be "user" or "channel"');
-    }
     const ownerId = typeof req.query.ownerId === 'string' ? req.query.ownerId.trim() : '';
     if (!ownerId || ownerId.length > MAX_OWNER_ID_LENGTH) {
       return sendErrorResponse(res, 400, 'Bad Request', 'ownerId is required');
@@ -253,13 +195,7 @@ publicLanesRouter.get('/', ...readLimiters, async (req: Request, res: Response) 
     const tabs = await getDb()
       .select()
       .from(lanes)
-      .where(
-        and(
-          eq(lanes.ownerType, ownerTypeParam),
-          eq(lanes.ownerId, ownerId),
-          eq(lanes.displayMode, 'tab'),
-        ),
-      )
+      .where(and(eq(lanes.ownerId, ownerId), eq(lanes.displayMode, 'tab')))
       .orderBy(desc(lanes.createdAt));
 
     return sendSuccessResponse(res, 200, tabs.map((lane) => serialize(lane)));
@@ -279,12 +215,11 @@ const router = Router();
 router.use(requireAuth);
 
 /**
- * GET /lanes/mine[?channelId=<id>]
+ * GET /lanes/mine
  * The caller's own lanes, newest first, each with its current post count.
  *
- * With `channelId`, the lanes of a channel the caller OWNS — the management view,
- * so unlike the public list it includes `mixed` and `hidden` lanes. A channel the
- * caller does not own answers 403/404 rather than a filtered list.
+ * The management view, so unlike the public list it includes `mixed` and `hidden`
+ * lanes.
  */
 router.get(
   '/mine',
@@ -296,17 +231,10 @@ router.get(
   async (req: AuthRequest, res: Response) => {
     try {
       const userId = getAuthenticatedUserId(req);
-      const channelId = typeof req.query.channelId === 'string' ? req.query.channelId : undefined;
-      const publisher = await resolveLanePublisher(channelId, userId);
-      if ('error' in publisher) {
-        return sendErrorResponse(res, ...publisher.error);
-      }
       const owned = await getDb()
         .select()
         .from(lanes)
-        .where(
-          and(eq(lanes.ownerType, publisher.ownerType), eq(lanes.ownerId, publisher.ownerId)),
-        )
+        .where(eq(lanes.ownerId, userId))
         .orderBy(desc(lanes.createdAt));
 
       const counts = await countPostsByLane(owned.map((lane) => lane.id));
@@ -383,31 +311,25 @@ router.get('/muted', ...readLimiters, async (req: AuthRequest, res: Response) =>
  * POST /lanes
  * Body: `{ name: string, displayMode?: 'mixed'|'tab'|'hidden' }`
  *
- * The 409 comes from the UNIQUE `{ownerType, ownerId, nameLower}` index, not from
+ * The 409 comes from the UNIQUE `{ownerId, nameLower}` index, not from
  * the pre-check: `countDocuments` is not a lock, so two concurrent creates of the
  * same name are stopped by the constraint or not at all.
  */
 router.post('/', ...writeLimiters, validateBody(createLaneSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
-    const { name, displayMode, channelId } = req.body as z.infer<typeof createLaneSchema>;
+    const { name, displayMode } = req.body as z.infer<typeof createLaneSchema>;
 
     const nameLower = normalizeLaneName(name);
     if (!nameLower) {
       return sendErrorResponse(res, 400, 'Bad Request', 'name must not be empty after normalization');
     }
 
-    const publisher = await resolveLanePublisher(channelId, userId);
-    if ('error' in publisher) {
-      return sendErrorResponse(res, ...publisher.error);
-    }
-
-    // The cap is PER PUBLISHER, so a channel's lanes and its owner's own lanes
-    // are counted separately — a prolific channel must not eat its owner's budget.
+    // The cap is PER PUBLISHER.
     const [owned] = await getDb()
       .select({ total: sql<number>`count(*)::int` })
       .from(lanes)
-      .where(and(eq(lanes.ownerType, publisher.ownerType), eq(lanes.ownerId, publisher.ownerId)));
+      .where(eq(lanes.ownerId, userId));
     if (owned.total >= MAX_LANES_PER_OWNER) {
       return sendErrorResponse(
         res,
@@ -419,8 +341,7 @@ router.post('/', ...writeLimiters, validateBody(createLaneSchema), async (req: A
 
     try {
       const created = await insertLane({
-        ownerType: publisher.ownerType,
-        ownerId: publisher.ownerId,
+        ownerId: userId,
         name,
         displayMode: displayMode ?? 'mixed',
       });
@@ -463,16 +384,15 @@ router.patch(
         return sendErrorResponse(res, 400, 'Bad Request', 'Nothing to update');
       }
 
-      // Scoped by the lane's OWN publisher, resolved from the row rather than
-      // from the request, so a channel lane is editable by the channel's owner and
-      // by nobody else — and somebody else's lane stays a 404, not an oracle.
+      // Scoped by the lane's OWN publisher, read from the row rather than from
+      // the request, so somebody else's lane stays a 404 and not an oracle.
       const laneId = String(req.params.id);
       const [lane] = await getDb()
-        .select({ ownerType: lanes.ownerType, ownerId: lanes.ownerId })
+        .select({ ownerId: lanes.ownerId })
         .from(lanes)
         .where(eq(lanes.id, laneId))
         .limit(1);
-      if (!lane || !(await callerManagesLane(lane, userId))) {
+      if (!lane || !callerManagesLane(lane, userId)) {
         return sendErrorResponse(res, 404, 'Not Found', 'Lane not found');
       }
 
@@ -530,11 +450,11 @@ router.delete('/:id', ...writeLimiters, validateObjectId('id'), async (req: Auth
 
     const db = getDb();
     const [lane] = await db
-      .select({ ownerType: lanes.ownerType, ownerId: lanes.ownerId })
+      .select({ ownerId: lanes.ownerId })
       .from(lanes)
       .where(eq(lanes.id, laneId))
       .limit(1);
-    if (!lane || !(await callerManagesLane(lane, userId))) {
+    if (!lane || !callerManagesLane(lane, userId)) {
       return sendErrorResponse(res, 404, 'Not Found', 'Lane not found');
     }
 
@@ -566,33 +486,21 @@ router.post('/:id/mute', ...writeLimiters, validateObjectId('id'), async (req: A
 
     const db = getDb();
     const [lane] = await db
-      .select({ ownerType: lanes.ownerType, ownerId: lanes.ownerId })
+      .select({ ownerId: lanes.ownerId })
       .from(lanes)
       .where(eq(lanes.id, laneId))
       .limit(1);
     if (!lane) {
       return sendErrorResponse(res, 404, 'Not Found', 'Lane not found');
     }
-    if (lane.ownerType === 'user' && lane.ownerId === userId) {
+    if (lane.ownerId === userId) {
       return sendErrorResponse(res, 400, 'Bad Request', 'You cannot mute your own lane');
     }
-    // **A CHANNEL's lane cannot be muted, and that is a decision, not a gap.**
-    // A lane mute is a TIMELINE preference — "do not push me this carriageway" —
-    // and a channel post is never pushed anywhere: it is excluded from every
-    // author surface and reaches a reader only through the channel's own page,
-    // which is somewhere you GO. There is nothing here to suppress. Storing the
-    // mute anyway would also put a CHANNEL id into `laneOwnerOxyUserId`, which
-    // `GET /lanes/muted` resolves through `resolveUserSummaries` as a user id —
-    // contaminating a set of user ids exactly the way `Mute` would have.
-    // Unfollowing the channel is the affordance for "less of this".
-    if (lane.ownerType === 'channel') {
-      return sendErrorResponse(
-        res,
-        400,
-        'Bad Request',
-        'A channel lane cannot be muted — unfollow the channel instead',
-      );
-    }
+    // A CHANNEL's lane needs no special case: the channel is an Oxy account, so
+    // `laneOwnerOxyUserId` is a real user id that `GET /lanes/muted` resolves
+    // through `resolveUserSummaries` like any other, and a channel's posts DO
+    // reach a follower's timeline — so there is something for the mute to
+    // suppress.
 
     const [existing] = await db
       .select({ id: laneMutes.id })

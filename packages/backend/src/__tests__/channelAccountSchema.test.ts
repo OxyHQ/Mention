@@ -12,13 +12,14 @@ import { and, eq, inArray, type SQL } from 'drizzle-orm';
  * anonymity of a `signPosts: false` channel AND puts channel posts back on their
  * writer's own profile and in their followers' timelines.
  *
- * That guarantee is also what decides whether the `channel_id is null` exclusion
- * inside `authorFeedSql` / `followedAuthorsSql` can eventually be DELETED, so the
- * second block below is written as a verdict rather than a regression test: it
- * separates what the column placement already buys from the one condition still
- * outstanding. The third block is the MUTATION — the writer moved into
- * `post_authorships` and the resulting damage asserted — so the guarantee is
- * shown to be load-bearing rather than merely true today.
+ * That guarantee USED to decide whether the `channel_id is null` exclusion inside
+ * `authorFeedSql` / `followedAuthorsSql` could be deleted. It has been: a channel
+ * is an Oxy ACCOUNT that authors its own posts, so `posts.channel_id` and the
+ * clause that read it were both dropped by `0017_a_channel_is_an_account`. The
+ * column placement is therefore no longer merely SUFFICIENT — it is the ONLY
+ * thing holding the property up, which is what the mutation block below now
+ * shows: with no exclusion left to hide the damage, moving the writer into
+ * `post_authorships` puts the post on their profile for real.
  *
  * Against REAL ROWS rather than a Mongoose strict-schema round trip. The failure
  * this guards is not "a schema dropped the field" — it is "the field ended up
@@ -30,7 +31,7 @@ import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { postAuthorships } from '../db/schema/postContent';
 import { userSettings } from '../db/schema/userProfile';
-import { clearPostScope, postScope, seedChannel, seedPost } from './helpers/postFixtures';
+import { clearPostScope, postScope, seedPost } from './helpers/postFixtures';
 import {
   authorFeedSql,
   followedAuthorsSql,
@@ -43,26 +44,30 @@ const CHANNEL_ACCOUNT = scope.user('channel-account');
 const WRITER = scope.user('writer');
 const settingsOwners: string[] = [];
 
-/** The shape as designed: the CHANNEL authors, the writer is a plain column. */
-async function seedChannelAuthoredPost(channelId: string) {
+/**
+ * The shape as designed: the CHANNEL authors, the writer is a plain column.
+ *
+ * `CHANNEL_ACCOUNT` is an ordinary `oxyUserId` and there is no channel row to
+ * seed — that IS the design. A channel is an Oxy account, so "a post that
+ * belongs to a channel" is a post the channel authored.
+ */
+async function seedChannelAuthoredPost() {
   return seedPost(scope, {
     oxyUserId: CHANNEL_ACCOUNT,
     authorship: [{ oxyUserId: CHANNEL_ACCOUNT, role: 'owner', status: 'accepted' }],
     writtenByOxyUserId: WRITER,
-    channelId,
     content: { variants: [{ source: 'author', text: 'from the channel', tag: 'en' }] },
   });
 }
 
 /** The "tidied" shape: writer as a co-author instead of a top-level column. */
-async function seedWriterAsCollaborator(channelId: string) {
+async function seedWriterAsCollaborator() {
   return seedPost(scope, {
     oxyUserId: CHANNEL_ACCOUNT,
     authorship: [
       { oxyUserId: CHANNEL_ACCOUNT, role: 'owner', status: 'accepted' },
       { oxyUserId: WRITER, role: 'collaborator', status: 'accepted' },
     ],
-    channelId,
     content: { variants: [{ source: 'author', text: 'from the channel', tag: 'en' }] },
   });
 }
@@ -77,11 +82,15 @@ async function matching(where: SQL, ids: string[]): Promise<string[]> {
 }
 
 /**
- * The author matcher with its CHANNEL EXCLUSION REMOVED — the authorship half
- * alone. This is the clause under verdict: if the halved matcher already
- * excludes a channel-authored post, the exclusion is redundant and deletable.
+ * The authorship join, written out by hand.
+ *
+ * It used to be "the author matcher with its channel exclusion removed", to
+ * decide whether that exclusion was redundant. It was, and it is gone — so this
+ * is now simply an independent spelling of what `authorFeedSql` does, kept
+ * because a hand-written join is what makes the mutation block's damage legible
+ * without asking the reader to trust the helper being mutated.
  */
-async function matchingWithoutChannelExclusion(userId: string, ids: string[]): Promise<string[]> {
+async function matchingByAuthorshipJoin(userId: string, ids: string[]): Promise<string[]> {
   const rows = await getDb()
     .select({ id: posts.id })
     .from(posts)
@@ -114,7 +123,7 @@ afterAll(async () => {
 
 describe('posts.written_by_oxy_user_id', () => {
   it('round-trips through the database', async () => {
-    const post = await seedChannelAuthoredPost(await seedChannel(scope));
+    const post = await seedChannelAuthoredPost();
 
     const [row] = await getDb()
       .select({ writtenBy: posts.writtenByOxyUserId })
@@ -133,7 +142,7 @@ describe('posts.written_by_oxy_user_id', () => {
   });
 
   it('keeps the writer OUT of post_authorships — the channel is the only author', async () => {
-    const post = await seedChannelAuthoredPost(await seedChannel(scope));
+    const post = await seedChannelAuthoredPost();
 
     const rows = await getDb()
       .select({ oxyUserId: postAuthorships.oxyUserId })
@@ -152,28 +161,35 @@ describe('posts.written_by_oxy_user_id', () => {
 
 describe('the channel exclusion — deletable for the new shape, blocked by the old one', () => {
   it('SUFFICIENT: the authorship half ALONE excludes a channel-authored post', async () => {
-    const post = await seedChannelAuthoredPost(await seedChannel(scope));
+    const post = await seedChannelAuthoredPost();
 
     // No `channel_id is null` term anywhere here: the writer simply is not an
     // author of this row, so the authorship join finds nothing for them.
-    expect(await matchingWithoutChannelExclusion(WRITER, [post.id])).toEqual([]);
+    expect(await matchingByAuthorshipJoin(WRITER, [post.id])).toEqual([]);
   });
 
   it('VACUITY FLOOR: the halved matcher DOES return an ordinary post by that author', async () => {
     // Without this, the case above passes just as well against a matcher that
     // returns nothing for anybody.
     const ordinary = await seedPost(scope, { oxyUserId: WRITER });
-    expect(await matchingWithoutChannelExclusion(WRITER, [ordinary.id])).toEqual([ordinary.id]);
+    expect(await matchingByAuthorshipJoin(WRITER, [ordinary.id])).toEqual([ordinary.id]);
   });
 
   it('keeps a channel-authored post off the writer\'s surfaces WITH the clause too', async () => {
-    const post = await seedChannelAuthoredPost(await seedChannel(scope));
+    const post = await seedChannelAuthoredPost();
 
     expect(await matching(authorFeedSql(WRITER), [post.id])).toEqual([]);
     expect(await matching(followedAuthorsSql([WRITER]), [post.id])).toEqual([]);
   });
 });
 
+/**
+ * MUTATION — the writer moved into `post_authorships`.
+ *
+ * This is the refactor that looks like consolidation. Both halves of the damage
+ * are asserted against REAL QUERIES: the byline names them, and the post lands
+ * on their own profile and in their followers' timelines.
+ */
 describe('MUTATION — the writer moved into post_authorships', () => {
   it('breaks anonymity: the byline now names the writer', async () => {
     const byline = getHeaderAuthorshipEntries([
@@ -183,16 +199,33 @@ describe('MUTATION — the writer moved into post_authorships', () => {
     expect(byline.map((entry) => entry.oxyUserId)).toEqual([CHANNEL_ACCOUNT, WRITER]);
   });
 
-  it('makes the channel exclusion PERMANENT: the surfaces would depend on it again', async () => {
-    // This is the regression the column placement prevents, and the reason it
-    // decides the clause's fate: the damage is invisible while the clause
-    // exists, so the clause could never be removed afterwards — it would be
-    // load-bearing again, for every channel post, forever.
-    const post = await seedWriterAsCollaborator(await seedChannel(scope));
+  it('puts the channel\'s post on the WRITER\'s own surfaces', async () => {
+    // The damage, in full, and no longer latent.
+    //
+    // While `channel_id is null` still stood inside these matchers, this same
+    // mutation was INVISIBLE: the clause hid the post, so nothing went red and
+    // the clause could never afterwards be removed — it would have been
+    // load-bearing again, for every channel post, forever. That clause is gone
+    // (`0017_a_channel_is_an_account`), so the authorship placement is now the
+    // ONLY thing holding this property up, and breaking it shows immediately.
+    //
+    // Read the three assertions together: they are the profile feed and the
+    // followers' timeline of a person a `signPosts: false` channel exists to
+    // keep anonymous.
+    const post = await seedWriterAsCollaborator();
 
-    expect(await matchingWithoutChannelExclusion(WRITER, [post.id])).toEqual([post.id]);
+    expect(await matchingByAuthorshipJoin(WRITER, [post.id])).toEqual([post.id]);
+    expect(await matching(authorFeedSql(WRITER), [post.id])).toEqual([post.id]);
+    expect(await matching(followedAuthorsSql([WRITER]), [post.id])).toEqual([post.id]);
+  });
 
-    // Still hidden today — which is precisely why nothing would notice.
+  it('CONTROL: the designed shape keeps that same post off both surfaces', async () => {
+    // The other half of the mutation — same channel, same writer, the writer in
+    // `written_by_oxy_user_id` instead of `post_authorships`. Without this the
+    // case above could pass against a matcher that returns everything.
+    const post = await seedChannelAuthoredPost();
+
+    expect(await matchingByAuthorshipJoin(WRITER, [post.id])).toEqual([]);
     expect(await matching(authorFeedSql(WRITER), [post.id])).toEqual([]);
     expect(await matching(followedAuthorsSql([WRITER]), [post.id])).toEqual([]);
   });

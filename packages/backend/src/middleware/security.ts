@@ -241,6 +241,38 @@ const lanesStore = new RedisStore({
   prefix: 'rate-limit:lanes:',
   windowMs: 60 * 1000,
 });
+/**
+ * `PUT /profile/settings/:userId` — the settings of an account the caller
+ * OPERATES. Every OTHER route on the profile router resolves its target from the
+ * authenticated subject; this one takes an id, and answering it costs a
+ * membership read against Oxy. So a caller who is a member of nothing can still
+ * spend one upstream round trip per request, which is what this bounds.
+ *
+ * Its OWN store prefix, for the reason spelled out above `lanesStore`: two
+ * limiters sharing a prefix share a counter. The prefix is written as a LITERAL
+ * because `rateLimitPrefixUniqueness.test.ts` resolves prefixes by reading
+ * SOURCE — built through a factory, every store reads as the default and the
+ * guard fails.
+ *
+ * 30/minute: configuring a channel is a handful of requests per sitting.
+ */
+const operatedAccountSettingsStore = new RedisStore({
+  prefix: 'rate-limit:operated-account-settings:',
+  windowMs: 60 * 1000,
+});
+export const operatedAccountSettingsRateLimiter = rateLimit({
+  store: operatedAccountSettingsStore,
+  windowMs: 60 * 1000,
+  max: 30,
+  keyGenerator: (req: Request) => {
+    const authReq = req as AuthRequest;
+    return authReq.user?.id ? `user:${authReq.user.id}` : hashedIpKey(req);
+  },
+  message: 'Too many account settings requests. Please slow down.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 export const lanesRateLimiter = rateLimit({
   store: lanesStore,
   windowMs: 60 * 1000,
@@ -258,12 +290,12 @@ export const lanesRateLimiter = rateLimit({
 });
 
 /**
- * The four COMPLIANCE limiters behind the Lanes and Channels routers.
+ * The two COMPLIANCE limiters behind the Lanes routers.
  *
  * Distinct in kind from {@link lanesRateLimiter} above, and the difference is
  * worth stating because it decides the budgets. That one bounds a real cost —
  * `GET /lanes/mine` aggregates over the caller's whole post history, uncached.
- * These four bound nothing in particular: every route they cover is a point
+ * These two bound nothing in particular: every route they cover is a point
  * lookup or an already-bounded list. They exist because CodeQL's
  * `js/missing-rate-limiting` reports a route with no limiter in its chain, that
  * check reads only the PR's diff rather than the repo's baseline, and this branch
@@ -274,14 +306,11 @@ export const lanesRateLimiter = rateLimit({
  * 300/minute and writes 120/minute — two writes a second, sustained, which no
  * human interface produces.
  *
- * FOUR rather than one, split by surface AND by direction:
- *  - the two features get separate budgets, so somebody browsing channels cannot
- *    spend the budget that serves their lanes;
- *  - reads and writes are separated, so a write path can be tightened later
- *    without touching the read path it shares a router with.
+ * TWO rather than one: reads and writes are separated, so a write path can be
+ * tightened later without touching the read path it shares a router with.
  *
- * FOUR rather than twenty-three: CodeQL is satisfied by a limiter being in the
- * chain, and one counter per route would be twenty-three Redis keys expressing a
+ * TWO rather than one per route: CodeQL is satisfied by a limiter being in the
+ * chain, and one counter per route would be a dozen Redis keys expressing a
  * distinction nothing acts on.
  *
  * **Each carries its OWN prefix.** Two limiters sharing one share a Redis key
@@ -295,11 +324,11 @@ export const lanesRateLimiter = rateLimit({
  *
  * The store is deliberately NOT built here, and this is load-bearing rather than
  * stylistic: `rateLimitPrefixUniqueness` resolves prefixes by reading the source,
- * so a `new RedisStore({ prefix })` behind a parameter is invisible to it — all
- * four would read as the default `rate-limit:` and the guard would report a
- * four-way collision it could not attribute. A helper that hides the prefix from
- * the scanner defeats a check that has already caught a real one, so each store
- * below is constructed inline with a LITERAL.
+ * so a `new RedisStore({ prefix })` behind a parameter is invisible to it — both
+ * would read as the default `rate-limit:` and the guard would report a collision
+ * it could not attribute. A helper that hides the prefix from the scanner defeats
+ * a check that has already caught a real one, so each store below is constructed
+ * inline with a LITERAL.
  */
 function complianceOptions(max: number, message: string) {
   return {
@@ -328,18 +357,6 @@ export const laneReadRateLimiter = rateLimit({
 export const laneWriteRateLimiter = rateLimit({
   store: new RedisStore({ prefix: 'rate-limit:lanes-write:', windowMs: 60 * 1000 }),
   ...complianceOptions(120, 'Too many lane changes. Please slow down.'),
-});
-
-/** Reads on the channels routers — the directory, one channel's page, its members. */
-export const channelReadRateLimiter = rateLimit({
-  store: new RedisStore({ prefix: 'rate-limit:channels-read:', windowMs: 60 * 1000 }),
-  ...complianceOptions(300, 'Too many channel requests. Please slow down.'),
-});
-
-/** Writes on the channels router: the channel itself, its membership, and following. */
-export const channelWriteRateLimiter = rateLimit({
-  store: new RedisStore({ prefix: 'rate-limit:channels-write:', windowMs: 60 * 1000 }),
-  ...complianceOptions(120, 'Too many channel changes. Please slow down.'),
 });
 
 /**

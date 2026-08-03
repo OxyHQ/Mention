@@ -33,11 +33,15 @@ type TransformOptions = {
  *
  * So: add a field to `HydratedPost` and this stops compiling until it is named
  * here AND carried below. That is the whole point; do not widen it to `string`.
+ *
+ * Removing one is the same class of change and needs the same care: a key that
+ * stops being persisted has to move `SCHEMA_VERSION` with it, or every client
+ * keeps answering from disk with a payload that still carries it.
  */
 type HandledPostKey =
   | 'id' | 'content' | 'attachments' | 'linkPreviews' | 'user' | 'authors'
   | 'authorship' | 'engagement' | 'viewerState' | 'permissions' | 'metadata'
-  | 'lane' | 'channel' | 'parentPostId' | 'replyContext'
+  | 'lane' | 'parentPostId' | 'replyContext'
   | 'originalPost' | 'quotedPost' | 'boost' | 'context';
 
 type UnhandledPostKey = Exclude<keyof HydratedPost, HandledPostKey>;
@@ -90,20 +94,9 @@ export function toFeedItem(
     // Same rule, and the stakes are higher than the reply context above.
     // `PostItem` reads `storePost ?? post`, so the cached copy WINS — a field
     // dropped here is missing on every feed surface while the raw API response
-    // still carries it, and both of these are optional on `HydratedPost`, so the
-    // omission type-checks cleanly and no test that ignores them can see it.
-    //
-    // `channel` is the load-bearing one: the backend deliberately degrades
-    // `post.user` to "Unknown user" on a channel post because the CHANNEL is the
-    // signature. Lose the channel and the post renders as an unknown author
-    // instead — the anonymity holds, but the identity meant to replace it is gone.
-    //
-    // And the damage compounds, because the channel's CONSEQUENCES persist while
-    // the channel itself does not: `replyPermission: ['nobody']` lives in
-    // `metadata` and survives this converter, so the post also announces
-    // "Replies are off" with nothing left on it to explain why.
+    // still carries it, and it is optional on `HydratedPost`, so the omission
+    // type-checks cleanly and no test that ignores it can see it.
     lane: post.lane,
-    channel: post.channel,
     originalPost,
     quotedPost,
     boost,

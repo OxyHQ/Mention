@@ -1,5 +1,6 @@
 import express, { Request, Response } from "express";
 import { and, asc, desc, eq, gte, lt, max, sql, type SQL } from 'drizzle-orm';
+import { HASHTAG_TOKEN_SOURCE } from "@mention/shared-types/hashtags";
 import { getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { CHRONO_DESC, findPostRecords } from '../db/posts/postRepository';
@@ -202,7 +203,11 @@ router.get("/", async (req: Request, res: Response) => {
         // what the `content.variants.0` existence probe used to express.
         const text: string = resolveVariant(p.content).text;
         const createdAt = p.createdAt;
-        const matches = text.match(/#([A-Za-z0-9_]+)/g) || [];
+        // Same shared hashtag definition the extractor and the linkifiers use,
+        // so this fallback cannot count a different set of tags than the stored
+        // one. Occurrences are NOT deduplicated here — a tag repeated within a
+        // post counts once per use, which is what the primary aggregation does.
+        const matches = text.match(new RegExp(HASHTAG_TOKEN_SOURCE, 'gu')) || [];
         for (const raw of matches) {
           const tag = raw.replace(/^#/, '').toLowerCase();
           if (!counts[tag]) counts[tag] = { c: 0, latest: createdAt };

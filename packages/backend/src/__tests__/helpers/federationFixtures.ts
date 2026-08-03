@@ -21,7 +21,7 @@
 import { eq, inArray, like, or } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { getDb } from '../../db/postgres';
-import { channels, lanes } from '../../db/schema/channels';
+import { lanes } from '../../db/schema/channels';
 import { federatedActorFields, federatedActors, federatedFollows } from '../../db/schema/federation';
 import { assembleActorRecord } from '../../db/federation/actorRepository';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
@@ -56,16 +56,14 @@ const seededUris = new Map<string, Set<string>>();
 const seededPostIds = new Map<string, string[]>();
 
 /**
- * Every channel id a scope has seeded, tracked for the same reason post ids are:
- * `channels` carries no column naming the suite that made the row.
+ * Every lane id a scope has seeded. `posts.lane_id` is `ON DELETE SET NULL`, so
+ * these are cleaned AFTER the posts — the other order releases a post the suite
+ * is still asserting on.
  *
- * Cleaned AFTER the posts, never before — `posts.channel_id` is
- * `ON DELETE CASCADE`, so deleting a channel first would take its posts with it
- * and hide whichever assertion was about them.
+ * There is no channel counterpart. A channel is an Oxy ACCOUNT, so a channel's
+ * post is one whose `oxy_user_id` is the channel; the `channels` table and
+ * `posts.channel_id` were dropped by `0017_a_channel_is_an_account`.
  */
-const seededChannelIds = new Map<string, string[]>();
-
-/** Every lane id a scope has seeded. `posts.lane_id` is `ON DELETE SET NULL`. */
 const seededLaneIds = new Map<string, string[]>();
 
 function recordSeeded(scope: FederationScope, uri: string): void {
@@ -252,41 +250,12 @@ export async function seedPost(
 }
 
 /**
- * Insert one channel, so a suite can seed a post that belongs to one.
- *
- * The only reason a federation suite needs a channel is `posts.channel_id`'s
- * foreign key: the CHANNEL itself is never the subject of these tests, the
- * post's membership of one is (`utils/channelReplyGate`). Public by default,
- * because a visibility gate would be a second reason a case failed.
- */
-export async function seedChannel(
-  scope: FederationScope,
-  overrides: Partial<typeof channels.$inferInsert> = {},
-): Promise<string> {
-  const handle = overrides.handle ?? scope.user('channel');
-  const [row] = await getDb()
-    .insert(channels)
-    .values({
-      handle,
-      handleLower: handle.toLowerCase(),
-      title: overrides.title ?? 'a channel',
-      ownerOxyUserId: overrides.ownerOxyUserId ?? scope.user('channel-owner'),
-      ...overrides,
-    })
-    .returning({ id: channels.id });
-  const existing = seededChannelIds.get(scope.origin);
-  if (existing) existing.push(row.id);
-  else seededChannelIds.set(scope.origin, [row.id]);
-  return row.id;
-}
-
-/**
  * Insert one lane, so a suite can seed a post that carries one.
  *
  * A LENS, not a destination: a lane changes nothing about distribution,
  * visibility, replies or federation. Federation suites seed one precisely to
- * assert that — it is the control that keeps `utils/channelReplyGate` honest
- * about keying off `channel_id` and nothing beside it.
+ * assert that. Its publisher is ONE `ownerId`, an Oxy account id — a channel
+ * account and a person are the same case, so there is no owner type to pass.
  */
 export async function seedLane(
   scope: FederationScope,
@@ -296,7 +265,6 @@ export async function seedLane(
   const [row] = await getDb()
     .insert(lanes)
     .values({
-      ownerType: overrides.ownerType ?? 'user',
       ownerId: overrides.ownerId ?? scope.user('lane-owner'),
       name,
       nameLower: name.toLowerCase(),
@@ -352,11 +320,7 @@ export async function clearFederationScope(
   for (const id of postIds.splice(0).reverse()) {
     await deletePostRecord(id, undefined);
   }
-  // After the posts: see `seededChannelIds`.
-  const channelIds = seededChannelIds.get(scope.origin) ?? [];
-  if (channelIds.length > 0) {
-    await db.delete(channels).where(inArray(channels.id, channelIds.splice(0)));
-  }
+  // After the posts: see `seededLaneIds`.
   const laneIds = seededLaneIds.get(scope.origin) ?? [];
   if (laneIds.length > 0) {
     await db.delete(lanes).where(inArray(lanes.id, laneIds.splice(0)));

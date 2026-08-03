@@ -86,6 +86,24 @@ describe('normalizeHashtag', () => {
     expect(normalizeHashtag('humor')).toBe('humor');
     expect(normalizeHashtag('東京')).toBe('東京');
   });
+
+  it('preserves combining marks, which are part of the letter', () => {
+    // Devanagari: ि (U+093F) and the virama ् (U+094D) are combining marks. The
+    // old allowed set stripped them, silently rewriting the tag as a different
+    // word (हनद), so the stored tag no longer matched what the author typed.
+    expect(normalizeHashtag('#हिन्दी')).toBe('हिन्दी');
+    expect(normalizeHashtag('#ไทย')).toBe('ไทย');
+    // Decomposed Vietnamese: `e` + combining circumflex + combining acute.
+    expect(normalizeHashtag('#Tiếng')).toBe('tiếng');
+  });
+
+  it('drops an orphaned leading combining mark', () => {
+    // Extraction can never produce one (a tag opens with a letter), but a
+    // user-supplied or federated tag array can, and admitting marks to the
+    // stored form is what made it reachable. A bare floating accent is not a tag.
+    expect(normalizeHashtag('́')).toBe('');
+    expect(normalizeHashtag('́abc')).toBe('abc');
+  });
 });
 
 // --- mergeHashtags -----------------------------------------------------------
@@ -147,6 +165,41 @@ describe('extractHashtags', () => {
 
   it('returns an empty array for empty text', () => {
     expect(extractHashtags('')).toEqual([]);
+  });
+
+  // The reported bug: the extractor accepted only [A-Za-z0-9_] while the
+  // sanitizer beside it already kept any unicode letter, so a tag was stored
+  // whole but detected truncated. Both now compile the same shared definition.
+  it('extracts a non-ASCII tag WHOLE, not truncated at the first accent', () => {
+    expect(extractHashtags('Das #BundesländerTurnier war toll')).toEqual([
+      'bundesländerturnier',
+    ]);
+  });
+
+  it('extracts tags across scripts', () => {
+    expect(extractHashtags('#東京 #Привет #مرحبا #हिन्दी')).toEqual([
+      '東京',
+      'привет',
+      'مرحبا',
+      'हिन्दी',
+    ]);
+  });
+
+  it('extracts what normalizeHashtag would store, for the same tag', () => {
+    // Detection and storage must not contradict each other — that contradiction
+    // WAS the bug.
+    for (const raw of ['#BundesländerTurnier', '#Café', '#東京', '#हिन्दी', '#Top10']) {
+      expect(extractHashtags(`text ${raw} more`)).toEqual([normalizeHashtag(raw)]);
+    }
+  });
+
+  it('does not extract a digit-leading tag, so #2026 is not a topic', () => {
+    expect(extractHashtags('see you in #2026')).toEqual([]);
+    expect(extractHashtags('#1')).toEqual([]);
+  });
+
+  it('stops at an emoji rather than swallowing it', () => {
+    expect(extractHashtags('#save🌍earth')).toEqual(['save']);
   });
 });
 

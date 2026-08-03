@@ -17,6 +17,12 @@ interface CollaboratorsListProps {
    */
   authors: PostUser[];
   onClose: () => void;
+  /**
+   * Overrides the header. A signed CHANNEL post lists the channel and the
+   * person who wrote it, who are not collaborators — nobody co-authored
+   * anything, one account published what one person wrote.
+   */
+  title?: string;
 }
 
 /**
@@ -29,7 +35,7 @@ interface CollaboratorsListProps {
  * Rendered on the shared content-dialog surface (`showContentDialog`), the same
  * one the post's ⋯ menu uses — centered card on desktop, bottom sheet on mobile.
  */
-const CollaboratorsList: React.FC<CollaboratorsListProps> = ({ authors, onClose }) => {
+const CollaboratorsList: React.FC<CollaboratorsListProps> = ({ authors, onClose, title }) => {
   const router = useRouter();
   const { t } = useTranslation();
 
@@ -62,7 +68,7 @@ const CollaboratorsList: React.FC<CollaboratorsListProps> = ({ authors, onClose 
     <View className="flex-1 bg-background">
       <Header
         options={{
-          title: t('collab.collaboratorsTitle', { defaultValue: 'Collaborators' }),
+          title: title ?? t('collab.collaboratorsTitle', { defaultValue: 'Collaborators' }),
           rightComponents: [
             <IconButton variant="icon"
               key="close"

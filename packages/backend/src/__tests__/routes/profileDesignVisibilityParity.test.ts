@@ -59,6 +59,20 @@ vi.mock('../../utils/oxyHelpers', () => ({
       Promise.resolve({ following: followingByViewer.get(userId) ?? [] }),
   }),
   ensureProfileMediaPublic: vi.fn().mockResolvedValue(undefined),
+  createUserScopedOxyServices: vi.fn(() => undefined),
+}));
+
+// `profileSettings` reaches this through `PUT /settings/:userId`, whose gate
+// resolves an account's kind via `PostHydrationService` — which imports the
+// ActivityPub connector and reads `config.federation` at module scope. This suite
+// stubs `../../config` down to what IT needs, so the real module would throw on
+// import. Nothing here exercises the gate; it is stubbed so the parity assertions
+// below stay about profile-design visibility.
+vi.mock('../../services/publishAsAccount', () => ({
+  PublishAsAccessError: class extends Error {
+    readonly status = 403;
+  },
+  assertCanPublishAsAccount: vi.fn(async () => null),
 }));
 
 vi.mock('@oxyhq/core/server', () => ({
@@ -104,7 +118,6 @@ app.use('/profile', profileSettingsRoutes);
 interface ProfileDesignPayload {
   appearance?: { primaryColor?: string };
   profileHeaderImage?: string;
-  profileCustomization?: { coverPhotoEnabled: boolean; minimalistMode: boolean };
   profileMedia?: { type: string };
   postsCount?: number;
   boostsCount?: number;
@@ -126,7 +139,6 @@ function designFields(payload: ProfileDesignPayload) {
   return {
     appearance: payload.appearance,
     profileHeaderImage: payload.profileHeaderImage,
-    profileCustomization: payload.profileCustomization,
     profileMedia: payload.profileMedia,
   };
 }
@@ -192,7 +204,6 @@ describe('GET /profile/settings/:userId profile-design visibility', () => {
 
     expect(settings.profileHeaderImage).toBeUndefined();
     expect(settings.appearance).toBeUndefined();
-    expect(settings.profileCustomization).toBeUndefined();
     expect(settings.profileMedia).toBeUndefined();
   });
 
@@ -203,7 +214,6 @@ describe('GET /profile/settings/:userId profile-design visibility', () => {
     expect(designFields(await getSettings())).toEqual({
       appearance: undefined,
       profileHeaderImage: undefined,
-      profileCustomization: undefined,
       profileMedia: undefined,
     });
   });
@@ -220,10 +230,6 @@ describe('GET /profile/settings/:userId profile-design visibility', () => {
 
     expect(settings.profileHeaderImage).toContain('private-banner-file');
     expect(settings.appearance).toEqual({ primaryColor: '#ff0000' });
-    expect(settings.profileCustomization).toEqual({
-      coverPhotoEnabled: true,
-      minimalistMode: true,
-    });
     expect(settings.profileMedia?.type).toBe('song');
   });
 

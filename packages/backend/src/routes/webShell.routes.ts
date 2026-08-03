@@ -1,11 +1,14 @@
 /**
  * Public web shell with per-request OpenGraph — the `bskyweb` model.
  *
- * A CF Origin Rule transparently routes `mention.earth/@*` and `mention.earth/p/*`
- * to this backend. For those paths we serve the static SPA shell HTML with
- * per-request OG/Twitter tags injected (so crawlers / link-unfurlers get a rich
- * preview) while browsers still boot the SPA normally. This replaces the OG
- * injection the retired Cloudflare Pages `_worker.js` used to do at the edge.
+ * The BACKEND serves the whole apex: `server.ts` mounts the federation routers,
+ * then this router, then `apexFrontendProxy` for everything else. So every apex
+ * path already reaches here and adding one costs no infrastructure change — the
+ * CF Origin Rule that used to route `/@*` and `/p/*` selectively was deleted with
+ * the Cloudflare Pages worker on 2026-07-05. For the paths below we serve the
+ * static SPA shell HTML with per-request OG/Twitter tags injected (so crawlers /
+ * link-unfurlers get a rich preview) while browsers still boot the SPA normally.
+ * This replaces the OG injection the retired `_worker.js` used to do at the edge.
  *
  * The shell (Expo's single static `index.html`) is fetched ONCE from the frontend
  * CDN and cached in-memory — it only changes on a frontend deploy. Root-relative
@@ -19,6 +22,12 @@
  * segment, no `@domain`, no sub-tab) that `Accept`s ActivityPub is 302-redirected
  * to the canonical actor — a GET-only redirect, mirroring the worker. All other
  * requests (browsers, crawlers, federated handles, sub-tabs) get the shell.
+ *
+ * Channel content negotiation: a channel is an Oxy account whose page lives at
+ * `/c/<handle>`, so a LOCAL profile URL naming one is 302-redirected there. That
+ * branch is deliberately BELOW the ActivityPub one — an AP consumer asking for
+ * `/@channel` must reach the actor, and a redirect chain is exactly what
+ * Mastodon's strict redirector refuses.
  */
 import { Router, Request, Response } from 'express';
 import { config } from '../config';
@@ -34,7 +43,7 @@ import {
   mapProfileOg,
   renderShellWithOg,
 } from '../services/webShellRenderer';
-import { getOgCached } from '../services/webShellOgCache';
+import { getShellCached } from '../services/webShellOgCache';
 import { requiresContentWarning, type FeedSafetyPostShape } from '../mtn/feed/feedSafety';
 
 /** Frontend CDN origin the static SPA shell is fetched from (NOT the apex — that would loop the Origin Rule). */
@@ -81,6 +90,8 @@ function isCrawler(userAgent: string | undefined): boolean {
 
 /** A LOCAL profile path: a single `@handle` segment with no second `@` and no sub-tab. */
 const LOCAL_PROFILE_RE = /^\/@([^/@]+)$/;
+/** Where a channel account's page lives. Mirrors `canonicalProfilePath`. */
+const CHANNEL_PATH_PREFIX = '/c/';
 
 /**
  * Minimal valid HTML served only in the extreme edge case where the shell CDN is
@@ -162,8 +173,14 @@ function wantsActivityPub(accept: string | undefined): boolean {
   return value.includes('activity+json') || value.includes('ld+json');
 }
 
-/** Fetch + map a profile's OG data from the Oxy API. Returns null on any failure. */
-async function fetchProfileOg(handle: string): Promise<OgData | null> {
+/**
+ * Fetch a profile from the Oxy API. Returns null on any failure.
+ *
+ * The RAW payload rather than the mapped OG, because two callers read it: the OG
+ * card, and the channel redirect below — which a BROWSER needs too, so it cannot
+ * ride on the crawler-only OG path. One fetch, one cache entry, both answers.
+ */
+async function fetchProfile(handle: string): Promise<OxyProfileData | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), OG_FETCH_TIMEOUT_MS);
   try {
@@ -173,13 +190,18 @@ async function fetchProfileOg(handle: string): Promise<OgData | null> {
     });
     if (!response.ok) return null;
     const json = (await response.json()) as { data?: OxyProfileData };
-    return mapProfileOg(json?.data);
+    return json?.data ?? null;
   } catch (error) {
-    logger.debug('[webShell] Profile OG fetch failed', error);
+    logger.debug('[webShell] Profile fetch failed', error);
     return null;
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** The cached profile for a handle, SWR-backed. Null when unknown or unreachable. */
+function cachedProfile(handle: string): Promise<OxyProfileData | null> {
+  return getShellCached(`profile:${handle}`, () => fetchProfile(handle));
 }
 
 /** The raw post fields the OG safety verdict reads. */
@@ -255,9 +277,13 @@ const router = Router();
 // The captured group is the handle segment (`user` or `user@domain`).
 router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
   const handle = decodeURIComponent(req.params[0]);
+  const isLocalProfileUrl = LOCAL_PROFILE_RE.test(req.path);
 
-  // AP content negotiation — only for a LOCAL single-segment profile URL.
-  if (LOCAL_PROFILE_RE.test(req.path) && wantsActivityPub(req.headers.accept)) {
+  // AP content negotiation — only for a LOCAL single-segment profile URL, and
+  // FIRST: an ActivityPub consumer must reach the actor in one hop. Mastodon's
+  // redirector is strict and does not re-sign, so a chain through the channel
+  // redirect below would silently kill inbound federation.
+  if (isLocalProfileUrl && wantsActivityPub(req.headers.accept)) {
     res.setHeader('Vary', 'Accept');
     return res.redirect(302, AP_ACTOR_BASE + encodeURIComponent(handle));
   }
@@ -266,11 +292,42 @@ router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
   // server-side OG; browsers get the plain shell + client-side OG).
   res.setHeader('Vary', 'Accept, User-Agent');
 
+  // ONE profile resolution, read by both decisions below.
+  //
+  // A browser on a plain `/@handle` now pays it too, which it did not before: the
+  // channel redirect is what makes the URL right, and a browser is exactly who
+  // follows it. It is SWR-cached per handle (fresh 5 min, stale-while-revalidate
+  // for an hour), so it is normally a Redis read; a miss or an Oxy outage answers
+  // null, which simply does not redirect and shows no card. A browser on a
+  // SUB-TAB skips it entirely — no channel lives there and no browser needs OG.
+  const wantsOg = isCrawler(req.headers['user-agent']);
+  const profile = isLocalProfileUrl || wantsOg ? await cachedProfile(handle) : null;
+
+  // A channel account's page is `/c/<handle>`, not `/@<handle>`.
+  if (isLocalProfileUrl && profile?.kind === 'channel' && profile.username) {
+    return res.redirect(302, CHANNEL_PATH_PREFIX + encodeURIComponent(profile.username));
+  }
+
   // Only crawlers/unfurlers need OG server-side; a browser boots the SPA which
-  // sets its own meta, so it is served the shell immediately — no OG fetch blocks
-  // the TTFB. Crawler OG is Redis-cached (short TTL + stale-while-revalidate).
+  // sets its own meta, so it is served the shell immediately.
+  await serveShell(res, wantsOg ? mapProfileOg(profile) : null);
+});
+
+// Channel: `/c/<handle>` (optional trailing slash).
+//
+// No AP branch. A channel IS an Oxy account, so its actor is the ordinary
+// `/@<handle>` one — which is the URL webfinger and every remote instance
+// already resolve, and the URL this backend advertises as the actor's `url`.
+// Adding a second AP entry point would give one actor two profile URLs and leave
+// remote software to guess which is canonical.
+router.get(/^\/c\/([^/]+)\/?$/, async (req: Request, res: Response) => {
+  const handle = decodeURIComponent(req.params[0]);
+  res.setHeader('Vary', 'User-Agent');
+  // The same profile resolution the `/@handle` route uses, so a channel's card is
+  // built from the same payload and `og:url` comes back as `/c/<handle>` from the
+  // ONE definition of that (`canonicalProfilePath`).
   const og = isCrawler(req.headers['user-agent'])
-    ? await getOgCached(`profile:${handle}`, () => fetchProfileOg(handle))
+    ? mapProfileOg(await cachedProfile(handle))
     : null;
   await serveShell(res, og);
 });
@@ -283,7 +340,7 @@ router.get(/^\/p\/([^/]+)\/?$/, async (req: Request, res: Response) => {
   // Browsers get the shell immediately; only crawlers pay the Mongo hydration to
   // resolve post OG, cached in Redis with stale-while-revalidate.
   const og = isCrawler(req.headers['user-agent'])
-    ? await getOgCached(`post:${id}`, () => fetchPostOg(id))
+    ? await getShellCached(`post:${id}`, () => fetchPostOg(id))
     : null;
   await serveShell(res, og);
 });

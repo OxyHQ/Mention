@@ -35,11 +35,13 @@ import { validateAndNormalizeLimit, FEED_CONSTANTS } from '../utils/feedUtils';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy, ScoreCursor } from '../mtn/feed/CursorBuilder';
 import { rankingWeight } from '../utils/feedQueryBuilder';
 import { mergeHashtags, reconcileMentionIdsForPost } from '../utils/textProcessing';
+import { foldProfileLinkMentions } from '../services/profileLinkMentions';
+import { toFederationPostPayload } from '../services/serviceRegistry';
 import { normalizeMediaItems } from '../utils/mediaInput';
 import { queryString } from '../utils/queryParams';
 import { buildAuthorship } from '../utils/postAuthorship';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
-import { isChannelPost } from '../utils/channelReplyGate';
+import { postIsAuthoredByChannel } from '../utils/channelReplyGate';
 import { baselineContentClassifier } from '../services/BaselineContentClassifier';
 import { toStoredContent } from '../services/postVariants';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
@@ -232,20 +234,21 @@ class FeedController {
    * `POST /posts` reply path. Passing `parentPostId` is what routes it to the
    * reply-addressing branch of `federateNewPost`. A pending-review (private) reply
    * carries `visibility: private`, so the connector skips it.
+   *
+   * **The whole DOCUMENT goes through the seam, never a field list.** The Note
+   * builder reads more than `LocalPostEventPayload` names — `metadata.isSensitive`
+   * becomes the Note's `sensitive` flag and `quoteOf` becomes its quote fields —
+   * so a hand-picked payload silently federated a sensitive reply UNMARKED and a
+   * quote reply with no quote. `PostCreationService` has always passed the
+   * document; this path now does too, which is also what stops the next field the
+   * builder learns to read from going missing here alone. `createdAt` needs no
+   * normalization for the same reason: the builder accepts a `Date` or an ISO
+   * string and emits ISO either way.
    */
   private federateReply(reply: PostRecord, replierOxyUserId: string): void {
-    const createdAt = reply.createdAt.toISOString();
     federateAsResolvedActor(replierOxyUserId, 'reply', (username) => ({
       kind: 'post.create',
-      post: {
-        _id: reply.id,
-        content: reply.content,
-        hashtags: reply.hashtags,
-        mentions: reply.mentions,
-        visibility: reply.visibility,
-        createdAt,
-        parentPostId: reply.parentPostId,
-      },
+      post: toFederationPostPayload(reply),
       actorOxyUserId: replierOxyUserId,
       actorUsername: username,
     }));
@@ -318,10 +321,10 @@ class FeedController {
       //    `replyPermission: ['nobody']`. For a channel the rule is STRUCTURAL, not
       //    a per-post preference: neither the writer nor the channel's owner replies.
       //
-      // It reads `channelId` and never `replyPermission` — see
-      // `utils/channelReplyGate` for why leaning on that field would let a later
-      // `PATCH /posts/:id/settings` reopen the post.
-      if (isChannelPost(parentPost)) {
+      // It reads the parent AUTHOR's Oxy account kind and never
+      // `replyPermission` — see `utils/channelReplyGate` for why leaning on that
+      // field would let a later `PATCH /posts/:id/settings` reopen the post.
+      if (await postIsAuthoredByChannel(parentPost)) {
         return res.status(403).json({ error: 'This post does not accept replies' });
       }
 
@@ -390,9 +393,14 @@ class FeedController {
 
       // Create reply post
       const mergedTags = mergeHashtags(replyContent?.text || '', hashtags);
+      // A profile link the author pasted becomes a real mention here, exactly as
+      // it does on `POST /posts` and on the federated ingest — see
+      // `foldProfileLinkMentions`. Run AFTER the hashtag merge so what counts as
+      // a hashtag is still read off the body the author actually typed.
+      const foldedMentions = await foldProfileLinkMentions(replyContent, mentions);
       const reconciledMentions = reconcileMentionIdsForPost(
         mentionTextsFromContent(replyContent),
-        mentions,
+        foldedMentions.mentions,
       );
 
       // A reply may attach a single Syra podcast show. Like createPost, the
@@ -610,9 +618,12 @@ class FeedController {
       // original owns its own attachments), so the field is dropped rather than
       // half-resolved.
       const boostContent: PostContent = { ...(content ?? { text: '' }), podcast: undefined };
+      // The comment on a boost is a body the author typed, so a profile link in
+      // it becomes a mention on the same terms as every other write boundary.
+      const foldedMentions = await foldProfileLinkMentions(boostContent, mentions);
       const reconciledMentions = reconcileMentionIdsForPost(
         mentionTextsFromContent(boostContent),
-        mentions,
+        foldedMentions.mentions,
       );
 
       let boost: PostRecord;

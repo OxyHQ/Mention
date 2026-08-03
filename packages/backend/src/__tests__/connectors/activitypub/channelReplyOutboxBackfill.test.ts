@@ -11,11 +11,12 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * happen inside the candidate loop.
  *
  * The parents are REAL ROWS and the assertions are on STORED posts. The gate
- * reads `posts.channel_id` with a `text` id, and the guard it replaced
- * (`ObjectId.isValid`) answered `false` for every uuid v7 — which reads as "not a
- * channel post" and lets the reply through. A mocked `findById` answers whatever
- * it was told, so it cannot see that; and "insertMany was called with these docs"
- * cannot see whether the row survived the write either.
+ * reads the parent's AUTHOR (`posts.oxy_user_id`) with a `text` id, and the guard
+ * it replaced (`ObjectId.isValid`) answered `false` for every uuid v7 — which
+ * reads as "not a channel post" and lets the reply through. A mocked `findById`
+ * answers whatever it was told, so it cannot see that; and "insertMany was called
+ * with these docs" cannot see whether the row survived the write either. Only the
+ * KIND lookup is mocked (`isChannelAccount`), because that answer lives in Oxy.
  *
  * Driven through the real entry point (`syncOutboxPostsDetailed`) against the
  * harness `federatedPostEnrichment.test.ts` established, so what is asserted is
@@ -116,13 +117,22 @@ vi.mock('../../../models/FederatedFollow', () => ({
   default: { exists: vi.fn().mockResolvedValue({ _id: 'follow_1' }) },
 }));
 
+// The gate resolves the parent AUTHOR's account kind here — the one module that
+// knows what a channel account is. Mocked so this file needs no Oxy identity
+// path, and so a test that expects a SKIP has to seed the parent under a channel
+// account itself. The factory only CLOSES OVER `CHANNEL_ACCOUNT` below; the
+// closure does not run until the gate resolves an author, long after this module
+// finished initializing, so the `vi.mock` hoisting is harmless.
+vi.mock('../../../services/publishAsAccount', () => ({
+  isChannelAccount: (oxyUserId: string) => Promise.resolve(oxyUserId === CHANNEL_ACCOUNT),
+}));
+
 import { like } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema/posts';
 import {
   clearFederationScope,
   federationScope,
-  seedChannel,
   seedPost,
 } from '../../helpers/federationFixtures';
 import * as channelReplyGate from '../../../utils/channelReplyGate';
@@ -141,6 +151,8 @@ const scope = federationScope('channel-reply-outbox');
 const ACTOR_URI = `${scope.origin}/users/alice`;
 const OUTBOX_URL = `${ACTOR_URI}/outbox`;
 const ALICE_OXY_ID = scope.user('alice');
+/** The Oxy account the mocked `isChannelAccount` answers `true` for. */
+const CHANNEL_ACCOUNT = scope.user('channel');
 
 const REMOTE_POST_URI = `${scope.origin}/users/bob/statuses/42`;
 
@@ -273,8 +285,7 @@ beforeEach(() => {
 
 describe('outbox backfill — a reply to a channel post is never stored', () => {
   it('skips the channel reply and still imports the rest of the page', async () => {
-    const channelId = await seedChannel(scope);
-    const channelPost = await seedPost(scope, { channelId });
+    const channelPost = await seedPost(scope, { oxyUserId: CHANNEL_ACCOUNT });
     stubOutbox([
       createNote('to-channel', localUri(channelPost.id)),
       createNote('ordinary'),
@@ -301,9 +312,9 @@ describe('outbox backfill — a reply to a channel post is never stored', () => 
   });
 
   it('CONTROL: a reply to a REMOTE post is imported without any gate lookup', async () => {
-    // A remote object is a federated post and can never carry a `channelId`, so
-    // the URI parse short-circuits before the query. This is what keeps the gate
-    // free on the ordinary remote-to-remote reply.
+    // A remote object is authored by a remote actor, which is never a local
+    // channel account, so the URI parse short-circuits before the query. This is
+    // what keeps the gate free on the ordinary remote-to-remote reply.
     stubOutbox([createNote('to-remote', REMOTE_POST_URI)]);
 
     await runOutboxSync();

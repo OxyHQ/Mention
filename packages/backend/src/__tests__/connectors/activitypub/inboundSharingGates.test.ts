@@ -9,7 +9,6 @@ import {
   clearFederationScope,
   federationScope,
   seedActor,
-  seedChannel,
   seedFollow,
   seedLane,
   seedPost,
@@ -58,6 +57,15 @@ const scope = federationScope('inbound-sharing-gates');
 const ACTOR_URI = `${scope.origin}/users/bob`;
 const OWNER_OXY_ID = scope.user('alice');
 const BOOSTER_OXY_ID = scope.user('bob');
+/**
+ * The Oxy account the mocked `isChannelAccount` answers `true` for — namespaced
+ * like every other id here, since a channel is an ordinary account id now.
+ *
+ * Read from inside the `vi.mock` factory below, which is legal despite the
+ * hoisting: the factory only closes over it, and the closure is not CALLED until
+ * a handler runs the gate, long after this initializer.
+ */
+const CHANNEL_ACCOUNT = scope.user('channel');
 
 /**
  * The local post every activity in this file targets, seeded per test so its id
@@ -127,6 +135,14 @@ vi.mock('../../../services/serviceRegistry', () => ({
 
 vi.mock('../../../services/fediverseSharing', () => ({
   isFediverseSharingEnabled: (...args: unknown[]) => mocks.isFediverseSharingEnabled(...args),
+}));
+
+// The channel reply gate resolves the parent author's account kind here — the one
+// module that knows what a channel account IS. Mocked so this file needs no Oxy
+// identity path, and so a test that expects a DROP has to seed the parent under
+// the channel account itself.
+vi.mock('../../../services/publishAsAccount', () => ({
+  isChannelAccount: (oxyUserId: string) => Promise.resolve(oxyUserId === CHANNEL_ACCOUNT),
 }));
 
 vi.mock('../../../connectors/activitypub/outbox.service', () => ({
@@ -274,7 +290,7 @@ describe('handleCreate — reply targeting an opted-out parent-post owner', () =
   });
 
   /**
-   * A CHANNEL POST TAKES NO REPLIES, from a remote instance either — site 3 of
+   * A CHANNEL'S POST TAKES NO REPLIES, from a remote instance either — site 3 of
    * four for `utils/channelReplyGate`, at its real call site.
    *
    * The SHAPE of the refusal is the load-bearing part here and is asserted
@@ -283,13 +299,13 @@ describe('handleCreate — reply targeting an opted-out parent-post owner', () =
    * POST makes Mastodon stop delivering to this instance entirely — killing every
    * follow, accept, like and reply from that server, not just this one.
    */
-  it('drops a reply to a CHANNEL post silently — resolves, never throws', async () => {
-    // A REAL `channel_id` on a REAL parent row, not a mocked lookup.
-    // `parentIsChannelPost` reads the column with `posts.id = <text>`, and the
-    // guard it replaced (`ObjectId.isValid`) answered `false` for every uuid v7
-    // id while looking present — a mocked `findById` cannot tell those apart,
-    // because it never runs the predicate that was wrong.
-    await seedTarget({ channelId: await seedChannel(scope) });
+  it('drops a reply to a CHANNEL-authored post silently — resolves, never throws', async () => {
+    // A REAL parent row whose AUTHOR is the channel, not a mocked lookup.
+    // `parentIsChannelPost` reads `posts.oxy_user_id` with `posts.id = <text>`,
+    // and the guard it replaced (`ObjectId.isValid`) answered `false` for every
+    // uuid v7 id while looking present — a mocked `findById` cannot tell those
+    // apart, because it never runs the predicate that was wrong.
+    await seedTarget({ oxyUserId: CHANNEL_ACCOUNT });
 
     await expect(
       inboxProcessingService.processInboxActivity(replyActivity(), ACTOR_URI),
@@ -298,11 +314,11 @@ describe('handleCreate — reply targeting an opted-out parent-post owner', () =
     expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
   });
 
-  it('CONTROL: a parent carrying only a laneId still accepts the reply', async () => {
-    // A lane is a lens, not a destination — the gate must key off `channel_id`
-    // alone, or every lane post would silently stop accepting federated replies.
-    // This is also the case that makes the one above non-vacuous: the same
-    // seeding path, one column different, opposite outcome.
+  it('CONTROL: a parent carrying a laneId still accepts the reply', async () => {
+    // A lane is a lens, not a publisher — the gate must key off the AUTHOR alone,
+    // or every lane post would silently stop accepting federated replies. This is
+    // also the case that makes the one above non-vacuous: the same seeding path,
+    // one field different, opposite outcome.
     await seedTarget({ laneId: await seedLane(scope, { ownerId: OWNER_OXY_ID }) });
 
     await inboxProcessingService.processInboxActivity(replyActivity(), ACTOR_URI);

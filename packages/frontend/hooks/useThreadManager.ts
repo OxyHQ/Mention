@@ -9,9 +9,11 @@ import { ComposerMediaItem } from "@/utils/composeUtils";
 import { Source } from "@/hooks/useSourcesManager";
 import { ArticleData } from "@/hooks/useArticleManager";
 import { EventData } from "@/hooks/useEventManager";
+import { PodcastAttachmentData } from "@/hooks/usePodcastManager";
 import { RoomAttachmentData } from "@/hooks/useRoomManager";
 import type { Draft } from "@/hooks/useDrafts";
 import type { ReplyPermission } from "@/components/Compose/ReplySettingsSheet";
+import type { AccountNode } from "@oxyhq/core";
 
 /**
  * A thread item as it comes back OUT of a stored draft: the persisted subset,
@@ -38,11 +40,38 @@ export interface ThreadItem {
   article: ArticleData | null;
   event: EventData | null;
   room: RoomAttachmentData | null;
+  podcast: PodcastAttachmentData | null;
+  /**
+   * The publisher's lane for this post, or `null` for none.
+   *
+   * Per ITEM because `POST /posts/thread` reads `laneId` off each entry: in
+   * BEAST mode every entry is an independent top-level post and takes its own,
+   * and in THREAD mode only the root does — a continuation is a reply, and the
+   * server refuses a lane on one (400). The composer decides which boxes may
+   * offer the choice; this field only holds the answer.
+   */
+  laneId: string | null;
   attachmentOrder: string[];
   replyPermission: ReplyPermission[];
   reviewReplies: boolean;
   quotesDisabled: boolean;
   isSensitive: boolean;
+  /**
+   * The account this post is published AS, or `null` for the author themselves.
+   *
+   * Per ITEM rather than per composer because BEAST mode posts are independent —
+   * they share a composer and nothing else — so one of them going out under a
+   * channel says nothing about the next. A THREAD is the opposite: its
+   * continuations are replies to their predecessor, which a channel post cannot
+   * have, so the whole thread stays the author's and this value is never read
+   * there.
+   *
+   * The whole {@link AccountNode} rather than its id, for the same reason the
+   * main composer holds one: the value has to survive without a live account
+   * query, and a header that could not resolve the id would draw the author's own
+   * avatar over a post going out as somebody else.
+   */
+  publishAs: AccountNode | null;
 }
 
 export interface ThreadItemDefaults {
@@ -69,11 +98,20 @@ export const useThreadManager = () => {
       article: null,
       event: null,
       room: null,
+      podcast: null,
+      // A new box is on no lane. Inheriting the one above would put a post on a
+      // lane nobody chose for it — the same reason the account is not carried
+      // forward either.
+      laneId: null,
       attachmentOrder: [],
       replyPermission: defaults?.replyPermission ?? ["anyone"],
       reviewReplies: defaults?.reviewReplies ?? false,
       quotesDisabled: defaults?.quotesDisabled ?? false,
       isSensitive: defaults?.isSensitive ?? false,
+      // A new box is the author's own. The account is a per-post decision, so
+      // it is never inherited from the box above — carrying one forward would
+      // publish under an identity nobody chose for this post.
+      publishAs: null,
     };
     setThreadItems((prev) => [...prev, newThread]);
     return newThread.id;
@@ -369,6 +407,22 @@ export const useThreadManager = () => {
     []
   );
 
+  const setThreadPublishAs = useCallback(
+    (threadId: string, publishAs: AccountNode | null) => {
+      setThreadItems((prev) =>
+        prev.map((item) =>
+          // The lane goes with the account, in both directions: a lane belongs
+          // to one publisher, so the one picked while this box was the author's
+          // is not a lane the channel has. Kept, it reaches the server as a lane
+          // the new publisher does not own — a 404 the author only sees after
+          // pressing post.
+          item.id === threadId ? { ...item, publishAs, laneId: null } : item
+        )
+      );
+    },
+    []
+  );
+
   // Sources management
   const setThreadSources = useCallback(
     (threadId: string, sources: Source[]) => {
@@ -477,6 +531,38 @@ export const useThreadManager = () => {
     );
   }, []);
 
+  // Podcast management
+  const setThreadPodcast = useCallback(
+    (threadId: string, podcast: PodcastAttachmentData | null) => {
+      setThreadItems((prev) =>
+        prev.map((item) => (item.id === threadId ? { ...item, podcast } : item))
+      );
+    },
+    []
+  );
+
+  const removeThreadPodcast = useCallback((threadId: string) => {
+    setThreadItems((prev) =>
+      prev.map((item) =>
+        item.id === threadId ? { ...item, podcast: null } : item
+      )
+    );
+  }, []);
+
+  /**
+   * Assign this box to one of its publisher's lanes, or to none.
+   *
+   * Setting the box's ACCOUNT clears it (see {@link setThreadPublishAs}): a lane
+   * belongs to one publisher, so a lane picked for the author is not a lane the
+   * channel has, and carrying it across would send the server a lane the new
+   * publisher does not own — refused, after the author already pressed post.
+   */
+  const setThreadLaneId = useCallback((threadId: string, laneId: string | null) => {
+    setThreadItems((prev) =>
+      prev.map((item) => (item.id === threadId ? { ...item, laneId } : item))
+    );
+  }, []);
+
   // Attachment order management
   const setThreadAttachmentOrder = useCallback(
     (threadId: string, attachmentOrder: string[]) => {
@@ -544,11 +630,20 @@ export const useThreadManager = () => {
       article: null,
       event: null,
       room: null,
+      podcast: null,
+      // Neither the attachments nor the lane were ever persisted in a draft, so
+      // a restored box starts on none of them.
+      laneId: null,
       attachmentOrder: [],
       replyPermission: ["anyone"],
       reviewReplies: false,
       quotesDisabled: false,
       isSensitive: false,
+      // A draft never persisted the author of a box — the account graph can move
+      // between the save and the restore, so a stored id could name an account
+      // the caller no longer operates. Restoring to the author is the choice that
+      // cannot publish under an identity nobody re-confirmed.
+      publishAs: null,
     })));
   }, []);
 
@@ -582,6 +677,9 @@ export const useThreadManager = () => {
     removeThreadEvent,
     setThreadRoom,
     removeThreadRoom,
+    setThreadPodcast,
+    removeThreadPodcast,
+    setThreadLaneId,
     setThreadAttachmentOrder,
     addThreadAttachment,
     removeThreadAttachment,
@@ -589,6 +687,7 @@ export const useThreadManager = () => {
     setThreadReviewReplies,
     setThreadQuotesDisabled,
     setThreadSensitive,
+    setThreadPublishAs,
     clearAllThreads,
     loadThreadsFromDraft,
   };

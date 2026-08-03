@@ -40,7 +40,7 @@ describe('lanesService', () => {
 
     const lanes = await lanesService.listForOwner('owner-1');
 
-    expect(mockPublicGet).toHaveBeenCalledWith('/lanes', { ownerType: 'user', ownerId: 'owner-1' });
+    expect(mockPublicGet).toHaveBeenCalledWith('/lanes', { ownerId: 'owner-1' });
     expect(mockAuthenticated.get).not.toHaveBeenCalled();
     expect(lanes).toEqual([{ id: 'lane-1', name: 'dev' }]);
   });
@@ -82,14 +82,14 @@ describe('lanesService', () => {
     mockAuthenticated.get.mockResolvedValue({ data: [] });
 
     await lanesService.listMine();
-    await lanesService.listMine('channel-1');
+    await lanesService.listMine('channel-account-1');
 
     // Two different lists behind one path: the caller's own lanes, and the lanes
-    // of a channel they own. The query param is the whole difference, so a
-    // dropped one silently offers the wrong publisher's lanes.
+    // of another account they operate. The query param is the whole difference,
+    // so a dropped one silently offers the wrong publisher's lanes.
     expect(mockAuthenticated.get).toHaveBeenCalledWith('/lanes/mine');
     expect(mockAuthenticated.get).toHaveBeenCalledWith('/lanes/mine', {
-      params: { channelId: 'channel-1' },
+      params: { ownerId: 'channel-account-1' },
     });
   });
 

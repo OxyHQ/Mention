@@ -15,10 +15,19 @@ interface ScopedOxyRequest {
   mcp?: { activeUserId?: string };
 }
 
+/**
+ * Parsed by slicing rather than with a regex. `/^Bearer\s+(.+)$/` puts two greedy
+ * quantifiers side by side over a caller-supplied header, which is quadratic on a
+ * long run of whitespace (`js/polynomial-redos`). This is linear and says the
+ * same thing.
+ */
 function bearerToken(header: string | undefined): string | undefined {
-  const match = header ? /^Bearer\s+(.+)$/i.exec(header) : null;
-  const token = match?.[1]?.trim();
-  return token && token.length > 0 ? token : undefined;
+  if (!header) return undefined;
+  const scheme = 'bearer ';
+  if (header.length <= scheme.length) return undefined;
+  if (header.slice(0, scheme.length).toLowerCase() !== scheme) return undefined;
+  const token = header.slice(scheme.length).trim();
+  return token.length > 0 ? token : undefined;
 }
 
 /**
@@ -43,6 +52,31 @@ export function createScopedOxyClient(req: ScopedOxyRequest): OxyClient | undefi
   const client = new OxyServices({ baseURL: OXY_BASE_URL });
   client.setTokens(token);
   return client as unknown as OxyClient;
+}
+
+/**
+ * A full `OxyServices` scoped to the caller's OWN verified bearer, for the Oxy
+ * endpoints that are authorized against the authenticated USER and honour no
+ * service-token delegation — today, the account-graph membership read behind
+ * `publishAsOxyUserId` (`GET /accounts/:id/members`).
+ *
+ * Deliberately NOT {@link createScopedOxyClient}: that one narrows to the
+ * privacy-graph surface and, for an MCP request, answers with a SERVICE-delegated
+ * client. A service credential cannot read that route at all, so an MCP caller
+ * gets `undefined` here and the publish-as gate refuses — which is the correct
+ * answer, not a gap.
+ *
+ * A fresh instance per request, so the SDK's own GET cache is empty: an
+ * authorization decision must never be served from another caller's cached
+ * membership list.
+ */
+export function createUserScopedOxyServices(req: ScopedOxyRequest): OxyServices | undefined {
+  if (req.mcp) return undefined;
+  const token = req.accessToken || bearerToken(req.headers?.authorization);
+  if (!token) return undefined;
+  const client = new OxyServices({ baseURL: OXY_BASE_URL });
+  client.setTokens(token);
+  return client;
 }
 
 /**

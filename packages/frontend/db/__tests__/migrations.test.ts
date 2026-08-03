@@ -1,7 +1,7 @@
-import { runMigrations } from '../migrations';
+import { runMigrations, SCHEMA_VERSION } from '../migrations';
 
 describe('post cache schema migration', () => {
-  it('invalidates v5 rows carrying local relation aliases before any v6 read', () => {
+  it('invalidates rows written under an older shape before any read of the new one', () => {
     const execSync = jest.fn();
     const db = {
       getFirstSync: jest.fn(() => ({ user_version: 5 })),
@@ -19,6 +19,10 @@ describe('post cache schema migration', () => {
     expect(execSync).toHaveBeenCalledWith('DROP TABLE IF EXISTS "posts"');
     expect(execSync).toHaveBeenCalledWith('DROP TABLE IF EXISTS "feed_items"');
     expect(execSync).toHaveBeenCalledWith('DROP TABLE IF EXISTS "cache_metadata"');
-    expect(execSync).toHaveBeenLastCalledWith('PRAGMA user_version = 7');
+    // Read off the constant rather than pinned to a literal: WHICH version is
+    // current is `cacheShapeVersion.test.ts`'s job (it pins the persisted key
+    // set against it), and duplicating the number here only makes a legitimate
+    // bump fail in a second place that says nothing new.
+    expect(execSync).toHaveBeenLastCalledWith(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   });
 });

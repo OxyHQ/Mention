@@ -25,7 +25,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { lanes } from '../db/schema/channels';
 import { logger } from '../utils/logger';
-import type { AuthorFeedFilter, LaneDisplayMode, LaneOwnerType } from '@mention/shared-types';
+import type { AuthorFeedFilter, LaneDisplayMode } from '@mention/shared-types';
 
 /** Display modes that never appear on ANY profile tab. */
 const HIDDEN_ONLY: readonly LaneDisplayMode[] = ['hidden'];
@@ -45,18 +45,17 @@ export function excludedDisplayModesForTab(filter: AuthorFeedFilter): readonly L
 }
 
 /**
- * The publisher's lane ids in any of `modes` — the ids a profile/channel query
- * excludes with `laneId: { $nin: … }`.
+ * The publisher's lane ids in any of `modes` — the ids a profile query excludes
+ * with `laneId: { $nin: … }`.
  *
  * One indexed lookup per feed request, served by `lanes_owner_idx`
- * (`owner_type, owner_id, …`). Fail-soft to `[]`: a lookup error must degrade to
- * an UNCURATED profile rather than an empty one — showing a post the owner meant
- * to tuck away is a far smaller harm than showing them nothing, and `hidden` is
+ * (`owner_id, created_at`). Fail-soft to `[]`: a lookup error must degrade to an
+ * UNCURATED profile rather than an empty one — showing a post the owner meant to
+ * tuck away is a far smaller harm than showing them nothing, and `hidden` is
  * curation rather than privacy (see the module docblock), so the safe direction
  * really is the permissive one here.
  */
 export async function loadExcludedLaneIds(
-  ownerType: LaneOwnerType,
   ownerId: string,
   modes: readonly LaneDisplayMode[],
 ): Promise<string[]> {
@@ -65,13 +64,7 @@ export async function loadExcludedLaneIds(
     const rows = await getDb()
       .select({ id: lanes.id })
       .from(lanes)
-      .where(
-        and(
-          eq(lanes.ownerType, ownerType),
-          eq(lanes.ownerId, ownerId),
-          inArray(lanes.displayMode, [...modes]),
-        ),
-      );
+      .where(and(eq(lanes.ownerId, ownerId), inArray(lanes.displayMode, [...modes])));
     return rows.map((row) => row.id);
   } catch (error) {
     logger.warn('[laneVisibility] Failed to load excluded lanes', error);
@@ -94,13 +87,7 @@ export async function ownerHasProfileAffectingLane(ownerId: string): Promise<boo
     const [lane] = await getDb()
       .select({ id: lanes.id })
       .from(lanes)
-      .where(
-        and(
-          eq(lanes.ownerType, 'user'),
-          eq(lanes.ownerId, ownerId),
-          inArray(lanes.displayMode, [...OFF_MAIN_TAB]),
-        ),
-      )
+      .where(and(eq(lanes.ownerId, ownerId), inArray(lanes.displayMode, [...OFF_MAIN_TAB])))
       .limit(1);
     return lane != null;
   } catch (error) {

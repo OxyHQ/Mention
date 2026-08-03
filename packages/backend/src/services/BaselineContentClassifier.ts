@@ -98,8 +98,18 @@ import {
  * in the text itself, needs no vocabulary, and in German selects exactly the
  * nouns. Bumped so the version-gated backfill re-derives terms across the
  * corpus; until it runs, older posts keep their broader v6 terms.
+ *
+ * v8: that last sentence was wrong, and wrong in the direction that mattered.
+ * "In German selects exactly the nouns" was written as if selecting nouns were
+ * the goal — but German capitalizes EVERY noun, so in German the rule selected
+ * the dictionary rather than the names in it. `Tag` ("day") reached the live
+ * list from eight posts wishing each other a good day, alongside `Menschen`,
+ * `Luft` and `Land`. Capitalization is now read as evidence of naming only in
+ * languages where it discriminates; in the others a term must arrive as a
+ * hashtag its author chose. Bumped so the backfill re-derives terms — until it
+ * runs, posts stamped v7 keep the German nouns they were extracted with.
  */
-export const BASELINE_CLASSIFIER_VERSION = 7;
+export const BASELINE_CLASSIFIER_VERSION = 8;
 
 /**
  * Minimum number of non-whitespace characters required before attempting
@@ -264,7 +274,15 @@ export class BaselineContentClassifier {
     // tell an acronym (`EU`, `AI`) from a two-letter particle, which is the one
     // place capitalization carries meaning here. The canonical hashtags are
     // passed too, so a tag that never appeared in the visible body still counts.
-    const trendTerms = extractTrendTerms({ text: input.text, hashtags: hashtagsNorm });
+    // The detected languages travel with the text because capitalization only
+    // means "this names something" in languages that capitalize proper nouns
+    // ALONE. German capitalizes every noun, so without this the rule admitted
+    // the dictionary — `Tag` ("day") reached the live trending list.
+    const trendTerms = extractTrendTerms({
+      text: input.text,
+      hashtags: hashtagsNorm,
+      languages,
+    });
 
     // Deterministic spam/quality/toxicity from the ORIGINAL-case text (caps ratio
     // needs case) and the canonical hashtag count (so the heuristics agree with

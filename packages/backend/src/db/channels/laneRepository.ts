@@ -18,7 +18,7 @@
  */
 
 import { eq } from 'drizzle-orm';
-import type { LaneDisplayMode, LaneOwnerType } from '@mention/shared-types';
+import type { LaneDisplayMode } from '@mention/shared-types';
 import { getDb } from '../postgres';
 import { lanes } from '../schema/channels';
 
@@ -40,7 +40,6 @@ export function normalizeLaneName(name: string): string {
 
 /** A new lane for one publisher. `name_lower` is derived here, never supplied. */
 export async function insertLane(input: {
-  ownerType: LaneOwnerType;
   ownerId: string;
   name: string;
   displayMode: LaneDisplayMode;
@@ -48,7 +47,6 @@ export async function insertLane(input: {
   const [row] = await getDb()
     .insert(lanes)
     .values({
-      ownerType: input.ownerType,
       ownerId: input.ownerId,
       name: input.name,
       nameLower: normalizeLaneName(input.name),

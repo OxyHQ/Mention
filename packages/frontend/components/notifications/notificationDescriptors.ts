@@ -152,15 +152,6 @@ const DESCRIPTORS: Record<string, NotificationDescriptor> = {
     actionPhrase: (t) =>
       t('collab.actionDeclined', { defaultValue: 'declined your collaboration invite' }),
   },
-  channel_invite: {
-    icon: 'megaphone',
-    colorToken: 'primary',
-    // A channel invitation is about the channel, not about a post — there is no
-    // post on it to preview, and the entity it carries is the channel's id.
-    hasPreview: false,
-    actionPhrase: (t) =>
-      t('channels.actionInvite', { defaultValue: 'invited you to publish to a channel' }),
-  },
   welcome: {
     icon: 'notifications',
     colorToken: 'primary',

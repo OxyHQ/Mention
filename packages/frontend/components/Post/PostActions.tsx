@@ -40,9 +40,10 @@ interface Props {
   isBoosted?: boolean;
   isSaved?: boolean;
   /**
-   * Omitted on a post that takes no replies at all — a channel post, or one whose
-   * author set `replyPermission: ['nobody']` — and the button is then not rendered
-   * rather than rendered dead. The caller derives that from the POST
+   * Omitted on a post that takes no replies — the server refused them (a channel
+   * account's post, an audience the viewer is outside of) or the author set
+   * `replyPermission: ['nobody']` — and the button is then not rendered rather
+   * than rendered dead. The caller derives that from the POST
    * (`postAcceptsReplies`), never from a flag threaded down through `PostItem`.
    */
   onReply?: () => void;

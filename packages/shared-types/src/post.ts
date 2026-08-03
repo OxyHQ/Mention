@@ -2,9 +2,8 @@
  * Post-related types for Mention social network
  */
 
-import type { UserNameResponse } from '@oxyhq/contracts';
+import type { AccountKind, UserNameResponse } from '@oxyhq/contracts';
 import { GeoJSONPoint } from './common';
-import type { ChannelSummary } from './channel';
 import type { LaneSummary } from './lane';
 
 export enum PostType {
@@ -553,6 +552,22 @@ export interface PostClassification {
 export type PostAuthorRole = 'owner' | 'collaborator';
 export type PostAuthorStatus = 'accepted' | 'pending' | 'declined' | 'stopped';
 
+/**
+ * How a person comes to be NAMED in a post's byline.
+ *
+ * A superset of {@link PostAuthorRole} because one byline entry is not an
+ * `authorship` entry at all: the human who wrote a post published by a `channel`
+ * account is recorded on `Post.writtenByOxyUserId`, deliberately OUTSIDE
+ * `authorship` — putting them in it would return the post to their own profile
+ * and their followers' timelines, which is the whole thing a channel decouples.
+ *
+ * They still belong in the byline when the channel discloses them, so
+ * {@link HydratedAuthor} carries this wider role rather than claiming they are a
+ * `collaborator`. `authorship` keeps the narrower {@link PostAuthorRole}, so no
+ * authorship code has a `writer` case to handle.
+ */
+export type PostBylineRole = PostAuthorRole | 'writer';
+
 export interface PostAuthorshipEntry {
   oxyUserId: string;
   role: PostAuthorRole;
@@ -708,15 +723,37 @@ export interface CreatePostRequest {
    */
   laneId?: string;
   /**
-   * Publish this post TO a channel, which is a destination rather than a lens: the
-   * post belongs to the channel and ONLY to the channel — it never appears on the
-   * author's profile or in their followers' timeline, and it accepts no replies.
+   * Publish this post AS another Oxy account the caller operates. The post is
+   * AUTHORED BY that account: it carries the account's `oxyUserId` and its
+   * `authorship`, so it lands on that account's profile and in the timelines of
+   * its followers, and it renders with its avatar and name because `user` IS that
+   * account.
    *
-   * The caller must be an ACCEPTED member of the channel (403 otherwise). To put a
-   * channel post on your own profile you boost it; there is no field for that,
-   * because a boost is already the right row with the right owner.
+   * The authenticated human is recorded OUTSIDE `authorship`, in
+   * `writtenByOxyUserId`, and is disclosed only when the channel sets
+   * `signPosts`. Putting them in `authorship` would both break that anonymity and
+   * put the post back on their own profile.
+   *
+   * TWO FAMILIES OF ACCOUNT ARE ACCEPTED, on two different authorities:
+   *
+   *  - A **channel**, where accepted membership is the whole right. A channel can
+   *    never be acted as (`isActAsEligibleKind` refuses it — it is a content
+   *    identity, not a seat), so this field, not a session switch, is the ONLY way
+   *    a post comes to be authored by one. A channel post is additionally
+   *    persisted `replyPermission: ['nobody']` — a channel takes no replies.
+   *  - An **organization / project / bot**, where the right is `account:act_as` —
+   *    the same permission that would let the caller switch INTO the account. The
+   *    point of the field here is signing a post as the account WITHOUT switching;
+   *    a member who may not be the account may not sign as it either. Such a post
+   *    is an ordinary post in every other respect, replies included.
+   *
+   * A `personal` account is refused (400): authoring as a human login is
+   * impersonation, and its owner posts as it by signing in.
+   *
+   * To put an account's post on your own profile you boost it; there is no field
+   * for that, because a boost is already the right row with the right owner.
    */
-  channelId?: string;
+  publishAsOxyUserId?: string;
 }
 
 export interface CreateThreadPostRequest {
@@ -736,19 +773,66 @@ export interface CreateThreadPostRequest {
    * chip belongs anyway.
    */
   laneId?: string;
+  /**
+   * Publish THIS entry as another Oxy account the caller operates — the same
+   * field, the same authorization and the same effects as
+   * {@link CreatePostRequest.publishAsOxyUserId}, decided per entry.
+   *
+   * Accepted in BOTH modes, and it wins over
+   * {@link CreateThreadRequest.publishAsOxyUserId} for the entry that carries it.
+   * In `beast` mode the entries are independent posts, so this is the only way to
+   * name an account. In `thread` mode entries carrying different accounts make the
+   * thread a CONVERSATION between them — each such entry mechanically replies to
+   * the one before it — which is coherent between organizations the caller
+   * operates and is refused outright when a CHANNEL is one of them: a channel's
+   * thread must use one account for every entry, because a post from a second
+   * account would be a reply to the channel, and a channel takes none from anyone.
+   *
+   * Every refusal is raised for the WHOLE request before any entry is written,
+   * like every other batch-level refusal here: half a batch cannot be undone in
+   * one action.
+   */
+  publishAsOxyUserId?: string;
 }
 
 export interface CreateThreadRequest {
   mode: 'thread' | 'beast'; // thread = linked posts, beast = separate posts
   posts: CreateThreadPostRequest[];
   /**
-   * ISO time to publish the whole batch at, instead of immediately. BEAST mode
-   * only — the server refuses it in thread mode, where each continuation is
-   * created as a reply to the one before it and publishing them separately would
-   * let a reply precede the post it answers. One time covers every post: the
-   * author picked a moment for the set.
+   * ISO time to publish the whole batch at, instead of immediately. Accepted in
+   * BOTH modes. One time covers every post, because the author picked a moment
+   * for the set, not n moments.
+   *
+   * A THREAD is schedulable even though its continuations are replies to one
+   * another: the ordering that makes that safe lives in the publish path, not in
+   * a refusal here. `claimAndPublishScheduledPost` will not publish a post whose
+   * parent has not published, and `ScheduledPostPublisher` walks each chain
+   * parent-first and stops at its first failure — so a reply can never precede
+   * the post it answers, under any interleaving or partial failure.
    */
   scheduledFor?: string;
+  /**
+   * Publish the WHOLE thread as an Oxy account the caller operates — one identity
+   * for every entry, authorized once. Same field, same authorization and same
+   * effects as {@link CreatePostRequest.publishAsOxyUserId}.
+   *
+   * **`thread` mode only** — a beast batch has no thread to speak for, so the
+   * field is refused there (400) and each entry names its own account instead.
+   *
+   * It is the DEFAULT rather than the last word: an entry carrying its own
+   * {@link CreateThreadPostRequest.publishAsOxyUserId} overrides it, which is what
+   * makes a thread whose entries come from different accounts expressible. Naming
+   * it here alone is the one-voice thread, and that is the ONLY shape a `channel`
+   * may take.
+   *
+   * The continuations are stored as replies to their predecessor, which is how a
+   * thread is joined at all — `PostCreationService` verifies each one against the
+   * parent and the thread root before writing, and NOTHING here opens a channel's
+   * posts to replies from anybody else: every entry is authored by the account, so
+   * the reply gate refuses a third party on the continuations exactly as on the
+   * root.
+   */
+  publishAsOxyUserId?: string;
 }
 
 export interface UpdatePostRequest {
@@ -823,6 +907,25 @@ export interface PostUser {
   /** Bare Oxy file id (resolved by Bloom's ImageResolver) OR an absolute remote URL. */
   avatar?: string | null;
   verified?: boolean;
+  /**
+   * What the account IS — `personal`, `organization`, `project`, `bot`,
+   * `channel`. Oxy's user DTO already carries it (verified live: a profile read
+   * returns `kind: 'personal'`), and this interface is the canonical Oxy `User`
+   * shape passed through unchanged, so omitting it was the anomaly.
+   *
+   * It earns its place rather than merely fitting: a post authored by a channel
+   * account is an ORDINARY post whose author happens to be a channel, and the
+   * row has to link to `/c/<handle>` instead of `/@<handle>`. Without this the
+   * renderer cannot tell, and the only alternative is to send every author link
+   * to `/@<handle>` and let the profile screen bounce — correct, but a wasted
+   * navigation on every channel post.
+   *
+   * `AccountKind` comes from `@oxyhq/contracts`, which owns the account graph
+   * and which this file already imports from — restating the union here would
+   * be a second definition free to drift from the one the server validates
+   * against.
+   */
+  kind?: AccountKind;
   isFederated?: boolean;
   federation?: { domain?: string; actorUri?: string; actorId?: string };
   instance?: string;
@@ -856,7 +959,7 @@ export interface PostEditSource {
 }
 
 export interface HydratedAuthor extends PostUser {
-  role: PostAuthorRole;
+  role: PostBylineRole;
   status: PostAuthorStatus;
 }
 
@@ -1031,7 +1134,20 @@ export interface HydratedPostSummary {
   linkPreviews?: PostLinkPreview[];
   /** Primary author (owner) — backward-compatible single-author field. */
   user: PostUser;
-  /** Owner + accepted collaborators for multi-author header rendering. */
+  /**
+   * Everyone the byline NAMES, for multi-author header rendering: the owner,
+   * then each accepted collaborator, then — on a post published by a `channel`
+   * account that sets `signPosts` — the human who wrote it (`role: 'writer'`).
+   *
+   * The writer is disclosed HERE or not at all: there is deliberately no
+   * `writtenByOxyUserId` on this DTO. Shipping the raw id whenever the column
+   * holds one would end the anonymity of every channel that did NOT opt in,
+   * whatever a renderer then chose to draw — so the decision is made once, on
+   * the server, and an undisclosed writer never crosses the wire.
+   *
+   * `user` stays the CHANNEL either way. The channel is the signature; the
+   * writer is a second author, never the primary.
+   */
   authors: HydratedAuthor[];
   /** Full authorship state when the viewer is a participant. */
   authorship?: PostAuthorshipEntry[];
@@ -1049,17 +1165,16 @@ export interface HydratedPostSummary {
    */
   lane?: LaneSummary;
   /**
-   * The channel this post was published to, when it has one — the SIGNATURE of the
-   * row, not a chip: a channel post renders with the channel's avatar and name.
+   * There is deliberately NO `channel` field here.
    *
-   * It is a separate field precisely so nothing can collapse it into `user`. Oxy
-   * owns identity and a channel is not a person; a fabricated `PostUser` would
-   * break `/@handle` links and poison the identity cache.
-   *
-   * When `channel.signPosts` is `false`, `user` carries NO real identity and
-   * `authors` is empty — the anonymity is in the DTO, not in the renderer.
+   * A channel is an Oxy account, so a channel post is authored BY it: `user` IS
+   * the channel, with its real avatar, name and `/c/<handle>` identity. The
+   * previous shape carried the channel alongside a DELIBERATELY DEGRADED `user`,
+   * because Oxy owns identity and no `PostUser` could be fabricated from a
+   * Mention-local channel row — which is exactly the workaround this replaced.
+   * Anything re-adding a channel field is re-introducing a second identity for a
+   * post, and the renderer would once again have to choose between them.
    */
-  channel?: ChannelSummary;
   parentPostId?: string;
   /**
    * Set on every post that IS a reply, on every surface, whatever the feed did

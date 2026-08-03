@@ -3,10 +3,23 @@
  * Consolidates duplicate regex patterns across controllers.
  */
 
+import {
+  HASHTAG_BODY_SOURCE,
+  HASHTAG_DISALLOWED_SOURCE,
+  HASHTAG_LEADING_MARKS_SOURCE,
+  HASHTAG_TOKEN_SOURCE,
+} from '@mention/shared-types/hashtags';
 import { reconcileMentionIdsDetailed } from '@mention/shared-types/mentions';
 import { logger } from './logger';
 
-const HASHTAG_REGEX = /#([A-Za-z0-9_]+)/g;
+/**
+ * Extraction pattern. Built from the shared definition in
+ * `@mention/shared-types/hashtags` — the SAME source the frontend linkifier and
+ * the outbound-federation linkifier compile — so what is detected here and what
+ * is rendered as a link can no longer disagree. Requires the `u` flag (the class
+ * bodies carry astral `\u{…}` escapes).
+ */
+const HASHTAG_REGEX = new RegExp(`#(${HASHTAG_BODY_SOURCE})`, 'gu');
 export {
   extractMentionIds,
   normalizeMentionIds,
@@ -46,14 +59,27 @@ export function extractHashtags(text: string): string[] {
 }
 
 /**
- * Characters NOT allowed inside a stored hashtag. A canonical hashtag is a run
- * of unicode letters (`\p{L}`), unicode numbers (`\p{N}`), and underscores;
- * everything else — spaces, tabs, newlines, punctuation, emoji, ZWJ/separators —
- * is stripped. The class is unicode-aware (`u` flag) so legitimate
- * international tags federated instances send (Japanese, accented Latin,
- * Cyrillic, etc.) are PRESERVED rather than mangled to ASCII.
+ * Characters NOT allowed inside a stored hashtag — the complement of the shared
+ * continuation class: unicode letters, unicode numbers, combining marks and
+ * underscores. Everything else — spaces, tabs, newlines, punctuation, emoji,
+ * ZWJ/separators — is stripped, so legitimate international tags federated
+ * instances send (Japanese, accented Latin, Cyrillic, Devanagari, …) are
+ * PRESERVED rather than mangled to ASCII.
+ *
+ * Combining marks are part of the allowed set because in Devanagari, Arabic,
+ * Thai and decomposed Vietnamese a written letter is not one code point;
+ * stripping them silently rewrote those tags into a different word.
  */
-const HASHTAG_DISALLOWED_CHARS = /[^\p{L}\p{N}_]+/gu;
+const HASHTAG_DISALLOWED_CHARS = new RegExp(HASHTAG_DISALLOWED_SOURCE, 'gu');
+
+/**
+ * Combining marks at the START of a would-be tag, i.e. marks with no base
+ * character to attach to. Admitting marks to the stored form is what makes an
+ * orphan reachable at all: extraction cannot produce one (a hashtag opens with a
+ * letter), but a user-supplied or federated tag array can, and a tag that is a
+ * bare floating accent is not a tag.
+ */
+const HASHTAG_LEADING_MARKS = new RegExp(HASHTAG_LEADING_MARKS_SOURCE, 'u');
 
 /**
  * Canonical hashtag normalization.
@@ -73,14 +99,16 @@ const HASHTAG_DISALLOWED_CHARS = /[^\p{L}\p{N}_]+/gu;
  * for the recipe that was previously duplicated across the native and federated
  * write paths.
  *
- * Order: strip leading `#` → trim → lowercase → remove disallowed chars.
+ * Order: strip leading `#` → trim → lowercase → remove disallowed chars → drop
+ * orphaned leading combining marks.
  */
 export function normalizeHashtag(raw: string): string {
   return raw
     .replace(/^#/, '')
     .trim()
     .toLowerCase()
-    .replace(HASHTAG_DISALLOWED_CHARS, '');
+    .replace(HASHTAG_DISALLOWED_CHARS, '')
+    .replace(HASHTAG_LEADING_MARKS, '');
 }
 
 /**
@@ -111,10 +139,11 @@ export function mergeHashtags(text: string, userProvided?: string[]): string[] {
 export const SPAM_HASHTAG_BLOCK_THRESHOLD = 4;
 
 /**
- * Matches a hashtag token. Kept identical to {@link HASHTAG_REGEX} so detection
- * for cleaning and detection for the stored `hashtags` field never diverge.
+ * Matches a hashtag token. Compiled from the same shared source as
+ * {@link HASHTAG_REGEX} so detection for cleaning and detection for the stored
+ * `hashtags` field never diverge.
  */
-const HASHTAG_TOKEN = '#[A-Za-z0-9_]+';
+const HASHTAG_TOKEN = HASHTAG_TOKEN_SOURCE;
 
 /**
  * Matches a run of {@link SPAM_HASHTAG_BLOCK_THRESHOLD}+ consecutive hashtags
@@ -126,7 +155,7 @@ const HASHTAG_TOKEN = '#[A-Za-z0-9_]+';
  */
 const CONSECUTIVE_HASHTAG_BLOCK = new RegExp(
   `(\\s*)((?:${HASHTAG_TOKEN})(?:\\s+${HASHTAG_TOKEN}){${SPAM_HASHTAG_BLOCK_THRESHOLD - 1},})`,
-  'g',
+  'gu',
 );
 
 /**
@@ -176,7 +205,7 @@ export function normalizePostHashtags(text: string | undefined | null, userProvi
       }
       // Preserve the first hashtag so it can complete the preceding sentence,
       // keeping the original leading whitespace; drop the rest of the block.
-      const firstTag = block.match(new RegExp(HASHTAG_TOKEN))?.[0] ?? '';
+      const firstTag = block.match(new RegExp(HASHTAG_TOKEN, 'u'))?.[0] ?? '';
       return `${leadingWhitespace}${firstTag}`;
     },
   ).replace(/[ \t]+$/g, '');

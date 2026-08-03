@@ -14,7 +14,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { logger } from '@oxyhq/core/logger';
 import { classifyApiError, normalizeApiError, type ApiErrorReason } from '@/utils/apiError';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
-import { getNormalizedUserHandle, type FileMetadata } from '@oxyhq/core';
+import { getNormalizedUserHandle, type AccountNode, type FileMetadata } from '@oxyhq/core';
 import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';
 import { ThemedView } from '@/components/ThemedView';
@@ -24,20 +24,22 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import PostHeader from '@/components/Post/PostHeader';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
 import { PodcastCard } from '@/components/Podcast/PodcastCard';
 import RoomCard from '@/components/RoomCard';
 import ComposeToolbar from '@/components/ComposeToolbar';
+import { formatScheduledShort } from '@/utils/dateUtils';
+import { ScheduleIcon, ScheduleIconActive } from '@/assets/icons/schedule-icon';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxyhq/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
-import type { Channel, CreatePostRequest, HydratedPost } from '@mention/shared-types';
+import type { CreatePostRequest, HydratedPost } from '@mention/shared-types';
 import { MAX_POST_COLLABORATORS, MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useTheme } from '@oxyhq/bloom/theme';
 import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTextInput';
+import ComposeMentionSummary from '@/components/Compose/ComposeMentionSummary';
 import { SEO } from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
 import { Header } from '@/components/Header';
@@ -87,7 +89,9 @@ import {
   ComposeAltButton,
 } from '@/components/Compose';
 import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPills';
+import ComposeIdentityHeader from '@/components/Compose/ComposeIdentityHeader';
 import ComposeThreadItem from '@/components/Compose/ComposeThreadItem';
+import PublishAsDialog from '@/components/Compose/PublishAsDialog';
 import LanguageTabs from '@/components/Compose/LanguageTabs';
 import VariantEditor from '@/components/Compose/VariantEditor';
 import PostItem from '@/components/Feed/PostItem';
@@ -151,14 +155,13 @@ import {
 } from '@/utils/mentions';
 
 // Keep this in sync with PostItem constants
-import { HPAD, AVATAR_SIZE, BOTTOM_LEFT_PAD, TIMELINE_LINE_OFFSET } from '@/components/Compose/composeLayout';
+import { HPAD, BOTTOM_LEFT_PAD, TIMELINE_LINE_OFFSET } from '@/components/Compose/composeLayout';
 // Lazy load sheets - only loaded when user opens them
 const UnpublishedSheet = lazy(() => import('@/components/Compose/UnpublishedSheet'));
 const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'));
 const AltTextSheet = lazy(() => import('@/components/Compose/AltTextSheet'));
 const LanguagePickerSheet = lazy(() => import('@/components/Compose/LanguagePickerSheet'));
 const LanePickerSheet = lazy(() => import('@/components/Compose/LanePickerSheet'));
-const ChannelPickerSheet = lazy(() => import('@/components/Compose/ChannelPickerSheet'));
 const EmojiPickerSheet = lazy(() => import('@/components/Compose/EmojiPickerSheet'));
 const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
 const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
@@ -216,13 +219,31 @@ const ComposeScreenBody = () => {
   // (the continuations are replies and carry none), which is exactly what
   // sending it on the main post achieves.
   const [laneId, setLaneId] = useState<string | null>(null);
-  // The channel this post is published TO, held as the whole DTO rather than its
-  // id: the lane picker needs the channel's owner to know which of the two lane
-  // endpoints it may call, and the picker already read the list it came from.
-  const [channel, setChannel] = useState<Channel | null>(null);
-  // Whether a copy of the channel post is boosted onto the author's own profile
-  // once it publishes. ON by default — a channel post exists ONLY in the channel,
-  // and silently disappearing from your own profile is the surprising outcome.
+  // The account this post is published AS, held as the whole account node rather
+  // than its id: the lane picker needs the publisher's role to know which of the
+  // two lane endpoints it may call, and the picker already read the list it came
+  // from.
+  const [publishAs, setPublishAs] = useState<AccountNode | null>(null);
+  /**
+   * The account picker: WHICH box it is choosing for, and whether it is showing.
+   *
+   * One dialog for every box rather than one per box — the picker reads the same
+   * account list whichever box opened it, so the box is a parameter of the
+   * question, not a reason to ask it N times.
+   *
+   * Two values rather than a nullable target, because closing must not also
+   * change what the dialog SAYS: the panel is still fully opaque for ~160ms of
+   * its exit, so clearing the target on close reflowed the card — measured, it
+   * collapsed from 343px to 276px as the "also post to my profile" block
+   * vanished — in front of an author who had just dismissed it without changing
+   * anything. The target outlives the close; only `open` answers it.
+   */
+  const [publishAsTargetId, setPublishAsTargetId] = useState<string>(MAIN_ITEM_ID);
+  const [publishAsOpen, setPublishAsOpen] = useState(false);
+  // Whether a copy of the channel's post is boosted onto the author's own profile
+  // once it publishes. ON by default — the post is authored by the CHANNEL, so it
+  // lands on the channel's profile and not on the author's, and silently
+  // disappearing from your own profile is the surprising outcome.
   const [alsoPostToProfile, setAlsoPostToProfile] = useState(true);
 
   // Use custom hooks for state management
@@ -282,9 +303,13 @@ const ComposeScreenBody = () => {
     removeThreadEvent,
     setThreadRoom,
     removeThreadRoom,
+    setThreadPodcast,
+    removeThreadPodcast,
+    setThreadLaneId,
     setThreadReplyPermission,
     setThreadQuotesDisabled,
     setThreadSensitive,
+    setThreadPublishAs,
     clearAllThreads,
     loadThreadsFromDraft,
   } = threadManager;
@@ -508,9 +533,9 @@ const ComposeScreenBody = () => {
     !replyToPostId && threadItems.length === 0 && (!isEditMode || editCollabEligible);
 
   /**
-   * Whether this post can be put on a lane from HERE.
+   * Whether any post written here can be put on a lane at all.
    *
-   * A reply cannot carry one at all — the server refuses it (400) and
+   * A reply cannot carry one — the server refuses it (400) and
    * `CreateReplyRequest` drops what it does not name, so offering the choice
    * would end in a 201 and a silently discarded lane. An edit cannot either: the
    * edit payload is an `UpdatePostRequest` and moving a post between lanes is a
@@ -521,18 +546,56 @@ const ComposeScreenBody = () => {
   const laneEligible = !replyToPostId && !isEditMode;
 
   /**
-   * Whether this post can be published TO a channel from HERE.
+   * Whether a CONTINUATION box may carry its own lane, answered per posting mode
+   * — the same shape as the account predicates above, and for the same reason.
    *
-   * The same three exclusions the affordances above make, and each for its own
-   * reason. A REPLY: a channel accepts none at all, and `CreateReplyRequest`
-   * drops what it does not name — so offering the choice ends in a 201 with the
-   * post on the author's own profile and nothing saying so. An EDIT: an
-   * `UpdatePostRequest` carries no destination, and moving a published post into
-   * a channel is not an edit, it is a different post with a different byline. A
-   * THREAD: the continuations are replies to their predecessor, which is exactly
-   * what a channel post cannot have.
+   * `POST /posts/thread` reads `laneId` off each entry, but honors it on a BEAST
+   * entry (an independent top-level post) and on a THREAD's root only: a
+   * continuation is created as a reply, and the controller refuses a lane on one
+   * with a 400 that fails the WHOLE batch before anything is written. So the
+   * first box keeps the control in both modes — it is the root either way — and
+   * the rest get it only in beast mode.
    */
-  const channelEligible = !replyToPostId && !isEditMode && threadItems.length === 0;
+  const threadLaneEligible = laneEligible && postingMode === 'beast';
+
+  /**
+   * Whether any post written here can be published AS another account.
+   *
+   * Two exclusions, each for its own reason. A REPLY: a channel takes none at
+   * all, and `CreateReplyRequest` drops what it does not name — so offering the
+   * choice ends in a 201 with the post under the author's own name and nothing
+   * saying so. An EDIT: an `UpdatePostRequest` carries no author, and re-signing
+   * a published post is not an edit, it is a different post with a different
+   * byline.
+   *
+   * The third exclusion used to be "a thread", which is now a per-box question
+   * rather than a composer-wide one — see the two predicates below.
+   */
+  const publishAsEligible = !replyToPostId && !isEditMode;
+
+  /**
+   * Whether a box may name its own account, answered per POSTING MODE.
+   *
+   * BEAST posts are independent — they share a composer and nothing else — so
+   * each may go out as a different account, and every box gets the control. A
+   * THREAD's continuations are created as replies to their predecessor, which is
+   * exactly what a channel post cannot have, so the whole thread stays the
+   * author's: a lone root is still eligible (nothing replies to it yet), and the
+   * first continuation takes the choice away from it too.
+   */
+  const mainPublishAsEligible =
+    publishAsEligible && (postingMode === 'beast' || threadItems.length === 0);
+  const threadPublishAsEligible = publishAsEligible && postingMode === 'beast';
+
+  /**
+   * The account the MAIN post actually goes out as.
+   *
+   * Derived from the same predicate that gates the wire rather than read from
+   * state directly, so a choice the payload would drop — made in beast mode and
+   * then switched back to thread — cannot go on being drawn in the header. One
+   * value feeds the byline and the request; they cannot disagree.
+   */
+  const effectiveMainPublishAs = mainPublishAsEligible ? publishAs : null;
 
   // Schedule manager
   const scheduleManager = useScheduleManager({
@@ -825,11 +888,18 @@ const ComposeScreenBody = () => {
         article: null,
         event: null,
         room: null,
+        podcast: null,
+        // Nor a lane: an intent URL names no publisher, and a lane belongs to
+        // one. It stays the author's choice to make.
+        laneId: null,
         attachmentOrder: [],
         replyPermission: ['anyone'],
         reviewReplies: false,
         quotesDisabled: false,
         isSensitive: false,
+        // A share intent brings text, not an identity. Whose post it is stays
+        // the author's until they say otherwise.
+        publishAs: null,
       }));
       loadThreadsFromDraft(items);
     }
@@ -1087,14 +1157,25 @@ const ComposeScreenBody = () => {
         scheduledAt: scheduledAtValue,
         isSensitive,
         quotedPostId: quotedPost?.id,
-        collaboratorIds: collaborators.length > 0 ? collaborators.map((c) => c.id) : undefined,
+        // Guarded by the same predicate that hides the people icon, like the
+        // lane below. Ungated, adding a second box AFTER naming a collaborator
+        // hid the control but kept the value, and `POST /posts/thread` refuses
+        // `collaboratorIds` on any entry — so the whole batch came back 400
+        // "Collaborators are not supported on threads" for a choice the author
+        // could no longer see, let alone undo.
+        collaboratorIds:
+          collaboratorsEligible && collaborators.length > 0
+            ? collaborators.map((c) => c.id)
+            : undefined,
         // Guarded by the same predicate that hides the affordance, so a lane
         // chosen before a quote turned into a reply can never reach the wire.
         laneId: laneEligible && laneId ? laneId : undefined,
-        // Same guard, and the stakes are higher: a `channelId` that slipped
-        // through onto a reply or a thread would be dropped by the server with a
-        // 201, publishing under the author's own name instead of the channel's.
-        channelId: channelEligible && channel ? channel.id : undefined,
+        // The SAME value the header drew, already narrowed by the predicate that
+        // decides whether this post may carry one at all — a `publishAsOxyUserId`
+        // that slipped through onto a reply or a thread would be dropped by the
+        // server with a 201, publishing under the author's own name instead of
+        // the chosen account's.
+        publishAsOxyUserId: effectiveMainPublishAs?.accountId,
         variantContent: mainVariantContent,
       });
       allPosts.push(mainPost);
@@ -1106,6 +1187,14 @@ const ComposeScreenBody = () => {
           const threadPost = buildThreadPost(
             item,
             buildVariantContent(variants, item.id, item.text, item.mediaIds.map((media) => media.id)),
+            // Narrowed by the same predicate the box's own header reads, so a
+            // per-post account chosen in beast mode and then switched back to
+            // thread cannot reach the wire behind a row that stopped showing it.
+            threadPublishAsEligible ? item.publishAs?.accountId : undefined,
+            // Same narrowing, same reason, and here the cost of skipping it is
+            // the whole batch: a lane left on a box by a switch back to thread
+            // mode is a 400 that refuses every post in the composer.
+            threadLaneEligible && item.laneId ? item.laneId : undefined,
           );
           allPosts.push(threadPost);
         }
@@ -1144,15 +1233,15 @@ const ComposeScreenBody = () => {
         const created = await createPost(allPosts[0]);
 
         // "Also post to my profile" is a BOOST of the channel's post, made after
-        // it exists — which is why there is no `channelOnly` field anywhere: the
-        // boost is a real row with the author as its owner, and every surface
-        // already renders it as "reposted by X" above the channel's own post.
+        // it exists — the boost is a real row with the AUTHOR as its owner, and
+        // every surface already renders it as "reposted by X" above the channel's
+        // own post. Nothing on the post itself has to say where it may appear.
         //
         // A SCHEDULED post cannot have one yet: it is not published, so there is
         // nothing on anyone's profile to repost, and the client is long gone by
         // the time it goes out. Saying so is the only honest option — the switch
         // promised something this path cannot deliver.
-        if (mainPost.channelId && alsoPostToProfile) {
+        if (mainPost.publishAsOxyUserId && alsoPostToProfile) {
           if (wasScheduled) {
             toast(
               t('channels.compose.scheduledNoRepost', {
@@ -1646,6 +1735,30 @@ const ComposeScreenBody = () => {
     openScheduleSheet(ScheduleSheet);
   }, [openScheduleSheet]);
 
+  /**
+   * When everything written here goes out, drawn in EVERY box's identity row.
+   *
+   * The time is a property of the BATCH — `POST /posts/thread` reads
+   * `scheduledFor` from the top level and stamps every entry with the same
+   * instant, in both posting modes (a per-entry time is not a field of the
+   * request and is ignored). So every box says the same thing: one box reading
+   * "now" under another reading a date would be claiming a publish time its post
+   * is not going to get.
+   *
+   * ONE element, handed to all of them, rather than one per box. Two copies of a
+   * fact this cheap to share is two things that can disagree, and the failure
+   * mode is the quiet one — clearing the schedule reverts the box that cleared
+   * it while the rest keep showing a time nothing will publish at. Sharing the
+   * node makes that unrepresentable rather than merely tested.
+   */
+  const scheduleTimeSlot = useMemo(() => (
+    <ComposeScheduleIndicator
+      scheduledLabel={scheduledAt ? formatScheduledShort(scheduledAt) : null}
+      onPress={handleSchedulePress}
+      disabled={isPosting}
+    />
+  ), [scheduledAt, handleSchedulePress, isPosting]);
+
   // The people icon toggles the search, so a second press closes what the first
   // one opened rather than leaving the only exit inside the panel.
   const handleCollaboratorsPress = useCallback(() => {
@@ -1658,44 +1771,81 @@ const ComposeScreenBody = () => {
         <LanePickerSheet
           selectedLaneId={laneId}
           onSelect={setLaneId}
-          // Publishing into a channel means the lanes on offer are the CHANNEL's:
+          // Publishing as a channel means the lanes on offer are the CHANNEL's:
           // a lane belongs to its publisher, and the server checks that before it
-          // assigns one.
-          channel={channel}
+          // assigns one. The EFFECTIVE account, not the raw choice — a channel the
+          // payload would drop is not this post's publisher, and offering its lanes
+          // would end in a lane the real author does not own.
+          publishAs={effectiveMainPublishAs}
           onClose={() => bottomSheet.openBottomSheet(false)}
         />
       </Suspense>
     );
     bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, laneId, channel]);
+  }, [bottomSheet, laneId, effectiveMainPublishAs]);
 
   /**
-   * Changing the destination CLEARS the lane, in both directions.
-   *
-   * A lane belongs to one publisher, so a lane picked for the author is not a
-   * lane the channel has, and vice versa. Carrying the old choice across would
-   * send a lane its new publisher does not own — which the server refuses, after
-   * the author has already pressed post.
+   * The same picker for one thread box. Only reachable in beast mode, where the
+   * box is an independent top-level post; the lanes on offer are its OWN
+   * publisher's, read from that box's account rather than the composer's, since
+   * beast boxes may each go out as somebody different.
    */
-  const handleChannelSelect = useCallback((next: Channel | null) => {
-    setChannel(next);
-    setLaneId(null);
-  }, []);
-
-  const handleChannelPress = useCallback(() => {
+  const handleThreadLanePress = useCallback((threadId: string) => {
+    const item = threadItems.find((entry) => entry.id === threadId);
     bottomSheet.setBottomSheetContent(
       <Suspense fallback={null}>
-        <ChannelPickerSheet
-          selectedChannelId={channel?.id ?? null}
-          onSelect={handleChannelSelect}
-          alsoPostToProfile={alsoPostToProfile}
-          onAlsoPostToProfileChange={setAlsoPostToProfile}
+        <LanePickerSheet
+          selectedLaneId={item?.laneId ?? null}
+          onSelect={(next) => setThreadLaneId(threadId, next)}
+          publishAs={threadPublishAsEligible ? item?.publishAs ?? null : null}
           onClose={() => bottomSheet.openBottomSheet(false)}
         />
       </Suspense>
     );
     bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, channel?.id, handleChannelSelect, alsoPostToProfile]);
+  }, [bottomSheet, threadItems, setThreadLaneId, threadPublishAsEligible]);
+
+  /**
+   * Answers the picker for whichever box opened it.
+   *
+   * Changing a box's author also CLEARS that box's lane, in both directions: a
+   * lane belongs to one publisher, so a lane picked for the author is not a lane
+   * the channel has, and vice versa. Carrying the old choice across would send a
+   * lane its new publisher does not own — which the server refuses, after the
+   * author has already pressed post. A thread box now carries its own lane, so
+   * `setThreadPublishAs` clears it on that path for the same reason.
+   */
+  const handlePublishAsSelect = useCallback((next: AccountNode | null) => {
+    if (publishAsTargetId === MAIN_ITEM_ID) {
+      setPublishAs(next);
+      setLaneId(null);
+      return;
+    }
+    setThreadPublishAs(publishAsTargetId, next);
+  }, [publishAsTargetId, setThreadPublishAs]);
+
+  const closePublishAs = useCallback(() => setPublishAsOpen(false), []);
+  const handleMainPublishAsPress = useCallback(() => {
+    setPublishAsTargetId(MAIN_ITEM_ID);
+    setPublishAsOpen(true);
+  }, []);
+  const handleThreadPublishAsPress = useCallback((threadId: string) => {
+    setPublishAsTargetId(threadId);
+    setPublishAsOpen(true);
+  }, []);
+
+  /** The account the box that opened the picker currently publishes as. */
+  const publishAsTargetAccountId = useMemo(() => {
+    if (publishAsTargetId === MAIN_ITEM_ID) return effectiveMainPublishAs?.accountId ?? null;
+    return threadItems.find((item) => item.id === publishAsTargetId)?.publishAs?.accountId ?? null;
+  }, [publishAsTargetId, effectiveMainPublishAs, threadItems]);
+
+  /**
+   * "Also post to my profile" is offered only for a post the composer can
+   * actually boost afterwards: the repost is made from the created post's id,
+   * which the single-post path is the only one that has.
+   */
+  const publishAsCanRepost = publishAsTargetId === MAIN_ITEM_ID && threadItems.length === 0;
 
   // Main post toolbar handlers — stable references for memoized ComposeToolbar
   const handleMainGifPress = useCallback(() => {
@@ -2013,6 +2163,23 @@ const ComposeScreenBody = () => {
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, savePodcast]);
 
+  /**
+   * The same picker, answering for one thread box. A show is per POST — the
+   * thread controller reads `content.podcast` off every entry, root or not — so
+   * each box attaches its own rather than inheriting the first box's.
+   */
+  const openThreadPodcastPicker = useCallback((threadId: string) => {
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <PodcastPickerSheet
+          onClose={() => bottomSheet.openBottomSheet(false)}
+          onSelect={(next) => setThreadPodcast(threadId, next)}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, setThreadPodcast]);
+
   const handleSensitiveToggle = useCallback(() => {
     setIsSensitive(prev => !prev);
   }, []);
@@ -2234,13 +2401,18 @@ const ComposeScreenBody = () => {
 
             <View style={styles.threadContainer}>
               {/* Language tabs. They govern the WHOLE composer: switching tab
-                  switches the main post and every thread item to that language. */}
+                  switches the main post and every thread item to that language,
+                  and ADDING one adds it to every box — which is why the add
+                  affordance sits here rather than in the first box's toolbar,
+                  where it read as that post's own attachment. */}
               <LanguageTabs
                 primaryTag={variants.primaryTag}
                 variantTags={variants.variantTags}
                 activeTag={activeTag}
                 onSelect={setActiveTag}
                 onEdit={handleEditLanguage}
+                onAdd={handleAddLanguage}
+                canAdd={canAddLanguage(variants)}
                 disabled={isPosting}
               />
 
@@ -2254,29 +2426,14 @@ const ComposeScreenBody = () => {
                   <View className="bg-primary/20" style={styles.itemConnectorLine} />
                 ) : null}
                 <View style={styles.composerWithTimeline}>
-                  <PostHeader
-                    paddingHorizontal={HPAD}
-                    user={{
-                      displayName: user?.name.displayName ?? '',
-                      handle: user?.username || '',
-                      verified: Boolean(user?.verified)
-                    }}
-                    avatarSource={user?.avatar}
-                    avatarVariant={MEDIA_VARIANT_AVATAR}
-                    avatarSize={AVATAR_SIZE}
-                    onPressUser={() => { }}
-                    onPressAvatar={() => { }}
-                    disableHoverCard
-                    // The header's time slot says when the post goes out: "now"
-                    // until a time is picked, then the time itself. Passed ONLY
-                    // while scheduled, so the unscheduled row is untouched.
-                    timeSlot={scheduledAt ? (
-                      <ComposeScheduleIndicator
-                        scheduledLabel={formatScheduledLabel(scheduledAt)}
-                        onPress={handleSchedulePress}
-                        disabled={isPosting}
-                      />
-                    ) : undefined}
+                  <ComposeIdentityHeader
+                    publishAs={effectiveMainPublishAs}
+                    // The byline this post is going to get: with collaborators
+                    // named, the header draws the same avatar cluster and "A and
+                    // B" name row the published post will.
+                    collaborators={collaboratorsEligible ? collaborators : undefined}
+                    onPressAvatar={mainPublishAsEligible ? handleMainPublishAsPress : undefined}
+                    timeSlot={scheduleTimeSlot}
                   >
                     <MentionTextInput
                       ref={mainTextInputRef}
@@ -2290,7 +2447,14 @@ const ComposeScreenBody = () => {
                       multiline
                       autoFocus
                     />
-                  </PostHeader>
+                    {/* Who this post will address, including anybody a pasted
+                        profile link resolves to — the only place that mention is
+                        visible, since the body shows their URL. */}
+                    <ComposeMentionSummary
+                      texts={[postContent, ...variantTextsForItem(variants, MAIN_ITEM_ID)]}
+                      mentions={mentions}
+                    />
+                  </ComposeIdentityHeader>
 
                   {/* Attachments row (poll + article + media + link) */}
                   {attachmentOrder.length > 0 ? (
@@ -2541,34 +2705,23 @@ const ComposeScreenBody = () => {
                       onLocationPress={requestLocation}
                       onGifPress={handleMainGifPress}
                       onEmojiPress={handleMainEmojiPress}
-                      onSchedulePress={handleSchedulePress}
                       onSourcesPress={openSourcesSheet}
                       onArticlePress={openArticleEditor}
                       onEventPress={openEventEditor}
                       onRoomPress={handleMainRoomPress}
                       onPodcastPress={openPodcastPicker}
-                      // Only the MAIN toolbar: languages are composer-wide, so a
-                      // per-item copy would offer to add a language to one post
-                      // of a set that shares them all.
-                      onLanguagePress={handleAddLanguage}
-                      hasLanguages={variants.variantTags.length > 0}
-                      languageEnabled={canAddLanguage(variants)}
-                      // Also main-toolbar only, and omitted outright where the
-                      // post cannot take collaborators — a reply, a thread, or
-                      // an edit of an already-collaborative post.
+                      // Omitted outright where the post cannot take
+                      // collaborators — a reply, a thread, or an edit of an
+                      // already-collaborative post. A batch refuses them at the
+                      // server, so a second box takes the icon away.
                       onCollaboratorsPress={collaboratorsEligible ? handleCollaboratorsPress : undefined}
                       hasCollaborators={collaborators.length > 0}
                       collaboratorsEnabled={collaborators.length < MAX_POST_COLLABORATORS}
-                      // Main toolbar only (one lane per post, and in a thread it
-                      // is the root's), and omitted outright where the post
-                      // cannot take one — see `laneEligible`.
+                      // This box is the batch's ROOT in either mode, which is the
+                      // entry the wire takes a lane on in both — so unlike the
+                      // continuations it keeps the control whatever the mode.
                       onLanePress={laneEligible ? handleLanePress : undefined}
                       hasLane={Boolean(laneId)}
-                      // Where the post GOES, as opposed to which of the
-                      // publisher's tracks it lands on. Omitted wherever the
-                      // server would drop the choice — see `channelEligible`.
-                      onChannelPress={channelEligible ? handleChannelPress : undefined}
-                      hasChannel={Boolean(channel)}
                       hasLocation={!!location}
                       isGettingLocation={isGettingLocation}
                       hasPoll={showPollCreator}
@@ -2578,7 +2731,6 @@ const ComposeScreenBody = () => {
                       hasEvent={hasEventContent}
                       hasRoom={hasRoomContent}
                       hasPodcast={hasPodcastContent}
-                      hasSchedule={Boolean(scheduledAt)}
                       hasSourceErrors={invalidSources}
                       disabled={isPosting}
                     />
@@ -2650,11 +2802,14 @@ const ComposeScreenBody = () => {
                 <ComposeThreadItem
                   key={`thread-${item.id}`}
                   item={item}
+                  variantTexts={variantTextsForItem(variants, item.id)}
                   isFocused={focusedItemId === item.id}
                   isPosting={isPosting}
                   postingMode={postingMode}
-                  userAvatar={user?.avatar ?? undefined}
-                  userVerified={Boolean(user?.verified)}
+                  // Narrowed here, once, so the row can render it unconditionally:
+                  // in thread mode every box is the author's, whatever a box was
+                  // set to while the composer was in beast mode.
+                  publishAs={threadPublishAsEligible ? item.publishAs : null}
                   onMentionValueChange={handleThreadMentionValueChange}
                   onFocus={handleThreadFocus}
                   onRemove={handleThreadRemove}
@@ -2681,6 +2836,17 @@ const ComposeScreenBody = () => {
                   onRoomRemove={handleThreadRoomRemove}
                   onReplySettingsPress={handleThreadReplySettingsPress}
                   onSensitiveToggle={handleThreadSensitiveToggle}
+                  onPodcastPress={openThreadPodcastPicker}
+                  onPodcastRemove={removeThreadPodcast}
+                  onPublishAsPress={threadPublishAsEligible ? handleThreadPublishAsPress : undefined}
+                  // A continuation is a reply and the server refuses a lane on
+                  // one, so the icon is absent in thread mode and present in
+                  // beast — see `threadLaneEligible`.
+                  onLanePress={threadLaneEligible ? handleThreadLanePress : undefined}
+                  // The SAME node the main box gets — one publish time for the
+                  // whole batch, so every row says it and clearing it clears
+                  // them all in one render.
+                  timeSlot={scheduleTimeSlot}
                   getFileDownloadUrl={getFileDownloadUrl}
                   textInputRef={handleThreadTextInputRef}
                   styles={styles}
@@ -2798,6 +2964,48 @@ const ComposeScreenBody = () => {
             </ScrollView>
 
             <View style={[styles.bottomBar, bottomBarVisible && { paddingBottom: 80 }]}>
+              {/* WHEN everything written here goes out.
+                  It used to be an icon in the first box's attachment row, which
+                  made it look like that post's schedule. It is not one:
+                  `POST /posts/thread` reads `scheduledFor` from the TOP level
+                  and stamps every entry with the same instant, and a per-entry
+                  time is not a field of the request at all. So it sits down here
+                  with the other whole-batch decisions, where no box owns it —
+                  and unlike them it is never hidden, because the batch has a
+                  publish time in both posting modes. */}
+              <TouchableOpacity
+                onPress={handleSchedulePress}
+                disabled={isPosting}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={t('compose.schedule.a11y', { defaultValue: 'Schedule this post' })}
+                style={[styles.replySettingsPill, { backgroundColor: theme.colors.backgroundSecondary }]}
+              >
+                {/* The FILLED cut once a time is set, not just a tint — the
+                    pairing the rest of the app uses, and the half a
+                    colour-blind reader still gets. Its own glyph, never the
+                    event control's `CalendarIcon`: two different actions drawn
+                    as one picture is the collision that pairing fixed. */}
+                {scheduledAt ? (
+                  <ScheduleIconActive size={16} color={theme.colors.primary} />
+                ) : (
+                  <ScheduleIcon size={16} color={theme.colors.textSecondary} />
+                )}
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.replySettingsText,
+                    { color: scheduledAt ? theme.colors.primary : theme.colors.textSecondary },
+                  ]}
+                >
+                  {/* The SAME short spelling the identity rows show, so the two
+                      places that name this instant cannot read differently. */}
+                  {scheduledAt
+                    ? formatScheduledShort(scheduledAt)
+                    : t('compose.schedule.now', { defaultValue: 'Now' })}
+                </Text>
+                <Ionicons name="chevron-down" size={12} color={theme.colors.textTertiary} />
+              </TouchableOpacity>
               {!(postingMode === 'beast' && threadItems.length > 0) && (
                 <>
                   <TouchableOpacity
@@ -2930,6 +3138,17 @@ const ComposeScreenBody = () => {
           onClose={closeThreadEventEditor}
           onSave={saveThreadEvent}
         />
+        {/* Who one box's post is by. Opened from that box's avatar — the thing
+            that already shows the answer. */}
+        <PublishAsDialog
+          open={publishAsOpen}
+          selectedOxyUserId={publishAsTargetAccountId}
+          onSelect={handlePublishAsSelect}
+          onClose={closePublishAs}
+          alsoPostToProfile={publishAsCanRepost ? alsoPostToProfile : undefined}
+          onAlsoPostToProfileChange={publishAsCanRepost ? setAlsoPostToProfile : undefined}
+        />
+
         {/* Save draft / discard prompt */}
         <Dialog
           control={discardControl}

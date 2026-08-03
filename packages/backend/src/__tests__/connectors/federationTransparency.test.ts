@@ -134,9 +134,9 @@ vi.mock('../../connectors/activitypub/sharingCleanup.service', () => ({
 import {
   FEDERATION_BLOCKS,
   FEDERATION_DOMAIN,
-  OXY_IDENTITY_APEX,
   isBlockedDomain,
 } from '../../connectors/activitypub/constants';
+import { OXY_IDENTITY_APEX } from '../../connectors/activitypub/ownDomain';
 import connectorsRoutes from '../../connectors/connectors.routes';
 
 const app = express();

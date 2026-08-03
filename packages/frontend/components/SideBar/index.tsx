@@ -24,7 +24,7 @@ import { ComposeIcon } from "@/assets/icons/compose-icon";
 import { List, ListActive } from "@/assets/icons/list-icon";
 import { Video, VideoActive } from "@/assets/icons/video-icon";
 import { Hashtag, HashtagActive } from "@/assets/icons/hashtag-icon";
-import { AnalyticsIcon, AnalyticsIconActive } from "@/assets/icons/analytics-icon";
+import { ChannelIcon, ChannelIconActive } from "@/assets/icons/channel-icon";
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -138,10 +138,13 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
             route: '/live-rooms',
         },
         {
-            title: t("sidebar.insights"),
-            icon: <AnalyticsIcon />,
-            iconActive: <AnalyticsIconActive />,
-            route: '/insights',
+            // Channels sits here rather than Insights: a user reaches their own
+            // insights from their profile, so the row was a second door to a
+            // place already one tap away, while channels had no door at all.
+            title: t("sidebar.channels"),
+            icon: <ChannelIcon />,
+            iconActive: <ChannelIconActive />,
+            route: '/channels',
         },
         {
             title: t("sidebar.saved"),

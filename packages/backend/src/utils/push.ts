@@ -163,7 +163,6 @@ export async function formatPushForNotification(n: PushNotificationSource) {
     poke: { title: 'Poke!', body: `${actorName} poked you` },
     welcome: { title: 'Welcome to Mention', body: 'Thanks for joining!' },
     post: { title: 'New post', body: `${actorName} posted a new update` },
-    channel_invite: { title: 'Channel invite', body: `${actorName} invited you to publish to a channel` },
   };
   let f = map[n.type] || { title: 'Notification', body: 'You have a new notification' };
   let preview: string | undefined;
