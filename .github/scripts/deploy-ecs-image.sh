@@ -105,7 +105,7 @@ fi
 MIGRATION_TASK_COMMANDS_JSON='[
   {
     "label": "Postgres migration",
-    "command": ["bun", "packages/backend/dist/src/db/migrate.js"]
+    "command": ["bun", "packages/backend/dist/src/db/migrate.js", "--target-database=mention"]
   },
   {
     "label": "Mongo migration",
