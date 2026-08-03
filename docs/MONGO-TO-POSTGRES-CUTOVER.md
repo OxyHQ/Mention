@@ -196,6 +196,53 @@ Bring the service back up as part of this step:
 aws ecs update-service --cluster oxy-cluster --service mention --desired-count 2
 ```
 
+### 3.4a The one thing in the deploy that can block the window
+
+**The flip deploy still runs a Mongo one-shot, and it runs it minutes after the
+copy streamed 3.2 million documents out of that same Mongo.** This is the only
+step in the sequence whose failure leaves the service stopped and the flip
+un-applied, so know it before you meet it.
+
+What runs: `src/migrations/task.ts` — connect to Mongo, then
+`assertMongoTransactionalTopology()`, then the 25 (all already applied, all
+skipped), then the blocked-domain reconciliation.
+
+The bounds, read from the code rather than guessed:
+
+- Server selection is **20s** (`MONGODB_SERVER_SELECTION_TIMEOUT_MS`, default
+  `20_000`), so an unreachable or still-electing primary fails fast.
+- The topology assertion is a single `db.admin().command({ hello: 1 })` — a
+  cheap state read, not `replSetGetStatus` and not a data scan.
+- But that one-shot sets `socketTimeoutMS: 15 * 60 * 1000`. **A connection that
+  succeeds and then stalls mid-command burns 15 minutes inside the window**
+  before failing, against a deploy-helper task deadline of 20.
+
+**If it fails, the deploy exits before `update-service`.** That is by design
+(`deploy-ecs-image.sh` stops the release when a migration one-shot fails), and it
+means: the copy is done, Postgres holds the data, the Postgres migration one-shot
+already succeeded — and the service is still stopped on the old task definition.
+
+What to do, in order:
+
+1. **Do not re-run the copy.** It completed; re-running is not the problem and
+   `assertTargetsEmpty` will refuse it anyway.
+2. **Re-run the deploy.** Everything in it is idempotent: the Postgres
+   migrations skip, the 25 Mongo migrations skip, only the topology assertion
+   and the reconciliation re-execute.
+3. **Check whether a migration task is still running before re-running.** The
+   deploy warns about this explicitly because the deploy role cannot call
+   `ecs:StopTask` — a task left running against the database is the one thing
+   that makes a second attempt unsafe to start blindly.
+   `aws ecs list-tasks --cluster oxy-cluster --family oxy-mention --desired-status RUNNING`
+4. **If Mongo itself is degraded, prefer §4 (rollback) over pushing through.**
+   Mongo is still the rollback target; a Mongo that cannot answer `hello` is a
+   reason to stop, not a reason to retry harder.
+
+**This risk exists for exactly ONE deploy.** #83 removes the Mongo connection,
+the topology assertion and the 25 migrations, keeping the blocked-domain
+reconciliation as a Postgres-only step — and it is deliberately scheduled AFTER
+the cutover, so this deploy is the last one that carries it.
+
 ### 3.5 Verify BEFORE admitting users
 
 Traffic is already flowing at this point (the service is up and the ALB will
