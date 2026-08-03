@@ -85,11 +85,7 @@ const ALLOWED_PACKAGE_NAME_ALIASES = [];
  * too, so this cannot rot into a list of claims nothing tests.
  */
 const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
-  "minimatch -> brace-expansion@^1.1.7":
-    "brace-expansion is pinned forward for its ReDoS advisory; minimatch's range predates the fix.",
-  "minimatch -> brace-expansion@^5.0.5":
-    "Same pin. minimatch 10 asks for a brace-expansion major that is not published, so every tree resolves this edge elsewhere regardless.",
-  "markdown-it -> linkify-it@^2.0.0":
+      "markdown-it -> linkify-it@^2.0.0":
     "linkify-it is held at one copy for hardened link matching; markdown-it works against the newer API.",
   "@tailwindcss/node -> lightningcss@1.32.0":
     "lightningcss is pinned to 1.30.1 so its linux-x64 gnu/musl native binaries stay on a single version through the image build.",
