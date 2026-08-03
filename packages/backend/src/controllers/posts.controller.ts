@@ -986,63 +986,87 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Posts array is required and cannot be empty' });
     }
 
-    // PUBLISHING AS ANOTHER ACCOUNT IS PER ENTRY, AND `beast` MODE ONLY.
+    // WHERE THE ACCOUNT IS NAMED IS THE OPPOSITE IN THE TWO MODES, and that is the
+    // whole design rather than an inconsistency.
     //
     // A `beast` batch is n independent top-level posts that happen to be written
-    // in one action, so each entry may name its own account and they may all
-    // differ. A `thread` is one conversation: every entry after the first is a
-    // REPLY to the one before it, and `PostCreationService` refuses to publish a
-    // reply as another account at all — so "apply the root's account to the whole
-    // thread" is not implementable without punching a hole in that rule, and a
-    // per-entry account would be an identity that changes mid-conversation.
-    // Refused outright in thread mode instead, which is also what a channel needs:
-    // a channel post accepts no replies, so a thread rooted at one would be a root
-    // whose own continuations the channel refuses.
+    // in one action, so the account is PER ENTRY and they may all differ. A
+    // `thread` is one text in several parts, so it has exactly one publisher by
+    // construction: the account is named ONCE for the BATCH, and a per-entry one
+    // is refused, because an identity that changed mid-thread is the incoherent
+    // case. Each mode therefore has exactly one way to say it, and the other way
+    // is a 400 that names the right field — a client can never send both and have
+    // to discover which won.
     //
-    // The batch-level `publishAsOxyUserId` is refused in BOTH modes. It is not a
-    // field of `CreateThreadRequest` and never was; keeping one way to say this
-    // means a client cannot express a batch-wide account and a per-entry one at
-    // once and then discover which of them won.
-    if (typeof req.body.publishAsOxyUserId === 'string') {
-      return res
-        .status(400)
-        .json({ message: 'Set publishAsOxyUserId on each post, not on the thread' });
-    }
+    // The continuations are stored as replies to their predecessor, which is what
+    // joins a thread at all, and `PostCreationService` normally refuses to publish
+    // a reply as another account. The exception is `continuesOwnThread` on the
+    // create call below: VERIFIED against the parent and the thread root, not
+    // asserted — see `utils/threadContinuation`. Nothing here opens a channel's
+    // posts to replies from anyone else; every entry is authored by the account,
+    // so the reply gate refuses a third party on a continuation exactly as it does
+    // on the root.
+    const batchAccount = req.body.publishAsOxyUserId;
     const entryNamesAnotherAccount = posts.some(
       (p: { publishAsOxyUserId?: unknown }) => typeof p?.publishAsOxyUserId === 'string',
     );
     if (mode === 'thread' && entryNamesAnotherAccount) {
-      return res.status(400).json({ message: 'A thread cannot be published as another account' });
+      return res.status(400).json({
+        message: 'Set publishAsOxyUserId once for the thread, not on each post',
+      });
+    }
+    if (mode !== 'thread' && typeof batchAccount === 'string') {
+      return res
+        .status(400)
+        .json({ message: 'Set publishAsOxyUserId on each post, not on the thread' });
     }
 
     // Every DISTINCT account named across the batch is authorized ONCE, before a
     // single post is written — the same shape the collaborator and lane refusals
     // take, and for the same reason (a partial thread cannot be undone in one
-    // action). `cacheAccountMemberReads` is what makes "once" true end to end: the
-    // creation loop below hands each post the SAME reader and lets
-    // `PostCreationService` run the real gate itself, so nothing routes around the
-    // authorization, and a twelve-entry batch naming one account still makes one
-    // membership call.
+    // action). In thread mode that is literally one call for the whole request;
+    // in beast mode `cacheAccountMemberReads` is what makes it one MEMBERSHIP READ
+    // per distinct account, since the creation loop below hands every post the
+    // SAME reader and lets `PostCreationService` run the real gate itself, so
+    // nothing routes around the authorization.
     const memberReader = createUserScopedOxyServices(req);
     const batchMemberReader = memberReader ? cacheAccountMemberReads(memberReader) : undefined;
     /** Entry index → the account that entry will be AUTHORED BY. */
     const entryAuthorIds: string[] = [];
-    for (let i = 0; i < posts.length; i++) {
-      const requested = posts[i]?.publishAsOxyUserId;
-      try {
+    try {
+      if (mode === 'thread') {
         const { authorId } = await assertCanPublishAsAccount({
-          publishAsOxyUserId: typeof requested === 'string' ? requested : null,
+          publishAsOxyUserId: typeof batchAccount === 'string' ? batchAccount : null,
           callerId: userId,
           memberReader: batchMemberReader,
         });
-        entryAuthorIds.push(authorId ?? userId);
-      } catch (publishAsError) {
-        if (publishAsError instanceof PublishAsAccessError) {
-          return res.status(publishAsError.status).json({ message: publishAsError.message });
+        // One decision, applied to every entry — so no continuation can end up
+        // under an identity the root was not authorized for.
+        entryAuthorIds.push(...posts.map(() => authorId ?? userId));
+      } else {
+        for (const entry of posts) {
+          const requested = (entry as { publishAsOxyUserId?: unknown })?.publishAsOxyUserId;
+          const { authorId } = await assertCanPublishAsAccount({
+            publishAsOxyUserId: typeof requested === 'string' ? requested : null,
+            callerId: userId,
+            memberReader: batchMemberReader,
+          });
+          entryAuthorIds.push(authorId ?? userId);
         }
-        throw publishAsError;
       }
+    } catch (publishAsError) {
+      if (publishAsError instanceof PublishAsAccessError) {
+        return res.status(publishAsError.status).json({ message: publishAsError.message });
+      }
+      throw publishAsError;
     }
+    /** The account THIS request names, if any — thread-wide or per entry. */
+    const accountForEntry = (index: number): string | null => {
+      const named = mode === 'thread'
+        ? batchAccount
+        : (posts[index] as { publishAsOxyUserId?: unknown })?.publishAsOxyUserId;
+      return typeof named === 'string' ? named : null;
+    };
 
     // Lanes are validated for the WHOLE batch before a single post is written.
     // The loop below creates posts one at a time, so a lane refused on entry 3
@@ -1237,14 +1261,22 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         // decides the author, so passing a pre-resolved id instead would be the
         // "checked upstream, trust me" shape that lets a later caller route around
         // it. The repeat is free: `batchMemberReader` has already answered for this
-        // account, and a thread-mode entry never reaches here carrying one.
-        publishAsOxyUserId:
-          typeof postData.publishAsOxyUserId === 'string' ? postData.publishAsOxyUserId : null,
+        // account. In thread mode the account is the batch's, applied to every
+        // entry; in beast mode it is the entry's own.
+        publishAsOxyUserId: accountForEntry(i),
         memberReader: batchMemberReader,
         // For thread mode: chain each continuation post to the immediately
         // previous post (sequential thread), with a shared threadId root.
         // For beast mode: all posts are independent.
         ...(isThreadContinuation ? { parentPostId: previousPostId, threadId: mainPostId } : {}),
+        // The narrow exception to "a reply cannot be published as another
+        // account", and the ONLY place it is ever asked for. It is safe to ask
+        // here for a structural reason and not a trusting one: `previousPostId`
+        // and `mainPostId` are ids of posts THIS request created moments ago,
+        // under the authorization above, so the parent is the same account's own
+        // post by construction — and `create` re-derives that from the database
+        // rather than believing it. See `utils/threadContinuation`.
+        ...(isThreadContinuation ? { continuesOwnThread: true } : {}),
         // Every post of a scheduled batch carries the SAME time — the author
         // picked one moment for the set, not n moments. For a beast batch each
         // is then an ordinary scheduled post published independently; for a

@@ -22,6 +22,12 @@ import type { AccountMember } from '@oxyhq/core';
 
 const saved: Array<Record<string, unknown>> = [];
 const constructedWith: Array<Record<string, unknown>> = [];
+/**
+ * Rows `assertContinuesOwnThread` reads back when a continuation is claimed.
+ * Empty for every other test, which is also the honest answer there: no thread
+ * exists, so no continuation can be verified against one.
+ */
+const threadRows: Array<{ _id: string; oxyUserId?: string; threadId?: string }> = [];
 
 vi.mock('../../models/Post', () => {
   class FakePost {
@@ -43,7 +49,11 @@ vi.mock('../../models/Post', () => {
   }
   return {
     Post: Object.assign(FakePost, {
-      find: vi.fn(() => ({ select: () => ({ lean: async () => [] }) })),
+      find: vi.fn((filter: { _id?: { $in?: Array<string | null | undefined> } }) => {
+        const wanted = new Set((filter?._id?.$in ?? []).map((id) => String(id)));
+        const matched = threadRows.filter((row) => wanted.has(row._id));
+        return { select: () => ({ lean: async () => matched }) };
+      }),
       findById: vi.fn(() => ({ select: () => ({ lean: async () => null }) })),
     }),
     POST_CLASSIFICATION_PENDING: 'pending',
@@ -111,6 +121,7 @@ const memberReader = {
 beforeEach(() => {
   saved.length = 0;
   constructedWith.length = 0;
+  threadRows.length = 0;
   memberReader.listAccountMembers.mockClear();
   resolveUserSummaries.mockReset();
   resolveUserSummaries.mockImplementation(async (ids: string[]) => {
@@ -279,3 +290,153 @@ describe('PostCreationService.create — publishing as another account', () => {
     expect(constructedWith).toHaveLength(0);
   });
 });
+
+/**
+ * The narrow exception, at the layer that owns it.
+ *
+ * `continuesOwnThread` is a SERVICE parameter — `POST /posts` builds its params
+ * from an explicit body whitelist and never names it, so no request can ask for
+ * it (asserted separately in `postsControllerChannelReply.test.ts`). What these
+ * pin is that the parameter grants nothing by itself: every case below sets it,
+ * and only the genuine continuation is written.
+ */
+describe('PostCreationService.create — continuing the account\'s own thread', () => {
+  const ROOT = new mongoose.Types.ObjectId().toString();
+  const CONTINUATION = new mongoose.Types.ObjectId().toString();
+  const SOMEBODY_ELSES = new mongoose.Types.ObjectId().toString();
+
+  function channelThreadExists(): void {
+    threadRows.push(
+      { _id: ROOT, oxyUserId: CHANNEL, threadId: ROOT },
+      { _id: CONTINUATION, oxyUserId: CHANNEL, threadId: ROOT },
+      { _id: SOMEBODY_ELSES, oxyUserId: 'someone-else', threadId: SOMEBODY_ELSES },
+    );
+  }
+
+  it('writes a continuation of the channel\'s own thread, authored by the channel', async () => {
+    channelThreadExists();
+
+    await postCreationService.create({
+      oxyUserId: WRITER,
+      content: { text: 'part two' },
+      publishAsOxyUserId: CHANNEL,
+      parentPostId: ROOT,
+      threadId: ROOT,
+      continuesOwnThread: true,
+      memberReader,
+      skipNotifications: true,
+      skipSocketEmit: true,
+      skipFederationDelivery: true,
+    });
+
+    const [doc] = constructedWith;
+    expect(doc.oxyUserId).toBe(CHANNEL);
+    expect(doc.parentPostId).toBe(ROOT);
+    expect(doc.writtenByOxyUserId).toBe(WRITER);
+    // Still a channel post, so still unrepliable by anybody else — the exception
+    // is about who may WRITE the continuation, never about who may answer it.
+    expect(doc.replyPermission).toEqual(['nobody']);
+  });
+
+  it('writes a continuation deeper in the chain too', async () => {
+    channelThreadExists();
+
+    await postCreationService.create({
+      oxyUserId: WRITER,
+      content: { text: 'part three' },
+      publishAsOxyUserId: CHANNEL,
+      parentPostId: CONTINUATION,
+      threadId: ROOT,
+      continuesOwnThread: true,
+      memberReader,
+      skipNotifications: true,
+      skipSocketEmit: true,
+      skipFederationDelivery: true,
+    });
+
+    expect(constructedWith[0].oxyUserId).toBe(CHANNEL);
+  });
+
+  /**
+   * MUTATION GUARD. The exception must be the VERIFIED continuation and nothing
+   * else. Replace `assertContinuesOwnThread` with "the author may act for the
+   * parent's account" — the wider rule that reads as the same thing — and this
+   * passes, which is a channel's replies reopened to everybody who operates it.
+   */
+  it('MUTATION GUARD: refuses a claimed continuation of SOMEBODY ELSE\'S post', async () => {
+    channelThreadExists();
+
+    await expect(
+      postCreationService.create({
+        oxyUserId: WRITER,
+        content: { text: 'not a continuation' },
+        publishAsOxyUserId: CHANNEL,
+        parentPostId: SOMEBODY_ELSES,
+        threadId: SOMEBODY_ELSES,
+        continuesOwnThread: true,
+        memberReader,
+        skipNotifications: true,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+
+    expect(constructedWith).toHaveLength(0);
+    expect(saved).toHaveLength(0);
+  });
+
+  it('MUTATION GUARD: refuses a continuation claimed for a thread that does not exist', async () => {
+    // Nothing seeded — the claim names ids with no rows behind them, which is
+    // what a fabricated claim looks like.
+    await expect(
+      postCreationService.create({
+        oxyUserId: WRITER,
+        content: { text: 'invented thread' },
+        publishAsOxyUserId: CHANNEL,
+        parentPostId: ROOT,
+        threadId: ROOT,
+        continuesOwnThread: true,
+        memberReader,
+        skipNotifications: true,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+
+    expect(constructedWith).toHaveLength(0);
+  });
+
+  it('CONTROL: the flag changes nothing for a reply that does not carry an account', async () => {
+    channelThreadExists();
+
+    await postCreationService.create({
+      oxyUserId: WRITER,
+      content: { text: 'an ordinary reply' },
+      parentPostId: SOMEBODY_ELSES,
+      threadId: SOMEBODY_ELSES,
+      continuesOwnThread: true,
+      skipNotifications: true,
+      skipSocketEmit: true,
+      skipFederationDelivery: true,
+    });
+
+    // No account named ⇒ no publish-as gate, no continuation check, and the reply
+    // is the writer's own exactly as before.
+    expect(constructedWith[0].oxyUserId).toBe(WRITER);
+  });
+
+  it('CONTROL: WITHOUT the flag, a reply naming an account is still refused', async () => {
+    channelThreadExists();
+
+    await expect(
+      postCreationService.create({
+        oxyUserId: WRITER,
+        content: { text: 'part two, but unmarked' },
+        publishAsOxyUserId: CHANNEL,
+        parentPostId: ROOT,
+        threadId: ROOT,
+        memberReader,
+        skipNotifications: true,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+
+    expect(constructedWith).toHaveLength(0);
+  });
+});
+
