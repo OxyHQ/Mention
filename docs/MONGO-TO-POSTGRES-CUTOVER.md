@@ -213,9 +213,13 @@ The bounds, read from the code rather than guessed:
   `20_000`), so an unreachable or still-electing primary fails fast.
 - The topology assertion is a single `db.admin().command({ hello: 1 })` — a
   cheap state read, not `replSetGetStatus` and not a data scan.
-- But that one-shot sets `socketTimeoutMS: 15 * 60 * 1000`. **A connection that
-  succeeds and then stalls mid-command burns 15 minutes inside the window**
-  before failing, against a deploy-helper task deadline of 20.
+- That one-shot sets `socketTimeoutMS: 60 * 1000`. **A connection that succeeds
+  and then stalls mid-command burns a minute inside the window** before failing,
+  against a deploy-helper task deadline of 20. It was 15 minutes until this risk
+  was written down: the long timeout existed for index builds and bounded
+  backfills, and this task no longer does either — all 25 migrations skip and the
+  only live payload is Postgres-only. The 60s does not truncate the lease wait,
+  which is 60 seconds of 500 ms polls rather than one long operation.
 
 **If it fails, the deploy exits before `update-service`.** That is by design
 (`deploy-ecs-image.sh` stops the release when a migration one-shot fails), and it
