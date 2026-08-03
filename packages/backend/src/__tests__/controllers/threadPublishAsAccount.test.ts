@@ -384,8 +384,113 @@ describe('the side effects follow the ENTRY\'s author, not the caller', () => {
   });
 });
 
-describe('thread mode refuses the field outright', () => {
-  it('400s even a ROOT-only publishAsOxyUserId, and asks Oxy nothing', async () => {
+/**
+ * THREAD mode names the account ONCE, for the whole thread.
+ *
+ * A thread is one text in several parts, so there is exactly one publisher by
+ * construction — an identity that changed mid-thread is the incoherent case, and
+ * that is the one refused. The continuations are stored as replies to their
+ * predecessor, which is the only reason this needs `PostCreationService`'s
+ * verified `continuesOwnThread` exception at all.
+ */
+describe('thread mode — one account for the whole thread', () => {
+  it('applies the batch account to EVERY entry, root and continuations alike', async () => {
+    const res = makeRes();
+    await createThread(
+      req({
+        mode: 'thread',
+        publishAsOxyUserId: CHANNEL,
+        posts: [
+          { content: { text: 'part one' } },
+          { content: { text: 'part two' } },
+          { content: { text: 'part three' } },
+        ],
+      }),
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(201);
+    expect(requestedAccounts()).toEqual([CHANNEL, CHANNEL, CHANNEL]);
+  });
+
+  it('marks only the CONTINUATIONS as continuing their own thread, never the root', async () => {
+    const res = makeRes();
+    await createThread(
+      req({
+        mode: 'thread',
+        publishAsOxyUserId: CHANNEL,
+        posts: [
+          { content: { text: 'part one' } },
+          { content: { text: 'part two' } },
+          { content: { text: 'part three' } },
+        ],
+      }),
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(201);
+    const marks = create.mock.calls.map(
+      ([params]: [Record<string, unknown>]) => params.continuesOwnThread === true,
+    );
+    // The root is a root: it has no parent, so it needs no exception — and one
+    // granted there would be an exception with nothing to verify against.
+    expect(marks).toEqual([false, true, true]);
+  });
+
+  it('chains each continuation to its predecessor under the SAME thread root', async () => {
+    const res = makeRes();
+    await createThread(
+      req({
+        mode: 'thread',
+        publishAsOxyUserId: CHANNEL,
+        posts: [
+          { content: { text: 'part one' } },
+          { content: { text: 'part two' } },
+          { content: { text: 'part three' } },
+        ],
+      }),
+      res as never,
+    );
+
+    const calls = create.mock.calls.map(([params]: [Record<string, unknown>]) => params);
+    const rootId = String((await create.mock.results[0].value)._id);
+    const secondId = String((await create.mock.results[1].value)._id);
+    expect(calls[1]).toMatchObject({ parentPostId: rootId, threadId: rootId });
+    expect(calls[2]).toMatchObject({ parentPostId: secondId, threadId: rootId });
+  });
+
+  it('authorizes the account ONCE for the whole thread', async () => {
+    const res = makeRes();
+    await createThread(
+      req({
+        mode: 'thread',
+        publishAsOxyUserId: ORGANIZATION,
+        posts: Array.from({ length: 8 }, (_unused, i) => ({ content: { text: `part ${i}` } })),
+      }),
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(201);
+    expect(create).toHaveBeenCalledTimes(8);
+    expect(listAccountMembers.mock.calls.map(([id]: [string]) => id)).toEqual([ORGANIZATION]);
+  });
+
+  it('refuses the whole thread when the account is not the caller\'s to use', async () => {
+    const res = makeRes();
+    await createThread(
+      req({
+        mode: 'thread',
+        publishAsOxyUserId: FORBIDDEN_ORG,
+        posts: [{ content: { text: 'a' } }, { content: { text: 'b' } }],
+      }),
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(403);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('400s a PER-ENTRY account in thread mode, and asks Oxy nothing', async () => {
     const res = makeRes();
     await createThread(
       req({
@@ -401,6 +506,24 @@ describe('thread mode refuses the field outright', () => {
     expect(res.statusCode).toBe(400);
     expect(create).not.toHaveBeenCalled();
     expect(listAccountMembers).not.toHaveBeenCalled();
+  });
+
+  it('CONTROL: a thread naming no account marks no continuation and stays the caller\'s', async () => {
+    const res = makeRes();
+    await createThread(
+      req({ mode: 'thread', posts: [{ content: { text: 'a' } }, { content: { text: 'b' } }] }),
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(201);
+    expect(requestedAccounts()).toEqual([null, null]);
+    // The marker rides with the CHAIN, not with the account — an ordinary
+    // self-thread carries it too and `create` simply never consults it, because
+    // no account was named.
+    const marks = create.mock.calls.map(
+      ([params]: [Record<string, unknown>]) => params.continuesOwnThread === true,
+    );
+    expect(marks).toEqual([false, true]);
   });
 });
 

@@ -20,12 +20,26 @@ export type ProfileTab = typeof TAB_NAMES[number];
  * and the differences matter, because the day one of these mechanisms changes it
  * is the reason recorded here that says whether the tab should come back:
  *
- * - **`replies`** — a channel is a publisher, not a conversant, and the model
- *   refuses replies on BOTH sides of it. Nobody may reply to a channel post
- *   (`utils/channelReplyGate.ts`, which keys on the post AUTHOR's account kind at
- *   five write sites), and the channel may not author one either:
- *   `PostCreationService` rejects `publishAsOxyUserId` together with
- *   `parentPostId`, in its own words because "a channel takes no replies at all".
+ * - **`replies`** — a channel is a publisher, not a conversant. Nobody may reply
+ *   to a channel post (`utils/channelReplyGate.ts`, which keys on the post
+ *   AUTHOR's account kind at five write sites), so the tab could only ever hold
+ *   the channel's OWN replies — and the only ones it can author are the
+ *   continuations of its own threads, which are not replies in any sense a reader
+ *   would recognise and which already render inside the root's slice on the
+ *   `posts` tab (`ThreadSlicingService` groups on `threadId` + `oxyUserId`, and
+ *   the root is a root, so `restrictToRoots` keeps it there). A tab whose entire
+ *   contents are a second copy of another tab's, under a name that describes
+ *   neither, is worse than no tab.
+ *
+ *   This used to read "the channel may not author one either", citing
+ *   `PostCreationService`'s refusal of `publishAsOxyUserId` together with
+ *   `parentPostId`. That refusal now has ONE verified exception —
+ *   `continuesOwnThread`, for a continuation of a thread the same account
+ *   started (`utils/threadContinuation.ts`) — so the old half of the reason is
+ *   false while the conclusion survives on the stronger half above. The reason a
+ *   `replies` tab would come back is unchanged and unmet: someone would have to
+ *   be able to reply to a channel, which is the thing the five write sites exist
+ *   to prevent.
  *
  * - **`likes`** — the tab does not read the channel's posts at all; it reads the
  *   `Like` collection keyed by the LIKER (`gatherAuthorLikes` →

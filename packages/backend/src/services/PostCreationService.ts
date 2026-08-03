@@ -38,6 +38,7 @@ import {
 import { recordRecentReplierForPost } from './PostRecentReplierService';
 import { parentHasPublished } from './scheduledChain';
 import { assertLaneAssignable } from '../utils/laneAssignment';
+import { assertContinuesOwnThread } from '../utils/threadContinuation';
 import {
   assertCanPublishAsAccount,
   PublishAsAccessError,
@@ -97,6 +98,26 @@ export interface CreatePostParams {
    * authorizable, so naming an account without one is a 403.
    */
   memberReader?: AccountMemberReader;
+  /**
+   * This post CONTINUES a thread its own author started — the single case in
+   * which a post carrying both {@link publishAsOxyUserId} and `parentPostId` is
+   * not a reply in the sense the refusal below is about. A thread is one text in
+   * several parts; a post answering itself is not a conversation.
+   *
+   * **It grants nothing on its own.** Setting it only asks for
+   * {@link assertContinuesOwnThread} to be consulted, and that reads the parent
+   * and the thread root back out of the database to confirm both are authored by
+   * the SAME account this post will be. A caller that lies is refused by exactly
+   * the same 400 it would have got for a plain reply.
+   *
+   * **Never read from a request body.** `POST /posts` builds its params from an
+   * explicit whitelist and does not name this field, so the exception is reachable
+   * only from `POST /posts/thread`, where the parent of every continuation is a
+   * post THIS SAME REQUEST just created. Adding it to a body whitelist would turn
+   * a structural property into a client claim — see `utils/threadContinuation` for
+   * why the wider "may act for the parent's account" rule is not the same thing.
+   */
+  continuesOwnThread?: boolean;
   hashtags?: string[];
   mentions?: string[];
   language?: string;
@@ -348,8 +369,17 @@ class PostCreationService {
     // where the channel argument does not apply: replying AS an organization is a
     // coherent feature, but it is a feature — nothing asks for it, and admitting
     // it here by omission would ship it unconsidered and untested.
+    //
+    // ONE EXCEPTION, and it is not "the author may act for the parent's account".
+    // A thread is one text in several parts, and the parts are joined by
+    // `parentPostId`, so every continuation is structurally a reply while being
+    // nothing like a conversation. {@link CreatePostParams.continuesOwnThread}
+    // asks for that case to be VERIFIED — parent and thread root both authored by
+    // the account this post will be — rather than asserted; see
+    // `utils/threadContinuation` for why the wider rule would reopen a channel's
+    // replies to its own operators, which is the thing that cannot happen.
     if (params.publishAsOxyUserId) {
-      if (params.parentPostId) {
+      if (params.parentPostId && !params.continuesOwnThread) {
         throw new PublishAsAccessError(400, 'A reply cannot be published as another account');
       }
       if (params.boostOf) {
@@ -371,6 +401,18 @@ class PostCreationService {
       memberReader: params.memberReader,
     });
     const publishedAsAccount = authorId !== null && authorId !== params.oxyUserId;
+
+    // The continuation claim is verified AFTER the publish-as gate, because what
+    // it has to prove is about the RESOLVED author — the account the post will
+    // actually carry — and that is not known until the gate has answered. Still
+    // before anything is written, like every other refusal here.
+    if (params.publishAsOxyUserId && params.parentPostId && params.continuesOwnThread) {
+      await assertContinuesOwnThread({
+        parentPostId: params.parentPostId,
+        threadId: params.threadId,
+        authorId,
+      });
+    }
 
     await assertLaneAssignable({
       laneId: params.laneId,

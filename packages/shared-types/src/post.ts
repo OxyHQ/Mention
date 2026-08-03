@@ -803,6 +803,28 @@ export interface CreateThreadRequest {
    * author picked a moment for the set.
    */
   scheduledFor?: string;
+  /**
+   * Publish the WHOLE thread as an Oxy account the caller operates — one identity
+   * for every entry, authorized once. Same field, same authorization and same
+   * effects as {@link CreatePostRequest.publishAsOxyUserId}.
+   *
+   * **`thread` mode only, and it is deliberately the OPPOSITE placement from
+   * beast mode's.** A thread is one text in several parts, so there is exactly one
+   * publisher by construction and an identity that changed mid-thread would be
+   * incoherent — hence batch-level here, and a per-entry
+   * {@link CreateThreadPostRequest.publishAsOxyUserId} is refused (400). A beast
+   * batch is n independent posts, so it is the other way round: per entry, and
+   * this field is refused there. Each mode has exactly one way to say it, so a
+   * client can never send both and have to discover which won.
+   *
+   * The continuations are stored as replies to their predecessor, which is how a
+   * thread is joined at all — `PostCreationService` verifies each one against the
+   * parent and the thread root before writing, and NOTHING here opens a channel's
+   * posts to replies from anybody else: every entry is authored by the account, so
+   * the reply gate refuses a third party on the continuations exactly as on the
+   * root.
+   */
+  publishAsOxyUserId?: string;
 }
 
 export interface UpdatePostRequest {
