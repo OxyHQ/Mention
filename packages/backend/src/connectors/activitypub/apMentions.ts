@@ -1,4 +1,5 @@
 import { MAX_MENTIONS_PER_POST } from '@mention/shared-types/mentions';
+import { localProfilePathHandle } from '@mention/shared-types/profileUrls';
 import { logger } from '../../utils/logger';
 import FederatedActor from '../../models/FederatedActor';
 import { actorService } from './actor.service';
@@ -151,25 +152,6 @@ function reconstructProfileHrefs(tag: InboundMentionTag): string[] {
   return hrefs;
 }
 
-/**
- * Extract the local username from an href that points at one of OUR OWN users —
- * either our minted actor URI (`/ap/users/<username>`) or our human profile URL
- * (`/@<username>`). Returns `undefined` for any other shape.
- */
-function extractLocalUsername(href: string): string | undefined {
-  let pathname: string;
-  try {
-    pathname = new URL(href).pathname;
-  } catch {
-    return undefined;
-  }
-  const actorMatch = pathname.match(/^\/ap\/users\/([^/]+)\/?$/);
-  if (actorMatch) return actorMatch[1];
-  const profileMatch = pathname.match(/^\/@([^/]+)\/?$/);
-  if (profileMatch) return profileMatch[1];
-  return undefined;
-}
-
 /** Parse the `Mention` entries out of an AP object's `tag` array. Pure. */
 export function extractMentionTags(object: Record<string, unknown>): InboundMentionTag[] {
   const tag = object.tag;
@@ -247,7 +229,10 @@ async function resolveMentionOxyId(
   }
 
   if (isBlockedDomain(host)) {
-    const username = extractLocalUsername(href);
+    // The host was just established as one of ours (or the Oxy identity apex), so
+    // reading the handle out of the path alone is safe here — see the host-gate
+    // note on `localProfilePathHandle`.
+    const username = localProfilePathHandle(href);
     if (!username) return null;
     const user = await resolveOxyUser(username);
     const oxyUserId = user ? String(user._id ?? user.id ?? '') : '';
@@ -346,7 +331,7 @@ const MAX_CONTENT_PROFILE_LINKS = 8;
 
 /** True when an href could name a user — the gate for spending a lookup on it. */
 function isProfileLikeHref(href: string): boolean {
-  return profileHrefKeys(href) !== undefined || extractLocalUsername(href) !== undefined;
+  return profileHrefKeys(href) !== undefined || localProfilePathHandle(href) !== undefined;
 }
 
 /**

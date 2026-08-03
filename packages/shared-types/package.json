@@ -32,6 +32,11 @@
       "import": "./dist/hashtags.js",
       "require": "./dist/hashtags.js"
     },
+    "./profileUrls": {
+      "types": "./dist/profileUrls.d.ts",
+      "import": "./dist/profileUrls.js",
+      "require": "./dist/profileUrls.js"
+    },
     "./textEntities": {
       "types": "./dist/textEntities.d.ts",
       "import": "./dist/textEntities.js",

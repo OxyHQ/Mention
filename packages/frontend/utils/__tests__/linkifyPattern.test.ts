@@ -72,6 +72,76 @@ describe('LinkifiedText scan — hashtags', () => {
   });
 });
 
+/**
+ * A profile link on THIS instance reads as a mention.
+ *
+ * These drive the scan, not the component, for the reason at the top of this
+ * file — but the assertions are deliberately about what a reader ends up seeing
+ * (`kind`, `label`, and the span the mention covers), because those are the three
+ * things `LinkifiedText` renders off.
+ */
+const scanOne = (text: string) => {
+  const entities = scanLinkifyEntities(text);
+  expect(entities).toHaveLength(1);
+  return entities[0];
+};
+
+describe('LinkifiedText scan — a profile link on our own instance', () => {
+  it('reads a pasted profile URL as a mention of that user', () => {
+    const entity = scanOne('hola https://mention.earth/@alice que tal');
+    expect(entity.kind).toBe('mentionDisplay');
+    // `value` is what the profile route is built from; `label` is what is shown.
+    expect(entity.value).toBe('alice');
+    expect(entity.label).toBe('@alice');
+  });
+
+  it('covers exactly the URL, so the prose either side is untouched', () => {
+    const text = 'hola https://mention.earth/@alice que tal';
+    const entity = scanOne(text);
+    expect(text.slice(entity.start, entity.end)).toBe('https://mention.earth/@alice');
+  });
+
+  it('leaves trailing sentence punctuation outside the mention', () => {
+    const text = 'mira https://mention.earth/@alice.';
+    const entity = scanOne(text);
+    expect(text.slice(entity.start, entity.end)).toBe('https://mention.earth/@alice');
+    expect(text.slice(entity.end)).toBe('.');
+  });
+
+  it('reads our own actor URI too', () => {
+    expect(scanOne('https://mention.earth/ap/users/alice').value).toBe('alice');
+  });
+
+  it('reads our own federated profile URL as the federated handle', () => {
+    const entity = scanOne('https://mention.earth/@bob@mastodon.social');
+    expect(entity.value).toBe('bob@mastodon.social');
+    expect(entity.label).toBe('@bob@mastodon.social');
+  });
+
+  it('reads the scheme-less www form the scanner also accepts as a link', () => {
+    expect(scanOne('www.mention.earth/@alice').value).toBe('alice');
+  });
+});
+
+describe('LinkifiedText scan — a link that is NOT resolvable stays a link', () => {
+  // The whole point of the host gate. A fediverse or upstream profile URL names
+  // an account we may not hold, and a mention that resolves to nobody is worse
+  // than the URL it replaced — so these must come back as `url`.
+  it.each([
+    ['another fediverse instance', 'https://mastodon.social/@bob'],
+    ['an upstream network', 'https://x.com/elonmusk'],
+    ['a bridged network', 'https://bsky.app/profile/alice.bsky.social'],
+    ['a host that merely ends with ours', 'https://notmention.earth/@alice'],
+    ['a sub-page of one of our profiles', 'https://mention.earth/@alice/followers'],
+    ['one of our non-profile pages', 'https://mention.earth/p/abc123'],
+    ['an ordinary link', 'https://example.com/some/article'],
+  ])('leaves %s as a url', (_label, url) => {
+    const entity = scanOne(`mira ${url} vale`);
+    expect(entity.kind).toBe('url');
+    expect(entity.value).toBe(url);
+  });
+});
+
 describe('LinkifiedText scan — Hermes safety', () => {
   // This regex is built at MODULE LOAD. React Native's Hermes has Unicode
   // property escapes compiled out and throws `SyntaxError: Invalid RegExp:
