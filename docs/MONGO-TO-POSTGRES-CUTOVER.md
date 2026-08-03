@@ -436,12 +436,35 @@ half: a task refuses to become ready if migrations are pending, so a bypassed
 migration step surfaces as a task that will not serve rather than one that serves
 wrongly.
 
-**`ALLOW_ZERO_DESIRED_COUNT` was already set to `mention` in §3.1** — it is the
-second half of the scale-to-zero step, not a separate action here, and it had to
-be set before this merge (see §3.1 for the race). `deploy-aws.yml` passes it
+**`ALLOW_ZERO_DESIRED_COUNT` was already set to `mention:<date>` in §3.1** — it is
+the second half of the scale-to-zero step, not a separate action here, and it had
+to be set before this merge (see §3.1 for the race). `deploy-aws.yml` passes it
 through as `${{ vars.ALLOW_ZERO_DESIRED_COUNT }}`. **Without it the deploy
 refuses and exits 1** — traffic already stopped, copy already done, window
 burning.
+
+**CONFIRM DELIVERY FROM THE DEPLOY LOG, not from having run `gh variable set`.**
+Whether GitHub actually hands the variable to the job is the one link in this
+chain no test covers: the guard's behaviour is mutation-tested on every value,
+but nothing here has ever exercised real variable delivery, and a rehearsal
+deploy to production days before the window is a worse risk than the gap.
+
+It fails in the safe direction — an undelivered variable reads as empty, and the
+guard **refuses before any mutating AWS call** (measured: the pre-check exits at
+`deploy-ecs-image.sh`'s desiredCount guard, well before `register-task-definition`
+and `update-service`; the test asserts the mocked AWS log is empty). So the
+failure is loud, early, and fixed in thirty seconds by re-setting the variable —
+not a silent deploy onto zero capacity.
+
+**Both signals are in the log. Look for one of them:**
+
+| log line | meaning |
+| --- | --- |
+| `Deploying mention at desiredCount=0, authorised by ALLOW_ZERO_DESIRED_COUNT=…` | delivered; the deploy is proceeding on the exemption |
+| `must have a positive desiredCount before deployment` | NOT delivered (or expired/misspelled) — re-set the variable and re-run |
+
+The first line also names the expiry, so it doubles as the check that the window
+has not outlived it.
 
 **Confirm the deploy run actually STARTED.** This workflow is `workflow_run`-
 triggered off CI, and a `workflow_run` that never fires looks identical to one
