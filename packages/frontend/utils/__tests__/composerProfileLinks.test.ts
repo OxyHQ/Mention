@@ -1,17 +1,27 @@
 /**
- * The composer's half of "a pasted profile link is a mention".
+ * WHICH LINKS IN A BODY COMPETE TO BECOME MENTIONS.
  *
- * Every case here is driven by a real body string, because the thing being
- * asserted is what the author typed becoming what the server stores. The cases
- * that matter most are the ones where the answer is NOBODY: the composer must
- * never name somebody the write boundary will not.
+ * Every case is driven by a real body string, because the thing being asserted is
+ * what the author typed becoming what the server stores.
+ *
+ * This module decides CANDIDACY and BUDGET, and nothing else. It does not decide
+ * who a link names — the server does, from stored identities, and the composer
+ * asks it (`hooks/useProfileLinkMentions`). So "is a candidate" here never means
+ * "will be announced": a candidate the server resolves to nobody stays an
+ * ordinary link on screen, and the assertions for THAT live in the summary's own
+ * suite where the answer exists.
+ *
+ * What must hold here is narrower and sharper: the set of links competing for the
+ * body's slots has to be the SAME set the write boundary spends its slots on. A
+ * gate that admits fewer does not merely under-report — it reorders the budget,
+ * and can hand the author the name of the one person their post will NOT mention.
  */
 
-import { MAX_MENTIONS_PER_POST } from '@mention/shared-types/mentions';
 import {
-  composerProfileLinks,
+  MAX_MENTIONS_PER_POST,
   MAX_PROFILE_LINKS_PER_BODY,
-} from '../composerProfileLinks';
+} from '@mention/shared-types/mentions';
+import { composerProfileLinks } from '../composerProfileLinks';
 import { ownProfileLinkHandle } from '../ownProfileLinks';
 
 const NO_MENTIONS: string[] = [];
@@ -22,95 +32,82 @@ function fullMentionRegistry(): { text: string; ids: string[] } {
   return { text: ids.map((id) => `[mention:${id}]`).join(' '), ids };
 }
 
-describe('a profile link on this instance is a mention candidate', () => {
-  it('names the handle a pasted profile URL points at', () => {
+describe('a profile-shaped link is a candidate, wherever it is served', () => {
+  it('takes a profile URL on this instance', () => {
     expect(composerProfileLinks(['look at https://mention.earth/@alice'], NO_MENTIONS)).toEqual([
-      { url: 'https://mention.earth/@alice', handle: 'alice' },
+      'https://mention.earth/@alice',
     ]);
   });
 
-  it('reads the actor URI form too — the same person, a different spelling', () => {
+  it('takes the actor URI form too — the same person, a different spelling', () => {
     expect(composerProfileLinks(['https://mention.earth/ap/users/alice'], NO_MENTIONS)).toEqual([
-      { url: 'https://mention.earth/ap/users/alice', handle: 'alice' },
+      'https://mention.earth/ap/users/alice',
+    ]);
+  });
+
+  it('takes a profile on ANOTHER fediverse host', () => {
+    // The write boundary folds this one too whenever we already store the actor,
+    // so it competes for the same budget. Whether it is announced is the
+    // server's answer, not this module's.
+    expect(composerProfileLinks(['https://mastodon.social/@alice'], NO_MENTIONS)).toEqual([
+      'https://mastodon.social/@alice',
+    ]);
+  });
+
+  it('takes the `/users/<id>` form every Mastodon-family host publishes', () => {
+    expect(composerProfileLinks(['https://mastodon.social/users/alice'], NO_MENTIONS)).toEqual([
+      'https://mastodon.social/users/alice',
     ]);
   });
 
   it('keeps the sentence punctuation out of the link', () => {
     expect(composerProfileLinks(['ask https://mention.earth/@alice.'], NO_MENTIONS)).toEqual([
-      { url: 'https://mention.earth/@alice', handle: 'alice' },
+      'https://mention.earth/@alice',
     ]);
   });
 
   it('recognises the bare www form somebody pastes without a scheme', () => {
     expect(composerProfileLinks(['www.mention.earth/@alice'], NO_MENTIONS)).toEqual([
-      { url: 'https://www.mention.earth/@alice', handle: 'alice' },
+      'https://www.mention.earth/@alice',
     ]);
   });
 
   it('reads every rendition of the post, not just the primary body', () => {
     expect(
       composerProfileLinks(['hello', 'hola https://mention.earth/@alice'], NO_MENTIONS),
-    ).toEqual([{ url: 'https://mention.earth/@alice', handle: 'alice' }]);
+    ).toEqual(['https://mention.earth/@alice']);
+  });
+
+  it('takes a lookalike host, and leaves the naming to the server', () => {
+    // `mention.earth.evil.test/@alice` is not ours — the host gate says so — but
+    // it IS profile-shaped, so the write boundary spends a slot asking about it
+    // and so does this. It resolves to nobody unless we genuinely store that
+    // actor, which is the server's call and not a syntactic one.
+    expect(composerProfileLinks(['https://mention.earth.evil.test/@alice'], NO_MENTIONS)).toEqual([
+      'https://mention.earth.evil.test/@alice',
+    ]);
   });
 });
 
-describe('a link that will stay a link is never claimed', () => {
-  it('leaves a fediverse profile alone — this side cannot know who it names', () => {
-    expect(composerProfileLinks(['https://mastodon.social/@alice'], NO_MENTIONS)).toEqual([]);
-  });
-
+describe('a link that could never name anybody is not a candidate', () => {
   it('leaves an ordinary link alone', () => {
     expect(
-      composerProfileLinks(['https://mention.earth/p/abc123 and https://example.com/alice'], NO_MENTIONS),
+      composerProfileLinks(
+        ['https://mention.earth/p/abc123 and https://example.com/alice'],
+        NO_MENTIONS,
+      ),
     ).toEqual([]);
   });
 
-  it('leaves a lookalike host alone', () => {
-    expect(composerProfileLinks(['https://mention.earth.evil.test/@alice'], NO_MENTIONS)).toEqual([]);
-    expect(composerProfileLinks(['https://notmention.earth/@alice'], NO_MENTIONS)).toEqual([]);
-  });
-
   it('leaves a subpage of a profile alone — it is a different document', () => {
-    expect(composerProfileLinks(['https://mention.earth/@alice/followers'], NO_MENTIONS)).toEqual([]);
+    expect(composerProfileLinks(['https://mention.earth/@alice/followers'], NO_MENTIONS)).toEqual(
+      [],
+    );
+    expect(composerProfileLinks(['https://mastodon.social/@alice/media'], NO_MENTIONS)).toEqual([]);
   });
 
   it('leaves text that is not a URL alone', () => {
     expect(composerProfileLinks(['mention.earth @alice', ''], NO_MENTIONS)).toEqual([]);
-  });
-});
-
-describe('a percent-encoded handle is where the two sides disagree', () => {
-  /**
-   * THIS TEST DOCUMENTS A DIVERGENCE, IT DOES NOT ENDORSE ONE.
-   *
-   * The composer decodes, because it uses `ownProfileUrlHandle` — the reader's
-   * rule, which decodes so a reader sees `@café` and not `@caf%C3%A9`, and which
-   * this side has to match or a URL would become a mention on screen for the
-   * reader and something else here.
-   *
-   * The write boundary does NOT decode: its own-host branch hands
-   * `localProfilePathHandle`'s VERBATIM path segment to `resolveOxyUser`, so it
-   * asks Oxy for the literal `caf%C3%A9` and misses. It inherited that from the
-   * federated ingest path, where nothing decoded either.
-   *
-   * So for this one shape the composer names somebody the post will not carry —
-   * an over-claim, the wrong direction. It is pinned here rather than papered
-   * over locally, because the fix belongs in the resolver: a handle the server
-   * cannot look up should not be one the composer can. When that lands, this
-   * case stops being a divergence and this test should assert agreement.
-   */
-  it('extracts the DECODED handle — which the write boundary will not resolve', () => {
-    expect(composerProfileLinks(['https://mention.earth/@caf%C3%A9'], NO_MENTIONS)).toEqual([
-      { url: 'https://mention.earth/@caf%C3%A9', handle: 'café' },
-    ]);
-  });
-
-  it('claims nothing when the encoding does not decode to a usable handle', () => {
-    // A segment that decodes to a route-hostile character, to nothing, or not at
-    // all yields no candidate on either side — the shapes the two DO agree on.
-    expect(composerProfileLinks(['https://mention.earth/@a%2Fb'], NO_MENTIONS)).toEqual([]);
-    expect(composerProfileLinks(['https://mention.earth/@%20'], NO_MENTIONS)).toEqual([]);
-    expect(composerProfileLinks(['https://mention.earth/@%E0%A4%A'], NO_MENTIONS)).toEqual([]);
   });
 });
 
@@ -124,10 +121,31 @@ describe('the composer spends the same budget the write boundary has', () => {
     const links = composerProfileLinks([text], NO_MENTIONS);
 
     expect(links).toHaveLength(MAX_PROFILE_LINKS_PER_BODY);
-    // The handle is the SERVER's to derive now, so the order is asserted on the
-    // URLs — which is also what the endpoint is asked about.
-    expect(links[0].url).toContain('user0');
-    expect(links.at(-1)?.url).toContain(`user${MAX_PROFILE_LINKS_PER_BODY - 1}`);
+    expect(links[0]).toBe('https://mention.earth/@user0');
+    expect(links.at(-1)).toBe(`https://mention.earth/@user${MAX_PROFILE_LINKS_PER_BODY - 1}`);
+  });
+
+  /**
+   * THE CASE THE NARROW GATE GOT WRONG, kept because it is the one that misled an
+   * author rather than merely under-reporting to them.
+   *
+   * A gate admitting only our own host let these eight foreign links through
+   * unbudgeted and then named `@ours` — while the write boundary, which counts
+   * them, spends the whole ceiling on the eight it meets first and drops ours. So
+   * the row named the one person the post would NOT mention. Now the same eight
+   * fill the budget here too, and `@ours` is not among the candidates at all.
+   */
+  it('lets foreign profile links use up the budget, as the write boundary does', () => {
+    const foreign = Array.from(
+      { length: MAX_PROFILE_LINKS_PER_BODY },
+      (_, index) => `https://mastodon.social/@user${index}`,
+    );
+    const body = `${foreign.join(' ')} https://mention.earth/@ours`;
+
+    const links = composerProfileLinks([body], NO_MENTIONS);
+
+    expect(links).toEqual(foreign);
+    expect(links).not.toContain('https://mention.earth/@ours');
   });
 
   it('claims nothing once the picked mentions have used the whole ceiling', () => {
@@ -137,13 +155,12 @@ describe('the composer spends the same budget the write boundary has', () => {
   });
 
   it('takes only the headroom the picked mentions leave', () => {
-    const { text, ids } = fullMentionRegistry();
+    const { ids } = fullMentionRegistry();
     const oneFewer = ids.slice(0, MAX_MENTIONS_PER_POST - 1);
     const body = `${oneFewer.map((id) => `[mention:${id}]`).join(' ')} https://mention.earth/@alice https://mention.earth/@bob`;
 
-    expect(composerProfileLinks([body], oneFewer)).toEqual([
-      { url: 'https://mention.earth/@alice', handle: 'alice' },
-    ]);
+    expect(composerProfileLinks([body], oneFewer)).toEqual(['https://mention.earth/@alice']);
+
     // The same two links with room to spare take both slots, so the assertion
     // above is measuring the headroom and not a cap on links generally.
     expect(
@@ -160,17 +177,17 @@ describe('the composer spends the same budget the write boundary has', () => {
     const ghosts = Array.from({ length: MAX_MENTIONS_PER_POST }, (_, index) => `gone${index}`);
 
     expect(composerProfileLinks(['https://mention.earth/@alice'], ghosts)).toEqual([
-      { url: 'https://mention.earth/@alice', handle: 'alice' },
+      'https://mention.earth/@alice',
     ]);
   });
 
   it('counts each spelling of a profile separately, as the server pays for each', () => {
-    const links = composerProfileLinks(
-      ['https://mention.earth/@alice https://mention.earth/ap/users/alice'],
-      NO_MENTIONS,
-    );
-
-    expect(links.map((link) => link.url)).toEqual([
+    expect(
+      composerProfileLinks(
+        ['https://mention.earth/@alice https://mention.earth/ap/users/alice'],
+        NO_MENTIONS,
+      ),
+    ).toEqual([
       'https://mention.earth/@alice',
       'https://mention.earth/ap/users/alice',
     ]);
@@ -182,15 +199,47 @@ describe('the composer spends the same budget the write boundary has', () => {
         ['https://mention.earth/@alice', 'https://mention.earth/@alice'],
         NO_MENTIONS,
       ),
-    ).toHaveLength(1);
+    ).toEqual(['https://mention.earth/@alice']);
   });
 });
 
-describe('the host gate is the whole safety property', () => {
-  it('is the same decision the reader’s linkifier makes', () => {
-    // Not a re-implementation: both go through `ownProfileLinkHandle`, so a URL
-    // that becomes a mention on screen for the reader is the same URL the
-    // composer offers to name.
+describe('a percent-encoded handle no longer has two readings', () => {
+  /**
+   * THIS BLOCK USED TO PIN A DIVERGENCE. It now pins its absence.
+   *
+   * The composer used to read a handle out of the URL itself, decoding it,
+   * while the write boundary handed the verbatim path segment to its resolver —
+   * so `…/@caf%C3%A9` was announced here and not stored there. The endpoint takes
+   * the URL, so there is no longer a second place the characters are read into a
+   * handle at all, and the disagreement is gone by construction rather than
+   * fixed twice.
+   */
+  it('passes the URL through untouched, for the one side that reads it to answer', () => {
+    expect(composerProfileLinks(['https://mention.earth/@caf%C3%A9'], NO_MENTIONS)).toEqual([
+      'https://mention.earth/@caf%C3%A9',
+    ]);
+  });
+
+  it('is still a candidate when the segment does not decode — the server decides', () => {
+    // These were dropped here when this module derived a handle. It no longer
+    // does, so they reach the one side that can say whether anybody holds them,
+    // which answers `null` and leaves them links.
+    expect(composerProfileLinks(['https://mention.earth/@%E0%A4%A'], NO_MENTIONS)).toEqual([
+      'https://mention.earth/@%E0%A4%A',
+    ]);
+  });
+
+  it('still refuses a segment carrying a path separator — that is a subpage', () => {
+    expect(composerProfileLinks(['https://mention.earth/@a/b'], NO_MENTIONS)).toEqual([]);
+  });
+});
+
+describe('the host gate still decides what the READER sees as a mention', () => {
+  it('is unchanged, and is a different question from candidacy', () => {
+    // The linkifier re-labels a URL as a mention only for our own host, because
+    // there the mention and the link have the same destination. Candidacy above
+    // is wider on purpose: it mirrors what the write boundary BUDGETS, not what
+    // the reading surface renders.
     expect(ownProfileLinkHandle('https://mention.earth/@alice')).toBe('alice');
     expect(ownProfileLinkHandle('https://mastodon.social/@alice')).toBeUndefined();
   });

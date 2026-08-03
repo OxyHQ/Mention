@@ -12,19 +12,24 @@ import type { MentionData } from '@/utils/mentions';
  * about the composer saying so, and — the cases that matter more — about it
  * staying silent whenever the write boundary will leave the link a link.
  *
- * The real `QueryClient` runs; only the profile lookup and the untranspiled SDK
- * modules are mocked, so the debounce, the query and the render are the code
- * under test rather than a re-implementation of it.
+ * THE ANSWER COMES FROM THE SERVER, so the seam mocked here is the app's HTTP
+ * client rather than an Oxy username lookup. That is not a detail of wiring: a
+ * link to another fediverse host is folded exactly like one of ours whenever we
+ * already store the actor, and only the server can say so. The cases below that
+ * name a `mastodon.social` account are the ones that could not be written at all
+ * while this hook resolved handles by itself.
+ *
+ * The real `QueryClient` runs; only the HTTP call is stubbed, so the debounce,
+ * the query and the render are the code under test rather than a
+ * re-implementation of it.
  */
 
-const mockGetProfileByUsername = jest.fn();
+const mockPost = jest.fn();
 
-jest.mock('@oxyhq/services/ui/client', () => ({
-  useAuth: () => ({
-    oxyServices: {
-      getProfileByUsername: (...args: unknown[]) => mockGetProfileByUsername(...args),
-    },
-  }),
+jest.mock('@/utils/api', () => ({
+  authenticatedClient: {
+    post: (...args: unknown[]) => mockPost(...args),
+  },
 }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -34,6 +39,31 @@ jest.mock('react-i18next', () => ({
 jest.mock('@oxyhq/bloom/theme', () => ({
   useTheme: () => ({ colors: {} }),
 }));
+
+interface StubbedMention {
+  userId: string;
+  handle: string;
+  displayName: string;
+}
+
+/**
+ * Answer `POST /mentions/profile-links` the way the server does: one entry per
+ * URL it was ASKED about, in request order, `mention: null` for a URL we hold
+ * nobody for. Keying the stub by URL rather than returning a fixed list is what
+ * lets a case assert which URLs were sent.
+ */
+function stubEndpoint(byUrl: Record<string, StubbedMention>): void {
+  mockPost.mockImplementation(async (_endpoint: string, body: { urls: string[] }) => ({
+    data: {
+      links: body.urls.map((url) => ({ url, mention: byUrl[url] ?? null })),
+    },
+  }));
+}
+
+/** The URLs the composer actually asked about, across every request it made. */
+function askedUrls(): string[][] {
+  return mockPost.mock.calls.map(([, body]) => (body as { urls: string[] }).urls);
+}
 
 /** Every string the rendered row puts on screen, flattened in reading order. */
 function renderedText(tree: TestRenderer.ReactTestRenderer): string {
@@ -77,7 +107,8 @@ async function renderSummary(texts: string[], mentions: MentionData[] = []) {
 
 beforeEach(() => {
   jest.useFakeTimers();
-  mockGetProfileByUsername.mockReset();
+  mockPost.mockReset();
+  stubEndpoint({});
 });
 
 afterEach(() => {
@@ -86,21 +117,49 @@ afterEach(() => {
 
 describe('a pasted profile link that resolves is announced', () => {
   it('names the person the post is about to mention', async () => {
-    mockGetProfileByUsername.mockResolvedValue({
-      id: 'user-alice',
-      username: 'alice',
-      name: { displayName: 'Alice' },
+    stubEndpoint({
+      'https://mention.earth/@alice': {
+        userId: 'user-alice',
+        handle: 'alice',
+        displayName: 'Alice',
+      },
     });
 
     const tree = await renderSummary(['have you seen https://mention.earth/@alice']);
 
-    expect(mockGetProfileByUsername).toHaveBeenCalledWith('alice');
+    expect(askedUrls()).toEqual([['https://mention.earth/@alice']]);
     expect(renderedText(tree)).toContain('This post will mention');
     expect(renderedText(tree)).toContain('@alice');
   });
 
+  it('names the account a link to ANOTHER fediverse host will mention', async () => {
+    // The case this whole wire exists for. The write boundary folds this link
+    // whenever we already store the actor, and the composer could not see that
+    // while it resolved handles against Oxy by itself — so a paste rang somebody's
+    // phone with nothing on screen having said so.
+    stubEndpoint({
+      'https://mastodon.social/@alice': {
+        userId: 'user-alice-remote',
+        handle: 'alice@mastodon.social',
+        displayName: 'Alice',
+      },
+    });
+
+    const tree = await renderSummary(['say hi to https://mastodon.social/@alice']);
+
+    expect(askedUrls()).toEqual([['https://mastodon.social/@alice']]);
+    // The CANONICAL handle, exactly as the published post will render it.
+    expect(renderedText(tree)).toContain('@alice@mastodon.social');
+  });
+
   it('lists a link-derived mention beside a picked one, in one sentence', async () => {
-    mockGetProfileByUsername.mockResolvedValue({ id: 'user-carol', username: 'carol' });
+    stubEndpoint({
+      'https://mention.earth/@carol': {
+        userId: 'user-carol',
+        handle: 'carol',
+        displayName: 'carol',
+      },
+    });
 
     const tree = await renderSummary(
       ['hi [mention:user-bob] and https://mention.earth/@carol'],
@@ -113,7 +172,13 @@ describe('a pasted profile link that resolves is announced', () => {
   });
 
   it('reads a link in a language variant too — the post carries the union', async () => {
-    mockGetProfileByUsername.mockResolvedValue({ id: 'user-alice', username: 'alice' });
+    stubEndpoint({
+      'https://mention.earth/@alice': {
+        userId: 'user-alice',
+        handle: 'alice',
+        displayName: 'alice',
+      },
+    });
 
     const tree = await renderSummary(['hello', 'hola https://mention.earth/@alice']);
 
@@ -121,7 +186,20 @@ describe('a pasted profile link that resolves is announced', () => {
   });
 
   it('names one person once when the body spells their profile two ways', async () => {
-    mockGetProfileByUsername.mockResolvedValue({ id: 'user-alice', username: 'alice' });
+    // Two URLs, two slots, ONE identity — the duplicate collapses on the id in
+    // the answer, which is where the server collapses it too.
+    stubEndpoint({
+      'https://mention.earth/@alice': {
+        userId: 'user-alice',
+        handle: 'alice',
+        displayName: 'alice',
+      },
+      'https://mention.earth/ap/users/alice': {
+        userId: 'user-alice',
+        handle: 'alice',
+        displayName: 'alice',
+      },
+    });
 
     const tree = await renderSummary([
       'https://mention.earth/@alice https://mention.earth/ap/users/alice',
@@ -132,41 +210,47 @@ describe('a pasted profile link that resolves is announced', () => {
 });
 
 describe('a link that stays a link is never announced', () => {
-  it('says nothing for a handle nobody holds', async () => {
+  it('says nothing for a profile the server holds nobody for', async () => {
     // The server resolves this through the same lookup and gets nothing, so it
-    // stores no mention and leaves the URL in the body.
-    mockGetProfileByUsername.mockRejectedValue(new Error('Not found'));
-
+    // stores no mention and leaves the URL in the body. It answers `null` for
+    // that URL rather than failing.
     const tree = await renderSummary(['https://mention.earth/@ghost']);
 
-    expect(mockGetProfileByUsername).toHaveBeenCalledWith('ghost');
+    expect(askedUrls()).toEqual([['https://mention.earth/@ghost']]);
     expect(renderedText(tree)).toBe('');
   });
 
-  it('says nothing for a profile that resolves to no id', async () => {
-    mockGetProfileByUsername.mockResolvedValue({ username: 'alice' });
+  it('says nothing for a fediverse profile we do not store', async () => {
+    const tree = await renderSummary(['https://mastodon.social/@stranger']);
 
-    const tree = await renderSummary(['https://mention.earth/@alice']);
-
-    expect(renderedText(tree)).toBe('');
-  });
-
-  it('says nothing, and asks nothing, for a fediverse profile link', async () => {
-    const tree = await renderSummary(['https://mastodon.social/@alice']);
-
-    expect(mockGetProfileByUsername).not.toHaveBeenCalled();
     expect(renderedText(tree)).toBe('');
   });
 
   it('says nothing, and asks nothing, for an ordinary link', async () => {
     const tree = await renderSummary(['https://example.com/alice']);
 
-    expect(mockGetProfileByUsername).not.toHaveBeenCalled();
+    expect(mockPost).not.toHaveBeenCalled();
     expect(renderedText(tree)).toBe('');
   });
 
+  it('asks about the profile-shaped links only, never the whole body', async () => {
+    stubEndpoint({
+      'https://mention.earth/@alice': {
+        userId: 'user-alice',
+        handle: 'alice',
+        displayName: 'alice',
+      },
+    });
+
+    await renderSummary([
+      'read https://example.com/blog then https://mention.earth/@alice',
+    ]);
+
+    expect(askedUrls()).toEqual([['https://mention.earth/@alice']]);
+  });
+
   it('says nothing when the lookup fails outright — it never guesses', async () => {
-    mockGetProfileByUsername.mockRejectedValue(new Error('network down'));
+    mockPost.mockRejectedValue(new Error('network down'));
 
     const tree = await renderSummary(['https://mention.earth/@alice']);
 
@@ -192,7 +276,7 @@ describe('the summary describes the body, and only the body', () => {
 
   it('asserts nothing until the lookup has answered', async () => {
     let settle: (value: unknown) => void = () => {};
-    mockGetProfileByUsername.mockReturnValue(new Promise((resolve) => { settle = resolve; }));
+    mockPost.mockReturnValue(new Promise((resolve) => { settle = resolve; }));
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     let tree: TestRenderer.ReactTestRenderer | undefined;
@@ -211,7 +295,16 @@ describe('the summary describes the body, and only the body', () => {
     expect(renderedText(tree as TestRenderer.ReactTestRenderer)).toBe('');
 
     await act(async () => {
-      settle({ id: 'user-alice', username: 'alice' });
+      settle({
+        data: {
+          links: [
+            {
+              url: 'https://mention.earth/@alice',
+              mention: { userId: 'user-alice', handle: 'alice', displayName: 'alice' },
+            },
+          ],
+        },
+      });
       await jest.advanceTimersByTimeAsync(0);
     });
 
@@ -219,7 +312,13 @@ describe('the summary describes the body, and only the body', () => {
   });
 
   it('does not spend a lookup on every keystroke of a URL being typed', async () => {
-    mockGetProfileByUsername.mockResolvedValue({ id: 'user-alice', username: 'alice' });
+    stubEndpoint({
+      'https://mention.earth/@alice': {
+        userId: 'user-alice',
+        handle: 'alice',
+        displayName: 'alice',
+      },
+    });
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     let tree: TestRenderer.ReactTestRenderer | undefined;
@@ -246,6 +345,6 @@ describe('the summary describes the body, and only the body', () => {
       await jest.advanceTimersByTimeAsync(500);
     });
 
-    expect(mockGetProfileByUsername.mock.calls.map(([handle]) => handle)).toEqual(['alice']);
+    expect(askedUrls()).toEqual([['https://mention.earth/@alice']]);
   });
 });

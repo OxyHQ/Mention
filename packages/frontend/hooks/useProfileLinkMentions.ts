@@ -9,20 +9,9 @@ import type { MentionData } from '@/utils/mentions';
 /** Debounce before a half-typed profile URL costs a profile lookup. */
 const RESOLVE_DEBOUNCE_MS = 400;
 
-/** How long a resolution stays fresh. Handle → account is stable. */
+/** How long a resolution stays fresh. URL → account is stable. */
 const RESOLVE_STALE_TIME = 5 * 60 * 1000;
 const RESOLVE_GC_TIME = 30 * 60 * 1000;
-
-/**
- * The Oxy profile shape a username lookup returns — only the fields a mention
- * needs, because the composer records an identity, not a profile.
- */
-interface ResolvedProfile {
-  id?: string;
-  _id?: string;
-  username?: string;
-  name?: { displayName?: string };
-}
 
 /**
  * WHO A PASTED PROFILE LINK WILL ACTUALLY MENTION.
@@ -32,12 +21,6 @@ interface ResolvedProfile {
  * left exactly as the author wrote it. So this hook asks the same question the
  * same way and answers "nobody" for the same reasons — anything else would put a
  * name on screen for a post that will not carry it.
- *
- * For a profile on this instance that question is `getProfileByUsername`, which
- * is the method the server's own `resolveOxyUser` calls. It is a lookup of an
- * identity we hold, never a fetch of the pasted URL: dereferencing arbitrary
- * author-typed text would make every paste a request to a host of the author's
- * choosing.
  *
  * It asks the SERVER, through `POST /mentions/profile-links`, because the server
  * is the only side that can answer for a link on another host: a
@@ -57,11 +40,10 @@ export function useProfileLinkMentions(
   texts: readonly string[],
   mentionIds: readonly string[],
 ): { linkMentions: MentionData[]; isResolving: boolean } {
-
   // Serialized rather than held as an array: the caller rebuilds its inputs on
-  // every render, so an array identity would re-arm the debounce forever and it
-  // would never fire. JSON rather than a joined string because a handle may
-  // legally contain any character a URL path can encode, so no separator is safe.
+  // every render, so an array identity would re-arm the debounce forever and the
+  // row would never appear at all — verified, not theorised. JSON rather than a
+  // joined string because a URL may legally contain any separator you might pick.
   const candidatesKey = JSON.stringify(composerProfileLinks(texts, mentionIds));
 
   const [settledKey, setSettledKey] = useState('[]');
@@ -70,13 +52,11 @@ export function useProfileLinkMentions(
     return () => clearTimeout(timeoutId);
   }, [candidatesKey]);
 
-  const urls = useMemo(() => {
-    const settled = JSON.parse(settledKey) as { url: string }[];
-    // Distinct URLs: the server spends a slot per URL, so two spellings of one
-    // profile are two questions there and two here — it dedupes by identity in
-    // the answer, which is where the duplicate actually collapses.
-    return [...new Set(settled.map((candidate) => candidate.url))];
-  }, [settledKey]);
+  // `composerProfileLinks` already yields DISTINCT urls, in reading order, so the
+  // parse is the whole step. The URLs are asked about as-is: the server spends a
+  // slot per URL, so two spellings of one profile are two questions there and two
+  // here, and the duplicate collapses on the identity in the answer.
+  const urls = useMemo(() => JSON.parse(settledKey) as string[], [settledKey]);
 
   const { data, isFetching } = useQuery({
     queryKey: publicQueryKeys.profileLinkMentions(urls),
@@ -115,7 +95,9 @@ export function useProfileLinkMentions(
   return {
     linkMentions: [...byId.values()],
     // Text still settling counts as resolving, so the caller can say it is
-    // checking rather than assert an answer it does not have yet.
+    // checking rather than assert an answer it does not have yet. `isFetching`
+    // rather than `isPending`, which stays true for as long as the query is
+    // disabled — a body with no candidate link is not "still checking".
     isResolving: settledKey !== candidatesKey || isFetching,
   };
 }

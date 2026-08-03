@@ -7,16 +7,18 @@
  *   - the composer withholds the link-preview card for it (`hooks/useLinkDetection`),
  *     matching hydration, which withholds the card server-side for exactly the
  *     same URLs (`PostHydrationService.ownProfileLinkUrls`);
- *   - the composer resolves it and says who the post will mention
- *     (`./composerProfileLinks`).
+ *   - the composer counts it against the post's mention budget
+ *     (`./composerProfileLinks`), which unions this host list with the profile
+ *     shapes served by any host — a link to another instance becomes a mention
+ *     too, and competes for the same slots.
  *
  * If the three derived the host list separately, a URL could become a mention in
  * one and stay a link in another — a mention with a redundant card under it, or a
  * card in the composer for a link that publishes without one.
  *
  * Purely syntactic, and deliberately so: nothing here fetches the URL. Whether we
- * hold the account it names is a different question, answered against stored
- * identities at the write boundary — see `./composerProfileLinks`.
+ * hold the account it names is a different question, answered by the server
+ * against stored identities — see `hooks/useProfileLinkMentions`.
  */
 
 import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
@@ -30,8 +32,12 @@ import { WEB_BASE_URL } from '@/config';
  * Read from the configured web base URL, the same constant share links are built
  * from, so a staging build recognises staging's own links and not production's.
  * A base URL that does not parse yields no hosts at all, which turns every
- * conversion below off rather than guessing — a misconfigured origin should leave
- * links as links, not mint mentions against a host nobody declared.
+ * conversion built on it off rather than guessing — a misconfigured origin should
+ * leave links as links, not mint mentions against a host nobody declared.
+ *
+ * Exported because `./composerProfileLinks` unions it with the profile shapes
+ * every fediverse host serves, and that union has to be built from THIS list
+ * rather than from a fourth derivation of it.
  */
 export const OWN_PROFILE_HOSTS: readonly string[] = (() => {
   try {

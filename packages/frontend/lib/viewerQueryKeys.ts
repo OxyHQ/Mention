@@ -29,15 +29,18 @@ export const publicQueryKeys = {
   ] as const,
   feedModules: () => [...PUBLIC_ROOT, 'feed-modules'] as const,
   /**
-   * Who a profile link pasted into the composer names, keyed by the handle its
-   * path spells. Public: the answer is the same for every author, and it is the
-   * same lookup the server does when it decides whether that link becomes a real
-   * mention.
+   * Who the profile links pasted into one composer body name — one key for the
+   * whole batch, because the endpoint answers for a body's links in one request.
+   *
+   * Sorted, so the same set of links keyed in a different reading order is the
+   * same cached answer; joined on a newline, which no URL can contain, so two
+   * different sets can never collide into one key.
+   *
+   * Public: the answer is the same for every author, and it is the same lookup
+   * the server does when it decides whether those links become real mentions.
    */
-  profileLinkMention: (handle: string) =>
-    [...PUBLIC_ROOT, 'profile-link-mention', handle] as const,
   profileLinkMentions: (urls: readonly string[]) =>
-    ['public', 'profile-link-mentions', [...urls].sort().join('\n')] as const,
+    [...PUBLIC_ROOT, 'profile-link-mentions', [...urls].sort().join('\n')] as const,
   marketplaceCategories: () => [
     ...PUBLIC_ROOT,
     'marketplace-categories',
