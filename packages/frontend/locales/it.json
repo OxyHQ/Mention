@@ -1390,6 +1390,16 @@
       "useOwnMedia": "Usa immagini diverse per {{language}}",
       "useSharedArticle": "Usa l'articolo originale",
       "localizeArticle": "Scrivi l'articolo in {{language}}"
+    },
+    "publishAs": {
+      "title": "Pubblica come",
+      "none": "Io",
+      "noneSubtitle": "Il post esce a tuo nome, come sempre",
+      "current": "Attuale",
+      "empty": "Non gestisci ancora nessun altro account. Un canale è un account che le persone seguono senza seguire chi ci scrive.",
+      "manage": "Crea o gestisci canali",
+      "alsoPostToProfile": "Pubblica anche sul mio profilo",
+      "alsoPostToProfileHint": "Ripubblica il post sul tuo profilo una volta pubblicato."
     }
   },
   "post": {
@@ -1602,18 +1612,8 @@
     "signInRequired": "Accedi per gestire i tuoi canali",
     "signInRequiredDesc": "Un canale è un account che si segue senza seguire chi ci scrive.",
     "compose": {
-      "choose": "Scegli chi pubblica",
       "repostFailed": "Pubblicato sul canale, ma non è stato possibile ripubblicarlo sul tuo profilo.",
       "scheduledNoRepost": "Programmato. Ripubblicalo sul tuo profilo quando esce."
-    },
-    "picker": {
-      "title": "Pubblica come",
-      "none": "Io",
-      "noneSubtitle": "Il post esce a tuo nome, come sempre",
-      "current": "Attuale",
-      "empty": "Un canale è un account che si segue senza seguire chi ci scrive. Puoi pubblicare come i canali che gestisci.",
-      "alsoPostToProfile": "Pubblica anche sul mio profilo",
-      "alsoPostToProfileHint": "Ripubblica il post del canale sul tuo profilo appena viene pubblicato."
     },
     "settings": {
       "title": "Impostazioni del canale",

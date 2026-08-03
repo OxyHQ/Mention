@@ -9,8 +9,7 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
+import type { AccountNode } from '@oxyhq/core';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
 import RoomCard from '@/components/RoomCard';
@@ -23,6 +22,7 @@ import { PollIcon } from '@/assets/icons/poll-icon';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { VideoPreview, PollCreator, LocationDisplay, ComposeAltButton } from '@/components/Compose';
+import ComposeIdentityHeader from '@/components/Compose/ComposeIdentityHeader';
 import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPills';
 import type { ThreadItem } from '@/hooks/useThreadManager';
 import type { ComposerMediaItem } from '@/utils/composeUtils';
@@ -44,9 +44,6 @@ export interface ComposeThreadItemStyles {
   timelineForeground: ViewStyle;
   postContainer: ViewStyle;
   unfocusedItem: ViewStyle;
-  headerRow: ViewStyle;
-  headerMeta: ViewStyle;
-  headerChildren: ViewStyle;
   threadTextInput: TextStyle;
   toolbarWrapper: ViewStyle;
   removeThreadBtn: ViewStyle;
@@ -79,8 +76,14 @@ interface ComposeThreadItemProps {
   isFocused: boolean;
   isPosting: boolean;
   postingMode: 'thread' | 'beast';
-  userAvatar: string | undefined;
-  userVerified: boolean;
+  /**
+   * The account THIS post goes out as, or `null` for the author themselves.
+   *
+   * Already narrowed by the composer to what the payload will actually carry, so
+   * the header can render it unconditionally — a value the wire would drop must
+   * arrive here as `null`, or the row names an author the post will not have.
+   */
+  publishAs: AccountNode | null;
   // Stable callback refs — parent must wrap these in useCallback
   onMentionValueChange: (threadId: string, value: MentionTextValue) => void;
   onFocus: (threadId: string) => void;
@@ -108,6 +111,13 @@ interface ComposeThreadItemProps {
   onRoomRemove: (threadId: string) => void;
   onReplySettingsPress: (threadId: string) => void;
   onSensitiveToggle: (threadId: string) => void;
+  /**
+   * Choose who this post is by. Omitted — leaving the avatar inert — wherever the
+   * payload cannot carry another author: a thread, whose continuations are
+   * replies a channel post cannot have, and a reply or an edit, where the server
+   * refuses one outright.
+   */
+  onPublishAsPress?: (threadId: string) => void;
   getFileDownloadUrl: (id: string) => string;
   textInputRef: (threadId: string, el: MentionTextInputHandle | null) => void;
   // Styles from parent
@@ -119,8 +129,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
   isFocused,
   isPosting,
   postingMode,
-  userAvatar,
-  userVerified,
+  publishAs,
   onMentionValueChange,
   onFocus,
   onRemove,
@@ -147,6 +156,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
   onRoomRemove,
   onReplySettingsPress,
   onSensitiveToggle,
+  onPublishAsPress,
   getFileDownloadUrl,
   textInputRef,
   styles,
@@ -188,6 +198,12 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
   const handleReplySettingsPress = useCallback(() => onReplySettingsPress(threadId), [threadId, onReplySettingsPress]);
   const handleSensitiveToggle = useCallback(() => onSensitiveToggle(threadId), [threadId, onSensitiveToggle]);
   const handleTextInputRef = useCallback((el: MentionTextInputHandle | null) => textInputRef(threadId, el), [threadId, textInputRef]);
+  // Stays `undefined` when the parent supplied no handler, so the avatar is inert
+  // rather than opening a picker whose answer this post could not carry.
+  const handlePublishAsPress = useMemo(
+    () => (onPublishAsPress ? () => onPublishAsPress(threadId) : undefined),
+    [threadId, onPublishAsPress],
+  );
 
   /**
    * The line between avatars says "this post continues the one above it", which
@@ -201,11 +217,6 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
     styles.postContainer,
     !isFocused && styles.unfocusedItem,
   ], [styles.postContainer, styles.unfocusedItem, isFocused]);
-
-  const headerRowStyle = useMemo(() => [
-    styles.headerRow,
-    { paddingHorizontal: HPAD },
-  ], [styles.headerRow]);
 
   const pollMarginStyle = useMemo(() => ({ marginLeft: BOTTOM_LEFT_PAD }), []);
   const interactionMarginStyle = useMemo(() => ({ marginLeft: BOTTOM_LEFT_PAD, paddingHorizontal: HPAD }), []);
@@ -226,58 +237,55 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
         </>
       ) : null}
       <View style={styles.threadItemWithTimeline}>
-        <View style={headerRowStyle}>
-          <TouchableOpacity activeOpacity={0.7}>
-            <Avatar
-              source={userAvatar}
-              size={40}
-              variant={MEDIA_VARIANT_AVATAR}
-              verified={userVerified}
-              style={avatarStyle}
+        {/* The SAME header the first box carries, and the same one the published
+            post will: avatar, display name and handle. In beast mode the avatar
+            is also the control that changes them, and this row is the whole
+            disclosure of which account the post goes out as. */}
+        <ComposeIdentityHeader
+          publishAs={publishAs}
+          onPressAvatar={handlePublishAsPress}
+        >
+          <MentionTextInput
+            ref={handleTextInputRef}
+            style={styles.threadTextInput}
+            placeholder={t('Say more...')}
+            value={item.text}
+            mentions={item.mentions}
+            onValueChange={handleMentionValueChange}
+            onFocus={handleFocus}
+            multiline
+          />
+          <View style={styles.toolbarWrapper}>
+            <ComposeToolbar
+              onMediaPress={handleMediaPress}
+              onPollPress={handlePollPress}
+              onLocationPress={handleLocationPress}
+              onGifPress={handleGifPress}
+              onEmojiPress={handleEmojiPress}
+              onSourcesPress={handleSourcesPress}
+              onArticlePress={handleArticlePress}
+              onEventPress={handleEventPress}
+              onRoomPress={handleRoomPress}
+              hasLocation={!!item.location}
+              hasPoll={item.showPollCreator}
+              hasMedia={item.mediaIds.length > 0}
+              hasSources={item.sources.length > 0}
+              hasArticle={itemHasArticle}
+              hasEvent={itemHasEvent}
+              hasRoom={itemHasRoom}
+              disabled={isPosting}
             />
-          </TouchableOpacity>
-          <View style={styles.headerMeta}>
-            <View style={styles.headerChildren}>
-              <MentionTextInput
-                ref={handleTextInputRef}
-                style={styles.threadTextInput}
-                placeholder={t('Say more...')}
-                value={item.text}
-                mentions={item.mentions}
-                onValueChange={handleMentionValueChange}
-                onFocus={handleFocus}
-                multiline
-              />
-              <View style={styles.toolbarWrapper}>
-                <ComposeToolbar
-                  onMediaPress={handleMediaPress}
-                  onPollPress={handlePollPress}
-                  onLocationPress={handleLocationPress}
-                  onGifPress={handleGifPress}
-                  onEmojiPress={handleEmojiPress}
-                  onSourcesPress={handleSourcesPress}
-                  onArticlePress={handleArticlePress}
-                  onEventPress={handleEventPress}
-                  onRoomPress={handleRoomPress}
-                  hasLocation={!!item.location}
-                  hasPoll={item.showPollCreator}
-                  hasMedia={item.mediaIds.length > 0}
-                  hasSources={item.sources.length > 0}
-                  hasArticle={itemHasArticle}
-                  hasEvent={itemHasEvent}
-                  hasRoom={itemHasRoom}
-                  disabled={isPosting}
-                />
-              </View>
-              <TouchableOpacity
-                style={styles.removeThreadBtn}
-                onPress={handleRemove}
-              >
-                <CloseIcon size={18} color="#5e5e5e" />
-              </TouchableOpacity>
-            </View>
           </View>
-        </View>
+        </ComposeIdentityHeader>
+        {/* A sibling of the header rather than a child of it: the button is
+            absolutely positioned against this row's own box, and rendering it
+            after the header is what puts it above the content it overlaps. */}
+        <TouchableOpacity
+          style={styles.removeThreadBtn}
+          onPress={handleRemove}
+        >
+          <CloseIcon size={18} color="#5e5e5e" />
+        </TouchableOpacity>
 
         {/* Thread item attachments row */}
         {itemHasAttachments && (
@@ -522,7 +530,6 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
 });
 
 // Stable style objects to avoid re-creating on each render
-const avatarStyle = { marginRight: 12 };
 const pointerEventsBoxNone = { pointerEvents: 'box-none' as const };
 
 ComposeThreadItem.displayName = 'ComposeThreadItem';

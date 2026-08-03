@@ -59,6 +59,7 @@ const threadItem = (overrides: Partial<ThreadItem> & { id: string }): ThreadItem
   reviewReplies: false,
   quotesDisabled: false,
   isSensitive: false,
+  publishAs: null,
   ...overrides,
 });
 

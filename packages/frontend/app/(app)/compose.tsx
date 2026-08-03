@@ -24,7 +24,6 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import PostHeader from '@/components/Post/PostHeader';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
 import { PodcastCard } from '@/components/Podcast/PodcastCard';
@@ -87,7 +86,9 @@ import {
   ComposeAltButton,
 } from '@/components/Compose';
 import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPills';
+import ComposeIdentityHeader from '@/components/Compose/ComposeIdentityHeader';
 import ComposeThreadItem from '@/components/Compose/ComposeThreadItem';
+import PublishAsDialog from '@/components/Compose/PublishAsDialog';
 import LanguageTabs from '@/components/Compose/LanguageTabs';
 import VariantEditor from '@/components/Compose/VariantEditor';
 import PostItem from '@/components/Feed/PostItem';
@@ -151,14 +152,13 @@ import {
 } from '@/utils/mentions';
 
 // Keep this in sync with PostItem constants
-import { HPAD, AVATAR_SIZE, BOTTOM_LEFT_PAD, TIMELINE_LINE_OFFSET } from '@/components/Compose/composeLayout';
+import { HPAD, BOTTOM_LEFT_PAD, TIMELINE_LINE_OFFSET } from '@/components/Compose/composeLayout';
 // Lazy load sheets - only loaded when user opens them
 const UnpublishedSheet = lazy(() => import('@/components/Compose/UnpublishedSheet'));
 const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'));
 const AltTextSheet = lazy(() => import('@/components/Compose/AltTextSheet'));
 const LanguagePickerSheet = lazy(() => import('@/components/Compose/LanguagePickerSheet'));
 const LanePickerSheet = lazy(() => import('@/components/Compose/LanePickerSheet'));
-const PublishAsSheet = lazy(() => import('@/components/Compose/PublishAsSheet'));
 const EmojiPickerSheet = lazy(() => import('@/components/Compose/EmojiPickerSheet'));
 const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
 const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
@@ -221,6 +221,22 @@ const ComposeScreenBody = () => {
   // two lane endpoints it may call, and the picker already read the list it came
   // from.
   const [publishAs, setPublishAs] = useState<AccountNode | null>(null);
+  /**
+   * The account picker: WHICH box it is choosing for, and whether it is showing.
+   *
+   * One dialog for every box rather than one per box — the picker reads the same
+   * account list whichever box opened it, so the box is a parameter of the
+   * question, not a reason to ask it N times.
+   *
+   * Two values rather than a nullable target, because closing must not also
+   * change what the dialog SAYS: the panel is still fully opaque for ~160ms of
+   * its exit, so clearing the target on close reflowed the card — measured, it
+   * collapsed from 343px to 276px as the "also post to my profile" block
+   * vanished — in front of an author who had just dismissed it without changing
+   * anything. The target outlives the close; only `open` answers it.
+   */
+  const [publishAsTargetId, setPublishAsTargetId] = useState<string>(MAIN_ITEM_ID);
+  const [publishAsOpen, setPublishAsOpen] = useState(false);
   // Whether a copy of the channel's post is boosted onto the author's own profile
   // once it publishes. ON by default — the post is authored by the CHANNEL, so it
   // lands on the channel's profile and not on the author's, and silently
@@ -287,6 +303,7 @@ const ComposeScreenBody = () => {
     setThreadReplyPermission,
     setThreadQuotesDisabled,
     setThreadSensitive,
+    setThreadPublishAs,
     clearAllThreads,
     loadThreadsFromDraft,
   } = threadManager;
@@ -523,18 +540,43 @@ const ComposeScreenBody = () => {
   const laneEligible = !replyToPostId && !isEditMode;
 
   /**
-   * Whether this post can be published AS another account from HERE.
+   * Whether any post written here can be published AS another account.
    *
-   * The same three exclusions the affordances above make, and each for its own
-   * reason. A REPLY: a channel takes none at all, and `CreateReplyRequest` drops
-   * what it does not name — so offering the choice ends in a 201 with the post
-   * under the author's own name and nothing saying so. An EDIT: an
-   * `UpdatePostRequest` carries no author, and re-signing a published post is not
-   * an edit, it is a different post with a different byline. A THREAD: the
-   * continuations are replies to their predecessor, which is exactly what a
-   * channel post cannot have.
+   * Two exclusions, each for its own reason. A REPLY: a channel takes none at
+   * all, and `CreateReplyRequest` drops what it does not name — so offering the
+   * choice ends in a 201 with the post under the author's own name and nothing
+   * saying so. An EDIT: an `UpdatePostRequest` carries no author, and re-signing
+   * a published post is not an edit, it is a different post with a different
+   * byline.
+   *
+   * The third exclusion used to be "a thread", which is now a per-box question
+   * rather than a composer-wide one — see the two predicates below.
    */
-  const publishAsEligible = !replyToPostId && !isEditMode && threadItems.length === 0;
+  const publishAsEligible = !replyToPostId && !isEditMode;
+
+  /**
+   * Whether a box may name its own account, answered per POSTING MODE.
+   *
+   * BEAST posts are independent — they share a composer and nothing else — so
+   * each may go out as a different account, and every box gets the control. A
+   * THREAD's continuations are created as replies to their predecessor, which is
+   * exactly what a channel post cannot have, so the whole thread stays the
+   * author's: a lone root is still eligible (nothing replies to it yet), and the
+   * first continuation takes the choice away from it too.
+   */
+  const mainPublishAsEligible =
+    publishAsEligible && (postingMode === 'beast' || threadItems.length === 0);
+  const threadPublishAsEligible = publishAsEligible && postingMode === 'beast';
+
+  /**
+   * The account the MAIN post actually goes out as.
+   *
+   * Derived from the same predicate that gates the wire rather than read from
+   * state directly, so a choice the payload would drop — made in beast mode and
+   * then switched back to thread — cannot go on being drawn in the header. One
+   * value feeds the byline and the request; they cannot disagree.
+   */
+  const effectiveMainPublishAs = mainPublishAsEligible ? publishAs : null;
 
   // Schedule manager
   const scheduleManager = useScheduleManager({
@@ -832,6 +874,9 @@ const ComposeScreenBody = () => {
         reviewReplies: false,
         quotesDisabled: false,
         isSensitive: false,
+        // A share intent brings text, not an identity. Whose post it is stays
+        // the author's until they say otherwise.
+        publishAs: null,
       }));
       loadThreadsFromDraft(items);
     }
@@ -1093,11 +1138,12 @@ const ComposeScreenBody = () => {
         // Guarded by the same predicate that hides the affordance, so a lane
         // chosen before a quote turned into a reply can never reach the wire.
         laneId: laneEligible && laneId ? laneId : undefined,
-        // Same guard, and the stakes are higher: a `publishAsOxyUserId` that
-        // slipped through onto a reply or a thread would be dropped by the server
-        // with a 201, publishing under the author's own name instead of the
-        // channel's.
-        publishAsOxyUserId: publishAsEligible && publishAs ? publishAs.accountId : undefined,
+        // The SAME value the header drew, already narrowed by the predicate that
+        // decides whether this post may carry one at all — a `publishAsOxyUserId`
+        // that slipped through onto a reply or a thread would be dropped by the
+        // server with a 201, publishing under the author's own name instead of
+        // the chosen account's.
+        publishAsOxyUserId: effectiveMainPublishAs?.accountId,
         variantContent: mainVariantContent,
       });
       allPosts.push(mainPost);
@@ -1109,6 +1155,10 @@ const ComposeScreenBody = () => {
           const threadPost = buildThreadPost(
             item,
             buildVariantContent(variants, item.id, item.text, item.mediaIds.map((media) => media.id)),
+            // Narrowed by the same predicate the box's own header reads, so a
+            // per-post account chosen in beast mode and then switched back to
+            // thread cannot reach the wire behind a row that stopped showing it.
+            threadPublishAsEligible ? item.publishAs?.accountId : undefined,
           );
           allPosts.push(threadPost);
         }
@@ -1663,42 +1713,58 @@ const ComposeScreenBody = () => {
           onSelect={setLaneId}
           // Publishing as a channel means the lanes on offer are the CHANNEL's:
           // a lane belongs to its publisher, and the server checks that before it
-          // assigns one.
-          publishAs={publishAs}
+          // assigns one. The EFFECTIVE account, not the raw choice — a channel the
+          // payload would drop is not this post's publisher, and offering its lanes
+          // would end in a lane the real author does not own.
+          publishAs={effectiveMainPublishAs}
           onClose={() => bottomSheet.openBottomSheet(false)}
         />
       </Suspense>
     );
     bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, laneId, publishAs]);
+  }, [bottomSheet, laneId, effectiveMainPublishAs]);
 
   /**
-   * Changing the author CLEARS the lane, in both directions.
+   * Answers the picker for whichever box opened it.
    *
-   * A lane belongs to one publisher, so a lane picked for the author is not a
-   * lane the channel has, and vice versa. Carrying the old choice across would
-   * send a lane its new publisher does not own — which the server refuses, after
-   * the author has already pressed post.
+   * Changing the MAIN post's author also CLEARS the lane, in both directions: a
+   * lane belongs to one publisher, so a lane picked for the author is not a lane
+   * the channel has, and vice versa. Carrying the old choice across would send a
+   * lane its new publisher does not own — which the server refuses, after the
+   * author has already pressed post. A thread item carries no lane at all, so
+   * there is nothing to clear on that path.
    */
   const handlePublishAsSelect = useCallback((next: AccountNode | null) => {
-    setPublishAs(next);
-    setLaneId(null);
+    if (publishAsTargetId === MAIN_ITEM_ID) {
+      setPublishAs(next);
+      setLaneId(null);
+      return;
+    }
+    setThreadPublishAs(publishAsTargetId, next);
+  }, [publishAsTargetId, setThreadPublishAs]);
+
+  const closePublishAs = useCallback(() => setPublishAsOpen(false), []);
+  const handleMainPublishAsPress = useCallback(() => {
+    setPublishAsTargetId(MAIN_ITEM_ID);
+    setPublishAsOpen(true);
+  }, []);
+  const handleThreadPublishAsPress = useCallback((threadId: string) => {
+    setPublishAsTargetId(threadId);
+    setPublishAsOpen(true);
   }, []);
 
-  const handlePublishAsPress = useCallback(() => {
-    bottomSheet.setBottomSheetContent(
-      <Suspense fallback={null}>
-        <PublishAsSheet
-          selectedOxyUserId={publishAs?.accountId ?? null}
-          onSelect={handlePublishAsSelect}
-          alsoPostToProfile={alsoPostToProfile}
-          onAlsoPostToProfileChange={setAlsoPostToProfile}
-          onClose={() => bottomSheet.openBottomSheet(false)}
-        />
-      </Suspense>
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, publishAs?.accountId, handlePublishAsSelect, alsoPostToProfile]);
+  /** The account the box that opened the picker currently publishes as. */
+  const publishAsTargetAccountId = useMemo(() => {
+    if (publishAsTargetId === MAIN_ITEM_ID) return effectiveMainPublishAs?.accountId ?? null;
+    return threadItems.find((item) => item.id === publishAsTargetId)?.publishAs?.accountId ?? null;
+  }, [publishAsTargetId, effectiveMainPublishAs, threadItems]);
+
+  /**
+   * "Also post to my profile" is offered only for a post the composer can
+   * actually boost afterwards: the repost is made from the created post's id,
+   * which the single-post path is the only one that has.
+   */
+  const publishAsCanRepost = publishAsTargetId === MAIN_ITEM_ID && threadItems.length === 0;
 
   // Main post toolbar handlers — stable references for memoized ComposeToolbar
   const handleMainGifPress = useCallback(() => {
@@ -2257,19 +2323,13 @@ const ComposeScreenBody = () => {
                   <View className="bg-primary/20" style={styles.itemConnectorLine} />
                 ) : null}
                 <View style={styles.composerWithTimeline}>
-                  <PostHeader
-                    paddingHorizontal={HPAD}
-                    user={{
-                      displayName: user?.name.displayName ?? '',
-                      handle: user?.username || '',
-                      verified: Boolean(user?.verified)
-                    }}
-                    avatarSource={user?.avatar}
-                    avatarVariant={MEDIA_VARIANT_AVATAR}
-                    avatarSize={AVATAR_SIZE}
-                    onPressUser={() => { }}
-                    onPressAvatar={() => { }}
-                    disableHoverCard
+                  <ComposeIdentityHeader
+                    publishAs={effectiveMainPublishAs}
+                    // The byline this post is going to get: with collaborators
+                    // named, the header draws the same avatar cluster and "A and
+                    // B" name row the published post will.
+                    collaborators={collaboratorsEligible ? collaborators : undefined}
+                    onPressAvatar={mainPublishAsEligible ? handleMainPublishAsPress : undefined}
                     // The header's time slot says when the post goes out: "now"
                     // until a time is picked, then the time itself. Passed ONLY
                     // while scheduled, so the unscheduled row is untouched.
@@ -2293,7 +2353,7 @@ const ComposeScreenBody = () => {
                       multiline
                       autoFocus
                     />
-                  </PostHeader>
+                  </ComposeIdentityHeader>
 
                   {/* Attachments row (poll + article + media + link) */}
                   {attachmentOrder.length > 0 ? (
@@ -2567,11 +2627,6 @@ const ComposeScreenBody = () => {
                       // cannot take one — see `laneEligible`.
                       onLanePress={laneEligible ? handleLanePress : undefined}
                       hasLane={Boolean(laneId)}
-                      // Where the post GOES, as opposed to which of the
-                      // publisher's tracks it lands on. Omitted wherever the
-                      // server would drop the choice — see `publishAsEligible`.
-                      onPublishAsPress={publishAsEligible ? handlePublishAsPress : undefined}
-                      hasPublishAs={Boolean(publishAs)}
                       hasLocation={!!location}
                       isGettingLocation={isGettingLocation}
                       hasPoll={showPollCreator}
@@ -2656,8 +2711,10 @@ const ComposeScreenBody = () => {
                   isFocused={focusedItemId === item.id}
                   isPosting={isPosting}
                   postingMode={postingMode}
-                  userAvatar={user?.avatar ?? undefined}
-                  userVerified={Boolean(user?.verified)}
+                  // Narrowed here, once, so the row can render it unconditionally:
+                  // in thread mode every box is the author's, whatever a box was
+                  // set to while the composer was in beast mode.
+                  publishAs={threadPublishAsEligible ? item.publishAs : null}
                   onMentionValueChange={handleThreadMentionValueChange}
                   onFocus={handleThreadFocus}
                   onRemove={handleThreadRemove}
@@ -2684,6 +2741,7 @@ const ComposeScreenBody = () => {
                   onRoomRemove={handleThreadRoomRemove}
                   onReplySettingsPress={handleThreadReplySettingsPress}
                   onSensitiveToggle={handleThreadSensitiveToggle}
+                  onPublishAsPress={threadPublishAsEligible ? handleThreadPublishAsPress : undefined}
                   getFileDownloadUrl={getFileDownloadUrl}
                   textInputRef={handleThreadTextInputRef}
                   styles={styles}
@@ -2933,6 +2991,17 @@ const ComposeScreenBody = () => {
           onClose={closeThreadEventEditor}
           onSave={saveThreadEvent}
         />
+        {/* Who one box's post is by. Opened from that box's avatar — the thing
+            that already shows the answer. */}
+        <PublishAsDialog
+          open={publishAsOpen}
+          selectedOxyUserId={publishAsTargetAccountId}
+          onSelect={handlePublishAsSelect}
+          onClose={closePublishAs}
+          alsoPostToProfile={publishAsCanRepost ? alsoPostToProfile : undefined}
+          onAlsoPostToProfileChange={publishAsCanRepost ? setAlsoPostToProfile : undefined}
+        />
+
         {/* Save draft / discard prompt */}
         <Dialog
           control={discardControl}

@@ -1608,6 +1608,16 @@
       "useOwnMedia": "Use different images for {{language}}",
       "useSharedArticle": "Use the original article",
       "localizeArticle": "Write the article in {{language}}"
+    },
+    "publishAs": {
+      "title": "Post as",
+      "none": "Myself",
+      "noneSubtitle": "The post goes out under your own name, as always",
+      "current": "Current",
+      "empty": "You do not operate any other account yet. A channel is one people follow without following the people who write for it.",
+      "manage": "Create or manage channels",
+      "alsoPostToProfile": "Also post to my profile",
+      "alsoPostToProfileHint": "Reposts the post onto your own profile once it is published."
     }
   },
   "post": {
@@ -1851,18 +1861,8 @@
     "signInRequired": "Sign in to manage your channels",
     "signInRequiredDesc": "A channel is an account people follow without following the people who write for it.",
     "compose": {
-      "choose": "Choose who posts",
       "repostFailed": "Published to the channel, but reposting it to your profile failed.",
       "scheduledNoRepost": "Scheduled. Repost it to your own profile once it goes out."
-    },
-    "picker": {
-      "title": "Post as",
-      "none": "Myself",
-      "noneSubtitle": "The post goes out under your own name, as always",
-      "current": "Current",
-      "empty": "A channel is an account people follow without following the people who write for it. You publish as the ones you operate.",
-      "alsoPostToProfile": "Also post to my profile",
-      "alsoPostToProfileHint": "Reposts the channel’s post onto your own profile once it is published."
     },
     "settings": {
       "title": "Channel settings",
