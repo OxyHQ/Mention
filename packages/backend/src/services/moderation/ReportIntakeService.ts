@@ -1,15 +1,14 @@
-import mongoose, { type ClientSession } from 'mongoose';
-import Report, {
-  ReportCategory,
-  ReportStatus,
-  ReportedType,
-  type IReport,
-  type LeanReport,
-} from '../../models/Report.model';
+import { REPORTED_TYPES } from '../../db/schema/moderation';
+import { getDb } from '../../db/postgres';
 import {
-  enqueueModerationOutboxEvent,
-  reportSubmitEventId,
-} from './ModerationOutboxService';
+  findDuplicateReport,
+  insertReport,
+  type ReportCategory,
+  type ReportRecord,
+  type ReportedType,
+} from '../../db/moderation/reportRepository';
+import { enqueueModerationOutboxEvent } from '../../db/moderation/moderationOutboxRepository';
+import { reportSubmitEventId } from './ModerationOutboxService';
 import { subjectProviderFor } from './subjects/registry';
 
 /**
@@ -37,16 +36,10 @@ import { subjectProviderFor } from './subjects/registry';
  * absent route is written down as a reason rather than inferred from a missing row.
  */
 
-const TRANSACTION_OPTIONS = {
-  readPreference: 'primary' as const,
-  readConcern: { level: 'snapshot' as const },
-  writeConcern: { w: 'majority' as const },
-};
-
 export class DuplicateReportError extends Error {
-  readonly existing: LeanReport;
+  readonly existing: ReportRecord;
 
-  constructor(existing: LeanReport) {
+  constructor(existing: ReportRecord) {
     super('This item has already been reported by this reporter.');
     this.name = 'DuplicateReportError';
     this.existing = existing;
@@ -83,7 +76,7 @@ export interface CreateReportInput {
 }
 
 export interface CreateReportResult {
-  report: IReport;
+  report: ReportRecord;
   /**
    * The durable delivery event.
    *
@@ -106,24 +99,6 @@ function localOnlyReason(reportedType: string): string {
     `Mention has no moderation subject provider for '${reportedType}', so this report ` +
     'is recorded locally and is not sent for community review.'
   );
-}
-
-async function inTransaction<T>(
-  operation: (session: ClientSession) => Promise<T>,
-): Promise<T> {
-  const session = await mongoose.startSession();
-  let result: T | undefined;
-  try {
-    await session.withTransaction(async () => {
-      result = await operation(session);
-    }, TRANSACTION_OPTIONS);
-    if (result === undefined) {
-      throw new Error('Report intake transaction completed without a result');
-    }
-    return result;
-  } finally {
-    await session.endSession();
-  }
 }
 
 /**
@@ -150,35 +125,31 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
   const reporter = requireIdentifier(input.reporter, 'reporter');
   const reportedId = requireIdentifier(input.reportedId, 'reportedId');
   const reportedType = requireIdentifier(input.reportedType, 'reportedType');
-  if (!Object.values(ReportedType).includes(reportedType as ReportedType)) {
+  if (!(REPORTED_TYPES as readonly string[]).includes(reportedType)) {
     throw new TypeError(`createReport: reportedType '${reportedType}' is not a reportable type.`);
   }
   const deliverable = subjectProviderFor(reportedType) !== undefined;
 
-  return await inTransaction(async (session) => {
-    const existing = await Report.findOne({
+  return await getDb().transaction(async (tx) => {
+    const existing = await findDuplicateReport(
       reporter,
       reportedId,
-      reportedType,
-    })
-      .session(session)
-      .lean<LeanReport | null>();
+      reportedType as ReportedType,
+      tx,
+    );
     if (existing) throw new DuplicateReportError(existing);
 
-    const [report] = await Report.create(
-      [
-        {
-          reportedType,
-          reportedId,
-          reporter,
-          categories: input.categories,
-          details: input.details,
-          status: ReportStatus.PENDING,
-          localStatus: deliverable ? 'queued' : 'received',
-          ...(deliverable ? {} : { localStatusReason: localOnlyReason(reportedType) }),
-        },
-      ],
-      { session },
+    const report = await insertReport(
+      {
+        reportedType: reportedType as ReportedType,
+        reportedId,
+        reporter,
+        categories: input.categories,
+        details: input.details,
+        localStatus: deliverable ? 'queued' : 'received',
+        ...(deliverable ? {} : { localStatusReason: localOnlyReason(reportedType) }),
+      },
+      tx,
     );
 
     if (!deliverable) return { report };
@@ -189,7 +160,7 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
         kind: 'report.submit',
         payload: { reportId: report.id },
       },
-      session,
+      tx,
     );
 
     return { report, outboxEventId };

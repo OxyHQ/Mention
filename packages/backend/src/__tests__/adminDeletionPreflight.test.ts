@@ -302,8 +302,11 @@ describe('administrative deletion preflight', () => {
     const modelImports = [...source.matchAll(/from '\.\.\/\.\.\/models\/([\w.]+)'/g)].map(
       (match) => match[1],
     );
-    // `Report.model` survives for the `ReportedType` ENUM only — a value, not a
-    // query. Asserting the exact set rather than a count keeps a swap visible.
+    // The set is EMPTY now: `Report.model` was the last one, imported for the
+    // `ReportedType` enum, and that enum's values are literals checked against
+    // the schema's own union. Asserting the exact set rather than a count keeps
+    // a swap visible, and an empty expectation still fails the moment one comes
+    // back.
     //
     // THE IMPORT ASSERTION IS THE LOAD-BEARING ONE OF THE TWO. It is an exact
     // equality over a walked set, so it fails whether the list grows OR shrinks.
@@ -312,7 +315,14 @@ describe('administrative deletion preflight', () => {
     // means it can no longer distinguish a violation from a clean file and is
     // kept only as a cheap tripwire for a reintroduced Mongoose read. If one of
     // these two ever has to go, it is that one.
-    expect(modelImports).toEqual(['Report.model']);
+    // Vacuity floor. An EXACT-EMPTY expectation is satisfied by a walk that
+    // found nothing because it broke — a mistyped path constant, a renamed
+    // directory — as readily as by a clean file. So prove the same import shape
+    // IS matchable here: the repository imports this file replaced sit at the
+    // sibling depth the model imports used to.
+    const repositoryImports = [...source.matchAll(/from '\.\.\/\.\.\/db\/([\w./]+)'/g)];
+    expect(repositoryImports.length).toBeGreaterThan(0);
+    expect(modelImports).toEqual([]);
     expect(source).not.toMatch(/\b[A-Z]\w*\.exists\(/);
   });
 

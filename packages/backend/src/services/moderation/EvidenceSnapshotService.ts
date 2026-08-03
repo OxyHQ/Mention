@@ -3,7 +3,7 @@ import type { ReportInput } from '@oxyhq/crowdsource';
 import { REPORT_TAXONOMY_VERSION, allegationsForCategories } from './reportTaxonomy';
 import { subjectProviderFor } from './subjects/registry';
 import type { ModerationSubjectSnapshot } from './subjects/types';
-import type { IReport } from '../../models/Report.model';
+import type { ReportRecord } from '../../db/moderation/reportRepository';
 
 /**
  * Turning a stored report into the thing the SDK delivers.
@@ -95,9 +95,9 @@ export interface ModerationReportInput {
  */
 export async function buildModerationReportInput(
   report: Pick<
-    IReport,
-    'reportedType' | 'reportedId' | 'reporter' | 'categories' | 'details' | 'createdAt'
-  > & { id: string },
+    ReportRecord,
+    'id' | 'reportedType' | 'reportedId' | 'reporter' | 'categories' | 'details' | 'createdAt'
+  >,
 ): Promise<ModerationReportInput | null> {
   const provider = subjectProviderFor(report.reportedType);
   if (!provider) throw new ModerationSubjectUnsupportedError(report.reportedType);

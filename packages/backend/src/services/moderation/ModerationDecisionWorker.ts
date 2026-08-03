@@ -1,9 +1,12 @@
 import { DecisionSchema, type Decision } from '@oxyhq/crowdsource-contracts';
 import type { ModerationEnforcementAction } from '@mention/shared-types';
-import Report, { type LeanReport } from '../../models/Report.model';
+import {
+  applyDecisionToReport,
+  findReportsForCase,
+} from '../../db/moderation/reportRepository';
 import { logger } from '../../utils/logger';
 import { applyDecisionEnforcement } from './ModerationEnforcementService';
-import type { ModerationOutboxEvent } from './ModerationOutboxService';
+import type { ModerationOutboxEvent } from '../../db/moderation/moderationOutboxRepository';
 import { reportStateForDecision } from './reportStatus';
 
 /**
@@ -51,7 +54,7 @@ export class ModerationDecisionDeferredError extends Error {
  * otherwise overwrite the current answer with a stale one.
  */
 async function applyToReport(
-  report: Pick<LeanReport, '_id'>,
+  reportId: string,
   decision: Decision,
   enforcedAction: ModerationEnforcementAction | undefined,
 ): Promise<boolean> {
@@ -60,30 +63,16 @@ async function applyToReport(
     decisionStatus: decision.status,
   });
 
-  const result = await Report.updateOne(
-    {
-      _id: report._id,
-      $or: [
-        { decisionRevision: { $exists: false } },
-        { decisionRevision: { $lte: decision.revision } },
-      ],
-    },
-    {
-      $set: {
-        status: state.status,
-        localStatus: state.localStatus,
-        decisionId: decision.id,
-        decisionRevision: decision.revision,
-        decisionOutcome: decision.outcome,
-        decisionStatus: decision.status,
-        decidedAt: new Date(decision.publishedAt),
-        ...(enforcedAction === undefined
-          ? {}
-          : { enforcedAction, enforcedAt: new Date() }),
-      },
-    },
-  );
-  return result.matchedCount === 1;
+  return applyDecisionToReport(reportId, {
+    status: state.status,
+    localStatus: state.localStatus,
+    decisionId: decision.id,
+    decisionRevision: decision.revision,
+    decisionOutcome: decision.outcome,
+    decisionStatus: decision.status,
+    decidedAt: new Date(decision.publishedAt),
+    ...(enforcedAction === undefined ? {} : { enforcedAction }),
+  });
 }
 
 /**
@@ -142,9 +131,7 @@ export async function applyDecisionOutboxEvent(
   }
   const decision = parsed.data;
 
-  const reports = await Report.find({ crowdSourceCaseId: caseId })
-    .select('_id reportedType reportedId')
-    .lean<Pick<LeanReport, '_id' | 'reportedType' | 'reportedId'>[]>();
+  const reports = await findReportsForCase(caseId);
 
   if (reports.length === 0) {
     /**
@@ -173,7 +160,7 @@ export async function applyDecisionOutboxEvent(
 
   let updated = 0;
   for (const report of reports) {
-    if (await applyToReport(report, decision, enforcedAction)) updated += 1;
+    if (await applyToReport(report.id, decision, enforcedAction)) updated += 1;
   }
 
   logger.info('[CrowdSource] decision applied', {

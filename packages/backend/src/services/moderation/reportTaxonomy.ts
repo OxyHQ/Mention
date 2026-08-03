@@ -1,5 +1,5 @@
 import type { TaxonomyCode } from '@oxyhq/crowdsource-contracts';
-import { ReportCategory } from '../../models/Report.model';
+import type { ReportCategory } from '../../db/moderation/reportRepository';
 
 /**
  * Mention's report categories, translated into CrowdSource's universal taxonomy.
@@ -38,12 +38,12 @@ import { ReportCategory } from '../../models/Report.model';
 export const REPORT_TAXONOMY_VERSION = '2026.07';
 
 const CATEGORY_TO_ALLEGATION: Readonly<Record<ReportCategory, TaxonomyCode>> = Object.freeze({
-  [ReportCategory.SPAM]: 'integrity.spam',
-  [ReportCategory.HATE_SPEECH]: 'hate.protected_targeting',
-  [ReportCategory.HARASSMENT]: 'harassment.targeted_abuse',
-  [ReportCategory.MISINFORMATION]: 'other.policy_specific',
-  [ReportCategory.EXPLICIT_CONTENT]: 'sexual_content.explicit_activity',
-  [ReportCategory.OTHER]: 'other.unclassifiable',
+  spam: 'integrity.spam',
+  hate_speech: 'hate.protected_targeting',
+  harassment: 'harassment.targeted_abuse',
+  misinformation: 'other.policy_specific',
+  explicit_content: 'sexual_content.explicit_activity',
+  other: 'other.unclassifiable',
 });
 
 /**

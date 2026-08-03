@@ -51,7 +51,6 @@ import { pollVotes, polls } from '../../db/schema/polls';
 import { postAuthorships, postMentions, postRecentRepliers } from '../../db/schema/postContent';
 import { posts } from '../../db/schema/posts';
 import { userBehaviorAuthors, userBehaviors, userSettings } from '../../db/schema/userProfile';
-import { ReportedType } from '../../models/Report.model';
 import {
   hasDeliveriesFromSender,
   hasDeliveriesReferencingObjects,
@@ -268,7 +267,7 @@ function buildPostReferenceProbes(
       anyRow(
         reports,
         reports.id,
-        and(eq(reports.reportedType, ReportedType.POST), inArray(reports.reportedId, idStrings)),
+        and(eq(reports.reportedType, 'post'), inArray(reports.reportedId, idStrings)),
       ),
     'content_labels.target_id(post)': () =>
       anyRow(
@@ -425,7 +424,7 @@ function actorReferenceProbes(
             or(
               eq(reports.reporter, oxyUserId),
               and(
-                eq(reports.reportedType, ReportedType.USER),
+                eq(reports.reportedType, 'user'),
                 eq(reports.reportedId, oxyUserId),
               ),
             ),

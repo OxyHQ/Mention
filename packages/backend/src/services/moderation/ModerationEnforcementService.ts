@@ -8,7 +8,6 @@ import { getDb } from '../../db/postgres';
 import { isUniqueViolation } from '../../db/pgErrors';
 import { moderationEnforcements } from '../../db/schema/moderation';
 import { POST_STATUSES, posts } from '../../db/schema/posts';
-import { ReportedType } from '../../models/Report.model';
 import { config } from '../../config';
 import { logger } from '../../utils/logger';
 import { metrics } from '../../utils/metrics';
@@ -54,10 +53,7 @@ export interface EnforcementOutcome {
 }
 
 /** Post-backed subjects. A comment is a post with a parent. */
-const POST_SUBJECT_TYPES: ReadonlySet<string> = new Set([
-  ReportedType.POST,
-  ReportedType.COMMENT,
-]);
+const POST_SUBJECT_TYPES: ReadonlySet<string> = new Set(['post', 'comment']);
 
 /**
  * What a reversal has to put back, as the two columns that hold it.

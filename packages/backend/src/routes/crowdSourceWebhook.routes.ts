@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { crowdsourceWebhooks } from '@oxyhq/crowdsource-express';
 import { config } from '../config';
 import { recordDecisionEvent, recordIgnoredEvent } from '../services/moderation/ModerationInboundService';
-import { mongoProcessedEventStore } from '../services/moderation/moderationEventStore';
+import { moderationProcessedEventStore } from '../services/moderation/moderationEventStore';
 import { logger } from '../utils/logger';
 import { metrics } from '../utils/metrics';
 
@@ -75,7 +75,7 @@ export function createCrowdSourceWebhookRoutes(): Router {
         : { previousSecret: config.crowdSource.webhookPreviousSecret }),
       // Shared across ECS tasks: the in-process default would dedupe only the
       // instance that happened to receive both copies of a redelivery.
-      store: mongoProcessedEventStore(),
+      store: moderationProcessedEventStore(),
       on: {
         /**
          * A decision, provisional or final. Both are queued: a provisional decision

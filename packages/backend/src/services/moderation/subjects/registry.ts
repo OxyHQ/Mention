@@ -1,4 +1,3 @@
-import { ReportedType } from '../../../models/Report.model';
 import { createPostSubjectProvider } from './postSubject';
 import { createUserSubjectProvider } from './userSubject';
 import type { ModerationSubjectProvider } from './types';
@@ -42,13 +41,13 @@ import type { ModerationSubjectProvider } from './types';
  */
 const PROVIDERS: readonly ModerationSubjectProvider[] = Object.freeze([
   createPostSubjectProvider({
-    reportedType: ReportedType.POST,
+    reportedType: 'post',
     subjectType: 'social.post',
   }),
   // A Mention comment is a post with a parent. Same loader, different §5.4 label —
   // the taxonomy a jury reasons about is the universal one, not Mention's schema.
   createPostSubjectProvider({
-    reportedType: ReportedType.COMMENT,
+    reportedType: 'comment',
     subjectType: 'social.comment',
   }),
   createUserSubjectProvider(),

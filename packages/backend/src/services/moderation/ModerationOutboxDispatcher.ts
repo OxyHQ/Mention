@@ -2,10 +2,8 @@ import { config } from '../../config';
 import { logger } from '../../utils/logger';
 import { applyDecisionOutboxEvent } from './ModerationDecisionWorker';
 import { deliverReportOutboxEvent } from './ModerationDeliveryWorker';
-import {
-  dispatchModerationOutbox,
-  type ModerationOutboxEvent,
-} from './ModerationOutboxService';
+import type { ModerationOutboxEvent } from '../../db/moderation/moderationOutboxRepository';
+import { dispatchModerationOutbox } from './ModerationOutboxService';
 
 /**
  * The loop that drains the moderation outbox.

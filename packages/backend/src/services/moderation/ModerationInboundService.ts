@@ -1,9 +1,10 @@
-import mongoose, { type ClientSession } from 'mongoose';
-import ModerationEvent from '../../models/ModerationEvent';
+import { getDb } from '../../db/postgres';
 import {
-  decisionApplyEventId,
-  enqueueModerationOutboxEvent,
-} from './ModerationOutboxService';
+  markModerationEventIgnored,
+  markModerationEventQueued,
+} from '../../db/moderation/moderationEventRepository';
+import { enqueueModerationOutboxEvent } from '../../db/moderation/moderationOutboxRepository';
+import { decisionApplyEventId } from './ModerationOutboxService';
 
 /**
  * What happens between "a signed decision arrived" and "2xx".
@@ -19,26 +20,13 @@ import {
  * a decision silently lost, with a row that says it arrived. Committing both
  * together means the only two possible outcomes are "recorded and queued" or
  * "neither", and "neither" releases the claim and gets redelivered.
+ *
+ * The Mongo version had to open the session itself and pass explicit read/write
+ * concerns, because a replica-set transaction needs a snapshot read and a
+ * majority write to give that guarantee. `db.transaction()` is that guarantee by
+ * construction, so the options object has no counterpart rather than a
+ * translation.
  */
-
-const TRANSACTION_OPTIONS = {
-  readPreference: 'primary' as const,
-  readConcern: { level: 'snapshot' as const },
-  writeConcern: { w: 'majority' as const },
-};
-
-async function inTransaction(
-  operation: (session: ClientSession) => Promise<void>,
-): Promise<void> {
-  const session = await mongoose.startSession();
-  try {
-    await session.withTransaction(async () => {
-      await operation(session);
-    }, TRANSACTION_OPTIONS);
-  } finally {
-    await session.endSession();
-  }
-}
 
 export interface RecordDecisionEventInput {
   eventId: string;
@@ -58,21 +46,15 @@ export interface RecordDecisionEventInput {
 
 /** Record a decision-bearing event and queue its application. */
 export async function recordDecisionEvent(input: RecordDecisionEventInput): Promise<void> {
-  await inTransaction(async (session) => {
-    const now = new Date();
-    await ModerationEvent.updateOne(
-      { _id: input.eventId },
+  await getDb().transaction(async (tx) => {
+    await markModerationEventQueued(
       {
-        $set: {
-          type: input.type,
-          caseId: input.caseId,
-          payload: { caseId: input.caseId, decision: input.decision },
-          state: 'queued',
-          queuedAt: now,
-          updatedAt: now,
-        },
+        eventId: input.eventId,
+        type: input.type,
+        caseId: input.caseId,
+        decision: input.decision,
       },
-      { session },
+      tx,
     );
 
     await enqueueModerationOutboxEvent(
@@ -85,7 +67,7 @@ export async function recordDecisionEvent(input: RecordDecisionEventInput): Prom
           decision: input.decision,
         },
       },
-      session,
+      tx,
     );
   });
 }
@@ -103,16 +85,5 @@ export async function recordIgnoredEvent(input: {
   type: string;
   caseId?: string;
 }): Promise<void> {
-  const now = new Date();
-  await ModerationEvent.updateOne(
-    { _id: input.eventId },
-    {
-      $set: {
-        type: input.type,
-        ...(input.caseId === undefined ? {} : { caseId: input.caseId }),
-        state: 'ignored',
-        updatedAt: now,
-      },
-    },
-  );
+  await markModerationEventIgnored(input);
 }
