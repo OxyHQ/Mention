@@ -814,11 +814,80 @@ the right merge — see #102, where git merges cleanly and the result is wrong.
 
 ## 6. Open items — read before scheduling
 
+- **CI HAS NEVER RUN ON THIS TRUNK, and the divergence is what stops it. (#124)**
+  `.github/workflows/ci.yml` triggers on `push: [main]` and `pull_request:
+  [main]` only, so the **299 commits** this branch carries ahead of `main` (as
+  of `60fbb587`) have never been through a single CI job. **A probe PR does not
+  close this:** GitHub builds no merge commit for a conflicted PR, so
+  `refs/pull/N/merge` never exists, no `pull_request` run is created, and the PR
+  sits with no jobs and no red X — the same shape as the `workflow_run` trap in
+  §3.4, where nothing having run looks exactly like nothing needing to run. The
+  only path to a first CI verdict is **landing the absorb**, which resolves the
+  divergence. Until then every "CI is green" statement about this trunk is a
+  statement about `main`, and the local suite is the only evidence there is —
+  evidence about one machine.
+- **A background wrapper reports the WRAPPER's fate, never the job's — confirm
+  by PID.** Every long step here invites a `nohup … &` launcher or a watcher
+  loop, and both lie in the same direction: an `exit 0` is the launcher exiting,
+  not the run succeeding, and a kill notification names neither, so **a killed
+  wrapper and a killed watcher are indistinguishable from the notification
+  alone**. Confirm which process died by PID, and confirm the JOB from its own
+  log or its ECS task status. Same family as the `workflow_run` item above: the
+  absence of the signal you wanted looks exactly like the good case.
+- **`oxy-mongo` host access is broken** — root volume 100% full, SSM
+  success-shaped nothing. **Fix before the window**; Mongo is the rollback
+  target. Full detail in the §4 banner. (#104)
+- **The window budget is STALE IN TWO TERMS, and the new total is deliberately
+  NOT written here.** §2.0's `~86 minutes` and §3.3's `~66` both predate two
+  facts. (1) The first full copy of production data measured **72m41s**, exit 0
+  (2026-08-03), against the rehearsal table's 65m45s. (2) **§3.4c did not exist
+  when `~86` was written**, and it is a second full pass over Mongo (§3.4c,
+  "Two costs") whose cost has never been timed. Do not add a guess to a
+  measurement and publish the sum — `rehearsal-prep` is timing the verify, and
+  the total lands when it reports. Until then, schedule against *"longer than 86
+  minutes by an unmeasured full source pass"*, not against a number.
+- **Bun vs Node — CLOSED, and the METHOD is the part worth keeping.** The trunk's
+  suite was baselined under Bun; the images run Bun but the `test` script names
+  Node, so the two runtimes had never been compared. They agree exactly: **506
+  files / 5965 tests / 0 failures** under Node, identical to the Bun baseline.
+  Three things made that answer trustworthy, and each one had already produced a
+  wrong answer first:
+  - **A linked worktree has no `node_modules` of its own**, and
+    `packages/backend`'s `test` script resolves vitest through a relative
+    `../../node_modules/vitest/vitest.mjs` — so in a worktree the real tree sits
+    outside vitest's `root` and transitive ESM imports fail (`Cannot find
+    package '@oxyhq/contracts'`). That is the harness, not the code. Symlink the
+    repo's `node_modules` into the worktree.
+  - **`bunx vitest` silently substitutes the Bun runtime**; it and `node
+    …/vitest.mjs run` look interchangeable and are not. Whichever you meant to
+    measure, you may have measured the other.
+  - **Prove the runtime from INSIDE a worker.** vitest swallows `console.log`
+    from within a test, `--silent=false` included, so have the test WRITE
+    `process.version` to a file. Anything else is the runtime you believe you
+    launched, not the one that ran.
 - **`--skip-audit` was CANCELLED, not deferred.** The audit stays inside the
-  window; budget ~86 minutes end to end. See §2.0 for why it reversed — this is
-  a decision with a reason, not a missing feature. (#76)
-- **~47% of the `posts` copy time is unattributed.** It is a remainder from
-  subtraction, not a measured component, and it must not be quoted as one. (#86)
+  window. See §2.0 for why it reversed — this is a decision with a reason, not a
+  missing feature. (Its "budget ~86 minutes" figure is stale; see the budget
+  item above.) (#76)
+- **#86 stays DECLINED, and the premise changed without changing the answer.**
+  The transform-side speedup on the `posts` copy is still not being taken, and
+  the reason is now stronger than the original one. §3.4c's verify re-runs
+  `transformDocument` per source document (`verifyCollection`), so the transform
+  is no longer just the copy's hot path — **it is what the data-loss check
+  derives its expected row counts FROM.** Narrowing it for minutes would narrow
+  the check that would have to catch the narrowing, trading acceptable downtime
+  for unacceptable risk. Unchanged: the `~47%` unattributed figure is a
+  remainder from subtraction, not a measured component, and must not be quoted
+  as one. (#86)
+- **PostGIS is a PRIVILEGED prerequisite, and production already has it** —
+  `spatial_ref_sys` owner `rdsadmin`, measured (§1.1). It is listed here because
+  of what it costs when it is absent: the `mention` role **cannot install it on
+  a database it owns**, so any NEW target — a fresh probe, a second rehearsal
+  database — needs an `rds_superuser` to run `CREATE EXTENSION postgis;` once,
+  or migration `0000` dies on `type "geography" does not exist`. That is a
+  dependency on somebody else's credential, which makes it a scheduling input
+  rather than a step you can take mid-window. Check it as a fact; do not assume
+  it from this line. (#80)
 - **`src/migrations/task.ts` runs 25 Mongo migrations inside the production
   deploy**, and it is what makes `purgeBlockedDomainContent` production-reachable.
   Mongo cannot be decommissioned until it is retired — but it does not block this
@@ -843,9 +912,6 @@ the right merge — see #102, where git merges cleanly and the result is wrong.
   not a constant). Pre-existing in Mongo and carried across faithfully; not a
   cutover blocker, needs its own backfill. **Expected in-window — see §3.4b(a)
   before treating a completeness check's 834 as corruption.** (#78)
-- **`oxy-mongo` host access is broken** — root volume 100% full, SSM
-  success-shaped nothing. **Fix before the window**; Mongo is the rollback
-  target. Full detail in the §4 banner. (#104)
 - **A failed copy writes no resolution log.** `persistResolutionLog` runs only
   after the copy returns, so the audit trail is empty for exactly the runs that
   need it most. (#79)
