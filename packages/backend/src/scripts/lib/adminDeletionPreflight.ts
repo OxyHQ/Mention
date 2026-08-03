@@ -146,6 +146,26 @@ export interface PostDeletionAcknowledgements {
    */
   removedByCascade?: readonly PostReferenceProbeName[];
   /**
+   * Probes whose rows the caller deliberately LEAVES IN PLACE, because a written
+   * policy says they must outlive the post — `Report.reportedId(post)`, whose
+   * removal strands an inbound CrowdSource decision on a retry loop, and the two
+   * durable queues whose live backlog is cancelled while their completed rows
+   * stay as a log.
+   *
+   * Kept SEPARATE from {@link removedByCascade} on purpose, even though the gate
+   * treats both the same way. That one is a CLAIM that the rows are gone, and
+   * {@link collectPostCascadeResidue} re-runs exactly those probes afterwards to
+   * check it; this one is a decision that they stay, which the same check would
+   * report as a failure. Collapsing them would make a deliberately retained
+   * reference indistinguishable from a cascade leg that had silently stopped
+   * working — the one confusion this module exists to remove.
+   *
+   * Compiler-checked against {@link POST_REFERENCE_PROBE_NAMES} like its sibling,
+   * so a probe added upstream cannot be inherited into an existing caller's
+   * policy without somebody deciding.
+   */
+  keptByPolicy?: readonly PostReferenceProbeName[];
+  /**
    * The caller deliberately LEAVES `parentPostId` / `quoteOf` / `threadId`
    * pointing at a removed post, because the referencing posts belong to OTHER
    * users and deleting them would destroy their content to remove someone
@@ -244,7 +264,10 @@ export async function assertPostsSafeToDelete(
 
   const ids = targets.map((target) => target.id);
   const idStrings = unique(ids.map(String));
-  const acknowledged = new Set<PostReferenceProbeName>(options.removedByCascade ?? []);
+  const acknowledged = new Set<PostReferenceProbeName>([
+    ...(options.removedByCascade ?? []),
+    ...(options.keptByPolicy ?? []),
+  ]);
   const referenceProbes = buildPostReferenceProbes(targets);
 
   const danglingReferenceFields = options.allowDanglingReplyReferences

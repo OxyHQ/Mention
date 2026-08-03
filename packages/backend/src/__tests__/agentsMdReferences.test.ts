@@ -43,6 +43,12 @@ const UNRESOLVABLE_BY_DESIGN: ReadonlyMap<string, string> = new Map([
     '.expo/types/router.d.ts',
     "expo-router's generated route types — written into a gitignored .expo/ by the dev server, absent on a clean checkout",
   ],
+  [
+    'packages/api/src/routes/privacy.ts',
+    'a CROSS-REPO pointer: oxy-api lives in OxyHQServices, so this resolves for a reader and never against ' +
+      "this repo's `git ls-files`. The reference is correct and load-bearing — it names where the block " +
+      'refusal has to live, precisely because Mention has no block route of its own to guard',
+  ],
 ]);
 
 /**
