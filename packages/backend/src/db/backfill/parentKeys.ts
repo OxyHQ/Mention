@@ -35,7 +35,12 @@ import type { Database } from '../postgres';
 import { sqlColumnName } from '../casing';
 import { planLevels } from './order';
 import { planTables, singlePrimaryKeyProperty, tableName, type CollectionPlan } from './plan';
-import { ORPHAN_RESOLUTIONS, parentKeysFrom, type ParentKeys } from './resolutions';
+import {
+  ORPHAN_RESOLUTIONS,
+  parentKeysFrom,
+  type OrphanRelation,
+  type ParentKeys,
+} from './resolutions';
 
 /** Raised when a rule would decide against a parent table not yet copied. */
 export class ParentLevelOrderError extends Error {
@@ -61,7 +66,11 @@ export class ParentLevelOrderError extends Error {
  * referencing table in its parent's level would silently give the rules a
  * half-filled parent set, which is the stale-snapshot bug again in a new place.
  */
-export function assertParentsPrecedeChildren(plans: readonly CollectionPlan[]): void {
+export function assertParentsPrecedeChildren(
+  plans: readonly CollectionPlan[],
+  /** Defaulted so production callers cannot pass the wrong set; a test may. */
+  relations: readonly OrphanRelation[] = ORPHAN_RESOLUTIONS
+): void {
   const levelOf = new Map<string, number>();
   for (const [index, level] of planLevels(plans).entries()) {
     for (const plan of level) {
@@ -69,8 +78,23 @@ export function assertParentsPrecedeChildren(plans: readonly CollectionPlan[]): 
     }
   }
 
-  for (const relation of ORPHAN_RESOLUTIONS) {
+  for (const relation of relations) {
     if (relation.trigger !== 'absent-parent') continue;
+
+    // A SELF-REFERENCING relation is exempt, and the exemption is narrow: the
+    // table is its own parent, so no level order could ever put the parent
+    // first. `copyCollection` handles exactly this case by deriving the parent
+    // set from `scanEmittedRows` — the rows the migration WILL emit, read from
+    // the source and complete before a single row is written — rather than from
+    // a partially-filled Postgres table. The premise this guard defends ("the
+    // topological order is what makes reading Postgres exact") is not the
+    // mechanism in play there.
+    //
+    // Everything else still has to be ordered, which is why this compares the
+    // TABLES rather than trusting the plan: `post_recent_repliers.post_id ->
+    // posts.id` is two tables in two plans and must keep its ordering check.
+    if (relation.tableName === tableName(relation.targetTable)) continue;
+
     const parent = levelOf.get(tableName(relation.targetTable));
     const child = levelOf.get(relation.tableName);
     // A table no plan in this run writes cannot be out of order with anything;
