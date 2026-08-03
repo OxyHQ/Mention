@@ -1,4 +1,9 @@
-import { upsertCachedUser, upsertCachedUsers, type CacheableUser } from '@oxyhq/services';
+import {
+  upsertCachedUser,
+  upsertCachedUsers,
+  type CacheableUser,
+  type UpsertCachedUserOptions,
+} from '@oxyhq/services';
 import { queryClient } from '@/lib/queryClient';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import {
@@ -62,8 +67,22 @@ export function cacheActor(actor: CacheableUser | null | undefined): void {
  * Record that a profile edit landed, and tell every cache holding a copy of that
  * identity. Call this only after the server has accepted the write: a failed
  * edit leaves every surface exactly as the caches already have it.
+ *
+ * `options.cleared` names the fields the write deliberately EMPTIED, and it is
+ * the only way a clear can propagate at all: the response omits a cleared scalar
+ * exactly as it omits one the write never touched, so nothing downstream can
+ * tell them apart from the payload. The SDK owns both the semantics and the
+ * closed list of fields this may name (`CLEARABLE_USER_FIELDS`) — derive the
+ * list at the call site with the helper matching the write that was performed
+ * (`clearedFieldsFromAccountUpdate` for `updateAccount`,
+ * `clearedFieldsFromProfileUpdate` for `updateProfile`), because the write INPUT
+ * is the only place the intent exists.
  */
-export function noteIdentityChanged(update: IdentityUpdate, viewerId?: string): void {
+export function noteIdentityChanged(
+  update: IdentityUpdate,
+  viewerId?: string,
+  options?: UpsertCachedUserOptions,
+): void {
   const stored = recordIdentityChange(update);
   if (!stored) return;
 
@@ -73,7 +92,7 @@ export function noteIdentityChanged(update: IdentityUpdate, viewerId?: string): 
   // without losing the counts and viewer relationship an authoritative profile
   // fetch had already stored. Not routed through `cacheActor`: this is the
   // authority for that identity, so it must not be reconciled against itself.
-  upsertCachedUser(queryClient, stored, viewerId);
+  upsertCachedUser(queryClient, stored, viewerId, options);
 
   // The operated-accounts list embeds each account's profile and feeds the
   // channels screen, the composer's publish-as picker and the channel settings

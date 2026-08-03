@@ -12,8 +12,13 @@ import { toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
+import { clearedFieldsFromAccountUpdate } from '@oxyhq/services';
 import { createLogger } from '@oxyhq/core/logger';
-import { getNormalizedUserHandle, type AccountNode } from '@oxyhq/core';
+import {
+  getNormalizedUserHandle,
+  type AccountNode,
+  type UpdateAccountInput,
+} from '@oxyhq/core';
 import {
   MAX_ACCOUNT_CATEGORIES,
   SELECTABLE_ACCOUNT_CATEGORY_IDS,
@@ -223,37 +228,29 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
     [signPostsMutation],
   );
 
-  const profileMutation = useMutation<AccountNode, unknown, void>({
-    mutationFn: () =>
-      oxyServices.updateAccount(accountId, {
-        name: { displayName: trimmedName },
-        // `null` is Oxy's documented clear for both; an empty string would store
-        // one rather than remove it.
-        bio: trimmedBio.length > 0 ? trimmedBio : null,
-        avatar: avatar.length > 0 ? avatar : null,
-        // Sent whole and IN ORDER, because that is the only shape Oxy accepts:
-        // there is no add/remove verb, and element 0 is what records the
-        // primary. `[]` is the documented clear — unlike `bio` and `avatar`,
-        // this field is not nullable, since the empty case already has one
-        // spelling and a second could only ever disagree with it.
-        accountCategories: categories,
-      }),
-    onSuccess: (updated) => {
-      // A channel's name and picture are held by more caches than this screen
-      // can see — the SDK's user cache behind its page, the operated-accounts
-      // list behind the composer's publish-as picker, and a copy embedded in
-      // every post the channel has ever published. `noteIdentityChanged` is the
-      // single authority that reaches all of them; writing any one of them from
-      // here is how the others get forgotten.
-      noteIdentityChanged(
-        {
-          id: updated.account.id,
-          username: updated.account.username,
-          name: updated.account.name,
-          avatar: updated.account.avatar,
-        },
-        viewerId,
-      );
+  // The mutation takes the write INPUT as its variable rather than closing over
+  // the form state, because `onSuccess` needs it: which fields the operator
+  // EMPTIED is not recoverable from the response (Oxy omits a cleared scalar
+  // exactly as it omits an untouched one), so the input is the only witness.
+  const profileMutation = useMutation<AccountNode, unknown, UpdateAccountInput>({
+    mutationFn: (input) => oxyServices.updateAccount(accountId, input),
+    onSuccess: (updated, input) => {
+      // A channel's name, picture and description are held by more caches than
+      // this screen can see — the SDK's user cache behind its page, the
+      // operated-accounts list behind the composer's publish-as picker, and a
+      // copy embedded in every post the channel has ever published.
+      // `noteIdentityChanged` is the single authority that reaches all of them;
+      // writing any one of them from here is how the others get forgotten.
+      //
+      // The whole ACCOUNT goes over, not a hand-picked payload of its fields.
+      // The door picks the ones it carries, so it is the one place the set is
+      // decided and a field added there arrives here already supplied — whereas
+      // an object literal type-checks identically while silently omitting one,
+      // which is exactly how the description came to be missing for as long as
+      // this screen has been able to edit it.
+      noteIdentityChanged(updated.account, viewerId, {
+        cleared: clearedFieldsFromAccountUpdate(input),
+      });
       toast.success(
         t('channels.settings.profileSaved', { defaultValue: 'Channel updated' }),
       );
@@ -288,7 +285,23 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
     });
   }, [showBottomSheet]);
 
-  const handleSaveProfile = useCallback(() => profileMutation.mutate(), [profileMutation]);
+  const handleSaveProfile = useCallback(
+    () =>
+      profileMutation.mutate({
+        name: { displayName: trimmedName },
+        // `null` is Oxy's documented clear for both; an empty string would store
+        // one rather than remove it.
+        bio: trimmedBio.length > 0 ? trimmedBio : null,
+        avatar: avatar.length > 0 ? avatar : null,
+        // Sent whole and IN ORDER, because that is the only shape Oxy accepts:
+        // there is no add/remove verb, and element 0 is what records the
+        // primary. `[]` is the documented clear — unlike `bio` and `avatar`,
+        // this field is not nullable, since the empty case already has one
+        // spelling and a second could only ever disagree with it.
+        accountCategories: categories,
+      }),
+    [profileMutation, trimmedName, trimmedBio, avatar, categories],
+  );
 
   // Both take the previous list rather than closing over `categories`, so the
   // handlers stay identity-stable and can never apply an edit to a stale one.

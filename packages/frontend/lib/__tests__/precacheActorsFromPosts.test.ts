@@ -18,7 +18,7 @@
 
 import { queryClient as mockQueryClient } from '@/lib/queryClient';
 import { noteIdentityChanged } from '@/lib/actorCache';
-import { resetIdentityUpdates } from '@/stores/identityUpdates';
+import { getKnownIdentity, resetIdentityUpdates } from '@/stores/identityUpdates';
 import { precacheActorsFromPosts } from '../precacheActorsFromPosts';
 
 const mockUpsertCachedUsers = jest.fn();
@@ -205,6 +205,33 @@ describe('precacheActorsFromPosts — an identity the viewer just edited', () =>
     expect(lastUpsertedUsers()).toEqual([
       { id: EDITED, username: 'daily', avatar: 'avatar-changed-elsewhere' },
     ]);
+  });
+
+  it('keeps correcting a description no post can speak for', () => {
+    // The reported symptom's other half. A feed page carries the handle, the
+    // name and the picture and NEVER a description, so it can retire those and
+    // must leave this one recorded — otherwise the first page after the save
+    // discards the correction that the bio-carrying surfaces still need.
+    noteIdentityChanged({
+      id: EDITED,
+      username: 'daily',
+      name: { displayName: 'Daily Digest' },
+      avatar: 'avatar-after',
+      bio: 'bio-after',
+    });
+
+    precacheActorsFromPosts([
+      {
+        user: {
+          id: EDITED,
+          username: 'daily',
+          name: { displayName: 'Daily Digest' },
+          avatar: 'avatar-after',
+        },
+      },
+    ]);
+
+    expect(getKnownIdentity(EDITED)).toEqual({ id: EDITED, bio: 'bio-after' });
   });
 
   it('does not retire on a batch that agrees about only SOME of the edit', () => {
