@@ -172,9 +172,31 @@ before the data lands gives an app reading an empty database.
 
 ### 3.1 Stop taking traffic
 
+**Scaling to zero and arming the deploy's zero-count exemption are ONE step with
+two halves. Do both here, and do them BEFORE the merge in §3.4.**
+
 ```bash
 aws ecs update-service --cluster oxy-cluster --service mention --desired-count 0
+gh variable set ALLOW_ZERO_DESIRED_COUNT --body mention
 ```
+
+**Why it must be set before the merge, not after.** The deploy has **no manual
+trigger** — `deploy-aws.yml` fires on `workflow_run` when CI completes on `main`,
+so merging starts it automatically about four minutes later with nobody at the
+controls. `vars` is read when the deploy job runs, so setting it here (well
+before §3.4) removes the race entirely. Set it after the merge and you are
+betting on beating CI.
+
+**Without it the deploy exits 1** at `deploy-ecs-image.sh`'s desiredCount
+pre-check, with traffic already stopped and the copy already done — see §3.4 for
+the full reasoning and the unset half.
+
+**A variable left set cannot authorise anything on its own**, which is what makes
+this pairing acceptable rather than merely convenient: the script consults it
+only when `desiredCount` is ALREADY 0, and that takes a deliberate scale-down. It
+needs a second deliberate act to become live. Do not "clean up" the pairing on
+the theory that the variable alone is the danger — it is the scale-down that
+arms it, and the unset in §3.4 is what keeps the two lifetimes equal.
 
 Confirm it stopped — do not trust the command's exit code:
 
@@ -406,9 +428,17 @@ half: a task refuses to become ready if migrations are pending, so a bypassed
 migration step surfaces as a task that will not serve rather than one that serves
 wrongly.
 
-**Set `ALLOW_ZERO_DESIRED_COUNT=mention` on this deploy.** Without it the deploy
-**refuses and exits 1** — traffic already stopped, copy already done, window
+**`ALLOW_ZERO_DESIRED_COUNT` was already set to `mention` in §3.1** — it is the
+second half of the scale-to-zero step, not a separate action here, and it had to
+be set before this merge (see §3.1 for the race). `deploy-aws.yml` passes it
+through as `${{ vars.ALLOW_ZERO_DESIRED_COUNT }}`. **Without it the deploy
+refuses and exits 1** — traffic already stopped, copy already done, window
 burning.
+
+**Confirm the deploy run actually STARTED.** This workflow is `workflow_run`-
+triggered off CI, and a `workflow_run` that never fires looks identical to one
+that was not needed: no run, no jobs, no alarm. Do not infer from a green merge
+that a deploy began — open Actions and see it.
 
 `.github/scripts/deploy-ecs-image.sh` requires a positive `desiredCount`, in two
 places: a pre-check before anything mutates, and a steady-state check that
@@ -430,11 +460,18 @@ It **names the service** rather than being a boolean, for the same reason
 authorises a zero-count deploy of anything.
 
 **Bring the service back up only AFTER the rollout has completed** — this is the
-step that ends the outage, and it must not be moved earlier:
+step that ends the outage, and it must not be moved earlier. **Scaling back up
+and disarming the exemption are ONE step with two halves, the mirror of §3.1:**
 
 ```bash
 aws ecs update-service --cluster oxy-cluster --service mention --desired-count 2
+gh variable delete ALLOW_ZERO_DESIRED_COUNT
 ```
+
+Leaving it set does not authorise anything by itself — the script only consults
+it when `desiredCount` is already 0 — but the point of the pairing is that the
+exemption's lifetime is exactly the window's. Unset it here and the next person
+to scale this service to zero gets the loud refusal they should get.
 
 If a rollback happens instead, note that `rollback_service` reuses the
 `desiredCount` it captured at the start rather than assuming 2 — so a rollback
