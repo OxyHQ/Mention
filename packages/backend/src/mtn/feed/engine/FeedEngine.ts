@@ -565,32 +565,38 @@ export class FeedEngine {
       viewerId: ctx.currentUserId,
     });
 
-    // A pre-scored source owns a strict score-descending keyset. Select that
-    // page's score window BEFORE visual author diversification: otherwise a
-    // lower-score slice can be pulled into the page, move the cursor below a
-    // deferred higher-score slice, and skip that slice forever.
-    // Pagination units are slices, not raw candidates: thread grouping can
-    // collapse several candidates into one slice, so candidate count would
+    // EVERY ranked page — pre-scored or ranked right here — continues under a
+    // score-descending keyset minted from the page's own LOWEST anchor, so the
+    // set a page serves has to be a PREFIX of the score order. A slice the page
+    // skips while serving something below it scores above the cursor, and the
+    // next page's `score < cursor` filter excludes it: it is never served, on
+    // any page.
+    //
+    // Both reorderers below DEFER rather than drop — that is the contract each
+    // one documents — but a deferral only survives if the deferred slice is
+    // still inside the page window. So select the window FIRST and let them
+    // permute within it. Reranking the whole pool and truncating afterwards is
+    // what silently turns "deferred to the tail" into "dropped for good", since
+    // deferred slices are exactly the ones scoring above the tail the cursor is
+    // taken from.
+    //
+    // Pagination units are SLICES, not raw candidates: thread grouping can
+    // collapse several candidates into one slice, so a candidate count would
     // advertise a phantom next page.
-    const preScoredHasMore = exec.preScored && rawSlices.length > limit;
-    const slicesToDiversify = exec.preScored ? rawSlices.slice(0, limit) : rawSlices;
-    const diversifiedSlices = diversifyByAuthor(slicesToDiversify, sliceAuthorKey);
+    const hasMore = rawSlices.length > limit;
+    const windowedSlices = rawSlices.slice(0, limit);
+    const diversifiedSlices = diversifyByAuthor(windowedSlices, sliceAuthorKey);
 
     // Phase 5: cap the discovery share of the page (For You sets
     // `maxDiscoveryShare`; every other feed leaves it unset → no-op). Runs AFTER
-    // author diversification and BEFORE truncation; it DEFERS discovery overflow to
-    // the tail (never drops), so `hasMore` / cursor semantics are unchanged.
-    const cappedSlices = capDiscoveryShare(
+    // author diversification and INSIDE the page window, so the discovery
+    // overflow it defers to the tail still lands on the page it was computed for.
+    const pageSlices = capDiscoveryShare(
       diversifiedSlices,
       sliceIsDiscovery,
       exec.maxDiscoveryShare,
       limit,
     );
-
-    const hasMore = exec.preScored ? preScoredHasMore : cappedSlices.length > limit;
-    const pageSlices = exec.preScored
-      ? cappedSlices
-      : (hasMore ? cappedSlices.slice(0, limit) : cappedSlices);
 
     const hydratedSlices = await postHydrationService.hydrateSlices(pageSlices, {
       viewerId: ctx.currentUserId,

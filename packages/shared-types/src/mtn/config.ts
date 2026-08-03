@@ -166,8 +166,17 @@ export const MtnConfig = {
        * Hard cap on how many items a single author may contribute to one rendered
        * page. Prevents a prolific author from filling the page even with spacing.
        * The reranker never DROPS items — it defers an author's overflow items to
-       * the tail of the page (so they appear after everyone else, or roll to the
-       * next page via pagination) rather than removing them.
+       * the tail of the page (so they appear after everyone else) rather than
+       * removing them.
+       *
+       * It cannot defer them to the NEXT page. The reranker runs on the page
+       * window a ranked feed has already selected, because a ranked page is
+       * continued by a score-descending keyset cursor taken from that page's own
+       * lowest item — anything held back past the window scores above the cursor
+       * and no later page can reach it. So when an author owns more of the window
+       * than this admits, the cap is unsatisfiable and degrades to ordering: their
+       * surplus is served, as a run at the page tail. Raising this value does not
+       * change that; it only lets the run start earlier.
        */
       maxPerAuthorPerPage: 3,
     },

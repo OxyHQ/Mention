@@ -14,8 +14,11 @@
  *
  * Contract — IDENTICAL to `diversifyByAuthor`:
  *  - NEVER drops an item. Discovery slices beyond the cap are DEFERRED to the page
- *    tail (in their original rank order), so they still emit (after the trusted
- *    content, or roll forward via pagination) rather than being lost.
+ *    tail (in their original rank order), so they still emit after the trusted
+ *    content rather than being lost. As with `diversifyByAuthor`, that only holds
+ *    because the caller passes the slices it is about to SERVE: deferring past a
+ *    page window would put the slice above the keyset cursor minted from that
+ *    page's tail, which no later page can reach.
  *  - On a THIN follow graph the cap is simply unmet: there isn't enough trusted
  *    content to fill the trusted floor, so the deferred discovery slices backfill
  *    the tail and the page still fills to `limit`. The never-blank + popular
