@@ -189,12 +189,14 @@ export function highWaterMillis(appliedMillis: readonly number[]): number | null
  *
  * ## This journal already contains the shape that produces it
  *
- * `0005_post_trend_terms` (when=1785675946096) sits below `0004` (1785680245091),
- * as does `0006`. On a database migrated from empty they all apply — drizzle
- * reads the ledger ONCE before its loop, so `!lastDbMigration` holds for every
- * entry in that run. On a database already at `0004`, both are skipped forever.
- * Generating migrations on parallel branches and merging is what produces it,
- * and this repo is worked from ~160 worktrees.
+ * `0005_post_trend_terms` (when=1785675946096) is stranded the moment `0003`
+ * (1785678207141) is applied — TWO entries before it in journal order, which is
+ * exactly why reading the journal top to bottom does not reveal the hazard.
+ * `0006` goes once `0004` is applied. On a database migrated from empty they all
+ * apply anyway: drizzle reads the ledger ONCE before its loop, so
+ * `!lastDbMigration` holds for every entry in that run. Generating migrations on
+ * parallel branches and merging is what produces it, and this repo is worked
+ * from ~160 worktrees.
  *
  * ## Identity is the timestamp, not the hash
  *

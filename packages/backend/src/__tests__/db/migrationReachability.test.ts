@@ -224,7 +224,34 @@ describe('the journal shipped in this image', () => {
       applied.push(entry.when);
       for (const skipped of unreachableEntries(entries, applied)) stranded.add(skipped.tag);
     }
-    expect([...stranded].sort()).toEqual(KNOWN_STRANDED_TAGS);
+    const found = [...stranded].sort();
+    const appeared = found.filter((tag) => !KNOWN_STRANDED_TAGS.includes(tag));
+    const gone = KNOWN_STRANDED_TAGS.filter((tag) => !found.includes(tag));
+    const newest = Math.max(...entries.map((entry) => entry.when));
+
+    // The message IS the fix instruction. A gate that reports a changed set
+    // without saying what to do about it gets its expected value bumped by
+    // whoever hits it next, which converts the gate into a record of the bug.
+    expect(
+      found,
+      [
+        appeared.length > 0 &&
+          `NEW out-of-order migration(s): ${appeared.join(', ')}.\n` +
+          'Each was generated on a branch cut before another branch\'s migration ' +
+          'merged, so its journal `when` is below the ledger high-water and it ' +
+          'will NEVER be applied to a database already past that point.\n' +
+          'FIX IT NOW, while it is free: regenerate so the `when` is newer than ' +
+          `every other entry (above ${newest}) — rename drizzle/<tag>.sql AND its ` +
+          'record in drizzle/meta/_journal.json.\n' +
+          'Do NOT edit the ledger, and do NOT add the tag to KNOWN_STRANDED_TAGS ' +
+          'to make this pass — that hides a migration that will never run.',
+        gone.length > 0 &&
+          `${gone.join(', ')} no longer strand — the hazard is gone. Remove them ` +
+          'from KNOWN_STRANDED_TAGS so this test keeps meaning something.',
+      ]
+        .filter(Boolean)
+        .join('\n\n') || 'the stranded set changed'
+    ).toEqual(KNOWN_STRANDED_TAGS);
   });
 
   it('names the step at which the first stranding becomes irreversible', () => {
