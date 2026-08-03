@@ -5,7 +5,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { ScheduleIcon, ScheduleIconActive } from '@/assets/icons/schedule-icon';
-import { TranslateIcon } from '@/assets/icons/translate-icon';
 
 /**
  * The schedule control is an ICON, like every other attachment control in this
@@ -312,20 +311,19 @@ describe('ComposeToolbar — the language control', () => {
     );
   }
 
-  /**
-   * `PostActions` draws the SAME `TranslateIcon`, so the control that writes a
-   * language and the badge that reads one look alike. The glyph pair this
-   * replaced carried the state in its shape as well; with one cut the tint is
-   * the only signal, so the tint is what this pins.
-   */
-  it("uses the post component's translation icon, tinted by state", () => {
+  it('uses the post component\'s translation icon, in its two states', () => {
     const plain = renderLanguageToolbar();
-    expect(plain.root.findAllByType(TranslateIcon)).toHaveLength(1);
-    expect(plain.root.findByType(TranslateIcon).props.color).toBe('#666');
+    expect(plain.root.findAllByType(Ionicons).map((n) => n.props.name))
+      .toContain('language-outline');
     act(() => plain.unmount());
 
+    // `PostActions` renders `isTranslated ? 'language' : 'language-outline'`.
+    // Matching both states is the point — a different glyph, or the same glyph
+    // in both states, still compiles and still looks fine in isolation.
     const multilingual = renderLanguageToolbar({ hasLanguages: true });
-    expect(multilingual.root.findByType(TranslateIcon).props.color).toBe('#7c3aed');
+    const names = multilingual.root.findAllByType(Ionicons).map((n) => n.props.name);
+    expect(names).toContain('language');
+    expect(names).not.toContain('language-outline');
     act(() => multilingual.unmount());
   });
 
@@ -371,7 +369,9 @@ describe('ComposeToolbar — the language control', () => {
 
   it('tints itself once the post actually carries another language', () => {
     const languageColor = (tree: TestRenderer.ReactTestRenderer) =>
-      tree.root.findByType(TranslateIcon).props.color;
+      tree.root
+        .findAllByType(Ionicons)
+        .find((node) => /^language(-outline)?$/.test(node.props.name))?.props.color;
 
     const plain = renderLanguageToolbar();
     const plainColor = languageColor(plain);

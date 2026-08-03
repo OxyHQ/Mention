@@ -1,8 +1,8 @@
 import React, { useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { CommentIcon } from '@/assets/icons/comment-icon';
-import { TranslateIcon } from '@/assets/icons/translate-icon';
 import { BoostIcon, BoostIconActive } from '@/assets/icons/boost-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
@@ -218,7 +218,8 @@ const PostActions: React.FC<Props> = ({
           {isTranslating ? (
             <SpinnerIcon size={16} className="text-muted-foreground" />
           ) : (
-            <TranslateIcon
+            <Ionicons
+              name={isTranslated ? 'language' : 'language-outline'}
               size={ICON_SIZE}
               color={isTranslated ? theme.colors.primary : theme.colors.textSecondary}
             />
