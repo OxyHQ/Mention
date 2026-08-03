@@ -26,9 +26,16 @@ import {
   markCompleted,
   saveCheckpoint,
 } from '../../db/backfill/checkpointStore';
+import { lockCheckpointTable } from './checkpointTableLock';
+
+let releaseCheckpointTable: () => Promise<void>;
 
 beforeAll(async () => {
   await connectPostgres();
+  // This file owns table-WIDE operations — it clears the table before every
+  // test, drops it, and asserts it is empty — so it must hold the table for
+  // its whole run. See `checkpointTableLock.ts`.
+  releaseCheckpointTable = await lockCheckpointTable();
   await ensureCheckpointTable(getDb());
 });
 
@@ -46,6 +53,7 @@ afterAll(async () => {
   // order the two that way.
   await dropCheckpointTable(getDb());
   await ensureCheckpointTable(getDb());
+  await releaseCheckpointTable();
   await closePostgres();
 });
 

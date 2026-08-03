@@ -251,9 +251,24 @@ export async function* streamCollection(
   source: MongoSource,
   name: string,
   batchSize: number,
-  after?: Checkpoint
+  after?: Checkpoint,
+  /**
+   * An INCLUSIVE upper bound on `_id`, for a caller that must read the same
+   * document set twice over a LIVE source.
+   *
+   * The referential audit is the one such caller: it builds a key set in one
+   * pass and checks references in another, and production keeps writing
+   * between them. Without a bound the second pass sees documents the first
+   * never captured and reports their references as orphans — 407 rows of them
+   * in the 2026-08-03 production run, every id created inside the run's last
+   * four minutes, every parent present in Mongo the whole time.
+   */
+  upTo?: unknown
 ): AsyncGenerator<MongoDocument[]> {
-  const filter = after === undefined ? {} : { _id: { $gt: reviveCheckpoint(after) } };
+  const bounds: Record<string, unknown> = {};
+  if (after !== undefined) bounds.$gt = reviveCheckpoint(after);
+  if (upTo !== undefined) bounds.$lte = upTo;
+  const filter = Object.keys(bounds).length === 0 ? {} : { _id: bounds };
   const cursor = source
     .collection(name)
     .find(filter, { sort: { _id: 1 }, batchSize })
