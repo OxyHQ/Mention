@@ -1,6 +1,7 @@
 import React, { memo, useCallback } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { describeContentLanguage } from '@/constants/contentLanguages';
 
@@ -12,6 +13,10 @@ interface LanguageTabsProps {
   onSelect: (tag: string) => void;
   /** Pressing the ALREADY-ACTIVE tab: change its language, or remove it. */
   onEdit: (tag: string) => void;
+  /** Declare another language for the post. Composer-wide, like the tabs. */
+  onAdd: () => void;
+  /** False once the post holds the maximum author languages. */
+  canAdd?: boolean;
   disabled?: boolean;
 }
 
@@ -96,13 +101,19 @@ const LanguageTab = memo(function LanguageTab({
  * federates, gets signed onto the chain, and that every other language inherits
  * its media and article from.
  *
- * ADDING a language is not here — it is an attachment like any other and lives
- * in the toolbar (`ComposeToolbar`'s `onLanguagePress`). Everything else stays,
- * INCLUDING the lone primary tab of a single-language post: tapping it is how
- * the author changes what language the post declares, which decides who the feed
- * serves it to and what federates. It is not the reader-side `PostLanguageChip`,
- * which correctly hides below two renditions because it only switches between
- * bodies that already exist.
+ * ADDING one is here too, as the last tab. It used to sit in the first box's
+ * attachment toolbar, which read as an attachment of that post — but a language
+ * is not a property of any one box: the renditions are a buffer keyed by
+ * (item × language), so declaring a language declares it for the main post and
+ * every thread item at once. Offered from one box among several, it made that
+ * box look like the one that owned the post's languages. It belongs beside the
+ * languages it adds to.
+ *
+ * The lone primary tab of a single-language post stays, for its own reason:
+ * tapping it is how the author changes what language the post DECLARES, which
+ * decides who the feed serves it to and what federates. It is not the
+ * reader-side `PostLanguageChip`, which correctly hides below two renditions
+ * because it only switches between bodies that already exist.
  */
 const LanguageTabs = memo(function LanguageTabs({
   primaryTag,
@@ -110,8 +121,13 @@ const LanguageTabs = memo(function LanguageTabs({
   activeTag,
   onSelect,
   onEdit,
+  onAdd,
+  canAdd = true,
   disabled,
 }: LanguageTabsProps) {
+  const { t } = useTranslation();
+  const theme = useTheme();
+
   return (
     <ScrollView
       horizontal
@@ -138,6 +154,28 @@ const LanguageTabs = memo(function LanguageTabs({
           disabled={disabled}
         />
       ))}
+      <TouchableOpacity
+        onPress={onAdd}
+        disabled={disabled || !canAdd}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel={t('compose.languages.add', { defaultValue: 'Add a language' })}
+        className="flex-row items-center gap-1 px-3 py-1.5 rounded-full border border-dashed"
+        style={{ borderColor: theme.colors.border }}
+      >
+        <Ionicons
+          name="add"
+          size={14}
+          color={disabled || !canAdd ? theme.colors.textTertiary : theme.colors.textSecondary}
+        />
+        <Text
+          className="text-[13px] font-semibold"
+          style={{ color: disabled || !canAdd ? theme.colors.textTertiary : theme.colors.textSecondary }}
+          numberOfLines={1}
+        >
+          {t('compose.languages.addShort', { defaultValue: 'Language' })}
+        </Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 });

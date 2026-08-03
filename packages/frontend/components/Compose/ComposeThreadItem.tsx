@@ -12,6 +12,7 @@ import {
 import type { AccountNode } from '@oxyhq/core';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
+import { PodcastCard } from '@/components/Podcast/PodcastCard';
 import RoomCard from '@/components/RoomCard';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTextInput';
@@ -111,6 +112,8 @@ interface ComposeThreadItemProps {
   onRoomRemove: (threadId: string) => void;
   onReplySettingsPress: (threadId: string) => void;
   onSensitiveToggle: (threadId: string) => void;
+  onPodcastPress: (threadId: string) => void;
+  onPodcastRemove: (threadId: string) => void;
   /**
    * Choose who this post is by. Omitted — leaving the avatar inert — wherever the
    * payload cannot carry another author: a thread, whose continuations are
@@ -118,6 +121,24 @@ interface ComposeThreadItemProps {
    * refuses one outright.
    */
   onPublishAsPress?: (threadId: string) => void;
+  /**
+   * Put this post on one of its publisher's lanes. Omitted — and the icon then
+   * absent from the row entirely — wherever the payload cannot carry one: in
+   * THREAD mode this box is a continuation, which is a reply, and
+   * `POST /posts/thread` refuses a lane on one with a 400 that fails the WHOLE
+   * batch. Offering it there would take the author's choice and then lose them
+   * every post in the composer.
+   */
+  onLanePress?: (threadId: string) => void;
+  /**
+   * When this post goes out, rendered in the identity row's time slot.
+   *
+   * The composer hands the SAME node to every box, because the publish time is a
+   * property of the batch: `POST /posts/thread` reads one `scheduledFor` off the
+   * top level and stamps every entry with it. A box left saying "now" beneath
+   * one showing a date would be naming a publish time its post will not get.
+   */
+  timeSlot?: React.ReactNode;
   getFileDownloadUrl: (id: string) => string;
   textInputRef: (threadId: string, el: MentionTextInputHandle | null) => void;
   // Styles from parent
@@ -156,7 +177,11 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
   onRoomRemove,
   onReplySettingsPress,
   onSensitiveToggle,
+  onPodcastPress,
+  onPodcastRemove,
   onPublishAsPress,
+  onLanePress,
+  timeSlot,
   getFileDownloadUrl,
   textInputRef,
   styles,
@@ -170,7 +195,8 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
   const itemHasEvent = Boolean(item.event && item.event.name?.trim());
   const itemHasRoom = Boolean(item.room && item.room.roomId);
   const itemHasSources = item.sources.length > 0 && item.sources.some(s => s.url.trim().length > 0);
-  const itemHasAttachments = item.showPollCreator || item.mediaIds.length > 0 || itemHasArticle || itemHasEvent || itemHasRoom || itemHasSources;
+  const itemHasPodcast = Boolean(item.podcast?.syraPodcastId);
+  const itemHasAttachments = item.showPollCreator || item.mediaIds.length > 0 || itemHasArticle || itemHasEvent || itemHasRoom || itemHasPodcast || itemHasSources;
 
   // Stable callbacks bound to this thread item's id
   const handleMentionValueChange = useCallback(
@@ -197,12 +223,20 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
   const handleRoomRemove = useCallback(() => onRoomRemove(threadId), [threadId, onRoomRemove]);
   const handleReplySettingsPress = useCallback(() => onReplySettingsPress(threadId), [threadId, onReplySettingsPress]);
   const handleSensitiveToggle = useCallback(() => onSensitiveToggle(threadId), [threadId, onSensitiveToggle]);
+  const handlePodcastPress = useCallback(() => onPodcastPress(threadId), [threadId, onPodcastPress]);
+  const handlePodcastRemove = useCallback(() => onPodcastRemove(threadId), [threadId, onPodcastRemove]);
   const handleTextInputRef = useCallback((el: MentionTextInputHandle | null) => textInputRef(threadId, el), [threadId, textInputRef]);
   // Stays `undefined` when the parent supplied no handler, so the avatar is inert
   // rather than opening a picker whose answer this post could not carry.
   const handlePublishAsPress = useMemo(
     () => (onPublishAsPress ? () => onPublishAsPress(threadId) : undefined),
     [threadId, onPublishAsPress],
+  );
+  // Same shape, and the toolbar drops the icon entirely rather than disabling it:
+  // there is nothing the author could do in a thread to make a lane land.
+  const handleLanePress = useMemo(
+    () => (onLanePress ? () => onLanePress(threadId) : undefined),
+    [threadId, onLanePress],
   );
 
   /**
@@ -244,6 +278,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
         <ComposeIdentityHeader
           publishAs={publishAs}
           onPressAvatar={handlePublishAsPress}
+          timeSlot={timeSlot}
         >
           <MentionTextInput
             ref={handleTextInputRef}
@@ -266,6 +301,8 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
               onArticlePress={handleArticlePress}
               onEventPress={handleEventPress}
               onRoomPress={handleRoomPress}
+              onPodcastPress={handlePodcastPress}
+              onLanePress={handleLanePress}
               hasLocation={!!item.location}
               hasPoll={item.showPollCreator}
               hasMedia={item.mediaIds.length > 0}
@@ -273,6 +310,8 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
               hasArticle={itemHasArticle}
               hasEvent={itemHasEvent}
               hasRoom={itemHasRoom}
+              hasPodcast={itemHasPodcast}
+              hasLane={Boolean(item.laneId)}
               disabled={isPosting}
             />
           </View>
@@ -450,6 +489,31 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={handleEventRemove}
+                    className="bg-background" style={styles.pollAttachmentRemoveButton}
+                    hitSlop={HIT_SLOP_SM}
+                  >
+                    <CloseIcon size={16} className="text-foreground" />
+                  </TouchableOpacity>
+                </View>
+              )}
+              {/* Thread item podcast preview */}
+              {itemHasPodcast && item.podcast && (
+                <View style={styles.pollAttachmentWrapper}>
+                  <View
+                    className="border-border bg-card"
+                    style={styles.articleAttachmentWrapper}
+                  >
+                    <PodcastCard
+                      variant="card"
+                      title={item.podcast.title}
+                      author={item.podcast.author}
+                      artworkUrl={item.podcast.artworkUrl}
+                      onPress={handlePodcastPress}
+                      style={styles.articleAttachmentPreview}
+                    />
+                  </View>
+                  <TouchableOpacity
+                    onPress={handlePodcastRemove}
                     className="bg-background" style={styles.pollAttachmentRemoveButton}
                     hitSlop={HIT_SLOP_SM}
                   >

@@ -13,10 +13,31 @@ import { GifIcon } from '@/assets/icons/gif-icon';
 import { SourcesIcon } from '@/assets/icons/sources-icon';
 import { ArticleIcon } from '@/assets/icons/article-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
-import { ScheduleIcon, ScheduleIconActive } from '@/assets/icons/schedule-icon';
 import { LaneIcon } from '@/assets/icons/lane-icon';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
+/**
+ * The attachment row under ONE compose box.
+ *
+ * Every control here writes a property of THAT post, so the row is the same on
+ * the first box and on the tenth. What decides membership is the wire: an
+ * affordance belongs here if, and only if, the payload carries its property PER
+ * ENTRY. Anything the server reads once for the whole batch is a property of the
+ * BATCH and lives at the composer level instead — putting it here would make
+ * whichever box drew it look like the one that owns it.
+ *
+ * Two controls were moved out on exactly that test, and must not come back:
+ *
+ *  - **The schedule.** `POST /posts/thread` reads `scheduledFor` from the TOP
+ *    level and stamps every entry with the same instant; a per-entry
+ *    `scheduledFor` is not a field of `CreateThreadPostRequest` and is ignored
+ *    outright. It lives in the composer's footer, beside the other whole-batch
+ *    decisions.
+ *  - **Adding a language.** The declared languages are one set for the whole
+ *    composer — the renditions are a buffer keyed by (item × language), so there
+ *    is no such thing as adding a language to one box. It lives on the language
+ *    tab strip, which is already the composer-wide surface for them.
+ */
 interface ComposeToolbarProps {
     contentPaddingLeft?: number;
     onMediaPress?: () => void;
@@ -24,26 +45,25 @@ interface ComposeToolbarProps {
     onLocationPress?: () => void;
     onGifPress?: () => void;
     onEmojiPress?: () => void;
-    onSchedulePress?: () => void;
     onSourcesPress?: () => void;
     onArticlePress?: () => void;
     onEventPress?: () => void;
     onRoomPress?: () => void;
     onPodcastPress?: () => void;
-    /** Add another language to the post — composer-wide, so main toolbar only. */
-    onLanguagePress?: () => void;
     /**
-     * Open the collaborator picker — composer-wide (a collab post has one set of
-     * authors), so main toolbar only, and omitted entirely where the post cannot
-     * take collaborators at all.
+     * Open the collaborator picker. A post's collaborators are its own, but a
+     * BATCH cannot have any — `POST /posts/thread` refuses `collaboratorIds`
+     * outright, per entry and at the top level alike (400) — so the composer
+     * omits this the moment a second box exists.
      */
     onCollaboratorsPress?: () => void;
     /**
-     * Choose the author's own lane for this post — composer-wide, so main
-     * toolbar only, and omitted entirely on a REPLY: the server refuses a lane
-     * there (400) and `CreateReplyRequest` drops fields it does not name, so an
-     * affordance on that path would take the author's choice, answer 201 and
-     * throw the lane away with nothing to tell them.
+     * Choose the publisher's lane for this post. Per entry, and the composer
+     * decides which boxes may offer it: `POST /posts/thread` takes a lane on
+     * every entry of a BEAST batch, and on a thread's ROOT only — a
+     * continuation is a reply, and a reply carries no lane (400). Omitted on a
+     * reply and an edit for the same reason: the payload drops what it does not
+     * name, so the choice would be taken, answered 201, and thrown away.
      */
     onLanePress?: () => void;
     hasLocation?: boolean;
@@ -55,14 +75,9 @@ interface ComposeToolbarProps {
     hasEvent?: boolean;
     hasRoom?: boolean;
     hasPodcast?: boolean;
-    hasSchedule?: boolean;
-    /** The post already carries more than one language. */
-    hasLanguages?: boolean;
-    /** False once the post holds the maximum author languages. */
-    languageEnabled?: boolean;
     /** The post already names at least one collaborator. */
     hasCollaborators?: boolean;
-    /** The post is already assigned to one of the author's lanes. */
+    /** The post is already assigned to one of the publisher's lanes. */
     hasLane?: boolean;
     /** False once the post holds the maximum collaborators. */
     collaboratorsEnabled?: boolean;
@@ -77,13 +92,11 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     onLocationPress,
     onGifPress,
     onEmojiPress,
-    onSchedulePress,
     onSourcesPress,
     onArticlePress,
     onEventPress,
     onRoomPress,
     onPodcastPress,
-    onLanguagePress,
     onCollaboratorsPress,
     onLanePress,
     hasLocation = false,
@@ -95,9 +108,6 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     hasEvent = false,
     hasRoom = false,
     hasPodcast = false,
-    hasSchedule = false,
-    hasLanguages = false,
-    languageEnabled = true,
     hasCollaborators = false,
     collaboratorsEnabled = true,
     hasLane = false,
@@ -112,12 +122,6 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
         haptic('light');
         handler?.();
     }, [haptic]);
-
-    const scheduleColor = disabled
-        ? theme.colors.textTertiary
-        : hasSchedule
-            ? theme.colors.primary
-            : theme.colors.textSecondary;
 
     const contentContainerStyle = useMemo(() => ({
         alignItems: 'center' as const,
@@ -249,6 +253,10 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     onPress={withHaptic(onPodcastPress)}
                     disabled={disabled}
                     className="p-1"
+                    // Labelled but role-less until now, alone among the labelled
+                    // controls in this row — a screen reader announced the name
+                    // without saying it could be activated.
+                    accessibilityRole="button"
                     accessibilityLabel={t('compose.podcast.add')}
                 >
                     <Ionicons
@@ -256,57 +264,6 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                         size={20}
                         color={disabled ? theme.colors.textTertiary : (hasPodcast ? theme.colors.primary : theme.colors.textSecondary)}
                     />
-                </PressableScale>
-            )}
-
-            {onLanguagePress && (
-                <PressableScale
-                    onPress={withHaptic(onLanguagePress)}
-                    disabled={disabled || !languageEnabled}
-                    className="p-1"
-                    accessibilityRole="button"
-                    accessibilityLabel={t('compose.languages.add', { defaultValue: 'Add a language' })}
-                >
-                    {/* The SAME icon the post component marks a translation
-                        with, in the same two states: `PostActions` renders
-                        `isTranslated ? 'language' : 'language-outline'` tinted
-                        primary or secondary. Here "carries another language" is
-                        the authoring side of that same fact, so the control that
-                        writes one and the badge that reads one look alike. */}
-                    <Ionicons
-                        name={hasLanguages ? 'language' : 'language-outline'}
-                        size={20}
-                        color={disabled || !languageEnabled
-                            ? theme.colors.textTertiary
-                            : hasLanguages
-                                ? theme.colors.primary
-                                : theme.colors.textSecondary}
-                    />
-                </PressableScale>
-            )}
-
-            {onSchedulePress && (
-                <PressableScale
-                    onPress={withHaptic(onSchedulePress)}
-                    disabled={disabled}
-                    className="p-1"
-                    accessibilityRole="button"
-                    // The chosen time lives in the author row's time slot, where
-                    // it replaces "now" — see `ComposeScheduleIndicator`. So this
-                    // control is the plain action again, and tints itself when a
-                    // time is set exactly like every other icon in this row
-                    // signals its attachment is present.
-                    accessibilityLabel={t('compose.schedule.a11y', { defaultValue: 'Schedule this post' })}
-                >
-                    {/* The FILLED cut once a time is set, not just a tint. The
-                        colour already says "active"; the glyph saying it too is
-                        what the icon/iconActive pairs elsewhere in the app do,
-                        and it survives a colour-blind reader. */}
-                    {hasSchedule ? (
-                        <ScheduleIconActive size={20} color={scheduleColor} />
-                    ) : (
-                        <ScheduleIcon size={20} color={scheduleColor} />
-                    )}
                 </PressableScale>
             )}
 

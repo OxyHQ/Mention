@@ -91,6 +91,8 @@ const item: ThreadItem = {
   article: null,
   event: null,
   room: null,
+  podcast: null,
+  laneId: null,
   attachmentOrder: [],
   replyPermission: ['anyone'],
   reviewReplies: false,
@@ -150,6 +152,8 @@ function renderItem(postingMode: 'thread' | 'beast') {
         onRoomRemove={noop}
         onReplySettingsPress={noop}
         onSensitiveToggle={noop}
+        onPodcastPress={noop}
+        onPodcastRemove={noop}
         getFileDownloadUrl={(id: string) => id}
         textInputRef={noop}
         styles={styles}
