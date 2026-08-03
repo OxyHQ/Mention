@@ -195,7 +195,20 @@ describe('POST /posts — a pasted profile link becomes a real mention', () => {
       skipSocketEmit: true,
     });
 
-    expect(post.mentions).toEqual(['oxy_picked', ALICE_OXY_ID]);
+    // As a SET, because the stored order is not a property this can assert.
+    // `post.mentions` is read back from `post_mentions` ordered by `id`, and the
+    // whole allowlist is inserted in ONE batch — so every row's `uuidv7()` carries
+    // the same millisecond and the tie is broken by the RANDOM tail, there being
+    // no monotonic counter in `db/schema/columns.ts`. Asserting the array order
+    // was a ~50/50 coin flip, measured at 4 passes to 6 failures over ten runs of
+    // this file ALONE. Order carries no meaning here either: the column is an
+    // authorization allowlist with a UNIQUE `(post_id, oxy_user_id)`, and nothing
+    // renders it in sequence.
+    //
+    // That the FOLD preserves the picker's entry ahead of the pasted one is a
+    // real property and is still asserted, on the fold's own in-memory return,
+    // in `services/profileLinkMentions.test.ts`.
+    expect([...post.mentions].sort()).toEqual(['oxy_picked', ALICE_OXY_ID].sort());
   });
 });
 
