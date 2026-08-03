@@ -686,7 +686,23 @@ describe('purgeBlockedDomainContent — what it removes', () => {
       db.select().from(pgFeedInteractions).where(eq(pgFeedInteractions.postUri, P.blockedPost)),
       db.select().from(pgLikes).where(eq(pgLikes.postId, P.blockedPost)),
       db.select().from(pgBookmarks).where(eq(pgBookmarks.postId, P.blockedPost)),
-      db.select().from(federatedDeliveryQueue),
+      // Scoped like its twelve siblings, and like this suite's OWN teardown
+      // three hundred lines up, which already deletes from this table by
+      // `senderOxyUserId in ACCOUNTS`. Unscoped, this read asserted that
+      // `federated_delivery_queue` is globally EMPTY — true only while no other
+      // file in the run holds a row in it. That is a globally-scoped READ in an
+      // assertion: the mirror of the unscoped WRITES the isolation list exists
+      // for, and invisible to a writer census because this file writes nothing
+      // global. It failed in the full suite and passed alone, 33/33.
+      //
+      // Isolating this file would also have made it green, and would have been
+      // the wrong fix: purging ONE blocked domain's content has no business
+      // asserting a shared queue is empty of everybody's rows, so the assertion
+      // was overbroad on its own terms rather than a victim of its environment.
+      db
+        .select()
+        .from(federatedDeliveryQueue)
+        .where(inArray(federatedDeliveryQueue.senderOxyUserId, ACCOUNTS)),
       db
         .select()
         .from(pgNotifications)
