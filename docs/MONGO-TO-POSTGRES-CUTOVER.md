@@ -308,16 +308,14 @@ fresh run into the populated one (`assertTargetsEmpty` will refuse it, correctly
   deploy**, and it is what makes `purgeBlockedDomainContent` production-reachable.
   Mongo cannot be decommissioned until it is retired — but it does not block this
   cutover, because Mongo keeps running through it. (#83)
-- **Readiness gates on the wrong store, and this outlives the cutover.** Read
-  from `routes/health.routes.ts`: `/health/ready` is
-  `phase === 'ready' && migrationsComplete && mongoReady`. So Mongo-down reports
-  **503** and the task drains — that part is correct today and answers the
-  question directly. The problem is the mirror: **Postgres reachability is not
-  checked at all**, so after the cutover a task whose Postgres connection is gone
-  keeps reporting ready and keeps receiving traffic while failing every query.
-  Before the cutover that asymmetry matches which store is authoritative; the
-  moment the data moves it is exactly backwards. Fix it with the flip, not after.
-  (#82)
+- **Readiness now gates on Postgres — CLOSED (#89), ships in the flip deploy.**
+  `/health/ready` and the legacy `/` both require a real `select 1`
+  (`checkPostgresHealth`), not a pool-exists check, because a pool object
+  survives exactly the failure being caught. Before this, Postgres was not
+  checked at all and a task whose database had become unreachable kept reporting
+  ready and kept taking traffic. Mongo stays in the gate while Mongo runs;
+  removing it is decommission work (#82) and must not be forgotten, because
+  `isDatabaseConnected()` pins readiness false forever once Mongo is off.
 - **Mongo is also a hard BOOT dependency**: `server.ts` awaits
   `connectToDatabase()` before `connectPostgres()`, and production boot calls
   `assertMongoTransactionalTopology()` — a replica-set assertion. Both must go

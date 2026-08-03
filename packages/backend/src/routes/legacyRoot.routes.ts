@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { checkPostgresHealth } from '../db/postgres';
 import { isApexHost } from '../middleware/apexFrontendProxy';
 import { isDatabaseConnected } from '../utils/database';
 import { getRuntimeHealthState } from '../utils/runtimeHealth';
@@ -7,21 +8,25 @@ import { getRuntimeHealthState } from '../utils/runtimeHealth';
  * Temporary ALB compatibility handler while target groups converge from `/` to
  * `/health/ready`. Apex browser traffic must continue to the SPA proxy.
  */
-export function legacyApiRootReadiness(
+export async function legacyApiRootReadiness(
   req: Request,
   res: Response,
   next: NextFunction,
-): Response | void {
+): Promise<Response | void> {
   if (isApexHost(req)) {
     next();
     return;
   }
 
   const runtime = getRuntimeHealthState();
+  // The SAME predicate as `/health/ready`, Postgres included. These two answer
+  // one question for one ALB, and a target group still pointed at `/` must not
+  // get a more forgiving answer than the endpoint it is converging to.
   const ready =
     runtime.phase === 'ready' &&
     runtime.migrationsComplete &&
-    isDatabaseConnected();
+    isDatabaseConnected() &&
+    (await checkPostgresHealth());
 
   res.setHeader('Cache-Control', 'no-store');
   return res
