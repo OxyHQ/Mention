@@ -1066,7 +1066,17 @@ export interface ResolutionContext {
     rule: ResolutionRule,
     collection: string,
     documentId: string,
-    detail: string
+    detail: string,
+    /**
+     * The `within` key to record under, when a ROW-level record for the same
+     * rule and document already exists and this one SUPERSEDES it.
+     *
+     * `ResolutionLog.record` is keyed on `(rule, document, within)`, so a drop
+     * that follows a row-level drop of the same document under the same rule
+     * must reuse that key or the rule reports twice for one document — a count
+     * the operator checks against the audit's. See `transformDocument`.
+     */
+    within?: string
   ) => void;
   /** How many documents of this collection a rule removed whole. */
   readonly documentsDroppedIn: (collection: string) => number;
@@ -1095,8 +1105,8 @@ export function createResolutionContext(
     record: (entry) => {
       log.record(entry);
     },
-    dropDocument: (rule, collection, documentId, detail) => {
-      log.record({ rule, documentId, detail });
+    dropDocument: (rule, collection, documentId, detail, within) => {
+      log.record({ rule, documentId, detail, ...(within === undefined ? {} : { within }) });
       log.dropDocument(collection, documentId);
     },
     documentsDroppedIn: (collection) => log.documentsDroppedIn(collection),
@@ -1326,6 +1336,60 @@ export function transformDocument(
   const resolved = built.map((entry) =>
     resolveOrphanedReferences(entry.table, entry.row, documentId, resolutions, parents)
   );
+
+  // Pass 1b — a rule that drops the plan's PRIMARY row drops the DOCUMENT.
+  //
+  // This is not a cascade over declared relations, and it must not be confused
+  // with one. A `CollectionPlan`'s `childTables` exist ONLY to hang off its
+  // `table`: every row a plan emits into a child table carries a foreign key to
+  // the row it emits into `table`, declared `ON DELETE CASCADE` in the schema.
+  // So a rule that removes that one row has removed the only thing every other
+  // row of the document points at, and writing the rest is writing rows whose
+  // parent the same document decided not to write.
+  //
+  // Found by the copy, not by reasoning: `drop-boost-of-a-post-mention-never-held`
+  // removes the `posts` row and the run died 26 minutes in on
+  // `post_authorships_post_id_posts_id_fk`. The rule's own decision says the
+  // drop "strands no child" — true of every Mongo collection that REFERS to a
+  // boost (replies, quotes, boosts, likes, recent repliers, all measured), and
+  // silent about the child rows the boost's OWN document emits. `authorship[]`
+  // is required on every post, so every one of the 348 dropped boosts stranded
+  // exactly one.
+  //
+  // Deliberately not `cascadeWithinDocument`: that mechanism needs a declared
+  // relation per child table and would have to be extended again for every
+  // child added — and it cannot chain, so a grandchild (`post_variant_media`
+  // under `post_content_variants`) would still be stranded. Dropping the whole
+  // document needs no enumeration and has no depth.
+  const primaryRows = resolved.filter((row) => tableName(row.table) === tableName(plan.table));
+  const primaryDrop =
+    primaryRows.length > 0 &&
+    primaryRows.every((row) => row.written === null && row.applied.length > 0)
+      ? primaryRows[0]?.applied.find((entry) => entry.relation.action === 'drop-row')
+      : undefined;
+  if (primaryDrop !== undefined) {
+    const siblings = resolved.filter((row) => row !== primaryRows[0] && row.written !== null);
+    resolutions.dropDocument(
+      primaryDrop.relation.rule,
+      plan.collection,
+      documentId,
+      `${tableName(plan.table)}.${primaryDrop.relation.columnName} is ` +
+        `${JSON.stringify(primaryDrop.value)}, which no ` +
+        `\`${primaryDrop.relation.parentCollection}\` document holds, so the row ` +
+        'is dropped — and with it the WHOLE document: ' +
+        (siblings.length === 0
+          ? 'it emitted no other row.'
+          : `${siblings.length} further row(s) in ` +
+            `${[...new Set(siblings.map((row) => tableName(row.table)))].sort().join(', ')}, ` +
+            'each of which carries a foreign key to the dropped row and would ' +
+            'violate it. The schema declares ON DELETE CASCADE for every one.'),
+      // The same `within` the row-level record used, so the two collapse into
+      // ONE record rather than reporting this document twice under one rule.
+      primaryDrop.value
+    );
+    for (const row of resolved) emit({ ...row, written: null });
+    return;
+  }
 
   // Pass 2 — the declared CONSEQUENCES of pass 1, and only within this document.
   for (const row of cascadeWithinDocument(resolved, documentId, resolutions)) emit(row);

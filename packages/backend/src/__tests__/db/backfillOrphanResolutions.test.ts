@@ -33,7 +33,7 @@ import { auditDefaultedColumns } from '../../db/backfill/audit';
 import { auditReferentialIntegrity } from '../../db/backfill/referentialIntegrity';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import { postRecentRepliers } from '../../db/schema/postContent';
+import { postAuthorships, postRecentRepliers } from '../../db/schema/postContent';
 import {
   createResolutionContext,
   orphanResolution,
@@ -228,6 +228,76 @@ describe('a boost of a post Mention never held', () => {
     expect(reportedIds(log, 'drop-boost-of-a-post-mention-never-held')).toStrictEqual([
       late.toHexString(),
     ]);
+  });
+
+  it('takes the WHOLE document with it — every child row the boost emits', async () => {
+    // The failure this pins killed a full production-source copy 26 minutes in,
+    // on `post_authorships_post_id_posts_id_fk`, and no test could have caught
+    // it because `basePost` carries no `authorship` — the fixture was assembled
+    // from the audit's findings, and an audit reports references INTO a row,
+    // never the child rows the row's own document emits. `authorship[]` is
+    // required on every real post, so every one of the 348 dropped boosts
+    // stranded exactly one authorship row.
+    const boost = new ObjectId();
+    const decoy = new ObjectId();
+    await mongo.collection('posts').insertMany([
+      basePost(decoy),
+      basePost(boost, {
+        type: 'boost',
+        boostOf: new ObjectId().toHexString(),
+        authorship: [{ oxyUserId: OWNER, role: 'owner', status: 'accepted' }],
+      }),
+    ]);
+
+    const { log } = await copy('posts', [decoy.toHexString()]);
+
+    expect(await getDb().select().from(posts).where(eq(posts.id, boost.toHexString()))).toStrictEqual(
+      []
+    );
+    // The row that violated the constraint. Asserted directly rather than by
+    // "the copy did not throw": a copy that silently wrote it would still pass
+    // that, right up until Postgres refused it.
+    expect(
+      await getDb()
+        .select()
+        .from(postAuthorships)
+        .where(eq(postAuthorships.postId, boost.toHexString()))
+    ).toStrictEqual([]);
+
+    // ONE record for one document, not two. Pass 1 records the row-level drop
+    // and this pass supersedes it under the same key; two would inflate the
+    // count the operator checks against the audit's.
+    expect(reportedIds(log, 'drop-boost-of-a-post-mention-never-held')).toStrictEqual([
+      boost.toHexString(),
+    ]);
+  });
+
+  it('leaves a boost whose target EXISTS completely alone — children included', async () => {
+    // The healthy case beside the broken one, and it is load-bearing: a
+    // document-wide drop that fired one condition too wide would take a
+    // perfectly good boost's authorship with it, and a fixture holding only
+    // broken rows has nothing for that mistake to damage.
+    const original = new ObjectId();
+    const boost = new ObjectId();
+    await mongo
+      .collection('posts')
+      .insertMany([
+        basePost(original),
+        basePost(boost, {
+          type: 'boost',
+          boostOf: original.toHexString(),
+          authorship: [{ oxyUserId: OWNER, role: 'owner', status: 'accepted' }],
+        }),
+      ]);
+
+    const { log: healthyLog } = await copy('posts', [original.toHexString()]);
+    expect(
+      await getDb()
+        .select()
+        .from(postAuthorships)
+        .where(eq(postAuthorships.postId, boost.toHexString()))
+    ).toHaveLength(1);
+    expect(reportedIds(healthyLog, 'drop-boost-of-a-post-mention-never-held')).toStrictEqual([]);
   });
 
   it('leaves a boost whose target EXISTS completely alone', async () => {
