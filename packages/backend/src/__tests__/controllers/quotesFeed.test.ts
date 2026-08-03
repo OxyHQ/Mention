@@ -12,6 +12,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
  */
 
 const postFind = vi.fn();
+const anchorFind = vi.fn();
 const hydratePosts = vi.fn();
 
 /** Chainable Mongoose query stub that records what the controller asked for. */
@@ -21,6 +22,7 @@ let lastLimit: number | undefined;
 
 vi.mock('../../models/Post', () => ({
   Post: {
+    findById: () => ({ lean: async () => anchorFind() }),
     find: (query: Record<string, unknown>) => {
       lastQuery = query;
       const q: Record<string, unknown> = {};
@@ -78,6 +80,7 @@ beforeEach(() => {
   lastSort = undefined;
   lastLimit = undefined;
   vi.clearAllMocks();
+  anchorFind.mockReturnValue({ _id: QUOTED_ID, oxyUserId: 'anchor-author' });
   postFind.mockReturnValue([]);
   hydratePosts.mockImplementation(async (posts: { _id: string }[]) =>
     posts.map((p) => ({ id: String(p._id), user: { id: 'author' } })),
@@ -93,6 +96,27 @@ describe('FeedController.getQuotesFeed', () => {
       visibility: 'public',
       status: 'published',
     });
+  });
+
+  it('does not enumerate quotes when the anchor is unavailable to the viewer', async () => {
+    hydratePosts.mockResolvedValueOnce([null]);
+    const res = makeRes();
+
+    await feedController.getQuotesFeed(makeReq(), res as never);
+
+    expect(res.statusCode).toBe(404);
+    expect(postFind).not.toHaveBeenCalled();
+  });
+
+  it('returns not found without querying quotes when the anchor does not exist', async () => {
+    anchorFind.mockReturnValue(null);
+    const res = makeRes();
+
+    await feedController.getQuotesFeed(makeReq(), res as never);
+
+    expect(res.statusCode).toBe(404);
+    expect(hydratePosts).not.toHaveBeenCalled();
+    expect(postFind).not.toHaveBeenCalled();
   });
 
   it('pages on _id, never on createdAt', async () => {
@@ -129,9 +153,9 @@ describe('FeedController.getQuotesFeed', () => {
 
     await feedController.getQuotesFeed(makeReq(), makeRes() as never);
 
-    expect(hydratePosts).toHaveBeenCalledWith(
+    expect(hydratePosts).toHaveBeenLastCalledWith(
       [{ _id: QUOTE_A }],
-      expect.objectContaining({ maxDepth: 1 }),
+      expect.objectContaining({ maxDepth: 1, publicReferencesOnly: true }),
     );
   });
 
