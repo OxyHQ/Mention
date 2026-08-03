@@ -144,6 +144,33 @@ const federatedActorsPlan: CollectionPlan = {
   ],
   columnCoverage: [
     { table: federatedActors, column: federatedActors.networkAcct, sourcePath: 'networkAcct' },
+    {
+      table: federatedActors,
+      column: federatedActors.protocol,
+      sourcePath: 'protocol',
+      filledWhenAbsent:
+        '61,991 of 64,156 actors carry it. The 2,165 that do not predate atproto ' +
+        "entirely, and `models/FederatedActor.ts` declares " +
+        "`default: 'activitypub'` — which is also the only protocol that existed " +
+        'when those rows were written.',
+    },
+    ...(
+      [
+        ['outboxBackfillCursorItemOffset', 'outboxBackfill.cursorItemOffset', 64_109],
+        ['outboxBackfillProcessedCount', 'outboxBackfill.processedCount', 64_140],
+        ['outboxBackfillImportedCount', 'outboxBackfill.importedCount', 64_140],
+        ['outboxBackfillExistingCount', 'outboxBackfill.existingCount', 64_140],
+        ['outboxBackfillPageCount', 'outboxBackfill.pageCount', 64_140],
+      ] as const
+    ).map(([property, sourcePath, present]) => ({
+      table: federatedActors,
+      column: federatedActors[property],
+      sourcePath,
+      filledWhenAbsent:
+        `${present.toLocaleString('en-US')} of 64,156 actors carry it; the model ` +
+        'declares `default: 0`. A crawl counter that was never written is zero ' +
+        'progress, which is what the column then says.',
+    })),
   ],
   transform: (doc, emit, resolutions) => {
     const id = ownId(doc);

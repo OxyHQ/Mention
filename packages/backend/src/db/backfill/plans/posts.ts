@@ -253,11 +253,100 @@ const postsPlan: CollectionPlan = {
   // that looks identical and is not: `curated` is mapped, and no production
   // document carries it. Declaring all four is what separates "nothing arrived
   // because nothing writes it" from "nothing arrived because there is nothing".
+  //
+  // ## And the fallbacks, because a `?? false` is a DECISION nobody wrote down
+  //
+  // Fifteen columns below fill a gap of exactly 154,987 documents, and that
+  // number is one fact rather than fifteen: **154,987 of 597,109 posts carry
+  // none of `isEdited`, `reviewReplies`, `metadata.*` or `postClassification.*`
+  // at all.** They come from the raw federated `insertMany` path, which writes
+  // documents Mongoose never applied a default to. Every fallback here was
+  // checked against `models/Post.ts` and matches the schema's own `default:`
+  // exactly — so a document without the field ALREADY read as this value, and
+  // copying it is the port. A NULL would be a behaviour change; this is not.
+  //
+  // Each is `filledWhenAbsent` rather than left undeclared because an
+  // undeclared fallback produces no finding at all. Declaring it is what makes
+  // the constant a measured decision instead of an unexamined one.
   columnCoverage: [
     { table: posts, column: posts.writtenByOxyUserId, sourcePath: 'writtenByOxyUserId' },
     { table: posts, column: posts.laneId, sourcePath: 'laneId' },
     { table: posts, column: posts.channelId, sourcePath: 'channelId' },
     { table: posts, column: posts.curated, sourcePath: 'curated' },
+    ...(
+      [
+        ['isEdited', 'isEdited', 'false'],
+        ['replyPermission', 'replyPermission', "['anyone']"],
+        ['reviewReplies', 'reviewReplies', 'false'],
+        ['quotesDisabled', 'quotesDisabled', 'false'],
+        ['statsDownvotesCount', 'stats.downvotesCount', '0'],
+        ['metadataIsPinned', 'metadata.isPinned', 'false'],
+        ['metadataIsBoosted', 'metadata.isBoosted', 'false'],
+        ['metadataIsCommented', 'metadata.isCommented', 'false'],
+        ['metadataIsFollowingAuthor', 'metadata.isFollowingAuthor', 'false'],
+        ['metadataAuthorBlocked', 'metadata.authorBlocked', 'false'],
+        ['metadataAuthorMuted', 'metadata.authorMuted', 'false'],
+        ['metadataHideEngagementCounts', 'metadata.hideEngagementCounts', 'false'],
+        ['classificationSentiment', 'postClassification.sentiment', "'neutral'"],
+        ['classificationIntent', 'postClassification.intent', "'other'"],
+        ['classificationConfidence', 'postClassification.confidence', '0'],
+      ] as const
+    ).map(([property, sourcePath, value]) => ({
+      table: posts,
+      column: posts[property],
+      sourcePath,
+      filledWhenAbsent:
+        `442,122 of 597,109 documents carry \`${sourcePath}\`. The 154,987 that ` +
+        `do not are raw federated inserts Mongoose never defaulted, and ` +
+        `\`models/Post.ts\` declares \`default: ${value}\` for this field — so ` +
+        'the constant is what the source schema names for an absent value, not ' +
+        'a value this migration chose.',
+    })),
+    {
+      table: posts,
+      column: posts.hasLinks,
+      sourcePath: 'hasLinks',
+      filledWhenAbsent:
+        '596,588 of 597,109 documents carry it; `models/Post.ts` declares ' +
+        '`default: false`. The 521 without it are a different and much older ' +
+        'set than the 154,987 above.',
+    },
+    {
+      table: posts,
+      column: posts.statsSavesCount,
+      sourcePath: 'stats.savesCount',
+      filledWhenAbsent:
+        'Same 521 documents, same reasoning — `default: 0` on the counter.',
+    },
+    {
+      table: posts,
+      column: posts.statsFederatedBoostsCount,
+      sourcePath: 'stats.federatedBoostsCount',
+      filledWhenAbsent:
+        'Only 152,065 of 597,109 documents carry it — the counter was added ' +
+        'later than its siblings and `stats` is not backfilled in Mongo. ' +
+        '`default: 0` in the model, and a post nobody federated-boosted has ' +
+        'zero of them.',
+    },
+    {
+      table: posts,
+      column: posts.metadataCollabFederationDeferred,
+      sourcePath: 'metadata.collabFederationDeferred',
+      filledWhenAbsent:
+        'ZERO of 597,109 documents carry it, and the reason is worth knowing: ' +
+        '`PostCreationService` SETS `collabFederationDeferred: true`, and ' +
+        "`MetadataSchema` in `models/Post.ts` does not declare the field — so " +
+        'Mongoose strict mode stripped it on every save and it never reached ' +
+        'the database. There is nothing to migrate because nothing was ever ' +
+        'stored. The Postgres column will actually persist it, which makes this ' +
+        'a defect the port FIXES rather than one it inherits.',
+    },
+    {
+      table: posts,
+      column: posts.metadataFederationDelivered,
+      sourcePath: 'metadata.federationDelivered',
+      filledWhenAbsent: 'Identical to `collabFederationDeferred` above, same cause.',
+    },
   ],
   transform: (doc, emit) => {
     const postId = ownId(doc);
