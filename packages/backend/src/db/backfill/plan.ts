@@ -37,6 +37,7 @@
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import type { ResolutionContext, ResolutionRule } from './resolutions';
+import type { ColumnCoverage, UnmappedColumnAcknowledgement } from './columnCoverage';
 import type { MongoDocument } from './values';
 
 /** Collect a row for a table. Called once per row a document produces. */
@@ -296,6 +297,24 @@ export interface CollectionPlan {
    * is reported, so the list cannot quietly outlive the behaviour it describes.
    */
   readonly defaultedColumns?: readonly DefaultedColumnAcknowledgement[];
+  /**
+   * Where each column's value COMES FROM, so the audit can compare counts
+   * instead of only asking whether a column is entirely empty.
+   *
+   * The eleven columns this migration silently dropped were all non-empty in
+   * Mongo and 100% NULL in Postgres, and every existing check passed: they count
+   * rows per document, and this is a question about columns per row. A declared
+   * path turns "the column has something in it" into "the column has as many
+   * values as the source does", in BOTH directions — see
+   * {@link ColumnCoverage.filledWhenAbsent} for the surplus half, which is the
+   * one a `?? false` fallback produces and no null-based check can reach.
+   */
+  readonly columnCoverage?: readonly ColumnCoverage[];
+  /**
+   * Columns nothing can fill, and why. The third state beside "observed" and
+   * "a finding"; re-measured every run, exactly as `defaultedColumns` is.
+   */
+  readonly unmappedColumns?: readonly UnmappedColumnAcknowledgement[];
   /**
    * Build every row one document produces.
    *

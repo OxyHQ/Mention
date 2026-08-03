@@ -111,6 +111,32 @@ export interface ColumnCoverage {
 /** What one pass observed: per table, per column, how many rows carried a value. */
 export type PopulatedCounts = Map<string, Map<string, number>>;
 
+/**
+ * Does this document hold a value at a dotted path?
+ *
+ * Deliberately NOT `values.at()`, which stops at an array: a segment applied to
+ * one returns `undefined`, so `content.media.url` would read as absent on every
+ * document and every child-table declaration would land in the typo case. This
+ * descends into arrays and asks whether ANY element yields a value, which is
+ * the same semantics Mongo's own dotted-path matching applies — and it is what
+ * makes the count comparable to a `countDocuments` on the same path.
+ */
+export function holdsValueAt(document: unknown, path: string): boolean {
+  return valueSeenAt(document, path.split('.'), 0);
+}
+
+function valueSeenAt(value: unknown, segments: readonly string[], index: number): boolean {
+  if (value === null || value === undefined) return false;
+  if (index === segments.length) return true;
+  if (Array.isArray(value)) {
+    return value.some((element) => valueSeenAt(element, segments, index));
+  }
+  if (typeof value !== 'object') return false;
+  const segment = segments[index];
+  if (segment === undefined) return false;
+  return valueSeenAt((value as Record<string, unknown>)[segment], segments, index + 1);
+}
+
 /** Accumulate a column's populated count from an emitted row. */
 export function recordPopulated(
   counts: PopulatedCounts,

@@ -44,6 +44,7 @@ import { eq, getTableColumns, is } from 'drizzle-orm';
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { getPostgresClient, type Database } from '../postgres';
 import {
+  auditColumnCoverageForPlan,
   auditDefaultedColumns,
   auditEnums,
   auditNumerics,
@@ -270,6 +271,16 @@ export async function runAudits(
       if (documents === 0) continue;
       findings.push(
         ...(await auditDefaultedColumns(source, plan, resolutions, {
+          batchSize: options.batchSize,
+        }))
+      );
+      // Same guard, same hazard, and the question the other passes cannot ask:
+      // they count ROWS per document, this one counts COLUMNS per row. A
+      // rehearsal of 4,986,482 rows reported `transform fidelity 58/58` and
+      // `FK coverage 47/47` while dropping eleven columns that hold real
+      // values, because both numbers were true and neither was about columns.
+      findings.push(
+        ...(await auditColumnCoverageForPlan(source, plan, resolutions, {
           batchSize: options.batchSize,
         }))
       );
