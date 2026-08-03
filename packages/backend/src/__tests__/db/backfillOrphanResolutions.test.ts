@@ -28,6 +28,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { mongoSourceFromDb, type MongoSource } from '../../db/backfill/mongoSource';
 import { COLLECTION_PLANS } from '../../db/backfill/collectionMap';
 import { copyCollection } from '../../db/backfill/runner';
+import { assertParentsPrecedeChildren } from '../../db/backfill/parentKeys';
 import { auditDefaultedColumns } from '../../db/backfill/audit';
 import { auditReferentialIntegrity } from '../../db/backfill/referentialIntegrity';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
@@ -35,6 +36,7 @@ import { posts } from '../../db/schema/posts';
 import { postRecentRepliers } from '../../db/schema/postContent';
 import {
   createResolutionContext,
+  orphanResolution,
   parentKeysFrom,
   planResolutions,
   ResolutionLog,
@@ -407,5 +409,50 @@ describe('the audit passes that run transforms but decide no reference', () => {
         resolutions
       )
     ).resolves.toBeDefined();
+  });
+});
+
+describe('the parent-level order guard', () => {
+  /**
+   * The copy died on this after 19 minutes, on the THIRD attempt, having
+   * already cleared two permission failures — `ParentLevelOrderError` for
+   * `null-link-to-a-post-mention-never-held`, because `posts` cannot possibly
+   * be copied before `posts`.
+   *
+   * The guard's premise is that reading Postgres is exact BECAUSE of the
+   * topological order. For a self-referencing plan that premise stopped being
+   * the mechanism the moment `copyCollection` began deriving its parent set
+   * from `scanEmittedRows` — the rows the migration will emit, read from the
+   * source, complete before a single row is written. I changed where the parent
+   * set comes from and did not carry that to the guard asserting where it comes
+   * from, which is the same shape as the audit-pass regression two fixes ago.
+   */
+  it('accepts the declared rules, self-references included', () => {
+    expect(() => assertParentsPrecedeChildren(COLLECTION_PLANS)).not.toThrow();
+  });
+
+  it('still REFUSES a cross-table rule whose parent is not copied first', () => {
+    // The half that must not be lost. `posts` is its own plan, so a rule on
+    // `posts` deciding against `post_recent_repliers` — a table copied later —
+    // is exactly the ordering the guard exists to catch, and it is a different
+    // shape from the self-reference above.
+    const backwards = orphanResolution({
+      rule: {
+        id: 'bor-backwards',
+        collection: 'posts',
+        finding: 'synthetic',
+        decision: 'synthetic',
+      },
+      action: 'null-column',
+      collection: 'posts',
+      table: posts,
+      column: posts.threadId,
+      targetTable: postRecentRepliers,
+      parentCollection: 'post_recent_repliers',
+    });
+
+    expect(() => assertParentsPrecedeChildren(COLLECTION_PLANS, [backwards])).toThrow(
+      /copied in the SAME level or earlier/
+    );
   });
 });
