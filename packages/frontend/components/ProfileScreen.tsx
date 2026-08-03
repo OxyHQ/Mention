@@ -26,7 +26,8 @@ import UserName from './UserName';
 import AnimatedTabBar from './common/AnimatedTabBar';
 import { IconButton } from '@/components/ui/Button';
 import { SEO } from '@/components/SEO';
-import { FediverseSharingBadge } from '@/components/Fediverse/FediverseBadge';
+import { FediverseSharingBadge } from '@/components/AccountBadge';
+import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
 
 // Profile components
 import {
@@ -298,9 +299,11 @@ const PersonProfile: React.FC<PersonProfileProps> = ({
         if (!profileData) return null;
         // Own, non-federated profile opted into fediverse sharing (absent flag ⇒
         // on): a tappable badge next to the handle explaining the fediverse.
+        // The PROFILE is where the explainer is opted into — the marker is inert
+        // on every other surface (see `AccountBadge`).
         const fediverseBadge =
             isOwnProfile && !profileData.isFederated && currentUser?.fediverseSharing !== false ? (
-                <FediverseSharingBadge size={20} />
+                <FediverseSharingBadge size={20} onExplainNetwork={showFediverseInfo} />
             ) : undefined;
         // Passive "Follows you" tag inline to the right of the @handle when this
         // profile follows the viewer. Never shown on the viewer's own profile.
@@ -331,6 +334,11 @@ const PersonProfile: React.FC<PersonProfileProps> = ({
                         handle={profileData.username}
                         verified={profileData.verified}
                         isFederated={profileData.isFederated}
+                        kind={profileData.kind}
+                        // The profile is the ONE surface that opts the marker in:
+                        // a reader here has room for the answer, and the identity
+                        // line is not itself a link to somewhere else.
+                        onExplainNetwork={showFediverseInfo}
                         copyableHandle
                         variant="default"
                         style={userNameStyle}

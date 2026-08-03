@@ -216,6 +216,11 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
             handle={profileData.username}
             verified={profileData.verified}
             isFederated={profileData.isFederated}
+            kind={profileData.kind}
+            // Deliberately NOT opted in: this screen already carries an explicit
+            // "Learn more about the fediverse" row below, which is a better
+            // affordance than a 15px glyph. Two doors to one dialog on one
+            // screen is one more than the screen needs.
             isAgent={profileData.isAgent}
             isAutomated={profileData.isAutomated}
             copyableHandle

@@ -1829,6 +1829,9 @@
     }
   },
   "channels": {
+    "badge": {
+      "a11yLabel": "Esta cuenta es un canal"
+    },
     "signInRequired": "Inicia sesión para gestionar tus canales",
     "signInRequiredDesc": "Un canal es una cuenta que la gente sigue sin seguir a quienes escriben en ella.",
     "compose": {

@@ -6,7 +6,7 @@ import { FollowButton } from '@oxyhq/services/ui/client';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { mergeKnownIdentity, useKnownIdentities } from '@/stores/identityUpdates';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle, type AccountKind } from '@oxyhq/core';
 import { ThemedText } from './ThemedText';
 import UserName from './UserName';
 import { getUserPlaceholderColor } from '@/utils/userPlaceholderColor';
@@ -61,6 +61,12 @@ export interface ProfileCardData {
   verified?: boolean;
   description?: string;
   isFederated?: boolean;
+  /**
+   * The Oxy account kind, so a channel row carries the channel marker. Absent
+   * on the surfaces whose DTO drops it (pokes, starter-pack members); those
+   * rows simply show no kind marker rather than the wrong one.
+   */
+  kind?: AccountKind;
   isAgent?: boolean;
   isAutomated?: boolean;
   instance?: string;
@@ -184,6 +190,7 @@ export function ProfileCard({
             handle={handle || undefined}
             verified={resolved.verified}
             isFederated={resolved.isFederated}
+            kind={resolved.kind}
             isAgent={resolved.isAgent}
             isAutomated={resolved.isAutomated}
             style={IDENTITY_STYLE}

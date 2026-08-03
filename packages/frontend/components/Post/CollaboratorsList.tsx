@@ -56,6 +56,7 @@ const CollaboratorsList: React.FC<CollaboratorsListProps> = ({ authors, onClose,
         avatar: item.avatar,
         verified: item.verified,
         isFederated: item.isFederated,
+        kind: item.kind,
         instance: item.instance,
         federation: item.federation,
       }}

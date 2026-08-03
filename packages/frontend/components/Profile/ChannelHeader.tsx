@@ -36,6 +36,12 @@ export const ChannelHeader = memo(function ChannelHeader({
           name={displayName}
           handle={username}
           verified={false}
+          // Not a guess and not a conditional: this component only ever draws a
+          // channel (the route canonicalizes anything else away before it
+          // renders), so the marker states what the page is. It stays INERT —
+          // `AccountBadge` has no explainer for a channel to open, and the page
+          // itself is the explanation.
+          kind="channel"
           variant="default"
           trailingBadge={trailingBadge}
           style={{

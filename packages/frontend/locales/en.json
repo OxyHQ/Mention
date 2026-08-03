@@ -1858,6 +1858,9 @@
     }
   },
   "channels": {
+    "badge": {
+      "a11yLabel": "This account is a channel"
+    },
     "signInRequired": "Sign in to manage your channels",
     "signInRequiredDesc": "A channel is an account people follow without following the people who write for it.",
     "compose": {
