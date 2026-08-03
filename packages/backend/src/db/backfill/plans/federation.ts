@@ -142,6 +142,9 @@ const federatedActorsPlan: CollectionPlan = {
       resolvedBy: KEEP_FRESHEST_FEDERATED_ACTOR,
     },
   ],
+  columnCoverage: [
+    { table: federatedActors, column: federatedActors.networkAcct, sourcePath: 'networkAcct' },
+  ],
   transform: (doc, emit, resolutions) => {
     const id = ownId(doc);
 
@@ -204,6 +207,14 @@ const federatedActorsPlan: CollectionPlan = {
           username: sentinelAcct ? uri : reqStr(doc, 'username'),
           domain: reqStr(doc, 'domain'),
           acct: sentinelAcct ? uri : storedAcct,
+          // DROPPED by the rehearsed copy on all 135 bridged actors, and the
+          // consequence is not cosmetic: this is the ONLY field on which two
+          // rows for the same upstream person match, so
+          // `resolveFederatedActorIdentity` de-duplicates on it. Without it the
+          // same X account mirrored by two bridges stays two people, which is
+          // precisely the misattribution the bridge policy exists to prevent —
+          // and it would surface weeks later as wrong bylines, never as an error.
+          networkAcct: str(doc, 'networkAcct'),
           summary: str(doc, 'summary'),
           avatarUrl: str(doc, 'avatarUrl'),
           headerUrl: str(doc, 'headerUrl'),

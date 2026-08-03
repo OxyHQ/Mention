@@ -249,6 +249,16 @@ const postsPlan: CollectionPlan = {
       key: [{ path: 'federation.activityId', normalize: 'exact' }],
     },
   ],
+  // The three columns the rehearsed copy dropped from this table, plus the one
+  // that looks identical and is not: `curated` is mapped, and no production
+  // document carries it. Declaring all four is what separates "nothing arrived
+  // because nothing writes it" from "nothing arrived because there is nothing".
+  columnCoverage: [
+    { table: posts, column: posts.writtenByOxyUserId, sourcePath: 'writtenByOxyUserId' },
+    { table: posts, column: posts.laneId, sourcePath: 'laneId' },
+    { table: posts, column: posts.channelId, sourcePath: 'channelId' },
+    { table: posts, column: posts.curated, sourcePath: 'curated' },
+  ],
   transform: (doc, emit) => {
     const postId = ownId(doc);
     const parentPostId = id(doc, 'parentPostId');
@@ -261,6 +271,13 @@ const postsPlan: CollectionPlan = {
         {
           id: postId,
           oxyUserId: str(doc, 'oxyUserId'),
+          // The PERSON behind a channel-authored post. Dropped by the rehearsed
+          // copy, and it is the only place the writer survives: `oxy_user_id`
+          // and `post_authorships` both hold the CHANNEL, so losing it loses the
+          // "by <writer>" line a channel with `signPosts` on is supposed to
+          // render — silently, and only for the accounts that opted INTO being
+          // named.
+          writtenByOxyUserId: str(doc, 'writtenByOxyUserId'),
           type: str(doc, 'type') ?? 'text',
           visibility: str(doc, 'visibility') ?? 'public',
           status: str(doc, 'status') ?? 'published',
@@ -276,6 +293,19 @@ const postsPlan: CollectionPlan = {
           replyPermission: strArray(doc, 'replyPermission') ?? ['anyone'],
           reviewReplies: bool(doc, 'reviewReplies') ?? false,
           quotesDisabled: bool(doc, 'quotesDisabled') ?? false,
+
+          // The author's own lane for this post. One production document
+          // carries one and the rehearsed copy dropped it; the column is
+          // `ON DELETE SET NULL`, so the reference is checked by the
+          // referential pass exactly like every other foreign key — mapping it
+          // is what makes a lane that no longer exists a FINDING rather than a
+          // value nobody looked at.
+          laneId: id(doc, 'laneId'),
+          // The channel a post was published TO. Zero production documents
+          // carry one today, so this reports as unverified rather than clean —
+          // which is the honest answer, since a mapping nothing exercises is
+          // indistinguishable from a mapping that does not work.
+          channelId: id(doc, 'channelId'),
 
           // The four self-references. Emitted normally; the runner defers them.
           boostOf: id(doc, 'boostOf'),

@@ -104,12 +104,17 @@ export interface AuditFinding {
      */
     | 'column-coverage'
     /**
-     * A column that received nothing and has no declared source, so the check
-     * cannot say whether that is correct. An admission, not a verdict — and
-     * the one kind here that does NOT block, because gating the copy on
-     * paperwork rather than evidence is how a gate gets switched off.
+     * The check could not establish anything about a column — either nothing
+     * says where its value comes from, or the declared path matches no document
+     * so a typo and a genuinely absent field look identical from here.
+     *
+     * An admission, not a verdict, and the one kind here that does NOT block.
+     * Neither shape is evidence of loss: an undeclared empty column may be
+     * correct, and a path matching nothing has nothing to lose. Blocking the
+     * copy on either would be gating on paperwork rather than on evidence,
+     * which is how a gate gets switched off by whoever hits it next.
      */
-    | 'undeclared-column'
+    | 'unverified-column'
     /**
      * A document the transform REFUSED — `buildRow` would not build it.
      *
@@ -1004,13 +1009,20 @@ export async function auditColumnCoverageForPlan(
  * A column the source holds values for and the transform never fills is proven
  * data loss and blocks, in the same family as `defaulted-column`: Postgres
  * accepts the row, so an un-blocked finding is data disappearing with nothing
- * left to notice it afterwards. A column that is simply empty with no
- * declaration is the check ADMITTING it cannot say, and blocking on that would
- * gate the cutover on paperwork rather than on evidence.
+ * left to notice it afterwards.
+ *
+ * The two shapes that block NOTHING are the two where there is nothing to lose.
+ * An empty column with no declaration is the check admitting it cannot say. A
+ * declared path matching no document is the same admission from the other side:
+ * a typo and a genuinely absent field are indistinguishable from here, and
+ * neither has values to drop. Refusing the copy over either would be gating on
+ * paperwork rather than on evidence — and it would refuse it permanently for
+ * every correctly mapped column whose source field simply holds nothing yet.
  */
 function coverageAuditFinding(finding: CoverageFinding): AuditFinding {
-  const undeclared =
-    finding.kind === 'never-populated' && finding.sourceValues === null;
+  const unverified =
+    finding.kind === 'declared-never-observed' ||
+    (finding.kind === 'never-populated' && finding.sourceValues === null);
   return {
     collection: finding.collection,
     // A stale acknowledgement keeps the kind it already has, so the two lists
@@ -1019,8 +1031,8 @@ function coverageAuditFinding(finding: CoverageFinding): AuditFinding {
     kind:
       finding.kind === 'stale-acknowledgement'
         ? 'stale-acknowledgement'
-        : undeclared
-          ? 'undeclared-column'
+        : unverified
+          ? 'unverified-column'
           : 'column-coverage',
     detail: finding.detail,
     documents: finding.sourceValues ?? finding.populated,
@@ -1257,7 +1269,7 @@ export function auditWouldBlockCopy(finding: AuditFinding): boolean {
     // one, leaves nothing behind to notice — and this is the class that already
     // shipped eleven times through a run that reported AUDIT CLEAN.
     //
-    // `undeclared-column` deliberately does NOT appear here: it says the check
+    // `unverified-column` deliberately does NOT appear here: it says the check
     // could not tell, and blocking on an admission would make the gate about
     // paperwork rather than about evidence.
     finding.kind === 'column-coverage' ||

@@ -173,8 +173,27 @@ describe('auditColumnCoverageForPlan', () => {
     await mongo.collection(COLLECTION).insertMany([{ title: 'a' }, { title: 'b' }]);
     const findings = await run({ ...unmappedPlan, columnCoverage: undefined });
     expect(findings).toHaveLength(1);
-    expect(findings[0]?.kind).toBe('undeclared-column');
+    expect(findings[0]?.kind).toBe('unverified-column');
     expect(findings[0]?.detail).toMatch(/No `sourcePath` is declared/);
+    expect(auditWouldBlockCopy(findings[0]!)).toBe(false);
+  });
+
+  it('does NOT block on a declared path no document holds', async () => {
+    // The other admission, and the one that would have been costly to get
+    // wrong: a path matching nothing is a typo OR a field that is genuinely
+    // empty today, and the two are indistinguishable from here. Blocking would
+    // refuse the copy permanently for every correctly mapped column whose
+    // source field simply holds nothing yet — `trending.status`, `label_version`
+    // and `topic_id` are all in exactly that state. There is no data to lose
+    // either way, so it is reported loudly and the copy proceeds.
+    await mongo.collection(COLLECTION).insertMany([{ title: 'a' }, { title: 'b' }]);
+    const findings = await run({
+      ...unmappedPlan,
+      columnCoverage: [{ table: gadgets, column: gadgets.nickname, sourcePath: 'nikcname' }],
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.kind).toBe('unverified-column');
+    expect(findings[0]?.detail).toMatch(/mistyped or renamed/);
     expect(auditWouldBlockCopy(findings[0]!)).toBe(false);
   });
 

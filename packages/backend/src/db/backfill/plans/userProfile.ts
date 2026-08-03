@@ -422,6 +422,48 @@ const userSettingsPlan: CollectionPlan = {
       key: [{ path: 'oxyUserId', normalize: 'exact' }],
     },
   ],
+  // The one column here that was reading a path no document has, and the four
+  // groups whose source is genuinely empty — which is why they arrive as one
+  // constant on 39,349 rows and why that is CORRECT rather than a loss. Both
+  // facts are measurements, not readings of the code: only counting the source
+  // side separates "the mapping is wrong" from "the users never set this".
+  columnCoverage: [
+    {
+      table: userSettings,
+      column: userSettings.channelAccountSignPosts,
+      sourcePath: 'channel.signPosts',
+    },
+    {
+      table: userSettings,
+      column: userSettings.notifyPushEnabled,
+      sourcePath: 'notificationPreferences.pushEnabled',
+      filledWhenAbsent:
+        'ZERO of 39,349 documents carry the field, and the deleted Mongoose ' +
+        'schema declared `pushEnabled: { type: Boolean, default: true }` ' +
+        '(recovered from `8b783a8d^`). The column is NOT NULL, so it must hold ' +
+        "something; `true` is the value the SOURCE SCHEMA names for an absent " +
+        'field, which makes it the port rather than an invention. The other ' +
+        'five `notificationPreferences.*` columns are the same shape.',
+    },
+    {
+      table: userSettings,
+      column: userSettings.feedDiversityEnabled,
+      sourcePath: 'feedSettings.diversity.enabled',
+      filledWhenAbsent:
+        'Same shape: `diversity.enabled: { type: Boolean, default: true }` in ' +
+        'the deleted schema, and 1 of 39,349 documents has ever stored a value. ' +
+        'The seven other `feedSettings.*` columns match.',
+    },
+    {
+      table: userSettings,
+      column: userSettings.appearancePostReadMoreAction,
+      sourcePath: 'appearance.postReadMoreAction',
+      filledWhenAbsent:
+        "The deleted schema declares `default: 'openPost'` and 22,105 of 39,349 " +
+        'documents carry the field. The remaining 17,244 predate it, and the ' +
+        'schema names `openPost` as their value.',
+    },
+  ],
   transform: (doc, emit) => {
     const settingsId = ownId(doc);
 
@@ -467,7 +509,27 @@ const userSettingsPlan: CollectionPlan = {
           // absence is what says this account is not a channel. `bool()` returns
           // null for a missing path, so no `?? false` here — that would migrate
           // every person's settings as a channel that does not sign.
-          channelAccountSignPosts: bool(doc, 'channelAccount.signPosts'),
+          //
+          // TWO spellings, and both are real — one in the data, one in the
+          // writer.
+          //
+          // Mongo STORES `channel`: `ChannelAccountSchema` is mounted at
+          // `channel:` in the deleted model (recovered from `8b783a8d^`), and
+          // `channelAccount.signPosts` matches ZERO of 39,349 documents.
+          // Reading only `channelAccount` — which is what this line did, with
+          // the correct reasoning above it — dropped every value the field
+          // holds. Only counting the SOURCE side finds a mapping that looks
+          // right and reads a field nothing has.
+          //
+          // `channelAccount` is nonetheless the path `SETTINGS_COLUMN_BY_PATH`
+          // registers, because the DTO renamed the subdocument at the port. It
+          // is kept HERE rather than in the writer-coverage test because that
+          // test guards a real invariant — every path a writer can produce is a
+          // path the backfill reads — and a migration that reads both spellings
+          // cannot lose data under either. On this corpus the second read is
+          // inert.
+          channelAccountSignPosts:
+            bool(doc, 'channel.signPosts') ?? bool(doc, 'channelAccount.signPosts'),
 
           interestTags: strArray(doc, 'interests.tags'),
 
