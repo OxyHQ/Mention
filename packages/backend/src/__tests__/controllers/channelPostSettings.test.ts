@@ -9,11 +9,11 @@ import mongoose from 'mongoose';
  *    post. The 403 on the reply paths reads the AUTHOR's account kind and would
  *    hold regardless — but a change here would UN-HIDE the client's reply button
  *    and leave every reader hitting a refusal they were invited to attempt.
- *  - `POST /posts/thread` accepts `publishAsOxyUserId` in exactly ONE place per
- *    mode: at the BATCH level in thread mode (one publisher for one text) and
- *    PER ENTRY in beast mode (n independent posts). The other placement is a 400
- *    naming the right field, so a client can never send both. Both paths have
- *    their own suite, `threadPublishAsAccount.test.ts`.
+ *  - `POST /posts/thread` takes `publishAsOxyUserId` per ENTRY in both modes, and
+ *    additionally at the BATCH level in thread mode, where it is the default for
+ *    entries naming none. A batch-level field in beast mode is a 400 — there is
+ *    no thread there to speak for. Which COMBINATIONS are allowed (a channel's
+ *    thread must speak with one voice) is `threadPublishAsAccount.test.ts`.
  */
 
 const postFindOne = vi.fn();
@@ -187,7 +187,12 @@ describe('POST /posts/thread — one placement per mode, and only one', () => {
     expect(postCreationCreate).not.toHaveBeenCalled();
   });
 
-  it('400s a PER-ENTRY publishAsOxyUserId in thread mode — a thread has one publisher, named once', async () => {
+  it('ACCEPTS a per-entry publishAsOxyUserId in thread mode — entries may name their own account', async () => {
+    // The gate is stubbed in this suite (it answers "the caller" for everything),
+    // so what this pins is that the route no longer refuses the SHAPE. Which
+    // combinations of accounts are allowed — and the channel single-voice rule
+    // that refuses most of them — is `threadPublishAsAccount.test.ts`, where the
+    // real gate runs.
     const res = makeRes();
     await createThread(
       req({
@@ -200,8 +205,8 @@ describe('POST /posts/thread — one placement per mode, and only one', () => {
       res as never,
     );
 
-    expect(res.statusCode).toBe(400);
-    expect(postCreationCreate).not.toHaveBeenCalled();
+    expect(res.statusCode).not.toBe(400);
+    expect(postCreationCreate).toHaveBeenCalled();
   });
 
   it('CONTROL: an ordinary thread is still created', async () => {

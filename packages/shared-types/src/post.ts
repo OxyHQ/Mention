@@ -776,18 +776,21 @@ export interface CreateThreadPostRequest {
   /**
    * Publish THIS entry as another Oxy account the caller operates — the same
    * field, the same authorization and the same effects as
-   * {@link CreatePostRequest.publishAsOxyUserId}, decided per entry so one batch
-   * can post from several accounts.
+   * {@link CreatePostRequest.publishAsOxyUserId}, decided per entry.
    *
-   * **`beast` mode only.** In `beast` mode the entries are independent top-level
-   * posts, so each may name its own account and they may all differ. In `thread`
-   * mode they are one conversation whose continuations are REPLIES to the entry
-   * before them, and a reply can never be published as another account — so the
-   * server refuses the field outright there (400) rather than letting the author
-   * believe an identity was applied that a mid-thread post could not carry.
+   * Accepted in BOTH modes, and it wins over
+   * {@link CreateThreadRequest.publishAsOxyUserId} for the entry that carries it.
+   * In `beast` mode the entries are independent posts, so this is the only way to
+   * name an account. In `thread` mode entries carrying different accounts make the
+   * thread a CONVERSATION between them — each such entry mechanically replies to
+   * the one before it — which is coherent between organizations the caller
+   * operates and is refused outright when a CHANNEL is one of them: a channel's
+   * thread must use one account for every entry, because a post from a second
+   * account would be a reply to the channel, and a channel takes none from anyone.
    *
-   * Refused for the WHOLE request before any entry is written, like every other
-   * batch-level refusal here: half a batch cannot be undone in one action.
+   * Every refusal is raised for the WHOLE request before any entry is written,
+   * like every other batch-level refusal here: half a batch cannot be undone in
+   * one action.
    */
   publishAsOxyUserId?: string;
 }
@@ -808,14 +811,14 @@ export interface CreateThreadRequest {
    * for every entry, authorized once. Same field, same authorization and same
    * effects as {@link CreatePostRequest.publishAsOxyUserId}.
    *
-   * **`thread` mode only, and it is deliberately the OPPOSITE placement from
-   * beast mode's.** A thread is one text in several parts, so there is exactly one
-   * publisher by construction and an identity that changed mid-thread would be
-   * incoherent — hence batch-level here, and a per-entry
-   * {@link CreateThreadPostRequest.publishAsOxyUserId} is refused (400). A beast
-   * batch is n independent posts, so it is the other way round: per entry, and
-   * this field is refused there. Each mode has exactly one way to say it, so a
-   * client can never send both and have to discover which won.
+   * **`thread` mode only** — a beast batch has no thread to speak for, so the
+   * field is refused there (400) and each entry names its own account instead.
+   *
+   * It is the DEFAULT rather than the last word: an entry carrying its own
+   * {@link CreateThreadPostRequest.publishAsOxyUserId} overrides it, which is what
+   * makes a thread whose entries come from different accounts expressible. Naming
+   * it here alone is the one-voice thread, and that is the ONLY shape a `channel`
+   * may take.
    *
    * The continuations are stored as replies to their predecessor, which is how a
    * thread is joined at all — `PostCreationService` verifies each one against the

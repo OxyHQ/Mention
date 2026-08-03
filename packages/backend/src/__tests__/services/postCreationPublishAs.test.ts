@@ -92,6 +92,7 @@ import { PublishAsAccessError } from '../../services/publishAsAccount';
 const WRITER = 'writer-1';
 const CHANNEL = 'channel-account-1';
 const ORGANIZATION = 'org-account-1';
+const SECOND_ORG = 'org-account-2';
 
 const ACT_AS_PERMISSIONS = ['account:read', 'account:act_as', 'members:read'];
 const NO_ACT_AS_PERMISSIONS = ['account:read', 'members:read'];
@@ -125,7 +126,11 @@ beforeEach(() => {
   memberReader.listAccountMembers.mockClear();
   resolveUserSummaries.mockReset();
   resolveUserSummaries.mockImplementation(async (ids: string[]) => {
-    const kinds: Record<string, string> = { [CHANNEL]: 'channel', [ORGANIZATION]: 'organization' };
+    const kinds: Record<string, string> = {
+      [CHANNEL]: 'channel',
+      [ORGANIZATION]: 'organization',
+      [SECOND_ORG]: 'organization',
+    };
     const map = new Map<string, { user: { id: string; kind?: string; name: object } }>();
     for (const id of ids) {
       if (kinds[id]) map.set(id, { user: { id, kind: kinds[id], name: {} } });
@@ -429,6 +434,129 @@ describe('PostCreationService.create — continuing the account\'s own thread', 
         oxyUserId: WRITER,
         content: { text: 'part two, but unmarked' },
         publishAsOxyUserId: CHANNEL,
+        parentPostId: ROOT,
+        threadId: ROOT,
+        memberReader,
+        skipNotifications: true,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+
+    expect(constructedWith).toHaveLength(0);
+  });
+});
+
+/**
+ * The SECOND exception at the service layer — `answersOperatedAccount`.
+ *
+ * Same discipline as `continuesOwnThread` above: the parameter grants nothing.
+ * Every case here sets it, and only the ones that survive
+ * {@link assertAnswersOperatedAccount}'s verification are written. Without these
+ * the whole wiring is untested — mutation-testing found the branch could be
+ * deleted outright with the suite still green.
+ */
+describe('PostCreationService.create — one operated account answering another', () => {
+  const ROOT = new mongoose.Types.ObjectId().toString();
+  const CHANNEL_ROOT = new mongoose.Types.ObjectId().toString();
+
+  it('writes an organization\'s answer to another organization\'s post', async () => {
+    threadRows.push({ _id: ROOT, oxyUserId: ORGANIZATION, threadId: ROOT });
+
+    await postCreationService.create({
+      oxyUserId: WRITER,
+      content: { text: 'B answers A' },
+      publishAsOxyUserId: SECOND_ORG,
+      parentPostId: ROOT,
+      threadId: ROOT,
+      answersOperatedAccount: true,
+      memberReader,
+      skipNotifications: true,
+      skipSocketEmit: true,
+      skipFederationDelivery: true,
+    });
+
+    const [doc] = constructedWith;
+    expect(doc.oxyUserId).toBe(SECOND_ORG);
+    expect(doc.parentPostId).toBe(ROOT);
+    // An organization's post is ordinary in every other respect — replies
+    // included. Only a channel forces `['nobody']`.
+    expect(doc.replyPermission).toEqual(['anyone']);
+  });
+
+  /**
+   * MUTATION GUARD. The parent belongs to a CHANNEL, and the publisher is an
+   * organization the caller may act for — so every condition except the channel
+   * one is satisfied. Accepting `answersOperatedAccount` without running the
+   * verification writes this post, and what it writes is a reply to a channel.
+   */
+  it('MUTATION GUARD: refuses an organization answering a CHANNEL\'s post', async () => {
+    threadRows.push({ _id: CHANNEL_ROOT, oxyUserId: CHANNEL, threadId: CHANNEL_ROOT });
+
+    await expect(
+      postCreationService.create({
+        oxyUserId: WRITER,
+        content: { text: 'answering the channel' },
+        publishAsOxyUserId: SECOND_ORG,
+        parentPostId: CHANNEL_ROOT,
+        threadId: CHANNEL_ROOT,
+        answersOperatedAccount: true,
+        memberReader,
+        skipNotifications: true,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+
+    expect(constructedWith).toHaveLength(0);
+    expect(saved).toHaveLength(0);
+  });
+
+  /**
+   * MUTATION GUARD, the other end. Here the parent is a fine organization and the
+   * CHANNEL is doing the answering — refused by the publishing-account half of the
+   * boundary, which a parent-only check would miss.
+   */
+  it('MUTATION GUARD: refuses a CHANNEL answering an organization\'s post', async () => {
+    threadRows.push({ _id: ROOT, oxyUserId: ORGANIZATION, threadId: ROOT });
+
+    await expect(
+      postCreationService.create({
+        oxyUserId: WRITER,
+        content: { text: 'the channel answers' },
+        publishAsOxyUserId: CHANNEL,
+        parentPostId: ROOT,
+        threadId: ROOT,
+        answersOperatedAccount: true,
+        memberReader,
+        skipNotifications: true,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+
+    expect(constructedWith).toHaveLength(0);
+  });
+
+  it('refuses a claimed answer to a thread that does not exist', async () => {
+    await expect(
+      postCreationService.create({
+        oxyUserId: WRITER,
+        content: { text: 'invented' },
+        publishAsOxyUserId: SECOND_ORG,
+        parentPostId: ROOT,
+        threadId: ROOT,
+        answersOperatedAccount: true,
+        memberReader,
+        skipNotifications: true,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+
+    expect(constructedWith).toHaveLength(0);
+  });
+
+  it('CONTROL: WITHOUT either flag, the same reply is refused', async () => {
+    threadRows.push({ _id: ROOT, oxyUserId: ORGANIZATION, threadId: ROOT });
+
+    await expect(
+      postCreationService.create({
+        oxyUserId: WRITER,
+        content: { text: 'unmarked' },
+        publishAsOxyUserId: SECOND_ORG,
         parentPostId: ROOT,
         threadId: ROOT,
         memberReader,

@@ -73,6 +73,7 @@ const CALLER = 'caller-1';
 const CHANNEL = 'channel-account-1';
 const ORGANIZATION = 'org-account-1';
 const FORBIDDEN_ORG = 'org-account-2';
+const SECOND_ORG = 'org-account-3';
 const CALLER_LANE = new mongoose.Types.ObjectId().toString();
 
 const EDITOR_PERMISSIONS = ['account:read', 'account:act_as', 'members:read'];
@@ -154,6 +155,7 @@ beforeEach(() => {
   listAccountMembers.mockImplementation(async (accountId: string) => {
     if (accountId === CHANNEL) return [member({ role: 'viewer', permissions: VIEWER_PERMISSIONS })];
     if (accountId === ORGANIZATION) return [member({ role: 'editor', permissions: EDITOR_PERMISSIONS })];
+    if (accountId === SECOND_ORG) return [member({ role: 'editor', permissions: EDITOR_PERMISSIONS })];
     // An organization the caller is a member of but may not ACT AS.
     if (accountId === FORBIDDEN_ORG) return [member({ role: 'viewer', permissions: VIEWER_PERMISSIONS })];
     return [];
@@ -165,6 +167,7 @@ beforeEach(() => {
       [CHANNEL]: 'channel',
       [ORGANIZATION]: 'organization',
       [FORBIDDEN_ORG]: 'organization',
+      [SECOND_ORG]: 'organization',
     };
     const map = new Map<string, { user: { id: string; kind?: string; name: object } }>();
     for (const id of ids) {
@@ -490,22 +493,22 @@ describe('thread mode — one account for the whole thread', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it('400s a PER-ENTRY account in thread mode, and asks Oxy nothing', async () => {
+  it('lets an entry override the batch account — the batch one is the DEFAULT', async () => {
     const res = makeRes();
     await createThread(
       req({
         mode: 'thread',
+        publishAsOxyUserId: ORGANIZATION,
         posts: [
-          { content: { text: 'root' }, publishAsOxyUserId: ORGANIZATION },
-          { content: { text: 'continuation' } },
+          { content: { text: 'part one' } },
+          { content: { text: 'part two' }, publishAsOxyUserId: SECOND_ORG },
         ],
       }),
       res as never,
     );
 
-    expect(res.statusCode).toBe(400);
-    expect(create).not.toHaveBeenCalled();
-    expect(listAccountMembers).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(201);
+    expect(requestedAccounts()).toEqual([ORGANIZATION, SECOND_ORG]);
   });
 
   it('CONTROL: a thread naming no account marks no continuation and stays the caller\'s', async () => {
@@ -570,3 +573,255 @@ describe('the lane pre-flight follows the ENTRY\'s author', () => {
     );
   });
 });
+
+/**
+ * A THREAD FROM SEVERAL ACCOUNTS — and the boundary that stops a channel being
+ * one of them.
+ *
+ * An entry whose account differs from its predecessor's is mechanically that
+ * account REPLYING to the other's post, so a multi-account thread is a
+ * conversation between accounts. Between organizations the caller operates that
+ * is the feature; with a channel at either end it is the door
+ * `utils/channelReplyGate` holds shut at five write sites, with no exception for
+ * the channel's own operators.
+ *
+ * The controller decides WHICH of the two verified exceptions each link is
+ * created under; the exceptions themselves are unit-tested in
+ * `utils/threadContinuation.test.ts` against a real database shape.
+ */
+describe('thread mode — several accounts, and the channel boundary', () => {
+  /** Which exception each `create` call asked for, in order. */
+  function linkKinds(): Array<'own' | 'answers' | 'none'> {
+    return create.mock.calls.map(([params]: [Record<string, unknown>]) => {
+      if (params.continuesOwnThread === true) return 'own';
+      if (params.answersOperatedAccount === true) return 'answers';
+      return 'none';
+    });
+  }
+
+  it('accepts a thread alternating between two organizations the caller operates', async () => {
+    const res = makeRes();
+    await createThread(
+      req({
+        mode: 'thread',
+        posts: [
+          { content: { text: 'A speaks' }, publishAsOxyUserId: ORGANIZATION },
+          { content: { text: 'B answers' }, publishAsOxyUserId: SECOND_ORG },
+          { content: { text: 'A again' }, publishAsOxyUserId: ORGANIZATION },
+        ],
+      }),
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(201);
+    expect(requestedAccounts()).toEqual([ORGANIZATION, SECOND_ORG, ORGANIZATION]);
+  });
+
+  it('creates every link of a multi-account thread under the ANSWERS exception', async () => {
+    const res = makeRes();
+    await createThread(
+      req({
+        mode: 'thread',
+        posts: [
+          { content: { text: 'A' }, publishAsOxyUserId: ORGANIZATION },
+          { content: { text: 'B' }, publishAsOxyUserId: SECOND_ORG },
+          { content: { text: 'B again' }, publishAsOxyUserId: SECOND_ORG },
+        ],
+      }),
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(201);
+    // Entry 3's account MATCHES its parent's and differs from the ROOT's, so the
+    // own-thread exception would refuse it (its third condition is about the
+    // root). The choice is made per THREAD, not per adjacent pair, which is what
+    // makes an [A, B, B] thread expressible at all.
+    expect(linkKinds()).toEqual(['none', 'answers', 'answers']);
+  });
+
+  it('keeps the OWN-THREAD exception for a single-voice thread', async () => {
+    const res = makeRes();
+    await createThread(
+      req({
+        mode: 'thread',
+        publishAsOxyUserId: CHANNEL,
+        posts: [{ content: { text: 'a' } }, { content: { text: 'b' } }],
+      }),
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(201);
+    expect(linkKinds()).toEqual(['none', 'own']);
+  });
+
+  /**
+   * MUTATION GUARD — the hole the whole boundary exists to close. Dropping the
+   * channel test from the single-voice rule makes this a 201, and what it creates
+   * is an organization's post REPLYING to a channel's, which is the one thing a
+   * channel's operators may never do.
+   */
+  it('MUTATION GUARD: 400s a thread whose ROOT is a channel and whose later entry is not', async () => {
+    const res = makeRes();
+    await createThread(
+      req({
+        mode: 'thread',
+        posts: [
+          { content: { text: 'the channel announces' }, publishAsOxyUserId: CHANNEL },
+          { content: { text: 'the org chimes in' }, publishAsOxyUserId: ORGANIZATION },
+        ],
+      }),
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  /**
+   * MUTATION GUARD — the same rule read from the other end. Looking only at the
+   * PARENT is not enough: a channel answering an organization is a channel in a
+   * conversation just as much as the reverse, and this is the fixture that tells
+   * a both-ends check from a parent-only one.
+   */
+  it('MUTATION GUARD: 400s a thread whose root is an ORGANIZATION and whose later entry is a channel', async () => {
+    const res = makeRes();
+    await createThread(
+      req({
+        mode: 'thread',
+        posts: [
+          { content: { text: 'the org speaks' }, publishAsOxyUserId: ORGANIZATION },
+          { content: { text: 'the channel answers' }, publishAsOxyUserId: CHANNEL },
+        ],
+      }),
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('400s a channel sitting in the MIDDLE of an otherwise channel-free thread', async () => {
+    const res = makeRes();
+    await createThread(
+      req({
+        mode: 'thread',
+        posts: [
+          { content: { text: 'A' }, publishAsOxyUserId: ORGANIZATION },
+          { content: { text: 'the channel' }, publishAsOxyUserId: CHANNEL },
+          { content: { text: 'B' }, publishAsOxyUserId: SECOND_ORG },
+        ],
+      }),
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('names the channel in the refusal, so the author knows which account is the obstacle', async () => {
+    const res = makeRes();
+    await createThread(
+      req({
+        mode: 'thread',
+        posts: [
+          { content: { text: 'a' }, publishAsOxyUserId: CHANNEL },
+          { content: { text: 'b' }, publishAsOxyUserId: ORGANIZATION },
+        ],
+      }),
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(String((res.body as { message: string }).message)).toContain(CHANNEL);
+  });
+
+  it('mixing a channel with the CALLER\'s own posts is refused too', async () => {
+    const res = makeRes();
+    await createThread(
+      req({
+        mode: 'thread',
+        posts: [
+          { content: { text: 'the channel' }, publishAsOxyUserId: CHANNEL },
+          { content: { text: 'and me' } },
+        ],
+      }),
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('CONTROL: a channel alone for the whole thread is still fine', async () => {
+    const res = makeRes();
+    await createThread(
+      req({
+        mode: 'thread',
+        posts: [
+          { content: { text: 'part one' }, publishAsOxyUserId: CHANNEL },
+          { content: { text: 'part two' }, publishAsOxyUserId: CHANNEL },
+        ],
+      }),
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(201);
+    expect(requestedAccounts()).toEqual([CHANNEL, CHANNEL]);
+  });
+
+  it('CONTROL: a BEAST batch may still mix a channel with anything — no entry replies to another', async () => {
+    const res = makeRes();
+    await createThread(
+      req({
+        mode: 'beast',
+        posts: [
+          { content: { text: 'a' }, publishAsOxyUserId: CHANNEL },
+          { content: { text: 'b' }, publishAsOxyUserId: ORGANIZATION },
+        ],
+      }),
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(201);
+    expect(requestedAccounts()).toEqual([CHANNEL, ORGANIZATION]);
+  });
+
+  it('authorizes each DISTINCT account once, however many entries carry it', async () => {
+    const res = makeRes();
+    await createThread(
+      req({
+        mode: 'thread',
+        posts: [
+          { content: { text: 'a' }, publishAsOxyUserId: ORGANIZATION },
+          { content: { text: 'b' }, publishAsOxyUserId: SECOND_ORG },
+          { content: { text: 'c' }, publishAsOxyUserId: ORGANIZATION },
+          { content: { text: 'd' }, publishAsOxyUserId: SECOND_ORG },
+        ],
+      }),
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(201);
+    expect(listAccountMembers.mock.calls.map(([id]: [string]) => id).sort()).toEqual(
+      [ORGANIZATION, SECOND_ORG].sort(),
+    );
+  });
+
+  it('refuses the whole thread when ONE entry names an account the caller may not use', async () => {
+    const res = makeRes();
+    await createThread(
+      req({
+        mode: 'thread',
+        posts: [
+          { content: { text: 'a' }, publishAsOxyUserId: ORGANIZATION },
+          { content: { text: 'b' }, publishAsOxyUserId: FORBIDDEN_ORG },
+        ],
+      }),
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(403);
+    expect(create).not.toHaveBeenCalled();
+  });
+});
+

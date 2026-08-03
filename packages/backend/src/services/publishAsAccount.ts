@@ -128,13 +128,40 @@ export async function resolveAccountKind(
   oxyUserId: string | null | undefined,
 ): Promise<AccountKind | null> {
   if (!oxyUserId) return null;
+  return (await resolveAccountKinds([oxyUserId])).get(oxyUserId) ?? null;
+}
+
+/**
+ * The kinds behind SEVERAL ids, in one batched identity read.
+ *
+ * The single-id form above is the common case (the reply gate asks about one
+ * author); this exists because deciding whether a thread link is a channel's
+ * asks about two or three accounts at once, and three sequential single reads
+ * would be three round trips to answer one question.
+ *
+ * Ids that do not resolve are ABSENT from the map rather than present with a
+ * `null` — so a caller reading a kind off it gets `undefined` and has to decide
+ * what an unknown account means, instead of one that silently reads as "not a
+ * channel". Fail-soft on error, for the same reason the single form is: see
+ * `utils/channelReplyGate` on why an identity outage must not refuse every reply
+ * on the site.
+ */
+export async function resolveAccountKinds(
+  oxyUserIds: ReadonlyArray<string | null | undefined>,
+): Promise<Map<string, AccountKind>> {
+  const kinds = new Map<string, AccountKind>();
+  const ids = [...new Set(oxyUserIds.filter((id): id is string => Boolean(id)))];
+  if (ids.length === 0) return kinds;
   try {
-    const summaries = await resolveUserSummaries([oxyUserId]);
-    return summaries.get(oxyUserId)?.user.kind ?? null;
+    const summaries = await resolveUserSummaries(ids);
+    for (const id of ids) {
+      const kind = summaries.get(id)?.user.kind;
+      if (kind) kinds.set(id, kind);
+    }
   } catch (error) {
-    logger.warn('[publishAsAccount] Failed to resolve account kind', error);
-    return null;
+    logger.warn('[publishAsAccount] Failed to resolve account kinds', error);
   }
+  return kinds;
 }
 
 /**
