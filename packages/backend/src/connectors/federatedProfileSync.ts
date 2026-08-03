@@ -53,6 +53,12 @@ const FEDERATED_ACTOR_PROFILE_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
 /** Max number of recent outbox posts to pull per background profile sync. */
 const OUTBOX_SYNC_LIMIT = 20;
 
+/** Minimum interval between costly atproto starter-pack/feed-reference syncs. */
+const ATPROTO_GRAPH_SYNC_MIN_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/** Expire abandoned graph-sync claims if a worker dies while the detached task runs. */
+const ATPROTO_GRAPH_SYNC_LOCK_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
 class FederatedProfileSync {
   /**
    * Entry point for the feed layer: an author feed was just served EMPTY on its
@@ -140,14 +146,7 @@ class FederatedProfileSync {
             // (no orphan): a re-resolved atproto actor carries `oxyUserId`; when it
             // does not yet, the next view (after the backfill stamps it) picks it up.
             if (ATPROTO_ENABLED && cachedActor.oxyUserId) {
-              const graphDid = cachedActor.uri;
-              const graphOwner = cachedActor.oxyUserId;
-              void syncAtprotoProfileGraph(graphDid, graphOwner).catch((err) => {
-                const message = err instanceof Error ? err.message : String(err);
-          logger.warn('[FedSync] atproto graph sync failed', {
-            error: message,
-          });
-              });
+              await this.syncAtprotoGraphIfDue(cachedActor);
             }
           }
           // Stamp the post-backfill time so `shouldReportPending` can clear. The
@@ -331,6 +330,74 @@ class FederatedProfileSync {
         logger.warn('[FedSync] background profile sync failed', {
           error: message,
         });
+      }
+    })();
+  }
+
+  /**
+   * Claim and run the expensive atproto profile-graph sync at most once per actor
+   * per cooldown window. The claim is stored in Mongo so concurrent public
+   * profile-feed requests (and multiple API tasks) cannot fan out duplicate
+   * starter-pack/member-resolution jobs before the previous one finishes.
+   */
+  private async syncAtprotoGraphIfDue(actor: IFederatedActor): Promise<void> {
+    if (!actor.oxyUserId || !actor.uri) return;
+
+    const now = new Date();
+    const cooldownCutoff = new Date(now.getTime() - ATPROTO_GRAPH_SYNC_MIN_INTERVAL_MS);
+    const staleLockCutoff = new Date(now.getTime() - ATPROTO_GRAPH_SYNC_LOCK_TTL_MS);
+
+    try {
+      const claim = await FederatedActor.updateOne(
+        {
+          _id: actor._id,
+          protocol: 'atproto',
+          oxyUserId: { $exists: true, $ne: null },
+          uri: actor.uri,
+          $and: [
+            {
+              $or: [
+                { lastAtprotoGraphSyncAt: { $exists: false } },
+                { lastAtprotoGraphSyncAt: { $lte: cooldownCutoff } },
+              ],
+            },
+            {
+              $or: [
+                { atprotoGraphSyncStartedAt: { $exists: false } },
+                { atprotoGraphSyncStartedAt: { $lte: staleLockCutoff } },
+              ],
+            },
+          ],
+        },
+        { $set: { atprotoGraphSyncStartedAt: now } },
+      );
+
+      if ((claim.modifiedCount ?? 0) < 1) {
+        logger.info('[FedSync] atproto graph sync skipped (cooldown/lock)', { acct: actor.acct });
+        return;
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn('[FedSync] failed to claim atproto graph sync', { acct: actor.acct, error: message });
+      return;
+    }
+
+    const graphDid = actor.uri;
+    const graphOwner = actor.oxyUserId;
+    void (async () => {
+      try {
+        await syncAtprotoProfileGraph(graphDid, graphOwner);
+        await FederatedActor.updateOne(
+          { _id: actor._id, atprotoGraphSyncStartedAt: now },
+          { $set: { lastAtprotoGraphSyncAt: new Date() }, $unset: { atprotoGraphSyncStartedAt: '' } },
+        );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn('[FedSync] atproto graph sync failed', { acct: actor.acct, error: message });
+        await FederatedActor.updateOne(
+          { _id: actor._id, atprotoGraphSyncStartedAt: now },
+          { $unset: { atprotoGraphSyncStartedAt: '' } },
+        );
       }
     })();
   }
