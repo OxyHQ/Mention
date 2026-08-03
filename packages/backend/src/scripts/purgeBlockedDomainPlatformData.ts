@@ -87,11 +87,7 @@ import { connectToDatabase } from '../utils/database';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 import { getBlockedDomainPolicy } from '../connectors/activitypub/federationBlockPolicy';
-import {
-  ACTOR_DOMAIN,
-  FEDERATION_DOMAIN,
-  OXY_IDENTITY_APEX,
-} from '../connectors/activitypub/constants';
+import { OWN_DOMAINS } from '../connectors/activitypub/ownDomain';
 import { buildBlockedContentDomains } from './purgeBlockedDomainContent';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import {
@@ -710,7 +706,7 @@ export async function purgeBlockedDomainPlatformData(
 export function resolvePurgeTargets(options: PlatformPurgeOptions): ReadonlySet<string> {
   return buildBlockedContentDomains(
     getBlockedDomainPolicy().map((entry) => entry.domain),
-    [FEDERATION_DOMAIN, ACTOR_DOMAIN, OXY_IDENTITY_APEX],
+    OWN_DOMAINS,
     options.domain,
   );
 }

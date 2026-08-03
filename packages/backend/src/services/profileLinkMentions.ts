@@ -5,7 +5,7 @@ import {
   normalizeMentionIds,
   reconcileMentionIds,
 } from '@mention/shared-types/mentions';
-import { localProfilePathHandle } from '@mention/shared-types/profileUrls';
+import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
 import {
   scanTextEntities,
   toOpenableUrl,
@@ -13,6 +13,7 @@ import {
 } from '@mention/shared-types/textEntities';
 import FederatedActor from '../models/FederatedActor';
 import { isBlockedDomain, resolveOxyUser } from '../connectors/activitypub/constants';
+import { OWN_DOMAINS } from '../connectors/activitypub/ownDomain';
 import { normalizeFederatedAcct } from '../connectors/activitypub/helpers';
 import { logger } from '../utils/logger';
 
@@ -80,13 +81,31 @@ export type RemoteMentionResolver = (href: string) => Promise<string | null>;
 /**
  * Resolve one mentioned actor URI to its Oxy user id.
  *
- * An href on one of our own domains (or the Oxy identity apex) is a LOCAL user:
- * resolve it through Oxy by username — NEVER fetch it as a remote actor (that path
- * rejects own/blocked domains). Any other href is a genuine remote actor, resolved
- * through the supplied {@link RemoteMentionResolver} — fetch-and-create for the
- * live inbox path, lookup-only for the repair and profile-link paths. Returns
- * `null` when the actor cannot be resolved to an Oxy user, so the caller leaves
- * the link alone rather than minting a broken mention.
+ * An href that names a profile on one of our own domains (or the Oxy identity
+ * apex) is a LOCAL user: resolve it through Oxy by username — NEVER fetch it as a
+ * remote actor (that path rejects own/blocked domains). Any other href is a
+ * genuine remote actor, resolved through the supplied
+ * {@link RemoteMentionResolver} — fetch-and-create for the live inbox path,
+ * lookup-only for the repair and profile-link paths. Returns `null` when the
+ * actor cannot be resolved to an Oxy user, so the caller leaves the link alone
+ * rather than minting a broken mention.
+ *
+ * THE OWN-HOST BRANCH IS SELECTED BY {@link ownProfileUrlHandle}, not by
+ * `isBlockedDomain`, and both halves of that matter:
+ *
+ *   - `isBlockedDomain` is true for MODERATION-blocked hosts as well as for
+ *     ours, so keying the local branch on it asked Oxy to resolve
+ *     `https://<blocked-instance>/@alice`'s `alice` as one of OUR users.
+ *     Unreachable from ingest, where a blocked domain never gets this far;
+ *     reachable the moment this resolver runs on a body somebody composed here.
+ *   - it is the same function — with the same percent-decoding — that the
+ *     renderer and the composer's roster read, so a handle spelled
+ *     `…/@caf%C3%A9` resolves to the account the screen already promised rather
+ *     than missing on the raw segment.
+ *
+ * `isBlockedDomain` still guards the remote arm, and still covers a URL on one
+ * of our own hosts whose path is not a profile at all (`https://<us>/about`):
+ * that is not a remote actor either, so it resolves to nobody.
  */
 export async function resolveHrefIdentity(
   href: string,
@@ -99,16 +118,14 @@ export async function resolveHrefIdentity(
     return null;
   }
 
-  if (isBlockedDomain(host)) {
-    // The host was just established as one of ours (or the Oxy identity apex), so
-    // reading the handle out of the path alone is safe here — see the host-gate
-    // note on `localProfilePathHandle`.
-    const username = localProfilePathHandle(href);
-    if (!username) return null;
+  const username = ownProfileUrlHandle(href, OWN_DOMAINS);
+  if (username) {
     const user = await resolveOxyUser(username);
     const oxyUserId = user ? String(user._id ?? user.id ?? '') : '';
     return oxyUserId ? { oxyUserId, isLocal: true } : null;
   }
+
+  if (isBlockedDomain(host)) return null;
 
   const oxyUserId = await resolveRemote(href);
   return oxyUserId ? { oxyUserId, isLocal: false } : null;
@@ -215,9 +232,18 @@ export async function resolveProfileLinkIdentity(
  */
 export const MAX_PROFILE_LINKS_PER_BODY = 8;
 
-/** True when an href could name a user — the gate for spending a lookup on it. */
+/**
+ * True when an href could name a user — the gate for spending a lookup on it.
+ *
+ * The two clauses are the two arms of {@link resolveHrefIdentity} in the same
+ * order, so the gate admits exactly what the resolver can answer: a stored
+ * remote actor's profile shape, or a profile on one of our own hosts.
+ */
 export function isProfileLikeHref(href: string): boolean {
-  return profileHrefKeys(href) !== undefined || localProfilePathHandle(href) !== undefined;
+  return (
+    profileHrefKeys(href) !== undefined
+    || ownProfileUrlHandle(href, OWN_DOMAINS) !== undefined
+  );
 }
 
 /**

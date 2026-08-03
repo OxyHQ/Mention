@@ -117,7 +117,7 @@ describe('a profile link on OUR OWN host', () => {
     expect(fold.rewritten).toBe(true);
   });
 
-  it.skip('decodes a percent-encoded handle, so the screen and the store agree', async () => {
+  it('decodes a percent-encoded handle, so the screen and the store agree', async () => {
     // The composer's roster and the renderer both read `ownProfileUrlHandle`,
     // which decodes. This resolver used to pass the RAW path segment on, so
     // `…/@caf%C3%A9` asked Oxy for `caf%C3%A9`, missed, and left a link the
@@ -133,10 +133,18 @@ describe('a profile link on OUR OWN host', () => {
     expect(fold.mentions).toEqual([ALICE_OXY_ID]);
   });
 
-  it.skip('never treats a MODERATION-blocked host as one of ours', async () => {
+  it('never treats a MODERATION-blocked host as one of ours', async () => {
     // The branch used to key on `isBlockedDomain`, which is true for blocked
     // instances as well as for us — so this asked Oxy to resolve `alice` as one
     // of OUR users. Unreachable from ingest; reachable from a composed body.
+    //
+    // The stub has to say the host is BLOCKED for this to be the case it names:
+    // the shared `beforeEach` only reports our own host, under which `poa.st` is
+    // an ordinary remote instance and the old resolver reached the (correct)
+    // remote arm. Blocked is the input that separates the two.
+    mocks.isBlockedDomain.mockImplementation(
+      (host: string) => ['poa.st', OWN_HOST].includes(host.toLowerCase().replace(/^www\./, '')),
+    );
     const content = body(`see https://poa.st/@alice here`);
 
     const fold = await foldProfileLinkMentions(content, []);
@@ -144,6 +152,24 @@ describe('a profile link on OUR OWN host', () => {
     expect(mocks.resolveOxyUser).not.toHaveBeenCalled();
     expect(fold.mentions).toEqual([]);
     expect(content.text).toBe('see https://poa.st/@alice here');
+  });
+
+  it('never looks a URL on our OWN host up as somebody else’s stored actor', async () => {
+    // Now that the local branch is selected by SHAPE, `isBlockedDomain` is what
+    // keeps the own-host cases it does not match from falling through to the
+    // remote arm. `/users/<name>` is exactly such a case: it is the Mastodon
+    // actor-URI shape, so the stored-actor lookup answers for it — with a row
+    // mirrored in for one of OUR OWN users — while our profiles live at `/@name`
+    // and `/ap/users/name`. Resolving it would mint a mention of whoever that
+    // stale row points at.
+    stubStoredActors({ acct: { [`alice@${OWN_HOST}`]: BOB_OXY_ID } });
+    const content = body(`read https://${OWN_HOST}/users/alice first`);
+
+    const fold = await foldProfileLinkMentions(content, []);
+
+    expect(mocks.resolveOxyUser).not.toHaveBeenCalled();
+    expect(fold.mentions).toEqual([]);
+    expect(content.text).toBe(`read https://${OWN_HOST}/users/alice first`);
   });
 
   it('leaves the prose punctuation that merely followed the link', async () => {

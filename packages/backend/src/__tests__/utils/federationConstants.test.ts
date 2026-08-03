@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  isBlockedDomain,
-  OXY_IDENTITY_APEX,
-} from '../../connectors/activitypub/constants';
+import { isBlockedDomain } from '../../connectors/activitypub/constants';
+import { OXY_IDENTITY_APEX } from '../../connectors/activitypub/ownDomain';
 
 describe('OXY_IDENTITY_APEX', () => {
   it('derives the registrable domain of the Oxy API (api.oxy.so → oxy.so)', () => {

@@ -161,11 +161,7 @@ import EngagementOutbox from '../models/EngagementOutbox';
 import FederationDeliveryQueue from '../models/FederationDeliveryQueue';
 import ContentLabel from '../models/ContentLabel';
 import Report, { ReportedType } from '../models/Report.model';
-import {
-  ACTOR_DOMAIN,
-  FEDERATION_DOMAIN,
-  OXY_IDENTITY_APEX,
-} from '../connectors/activitypub/constants';
+import { OWN_DOMAINS } from '../connectors/activitypub/ownDomain';
 import {
   materializeEngagementTombstone,
 } from '../services/PostEngagementCommandService';
@@ -1726,7 +1722,7 @@ async function main(): Promise<void> {
         ...getBlockedDomainPolicy().map((entry) => entry.domain),
         ...config.federation.blockedDomains,
       ],
-      [FEDERATION_DOMAIN, ACTOR_DOMAIN, OXY_IDENTITY_APEX],
+      OWN_DOMAINS,
       options.domain,
     );
 
