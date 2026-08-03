@@ -52,9 +52,14 @@ const DEFAULT_OPTIONS: ThreadSlicingOptions = {
  * `PostHydrationService`, whose unpublished guard reads `post.status ?? 'published'`:
  * leave the field unprojected and that guard reads `undefined`, defaults to
  * `'published'`, and never fires — an inert ACL rather than an enforced one.
+ *
+ * `writtenByOxyUserId` is here for the same reason it is in the three other
+ * hydration projections (see `mtn/feed/FeedAPI.ts`): without it a disclosed
+ * channel writer is named on the feed row and silently dropped on the SAME post
+ * rendered as a thread parent.
  */
 const SLICE_POST_PROJECTION =
-  '_id oxyUserId authorship federation createdAt parentPostId threadId content status stats metadata hashtags mentions language visibility type boostOf quoteOf laneId';
+  '_id oxyUserId writtenByOxyUserId authorship federation createdAt parentPostId threadId content status stats metadata hashtags mentions language visibility type boostOf quoteOf laneId';
 
 class ThreadSlicingService {
   /**

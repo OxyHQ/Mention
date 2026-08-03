@@ -806,9 +806,7 @@ class PostCreationService {
       // A channel needs nothing extra here: a channel is an Oxy account and
       // authors its own posts, so following a channel is an ordinary follow of
       // that account and its readers arrive through the same subscription rows as
-      // anyone else's. The `ChannelFollow` fan-out this stage used to also walk
-      // existed only because a channel post was authored by a PERSON and could
-      // therefore never reach its own readers.
+      // anyone else's.
       (async () => {
         const isTopLevelPost = !parentPostId;
         if (!oxyUserId || !isTopLevelPost) return;

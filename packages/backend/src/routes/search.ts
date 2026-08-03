@@ -24,9 +24,13 @@ const router = express.Router();
 /** Search result page size. */
 const DEFAULT_SEARCH_LIMIT = 20;
 const MAX_SEARCH_LIMIT = 100;
+// One of the four projections that feed `PostHydrationService`; they must agree
+// on every field hydration reads. `writtenByOxyUserId` is what lets a channel
+// post name its writer here too — see `mtn/feed/FeedAPI.ts` `FEED_FIELDS`.
 const SEARCH_HYDRATION_PROJECTION = [
   '_id',
   'oxyUserId',
+  'writtenByOxyUserId',
   'authorship',
   'content',
   'metadata',

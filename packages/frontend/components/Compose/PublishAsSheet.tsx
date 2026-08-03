@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useMemo } from 'react';
 import { FlatList, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
+import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Item } from '@oxyhq/bloom/item';
 import { Loading } from '@oxyhq/bloom/loading';
@@ -152,6 +153,18 @@ const PublishAsSheet = memo(function PublishAsSheet({
           }
         />
       )}
+
+      {/* The way OUT of an empty list. Without it the sheet explains what a
+          channel is and offers no way to have one — which is exactly how the
+          feature shipped when the old channels screen was deleted along with the
+          model it read. */}
+      <Item
+        onPress={() => {
+          onClose();
+          router.push('/channels');
+        }}
+        title={t('channels.picker.manage', { defaultValue: 'Create or manage channels' })}
+      />
 
       {/* Only a post published as somebody else can also be somewhere else — an
           ordinary post is already on the author's profile, so the question has no

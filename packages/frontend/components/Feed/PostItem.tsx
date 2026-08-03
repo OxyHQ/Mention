@@ -997,6 +997,18 @@ export default React.memo(PostItem, (prevProps, nextProps) => {
     const prev = prevProps.post;
     const next = nextProps.post;
 
+    // The byline's membership, which nothing else here moves with. `authors`
+    // changes for a post whose id, engagement and `updatedAt` are all unchanged:
+    // a collaborator accepts an invite, or a channel account turns `signPosts`
+    // on or off and its posts start (or stop) naming the human who wrote them.
+    // Without this the row keeps the byline it first rendered until a reload.
+    const prevAuthors = prev?.authors ?? [];
+    const nextAuthors = next?.authors ?? [];
+    if (prevAuthors.length !== nextAuthors.length) return false;
+    for (let i = 0; i < prevAuthors.length; i++) {
+        if (prevAuthors[i]?.id !== nextAuthors[i]?.id) return false;
+    }
+
     // Compare identity and key engagement/viewer state
     return (
         prev?.id === next?.id &&
