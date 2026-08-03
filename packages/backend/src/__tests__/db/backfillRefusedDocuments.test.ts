@@ -113,6 +113,7 @@ beforeAll(async () => {
 
 afterEach(async () => {
   await mongo.collection('pushtokens').deleteMany({});
+  await mongo.collection('gifs').deleteMany({});
 });
 
 afterAll(async () => {
@@ -163,6 +164,38 @@ describe('a refused document', () => {
       .insertOne({ _id: new ObjectId(), userId: OWNER, token: 'brd-5', weight: 3 });
 
     expect(refusal(await audit(refusesFractionalWeight))).toBeUndefined();
+  });
+});
+
+describe('two collections refusing at the same field name', () => {
+  it('reports BOTH, because the key is (collection, path) and not path alone', async () => {
+    // The failure mode this guards is precisely the one the whole change exists
+    // to remove: reporting one and leaving the other for the next round. Two
+    // collections refusing at the SAME field name is the case where a
+    // path-keyed tally silently collapses them into one.
+    const inPushTokens = new ObjectId();
+    const inGifs = new ObjectId();
+    await mongo
+      .collection('pushtokens')
+      .insertOne({ _id: inPushTokens, userId: OWNER, token: 'brd-7', weight: 0.25 });
+    await mongo.collection('gifs').insertOne({ _id: inGifs, klipyId: 'brd-gif', weight: 0.75 });
+
+    const other: CollectionPlan = { ...refusesFractionalWeight, collection: 'gifs' };
+    const findings = [
+      ...(await audit(refusesFractionalWeight)),
+      ...(await audit(other)),
+    ].filter((finding) => finding.kind === 'refused-document');
+
+    expect(findings).toHaveLength(2);
+    expect(findings.map((finding) => finding.collection).sort()).toEqual(['gifs', 'pushtokens']);
+    // Each names its OWN collection and path — a reader must not have to guess
+    // which of two identically-worded findings belongs to which collection.
+    for (const finding of findings) {
+      expect(finding.detail).toContain(`${finding.collection}.weight REFUSED 1 document(s)`);
+    }
+    expect(findings.flatMap((finding) => finding.sampleIds).sort()).toEqual(
+      [String(inPushTokens), String(inGifs)].sort()
+    );
   });
 });
 

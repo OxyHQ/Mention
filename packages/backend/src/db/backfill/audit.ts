@@ -138,6 +138,81 @@ const SAMPLE_LIMIT = 5;
 export const COLLISION_GROUPS_REPORTED = 50;
 
 /**
+ * Documents a transform REFUSED, keyed by `collection` and the path that
+ * refused them.
+ *
+ * Aggregated rather than listed one per document, because
+ * `preferredPostTypes.text` holding a float is ONE defect however many rows
+ * carry it — and keyed by COLLECTION as well as path, because two collections
+ * can refuse at the same field name and reporting only one of them would leave
+ * the next round exactly where this one started.
+ */
+export type RefusedDocuments = Map<
+  string,
+  { collection: string; path: string; rows: number; ids: string[]; message: string }
+>;
+
+/** Add one refusal to the tally. */
+export function recordRefusedDocument(
+  refused: RefusedDocuments,
+  collection: string,
+  error: BackfillValueError,
+  documentId: string | undefined
+): void {
+  const key = `${collection}\u0000${error.path}`;
+  const entry = refused.get(key) ?? {
+    collection,
+    path: error.path,
+    rows: 0,
+    ids: [],
+    message: error.message,
+  };
+  entry.rows += 1;
+  if (entry.ids.length < SAMPLE_LIMIT && documentId !== undefined) entry.ids.push(documentId);
+  refused.set(key, entry);
+}
+
+/**
+ * One finding per refusing (collection, path).
+ *
+ * The prose names the COLLECTION and the PATH ahead of the value, because the
+ * value is the instance and those two are the defect. That ordering is not
+ * cosmetic: both production instances of this class were integer columns
+ * holding a fractional accumulator, and what hid them was the NAME —
+ * `preferredPostTypes.text` reads like a score, `interactionCount` reads like a
+ * tick, and both are `+=` a fractional weight. `preferredRegions.count` is the
+ * same kind of value and was already `double precision`, with a comment saying
+ * why. The convention existed; the outliers were named as if they were counters.
+ */
+export function refusedDocumentFindings(refused: RefusedDocuments): AuditFinding[] {
+  return [...refused.values()]
+    .sort((a, b) =>
+      a.collection === b.collection
+        ? a.path < b.path
+          ? -1
+          : a.path > b.path
+            ? 1
+            : 0
+        : a.collection < b.collection
+          ? -1
+          : 1
+    )
+    .map((entry) => ({
+      collection: entry.collection,
+      kind: 'refused-document' as const,
+      detail:
+        `${entry.collection}.${entry.path} REFUSED ${entry.rows} document(s): ` +
+        `${entry.message}. The transform will not build the row, so the copy cannot ` +
+        'write it. Fix the data, widen the column, or teach the transform what the ' +
+        'value means — the same three ways forward as any other finding. Check the ' +
+        "NAME against what the writer does: a field called a count that is `+=`'d a " +
+        'fractional weight is this defect, and reads like a counter.',
+      documents: entry.rows,
+      sampleIds: entry.ids,
+    }));
+}
+
+/**
  * Which STRICT prefixes of a dotted path hold an ARRAY in this collection.
  *
  * Asked of the DATA rather than declared on the plan, because the plan already
@@ -728,11 +803,7 @@ export async function auditDefaultedColumns(
   // than answering from an empty map.
   const noParents = parentKeysFrom(new Map());
 
-  // Documents the transform REFUSED, aggregated by the path that refused them.
-  // One finding per path rather than per document: `preferredPostTypes.text`
-  // holding a float is ONE defect however many rows carry it, and a report with
-  // a row per document would bury the shape under the instances.
-  const refused = new Map<string, { rows: number; ids: string[]; message: string }>();
+  const refused: RefusedDocuments = new Map();
 
   for await (const documents of streamCollection(source, plan.collection, batchSize)) {
     for (const doc of documents) {
@@ -767,10 +838,7 @@ export async function auditDefaultedColumns(
         // abort, because continuing past it would report on rows built by code
         // that is already known to be wrong.
         if (!(error instanceof BackfillValueError)) throw error;
-        const entry = refused.get(error.path) ?? { rows: 0, ids: [], message: error.message };
-        entry.rows += 1;
-        if (entry.ids.length < SAMPLE_LIMIT && documentId !== undefined) entry.ids.push(documentId);
-        refused.set(error.path, entry);
+        recordRefusedDocument(refused, plan.collection, error, documentId);
         // The document's rows are NOT counted. A transform that threw partway
         // may already have emitted some, so the omission denominator for this
         // collection is a lower bound — which is the honest direction: it can
@@ -789,19 +857,7 @@ export async function auditDefaultedColumns(
   const findings: AuditFinding[] = [];
   const seenProperties = new Set<string>();
 
-  for (const [path, entry] of [...refused].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
-    findings.push({
-      collection: plan.collection,
-      kind: 'refused-document',
-      detail:
-        `${entry.message} — and ${entry.rows} document(s) of ${plan.collection} are ` +
-        `refused at \`${path}\`. The transform will not build the row, so the copy ` +
-        'cannot write it. Fix the data, widen the column, or teach the transform ' +
-        'what the value means — the same three ways forward as any other finding.',
-      documents: entry.rows,
-      sampleIds: entry.ids,
-    });
-  }
+  findings.push(...refusedDocumentFindings(refused));
 
   for (const [key, entry] of [...omissions].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
     seenProperties.add(entry.property);
