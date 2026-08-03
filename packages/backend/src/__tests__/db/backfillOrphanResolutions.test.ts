@@ -189,6 +189,43 @@ describe('a boost of a post Mention never held', () => {
     ]);
   });
 
+  it('drops one that did not EXIST when the resolutions were planned', async () => {
+    // "Report every dropped id" has to be a runtime output of the COPY, never a
+    // list frozen from an audit — measured: an orphan boost appeared in
+    // production 81 seconds after run 8's bound closed. A rule that consulted a
+    // precomputed id list would copy that row and violate the foreign key,
+    // having reported nothing.
+    //
+    // So the pre-pass is deliberately run FIRST, against a source that does not
+    // yet contain the offending document.
+    const decoy = new ObjectId();
+    await mongo.collection('posts').insertOne(basePost(decoy));
+    const planned = await planResolutions(source);
+    // The ordering IS the fixture: if the offending document were already
+    // present here, the test would pass without saying anything about frozen
+    // lists.
+    expect(await source.count('posts')).toBe(1);
+
+    const late = new ObjectId();
+    await mongo
+      .collection('posts')
+      .insertOne(basePost(late, { type: 'boost', boostOf: new ObjectId().toHexString() }));
+
+    const log = new ResolutionLog();
+    await copyCollection(planFor('posts'), {
+      db: getDb(),
+      source,
+      resolutions: createResolutionContext(planned, log),
+      parents: parentKeysFrom(new Map([['posts', new Set([decoy.toHexString()])]])),
+    });
+
+    const rows = await getDb().select().from(posts).where(eq(posts.id, late.toHexString()));
+    expect(rows).toStrictEqual([]);
+    expect(reportedIds(log, 'drop-boost-of-a-post-mention-never-held')).toStrictEqual([
+      late.toHexString(),
+    ]);
+  });
+
   it('leaves a boost whose target EXISTS completely alone', async () => {
     const original = new ObjectId();
     const boost = new ObjectId();
