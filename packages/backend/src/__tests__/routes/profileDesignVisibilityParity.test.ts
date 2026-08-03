@@ -119,7 +119,6 @@ app.use('/profile', profileSettingsRoutes);
 interface ProfileDesignPayload {
   appearance?: { primaryColor?: string };
   profileHeaderImage?: string;
-  profileCustomization?: { coverPhotoEnabled: boolean; minimalistMode: boolean };
   profileMedia?: { type: string };
 }
 
@@ -138,7 +137,6 @@ function designFields(payload: ProfileDesignPayload) {
   return {
     appearance: payload.appearance,
     profileHeaderImage: payload.profileHeaderImage,
-    profileCustomization: payload.profileCustomization,
     profileMedia: payload.profileMedia,
   };
 }
@@ -149,8 +147,6 @@ function seedTarget(profileVisibility: 'public' | 'private' | 'followers_only') 
     appearance: { themeMode: 'dark', primaryColor: '#ff0000' },
     profileHeaderImage: 'private-banner-file',
     profileCustomization: {
-      coverPhotoEnabled: true,
-      minimalistMode: true,
       profileMedia: {
         type: 'song',
         syraTrackId: 'track-1',
@@ -182,7 +178,6 @@ describe('GET /profile/settings/:userId profile-design visibility', () => {
 
     expect(settings.profileHeaderImage).toBeUndefined();
     expect(settings.appearance).toBeUndefined();
-    expect(settings.profileCustomization).toBeUndefined();
     expect(settings.profileMedia).toBeUndefined();
   });
 
@@ -193,7 +188,6 @@ describe('GET /profile/settings/:userId profile-design visibility', () => {
     expect(designFields(await getSettings())).toEqual({
       appearance: undefined,
       profileHeaderImage: undefined,
-      profileCustomization: undefined,
       profileMedia: undefined,
     });
   });
@@ -210,10 +204,6 @@ describe('GET /profile/settings/:userId profile-design visibility', () => {
 
     expect(settings.profileHeaderImage).toContain('private-banner-file');
     expect(settings.appearance).toEqual({ primaryColor: '#ff0000' });
-    expect(settings.profileCustomization).toEqual({
-      coverPhotoEnabled: true,
-      minimalistMode: true,
-    });
     expect(settings.profileMedia?.type).toBe('song');
   });
 

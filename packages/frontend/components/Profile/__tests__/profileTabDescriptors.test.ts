@@ -3,6 +3,7 @@ import {
   buildProfileTabDescriptors,
   laneTabKey,
   profileTabIndex,
+  profileTabsForAccountKind,
   type ProfileTab,
 } from '@/components/Profile/types';
 
@@ -58,6 +59,65 @@ describe('profile tab descriptors', () => {
     expect(profileTabIndex(withLanes, 'replies')).toBe(2);
     expect(profileTabIndex(withLanes, 'boosts')).toBe(6);
     expect(profileTabIndex(withLanes, 'posts')).toBe(0);
+  });
+
+  it('gives a channel only the tabs its account kind can fill', () => {
+    expect(profileTabsForAccountKind('channel')).toEqual([
+      'posts',
+      'media',
+      'videos',
+      'boosts',
+    ]);
+  });
+
+  /**
+   * The five are dropped for five DIFFERENT reasons (see `CHANNEL_EXCLUDED_TABS`),
+   * so they are asserted one at a time: a single `toEqual` on the whole strip
+   * cannot say which one a future change put back.
+   */
+  it.each(['replies', 'likes', 'feeds', 'starter_packs', 'lists'] as const)(
+    'drops the %s tab on a channel',
+    (tab) => {
+      expect(profileTabsForAccountKind('channel')).not.toContain(tab);
+      expect(profileTabsForAccountKind(undefined)).toContain(tab);
+    },
+  );
+
+  it('keeps the boosts tab on a channel', () => {
+    expect(profileTabsForAccountKind('channel')).toContain('boosts');
+  });
+
+  it.each(['personal', 'organization', 'project', 'bot', undefined] as const)(
+    'leaves the full strip alone for kind %s',
+    (kind) => {
+      expect(profileTabsForAccountKind(kind)).toEqual([...TAB_NAMES]);
+    },
+  );
+
+  it('still splices a channel’s lanes directly after posts', () => {
+    const descriptors = buildProfileTabDescriptors(
+      LABELS,
+      [{ id: 'lane-a', name: 'dev' }],
+      'channel',
+    );
+
+    expect(descriptors.map((d) => d.key)).toEqual([
+      'posts',
+      laneTabKey('lane-a'),
+      'media',
+      'videos',
+      'boosts',
+    ]);
+  });
+
+  it('lands a channel on posts for a tab its strip no longer has', () => {
+    const descriptors = buildProfileTabDescriptors(LABELS, [], 'channel');
+
+    // What a stale deep link or the stats row asks for; `profileTabIndex`'s
+    // fallback is what keeps it from resolving to -1 and rendering nothing.
+    expect(profileTabIndex(descriptors, 'likes')).toBe(0);
+    expect(profileTabIndex(descriptors, 'lists')).toBe(0);
+    expect(profileTabIndex(descriptors, 'boosts')).toBe(3);
   });
 
   it('falls back to the first tab for a key the strip does not have', () => {

@@ -25,10 +25,6 @@ interface PublicProfileDesignResponse {
     primaryColor?: string;
   };
   profileHeaderImage?: string;
-  profileCustomization?: {
-    coverPhotoEnabled: boolean;
-    minimalistMode: boolean;
-  };
   profileMedia?: ProfileMedia;
   privacy?: {
     profileVisibility?: 'public' | 'private' | 'followers_only';

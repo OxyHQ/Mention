@@ -1,14 +1,6 @@
 import UserSettings, { type UserSettingsData } from '../models/UserSettings';
 import { resolveBannerUrl } from './mediaResolver';
 
-/**
- * Default profile customization settings
- */
-export const DEFAULT_PROFILE_CUSTOMIZATION = {
-  coverPhotoEnabled: true,
-  minimalistMode: false,
-} as const;
-
 function nonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0
     ? value.trim()
@@ -29,27 +21,19 @@ function resolveProfileHeaderImage(value: unknown): string | undefined {
 }
 
 /**
- * Ensures a UserSettings document exists for a user
- * Creates with defaults if missing, updates if missing profileCustomization
+ * Ensures a UserSettings document exists for a user.
+ *
+ * It no longer seeds `profileCustomization`: the subdoc's only remaining field
+ * is `profileMedia`, which is absent until the user pins something and whose
+ * schema default covers it. Seeding it existed to give older documents the two
+ * layout booleans, and those are gone.
  */
 export async function ensureUserSettings(oxyUserId: string) {
-  let doc = await UserSettings.findOne({ oxyUserId }).lean<UserSettingsData>().exec();
-  
-  if (!doc) {
-    const created = await UserSettings.create({ 
-      oxyUserId,
-      profileCustomization: DEFAULT_PROFILE_CUSTOMIZATION,
-    });
-    doc = created.toObject<UserSettingsData>();
-  } else if (!doc.profileCustomization) {
-    doc = await UserSettings.findOneAndUpdate(
-      { oxyUserId },
-      { $set: { profileCustomization: DEFAULT_PROFILE_CUSTOMIZATION } },
-      { new: true }
-    ).lean<UserSettingsData>().exec();
-  }
-  
-  return doc;
+  const doc = await UserSettings.findOne({ oxyUserId }).lean<UserSettingsData>().exec();
+  if (doc) return doc;
+
+  const created = await UserSettings.create({ oxyUserId });
+  return created.toObject<UserSettingsData>();
 }
 
 /**
@@ -57,16 +41,6 @@ export async function ensureUserSettings(oxyUserId: string) {
  */
 export function extractPublicProfileData(doc: Partial<UserSettingsData> | null | undefined, userId: string) {
   const customization = doc?.profileCustomization || {};
-  const profileCustomization = {
-    coverPhotoEnabled:
-      typeof customization.coverPhotoEnabled === 'boolean'
-        ? customization.coverPhotoEnabled
-        : DEFAULT_PROFILE_CUSTOMIZATION.coverPhotoEnabled,
-    minimalistMode:
-      typeof customization.minimalistMode === 'boolean'
-        ? customization.minimalistMode
-        : DEFAULT_PROFILE_CUSTOMIZATION.minimalistMode,
-  };
 
   return {
     oxyUserId: userId,
@@ -74,7 +48,6 @@ export function extractPublicProfileData(doc: Partial<UserSettingsData> | null |
       primaryColor: doc.appearance.primaryColor,
     } : undefined,
     profileHeaderImage: resolveProfileHeaderImage(doc?.profileHeaderImage),
-    profileCustomization,
     // Pinned Syra "profile media" (a song OR a podcast show) — already
     // denormalized + verified at save time, so it is public-safe and
     // rendered/played by viewers as-is. Normalize the stored `null` default to
@@ -94,7 +67,6 @@ export function redactedProfileDesign(userId: string) {
     oxyUserId: userId,
     appearance: undefined,
     profileHeaderImage: undefined,
-    profileCustomization: undefined,
     profileMedia: undefined,
   };
 }

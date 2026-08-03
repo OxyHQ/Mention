@@ -29,7 +29,15 @@ export interface ProfileDesign {
   displayName: string;
   bannerUrl?: string;
   avatar?: string;
-  coverPhotoEnabled: boolean;
+  /**
+   * The compact profile header (no banner). DERIVED from the account kind — a
+   * channel gets it, everybody else gets the default layout — never chosen.
+   * There is no stored setting behind this and no picker: the "Profile Style"
+   * control and BOTH of its columns (`minimalistMode`, `coverPhotoEnabled`) were
+   * removed, so an account that once picked minimalist now renders exactly like
+   * any other person's — banner included, which is why `coverPhotoEnabled` had
+   * to go with it rather than linger as a suppression nothing could undo.
+   */
   minimalistMode: boolean;
   color?: string;
   /** Pinned Syra profile media — a song XOR a podcast — when the user has set one (and the viewer has access). */
@@ -129,8 +137,9 @@ function computeDesign(
     displayName: displayNameOrHandle(profile.name.displayName, profile.username),
     bannerUrl: bannerUrl?.startsWith('http') ? bannerUrl : undefined,
     avatar: profile.avatar ?? undefined,
-    coverPhotoEnabled: appearance?.profileCustomization?.coverPhotoEnabled ?? true,
-    minimalistMode: appearance?.profileCustomization?.minimalistMode ?? false,
+    // Read off the ACCOUNT, not off the appearance settings: the layout is a
+    // property of what the account is, not a preference it stores.
+    minimalistMode: profile.kind === 'channel',
     color:
       presetColor ||
       HEX_TO_APP_COLOR[appearance?.appearance?.primaryColor ?? ''] ||

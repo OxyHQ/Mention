@@ -182,7 +182,7 @@ router.put(
 router.put('/settings', async (req: AuthRequest, res: Response) => {
   try {
     const oxyUserId = getAuthenticatedUserId(req);
-    const { appearance, profileHeaderImage, privacy, profileCustomization, profileMedia, interests, feedSettings, notificationPreferences, externalEmbeds, fediversePreferredLanguage } = req.body || {};
+    const { appearance, profileHeaderImage, privacy, profileMedia, interests, feedSettings, notificationPreferences, externalEmbeds, fediversePreferredLanguage } = req.body || {};
 
     // Dot-notation leaf paths mapped to the value Mongo should store. The values
     // are deliberately heterogeneous (scalars, arrays, sub-documents) and are only
@@ -198,7 +198,7 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
     // rebroadcast the actor to remote followers (see below).
     let bannerChanged = false;
 
-    // Dot-notation, same safe pattern as `profileCustomization`/`externalEmbeds` below:
+    // Dot-notation, same safe pattern as `profileMedia`/`externalEmbeds` below:
     // each field is set at its own leaf path, so a partial `appearance` payload (e.g. the
     // color picker sending only `primaryColor`) only touches the fields present in the
     // request and leaves every other appearance field untouched.
@@ -236,15 +236,6 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       bannerChanged = true;
     }
     
-    if (profileCustomization) {
-      if (typeof profileCustomization.coverPhotoEnabled === 'boolean') {
-        update['profileCustomization.coverPhotoEnabled'] = profileCustomization.coverPhotoEnabled;
-      }
-      if (typeof profileCustomization.minimalistMode === 'boolean') {
-        update['profileCustomization.minimalistMode'] = profileCustomization.minimalistMode;
-      }
-    }
-
     // Profile media: an Instagram-style pinned Syra song OR podcast show
     // (mutually exclusive — one field, one value, so setting either type
     // automatically replaces the other). The client sends only an untrusted
