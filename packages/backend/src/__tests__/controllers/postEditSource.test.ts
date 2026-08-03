@@ -16,6 +16,10 @@ vi.mock('../../services/PostHydrationService', () => ({
   isFallbackUserSummary: (user: { username?: string }) => !user.username,
 }));
 
+vi.mock('../../utils/oxyHelpers', () => ({
+  createUserScopedOxyServices: vi.fn(() => undefined),
+}));
+
 vi.mock('../../utils/logger', () => ({
   logger: {
     warn: vi.fn(),
@@ -59,6 +63,9 @@ describe('getPostEditSource', () => {
   it('returns raw author bodies and drops orphan mention ids', async () => {
     const doc = {
       _id: POST_ID,
+      // A real row always names its author, and the handler now authorizes on
+      // it rather than on the query filter.
+      oxyUserId: 'owner',
       content: {
         variants: [
           {
@@ -114,7 +121,10 @@ describe('getPostEditSource', () => {
     const res = responseDouble();
     await getPostEditSource(request('owner'), res as unknown as Response);
 
-    expect(findOne).toHaveBeenCalledWith({ _id: POST_ID, oxyUserId: 'owner' });
+    // Looked up by id; who may read it is decided afterwards by
+    // `postManagementRefusal`, because a channel post's `oxyUserId` is the
+    // channel and an owner-scoped query could never find one.
+    expect(findOne).toHaveBeenCalledWith({ _id: POST_ID });
     expect(res.json).toHaveBeenCalledWith({
       id: POST_ID,
       content: {
@@ -153,21 +163,44 @@ describe('getPostEditSource', () => {
       content: { text: 'private draft [mention:alice-id]' },
       mentions: ['alice-id'],
     };
-    findOne.mockImplementation((filter: Record<string, unknown>) => ({
-      select: () => ({
-        // Model the security boundary: an unscoped lookup would find the draft,
-        // while the viewer-scoped lookup must not.
-        lean: async () =>
-          filter.oxyUserId === 'viewer' ? null : ownerDraft,
-      }),
-    }));
+    // The lookup now FINDS the draft — the boundary moved from the query to the
+    // authorization, so this fixture is the one that actually exercises it. A
+    // scoped query answering null would pass whether the check existed or not.
+    findOne.mockReturnValue({ select: () => ({ lean: async () => ownerDraft }) });
     const res = responseDouble();
     await getPostEditSource(request('viewer'), res as unknown as Response);
 
-    expect(findOne).toHaveBeenCalledWith({
-      _id: POST_ID,
-      oxyUserId: 'viewer',
-    });
+    expect(findOne).toHaveBeenCalledWith({ _id: POST_ID });
     expect(res.status).toHaveBeenCalledWith(404);
+    // Nothing of the draft may reach the caller — not its body, not its
+    // existence beyond the same 404 a missing post answers.
+    expect(res.json).toHaveBeenCalledWith({ message: 'Post not found' });
+  });
+
+  it("lets a CHANNEL post's writer open it, though the channel is the author", async () => {
+    // The defect this route shares with `updatePost`: a channel post is
+    // authored by an account nobody can sign in as, so an owner-scoped lookup
+    // refused the composer to the very person who wrote it.
+    findOne.mockReturnValue({
+      select: () => ({
+        lean: async () => ({
+          _id: POST_ID,
+          status: 'published',
+          oxyUserId: 'oxy-channel-account',
+          writtenByOxyUserId: 'writer',
+          content: { text: 'from the channel' },
+          mentions: [],
+        }),
+      }),
+    });
+    resolveUserSummaries.mockResolvedValue(new Map());
+    const res = responseDouble();
+
+    await getPostEditSource(request('writer'), res as unknown as Response);
+
+    expect(res.status).not.toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ id: POST_ID, content: expect.objectContaining({ text: 'from the channel' }) }),
+    );
   });
 });

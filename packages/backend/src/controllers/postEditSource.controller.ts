@@ -19,6 +19,8 @@ import {
   resolveUserSummaries,
 } from '../services/PostHydrationService';
 import { logger } from '../utils/logger';
+import { createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { postManagementRefusal } from '../services/postManagementAccess';
 
 /**
  * Return the owner's raw author source for editing.
@@ -43,11 +45,23 @@ export const getPostEditSource = async (
   }
 
   try {
-    const post = await Post.findOne({ _id: postId, oxyUserId: userId })
-      .select('_id content mentions authorship parentPostId status scheduledFor')
+    // By id then authorized, matching `updatePost` — this endpoint loads the
+    // post INTO the composer, so scoping it to `{ oxyUserId: userId }` while the
+    // edit route accepts a channel's writer would let the edit succeed against a
+    // post the composer could never open.
+    const post = await Post.findOne({ _id: postId })
+      .select('_id content mentions authorship parentPostId status scheduledFor oxyUserId writtenByOxyUserId')
       .lean();
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
+    }
+    const refusal = await postManagementRefusal({
+      post,
+      callerId: userId,
+      memberReader: createUserScopedOxyServices(req),
+    });
+    if (refusal) {
+      return res.status(refusal.status).json({ message: refusal.message });
     }
 
     const storedContent = (post.content ?? {}) as StoredPostContent;

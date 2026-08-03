@@ -100,7 +100,10 @@ vi.mock('../../services/PostHydrationService', () => ({
   degradedActorSummary: (id: string) => ({ id, username: '', name: { displayName: 'Unknown' } }),
 }));
 
-vi.mock('../../utils/oxyHelpers', () => ({ createScopedOxyClient: vi.fn(() => ({})) }));
+vi.mock('../../utils/oxyHelpers', () => ({
+  createScopedOxyClient: vi.fn(() => ({})),
+  createUserScopedOxyServices: vi.fn(() => undefined),
+}));
 
 vi.mock('../../services/PostRecentReplierService', () => ({
   repairRecentRepliersAfterPostDelete: vi.fn(async () => undefined),

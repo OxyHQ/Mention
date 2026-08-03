@@ -130,3 +130,51 @@ describe('channel and person profiles are separate screens', () => {
     }
   });
 });
+
+/**
+ * DEFECT: a channel's "Joined <date>" row opened the PERSON family's about page.
+ *
+ * `/@<channel-handle>/about` renders perfectly well — the about screen never
+ * reads the account kind — which is exactly why this was silent. The account was
+ * simply sitting on a URL it does not own.
+ */
+describe('a channel has its own about page', () => {
+  it('routes the channel profile at its own about, not the person family\'s', () => {
+    const source = code(read('components', 'ChannelScreen.tsx'));
+    expect(source).toMatch(/aboutHref=\{`\/c\/\$\{handle\}\/about`\}/);
+    expect(source).not.toMatch(/aboutHref=\{`\/@/);
+  });
+
+  it('keeps the person profile on the person family, so the check is not vacuous', () => {
+    const source = code(read('components', 'ProfileScreen.tsx'));
+    expect(source).toMatch(/aboutHref=\{`\/@\$\{handle\}\/about`\}/);
+  });
+
+  it('serves both routes from ONE screen component', () => {
+    // Two implementations of "what is this account" is two places for the
+    // identity rules to drift, which is the whole reason the profile screens
+    // share their primitives rather than their code being copied.
+    for (const route of [
+      join('app', '(app)', '[username]', 'about.tsx'),
+      join('app', '(app)', 'c', '[username]', 'about.tsx'),
+    ]) {
+      const source = readFileSync(join(FRONTEND, route), 'utf8');
+      expect(source).toMatch(/from '@\/components\/AccountInfoScreen'/);
+    }
+    // And each declares which family it is, rather than sniffing the pathname.
+    expect(readFileSync(join(FRONTEND, 'app', '(app)', 'c', '[username]', 'about.tsx'), 'utf8'))
+      .toMatch(/routedFamily="channel"/);
+    expect(readFileSync(join(FRONTEND, 'app', '(app)', '[username]', 'about.tsx'), 'utf8'))
+      .toMatch(/routedFamily="person"/);
+  });
+
+  it('canonicalizes the about page through the SAME shared rule as the profiles', () => {
+    // A sub-route is where a bounce loop becomes possible: both ends exist and
+    // both are reachable, so a second opinion about which way to send would be
+    // a real loop rather than a wasted hop.
+    const source = code(read('components', 'AccountInfoScreen.tsx'));
+    expect(source).toMatch(/useProfileAccount\(/);
+    expect(source).toMatch(/canonicalHref/);
+    expect(source).not.toMatch(/<Redirect href={`/);
+  });
+});

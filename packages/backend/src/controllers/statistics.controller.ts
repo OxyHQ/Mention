@@ -13,6 +13,8 @@ import { recordDedupedView } from '../services/feedViewCounter';
 import { validateRequired } from '../utils/apiHelpers';
 import { queryInt } from '../utils/queryParams';
 import { checkFollowAccess, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
+import { createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { postManagementRefusal } from '../services/postManagementAccess';
 
 /**
  * Language the AI weekly summary is written in when the viewer's Oxy account
@@ -374,16 +376,34 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
     const { postId } = req.params;
 
     const post = await Post.findById(postId)
-      .select('_id oxyUserId createdAt stats')
+      .select('_id oxyUserId writtenByOxyUserId createdAt stats')
       .maxTimeMS(STATISTICS_QUERY_MAX_TIME_MS)
       .lean();
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    // Check if user owns the post
-    if (String(post.oxyUserId) !== userId) {
-      return res.status(403).json({ message: 'You can only view insights for your own posts' });
+    // Same authority as editing or deleting it: the author, the person who wrote
+    // it for an account that authored it, or somebody who operates that account.
+    // A channel post's author is the channel, so the plain `oxyUserId === userId`
+    // test refused its own writer.
+    //
+    // The refusal keeps this route's own 403 rather than adopting the 404 the
+    // write routes answer with. Nothing here is protecting the existence of the
+    // post — `Post.findById` already answered that, and it did so before this
+    // change too.
+    const refusal = await postManagementRefusal({
+      post,
+      callerId: userId,
+      memberReader: createUserScopedOxyServices(req),
+    });
+    if (refusal) {
+      return res.status(refusal.status === 404 ? 403 : refusal.status).json({
+        message:
+          refusal.status === 404
+            ? 'You can only view insights for your own posts'
+            : refusal.message,
+      });
     }
 
     const stats = post.stats || {
