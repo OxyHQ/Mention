@@ -48,6 +48,7 @@ import {
   ChannelReplyError,
   postIsAuthoredByChannel,
 } from '../utils/channelReplyGate';
+import type { AccountKind } from '@oxyhq/contracts';
 import {
   assertCanPublishAsAccount,
   cacheAccountMemberReads,
@@ -986,35 +987,33 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Posts array is required and cannot be empty' });
     }
 
-    // WHERE THE ACCOUNT IS NAMED IS THE OPPOSITE IN THE TWO MODES, and that is the
-    // whole design rather than an inconsistency.
+    // WHO PUBLISHES WHAT, in both modes.
     //
-    // A `beast` batch is n independent top-level posts that happen to be written
-    // in one action, so the account is PER ENTRY and they may all differ. A
-    // `thread` is one text in several parts, so it has exactly one publisher by
-    // construction: the account is named ONCE for the BATCH, and a per-entry one
-    // is refused, because an identity that changed mid-thread is the incoherent
-    // case. Each mode therefore has exactly one way to say it, and the other way
-    // is a 400 that names the right field — a client can never send both and have
-    // to discover which won.
+    // A `beast` batch is n independent top-level posts, so the account is PER
+    // ENTRY and the batch-level field is refused — there is no batch to speak of.
     //
-    // The continuations are stored as replies to their predecessor, which is what
-    // joins a thread at all, and `PostCreationService` normally refuses to publish
-    // a reply as another account. The exception is `continuesOwnThread` on the
-    // create call below: VERIFIED against the parent and the thread root, not
-    // asserted — see `utils/threadContinuation`. Nothing here opens a channel's
-    // posts to replies from anyone else; every entry is authored by the account,
-    // so the reply gate refuses a third party on a continuation exactly as it does
-    // on the root.
+    // A `thread` takes BOTH, with per-entry winning: the batch-level field is the
+    // thread's account, and an entry may name its own. Those two shapes are
+    // different threads, not two spellings of one, which is why both exist:
+    //
+    //   - ONE account for the whole thread — one text in several parts. This is
+    //     the only shape available to a CHANNEL, and it is what `channelReplyGate`
+    //     leaves room for.
+    //   - DIFFERENT accounts per entry — two organizations the caller operates,
+    //     talking to each other. Mechanically each such entry REPLIES to the one
+    //     before it, so this is a conversation between accounts, and a channel may
+    //     never be in one: "no replies, ever" has no exception for a channel's own
+    //     operators. Hence the single-voice rule enforced below.
+    //
+    // The links are stored as replies to their predecessor, which is what joins a
+    // thread at all, and `PostCreationService` normally refuses to publish a reply
+    // as another account. The two exceptions are `continuesOwnThread` and
+    // `answersOperatedAccount` on the create call below, both VERIFIED against the
+    // database rather than asserted — see `utils/threadContinuation`. Nothing here
+    // opens any account's posts to replies from a third party: every entry is
+    // authored by one of the caller's own accounts, so the reply gate refuses
+    // everybody else on a continuation exactly as it does on the root.
     const batchAccount = req.body.publishAsOxyUserId;
-    const entryNamesAnotherAccount = posts.some(
-      (p: { publishAsOxyUserId?: unknown }) => typeof p?.publishAsOxyUserId === 'string',
-    );
-    if (mode === 'thread' && entryNamesAnotherAccount) {
-      return res.status(400).json({
-        message: 'Set publishAsOxyUserId once for the thread, not on each post',
-      });
-    }
     if (mode !== 'thread' && typeof batchAccount === 'string') {
       return res
         .status(400)
@@ -1031,28 +1030,43 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     // nothing routes around the authorization.
     const memberReader = createUserScopedOxyServices(req);
     const batchMemberReader = memberReader ? cacheAccountMemberReads(memberReader) : undefined;
+    /**
+     * The account THIS request names for an entry, if any. In thread mode the
+     * entry's own field wins and the batch-level one is the default for entries
+     * that name none; in beast mode there is no batch-level field to fall back to.
+     */
+    const accountForEntry = (index: number): string | null => {
+      const named = (posts[index] as { publishAsOxyUserId?: unknown })?.publishAsOxyUserId;
+      if (typeof named === 'string') return named;
+      return mode === 'thread' && typeof batchAccount === 'string' ? batchAccount : null;
+    };
+
     /** Entry index → the account that entry will be AUTHORED BY. */
     const entryAuthorIds: string[] = [];
+    /** That account's Oxy kind, `null` when the entry is the caller's own post. */
+    const entryAuthorKinds: Array<AccountKind | null> = [];
     try {
-      if (mode === 'thread') {
-        const { authorId } = await assertCanPublishAsAccount({
-          publishAsOxyUserId: typeof batchAccount === 'string' ? batchAccount : null,
-          callerId: userId,
-          memberReader: batchMemberReader,
-        });
-        // One decision, applied to every entry — so no continuation can end up
-        // under an identity the root was not authorized for.
-        entryAuthorIds.push(...posts.map(() => authorId ?? userId));
-      } else {
-        for (const entry of posts) {
-          const requested = (entry as { publishAsOxyUserId?: unknown })?.publishAsOxyUserId;
-          const { authorId } = await assertCanPublishAsAccount({
-            publishAsOxyUserId: typeof requested === 'string' ? requested : null,
+      // Authorized once per DISTINCT account, memoized across the batch: a thread
+      // naming one account asks Oxy once however many entries it has, and one
+      // naming two asks twice. `cacheAccountMemberReads` is what makes that true
+      // end to end, since the creation loop below hands every post the SAME reader
+      // and lets `PostCreationService` run the real gate itself — nothing routes
+      // around the authorization.
+      const decided = new Map<string, { authorId: string | null; authorKind: AccountKind | null }>();
+      for (let i = 0; i < posts.length; i++) {
+        const requested = accountForEntry(i);
+        const key = requested ?? '';
+        let decision = decided.get(key);
+        if (!decision) {
+          decision = await assertCanPublishAsAccount({
+            publishAsOxyUserId: requested,
             callerId: userId,
             memberReader: batchMemberReader,
           });
-          entryAuthorIds.push(authorId ?? userId);
+          decided.set(key, decision);
         }
+        entryAuthorIds.push(decision.authorId ?? userId);
+        entryAuthorKinds.push(decision.authorKind);
       }
     } catch (publishAsError) {
       if (publishAsError instanceof PublishAsAccessError) {
@@ -1060,13 +1074,42 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       }
       throw publishAsError;
     }
-    /** The account THIS request names, if any — thread-wide or per entry. */
-    const accountForEntry = (index: number): string | null => {
-      const named = mode === 'thread'
-        ? batchAccount
-        : (posts[index] as { publishAsOxyUserId?: unknown })?.publishAsOxyUserId;
-      return typeof named === 'string' ? named : null;
-    };
+
+    // A CHANNEL'S THREAD SPEAKS WITH ONE VOICE.
+    //
+    // A thread carrying more than one account is a conversation between them —
+    // every entry whose account differs from its predecessor's is that account
+    // REPLYING to the other's post. A channel may not be in one, at either end,
+    // and that is not a preference: `utils/channelReplyGate` refuses replies to a
+    // channel's post at five write sites with no exception for the channel's own
+    // operators, so admitting it here would reopen exactly that door from inside
+    // the composer.
+    //
+    // Checked over the WHOLE thread rather than pairwise, because a channel at the
+    // head makes every later entry an answer to a channel whichever post is the
+    // immediate parent — and because a channel in the middle is the same problem
+    // read from the other side. The message names the channel, since "you cannot
+    // do that" without saying which of several accounts is the obstacle is a
+    // refusal nobody can act on.
+    const distinctThreadAccounts = new Set(entryAuthorIds);
+    if (mode === 'thread' && distinctThreadAccounts.size > 1) {
+      const channelIndex = entryAuthorKinds.findIndex((kind) => kind === 'channel');
+      if (channelIndex >= 0) {
+        return res.status(400).json({
+          message:
+            'A channel publishes alone: a thread including ' +
+            `${entryAuthorIds[channelIndex]} must use that one account for every post, ` +
+            'because a post from another account would be a reply to the channel.',
+        });
+      }
+    }
+    /**
+     * Whether this thread is one account's own text (every entry the same) rather
+     * than several accounts talking. It decides which of the two verified
+     * exceptions each link below is created under, and the two are NOT
+     * interchangeable — a channel may only ever use the first.
+     */
+    const threadSpeaksWithOneVoice = distinctThreadAccounts.size === 1;
 
     // Lanes are validated for the WHOLE batch before a single post is written.
     // The loop below creates posts one at a time, so a lane refused on entry 3
@@ -1269,14 +1312,23 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         // previous post (sequential thread), with a shared threadId root.
         // For beast mode: all posts are independent.
         ...(isThreadContinuation ? { parentPostId: previousPostId, threadId: mainPostId } : {}),
-        // The narrow exception to "a reply cannot be published as another
-        // account", and the ONLY place it is ever asked for. It is safe to ask
-        // here for a structural reason and not a trusting one: `previousPostId`
-        // and `mainPostId` are ids of posts THIS request created moments ago,
-        // under the authorization above, so the parent is the same account's own
-        // post by construction — and `create` re-derives that from the database
-        // rather than believing it. See `utils/threadContinuation`.
-        ...(isThreadContinuation ? { continuesOwnThread: true } : {}),
+        // The two verified exceptions to "a reply cannot be published as another
+        // account", and the ONLY place either is ever asked for. Which one this
+        // link gets is decided by the THREAD, not by the adjacent pair: a
+        // single-voice thread is one account's own text end to end, and anything
+        // else is accounts talking. Asking for the wrong one is safe — both are
+        // re-derived from the database inside `create`, so a mismatch is a
+        // refusal, never a bypass.
+        //
+        // Safe to ask for here for a structural reason rather than a trusting
+        // one: `previousPostId` and `mainPostId` are ids of posts THIS request
+        // created moments ago under the authorization above. See
+        // `utils/threadContinuation`.
+        ...(isThreadContinuation
+          ? threadSpeaksWithOneVoice
+            ? { continuesOwnThread: true }
+            : { answersOperatedAccount: true }
+          : {}),
         // Every post of a scheduled batch carries the SAME time — the author
         // picked one moment for the set, not n moments. For a beast batch each
         // is then an ordinary scheduled post published independently; for a

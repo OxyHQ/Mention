@@ -38,7 +38,10 @@ import {
 import { recordRecentReplierForPost } from './PostRecentReplierService';
 import { parentHasPublished } from './scheduledChain';
 import { assertLaneAssignable } from '../utils/laneAssignment';
-import { assertContinuesOwnThread } from '../utils/threadContinuation';
+import {
+  assertAnswersOperatedAccount,
+  assertContinuesOwnThread,
+} from '../utils/threadContinuation';
 import {
   assertCanPublishAsAccount,
   PublishAsAccessError,
@@ -118,6 +121,22 @@ export interface CreatePostParams {
    * why the wider "may act for the parent's account" rule is not the same thing.
    */
   continuesOwnThread?: boolean;
+  /**
+   * This post ANSWERS another account, in a thread the same request is composing
+   * whose entries carry different accounts — the second, separate exception.
+   *
+   * Distinct from {@link continuesOwnThread} rather than a looser setting of it,
+   * because the two authorize opposite shapes: that one says "one account, its
+   * own text"; this one says "two accounts the caller operates, talking". A
+   * CHANNEL may use only the first — a channel in a conversation is the thing
+   * `utils/channelReplyGate` refuses at five write sites, with no exception for
+   * its own operators — so {@link assertAnswersOperatedAccount} refuses a channel
+   * at BOTH ends of the link, reading both kinds from the account graph.
+   *
+   * Grants nothing on its own, and never read from a request body, for the same
+   * reasons as {@link continuesOwnThread}.
+   */
+  answersOperatedAccount?: boolean;
   hashtags?: string[];
   mentions?: string[];
   language?: string;
@@ -370,16 +389,22 @@ class PostCreationService {
     // coherent feature, but it is a feature — nothing asks for it, and admitting
     // it here by omission would ship it unconsidered and untested.
     //
-    // ONE EXCEPTION, and it is not "the author may act for the parent's account".
-    // A thread is one text in several parts, and the parts are joined by
-    // `parentPostId`, so every continuation is structurally a reply while being
-    // nothing like a conversation. {@link CreatePostParams.continuesOwnThread}
-    // asks for that case to be VERIFIED — parent and thread root both authored by
-    // the account this post will be — rather than asserted; see
-    // `utils/threadContinuation` for why the wider rule would reopen a channel's
-    // replies to its own operators, which is the thing that cannot happen.
+    // TWO EXCEPTIONS, and neither is "the author may act for the parent's
+    // account". A thread is joined by `parentPostId`, so every entry after the
+    // first is structurally a reply; whether it is a CONVERSATION depends on
+    // whose accounts are at the two ends, which is what the two checks decide:
+    //
+    //   - `continuesOwnThread` — one account, its own text. Verified: parent and
+    //     thread root both authored by the account this post will be.
+    //   - `answersOperatedAccount` — two accounts the caller operates, talking.
+    //     Verified: neither end is a CHANNEL, and the caller may act for the
+    //     parent's account too.
+    //
+    // Both are VERIFIED below rather than asserted, and a channel may only ever
+    // use the first — see `utils/threadContinuation` for why the wider rule would
+    // reopen a channel's replies to its own operators, which cannot happen.
     if (params.publishAsOxyUserId) {
-      if (params.parentPostId && !params.continuesOwnThread) {
+      if (params.parentPostId && !params.continuesOwnThread && !params.answersOperatedAccount) {
         throw new PublishAsAccessError(400, 'A reply cannot be published as another account');
       }
       if (params.boostOf) {
@@ -406,12 +431,26 @@ class PostCreationService {
     // it has to prove is about the RESOLVED author — the account the post will
     // actually carry — and that is not known until the gate has answered. Still
     // before anything is written, like every other refusal here.
-    if (params.publishAsOxyUserId && params.parentPostId && params.continuesOwnThread) {
-      await assertContinuesOwnThread({
-        parentPostId: params.parentPostId,
-        threadId: params.threadId,
-        authorId,
-      });
+    if (params.publishAsOxyUserId && params.parentPostId) {
+      if (params.continuesOwnThread) {
+        await assertContinuesOwnThread({
+          parentPostId: params.parentPostId,
+          threadId: params.threadId,
+          authorId,
+        });
+      } else if (params.answersOperatedAccount) {
+        // `authorKind` is handed over rather than re-resolved: it is the kind the
+        // gate just decided this post's identity on, so the channel test and the
+        // authorization cannot end up disagreeing about what this account is.
+        await assertAnswersOperatedAccount({
+          parentPostId: params.parentPostId,
+          threadId: params.threadId,
+          authorId,
+          authorKind,
+          callerId: params.oxyUserId,
+          memberReader: params.memberReader,
+        });
+      }
     }
 
     await assertLaneAssignable({

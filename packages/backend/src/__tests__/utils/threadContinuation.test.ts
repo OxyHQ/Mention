@@ -22,14 +22,28 @@ import mongoose from 'mongoose';
  */
 
 const find = vi.hoisted(() => vi.fn());
+const resolveUserSummaries = vi.hoisted(() => vi.fn(async () => new Map()));
 
 vi.mock('../../models/Post', () => ({
   Post: { find },
   POST_CLASSIFICATION_PENDING: 'pending',
 }));
 
-import { assertContinuesOwnThread } from '../../utils/threadContinuation';
+// The identity path behind account KINDS. The real `publishAsAccount` is used
+// throughout — the second case's condition 4 delegates to its authorization gate,
+// and stubbing that would leave the delegation untested.
+vi.mock('../../services/PostHydrationService', () => ({ resolveUserSummaries }));
+
+vi.mock('../../utils/logger', () => ({
+  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
+import {
+  assertAnswersOperatedAccount,
+  assertContinuesOwnThread,
+} from '../../utils/threadContinuation';
 import { PublishAsAccessError } from '../../services/publishAsAccount';
+import type { AccountMember } from '@oxyhq/core';
 
 const CHANNEL = 'channel-account-1';
 const OPERATOR = 'human-1';
@@ -207,5 +221,267 @@ describe('assertContinuesOwnThread — what it REFUSES', () => {
     await expect(
       assertContinuesOwnThread({ parentPostId: FOREIGN_POST, threadId: FOREIGN_ROOT, authorId: CHANNEL }),
     ).rejects.toMatchObject({ status: 400 });
+  });
+});
+
+/**
+ * `assertAnswersOperatedAccount` — the SECOND case: two accounts the caller
+ * operates, talking to each other inside one composed thread.
+ *
+ * Four conditions, and every refusal fixture below is built so it fails on
+ * EXACTLY the one it names — the others are satisfied. That discipline is not
+ * decoration: an earlier version of the first case's suite was green with a
+ * condition deleted, because every refusal fixture happened to fail a second
+ * condition too, and a check nothing can isolate is a check that is not there.
+ *
+ *   1. the parent is in the declared thread,
+ *   2. the PARENT's account is not a channel,
+ *   3. the PUBLISHING account is not a channel,
+ *   4. the caller may act for the parent's account too.
+ */
+describe('assertAnswersOperatedAccount — two operated accounts talking', () => {
+  const ORG_A = 'org-a';
+  const ORG_B = 'org-b';
+  const A_ROOT = new mongoose.Types.ObjectId().toString();
+  const A_SECOND = new mongoose.Types.ObjectId().toString();
+  const CHANNEL_ROOT = new mongoose.Types.ObjectId().toString();
+  const ELSEWHERE = new mongoose.Types.ObjectId().toString();
+
+  const ACT_AS = ['account:read', 'account:act_as', 'members:read'];
+  const NO_ACT_AS = ['account:read', 'members:read'];
+
+  function member(memberUserId: string, permissions: string[]): AccountMember {
+    return {
+      _id: 'row', accountId: 'acct', memberUserId, role: 'editor', permissions,
+      inherit: true, status: 'active',
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+  }
+
+  /** Every account the caller may act for, unless a test says otherwise. */
+  function readerFor(actable: Record<string, string[]>) {
+    return {
+      listAccountMembers: async (accountId: string) =>
+        actable[accountId] ? [member(OPERATOR, actable[accountId])] : [],
+    };
+  }
+
+  const ALL_OPERATED = { [ORG_A]: ACT_AS, [ORG_B]: ACT_AS, [CHANNEL]: NO_ACT_AS };
+
+  function kindsAre(byId: Record<string, string>): void {
+    resolveUserSummaries.mockImplementation(async (ids: string[]) => {
+      const map = new Map<string, { user: { id: string; kind?: string; name: object } }>();
+      for (const id of ids) {
+        if (byId[id]) map.set(id, { user: { id, kind: byId[id], name: {} } });
+      }
+      return map;
+    });
+  }
+
+  beforeEach(() => {
+    kindsAre({ [ORG_A]: 'organization', [ORG_B]: 'organization', [CHANNEL]: 'channel', [OPERATOR]: 'personal' });
+    rowsAre([
+      { _id: A_ROOT, oxyUserId: ORG_A, threadId: A_ROOT },
+      { _id: A_SECOND, oxyUserId: ORG_A, threadId: A_ROOT },
+      { _id: CHANNEL_ROOT, oxyUserId: CHANNEL, threadId: CHANNEL_ROOT },
+      { _id: ELSEWHERE, oxyUserId: ORG_A, threadId: ELSEWHERE },
+    ]);
+  });
+
+  const base = {
+    parentPostId: A_ROOT,
+    threadId: A_ROOT,
+    authorId: ORG_B,
+    authorKind: 'organization' as const,
+    callerId: OPERATOR,
+  };
+
+  it('admits organization B answering organization A in A\'s thread', async () => {
+    await expect(
+      assertAnswersOperatedAccount({ ...base, memberReader: readerFor(ALL_OPERATED) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('admits an entry whose account MATCHES its parent but not the thread root', async () => {
+    // [A, B, B] — the shape the own-thread exception cannot express, because its
+    // third condition is about the root. Both ends are still B and A, both
+    // operated, neither a channel.
+    rowsAre([
+      { _id: A_ROOT, oxyUserId: ORG_A, threadId: A_ROOT },
+      { _id: A_SECOND, oxyUserId: ORG_B, threadId: A_ROOT },
+    ]);
+    await expect(
+      assertAnswersOperatedAccount({
+        ...base,
+        parentPostId: A_SECOND,
+        memberReader: readerFor(ALL_OPERATED),
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('admits an organization answering the CALLER\'s own post', async () => {
+    rowsAre([{ _id: A_ROOT, oxyUserId: OPERATOR, threadId: A_ROOT }]);
+    await expect(
+      assertAnswersOperatedAccount({ ...base, memberReader: readerFor(ALL_OPERATED) }),
+    ).resolves.toBeUndefined();
+  });
+
+  /** CONDITION 1, isolated: both accounts operated, neither a channel. */
+  it('refuses a parent that is not in the declared thread', async () => {
+    await expect(
+      assertAnswersOperatedAccount({
+        ...base,
+        parentPostId: ELSEWHERE,
+        memberReader: readerFor(ALL_OPERATED),
+      }),
+    ).rejects.toBeInstanceOf(PublishAsAccessError);
+  });
+
+  /**
+   * CONDITION 2, isolated — MUTATION GUARD. The publishing account is a perfectly
+   * ordinary organization the caller may act for, and the parent is genuinely in
+   * the declared thread; the ONLY thing wrong is that the parent belongs to a
+   * channel. This is literally "an organization replying to a channel's post",
+   * which is the hole the whole boundary exists to close.
+   */
+  it('MUTATION GUARD: refuses answering a CHANNEL\'s post', async () => {
+    await expect(
+      assertAnswersOperatedAccount({
+        ...base,
+        parentPostId: CHANNEL_ROOT,
+        threadId: CHANNEL_ROOT,
+        memberReader: readerFor(ALL_OPERATED),
+      }),
+    ).rejects.toBeInstanceOf(PublishAsAccessError);
+  });
+
+  /**
+   * CONDITION 3, isolated — MUTATION GUARD. The mirror image, and the reason
+   * checking the parent alone is not enough: here the PARENT is a fine
+   * organization and the publisher is the channel. A channel answering an
+   * organization is a channel in a conversation just the same.
+   */
+  it('MUTATION GUARD: refuses a CHANNEL doing the answering', async () => {
+    await expect(
+      assertAnswersOperatedAccount({
+        ...base,
+        authorId: CHANNEL,
+        authorKind: 'channel',
+        memberReader: readerFor(ALL_OPERATED),
+      }),
+    ).rejects.toBeInstanceOf(PublishAsAccessError);
+  });
+
+  /**
+   * CONDITION 2 again, via the ROOT rather than the parent — a channel at the head
+   * of the thread with an organization's post as the immediate parent. Without the
+   * root in the check, every entry after the first would escape the boundary by
+   * chaining onto a non-channel predecessor.
+   */
+  it('refuses when the thread ROOT is a channel, whoever the immediate parent is', async () => {
+    rowsAre([
+      { _id: CHANNEL_ROOT, oxyUserId: CHANNEL, threadId: CHANNEL_ROOT },
+      { _id: A_SECOND, oxyUserId: ORG_A, threadId: CHANNEL_ROOT },
+    ]);
+    await expect(
+      assertAnswersOperatedAccount({
+        ...base,
+        parentPostId: A_SECOND,
+        threadId: CHANNEL_ROOT,
+        memberReader: readerFor(ALL_OPERATED),
+      }),
+    ).rejects.toBeInstanceOf(PublishAsAccessError);
+  });
+
+  /**
+   * CONDITION 4, isolated: neither end is a channel and the parent really is in
+   * the thread — the caller simply may not speak for the account being answered.
+   * Without this, "an account you operate may reply to ANYBODY" is what ships.
+   */
+  it('refuses answering an account the caller may NOT act for', async () => {
+    await expect(
+      assertAnswersOperatedAccount({
+        ...base,
+        memberReader: readerFor({ [ORG_B]: ACT_AS }),
+      }),
+    ).rejects.toBeInstanceOf(PublishAsAccessError);
+  });
+
+  it('refuses when the caller is a MEMBER of the answered account without account:act_as', async () => {
+    await expect(
+      assertAnswersOperatedAccount({
+        ...base,
+        memberReader: readerFor({ [ORG_A]: NO_ACT_AS, [ORG_B]: ACT_AS }),
+      }),
+    ).rejects.toBeInstanceOf(PublishAsAccessError);
+  });
+
+  /**
+   * Failing CLOSED on an unknown kind — the opposite direction from
+   * `channelReplyGate`'s fail-soft, and deliberately: reading "unknown" as "not a
+   * channel" here would admit the one thing this function refuses.
+   */
+  it('refuses when the parent account\'s kind will not resolve', async () => {
+    kindsAre({ [ORG_B]: 'organization' });
+    await expect(
+      assertAnswersOperatedAccount({ ...base, memberReader: readerFor(ALL_OPERATED) }),
+    ).rejects.toBeInstanceOf(PublishAsAccessError);
+  });
+
+  /**
+   * The unknown-kind refusal, ISOLATED to the thread ROOT.
+   *
+   * An unresolvable PARENT is refused by condition 4 anyway (the authorization
+   * gate refuses an account whose kind it cannot read), so a parent-side fixture
+   * cannot tell the explicit unknown-kind check from its absence — mutation-
+   * testing found exactly that. The ROOT never goes through condition 4, so this
+   * is the only shape that pins it: parent fine, caller authorized for it, and
+   * only the root's kind missing.
+   */
+  it('refuses when the thread ROOT\'s kind will not resolve, though the parent\'s does', async () => {
+    const UNKNOWN_ROOT = new mongoose.Types.ObjectId().toString();
+    kindsAre({ [ORG_A]: 'organization', [ORG_B]: 'organization' });
+    rowsAre([
+      { _id: UNKNOWN_ROOT, oxyUserId: 'an-account-oxy-cannot-resolve', threadId: UNKNOWN_ROOT },
+      { _id: A_SECOND, oxyUserId: ORG_A, threadId: UNKNOWN_ROOT },
+    ]);
+
+    await expect(
+      assertAnswersOperatedAccount({
+        ...base,
+        parentPostId: A_SECOND,
+        threadId: UNKNOWN_ROOT,
+        memberReader: readerFor(ALL_OPERATED),
+      }),
+    ).rejects.toBeInstanceOf(PublishAsAccessError);
+  });
+
+  it('refuses a parent that does not exist', async () => {
+    rowsAre([{ _id: A_ROOT, oxyUserId: ORG_A, threadId: A_ROOT }]);
+    await expect(
+      assertAnswersOperatedAccount({
+        ...base,
+        parentPostId: new mongoose.Types.ObjectId().toString(),
+        memberReader: readerFor(ALL_OPERATED),
+      }),
+    ).rejects.toBeInstanceOf(PublishAsAccessError);
+  });
+
+  it.each([
+    ['no parentPostId', { parentPostId: null }],
+    ['no threadId', { threadId: null }],
+    ['no author', { authorId: null }],
+    ['a malformed parent id', { parentPostId: 'not-an-objectid' }],
+  ])('refuses with %s, and asks the database nothing', async (_label, override) => {
+    await expect(
+      assertAnswersOperatedAccount({ ...base, ...override, memberReader: readerFor(ALL_OPERATED) }),
+    ).rejects.toBeInstanceOf(PublishAsAccessError);
+    expect(find).not.toHaveBeenCalled();
+  });
+
+  it('refuses with no member reader at all — an MCP caller cannot compose one', async () => {
+    await expect(
+      assertAnswersOperatedAccount({ ...base, memberReader: undefined }),
+    ).rejects.toBeInstanceOf(PublishAsAccessError);
   });
 });
