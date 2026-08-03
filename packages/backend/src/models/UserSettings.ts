@@ -117,19 +117,19 @@ export interface InterestsSettings {
 export interface ChannelAccountSettings {
   /**
    * Whether a post published by this channel also NAMES the person who wrote it
-   * (rendered as a "by <writer>" line beneath the channel's byline; the writer
-   * itself is stored on `Post.writtenByOxyUserId`).
+   * (the writer itself is stored on `Post.writtenByOxyUserId`).
    *
    * `false` is the default: a channel post is anonymous behind the channel unless
    * its owner says otherwise. Getting the default backwards would publish every
    * writer's identity by omission.
    *
-   * NOTHING READS THIS YET. `HydratedPostSummary` carries no field for the
-   * writer, so `Post.writtenByOxyUserId` never reaches a DTO and the `true` case
-   * has nowhere to render — which also means the `false` case is currently
-   * enforced structurally rather than by this flag. Adding the disclosure means
-   * adding the wire field first, in `@mention/shared-types`; until then this is
-   * the seam, not the behaviour.
+   * Read by `PostHydrationService`, ONCE per hydrated page, to decide whether to
+   * append the writer to `authors[]` as a `role: 'writer'` entry — the same array
+   * the collaborative byline already renders, so disclosure is a co-author rather
+   * than a second line. `true` is required explicitly: a missing settings row, an
+   * unset flag and a failed lookup all mean anonymous, and an undisclosed
+   * writer's identity is never even resolved. There is deliberately no
+   * `writtenByOxyUserId` on the DTO, so this flag is the whole decision.
    */
   signPosts: boolean;
 }

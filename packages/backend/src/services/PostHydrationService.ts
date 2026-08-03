@@ -60,6 +60,13 @@ interface RawPost {
   _id?: unknown;
   id?: string;
   oxyUserId?: string;
+  /**
+   * The human who wrote a post published BY a `channel` account, recorded here
+   * rather than in `authorship` (which would put the post back on their own
+   * profile and their followers' timelines). Read only to decide the byline —
+   * it never reaches a DTO field of its own.
+   */
+  writtenByOxyUserId?: string;
   authorship?: PostAuthorshipEntry[];
   /** The post's STORED content: renditions (`variants[0]` is the primary) + the shared media/article. */
   content?: Partial<StoredPostContent>;
@@ -887,7 +894,7 @@ export class PostHydrationService {
     // Everything else is independent and can run concurrently.
     const [
       ,
-      { userMap, recentReplierMap, replyParentAuthorIdByPostId, selfContinuationPostIds },
+      { userMap, recentReplierMap, replyParentAuthorIdByPostId, selfContinuationPostIds, signingChannelIds },
       pollMap,
       authorPrivacyMap,
       linkPreviewMap,
@@ -902,13 +909,21 @@ export class PostHydrationService {
         // batch below. So resolving "whom does each reply answer" adds no Oxy
         // round trip and no latency of its own — the parent authors are merged
         // into the one `buildUserMap` call the rest of hydration already makes.
-        const [replierAggResult, replyParents] = await Promise.all([
+        // The channel-disclosure lookup joins them for the same reason: it is
+        // one indexed settings query over the graph, it feeds the SAME user
+        // batch, and its answer is what decides whether a channel's WRITER is
+        // resolved at all. An undisclosed writer is never even looked up.
+        const [replierAggResult, replyParents, signingIds] = await Promise.all([
           this.loadRecentReplierProjection(postIds),
           this.buildReplyParentAuthorMap(postsForHydration, viewerContext),
+          this.buildSigningChannelIds(postsForHydration),
         ]);
         const extraUserIds = new Set(replierAggResult.allReplierIds);
         for (const parentAuthorId of replyParents.parentAuthorIds) {
           extraUserIds.add(parentAuthorId);
+        }
+        for (const writerId of this.collectDisclosedWriterIds(postsForHydration, signingIds)) {
+          extraUserIds.add(writerId);
         }
         const uMap = await this.buildUserMap(postsForHydration, extraUserIds);
         const rMap = this.buildReplierAvatarsFromUserMap(replierAggResult.perPostRepliers, uMap);
@@ -917,6 +932,7 @@ export class PostHydrationService {
           recentReplierMap: rMap,
           replyParentAuthorIdByPostId: replyParents.parentAuthorIdByPostId,
           selfContinuationPostIds: replyParents.selfContinuationPostIds,
+          signingChannelIds: signingIds,
         };
       })(),
       this.buildPollMap(postsForHydration),
@@ -953,6 +969,7 @@ export class PostHydrationService {
           replyParentAuthorIdByPostId,
           selfContinuationPostIds,
           laneMap,
+          signingChannelIds,
         })
       )
     );
@@ -1502,6 +1519,84 @@ export class PostHydrationService {
       logger.error('[PostHydration] Failed to build lane map:', error);
       return new Map();
     }
+  }
+
+  /**
+   * The channel accounts in this page that DISCLOSE their writers, in ONE
+   * indexed `UserSettings` query keyed by the candidate authors' ids.
+   *
+   * Only posts that actually carry a `writtenByOxyUserId` contribute a
+   * candidate, so an ordinary page of posts asks about nothing and the query is
+   * skipped entirely.
+   *
+   * **It fails CLOSED, three times over, and each one matters.** The set holds
+   * only ids whose settings row says `channel.signPosts === true`: a channel
+   * with no settings row is absent, a channel that never opted in is absent, and
+   * a lookup that THROWS yields an empty set — so every failure mode lands on
+   * "do not disclose". Anonymity is the safe answer here; naming a writer who
+   * did not consent cannot be undone by a later request that works.
+   *
+   * The `=== true` is deliberate rather than incidental. The value is read out
+   * of a document, so it is not the schema's word that reaches this line, and a
+   * loose read would disclose on any truthy value a stray write left behind.
+   */
+  private async buildSigningChannelIds(nodes: HydratedGraphNode[]): Promise<Set<string>> {
+    const candidateAuthorIds = new Set<string>();
+    for (const { post } of nodes) {
+      if (typeof post?.writtenByOxyUserId !== 'string' || post.writtenByOxyUserId.length === 0) {
+        continue;
+      }
+      const authorId = post.oxyUserId ? String(post.oxyUserId) : '';
+      if (authorId) candidateAuthorIds.add(authorId);
+    }
+
+    if (candidateAuthorIds.size === 0) {
+      return new Set();
+    }
+
+    try {
+      const rows = await UserSettings.find({ oxyUserId: { $in: [...candidateAuthorIds] } })
+        .select('oxyUserId channel.signPosts')
+        .lean<Array<{ oxyUserId?: string; channel?: { signPosts?: unknown } }>>();
+
+      const signing = new Set<string>();
+      for (const row of rows) {
+        if (row?.oxyUserId && row.channel?.signPosts === true) {
+          signing.add(String(row.oxyUserId));
+        }
+      }
+      return signing;
+    } catch (error) {
+      logger.error('[PostHydration] Failed to load channel signing settings:', error);
+      return new Set();
+    }
+  }
+
+  /**
+   * The writer ids this page will actually DISCLOSE — merged into the single
+   * `buildUserMap` batch so a disclosed writer resolves through the ordinary
+   * identity path, exactly like any other author.
+   *
+   * Gated on the settings answer rather than on the column, so an undisclosed
+   * writer is not resolved, not cached, and cannot reach a DTO by accident. The
+   * remaining condition — that the author really is a `channel` account — is
+   * checked at byline time, where the resolved `user.kind` is known.
+   */
+  private collectDisclosedWriterIds(
+    nodes: HydratedGraphNode[],
+    signingChannelIds: Set<string>,
+  ): Set<string> {
+    const writerIds = new Set<string>();
+    if (signingChannelIds.size === 0) return writerIds;
+
+    for (const { post } of nodes) {
+      const writerId = typeof post?.writtenByOxyUserId === 'string' ? post.writtenByOxyUserId : '';
+      const authorId = post?.oxyUserId ? String(post.oxyUserId) : '';
+      if (writerId && authorId && signingChannelIds.has(authorId)) {
+        writerIds.add(writerId);
+      }
+    }
+    return writerIds;
   }
 
   private async buildUserMap(
@@ -2061,8 +2156,10 @@ export class PostHydrationService {
     selfContinuationPostIds: Set<string>;
     /** The author's lanes, keyed by lane id — the `› Lane name` chip in the name row. */
     laneMap: Map<string, LaneSummary>;
+    /** Channel accounts in this page whose `signPosts` is on — see {@link buildSigningChannelIds}. */
+    signingChannelIds: Set<string>;
   }): Promise<HydratedPostSummary | null> {
-    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap, replyParentAuthorIdByPostId, selfContinuationPostIds, laneMap } = params;
+    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap, replyParentAuthorIdByPostId, selfContinuationPostIds, laneMap, signingChannelIds } = params;
 
     const postId = this.resolveId(post);
     if (!postId) return null;
@@ -2104,10 +2201,8 @@ export class PostHydrationService {
     // A CHANNEL post takes this same path and no other. The channel is an Oxy
     // account and authors its own posts, so `authorId` IS the channel and `user`
     // resolves through the ordinary identity route — real handle, real avatar,
-    // real `name.displayName`. The writer is on the row in
-    // `Post.writtenByOxyUserId`, which hydration never reads: there is no DTO
-    // field for them, so the anonymity is structural rather than a branch that
-    // has to remember to fire.
+    // real `name.displayName`. `user` stays the channel whatever the byline
+    // says: the channel is the signature.
     const user = orphanAuthor ?? userMap.get(authorId) ?? degradedActorSummary(authorId);
     const headerEntries = orphanAuthor ? [] : getHeaderAuthorshipEntries(authorship);
     const authors: HydratedAuthor[] = headerEntries.map((entry) => {
@@ -2118,6 +2213,40 @@ export class PostHydrationService {
         status: entry.status,
       };
     });
+
+    // The human behind a channel post, named only when the channel says to.
+    //
+    // FAIL-CLOSED, and every clause is load-bearing: the account has to BE a
+    // channel (`user.kind`, which the identity cache carries), that channel has
+    // to be in `signingChannelIds` — which holds only accounts whose settings
+    // row says `signPosts === true`, so a missing row, a channel that never
+    // opted in, and a failed lookup are all absent from it — and the post has to
+    // carry a writer. Miss any one and nothing is disclosed.
+    //
+    // `userMap` only holds the writer when the SAME conditions already sent the
+    // id to the batch, so an undisclosed writer is not merely unrendered: they
+    // were never resolved, and `writtenByOxyUserId` has no DTO field to leak
+    // through either. Anonymity does not depend on this branch being right.
+    //
+    // Appended to an EXISTING byline, never used to start one: `authors` leads
+    // with the owner, so a lone writer would read as the primary author — the
+    // one thing `user` staying the channel is meant to prevent.
+    const writerId = typeof post.writtenByOxyUserId === 'string' ? post.writtenByOxyUserId : '';
+    if (
+      writerId &&
+      authors.length > 0 &&
+      user.kind === 'channel' &&
+      signingChannelIds.has(authorId) &&
+      !authors.some((author) => author.id === writerId)
+    ) {
+      const writer = userMap.get(writerId);
+      // Absent only if the batch never resolved them; a resolve MISS still
+      // yields the degraded summary, which renders as "Unknown user" with no
+      // handle rather than as a raw id.
+      if (writer) {
+        authors.push({ ...writer, role: 'writer', status: 'accepted' });
+      }
+    }
 
     const baseContent: StoredPostContent = post?.content ?? {};
     const resolved = resolvedMap.get(postId) ?? resolveVariant(baseContent);

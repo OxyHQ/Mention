@@ -70,8 +70,14 @@ type FollowerRef = string | { id?: string; _id?: string };
  * @class FeedController
  */
 class FeedController {
-  /** Optimized field selection for feed queries - reduces data transfer by 60-80% */
-  private readonly FEED_FIELDS = '_id oxyUserId authorship federation createdAt visibility type parentPostId boostOf quoteOf laneId threadId content stats metadata hashtags mentions language';
+  /**
+   * Optimized field selection for feed queries - reduces data transfer by 60-80%.
+   *
+   * `writtenByOxyUserId` rides along for the channel byline — see the note on
+   * `FEED_FIELDS` in `mtn/feed/FeedAPI.ts` for why all four hydration
+   * projections have to carry it.
+   */
+  private readonly FEED_FIELDS = '_id oxyUserId writtenByOxyUserId authorship federation createdAt visibility type parentPostId boostOf quoteOf laneId threadId content stats metadata hashtags mentions language';
 
   /**
    * Transform posts to include full profile data and engagement stats

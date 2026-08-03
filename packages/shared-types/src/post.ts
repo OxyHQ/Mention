@@ -552,6 +552,22 @@ export interface PostClassification {
 export type PostAuthorRole = 'owner' | 'collaborator';
 export type PostAuthorStatus = 'accepted' | 'pending' | 'declined' | 'stopped';
 
+/**
+ * How a person comes to be NAMED in a post's byline.
+ *
+ * A superset of {@link PostAuthorRole} because one byline entry is not an
+ * `authorship` entry at all: the human who wrote a post published by a `channel`
+ * account is recorded on `Post.writtenByOxyUserId`, deliberately OUTSIDE
+ * `authorship` — putting them in it would return the post to their own profile
+ * and their followers' timelines, which is the whole thing a channel decouples.
+ *
+ * They still belong in the byline when the channel discloses them, so
+ * {@link HydratedAuthor} carries this wider role rather than claiming they are a
+ * `collaborator`. `authorship` keeps the narrower {@link PostAuthorRole}, so no
+ * authorship code has a `writer` case to handle.
+ */
+export type PostBylineRole = PostAuthorRole | 'writer';
+
 export interface PostAuthorshipEntry {
   oxyUserId: string;
   role: PostAuthorRole;
@@ -885,7 +901,7 @@ export interface PostEditSource {
 }
 
 export interface HydratedAuthor extends PostUser {
-  role: PostAuthorRole;
+  role: PostBylineRole;
   status: PostAuthorStatus;
 }
 
@@ -1060,7 +1076,20 @@ export interface HydratedPostSummary {
   linkPreviews?: PostLinkPreview[];
   /** Primary author (owner) — backward-compatible single-author field. */
   user: PostUser;
-  /** Owner + accepted collaborators for multi-author header rendering. */
+  /**
+   * Everyone the byline NAMES, for multi-author header rendering: the owner,
+   * then each accepted collaborator, then — on a post published by a `channel`
+   * account that sets `signPosts` — the human who wrote it (`role: 'writer'`).
+   *
+   * The writer is disclosed HERE or not at all: there is deliberately no
+   * `writtenByOxyUserId` on this DTO. Shipping the raw id whenever the column
+   * holds one would end the anonymity of every channel that did NOT opt in,
+   * whatever a renderer then chose to draw — so the decision is made once, on
+   * the server, and an undisclosed writer never crosses the wire.
+   *
+   * `user` stays the CHANNEL either way. The channel is the signature; the
+   * writer is a second author, never the primary.
+   */
   authors: HydratedAuthor[];
   /** Full authorship state when the viewer is a participant. */
   authorship?: PostAuthorshipEntry[];
