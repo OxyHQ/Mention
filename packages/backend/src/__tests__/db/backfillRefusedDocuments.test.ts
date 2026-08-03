@@ -30,7 +30,14 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { MongoClient, ObjectId, type Db } from 'mongodb';
-import { auditDefaultedColumns, auditWouldBlockCopy, type AuditFinding } from '../../db/backfill/audit';
+import {
+  auditDefaultedColumns,
+  auditWouldBlockCopy,
+  recordRefusedDocument,
+  refusedDocumentFindings,
+  type AuditFinding,
+  type RefusedDocuments,
+} from '../../db/backfill/audit';
 import { mongoSourceFromDb, type MongoSource } from '../../db/backfill/mongoSource';
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { buildRow } from '../../db/backfill/rowBuilder';
@@ -164,6 +171,39 @@ describe('a refused document', () => {
       .insertOne({ _id: new ObjectId(), userId: OWNER, token: 'brd-5', weight: 3 });
 
     expect(refusal(await audit(refusesFractionalWeight))).toBeUndefined();
+  });
+});
+
+describe('the tally itself', () => {
+  it('keeps two collections APART when they refuse at the same path', () => {
+    // Asserted against ONE tally, which is the only place the keying can be
+    // observed. The end-to-end case below runs `auditDefaultedColumns` twice —
+    // once per plan — so each call builds its OWN map and a path-only key would
+    // never collapse anything there. Measured: with the key mutated to the path
+    // alone, that case stayed GREEN and this one goes red. A test that cannot
+    // see the defect it names is the failure this whole change is about.
+    const refused: RefusedDocuments = new Map();
+    recordRefusedDocument(refused, 'pushtokens', new BackfillValueError('weight', 'expected an integer, got 0.25'), 'id-a');
+    recordRefusedDocument(refused, 'gifs', new BackfillValueError('weight', 'expected an integer, got 0.75'), 'id-b');
+
+    expect(refused.size).toBe(2);
+    const findings = refusedDocumentFindings(refused);
+    expect(findings).toHaveLength(2);
+    expect(findings.map((finding) => finding.collection)).toEqual(['gifs', 'pushtokens']);
+    expect(findings.every((finding) => finding.documents === 1)).toBe(true);
+  });
+
+  it('MERGES two documents of one collection refusing at the same path', () => {
+    // The other direction, and the reason the key is a pair rather than the
+    // document id: one defect however many rows carry it.
+    const refused: RefusedDocuments = new Map();
+    recordRefusedDocument(refused, 'pushtokens', new BackfillValueError('weight', 'm'), 'id-a');
+    recordRefusedDocument(refused, 'pushtokens', new BackfillValueError('weight', 'm'), 'id-b');
+
+    expect(refused.size).toBe(1);
+    const [finding] = refusedDocumentFindings(refused);
+    expect(finding.documents).toBe(2);
+    expect(finding.sampleIds).toEqual(['id-a', 'id-b']);
   });
 });
 
