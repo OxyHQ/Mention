@@ -12,17 +12,12 @@ import { useLiveUsers } from '@/hooks/useLiveUsers';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Gear } from '@/assets/icons/gear-icon';
-import { PrivateBadge } from './PrivateBadge';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
 import { FrostedIconButton } from '@oxyhq/bloom/frosted-icon-button';
 import { usePoke } from './hooks/usePoke';
 import { useFederatedFollowSync } from './hooks/useFederatedFollowSync';
 import { LAYOUT } from './types';
-import type {
-  FollowButtonComponent as FollowButtonComponentType,
-  ProfileHeaderDefaultProps,
-  ProfileHeaderMinimalistProps,
-} from './types';
+import type { ProfileHeaderProps } from './types';
 
 // Shrink the 90px header avatar toward these values as the profile scrolls. The
 // same constants drive both the ZoomableAvatar (non-live) collapse and the live
@@ -31,7 +26,14 @@ const PROFILE_AVATAR_COLLAPSE_MIN_SCALE = 0.45;
 const PROFILE_AVATAR_COLLAPSE_TRANSLATE_Y = 16;
 
 /**
- * Default profile header with avatar on left
+ * A PERSON's profile header: a 90px avatar overlapping the banner on the left,
+ * the poke + follow controls on the right, and — on the viewer's own profile —
+ * edit/analytics/settings instead.
+ *
+ * Person-only, and every part of it says so. The avatar collapses on scroll
+ * because it overlaps a banner; the poke is addressed to somebody who can
+ * receive one; the self view exists because a person can be signed in as
+ * themselves. A channel satisfies none of those, and gets `ChannelHeader`.
  */
 // Static header actions hoisted to stable module-level refs: FrostedIconButton is
 // memo'd, so fresh inline handlers/icon elements each render would defeat the memo.
@@ -40,7 +42,7 @@ const goSettings = () => router.push('/settings');
 const ANALYTICS_ICON = <AnalyticsIcon size={20} className="text-foreground" />;
 const SETTINGS_ICON = <Gear size={20} className="text-foreground" />;
 
-export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
+export const ProfileHeader = memo(function ProfileHeader({
   username,
   avatarUri,
   isOwnProfile,
@@ -50,7 +52,7 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
   actorUri,
   isFollowing: initialIsFollowing,
   FollowButtonComponent,
-}: ProfileHeaderDefaultProps) {
+}: ProfileHeaderProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const canPoke = !isFederated;
@@ -166,154 +168,6 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
           </View>
         ) : null}
       </View>
-    </View>
-  );
-});
-
-/**
- * Minimalist profile header with avatar on right
- */
-export const ProfileHeaderMinimalist = memo(function ProfileHeaderMinimalist({
-  displayName,
-  username,
-  avatarUri,
-  verified,
-  isPrivate,
-  privacySettings,
-  profileId,
-  isOwnProfile,
-  UserNameComponent,
-  trailingBadge,
-}: ProfileHeaderMinimalistProps) {
-  const theme = useTheme();
-  const { isLive } = useLiveUsers();
-  const isProfileLive = isLive(profileId);
-  return (
-    <View className="flex-row justify-between items-start mb-4 relative w-full gap-4">
-      <View className="flex-1">
-        <UserNameComponent
-          name={displayName}
-          handle={username}
-          verified={false}
-          variant="default"
-          trailingBadge={trailingBadge}
-          style={{
-            name: { fontSize: 24, fontWeight: 'bold' as const, marginTop: 10, marginBottom: 4 },
-            handle: { fontSize: 15, marginBottom: 12 },
-            container: undefined,
-          }}
-        />
-        {isPrivate && <PrivateBadge privacySettings={privacySettings} />}
-      </View>
-      <View className="relative">
-        {isProfileLive ? (
-          <View className="border-[3px] border-background bg-secondary rounded-full">
-            <LiveAvatar userId={profileId} source={avatarUri ?? undefined} size={70} variant={MEDIA_VARIANT_AVATAR_LG} />
-          </View>
-        ) : (
-          <ZoomableAvatar
-            source={avatarUri}
-            size={70}
-            className="border-[3px] border-background bg-secondary"
-            style={{ width: 70, height: 70, borderRadius: 35 }}
-            imageStyle={{}}
-          />
-        )}
-        {verified && (
-          <View className="absolute rounded-[10px] p-0.5 bg-background" style={{ left: -6, bottom: -2 }}>
-            <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
-          </View>
-        )}
-        {!isOwnProfile && profileId && (
-          <PresenceIndicator
-            userId={profileId}
-            size="small"
-            style={{ position: 'absolute', bottom: 2, right: 2 }}
-          />
-        )}
-      </View>
-    </View>
-  );
-});
-
-/**
- * Profile action buttons for minimalist mode
- */
-export const ProfileActions = memo(function ProfileActions({
-  isOwnProfile,
-  isFederated,
-  actorUri,
-  currentUsername,
-  profileUsername,
-  profileId,
-  isFollowing,
-  FollowButtonComponent,
-}: {
-  isOwnProfile: boolean;
-  isFederated?: boolean;
-  actorUri?: string;
-  currentUsername?: string;
-  profileUsername?: string;
-  profileId?: string;
-  isFollowing?: boolean;
-  FollowButtonComponent: FollowButtonComponentType;
-}) {
-  const theme = useTheme();
-  const { t } = useTranslation();
-  const canPoke = !isFederated;
-  const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || Boolean(isFederated));
-  useFederatedFollowSync(profileId, isFederated, actorUri);
-
-  if (!isOwnProfile || currentUsername !== profileUsername) {
-    if (!profileId) return null;
-    return (
-      <View className="flex-row items-center gap-3">
-        {canPoke && (
-          <FrostedIconButton
-            size="md"
-            onPress={togglePoke}
-            disabled={pokeLoading}
-            active={poked}
-            accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
-            icon={
-              <Ionicons
-                name={poked ? 'hand-right' : 'hand-right-outline'}
-                size={18}
-                color={poked ? theme.colors.primaryForeground : theme.colors.text}
-              />
-            }
-          />
-        )}
-        <FollowButtonComponent
-          userId={profileId}
-          initiallyFollowing={isFollowing}
-        />
-      </View>
-    );
-  }
-
-  return (
-    <View className="flex-row items-center gap-3">
-      <TouchableOpacity
-        className="border border-border bg-background rounded-full px-6 py-2"
-        onPress={() => router.push('/edit-profile')}
-        accessibilityRole="button"
-        accessibilityLabel={t('profile.editProfile')}
-      >
-        <Text className="text-foreground text-sm font-semibold">{t('profile.editProfile')}</Text>
-      </TouchableOpacity>
-      <FrostedIconButton
-        size="md"
-        onPress={goInsights}
-        accessibilityLabel="Analytics"
-        icon={ANALYTICS_ICON}
-      />
-      <FrostedIconButton
-        size="md"
-        onPress={goSettings}
-        accessibilityLabel="Settings"
-        icon={SETTINGS_ICON}
-      />
     </View>
   );
 });

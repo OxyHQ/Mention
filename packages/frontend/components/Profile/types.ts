@@ -1,4 +1,5 @@
 import type { ViewStyle, TextStyle, StyleProp } from 'react-native';
+import type { Href } from 'expo-router';
 import type { AccountKind } from '@oxyhq/core';
 import type { ProfileData } from '@/hooks/useProfileData';
 
@@ -298,32 +299,43 @@ export interface UserNameProps {
 
 export type UserNameComponent = React.ComponentType<UserNameProps>;
 
-// Profile header props (shared between default and minimalist). Only the
-// minimalist header renders the name itself; the default header leaves that to
-// the `UserName` block the parent renders beneath it, so the name/verified/
-// component trio belongs to the minimalist contract alone.
+// What both headers need to draw an account at all. Everything past this point
+// differs, which is why there are two headers rather than one with flags.
 export interface ProfileHeaderBaseProps {
   username?: string;
   avatarUri?: string;
+  /** Drives the live-avatar swap and the presence dot; both are skipped without it. */
+  profileId?: string;
 }
 
-export interface ProfileHeaderMinimalistProps extends ProfileHeaderBaseProps {
+/**
+ * A CHANNEL's header. It renders the name ITSELF, because the name sits beside
+ * the avatar in the compact layout rather than beneath it.
+ */
+export interface ChannelHeaderProps extends ProfileHeaderBaseProps {
   displayName?: string;
   verified?: boolean;
   UserNameComponent: UserNameComponent;
   isPrivate: boolean;
   privacySettings?: ProfileData['privacy'];
-  /** Drives the live-avatar swap and the presence dot; both are skipped without it. */
-  profileId?: string;
-  isOwnProfile?: boolean;
   /** Extra element rendered inline after the name (e.g. the fediverse badge). */
   trailingBadge?: React.ReactNode;
 }
 
-export interface ProfileHeaderDefaultProps extends ProfileHeaderBaseProps {
+/** The follow control under a channel's header. */
+export interface ChannelActionsProps {
+  profileId?: string;
+  isFollowing?: boolean;
+  FollowButtonComponent: FollowButtonComponent;
+}
+
+/**
+ * A PERSON's header. It leaves the name to the `UserName` block the parent
+ * renders beneath it, so no name/verified props appear here.
+ */
+export interface ProfileHeaderProps extends ProfileHeaderBaseProps {
   isOwnProfile: boolean;
   currentUsername?: string;
-  profileId?: string;
   isFederated?: boolean;
   actorUri?: string;
   isFollowing?: boolean;
@@ -345,9 +357,14 @@ export interface ProfileStatsProps {
    * disagree.
    */
   showReplies?: boolean;
-  profileUsername?: string;
-  profileHandle?: string;
-  username: string;
+  /**
+   * Where the follow-graph stats lead. Passed in rather than built from a handle
+   * because the two URL families answer it differently, and a stat row is the
+   * wrong place to know which family it is on. `null` renders the count without
+   * making it a link.
+   */
+  followingHref: Href | null;
+  followersHref: Href | null;
   onPostsPress: () => void;
   onBoostsPress: () => void;
   onRepliesPress: () => void;
@@ -367,8 +384,13 @@ export interface ProfileActionsProps {
 export interface ProfileMetaProps {
   location?: string;
   createdAt?: string;
-  username: string;
-  profileHandle?: string;
+  /**
+   * Where the join-date row leads — the account's "about" surface. Passed in for
+   * the same reason as {@link ProfileStatsProps.followingHref}: the row does not
+   * know which URL family it is on. `null` renders the date as plain text with
+   * no chevron, rather than a link that goes somewhere wrong.
+   */
+  aboutHref: Href | null;
 }
 
 // Community interface
@@ -409,14 +431,25 @@ export interface PrivateBadgeProps {
 // Profile content (main info section) props
 export interface ProfileContentProps {
   profileData: ProfileData;
-  avatarUri?: string;
   isOwnProfile: boolean;
   isPrivate: boolean;
-  currentUsername?: string;
   followingCount: number;
   followerCount: number;
-  username: string;
-  FollowButtonComponent: FollowButtonComponent;
+  /** The canonical handle, for surfaces that address the account by name. */
+  profileHandle: string;
+  /**
+   * The identity block: header, and for a person the name/handle line beneath
+   * it. A SLOT rather than a branch — which header an account gets, and whether
+   * its name sits beside the avatar or below it, is the single biggest
+   * difference between the two screens, and everything below this line is the
+   * part that genuinely does not care.
+   */
+  identity: React.ReactNode;
+  /** Whether the replies stat is shown; see {@link ProfileStatsProps.showReplies}. */
+  showReplies: boolean;
+  aboutHref: Href | null;
+  followingHref: Href | null;
+  followersHref: Href | null;
   onPostsPress: () => void;
   onBoostsPress: () => void;
   onRepliesPress: () => void;

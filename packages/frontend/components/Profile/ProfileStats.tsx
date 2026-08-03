@@ -4,7 +4,6 @@ import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import type { ProfileStatsProps } from './types';
-import { getNormalizedUserHandle } from '@oxyhq/core';
 
 /**
  * Profile statistics component
@@ -17,27 +16,21 @@ export const ProfileStats = memo(function ProfileStats({
   boostsCount,
   repliesCount,
   showReplies = true,
-  profileUsername,
-  profileHandle,
-  username,
+  followingHref,
+  followersHref,
   onPostsPress,
   onBoostsPress,
   onRepliesPress,
 }: ProfileStatsProps) {
   const { t } = useTranslation();
-  const displayUsername = getNormalizedUserHandle({ username: profileHandle || profileUsername || username });
 
   const handleFollowingPress = useCallback(() => {
-    if (displayUsername) {
-      router.push(`/@${displayUsername}/following`);
-    }
-  }, [displayUsername]);
+    if (followingHref) router.push(followingHref);
+  }, [followingHref]);
 
   const handleFollowersPress = useCallback(() => {
-    if (displayUsername) {
-      router.push(`/@${displayUsername}/followers`);
-    }
-  }, [displayUsername]);
+    if (followersHref) router.push(followersHref);
+  }, [followersHref]);
 
   return (
     <View className="gap-2.5" style={styles.container}>
@@ -45,7 +38,7 @@ export const ProfileStats = memo(function ProfileStats({
         className="gap-1"
         style={styles.statItem}
         onPress={handleFollowingPress}
-        disabled={!displayUsername}
+        disabled={!followingHref}
       >
         <Text className="text-foreground" style={styles.statNumber}>
           {formatCompactNumber(followingCount ?? 0)}
@@ -59,7 +52,7 @@ export const ProfileStats = memo(function ProfileStats({
         className="gap-1"
         style={styles.statItem}
         onPress={handleFollowersPress}
-        disabled={!displayUsername}
+        disabled={!followersHref}
       >
         <Text className="text-foreground" style={styles.statNumber}>
           {formatCompactNumber(followerCount ?? 0)}

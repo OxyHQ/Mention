@@ -1,24 +1,25 @@
 import React from 'react';
-import ProfileScreen from '@/components/ProfileScreen';
+import ChannelScreen from '@/components/ChannelScreen';
 
 /**
  * ONE channel's page.
  *
  * A channel is an Oxy ACCOUNT, so its page is that account's profile and its
- * feed is that account's author feed — the same screen every other profile
- * renders, reached through a different URL. There is nothing bespoke here on
- * purpose: a second implementation of a profile is a second place for the
- * identity rules to drift.
+ * feed is that account's author feed — but it is NOT the same screen a person
+ * gets. `ChannelScreen` composes the shared profile primitives (the account
+ * lookup, the chrome, the body, the canonicalization) with what a channel
+ * actually is: four tabs, a compact header, no banner, no poke, and the
+ * operator's way in to its settings.
  *
  * `/c/<handle>` stays distinct from `/@<handle>` because a channel is a
- * different kind of thing to follow, and the URL should say so. `ProfileScreen`
- * canonicalizes between the two off the resolved account's `kind`, so a person
- * cannot be sat on at `/c/` and a channel cannot be sat on at `/@`.
+ * different kind of thing to follow, and the URL should say so. Both screens
+ * canonicalize through the SAME `canonicalProfileHref`, so a person cannot be
+ * sat on at `/c/` and a channel cannot be sat on at `/@` — and neither screen
+ * can disagree with the other about which way to send a reader.
  *
  * The segment is named `[username]`, not `[handle]`, because that is what it
- * is: a channel account's handle IS its Oxy username, and the shared screen
- * reads exactly that param.
+ * is: a channel account's handle IS its Oxy username.
  */
 export default function ChannelAccountRoute() {
-    return <ProfileScreen tab="posts" />;
+    return <ChannelScreen />;
 }

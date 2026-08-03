@@ -94,7 +94,11 @@ describe('action menu wiring', () => {
       // host rather than hand-rolling a third one.
       join('app', '(app)', 'lanes.tsx'),
       join('components', 'Feed', 'PostItem.tsx'),
-      join('components', 'ProfileScreen.tsx'),
+      // The profile overflow menu. It lives in a hook rather than on a screen
+      // because BOTH profile screens open the same menu — a person's and a
+      // channel's — and the rows are identical apart from the operator's
+      // channel-settings entry, which arrives as a prop.
+      join('components', 'Profile', 'hooks', 'useProfileMoreMenu.tsx'),
     ]);
   });
 
