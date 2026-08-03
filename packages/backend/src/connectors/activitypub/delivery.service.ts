@@ -11,6 +11,7 @@ import {
   FEDERATION_ENABLED,
   USER_AGENT,
   federationUrls,
+  isBlockedDomain,
   resolveOxyUser,
 } from './constants';
 import { actorService } from './actor.service';
@@ -40,6 +41,11 @@ export const deliveryService: DeliveryService = createDeliveryService<IFederated
   federationEnabled: FEDERATION_ENABLED,
   userAgent: USER_AGENT,
   apContentType: AP_CONTENT_TYPE,
+  // The SAME predicate inbound dispatch and actor resolution use, not a second
+  // one: outbound has to refuse a blocked origin symmetrically, or a domain
+  // blocked inbound keeps receiving Follow/Undo/Accept and follower fan-out
+  // through an inbox we already cached.
+  isBlockedDomain,
   // `sign` is wrapped rather than passed by reference so `signViaOxy` is read at
   // CALL time (matching the former `deliverActivity`), not at module init — the
   // private-key signer is a runtime credential, never touched just to load.
