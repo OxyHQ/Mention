@@ -14,6 +14,8 @@ import { SourcesIcon } from '@/assets/icons/sources-icon';
 import { ArticleIcon } from '@/assets/icons/article-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { ScheduleIcon, ScheduleIconActive } from '@/assets/icons/schedule-icon';
+import { LaneIcon } from '@/assets/icons/lane-icon';
+import { TranslateIcon } from '@/assets/icons/translate-icon';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 interface ComposeToolbarProps {
@@ -267,13 +269,13 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     accessibilityLabel={t('compose.languages.add', { defaultValue: 'Add a language' })}
                 >
                     {/* The SAME icon the post component marks a translation
-                        with, in the same two states: `PostActions` renders
-                        `isTranslated ? 'language' : 'language-outline'` tinted
-                        primary or secondary. Here "carries another language" is
-                        the authoring side of that same fact, so the control that
-                        writes one and the badge that reads one look alike. */}
-                    <Ionicons
-                        name={hasLanguages ? 'language' : 'language-outline'}
+                        with — `PostActions` draws it too, tinted primary or
+                        secondary. Here "carries another language" is the
+                        authoring side of that same fact, so the control that
+                        writes one and the badge that reads one look alike.
+                        The state is the tint alone now; the pair it replaced
+                        distinguished the two by shape as well. */}
+                    <TranslateIcon
                         size={20}
                         color={disabled || !languageEnabled
                             ? theme.colors.textTertiary
@@ -346,11 +348,13 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     accessibilityRole="button"
                     accessibilityLabel={t('lanes.compose.choose', { defaultValue: 'Choose a lane' })}
                 >
-                    {/* A signpost, in the two states this row uses everywhere
-                        else: filled once the post is on a lane, outline while it
-                        is not. */}
-                    <Ionicons
-                        name={hasLane ? 'git-branch' : 'git-branch-outline'}
+                    {/* Parallel tracks, not a branch. A branch is a fork — one
+                        history splitting into divergent ones — and a lane forks
+                        nothing: the post's distribution, visibility, replies and
+                        federation are untouched by it. It is a track the post is
+                        filed on. The tint carries the on/off state, the way every
+                        other icon in this row signals its attachment. */}
+                    <LaneIcon
                         size={20}
                         color={disabled
                             ? theme.colors.textTertiary
