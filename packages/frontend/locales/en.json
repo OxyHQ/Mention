@@ -808,6 +808,10 @@
     "perPost": "per post",
     "topPerformingPosts": "Top Performing Posts",
     "unableToLoadPosts": "Unable to load posts",
+    "unavailable": {
+      "title": "Insights unavailable",
+      "message": "These insights could not be loaded. You may not have access to this account, or the service may be temporarily unavailable."
+    },
     "postsByType": "Posts by Type",
     "postType": {
       "text": "Text",
@@ -1884,6 +1888,9 @@
       "makePrimary": "Make primary",
       "removeCategory": "Remove {{category}}",
       "categoryUnavailable": "Not available in this version"
+    },
+    "insights": {
+      "operatorOnly": "Only an operator can see this channel’s insights"
     },
     "writers": {
       "caption": "The people this channel has named on its posts.",

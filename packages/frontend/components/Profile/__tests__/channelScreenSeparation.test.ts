@@ -178,3 +178,43 @@ describe('a channel has its own about page', () => {
     expect(source).not.toMatch(/<Redirect href={`/);
   });
 });
+
+/**
+ * The channel page's OPERATOR rows.
+ *
+ * A channel is never anybody's "own profile" — no session's subject can be one —
+ * so it gets none of the header cluster a person has, and everything about
+ * RUNNING the account lives in the overflow menu instead. Two properties of those
+ * rows are worth pinning, because nothing else in the toolchain checks either.
+ */
+describe('a channel’s operator rows', () => {
+  const CHANNEL_ROUTE_DIR = join(FRONTEND, 'app', '(app)', 'c', '[username]');
+  const channelScreen = code(read('components', 'ChannelScreen.tsx'));
+  const targets = [...channelScreen.matchAll(/`\/c\/\$\{handle\}\/([a-z_-]+)`/g)].map((m) => m[1]);
+
+  it('points every operator row at a route that EXISTS', () => {
+    // `typedRoutes` is on and INERT on this expo-router major: `router.push` of a
+    // route that was never created type-checks, builds and ships, failing only
+    // under a user's thumb as "This screen does not exist." A file check is the
+    // only thing standing between a typo here and that.
+    expect(targets.length).toBeGreaterThanOrEqual(2); // vacuity floor: the regex still matches
+    for (const segment of new Set(targets)) {
+      expect(readdirSync(CHANNEL_ROUTE_DIR)).toContain(`${segment}.tsx`);
+    }
+  });
+
+  it('offers insights only to somebody who operates the channel', () => {
+    // Affordance ⊆ permission. The server refuses a non-operator's read of a
+    // private dashboard, so the row must never be rendered for one — and the one
+    // gate that decides it is `operatesThisChannel`, shared with the settings row
+    // beside it.
+    const gated = channelScreen.slice(
+      channelScreen.indexOf('const leadingActions'),
+      channelScreen.indexOf('[operatesThisChannel, handle, t]'),
+    );
+    expect(gated).toContain('operatesThisChannel');
+    expect(gated).toMatch(/`\/c\/\$\{handle\}\/insights`/);
+    // …and nowhere else, so no ungated caller can reintroduce it.
+    expect(channelScreen.match(/`\/c\/\$\{handle\}\/insights`/g)).toHaveLength(1);
+  });
+});

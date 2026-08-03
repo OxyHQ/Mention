@@ -424,9 +424,19 @@ export const viewerQueryKeys = {
     ...viewerQueryKeys.all(viewerId),
     'weekly-recap',
   ] as const,
-  insights: (viewerId: ViewerId, period: string | number) => [
+  /**
+   * Keyed on the SUBJECT as well as the viewer, because one viewer reads several
+   * accounts' insights: their own, and every channel they operate. Without the
+   * subject, opening a channel's dashboard would serve — and then overwrite — the
+   * cache entry holding the viewer's own numbers, so the two would take turns
+   * showing each other's figures under the wrong name.
+   *
+   * `'self'` for the viewer's own, which no Oxy user id can collide with.
+   */
+  insights: (viewerId: ViewerId, subjectId: string | null | undefined, period: string | number) => [
     ...viewerQueryKeys.all(viewerId),
     'insights',
+    subjectId ?? 'self',
     period,
   ] as const,
   recommendationFilters: (viewerId: ViewerId) => [
