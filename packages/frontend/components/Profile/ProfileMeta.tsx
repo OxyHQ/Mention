@@ -6,7 +6,6 @@ import { LocationIcon } from '@/assets/icons/location-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import type { ProfileMetaProps } from './types';
-import { getNormalizedUserHandle } from '@oxyhq/core';
 
 /**
  * Profile metadata component
@@ -15,14 +14,12 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 export const ProfileMeta = memo(function ProfileMeta({
   location,
   createdAt,
-  username,
-  profileHandle,
+  aboutHref,
 }: ProfileMetaProps) {
   const { t } = useTranslation();
 
   const hasLocation = Boolean(location);
   const hasJoinDate = Boolean(createdAt);
-  const targetHandle = getNormalizedUserHandle({ username: profileHandle || username });
 
   const formatJoinDate = useCallback((date: string) => {
     return new Date(date).toLocaleDateString('en-US', {
@@ -30,6 +27,10 @@ export const ProfileMeta = memo(function ProfileMeta({
       year: 'numeric',
     });
   }, []);
+
+  const openAbout = useCallback(() => {
+    if (aboutHref) router.push(aboutHref);
+  }, [aboutHref]);
 
   if (!hasLocation && !hasJoinDate) {
     return null;
@@ -49,19 +50,15 @@ export const ProfileMeta = memo(function ProfileMeta({
       {createdAt && (
         <TouchableOpacity
           className="flex-row items-center gap-1"
-          onPress={() => {
-            if (targetHandle) {
-              router.push(`/@${targetHandle}/about`);
-            }
-          }}
-          disabled={!targetHandle}
+          onPress={openAbout}
+          disabled={!aboutHref}
           activeOpacity={0.7}
         >
           <CalendarIcon size={16} className="text-muted-foreground" />
           <Text className="text-muted-foreground text-[15px]">
             {t('profile.joined')} {formatJoinDate(createdAt)}
           </Text>
-          <ChevronRightIcon size={16} className="text-muted-foreground" />
+          {aboutHref ? <ChevronRightIcon size={16} className="text-muted-foreground" /> : null}
         </TouchableOpacity>
       )}
     </View>
