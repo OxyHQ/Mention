@@ -1939,7 +1939,6 @@ export class PostHydrationService {
       post,
       authorId,
       normalizeAuthorship(post.authorship as PostAuthorshipEntry[] | undefined),
-      isFederatedPost,
       viewerContext,
     );
   }
@@ -1947,10 +1946,13 @@ export class PostHydrationService {
   /**
    * May this viewer read this post at all?
    *
-   * The single post-level ACL. Privacy checks apply to LOCAL posts only —
-   * federated posts are public by definition. Hydration is used for
-   * globally-broadcast DTOs and for nested quote/boost references fetched by id,
-   * so the gate lives here rather than relying on every caller to pre-filter.
+   * The single post-level ACL, applied to LOCAL and FEDERATED posts alike.
+   * `mapApVisibility` turns a Note that is not publicly addressed into
+   * `followers_only`, so a federated post is NOT public by definition and a
+   * blanket bypass here served a remote author's private post to anybody who
+   * asked for it by id. Hydration is used for globally-broadcast DTOs and for
+   * nested quote/boost references fetched by id, so the gate lives here rather
+   * than relying on every caller to pre-filter.
    *
    * Extracted from {@link buildPostSummary} (whose behaviour is unchanged) so
    * that {@link buildReplyParentAuthorMap} can ask the identical question about a
@@ -1963,11 +1965,8 @@ export class PostHydrationService {
     post: RawPost,
     authorId: string,
     authorship: PostAuthorshipEntry[],
-    isFederatedPost: boolean,
     viewerContext: ViewerContext,
   ): boolean {
-    if (isFederatedPost) return true;
-
     const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
     // Pending collaborators may PREVIEW the post they were invited to (so the
     // collab-invite UI can render the actual content before they accept),
@@ -2125,7 +2124,6 @@ export class PostHydrationService {
         parent,
         parentAuthorId,
         normalizeAuthorship(parent.authorship as PostAuthorshipEntry[] | undefined),
-        !!parent.federation,
         viewerContext,
       );
       if (!readable) continue;
@@ -2215,7 +2213,7 @@ export class PostHydrationService {
 
     const authorship = normalizeAuthorship(post.authorship as PostAuthorshipEntry[] | undefined);
 
-    if (!this.canViewerReadPost(post, authorId, authorship, isFederatedPost, viewerContext)) {
+    if (!this.canViewerReadPost(post, authorId, authorship, viewerContext)) {
       return null;
     }
 
