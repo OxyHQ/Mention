@@ -1,6 +1,8 @@
 import { Router, Response } from 'express';
 import Mute from '../models/Mute';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import { viewerOperatesAccount } from '../services/operatedAccountAccess';
+import { createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -22,9 +24,29 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'mutedId is required' });
     }
 
-    // Prevent self-muting
-    if (userId === mutedId) {
-      return res.status(400).json({ message: 'Cannot mute yourself' });
+    /**
+     * You cannot mute an account you OPERATE.
+     *
+     * This used to read `userId === mutedId`, which is the same rule stated
+     * narrowly enough to be wrong: a channel / organization / project / bot you
+     * publish as is never your own id, so muting one passed. Muting hides your own
+     * account's posts from your own feeds, which is not a preference anybody
+     * holds — and for a channel with several members it also hides work written by
+     * the others, from an operator who has no obvious way to connect the empty
+     * feed to a row they tapped once.
+     *
+     * `viewerOperatesAccount` still answers `true` for `userId === mutedId`, so
+     * self-muting stays refused; it is now one case of the general rule rather than
+     * the only case anybody remembered to write down. 400 for the same reason the
+     * report route gives.
+     */
+    const operatesTarget = await viewerOperatesAccount({
+      targetOxyUserId: mutedId,
+      callerId: userId,
+      memberReader: createUserScopedOxyServices(req),
+    });
+    if (operatesTarget) {
+      return res.status(400).json({ message: 'You cannot mute an account you operate' });
     }
 
     // Check if already muted

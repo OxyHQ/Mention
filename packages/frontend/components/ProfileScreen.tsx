@@ -39,6 +39,7 @@ import {
     useProfileAccount,
     useProfileChrome,
     useProfileMoreMenu,
+    useOperatesAccount,
     useJustFollowed,
     buildProfileTabDescriptors,
     laneTabKey,
@@ -276,7 +277,26 @@ const PersonProfile: React.FC<PersonProfileProps> = ({
         }
     }, [profileData, handle, t]);
 
-    const handleMoreOptions = useProfileMoreMenu({ profileData, isOwnProfile });
+    /**
+     * This screen serves more than people. Only a `channel` routes to
+     * `/c/<handle>`, so an ORGANIZATION, PROJECT or BOT renders here at
+     * `/@<handle>` — and the viewer may operate one of those without it ever being
+     * their own id, which is precisely the case `isOwnProfile` cannot see.
+     *
+     * `isOwnProfile` still governs everything else on this screen, and correctly:
+     * edit-profile, analytics, settings and the lanes button all act on the
+     * VIEWER'S OWN account, so operating an organization must not put them within
+     * reach. Only the hostile menu asks the wider question.
+     */
+    const operatesThisAccount = useOperatesAccount({
+        accountId: profileData?.id,
+        accountKind: profileData?.kind,
+    });
+
+    const handleMoreOptions = useProfileMoreMenu({
+        profileData,
+        viewerOperatesAccount: isOwnProfile || operatesThisAccount,
+    });
 
     const handleDM = useCallback(() => {
         if (!profileData?.id) return;
