@@ -422,47 +422,58 @@ const userSettingsPlan: CollectionPlan = {
       key: [{ path: 'oxyUserId', normalize: 'exact' }],
     },
   ],
-  // The one column here that was reading a path no document has, and the four
-  // groups whose source is genuinely empty — which is why they arrive as one
-  // constant on 39,349 rows and why that is CORRECT rather than a loss. Both
-  // facts are measurements, not readings of the code: only counting the source
-  // side separates "the mapping is wrong" from "the users never set this".
+  // One column here was reading a path NO document has, and sixteen more fill a
+  // gap with a constant. Both facts are measurements rather than readings of
+  // the code: only counting the source side separates "the mapping is wrong"
+  // from "the users never set this", and from here the two look identical.
+  //
+  // Every fallback below was compared against the DELETED Mongoose schema,
+  // recovered from `8b783a8d^`, and every one matches its declared `default:`
+  // exactly. So a document without the field already read as this value
+  // throughout the application and copying it is the port; NULL would be the
+  // behaviour change. The counts are what make that a claim about the data
+  // rather than about the code — `notificationPreferences.pushEnabled` is
+  // carried by ZERO of 39,349 documents and `feedSettings.diversity.enabled` by
+  // ONE, which is what a preference nobody ever opened looks like.
   columnCoverage: [
     {
       table: userSettings,
       column: userSettings.channelAccountSignPosts,
       sourcePath: 'channel.signPosts',
     },
-    {
+    ...(
+      [
+        ['appearancePostTextExpand', 'appearance.postTextExpand', 39_340, "'default'"],
+        ['appearancePostReadMoreAction', 'appearance.postReadMoreAction', 22_105, "'openPost'"],
+        ['appearanceCollapseLongBio', 'appearance.collapseLongBio', 22_105, 'true'],
+        ['privacyShowSensitiveContent', 'privacy.showSensitiveContent', 39_339, 'false'],
+        ['profileCoverPhotoEnabled', 'profileCustomization.coverPhotoEnabled', 22, 'true'],
+        ['profileMinimalistMode', 'profileCustomization.minimalistMode', 22, 'false'],
+        ['feedDiversityEnabled', 'feedSettings.diversity.enabled', 1, 'true'],
+        ['feedSameAuthorPenalty', 'feedSettings.diversity.sameAuthorPenalty', 1, '0.95'],
+        ['feedSameTopicPenalty', 'feedSettings.diversity.sameTopicPenalty', 1, '0.92'],
+        ['feedRecencyHalfLifeHours', 'feedSettings.recency.halfLifeHours', 1, '24'],
+        ['feedRecencyMaxAgeHours', 'feedSettings.recency.maxAgeHours', 1, '168'],
+        ['feedBoostHighQuality', 'feedSettings.quality.boostHighQuality', 1, 'true'],
+        ['notifyPushEnabled', 'notificationPreferences.pushEnabled', 0, 'true'],
+        ['notifyEmailEnabled', 'notificationPreferences.emailEnabled', 0, 'false'],
+        ['notifyLikes', 'notificationPreferences.likes', 1, 'true'],
+        ['notifyBoosts', 'notificationPreferences.boosts', 0, 'true'],
+        ['notifyFollows', 'notificationPreferences.follows', 1, 'true'],
+        ['notifyMentions', 'notificationPreferences.mentions', 0, 'true'],
+        ['notifyReplies', 'notificationPreferences.replies', 0, 'true'],
+        ['notifyQuotes', 'notificationPreferences.quotes', 0, 'true'],
+      ] as const
+    ).map(([property, sourcePath, present, value]) => ({
       table: userSettings,
-      column: userSettings.notifyPushEnabled,
-      sourcePath: 'notificationPreferences.pushEnabled',
+      column: userSettings[property],
+      sourcePath,
       filledWhenAbsent:
-        'ZERO of 39,349 documents carry the field, and the deleted Mongoose ' +
-        'schema declared `pushEnabled: { type: Boolean, default: true }` ' +
-        '(recovered from `8b783a8d^`). The column is NOT NULL, so it must hold ' +
-        "something; `true` is the value the SOURCE SCHEMA names for an absent " +
-        'field, which makes it the port rather than an invention. The other ' +
-        'five `notificationPreferences.*` columns are the same shape.',
-    },
-    {
-      table: userSettings,
-      column: userSettings.feedDiversityEnabled,
-      sourcePath: 'feedSettings.diversity.enabled',
-      filledWhenAbsent:
-        'Same shape: `diversity.enabled: { type: Boolean, default: true }` in ' +
-        'the deleted schema, and 1 of 39,349 documents has ever stored a value. ' +
-        'The seven other `feedSettings.*` columns match.',
-    },
-    {
-      table: userSettings,
-      column: userSettings.appearancePostReadMoreAction,
-      sourcePath: 'appearance.postReadMoreAction',
-      filledWhenAbsent:
-        "The deleted schema declares `default: 'openPost'` and 22,105 of 39,349 " +
-        'documents carry the field. The remaining 17,244 predate it, and the ' +
-        'schema names `openPost` as their value.',
-    },
+        `${present.toLocaleString('en-US')} of 39,349 documents carry ` +
+        `\`${sourcePath}\`, and the deleted schema declares \`default: ${value}\`. ` +
+        'The column is NOT NULL, so it holds something either way; this is the ' +
+        'value the SOURCE names for an absent field.',
+    })),
   ],
   transform: (doc, emit) => {
     const settingsId = ownId(doc);

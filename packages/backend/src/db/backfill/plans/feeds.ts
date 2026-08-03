@@ -129,6 +129,34 @@ const customFeedsPlan: CollectionPlan = {
       absentAs: 0,
     },
   ],
+  // Three rows in the whole collection, so these numbers are small enough to
+  // read individually — which is the point: 2 of 3 is not evidence of anything
+  // on its own, and the model's declared default is what makes the third row's
+  // constant the port rather than a guess.
+  columnCoverage: [
+    {
+      table: customFeeds,
+      column: customFeeds.includeBoosts,
+      sourcePath: 'includeBoosts',
+      filledWhenAbsent:
+        '2 of 3 feeds carry it; `models/CustomFeed.ts` declares `default: true`.',
+    },
+    {
+      table: customFeeds,
+      column: customFeeds.averageRating,
+      sourcePath: 'averageRating',
+      filledWhenAbsent:
+        '2 of 3 feeds carry it; `default: 0` in the model, and an unrated feed ' +
+        'averages zero — which is why the CHECK floor is 0 and not the review ' +
+        "rating's 1.",
+    },
+    {
+      table: customFeeds,
+      column: customFeeds.ratingsCount,
+      sourcePath: 'ratingsCount',
+      filledWhenAbsent: '2 of 3 feeds carry it; `default: 0` in the model.',
+    },
+  ],
   transform: (doc, emit) => {
     const feedId = ownId(doc);
 

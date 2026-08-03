@@ -346,6 +346,17 @@ const federatedFollowsPlan: CollectionPlan = {
       ],
     },
   ],
+  columnCoverage: [
+    {
+      table: federatedFollows,
+      column: federatedFollows.network,
+      sourcePath: 'network',
+      filledWhenAbsent:
+        '29 of 62 follows carry it; the model declares ' +
+        "`default: 'activitypub'`, and the 33 without it predate atproto " +
+        'support entirely, so that is also what they were.',
+    },
+  ],
   transform: (doc, emit) => {
     emit(
       federatedFollows,
@@ -445,6 +456,17 @@ const federationDeliveryQueuePlan: CollectionPlan = {
       constraint: 'federation_delivery_queue_attempts_check',
       min: 0,
       absentAs: 0,
+    },
+  ],
+  columnCoverage: [
+    {
+      table: federationDeliveryQueue,
+      column: federationDeliveryQueue.migratedToBullmq,
+      sourcePath: 'migratedToBullmq',
+      filledWhenAbsent:
+        '92 of 118 rows carry it; the model declares `default: false`. The 26 ' +
+        'without it were enqueued before the BullMQ migration flag existed, ' +
+        'which is exactly what `false` says about them.',
     },
   ],
   transform: (doc, emit) => {

@@ -112,6 +112,26 @@ const likesPlan: CollectionPlan = {
       ],
     },
   ],
+  columnCoverage: [
+    {
+      table: likes,
+      column: likes.value,
+      sourcePath: 'value',
+      filledWhenAbsent:
+        '83 of 84 documents carry it; `models/Like.ts` declares `default: 1`. ' +
+        'The `absentAs: 1` on the numeric audit above is the same fact stated ' +
+        'for the other check, and they must not disagree.',
+    },
+    {
+      table: likes,
+      column: likes.revision,
+      sourcePath: 'revision',
+      filledWhenAbsent:
+        'Only 11 of 84 documents carry it — the field is newer than the ' +
+        'collection. `default: 1` in the model, and the CHECK accepts `>= 0` ' +
+        'precisely because legacy rows arrive without one.',
+    },
+  ],
   transform: (doc, emit) => {
     emit(
       likes,
