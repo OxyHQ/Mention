@@ -144,3 +144,55 @@ describe('GET /search with a pasted URL', () => {
     expect(res.status).toBe(500);
   });
 });
+
+/**
+ * A handle typed alone is the same shape of mistake as a pasted URL, and had the
+ * same outcome once the timeout was classified: `@betomoedano@x.com` tokenises
+ * to roughly `betomoedano OR x OR com`, `com` matches most of the collection,
+ * and the query spent its whole budget — reaching the client as a 503.
+ */
+describe('GET /search with a handle typed alone', () => {
+  beforeEach(() => { find.mockReset(); });
+
+  it('does not query at all for a bare or federated handle', async () => {
+    find.mockImplementation(() => chainResolving());
+    const app = await makeApp();
+
+    for (const query of ['@betomoedano@x.com', '@alice', '  @alice@mastodon.social  ']) {
+      find.mockClear();
+      // eslint-disable-next-line no-await-in-loop
+      const res = await request(app).get('/search').query({ query, type: 'posts' });
+      expect(res.status).toBe(200);
+      expect(find).not.toHaveBeenCalled();
+    }
+  });
+
+  /**
+   * ALONE is the condition, and this is what proves it is doing work rather than
+   * swallowing every query that mentions somebody. Without this case, "no query
+   * was built" would also be satisfied by a rule that discarded any text
+   * containing an `@`.
+   */
+  it('still searches a sentence that merely contains a handle', async () => {
+    find.mockImplementation(() => chainResolving());
+    const app = await makeApp();
+
+    const res = await request(app)
+      .get('/search')
+      .query({ query: '@alice what did you think', type: 'posts' });
+
+    expect(res.status).toBe(200);
+    expect(find).toHaveBeenCalledTimes(1);
+    expect(find.mock.calls[0][0]).toMatchObject({
+      $text: { $search: '@alice what did you think' },
+    });
+  });
+
+  it('does not mistake an email for a handle', async () => {
+    find.mockImplementation(() => chainResolving());
+    const app = await makeApp();
+
+    await request(app).get('/search').query({ query: 'nate@oxy.so', type: 'posts' });
+    expect(find).toHaveBeenCalledTimes(1);
+  });
+});

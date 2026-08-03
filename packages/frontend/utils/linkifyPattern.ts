@@ -31,7 +31,16 @@ import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
  * render the literal text — is correct: linkifying it would turn an unresolved
  * or hand-typed id into a profile link nobody authorized.
  */
-const LINKIFY_KINDS = ['mentionDisplay', 'url', 'hashtag', 'cashtag'] as const;
+// `federatedHandle` but NOT `bareHandle`. A bio is plain text, so `@expo@x.com`
+// arrives as prose and was rendered as prose — unclickable, while a native
+// mention beside it was a link, because a post stores its mentions as markup
+// that hydration has already resolved to an account.
+//
+// The bare form stays OUT on purpose: `@expo` alone names whoever holds that
+// name on THIS instance, and in a bio synced from another network that is
+// somebody else entirely. A two-part handle carries its own host, so it can be
+// linked without guessing whose it is.
+const LINKIFY_KINDS = ['mentionDisplay', 'federatedHandle', 'url', 'hashtag', 'cashtag'] as const;
 
 /**
  * A URL that names a profile on THIS instance, re-read as the mention it is.

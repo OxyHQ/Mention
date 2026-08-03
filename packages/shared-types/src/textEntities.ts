@@ -61,6 +61,7 @@ export type TextEntityKind =
   | 'url'
   | 'mentionPlaceholder'
   | 'mentionDisplay'
+  | 'federatedHandle'
   | 'bareHandle'
   | 'hashtag'
   | 'cashtag';
@@ -141,6 +142,7 @@ export interface ScanTextEntitiesOptions {
  */
 const DEFAULT_ENTITY_KINDS: readonly TextEntityKind[] = [
   'mentionDisplay',
+  'federatedHandle',
   'mentionPlaceholder',
   'url',
   'bareHandle',
@@ -223,6 +225,20 @@ function sigilSource(kinds: ReadonlySet<TextEntityKind>): string {
   const alternatives: string[] = [];
   if (kinds.has('hashtag')) alternatives.push(`#(?<hashtag>${HASHTAG_BODY_SOURCE})`);
   if (kinds.has('cashtag')) alternatives.push(CASHTAG_SOURCE);
+  // BEFORE `bareHandle`, and that order is the whole thing: both can match at the
+  // same index, and the first alternative written wins. Put the bare form first
+  // and `@expo@x.com` yields `@expo` — a handle that names a DIFFERENT account,
+  // the local one, which is exactly the misrouting this kind exists to stop.
+  if (kinds.has('federatedHandle')) {
+    // The dot is required IN THE PATTERN, not checked after the fact. A rejection
+    // in `classify` comes too late: the regex has already consumed the span, so
+    // `@a@b` — two handles typed back to back, far more common than an account on
+    // a dotless host — would match here, be refused, and yield NOTHING at all,
+    // where it used to yield two bare handles.
+    alternatives.push(
+      `@(?<fedLocal>${HANDLE_BODY_SOURCE})@(?<fedDomain>${HANDLE_BODY_SOURCE}\\.${HANDLE_BODY_SOURCE})`,
+    );
+  }
   if (kinds.has('bareHandle')) alternatives.push(`@(?<handle>${HANDLE_BODY_SOURCE})`);
   if (alternatives.length === 0) return '';
   return `(?<boundary>^|${HASHTAG_BOUNDARY_SOURCE})(?:${alternatives.join('|')})`;
@@ -337,6 +353,16 @@ function classify(
   }
   if (groups.url !== undefined) {
     return { kind: 'url', raw, start, end, value: groups.url };
+  }
+  if (groups.fedLocal !== undefined && groups.fedDomain !== undefined) {
+    // A domain cannot end in `.` or `-` either, and prose puts a full stop right
+    // after a handle — same trim, same reason, as the bare form below.
+    // A domain cannot end in `.` or `-`; the pattern already guarantees it
+    // contains one interior dot.
+    const domain = groups.fedDomain.replace(/[.-]+$/, '');
+    if (!domain.includes('.')) return null;
+    const value = `${groups.fedLocal}@${domain}`;
+    return { kind: 'federatedHandle', raw: `@${value}`, start, end: start + value.length + 1, value };
   }
   if (groups.handle !== undefined) {
     // `.` and `-` are in the handle class because a handle can legitimately
@@ -522,9 +548,12 @@ export function qualifyBareHandles(text: string, networkDomain: string): string 
   let result = '';
   let cursor = 0;
   for (const entity of entities) {
+    // Only the BARE form. An already-qualified handle is a `federatedHandle`
+    // entity now, so it is skipped by this one test rather than by a lookahead
+    // for a following `@` — that check existed while the scanner reported
+    // `@alice@mastodon.social` as the bare `@alice`, and mutation confirmed it
+    // is dead once the two-part form has its own kind, so it is gone.
     if (entity.kind !== 'bareHandle') continue;
-    // Already qualified — the scanner hands back only the local part.
-    if (text[entity.end] === '@') continue;
     result += text.slice(cursor, entity.end) + `@${domain}`;
     cursor = entity.end;
   }

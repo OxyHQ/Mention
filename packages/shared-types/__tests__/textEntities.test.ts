@@ -301,11 +301,29 @@ describe('bareHandle', () => {
     expect(kinds('foo.bar@instance.tld')).toEqual([]);
   });
 
-  it('takes only the local part of a two-part federated handle', () => {
-    // The `@user@host` form is a DIFFERENT entity, owned by `termExtraction`
-    // whose strip order is incident-documented. `@` is not in the handle class,
-    // so the run ends at the second one and the host cannot open its own.
-    expect(values('hi @user@host.tld')).toEqual(['user']);
+  it('yields the WHOLE two-part handle, not just its local part', () => {
+    // This used to assert `['user']`, and that was a real defect rather than a
+    // neutral choice: a profile bio reading "building cool stuff @expo@x.com"
+    // linkified `@expo` alone, which names the LOCAL account of that name — a
+    // link to the wrong person, in a bio, silently.
+    //
+    // `federatedHandle` is its own kind ahead of `bareHandle` in the pattern, so
+    // the two-part form wins at the index where both could match.
+    expect(values('hi @user@host.tld')).toEqual(['user@host.tld']);
+    expect(kinds('hi @user@host.tld')).toEqual(['federatedHandle']);
+  });
+
+  /**
+   * `termExtraction` is unaffected and must stay so: it scans with
+   * `kinds: ['url']` only, and does its own handle stripping — the strip whose
+   * ORDER is incident-documented, after trending once harvested this instance's
+   * own domain out of `@someone@mention.earth`. Asserted here because that
+   * incident is the reason this two-part form was left alone for so long, and
+   * the next person to read that comment should not have to re-derive whether
+   * this change reopened it.
+   */
+  it('leaves a url-only scan seeing no handles at all', () => {
+    expect(kinds('@someone@mention.earth posts', { kinds: ['url'] })).toEqual([]);
   });
 
   it('keeps a non-Latin handle whole rather than cutting at a combining mark', () => {
@@ -581,5 +599,49 @@ describe('qualifyBareHandles', () => {
     // sentence's period ends up INSIDE the qualified handle.
     expect(qualifyBareHandles('building @thinkymachines. done', 'x.com'))
       .toBe('building @thinkymachines@x.com. done');
+  });
+});
+
+describe('federatedHandle', () => {
+  it('reads the handle a synced bio actually contains', () => {
+    expect(values('building cool stuff @expo@x.com 𝝠')).toEqual(['expo@x.com']);
+  });
+
+  /**
+   * The precedence that matters. Both alternatives can match at the same index
+   * and the first one written wins, so if `bareHandle` came first every
+   * federated handle would degrade to its local part — a link to a DIFFERENT,
+   * local account. Asserted on the pattern by name so a reorder fails with an
+   * explanation instead of a scatter of unrelated reds.
+   */
+  it('is written ahead of bareHandle in the pattern', () => {
+    const source = createTextEntityPattern().source;
+    expect(source.indexOf('?<fedLocal>')).toBeLessThan(source.indexOf('?<handle>'));
+  });
+
+  it('still loses to a URL and never opens on an email', () => {
+    expect(kinds('https://x.com/@alice@bad.tld')).toEqual(['url']);
+    expect(kinds('mail someone@instance.tld now')).toEqual([]);
+  });
+
+  it('requires the domain to look like one, and falls back rather than vanishing', () => {
+    // A dotless host is not a domain, so `@a@b` must not read as federated. The
+    // subtlety is WHERE that is enforced: rejecting it in `classify` comes too
+    // late, because the regex has already consumed the span — `@a@b` then
+    // yielded NOTHING, losing the bare handle it used to produce. Requiring the
+    // dot in the pattern lets the bare alternative match instead.
+    //
+    // One handle, not two: after `@a`, the character before the second `@` is a
+    // letter, and the shared leading boundary refuses to open a handle there.
+    // That is the same guard that keeps `someone@instance.tld` from matching,
+    // and it is why `@b` is prose here.
+    expect(kinds('@a@b')).toEqual(['bareHandle']);
+    expect(values('@a@b')).toEqual(['a']);
+  });
+
+  it('gives the sentence back its full stop', () => {
+    expect(values('ask @alice@mastodon.social.')).toEqual(['alice@mastodon.social']);
+    const [entity] = scanTextEntities('ask @alice@mastodon.social.');
+    expect(entity.raw).toBe('@alice@mastodon.social');
   });
 });

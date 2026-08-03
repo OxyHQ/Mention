@@ -10,6 +10,7 @@ import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { queryInt } from '../utils/queryParams';
 import { PostVisibility } from '@mention/shared-types';
 import { decodeSearchCursor, encodeSearchCursor } from '../utils/searchCursor';
+import { scanTextEntities } from '@mention/shared-types/textEntities';
 import { isAbsoluteHttpUrl } from '../connectors/shared/url';
 import { DISCOVERY_SAFE_MATCH } from '../mtn/feed/feedSafety';
 import { loadMuteWords, loadShowSensitiveContent } from '../services/safety/viewerSafety';
@@ -24,6 +25,25 @@ const router = express.Router();
 
 /** Search result page size. */
 const DEFAULT_SEARCH_LIMIT = 20;
+/**
+ * Is this query nothing but a handle — `@alice`, `@alice@x.com`?
+ *
+ * Decided with the SHARED entity scanner rather than a regex written here, so
+ * "what is a handle" has one definition across the composer, the renderer, the
+ * bio qualifier and this route. The test is structural: exactly one entity, of a
+ * handle kind, spanning the entire trimmed query.
+ */
+function isHandleOnlyQuery(query: string): boolean {
+  const trimmed = query.trim();
+  if (!trimmed.startsWith('@')) return false;
+  const [entity, ...rest] = scanTextEntities(trimmed);
+  return rest.length === 0
+    && entity !== undefined
+    && (entity.kind === 'federatedHandle' || entity.kind === 'bareHandle')
+    && entity.start === 0
+    && entity.end === trimmed.length;
+}
+
 /** Mongo's MaxTimeMSExpired — a query that hit `maxTimeMS`, not a server fault. */
 const MONGO_MAX_TIME_MS_EXPIRED = 50;
 
@@ -234,7 +254,18 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       // answers that (see `federatedUsernameFromUpstreamUrl` and the bridge
       // resolution lane). The posts lane has nothing to say about it, so it says
       // so immediately instead of scanning the collection to say it slowly.
-      if (isAbsoluteHttpUrl(operators.textQuery)) {
+      //
+      // A HANDLE TYPED ALONE is the same shape of mistake and had the same
+      // outcome: `@betomoedano@x.com` tokenises to roughly `betomoedano OR x OR
+      // com`, and `com` matches most of the collection, so the query spent its
+      // whole budget and returned 503. It also names an account rather than
+      // describing text, and the people lane is what answers it.
+      //
+      // ALONE is the condition, and it is doing real work: `@alice what did you
+      // think` is a sentence about somebody and stays an ordinary text search.
+      // Only a query that is nothing but a handle short-circuits, and posts
+      // MENTIONING an account already have their own operator, `to:`.
+      if (isAbsoluteHttpUrl(operators.textQuery) || isHandleOnlyQuery(operators.textQuery)) {
         res.json({ posts: [], hasMore: false });
         return;
       }
