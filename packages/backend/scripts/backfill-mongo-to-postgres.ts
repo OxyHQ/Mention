@@ -107,7 +107,12 @@ import {
 } from '../src/db/backfill/collectionMap';
 import { clearState, loadState, markCompleted, saveCheckpoint } from '../src/db/backfill/checkpointStore';
 import { connectMongoSource, redactUri, type MongoSource } from '../src/db/backfill/mongoSource';
+import { randomUUID } from 'node:crypto';
 import { loadParentKeys } from '../src/db/backfill/parentKeys';
+import {
+  RESOLUTION_LOG_TABLE,
+  writeResolutionLog,
+} from '../src/db/backfill/resolutionLogStore';
 import { planTables, tableName } from '../src/db/backfill/plan';
 import {
   describeRelationColumns,
@@ -200,6 +205,15 @@ function parseOptions(argv: readonly string[]): Options {
     sample: numeric('sample-size', DEFAULT_FIDELITY_SAMPLE),
   };
 }
+
+/**
+ * One id for this process, so a re-run, a resumed run and the cutover are
+ * separable rows rather than one undifferentiated pile.
+ *
+ * Time-ordered on purpose: the id sorts the way the runs happened, which is how
+ * anyone reads them back.
+ */
+const RUN_ID = `${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID().slice(0, 8)}`;
 
 function say(message: string): void {
   process.stdout.write(`${message}\n`);
@@ -341,6 +355,7 @@ async function main(): Promise<number> {
     reportFindings(summary.findings);
     reportReferentialIntegrity(summary.referentialIntegrity);
     reportResolutionsApplied(summary.resolutions, 'RESOLUTIONS APPLIED');
+    await persistResolutionLog(db, summary.resolutions);
 
     if (options.verify) return await runVerification(db, source, options);
     return 0;
@@ -438,6 +453,7 @@ async function runPreAudit(
   reportFindings(findings);
   reportReferentialIntegrity(referentialIntegrity);
   reportResolutionsApplied(log.summary(), 'RESOLUTIONS THE COPY WOULD APPLY');
+  await persistResolutionLog(db, log.summary());
   return findings.filter(auditWouldBlockCopy).length;
 }
 
@@ -626,6 +642,34 @@ function reportReferentialIntegrity(report: ReferentialIntegrityReport): void {
  * DESTROYS a row, that the carried columns are the only remaining handle on
  * whatever the row was describing.
  */
+/**
+ * Write the id-level record somewhere it can be read WHOLE, and say where.
+ *
+ * The printed report is a courtesy; this is the artefact. Run 10's report
+ * truncated mid-stream at CloudWatch's page limit and read exactly like a run
+ * that produced no verdict, which is the failure this closes — the cutover's
+ * log is strictly larger and its content is the record of what we did to
+ * production.
+ *
+ * The row count is printed BESIDE the rule totals on purpose: two numbers from
+ * two paths that must agree, so a log that silently wrote nothing is visible
+ * rather than assumed.
+ */
+async function persistResolutionLog(
+  db: Database,
+  summaries: readonly ResolutionSummary[]
+): Promise<void> {
+  const expected = summaries.reduce((total, summary) => total + summary.records.length, 0);
+  const written = await writeResolutionLog(db, RUN_ID, summaries);
+  heading('RESOLUTION LOG');
+  say(`  run id: ${RUN_ID}`);
+  say(`  ${written} record(s) written to \`${RESOLUTION_LOG_TABLE}\` (report claimed ${expected}).`);
+  if (written !== expected) {
+    say('  MISMATCH — the printed report and the durable log disagree. Trust neither.');
+  }
+  say(`  read it back:  select * from ${RESOLUTION_LOG_TABLE} where run_id = '${RUN_ID}';`);
+}
+
 function reportResolutionsApplied(
   summaries: readonly ResolutionSummary[],
   title: string
