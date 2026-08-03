@@ -77,7 +77,6 @@ vi.mock('../../utils/syraPodcast', () => ({ syraClient: {} }));
 vi.mock('../../connectors/outboundFederation', () => ({
   federateAsResolvedActor: vi.fn(),
 }));
-vi.mock('../../models/UserBehavior', () => ({ default: {} }));
 vi.mock('../../models/Bookmark', () => ({ default: {} }));
 vi.mock('../../models/Like', () => ({ default: {} }));
 

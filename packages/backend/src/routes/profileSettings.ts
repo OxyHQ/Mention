@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import type { ProfileMedia } from '../db/userProfile/userSettingsRecord';
-import UserBehavior from '../models/UserBehavior';
+import { deleteUserBehavior } from '../db/userProfile/userBehaviorRepository';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { posts } from '../db/schema/posts';
 import { findPostRecords } from '../db/posts/postRepository';
@@ -463,13 +463,13 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
 router.delete('/settings/behavior', async (req: AuthRequest, res: Response) => {
   try {
     const oxyUserId = getAuthenticatedUserId(req);
-    const result = await UserBehavior.findOneAndDelete({ oxyUserId });
+    const deleted = await deleteUserBehavior(oxyUserId);
 
     return sendSuccessResponse(
       res,
       200,
       { success: true },
-      result ? 'Personalization data reset successfully' : 'No personalization data to reset'
+      deleted ? 'Personalization data reset successfully' : 'No personalization data to reset'
     );
   } catch (err) {
     logger.error('[ProfileSettings] Error resetting user behavior:', { userId: req.user?.id, error: err });

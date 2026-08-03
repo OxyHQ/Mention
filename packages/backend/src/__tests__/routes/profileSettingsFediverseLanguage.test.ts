@@ -111,7 +111,6 @@ vi.mock('../../utils/syraPodcast', () => ({
   syraClient: {},
 }));
 
-vi.mock('../../models/UserBehavior', () => ({ default: {} }));
 vi.mock('../../models/Post', () => ({ default: {} }));
 vi.mock('../../models/Bookmark', () => ({ default: {} }));
 vi.mock('../../models/Like', () => ({ default: {} }));

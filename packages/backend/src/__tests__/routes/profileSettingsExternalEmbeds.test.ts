@@ -119,7 +119,6 @@ vi.mock('../../utils/syraPodcast', () => ({
 }));
 
 // Models only used by unrelated routes in this file (export / behavior reset).
-vi.mock('../../models/UserBehavior', () => ({ default: {} }));
 vi.mock('../../models/Post', () => ({ default: {} }));
 vi.mock('../../models/Bookmark', () => ({ default: {} }));
 vi.mock('../../models/Like', () => ({ default: {} }));

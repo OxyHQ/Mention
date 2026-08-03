@@ -240,7 +240,12 @@ function emitAuthorPreferences(doc: MongoDocument, behaviorId: string, emit: Emi
           id: childRowId(preference, behaviorId, 'preferredAuthors', ordinal),
           behaviorId,
           authorId,
-          interactionCount: int(preference, 'interactionCount') ?? 0,
+          // `num`, not `int`: an accumulated engagement WEIGHT, exactly like
+          // `preferredRegions.count` below. `UserPreferenceService` adds the
+          // fractional learning weights (`view` 0.2, `save` 1.5) to it, so
+          // essentially every production row holds a non-integer here and `int`
+          // — which `fail`s rather than truncating — would abort the copy.
+          interactionCount: num(preference, 'interactionCount') ?? 0,
           // Mongo nests the five counters under `interactionTypes`; Postgres
           // flattens them, because each is a plain integer with a known name.
           likes: int(preference, 'interactionTypes.likes') ?? 0,
@@ -280,7 +285,8 @@ function emitTopicPreferences(doc: MongoDocument, behaviorId: string, emit: Emit
           // the registry is Oxy's, so `id` rather than `reqId`, and NULL when the
           // preference was learned before the registry existed.
           topicId: id(preference, 'topicId'),
-          interactionCount: int(preference, 'interactionCount') ?? 0,
+          // A weight, not a tally — see `emitAuthorPreferences`.
+          interactionCount: num(preference, 'interactionCount') ?? 0,
           weight: num(preference, 'weight') ?? 0,
           ...optionalDate(preference, 'lastInteractionAt', 'lastInteractionAt'),
         },
