@@ -288,7 +288,8 @@ async function auditMissingRequired(
   column: PgColumn,
   kind: AuditFinding['kind'],
   refusedBy: string,
-  resolvedBy: ResolutionRule | undefined
+  resolvedBy: ResolutionRule | undefined,
+  resolutions: ResolutionContext | undefined
 ): Promise<AuditFinding | null> {
   const collection = source.collection(plan.collection);
   const filter = await missingRequiredFilter(collection, plan, path, column);
@@ -311,8 +312,40 @@ async function auditMissingRequired(
       'does not report a missing field at all, so this is checked separately.',
     documents,
     sampleIds: samples.map((doc) => String(doc._id)),
-    ...(resolvedBy === undefined ? {} : { resolvedBy }),
+    // VERIFIED, never declared. A rule named on the audit is attached only when
+    // it acts on EVERY document the probe found — the same fail-closed test
+    // `auditUniqueness` applies to a colliding group, for the same reason: a
+    // rule whose premise no longer holds acts on nothing, and an unconditional
+    // `resolvedBy` would mark the finding answered anyway and let the copy start
+    // against documents the transform then throws on, mid-run.
+    //
+    // With no context there is no way to check, so nothing is attached. A
+    // caller that cannot verify must not be able to claim.
+    ...((await resolutionCoversEveryDocument(collection, filter, documents, resolvedBy, resolutions))
+      ? { resolvedBy: resolvedBy as ResolutionRule }
+      : {}),
   };
+}
+
+/**
+ * Does `rule` act on every document this filter matches?
+ *
+ * Streams ids and stops at the FIRST one the rule did not claim, so the common
+ * answers are cheap: a rule that stood down loses on its first document, and a
+ * rule that covers everything pays one id per document it already decided.
+ */
+async function resolutionCoversEveryDocument(
+  collection: ReadOnlyCollection,
+  filter: Record<string, unknown>,
+  documents: number,
+  rule: ResolutionRule | undefined,
+  resolutions: ResolutionContext | undefined
+): Promise<boolean> {
+  if (rule === undefined || resolutions === undefined) return false;
+  const actedOn = resolutions.actedOn.get(rule.id);
+  if (actedOn === undefined || actedOn.size < documents) return false;
+  const ids = await collection.find(filter, { projection: { _id: 1 } }).toArray();
+  return ids.every((doc) => actedOn.has(String(doc._id)));
 }
 
 /**
@@ -380,7 +413,8 @@ async function nullValuedElementCount(
  */
 export async function auditEnums(
   source: MongoSource,
-  plan: CollectionPlan
+  plan: CollectionPlan,
+  resolutions?: ResolutionContext
 ): Promise<AuditFinding[]> {
   const findings: AuditFinding[] = [];
   for (const audit of plan.enumAudits ?? []) {
@@ -397,7 +431,8 @@ export async function auditEnums(
         audit.column,
         'enum',
         `${audit.column.name} is NOT NULL, so Postgres`,
-        audit.resolvedBy
+        audit.resolvedBy,
+        resolutions
       );
       if (missing !== null) findings.push(missing);
     }
@@ -515,7 +550,8 @@ async function describeEnumFinding(
  */
 export async function auditNumerics(
   source: MongoSource,
-  plan: CollectionPlan
+  plan: CollectionPlan,
+  resolutions?: ResolutionContext
 ): Promise<AuditFinding[]> {
   const findings: AuditFinding[] = [];
   for (const audit of plan.numericAudits ?? []) {
@@ -531,7 +567,8 @@ export async function auditNumerics(
         audit.column,
         'numeric',
         `${audit.column.name} is NOT NULL, so Postgres`,
-        audit.resolvedBy
+        audit.resolvedBy,
+        resolutions
       );
       if (missing !== null) findings.push(missing);
     }

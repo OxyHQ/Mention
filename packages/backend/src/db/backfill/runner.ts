@@ -233,8 +233,10 @@ export async function runAudits(
     // An empty collection has nothing to audit and `distinct` on one returns
     // `[]`, so skipping is not a shortcut that could hide anything.
     if (documents === 0) continue;
-    findings.push(...(await auditEnums(source, plan)));
-    findings.push(...(await auditNumerics(source, plan)));
+    // The context goes in so a rule named on an enum/numeric audit can be
+    // VERIFIED against the documents it claims, rather than believed.
+    findings.push(...(await auditEnums(source, plan, resolutions)));
+    findings.push(...(await auditNumerics(source, plan, resolutions)));
     findings.push(...(await auditUniqueness(source, plan, resolutions)));
   }
 

@@ -99,6 +99,13 @@
       "when": 1785712317420,
       "tag": "0013_channel_account_writer",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1785721613042,
+      "tag": "0014_post_type_affinity_is_a_weight",
+      "breakpoints": true
     }
   ]
 }

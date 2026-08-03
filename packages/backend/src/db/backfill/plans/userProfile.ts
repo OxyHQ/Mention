@@ -180,10 +180,10 @@ const userBehaviorsPlan: CollectionPlan = {
 
           // Four FIXED buckets, so four columns rather than a junction — the set
           // is closed by the post model, not by data.
-          preferredPostTypeText: int(doc, 'preferredPostTypes.text') ?? 0,
-          preferredPostTypeImage: int(doc, 'preferredPostTypes.image') ?? 0,
-          preferredPostTypeVideo: int(doc, 'preferredPostTypes.video') ?? 0,
-          preferredPostTypePoll: int(doc, 'preferredPostTypes.poll') ?? 0,
+          preferredPostTypeText: num(doc, 'preferredPostTypes.text') ?? 0,
+          preferredPostTypeImage: num(doc, 'preferredPostTypes.image') ?? 0,
+          preferredPostTypeVideo: num(doc, 'preferredPostTypes.video') ?? 0,
+          preferredPostTypePoll: num(doc, 'preferredPostTypes.poll') ?? 0,
 
           activeHours: numArray(doc, 'activeHours'),
           preferredLanguages: strArray(doc, 'preferredLanguages'),
