@@ -36,6 +36,7 @@ import {
   TargetNotEmptyError,
 } from '../../db/backfill/reset';
 import { ensureCheckpointTable, loadState, saveCheckpoint } from '../../db/backfill/checkpointStore';
+import { lockCheckpointTable } from './checkpointTableLock';
 
 let mongod: MongoMemoryServer;
 let client: MongoClient;
@@ -56,8 +57,14 @@ async function context() {
   return createResolutionContext(await planResolutions(source), new ResolutionLog());
 }
 
+let releaseCheckpointTable: () => Promise<void>;
+
 beforeAll(async () => {
   await connectPostgres();
+  // Held for the whole file: the `--start-from-empty` case writes a checkpoint
+  // row, and `backfillCheckpoint.test.ts` clears and drops the same table.
+  // See `checkpointTableLock.ts`.
+  releaseCheckpointTable = await lockCheckpointTable();
   // `saveCheckpoint` assumes the table exists — the RUN creates it once via
   // `loadState`, and this file stands in for that.
   await ensureCheckpointTable(getDb());
@@ -82,6 +89,7 @@ afterEach(async () => {
 afterAll(async () => {
   await client.close();
   await mongod.stop();
+  await releaseCheckpointTable();
   await closePostgres();
 });
 
