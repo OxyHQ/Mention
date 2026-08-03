@@ -61,6 +61,7 @@ describe('noteIdentityChanged', () => {
         username: 'daily',
         name: { displayName: 'Daily Digest' },
         avatar: 'avatar-after',
+        bio: 'bio-after',
       },
       'viewer-1',
     );
@@ -73,14 +74,69 @@ describe('noteIdentityChanged', () => {
         username: 'daily',
         name: { displayName: 'Daily Digest' },
         avatar: 'avatar-after',
+        bio: 'bio-after',
       },
       'viewer-1',
+      undefined,
     );
     expect(getKnownIdentity('channel-1')).toEqual({
       id: 'channel-1',
       username: 'daily',
       name: { displayName: 'Daily Digest' },
       avatar: 'avatar-after',
+      bio: 'bio-after',
+    });
+  });
+
+  /**
+   * The description, both directions.
+   *
+   * The React Query user entry behind a channel's page is what renders it, and
+   * `upsertCachedUser` leaves an EXISTING entry's freshness alone — so an edit
+   * that never reaches this call is not merely late, it is invisible until the
+   * five-minute `staleTime` lapses or the page is reloaded. Setting it and
+   * emptying it are different mechanisms (a value that wins the merge versus a
+   * declared clear that lowers the SDK's anti-degradation guard), so one passing
+   * says nothing about the other.
+   */
+  describe('a description', () => {
+    it('reaches the cache when it is set', () => {
+      noteIdentityChanged({ id: 'channel-1', username: 'daily', bio: 'bio-after' }, 'viewer-1');
+
+      const [, user] = mockUpsertCachedUser.mock.calls[0];
+      expect(user).toMatchObject({ bio: 'bio-after' });
+    });
+
+    it('reaches the cache as a DECLARED clear when it is emptied', () => {
+      // Oxy omits a cleared scalar exactly as it omits an untouched one, so the
+      // payload cannot carry the intent — only the declaration can. Without it
+      // the SDK's guard (rightly) preserves the stale text.
+      noteIdentityChanged({ id: 'channel-1', username: 'daily' }, 'viewer-1', {
+        cleared: ['bio'],
+      });
+
+      expect(mockUpsertCachedUser).toHaveBeenCalledWith(
+        mockQueryClient,
+        { id: 'channel-1', username: 'daily' },
+        'viewer-1',
+        { cleared: ['bio'] },
+      );
+    });
+
+    it('declares no clear for an edit that emptied nothing', () => {
+      // The guard this lowers is what stops sparse hydration blanking real
+      // identity across every Oxy app, so it must be lowered only for a field
+      // the writer actually observed being emptied.
+      noteIdentityChanged({ id: 'channel-1', username: 'daily', bio: 'bio-after' }, 'viewer-1', {
+        cleared: [],
+      });
+
+      expect(mockUpsertCachedUser).toHaveBeenCalledWith(
+        mockQueryClient,
+        expect.objectContaining({ bio: 'bio-after' }),
+        'viewer-1',
+        { cleared: [] },
+      );
     });
   });
 
@@ -147,6 +203,23 @@ describe('cacheActors / cacheActor', () => {
     expect(lastBatch()).toEqual([
       { id: 'channel-1', username: 'daily', avatar: 'avatar-after' },
       { id: 'someone-else', username: 'else', avatar: 'their-avatar' },
+    ]);
+  });
+
+  it('corrects a stale description on a surface that carries one', () => {
+    // Recommendations, similar accounts and the followers/following lists all
+    // carry a bio, and the SDK merge overrides a real value with a real value —
+    // so any of them can put the pre-edit text straight back over the edit.
+    noteIdentityChanged({ id: 'channel-1', username: 'daily', bio: 'bio-after' });
+
+    cacheActors([
+      { id: 'channel-1', username: 'daily', bio: 'bio-before' },
+      { id: 'someone-else', username: 'else', bio: 'their-bio' },
+    ]);
+
+    expect(lastBatch()).toEqual([
+      { id: 'channel-1', username: 'daily', bio: 'bio-after' },
+      { id: 'someone-else', username: 'else', bio: 'their-bio' },
     ]);
   });
 
