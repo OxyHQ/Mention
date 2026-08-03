@@ -98,6 +98,19 @@ describe('FeedGeneratorFeed.fetch', () => {
     expect(mocks.hydratePosts.mock.calls[0][1]).toMatchObject({ maxDepth: 1 });
   });
 
+  it('does not dereference or import atproto generators for anonymous viewers', async () => {
+    mocks.generatorLean.mockResolvedValue({ source: { network: 'atproto' } });
+
+    const feed = new FeedGeneratorFeed(GEN_URI);
+    const response = await feed.fetch({ limit: 30, cursor: 'attacker-cursor' }, {});
+
+    expect(response).toMatchObject({ items: [], slices: [], hasMore: false, totalCount: 0 });
+    expect(mocks.generatorLean).not.toHaveBeenCalled();
+    expect(mocks.getFeed).not.toHaveBeenCalled();
+    expect(mocks.importPostViews).not.toHaveBeenCalled();
+    expect(mocks.postFind).not.toHaveBeenCalled();
+  });
+
   it('drops a URI whose import produced no local post (never renders blank)', async () => {
     mocks.generatorLean.mockResolvedValue({ source: { network: 'atproto' } });
     const uriA = 'at://did:plc:a/app.bsky.feed.post/a';
@@ -109,7 +122,7 @@ describe('FeedGeneratorFeed.fetch', () => {
     mocks.postLean.mockResolvedValue([postDoc(uriA, 'A')]);
 
     const feed = new FeedGeneratorFeed(GEN_URI);
-    const response = await feed.fetch({ limit: 30 }, {});
+    const response = await feed.fetch({ limit: 30 }, { currentUserId: 'viewer' });
 
     expect(response.items.map((item) => item.id)).toEqual(['A']);
     // Last page (no cursor) → no more.
@@ -121,7 +134,7 @@ describe('FeedGeneratorFeed.fetch', () => {
     mocks.generatorLean.mockResolvedValue(null);
 
     const feed = new FeedGeneratorFeed(GEN_URI);
-    const response = await feed.fetch({ limit: 30 }, {});
+    const response = await feed.fetch({ limit: 30 }, { currentUserId: 'viewer' });
 
     expect(response.items).toEqual([]);
     expect(response.slices).toEqual([]);
@@ -136,7 +149,7 @@ describe('FeedGeneratorFeed.fetch', () => {
     mocks.importPostViews.mockResolvedValue([]);
 
     const feed = new FeedGeneratorFeed(GEN_URI);
-    const response = await feed.fetch({ limit: 30 }, {});
+    const response = await feed.fetch({ limit: 30 }, { currentUserId: 'viewer' });
 
     expect(response.items).toEqual([]);
     expect(response.hasMore).toBe(true);
@@ -158,6 +171,18 @@ describe('FeedGeneratorFeed.peekLatest', () => {
 
     expect(latest).toEqual({ id: 'TOP' });
     expect(mocks.getFeed).toHaveBeenCalledWith(GEN_URI, { limit: 1 });
+  });
+
+  it('does not dereference or import atproto generators for anonymous peeks', async () => {
+    mocks.generatorLean.mockResolvedValue({ source: { network: 'atproto' } });
+
+    const feed = new FeedGeneratorFeed(GEN_URI);
+    expect(await feed.peekLatest({})).toBeUndefined();
+
+    expect(mocks.generatorLean).not.toHaveBeenCalled();
+    expect(mocks.getFeed).not.toHaveBeenCalled();
+    expect(mocks.importPostViews).not.toHaveBeenCalled();
+    expect(mocks.postFind).not.toHaveBeenCalled();
   });
 
   it('returns undefined for a non-atproto generator', async () => {
