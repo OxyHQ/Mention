@@ -102,8 +102,14 @@ export class UnreadableParentTableError extends Error {
  * Load every primary key of the given tables, from Postgres.
  *
  * One statement per table, selecting one indexed column. Returns an empty
- * {@link ParentKeys} when no rule needs one, which is the current state — the
- * cost is zero rather than "one wasted `select id from posts`".
+ * {@link ParentKeys} when no rule needs one, so a run with no declared
+ * resolutions costs nothing rather than "one wasted `select id from posts`".
+ *
+ * That is no longer the current state: `ORPHAN_RESOLUTIONS` declares four
+ * relations against `posts`, so `parentTablesForRules()` returns it and this
+ * DOES read every post id. The sentence above described the empty-rules era and
+ * is kept because the zero-cost property still holds for a table no rule names
+ * — but do not read it as "this never loads anything".
  */
 export async function loadParentKeys(
   db: Database,
