@@ -299,14 +299,16 @@ class PostCreationService {
       await this.emitMtnRecord(post);
     }
 
+    const shouldWarmLinkPreview = isPublished && params.federation == null;
+
     if (isScheduled || params.skipNotifications) {
-      if (isPublished) {
+      if (shouldWarmLinkPreview) {
         warmLinkPreviewForTextDetached(content.text);
       }
       return post;
     }
 
-    if (isPublished) {
+    if (shouldWarmLinkPreview) {
       warmLinkPreviewForTextDetached(content.text);
     }
 
