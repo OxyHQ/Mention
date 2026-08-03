@@ -21,6 +21,7 @@ const store = new Map<string, Record<string, unknown>>();
 const CALLER = 'user-1';
 const CHANNEL = 'channel-account-1';
 const OTHER_CHANNEL = 'channel-account-2';
+const ORGANIZATION = 'organization-account-1';
 
 function getDoc(oxyUserId: string): Record<string, unknown> {
   let doc = store.get(oxyUserId);
@@ -78,7 +79,9 @@ vi.mock('../../models/UserSettings', () => ({
  * The authorization gate is mocked, not reimplemented: it is unit-tested in
  * `publishAsAccount`'s own suite, and what THIS route has to get right is that it
  * consults that gate at all, honours its status codes, and refuses a target the
- * gate would wave through for a different reason (the caller's own account).
+ * gate ALLOWS but whose kind makes `channel.signPosts` meaningless — the caller's
+ * own account, and (since the gate was widened) an organization the caller may
+ * act for.
  */
 // `vi.mock` is hoisted above every top-level statement, so the error class and
 // the membership map have to be created inside `vi.hoisted` or the factory runs
@@ -92,7 +95,7 @@ const gate = vi.hoisted(() => {
       this.status = status;
     }
   }
-  return { PublishAsAccessError, membershipOf: new Map<string, boolean>() };
+  return { PublishAsAccessError, operableKindOf: new Map<string, string>() };
 });
 
 vi.mock('../../services/publishAsAccount', () => ({
@@ -100,11 +103,16 @@ vi.mock('../../services/publishAsAccount', () => ({
   assertCanPublishAsAccount: vi.fn(
     async (params: { publishAsOxyUserId?: string | null; callerId?: string | null }) => {
       const target = params.publishAsOxyUserId?.trim();
-      if (!target || target === params.callerId) return params.callerId ?? null;
-      if (!gate.membershipOf.get(target)) {
+      if (!target || target === params.callerId) {
+        // The real gate resolves nothing when the target IS the caller, so it
+        // answers with no kind. That `null` is what the route reads to refuse.
+        return { authorId: params.callerId ?? null, authorKind: null };
+      }
+      const kind = gate.operableKindOf.get(target);
+      if (!kind) {
         throw new gate.PublishAsAccessError(403, 'You are not a member of that account');
       }
-      return target;
+      return { authorId: target, authorKind: kind };
     },
   ),
 }));
@@ -134,8 +142,9 @@ app.use('/profile', profileSettingsRoutes);
 describe('PUT /profile/settings/:userId — an operated account', () => {
   beforeEach(() => {
     store.clear();
-    gate.membershipOf.clear();
-    gate.membershipOf.set(CHANNEL, true);
+    gate.operableKindOf.clear();
+    gate.operableKindOf.set(CHANNEL, 'channel');
+    gate.operableKindOf.set(ORGANIZATION, 'organization');
     vi.clearAllMocks();
   });
 
@@ -179,6 +188,22 @@ describe('PUT /profile/settings/:userId — an operated account', () => {
       .expect(400);
 
     expect(store.has(CALLER)).toBe(false);
+  });
+
+  /**
+   * The hole the widened gate would otherwise open. `assertCanPublishAsAccount`
+   * now ALLOWS an organization the caller may act for, so "the gate said yes" is
+   * no longer the same statement as "this is a channel" — and `channel.signPosts`
+   * is read by `PostHydrationService` for a `kind: 'channel'` author only, so
+   * writing it anywhere else stores a control nothing will ever read.
+   */
+  it('refuses an ORGANIZATION the caller may act for — the gate allows it, the field means nothing there', async () => {
+    await request(app)
+      .put(`/profile/settings/${ORGANIZATION}`)
+      .send({ channel: { signPosts: true } })
+      .expect(400);
+
+    expect(store.has(ORGANIZATION)).toBe(false);
   });
 
   /**

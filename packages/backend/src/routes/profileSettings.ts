@@ -5,6 +5,7 @@ import Post from '../models/Post';
 import Bookmark from '../models/Bookmark';
 import Like from '../models/Like';
 // Block and Restrict routes removed - frontend should use Oxy services directly
+import type { AccountKind } from '@oxyhq/contracts';
 import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { buildSettingsResponseForViewer, ensureUserSettings } from '../utils/userSettings';
 import { createUserScopedOxyServices, ensureProfileMediaPublic } from '../utils/oxyHelpers';
@@ -128,23 +129,29 @@ router.put(
         return sendErrorResponse(res, 400, 'Bad Request', 'channel.signPosts must be a boolean');
       }
 
+      let authorKind: AccountKind | null;
       try {
-        await assertCanPublishAsAccount({
+        ({ authorKind } = await assertCanPublishAsAccount({
           publishAsOxyUserId: targetUserId,
           callerId,
           memberReader: createUserScopedOxyServices(req),
-        });
+        }));
       } catch (error) {
         if (error instanceof PublishAsAccessError) {
           return sendErrorResponse(res, error.status, 'Forbidden', error.message);
         }
         throw error;
       }
-      // `assertCanPublishAsAccount` returns the caller unchanged when the target IS
-      // the caller, which would let a person write `channel.signPosts` onto their own
-      // personal settings — a field with no meaning there. The target must be a
-      // channel, so say so rather than relying on the gate's publish-shaped answer.
-      if (targetUserId === callerId) {
+      // The gate admits every account the caller may act for — a channel, and also
+      // an organization / project / bot. `channel.signPosts` means something on
+      // exactly one of those: it decides whether a CHANNEL discloses the human who
+      // wrote a post, and `PostHydrationService` reads it only for a `kind:
+      // 'channel'` author. So the kind the gate resolved is checked here, which
+      // also covers the target being the CALLER'S OWN account (the gate answers
+      // that one without resolving anything, so `authorKind` is `null`) — writing
+      // the field onto a personal settings row would be storing a control that
+      // nothing reads.
+      if (authorKind !== 'channel') {
         return sendErrorResponse(res, 400, 'Bad Request', 'That account cannot be published as');
       }
 

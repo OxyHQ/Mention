@@ -31,6 +31,10 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
+  // `undefined` = no membership reader, which is exactly what a caller who names
+  // no account gets. These batches name none, so the publish-as gate answers
+  // "the caller" without asking Oxy anything.
+  createUserScopedOxyServices: vi.fn(() => undefined),
 }));
 
 import { Post } from '../../models/Post';

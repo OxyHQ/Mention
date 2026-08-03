@@ -48,7 +48,11 @@ import {
   ChannelReplyError,
   postIsAuthoredByChannel,
 } from '../utils/channelReplyGate';
-import { PublishAsAccessError } from '../services/publishAsAccount';
+import {
+  assertCanPublishAsAccount,
+  cacheAccountMemberReads,
+  PublishAsAccessError,
+} from '../services/publishAsAccount';
 import { Lane } from '../models/Lane';
 import { sendSuccessResponse } from '../utils/apiHelpers';
 import type { LaneDisplayMode } from '@mention/shared-types';
@@ -752,10 +756,11 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       // refusals, never a silent drop.
       laneId: typeof laneId === 'string' ? laneId : null,
       // Validated inside `create` (see `assertCanPublishAsAccount`): an account
-      // the caller is not an active member of is a 403 and one that is not a
-      // channel a 400 — both refusals, never a silent drop, and both raised
-      // before anything is written. `create` is also where the post picks up the
-      // channel as its AUTHOR, the writer as `writtenByOxyUserId`, and
+      // the caller is not an active member of is a 403, an act-as-eligible one
+      // they hold no `account:act_as` over is a 403, and a personal account is a
+      // 400 — all refusals, never a silent drop, and all raised before anything is
+      // written. `create` is also where the post picks up that account as its
+      // AUTHOR, the writer as `writtenByOxyUserId`, and (for a channel)
       // `replyPermission: ['nobody']`, so no caller can route around any of it.
       publishAsOxyUserId: typeof publishAsOxyUserId === 'string' ? publishAsOxyUserId : null,
       memberReader: createUserScopedOxyServices(req),
@@ -981,20 +986,62 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Posts array is required and cannot be empty' });
     }
 
-    // A THREAD CANNOT BE PUBLISHED AS ANOTHER ACCOUNT. In `thread` mode the
-    // continuations are replies, and a channel post accepts no replies — so the
-    // thread would be a root under the channel with its body scattered across
-    // posts the channel refuses. In `beast` mode the entries are independent posts
-    // and could each carry one, but a batch endpoint is the wrong place to
-    // introduce a second membership check, and nothing asks for it. Refused for
-    // the whole request, before anything is written; the same shape the
-    // collaborator refusal above takes, and for the same reason (a partial thread
-    // cannot be undone in one action).
-    const threadNamesAnotherAccount =
-      typeof req.body.publishAsOxyUserId === 'string' ||
-      posts.some((p: { publishAsOxyUserId?: unknown }) => typeof p?.publishAsOxyUserId === 'string');
-    if (threadNamesAnotherAccount) {
+    // PUBLISHING AS ANOTHER ACCOUNT IS PER ENTRY, AND `beast` MODE ONLY.
+    //
+    // A `beast` batch is n independent top-level posts that happen to be written
+    // in one action, so each entry may name its own account and they may all
+    // differ. A `thread` is one conversation: every entry after the first is a
+    // REPLY to the one before it, and `PostCreationService` refuses to publish a
+    // reply as another account at all — so "apply the root's account to the whole
+    // thread" is not implementable without punching a hole in that rule, and a
+    // per-entry account would be an identity that changes mid-conversation.
+    // Refused outright in thread mode instead, which is also what a channel needs:
+    // a channel post accepts no replies, so a thread rooted at one would be a root
+    // whose own continuations the channel refuses.
+    //
+    // The batch-level `publishAsOxyUserId` is refused in BOTH modes. It is not a
+    // field of `CreateThreadRequest` and never was; keeping one way to say this
+    // means a client cannot express a batch-wide account and a per-entry one at
+    // once and then discover which of them won.
+    if (typeof req.body.publishAsOxyUserId === 'string') {
+      return res
+        .status(400)
+        .json({ message: 'Set publishAsOxyUserId on each post, not on the thread' });
+    }
+    const entryNamesAnotherAccount = posts.some(
+      (p: { publishAsOxyUserId?: unknown }) => typeof p?.publishAsOxyUserId === 'string',
+    );
+    if (mode === 'thread' && entryNamesAnotherAccount) {
       return res.status(400).json({ message: 'A thread cannot be published as another account' });
+    }
+
+    // Every DISTINCT account named across the batch is authorized ONCE, before a
+    // single post is written — the same shape the collaborator and lane refusals
+    // take, and for the same reason (a partial thread cannot be undone in one
+    // action). `cacheAccountMemberReads` is what makes "once" true end to end: the
+    // creation loop below hands each post the SAME reader and lets
+    // `PostCreationService` run the real gate itself, so nothing routes around the
+    // authorization, and a twelve-entry batch naming one account still makes one
+    // membership call.
+    const memberReader = createUserScopedOxyServices(req);
+    const batchMemberReader = memberReader ? cacheAccountMemberReads(memberReader) : undefined;
+    /** Entry index → the account that entry will be AUTHORED BY. */
+    const entryAuthorIds: string[] = [];
+    for (let i = 0; i < posts.length; i++) {
+      const requested = posts[i]?.publishAsOxyUserId;
+      try {
+        const { authorId } = await assertCanPublishAsAccount({
+          publishAsOxyUserId: typeof requested === 'string' ? requested : null,
+          callerId: userId,
+          memberReader: batchMemberReader,
+        });
+        entryAuthorIds.push(authorId ?? userId);
+      } catch (publishAsError) {
+        if (publishAsError instanceof PublishAsAccessError) {
+          return res.status(publishAsError.status).json({ message: publishAsError.message });
+        }
+        throw publishAsError;
+      }
     }
 
     // Lanes are validated for the WHOLE batch before a single post is written.
@@ -1020,7 +1067,13 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         return res.status(400).json({ message: 'A reply cannot be assigned to a lane' });
       }
       try {
-        await assertLaneAssignable({ laneId: requestedLaneId, authorId: userId });
+        // Against the entry's OWN author, which is the account it is published as
+        // when it names one — a lane belongs to a publisher, and `create` will
+        // measure it against exactly that. Checking the caller here instead would
+        // let a caller-owned lane on an account-published entry pass the
+        // pre-flight and then be refused mid-batch, which is the half-thread this
+        // whole loop exists to prevent.
+        await assertLaneAssignable({ laneId: requestedLaneId, authorId: entryAuthorIds[i] });
       } catch (laneError) {
         if (laneError instanceof LaneAssignmentError) {
           return res.status(laneError.status).json({ message: laneError.message });
@@ -1179,6 +1232,15 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         // Already validated for the whole batch above; a continuation never
         // reaches here carrying one.
         laneId: typeof postData.laneId === 'string' ? postData.laneId : null,
+        // Pre-flighted for the whole batch above, and re-run HERE by `create`
+        // itself — deliberately, not wastefully. The gate is the one place that
+        // decides the author, so passing a pre-resolved id instead would be the
+        // "checked upstream, trust me" shape that lets a later caller route around
+        // it. The repeat is free: `batchMemberReader` has already answered for this
+        // account, and a thread-mode entry never reaches here carrying one.
+        publishAsOxyUserId:
+          typeof postData.publishAsOxyUserId === 'string' ? postData.publishAsOxyUserId : null,
+        memberReader: batchMemberReader,
         // For thread mode: chain each continuation post to the immediately
         // previous post (sequential thread), with a shared threadId root.
         // For beast mode: all posts are independent.
@@ -1231,7 +1293,13 @@ export const createThread = async (req: AuthRequest, res: Response) => {
           await createMentionNotifications(
             persistedMentions,
             post._id.toString(),
-            userId,
+            // The ACTOR is the post's author, read off the row `create` just
+            // wrote — the account when the entry was published as one, the caller
+            // otherwise. `PostCreationService` attributes its own mention
+            // notifications the same way; naming the caller here would put a
+            // channel's writer in the notification of a post the channel signed,
+            // which is the anonymity `writtenByOxyUserId` exists to keep.
+            String(post.oxyUserId ?? userId),
             'post'
           );
         }
@@ -1286,7 +1354,11 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         io.emit('feed:updated', {
           type: 'following',
           post: mainPost,
-          authorId: userId,
+          // The FIRST entry's author, which is who a following feed would have to
+          // follow to see it — the account when that entry was published as one.
+          // Naming the caller would push an account's post into the feeds of the
+          // caller's followers, who may not follow the account at all.
+          authorId: entryAuthorIds[0] ?? userId,
           timestamp: new Date().toISOString()
         });
       }

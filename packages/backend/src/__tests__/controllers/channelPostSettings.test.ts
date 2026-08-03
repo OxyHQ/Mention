@@ -9,10 +9,11 @@ import mongoose from 'mongoose';
  *    post. The 403 on the reply paths reads the AUTHOR's account kind and would
  *    hold regardless — but a change here would UN-HIDE the client's reply button
  *    and leave every reader hitting a refusal they were invited to attempt.
- *  - `POST /posts/thread` refuses a `publishAsOxyUserId` outright: in thread mode
- *    the continuations are replies, and a channel post accepts none, so the thread
+ *  - `POST /posts/thread` refuses a `publishAsOxyUserId` in THREAD mode: the
+ *    continuations are replies, and a channel post accepts none, so the thread
  *    would be a root under the channel with its body scattered across posts the
- *    channel refuses.
+ *    channel refuses. (Beast mode honours it per entry — that path has its own
+ *    suite, `threadPublishAsAccount.test.ts`.)
  */
 
 const postFindOne = vi.fn();
@@ -54,8 +55,12 @@ vi.mock('../../utils/logger', () => ({
 const isChannelAccount = vi.fn();
 vi.mock('../../services/publishAsAccount', () => ({
   isChannelAccount: (...args: unknown[]) => isChannelAccount(...args),
+  cacheAccountMemberReads: (reader: unknown) => reader,
   assertCanPublishAsAccount: vi.fn(
-    async (params: { callerId: string | null }) => params.callerId,
+    async (params: { callerId: string | null }) => ({
+      authorId: params.callerId,
+      authorKind: null,
+    }),
   ),
   PublishAsAccessError: class PublishAsAccessError extends Error {
     readonly status: number;
@@ -166,12 +171,12 @@ describe('PATCH /posts/:id/settings — replyPermission on a channel post', () =
   });
 });
 
-describe('POST /posts/thread — a thread cannot be published as another account', () => {
+describe('POST /posts/thread — a THREAD cannot be published as another account', () => {
   function req(body: Record<string, unknown>): OxyAuthRequest {
     return { user: { id: USER_ID }, body } as unknown as OxyAuthRequest;
   }
 
-  it('400s a top-level publishAsOxyUserId before writing anything', async () => {
+  it('400s a batch-level publishAsOxyUserId before writing anything, in thread mode', async () => {
     const res = makeRes();
     await createThread(
       req({ mode: 'thread', publishAsOxyUserId: CHANNEL_ACCOUNT, posts: [{ content: { text: 'a' } }] }),
@@ -182,11 +187,22 @@ describe('POST /posts/thread — a thread cannot be published as another account
     expect(postCreationCreate).not.toHaveBeenCalled();
   });
 
-  it('400s a per-entry publishAsOxyUserId too', async () => {
+  it('400s a batch-level publishAsOxyUserId in BEAST mode too — the per-entry field is the only way to say it', async () => {
+    const res = makeRes();
+    await createThread(
+      req({ mode: 'beast', publishAsOxyUserId: CHANNEL_ACCOUNT, posts: [{ content: { text: 'a' } }] }),
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(postCreationCreate).not.toHaveBeenCalled();
+  });
+
+  it('400s a per-entry publishAsOxyUserId in thread mode, whichever entry carries it', async () => {
     const res = makeRes();
     await createThread(
       req({
-        mode: 'beast',
+        mode: 'thread',
         posts: [
           { content: { text: 'a' } },
           { content: { text: 'b' }, publishAsOxyUserId: CHANNEL_ACCOUNT },
