@@ -73,12 +73,14 @@ interface SnapshotPost {
   quoteOf?: string;
   language?: string;
   createdAt?: Date | string;
+  status?: string;
+  visibility?: string;
   metadata?: { isSensitive?: boolean };
   federation?: { url?: string; sensitive?: boolean };
 }
 
 const SNAPSHOT_PROJECTION =
-  'content authorship oxyUserId parentPostId quoteOf language createdAt metadata.isSensitive federation.url federation.sensitive';
+  'content authorship oxyUserId parentPostId quoteOf language createdAt status visibility metadata.isSensitive federation.url federation.sensitive';
 
 /**
  * §5.2's `sensitivity` hint for a post carrying a content warning.
@@ -167,11 +169,28 @@ function mediaOnlySubjectResource(post: SnapshotPost): ModerationResource {
   };
 }
 
-async function loadPost(postId: string): Promise<SnapshotPost | null> {
+/**
+ * Load material only when it is safe to disclose outside Mention.
+ *
+ * CrowdSource delivery runs asynchronously without the reporter's delegated Oxy
+ * credentials, so it cannot reliably re-evaluate follower, profile, block, or
+ * restriction relationships. Fail closed to public, published material while still
+ * allowing an author to report their own post. Object ids are never treated as an
+ * authorization boundary.
+ */
+async function loadPost(postId: string, reporterId?: string): Promise<SnapshotPost | null> {
   if (!mongoose.isValidObjectId(postId)) return null;
-  return await Post.findById(postId)
+  const post = await Post.findById(postId)
     .select(SNAPSHOT_PROJECTION)
     .lean<SnapshotPost | null>();
+  if (!post) return null;
+
+  const ownerId = getOwnerId(normalizeAuthorship(post.authorship)) ?? post.oxyUserId;
+  if (ownerId === reporterId) return post;
+
+  const isPublished = (post.status ?? 'published') === 'published';
+  const isPublic = (post.visibility ?? 'public') === 'public';
+  return isPublished && isPublic ? post : null;
 }
 
 /**
@@ -184,9 +203,10 @@ async function loadPost(postId: string): Promise<SnapshotPost | null> {
 async function contextResource(
   postId: string | undefined,
   role: ModerationContextResource['role'],
+  reporterId?: string,
 ): Promise<ModerationContextResource | null> {
   if (postId === undefined) return null;
-  const neighbour = await loadPost(postId);
+  const neighbour = await loadPost(postId, reporterId);
   if (!neighbour) return null;
   const body = postText(neighbour);
   if (!body) return null;
@@ -214,8 +234,11 @@ export function createPostSubjectProvider(input: {
     reportedType: input.reportedType,
     subjectType: input.subjectType,
 
-    async snapshot(reportedId: string): Promise<ModerationSubjectSnapshot | null> {
-      const post = await loadPost(reportedId);
+    async snapshot(
+      reportedId: string,
+      reporterId?: string,
+    ): Promise<ModerationSubjectSnapshot | null> {
+      const post = await loadPost(reportedId, reporterId);
       if (!post) return null;
 
       const ownerId = getOwnerId(normalizeAuthorship(post.authorship)) ?? post.oxyUserId;
@@ -226,7 +249,7 @@ export function createPostSubjectProvider(input: {
         [post.parentPostId, 'parent'],
         [post.quoteOf, 'quoted'],
       ] as const) {
-        const resource = await contextResource(id, role);
+        const resource = await contextResource(id, role, reporterId);
         if (resource) context.push(resource);
       }
 

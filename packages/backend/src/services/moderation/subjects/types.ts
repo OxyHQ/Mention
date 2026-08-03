@@ -88,12 +88,13 @@ export interface ModerationSubjectProvider {
   /** §5.4's namespaced subject type, or `custom.<organization>.<object_type>`. */
   readonly subjectType: string;
   /**
-   * Describes the object, or returns `null` when it no longer exists.
+   * Describes the object for the reporter, or returns `null` when it no longer
+   * exists or cannot safely be disclosed to that reporter.
    *
    * `null` is not a failure. Content deleted between the report and its delivery
    * is ordinary, and it is the caller's job to decide what that means — a
    * provider that threw would make deletion look like an outage and be retried
    * for days.
    */
-  snapshot(reportedId: string): Promise<ModerationSubjectSnapshot | null>;
+  snapshot(reportedId: string, reporterId?: string): Promise<ModerationSubjectSnapshot | null>;
 }
