@@ -171,36 +171,25 @@ function FediverseInfoDialogContent({
       label={t('fediverse.badge.a11yLabel')}
     >
       <View className="items-center gap-4 py-4">
-        {/* Illustration plate.
-
-            The plate colour is deliberately FIXED in both themes rather than
-            following the surface. These illustrations are line drawings whose
-            strokes were drawn to sit on a light ground; on a dark plate the ones
-            carrying no fill behind them — step 1's orbit rings, step 3's saucer
-            rim and rocks — lose almost all of their contrast, and there is no
-            amount of background tuning that saves them, because a dark ground
-            leaves no headroom beneath itself for dark ink. So the plate is a
-            light card in both modes, exactly the colour baked into the artwork,
-            which is what makes the letterbox seamless at any width. The hairline
-            belongs to the plate, not to the theme, hence a translucent black.
+        {/* The artwork is transparent line art and sits DIRECTLY on the sheet's
+            own surface — no card, plate or fill behind it, in either theme. Each
+            file is fitted to one shared canvas by its visible-ink box, so the
+            three subjects come out the same size and this slot never changes
+            shape as the steps advance.
 
             `aria-hidden` covers all three platforms in one prop (RN maps it onto
             `accessibilityElementsHidden` and `importantForAccessibility`,
             react-native-web emits the DOM attribute): the art restates the step's
             title and body and adds nothing a screen reader should hear. Every
             step still reads completely with images off. */}
-        <View
+        <Image
           aria-hidden
-          className="w-full max-w-[300px] aspect-[4/3] self-center rounded-[20px] overflow-hidden border border-black/5 bg-[#eef1f6]"
-        >
-          <Image
-            source={STEP_KEYS[step].art}
-            className="w-full h-full"
-            contentFit="contain"
-            transition={180}
-            alt=""
-          />
-        </View>
+          source={STEP_KEYS[step].art}
+          className="w-full h-[168px]"
+          contentFit="contain"
+          transition={180}
+          alt=""
+        />
         <Text className="text-foreground text-xl font-bold text-center">
           {t(STEP_KEYS[step].title)}
         </Text>
@@ -211,13 +200,33 @@ function FediverseInfoDialogContent({
 
       <View className="flex-row items-center justify-center gap-2 py-4">{dots}</View>
 
-      <View className="gap-3">
-        <Button variant="primary" size="large" onPress={onPrimary}>
-          {primaryLabel}
-        </Button>
-        <Button variant="ghost" size="large" onPress={onSecondary}>
-          {secondaryLabel}
-        </Button>
+      {/* One navigation row: the way back on the left, the way forward on the
+          right, matching both the reading order and the direction the progress
+          dots advance in.
+
+          The widths are deliberately asymmetric. `Back`/`Cancel` is short in
+          every language we ship, while the primary carries the longest label on
+          the sheet (`Attiva la condivisione`), so the secondary takes only the
+          width of its own text and the primary takes everything left over —
+          which puts the free pixels exactly where the overflow risk is. `shrink`
+          lets the secondary give way first if even that is not enough.
+
+          Both are wrapped in a plain View because Bloom's native Button renders
+          its Pressable inside an unstyled `Animated.View`: `className`/`style` on
+          the Button reach the Pressable, so neither can make the outer element
+          grow or shrink. (Bloom's web fork renders a real `<button>`, where it
+          would work — the wrappers are what make the two platforms agree.) */}
+      <View className="flex-row items-center gap-3">
+        <View className="shrink">
+          <Button variant="ghost" size="large" onPress={onSecondary}>
+            {secondaryLabel}
+          </Button>
+        </View>
+        <View className="flex-1">
+          <Button variant="primary" size="large" onPress={onPrimary}>
+            {primaryLabel}
+          </Button>
+        </View>
       </View>
     </Dialog>
   );
