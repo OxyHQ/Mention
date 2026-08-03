@@ -14,6 +14,11 @@ import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list'
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
 import { createLogger } from '@oxyhq/core/logger';
 import { getNormalizedUserHandle, type AccountNode } from '@oxyhq/core';
+import {
+  MAX_ACCOUNT_CATEGORIES,
+  SELECTABLE_ACCOUNT_CATEGORY_IDS,
+  type AccountCategoryId,
+} from '@oxyhq/contracts';
 
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -25,6 +30,13 @@ import { channelAccountService, type ChannelAccountSettings } from '@/services/c
 import { noteIdentityChanged } from '@/lib/actorCache';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { getErrorMessage } from '@/utils/apiError';
+import { useAccountCategoryLabel } from '@/hooks/useAccountCategoryLabel';
+import {
+  accountCategoriesEqual,
+  isKnownAccountCategoryId,
+  promoteAccountCategoryToPrimary,
+  toggleAccountCategory,
+} from '@/utils/accountCategories';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
 const channelSettingsLogger = createLogger('ChannelAccountSettings');
@@ -151,6 +163,7 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
   const { colors } = useTheme();
   const queryClient = useQueryClient();
   const { user, oxyServices, showBottomSheet } = useAuth();
+  const categoryLabel = useAccountCategoryLabel();
   const viewerId = user?.id;
   const accountId = channel.accountId;
   const account = channel.account;
@@ -163,13 +176,22 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
   const [displayName, setDisplayName] = useState(account.name?.displayName ?? '');
   const [bio, setBio] = useState(account.bio ?? '');
   const [avatar, setAvatar] = useState(account.avatar ?? '');
+  // Seeded VERBATIM, including any id this build cannot name. Dropping an
+  // unrecognised one on load would delete — on the next save, silently — a
+  // category the owner set from a newer client.
+  const [categories, setCategories] = useState<AccountCategoryId[]>(
+    account.accountCategories ?? [],
+  );
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
 
   const trimmedName = displayName.trim();
   const trimmedBio = bio.trim();
+  const categoriesChanged = !accountCategoriesEqual(categories, account.accountCategories ?? []);
   const profileChanged =
     trimmedName !== (account.name?.displayName ?? '').trim() ||
     trimmedBio !== (account.bio ?? '').trim() ||
-    avatar !== (account.avatar ?? '');
+    avatar !== (account.avatar ?? '') ||
+    categoriesChanged;
   // An empty display name is refused rather than sent: at Oxy an empty
   // `displayName` CLEARS the explicit name and falls back to a composed
   // first/last, which a channel does not have — so saving one would leave the
@@ -209,6 +231,12 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
         // one rather than remove it.
         bio: trimmedBio.length > 0 ? trimmedBio : null,
         avatar: avatar.length > 0 ? avatar : null,
+        // Sent whole and IN ORDER, because that is the only shape Oxy accepts:
+        // there is no add/remove verb, and element 0 is what records the
+        // primary. `[]` is the documented clear — unlike `bio` and `avatar`,
+        // this field is not nullable, since the empty case already has one
+        // spelling and a second could only ever disagree with it.
+        accountCategories: categories,
       }),
     onSuccess: (updated) => {
       // A channel's name and picture are held by more caches than this screen
@@ -261,6 +289,25 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
   }, [showBottomSheet]);
 
   const handleSaveProfile = useCallback(() => profileMutation.mutate(), [profileMutation]);
+
+  // Both take the previous list rather than closing over `categories`, so the
+  // handlers stay identity-stable and can never apply an edit to a stale one.
+  const handleToggleCategory = useCallback(
+    (id: AccountCategoryId) =>
+      setCategories((current) => toggleAccountCategory(current, id, MAX_ACCOUNT_CATEGORIES)),
+    [],
+  );
+
+  // "Make primary" IS a re-ordering — the primary is the first element and
+  // nothing else records it — so this is the whole mechanism, not a shortcut
+  // for one. There is deliberately no drag handle: a list of at most four
+  // needs a verb, not a gesture, and a gesture would be the ONLY way to set
+  // the one field that decides what a reader sees under the channel's name.
+  const handlePromoteCategory = useCallback(
+    (id: AccountCategoryId) =>
+      setCategories((current) => promoteAccountCategoryToPrimary(current, id)),
+    [],
+  );
 
   if (isPending) {
     return (
@@ -330,6 +377,128 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
           }
         />
       </View>
+
+      {/* Categories — what the channel IS. A settings GROUP rather than part of
+          the input block above, because every line here is a row to tap.
+          The order is the model: element 0 is the primary and there is no
+          separate field recording it, so the list is shown in its stored order
+          and "Make primary" moves a row to the front. */}
+      <SettingsListGroup
+        title={t('channels.settings.categories', { defaultValue: 'Categories' })}
+        footer={t('channels.settings.categoriesFooter', {
+          max: MAX_ACCOUNT_CATEGORIES,
+          defaultValue:
+            'The first category is the channel’s primary — the only one shown on its profile. The rest appear on its about page. Choose up to {{max}}.',
+        })}>
+        {categories.map((id, index) => {
+          const known = isKnownAccountCategoryId(id);
+          // An id from a newer vocabulary keeps its ROW — it counts against the
+          // cap at Oxy, so hiding it would leave the owner unable to add a
+          // fourth with no visible reason — but it is never printed raw.
+          const label = known
+            ? categoryLabel(id)
+            : t('channels.settings.categoryUnavailable', {
+                defaultValue: 'Not available in this version',
+              });
+          return (
+            <SettingsListItem
+              key={id}
+              icon={
+                <Ionicons
+                  name={index === 0 ? 'star' : 'pricetags-outline'}
+                  size={20}
+                  color={index === 0 ? colors.primary : colors.textSecondary}
+                />
+              }
+              title={label}
+              value={
+                index === 0
+                  ? t('accountCategories.primary', { defaultValue: 'Primary' })
+                  : undefined
+              }
+              showChevron={false}
+              rightElement={
+                <View className="flex-row items-center gap-2">
+                  {index > 0 && (
+                    <Pressable
+                      onPress={() => handlePromoteCategory(id)}
+                      accessibilityRole="button"
+                      className="bg-secondary rounded-full px-3 py-1.5">
+                      <Text className="text-foreground text-[13px] font-semibold">
+                        {t('channels.settings.makePrimary', { defaultValue: 'Make primary' })}
+                      </Text>
+                    </Pressable>
+                  )}
+                  <Pressable
+                    onPress={() => handleToggleCategory(id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('channels.settings.removeCategory', {
+                      category: label,
+                      defaultValue: `Remove ${label}`,
+                    })}
+                    className="p-1">
+                    <Ionicons name="close" size={18} color={colors.textSecondary} />
+                  </Pressable>
+                </View>
+              }
+            />
+          );
+        })}
+
+        <SettingsListItem
+          icon={<Ionicons name="add" size={20} color={colors.textSecondary} />}
+          title={t('channels.settings.addCategory', { defaultValue: 'Add a category' })}
+          description={
+            categories.length >= MAX_ACCOUNT_CATEGORIES
+              ? t('channels.settings.categoriesAtCap', {
+                  defaultValue: 'Remove one to choose a different category.',
+                })
+              : undefined
+          }
+          disabled={categories.length >= MAX_ACCOUNT_CATEGORIES}
+          showChevron={false}
+          rightElement={
+            <Ionicons
+              name={categoryPickerOpen ? 'chevron-up' : 'chevron-down'}
+              size={18}
+              color={colors.textSecondary}
+            />
+          }
+          onPress={
+            categories.length >= MAX_ACCOUNT_CATEGORIES
+              ? undefined
+              : () => setCategoryPickerOpen((open) => !open)
+          }
+        />
+      </SettingsListGroup>
+
+      {/* Collapsed by default: the vocabulary is 46 entries, which is a screen
+          of its own between the profile fields and the byline switch. Only
+          SELECTABLE ids are offered — a withdrawn one stays readable on an
+          account that already carries it, but must never be newly added, and
+          Oxy refuses that write anyway. */}
+      {categoryPickerOpen && (
+        <SettingsListGroup>
+          {SELECTABLE_ACCOUNT_CATEGORY_IDS.map((id) => {
+            const selected = categories.includes(id);
+            const atCap = categories.length >= MAX_ACCOUNT_CATEGORIES;
+            return (
+              <SettingsListItem
+                key={id}
+                title={categoryLabel(id)}
+                showChevron={false}
+                disabled={!selected && atCap}
+                rightElement={
+                  selected ? (
+                    <Ionicons name="checkmark" size={20} color={colors.primary} />
+                  ) : undefined
+                }
+                onPress={!selected && atCap ? undefined : () => handleToggleCategory(id)}
+              />
+            );
+          })}
+        </SettingsListGroup>
+      )}
 
       <SettingsListGroup
         title={t('channels.settings.byline', { defaultValue: 'Byline' })}

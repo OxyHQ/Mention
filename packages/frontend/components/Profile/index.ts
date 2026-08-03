@@ -23,6 +23,7 @@ export { ProfileCommunities } from './ProfileCommunities';
 export { ProfileTabs } from './ProfileTabs';
 export { ProfileWriters } from './ProfileWriters';
 export { PrivateBadge } from './PrivateBadge';
+export { AccountCategoryLine } from './AccountCategoryLine';
 export { ProfileContent } from './ProfileContent';
 
 // Re-export existing components

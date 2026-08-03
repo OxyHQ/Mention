@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { View } from 'react-native';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';
 import { showChannelInfo } from '@/components/Channels/ChannelInfoDialog';
+import { AccountCategoryLine } from './AccountCategoryLine';
 import { PrivateBadge } from './PrivateBadge';
 import type { ChannelActionsProps, ChannelHeaderProps } from './types';
 
@@ -65,6 +66,7 @@ export const ChannelHeader = memo(function ChannelHeader({
   verified,
   isPrivate,
   privacySettings,
+  accountCategories,
   UserNameComponent,
   trailingBadge,
 }: ChannelHeaderProps) {
@@ -118,6 +120,11 @@ export const ChannelHeader = memo(function ChannelHeader({
           container: undefined,
         }}
       />
+      {/* What the channel IS, under its handle — one line of muted text, the
+          last thing in the identity stack before the controls. It renders
+          nothing at all when there is no primary category to name, so a channel
+          without one keeps exactly the masthead it had before. */}
+      <AccountCategoryLine accountCategories={accountCategories} align="center" />
       {/* `PrivateBadge` is `self-start`, which would pull it to the left edge of
           this centred column. The wrapper shrinks to the badge's own width, so
           starting inside it and being centred are the same position. */}
