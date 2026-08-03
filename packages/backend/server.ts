@@ -36,6 +36,9 @@ import { registerContentRoomHandlers } from './src/services/ContentRoomLifecycle
 import { engagementOutboxDispatcher } from './src/services/EngagementOutboxDispatcher';
 import { moderationOutboxDispatcher } from './src/services/moderation/ModerationOutboxDispatcher';
 
+import { resolveNotificationInboxIds } from './src/services/notificationInbox';
+import { createUserScopedOxyServices } from './src/utils/oxyHelpers';
+
 // Models
 import Notification from "./src/models/Notification";
 import {
@@ -286,10 +289,59 @@ notificationsNamespace.on("connection", (socket: AuthenticatedSocket) => {
   socket.join(userRoom);
   logger.debug('Authenticated client joined notification room');
 
+  // Also join the room of every CHANNEL this person operates.
+  //
+  // A channel has no session, so nothing ever joined `user:<channelId>` and the
+  // emit `createNotification` already makes for a channel-addressed row went to
+  // an empty room. Joining here is what delivers it live, with NO change to the
+  // write path — and the notifications socket is the only live path the client
+  // has (it applies targeted cache patches and never polls), so without this a
+  // channel's engagement would not surface until a manual refresh.
+  //
+  // The room is derived from Oxy's answer for this socket's own verified bearer,
+  // never from anything the client sent. Fail-soft: a resolve failure leaves the
+  // operator with their personal room, exactly as before.
+  //
+  // Resolved ONCE, at connect. A membership revoked mid-connection therefore
+  // keeps delivering live rows until this socket reconnects — every DURABLE
+  // surface (list, unread count, mark-read, delete) re-resolves within the
+  // `notificationInbox` cache TTL and cuts off much sooner. The payload is
+  // engagement metadata on a public post, which is why that window is acceptable
+  // here and would not be for the read routes.
+  const socketBearer = typeof socket.handshake.auth?.token === 'string'
+    ? socket.handshake.auth.token
+    : undefined;
+  if (socketBearer) {
+    void resolveNotificationInboxIds(userId, createUserScopedOxyServices({ accessToken: socketBearer }))
+      .then((recipientIds) => {
+        if (!socket.connected) return;
+        for (const recipientId of recipientIds) {
+          if (recipientId !== userId) socket.join(`user:${recipientId}`);
+        }
+      })
+      .catch((error: unknown) => {
+        logger.warn('[Notifications] failed to join operated-channel rooms', {
+          error: error instanceof Error ? error.message : 'unknown',
+        });
+      });
+  }
+
   socket.on("error", (error: Error) => {
     logger.error("Notifications socket error", error);
   });
 
+  // THE TWO READ-STATE HANDLERS BELOW STAY SCOPED TO THE PERSON, NOT TO THE
+  // CHANNEL ROOMS JOINED ABOVE — deliberately, and this is the one place that
+  // says so.
+  //
+  // The app never emits either of them: `useRealtimeNotifications` only LISTENS,
+  // and mark-read/mark-all-read go over HTTP (`PATCH /notifications/:id/read`,
+  // `PATCH /notifications/read-all`), where the scope is re-resolved per request
+  // and covers a channel's rows. Widening these would mean authorizing a WRITE
+  // from a set resolved once at connect, which a long-lived socket can outlive by
+  // hours — a worse staleness window than the one the HTTP routes have, spent on
+  // handlers nothing calls. Left narrow, they simply find no channel row and
+  // no-op, which is the direction that fails closed.
   socket.on("markNotificationRead", socketRateLimiter.wrap(socket, 'markNotificationRead', async ({ notificationId }: { notificationId?: string }) => {
     try {
       if (!socket.user?.id) return;

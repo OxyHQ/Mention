@@ -137,6 +137,7 @@
   "notification.action.post": "ha pubblicato un nuovo aggiornamento",
   "notification.action.poke": "ti ha fatto un poke",
   "notification.action.default": "ha interagito con i tuoi contenuti",
+  "notification.forChannel": "Per {{channel}}",
   "notification.like_reply": "{{actorName}} ha messo mi piace alla tua risposta",
   "notification.reply_reply": "{{actorName}} ha risposto alla tua risposta",
   "notification.mention_reply": "{{actorName}} ti ha menzionato in una risposta",

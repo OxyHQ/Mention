@@ -47,7 +47,7 @@
 
 import type { AccountKind } from '@oxyhq/contracts';
 import { isActAsEligibleKind } from '@oxyhq/contracts';
-import type { AccountMember } from '@oxyhq/core';
+import type { AccountMember, AccountNode } from '@oxyhq/core';
 import { resolveUserSummaries } from './PostHydrationService';
 import { logger } from '../utils/logger';
 
@@ -82,6 +82,107 @@ export class PublishAsAccessError extends Error {
  */
 export interface AccountMemberReader {
   listAccountMembers(accountId: string): Promise<AccountMember[]>;
+}
+
+/**
+ * The INVERSE read: every account this caller can reach, rather than one named
+ * account's members. Separate interface for the same reason as
+ * {@link AccountMemberReader} — a caller hands over a client that can enumerate
+ * its own forest and nothing more is implied.
+ *
+ * Also authorized against the caller's OWN bearer: `GET /accounts` is anchored on
+ * the authenticated operator, so a service credential cannot ask it "which
+ * accounts does person X operate" at all. That is the whole reason the notifying
+ * side of a channel is resolved at READ time (see {@link listOperatedChannelIds}).
+ */
+export interface OperatedAccountReader {
+  listAccounts(): Promise<AccountNode[]>;
+}
+
+/**
+ * Whether an ACTIVE membership row authorises its holder to act FOR an account of
+ * this kind — the one predicate behind both questions this module answers
+ * ("may this person publish as that account", "which accounts does this person
+ * operate"), so the two can never drift into disagreeing about the same person.
+ *
+ * The two families are graded differently, and the module docstring says why:
+ * membership alone is the whole right over a `channel` (nothing stronger exists,
+ * since a channel can never be acted as), while an act-as-eligible account
+ * additionally demands `account:act_as` — the same permission
+ * `POST /accounts/:id/switch` gates on.
+ *
+ * Every "no" is a refusal rather than an assumption: a missing row, a membership
+ * that is `invited`/`removed` rather than `active`, a kind that is neither family,
+ * and an absent or malformed `permissions` array all answer `false`.
+ */
+export function membershipAuthorizesActingFor(
+  kind: AccountKind | null | undefined,
+  membership: AccountMember | null | undefined,
+): boolean {
+  if (!membership || membership.status !== 'active') return false;
+  if (kind === 'channel') return true;
+  if (!isActAsEligibleKind(kind)) return false;
+  return (
+    Array.isArray(membership.permissions) &&
+    membership.permissions.includes(ACCOUNT_ACT_AS_PERMISSION)
+  );
+}
+
+/**
+ * The CHANNEL accounts this caller operates — the recipient set for a channel's
+ * notifications (`services/notificationInbox`).
+ *
+ * WHY THIS EXISTS AS THE INVERSE OF THE GATE ABOVE. A channel has no session
+ * (`isActAsEligibleKind` refuses it), so a notification addressed to one is
+ * addressed to a mailbox nobody can open. The humans who can act on it are its
+ * members — but nothing server-side can ask Oxy "who are the members of channel
+ * C": `GET /accounts/:id/members` is authorized against the CALLER, and the
+ * notification fan-out has no caller. `GET /accounts` inverts exactly that
+ * limitation: asked with a reader's own bearer it returns the accounts THEY
+ * reach, each carrying `callerMembership` — the authorization answer and the
+ * account list in one call, with no second membership read.
+ *
+ * **Filtered to `channel` deliberately, not to "every account I operate".** An
+ * organization / project / bot CAN be acted as, so its members reach its
+ * notifications by switching into it — and that switch is gated on
+ * `account:act_as`, which a `viewer` or `billing` member does not hold. Widening
+ * this to those kinds would hand exactly that refused view to exactly those
+ * members, through a door the switch keeps shut.
+ *
+ * Where this set can differ from what {@link assertCanPublishAsAccount} would
+ * allow: that gate reads `GET /accounts/:id/members`, which returns DIRECT rows
+ * only, so a membership CASCADING from an ancestor account is invisible to it
+ * (a known gap, documented in AGENTS.md). `callerMembership` here is Oxy's
+ * resolved EFFECTIVE access and includes an inherited row. The divergence is
+ * deliberate: an inherited member is a member by Oxy's own resolution, and
+ * copying the gate's gap into a second place would leave this resolver behind on
+ * the day the gap closes.
+ *
+ * Fail-soft to `[]`. The caller ({@link resolveNotificationInboxIds}) still reads
+ * its own notifications, so an Oxy outage degrades a channel operator to the
+ * inbox they had before this existed rather than 500-ing the notifications
+ * screen — and it can never ADD a recipient, which is the direction that would
+ * matter.
+ */
+export async function listOperatedChannelIds(
+  reader: OperatedAccountReader | undefined,
+): Promise<string[]> {
+  if (!reader) return [];
+  let accounts: AccountNode[];
+  try {
+    accounts = await reader.listAccounts();
+  } catch (error) {
+    logger.warn('[publishAsAccount] Failed to list operated accounts', error);
+    return [];
+  }
+  return accounts
+    .filter(
+      (node) =>
+        node.kind === 'channel' &&
+        membershipAuthorizesActingFor(node.kind, node.callerMembership),
+    )
+    .map((node) => node.accountId)
+    .filter((accountId): accountId is string => Boolean(accountId));
 }
 
 /**
@@ -275,10 +376,11 @@ export async function assertCanPublishAsAccount(params: {
   // `membership.role` — a role list here would be a second copy of Oxy's
   // role→permission map, and the copy is what goes stale. An absent or malformed
   // `permissions` array is therefore a refusal, not an assumption.
-  if (
-    requiresActAs &&
-    !(Array.isArray(membership.permissions) && membership.permissions.includes(ACCOUNT_ACT_AS_PERMISSION))
-  ) {
+  //
+  // Answered by the SHARED predicate rather than inline, so this gate and
+  // `listOperatedChannelIds` cannot come to different conclusions about the same
+  // person and the same account.
+  if (!membershipAuthorizesActingFor(authorKind, membership)) {
     throw new PublishAsAccessError(403, 'You cannot publish as that account');
   }
 
