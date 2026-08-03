@@ -135,7 +135,15 @@ export const userBehaviorAuthors = pgTable(
       .references(() => userBehaviors.id, { onDelete: 'cascade' }),
     /** An Oxy account id — no foreign key. */
     authorId: text().notNull(),
-    interactionCount: integer().notNull().default(0),
+    // doublePrecision, NOT integer, for the same reason as the four post-type
+    // columns above: this is an accumulated WEIGHT, not a tally.
+    // `UserPreferenceService` does `interactionCount += Math.abs(learningWeight)`
+    // and the learning weights are fractional (`view` 0.2, `save` 1.5, `share`
+    // 1.8, `comment` 2.5). Through postgres.js a fractional value is sent as a
+    // parameter and an `integer` column REJECTS it outright — `invalid input
+    // syntax for type integer: "0.2"` — so this is not a rounding hazard but a
+    // hard failure of the write path on the first view a viewer records.
+    interactionCount: doublePrecision().notNull().default(0),
     lastInteractionAt: timestamptz().notNull().defaultNow(),
     likes: integer().notNull().default(0),
     boosts: integer().notNull().default(0),
@@ -165,7 +173,11 @@ export const userBehaviorTopics = pgTable(
     topic: text().notNull(),
     /** An Oxy Topic-registry id — no foreign key. */
     topicId: text(),
-    interactionCount: integer().notNull().default(0),
+    // An accumulated weight, as on `user_behavior_authors` — and here it is also
+    // load-bearing for ranking rather than only for bookkeeping:
+    // `weight = min(1, (interactionCount / 50) * recencyFactor)`, and
+    // `ContentAffinityService` drops every topic whose weight is not > 0.
+    interactionCount: doublePrecision().notNull().default(0),
     lastInteractionAt: timestamptz().notNull().defaultNow(),
     weight: doublePrecision().notNull().default(0),
   },
