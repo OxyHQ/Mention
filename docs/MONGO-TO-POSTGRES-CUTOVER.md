@@ -15,11 +15,27 @@ a rehearsal that used production Mongo as its source. Everything marked
 The rollback is cheap, correct, and worthless if nobody recorded the pin while
 the service was still healthy.
 
-| what | value | how to re-derive |
+**Re-derive every value below. Do not read them off this page.** The right-hand
+column is the point of the table; the middle column is a worked example of what
+the answer looks like, and it is already wrong.
+
+| what | last observed (STALE — re-derive) | how to re-derive |
 |---|---|---|
 | live task definition | `oxy-mention:167` | `aws ecs describe-services --cluster oxy-cluster --services mention --query 'services[0].taskDefinition'` |
-| live image digest | `sha256:01bdb8af9e8634b20678c9993856b2b53b20b87c4509412884ca3ef6ab06f2f9` | `aws ecs describe-task-definition --task-definition oxy-mention:167 --query 'taskDefinition.containerDefinitions[0].image'` |
+| live image digest | `sha256:01bdb8af9e8634b20678c9993856b2b53b20b87c4509412884ca3ef6ab06f2f9` | `aws ecs describe-task-definition --task-definition <the revision above> --query 'taskDefinition.containerDefinitions[0].image'` |
 | desired count | `2` | same query, `desiredCount` |
+
+This is not a hypothetical caution. That pin has already moved TWICE while this
+runbook sat unchanged — `oxy-mention:167` → `:173` → `:176` — because every
+ordinary deploy to `main` cuts a new revision, and the cutover is preceded by
+more deploys than usual. Rolling back to a revision written down weeks ago does
+not restore the service that was running an hour ago: it reverts whatever
+shipped in between, silently, at the worst possible moment. The digest has the
+same problem and is worse to debug, since a stale one still *resolves*.
+
+Re-derive at the start of the window, paste the answers into the incident
+channel rather than into this file, and treat a value here that matches what you
+measured as a coincidence.
 
 All AWS commands: `--profile oxy --region us-west-2`. Cluster `oxy-cluster`,
 service `mention`.
@@ -411,9 +427,12 @@ construction (`mongoSource.ts` hands out a Proxy that throws on anything but a
 read). So rollback is redeploying the pre-cutover image; no data is restored,
 because none was moved out of Mongo.
 
+Use the revision you re-derived in §0 — NOT the one written below, which is the
+example that has already gone stale twice:
+
 ```bash
 aws ecs update-service --cluster oxy-cluster --service mention \
-  --task-definition oxy-mention:167 --desired-count 2 --force-new-deployment
+  --task-definition oxy-mention:<REVISION FROM §0> --desired-count 2 --force-new-deployment
 ```
 
 Then confirm the running tasks carry the pinned digest — not the tag:
@@ -423,8 +442,9 @@ aws ecs describe-services --cluster oxy-cluster --services mention \
   --query 'services[0].taskDefinition'
 ```
 
-`oxy-mention:167` already carries `DATABASE_URL` from `/oxy/mention/DATABASE_URL`
-and ignores it, so the rollback needs no secret changes.
+That pre-cutover revision already carries `DATABASE_URL` from
+`/oxy/mention/DATABASE_URL` and ignores it, so the rollback needs no secret
+changes.
 
 **Postgres is left populated.** That is intentional and harmless — nothing reads
 it once the old image is back. A second attempt must then either resume from the

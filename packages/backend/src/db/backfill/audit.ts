@@ -72,7 +72,7 @@ import { allowedValues, describeNumericBound, numericIsAccepted, tableName } fro
 import type { MongoSource, ReadOnlyCollection } from './mongoSource';
 import { streamCollection } from './mongoSource';
 import type { ResolutionContext, ResolutionRule } from './resolutions';
-import { parentKeysNotConsulted, transformDocument } from './resolutions';
+import { parentKeysNotConsulted, resolutionDocumentId, transformDocument } from './resolutions';
 import { tableShape } from './rowBuilder';
 import type { CoverageFinding, PopulatedCounts } from './columnCoverage';
 import { auditColumnCoverage, holdsValueAt, recordPopulated } from './columnCoverage';
@@ -986,6 +986,26 @@ export async function auditColumnCoverageForPlan(
         if (!(error instanceof BackfillValueError)) throw error;
         continue;
       }
+      // A rule that removed the document WHOLE. It emits no row, so it can
+      // contribute nothing to `populated` — and counting it here would make the
+      // two sides describe different sets of documents, which is the one thing
+      // this pass depends on.
+      //
+      // "Accepted" below used to mean "did not throw", and a rule-drop is a
+      // `return`, not a throw. That gap is what refused the re-rehearsal: five
+      // BLOCKING `never-populated` findings on `federatedactors`, every one of
+      // them a duplicate actor `KEEP_FRESHEST_FEDERATED_ACTOR` had correctly
+      // removed. Proven rather than reasoned — `gap = drops − (accepted
+      // documents not holding the value)` predicted all four observed gaps
+      // across two runs, and 610 resolution-log rows reconciled as 589 drops
+      // plus 21 re-keys.
+      //
+      // Rule-dropped, NOT "emitted nothing". A transform that returns without
+      // emitting and without recording a drop is an UNDECIDED drop, and
+      // `dropped-document` blocks on it deliberately; widening this to every
+      // zero-row document would silence that. Row cardinality accounts for
+      // these separately through `documentsDroppedByRule`.
+      if (resolutions.wasDropped(plan.collection, resolutionDocumentId(doc))) continue;
       // Only for a document the transform accepted, which is what keeps the two
       // counts describing the same set of documents.
       for (const path of paths) {

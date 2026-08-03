@@ -679,6 +679,19 @@ export class ResolutionLog {
   }
 
   /**
+   * Did a rule remove THIS document whole?
+   *
+   * Membership rather than the count above, because the caller
+   * (`auditColumnCoverageForPlan`) has to decide per document, and a count
+   * cannot answer that: the set is keyed by id precisely so a transform re-run
+   * across four passes records one drop, which also means a before/after delta
+   * reads zero for every pass after the first.
+   */
+  wasDropped(collection: string, documentId: string): boolean {
+    return this.dropped.get(collection)?.has(documentId) === true;
+  }
+
+  /**
    * Every rule with what it did, INCLUDING the rules that did nothing.
    *
    * A rule reporting zero documents is information: it says the rule is still
@@ -1047,6 +1060,22 @@ export interface ResolutionContext {
   /** How many documents of this collection a rule removed whole. */
   readonly documentsDroppedIn: (collection: string) => number;
   /**
+   * Did a rule remove THIS document whole — so it produces no row at all?
+   *
+   * Asked by the column-coverage audit, which counts a source field against the
+   * column it lands in. A rule-dropped document emits nothing, so it can
+   * contribute nothing to the populated side; counting it on the source side
+   * makes the two counts describe different sets of documents and manufactures
+   * a coverage gap that is not one.
+   *
+   * Deliberately NOT "emitted no rows", which is a wider predicate and would
+   * silence a real finding: a transform that returns without emitting and
+   * WITHOUT calling {@link dropDocument} is an undecided drop, and
+   * `dropped-document` exists to block exactly that. Only a drop a rule
+   * recorded by id is excluded here.
+   */
+  readonly wasDropped: (collection: string, documentId: string) => boolean;
+  /**
    * Does a rule already answer this uniqueness collision?
    *
    * Asked by `auditUniqueness`, so `audit.ts` needs no knowledge of any
@@ -1076,6 +1105,7 @@ export function createResolutionContext(
       log.dropDocument(collection, documentId);
     },
     documentsDroppedIn: (collection) => log.documentsDroppedIn(collection),
+    wasDropped: (collection, documentId) => log.wasDropped(collection, documentId),
     resolvesUniquenessGroup: (rule, ids) => {
       const acted = plan.actedOn.get(rule.id);
       if (acted === undefined || ids.length < 2) return false;
@@ -1255,6 +1285,19 @@ export interface ResolvedRow {
 const UNIDENTIFIED_DOCUMENT = '(document has no _id)';
 
 /**
+ * The key a document is recorded under — by `dropDocument`, by every resolution
+ * record, and by anything that later asks whether one of those fired.
+ *
+ * Exported because {@link ResolutionContext.wasDropped} is a lookup, and a
+ * lookup whose key is derived a SECOND time somewhere else is a lookup that
+ * silently misses the moment the two derivations drift. One definition means
+ * the audit cannot ask about a key the log never wrote.
+ */
+export function resolutionDocumentId(doc: MongoDocument): string {
+  return describeId(doc) ?? UNIDENTIFIED_DOCUMENT;
+}
+
+/**
  * Run a plan's transform and apply the documented ROW-level resolutions to
  * everything it emits.
  *
@@ -1280,7 +1323,7 @@ export function transformDocument(
   parents: ParentKeys,
   emit: (row: ResolvedRow) => void
 ): void {
-  const documentId = describeId(doc) ?? UNIDENTIFIED_DOCUMENT;
+  const documentId = resolutionDocumentId(doc);
 
   // The document's rows are COLLECTED before any is emitted, because a cascade
   // is a question about a SIBLING row: "was the parent this row names removed?"

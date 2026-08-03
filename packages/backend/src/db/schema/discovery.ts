@@ -87,12 +87,44 @@ export const NOTIFICATION_TYPES = [
   'collab_invite',
   'collab_accepted',
   'collab_declined',
-  // Channels (merged from main): an invitation to publish to a channel.
-  'channel_invite',
+  // `'channel_invite'` was here and is gone, and it needed no production
+  // reading to remove — which is worth stating, because the sibling column
+  // below DID.
+  //
+  // It appeared in exactly ONE place in the repository: this line. No writer in
+  // the backend, nothing in `@mention/shared-types`, nothing in the frontend.
+  // And the decisive fact is structural rather than statistical: the Mongoose
+  // model this vocabulary is copied FROM (`models/Notification.ts`) declares
+  // `type` without it, and Mongoose validates the enum on every save — so
+  // production cannot hold a `channel_invite` notification, and there was no
+  // code path that could have written one past the validator anyway.
+  //
+  // Carrying it meant the Postgres CHECK admitted a value the source schema
+  // forbids, which is a vocabulary disagreement in the permissive direction:
+  // harmless to the copy, and exactly what `closedValueSets` exists to refuse.
+  // Re-add it WITH its writer if channel invitations are ever built.
 ] as const;
 
-/** `NotificationEntityType`. */
-export const NOTIFICATION_ENTITY_TYPES = ['post', 'reply', 'profile', 'channel'] as const;
+/**
+ * `NotificationEntityType`.
+ *
+ * `'channel'` was here and is gone. Three independent facts, and it needed all
+ * three — a value with no rows is not the same as a value with no writer:
+ *
+ *  1. Production holds exactly `['post', 'profile']` — measured twice, 1h54m
+ *     apart, identical. No row would hit the tightened CHECK.
+ *  2. NOTHING writes `'channel'`. The channel model it belonged to is retired.
+ *  3. The Mongoose source (`models/Notification.ts`) declares
+ *     `['post', 'reply', 'profile']`, so carrying `'channel'` was a
+ *     disagreement between the two vocabularies rather than a wider one.
+ *
+ * `'reply'` STAYS, and the reason is the trap in the same neighbourhood: it has
+ * no production rows either, but `connectors/activitypub/inbox.service.ts` is
+ * typed `entityType: 'post' | 'reply'` and writes it for a federated reply.
+ * Zero rows there is timing, not deadness — dropping it would refuse a
+ * legitimate write the first time a federated reply arrived.
+ */
+export const NOTIFICATION_ENTITY_TYPES = ['post', 'reply', 'profile'] as const;
 
 /** `PushToken.type`. */
 export const PUSH_TOKEN_TYPES = ['fcm', 'apns', 'unknown'] as const;

@@ -573,17 +573,42 @@ function reportFindings(findings: readonly AuditFinding[]): void {
   for (const finding of findings) {
     say(`  [${finding.kind}] ${finding.detail}`);
     say(`      ${finding.documents} document(s); e.g. ${finding.sampleIds.join(', ') || '(none)'}`);
-    if (finding.resolvedBy === undefined) {
+    // THE SAME PREDICATE THE RUNNER REFUSES ON. Keying this line on
+    // `resolvedBy` instead printed "BLOCKS the copy" under 131 findings while 5
+    // blocked: a finding blocks when `auditWouldBlockCopy` says so, and several
+    // kinds — `unverified-column` chief among them — do not block on their own
+    // merits and never had a rule to carry. An operator reading 131 blockers at
+    // 03:40 is reading a number nothing in the run agrees with.
+    if (auditWouldBlockCopy(finding)) {
       say('      BLOCKS the copy — fix the data, widen the schema, or write a rule.');
       continue;
     }
-    say(`      RESOLVED by \`${finding.resolvedBy.id}\` — does not block.`);
-    say(`      decision: ${finding.resolvedBy.decision}`);
+    if (finding.resolvedBy !== undefined) {
+      say(`      RESOLVED by \`${finding.resolvedBy.id}\` — does not block.`);
+      say(`      decision: ${finding.resolvedBy.decision}`);
+      continue;
+    }
+    // The third state, and it is neither of the other two: nothing to lose and
+    // no rule involved. Named rather than folded into "resolved", because
+    // "answered by a rule" and "the check could not demonstrate a problem" are
+    // different claims and only one of them means somebody decided something.
+    say('      Does not block — the check could not demonstrate a problem, and no rule was needed.');
   }
+
+  // Three numbers, because there are three states and the previous two numbers
+  // implied two. `findings.length - blocking` was printed as "answered by a
+  // documented resolution rule": on the last run that read 280 when 154 were,
+  // the other 126 being `unverified-column`, which no rule answered and none
+  // could. Rule-answered and blocking are disjoint by construction —
+  // `auditWouldBlockCopy` returns false the moment `resolvedBy` is set — so
+  // these three partition the findings and are worth printing as such.
   const blocking = findings.filter(auditWouldBlockCopy).length;
+  const resolved = findings.filter((finding) => finding.resolvedBy !== undefined).length;
+  const unverified = findings.length - blocking - resolved;
   say(
-    `\n  ${blocking} finding(s) BLOCK the copy; ${findings.length - blocking} answered ` +
-      'by a documented resolution rule.'
+    `\n  ${blocking} finding(s) BLOCK the copy; ` +
+      `${resolved} answered by a documented resolution rule; ` +
+      `${unverified} do not block and no rule was needed.`
   );
 }
 

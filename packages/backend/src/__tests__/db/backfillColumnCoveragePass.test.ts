@@ -30,6 +30,7 @@ import {
   createResolutionContext,
   planResolutions,
   ResolutionLog,
+  type ResolutionRule,
 } from '../../db/backfill/resolutions';
 import { reqStr, str } from '../../db/backfill/values';
 
@@ -71,6 +72,51 @@ const unmappedPlan: CollectionPlan = {
   transform: (doc, emit) => {
     const id = String(doc._id);
     emit(gadgets, buildRow(gadgets, { id, title: reqStr(doc, 'title') }, id));
+  },
+};
+
+/** A rule that removes a document WHOLE — the shape `plans/federation.ts` uses. */
+const DROP_SUPERSEDED: ResolutionRule = {
+  id: 'bccp-drop-superseded',
+  collection: COLLECTION,
+  finding: 'two rows describe the same gadget',
+  decision: 'copy the maintained row; drop the superseded one whole',
+};
+
+/** The mapped plan, except a rule drops any document marked `superseded`. */
+const droppingPlan: CollectionPlan = {
+  ...mappedPlan,
+  transform: (doc, emit, resolutions) => {
+    const id = String(doc._id);
+    if (doc.superseded === true) {
+      resolutions.dropDocument(DROP_SUPERSEDED, COLLECTION, id, 'superseded by the maintained row');
+      return;
+    }
+    emit(gadgets, buildRow(gadgets, {
+      id,
+      title: reqStr(doc, 'title'),
+      nickname: str(doc, 'nickname'),
+    }, id));
+  },
+};
+
+/**
+ * Emits nothing and decides nothing — the UNDECIDED drop.
+ *
+ * Deliberately NOT a variant of `droppingPlan`: it is the case the guard below
+ * must keep blocking, and the only difference between them is whether a rule
+ * recorded the removal.
+ */
+const silentlySkippingPlan: CollectionPlan = {
+  ...mappedPlan,
+  transform: (doc, emit) => {
+    const id = String(doc._id);
+    if (doc.superseded === true) return;
+    emit(gadgets, buildRow(gadgets, {
+      id,
+      title: reqStr(doc, 'title'),
+      nickname: str(doc, 'nickname'),
+    }, id));
   },
 };
 
@@ -134,6 +180,35 @@ describe('auditColumnCoverageForPlan', () => {
       { title: 'c' },
     ]);
     expect(await run(mappedPlan)).toStrictEqual([]);
+  });
+
+  it('does not count a value a RULE removed as a value the copy lost', async () => {
+    // The gap that refused a whole re-rehearsal on five findings nothing had
+    // lost. A rule drops the document; the SOURCE side counted it anyway,
+    // because it walks the collection rather than the emitted rows. So the one
+    // document holding `nickname: 'two'` reads as a value the copy dropped —
+    // and a coverage finding blocks the run over data somebody decided, in
+    // writing, not to carry.
+    await mongo.collection(COLLECTION).insertMany([
+      { title: 'a', nickname: 'one' },
+      { title: 'b', nickname: 'two', superseded: true },
+    ]);
+    expect(await run(droppingPlan)).toStrictEqual([]);
+  });
+
+  it('still reports a document that vanished with NO rule behind it', async () => {
+    // The other half, and the reason the exclusion is keyed on a recorded drop
+    // rather than on "emitted no rows": that wider predicate would swallow this
+    // case too. Same two documents, same missing row, no decision anywhere —
+    // an undecided drop is exactly what the pass exists to catch, so it must
+    // still block.
+    await mongo.collection(COLLECTION).insertMany([
+      { title: 'a', nickname: 'one' },
+      { title: 'b', nickname: 'two', superseded: true },
+    ]);
+    const findings = await run(silentlySkippingPlan);
+    expect(findings.length).toBeGreaterThan(0);
+    expect(findings.some(auditWouldBlockCopy)).toBe(true);
   });
 
   it('reports the values a dropped mapping loses, and BLOCKS the copy', async () => {
