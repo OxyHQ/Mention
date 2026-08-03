@@ -126,6 +126,28 @@ async function resolveMcpUser(token: string): Promise<McpAuthOutcome> {
   };
 }
 
+function parseScopeSet(scope: string): Set<string> {
+  return new Set(scope.split(/\s+/).map((value) => value.trim()).filter(Boolean));
+}
+
+function requiredMcpScopeForRequest(req: Request): 'mcp:read' | 'mcp:write' {
+  return ['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase()) ? 'mcp:read' : 'mcp:write';
+}
+
+function enforceMcpRequestScope(req: Request, res: Response, outcome: Extract<McpAuthOutcome, { status: 'ok' }>): boolean {
+  const requiredScope = requiredMcpScopeForRequest(req);
+  if (parseScopeSet(outcome.scope).has(requiredScope)) {
+    return true;
+  }
+
+  res.status(403).json({
+    error: 'insufficient_scope',
+    message: `MCP token requires ${requiredScope} scope for this request`,
+    required_scope: requiredScope,
+  });
+  return false;
+}
+
 /** Attach the resolved MCP identity to the request in the Oxy-compatible shape. */
 function attachMcpIdentity(
   req: OxyAuthRequest,
@@ -184,6 +206,9 @@ export function createRequireMcpOrOxyAuth(oxy: OxyServices): RequestHandler {
     if (token && looksLikeMcpToken(token)) {
       const outcome = await resolveMcpUser(token);
       if (outcome.status === 'ok') {
+        if (!enforceMcpRequestScope(req, res, outcome)) {
+          return;
+        }
         attachMcpIdentity(req as OxyAuthRequest, outcome);
         next();
         return;
