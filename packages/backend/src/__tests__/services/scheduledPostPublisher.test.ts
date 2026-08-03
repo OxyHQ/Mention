@@ -5,6 +5,7 @@ import { closePostgres, connectPostgres } from '../../db/postgres';
 import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepository';
 import type { PostRecord } from '../../db/posts/postRecord';
 import { postCreationService } from '../../services/PostCreationService';
+import { pastSweepWindow } from './scheduledPublisherWindow';
 
 /**
  * The scheduled-publish sweep, against REAL ROWS.
@@ -81,7 +82,7 @@ describe('ScheduledPostPublisher', () => {
     const first = await seedScheduled(new Date('2026-01-01T10:00:00.000Z'));
     const second = await seedScheduled(new Date('2026-01-01T11:00:00.000Z'));
 
-    const published = await scheduledPostPublisher.publishDuePosts(now);
+    const published = await scheduledPostPublisher.publishDuePosts(pastSweepWindow(now));
 
     expect(published).toBe(2);
     expect(publishedIds()).toEqual([first, second]);
@@ -97,7 +98,7 @@ describe('ScheduledPostPublisher', () => {
       status: 'published',
     });
 
-    const published = await scheduledPostPublisher.publishDuePosts(now);
+    const published = await scheduledPostPublisher.publishDuePosts(pastSweepWindow(now));
 
     expect(published).toBe(1);
     expect(publishedIds()).toEqual([due]);
@@ -111,7 +112,7 @@ describe('ScheduledPostPublisher', () => {
     const oldest = await seedScheduled(new Date('2026-01-01T08:00:00.000Z'));
     const middle = await seedScheduled(new Date('2026-01-01T10:00:00.000Z'));
 
-    await scheduledPostPublisher.publishDuePosts(now);
+    await scheduledPostPublisher.publishDuePosts(pastSweepWindow(now));
 
     expect(publishedIds()).toEqual([oldest, middle, newest]);
   });
@@ -127,7 +128,7 @@ describe('ScheduledPostPublisher', () => {
       return { id: postId } as PostRecord;
     });
 
-    const published = await scheduledPostPublisher.publishDuePosts(now);
+    const published = await scheduledPostPublisher.publishDuePosts(pastSweepWindow(now));
 
     expect(published).toBe(2);
     expect(publishedIds()).toEqual([ok1, boom, ok2]);
@@ -146,7 +147,7 @@ describe('ScheduledPostPublisher', () => {
     const now = new Date('2026-01-01T12:00:00.000Z');
     const due = await seedScheduled(new Date('2026-01-01T09:00:00.000Z'));
 
-    await scheduledPostPublisher.publishDuePosts(now);
+    await scheduledPostPublisher.publishDuePosts(pastSweepWindow(now));
 
     expect(claim).toHaveBeenCalledWith({ postId: due });
   });
@@ -164,7 +165,7 @@ describe('ScheduledPostPublisher', () => {
       postId === theirs ? null : ({ id: postId } as PostRecord),
     );
 
-    const published = await scheduledPostPublisher.publishDuePosts(now);
+    const published = await scheduledPostPublisher.publishDuePosts(pastSweepWindow(now));
 
     expect(published).toBe(1);
     expect(publishedIds()).toEqual([mine, theirs]);
