@@ -303,6 +303,34 @@ Expected, from the full rehearsal against production Mongo (2026-08-03):
 was cancelled rather than left pending, so there is nothing to wait for and
 nothing to enable. **~36 minutes is not an option on the table.**
 
+#### A count in this runbook is a snapshot, and the run will legitimately see a different one
+
+Every number in the table above describes one run against a source that keeps
+moving. The resolution rules are deliberately never read from a frozen list —
+`db/backfill/resolutions.ts` says why, and it is worth reading in place: *"a
+precomputed list would miss exactly the rows that arrived since, copy them, and
+violate the foreign key having reported nothing."* That design is right, and it
+has a consequence worth stating: **the populations those rules act on move while
+you are reading about them.**
+
+The same file measures it. `DROP_BOOST_OF_A_POST_MENTION_NEVER_HELD` records its
+decision as taken "over ALL 348 such rows live in `mention-production`" on
+2026-08-03 — and notes that the **348th arrived 81 seconds after the audit's
+bound closed**. An independent recount of that same population, the same day,
+returned **347**. Neither number is wrong; one boost-of-a-missing-post arrived or
+was deleted in between.
+
+Do not confuse that recount with the *other* 347 in the same docblock: "347 of
+the 348 are federated" is a breakdown of the population, not a second measurement
+of its size. Two different quantities, one digit apart, a few lines apart.
+
+So: **do not stop a cutover because a count disagrees with the prose.** A
+different N is the expected behaviour of a live source, not drift to
+investigate. Investigate a count only if it moves by an **order of magnitude**,
+or if the **shape** changes — a new constraint name, a new collection, a rule
+firing that never fired before. Those are signals; a number ticking by one is
+not.
+
 **If it dies partway:** the checkpoint is in Postgres
 (`mention_backfill_checkpoints`), so re-running RESUMES. Do not clear it, do not
 add `--start-from-empty`. A partially-written batch converges on resume — see the
