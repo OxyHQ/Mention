@@ -68,8 +68,8 @@ export interface CreatePostParams {
    */
   laneId?: string | null;
   /**
-   * Publish this post AS another Oxy account the caller operates — today, a
-   * `channel` account.
+   * Publish this post AS another Oxy account the caller operates: a `channel`,
+   * or an organization / project / bot they may act as.
    *
    * The post is AUTHORED BY that account: it carries the account's `oxyUserId`
    * and its `authorship`, so it lands on that account's profile and in the
@@ -79,8 +79,10 @@ export interface CreatePostParams {
    * back on their own profile.
    *
    * Validated by {@link assertCanPublishAsAccount} before the document is built:
-   * an account the caller is not an accepted member of is a 403. Publishing as a
-   * channel also forces `replyPermission: ['nobody']` — see there.
+   * an account the caller is not an accepted member of is a 403, and so is an
+   * act-as-eligible account they hold no `account:act_as` over. Publishing as a
+   * CHANNEL additionally forces `replyPermission: ['nobody']`; publishing as an
+   * organization does not — see there.
    */
   publishAsOxyUserId?: string | null;
   /**
@@ -340,7 +342,12 @@ class PostCreationService {
     // federated post's author is resolved from the remote actor, so a second
     // author on the same row could only contradict it. Each is a REFUSAL rather
     // than a silent drop — an author told nothing would go on believing they had
-    // published as the channel.
+    // published as the account.
+    //
+    // The reply refusal is deliberately kept for the act-as-eligible kinds too,
+    // where the channel argument does not apply: replying AS an organization is a
+    // coherent feature, but it is a feature — nothing asks for it, and admitting
+    // it here by omission would ship it unconsidered and untested.
     if (params.publishAsOxyUserId) {
       if (params.parentPostId) {
         throw new PublishAsAccessError(400, 'A reply cannot be published as another account');
@@ -358,7 +365,7 @@ class PostCreationService {
     // record's subject — reads this, never `params.oxyUserId`, so the authorship
     // and the authorization can never disagree. The authenticated human survives
     // only as `writtenByOxyUserId`, outside `authorship`.
-    const authorId = await assertCanPublishAsAccount({
+    const { authorId, authorKind } = await assertCanPublishAsAccount({
       publishAsOxyUserId: params.publishAsOxyUserId,
       callerId: params.oxyUserId,
       memberReader: params.memberReader,
@@ -416,13 +423,20 @@ class PostCreationService {
       boostOf: params.boostOf ?? null,
       parentPostId: params.parentPostId ?? null,
       threadId: params.threadId ?? null,
-      // A channel post is persisted with `['nobody']` whatever the caller asked
+      // A CHANNEL post is persisted with `['nobody']` whatever the caller asked
       // for — DEFENCE IN DEPTH, and it buys the client's existing reply-button
       // suppression with no new UI. It is NOT what the server's refusal rests on:
       // `utils/channelReplyGate` reads the AUTHOR's account kind, because this
       // field is mutable and a later settings write must not be able to reopen
       // the post.
-      replyPermission: publishedAsAccount ? ['nobody'] : params.replyPermission ?? ['anyone'],
+      //
+      // Keyed on the author's KIND, not on "was this published as somebody else":
+      // "no replies, ever" is a property of channels, not of publishing as an
+      // account. An organization/project/bot post is an ORDINARY post — the reply
+      // gate lets replies through for a non-channel author, so forcing `['nobody']`
+      // here would leave the persisted field and the server's own rule disagreeing,
+      // and would silently close every organization's comments.
+      replyPermission: authorKind === 'channel' ? ['nobody'] : params.replyPermission ?? ['anyone'],
       reviewReplies: params.reviewReplies ?? false,
       quotesDisabled: params.quotesDisabled ?? false,
       status: params.status ?? 'published',

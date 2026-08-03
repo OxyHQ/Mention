@@ -723,24 +723,35 @@ export interface CreatePostRequest {
    */
   laneId?: string;
   /**
-   * Publish this post AS another Oxy account — today, a `channel` account the
-   * caller operates. The post is AUTHORED BY that account: it carries the
-   * channel's `oxyUserId` and its `authorship`, so it lands on the channel's
-   * profile and in the timelines of the channel's followers, and it renders with
-   * the channel's avatar and name because `user` IS the channel.
+   * Publish this post AS another Oxy account the caller operates. The post is
+   * AUTHORED BY that account: it carries the account's `oxyUserId` and its
+   * `authorship`, so it lands on that account's profile and in the timelines of
+   * its followers, and it renders with its avatar and name because `user` IS that
+   * account.
    *
    * The authenticated human is recorded OUTSIDE `authorship`, in
    * `writtenByOxyUserId`, and is disclosed only when the channel sets
    * `signPosts`. Putting them in `authorship` would both break that anonymity and
    * put the post back on their own profile.
    *
-   * A channel can never be acted as (`isActAsEligibleKind` refuses it — it is a
-   * content identity, not a seat), so this field, not a session switch, is how a
-   * post comes to be authored by one. The server refuses it (403) unless the
-   * caller is an accepted member of that account.
+   * TWO FAMILIES OF ACCOUNT ARE ACCEPTED, on two different authorities:
    *
-   * To put a channel post on your own profile you boost it; there is no field for
-   * that, because a boost is already the right row with the right owner.
+   *  - A **channel**, where accepted membership is the whole right. A channel can
+   *    never be acted as (`isActAsEligibleKind` refuses it — it is a content
+   *    identity, not a seat), so this field, not a session switch, is the ONLY way
+   *    a post comes to be authored by one. A channel post is additionally
+   *    persisted `replyPermission: ['nobody']` — a channel takes no replies.
+   *  - An **organization / project / bot**, where the right is `account:act_as` —
+   *    the same permission that would let the caller switch INTO the account. The
+   *    point of the field here is signing a post as the account WITHOUT switching;
+   *    a member who may not be the account may not sign as it either. Such a post
+   *    is an ordinary post in every other respect, replies included.
+   *
+   * A `personal` account is refused (400): authoring as a human login is
+   * impersonation, and its owner posts as it by signing in.
+   *
+   * To put an account's post on your own profile you boost it; there is no field
+   * for that, because a boost is already the right row with the right owner.
    */
   publishAsOxyUserId?: string;
 }
@@ -762,6 +773,23 @@ export interface CreateThreadPostRequest {
    * chip belongs anyway.
    */
   laneId?: string;
+  /**
+   * Publish THIS entry as another Oxy account the caller operates — the same
+   * field, the same authorization and the same effects as
+   * {@link CreatePostRequest.publishAsOxyUserId}, decided per entry so one batch
+   * can post from several accounts.
+   *
+   * **`beast` mode only.** In `beast` mode the entries are independent top-level
+   * posts, so each may name its own account and they may all differ. In `thread`
+   * mode they are one conversation whose continuations are REPLIES to the entry
+   * before them, and a reply can never be published as another account — so the
+   * server refuses the field outright there (400) rather than letting the author
+   * believe an identity was applied that a mid-thread post could not carry.
+   *
+   * Refused for the WHOLE request before any entry is written, like every other
+   * batch-level refusal here: half a batch cannot be undone in one action.
+   */
+  publishAsOxyUserId?: string;
 }
 
 export interface CreateThreadRequest {
