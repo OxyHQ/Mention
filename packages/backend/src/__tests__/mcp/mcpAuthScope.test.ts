@@ -10,6 +10,18 @@ vi.mock('../../mcp/services/mcpRevocationService', () => ({
   isRevoked: vi.fn().mockResolvedValue(false),
 }));
 
+// `resolveMcpUser` reads the durable connection row before it trusts a token, so
+// without this the middleware waits on a Mongo connection this suite never opens
+// and every case times out rather than exercising the scope check.
+vi.mock('../../mcp/services/mcpBundleService', () => ({
+  resolveBundleContext: vi.fn(async (jti: string, sub: string) => ({
+    connectionId: 'conn-1',
+    bundleId: 'bundle-1',
+    activeOxyUserId: sub,
+    jti,
+  })),
+}));
+
 import { createRequireMcpOrOxyAuth } from '../../mcp/middleware/mcpAuth';
 import { signAccessToken } from '../../mcp/services/mcpTokenService';
 
