@@ -152,6 +152,31 @@ describe('POST /posts/intent-media', () => {
     expect(uploadServiceUserMediaMock).not.toHaveBeenCalled();
   });
 
+
+  it('rejects base64 SVG when mimeType has parameters', async () => {
+    const svg = Buffer.from('<svg><script>alert(1)</script></svg>');
+    const res = await request(app)
+      .post('/')
+      .send({ base64: svg.toString('base64'), mimeType: 'image/svg+xml;charset=utf-8' });
+
+    expect(res.status).toBe(400);
+    expect(assetUploadMock).not.toHaveBeenCalled();
+    expect(uploadServiceUserMediaMock).not.toHaveBeenCalled();
+  });
+
+  it('canonicalizes base64 mimeType parameters before upload', async () => {
+    const png = Buffer.from('PNG!');
+    const res = await request(app)
+      .post('/')
+      .send({ base64: png.toString('base64'), mimeType: 'IMAGE/PNG; charset=binary' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.contentType).toBe('image/png');
+    expect(assetUploadMock).toHaveBeenCalledTimes(1);
+    const uploadedFile = assetUploadMock.mock.calls[0]?.[0] as File | undefined;
+    expect(uploadedFile?.type).toBe('image/png');
+  });
+
   it('strips path traversal from filename on base64 upload', async () => {
     const png = Buffer.from('PNG!');
     const res = await request(app)
