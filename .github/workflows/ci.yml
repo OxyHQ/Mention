@@ -143,8 +143,11 @@ jobs:
           - package: shared-types
             command: bun run --cwd packages/shared-types test
             coverage: false
+          # `--reporter=default` is restated because naming any reporter REPLACES
+          # the default set, and a CI log with only machine JSON in it is a log
+          # nobody can read. The JSON is what the collection gate below consumes.
           - package: backend
-            command: bun run --cwd packages/backend test:coverage -- --coverage.reportsDirectory="$RUNNER_TEMP/backend-coverage"
+            command: bun run --cwd packages/backend test:coverage -- --coverage.reportsDirectory="$RUNNER_TEMP/backend-coverage" --reporter=default --reporter=json --outputFile="$RUNNER_TEMP/backend-report.json"
             coverage: true
           - package: frontend
             command: bun run --cwd packages/frontend test:coverage -- --coverageDirectory="$RUNNER_TEMP/frontend-coverage"
@@ -197,6 +200,18 @@ jobs:
       - name: Run complete package test suite
         if: steps.scope.outputs.run == 'true'
         run: ${{ matrix.command }}
+      # A test file that dies before its first `it()` contributes ZERO tests. It
+      # has no assertions to fail, so the pass RATIO improves: measured on this
+      # repository, 502 files / 5610 collected / 6 failed read as 99.9% passing
+      # while 32 files were dead at load and 296 declared tests never ran. Nothing
+      # about pass/fail can see that, and the number moves the reassuring way.
+      #
+      # `always()` so the gate still reports when the suite step failed — a load
+      # failure fails the suite too, and this is the step that says WHICH files
+      # and why the ratio lied. Backend only: it is the one leg emitting the JSON.
+      - name: Assert the suite collected what it claims to run
+        if: always() && matrix.package == 'backend' && steps.scope.outputs.run == 'true'
+        run: bun run check:suite-collection "$RUNNER_TEMP/backend-report.json" packages/backend/src
       - name: Upload coverage summary
         if: always() && matrix.coverage && steps.scope.outputs.run == 'true'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
