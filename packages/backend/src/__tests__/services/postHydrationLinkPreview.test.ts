@@ -86,6 +86,7 @@ vi.mock('../../services/userSummaryCache', () => ({
 }));
 
 import { PostHydrationService } from '../../services/PostHydrationService';
+import { FEDERATION_DOMAIN } from '../../connectors/activitypub/constants';
 
 function makeOxyUser(id: string, username: string, displayName: string) {
   return { id, username, name: { displayName }, badges: [], verified: false, isVerified: false };
@@ -261,5 +262,78 @@ describe('PostHydrationService — link previews sourced from Oxy', () => {
     });
 
     expect(getLinkPreviews).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A URL naming a profile on THIS instance is rendered as a mention by the
+   * reader's linkifier, so a card under it would preview a page the reader can no
+   * longer see a link to. These assert the card is withheld — and, just as
+   * importantly, that nothing else loses one.
+   */
+  describe('a profile link on this instance gets no card', () => {
+    // The suite builds its URLs from the configured federation domain's DEFAULT.
+    // Asserting it keeps the cases below from going vacuous if that config
+    // changes: they would then be exercising a host the service does not treat
+    // as ours, and would pass for the wrong reason.
+    it('is exercising the host the service actually treats as ours', () => {
+      expect(FEDERATION_DOMAIN).toBe('mention.earth');
+    });
+
+    it.each([
+      ['a profile page', 'https://mention.earth/@alice'],
+      ['a federated profile page', 'https://mention.earth/@bob@mastodon.social'],
+      ['an actor URI', 'https://mention.earth/ap/users/alice'],
+    ])('asks for no preview of %s', async (_label, url) => {
+      getLinkPreviews.mockResolvedValue({});
+
+      const hydrated = await hydrate(`mira ${url}`);
+
+      // Dropped BEFORE the batch call — the preview service is never asked to
+      // scrape our own profile page.
+      expect(getLinkPreviews).not.toHaveBeenCalled();
+      expect(hydrated.linkPreviews).toEqual([]);
+    });
+
+    it('still gives the other link its card', async () => {
+      getLinkPreviews.mockResolvedValue({ [POST_URL]: resolvedPreview(POST_URL, 'First') });
+
+      const hydrated = await hydrate(`https://mention.earth/@alice wrote ${POST_URL}`);
+
+      // The gate suppresses one entry, not the map.
+      expect(getLinkPreviews).toHaveBeenCalledWith([POST_URL]);
+      expect(hydrated.linkPreviews?.map((preview) => preview.url)).toEqual([POST_URL]);
+    });
+
+    it('keeps the card for a profile URL on ANY OTHER host', async () => {
+      // The renderer leaves these as links, because whether we hold that account
+      // is not readable from the characters — so the card has to stay too.
+      const remote = 'https://mastodon.social/@bob';
+      getLinkPreviews.mockResolvedValue({ [remote]: resolvedPreview(remote, 'Bob') });
+
+      const hydrated = await hydrate(`mira ${remote}`);
+
+      expect(getLinkPreviews).toHaveBeenCalledWith([remote]);
+      expect(hydrated.linkPreviews?.map((preview) => preview.url)).toEqual([remote]);
+    });
+
+    it('keeps the card for one of our own pages that is not a profile', async () => {
+      const ourPost = 'https://mention.earth/p/650000000000000000000099';
+      getLinkPreviews.mockResolvedValue({ [ourPost]: resolvedPreview(ourPost, 'A post') });
+
+      const hydrated = await hydrate(`mira ${ourPost}`);
+
+      expect(getLinkPreviews).toHaveBeenCalledWith([ourPost]);
+      expect(hydrated.linkPreviews?.map((preview) => preview.url)).toEqual([ourPost]);
+    });
+
+    it('keeps the card for a sub-page of one of our profiles', async () => {
+      const followers = 'https://mention.earth/@alice/followers';
+      getLinkPreviews.mockResolvedValue({ [followers]: resolvedPreview(followers, 'Followers') });
+
+      const hydrated = await hydrate(`mira ${followers}`);
+
+      expect(getLinkPreviews).toHaveBeenCalledWith([followers]);
+      expect(hydrated.linkPreviews?.map((preview) => preview.url)).toEqual([followers]);
+    });
   });
 });

@@ -9,11 +9,12 @@ import Bookmark from '../models/Bookmark';
 import { FederatedActor } from '../models/FederatedActor';
 import { UserSettings } from '../models/UserSettings';
 import { actorService } from '../connectors/activitypub/actor.service';
-import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
+import { ACTOR_DOMAIN, FEDERATION_DOMAIN, FEDERATION_ENABLED } from '../connectors/activitypub/constants';
 import { deriveBridgyActorUri } from '../connectors/activitypub/bridgy';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { extractUrls } from '../utils/extractUrls';
+import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
 import {
   getBlockedUserIds,
   getRestrictedUserIds,
@@ -51,6 +52,39 @@ import {
 import { loadRecentReplierIds } from './PostRecentReplierService';
 
 import { PostContentVariant, PostMetadata, StoredPostContent } from '@mention/shared-types';
+
+/**
+ * The hosts whose `/@alice` URLs name a user in OUR namespace.
+ *
+ * These must be the same hosts the READER's linkifier recognises
+ * (`packages/frontend/utils/linkifyPattern.ts`, which derives its list from the
+ * app's `WEB_BASE_URL`), because the two decisions are halves of one behaviour:
+ * the renderer turns such a URL into a mention, and {@link ownProfileLinkUrls}
+ * withholds the preview card that would otherwise sit under it. If the lists
+ * disagree the reader sees the mismatch — a mention with a redundant card, or a
+ * link that lost its card for no visible reason.
+ *
+ * The federation domain rather than `FRONTEND_URL`: they agree in production,
+ * but `FRONTEND_URL` is a CORS origin and is `http://localhost:8110` in
+ * development, where the app's own base URL is not. `ACTOR_DOMAIN` defaults to
+ * the same value and is only distinct when actor URIs are served elsewhere.
+ */
+const OWN_PROFILE_HOSTS: readonly string[] = [
+  ...new Set([FEDERATION_DOMAIN, ACTOR_DOMAIN].filter((host): host is string => Boolean(host))),
+];
+
+/**
+ * True when a URL names a profile on this instance — the URLs the reader is
+ * shown a MENTION for rather than a link.
+ *
+ * The same `ownProfileUrlHandle` the linkifier decides with, so the two cannot
+ * drift into disagreeing about a URL: whatever the renderer swallows into a
+ * mention is exactly what loses its card, and everything else keeps one. Purely
+ * syntactic, so this costs a `URL` parse per extracted link and no I/O.
+ */
+function isOwnProfileLink(url: string): boolean {
+  return ownProfileUrlHandle(url, OWN_PROFILE_HOSTS) !== undefined;
+}
 
 /**
  * A raw post plain-object as returned by `.lean()` or `.toObject()`.
@@ -1700,6 +1734,22 @@ export class PostHydrationService {
    * render and gains one on a later render once Oxy has resolved it. Only
    * top-level posts carry previewable text; nested boosts/quotes have no preview
    * of their own.
+   *
+   * A URL naming a profile on THIS instance gets no card ({@link isOwnProfileLink}),
+   * because the reader is not shown a link there: the linkifier renders that span
+   * as a mention, and a card underneath would preview a page the reader can no
+   * longer see a link to. It is dropped before the batch call rather than after,
+   * so we also stop asking the preview service to scrape our own profile pages.
+   * The suppression is per URL, not per post — a post carrying a profile link AND
+   * an article still gets the article's card.
+   *
+   * One bounded consequence, stated rather than hidden: {@link extractUrls}
+   * applies the `MAX_POST_LINK_PREVIEWS` cap BEFORE this filter, so a post
+   * carrying more than that many links, one of which is a profile link, renders
+   * one card fewer instead of promoting the next link into the freed slot. Moving
+   * the filter ahead of the cap would mean teaching a generally-named URL
+   * extractor about profile links, which is a worse trade for a case that needs
+   * five links in one body to reach.
    */
   private async buildLinkPreviewMap(
     nodes: HydratedGraphNode[],
@@ -1717,7 +1767,7 @@ export class PostHydrationService {
       const text = resolvedMap.get(postId)?.text;
       if (!text || typeof text !== 'string') continue;
 
-      const urls = extractUrls(text);
+      const urls = extractUrls(text).filter((url) => !isOwnProfileLink(url));
       if (urls.length === 0) continue;
 
       postToUrls.set(postId, urls);
