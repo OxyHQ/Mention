@@ -286,7 +286,11 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                     privacySettings={profileData.privacy}
                     UserNameComponent={UserName}
                 />
-                <View className="mt-3 mb-2">
+                {/* The last element of the centred masthead, and the boundary
+                    the left-aligned body starts after — so it gets an equal
+                    gap on both sides rather than the tighter `mb` a control
+                    tucked under a left-aligned name row wanted. */}
+                <View className="mt-4 mb-4">
                     <ChannelActions
                         profileId={profileData.id}
                         isFollowing={profileData.isFollowing}
