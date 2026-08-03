@@ -65,6 +65,7 @@ import { planTables, singlePrimaryKeyProperty, tableName, type CollectionPlan } 
 import {
   ORPHAN_RESOLUTIONS,
   parentKeysFrom,
+  parentKeysNotConsulted,
   transformDocument,
   type OrphanRelation,
   type ResolutionContext,
@@ -599,10 +600,11 @@ export async function auditReferentialIntegrity(
   let collectionsInspected = 0;
   let documentsInspected = 0;
 
-  // The rules stand down entirely in phase 1: their parent sets are not built
-  // yet, so asking them anything would answer from an empty map. An empty
-  // `ParentKeys` is honest about that — `keysFor` throws rather than pretending.
-  const noParents = parentKeysFrom(new Map());
+  // The rules stand down entirely in phase 1: this pass BUILDS the key set that
+  // phase 2 decides against, so there is nothing to decide yet. That is the
+  // "not consulted" state, not the "unloaded" one — the latter refuses the run,
+  // which is right for the copy and wrong here.
+  const noParents = parentKeysNotConsulted();
   const refused: RefusedDocuments = new Map();
   /** The greatest `_id` phase 1 saw per collection — phase 2's ceiling. */
   const highWater = new Map<string, unknown>();

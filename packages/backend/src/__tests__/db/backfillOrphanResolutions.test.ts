@@ -28,6 +28,8 @@ import { eq, inArray } from 'drizzle-orm';
 import { mongoSourceFromDb, type MongoSource } from '../../db/backfill/mongoSource';
 import { COLLECTION_PLANS } from '../../db/backfill/collectionMap';
 import { copyCollection } from '../../db/backfill/runner';
+import { auditDefaultedColumns } from '../../db/backfill/audit';
+import { auditReferentialIntegrity } from '../../db/backfill/referentialIntegrity';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { postRecentRepliers } from '../../db/schema/postContent';
@@ -189,6 +191,43 @@ describe('a boost of a post Mention never held', () => {
     ]);
   });
 
+  it('drops one that did not EXIST when the resolutions were planned', async () => {
+    // "Report every dropped id" has to be a runtime output of the COPY, never a
+    // list frozen from an audit — measured: an orphan boost appeared in
+    // production 81 seconds after run 8's bound closed. A rule that consulted a
+    // precomputed id list would copy that row and violate the foreign key,
+    // having reported nothing.
+    //
+    // So the pre-pass is deliberately run FIRST, against a source that does not
+    // yet contain the offending document.
+    const decoy = new ObjectId();
+    await mongo.collection('posts').insertOne(basePost(decoy));
+    const planned = await planResolutions(source);
+    // The ordering IS the fixture: if the offending document were already
+    // present here, the test would pass without saying anything about frozen
+    // lists.
+    expect(await source.count('posts')).toBe(1);
+
+    const late = new ObjectId();
+    await mongo
+      .collection('posts')
+      .insertOne(basePost(late, { type: 'boost', boostOf: new ObjectId().toHexString() }));
+
+    const log = new ResolutionLog();
+    await copyCollection(planFor('posts'), {
+      db: getDb(),
+      source,
+      resolutions: createResolutionContext(planned, log),
+      parents: parentKeysFrom(new Map([['posts', new Set([decoy.toHexString()])]])),
+    });
+
+    const rows = await getDb().select().from(posts).where(eq(posts.id, late.toHexString()));
+    expect(rows).toStrictEqual([]);
+    expect(reportedIds(log, 'drop-boost-of-a-post-mention-never-held')).toStrictEqual([
+      late.toHexString(),
+    ]);
+  });
+
   it('leaves a boost whose target EXISTS completely alone', async () => {
     const original = new ObjectId();
     const boost = new ObjectId();
@@ -294,5 +333,48 @@ describe('a recent-replier row naming a post Mention never held', () => {
 
     expect(kept.map((row) => row.postId)).toStrictEqual([present.toHexString()]);
     expect(reportedIds(log, 'drop-recent-replier-of-a-vanished-post')).toHaveLength(1);
+  });
+});
+
+describe('the audit passes that run transforms but decide no reference', () => {
+  /**
+   * The regression that reached PRODUCTION, and the reason this file exists in
+   * the shape it does.
+   *
+   * `auditDefaultedColumns` runs every transform to measure which columns rows
+   * omit. It decides no reference, so it had always passed an UNLOADED parent
+   * set — correct, and inert, for exactly as long as `ORPHAN_RESOLUTIONS` was
+   * empty: `resolveOrphanedReferences` returned before ever calling `keysFor`.
+   *
+   * Declaring the first resolution on `posts` woke that path up, and run 9 died
+   * two minutes in with `MissingParentKeysError` before reaching a single
+   * finding. The full test suite was green — 600 tests — because nothing
+   * exercised an audit pass over a collection that HAS resolutions declared.
+   * A rule can therefore be correct in every test and still stop the run.
+   */
+  it('run over a collection that HAS declared resolutions, without refusing', async () => {
+    const boost = new ObjectId();
+    await mongo
+      .collection('posts')
+      .insertMany([
+        basePost(new ObjectId()),
+        basePost(boost, { type: 'boost', boostOf: new ObjectId().toHexString() }),
+      ]);
+
+    const resolutions = createResolutionContext(await planResolutions(source), new ResolutionLog());
+
+    // Both passes, because both run transforms for a non-reference purpose and
+    // both used to pass an unloaded set.
+    await expect(auditDefaultedColumns(source, planFor('posts'), resolutions)).resolves.toBeInstanceOf(
+      Array
+    );
+    await expect(
+      auditReferentialIntegrity(
+        getDb(),
+        source,
+        [{ plan: planFor('posts'), documents: 2 }],
+        resolutions
+      )
+    ).resolves.toBeDefined();
   });
 });

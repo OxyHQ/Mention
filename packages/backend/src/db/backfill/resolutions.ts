@@ -454,8 +454,18 @@ export const DROP_RECENT_REPLIER_OF_A_VANISHED_POST: ResolutionRule = {
  * A boost of a post Mention does not hold.
  *
  * This is the one rule here that removes a post, so the evidence is stated
- * rather than asserted. Measured against `mention-production` (2026-08-03),
- * over ALL 348 such rows live at the time — not a sample:
+ * rather than asserted.
+ *
+ * TWO DIFFERENT QUANTITIES SIT NEXT TO EACH OTHER IN THIS REPORT, and they will
+ * be confused unless they are named: **347 is the count of boost ROWS** the
+ * audit would reject, while **257 is the count of distinct missing ORIGINALS**
+ * those rows point at (part of the 722 distinct absent parents across all four
+ * relations). Many boosts can name one vanished original, so the row count is
+ * the larger number and it is the one a rule acts on. A ruling written against
+ * 257 would be a ruling about the wrong population.
+ *
+ * Measured against `mention-production` (2026-08-03), over ALL 348 such rows
+ * live at the time — not a sample:
  *
  * - every one is `type: 'boost'` and `status: 'published'`;
  * - ZERO carry any `content.text`;
@@ -474,9 +484,22 @@ export const DROP_RECENT_REPLIER_OF_A_VANISHED_POST: ResolutionRule = {
  * produces and no reader expects.
  *
  * 347 of the 348 are federated (an Announce arrived for an original Mention
- * never stored) and span 2024-04 to 2026-08. The single local row is the test
- * account boosting a post created two seconds earlier that was then deleted —
- * deleting a post does not delete boosts of it. Two causes, one remedy.
+ * never stored) and span 2024-04 to 2026-08 — never-landed originals, not
+ * deletions, which the referrers' locality is what establishes: every one
+ * federated, zero local.
+ *
+ * The single local row is the test account boosting a post created two seconds
+ * earlier that was then deleted. That one is a PRODUCT finding and not a
+ * migration one: **the delete path leaves boosts behind**. It is recorded here
+ * because refusing to claim one cause for all 348 is what makes both claims
+ * usable, and it wants fixing in the app rather than in this rule.
+ *
+ * The set is LIVE — the 348th arrived 81 seconds after the audit's bound
+ * closed. So the ids this rule reports are produced by the COPY as it runs and
+ * are never read from a list an audit froze; a precomputed list would miss
+ * exactly the rows that arrived since, copy them, and violate the foreign key
+ * having reported nothing. `backfillOrphanResolutions.test.ts` pins that by
+ * planning the resolutions BEFORE the offending document exists.
  */
 export const DROP_BOOST_OF_A_POST_MENTION_NEVER_HELD: ResolutionRule = {
   id: 'drop-boost-of-a-post-mention-never-held',
@@ -1168,6 +1191,38 @@ export function parentKeysFrom(loaded: ReadonlyMap<string, ReadonlySet<string>>)
       return keys;
     },
   };
+}
+
+/**
+ * A parent set for a pass that is NOT deciding references at all.
+ *
+ * THREE distinct answers exist here and only two of them were reachable before
+ * the first orphan resolution was declared, which is why this is a late
+ * addition rather than part of the original design:
+ *
+ *  - **unloaded** (`parentKeysFrom(new Map())`) — THROWS. The copy must never
+ *    decide a reference against a set nobody built, so the run is refused.
+ *  - **loaded and empty** — stands the rules down. "This table holds no rows
+ *    yet" is a real answer and it is honoured.
+ *  - **not consulted** — this. The caller runs transforms for a purpose that
+ *    has nothing to do with references (measuring defaulted columns, or
+ *    building the key set the reference check will later use), so there is no
+ *    reference decision to get wrong.
+ *
+ * The first two were indistinguishable in practice while `ORPHAN_RESOLUTIONS`
+ * was empty, because `resolveOrphanedReferences` returned before ever calling
+ * `keysFor`. Declaring the first resolution on `posts` woke that path up and
+ * the audit's own defaulted-column pass — which had always passed an unloaded
+ * set, correctly, since it decides nothing — started refusing the whole run.
+ *
+ * **The COPY must never use this.** Its fail-closed refusal is the thing that
+ * stops a reference being decided against the wrong parents; this exists only
+ * for passes that make no such decision, and `backfillOrphanResolutions.test.ts`
+ * pins that the copy still refuses an unloaded set.
+ */
+export function parentKeysNotConsulted(): ParentKeys {
+  const none: ReadonlySet<string> = new Set();
+  return { keysFor: () => none };
 }
 
 /** Every parent table an `absent-parent` rule decides against. */
