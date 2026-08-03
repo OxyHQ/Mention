@@ -32,7 +32,7 @@ import { auditNumerics, auditWouldBlockCopy } from '../../db/backfill/audit';
 import type { MongoSource, ReadOnlyCollection } from '../../db/backfill/mongoSource';
 import { describeNumericBound, numericIsAccepted, type CollectionPlan } from '../../db/backfill/plan';
 import { LIKE_VALUES, likes } from '../../db/schema/engagement';
-import { trending } from '../../db/schema/discovery';
+import { authorFollowerSnapshots, trending } from '../../db/schema/discovery';
 import { numericInList } from '../../db/schema/columns';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { runAudits } from '../../db/backfill/runner';
@@ -82,10 +82,21 @@ function stubSource(values: readonly unknown[], documents = 3, missing = 0): Mon
 }
 
 /** A plan carrying one numeric audit and a transform nothing here calls. */
-function planWith(numericAudits: NonNullable<CollectionPlan['numericAudits']>): CollectionPlan {
+/**
+ * `table` is a parameter because the missing-field probe branches on WHICH
+ * table the audited column lands in: the plan's own table means one row per
+ * document, another table means one row per array element. A synthetic plan
+ * whose `table` disagrees with its audited column would silently take the
+ * second branch and report nothing — which is a passing test measuring the
+ * wrong thing.
+ */
+function planWith(
+  numericAudits: NonNullable<CollectionPlan['numericAudits']>,
+  table: CollectionPlan['table'] = likes
+): CollectionPlan {
   return {
     collection: 'numaudit_fixture',
-    table: likes,
+    table,
     numericAudits,
     transform: () => {
       throw new Error('the numeric audit must never run a transform');
@@ -228,13 +239,38 @@ describe('auditNumerics — the NULL branches', () => {
       // separate `$exists: false` probe sees four documents.
       stubSource([], 0, 4),
       planWith([
-        { path: 'revision', column: likes.revision, constraint: 'likes_revision_check', min: 0 },
-      ])
+        {
+          // `NOT NULL` with NO default, which is what makes an absent field a
+          // real `23502`. `likes.revision` used to stand here and carries a
+          // default, so the probe now (correctly) skips it — see the case
+          // below.
+          path: 'followerCount',
+          column: authorFollowerSnapshots.followerCount,
+          constraint: 'author_follower_snapshots_follower_count_check',
+          min: 0,
+        },
+      ], authorFollowerSnapshots)
     );
     expect(findings).toHaveLength(1);
     expect(findings[0].detail).toContain('MISSING');
     expect(findings[0].documents).toBe(4);
     expect(auditWouldBlockCopy(findings[0])).toBe(true);
+  });
+
+  it('does NOT probe for a missing field in a column that carries a DEFAULT', async () => {
+    // Postgres supplies the value, so there is no `23502` to predict. The
+    // omission is `auditDefaultedColumns`'s question — and it runs only once
+    // nothing blocks, so claiming a rejection here would gate out the pass that
+    // owns the case.
+    expect(likes.revision.notNull).toBe(true);
+    expect(likes.revision.hasDefault).toBe(true);
+    const findings = await auditNumerics(
+      stubSource([], 0, 4),
+      planWith([
+        { path: 'revision', column: likes.revision, constraint: 'likes_revision_check', min: 0 },
+      ])
+    );
+    expect(findings).toEqual([]);
   });
 
   it('does NOT probe for a missing field the transform declares a default for', async () => {

@@ -247,6 +247,24 @@ function missingWithinStructure(
  *    ({@link CollectionPlan.childTables}), so a row exists only where an element
  *    does — see {@link missingWithinStructure}.
  *
+ * ## A column WITH a default is a different audit's question
+ *
+ * This probe predicts a `23502`, and a `NOT NULL` column carrying a DEFAULT
+ * cannot produce one: the transform omits the value and Postgres supplies it.
+ * Both callers therefore skip this entirely when `column.hasDefault`, and the
+ * omission is `auditDefaultedColumns`'s to report — which is the pass that asks
+ * the question a defaulted column actually raises. Not "would this row be
+ * rejected" (it would not) but "is a value nobody chose about to land with
+ * nothing left to notice it afterwards", answerable only by deriving the value
+ * or recording in the plan why the default is right.
+ *
+ * That is a HAND-OFF, not a silencing. It matters because the two passes are
+ * ordered: `auditDefaultedColumns` runs only once nothing blocks, so a false
+ * `23502` here was gating out the very audit that owns the case. Measured
+ * against production: `posts.replyPermission` (147,198 documents) was the whole
+ * live effect, and the only other column of that shape schema-wide is
+ * `mutewords.targets`, which holds none.
+ *
  * **Do not widen the second branch to cover array-VALUED columns.** The two are
  * easy to conflate and are not the same question: `posts.replyPermission` holds
  * an array and lives on `posts` itself, so one row is emitted per document
@@ -330,7 +348,7 @@ export async function auditEnums(
     const observed = await collection.distinct(audit.path, {});
 
     // A field that is MISSING rather than null — see `auditMissingRequired`.
-    if (audit.column.notNull && audit.absentAs === undefined) {
+    if (audit.column.notNull && !audit.column.hasDefault && audit.absentAs === undefined) {
       const missing = await auditMissingRequired(
         source,
         plan,
@@ -454,7 +472,7 @@ export async function auditNumerics(
     const observed = await collection.distinct(audit.path, {});
 
     // A field that is MISSING rather than null — see `auditMissingRequired`.
-    if (audit.column.notNull && audit.absentAs === undefined) {
+    if (audit.column.notNull && !audit.column.hasDefault && audit.absentAs === undefined) {
       const missing = await auditMissingRequired(
         source,
         plan,
