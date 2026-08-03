@@ -33,7 +33,7 @@ import { MtnConfig, normalizeTrendCategory } from '@mention/shared-types';
 import type { TrendCategory } from '@mention/shared-types';
 import { ruleBasedTopicClassifier } from '../contentClassification/TopicClassifier';
 import { canonicalHashtag } from '../contentClassification/taxonomy';
-import { collectTrendPhrases } from './termExtraction';
+import { collectTrendPhrases, stripNonProse } from './termExtraction';
 
 /**
  * Version of the labelling rules.
@@ -52,6 +52,9 @@ import { collectTrendPhrases } from './termExtraction';
  * v2: a corpus spelling is preferred only when it adds capitalization and is
  * not shouted (see {@link presentableSurfaceForm}).
  *
+ * v5: the surface form is read from PROSE, with links removed, so a term
+ * appearing lower-case inside a URL cannot outvote the way people write it.
+ *
  * v4: a topic must be supported by a minimum SHARE of the posts read before it
  * becomes the category; below that the row reports `other`. One post in twelve
  * saying "climate change" was enough to file `US` under Science.
@@ -62,7 +65,7 @@ import { collectTrendPhrases } from './termExtraction';
  * stayed filed under Science after the fix that would have written `other`,
  * because its run had started first and its label was reused verbatim.
  */
-export const TREND_LABEL_VERSION = 4;
+export const TREND_LABEL_VERSION = 5;
 
 /** What a trend is shown as. */
 export interface TrendLabel {
@@ -258,7 +261,11 @@ function surfaceForm(phrase: string, excerpts: readonly string[]): string | null
 
   const counts = new Map<string, number>();
   for (const excerpt of excerpts) {
-    for (const match of excerpt.matchAll(pattern)) {
+    // PROSE only, the same text extraction reads. A link is not a spelling
+    // anybody chose: ten bot posts pointing at `rawchili.com/nba/…` made the
+    // commonest form of `NBA` a lower-case one, and a term nobody appears to
+    // capitalize falls through to title case — `Nba`.
+    for (const match of stripNonProse(excerpt).matchAll(pattern)) {
       const surface = match[0].replace(/^#/, '').replace(/\s+/g, ' ');
       counts.set(surface, (counts.get(surface) ?? 0) + 1);
     }

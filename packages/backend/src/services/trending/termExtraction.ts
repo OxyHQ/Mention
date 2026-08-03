@@ -282,6 +282,37 @@ export function extractTrendTerms(input: TrendTermInput): string[] {
  * whatever happened to be written early. Same tokenizing and the same stop
  * words either way, so the two can never disagree about what a phrase IS.
  */
+/**
+ * A post's PROSE — its text with everything that is not someone's words removed.
+ *
+ * Links, mention placeholders, handles and the `#` marker all go. Exported
+ * because two steps need exactly this and reading different text is how they
+ * disagree: extraction stripped links and the label's surface-form step did
+ * not, so `NBA` was displayed as `Nba`. Ten bot posts linked to
+ * `rawchili.com/nba/…` and one wrote "the NBA\u2019s next" — the most frequent
+ * spelling was the lower-case one inside the URLs, which reads as a term nobody
+ * ever capitalized.
+ */
+export function stripNonProse(text: string | null | undefined): string {
+  const withoutLinks = stripMentionPlaceholders(text ?? '')
+    // Mention links first: they are the shape most likely to contain something
+    // that looks like prose, so removing them whole has to happen before the
+    // generic link rule salvages their label.
+    .replace(MENTION_LINK_PATTERN, ' ')
+    .replace(MARKDOWN_LINK_PATTERN, '$1 ');
+
+  return stripTextEntities(withoutLinks, URL_SCAN)
+    // Bare handles BEFORE `@mention`s: the `@mention` pattern would otherwise
+    // match the `@instance.tld` half of `someone@instance.tld` and leave the
+    // orphaned local part behind as a word.
+    .replace(BARE_HANDLE_PATTERN, ' ')
+    .replace(MENTION_PATTERN, ' ')
+    // The `#` marker goes, the word stays: this single character is the whole
+    // difference between `#fifa` and `fifa`, and collapsing it here is what puts
+    // tagged and untagged posts about the same thing into one count.
+    .replace(/#/g, '');
+}
+
 export function collectTrendPhrases(
   text: string | null | undefined,
   languages?: readonly string[],
@@ -304,23 +335,7 @@ export function collectTrendPhrases(
   const carriesCase =
     /\p{Ll}/u.test(text ?? '') && capitalizationNamesThings(languages);
 
-  const withoutLinks = stripMentionPlaceholders(text ?? '')
-    // Mention links first: they are the shape most likely to contain something
-    // that looks like prose, so removing them whole has to happen before the
-    // generic link rule salvages their label.
-    .replace(MENTION_LINK_PATTERN, ' ')
-    .replace(MARKDOWN_LINK_PATTERN, '$1 ');
-
-  const cleaned = stripTextEntities(withoutLinks, URL_SCAN)
-    // Bare handles BEFORE `@mention`s: the `@mention` pattern would otherwise
-    // match the `@instance.tld` half of `someone@instance.tld` and leave the
-    // orphaned local part behind as a word.
-    .replace(BARE_HANDLE_PATTERN, ' ')
-    .replace(MENTION_PATTERN, ' ')
-    // The `#` marker goes, the word stays: this single character is the whole
-    // difference between `#fifa` and `fifa`, and collapsing it here is what puts
-    // tagged and untagged posts about the same thing into one count.
-    .replace(/#/g, '');
+  const cleaned = stripNonProse(text);
 
   for (const segment of cleaned.split(SEGMENT_BOUNDARY)) {
     // Each RUN is a stretch of consecutive keepable tokens. A dropped token

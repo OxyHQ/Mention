@@ -279,8 +279,8 @@ describe('TREND_LABEL_VERSION guards the labels it stamps', () => {
     expect(label.category).toBe(category);
   });
 
-  it('is at v4 — bump it in the same change that alters the table above', () => {
-    expect(TREND_LABEL_VERSION).toBe(4);
+  it('is at v5 — bump it in the same change that alters the table above', () => {
+    expect(TREND_LABEL_VERSION).toBe(5);
   });
 });
 
@@ -315,5 +315,23 @@ describe('a category needs enough posts behind it', () => {
       deriveTrendLabel({ term: 'ustoday', excerpts: ['a post about climate change', 'hello'] })
         .category,
     ).toBe('other');
+  });
+});
+
+describe('a link is not a spelling anybody chose', () => {
+  it('keeps an acronym capitalized when the term also appears inside URLs', () => {
+    // Live: ten bot posts linking to `rawchili.com/nba/…` and one writing "the
+    // NBA's next". The lower-case form inside the links was the most frequent,
+    // so the label read `Nba` — a term nobody appears to capitalize falls
+    // through to title case.
+    const excerpts = [
+      ...Array.from(
+        { length: 6 },
+        (_, index) => `Some headline number ${index} https://www.rawchili.com/nba/80${index}`,
+      ),
+      'Cavs Donovan Mitchell might be the NBA next ticking time bomb',
+    ];
+
+    expect(deriveTrendLabel({ term: 'nba', excerpts }).displayName).toBe('NBA');
   });
 });
