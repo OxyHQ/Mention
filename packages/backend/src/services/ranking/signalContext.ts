@@ -15,11 +15,11 @@
  */
 
 import type { PostClassification } from '@mention/shared-types';
-import type { UserBehaviorRecord } from '../../db/userProfile/userBehaviorRecord';
+import type { IUserBehavior } from '../../models/UserBehavior';
 
 /**
  * The lean user-behavior shape the ranking signals read. A relaxed view of
- * {@link UserBehaviorRecord}: every field optional (the doc may be a partial
+ * {@link IUserBehavior}: every field optional (the doc may be a partial
  * `.lean()` result, absent entirely for anonymous viewers, or supplied by the
  * caller) and each preference entry only declares the fields ranking reads, so
  * callers can pass minimal behavior objects. Every signal degrades to neutral
@@ -28,7 +28,7 @@ import type { UserBehaviorRecord } from '../../db/userProfile/userBehaviorRecord
 export interface RankingUserBehavior {
   preferredAuthors?: Array<{ authorId: string; weight: number }>;
   preferredTopics?: Array<{ topic: string; topicId?: unknown; weight: number }>;
-  preferredPostTypes?: Partial<UserBehaviorRecord['preferredPostTypes']>;
+  preferredPostTypes?: Partial<IUserBehavior['preferredPostTypes']>;
   preferredLanguages?: string[];
   activeHours?: number[];
   hiddenAuthors?: string[];

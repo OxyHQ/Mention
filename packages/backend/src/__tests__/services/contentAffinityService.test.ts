@@ -12,6 +12,9 @@
  *
  * Still mocked, deliberately:
  *
+ *  - `models/UserBehavior` — the preferred-author / preferred-topic / negative
+ *    signal aggregate is still a Mongo document; its Postgres form needs child
+ *    table assembly that belongs to the preferences batch.
  *  - `mtn/UserPrivacyManager` and `utils/privacyHelpers.getFollowingIdSet` — the
  *    Oxy-owned block/mute/restrict relations and follow graph.
  *  - `utils/redis` — the per-viewer result cache, off by default so every case
@@ -37,13 +40,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { MtnConfig, PostType, PostVisibility } from '@mention/shared-types';
 
 const mocks = vi.hoisted(() => ({
-  /**
-   * Fault injected into the behaviour READ for the soft-fail case only. Every
-   * other case goes through the real repository against real rows — a mocked
-   * read would make the aggregate a value this file supplies rather than one the
-   * service loaded.
-   */
-  behaviorLoadError: null as Error | null,
+  userBehaviorFindOne: vi.fn(),
   loadPrivacyState: vi.fn(),
   getFollowingIdSet: vi.fn(),
   getRedisClient: vi.fn(),
@@ -51,18 +48,7 @@ const mocks = vi.hoisted(() => ({
   redisSet: vi.fn(),
 }));
 
-vi.mock('../../db/userProfile/userBehaviorRepository', async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import('../../db/userProfile/userBehaviorRepository')
-  >();
-  return {
-    ...actual,
-    loadUserBehavior: async (oxyUserId: string) => {
-      if (mocks.behaviorLoadError) throw mocks.behaviorLoadError;
-      return actual.loadUserBehavior(oxyUserId);
-    },
-  };
-});
+vi.mock('../../models/UserBehavior', () => ({ default: { findOne: mocks.userBehaviorFindOne } }));
 vi.mock('../../mtn/UserPrivacyManager', () => ({
   UserPrivacyManager: { loadPrivacyState: mocks.loadPrivacyState },
 }));
@@ -91,10 +77,6 @@ import { posts } from '../../db/schema/posts';
 import { entityFollows, likes } from '../../db/schema/engagement';
 import { userSettings } from '../../db/schema/userProfile';
 import { insertPostRecord } from '../../db/posts/postRepository';
-import {
-  deleteUserBehavior,
-  updateUserBehavior,
-} from '../../db/userProfile/userBehaviorRepository';
 import type { PostRecordInput } from '../../db/posts/postRecord';
 import type { OxyClient } from '../../utils/privacyHelpers';
 import { ContentAffinityService, type ContentCandidate } from '../../services/ContentAffinityService';
@@ -144,39 +126,9 @@ interface BehaviorFixture {
   hiddenTopics: string[];
 }
 
-/**
- * Write the viewer's behaviour aggregate as REAL rows (null = cold viewer).
- *
- * `preferredAuthors` and `preferredTopics` are child tables, so the weights
- * asserted below only survive if the repository writes and reads them back — a
- * stub returning the fixture verbatim could not tell those apart.
- */
-async function seedBehavior(doc: BehaviorFixture | null): Promise<void> {
-  await deleteUserBehavior(VIEWER);
-  if (!doc) return;
-  await updateUserBehavior(
-    VIEWER,
-    (record) => {
-      record.preferredAuthors = doc.preferredAuthors.map((author) => ({
-        authorId: author.authorId,
-        interactionCount: 0,
-        lastInteractionAt: new Date(),
-        interactionTypes: { likes: 0, boosts: 0, comments: 0, saves: 0, shares: 0 },
-        weight: author.weight,
-      }));
-      record.preferredTopics = doc.preferredTopics.map((topic) => ({
-        topic: topic.topic,
-        interactionCount: 0,
-        lastInteractionAt: new Date(),
-        weight: topic.weight,
-      }));
-      record.hiddenAuthors = doc.hiddenAuthors;
-      record.mutedAuthors = doc.mutedAuthors;
-      record.blockedAuthors = doc.blockedAuthors;
-      record.hiddenTopics = doc.hiddenTopics;
-    },
-    { createIfMissing: true },
-  );
+/** `UserBehavior.findOne().lean()` resolving to `doc` (null = cold viewer). */
+function stubBehavior(doc: BehaviorFixture | null): void {
+  mocks.userBehaviorFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(doc) });
 }
 
 /** A behavior document with only the lists a case cares about populated. */
@@ -255,9 +207,8 @@ beforeAll(async () => {
   db = await connectPostgres();
 });
 
-beforeEach(async () => {
+beforeEach(() => {
   vi.clearAllMocks();
-  mocks.behaviorLoadError = null;
   // Redis disabled by default → every case measures a real computation.
   mocks.getRedisClient.mockReturnValue({ isReady: false, get: mocks.redisGet, set: mocks.redisSet });
   mocks.loadPrivacyState.mockResolvedValue({
@@ -267,11 +218,10 @@ beforeEach(async () => {
     excludedUserIds: new Set(),
   });
   mocks.getFollowingIdSet.mockResolvedValue(new Set());
-  await seedBehavior(null);
+  stubBehavior(null);
 });
 
 afterEach(async () => {
-  await deleteUserBehavior(VIEWER);
   await db.delete(likes).where(eq(likes.userId, VIEWER));
   if (createdPostIds.length > 0) {
     await db.delete(posts).where(inArray(posts.id, createdPostIds.splice(0)));
@@ -592,7 +542,7 @@ describe('the behavior-derived signals', () => {
   it('uses preferredAuthors (maintained relationship weight) as the strongest signal', async () => {
     // A maxed-out preferred author (weight 1.0) must outrank a hashtag-only
     // author covering one followed tag.
-    await seedBehavior(behavior({ preferredAuthors: [{ authorId: id('fav'), weight: 1.0 }] }));
+    stubBehavior(behavior({ preferredAuthors: [{ authorId: id('fav'), weight: 1.0 }] }));
     await followHashtag(id('rust'));
     await createPost(id('tag-only'), { hashtags: [id('rust')] });
 
@@ -605,7 +555,7 @@ describe('the behavior-derived signals', () => {
   });
 
   it('scales the preferred-author contribution by the maintained weight', async () => {
-    await seedBehavior(
+    stubBehavior(
       behavior({
         preferredAuthors: [
           { authorId: id('strong'), weight: 0.9 },
@@ -622,7 +572,7 @@ describe('the behavior-derived signals', () => {
   });
 
   it("picks authors posting under the viewer's preferred topics, scaled per topic", async () => {
-    await seedBehavior(
+    stubBehavior(
       behavior({
         preferredTopics: [
           { topic: id('machine-learning'), weight: 0.8 },
@@ -651,7 +601,7 @@ describe('the behavior-derived signals', () => {
   it('strips hidden topics from the topic-affinity input', async () => {
     // `crypto` is the STRONGEST preference and also hidden: "more of what you
     // told us to stop showing you" must never come back as a recommendation.
-    await seedBehavior(
+    stubBehavior(
       behavior({
         preferredTopics: [
           { topic: id('crypto'), weight: 0.9 },
@@ -670,7 +620,7 @@ describe('the behavior-derived signals', () => {
   });
 
   it('excludes behavior-tracked hidden/muted/blocked authors from candidates', async () => {
-    await seedBehavior(
+    stubBehavior(
       behavior({
         // The hidden author is ALSO the strongest preferred author — suppression
         // must win over affinity.
@@ -692,7 +642,9 @@ describe('the behavior-derived signals', () => {
   });
 
   it('degrades gracefully when the behavior load throws (no behavior signals)', async () => {
-    mocks.behaviorLoadError = new Error('behaviour read failed');
+    mocks.userBehaviorFindOne.mockReturnValue({
+      lean: vi.fn().mockRejectedValue(new Error('mongo down')),
+    });
     // Hashtag affinity still produces a candidate — the behavior-derived signals
     // simply contribute nothing.
     await followHashtag(id('rust'));

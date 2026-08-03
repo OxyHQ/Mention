@@ -508,6 +508,7 @@ db.once("open", () => {
 
   // Load models
   require("./src/models/Post");
+  require("./src/models/UserBehavior"); // Load UserBehavior model
 });
 
 /**

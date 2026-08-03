@@ -14,30 +14,75 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  *
  * ## What changed with the Postgres port
  *
- * BOTH sides are real rows now. The post already was one; `UserBehavior` was a
- * mock whose `preferredRegions` array the assertions read back, which asserted
- * that the service mutates an object it was handed — true of any implementation,
- * including one whose write never reaches a column. `preferredRegions` is a
- * child TABLE now, so a count that is accumulated but not persisted, or
- * persisted into a column nothing reads back, fails here.
+ * The post is a REAL ROW. It used to be a `models/Post` mock returning a literal
+ * `{ postClassification: { region: 'ES' } }`, which asserted that the service
+ * reads a field off whatever object it is handed — true of any implementation,
+ * including one that reads a column the writer never stores. `region` is now a
+ * real column that has to survive `insertPostRecord` → `loadPostRecord`, so a
+ * region that is written but not read back (or vice versa) fails here.
  *
- * That also makes the "post is gone" case sharper: the assertion is that NO
- * behaviour row exists afterwards, not merely that a `save` spy went uncalled.
+ * `UserBehavior` is still Mongoose and stays mocked: the accumulator it holds is
+ * what these tests are about, and it is not part of this port.
  */
 
+const mocks = vi.hoisted(() => ({ findOne: vi.fn() }));
+
+vi.mock('../../models/UserBehavior', () => ({
+  __esModule: true,
+  default: { findOne: (filter: unknown) => mocks.findOne(filter) },
+}));
 vi.mock('../../models/Like', () => ({ __esModule: true, default: { find: vi.fn() } }));
 vi.mock('../../models/Bookmark', () => ({ __esModule: true, default: { find: vi.fn() } }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import {
-  deleteUserBehavior,
-  loadUserBehavior,
-} from '../../db/userProfile/userBehaviorRepository';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { userPreferenceService } from '../../services/UserPreferenceService';
 
+interface RegionPref {
+  region: string;
+  count: number;
+  lastInteractionAt: Date;
+}
+
+interface MockBehavior {
+  oxyUserId: string;
+  preferredAuthors: unknown[];
+  preferredTopics: unknown[];
+  preferredPostTypes: Record<string, number>;
+  activeHours: number[];
+  preferredLanguages: string[];
+  preferredRegions: RegionPref[];
+  hiddenAuthors: string[];
+  mutedAuthors: string[];
+  blockedAuthors: string[];
+  hiddenTopics: string[];
+  lastUpdated?: Date;
+  markModified: () => void;
+  save: () => Promise<void>;
+}
+
 const scope = serviceScope('user-pref-region');
 const VIEWER = scope.user('viewer');
+
+function makeBehavior(): MockBehavior {
+  return {
+    oxyUserId: VIEWER,
+    preferredAuthors: [],
+    preferredTopics: [],
+    preferredPostTypes: { text: 0, image: 0, video: 0, poll: 0 },
+    activeHours: [],
+    preferredLanguages: [],
+    preferredRegions: [],
+    hiddenAuthors: [],
+    mutedAuthors: [],
+    blockedAuthors: [],
+    hiddenTopics: [],
+    markModified: vi.fn(),
+    save: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
+let behavior: MockBehavior;
 
 beforeAll(async () => {
   await connectPostgres();
@@ -46,22 +91,20 @@ beforeAll(async () => {
 beforeEach(async () => {
   vi.clearAllMocks();
   await clearServiceScope(scope);
-  await deleteUserBehavior(VIEWER);
+  behavior = makeBehavior();
+  mocks.findOne.mockResolvedValue(behavior);
 });
 
 afterEach(async () => {
   await clearServiceScope(scope);
-  await deleteUserBehavior(VIEWER);
 });
 
 afterAll(async () => {
   await closePostgres();
 });
 
-/** The viewer's stored region affinities, keyed by region code. */
-async function storedRegions(): Promise<Map<string, number>> {
-  const behavior = await loadUserBehavior(VIEWER);
-  return new Map((behavior?.preferredRegions ?? []).map((entry) => [entry.region, entry.count]));
+function regionPref(code: string): RegionPref | undefined {
+  return behavior.preferredRegions.find((r) => r.region === code);
 }
 
 describe('UserPreferenceService — region-affinity learning', () => {
@@ -72,7 +115,10 @@ describe('UserPreferenceService — region-affinity learning', () => {
 
     await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
 
-    expect(await storedRegions()).toEqual(new Map([['ES', 1]]));
+    const pref = regionPref('ES');
+    expect(pref).toBeDefined();
+    expect(pref?.count).toBe(1);
+    expect(behavior.save).toHaveBeenCalledTimes(1);
   });
 
   it('NO-OPs (learns no region) when the stored post has no region — the common case', async () => {
@@ -82,12 +128,9 @@ describe('UserPreferenceService — region-affinity learning', () => {
 
     await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
 
-    expect(await storedRegions()).toEqual(new Map());
+    expect(behavior.preferredRegions).toHaveLength(0);
     // The interaction still landed — only the region accumulator stayed empty.
-    // Asserting a positive effect matters: an empty region set is also what a
-    // write that never happened at all looks like.
-    const behavior = await loadUserBehavior(VIEWER);
-    expect(behavior?.preferredPostTypes.text).toBe(1);
+    expect(behavior.save).toHaveBeenCalledTimes(1);
   });
 
   it('NO-OPs for a negative signal (skip must not grow region interest)', async () => {
@@ -97,7 +140,7 @@ describe('UserPreferenceService — region-affinity learning', () => {
 
     await userPreferenceService.recordInteraction(VIEWER, post.id, 'skip');
 
-    expect(await storedRegions()).toEqual(new Map());
+    expect(behavior.preferredRegions).toHaveLength(0);
   });
 
   it('accumulates the same region across multiple engagements (counted multiset)', async () => {
@@ -110,10 +153,11 @@ describe('UserPreferenceService — region-affinity learning', () => {
     // rather than "greater than before" is what makes a weight silently
     // collapsing to a constant visible.
     await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
-    expect(await storedRegions()).toEqual(new Map([['US', 1]]));
+    expect(regionPref('US')?.count).toBe(1);
     await userPreferenceService.recordInteraction(VIEWER, post.id, 'boost');
 
-    expect(await storedRegions()).toEqual(new Map([['US', 3]]));
+    expect(behavior.preferredRegions).toHaveLength(1);
+    expect(regionPref('US')?.count).toBe(3);
   });
 
   it('learns nothing at all when the post id resolves to no row', async () => {
@@ -121,7 +165,8 @@ describe('UserPreferenceService — region-affinity learning', () => {
     // deleted post's id arriving from stale client telemetry is the real case.
     await userPreferenceService.recordInteraction(VIEWER, '019000000000000000000000000', 'like');
 
-    expect(await loadUserBehavior(VIEWER)).toBeNull();
+    expect(behavior.preferredRegions).toHaveLength(0);
+    expect(behavior.save).not.toHaveBeenCalled();
   });
 });
 

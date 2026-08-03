@@ -21,7 +21,7 @@ import { userPreferenceService } from '../../services/UserPreferenceService';
 import { resolveUserSummaries } from '../../services/PostHydrationService';
 import { mergeFederatedFollowIds } from '../../services/viewerFollowGraph';
 import { loadMutedLaneIds, loadShowSensitiveContent } from '../../services/safety/viewerSafety';
-import type { UserBehaviorRecord } from '../../db/userProfile/userBehaviorRecord';
+import type { IUserBehavior } from '../../models/UserBehavior';
 import { logger } from '../../utils/logger';
 import type { FeedEngineContext } from './engine/types';
 
@@ -80,7 +80,7 @@ export async function loadViewerFeedContext(
   let followingIds: string[] = [];
   let followerIds: string[] = [];
   let subscribedListMemberIds: string[] = [];
-  let userBehavior: UserBehaviorRecord | undefined;
+  let userBehavior: IUserBehavior | undefined;
   let showSensitiveContent = false;
   let feedTuning: FeedTuning | undefined;
   let viewerLanguages: string[] = [];
@@ -133,8 +133,8 @@ export async function loadViewerFeedContext(
 
     const behaviorPromise = userPreferenceService
       .getUserBehavior(currentUserId)
-      .then((behavior): UserBehaviorRecord | undefined => behavior ?? undefined)
-      .catch((error): UserBehaviorRecord | undefined => {
+      .then((behavior): IUserBehavior | undefined => behavior ?? undefined)
+      .catch((error): IUserBehavior | undefined => {
         logger.warn('[feedContext] Failed to load user behavior', error);
         return undefined;
       });

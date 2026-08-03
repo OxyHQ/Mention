@@ -1,13 +1,10 @@
+import UserBehavior, { IUserBehavior } from '../models/UserBehavior';
 import { eq } from 'drizzle-orm';
 import { posts } from '../db/schema/posts';
 import { CHRONO_DESC, findPostRecords, loadPostRecord } from '../db/posts/postRepository';
 import { getDb } from '../db/postgres';
 import { bookmarks as bookmarksTable, likes as likesTable } from '../db/schema/engagement';
-import type { UserBehaviorRecord } from '../db/userProfile/userBehaviorRecord';
-import {
-  loadUserBehavior,
-  updateUserBehavior,
-} from '../db/userProfile/userBehaviorRepository';
+import mongoose, { HydratedDocument } from 'mongoose';
 import { MtnConfig, isVideoSurface } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import { recordSeenTopics } from './viewerRecentTopics';
@@ -71,13 +68,17 @@ export function readInteractionSurface(
 export class UserPreferenceService {
   // The accumulators (preferredAuthors weight/decay, top-N sort+slice, recency
   // factors, multiplicative skip-decay) are stateful and order-dependent, so the
-  // write is a read-modify-write. Feed-impression telemetry fires many concurrent
-  // interactions per user, so two writers for one viewer collide routinely.
-  // `updateUserBehavior` serializes them on a row lock held for the whole
-  // transaction — the loser blocks, then applies its mutation on top of the
-  // winner's committed state. The bounded `VersionError`/duplicate-key retry loop
-  // this class used to carry existed to emulate exactly that under Mongoose
-  // optimistic concurrency, and has no subject now.
+  // write is a load-modify-`.save()` under Mongoose optimistic concurrency (`__v`).
+  // Feed-impression telemetry fires many concurrent interactions per user, so two
+  // saves can collide on `__v` (`VersionError`). When that happens we re-read the
+  // freshest document and re-apply the SAME mutation — the accumulators are
+  // commutative-enough that re-applying against the winning revision yields the
+  // correct end state, and the flood of `VersionError` logs/wasted writes is gone.
+  // Bounded so a pathological hot user can never spin unboundedly.
+  private readonly MAX_VERSION_CONFLICT_RETRIES = 5;
+  // MongoDB duplicate-key error code, raised when two concurrent FIRST
+  // interactions both insert a fresh UserBehavior for the same `oxyUserId`.
+  private readonly DUPLICATE_KEY_ERROR_CODE = 11000;
 
   // Learning weights (how much each interaction affects preferences)
   private readonly LEARNING_WEIGHTS = {
@@ -140,11 +141,29 @@ export class UserPreferenceService {
         }
       }
 
-      // One read-modify-write, serialized against every other interaction for
-      // this viewer by the row lock `applyInteraction` takes — see the class
-      // comment for why there is no retry loop around it any more.
-      await this.applyInteraction(userId, post, interactionType, context);
-      logger.debug('[UserPreference] saved user behavior');
+      // Apply the load-modify-save under a bounded retry loop so concurrent
+      // interactions for the same user (impression telemetry) re-read and
+      // re-apply on a write race instead of flooding error logs. Two races are
+      // possible: a `__v` `VersionError` on the versioned update of an existing
+      // document, and a duplicate-key error (`E11000` on the unique `oxyUserId`)
+      // when two FIRST interactions both insert a fresh document. Both resolve by
+      // re-reading the freshest revision and re-applying the same mutation.
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await this.applyInteraction(userId, post, interactionType, context);
+          logger.debug('[UserPreference] saved user behavior');
+          return;
+        } catch (error) {
+          if (this.isConcurrentWriteConflict(error) && attempt < this.MAX_VERSION_CONFLICT_RETRIES) {
+            logger.debug(
+              '[UserPreference] Concurrent write conflict saving user behavior; retrying',
+              { attempt: attempt + 1 },
+            );
+            continue;
+          }
+          throw error;
+        }
+      }
     } catch (error) {
       logger.error('[UserPreference] error recording interaction', error);
       // Re-throw to see full error stack
@@ -153,13 +172,12 @@ export class UserPreferenceService {
   }
 
   /**
-   * One read-modify-write pass for {@link recordInteraction}: applies the full
-   * accumulator mutation to the viewer's behaviour under a row lock held for the
-   * whole transaction, creating the record when this is their first interaction.
-   *
-   * Everything the mutation needs that does NOT depend on the stored state is
-   * computed before the lock is taken; the callback itself is synchronous, so
-   * the lock is never held across a round trip.
+   * One load-modify-`.save()` pass for {@link recordInteraction}. Re-reads the
+   * current `UserBehavior` document (so a retry applies against the freshest
+   * revision), applies the full accumulator mutation, and persists it. Extracted
+   * so the retry loop can re-run it verbatim on a `VersionError`. Behavior is
+   * identical to the previous inline body — only the read+mutate+save is now
+   * encapsulated so it can be re-attempted.
    */
   private async applyInteraction(
     userId: string,
@@ -167,6 +185,27 @@ export class UserPreferenceService {
     interactionType: 'like' | 'boost' | 'comment' | 'save' | 'share' | 'view' | 'skip' | 'hide' | 'mute' | 'block',
     context?: InteractionContext,
   ): Promise<void> {
+    // userId is an Oxy user ID, query UserBehavior using oxyUserId field
+    let userBehavior = await UserBehavior.findOne({ oxyUserId: userId });
+
+    if (!userBehavior) {
+      logger.debug('[UserPreference] creating user behavior record');
+      userBehavior = new UserBehavior({
+        oxyUserId: userId,
+        preferredAuthors: [],
+        preferredTopics: [],
+        preferredPostTypes: {
+          text: 0,
+          image: 0,
+          video: 0,
+          poll: 0
+        },
+        activeHours: [],
+        preferredLanguages: [],
+        preferredRegions: []
+      });
+    }
+
     const weight = this.LEARNING_WEIGHTS[interactionType] || 0;
     // A negative weight is a NEGATIVE signal (e.g. `skip`): it must not be
     // allowed to look like positive engagement. Positive-only accumulators
@@ -188,105 +227,128 @@ export class UserPreferenceService {
     const authorAffinityFactor = fromVideoSurface ? ctx.videoSurfaceAuthorAffinityFactor : 1;
     const contentWeight = weight * (fromVideoSurface ? ctx.videoSurfaceContentBoost : 1);
 
-    await updateUserBehavior(userId, (userBehavior) => {
-      // Update author preference (positive signals strengthen the relationship).
-      // Dampened on video surfaces so reels likes barely move "follow this author".
-      if (post.oxyUserId && isPositiveSignal) {
-        this.updateAuthorPreference(
+    // Update author preference (positive signals strengthen the relationship).
+    // Dampened on video surfaces so reels likes barely move "follow this author".
+    if (post.oxyUserId && isPositiveSignal) {
+      this.updateAuthorPreference(
+        userBehavior,
+        post.oxyUserId,
+        interactionType,
+        weight,
+        authorAffinityFactor
+      );
+    }
+
+    // Update topic preferences (positive signals only — skipping a topic must
+    // not increase interest in it). Uses the content weight (amplified on video).
+    if (isPositiveSignal && post.hashtags && post.hashtags.length > 0) {
+      for (const hashtag of post.hashtags) {
+        this.updateTopicPreference(
           userBehavior,
-          post.oxyUserId,
-          interactionType,
-          weight,
-          authorAffinityFactor
+          hashtag.toLowerCase(),
+          contentWeight
         );
       }
+    }
 
-      // Update topic preferences (positive signals only — skipping a topic must
-      // not increase interest in it). Uses the content weight (amplified on video).
-      if (isPositiveSignal && post.hashtags && post.hashtags.length > 0) {
-        for (const hashtag of post.hashtags) {
-          this.updateTopicPreference(
-            userBehavior,
-            hashtag.toLowerCase(),
-            contentWeight
-          );
-        }
+    // Update topic preferences from classified topics (richer signal). Prefer
+    // the canonical `postClassification.topicRefs` (registry-linked), falling
+    // back to `postClassification.topics`. Canonical refs may carry no relevance
+    // (AI topics are slug-only), so an absent relevance scales by the full
+    // content weight (relevance factor 1) rather than zeroing the signal.
+    if (isPositiveSignal) {
+      for (const topic of this.getCanonicalTopics(post)) {
+        if (typeof topic.name !== 'string' || topic.name.length === 0) continue;
+        const relevanceFactor =
+          typeof topic.relevance === 'number' ? topic.relevance / 10 : 1;
+        this.updateTopicPreference(
+          userBehavior,
+          topic.name.toLowerCase(),
+          contentWeight * relevanceFactor,
+          topic.topicId,
+        );
       }
+    }
 
-      // Update topic preferences from classified topics (richer signal). Prefer
-      // the canonical `postClassification.topicRefs` (registry-linked), falling
-      // back to `postClassification.topics`. Canonical refs may carry no relevance
-      // (AI topics are slug-only), so an absent relevance scales by the full
-      // content weight (relevance factor 1) rather than zeroing the signal.
-      if (isPositiveSignal) {
-        for (const topic of this.getCanonicalTopics(post)) {
-          if (typeof topic.name !== 'string' || topic.name.length === 0) continue;
-          const relevanceFactor =
-            typeof topic.relevance === 'number' ? topic.relevance / 10 : 1;
-          this.updateTopicPreference(
-            userBehavior,
-            topic.name.toLowerCase(),
-            contentWeight * relevanceFactor,
-            topic.topicId,
-          );
-        }
+    // Update post type preference (positive signals only — a skipped post type
+    // should not be promoted just because it was scrolled past). Uses the
+    // content weight so a reels like reinforces "I like video content".
+    if (isPositiveSignal) {
+      const postType = (post.type || 'text').toLowerCase() as keyof typeof userBehavior.preferredPostTypes;
+      if (postType in userBehavior.preferredPostTypes) {
+        userBehavior.preferredPostTypes[postType] =
+          (userBehavior.preferredPostTypes[postType] || 0) + contentWeight;
+        // Mark nested object as modified
+        userBehavior.markModified('preferredPostTypes');
       }
+    }
 
-      // Update post type preference (positive signals only — a skipped post type
-      // should not be promoted just because it was scrolled past). Uses the
-      // content weight so a reels like reinforces "I like video content".
-      if (isPositiveSignal) {
-        const postType = (post.type || 'text').toLowerCase() as keyof typeof userBehavior.preferredPostTypes;
-        if (postType in userBehavior.preferredPostTypes) {
-          userBehavior.preferredPostTypes[postType] =
-            (userBehavior.preferredPostTypes[postType] || 0) + contentWeight;
-        }
+    // Record active hour for any engagement (including a genuine view) — it
+    // reflects WHEN the user is on the app, independent of sentiment. A pure
+    // skip still means the user was active, so we record it too.
+    const hour = new Date().getHours();
+    if (!userBehavior.activeHours.includes(hour)) {
+      userBehavior.activeHours.push(hour);
+      // Keep only last 168 hours (1 week) of activity
+      userBehavior.activeHours = userBehavior.activeHours.slice(-168);
+      // Mark array as modified
+      userBehavior.markModified('activeHours');
+    }
+
+    // Update language preference
+    if (post.language && !userBehavior.preferredLanguages.includes(post.language)) {
+      userBehavior.preferredLanguages.push(post.language);
+      // Mark array as modified
+      userBehavior.markModified('preferredLanguages');
+    }
+
+    // Update REGION affinity (positive signals only — a skip must not increase
+    // interest in a region). Region is a CONTENT-origin signal, so it uses the
+    // content weight (amplified on video surfaces) like topics/post-type. It is
+    // best-effort and frequently absent — `postClassification.region` is itself
+    // derived only from a federated instance domain or author locale, never from
+    // post text — so this no-ops for most native posts. When present, the
+    // dominant region accrues a stable count (read via `getTopRegion`).
+    if (isPositiveSignal) {
+      const region = post.postClassification?.region;
+      if (typeof region === 'string' && region.length > 0) {
+        this.updateRegionPreference(userBehavior, region, contentWeight);
       }
+    }
 
-      // Record active hour for any engagement (including a genuine view) — it
-      // reflects WHEN the user is on the app, independent of sentiment. A pure
-      // skip still means the user was active, so we record it too.
-      const hour = new Date().getHours();
-      if (!userBehavior.activeHours.includes(hour)) {
-        userBehavior.activeHours.push(hour);
-        // Keep only last 168 hours (1 week) of activity
-        userBehavior.activeHours = userBehavior.activeHours.slice(-168);
-      }
+    // Handle hard negative signals (hide/mute/block) — author/topic suppression.
+    if (interactionType === 'hide' || interactionType === 'mute' || interactionType === 'block') {
+      this.handleNegativeSignal(userBehavior, post, interactionType);
+    }
 
-      // Update language preference
-      if (post.language && !userBehavior.preferredLanguages.includes(post.language)) {
-        userBehavior.preferredLanguages.push(post.language);
-      }
+    // Handle the soft negative signal (skip): the viewer scrolled past quickly.
+    // This is NOT a suppression — it only nudges down an existing author
+    // preference weight so a repeatedly-skipped author gradually loses its
+    // boost. It never creates a preference entry or hides the author.
+    if (interactionType === 'skip' && post.oxyUserId) {
+      this.decayAuthorPreference(userBehavior, post.oxyUserId, Math.abs(weight));
+    }
 
-      // Update REGION affinity (positive signals only — a skip must not increase
-      // interest in a region). Region is a CONTENT-origin signal, so it uses the
-      // content weight (amplified on video surfaces) like topics/post-type. It is
-      // best-effort and frequently absent — `postClassification.region` is itself
-      // derived only from a federated instance domain or author locale, never from
-      // post text — so this no-ops for most native posts. When present, the
-      // dominant region accrues a stable count (read via `getTopRegion`).
-      if (isPositiveSignal) {
-        const region = post.postClassification?.region;
-        if (typeof region === 'string' && region.length > 0) {
-          this.updateRegionPreference(userBehavior, region, contentWeight);
-        }
-      }
+    userBehavior.lastUpdated = new Date();
 
-      // Handle hard negative signals (hide/mute/block) — author/topic suppression.
-      if (interactionType === 'hide' || interactionType === 'mute' || interactionType === 'block') {
-        this.handleNegativeSignal(userBehavior, post, interactionType);
-      }
+    await userBehavior.save();
+  }
 
-      // Handle the soft negative signal (skip): the viewer scrolled past quickly.
-      // This is NOT a suppression — it only nudges down an existing author
-      // preference weight so a repeatedly-skipped author gradually loses its
-      // boost. It never creates a preference entry or hides the author.
-      if (interactionType === 'skip' && post.oxyUserId) {
-        this.decayAuthorPreference(userBehavior, post.oxyUserId, Math.abs(weight));
-      }
-
-      userBehavior.lastUpdated = new Date();
-    }, { createIfMissing: true });
+  /**
+   * True when an error from {@link applyInteraction}'s `.save()` is a retryable
+   * concurrent-write race: a Mongoose optimistic-concurrency `VersionError` on
+   * an existing document, or a MongoDB duplicate-key error (`E11000`) from two
+   * concurrent first-interaction inserts on the unique `oxyUserId`. Both are
+   * resolved by re-reading and re-applying.
+   */
+  private isConcurrentWriteConflict(error: unknown): boolean {
+    if (error instanceof mongoose.Error.VersionError) {
+      return true;
+    }
+    return (
+      error instanceof mongoose.mongo.MongoServerError &&
+      error.code === this.DUPLICATE_KEY_ERROR_CODE
+    );
   }
 
   /**
@@ -294,7 +356,7 @@ export class UserPreferenceService {
    * Note: This is synchronous as it only modifies objects in memory
    */
   private updateAuthorPreference(
-    userBehavior: UserBehaviorRecord,
+    userBehavior: HydratedDocument<IUserBehavior>,
     authorId: string,
     interactionType: string,
     weight: number,
@@ -368,6 +430,9 @@ export class UserPreferenceService {
     if (userBehavior.preferredAuthors.length > 100) {
       userBehavior.preferredAuthors = userBehavior.preferredAuthors.slice(0, 100);
     }
+
+    // Mark the array as modified so Mongoose saves the changes
+    userBehavior.markModified('preferredAuthors');
   }
 
   /**
@@ -378,7 +443,7 @@ export class UserPreferenceService {
    * Note: synchronous — only modifies in-memory objects.
    */
   private decayAuthorPreference(
-    userBehavior: UserBehaviorRecord,
+    userBehavior: HydratedDocument<IUserBehavior>,
     authorId: string,
     magnitude: number
   ): void {
@@ -394,6 +459,8 @@ export class UserPreferenceService {
     const decayFactor = Math.max(0, 1 - magnitude * 0.1);
     authorPref.weight = Math.max(0, authorPref.weight * decayFactor);
     authorPref.lastInteractionAt = new Date();
+
+    userBehavior.markModified('preferredAuthors');
   }
 
   /**
@@ -423,7 +490,7 @@ export class UserPreferenceService {
    * Note: This is synchronous as it only modifies objects in memory
    */
   private updateTopicPreference(
-    userBehavior: UserBehaviorRecord,
+    userBehavior: HydratedDocument<IUserBehavior>,
     topic: string,
     weight: number,
     topicId?: string,
@@ -472,10 +539,13 @@ export class UserPreferenceService {
    * Note: synchronous — only modifies in-memory objects.
    */
   private updateRegionPreference(
-    userBehavior: UserBehaviorRecord,
+    userBehavior: HydratedDocument<IUserBehavior>,
     region: string,
     weight: number,
   ): void {
+    if (!userBehavior.preferredRegions) {
+      userBehavior.preferredRegions = [];
+    }
     let regionPref = userBehavior.preferredRegions.find(
       (r) => r.region === region,
     );
@@ -497,6 +567,8 @@ export class UserPreferenceService {
         MtnConfig.preferences.maxPreferredRegions,
       );
     }
+
+    userBehavior.markModified('preferredRegions');
   }
 
   /**
@@ -524,7 +596,7 @@ export class UserPreferenceService {
    * Note: This is synchronous as it only modifies objects in memory
    */
   private handleNegativeSignal(
-    userBehavior: UserBehaviorRecord,
+    userBehavior: HydratedDocument<IUserBehavior>,
     post: InteractionPost,
     interactionType: string
   ): void {
@@ -533,27 +605,31 @@ export class UserPreferenceService {
     if (interactionType === 'hide') {
       if (!userBehavior.hiddenAuthors.includes(authorId)) {
         userBehavior.hiddenAuthors.push(authorId);
+        userBehavior.markModified('hiddenAuthors');
       }
     }
 
     if (interactionType === 'mute') {
       if (!userBehavior.mutedAuthors.includes(authorId)) {
         userBehavior.mutedAuthors.push(authorId);
+        userBehavior.markModified('mutedAuthors');
       }
     }
 
     if (interactionType === 'block') {
       if (!userBehavior.blockedAuthors.includes(authorId)) {
         userBehavior.blockedAuthors.push(authorId);
+        userBehavior.markModified('blockedAuthors');
       }
     }
 
-    // Remove from preferred authors if present. The repository turns this into a
-    // DELETE of exactly that author's row — the surviving preferences keep their
-    // own rows rather than being re-inserted around it.
+    // Remove from preferred authors if present
     userBehavior.preferredAuthors = userBehavior.preferredAuthors.filter(
       (a) => a.authorId !== authorId
     );
+    if (userBehavior.preferredAuthors.length > 0) {
+      userBehavior.markModified('preferredAuthors');
+    }
 
     // Handle hidden topics
     if (interactionType === 'hide' && post.hashtags && post.hashtags.length > 0) {
@@ -561,6 +637,9 @@ export class UserPreferenceService {
         if (!userBehavior.hiddenTopics.includes(tag.toLowerCase())) {
           userBehavior.hiddenTopics.push(tag.toLowerCase());
         }
+      }
+      if (userBehavior.hiddenTopics.length > 0) {
+        userBehavior.markModified('hiddenTopics');
       }
     }
   }
@@ -571,10 +650,8 @@ export class UserPreferenceService {
    */
   async batchUpdatePreferences(userId: string): Promise<void> {
     try {
-      // A viewer with no learned behaviour has nothing to REBUILD — the replays
-      // below would create one from scratch, which is `recordInteraction`'s job
-      // and not this sweep's.
-      if (!(await loadUserBehavior(userId))) {
+      const userBehavior = await UserBehavior.findOne({ oxyUserId: userId });
+      if (!userBehavior) {
         return;
       }
 
@@ -609,15 +686,9 @@ export class UserPreferenceService {
       const userPosts = await findPostRecords(eq(posts.oxyUserId, userId), {
         orderBy: CHRONO_DESC,
       });
-      // PERSISTED — the Mongo version mutated a document loaded before the two
-      // replays above and then returned without saving it, so every topic
-      // preference this loop derived was discarded. The whole point of the sweep
-      // is the rebuild, and a load-modify-write that never writes is not a
-      // behaviour worth reproducing. Runs last so it reads the state the replays
-      // just committed rather than a snapshot taken before them.
-      await updateUserBehavior(userId, (userBehavior) => {
-        for (const post of userPosts) {
-          // User creating posts with certain hashtags = interest
+      for (const post of userPosts) {
+        // User creating posts with certain hashtags = interest
+        if (post.hashtags.length > 0) {
           for (const hashtag of post.hashtags) {
             this.updateTopicPreference(
               userBehavior,
@@ -626,17 +697,17 @@ export class UserPreferenceService {
             );
           }
         }
-      });
+      }
     } catch (error) {
       logger.error('[UserPreference] error batch updating preferences', error);
     }
   }
 
   /**
-   * Get user behavior data. `null` when the viewer has none yet.
+   * Get user behavior data (lean). `null` when the viewer has none yet.
    */
-  async getUserBehavior(userId: string): Promise<UserBehaviorRecord | null> {
-    return await loadUserBehavior(userId);
+  async getUserBehavior(userId: string): Promise<IUserBehavior | null> {
+    return await UserBehavior.findOne({ oxyUserId: userId }).lean<IUserBehavior>();
   }
 
   /**
@@ -648,24 +719,22 @@ export class UserPreferenceService {
     viewTimeSeconds: number
   ): Promise<void> {
     try {
-      // Update average engagement time (exponential moving average). A viewer
-      // with no behaviour row is left alone — including the skip below — which
-      // is what the Mongo version's early `return` on a missing document did.
-      const alpha = 0.1; // Learning rate
-      const updated = await updateUserBehavior(userId, (userBehavior) => {
-        userBehavior.averageEngagementTime =
-          userBehavior.averageEngagementTime * (1 - alpha) + viewTimeSeconds * alpha;
-      });
-      if (!updated) {
+      const userBehavior = await UserBehavior.findOne({ oxyUserId: userId });
+      if (!userBehavior) {
         return;
       }
 
-      // If view time is very short, it's likely a skip. Recorded AFTER the
-      // average lands: it takes the same row lock, and the Mongo ordering wrote
-      // the average back from a document the skip had already superseded.
+      // Update average engagement time (exponential moving average)
+      const alpha = 0.1; // Learning rate
+      userBehavior.averageEngagementTime =
+        userBehavior.averageEngagementTime * (1 - alpha) + viewTimeSeconds * alpha;
+
+      // If view time is very short, it's likely a skip
       if (viewTimeSeconds < 2) {
         await this.recordInteraction(userId, postId, 'skip');
       }
+
+      await userBehavior.save();
     } catch (error) {
       logger.error('[UserPreference] error recording view time', error);
     }

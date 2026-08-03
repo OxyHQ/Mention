@@ -17,27 +17,68 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * read back in a different order than it was inserted. Every post here is a real
  * row inserted through `insertPostRecord` and read back by the service itself.
  *
- * `preferredTopics` is a child TABLE now, and its `interaction_count` is the
- * column this port had to widen from `integer` to `double precision`: a
- * relevance-scaled learn accrues 0.2, which postgres.js sends as a parameter an
- * `integer` column REJECTS outright. The relevance case below is therefore also
- * the regression test for that column type.
+ * `UserBehavior` is still Mongoose and stays mocked: the accumulator it holds is
+ * what these tests are about, and it is not part of this port.
  */
 
+const mocks = vi.hoisted(() => ({ findOne: vi.fn() }));
+
+vi.mock('../../models/UserBehavior', () => ({
+  __esModule: true,
+  default: { findOne: (filter: unknown) => mocks.findOne(filter) },
+}));
 vi.mock('../../models/Like', () => ({ __esModule: true, default: { find: vi.fn() } }));
 vi.mock('../../models/Bookmark', () => ({ __esModule: true, default: { find: vi.fn() } }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import type { TopicPreference } from '../../db/userProfile/userBehaviorRecord';
-import {
-  deleteUserBehavior,
-  loadUserBehavior,
-} from '../../db/userProfile/userBehaviorRepository';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { userPreferenceService } from '../../services/UserPreferenceService';
 
+interface TopicPref {
+  topic: string;
+  topicId?: string;
+  weight: number;
+  interactionCount: number;
+  lastInteractionAt: Date;
+}
+
+interface MockBehavior {
+  oxyUserId: string;
+  preferredAuthors: unknown[];
+  preferredTopics: TopicPref[];
+  preferredPostTypes: Record<string, number>;
+  activeHours: number[];
+  preferredLanguages: string[];
+  hiddenAuthors: string[];
+  mutedAuthors: string[];
+  blockedAuthors: string[];
+  hiddenTopics: string[];
+  lastUpdated?: Date;
+  markModified: () => void;
+  save: () => Promise<void>;
+}
+
 const scope = serviceScope('user-pref-topics');
 const VIEWER = scope.user('viewer');
+
+function makeBehavior(): MockBehavior {
+  return {
+    oxyUserId: VIEWER,
+    preferredAuthors: [],
+    preferredTopics: [],
+    preferredPostTypes: { text: 0, image: 0, video: 0, poll: 0 },
+    activeHours: [],
+    preferredLanguages: [],
+    hiddenAuthors: [],
+    mutedAuthors: [],
+    blockedAuthors: [],
+    hiddenTopics: [],
+    markModified: vi.fn(),
+    save: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
+let behavior: MockBehavior;
 
 beforeAll(async () => {
   await connectPostgres();
@@ -46,25 +87,20 @@ beforeAll(async () => {
 beforeEach(async () => {
   vi.clearAllMocks();
   await clearServiceScope(scope);
-  await deleteUserBehavior(VIEWER);
+  behavior = makeBehavior();
+  mocks.findOne.mockResolvedValue(behavior);
 });
 
 afterEach(async () => {
   await clearServiceScope(scope);
-  await deleteUserBehavior(VIEWER);
 });
 
 afterAll(async () => {
   await closePostgres();
 });
 
-/** Every topic preference the viewer has stored, strongest first. */
-async function storedTopics(): Promise<TopicPreference[]> {
-  return (await loadUserBehavior(VIEWER))?.preferredTopics ?? [];
-}
-
-async function prefByTopic(name: string): Promise<TopicPreference | undefined> {
-  return (await storedTopics()).find((t) => t.topic === name);
+function prefByTopic(name: string): TopicPref | undefined {
+  return behavior.preferredTopics.find((t) => t.topic === name);
 }
 
 describe('UserPreferenceService — canonical topic learning (topicRefs prefer / slug-topics fallback / neutral)', () => {
@@ -91,8 +127,9 @@ describe('UserPreferenceService — canonical topic learning (topicRefs prefer /
 
     await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
 
-    expect((await prefByTopic('basketball'))?.topicId).toBe('topic-basketball');
-    expect((await prefByTopic('lakers'))?.topicId).toBe('topic-lakers');
+    expect(prefByTopic('basketball')?.topicId).toBe('topic-basketball');
+    expect(prefByTopic('lakers')?.topicId).toBe('topic-lakers');
+    expect(behavior.save).toHaveBeenCalledTimes(1);
   });
 
   it('FALLS BACK to the slug-only postClassification.topics (name only, no topicId) when no topicRefs row exists', async () => {
@@ -104,7 +141,7 @@ describe('UserPreferenceService — canonical topic learning (topicRefs prefer /
 
     // The slug list is name-only: the preference is learned by name, with no
     // resolved topicId (only topicRefs carry one).
-    const pref = await prefByTopic('cooking');
+    const pref = prefByTopic('cooking');
     expect(pref).toBeDefined();
     expect(pref?.topicId).toBeUndefined();
   });
@@ -122,7 +159,7 @@ describe('UserPreferenceService — canonical topic learning (topicRefs prefer /
 
     // Only the canonical topicRefs topic is learned; the extra slug-only topic
     // (`cooking`, in the `topics` column but with no ref row) is ignored.
-    expect((await storedTopics()).map((t) => t.topic)).toEqual(['basketball']);
+    expect(behavior.preferredTopics.map((t) => t.topic)).toEqual(['basketball']);
   });
 
   it('treats an absent relevance (slug-only topicRef) as full weight (no zeroing)', async () => {
@@ -140,7 +177,7 @@ describe('UserPreferenceService — canonical topic learning (topicRefs prefer /
 
     await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
 
-    const pref = await prefByTopic('gardening');
+    const pref = prefByTopic('gardening');
     expect(pref).toBeDefined();
     expect(pref?.interactionCount).toBe(1);
     expect(pref?.weight).toBeGreaterThan(0);
@@ -167,14 +204,8 @@ describe('UserPreferenceService — canonical topic learning (topicRefs prefer /
     await userPreferenceService.recordInteraction(VIEWER, weak.id, 'like');
     await userPreferenceService.recordInteraction(VIEWER, full.id, 'like');
 
-    const weak_ = await prefByTopic('chess');
-    const full_ = await prefByTopic('sailing');
-    // The stored count is FRACTIONAL (1.0 x relevance 2/10). An `integer`
-    // column would have refused the write outright, so reading it back at 0.2
-    // is what proves the widened column is in place.
-    expect(weak_?.interactionCount).toBeCloseTo(0.2, 6);
-    const weakWeight = weak_?.weight ?? 0;
-    const fullWeight = full_?.weight ?? 0;
+    const weakWeight = prefByTopic('chess')?.weight ?? 0;
+    const fullWeight = prefByTopic('sailing')?.weight ?? 0;
     expect(weakWeight).toBeGreaterThan(0);
     // `relevance / 10` is the factor the service applies, so 2 → one fifth.
     expect(weakWeight).toBeCloseTo(fullWeight * 0.2, 6);
@@ -187,9 +218,7 @@ describe('UserPreferenceService — canonical topic learning (topicRefs prefer /
 
     await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
 
-    expect(await storedTopics()).toHaveLength(0);
-    // The interaction still landed — an empty topic set is also what a write
-    // that never happened looks like, so assert a positive effect too.
-    expect((await loadUserBehavior(VIEWER))?.preferredPostTypes.text).toBe(1);
+    expect(behavior.preferredTopics).toHaveLength(0);
+    expect(behavior.save).toHaveBeenCalledTimes(1);
   });
 });

@@ -56,8 +56,7 @@ import { getDb } from '../db/postgres';
 import { entityFollows, likes } from '../db/schema/engagement';
 import { userSettings } from '../db/schema/userProfile';
 import { posts } from '../db/schema/posts';
-import type { UserBehaviorRecord } from '../db/userProfile/userBehaviorRecord';
-import { loadUserBehavior } from '../db/userProfile/userBehaviorRepository';
+import UserBehavior, { type IUserBehavior } from '../models/UserBehavior';
 import { getRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
 import {
@@ -261,14 +260,14 @@ export class ContentAffinityService {
   }
 
   /**
-   * Load the viewer's maintained {@link UserBehaviorRecord} aggregate (preferred
+   * Load the viewer's maintained {@link IUserBehavior} aggregate (preferred
    * authors/topics + negative-signal lists). Returns null on a miss or any error
    * so every behavior-derived signal simply runs empty — the service stays
    * additive and never throws on a behavior read.
    */
-  private async loadBehavior(viewerId: string): Promise<UserBehaviorRecord | null> {
+  private async loadBehavior(viewerId: string): Promise<IUserBehavior | null> {
     try {
-      return await loadUserBehavior(viewerId);
+      return await UserBehavior.findOne({ oxyUserId: viewerId }).lean<IUserBehavior>();
     } catch (error) {
       logger.warn('[ContentAffinity] behavior load failed', error);
       return null;
@@ -279,7 +278,7 @@ export class ContentAffinityService {
    * The viewer's hidden-topic slugs (lowercased) from the behavior doc. Used to
    * strip suppressed topics out of the topic-affinity input.
    */
-  private collectHiddenTopics(behavior: UserBehaviorRecord | null): Set<string> {
+  private collectHiddenTopics(behavior: IUserBehavior | null): Set<string> {
     const set = new Set<string>();
     for (const t of behavior?.hiddenTopics ?? []) {
       if (typeof t === 'string' && t.length > 0) set.add(t.toLowerCase());
@@ -292,7 +291,7 @@ export class ContentAffinityService {
    * from the feed — as a flat id list. These join the relation-model exclusions so
    * an author the viewer suppressed is never recommended as someone to follow.
    */
-  private collectNegativeAuthors(behavior: UserBehaviorRecord | null): string[] {
+  private collectNegativeAuthors(behavior: IUserBehavior | null): string[] {
     if (!behavior) return [];
     const ids: string[] = [];
     for (const list of [behavior.hiddenAuthors, behavior.mutedAuthors, behavior.blockedAuthors]) {
@@ -311,7 +310,7 @@ export class ContentAffinityService {
    * harder than a barely-touched one.
    */
   private collectPreferredTopics(
-    behavior: UserBehaviorRecord | null,
+    behavior: IUserBehavior | null,
     hiddenTopics: Set<string>,
   ): Array<{ topic: string; weight: number }> {
     const prefs = behavior?.preferredTopics ?? [];
@@ -336,7 +335,7 @@ export class ContentAffinityService {
    * engagement. Zero/invalid weights contribute nothing. Pure in-memory — the
    * behavior doc was already fetched.
    */
-  private computePreferredAuthorAffinity(behavior: UserBehaviorRecord | null): Map<string, AuthorAccumulator> {
+  private computePreferredAuthorAffinity(behavior: IUserBehavior | null): Map<string, AuthorAccumulator> {
     const result = new Map<string, AuthorAccumulator>();
     for (const pref of behavior?.preferredAuthors ?? []) {
       const authorId = typeof pref.authorId === 'string' ? pref.authorId : '';
