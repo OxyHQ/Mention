@@ -637,16 +637,24 @@ function reportReferentialIntegrity(report: ReferentialIntegrityReport): void {
       `${report.referencesChecked} non-NULL reference(s) resolved.`
   );
 
-  // Transform fidelity FIRST: it is the evidence behind every orphan verdict
-  // below, and a deficit here is a worse problem than any orphan. The two
-  // reasons a plan emits fewer rows than it read print APART, because they are
-  // opposite events: one is a decision with the ids to check it against, the
-  // other is silent data loss.
+  // ROW CARDINALITY first: it is the evidence behind every orphan verdict below,
+  // and a deficit here is a worse problem than any orphan. The two reasons a
+  // plan emits fewer rows than it read print APART, because they are opposite
+  // events: one is a decision with the ids to check it against, the other is
+  // silent data loss.
+  //
+  // It was called "transform fidelity" until a rehearsal that scored 58/58 was
+  // found to be silently dropping eleven columns. The number was true; the NAME
+  // asserted the whole transform was verified while the computation counted one
+  // thing — rows per document — and a reader seeing "fidelity 58/58" had no
+  // reason to ask "fidelity of what, exactly". Columns are a separate question
+  // and are answered by `columnCoverage.ts`, separately labelled.
   const lossy = report.emissions.filter((entry) => !emissionIsFaithful(entry));
   say(
-    `  Transform fidelity: ${report.emissions.length - lossy.length} of ` +
+    `  Row cardinality: ${report.emissions.length - lossy.length} of ` +
       `${report.emissions.length} plan(s) emitted exactly one primary row per ` +
-      'document read, once documented removals are accounted for.'
+      'document read, once documented removals are accounted for. This says ' +
+      'NOTHING about which columns of those rows were filled.'
   );
   for (const entry of report.emissions) {
     if (entry.documentsDroppedByRule > 0) {

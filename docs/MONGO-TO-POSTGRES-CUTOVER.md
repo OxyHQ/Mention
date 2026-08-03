@@ -73,7 +73,13 @@ Read the log by paging `get-log-events` with `nextForwardToken` to exhaustion an
 one.
 
 Expected verdict (last measured, 2026-08-03): `0 finding(s) BLOCK the copy`,
-FK coverage `47/47`, transform fidelity `58/58`.
+FK coverage `47/47`, row cardinality `58/58`.
+
+**Every number this audit reports describes ROWS.** None of them describes
+whether a row's columns were filled. A rehearsal scoring `58/58` was found to be
+silently dropping eleven columns that hold real values in production — see #92.
+Column coverage is a separate check (`db/backfill/columnCoverage.ts`) with its
+own line in the report; do not read either number as standing for the other.
 
 **A clean pre-flight is clean AS OF ITS BOUND.** The last run excluded 251
 documents that arrived while the pass ran. Whatever arrives between the audit and
