@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   countTextEntities,
   createTextEntityPattern,
+  qualifyBareHandles,
   scanTextEntities,
   stripTextEntities,
   toOpenableUrl,
@@ -249,6 +250,48 @@ describe('bareHandle', () => {
     expect(values('@alice speaks', { kinds: ['bareHandle'] })).toEqual(['alice']);
   });
 
+  /**
+   * `.` and `-` are IN the handle class because a handle can contain them, but
+   * it cannot END with one — and prose puts a full stop straight after a handle
+   * constantly. Seen live in a synced profile bio: "Now building
+   * @thinkymachines. Previously CTO @openai" yielded the handle
+   * `thinkymachines.`, sentence punctuation and all, which every consumer then
+   * linkified, stored or qualified as if somebody had typed it.
+   */
+  it('does not take the sentence punctuation that follows a handle', () => {
+    expect(values('Now building @thinkymachines. Previously CTO @openai', { kinds: ['bareHandle'] }))
+      .toEqual(['thinkymachines', 'openai']);
+    expect(values('@other- and @name.', { kinds: ['bareHandle'] })).toEqual(['other', 'name']);
+  });
+
+  /**
+   * The other half, and the reason this is a trailing-only trim rather than
+   * dropping `.` from the class: an atproto handle IS a dotted DNS name, so a
+   * rule that removed interior dots would break every Bluesky handle we hold.
+   */
+  it('keeps the dots INSIDE a handle that legitimately has them', () => {
+    expect(values('@alice.bsky.social posts', { kinds: ['bareHandle'] })).toEqual(['alice.bsky.social']);
+    expect(values('@some-name here', { kinds: ['bareHandle'] })).toEqual(['some-name']);
+  });
+
+  it('yields nothing for a sigil followed only by punctuation', () => {
+    expect(values('@... nothing', { kinds: ['bareHandle'] })).toEqual([]);
+    expect(values('@-', { kinds: ['bareHandle'] })).toEqual([]);
+  });
+
+  /**
+   * `raw`/`start`/`end` describe the span a caller REPLACES, so a trim that
+   * shortened the value while leaving the span long would make every rewrite
+   * eat the following character. Asserted directly because the failure would
+   * show up as corrupted text at a call site, not here.
+   */
+  it('reports a span that covers exactly the trimmed handle', () => {
+    const text = 'Now building @thinkymachines. Previously';
+    const [entity] = scanTextEntities(text, { kinds: ['bareHandle'] });
+    expect(text.slice(entity.start, entity.end)).toBe('@thinkymachines');
+    expect(entity.raw).toBe('@thinkymachines');
+  });
+
   it('does NOT swallow an email-shaped someone@instance.tld', () => {
     // The hazard `termExtraction` documents: the local part is a continuation
     // character, so no handle opens at that `@`. Left unguarded, trending
@@ -475,5 +518,68 @@ describe('TextEntity shape', () => {
     expect(found[0].label).toBe('Ada');
     expect(found[1].label).toBeUndefined();
     expect(found[2].label).toBeUndefined();
+  });
+});
+
+/**
+ * A federated actor's own words carry handles that only mean something next to
+ * the network they were written on. Mira Murati's synced bio read "Now building
+ * @thinkymachines. Previously CTO @openai" — both accounts on X, both rendered
+ * here as if they were local names.
+ */
+describe('qualifyBareHandles', () => {
+  it('qualifies the bare handles in a real synced bio', () => {
+    expect(qualifyBareHandles('Now building @thinkymachines. Previously CTO @openai', 'x.com'))
+      .toBe('Now building @thinkymachines@x.com. Previously CTO @openai@x.com');
+  });
+
+  /**
+   * The case that makes appending unsafe. The scanner treats a two-part handle
+   * as an entity it does not own, so `@alice@mastodon.social` arrives as the
+   * bare `@alice`; appending without looking would yield
+   * `@alice@x.com@mastodon.social` — a handle naming nobody, written into the
+   * database.
+   */
+  it('leaves an already-qualified handle exactly as it is', () => {
+    expect(qualifyBareHandles('ping @alice@mastodon.social ok', 'x.com'))
+      .toBe('ping @alice@mastodon.social ok');
+    expect(qualifyBareHandles('@a@b.com and @c', 'x.com'))
+      .toBe('@a@b.com and @c@x.com');
+  });
+
+  it('never touches a handle inside a URL, or an email', () => {
+    expect(qualifyBareHandles('see https://x.com/@handle now', 'x.com'))
+      .toBe('see https://x.com/@handle now');
+    expect(qualifyBareHandles('mail nate@oxy.so please', 'x.com'))
+      .toBe('mail nate@oxy.so please');
+  });
+
+  it('returns the original string when there is nothing to qualify', () => {
+    const untouched = 'no handles here at all';
+    expect(qualifyBareHandles(untouched, 'x.com')).toBe(untouched);
+    expect(qualifyBareHandles('', 'x.com')).toBe('');
+  });
+
+  it('does nothing without a domain, rather than writing a trailing @', () => {
+    expect(qualifyBareHandles('hi @alice', '')).toBe('hi @alice');
+    expect(qualifyBareHandles('hi @alice', '   ')).toBe('hi @alice');
+  });
+
+  it('lower-cases the domain it appends but never the handle', () => {
+    // The handle's case is the actor's own and is displayed; the domain is a
+    // hostname and is not.
+    expect(qualifyBareHandles('hi @OpenAI', 'X.com')).toBe('hi @OpenAI@x.com');
+  });
+
+  it('is idempotent, so a re-sync cannot stack domains', () => {
+    const once = qualifyBareHandles('CTO @openai', 'x.com');
+    expect(qualifyBareHandles(once, 'x.com')).toBe(once);
+  });
+
+  it('keeps the punctuation that follows a handle', () => {
+    // The trailing-dot trim above is what makes this work: without it the
+    // sentence's period ends up INSIDE the qualified handle.
+    expect(qualifyBareHandles('building @thinkymachines. done', 'x.com'))
+      .toBe('building @thinkymachines@x.com. done');
   });
 });

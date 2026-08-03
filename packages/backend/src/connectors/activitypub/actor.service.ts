@@ -3,6 +3,7 @@ import { decode as decodeEntities } from 'he';
 import { normalizeInlineText } from '@oxyhq/core';
 import {
   createActorResolver,
+  type ActorResolverConfig,
   type FederatedActorStore,
   type FederatedActorUpsert,
   type WebFingerFetch,
@@ -12,6 +13,7 @@ import { logger } from '../../utils/logger';
 import FederatedActor, { type IFederatedActor } from '../../models/FederatedActor';
 import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
 import { federationBridges } from './federationBridgePolicy';
+import { qualifyBareHandles } from '@mention/shared-types/textEntities';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import {
@@ -97,7 +99,16 @@ const fetchWebFinger: WebFingerFetch = async (url) => {
  * tombstoneGoneActor / refreshActorInBackground / fetchPublicKey /
  * resolveActorOxyUserId` unchanged.
  */
-export const actorService = createActorResolver<IFederatedActor>({
+/**
+ * The resolver's configuration, named so it can be INSPECTED.
+ *
+ * Bound to a const rather than inlined into the call because several members are
+ * optional hooks: an engine given no `qualifyHandles` falls back to the previous
+ * behaviour silently and by design, so a wire that is never connected produces
+ * no error anywhere. Both sides of that hook were green while Mention's bios
+ * stayed unqualified. Naming the object is what lets a test look.
+ */
+export const activityPubActorResolverConfig: ActorResolverConfig<IFederatedActor> = {
   federationEnabled: FEDERATION_ENABLED,
   signedFetch,
   fetchWebFinger,
@@ -135,11 +146,25 @@ export const actorService = createActorResolver<IFederatedActor>({
         }),
       ),
     htmlToPlainText: (html) => htmlToPlainText(html),
+    // A handle an actor wrote in its OWN bio means the account on the network it
+    // was written on: `@openai` on an X-relabelled actor is `@openai@x.com`.
+    // Copied across unqualified it reads as a LOCAL name, pointing readers at
+    // whoever holds it here. Qualified on ingest so it is STORED unambiguous —
+    // every reader gets the same text from the same field, with no renderer left
+    // to re-derive it from an origin network it would have to be told.
+    //
+    // `qualifyBareHandles` scans with the SAME entity scanner the composer and
+    // the renderer use, so a URL's `@handle`, an email and an already-qualified
+    // handle are excluded by that one definition rather than by a rule invented
+    // here for bios.
+    qualifyHandles: (text, instanceDomain) => qualifyBareHandles(text, instanceDomain),
   },
   logger: {
     info: (message) => logger.info(message),
     warn: (message, detail) => logger.warn(message, detail),
   },
-});
+};
+
+export const actorService = createActorResolver<IFederatedActor>(activityPubActorResolverConfig);
 
 export default actorService;
