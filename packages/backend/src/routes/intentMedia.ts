@@ -12,6 +12,7 @@ import {
   SsrfRejection,
   UpstreamResult,
   contentTypeFamily,
+  contentTypeFamilyFromString,
   fetchUpstreamFollowingRedirects,
 } from '../utils/safeUpstreamFetch';
 import { MEDIA_REJECTED_TYPES } from '../services/mediaCache/mediaTypes';
@@ -303,7 +304,7 @@ router.post('/', intentMediaRateLimiter, async (req: AuthRequest, res: Response)
         res.status(HTTP_STATUS.PAYLOAD_TOO_LARGE).json({ error: 'Media is too large' });
         return;
       }
-      const mimeType = typeof req.body?.mimeType === 'string' ? req.body.mimeType.trim().toLowerCase() : '';
+      const mimeType = contentTypeFamilyFromString(typeof req.body?.mimeType === 'string' ? req.body.mimeType : undefined);
       if (!mimeType || !isComposerMediaType(mimeType)) {
         res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Valid "mimeType" (image/* or video/*) is required with base64' });
         return;
