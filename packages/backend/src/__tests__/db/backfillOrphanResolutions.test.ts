@@ -246,20 +246,20 @@ describe('a boost of a post Mention never held', () => {
     expect(reportedIds(log, 'drop-boost-of-a-post-mention-never-held')).toStrictEqual([]);
   });
 
-  it('REFUSES the run when no parent set was loaded at all', async () => {
-    // The failure this guards is the expensive one, and the two shapes are a
-    // keystroke apart at the call site: "no parents were loaded" and "no
-    // parents exist" both look like an absent key. Reading the first as the
-    // second would drop every boost in the database, so it throws instead —
-    // and that is strictly better than the standing-down I first assumed it
-    // did, which is why this asserts the refusal rather than survival.
-    const boost = new ObjectId();
-    await mongo
-      .collection('posts')
-      .insertOne(basePost(boost, { type: 'boost', boostOf: new ObjectId().toHexString() }));
+  it('REFUSES a copy whose parent set was never loaded', async () => {
+    // The fail-closed contract, asserted on a plan that does NOT reference
+    // itself — `post_recent_repliers` points at `posts`, so a caller really can
+    // hand it the wrong set and really must be refused. (A self-referencing
+    // plan no longer consults `options.parents` at all; see the copy-path
+    // describe below for why.)
+    await mongo.collection('post_recent_repliers').insertOne({
+      _id: new ObjectId(),
+      postId: new ObjectId().toHexString(),
+      repliers: [{ oxyUserId: 'bor-replier-x', repliedAt: new Date('2024-05-03T00:00:00.000Z') }],
+    });
 
     await expect(
-      copyCollection(planFor('posts'), {
+      copyCollection(planFor('post_recent_repliers'), {
         db: getDb(),
         source,
         resolutions: createResolutionContext(await planResolutions(source), new ResolutionLog()),
@@ -268,40 +268,71 @@ describe('a boost of a post Mention never held', () => {
     ).rejects.toThrow(/No parent keys were loaded for posts/);
   });
 
-  it('stands DOWN for a loaded-but-empty parent set, and fails LOUDLY instead', async () => {
-    // The other half of the same distinction. An empty set is a real answer
-    // ("this table holds no rows yet"), and a rule that fired on it would drop
-    // every boost during the first level of a copy — so it stands down.
-    //
-    // What it does INSTEAD is the point of this case: the copy then hits the
-    // foreign key for real and stops. That is the correct trade for a
-    // destructive rule, and it is why this asserts a 23503 rather than a
-    // surviving row: standing down cannot be observed as silence, only as a
-    // loud failure. (It is also not a state a real run reaches — `posts` is
-    // self-referencing, so pass A has already populated the parent set by the
-    // time pass B fills the links.)
-    const boost = new ObjectId();
-    await mongo
-      .collection('posts')
-      .insertOne(basePost(boost, { type: 'boost', boostOf: new ObjectId().toHexString() }));
+  it('stands DOWN for a loaded-but-empty parent set, and fails LOUDLY', async () => {
+    // The other half of the distinction: an empty set is a real answer ("this
+    // table holds no rows yet"), and a rule that fired on it would drop every
+    // row during the first level of a copy. `post_recent_repliers.post_id` is
+    // NOT NULL with no deferred pass, so standing down here simply keeps the
+    // row rather than failing later.
+    await mongo.collection('post_recent_repliers').insertOne({
+      _id: new ObjectId(),
+      postId: new ObjectId().toHexString(),
+      repliers: [{ oxyUserId: 'bor-replier-y', repliedAt: new Date('2024-05-04T00:00:00.000Z') }],
+    });
 
-    const failure = await copyCollection(planFor('posts'), {
+    const log = new ResolutionLog();
+    const failure = await copyCollection(planFor('post_recent_repliers'), {
       db: getDb(),
       source,
-      resolutions: createResolutionContext(await planResolutions(source), new ResolutionLog()),
+      resolutions: createResolutionContext(await planResolutions(source), log),
       parents: parentKeysFrom(new Map([['posts', new Set<string>()]])),
     }).then(
       () => null,
       (error: unknown) => error
     );
 
-    // The constraint name is on the CAUSE, not the message — drizzle wraps the
-    // driver error in a "Failed query" of its own, so matching the message
-    // alone would pass for any failed statement including one that proved
-    // nothing about the foreign key.
-    expect(failure).toBeInstanceOf(Error);
-    const cause = failure instanceof Error ? failure.cause : undefined;
-    expect(String(cause)).toContain('posts_boost_of_posts_id_fk');
+    // It stands down — and then the real foreign key stops the copy. That is
+    // the correct trade for a destructive rule: standing down cannot be
+    // observed as silence, only as a loud failure, and a silent DROP here would
+    // be far worse than a refused run.
+    expect(reportedIds(log, 'drop-recent-replier-of-a-vanished-post')).toStrictEqual([]);
+    // The constraint name can arrive on the message or on the CAUSE depending
+    // on which write path throws — the bulk COPY raises the driver error bare,
+    // while drizzle's update wraps it — so match the whole text rather than
+    // pinning a shape that differs by code path.
+    const text =
+      failure instanceof Error
+        ? `${failure.message} ${String(failure.cause ?? '')}`
+        : String(failure);
+    expect(text).toContain('post_recent_repliers_post_id_posts_id_fk');
+  });
+
+  it('drops the orphan boost even though NOBODY supplied a parent set', async () => {
+    // The production shape, and the one every other test in this file misses:
+    // `runBackfill` loads a level's parent set before any row of the level is
+    // built, so for a SELF-REFERENCING table it is empty. Handing `parents` in
+    // — which all the tests above do — is a caller production does not have.
+    const real = new ObjectId();
+    const boost = new ObjectId();
+    await mongo
+      .collection('posts')
+      .insertMany([
+        basePost(real),
+        basePost(boost, { type: 'boost', boostOf: new ObjectId().toHexString() }),
+      ]);
+
+    await copyCollection(planFor('posts'), {
+      db: getDb(),
+      source,
+      resolutions: createResolutionContext(await planResolutions(source), new ResolutionLog()),
+    });
+
+    expect(
+      await getDb().select().from(posts).where(eq(posts.id, boost.toHexString()))
+    ).toStrictEqual([]);
+    expect(
+      await getDb().select().from(posts).where(eq(posts.id, real.toHexString()))
+    ).toHaveLength(1);
   });
 });
 

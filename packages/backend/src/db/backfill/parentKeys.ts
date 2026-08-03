@@ -115,7 +115,22 @@ export async function loadParentKeys(
   db: Database,
   tables: readonly PgTable[]
 ): Promise<ParentKeys> {
-  const loaded = new Map<string, ReadonlySet<string>>();
+  return parentKeysFrom(await loadParentKeyMap(db, tables));
+}
+
+/**
+ * The same read, as the raw map, for a caller that must UNION something into it.
+ *
+ * A self-referencing table's parent set is not "what Postgres holds when the
+ * level starts" — that is empty, because the level has not run — it is that
+ * PLUS the rows this copy is about to produce. `copyCollection` unions
+ * `scanEmittedRows` into this; nothing else should need it.
+ */
+export async function loadParentKeyMap(
+  db: Database,
+  tables: readonly PgTable[]
+): Promise<Map<string, Set<string>>> {
+  const loaded = new Map<string, Set<string>>();
 
   for (const table of tables) {
     const name = tableName(table);
@@ -143,5 +158,5 @@ export async function loadParentKeys(
     loaded.set(name, keys);
   }
 
-  return parentKeysFrom(loaded);
+  return loaded;
 }
