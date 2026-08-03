@@ -287,8 +287,53 @@ afterEach(async () => {
  * cannot tell a cascade that cleans from one that deletes from an empty store —
  * which is what the previous version of this file was measuring.
  */
+/**
+ * Refuse to seed on top of rows a previous test left behind, and SAY WHAT.
+ *
+ * This file loses a `23505` on `post_recent_repliers_post_id_oxy_user_id_key`
+ * roughly one full-suite run in three. The bare constraint violation names the
+ * victim — the insert that collided — and says nothing about the offender, so
+ * it reads as "this fixture is flaky" when the fixture is fine.
+ *
+ * The two counts are checked SEPARATELY on purpose, because their combination
+ * is the whole diagnosis and they point at opposite causes:
+ *
+ * - posts left AND repliers left → the previous cleanup did not finish.
+ *   `clearFixtures` runs ~12 deletes before the `posts` one, so an earlier
+ *   statement failing skips every later one silently.
+ * - posts EMPTY and repliers left → impossible from cleanup alone. The
+ *   foreign key to `posts` is `ON DELETE CASCADE`, so a replier row cannot
+ *   outlive its post; a row here with no post means something wrote it
+ *   CONCURRENTLY, in the window between this seed's `posts` insert and its
+ *   `post_recent_repliers` insert. That is a different bug with a different
+ *   fix, and the bare 23505 cannot tell the two apart.
+ *
+ * Cheap: two counted selects on this file's own ids, once per test.
+ */
+async function assertFixturesCleared(): Promise<void> {
+  const db = getDb();
+  const posts = await db.select({ id: pgPosts.id }).from(pgPosts).where(like(pgPosts.id, '%purge-test%'));
+  const repliers = await db
+    .select({ postId: postRecentRepliers.postId, oxyUserId: postRecentRepliers.oxyUserId })
+    .from(postRecentRepliers)
+    .where(like(postRecentRepliers.postId, '%purge-test%'));
+  if (posts.length === 0 && repliers.length === 0) return;
+  throw new Error(
+    `seed() is starting on a dirty table: ${posts.length} purge-test post(s) and ` +
+      `${repliers.length} post_recent_repliers row(s) already exist ` +
+      `(${repliers.map((row) => `${row.postId}/${row.oxyUserId}`).join(', ') || 'none'}). ` +
+      (posts.length === 0
+        ? 'The posts are GONE and the replier rows are not, which cleanup alone ' +
+          'cannot produce — the foreign key is ON DELETE CASCADE. Something wrote ' +
+          'these concurrently.'
+        : 'The previous test\'s cleanup did not finish; `clearFixtures` runs ~12 ' +
+          'deletes before the `posts` one and an earlier failure skips the rest.')
+  );
+}
+
 async function seed(): Promise<void> {
   const db = getDb();
+  await assertFixturesCleared();
 
   await db.insert(federatedActors).values([
     {
