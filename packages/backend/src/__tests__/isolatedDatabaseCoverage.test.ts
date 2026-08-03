@@ -34,6 +34,22 @@
  * zero callers, pass forever and protect nothing — the entry point below is the
  * PUBLIC cycle a test can actually reach.
  *
+ * ## A KNOWN UNCOVERED SHAPE: an unscoped write that is not a job
+ *
+ * This list covers files that invoke a background JOB. It does NOT cover a file
+ * that reaches a globally-scoped SERVICE directly, and at least one such writer
+ * is known to exist against `post_recent_repliers`. Do not read the list as an
+ * inventory of every way one test file can write another's rows.
+ *
+ * Measured rather than suspected. `src/__tests__/scripts/purgeBlockedDomainContent.test.ts`
+ * calls none of the entry points below and scopes its own writes, yet it fails
+ * intermittently on `recentReplierEntriesPulled` — a projection row it seeded,
+ * gone before its purge ran. It failed that way BEFORE per-file isolation
+ * existed and again in one of three full runs AFTER it, so its offender is not
+ * among the eleven and a private database does not address it. The likely shape
+ * is `PostRecentReplierService` reached straight from an ordinary test file,
+ * which no entry point below can match.
+ *
  * ## Connection budget — measured, and the measurement has a known blind spot
  *
  * Each listed file creates its own database, which costs one extra
