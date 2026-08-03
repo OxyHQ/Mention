@@ -36,9 +36,17 @@ export interface ChannelAccountSettings {
  * nothing would leave an operator believing their writers are anonymous.
  */
 class ChannelAccountService {
+  /**
+   * Read from `/channel` rather than from the bare `${SETTINGS_PATH}/:id` the
+   * write below uses, because those two paths answer different questions.
+   * `GET /profile/settings/:id` serves a VIEWER the profile-design DTO, and a
+   * channel is never its own viewer — no session can be minted whose subject is a
+   * channel — so that response never carries a `channel` block at all and this
+   * read came back `false` however the operator had it set.
+   */
   async getSettings(oxyUserId: string): Promise<ChannelAccountSettings> {
     const res = await authenticatedClient.get<{ channel?: Partial<ChannelAccountSettings> }>(
-      `${SETTINGS_PATH}/${encodeURIComponent(oxyUserId)}`,
+      `${SETTINGS_PATH}/${encodeURIComponent(oxyUserId)}/channel`,
     );
     return { signPosts: res.data?.channel?.signPosts === true };
   }

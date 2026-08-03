@@ -234,3 +234,113 @@ describe('PUT /profile/settings/:userId — an operated account', () => {
     expect(store.has(CHANNEL)).toBe(false);
   });
 });
+
+/**
+ * `GET /profile/settings/:userId/channel` — the READ half, and the reason it is a
+ * separate endpoint from `GET /profile/settings/:userId`.
+ *
+ * Those two answer different questions. The bare route serves a VIEWER the
+ * profile-design DTO, and `buildSettingsResponseForViewer` returns the stored
+ * document only when `targetUserId === viewerUserId` — an equality that is
+ * structurally unreachable for a channel, because `isActAsEligibleKind` refuses
+ * `channel`, so no session can ever be minted whose subject is one. Every other
+ * exit of that serialiser is a fixed-key design DTO with no `channel` block, so an
+ * operator who turned the byline ON read it back as OFF for as long as this screen
+ * pointed there — while the stored value, and every post's byline, said otherwise.
+ *
+ * These assert the route through the REAL handler. Note the suite above mocks
+ * `buildSettingsResponseForViewer` to the identity function, which is precisely
+ * why it stayed green over that bug: the mock returns the whole document, so the
+ * redaction that drops `channel` never ran in a test.
+ */
+describe('GET /profile/settings/:userId/channel — an operated channel', () => {
+  beforeEach(() => {
+    store.clear();
+    gate.operableKindOf.clear();
+    gate.operableKindOf.set(CHANNEL, 'channel');
+    gate.operableKindOf.set(ORGANIZATION, 'organization');
+    vi.clearAllMocks();
+  });
+
+  /**
+   * THE regression test, and the fixture has to be ON.
+   *
+   * `false` is the default, so a test that stores `false` and expects `false`
+   * cannot tell "reads the stored value" from "always answers false" — which is
+   * exactly the broken behaviour. Only a stored `true` distinguishes them.
+   */
+  it('reads back a signPosts the operator turned ON', async () => {
+    store.set(CHANNEL, { oxyUserId: CHANNEL, channel: { signPosts: true } });
+
+    const res = await request(app).get(`/profile/settings/${CHANNEL}/channel`).expect(200);
+
+    expect(res.body.data).toEqual({ channel: { signPosts: true } });
+  });
+
+  it('reads back a signPosts that is off', async () => {
+    store.set(CHANNEL, { oxyUserId: CHANNEL, channel: { signPosts: false } });
+
+    const res = await request(app).get(`/profile/settings/${CHANNEL}/channel`).expect(200);
+
+    expect(res.body.data).toEqual({ channel: { signPosts: false } });
+  });
+
+  /**
+   * A channel nobody has ever configured has no settings row at all. That is not
+   * an error — it has simply never opted in — so it answers `false` rather than
+   * 404ing a screen whose toggle is legitimately off.
+   */
+  it('answers false for a channel with no settings row', async () => {
+    const res = await request(app).get(`/profile/settings/${CHANNEL}/channel`).expect(200);
+
+    expect(res.body.data).toEqual({ channel: { signPosts: false } });
+    // The read must not conjure a row for a channel that has none.
+    expect(store.has(CHANNEL)).toBe(false);
+  });
+
+  /**
+   * The fixture that tells `=== true` from `Boolean(signPosts)`, on the READ side.
+   *
+   * `true` / `false` / absent all agree under both readings, so a suite built from
+   * those alone stays green against the loose one. A truthy NON-boolean is the one
+   * shape that makes them disagree — and here the loose read would DISCLOSE the
+   * human who wrote the post. The column is `Boolean` in the schema, so this can
+   * only arrive from outside Mongoose (a migration, a manual repair), which is
+   * exactly the case worth failing safe on.
+   */
+  it.each([
+    ['the string "false"', 'false'],
+    ['the string "true"', 'true'],
+    ['the number 1', 1],
+    ['an object', {}],
+  ])('refuses to read %s as consent to name the writer', async (_label, value) => {
+    store.set(CHANNEL, { oxyUserId: CHANNEL, channel: { signPosts: value } });
+
+    const res = await request(app).get(`/profile/settings/${CHANNEL}/channel`).expect(200);
+
+    expect(res.body.data).toEqual({ channel: { signPosts: false } });
+  });
+
+  /**
+   * Authorization is the SAME gate as the write, with the same status codes. The
+   * asymmetry between how the two halves authorized is what produced the bug this
+   * route fixes, so each refusal is pinned on both.
+   */
+  it('refuses an account the caller does not operate, with the gate\'s status', async () => {
+    store.set(OTHER_CHANNEL, { oxyUserId: OTHER_CHANNEL, channel: { signPosts: true } });
+
+    await request(app).get(`/profile/settings/${OTHER_CHANNEL}/channel`).expect(403);
+  });
+
+  it('refuses the caller\'s own account — `channel.signPosts` means nothing there', async () => {
+    store.set(CALLER, { oxyUserId: CALLER, channel: { signPosts: true } });
+
+    await request(app).get(`/profile/settings/${CALLER}/channel`).expect(400);
+  });
+
+  it('refuses an ORGANIZATION the caller may act for', async () => {
+    store.set(ORGANIZATION, { oxyUserId: ORGANIZATION, channel: { signPosts: true } });
+
+    await request(app).get(`/profile/settings/${ORGANIZATION}/channel`).expect(400);
+  });
+});
