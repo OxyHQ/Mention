@@ -14,6 +14,7 @@ import { SourcesIcon } from '@/assets/icons/sources-icon';
 import { ArticleIcon } from '@/assets/icons/article-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { ScheduleIcon, ScheduleIconActive } from '@/assets/icons/schedule-icon';
+import { LaneIcon } from '@/assets/icons/lane-icon';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 interface ComposeToolbarProps {
@@ -346,11 +347,13 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     accessibilityRole="button"
                     accessibilityLabel={t('lanes.compose.choose', { defaultValue: 'Choose a lane' })}
                 >
-                    {/* A signpost, in the two states this row uses everywhere
-                        else: filled once the post is on a lane, outline while it
-                        is not. */}
-                    <Ionicons
-                        name={hasLane ? 'git-branch' : 'git-branch-outline'}
+                    {/* Parallel tracks, not a branch. A branch is a fork — one
+                        history splitting into divergent ones — and a lane forks
+                        nothing: the post's distribution, visibility, replies and
+                        federation are untouched by it. It is a track the post is
+                        filed on. The tint carries the on/off state, the way every
+                        other icon in this row signals its attachment. */}
+                    <LaneIcon
                         size={20}
                         color={disabled
                             ? theme.colors.textTertiary
