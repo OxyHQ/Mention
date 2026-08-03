@@ -13,7 +13,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
  */
 
 const actorFindOne = vi.fn();
-const actorUpdateOne = vi.fn(async () => undefined);
+const actorUpdateOne = vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => undefined);
 const actorFindOneAndUpdate = vi.fn(async () => null);
 vi.mock('../../models/FederatedActor', () => ({
   default: {
@@ -86,7 +86,12 @@ vi.mock('../../connectors/activitypub/ActivityPubConnector', () => ({
 }));
 
 vi.mock('../../connectors/activitypub/constants', () => ({ FEDERATION_ENABLED: true }));
-vi.mock('../../connectors/atproto/constants', () => ({ ATPROTO_ENABLED: false }));
+vi.mock('../../connectors/atproto/constants', () => ({ ATPROTO_ENABLED: true }));
+
+const syncAtprotoProfileGraph = vi.fn(async () => undefined);
+vi.mock('../../connectors/atproto/profileGraph', () => ({
+  syncAtprotoProfileGraph: (...a: unknown[]) => syncAtprotoProfileGraph(...(a as [string, string])),
+}));
 
 /** atproto backfill: the connector the registry hands back for an atproto URI. */
 const atprotoFetchPosts = vi.fn(async () => ({ posts: [] as unknown[] }));
@@ -144,6 +149,17 @@ function atprotoActor(overrides: Record<string, unknown> = {}) {
 
 function mockActorLookup(actor: unknown) {
   actorFindOne.mockReturnValue({ lean: () => Promise.resolve(actor) });
+}
+
+function isGraphClaim(filter: unknown, update: unknown): boolean {
+  return Boolean(
+    filter
+    && typeof filter === 'object'
+    && (filter as { protocol?: unknown }).protocol === 'atproto'
+    && update
+    && typeof update === 'object'
+    && Boolean((update as { $set?: { atprotoGraphSyncStartedAt?: unknown } }).$set?.atprotoGraphSyncStartedAt),
+  );
 }
 
 beforeEach(() => {
@@ -288,6 +304,30 @@ describe('federatedProfileSync.syncOnProfileView', () => {
       ),
     );
     expect(syncOutboxPostsDetailed).not.toHaveBeenCalled();
+  });
+
+  it('claims atproto graph syncs so concurrent profile views cannot duplicate expensive work', async () => {
+    connectorFor.mockReturnValue({ fetchPosts: atprotoFetchPosts });
+    mockActorLookup(atprotoActor({ postsCount: 5 }));
+    let graphClaimed = false;
+    actorUpdateOne.mockImplementation(async (filter: unknown, update: unknown) => {
+      if (isGraphClaim(filter, update)) {
+        const modifiedCount = graphClaimed ? 0 : 1;
+        graphClaimed = true;
+        return { modifiedCount };
+      }
+      return { modifiedCount: 1 };
+    });
+
+    await Promise.all([
+      federatedProfileSync.syncOnProfileView('at1'),
+      federatedProfileSync.syncOnProfileView('at1'),
+      federatedProfileSync.syncOnProfileView('at1'),
+    ]);
+
+    await vi.waitFor(() => expect(atprotoFetchPosts).toHaveBeenCalledTimes(3));
+    await vi.waitFor(() => expect(syncAtprotoProfileGraph).toHaveBeenCalledOnce());
+    expect(syncAtprotoProfileGraph).toHaveBeenCalledWith('did:plc:abc123', 'at1');
   });
 
   it('clears pending for an atproto actor once the backfill has been stamped', async () => {

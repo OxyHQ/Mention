@@ -87,6 +87,10 @@ export interface IFederatedActor extends Document {
   oxyUserId?: string;
   lastFetchedAt?: Date;
   lastOutboxSyncAt?: Date;
+  /** Last completed atproto profile-graph sync (starter packs + feed references). */
+  lastAtprotoGraphSyncAt?: Date;
+  /** In-flight atproto profile-graph sync claim; expires if a worker dies mid-sync. */
+  atprotoGraphSyncStartedAt?: Date;
   outboxBackfill?: FederatedOutboxBackfillState;
   createdAt: Date;
   updatedAt: Date;
@@ -158,6 +162,8 @@ const FederatedActorSchema = new Schema<IFederatedActor>({
   oxyUserId: { type: String, index: { sparse: true } },
   lastFetchedAt: { type: Date },
   lastOutboxSyncAt: { type: Date },
+  lastAtprotoGraphSyncAt: { type: Date },
+  atprotoGraphSyncStartedAt: { type: Date },
   outboxBackfill: {
     status: { type: String, enum: ['pending', 'complete', 'unavailable', 'failed'] },
     outboxUrl: { type: String },
@@ -180,6 +186,8 @@ FederatedActorSchema.index({ domain: 1, username: 1 }, { unique: true });
 FederatedActorSchema.index({ lastFetchedAt: 1 }); // For refreshStaleActors() job queries
 FederatedActorSchema.index({ publicKeyId: 1 }, { sparse: true }); // For HTTP signature verification lookups
 FederatedActorSchema.index({ 'outboxBackfill.status': 1, 'outboxBackfill.lockedUntil': 1 });
+FederatedActorSchema.index({ protocol: 1, lastAtprotoGraphSyncAt: 1 });
+FederatedActorSchema.index({ protocol: 1, atprotoGraphSyncStartedAt: 1 });
 
 export const FederatedActor = mongoose.model<IFederatedActor>('FederatedActor', FederatedActorSchema);
 export default FederatedActor;
