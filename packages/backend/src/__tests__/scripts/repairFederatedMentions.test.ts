@@ -1,35 +1,51 @@
-import mongoose from 'mongoose';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { asc, eq, like, sql } from 'drizzle-orm';
 
 /**
- * Offline, model-level test for the one-shot federated @mention repair.
+ * The one-shot federated @mention repair, against REAL rows.
  *
- * `Post.countDocuments` / `Post.find` / `Post.bulkWrite` are mocked over a small
- * in-memory store, and `signedFetch` is mocked per source URL — so the REAL
- * selection filter, paging, mention resolution, placeholder rewrite, body
- * re-derivation and write shape all run WITHOUT MongoDB or a network. That
- * mirrors the convention from `backfillFederatedBoostCounts.test.ts` /
- * `normalizeFederatedText.test.ts` (the repo has no `mongodb-memory-server` and
- * globally mocks mongoose).
+ * The sweep re-fetches a federated post's source Note, re-resolves its mentions
+ * lookup-only, and writes back the repaired body plus the mention allowlist.
+ * `signedFetch` is stubbed per source URL — that is a network call, not a store —
+ * and everything else it touches is a real table, so the REAL selection filter,
+ * paging, resume cursor, mention resolution, placeholder rewrite, body
+ * re-derivation and write all run.
  *
- * The `Post.find` / `countDocuments` mocks evaluate the script's ACTUAL filter
- * against the store rather than returning everything. That is load-bearing: the
- * idempotency guarantee is that a repaired post leaves the candidate set, and a
- * mock that ignored the filter could not tell that apart from a script that
- * re-repairs forever.
+ * ## What the Postgres port changed, and why the shape of the suite changed with it
+ *
+ * The previous version mocked `models/Post` over an in-memory array and
+ * hand-implemented a Mongo filter interpreter so the mock could evaluate the
+ * script's ACTUAL filter. That was the right call while the filter was a plain
+ * object; it cannot survive the port, because the filter is now a drizzle `SQL`
+ * expression that only Postgres can evaluate — and a mock that kept answering
+ * would have made every selection assertion here a statement about the
+ * interpreter rather than about the query.
+ *
+ * Three properties are consequently asserted DIFFERENTLY, and each is stronger:
+ *
+ *  - **Selection** is asserted by seeding rows and reading back which ids the
+ *    run scanned, so a weakened clause changes the answer.
+ *  - **The write shape** was `store.ops` — a Mongo `$set` whitelist. In Postgres
+ *    that property becomes: the body and the mention set changed, and the
+ *    media, attachments and localized alt text did NOT. `content.variants` was
+ *    ONE document field, so Mongo's `$set` of the whole array was correct; the
+ *    variants are a child table with rows other tables reference BY ID, and
+ *    `replacePostContent` — the function that looks like the answer — clears
+ *    media, attachments and sources on its way past. `preserves a post's media,
+ *    attachments and localized alt text` is the test for that, and it is new.
+ *  - **Idempotency** is asserted by running twice against the real filter: a
+ *    repaired post must LEAVE the candidate set. Under the old harness this
+ *    depended on the hand-written interpreter agreeing with Mongo.
  *
  * `actor.service` is mocked purely so the test can ASSERT it is never called —
- * the repair must resolve lookup-only and can never mint a ghost `FederatedActor`.
+ * the repair must resolve lookup-only and can never mint a ghost actor. The
+ * cursor and failure-log doubles sit at the REPOSITORY (whose own behaviour
+ * against real rows is covered by `adminScriptCursor.test.ts`), so the wiring
+ * under test — which scope a run reads, when it writes, whether a dry run writes
+ * at all — actually runs.
  */
 
-/** A stored content variant, in the shape the script reads and writes back. */
-interface StoredVariant {
-  source: string;
-  text: string;
-  tag?: string;
-}
-
-/** A stored `adminscriptcursors` row — where one shard scope got to. */
+/** A stored `admin_script_cursors` row — where one shard scope got to. */
 interface StoredCursor {
   script: string;
   scope: string;
@@ -38,7 +54,7 @@ interface StoredCursor {
   completedAt: Date | null;
 }
 
-/** A stored `repairfetchfailures` row — why one post's re-fetch failed. */
+/** A stored `repair_fetch_failures` row — why one post's re-fetch failed. */
 interface StoredFailure {
   script: string;
   postId: string;
@@ -47,30 +63,8 @@ interface StoredFailure {
   failedAt: Date;
 }
 
-/** A stored post row as `.lean()` hands it to the script. */
-interface StoredPost {
-  _id: mongoose.Types.ObjectId;
-  type?: string;
-  mentions?: string[];
-  content?: {
-    variants?: StoredVariant[];
-    media?: { id: string; type: string }[];
-  };
-  federation?: { activityId?: string; actorUri?: string; url?: string };
-}
-
-/** The bulk op the script stages for one repaired post. */
-interface BulkOp {
-  updateOne: {
-    filter: { _id: mongoose.Types.ObjectId };
-    update: { $set: Record<string, unknown> };
-  };
-}
-
 const mocks = vi.hoisted(() => {
   const store: {
-    posts: StoredPost[];
-    ops: BulkOp[];
     cursors: StoredCursor[];
     /** Every cursor value written, in order — the per-page persistence itself. */
     cursorWrites: { scope: string; cursor: string; scanned: number; completed: boolean }[];
@@ -80,8 +74,6 @@ const mocks = vi.hoisted(() => {
     /** Set to make the next failure-log write fail. */
     failureLogWriteError: Error | null;
   } = {
-    posts: [],
-    ops: [],
     cursors: [],
     cursorWrites: [],
     cursorWriteError: null,
@@ -89,114 +81,17 @@ const mocks = vi.hoisted(() => {
     failureLogWriteError: null,
   };
 
-  /**
-   * Read every value a dotted filter key reaches, fanning out through arrays the
-   * way Mongo's implicit array traversal does (`content.variants.text` yields one
-   * value per variant). An absent path yields NO values, which is what `$exists`
-   * and `$ne` are then evaluated against.
-   */
-  const fieldValues = (source: unknown, segments: readonly string[]): unknown[] => {
-    if (source === null || source === undefined) return [];
-    if (segments.length === 0) return [source];
-    if (Array.isArray(source)) return source.flatMap((item) => fieldValues(item, segments));
-    if (typeof source !== 'object') return [];
-    return fieldValues((source as Record<string, unknown>)[segments[0]], segments.slice(1));
-  };
-
-  /** Evaluate ONE filter condition against the values its key reached. */
-  const conditionMatches = (values: readonly unknown[], condition: unknown): boolean => {
-    if (condition === null) return values.length === 0 || values.some((value) => value === null);
-    if (condition === undefined || typeof condition !== 'object') {
-      return values.some((value) => value === condition);
-    }
-    return Object.entries(condition as Record<string, unknown>).every(([operator, operand]) => {
-      switch (operator) {
-        case '$exists':
-          return values.length > 0 === operand;
-        case '$ne':
-          return !values.some((value) => value === operand);
-        case '$size':
-          return values.some((value) => Array.isArray(value) && value.length === operand);
-        case '$gt':
-          return values.some((value) => String(value) > String(operand));
-        case '$lte':
-          return values.some((value) => String(value) <= String(operand));
-        case '$regex':
-          return values.some((value) => typeof value === 'string' && (operand as RegExp).test(value));
-        default:
-          // Vacuity floor: an operator this matcher cannot evaluate must blow the
-          // test up, never silently select (or reject) every row.
-          throw new Error(`test filter matcher: unsupported operator ${operator}`);
-      }
-    });
-  };
-
-  /**
-   * Evaluate the script's REAL candidate filter against one row.
-   *
-   * Deliberately derived from the filter object `buildCandidateFilter` produces
-   * — no rule is restated here — so removing or weakening a clause changes what
-   * this mock selects, instead of being silently ignored.
-   */
-  const matches = (row: StoredPost, filter: Record<string, unknown>): boolean =>
-    Object.entries(filter).every(([key, condition]) => {
-      if (key === '$or') {
-        return (condition as Record<string, unknown>[]).some((clause) => matches(row, clause));
-      }
-      return conditionMatches(fieldValues(row, key.split('.')), condition);
-    });
-
   return {
     store,
     signedFetch: vi.fn(),
     findExistingActor: vi.fn(),
     getOrFetchActor: vi.fn(),
-    postModel: {
-      countDocuments: vi.fn(async (filter: Record<string, unknown>) =>
-        store.posts.filter((row) => matches(row, filter)).length,
-      ),
-      find: vi.fn((filter: Record<string, unknown>) => {
-        let limit = Number.MAX_SAFE_INTEGER;
-        const chain = {
-          sort: () => chain,
-          limit: (value: number) => {
-            limit = value;
-            return chain;
-          },
-          lean: async () =>
-            [...store.posts]
-              .sort((a, b) => a._id.toString().localeCompare(b._id.toString()))
-              .filter((row) => matches(row, filter))
-              .slice(0, limit),
-        };
-        return chain;
-      }),
-      bulkWrite: vi.fn(async (ops: BulkOp[]) => {
-        store.ops.push(...ops);
-        for (const op of ops) {
-          const target = store.posts.find((row) => row._id.equals(op.updateOne.filter._id));
-          if (!target) continue;
-          const set = op.updateOne.update.$set;
-          if (Array.isArray(set.mentions)) target.mentions = set.mentions as string[];
-          if (Array.isArray(set['content.variants'])) {
-            target.content = { ...target.content, variants: set['content.variants'] as StoredVariant[] };
-          }
-        }
-        return { modifiedCount: ops.length };
-      }),
-    },
     /**
      * A minimal `admin_script_cursors` table with the REPOSITORY's own upsert
      * semantics, so the REAL cursor helper runs against it rather than being
      * stubbed out. Mocking the helper instead would leave the wiring — which
      * scope a run reads, when it writes, whether a dry run writes at all —
      * untested, and that wiring is the entire fix.
-     *
-     * The double moved down one layer when the store did: it used to stand in
-     * for the Mongoose model, and the port would otherwise have left it inert
-     * with the reads hitting an unconnected pool. What it doubles is the
-     * repository, whose OWN behaviour against real rows is covered by
-     * `adminScriptCursor.test.ts`.
      */
     cursorRepository: {
       findAdminScriptCursor: vi.fn(async (script: string, scope: string) =>
@@ -263,8 +158,6 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('../../models/Post', () => ({ Post: mocks.postModel }));
-
 vi.mock('../../db/adminScripts/adminScriptStateRepository', () => ({
   ...mocks.cursorRepository,
   ...mocks.failureRepository,
@@ -302,6 +195,16 @@ vi.mock('../../connectors/shared/federatedMedia', () => ({
   })),
 }));
 
+import { PostType, PostVisibility, type PostContentVariant } from '@mention/shared-types';
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { insertPostRecord, loadPostRecord } from '../../db/posts/postRepository';
+import type { PostRecordInput } from '../../db/posts/postRecord';
+import { posts } from '../../db/schema/posts';
+import {
+  postContentVariants,
+  postMedia,
+  postVariantAltTexts,
+} from '../../db/schema/postContent';
 import {
   assertRepairRunComplete,
   buildCandidateFilter,
@@ -309,20 +212,33 @@ import {
   repairFederatedMentions,
   resolveSourceUrl,
   SCRIPT_NAME,
+  type CandidatePostRow,
   type RepairFederatedMentionsSummary,
 } from '../../scripts/repairFederatedMentions';
 import { logger } from '../../utils/logger';
 
-const { store, postModel } = mocks;
+const { store } = mocks;
 
 /** The `logger.warn` calls the run emitted, as `[message, context]` pairs. */
 function warnCalls(): [string, Record<string, unknown>][] {
   return vi.mocked(logger.warn).mock.calls as [string, Record<string, unknown>][];
 }
 
-const oid = (suffix: string): mongoose.Types.ObjectId =>
-  new mongoose.Types.ObjectId(`00000000000000000000000${suffix}`);
+/**
+ * This file's private id namespace.
+ *
+ * Every id is a 24-character hex ObjectId, because two tests pass one as a shard
+ * BOUND and `parseIdBound` refuses anything that is not a live entity id. The
+ * prefix is hex but distinctive, so the whole set is reachable by one `LIKE` in
+ * teardown — one database serves the parallel run and a bare `delete from posts`
+ * would take another file's rows mid-assertion. The suffix keeps ASCENDING TEXT
+ * order, which is the order the sweep pages in.
+ */
+const ID_PREFIX = 'facade00000000000000';
+const oid = (suffix: string): string => `${ID_PREFIX}${suffix.padStart(4, '0')}`;
 
+/** The federated author every fixture post is attributed to. */
+const AUTHOR_OXY_ID = 'oxy-repairfedmentions-author';
 const MENTIONED_OXY_ID = 'oxy_indigoparadox';
 
 /**
@@ -356,22 +272,77 @@ const OBJECT_ID = SAME_INSTANCE_NOTE.id;
 const WEB_PAGE_URL = 'https://mastodon.social/@Gargron/117016521955489722';
 
 /**
- * A damaged, repairable post (the primary fixture). Every fixture carries BOTH
- * `activityId` and `url` on purpose: preferring the web page is what made a
- * production dry run reject 40 of 50 fetches on content-type, so "both present"
- * is the case that has to keep choosing the object id.
+ * A DISTINCT object id and web page per fixture.
+ *
+ * `posts.federation_activity_id` is UNIQUE — Mongo declared no such index, so
+ * the previous in-memory store happily held ten posts sharing one activity id.
+ * Two fixture posts are two federated posts, and two federated posts cannot be
+ * the same AP object, so the fixtures say so.
  */
-function damagedPost(id: string, activityId = OBJECT_ID): StoredPost {
-  return {
-    _id: oid(id),
-    mentions: [],
+const objectIdFor = (suffix: string): string =>
+  `https://mastodon.social/users/Gargron/statuses/9000000000000000${suffix.padStart(4, '0')}`;
+const webPageFor = (suffix: string): string =>
+  `https://mastodon.social/@Gargron/9000000000000000${suffix.padStart(4, '0')}`;
+
+/**
+ * Seed one federated post.
+ *
+ * Every fixture carries BOTH `activityId` and `url` on purpose: preferring the
+ * web page is what made a production dry run reject 40 of 50 fetches on
+ * content-type, so "both present" is the case that has to keep choosing the
+ * object id.
+ */
+async function seedPost(
+  suffix: string,
+  overrides: Partial<PostRecordInput> = {},
+  activityId = objectIdFor(suffix),
+): Promise<string> {
+  const id = oid(suffix);
+  await insertPostRecord({
+    id,
+    oxyUserId: AUTHOR_OXY_ID,
+    authorship: [{ oxyUserId: AUTHOR_OXY_ID, role: 'owner', status: 'accepted' }],
+    type: PostType.TEXT,
+    visibility: PostVisibility.PUBLIC,
+    status: 'published',
     content: { variants: [{ source: 'author', tag: 'en', text: DAMAGED_TEXT }] },
     federation: {
       activityId,
       actorUri: 'https://mastodon.social/users/Gargron',
-      url: WEB_PAGE_URL,
+      url: webPageFor(suffix),
     },
-  };
+    ...overrides,
+  });
+  return id;
+}
+
+/** A damaged, repairable post — the primary fixture. */
+async function seedDamaged(suffix: string, activityId = objectIdFor(suffix)): Promise<string> {
+  return seedPost(suffix, {}, activityId);
+}
+
+/** The stored variants of one post, in position order. */
+async function storedVariants(id: string): Promise<PostContentVariant[]> {
+  return (await loadPostRecord(id))?.content.variants ?? [];
+}
+
+/** The stored mention allowlist of one post. */
+async function storedMentions(id: string): Promise<string[]> {
+  return (await loadPostRecord(id))?.mentions ?? [];
+}
+
+/** Every id this file seeded that now carries a resolved mention set. */
+async function repairedIds(): Promise<string[]> {
+  const rows = await getDb()
+    .select({ id: posts.id })
+    .from(posts)
+    .where(like(posts.id, `${ID_PREFIX}%`))
+    .orderBy(asc(posts.id));
+  const repaired: string[] = [];
+  for (const row of rows) {
+    if ((await storedMentions(row.id)).length > 0) repaired.push(row.id);
+  }
+  return repaired;
 }
 
 /** Build an AP JSON response the way an origin server would answer. */
@@ -382,18 +353,23 @@ function apResponse(body: unknown): Response {
   });
 }
 
-beforeEach(() => {
-  store.posts = [];
-  store.ops = [];
+/** A `CandidatePostRow` carrying only the federation fields under test. */
+function candidateRow(federation: CandidatePostRow['federation']): CandidatePostRow {
+  return { id: oid('1'), mentions: [], variants: [], hasMedia: false, federation };
+}
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
+  await getDb().delete(posts).where(like(posts.id, `${ID_PREFIX}%`));
   store.cursors = [];
   store.cursorWrites = [];
   store.cursorWriteError = null;
   store.failureLog = [];
   store.failureLogWriteError = null;
   mocks.failureRepository.recordRepairFetchFailures.mockClear();
-  postModel.countDocuments.mockClear();
-  postModel.find.mockClear();
-  postModel.bulkWrite.mockClear();
   mocks.cursorRepository.findAdminScriptCursor.mockClear();
   mocks.cursorRepository.upsertAdminScriptCursor.mockClear();
   mocks.cursorRepository.deleteAdminScriptCursor.mockClear();
@@ -410,32 +386,61 @@ beforeEach(() => {
   mocks.signedFetch.mockImplementation(async () => apResponse(SAME_INSTANCE_NOTE));
 });
 
+afterEach(async () => {
+  await getDb().delete(posts).where(like(posts.id, `${ID_PREFIX}%`));
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 describe('buildCandidateFilter', () => {
-  it('selects federated non-boost posts with no mentions and an @-shaped body', () => {
-    const filter = buildCandidateFilter();
+  /** The ids the filter selects, in the order the sweep would page them. */
+  async function selected(actorUri?: string): Promise<string[]> {
+    const rows = await getDb()
+      .select({ id: posts.id })
+      .from(posts)
+      .where(buildCandidateFilter(actorUri))
+      .orderBy(asc(posts.id));
+    return rows.map((row) => row.id).filter((id) => id.startsWith(ID_PREFIX));
+  }
 
-    expect(filter['federation.activityId']).toEqual({ $exists: true, $ne: null });
-    expect(filter.type).toEqual({ $ne: 'boost' });
-    expect(filter.$or).toEqual([
-      { mentions: { $exists: false } },
-      { mentions: null },
-      { mentions: { $size: 0 } },
-    ]);
+  it('selects federated non-boost posts with no mentions and an @-shaped body', async () => {
+    const damaged = await seedDamaged('1');
 
-    // One regex, both damage shapes: the bare `@user` a stripped Mastodon anchor
-    // leaves, and the `/@user` inside the raw profile URL a plain-text-child
-    // anchor degrades to.
-    const { $regex } = filter['content.variants.text'] as { $regex: RegExp };
-    expect($regex.test('@indigoparadox No, none of that.')).toBe(true);
-    expect($regex.test('hey https://mastodon.social/@alice look')).toBe(true);
-    expect($regex.test('no mentions here at all')).toBe(false);
-    expect(filter['federation.actorUri']).toBeUndefined();
+    // A NATIVE post — no federation activity id.
+    await seedPost('2', { federation: undefined });
+    // A BOOST, which carries no body of its own to repair.
+    await seedPost('3', { type: PostType.BOOST });
+    // Already resolved: one mention row is the single state that means it.
+    await seedPost('4', { mentions: ['oxy_bob'] });
+    // No `@`-shaped residue anywhere in the body.
+    await seedPost('5', {
+      content: { variants: [{ source: 'author', tag: 'en', text: 'no mentions here at all' }] },
+    });
+    // The OTHER damage shape the one regex has to catch: the raw profile URL a
+    // plain-text-child anchor degrades to.
+    const rawUrl = await seedPost('6', {
+      content: {
+        variants: [{ source: 'author', tag: 'en', text: 'hey https://mastodon.social/@alice look' }],
+      },
+    });
+
+    expect(await selected()).toEqual([damaged, rawUrl]);
   });
 
-  it('narrows to a single origin actor when one is supplied', () => {
-    expect(buildCandidateFilter('https://mastodon.social/users/Gargron')['federation.actorUri']).toBe(
-      'https://mastodon.social/users/Gargron',
-    );
+  it('narrows to a single origin actor when one is supplied', async () => {
+    const mine = await seedDamaged('1');
+    await seedPost('2', {
+      federation: {
+        activityId: 'https://other.example/notes/2',
+        actorUri: 'https://other.example/users/someone',
+        url: 'https://other.example/@someone/2',
+      },
+    });
+
+    expect(await selected()).toEqual([mine, oid('2')]);
+    expect(await selected('https://mastodon.social/users/Gargron')).toEqual([mine]);
   });
 });
 
@@ -444,42 +449,39 @@ describe('resolveSourceUrl', () => {
     // `federation.url` is Mastodon's `/@user/<id>` permalink, which a great many
     // servers serve as HTML whatever the `Accept` header says. `activityId` IS
     // the AP object — the URL federation itself dereferences.
-    expect(
-      resolveSourceUrl({
-        _id: oid('1'),
-        federation: { activityId: OBJECT_ID, url: WEB_PAGE_URL },
-      }),
-    ).toEqual({ url: OBJECT_ID, kind: 'activityId' });
+    expect(resolveSourceUrl(candidateRow({ activityId: OBJECT_ID, url: WEB_PAGE_URL }))).toEqual({
+      url: OBJECT_ID,
+      kind: 'activityId',
+    });
   });
 
   it('falls back to the web page url only when the object id is absent', () => {
-    expect(resolveSourceUrl({ _id: oid('1'), federation: { url: WEB_PAGE_URL } })).toEqual({
+    expect(resolveSourceUrl(candidateRow({ url: WEB_PAGE_URL }))).toEqual({
       url: WEB_PAGE_URL,
       kind: 'url',
     });
   });
 
   it('returns null when the post carries neither', () => {
-    expect(resolveSourceUrl({ _id: oid('1'), federation: {} })).toBeNull();
-    expect(resolveSourceUrl({ _id: oid('1') })).toBeNull();
+    expect(resolveSourceUrl(candidateRow({}))).toBeNull();
   });
 });
 
 describe('repairFederatedMentions', () => {
   it('dereferences the object id, never the human web page, when both are present', async () => {
-    store.posts = [damagedPost('1')];
+    await seedDamaged('1');
 
     const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
 
     expect(summary.repaired).toBe(1);
     expect(mocks.signedFetch).toHaveBeenCalledTimes(1);
-    expect(mocks.signedFetch.mock.calls[0][0]).toBe(OBJECT_ID);
+    expect(mocks.signedFetch.mock.calls[0][0]).toBe(objectIdFor('1'));
     // The regression that failed 40 of 50 posts in production.
-    expect(mocks.signedFetch).not.toHaveBeenCalledWith(WEB_PAGE_URL, expect.anything());
+    expect(mocks.signedFetch).not.toHaveBeenCalledWith(webPageFor('1'), expect.anything());
   });
 
   it('re-links a same-instance mention the old ingest stripped to dead text', async () => {
-    store.posts = [damagedPost('1')];
+    const id = await seedDamaged('1');
 
     const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
 
@@ -488,62 +490,95 @@ describe('repairFederatedMentions', () => {
     expect(summary.written).toBe(1);
     expect(summary.unresolved).toBe(0);
 
-    // Exactly one write, an explicit `$set` whitelist — never a document spread.
-    expect(store.ops).toHaveLength(1);
-    expect(store.ops[0].updateOne.filter._id.toString()).toBe(oid('1').toString());
-    expect(Object.keys(store.ops[0].updateOne.update)).toEqual(['$set']);
-    expect(Object.keys(store.ops[0].updateOne.update.$set).sort()).toEqual([
-      'content.variants',
-      'mentions',
-    ]);
-
-    // The body carries the internal placeholder and the allowlist matches it.
-    expect(store.ops[0].updateOne.update.$set['content.variants']).toEqual([
-      // The stored language tag and `source` survive — a mention repair must not
-      // re-decide what language the body is in.
+    // The body carries the internal placeholder, and the stored language tag and
+    // `source` survive — a mention repair must not re-decide what language the
+    // body is in.
+    expect(await storedVariants(id)).toEqual([
       { source: 'author', tag: 'en', text: REPAIRED_TEXT },
     ]);
-    expect(store.ops[0].updateOne.update.$set.mentions).toEqual([MENTIONED_OXY_ID]);
+    expect(await storedMentions(id)).toEqual([MENTIONED_OXY_ID]);
 
     // Lookup-only: a bulk sweep must never fetch or MINT a federated actor.
     expect(mocks.getOrFetchActor).not.toHaveBeenCalled();
     expect(mocks.findExistingActor).toHaveBeenCalledWith(
       'https://mastodon.social/users/indigoparadox',
     );
+  });
 
-    // `bulkWrite` is the only write path, and it is unordered.
-    expect(postModel.bulkWrite).toHaveBeenCalledWith(expect.anything(), { ordered: false });
+  it('preserves a post\'s media, attachments and localized alt text', async () => {
+    // The write shape, restated for a child table. `content.variants` was ONE
+    // document field, so Mongo's `$set` of the whole array was correct; here the
+    // variants are ROWS that `post_variant_media` and `post_variant_alt_texts`
+    // reference BY ID, and `replacePostContent` — the function that looks like
+    // the answer — clears media, attachments and sources on its way past. A body
+    // repair that reached for it would silently drop a post's media links and its
+    // localized alt text, with no error anywhere.
+    const id = await seedPost('1', {
+      content: {
+        variants: [{ source: 'author', tag: 'en', text: DAMAGED_TEXT, alt: { 'file-1': 'a cat' } }],
+        media: [{ id: 'file-1', type: 'image' }],
+      },
+    });
+    const db = getDb();
+    const [variantBefore] = await db
+      .select({ id: postContentVariants.id })
+      .from(postContentVariants)
+      .where(eq(postContentVariants.postId, id));
+    const [altBefore] = await db
+      .select({ id: postVariantAltTexts.id, description: postVariantAltTexts.description })
+      .from(postVariantAltTexts)
+      .where(eq(postVariantAltTexts.variantId, variantBefore.id));
+    expect(altBefore.description).toBe('a cat');
+
+    const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
+    expect(summary.repaired).toBe(1);
+
+    // The body moved…
+    const variantsAfter = await db
+      .select({ id: postContentVariants.id, body: postContentVariants.body })
+      .from(postContentVariants)
+      .where(eq(postContentVariants.postId, id));
+    expect(variantsAfter).toEqual([{ id: variantBefore.id, body: REPAIRED_TEXT }]);
+
+    // …and nothing that hangs off the variant ROW moved with it.
+    expect(
+      await db
+        .select({ id: postVariantAltTexts.id, description: postVariantAltTexts.description })
+        .from(postVariantAltTexts)
+        .where(eq(postVariantAltTexts.variantId, variantBefore.id)),
+    ).toEqual([altBefore]);
+    expect(
+      await db.select({ mediaId: postMedia.mediaId }).from(postMedia).where(eq(postMedia.postId, id)),
+    ).toEqual([{ mediaId: 'file-1' }]);
   });
 
   it('never selects a post whose mentions are already resolved', async () => {
-    store.posts = [
-      {
-        _id: oid('2'),
-        mentions: ['oxy_bob'],
-        content: { variants: [{ source: 'author', text: '[mention:oxy_bob] hi @carol' }] },
-        federation: { activityId: 'https://remote.example/notes/2', url: 'https://remote.example/notes/2' },
+    await seedPost('2', {
+      mentions: ['oxy_bob'],
+      content: { variants: [{ source: 'author', text: '[mention:oxy_bob] hi @carol' }] },
+      federation: {
+        activityId: 'https://remote.example/notes/2',
+        actorUri: 'https://remote.example/users/x',
+        url: 'https://remote.example/notes/2',
       },
-    ];
+    });
 
     const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
 
     expect(summary.candidates).toBe(0);
     expect(summary.scanned).toBe(0);
     expect(mocks.signedFetch).not.toHaveBeenCalled();
-    expect(postModel.bulkWrite).not.toHaveBeenCalled();
   });
 
   it('is idempotent — a second run over a repaired corpus updates nothing', async () => {
-    store.posts = [damagedPost('1')];
+    const id = await seedDamaged('1');
 
     const first = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
     expect(first.repaired).toBe(1);
-    expect(store.posts[0].mentions).toEqual([MENTIONED_OXY_ID]);
-    expect(store.posts[0].content?.variants?.[0].text).toBe(REPAIRED_TEXT);
+    expect(await storedMentions(id)).toEqual([MENTIONED_OXY_ID]);
+    expect((await storedVariants(id))[0].text).toBe(REPAIRED_TEXT);
 
-    postModel.bulkWrite.mockClear();
     mocks.signedFetch.mockClear();
-    store.ops = [];
 
     const second = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
 
@@ -552,13 +587,14 @@ describe('repairFederatedMentions', () => {
     expect(second.candidates).toBe(0);
     expect(second.scanned).toBe(0);
     expect(second.repaired).toBe(0);
+    expect(second.written).toBe(0);
     expect(mocks.signedFetch).not.toHaveBeenCalled();
-    expect(postModel.bulkWrite).not.toHaveBeenCalled();
   });
 
   it('skips a 410 Gone origin without aborting the run or deleting the post', async () => {
     const goneObjectId = 'https://dead.example/users/x/statuses/gone';
-    store.posts = [damagedPost('1'), damagedPost('2', goneObjectId)];
+    const healthy = await seedDamaged('1');
+    const gone = await seedDamaged('2', goneObjectId);
     mocks.signedFetch.mockImplementation(async (url: string) =>
       url === goneObjectId ? new Response(null, { status: 410 }) : apResponse(SAME_INSTANCE_NOTE),
     );
@@ -570,16 +606,16 @@ describe('repairFederatedMentions', () => {
     // The healthy post in the SAME page is still repaired — one dead origin
     // never aborts the sweep.
     expect(summary.repaired).toBe(1);
-    expect(store.ops).toHaveLength(1);
-    expect(store.ops[0].updateOne.filter._id.toString()).toBe(oid('1').toString());
+    expect(await repairedIds()).toEqual([healthy]);
     // The gone post keeps its stored body — a removed upstream is never a reason
     // to blank or delete a local copy.
-    expect(store.posts[1].content?.variants?.[0].text).toBe(DAMAGED_TEXT);
+    expect((await storedVariants(gone))[0].text).toBe(DAMAGED_TEXT);
   });
 
   it('leaves a transiently unreachable origin for a later re-run', async () => {
     const deadObjectId = 'https://offline.example/users/x/statuses/1';
-    store.posts = [damagedPost('1'), damagedPost('2', deadObjectId)];
+    const healthy = await seedDamaged('1');
+    const dead = await seedDamaged('2', deadObjectId);
     mocks.signedFetch.mockImplementation(async (url: string) => {
       if (url === deadObjectId) throw new Error('ECONNREFUSED');
       return apResponse(SAME_INSTANCE_NOTE);
@@ -589,16 +625,16 @@ describe('repairFederatedMentions', () => {
 
     expect(summary.fetchFailed).toBe(1);
     expect(summary.repaired).toBe(1);
-    expect(store.ops).toHaveLength(1);
+    expect(await repairedIds()).toEqual([healthy]);
     // Still a candidate, so the next run picks it up again.
-    expect(store.posts[1].mentions).toEqual([]);
+    expect(await storedMentions(dead)).toEqual([]);
   });
 
   it('does not churn a body that is already correct — it writes only the allowlist', async () => {
     // The `@` that made this post a candidate is an EMAIL ADDRESS, and the body
     // already carries the placeholder; only the `mentions` allowlist is missing.
-    // The re-derived body therefore equals the stored one, so it must not be
-    // rewritten (no `updatedAt` churn, no risk to the stored language tag).
+    // The re-derived body therefore equals the stored one, so its ROW must not be
+    // rewritten (no version churn across the whole corpus, no risk to the tag).
     const note = {
       ...SAME_INSTANCE_NOTE,
       content: SAME_INSTANCE_NOTE.content.replace(
@@ -608,25 +644,35 @@ describe('repairFederatedMentions', () => {
     };
     mocks.signedFetch.mockImplementation(async () => apResponse(note));
 
-    const post = damagedPost('1');
-    post.content = {
-      variants: [{ source: 'author', tag: 'en', text: `${REPAIRED_TEXT} mail@example.com` }],
-    };
-    store.posts = [post];
+    const id = await seedPost('1', {
+      content: {
+        variants: [{ source: 'author', tag: 'en', text: `${REPAIRED_TEXT} mail@example.com` }],
+      },
+    });
+    // `xmin` is the transaction that last WROTE the row, so it distinguishes
+    // "the row is unchanged" from "the row was rewritten with the same bytes".
+    // Nothing else can: the variants table carries no `updated_at`, so a
+    // re-write that lands the identical body is invisible in every column.
+    const variantRows = () =>
+      getDb()
+        .select({ id: postContentVariants.id, body: postContentVariants.body, xmin: sql<string>`xmin` })
+        .from(postContentVariants)
+        .where(eq(postContentVariants.postId, id));
+    const before = await variantRows();
 
     const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
 
     expect(summary.repaired).toBe(1);
-    expect(store.ops).toHaveLength(1);
-    expect(Object.keys(store.ops[0].updateOne.update.$set)).toEqual(['mentions']);
-    expect(store.ops[0].updateOne.update.$set.mentions).toEqual([MENTIONED_OXY_ID]);
+    expect(await storedMentions(id)).toEqual([MENTIONED_OXY_ID]);
+    // Not merely equal — NOT REWRITTEN.
+    expect(await variantRows()).toEqual(before);
   });
 
   it('logs ONE structured warn naming the URL, the field it came from, and the cause', async () => {
     // The production dry run could not be diagnosed at all: the failure warn
     // carried only the error, so nothing said WHICH url was attempted or WHAT
     // the origin served. This is the regression test for that.
-    store.posts = [damagedPost('1')];
+    await seedDamaged('1');
     mocks.signedFetch.mockImplementation(async () => {
       throw new Error('ActivityPub response has unsupported content-type: text/html');
     });
@@ -640,7 +686,7 @@ describe('repairFederatedMentions', () => {
     );
     expect(failures).toHaveLength(1);
     expect(failures[0][1]).toEqual({
-      source: OBJECT_ID,
+      source: objectIdFor('1'),
       sourceKind: 'activityId',
       reason: 'transport',
       status: undefined,
@@ -652,7 +698,7 @@ describe('repairFederatedMentions', () => {
   });
 
   it('surfaces the HTTP status and the served media type on a bad status', async () => {
-    store.posts = [damagedPost('1')];
+    await seedDamaged('1');
     mocks.signedFetch.mockImplementation(
       async () =>
         new Response('<html>rate limited</html>', {
@@ -680,7 +726,7 @@ describe('repairFederatedMentions', () => {
 
   it('returns the exact post and URL of each failure for in-process review', async () => {
     const deadObjectId = 'https://offline.example/users/x/statuses/1';
-    store.posts = [damagedPost('1', deadObjectId)];
+    const id = await seedDamaged('1', deadObjectId);
     mocks.signedFetch.mockImplementation(async () => {
       throw new Error('ECONNREFUSED');
     });
@@ -691,7 +737,7 @@ describe('repairFederatedMentions', () => {
     // so the returned record is the only place carrying both in full.
     expect(summary.failures).toEqual([
       {
-        id: oid('1').toString(),
+        id,
         source: deadObjectId,
         sourceKind: 'activityId',
         reason: 'transport',
@@ -703,7 +749,8 @@ describe('repairFederatedMentions', () => {
   });
 
   it('classifies a JSON body that is not an object, and caps collected failures', async () => {
-    store.posts = [damagedPost('1'), damagedPost('2', 'https://a.example/users/x/statuses/2')];
+    await seedDamaged('1');
+    await seedDamaged('2', 'https://a.example/users/x/statuses/2');
     mocks.signedFetch.mockImplementation(
       async () =>
         new Response('["not an object"]', {
@@ -723,36 +770,37 @@ describe('repairFederatedMentions', () => {
   });
 
   it('counts a note whose mentions resolve to nobody as unresolved, writing nothing', async () => {
-    store.posts = [damagedPost('1')];
-    // No stored `FederatedActor` row for the mentioned account.
+    const id = await seedDamaged('1');
+    // No stored federated actor row for the mentioned account.
     mocks.findExistingActor.mockResolvedValue(null);
 
     const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
 
     expect(summary.unresolved).toBe(1);
     expect(summary.repaired).toBe(0);
-    expect(postModel.bulkWrite).not.toHaveBeenCalled();
+    expect(summary.written).toBe(0);
+    expect(await storedMentions(id)).toEqual([]);
+    expect((await storedVariants(id))[0].text).toBe(DAMAGED_TEXT);
     expect(mocks.getOrFetchActor).not.toHaveBeenCalled();
   });
 
   it('writes NOTHING under dryRun, while reporting the plan and a before/after sample', async () => {
-    store.posts = [damagedPost('1')];
+    const id = await seedDamaged('1');
 
     const summary = await repairFederatedMentions({ dryRun: true, noteTimeoutMs: 1_000 });
 
     expect(summary.dryRun).toBe(true);
     expect(summary.repaired).toBe(1);
     expect(summary.written).toBe(0);
-    expect(postModel.bulkWrite).not.toHaveBeenCalled();
-    // The stored document is untouched.
-    expect(store.posts[0].mentions).toEqual([]);
-    expect(store.posts[0].content?.variants?.[0].text).toBe(DAMAGED_TEXT);
+    // The stored row is untouched.
+    expect(await storedMentions(id)).toEqual([]);
+    expect((await storedVariants(id))[0].text).toBe(DAMAGED_TEXT);
 
     // The preview reports exactly what a real run would write, JSON-quoted so the
     // placeholder is visible.
     expect(summary.samples).toEqual([
       {
-        id: oid('1').toString(),
+        id,
         before: JSON.stringify(DAMAGED_TEXT),
         after: JSON.stringify(REPAIRED_TEXT),
         mentions: [MENTIONED_OXY_ID],
@@ -760,19 +808,18 @@ describe('repairFederatedMentions', () => {
     ]);
   });
 
-  it('honours the scan limit and pages by an ascending _id cursor', async () => {
-    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3')];
+  it('honours the scan limit and pages by an ascending id cursor', async () => {
+    const first = await seedDamaged('1');
+    const second = await seedDamaged('2');
+    const third = await seedDamaged('3');
 
     const summary = await repairFederatedMentions({ limit: 2, batchSize: 1, noteTimeoutMs: 1_000 });
 
     expect(summary.candidates).toBe(3);
     expect(summary.scanned).toBe(2);
     expect(summary.repaired).toBe(2);
-    expect(store.ops.map((op) => op.updateOne.filter._id.toString())).toEqual([
-      oid('1').toString(),
-      oid('2').toString(),
-    ]);
-    expect(store.posts[2].mentions).toEqual([]);
+    expect(await repairedIds()).toEqual([first, second]);
+    expect(await storedMentions(third)).toEqual([]);
   });
 });
 
@@ -788,9 +835,9 @@ describe('repairFederatedMentions', () => {
  * Every assertion below is ultimately about that: `signedFetch` call counts are
  * requests to somebody else's server.
  *
- * The cursor is exercised through a mocked `AdminScriptCursor` COLLECTION rather
- * than a mocked helper, so the wiring under test — which scope a run reads, when
- * it writes, and whether a dry run writes at all — actually runs.
+ * The cursor is exercised through a doubled REPOSITORY rather than a mocked
+ * helper, so the wiring under test — which scope a run reads, when it writes,
+ * and whether a dry run writes at all — actually runs.
  */
 describe('resume cursor', () => {
   /** An id with hex LETTERS in it, so case canonicalisation is observable. */
@@ -802,43 +849,49 @@ describe('resume cursor', () => {
   }
 
   it('records the cursor after EVERY page, not once at the end', async () => {
-    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3')];
+    await seedDamaged('1');
+    await seedDamaged('2');
+    await seedDamaged('3');
 
     const summary = await repairFederatedMentions({ batchSize: 1, noteTimeoutMs: 1_000 });
 
     // A run that dies never reaches its final summary, so a cursor written only
     // at the end could not survive the one case it exists for.
     expect(store.cursorWrites).toEqual([
-      { scope: summary.cursorScope, cursor: oid('1').toString(), scanned: 1, completed: false },
-      { scope: summary.cursorScope, cursor: oid('2').toString(), scanned: 2, completed: false },
-      { scope: summary.cursorScope, cursor: oid('3').toString(), scanned: 3, completed: false },
+      { scope: summary.cursorScope, cursor: oid('1'), scanned: 1, completed: false },
+      { scope: summary.cursorScope, cursor: oid('2'), scanned: 2, completed: false },
+      { scope: summary.cursorScope, cursor: oid('3'), scanned: 3, completed: false },
       // The empty page that ends the sweep: the range is exhausted, so the scope
       // is stamped finished rather than merely paused.
-      { scope: summary.cursorScope, cursor: oid('3').toString(), scanned: 3, completed: true },
+      { scope: summary.cursorScope, cursor: oid('3'), scanned: 3, completed: true },
     ]);
     expect(store.cursors).toEqual([{
       script: SCRIPT_NAME,
       scope: summary.cursorScope,
-      cursor: oid('3').toString(),
+      cursor: oid('3'),
       scanned: 3,
       completedAt: expect.any(Date),
     }]);
   });
 
   it('leaves the scope unfinished when the run stopped on its limit', async () => {
-    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3')];
+    await seedDamaged('1');
+    await seedDamaged('2');
+    await seedDamaged('3');
 
     await repairFederatedMentions({ limit: 2, batchSize: 1, noteTimeoutMs: 1_000 });
 
     // Stopping on a budget is not finishing, and a scope wrongly stamped
     // complete would read as "nothing left to do" forever.
     expect(store.cursorWrites.map((write) => write.completed)).toEqual([false, false]);
-    expect(store.cursors[0]).toMatchObject({ cursor: oid('2').toString(), completedAt: null });
+    expect(store.cursors[0]).toMatchObject({ cursor: oid('2'), completedAt: null });
   });
 
   it('resumes past everything the previous run visited instead of restarting', async () => {
-    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3')];
-    store.cursors = [storedCursor(buildCursorScope({}), oid('2').toString(), 2)];
+    const stuck = await seedDamaged('1');
+    await seedDamaged('2');
+    const remaining = await seedDamaged('3');
+    store.cursors = [storedCursor(buildCursorScope({}), oid('2'), 2)];
 
     const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
 
@@ -847,17 +900,17 @@ describe('resume cursor', () => {
     expect(summary.scanned).toBe(1);
     // Counted within the resumed range, so the run reports the work it has LEFT.
     expect(summary.candidates).toBe(1);
-    expect(store.ops.map((op) => op.updateOne.filter._id.toString())).toEqual([
-      oid('3').toString(),
-    ]);
+    expect(await repairedIds()).toEqual([remaining]);
     // The whole point: the stuck head is not re-fetched from its origin.
     expect(mocks.signedFetch).toHaveBeenCalledTimes(1);
-    expect(store.posts[0].mentions).toEqual([]);
+    expect(await storedMentions(stuck)).toEqual([]);
   });
 
   it('reads the cursor under a DRY RUN but never advances it', async () => {
-    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3')];
-    store.cursors = [storedCursor(buildCursorScope({}), oid('1').toString(), 1)];
+    await seedDamaged('1');
+    await seedDamaged('2');
+    await seedDamaged('3');
+    store.cursors = [storedCursor(buildCursorScope({}), oid('1'), 1)];
 
     const summary = await repairFederatedMentions({ dryRun: true, noteTimeoutMs: 1_000 });
 
@@ -866,48 +919,47 @@ describe('resume cursor', () => {
     expect(summary.scanned).toBe(2);
     // Writing would make that live run skip exactly the posts just previewed.
     expect(store.cursorWrites).toEqual([]);
-    expect(store.cursors[0]).toMatchObject({ cursor: oid('1').toString(), scanned: 1 });
+    expect(store.cursors[0]).toMatchObject({ cursor: oid('1'), scanned: 1 });
   });
 
   it('keeps each shard scope separate, so parallel shards never resume each other', async () => {
-    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3'), damagedPost('4')];
+    await seedDamaged('1');
+    await seedDamaged('2');
+    const third = await seedDamaged('3');
+    const fourth = await seedDamaged('4');
     // Shard A — ids up to 2 — has already finished its territory.
     store.cursors = [{
-      ...storedCursor(buildCursorScope({ beforeId: oid('2') }), oid('2').toString(), 2),
+      ...storedCursor(buildCursorScope({ beforeId: oid('2') }), oid('2'), 2),
       completedAt: new Date(),
     }];
 
     // Shard B — ids 3 and 4 — must be untouched by any of that.
     const summary = await repairFederatedMentions({
-      afterId: oid('2').toString(),
-      beforeId: oid('4').toString(),
+      afterId: oid('2'),
+      beforeId: oid('4'),
       noteTimeoutMs: 1_000,
     });
 
     expect(summary.resumed).toBe(false);
     expect(summary.scanned).toBe(2);
-    expect(store.ops.map((op) => op.updateOne.filter._id.toString())).toEqual([
-      oid('3').toString(),
-      oid('4').toString(),
-    ]);
+    expect(await repairedIds()).toEqual([third, fourth]);
     expect(store.cursors).toHaveLength(2);
     expect(store.cursorWrites.every((write) => write.scope === summary.cursorScope)).toBe(true);
   });
 
   it('separates shards that differ only in their upper bound', async () => {
-    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3'), damagedPost('4')];
+    await seedDamaged('1');
+    await seedDamaged('2');
+    await seedDamaged('3');
+    await seedDamaged('4');
     // A narrow shard covering ids up to 2 has run to the end of its range.
-    store.cursors = [storedCursor(
-      buildCursorScope({ beforeId: oid('2') }),
-      oid('2').toString(),
-      2,
-    )];
+    store.cursors = [storedCursor(buildCursorScope({ beforeId: oid('2') }), oid('2'), 2)];
 
     // A WIDER shard from the same lower bound is a different territory. Sharing
     // a scope with the narrow one would make it skip ids 1 and 2 outright —
     // invisible in every counter, because it would report a clean resumed run.
     const summary = await repairFederatedMentions({
-      beforeId: oid('4').toString(),
+      beforeId: oid('4'),
       noteTimeoutMs: 1_000,
     });
 
@@ -916,7 +968,7 @@ describe('resume cursor', () => {
   });
 
   it('treats a differently-spelled bound as the SAME shard, not a second one', async () => {
-    store.posts = [damagedPost('1')];
+    await seedDamaged('1');
 
     const canonical = await repairFederatedMentions({
       afterId: LETTERED_ID,
@@ -938,23 +990,27 @@ describe('resume cursor', () => {
   });
 
   it('refuses to run when the stored cursor lies outside the declared range', async () => {
-    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3')];
+    await seedDamaged('1');
+    await seedDamaged('2');
+    await seedDamaged('3');
     const scope = buildCursorScope({ afterId: oid('1'), beforeId: oid('2') });
-    store.cursors = [storedCursor(scope, oid('3').toString(), 3)];
+    store.cursors = [storedCursor(scope, oid('3'), 3)];
 
     // Resuming from it would either skip a stretch of the corpus or re-walk a
     // neighbouring shard, and both are invisible in the counters.
     await expect(repairFederatedMentions({
-      afterId: oid('1').toString(),
-      beforeId: oid('2').toString(),
+      afterId: oid('1'),
+      beforeId: oid('2'),
       noteTimeoutMs: 1_000,
     })).rejects.toThrow(/outside this run's declared _id range/);
     expect(mocks.signedFetch).not.toHaveBeenCalled();
   });
 
   it('starts the shard again, once, when the cursor is explicitly reset', async () => {
-    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3')];
-    store.cursors = [storedCursor(buildCursorScope({}), oid('2').toString(), 2)];
+    await seedDamaged('1');
+    await seedDamaged('2');
+    await seedDamaged('3');
+    store.cursors = [storedCursor(buildCursorScope({}), oid('2'), 2)];
 
     const summary = await repairFederatedMentions({ resetCursor: true, noteTimeoutMs: 1_000 });
 
@@ -968,7 +1024,7 @@ describe('resume cursor', () => {
   });
 
   it('counts a cursor write that did not land, and fails the run for it', async () => {
-    store.posts = [damagedPost('1')];
+    await seedDamaged('1');
     store.cursorWriteError = new Error('connection reset by peer');
 
     const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
@@ -1005,7 +1061,8 @@ describe('re-fetch failure log', () => {
   }
 
   it('records every failed post with the reason and status a retry selects on', async () => {
-    store.posts = [damagedPost('1'), damagedPost('2')];
+    await seedDamaged('1');
+    await seedDamaged('2');
     mocks.signedFetch.mockImplementation(async () => rateLimited());
 
     const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
@@ -1014,7 +1071,7 @@ describe('re-fetch failure log', () => {
     expect(store.failureLog).toEqual([
       {
         script: SCRIPT_NAME,
-        postId: oid('1').toString(),
+        postId: oid('1'),
         reason: 'httpStatus',
         // 429 is worth coming back to; 403 would not be. Dropping the status
         // would make a polite retry indistinguishable from an impolite one.
@@ -1023,7 +1080,7 @@ describe('re-fetch failure log', () => {
       },
       {
         script: SCRIPT_NAME,
-        postId: oid('2').toString(),
+        postId: oid('2'),
         reason: 'httpStatus',
         status: 429,
         failedAt: expect.any(Date),
@@ -1032,7 +1089,7 @@ describe('re-fetch failure log', () => {
   });
 
   it('records ALL failures, not just the bounded reading sample', async () => {
-    store.posts = Array.from({ length: 5 }, (_, index) => damagedPost(String(index + 1)));
+    for (let index = 1; index <= 5; index += 1) await seedDamaged(String(index));
     mocks.signedFetch.mockImplementation(async () => rateLimited());
 
     const summary = await repairFederatedMentions({ failureSampleSize: 2, noteTimeoutMs: 1_000 });
@@ -1043,19 +1100,19 @@ describe('re-fetch failure log', () => {
   });
 
   it('keeps one row per post however many runs re-fail it', async () => {
-    store.posts = [damagedPost('1')];
+    await seedDamaged('1');
     mocks.signedFetch.mockImplementation(async () => rateLimited());
 
     await repairFederatedMentions({ resetCursor: true, noteTimeoutMs: 1_000 });
     await repairFederatedMentions({ resetCursor: true, noteTimeoutMs: 1_000 });
 
-    // Upserted, not appended: the collection is bounded by DISTINCT failing
-    // posts, and the targeting query cannot return the same post twice.
+    // Upserted, not appended: the table is bounded by DISTINCT failing posts,
+    // and the targeting query cannot return the same post twice.
     expect(store.failureLog).toHaveLength(1);
   });
 
   it('records nothing at all under a DRY RUN', async () => {
-    store.posts = [damagedPost('1')];
+    await seedDamaged('1');
     mocks.signedFetch.mockImplementation(async () => rateLimited());
 
     const summary = await repairFederatedMentions({ dryRun: true, noteTimeoutMs: 1_000 });
@@ -1068,7 +1125,8 @@ describe('re-fetch failure log', () => {
   });
 
   it('records the page\'s failures BEFORE advancing the cursor past them', async () => {
-    store.posts = [damagedPost('1'), damagedPost('2')];
+    await seedDamaged('1');
+    await seedDamaged('2');
     mocks.signedFetch.mockImplementation(async () => rateLimited());
     const order: string[] = [];
     mocks.failureRepository.recordRepairFetchFailures.mockImplementationOnce(async () => {
@@ -1088,7 +1146,8 @@ describe('re-fetch failure log', () => {
   });
 
   it('counts failures it could not record, and fails the run for them', async () => {
-    store.posts = [damagedPost('1'), damagedPost('2')];
+    await seedDamaged('1');
+    await seedDamaged('2');
     mocks.signedFetch.mockImplementation(async () => rateLimited());
     store.failureLogWriteError = new Error('connection reset by peer');
 
