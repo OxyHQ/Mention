@@ -129,6 +129,13 @@ NODE_ENV=production ./gradlew :app:assembleRelease \
 - **Never edit an already-written migration to add an index**, even one that has not reached production — it may have run on a developer's machine, and a migration that creates different indexes depending on when you first ran it is worse than an extra file.
 - **`sparse: true` is wrong on a COMPOUND index here.** Mongo indexes a document if *any* indexed key exists, and every post has `visibility`/`status`/`createdAt` — so `sparse` indexes the whole collection and buys nothing. Use `partialFilterExpression`, and make every query carry a literal term on the filtered field so the planner can prove eligibility. Verify with `explain()` on a real `mongod`; the test suite is fully mocked and cannot see this.
 
+## MongoDB → PostgreSQL Migration
+
+Binding contract: `packages/backend/src/db/MIGRATION-CONTRACT.md` (Mention's deltas + per-table conventions in `schema/CONVENTIONS.md`). Ecosystem-wide rules live in oxy-api's `packages/api/src/db/MIGRATION-CONTRACT.md`.
+
+- **PostGIS-on-RDS privilege gotcha is not Mention-specific** — see `~/Oxy/AGENTS.md` § PostgreSQL / RDS for the finding.
+- **Production's `mention` role OWNS the `mention` database** (`pg_database.datdba` = `mention`), so it holds schema `CREATE` and full DML by ownership with no `GRANT` anywhere. A rehearsal/probe database created by a different role (e.g. `oxyadmin`) misrepresents that — a `42501` permission-denied measured against such a probe is an artefact of the probe, not a fact about production (general trap: `~/Oxy/AGENTS.md` § PostgreSQL / RDS).
+
 ## Architecture
 
 Monorepo using Bun workspaces.
