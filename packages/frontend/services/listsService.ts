@@ -45,7 +45,17 @@ type ListWriteBody = {
 };
 
 class ListsService {
-  async list(params?: { mine?: boolean; publicOnly?: boolean }) {
+  /**
+   * `userId` asks for ONE account's lists — the same spelling `feedsService` and
+   * `starterPacksService` use for the sibling profile tabs.
+   *
+   * It is named in the type because the profile tab passed it for a long time
+   * while neither this type nor the route knew it: the call site builds its
+   * params in a VARIABLE, and TypeScript's excess-property check only applies to
+   * object literals passed directly, so nothing objected and the tab silently
+   * answered a different question.
+   */
+  async list(params?: { mine?: boolean; publicOnly?: boolean; userId?: string }) {
     const res = await authenticatedClient.get('/lists', { params });
     return res.data as MentionListCollection;
   }
