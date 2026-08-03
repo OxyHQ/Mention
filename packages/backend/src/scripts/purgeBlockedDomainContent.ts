@@ -144,7 +144,6 @@ import Bookmark from '../models/Bookmark';
 import Notification from '../models/Notification';
 import Poll from '../models/Poll';
 import Article from '../models/Article';
-import PostSubscription from '../models/PostSubscription';
 import PostRecentReplier from '../models/PostRecentReplier';
 import FederatedActor from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
@@ -373,7 +372,6 @@ export interface PurgeCounts {
   threadRootsKept: number;
   likesOnRemovedPosts: number;
   bookmarksOnRemovedPosts: number;
-  postSubscriptions: number;
   polls: number;
   articles: number;
   postgates: number;
@@ -428,7 +426,6 @@ const COUNT_KEYS: readonly (keyof PurgeCounts)[] = [
   'threadRootsKept',
   'likesOnRemovedPosts',
   'bookmarksOnRemovedPosts',
-  'postSubscriptions',
   'polls',
   'articles',
   'postgates',
@@ -874,14 +871,14 @@ async function purgePostBatch(
     report, domain, 'bookmarksOnRemovedPosts',
     await countOrDelete(Bookmark, { postId: { $in: removedIds } }, options.dryRun),
   );
-  record(
-    report, domain, 'postSubscriptions',
-    await countOrDelete(
-      PostSubscription,
-      { postId: { $in: [...removedIds, ...removedIdStrings] } },
-      options.dryRun,
-    ),
-  );
+  // There is deliberately no `PostSubscription` step here. That collection is
+  // `{ subscriberId, authorId }` — a subscription to an AUTHOR's future posts,
+  // with no post reference of any kind. The filter this used to run,
+  // `{ postId: … }`, matched nothing and reported its guaranteed zero as work
+  // done; with `strictQuery` enabled it would instead have been STRIPPED to
+  // `{}` and deleted every subscription in the instance. Author subscriptions
+  // belong to the ACTOR cascade, where `assertActorSafeToDelete` already probes
+  // both of their real fields.
   record(
     report, domain, 'notificationsByEntity',
     await countOrDelete(Notification, { entityId: { $in: removedIds } }, options.dryRun),

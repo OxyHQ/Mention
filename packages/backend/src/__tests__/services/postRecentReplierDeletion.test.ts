@@ -143,8 +143,11 @@ describe('PostRecentReplierService deletion repair', () => {
   it('deletes the parent projection and projections for every child it deletes', async () => {
     mocks.childRows.push({ _id: 'child-one' }, { _id: 'child-two' });
 
-    await repairRecentRepliersAfterPostDelete({ postId: 'deleted-parent' });
+    const deleted = await repairRecentRepliersAfterPostDelete({ postId: 'deleted-parent' });
 
+    // The rows travel back to the caller so the deletion cascade can clean up
+    // what the deleted replies referenced — nothing else knows they went.
+    expect(deleted).toEqual([{ _id: 'child-one' }, { _id: 'child-two' }]);
     expect(mocks.aggregate).not.toHaveBeenCalled();
     expect(mocks.postDeleteMany).toHaveBeenCalledWith(
       { _id: { $in: ['child-one', 'child-two'] } },
@@ -207,15 +210,19 @@ describe('PostRecentReplierService deletion repair', () => {
     expect(mocks.warn).not.toHaveBeenCalled();
   });
 
-  it('logs and resolves when repair remains unavailable after the delete', async () => {
+  it('logs and reports no deleted replies when repair remains unavailable after the delete', async () => {
     mocks.startSession.mockRejectedValue(new Error('Mongo unavailable'));
+    // A row this call did NOT delete must never be reported as deleted: the
+    // caller sends the returned rows to the deletion cascade, so a false
+    // positive here would strip the references off a reply that still exists.
+    mocks.childRows.push({ _id: 'child-that-survived' });
 
     await expect(
       repairRecentRepliersAfterPostDelete({
         postId: 'already-deleted',
         parentPostId: 'parent-post',
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual([]);
 
     expect(mocks.warn).toHaveBeenCalledWith(
       '[PostRecentReplier] Failed to repair projection after post deletion',

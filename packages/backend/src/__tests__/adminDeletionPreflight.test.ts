@@ -3,6 +3,8 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
   DeletionPreflightError,
+  POST_REFERENCE_PROBE_NAMES,
+  actorReferenceProbes,
   assertNoDeletionBlockers,
   collectReferenceBlockers,
 } from '../scripts/lib/adminDeletionPreflight';
@@ -67,6 +69,60 @@ describe('administrative deletion preflight', () => {
       expect(source.indexOf('assertPostsSafeToDelete(')).toBeLessThan(
         source.indexOf('Post.deleteOne('),
       );
+    }
+  });
+
+  it('probes every user-referencing field a cascade would otherwise strand', () => {
+    const names = actorReferenceProbes(
+      { oxyUserId: 'actor-1', actorUri: 'https://remote.example/users/a' },
+      // The gone-actor bucket: probes its own cascade does NOT remove. Each of
+      // these names a row that survives that cascade holding the actor's id, so
+      // this is the bucket they have to be in to be checked at all.
+      true,
+    ).map((probe) => probe.name);
+
+    // Vacuity floor: a broken traversal returning nothing would satisfy every
+    // `toContain` below by satisfying none of them.
+    expect(names.length).toBeGreaterThanOrEqual(25);
+    expect(new Set(names).size).toBe(names.length);
+
+    for (const name of [
+      // The writer behind a channel post — deliberately outside `authorship[]`
+      // to protect their anonymity, which put it outside every matcher too.
+      'Post.writtenByOxyUserId',
+      'Lane.ownerId',
+      'LaneMute.viewer/laneOwner',
+      'McpConnection.oxyUserId/activeOxyUserId',
+      'ModerationEnforcement.subjectId',
+      'UserSettings privacy references from another viewer',
+    ]) {
+      expect(names).toContain(name);
+    }
+  });
+
+  it('probes author subscriptions by their real fields, and nothing probes them by post', () => {
+    const names = actorReferenceProbes(
+      { oxyUserId: 'actor-1', actorUri: 'https://remote.example/users/a' },
+      true,
+    ).map((probe) => probe.name);
+    // `PostSubscription` is `{ subscriberId, authorId }` — a subscription to an
+    // AUTHOR, with no post reference at all. It belongs to the ACTOR probes and
+    // must never appear among the post ones.
+    expect(names).toContain('PostSubscription.subscriberId/authorId');
+    expect(POST_REFERENCE_PROBE_NAMES).not.toContain('PostSubscription');
+
+    // The regression this guards: a cascade step filtering that collection by a
+    // post id. It matched nothing and reported its guaranteed zero as work
+    // done, and under `strictQuery` the unknown path is STRIPPED — turning the
+    // same call into `deleteMany({})`. Measured on mongod 8.0.28 with this
+    // repo's mongoose: 0 deleted as shipped, 3 of 3 deleted with the flag on.
+    for (const file of [
+      '../controllers/posts.controller.ts',
+      '../scripts/purgeBlockedDomainContent.ts',
+      '../services/PostDeletionCascade.ts',
+    ]) {
+      const source = readFileSync(path.resolve(__dirname, file), 'utf8');
+      expect(source).not.toMatch(/PostSubscription\s*[,)]?[\s\S]{0,80}postId/);
     }
   });
 

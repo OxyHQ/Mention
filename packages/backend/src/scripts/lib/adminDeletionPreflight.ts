@@ -37,6 +37,10 @@ import MentionUserNode from '../../models/MentionUserNode';
 import MentionRepoHead from '../../models/MentionRepoHead';
 import MentionSignedRecord from '../../models/MentionSignedRecord';
 import MentionNodeIngestWitness from '../../models/MentionNodeIngestWitness';
+import { Lane } from '../../models/Lane';
+import { LaneMute } from '../../models/LaneMute';
+import ModerationEnforcement from '../../models/ModerationEnforcement';
+import McpConnection from '../../mcp/models/McpConnection';
 
 export interface ReferenceProbe {
   name: string;
@@ -298,7 +302,18 @@ export async function collectPostCascadeResidue(
   );
 }
 
-function actorReferenceProbes(
+/**
+ * Every known reference to an ACTOR, as executable probes.
+ *
+ * Exported so a test can assert which probes exist and which bucket each sits
+ * in — the two facts that decide whether a reference is checked at all. A probe
+ * that is missing here is invisible to every guard built on top of it, and
+ * nothing else in the tree would notice its absence.
+ *
+ * `includeReferencesRemovedByGoneActorCascade` returns ONLY the probes that
+ * cascade does not remove; everything appended afterwards is what it does.
+ */
+export function actorReferenceProbes(
   target: ActorDeletionTarget,
   includeReferencesRemovedByGoneActorCascade: boolean,
 ): ReferenceProbe[] {
@@ -500,6 +515,75 @@ function actorReferenceProbes(
               $or: [
                 { 'authorship.oxyUserId': oxyUserId },
                 { 'federation.actorUri': actorUri },
+              ],
+            }),
+          ),
+      },
+      {
+        /**
+         * The writer behind a channel post, which is the ONE reference to a
+         * person that is deliberately outside `authorship[]` — putting them in
+         * it would both end the channel's anonymity and put the post back on
+         * their own profile. That same choice puts the column outside every
+         * authorship matcher and, until this probe, outside every guard: the
+         * gone-actor cascade removes posts by owner and by authorship, so a
+         * channel post written by this actor survives it holding their id.
+         */
+        name: 'Post.writtenByOxyUserId',
+        hasReference: () => exists(Post.exists({ writtenByOxyUserId: oxyUserId })),
+      },
+      {
+        name: 'Lane.ownerId',
+        hasReference: () => exists(Lane.exists({ ownerId: oxyUserId })),
+      },
+      {
+        name: 'LaneMute.viewer/laneOwner',
+        hasReference: () =>
+          exists(
+            LaneMute.exists({
+              $or: [
+                { viewerOxyUserId: oxyUserId },
+                { laneOwnerOxyUserId: oxyUserId },
+              ],
+            }),
+          ),
+      },
+      {
+        name: 'McpConnection.oxyUserId/activeOxyUserId',
+        hasReference: () =>
+          exists(
+            McpConnection.exists({
+              $or: [{ oxyUserId }, { activeOxyUserId: oxyUserId }],
+            }),
+          ),
+      },
+      {
+        /**
+         * `subjectId` holds whichever id the case was about, so it names this
+         * actor for an `identity.profile` subject. Kept as a BLOCKER rather
+         * than something a cascade may remove: it is the record that an
+         * enforcement action was carried out, and its `decisionId + revision +
+         * action` uniqueness is what makes a later correction idempotent.
+         */
+        name: 'ModerationEnforcement.subjectId',
+        hasReference: () => exists(ModerationEnforcement.exists({ subjectId: oxyUserId })),
+      },
+      {
+        /**
+         * Another viewer's settings naming this actor. Scoped to OTHER rows for
+         * the same reason `UserBehavior references from another viewer` is: the
+         * actor's own settings row is covered by `UserSettings.oxyUserId`
+         * below, which the gone-actor cascade removes, while a stranger's row
+         * survives it holding the id.
+         */
+        name: 'UserSettings privacy references from another viewer',
+        hasReference: () =>
+          exists(
+            UserSettings.exists({
+              oxyUserId: { $ne: oxyUserId },
+              $or: [
+                { 'privacy.restrictedUsers': oxyUserId },
+                { 'privacy.labelPreferences.subscribedLabelers': oxyUserId },
               ],
             }),
           ),
