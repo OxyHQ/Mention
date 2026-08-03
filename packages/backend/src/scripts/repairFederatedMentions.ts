@@ -130,7 +130,7 @@
  *   CONFIRM_ADMIN_MUTATION=repairFederatedMentions \
  *     bun packages/backend/dist/src/scripts/repairFederatedMentions.js
  *
- * RESUMING (why the cursor lives in MongoDB)
+ * RESUMING (why the cursor lives in the database)
  *   The candidate filter only stops matching a post once it is REPAIRED. An
  *   `unresolved`, `gone` or `fetchFailed` post writes nothing and keeps matching
  *   forever — and those sit at the LOWEST ids. So a run that restarts at the
@@ -147,9 +147,9 @@
  *   `[REDACTED]` and redacts any key ending in `id` (see
  *   `__tests__/utils/loggerSanitization.test.ts`), so a logged cursor is
  *   unreadable whatever it is called, and evading that would mean defeating a
- *   privacy control on purpose. It is therefore persisted to MongoDB, the one
- *   durable place this script already holds a connection to, after EVERY page —
- *   see {@link AdminScriptCursor}.
+ *   privacy control on purpose. It is therefore persisted to PostgreSQL, the
+ *   one durable place this script already holds a connection to, after EVERY
+ *   page — see {@link AdminScriptCursor}.
  *
  *   Resuming is consequently AUTOMATIC and needs no operator bookkeeping: run
  *   the same command again and it continues past everything the previous run
@@ -204,16 +204,19 @@
  *
  * REVIEW THE BODIES AND THE FAILING URLS (returned in full, never logged in full):
  *   bun -e "const m=require('./packages/backend/dist/src/scripts/repairFederatedMentions');\
- *   const g=require('mongoose');(async()=>{await g.connect(process.env.MONGODB_URI);\
+ *   const d=require('./packages/backend/dist/src/db/postgres');\
+ *   (async()=>{await d.connectPostgres();\
  *   const s=await m.repairFederatedMentions({dryRun:true,limit:50});\
  *   console.dir({samples:s.samples,failures:s.failures},{depth:null});\
- *   await g.disconnect();})()"
+ *   await d.closePostgres();})()"
  */
 
-import mongoose from 'mongoose';
-import { PostType, type MediaItem, type PostContentVariant } from '@mention/shared-types';
-import { connectPostgres } from '../db/postgres';
-import { Post } from '../models/Post';
+import { and, asc, count, eq, exists, gt, inArray, lte, ne, not, sql, type SQL } from 'drizzle-orm';
+import { type PostContentVariant } from '@mention/shared-types';
+import { connectPostgres, getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
+import { postContentVariants, postMedia, postMentions } from '../db/schema/postContent';
+import { isLiveEntityId } from '../db/ids';
 import { logger } from '../utils/logger';
 import { applyMentionPlaceholders, resolveInboundMentionsExisting } from '../connectors/activitypub/apMentions';
 import { buildFederatedNoteVariants } from '../connectors/activitypub/apPostContent';
@@ -279,29 +282,38 @@ type RepairOutcome =
   | 'skipped-no-source'
   | 'skipped-empty-body';
 
-/** The lean Post fields the repair reads. */
+/**
+ * One stored variant, as the repair needs it.
+ *
+ * Carries the ROW id beside the shared-types shape, because the write is an
+ * UPDATE of `body` on this exact row. The Mongo original `$set` the whole
+ * `content.variants` array; here the array is a child table, and replacing it
+ * wholesale would delete and re-insert rows that `post_variant_media` and
+ * `post_variant_alt_texts` reference by id. A body repair must not disturb
+ * either — so it updates in place and the links never move.
+ */
+interface CandidateVariantRow {
+  id: string;
+  variant: PostContentVariant;
+}
+
+/** The Post fields the repair reads. */
 export interface CandidatePostRow {
-  _id: mongoose.Types.ObjectId;
-  mentions?: string[] | null;
-  content?: {
-    variants?: PostContentVariant[];
-    media?: MediaItem[];
-  } | null;
-  federation?: {
+  id: string;
+  mentions: string[];
+  variants: CandidateVariantRow[];
+  /**
+   * Whether the post has stored media — the ONE thing the re-derived body needs
+   * to know about it. Reused rather than re-fetched, exactly as the Mongo
+   * version did: a body repair performs no media I/O.
+   */
+  hasMedia: boolean;
+  federation: {
     activityId?: string;
     actorUri?: string;
     url?: string;
-  } | null;
+  };
 }
-
-/** The projection the page cursor reads — nothing else is needed to repair. */
-const CANDIDATE_PROJECTION: Record<string, 1> = {
-  _id: 1,
-  mentions: 1,
-  'content.variants': 1,
-  'content.media': 1,
-  federation: 1,
-};
 
 /**
  * One reviewed before/after pair, collected under DRY_RUN.
@@ -416,16 +428,16 @@ export interface RepairFederatedMentionsSummary {
   fetchFailed: number;
   skippedNoSource: number;
   skippedEmptyBody: number;
-  /** Documents Mongo reported as modified (always 0 under DRY_RUN). */
+  /** Posts a write actually landed on (always 0 under DRY_RUN). */
   written: number;
   /** `fetchFailed` split by cause — the first thing to read after a bad run. */
   fetchFailedByReason: Record<FetchFailureReason, number>;
   /**
-   * The `_id` of the LAST post this run scanned, or `null` if it scanned none.
+   * The `id` of the LAST post this run scanned, or `null` if it scanned none.
    *
-   * The resume cursor. Persisted to MongoDB under {@link cursorScope} after every
-   * page and RETURNED here — never logged, because the backend logger redacts a
-   * 24-hex ObjectId under every key.
+   * The resume cursor. Persisted to PostgreSQL under {@link cursorScope} after
+   * every page and RETURNED here — never logged, because the backend logger
+   * redacts a 24-hex ObjectId under every key.
    */
   lastScannedId: string | null;
   /**
@@ -547,21 +559,44 @@ async function fetchApObject(url: string): Promise<ApFetchOutcome> {
  * (and exported) so the exact selection can be asserted by a test rather than
  * re-described in prose.
  */
-export function buildCandidateFilter(actorUri?: string): Record<string, unknown> {
-  const filter: Record<string, unknown> = {
-    'federation.activityId': { $exists: true, $ne: null },
-    type: { $ne: PostType.BOOST },
-    // Nothing resolved: absent, null, or an empty array.
-    $or: [
-      { mentions: { $exists: false } },
-      { mentions: null },
-      { mentions: { $size: 0 } },
-    ],
-    // Some stored body still carries the residue of an unlinked mention.
-    'content.variants.text': { $regex: UNLINKED_MENTION_TEXT_REGEX },
-  };
-  if (actorUri) filter['federation.actorUri'] = actorUri;
-  return filter;
+export function buildCandidateFilter(actorUri?: string): SQL {
+  const clauses: SQL[] = [
+    sql`${posts.federationActivityId} is not null`,
+    ne(posts.type, 'boost'),
+    /**
+     * Nothing resolved. In Mongo this was a three-branch `$or` over absent /
+     * null / empty-array, because one document field carried all three states.
+     * As a junction table there is exactly ONE state that means it: no row.
+     */
+    not(
+      exists(
+        getDb()
+          .select({ one: sql`1` })
+          .from(postMentions)
+          .where(eq(postMentions.postId, posts.id)),
+      ),
+    ),
+    /**
+     * Some stored body still carries the residue of an unlinked mention.
+     *
+     * `~` is Postgres' POSIX regex match, and the pattern is the SOURCE of the
+     * same JavaScript literal the in-memory checks use — declared once so the
+     * two can never drift into selecting different corpora.
+     */
+    exists(
+      getDb()
+        .select({ one: sql`1` })
+        .from(postContentVariants)
+        .where(
+          and(
+            eq(postContentVariants.postId, posts.id),
+            sql`${postContentVariants.body} ~ ${UNLINKED_MENTION_TEXT_REGEX.source}`,
+          ),
+        ),
+    ),
+  ];
+  if (actorUri) clauses.push(eq(posts.federationActorUri, actorUri));
+  return and(...clauses) as SQL;
 }
 
 /**
@@ -574,60 +609,72 @@ export function buildCandidateFilter(actorUri?: string): Record<string, unknown>
  * two different shards can spell the same scope.
  */
 export function buildCursorScope(scope: {
-  afterId?: mongoose.Types.ObjectId;
-  beforeId?: mongoose.Types.ObjectId;
+  afterId?: string;
+  beforeId?: string;
   actorUri?: string;
 }): string {
   return [
-    `after:${scope.afterId?.toString() ?? ''}`,
-    `before:${scope.beforeId?.toString() ?? ''}`,
+    `after:${scope.afterId ?? ''}`,
+    `before:${scope.beforeId ?? ''}`,
     `actor:${scope.actorUri?.trim() ?? ''}`,
   ].join('|');
 }
 
-/** A 24-character hex ObjectId — the only shape a range bound may take. */
-const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
-
 /**
- * Parse an `_id` range bound, or THROW.
+ * Parse an `id` range bound, or THROW.
  *
  * Deliberately fails fast and loudly rather than falling back to "no bound":
  * a typo'd cursor that silently degraded to scanning from the beginning would
  * look exactly like a successful run while re-fetching the entire stuck head —
- * the precise failure this option exists to prevent, made invisible.
+ * the precise failure this option exists to prevent, made invisible. That is
+ * also why this accepts BOTH live id shapes rather than staying on 24-hex: a
+ * uuid v7 bound is a legitimate shard boundary now, and rejecting it would turn
+ * a valid command into a refusal.
  *
- * `mongoose.Types.ObjectId.isValid` is NOT sufficient on its own: it also accepts
- * any 12-character string and any integer, so `'abc'.padEnd(12)` would sail
- * through and silently mean a different id than the operator typed.
+ * Normalised to LOWERCASE, because the column is `text` and compares
+ * byte-for-byte: an uppercased ObjectId bound would sort before every stored id
+ * (`'A' < 'a'`) and silently select the whole corpus.
+ *
+ * ## What a bound MEANS changed, and it is not a time range
+ *
+ * Ids are ordered as TEXT here, and the two shapes do not interleave: a uuid v7
+ * begins with a hex timestamp and a `0` nibble, an ObjectId with a unix seconds
+ * value currently starting `6`/`7`, so EVERY post-cutover id sorts before EVERY
+ * pre-cutover one. Sharding stays correct — the order is total and stable, so
+ * `(b[k-1], b[k]]` still partitions the corpus with no gap and no overlap, and
+ * that is the property the resume cursor and the parallel shards actually rely
+ * on. But an operator reading `REPAIR_AFTER_ID` as "posts newer than this" is
+ * wrong across the boundary. Say so rather than let the run look narrower than
+ * it is.
  */
-function parseIdBound(name: string, value: string | undefined): mongoose.Types.ObjectId | undefined {
+function parseIdBound(name: string, value: string | undefined): string | undefined {
   if (value === undefined) return undefined;
-  const trimmed = value.trim();
+  const trimmed = value.trim().toLowerCase();
   if (trimmed.length === 0) return undefined;
-  if (!OBJECT_ID_REGEX.test(trimmed)) {
+  if (!isLiveEntityId(trimmed)) {
     throw new Error(
-      `${name} must be a 24-character hex ObjectId (got ${trimmed.length} characters). `
-        + 'Refusing to run: an unparsed bound would silently rescan from the beginning.',
+      `${name} must be a 24-character hex ObjectId or a uuid v7 (got ${trimmed.length} `
+        + 'characters). Refusing to run: an unparsed bound would silently rescan from the '
+        + 'beginning.',
     );
   }
-  return new mongoose.Types.ObjectId(trimmed);
+  return trimmed;
 }
 
 /**
  * Whether an id sits in the half-open range `(after, before]` a run declared.
  *
- * Compared as canonical lowercase hex, which orders identically to the 12 bytes
- * Mongo compares — `toString()` always yields that form, so the two can never
- * disagree about which side of a bound an id falls on.
+ * Compared as lowercase text, which is exactly how Postgres orders the `id`
+ * column — `parseIdBound` lowercases every bound, so this predicate and the SQL
+ * range can never disagree about which side of a bound an id falls on.
  */
 function isWithinRange(
-  id: mongoose.Types.ObjectId,
-  after: mongoose.Types.ObjectId | undefined,
-  before: mongoose.Types.ObjectId | undefined,
+  id: string,
+  after: string | undefined,
+  before: string | undefined,
 ): boolean {
-  const value = id.toString();
-  if (after && value <= after.toString()) return false;
-  if (before && value > before.toString()) return false;
+  if (after && id <= after) return false;
+  if (before && id > before) return false;
   return true;
 }
 
@@ -644,10 +691,23 @@ function renderBody(value: string | undefined): string {
   return JSON.stringify(value ?? '');
 }
 
+/**
+ * A staged write for ONE post.
+ *
+ * `variantBodies` is keyed by variant ROW id, so the flush updates exactly the
+ * rows the candidate query read — never a positional guess. `mentions` is the
+ * full replacement set, mirroring the Mongo `$set` of the whole array.
+ */
+interface StagedRepair {
+  postId: string;
+  variantBodies?: Map<string, string>;
+  mentions?: string[];
+}
+
 /** A prepared repair: the outcome, plus the staged write when there is one. */
 interface PreparedRepair {
   outcome: RepairOutcome;
-  op?: mongoose.AnyBulkWriteOperation<typeof Post>;
+  op?: StagedRepair;
   sample?: RepairSample;
   failure?: RepairFailure;
 }
@@ -717,7 +777,7 @@ async function prepareRepair(
     return {
       outcome: 'fetch-failed',
       failure: {
-        id: post._id.toString(),
+        id: post.id,
         source: source.url,
         sourceKind: source.kind,
         reason: fetched.reason,
@@ -737,54 +797,149 @@ async function prepareRepair(
   if (resolved.ids.length === 0) return { outcome: 'unresolved' };
 
   const noteObject = applyMentionPlaceholders(fetched.object, resolved.anchorMap);
-  const hasMedia = (post.content?.media?.length ?? 0) > 0;
   // Re-derive the body ONLY (no media I/O — the stored media state is reused via
   // `hasMedia`), exactly like the live outbox self-heal.
-  const freshVariants = buildFederatedNoteVariants(noteObject, hasMedia);
+  const freshVariants = buildFederatedNoteVariants(noteObject, post.hasMedia);
   if (freshVariants.length === 0) return { outcome: 'skipped-empty-body' };
 
-  const storedVariants = post.content?.variants;
+  const storedVariants = post.variants.map((row) => row.variant);
   const repairedVariants = repairVariantText(
     freshVariants.map((variant) => variant.text),
     storedVariants,
   );
 
-  const setOps: Record<string, unknown> = {};
-  if (repairedVariants) setOps['content.variants'] = repairedVariants;
-  if (!sortedStringArrayEqual(resolved.ids, post.mentions ?? [])) {
-    setOps.mentions = resolved.ids;
+  const staged: StagedRepair = { postId: post.id };
+  if (repairedVariants) {
+    /**
+     * Only the rows whose body actually changed. `repairVariantText` aligns by
+     * index and returns the stored entry untouched where nothing moved, so
+     * comparing against the stored text keeps the write to the rows that need
+     * it — an UPDATE that sets a column to the value it already holds is still
+     * a row version, and this sweep runs across the whole corpus.
+     */
+    const changed = new Map<string, string>();
+    repairedVariants.forEach((variant, index) => {
+      const row = post.variants[index];
+      if (row && variant.text !== row.variant.text) changed.set(row.id, variant.text);
+    });
+    if (changed.size > 0) staged.variantBodies = changed;
+  }
+  if (!sortedStringArrayEqual(resolved.ids, post.mentions)) {
+    staged.mentions = resolved.ids;
   }
 
-  // Nothing to change: the stored state already matches a fresh re-map. An empty
-  // `$set` is also an illegal update, so this must stay a guard rather than an
-  // optimization. Idempotency for the SHIPPED filter comes one level up (a
-  // repaired post no longer matches it); this branch is what keeps an in-process
-  // caller with a wider filter from churning `updatedAt` across the corpus.
-  if (Object.keys(setOps).length === 0) return { outcome: 'unchanged' };
+  // Nothing to change: the stored state already matches a fresh re-map.
+  // Idempotency for the SHIPPED filter comes one level up (a repaired post no
+  // longer matches it); this branch is what keeps an in-process caller with a
+  // wider filter from churning row versions across the corpus.
+  if (!staged.variantBodies && !staged.mentions) return { outcome: 'unchanged' };
 
   return {
     outcome: 'repaired',
-    op: {
-      updateOne: {
-        filter: { _id: post._id },
-        // Explicit field whitelist — never a spread of a re-mapped document.
-        update: { $set: setOps },
-      },
-    },
+    op: staged,
     sample: {
-      id: post._id.toString(),
-      before: renderBody(storedVariants?.[0]?.text),
-      after: renderBody((repairedVariants ?? storedVariants)?.[0]?.text),
+      id: post.id,
+      before: renderBody(storedVariants[0]?.text),
+      after: renderBody((repairedVariants ?? storedVariants)[0]?.text),
       mentions: resolved.ids,
     },
   };
 }
 
 /**
+ * One page of candidates, assembled from `posts` plus its two child tables.
+ *
+ * Three queries rather than a join, because the children are one-to-many and a
+ * join would multiply the parent row by `variants × mentions` — the shape that
+ * makes a page of 500 silently become a page of thousands and the `limit` stop
+ * meaning what it says. The parent page is fetched FIRST and bounded, then the
+ * children are loaded for exactly those ids.
+ *
+ * Ordered by `position` so the variant array matches the order the federated
+ * ingest wrote it in — `repairVariantText` aligns by INDEX, so a page that
+ * returned them in physical-row order would apply the primary body onto a
+ * translation.
+ */
+async function loadCandidatePage(match: SQL, limit: number): Promise<CandidatePostRow[]> {
+  const db = getDb();
+  const parents = await db
+    .select({
+      id: posts.id,
+      federationActivityId: posts.federationActivityId,
+      federationActorUri: posts.federationActorUri,
+      federationUrl: posts.federationUrl,
+    })
+    .from(posts)
+    .where(match)
+    .orderBy(asc(posts.id))
+    .limit(limit);
+  if (parents.length === 0) return [];
+
+  const ids = parents.map((row) => row.id);
+  const [variantRows, mentionRows, mediaRows] = await Promise.all([
+    db
+      .select()
+      .from(postContentVariants)
+      .where(inArray(postContentVariants.postId, ids))
+      .orderBy(asc(postContentVariants.postId), asc(postContentVariants.position)),
+    db
+      .select({ postId: postMentions.postId, oxyUserId: postMentions.oxyUserId })
+      .from(postMentions)
+      .where(inArray(postMentions.postId, ids)),
+    db
+      .select({ postId: postMedia.postId })
+      .from(postMedia)
+      .where(inArray(postMedia.postId, ids)),
+  ]);
+
+  const variantsByPost = new Map<string, CandidateVariantRow[]>();
+  for (const row of variantRows) {
+    const list = variantsByPost.get(row.postId) ?? [];
+    list.push({ id: row.id, variant: toStoredVariant(row) });
+    variantsByPost.set(row.postId, list);
+  }
+  const mentionsByPost = new Map<string, string[]>();
+  for (const row of mentionRows) {
+    const list = mentionsByPost.get(row.postId) ?? [];
+    list.push(row.oxyUserId);
+    mentionsByPost.set(row.postId, list);
+  }
+  const postsWithMedia = new Set(mediaRows.map((row) => row.postId));
+
+  return parents.map((row) => ({
+    id: row.id,
+    mentions: mentionsByPost.get(row.id) ?? [],
+    variants: variantsByPost.get(row.id) ?? [],
+    hasMedia: postsWithMedia.has(row.id),
+    federation: {
+      activityId: row.federationActivityId ?? undefined,
+      actorUri: row.federationActorUri ?? undefined,
+      url: row.federationUrl ?? undefined,
+    },
+  }));
+}
+
+/**
+ * A stored variant row as the shared-types shape `repairVariantText` preserves.
+ *
+ * `tag` and `source` are carried through untouched — a body repair does not
+ * re-decide what language a body is in, and dropping either here would let the
+ * repair reset a classifier-detected tag on every post it touches.
+ */
+function toStoredVariant(row: typeof postContentVariants.$inferSelect): PostContentVariant {
+  return {
+    text: row.body,
+    ...(row.tag === null ? {} : { tag: row.tag }),
+    source: row.source,
+    ...(row.variantCreatedAt === null ? {} : { createdAt: row.variantCreatedAt.toISOString() }),
+  };
+}
+
+/**
  * Re-resolve @mentions across the already-stored federated corpus.
  *
- * Operates on the `Post` model only — the caller owns the Mongo connection
- * lifecycle — so it is unit-testable against a mocked model and reusable from an
+ * Operates on the `posts` tables only — the caller owns the connection
+ * lifecycle — so it is testable against real rows and reusable from an
  * in-process caller.
  */
 export async function repairFederatedMentions(
@@ -827,17 +982,23 @@ export async function repairFederatedMentions(
   // `$gt = <last scanned id>` — no gap, no overlap — and parallel shards
   // partition as (b[k-1], b[k]].
   const lowerBound = resumeId ?? afterId;
-  const idRange: Record<string, mongoose.Types.ObjectId> = {};
-  if (lowerBound) idRange.$gt = lowerBound;
-  if (beforeId) idRange.$lte = beforeId;
-  const hasIdRange = Object.keys(idRange).length > 0;
 
-  const baseFilter = buildCandidateFilter(options.actorUri);
-  if (hasIdRange) baseFilter._id = { ...idRange };
+  const candidateMatch = buildCandidateFilter(options.actorUri);
+  /** The declared range, rebuilt per query — `lastId` narrows it, never replaces it. */
+  const rangeClauses = (from: string | undefined): SQL[] => {
+    const clauses: SQL[] = [];
+    if (from) clauses.push(gt(posts.id, from));
+    if (beforeId) clauses.push(lte(posts.id, beforeId));
+    return clauses;
+  };
 
   // Counted WITHIN the range, so a shard reports the work it has LEFT rather
   // than the whole corpus or ground it has already covered.
-  const candidates = await Post.countDocuments(baseFilter);
+  const [candidateRow] = await getDb()
+    .select({ total: count() })
+    .from(posts)
+    .where(and(candidateMatch, ...rangeClauses(lowerBound)));
+  const candidates = candidateRow?.total ?? 0;
   logger.info('[repairFederatedMentions] candidate posts selected', {
     count: candidates,
     dryRun,
@@ -886,15 +1047,15 @@ export async function repairFederatedMentions(
   }
 
   let remaining = options.limit;
-  let lastId: mongoose.Types.ObjectId | null = null;
-  let pendingOps: mongoose.AnyBulkWriteOperation<typeof Post>[] = [];
+  let lastId: string | null = null;
+  let pendingOps: StagedRepair[] = [];
   // EVERY failure of the current page, unlike `summary.failures`, which is a
   // bounded reading sample. A targeted retry needs all of them or it is not
   // targeting the tail, it is targeting twenty posts.
   let pendingFailures: RepairFetchFailureRecord[] = [];
 
   // A dry run stages every operation exactly as a real one does — it just never
-  // hands them to Mongo. That is the guarantee: what it reports is what a real
+  // opens the transaction. That is the guarantee: what it reports is what a real
   // run would write, computed by the same code.
   const flush = async (): Promise<void> => {
     if (pendingOps.length === 0) return;
@@ -902,9 +1063,55 @@ export async function repairFederatedMentions(
       pendingOps = [];
       return;
     }
-    const result = await Post.bulkWrite(pendingOps, { ordered: false });
-    summary.written += result.modifiedCount ?? 0;
+    const batch = pendingOps;
     pendingOps = [];
+    /**
+     * ONE transaction per flush, so a post's body and its mention set can never
+     * land apart — a half-applied repair leaves a body whose anchors point at
+     * mentions the post does not record, which is the state this sweep exists to
+     * remove. Mongo's `bulkWrite` gave per-document atomicity and nothing wider;
+     * this is strictly stronger.
+     */
+    await getDb().transaction(async (tx) => {
+      for (const op of batch) {
+        /**
+         * Counted from rows that actually came back, never from the size of the
+         * batch. A post deleted between the page read and this flush leaves its
+         * variant rows cascaded away, so the update matches nothing — and a
+         * sweep that reported it as repaired would be overstating its own work
+         * on the one number an operator reads to decide whether to re-run.
+         */
+        let touched = false;
+        if (op.variantBodies) {
+          for (const [variantId, body] of op.variantBodies) {
+            const updated = await tx
+              .update(postContentVariants)
+              .set({ body })
+              .where(eq(postContentVariants.id, variantId))
+              .returning({ id: postContentVariants.id });
+            if (updated.length > 0) touched = true;
+          }
+        }
+        if (op.mentions && op.mentions.length > 0) {
+          /**
+           * Replace the set. The candidate filter selects only posts with NO
+           * mention rows, so this is an insert in practice — the delete is what
+           * keeps an in-process caller with a wider filter correct.
+           *
+           * A post deleted mid-sweep would make the insert violate the foreign
+           * key and abort the whole flush, which is the right failure: it is
+           * loud, and the batch is re-derivable by re-running.
+           */
+          await tx.delete(postMentions).where(eq(postMentions.postId, op.postId));
+          const inserted = await tx
+            .insert(postMentions)
+            .values(op.mentions.map((oxyUserId) => ({ postId: op.postId, oxyUserId })))
+            .returning({ id: postMentions.id });
+          if (inserted.length > 0) touched = true;
+        }
+        if (touched) summary.written += 1;
+      }
+    });
   };
 
   /**
@@ -951,25 +1158,20 @@ export async function repairFederatedMentions(
   for (;;) {
     if (remaining !== undefined && remaining <= 0) break;
 
-    const pageFilter: Record<string, unknown> = { ...baseFilter };
-    // Merge the in-run cursor INTO the range rather than replacing it — a bare
-    // `_id = { $gt: lastId }` would silently drop a shard's upper bound after the
-    // first page and let it run into the next shard's territory.
-    if (lastId || hasIdRange) {
-      pageFilter._id = { ...idRange, ...(lastId ? { $gt: lastId } : {}) };
-    }
-
     const pageLimit = remaining !== undefined ? Math.min(pageSize, remaining) : pageSize;
-    const page = await Post.find(pageFilter, CANDIDATE_PROJECTION)
-      .sort({ _id: 1 })
-      .limit(pageLimit)
-      .lean<CandidatePostRow[]>();
+    // The in-run cursor NARROWS the declared range rather than replacing it — a
+    // bare `id > lastId` would silently drop a shard's upper bound after the
+    // first page and let it run into the next shard's territory.
+    const page = await loadCandidatePage(
+      and(candidateMatch, ...rangeClauses(lastId ?? lowerBound)) as SQL,
+      pageLimit,
+    );
 
     // An empty page means this scope's range is exhausted — the one exit that
     // means FINISHED, as opposed to stopping on a limit or dying mid-page. Stamp
     // it so a later run can tell the difference.
     if (page.length === 0) {
-      if (lastId) await persistCursor(lastId.toString(), true);
+      if (lastId) await persistCursor(lastId, true);
       break;
     }
 
@@ -999,7 +1201,7 @@ export async function repairFederatedMentions(
         prepared = {
           outcome: 'fetch-failed',
           failure: {
-            id: page[i]._id.toString(),
+            id: page[i].id,
             source: source?.url ?? '',
             sourceKind: source?.kind ?? 'activityId',
             reason: 'transport',
@@ -1051,11 +1253,11 @@ export async function repairFederatedMentions(
       }
     }
 
-    lastId = page[page.length - 1]._id;
+    lastId = page[page.length - 1].id;
     // Persisted after EVERY page, not once at the end: the case that most needs a
     // resume cursor is a run that DIES mid-sweep, and a dying run never reaches
     // its final summary.
-    summary.lastScannedId = lastId.toString();
+    summary.lastScannedId = lastId;
     // Failures BEFORE the cursor, and the order is not cosmetic. If the cursor
     // advanced first and the process died, a resumed run would start past posts
     // whose failures were never recorded — losing them from the targeting set
@@ -1178,22 +1380,16 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
 
 async function main(): Promise<void> {
   const startedAt = Date.now();
-  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
-  const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
   const dryRun = process.env.DRY_RUN === 'true';
 
   try {
     assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun });
-    // BOTH stores: `Post` is still Mongo, while the resume cursor and the
-    // re-fetch failure log moved to Postgres. `closeAdminScriptResources`
-    // already closed a Postgres pool this never opened, so the first cursor read
-    // died on "PostgreSQL is not connected" — and a sweep that cannot read its
-    // cursor is the exact failure that mechanism exists to prevent.
-    await Promise.all([
-      mongoose.connect(mongoUri, { dbName }),
-      connectPostgres(),
-    ]);
-    logger.info('[repairFederatedMentions] connected to MongoDB', { dryRun });
+    // ONE store now. The posts, the resume cursor and the re-fetch failure log
+    // are all Postgres, so the Mongo connection this used to open alongside is
+    // gone rather than left dangling — a sweep that connects to a store it never
+    // reads is how the next reader concludes the corpus still lives there.
+    await connectPostgres();
+    logger.info('[repairFederatedMentions] connected to PostgreSQL', { dryRun });
 
     const summary = await repairFederatedMentions({
       dryRun,
@@ -1232,10 +1428,11 @@ async function main(): Promise<void> {
       written: summary.written,
       sampled: summary.samples.length,
       // The cursor ITSELF cannot go here: the backend logger redacts a 24-hex
-      // ObjectId under every key (verified empirically), so it would read
-      // `[REDACTED]`. What CAN be reported is whether more work remains and how
-      // far this shard has now got in total — the id lives in MongoDB, which is
-      // where the next run reads it from without an operator in the loop.
+      // ObjectId under every key (verified empirically), so a pre-cutover id
+      // would read `[REDACTED]`. What CAN be reported is whether more work
+      // remains and how far this shard has now got in total — the id is in
+      // `admin_script_cursors`, which is where the next run reads it from
+      // without an operator in the loop.
       hasMore: summary.scanned < summary.candidates,
       resumed: summary.resumed,
       shardScannedTotal: summary.resumedFromScanned + summary.scanned,
@@ -1250,9 +1447,6 @@ async function main(): Promise<void> {
     throw error;
   } finally {
     await closeAdminScriptResources();
-    await mongoose.disconnect().catch((disconnectError) => {
-      logger.warn('[repairFederatedMentions] error during mongoose.disconnect()', disconnectError);
-    });
   }
 }
 

@@ -1,4 +1,4 @@
-import UserBehavior from '../models/UserBehavior';
+import { loadUserBehavior } from '../db/userProfile/userBehaviorRepository';
 import { MtnConfig } from '@mention/shared-types';
 import { extractFollowingIds } from '../utils/privacyHelpers';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
@@ -470,7 +470,7 @@ export class FeedRankingService {
     let userBehavior: RankingUserBehavior | undefined = context.userBehavior;
     if (userId && !userBehavior) {
       try {
-        userBehavior = (await UserBehavior.findOne({ oxyUserId: userId }).lean()) ?? undefined;
+        userBehavior = (await loadUserBehavior(userId)) ?? undefined;
       } catch (error) {
         logger.warn('Failed to load user behavior:', error);
       }
