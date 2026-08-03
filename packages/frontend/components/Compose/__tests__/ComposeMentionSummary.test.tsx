@@ -130,6 +130,48 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
+/**
+ * WHY EVERY CASE BELOW ASSERTS THE REQUEST AND NOT ONLY THE ROW.
+ *
+ * DO NOT TRIM `askedUrls()` AS REDUNDANT. Its value is invisible from the
+ * assertion next to it, which is exactly how a guard gets deleted in a tidy-up.
+ *
+ * A row that renders NOTHING is indistinguishable from a body that correctly
+ * mentions nobody. Both are an empty string on screen. So no assertion about the
+ * rendered output — however many ways it is phrased — can tell "we asked the
+ * wrong question" apart from "we asked the right one and the answer was nobody".
+ * Only looking at what left the composer separates them.
+ *
+ * That is not hypothetical. This wire shipped sending `{"urls":[null]}` for every
+ * body: the candidate list changed shape from `{ url }` objects to plain strings
+ * and the hook kept reading `.url` off each one, behind a
+ * `JSON.parse(...) as { url: string }[]` cast that made the wrong read legal. The
+ * endpoint 400'd, nobody was ever named, every row was empty — and the whole
+ * suite would have passed on the rendered output alone, while tsc reported its
+ * only errors in a different file entirely.
+ */
+describe('the composer asks about the URLs the author actually typed', () => {
+  it('sends the real URL, not a placeholder standing in for one', async () => {
+    stubEndpoint({
+      'https://mention.earth/@alice': {
+        userId: 'user-alice',
+        handle: 'alice',
+        displayName: 'Alice',
+      },
+    });
+
+    await renderSummary(['look at https://mention.earth/@alice']);
+
+    // Spelled out rather than folded into `askedUrls()`: the regression put a
+    // `null` in this position, so the shape of the entry is the thing under test.
+    expect(mockPost).toHaveBeenCalledTimes(1);
+    expect(mockPost.mock.calls[0][0]).toBe('/mentions/profile-links');
+    expect(mockPost.mock.calls[0][1]).toEqual({
+      urls: ['https://mention.earth/@alice'],
+    });
+  });
+});
+
 describe('a pasted profile link that resolves is announced', () => {
   it('names the person the post is about to mention', async () => {
     stubEndpoint({
@@ -238,6 +280,11 @@ describe('a link that stays a link is never announced', () => {
   it('says nothing for a fediverse profile we do not store', async () => {
     const tree = await renderSummary(['https://mastodon.social/@stranger']);
 
+    // Asked about, and answered nobody — NOT silently skipped. Without this line
+    // the case passed while the composer was sending `{"urls":[null]}`, because
+    // "asked the wrong question" and "asked the right one, answer was nobody"
+    // are the same empty row. Every must-stay-a-link case needs both halves.
+    expect(askedUrls()).toEqual([['https://mastodon.social/@stranger']]);
     expect(renderedText(tree)).toBe('');
   });
 
