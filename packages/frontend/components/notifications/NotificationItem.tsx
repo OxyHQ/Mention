@@ -26,6 +26,7 @@ import { DoneAllIcon } from '@/assets/icons/done-all-icon';
 import { TrashIcon } from '@/assets/icons/trash-icon';
 import { getDescriptor, type TranslateFn } from './notificationDescriptors';
 import { useUserById } from '@/hooks/useCachedUser';
+import { useKnownIdentities, type IdentityUpdate } from '@/stores/identityUpdates';
 import type { GroupedNotification } from '@/utils/groupNotifications';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
@@ -93,8 +94,23 @@ function ghostGuardedName(rawName: string | undefined | null, actorId: string | 
   return name;
 }
 
+/**
+ * The cached Oxy user a row merges over its raw actor, plus whatever a profile
+ * edit made in this session says about that person.
+ *
+ * `Partial` because an edit alone is a valid answer: a grouped actor the screen
+ * never prewarmed has no cache entry, and the overlay is still a better source
+ * than the copy the notification arrived with.
+ */
+type CachedIdentity = Partial<
+  Pick<User, 'id' | 'username' | 'name' | 'avatar' | 'verified' | 'isFederated' | 'instance' | 'federation'>
+>;
+
 /** Normalized profile handle (local `username`, federated `username@instance`). */
-function normalizedHandle(username: string | undefined | null, cached: User | undefined): string | undefined {
+function normalizedHandle(
+  username: string | undefined | null,
+  cached: CachedIdentity | undefined,
+): string | undefined {
   const handle = getNormalizedUserHandle({
     username: username ?? null,
     instance: cached?.instance ?? null,
@@ -109,7 +125,25 @@ function normalizedHandle(username: string | undefined | null, cached: User | un
  * fields win — restoring the proven fallback the old row had via the prewarmed
  * user cache — with the raw actor as the floor.
  */
-function mergeActor(actor: GroupedActor | undefined, cached: User | undefined): ResolvedActor {
+/**
+ * The best identity known for one actor: the prewarmed cache entry, with a
+ * profile edit made in this session laid over it.
+ *
+ * The edit is ALREADY in that cache entry — `lib/actorCache` put it there — so
+ * for the reactive primary this changes nothing. It matters for the grouped
+ * actors, whose cache read is not reactive: passing the overlay makes the value
+ * correct AND makes the memo that computes it depend on something that actually
+ * changes when a profile is edited, which is the only reason it re-runs at all.
+ */
+function correctedIdentity(
+  cached: User | undefined,
+  known: IdentityUpdate | undefined,
+): CachedIdentity | undefined {
+  if (!known) return cached;
+  return { ...cached, ...known };
+}
+
+function mergeActor(actor: GroupedActor | undefined, cached: CachedIdentity | undefined): ResolvedActor {
   const username = cached?.username ?? actor?.username;
   return {
     id: actor?.id ?? cached?.id ?? '',
@@ -306,19 +340,39 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   // per-row `getUserById` on a cache miss.
   const primaryOxyId = primaryActor?.id && OXY_ID_PATTERN.test(primaryActor.id) ? primaryActor.id : undefined;
   const cachedPrimary = useUserById(primaryOxyId);
-  const resolvedPrimary = useMemo(() => mergeActor(primaryActor, cachedPrimary), [primaryActor, cachedPrimary]);
+  const knownIdentities = useKnownIdentities();
+  const resolvedPrimary = useMemo(
+    () =>
+      mergeActor(
+        primaryActor,
+        correctedIdentity(cachedPrimary, knownIdentities.get(primaryActor?.id ?? '')),
+      ),
+    [primaryActor, cachedPrimary, knownIdentities],
+  );
 
   // Grouped strip / expanded list: best-effort resolve each id from the SAME
   // prewarmed cache (non-reactive read; re-runs when the reactive primary lands,
   // which coincides with the bulk cache write).
+  //
+  //
+  // A profile edited in this session is laid over each of them. The edit is
+  // already IN the cache read below (`lib/actorCache` put it there), so this is
+  // not about the value — it is about this memo re-running at all: editing a
+  // grouped actor who is not `actors[0]` changes nothing else it watches.
   const resolvedActors = useMemo(
     () =>
       item.actors.map((actor, index) =>
         index === 0
           ? resolvedPrimary
-          : mergeActor(actor, queryClient.getQueryData<User>(sdkQueryKeys.users.detail(actor.id))),
+          : mergeActor(
+              actor,
+              correctedIdentity(
+                queryClient.getQueryData<User>(sdkQueryKeys.users.detail(actor.id)),
+                knownIdentities.get(actor.id),
+              ),
+            ),
       ),
-    [item.actors, resolvedPrimary, queryClient],
+    [item.actors, resolvedPrimary, queryClient, knownIdentities],
   );
 
   // Collab invites carry no backend preview — fetch the invited post's text via

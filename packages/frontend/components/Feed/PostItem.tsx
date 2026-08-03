@@ -46,7 +46,7 @@ import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } fro
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { SubtleHover } from '@oxyhq/bloom/subtle-hover';
 import { useThreadHoverStore } from '@/stores/threadHoverStore';
-import { mergeKnownIdentity, useKnownIdentity } from '@/stores/identityUpdates';
+import { mergeKnownIdentity, useKnownIdentities } from '@/stores/identityUpdates';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { reportFeedInteraction } from '@/utils/feedTelemetry';
 import { formatFullTimestamp } from '@/utils/dateUtils';
@@ -171,21 +171,41 @@ const PostItem: React.FC<PostItemProps> = ({
     const viewPost = storePost ?? post;
     const viewPostId = viewPost?.id ? String(viewPost.id) : undefined;
 
-    // The author, corrected against any profile edit made in this session.
+    // Every actor on this row, corrected against any profile edit made in this
+    // session.
     //
-    // `viewPost.user` is a SNAPSHOT of that identity taken when the server
-    // hydrated the post, and nothing rewrites it: the feed store's retained
-    // slice and the SQLite copy both keep it, and a remount warm-starts from
-    // that slice rather than refetching page 1. So a picture changed after a
-    // post was fetched stays wrong on that row until something throws the whole
-    // cache away — which is why a full reload looked like the only fix.
+    // Each of them is a SNAPSHOT of an identity taken when the server hydrated
+    // the post, and nothing rewrites those: the feed store's retained slice and
+    // the SQLite copy both keep them, and a remount warm-starts from that slice
+    // rather than refetching page 1. So a picture changed after a post was
+    // fetched stays wrong on that row until something throws the whole cache
+    // away — which is why a full reload looked like the only fix.
     // `stores/identityUpdates` is the one authority that knows better, and
     // resolving it HERE covers every post surface at once: a feed row, a post
     // detail, a quote card and a boosted original are all this same component.
-    const knownAuthor = useKnownIdentity(viewPost?.user?.id);
+    //
+    // All THREE actors, not just the author. They sit side by side in one row —
+    // `boostedBy` puts the reposter's picture in the same avatar cluster as the
+    // author's — so correcting one and not the others is more conspicuous than
+    // correcting none: the same person would be drawn twice, differently, in one
+    // cluster.
+    const knownIdentities = useKnownIdentities();
     const author = useMemo(
-        () => (viewPost?.user ? mergeKnownIdentity(viewPost.user, knownAuthor) : undefined),
-        [viewPost?.user, knownAuthor],
+        () => (viewPost?.user ? mergeKnownIdentity(viewPost.user, knownIdentities.get(viewPost.user.id)) : undefined),
+        [viewPost?.user, knownIdentities],
+    );
+    const reposter = useMemo(
+        () => (repostedBy ? mergeKnownIdentity(repostedBy, knownIdentities.get(repostedBy.id)) : undefined),
+        [repostedBy, knownIdentities],
+    );
+    // The collaborative byline: owner plus each accepted collaborator, drawn as
+    // the avatar cluster that replaces the solo avatar.
+    const bylineAuthors = useMemo(
+        () =>
+            viewPost?.authors?.map((entry) =>
+                mergeKnownIdentity(entry, knownIdentities.get(entry.id)),
+            ),
+        [viewPost?.authors, knownIdentities],
     );
 
     const viewerState =
@@ -372,8 +392,8 @@ const PostItem: React.FC<PostItemProps> = ({
     // Canonical handle of the BOOSTER, on the same terms as `authorHandle`: it
     // drives the "Reposted by" row's link and its hover preview from one value.
     const reposterHandle = useMemo(
-        () => getNormalizedUserHandle(repostedBy) ?? undefined,
-        [repostedBy],
+        () => getNormalizedUserHandle(reposter) ?? undefined,
+        [reposter],
     );
 
     const goToReposter = useCallback((event?: GestureResponderEvent) => {
@@ -706,7 +726,7 @@ const PostItem: React.FC<PostItemProps> = ({
     // column grows down). The icon keeps `-ml-4` to poke left into the avatar
     // gutter; repost is the outermost reason, then pinned, then reply.
     const contextRows: React.ReactNode[] = [];
-    if (repostedBy) {
+    if (reposter) {
         contextRows.push(
             <ProfileHoverCard key="reposted" username={reposterHandle}>
                 <TouchableOpacity
@@ -720,7 +740,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         <BoostIcon size={13} color={theme.colors.textSecondary} />
                     </View>
                     <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
-                        {t('post.repostedBy', { defaultValue: 'Reposted by' })} {displayNameOrHandle(repostedBy.name?.displayName, reposterHandle ? `@${reposterHandle}` : '')}
+                        {t('post.repostedBy', { defaultValue: 'Reposted by' })} {displayNameOrHandle(reposter.name?.displayName, reposterHandle ? `@${reposterHandle}` : '')}
                     </Text>
                 </TouchableOpacity>
             </ProfileHoverCard>,
@@ -845,14 +865,14 @@ const PostItem: React.FC<PostItemProps> = ({
                             isFederated: author.isFederated,
                             instance: author.instance,
                         }}
-                        authors={viewPost.authors && viewPost.authors.length > 0 ? viewPost.authors : undefined}
+                        authors={bylineAuthors && bylineAuthors.length > 0 ? bylineAuthors : undefined}
                         // `repostedBy` is the only boost that put THIS post in
                         // front of the reader. `viewPost.boost` is the other
                         // boost shape — the row IS the boost, so its author and
                         // its actor are the same account and there is nothing to
                         // pair or reorder; passing it would be a no-op wearing
                         // the clothes of a rule.
-                        boostedBy={repostedBy}
+                        boostedBy={reposter}
                         date={metadata.createdAt}
                         showBoost={Boolean(viewPost.boost) && !isNested}
                         showReply={false}
