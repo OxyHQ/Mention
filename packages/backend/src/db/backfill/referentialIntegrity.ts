@@ -523,7 +523,28 @@ export function assertNotVacuous(report: ReferentialIntegrityReport): void {
 /** Accumulates one relation's offending values without unbounded growth. */
 interface OrphanAccumulator {
   documents: number;
+  /**
+   * The DISPLAY sample — capped at {@link MAX_REPORTED_ORPHAN_VALUES}, so one
+   * bad join cannot flood the report with a million distinct ids.
+   */
   readonly documentsByValue: Map<string, number>;
+  /**
+   * EVERY distinct offending value, uncapped.
+   *
+   * Separate from `documentsByValue` because they answer to different readers,
+   * and conflating them made a safety guard lie. `describeOverreach` asks "did
+   * the rule act on a value this pass found no orphan for" — a question about
+   * CORRECTNESS — and it used to ask it of the display sample, so every value
+   * past the 50th came back as "the migration DOES produce this row". Run 10
+   * accused all four orphan rules of deleting live production data on exactly
+   * that basis: 208, 399, 118 and 399 unexplained values, each of which is the
+   * relation's distinct-value count minus 50.
+   *
+   * Bounded by distinct orphan values, which is bounded by rows, so this is not
+   * an unbounded structure — and a run with enough orphans to make it large has
+   * a much larger problem than its memory.
+   */
+  readonly allValues: Set<string>;
   readonly documentIds: string[];
 }
 
@@ -537,62 +558,29 @@ interface AppliedTally {
 }
 
 /**
- * Stream every mapped collection, run its transform, and check every reference
- * the emitted rows carry.
+ * Stream every planned collection and record the rows the migration WILL emit.
  *
- * ## The two-phase shape, and why the parent set is what it is
+ * ONE implementation of "the set of rows the migration produces", because two
+ * would drift. The referential audit's phase 1 is this function, and so is the
+ * parent set the COPY decides a self-referencing table against — and if those
+ * two ever disagreed, a green audit would stop predicting a successful cutover,
+ * which is the only reason the audit exists.
  *
- * Phase 1 collects, per table, the primary keys the migration WILL produce.
- * Phase 2 re-streams and checks each reference against those sets. Two passes
- * rather than one because a reference can point forward — a reply's parent may
- * sort after it — so a single pass would report a healthy reference as an
- * orphan purely on cursor order.
- *
- * Nothing is written when this runs, so the parent set handed to the documented
- * rules is the set of ids phase 1 emitted: exactly the rows the copy will
- * create, which is the same question the foreign key will ask. That is a
- * DIFFERENT set from the one the copy uses (which reads Postgres) and it is
- * correct for this phase for the same reason — it is the set this phase can
- * prove.
+ * The copy needed it because `posts` references ITSELF: `runBackfill` loads a
+ * level's parent set before any row of that level is built, which is correct
+ * for every other table and empty for this one — so every orphan rule stood
+ * down for the whole posts copy and the deferred self-reference pass then wrote
+ * the orphan value for real. The set that matters is not what Postgres holds
+ * when the level starts; it is what the foreign key will hold when the level
+ * ends, and that is exactly what this returns.
  */
-export async function auditReferentialIntegrity(
-  db: Database,
+export async function scanEmittedRows(
   source: MongoSource,
-  planned: ReadonlyArray<{ plan: CollectionPlan; documents: number }>,
+  planned: ReadonlyArray<{ plan: CollectionPlan }>,
   resolutions: ResolutionContext,
-  options: { readonly batchSize?: number } = {}
-): Promise<ReferentialIntegrityReport> {
-  const batchSize = options.batchSize ?? 1000;
-  const plans = planned.map((entry) => entry.plan);
-  const relations = referentialRelations(plans);
-
-  // Which relations can actually be exercised: only those whose TARGET table is
-  // fed by a plan in this run. A reference to a table nothing feeds would report
-  // every row as an orphan, which is true but useless — and the runner requires
-  // the complete plan set precisely so this does not happen.
-  const fedTables = new Set<string>();
-  for (const plan of plans) for (const table of planTables(plan)) fedTables.add(tableName(table));
-
-  // ---- phase 0: is the derivation itself complete? ------------------------
-  //
-  // Before asking anything about the DATA, ask whether this audit found the
-  // constraints it is about to claim coverage of. `pg_constraint` is the
-  // authority; the drizzle walk is the thing that might be wrong.
-  const coverage = reconcileRelations(relations, await deployedForeignKeys(db), fedTables);
-  const coverageFindings: AuditFinding[] = coverage.missing.map((relation) => ({
-    collection: '(schema)',
-    kind: 'undetected-relation' as const,
-    detail:
-      `${relation.constraint} is a foreign key on ${relation.tableName} → ` +
-      `${relation.targetTableName} that Postgres HAS and this audit did not ` +
-      'derive from the drizzle metadata. Every reference through it is therefore ' +
-      'unchecked, and the orphan verdict below says nothing about it. This is a ' +
-      'defect in the checker, not in the data — no change to Mongo can clear it.',
-    documents: 0,
-    sampleIds: [],
-  }));
-
-  // ---- phase 1: every primary key the migration will produce ---------------
+  fedTables: ReadonlySet<string>,
+  batchSize: number
+): Promise<EmittedRowScan> {
   const emittedKeys = new Map<string, Set<string>>();
   for (const name of fedTables) emittedKeys.set(name, new Set());
 
@@ -658,6 +646,91 @@ export async function auditReferentialIntegrity(
       documentsDroppedByRule: resolutions.documentsDroppedIn(plan.collection),
     });
   }
+
+  return {
+    emittedKeys,
+    highWater,
+    refused,
+    emissions,
+    collectionsInspected,
+    documentsInspected,
+  };
+}
+
+/** What {@link scanEmittedRows} measured while building the key set. */
+export interface EmittedRowScan {
+  readonly emittedKeys: Map<string, Set<string>>;
+  /** The greatest `_id` seen per collection — a second pass's ceiling. */
+  readonly highWater: Map<string, unknown>;
+  readonly refused: RefusedDocuments;
+  readonly emissions: PlanEmission[];
+  readonly collectionsInspected: number;
+  readonly documentsInspected: number;
+}
+
+/**
+ * Stream every mapped collection, run its transform, and check every reference
+ * the emitted rows carry.
+ *
+ * ## The two-phase shape, and why the parent set is what it is
+ *
+ * Phase 1 collects, per table, the primary keys the migration WILL produce.
+ * Phase 2 re-streams and checks each reference against those sets. Two passes
+ * rather than one because a reference can point forward — a reply's parent may
+ * sort after it — so a single pass would report a healthy reference as an
+ * orphan purely on cursor order.
+ *
+ * Nothing is written when this runs, so the parent set handed to the documented
+ * rules is the set of ids phase 1 emitted: exactly the rows the copy will
+ * create, which is the same question the foreign key will ask. That is a
+ * DIFFERENT set from the one the copy uses (which reads Postgres) and it is
+ * correct for this phase for the same reason — it is the set this phase can
+ * prove.
+ */
+export async function auditReferentialIntegrity(
+  db: Database,
+  source: MongoSource,
+  planned: ReadonlyArray<{ plan: CollectionPlan; documents: number }>,
+  resolutions: ResolutionContext,
+  options: { readonly batchSize?: number } = {}
+): Promise<ReferentialIntegrityReport> {
+  const batchSize = options.batchSize ?? 1000;
+  const plans = planned.map((entry) => entry.plan);
+  const relations = referentialRelations(plans);
+
+  // Which relations can actually be exercised: only those whose TARGET table is
+  // fed by a plan in this run. A reference to a table nothing feeds would report
+  // every row as an orphan, which is true but useless — and the runner requires
+  // the complete plan set precisely so this does not happen.
+  const fedTables = new Set<string>();
+  for (const plan of plans) for (const table of planTables(plan)) fedTables.add(tableName(table));
+
+  // ---- phase 0: is the derivation itself complete? ------------------------
+  //
+  // Before asking anything about the DATA, ask whether this audit found the
+  // constraints it is about to claim coverage of. `pg_constraint` is the
+  // authority; the drizzle walk is the thing that might be wrong.
+  const coverage = reconcileRelations(relations, await deployedForeignKeys(db), fedTables);
+  const coverageFindings: AuditFinding[] = coverage.missing.map((relation) => ({
+    collection: '(schema)',
+    kind: 'undetected-relation' as const,
+    detail:
+      `${relation.constraint} is a foreign key on ${relation.tableName} → ` +
+      `${relation.targetTableName} that Postgres HAS and this audit did not ` +
+      'derive from the drizzle metadata. Every reference through it is therefore ' +
+      'unchecked, and the orphan verdict below says nothing about it. This is a ' +
+      'defect in the checker, not in the data — no change to Mongo can clear it.',
+    documents: 0,
+    sampleIds: [],
+  }));
+
+  // ---- phase 1: every primary key the migration will produce ---------------
+  // Phase 1 IS `scanEmittedRows` — the same implementation the copy uses to
+  // decide a self-referencing table, so the two cannot drift apart.
+  const scan = await scanEmittedRows(source, planned, resolutions, fedTables, batchSize);
+  const { emittedKeys, highWater, refused, emissions } = scan;
+  const collectionsInspected = scan.collectionsInspected;
+  let documentsInspected = scan.documentsInspected;
 
   // ---- phase 2: check every reference against those sets -------------------
   const parents = parentKeysFrom(emittedKeys);
@@ -739,9 +812,12 @@ export async function auditReferentialIntegrity(
             const accumulator = orphansByConstraint.get(relation.constraint) ?? {
               documents: 0,
               documentsByValue: new Map<string, number>(),
+              allValues: new Set<string>(),
               documentIds: [],
             };
             accumulator.documents += 1;
+            // Recorded BEFORE the display cap, and never subject to it.
+            accumulator.allValues.add(value);
             if (
               accumulator.documentsByValue.size < MAX_REPORTED_ORPHAN_VALUES ||
               accumulator.documentsByValue.has(value)
@@ -920,8 +996,9 @@ function describeOverreach(
     if (relation === undefined) continue;
     const orphans = orphansByConstraint.get(relation.constraint);
     const orphanRows = orphans?.documents ?? 0;
+    // Against `allValues`, NOT the display sample. See `OrphanAccumulator`.
     const unexplained = [...tally.values].filter(
-      (value) => !(orphans?.documentsByValue.has(value) ?? false)
+      (value) => !(orphans?.allValues.has(value) ?? false)
     );
     if (tally.rows <= orphanRows && unexplained.length === 0) continue;
 

@@ -64,11 +64,13 @@ import { planTables, tableName, type CollectionPlan } from './plan';
 import {
   auditReferentialIntegrity,
   referentialIntegrityNotRun,
+  scanEmittedRows,
   type ReferentialIntegrityReport,
 } from './referentialIntegrity';
-import { assertParentsPrecedeChildren, loadParentKeys } from './parentKeys';
+import { assertParentsPrecedeChildren, loadParentKeyMap, loadParentKeys } from './parentKeys';
 import {
   createResolutionContext,
+  parentKeysFrom,
   parentTablesForRules,
   planResolutions,
   ResolutionLog,
@@ -394,15 +396,41 @@ export async function copyCollection(
   const resolutions =
     options.resolutions ??
     createResolutionContext(await planResolutions(source), new ResolutionLog());
-  // Loaded HERE when the caller supplied none, so a direct `copyCollection`
-  // still decides against Postgres rather than against nothing.
-  const parents = options.parents ?? (await loadParentKeys(db, parentTablesForRules()));
   const tables = orderPlanTables(plan);
   const deferredByTable = new Map<string, readonly string[]>();
   for (const table of tables) {
     const columns = selfReferencingColumns(table);
     if (columns.length > 0) deferredByTable.set(tableName(table), columns);
   }
+
+  // A SELF-REFERENCING table decides against what this copy will PRODUCE, not
+  // against what Postgres holds right now.
+  //
+  // `runBackfill` loads a level's parent set before any row of the level is
+  // built — right for every other table, and empty for one that references
+  // itself. That emptiness is the "loaded and empty" answer, so every orphan
+  // rule stood down for the whole posts copy and the deferred self-reference
+  // pass then wrote the orphan value for real and hit the foreign key. The set
+  // that matters is what the constraint will hold when the level ENDS.
+  //
+  // `scanEmittedRows` is the referential audit's own phase 1, called here so
+  // the copy and the audit share ONE definition of "the rows the migration
+  // produces". Two implementations that agree today is how a green audit stops
+  // predicting a successful cutover.
+  const parents = deferredByTable.size === 0
+    ? options.parents ?? (await loadParentKeys(db, parentTablesForRules()))
+    : await (async () => {
+        const ruleTables = parentTablesForRules();
+        const loaded = await loadParentKeyMap(db, ruleTables);
+        const fed = new Set(ruleTables.map((table) => tableName(table)));
+        const scan = await scanEmittedRows(source, [{ plan }], resolutions, fed, batchSize);
+        for (const [name, keys] of scan.emittedKeys) {
+          const existing = loaded.get(name);
+          if (existing) for (const key of keys) existing.add(key);
+          else loaded.set(name, new Set(keys));
+        }
+        return parentKeysFrom(loaded);
+      })();
 
   const rowsByTable: Record<string, number> = {};
   for (const table of tables) rowsByTable[tableName(table)] = 0;
