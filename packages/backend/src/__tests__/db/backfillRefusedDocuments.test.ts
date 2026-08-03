@@ -1,0 +1,188 @@
+/**
+ * A document the transform REFUSES is a finding, not the end of the run.
+ *
+ * `auditDefaultedColumns` runs the plans' own transforms, so a value `buildRow`
+ * will not build arrives as a thrown `BackfillValueError` rather than as a query
+ * result. Before this, the first such document ABORTED the whole pass — which
+ * made the audit a queue rather than a report: it named exactly one document
+ * per run, and each run costs an arm64 rebuild, a task-definition revision, a
+ * probe migration and a Fargate task.
+ *
+ * That cost was paid twice against production for two instances of ONE class,
+ * and nothing said whether a third was waiting:
+ *
+ *   BackfillValueError: preferredPostTypes.text: expected an integer, got 1432.8000000001784
+ *   BackfillValueError: interactionCount: expected an integer, got 218.79999999999643
+ *
+ * Both are fractional affinity accumulators in integer columns, one table
+ * apart. Reporting them lets one run enumerate the class.
+ *
+ * Three properties, and they fail in different directions:
+ *
+ *  1. the pass CONTINUES and the refusal is reported with a count and ids;
+ *  2. it still BLOCKS — the copy genuinely cannot write that row;
+ *  3. an error that is NOT a `BackfillValueError` still aborts, because that is
+ *     a defect in the migration rather than a fact about the data.
+ *
+ * Fixtures are `brd-` prefixed.
+ */
+
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoClient, ObjectId, type Db } from 'mongodb';
+import { auditDefaultedColumns, auditWouldBlockCopy, type AuditFinding } from '../../db/backfill/audit';
+import { mongoSourceFromDb, type MongoSource } from '../../db/backfill/mongoSource';
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { buildRow } from '../../db/backfill/rowBuilder';
+import { pushTokens } from '../../db/schema/discovery';
+import { BackfillValueError, ownId, reqInt, reqStr } from '../../db/backfill/values';
+import type { CollectionPlan } from '../../db/backfill/plan';
+import {
+  createResolutionContext,
+  planResolutions,
+  ResolutionLog,
+} from '../../db/backfill/resolutions';
+
+let mongod: MongoMemoryServer;
+let client: MongoClient;
+let mongo: Db;
+let source: MongoSource;
+
+const OWNER = 'brd-u1';
+
+/**
+ * A plan whose transform refuses any document carrying a non-integer `weight`.
+ *
+ * Synthetic because the production instances are integer COLUMNS being widened
+ * as they are found — a fixture pinned to one of them would go green the moment
+ * that column changed, while the behaviour under test (what the pass does with
+ * a refusal) is unchanged. `reqInt` is the real refusing function.
+ */
+const refusesFractionalWeight: CollectionPlan = {
+  collection: 'pushtokens',
+  table: pushTokens,
+  transform: (doc, emit) => {
+    // Throws `BackfillValueError` for a fractional value, exactly as
+    // `userProfile`'s transform does for `interactionCount`.
+    reqInt(doc, 'weight');
+    emit(
+      pushTokens,
+      buildRow(
+        pushTokens,
+        {
+          id: ownId(doc),
+          userId: reqStr(doc, 'userId'),
+          token: reqStr(doc, 'token'),
+          type: 'fcm',
+          platform: 'ios',
+        },
+        ownId(doc)
+      )
+    );
+  },
+};
+
+/** The same plan, throwing something that is NOT a value error. */
+const throwsProgrammerError: CollectionPlan = {
+  ...refusesFractionalWeight,
+  transform: () => {
+    throw new TypeError('brd-not-a-value-error');
+  },
+};
+
+async function audit(plan: CollectionPlan) {
+  return auditDefaultedColumns(
+    source,
+    plan,
+    createResolutionContext(await planResolutions(source), new ResolutionLog())
+  );
+}
+
+const refusal = (findings: readonly AuditFinding[]) =>
+  findings.find((finding) => finding.kind === 'refused-document');
+
+beforeAll(async () => {
+  await connectPostgres();
+  mongod = await MongoMemoryServer.create();
+  client = await MongoClient.connect(mongod.getUri());
+  mongo = client.db('backfill_refused_documents_test');
+  source = mongoSourceFromDb(mongo, async () => {
+    await client.close();
+  });
+}, 120_000);
+
+afterEach(async () => {
+  await mongo.collection('pushtokens').deleteMany({});
+});
+
+afterAll(async () => {
+  await client.close();
+  await mongod.stop();
+  await closePostgres();
+});
+
+describe('a refused document', () => {
+  it('is REPORTED with its count and ids, and the pass reaches the documents after it', async () => {
+    const first = new ObjectId();
+    const second = new ObjectId();
+    await mongo.collection('pushtokens').insertMany([
+      { _id: first, userId: OWNER, token: 'brd-1', weight: 218.79999999999643 },
+      { _id: second, userId: OWNER, token: 'brd-2', weight: 1432.8000000001784 },
+      // Sits AFTER both refusals: before the catch, the pass died on the first
+      // document and this one was never read at all.
+      { _id: new ObjectId(), userId: OWNER, token: 'brd-3', weight: 7 },
+    ]);
+
+    const finding = refusal(await audit(refusesFractionalWeight));
+
+    expect(finding).toBeDefined();
+    // TWO of three — one finding for the path, counting every document it
+    // refused rather than stopping at the first.
+    expect(finding?.documents).toBe(2);
+    expect(finding?.sampleIds.sort()).toEqual([String(first), String(second)].sort());
+    // The message keeps the value that was refused, which is what identifies
+    // the class: a float in an integer column, not a corrupt row.
+    expect(finding?.detail).toContain('expected an integer');
+    expect(finding?.detail).toContain('weight');
+  });
+
+  it('BLOCKS the copy', async () => {
+    // Reporting instead of aborting changes WHEN it is learned, never whether
+    // it stops the copy.
+    await mongo
+      .collection('pushtokens')
+      .insertOne({ _id: new ObjectId(), userId: OWNER, token: 'brd-4', weight: 0.5 });
+
+    const finding = refusal(await audit(refusesFractionalWeight));
+    expect(auditWouldBlockCopy(finding as AuditFinding)).toBe(true);
+  });
+
+  it('says nothing when every document builds', async () => {
+    await mongo
+      .collection('pushtokens')
+      .insertOne({ _id: new ObjectId(), userId: OWNER, token: 'brd-5', weight: 3 });
+
+    expect(refusal(await audit(refusesFractionalWeight))).toBeUndefined();
+  });
+});
+
+describe('an error that is not about the data', () => {
+  it('still ABORTS the pass', async () => {
+    // A `TypeError` from a transform is a defect in the migration, and
+    // continuing past it would report on rows built by code already known to be
+    // wrong. Only `BackfillValueError` names a document.
+    await mongo
+      .collection('pushtokens')
+      .insertOne({ _id: new ObjectId(), userId: OWNER, token: 'brd-6', weight: 1 });
+
+    await expect(audit(throwsProgrammerError)).rejects.toThrow('brd-not-a-value-error');
+  });
+
+  it('is not a BackfillValueError, which is what the catch keys on', () => {
+    // Guards the discriminator itself: if `BackfillValueError` stopped being
+    // its own class, the catch above would swallow programmer errors and the
+    // abort case would silently become a finding.
+    expect(new BackfillValueError('p', 'm') instanceof BackfillValueError).toBe(true);
+    expect(new TypeError('x') instanceof BackfillValueError).toBe(false);
+  });
+});
