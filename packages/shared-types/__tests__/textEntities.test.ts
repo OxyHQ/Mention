@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -398,6 +398,16 @@ describe('Hermes safety', () => {
   };
 
   it('no built file the scanner reaches carries a property escape', () => {
+    // This gate reads the BUILT output, so it needs one. A root `bun install`
+    // builds it (`build:shared-types`), but a fresh checkout that skips that —
+    // or anyone running the suite before a first build — used to get a raw
+    // ENOENT from deep inside the traversal, which reads as "the gate is
+    // broken" rather than "there is nothing to gate yet". Say which it is.
+    expect(
+      existsSync(join(DIST, 'textEntities.js')),
+      'shared-types dist/ is missing — run `bun run build` before this suite',
+    ).toBe(true);
+
     const closure = scannerClosure();
 
     // Vacuity floor: a traversal that silently found nothing would pass the
