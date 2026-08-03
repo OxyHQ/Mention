@@ -210,8 +210,19 @@ describe('AccountBadge — which marker the account state chooses', () => {
   });
 });
 
-describe('AccountBadge — the channel marker has no explainer to open', () => {
-  it('ignores a handler for a channel while honouring the SAME handler when federated', () => {
+/**
+ * The two explainers are two PROPS, and each branch reads exactly one of them.
+ *
+ * A single shared handler would be the same component with the same call sites
+ * and one new defect available: a surface that wanted the channel explainer
+ * would arm the fediverse one on every remote account it draws, and vice versa.
+ * Neither miswiring is visible in a render — both produce a tappable marker that
+ * opens A dialog — so each direction is asserted here, and each assertion is
+ * paired with the handler that IS honoured, or "ignored the handler" would be
+ * indistinguishable from "the prop does not work at all".
+ */
+describe('AccountBadge — the two explainers cannot be crossed', () => {
+  it('gives the channel marker the fediverse handler and nothing happens', () => {
     const onExplainNetwork = jest.fn();
 
     const channel = render(<AccountBadge kind="channel" onExplainNetwork={onExplainNetwork} />);
@@ -224,6 +235,73 @@ describe('AccountBadge — the channel marker has no explainer to open', () => {
     // channel branch and not about a handler prop that never worked.
     const federated = render(<AccountBadge isFederated onExplainNetwork={onExplainNetwork} />);
     expect(buttons(federated)).toHaveLength(1);
+  });
+
+  it('gives the federated marker the channel handler and nothing happens', () => {
+    const onExplainChannel = jest.fn();
+
+    const federated = render(<AccountBadge isFederated onExplainChannel={onExplainChannel} />);
+    expect(icons(federated, 'FediverseIcon')).toHaveLength(1);
+    expect(buttons(federated)).toHaveLength(0);
+    expect(pressHandlers(federated)).toHaveLength(0);
+
+    const channel = render(<AccountBadge kind="channel" onExplainChannel={onExplainChannel} />);
+    expect(buttons(channel)).toHaveLength(1);
+  });
+});
+
+describe('AccountBadge — the channel marker opts in on its own prop', () => {
+  it('stays a plain icon with no handler', () => {
+    const renderer = render(<AccountBadge kind="channel" />);
+
+    expect(icons(renderer, 'ChannelIcon')).toHaveLength(1);
+    expect(labels(renderer)).toContain(CHANNEL_LABEL);
+    expect(buttons(renderer)).toHaveLength(0);
+    expect(pressHandlers(renderer)).toHaveLength(0);
+  });
+
+  it('becomes a control when a caller opts in, and then it calls back', () => {
+    const onExplainChannel = jest.fn();
+    const renderer = render(<AccountBadge kind="channel" onExplainChannel={onExplainChannel} />);
+
+    const armed = buttons(renderer);
+    expect(armed).toHaveLength(1);
+    expect(armed[0].props.accessibilityLabel).toBe(CHANNEL_LABEL);
+
+    const handlers = pressHandlers(renderer);
+    expect(handlers).toHaveLength(1);
+    TestRenderer.act(() => {
+      handlers[0]();
+    });
+    expect(onExplainChannel).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an opted-in tap to itself so an enclosing row does not also fire', () => {
+    const onExplainChannel = jest.fn();
+    const renderer = render(<AccountBadge kind="channel" onExplainChannel={onExplainChannel} />);
+    const stopPropagation = jest.fn();
+
+    TestRenderer.act(() => {
+      pressHandlers(renderer)[0]({ stopPropagation });
+    });
+
+    expect(stopPropagation).toHaveBeenCalledTimes(1);
+    expect(onExplainChannel).toHaveBeenCalledTimes(1);
+  });
+
+  it('draws a channel that is also federated as the inert remote marker, armed or not', () => {
+    // The federation-wins rule and the opt-in are independent, and a reader
+    // could reasonably expect arming the channel handler to force the channel
+    // branch. It does not: which marker is drawn is decided by the account, and
+    // only then does that marker look for its own handler.
+    const onExplainChannel = jest.fn();
+    const renderer = render(
+      <AccountBadge kind="channel" isFederated onExplainChannel={onExplainChannel} />,
+    );
+
+    expect(icons(renderer, 'FediverseIcon')).toHaveLength(1);
+    expect(icons(renderer, 'ChannelIcon')).toHaveLength(0);
+    expect(buttons(renderer)).toHaveLength(0);
   });
 });
 
@@ -247,14 +325,70 @@ describe('FediverseSharingBadge — the own-profile marker obeys the same defaul
 /**
  * The rule the unit tests above cannot hold on their own: they prove the DEFAULT
  * is inert, not that every surface actually takes it. A screen added next year
- * that passes `onExplainNetwork` would leave all of them green — which is the
- * exact regression this whole change exists to prevent, so it is gated on the
- * source rather than remembered.
+ * that passes either handler would leave all of them green — which is the exact
+ * regression this whole change exists to prevent, so it is gated on the source
+ * rather than remembered.
+ *
+ * ONE walk feeds both gates. Two copies of this scan is two places for the
+ * traversal, the roots and the vacuity floor to drift, and the second copy is
+ * the one that quietly stops scanning anything.
  */
-describe('surfaces — only the profile opts the marker in', () => {
-  const FRONTEND_ROOT = path.resolve(__dirname, '../..');
-  const SCAN_ROOTS = ['app', 'components'];
+const FRONTEND_ROOT = path.resolve(__dirname, '../..');
+const SCAN_ROOTS = ['app', 'components'];
 
+function walk(dir: string, out: string[] = []): string[] {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === 'node_modules') continue;
+      walk(full, out);
+    } else if (/\.tsx?$/.test(entry.name)) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+const sources = SCAN_ROOTS.flatMap((root) => walk(path.join(FRONTEND_ROOT, root))).map((file) => ({
+  rel: path.relative(FRONTEND_ROOT, file).split(path.sep).join('/'),
+  text: fs.readFileSync(file, 'utf8'),
+}));
+
+/** Every scanned file that writes the handler's name down, for any reason. */
+function filesNaming(handler: string): string[] {
+  return sources.filter(({ text }) => text.includes(handler)).map(({ rel }) => rel);
+}
+
+describe('surfaces — the scan itself', () => {
+  it('scanned a real tree (vacuity floor)', () => {
+    // A broken traversal returns nothing and makes every assertion below pass.
+    expect(sources.length).toBeGreaterThan(300);
+    const rendering = sources.filter(({ text }) => /<AccountBadge[\s/>]/.test(text));
+    expect(rendering.length).toBeGreaterThanOrEqual(4);
+  });
+
+  /**
+   * The gates below are allow-lists, so they can only ever catch a NEW file.
+   * These two name the surfaces that draw a marker today and must keep taking
+   * the default — without them, "armed on one page" and "armed everywhere" are
+   * the same green run, since an allow-list says nothing about a file it does
+   * not contain until that file breaks the rule.
+   */
+  it.each([
+    ['components/Post/PostHeader.tsx', 'a post row is already a tap that opens the post'],
+    ['components/ProfileHoverCard/index.web.tsx', 'a hover card is already a link to the profile'],
+    ['components/notifications/NotificationItem.tsx', 'a notification row navigates on tap'],
+  ])('leaves the marker inert in %s (%s)', (rel) => {
+    const source = sources.find((entry) => entry.rel === rel);
+    // Not `?.text` — a renamed file must fail loudly rather than pass by absence.
+    expect(source).toBeDefined();
+    expect(source?.text).toMatch(/<AccountBadge[\s/>]/);
+    expect(source?.text).not.toContain('onExplainNetwork');
+    expect(source?.text).not.toContain('onExplainChannel');
+  });
+});
+
+describe('surfaces — only the profile arms the FEDIVERSE marker', () => {
   /**
    * Files permitted to mention `onExplainNetwork`, each for a stated reason.
    * Anything else naming it is a surface arming the marker.
@@ -267,45 +401,64 @@ describe('surfaces — only the profile opts the marker in', () => {
     'components/__tests__/AccountBadge.test.tsx': 'this test',
   };
 
-  function walk(dir: string, out: string[] = []): string[] {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (entry.name === 'node_modules') continue;
-        walk(full, out);
-      } else if (/\.tsx?$/.test(entry.name)) {
-        out.push(full);
-      }
-    }
-    return out;
-  }
-
-  const files = SCAN_ROOTS.flatMap((root) => walk(path.join(FRONTEND_ROOT, root)));
-  const sources = files.map((file) => ({
-    rel: path.relative(FRONTEND_ROOT, file).split(path.sep).join('/'),
-    text: fs.readFileSync(file, 'utf8'),
-  }));
-
-  it('scanned a real tree (vacuity floor)', () => {
-    // A broken traversal returns nothing and makes every assertion below pass.
-    expect(sources.length).toBeGreaterThan(300);
-    const rendering = sources.filter(({ text }) => /<AccountBadge[\s/>]/.test(text));
-    expect(rendering.length).toBeGreaterThanOrEqual(4);
-  });
-
-  it('no surface other than the profile arms the marker', () => {
-    const offenders = sources
-      .filter(({ text }) => text.includes('onExplainNetwork'))
-      .map(({ rel }) => rel)
-      .filter((rel) => !(rel in ALLOWED));
-
-    expect(offenders).toEqual([]);
+  it('no surface other than the profile arms it', () => {
+    expect(filesNaming('onExplainNetwork').filter((rel) => !(rel in ALLOWED))).toEqual([]);
   });
 
   it('every allow-listed file still names it, so the list cannot rot', () => {
-    const named = new Set(
-      sources.filter(({ text }) => text.includes('onExplainNetwork')).map(({ rel }) => rel),
-    );
+    const named = new Set(filesNaming('onExplainNetwork'));
     expect(Object.keys(ALLOWED).filter((rel) => !named.has(rel))).toEqual([]);
+  });
+
+  it('the opt-in reaches the badge rather than only being mentioned', () => {
+    // The rot check above is satisfied by a comment. This one is not.
+    const profile = sources.find((entry) => entry.rel === 'components/ProfileScreen.tsx');
+    expect(profile?.text).toMatch(/onExplainNetwork=\{/);
+  });
+});
+
+describe('surfaces — only a channel’s own page arms the CHANNEL marker', () => {
+  /**
+   * The same rule for the second explainer, kept as its own allow-list rather
+   * than merged with the one above: the point of two props is that the two
+   * permissions are different, and one shared list would let a file arm either
+   * explainer once it was on it for one of them.
+   */
+  const ALLOWED: Record<string, string> = {
+    'components/AccountBadge.tsx': 'defines the opt-in',
+    'components/Profile/types.ts': 'declares the prop on UserNameProps',
+    'components/UserName.tsx': 'forwards its own prop through; opts nothing in itself',
+    'components/Profile/ChannelHeader.tsx':
+      "THE opt-in — a channel's own page is where the explainer belongs",
+    'components/__tests__/AccountBadge.test.tsx': 'this test',
+  };
+
+  it('no surface other than the channel header arms it', () => {
+    expect(filesNaming('onExplainChannel').filter((rel) => !(rel in ALLOWED))).toEqual([]);
+  });
+
+  it('every allow-listed file still names it, so the list cannot rot', () => {
+    const named = new Set(filesNaming('onExplainChannel'));
+    expect(Object.keys(ALLOWED).filter((rel) => !named.has(rel))).toEqual([]);
+  });
+
+  it('the opt-in reaches the badge rather than only being mentioned', () => {
+    const header = sources.find((entry) => entry.rel === 'components/Profile/ChannelHeader.tsx');
+    expect(header?.text).toMatch(/onExplainChannel=\{/);
+  });
+
+  it('is the only file outside the badge that opens the dialog', () => {
+    // `onExplainChannel` is the prop; `showChannelInfo` is the effect. A screen
+    // could skip the prop entirely and call the dialog from an onPress of its
+    // own, which the allow-list above would never see. Tests are excluded — one
+    // has to name it to spy on it, and this file names it on the line below.
+    const callers = sources
+      .filter(({ rel }) => !rel.includes('__tests__'))
+      .filter(({ text }) => text.includes('showChannelInfo'))
+      .map(({ rel }) => rel);
+    expect(callers.sort()).toEqual([
+      'components/Channels/ChannelInfoDialog.tsx',
+      'components/Profile/ChannelHeader.tsx',
+    ]);
   });
 });

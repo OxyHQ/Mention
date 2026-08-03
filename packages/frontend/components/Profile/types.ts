@@ -330,6 +330,13 @@ export interface UserNameProps {
    */
   onExplainNetwork?: () => void;
   /**
+   * Opt IN to making the CHANNEL marker open the channel explainer. A separate
+   * prop from `onExplainNetwork` rather than a shared one, so the two dialogs
+   * cannot be crossed at a call site — see {@link AccountBadge}. Only a
+   * channel's own page passes it.
+   */
+  onExplainChannel?: () => void;
+  /**
    * Opt-in tap-to-copy for the `@handle`. Default off so the handle stays plain
    * text inside navigable parents (e.g. who-to-follow cards), letting the parent
    * receive the tap and navigate. Only the profile header enables it.

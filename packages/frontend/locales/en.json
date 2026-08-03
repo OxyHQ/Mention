@@ -1883,6 +1883,25 @@
       "lastWrote": "Last wrote {{time}}",
       "empty": "No writers yet",
       "emptyDetail": "This channel names the person who wrote each post. None have been published yet."
+    },
+    "explainer": {
+      "title": "About channels",
+      "step1": {
+        "title": "What is a channel?",
+        "body": "A channel is an account that publishes on its own. Following it brings its posts to your feed without you following any of the people who write for it — that separation is what a channel is for."
+      },
+      "step2": {
+        "title": "It publishes, it doesn’t reply",
+        "body": "A channel’s posts are ordinary posts: they reach feeds, search and the fediverse like anyone else’s, and you can boost one to your own profile. What’s missing is the reply box — a channel never takes replies, and that is how channels are built rather than a setting someone switched off."
+      },
+      "step3": {
+        "title": "Who wrote this?",
+        "body": "A channel signs its own posts. With “Name the writer” on, the person who wrote one is shown alongside the channel; with it off, the post is the channel’s alone. That is the channel’s own choice, not something missing."
+      },
+      "next": "Next",
+      "back": "Back",
+      "done": "Got it",
+      "cancel": "Cancel"
     }
   },
   "trendGraph": {

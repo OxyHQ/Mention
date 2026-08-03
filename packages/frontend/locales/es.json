@@ -1854,6 +1854,25 @@
       "lastWrote": "Escribió por última vez {{time}}",
       "empty": "Todavía no hay nadie nombrado",
       "emptyDetail": "Este canal nombra a quien escribe cada publicación. Todavía no ha publicado ninguna."
+    },
+    "explainer": {
+      "title": "Sobre los canales",
+      "step1": {
+        "title": "¿Qué es un canal?",
+        "body": "Un canal es una cuenta que publica por sí misma. Al seguirlo, sus publicaciones llegan a tu feed sin que sigas a ninguna de las personas que escriben en él: esa separación es justo para lo que sirve un canal."
+      },
+      "step2": {
+        "title": "Publica, no responde",
+        "body": "Las publicaciones de un canal son publicaciones normales: llegan a los feeds, a la búsqueda y al fediverso como las de cualquiera, y puedes republicar una en tu propio perfil. Lo que no hay es cuadro de respuesta: un canal nunca acepta respuestas, y así es como están hechos los canales, no un ajuste que alguien haya desactivado."
+      },
+      "step3": {
+        "title": "¿Quién escribió esto?",
+        "body": "Un canal firma sus propias publicaciones. Con «Nombrar a quien escribe» activado, junto al canal aparece la persona que escribió cada una; desactivado, la publicación es solo del canal. Es una decisión del propio canal, no algo que falte."
+      },
+      "next": "Siguiente",
+      "back": "Atrás",
+      "done": "Entendido",
+      "cancel": "Cancelar"
     }
   },
   "trendGraph": {

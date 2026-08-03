@@ -19,14 +19,21 @@ import { HIT_SLOP_MD } from '@/styles/hitSlop';
  * remote (fediverse / Bluesky) or a channel.
  *
  * INERT BY DEFAULT. A marker is a statement, not a control: it renders as a
- * plain labelled icon everywhere unless a caller explicitly hands it
- * `onExplainNetwork`. The default matters more than it looks — this component
- * appears on ~15 surfaces (every post header, every who-to-follow row, search,
- * suggestions, notifications, hover cards, member lists) and only ONE of them,
- * the profile, is a place where a reader asking "what is this?" has room for an
- * answer. A prop defaulting to interactive that each surface had to switch off
- * would be the same bug with more places to forget it, and every surface added
- * later would inherit the wrong behaviour silently.
+ * plain labelled icon everywhere unless a caller explicitly hands it the
+ * handler for the marker it is drawing — `onExplainNetwork` for the federated
+ * one, `onExplainChannel` for the channel one. The default matters more than it
+ * looks — this component appears on ~15 surfaces (every post header, every
+ * who-to-follow row, search, suggestions, notifications, hover cards, member
+ * lists) and only the account's OWN page is a place where a reader asking "what
+ * is this?" has room for an answer. A prop defaulting to interactive that each
+ * surface had to switch off would be the same bug with more places to forget
+ * it, and every surface added later would inherit the wrong behaviour silently.
+ *
+ * The two handlers are separate props rather than one, and that is the point
+ * rather than an accident of naming: each is read by exactly one branch below,
+ * so no call site can wire the fediverse explainer to a channel icon or the
+ * channel explainer to a remote account. One prop covering both would put that
+ * mistake back within reach of every surface that draws a marker.
  *
  * Being inert is also what keeps the marker from stealing the row's tap: on a
  * post row or a who-to-follow card the whole row navigates, and a nested
@@ -53,8 +60,12 @@ interface IdentityMarkerProps extends IdentityBadgeVisualProps {
   /**
    * Opt IN to interactivity. Absent → a plain icon that cannot be tapped and
    * cannot swallow an enclosing row's press.
+   *
+   * Deliberately named for what it DOES here rather than for which explainer it
+   * opens: each branch of {@link AccountBadge} hands it that branch's own
+   * handler, and this component is the shared mechanism, not the choice.
    */
-  onExplainNetwork?: () => void;
+  onExplain?: () => void;
 }
 
 /**
@@ -64,7 +75,7 @@ interface IdentityMarkerProps extends IdentityBadgeVisualProps {
 function IdentityMarker({
   Icon,
   a11yLabel,
-  onExplainNetwork,
+  onExplain,
   size = 15,
   className,
   color,
@@ -77,15 +88,15 @@ function IdentityMarker({
       // identity line that a parent may make pressable, so an opted-in marker
       // keeps its tap to itself rather than also firing the row's navigation.
       event?.stopPropagation?.();
-      onExplainNetwork?.();
+      onExplain?.();
     },
-    [onExplainNetwork],
+    [onExplain],
   );
 
   const iconClassName = className ?? (color ? undefined : 'text-muted-foreground');
   const icon = <Icon size={size} color={color} className={iconClassName} />;
 
-  if (!onExplainNetwork) {
+  if (!onExplain) {
     // `image` rather than no role: the marker carries meaning a sighted reader
     // gets from the glyph, so it stays in the accessibility tree — it simply
     // stops being announced as something that can be activated.
@@ -127,12 +138,18 @@ export interface AccountBadgeProps extends IdentityBadgeVisualProps {
    */
   network?: ExternalNetwork;
   /**
-   * Opt IN to the fediverse explainer. Honoured ONLY by the federated marker:
-   * the channel marker has no explainer to open, so it is inert on every
-   * surface including a channel's own page. Wiring the fediverse dialog to a
-   * channel icon is therefore not something a call site can do by mistake.
+   * Opt IN to the fediverse explainer. Honoured ONLY by the federated marker.
+   * Passing it alongside a `channel` kind does nothing, so wiring the fediverse
+   * dialog to a channel icon is not something a call site can do by mistake.
    */
   onExplainNetwork?: () => void;
+  /**
+   * Opt IN to the channel explainer. Honoured ONLY by the channel marker, and
+   * only the channel's own page passes it — a channel marker beside a name in a
+   * post header, a who-to-follow row or a search result stays a statement,
+   * because those rows are already a tap that goes somewhere.
+   */
+  onExplainChannel?: () => void;
 }
 
 /**
@@ -168,6 +185,7 @@ export function AccountBadge({
   isFederated,
   network = 'activitypub',
   onExplainNetwork,
+  onExplainChannel,
   ...visual
 }: AccountBadgeProps) {
   const { t } = useTranslation();
@@ -191,13 +209,20 @@ export function AccountBadge({
         {...visual}
         Icon={FediverseIcon}
         a11yLabel={t('fediverse.remoteBadge.a11yLabel')}
-        onExplainNetwork={onExplainNetwork}
+        onExplain={onExplainNetwork}
       />
     );
   }
 
   if (kind === 'channel') {
-    return <IdentityMarker {...visual} Icon={ChannelIcon} a11yLabel={t('channels.badge.a11yLabel')} />;
+    return (
+      <IdentityMarker
+        {...visual}
+        Icon={ChannelIcon}
+        a11yLabel={t('channels.badge.a11yLabel')}
+        onExplain={onExplainChannel}
+      />
+    );
   }
 
   return null;
@@ -221,7 +246,7 @@ export function FediverseSharingBadge({
       {...visual}
       Icon={FediverseIcon}
       a11yLabel={t('fediverse.badge.a11yLabel')}
-      onExplainNetwork={onExplainNetwork}
+      onExplain={onExplainNetwork}
     />
   );
 }

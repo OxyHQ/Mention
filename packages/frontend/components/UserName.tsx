@@ -9,7 +9,7 @@ import { AgentIcon } from '@/assets/icons/agent-icon';
 import { AutomatedIcon } from '@/assets/icons/automated-icon';
 import type { UserNameProps } from '@/components/Profile/types';
 
-const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated, kind, isAgent, isAutomated, unifiedColors, onPress, onExplainNetwork, copyableHandle, variant = 'default', align = 'start', style, trailingBadge, handleTrailing }) => {
+const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated, kind, isAgent, isAutomated, unifiedColors, onPress, onExplainNetwork, onExplainChannel, copyableHandle, variant = 'default', align = 'start', style, trailingBadge, handleTrailing }) => {
     const theme = useTheme();
     const nameStyle = [styles.name, variant === 'small' && styles.nameSmall, style?.name];
 
@@ -114,11 +114,13 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
                 )}
                 {/* One marker for the account's whole identity state — remote or
                     channel, never both, and nothing at all for an ordinary local
-                    account. Inert unless the caller passed `onExplainNetwork`. */}
+                    account. Inert unless the caller passed the handler for the
+                    marker it draws; forwarded, never chosen between here. */}
                 <AccountBadge
                     isFederated={isFederated}
                     kind={kind}
                     onExplainNetwork={onExplainNetwork}
+                    onExplainChannel={onExplainChannel}
                     size={iconSize}
                     color={theme.colors.text}
                     style={{ transform: [{ translateY: baselineNudge }] }}
