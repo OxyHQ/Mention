@@ -12,7 +12,6 @@ import { toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
-import { upsertCachedUser } from '@oxyhq/services';
 import { createLogger } from '@oxyhq/core/logger';
 import { getNormalizedUserHandle, type AccountNode } from '@oxyhq/core';
 
@@ -23,6 +22,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { EmptyState } from '@/components/common/EmptyState';
 import { channelAccountService, type ChannelAccountSettings } from '@/services/channelAccountService';
+import { noteIdentityChanged } from '@/lib/actorCache';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { getErrorMessage } from '@/utils/apiError';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -210,17 +210,22 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
         bio: trimmedBio.length > 0 ? trimmedBio : null,
         avatar: avatar.length > 0 ? avatar : null,
       }),
-    onSuccess: async (updated) => {
-      // The channel's page reads the SDK's user cache, so the authoritative
-      // account goes in through the SDK's own merge-upsert. A plain
-      // `setQueryData` would REPLACE the entry and strip the viewer
-      // `relationship` and `_count` an account object does not carry.
-      upsertCachedUser(queryClient, updated.account, viewerId);
-      // The operated-accounts list feeds this screen, the channels screen and
-      // the composer's publish-as picker, all of which show the name.
-      await queryClient.invalidateQueries({
-        queryKey: viewerQueryKeys.operatedAccounts(viewerId),
-      });
+    onSuccess: (updated) => {
+      // A channel's name and picture are held by more caches than this screen
+      // can see — the SDK's user cache behind its page, the operated-accounts
+      // list behind the composer's publish-as picker, and a copy embedded in
+      // every post the channel has ever published. `noteIdentityChanged` is the
+      // single authority that reaches all of them; writing any one of them from
+      // here is how the others get forgotten.
+      noteIdentityChanged(
+        {
+          id: updated.account.id,
+          username: updated.account.username,
+          name: updated.account.name,
+          avatar: updated.account.avatar,
+        },
+        viewerId,
+      );
       toast.success(
         t('channels.settings.profileSaved', { defaultValue: 'Channel updated' }),
       );

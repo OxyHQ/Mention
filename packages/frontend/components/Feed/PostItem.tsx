@@ -46,6 +46,7 @@ import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } fro
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { SubtleHover } from '@oxyhq/bloom/subtle-hover';
 import { useThreadHoverStore } from '@/stores/threadHoverStore';
+import { mergeKnownIdentity, useKnownIdentity } from '@/stores/identityUpdates';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { reportFeedInteraction } from '@/utils/feedTelemetry';
 import { formatFullTimestamp } from '@/utils/dateUtils';
@@ -170,6 +171,23 @@ const PostItem: React.FC<PostItemProps> = ({
     const viewPost = storePost ?? post;
     const viewPostId = viewPost?.id ? String(viewPost.id) : undefined;
 
+    // The author, corrected against any profile edit made in this session.
+    //
+    // `viewPost.user` is a SNAPSHOT of that identity taken when the server
+    // hydrated the post, and nothing rewrites it: the feed store's retained
+    // slice and the SQLite copy both keep it, and a remount warm-starts from
+    // that slice rather than refetching page 1. So a picture changed after a
+    // post was fetched stays wrong on that row until something throws the whole
+    // cache away — which is why a full reload looked like the only fix.
+    // `stores/identityUpdates` is the one authority that knows better, and
+    // resolving it HERE covers every post surface at once: a feed row, a post
+    // detail, a quote card and a boosted original are all this same component.
+    const knownAuthor = useKnownIdentity(viewPost?.user?.id);
+    const author = useMemo(
+        () => (viewPost?.user ? mergeKnownIdentity(viewPost.user, knownAuthor) : undefined),
+        [viewPost?.user, knownAuthor],
+    );
+
     const viewerState =
         viewPost?.viewerState ?? { isOwner: false, isCollaborator: false, isLiked: false, isDownvoted: false, isBoosted: false, isSaved: false };
 
@@ -267,7 +285,7 @@ const PostItem: React.FC<PostItemProps> = ({
     // A CHANNEL post has no separate signature to paint: a channel is an Oxy
     // account, so it IS the author and its avatar arrives in `user.avatar` like
     // anybody else's.
-    const avatarSource = viewPost?.user?.avatar;
+    const avatarSource = author?.avatar;
     const avatarVariant = MEDIA_VARIANT_AVATAR;
 
     // Preload only makes sense when the avatar is already an absolute URL —
@@ -330,8 +348,8 @@ const PostItem: React.FC<PostItemProps> = ({
     // value so they can never diverge. Empty for a degraded/unresolvable author
     // (empty handle) → no `@handle` shown and no tappable link.
     const authorHandle = useMemo(
-        () => getNormalizedUserHandle(viewPost.user) ?? undefined,
-        [viewPost.user],
+        () => (author ? getNormalizedUserHandle(author) ?? undefined : undefined),
+        [author],
     );
 
     // The avatar and the identity line both open the author's own profile.
@@ -612,7 +630,7 @@ const PostItem: React.FC<PostItemProps> = ({
         ],
     );
 
-    if (!viewPost || !viewPost.user) {
+    if (!viewPost || !author) {
         return null;
     }
 
@@ -639,7 +657,7 @@ const PostItem: React.FC<PostItemProps> = ({
     const replyContextRow = resolveReplyContextRow({ post: viewPost, isNested });
 
     const postAuthor = displayNameOrHandle(
-        viewPost.user.name?.displayName,
+        author.name?.displayName,
         authorHandle ? `@${authorHandle}` : '',
     );
     const postTextSummary = content.text
@@ -821,11 +839,11 @@ const PostItem: React.FC<PostItemProps> = ({
                 <View style={{ gap: headerToBlocksGap }}>
                     <PostHeader
                         user={{
-                            displayName: viewPost.user.name?.displayName,
+                            displayName: author.name?.displayName,
                             handle: authorHandle || '',
-                            verified: viewPost.user.verified,
-                            isFederated: viewPost.user.isFederated,
-                            instance: viewPost.user.instance,
+                            verified: author.verified,
+                            isFederated: author.isFederated,
+                            instance: author.instance,
                         }}
                         authors={viewPost.authors && viewPost.authors.length > 0 ? viewPost.authors : undefined}
                         // `repostedBy` is the only boost that put THIS post in
@@ -842,7 +860,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         contextTop={contextRows.length > 0 ? contextRows : undefined}
                         avatarSource={avatarSource}
                         avatarVariant={avatarVariant}
-                        authorUserId={viewPost.user.id || undefined}
+                        authorUserId={author.id || undefined}
                         onPressUser={goToAuthorProfile}
                         onPressAvatar={goToAuthorProfile}
                         onPressCollaborators={isCollab ? openCollaboratorsList : undefined}

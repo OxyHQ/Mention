@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { upsertCachedUsers } from '@oxyhq/services';
+import { cacheActors } from '@/lib/actorCache';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { getNormalizedUserHandle, type User } from '@oxyhq/core';
 import {
@@ -12,7 +12,6 @@ import {
   type ProfileCardData,
 } from '@/components/ProfileCard';
 import { useUserById } from '@/hooks/useCachedUser';
-import { queryClient } from '@/lib/queryClient';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { DismissButton } from './DismissButton';
 import { InterstitialShell, type InterstitialItemContext } from './InterstitialShell';
@@ -67,11 +66,10 @@ export function SimilarAccountsInterstitial({
       if (!subjectId) return [];
       const similar = await oxyServices.getSimilarProfiles(subjectId);
       if (similar.length > 0) {
-        upsertCachedUsers(queryClient, similar);
+        cacheActors(similar);
         void enrichMissingAvatars(
           similar.map((profile) => ({ ...profile, avatar: profile.avatar ?? undefined })),
           (ids) => oxyServices.getUsersByIds(ids),
-          queryClient,
         );
       }
       // Cached RAW, exactly as the sibling surface caches it — the entry is

@@ -175,6 +175,23 @@ describe('viewer-scoped private cache', () => {
     )).toBe(false);
   });
 
+  it('matches the operated-accounts list without matching its channel-settings sibling', () => {
+    // An identity write invalidates the accounts LIST (the composer's publish-as
+    // picker reads it) and must leave the Mention-owned per-channel settings row
+    // alone — both live in the `accounts` family, so the family alone is too wide.
+    expect(
+      viewerQueryKeys.isOperatedAccounts(viewerQueryKeys.operatedAccounts('viewer-a')),
+    ).toBe(true);
+    expect(
+      viewerQueryKeys.isOperatedAccounts(
+        viewerQueryKeys.channelAccountSettings('viewer-a', 'acct-1'),
+      ),
+    ).toBe(false);
+    expect(
+      viewerQueryKeys.isOperatedAccounts(viewerQueryKeys.notifications('viewer-a')),
+    ).toBe(false);
+  });
+
   it('removes only A when the active account switches A to B', async () => {
     const queryClient = new QueryClient();
     const aSearch = viewerQueryKeys.search('viewer-a', 'saved', 'oxy', true);
