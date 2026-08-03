@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQueries } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useQuery } from '@tanstack/react-query';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 import { composerProfileLinks } from '@/utils/composerProfileLinks';
+import { authenticatedClient } from '@/utils/api';
+import type { ProfileLinkMentionsResponse } from '@mention/shared-types/mentions';
 import type { MentionData } from '@/utils/mentions';
 
 /** Debounce before a half-typed profile URL costs a profile lookup. */
@@ -38,16 +39,14 @@ interface ResolvedProfile {
  * author-typed text would make every paste a request to a host of the author's
  * choosing.
  *
- * KNOWN GAP, stated rather than hidden: a profile link on ANOTHER host
- * (`https://mastodon.social/@alice`) is also folded server-side when we already
- * store that actor, and this hook cannot see it — the answer lives in
- * `FederatedActor` rows with no lookup-only endpoint in front of them. Resolving
- * it through `GET /federation/resolve` would be wrong twice over: that route
- * FETCHES the actor, which is exactly the fan-out the write boundary refuses, and
- * storing the actor as a side effect would make the composer CAUSE the mention it
- * is supposed to be describing. Such a link therefore gets no entry here, which
- * under-states rather than over-states. Closing the gap needs an endpoint over
- * the server's own resolver; only the query function below changes when it lands.
+ * It asks the SERVER, through `POST /mentions/profile-links`, because the server
+ * is the only side that can answer for a link on another host: a
+ * `https://mastodon.social/@alice` is folded into a post's mentions whenever we
+ * already store that actor, and that answer lives in `FederatedActor` rows. The
+ * endpoint is lookup-only and takes the URL rather than a handle — it never
+ * dereferences the pasted address, so asking cannot CREATE the identity it is
+ * being asked about, and there is no second place for a URL to be read into a
+ * handle differently than the write boundary reads it.
  *
  * A lookup that FAILS also yields no entry, and that is the right direction too:
  * the write boundary is fail-soft per link, so a lookup it could not complete
@@ -58,7 +57,6 @@ export function useProfileLinkMentions(
   texts: readonly string[],
   mentionIds: readonly string[],
 ): { linkMentions: MentionData[]; isResolving: boolean } {
-  const { oxyServices } = useAuth();
 
   // Serialized rather than held as an array: the caller rebuilds its inputs on
   // every render, so an array identity would re-arm the debounce forever and it
@@ -72,48 +70,52 @@ export function useProfileLinkMentions(
     return () => clearTimeout(timeoutId);
   }, [candidatesKey]);
 
-  const handles = useMemo(() => {
-    const settled = JSON.parse(settledKey) as { handle: string }[];
-    // One query per DISTINCT handle: two spellings of one profile cost the server
-    // two lookups, but they are one question to ask here.
-    return [...new Set(settled.map((candidate) => candidate.handle))];
+  const urls = useMemo(() => {
+    const settled = JSON.parse(settledKey) as { url: string }[];
+    // Distinct URLs: the server spends a slot per URL, so two spellings of one
+    // profile are two questions there and two here — it dedupes by identity in
+    // the answer, which is where the duplicate actually collapses.
+    return [...new Set(settled.map((candidate) => candidate.url))];
   }, [settledKey]);
 
-  const results = useQueries({
-    queries: handles.map((handle) => ({
-      queryKey: publicQueryKeys.profileLinkMention(handle),
-      queryFn: async (): Promise<MentionData | null> => {
-        const profile = (await oxyServices.getProfileByUsername(handle)) as ResolvedProfile | null;
-        const userId = profile?.id || profile?._id;
-        const username = profile?.username;
-        if (!userId || !username) return null;
-        return {
-          userId,
-          username,
-          displayName: profile.name?.displayName?.trim() || username,
-        };
-      },
-      staleTime: RESOLVE_STALE_TIME,
-      gcTime: RESOLVE_GC_TIME,
-      // A miss is an ANSWER, and the SDK reports it by rejecting. Retrying would
-      // spend requests re-asking a settled question, and a genuine network
-      // failure resolving to no entry is the safe direction.
-      retry: false,
-    })),
+  const { data, isFetching } = useQuery({
+    queryKey: publicQueryKeys.profileLinkMentions(urls),
+    enabled: urls.length > 0,
+    queryFn: async (): Promise<MentionData[]> => {
+      const response = await authenticatedClient.post<ProfileLinkMentionsResponse>(
+        '/mentions/profile-links',
+        { urls },
+      );
+      return response.data.links.flatMap((link) =>
+        link.mention
+          ? [{
+              userId: link.mention.userId,
+              username: link.mention.handle,
+              displayName: link.mention.displayName,
+            }]
+          : [],
+      );
+    },
+    staleTime: RESOLVE_STALE_TIME,
+    gcTime: RESOLVE_GC_TIME,
+    // A miss is an ANSWER — the endpoint reports it as `mention: null` per URL
+    // rather than by failing — so a rejection here is a transport problem, and
+    // re-asking a settled question would only spend requests. Naming nobody is
+    // the safe direction either way.
+    retry: false,
   });
 
   // Deduped by id: a body can name one person through two spellings of their
   // profile URL, and the server authorizes that id once.
   const byId = new Map<string, MentionData>();
-  for (const result of results) {
-    const mention = result.data;
-    if (mention && !byId.has(mention.userId)) byId.set(mention.userId, mention);
+  for (const mention of data ?? []) {
+    if (!byId.has(mention.userId)) byId.set(mention.userId, mention);
   }
 
   return {
     linkMentions: [...byId.values()],
     // Text still settling counts as resolving, so the caller can say it is
     // checking rather than assert an answer it does not have yet.
-    isResolving: settledKey !== candidatesKey || results.some((result) => result.isPending),
+    isResolving: settledKey !== candidatesKey || isFetching,
   };
 }

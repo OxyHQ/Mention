@@ -124,8 +124,10 @@ describe('the composer spends the same budget the write boundary has', () => {
     const links = composerProfileLinks([text], NO_MENTIONS);
 
     expect(links).toHaveLength(MAX_PROFILE_LINKS_PER_BODY);
-    expect(links[0].handle).toBe('user0');
-    expect(links.at(-1)?.handle).toBe(`user${MAX_PROFILE_LINKS_PER_BODY - 1}`);
+    // The handle is the SERVER's to derive now, so the order is asserted on the
+    // URLs — which is also what the endpoint is asked about.
+    expect(links[0].url).toContain('user0');
+    expect(links.at(-1)?.url).toContain(`user${MAX_PROFILE_LINKS_PER_BODY - 1}`);
   });
 
   it('claims nothing once the picked mentions have used the whole ceiling', () => {
@@ -168,7 +170,10 @@ describe('the composer spends the same budget the write boundary has', () => {
       NO_MENTIONS,
     );
 
-    expect(links.map((link) => link.handle)).toEqual(['alice', 'alice']);
+    expect(links.map((link) => link.url)).toEqual([
+      'https://mention.earth/@alice',
+      'https://mention.earth/ap/users/alice',
+    ]);
   });
 
   it('does not spend a slot twice on the same URL written twice', () => {

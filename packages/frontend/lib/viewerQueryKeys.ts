@@ -36,6 +36,8 @@ export const publicQueryKeys = {
    */
   profileLinkMention: (handle: string) =>
     [...PUBLIC_ROOT, 'profile-link-mention', handle] as const,
+  profileLinkMentions: (urls: readonly string[]) =>
+    ['public', 'profile-link-mentions', [...urls].sort().join('\n')] as const,
   marketplaceCategories: () => [
     ...PUBLIC_ROOT,
     'marketplace-categories',

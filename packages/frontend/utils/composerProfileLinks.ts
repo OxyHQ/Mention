@@ -22,29 +22,23 @@
  * stays a link and the composer must stay silent about it.
  */
 
-import { MAX_MENTIONS_PER_POST, reconcileMentionIds } from '@mention/shared-types/mentions';
-import { extractUrls } from '@/utils/extractUrls';
-import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
+import { MAX_MENTIONS_PER_POST, MAX_PROFILE_LINKS_PER_BODY, reconcileMentionIds } from '@mention/shared-types/mentions';
+import { isProfileLikeUrl } from '@mention/shared-types/profileUrls';
 
 /**
- * Max distinct profile links one body's mentions may come from.
- *
- * Mirrors `MAX_PROFILE_LINKS_PER_BODY` in the server's `profileLinkMentions`
- * service, which is the number that actually binds. It is duplicated rather than
- * imported because that module is server-side; the two belong together in
- * `@mention/shared-types/mentions` next to {@link MAX_MENTIONS_PER_POST}, and
- * should be moved there when both halves ship. Until then the value is pinned by
- * a test, so a change on one side shows up as a failure rather than as a
- * composer that quietly over-promises.
+ * Re-exported from `@mention/shared-types/mentions`, which is where it lives now
+ * that both halves ship — the server, this module and the endpoint all read the
+ * one value rather than three copies watched by a test.
  */
-export const MAX_PROFILE_LINKS_PER_BODY = 8;
+export { MAX_PROFILE_LINKS_PER_BODY };
+import { extractUrls } from '@/utils/extractUrls';
+import { OWN_PROFILE_HOSTS } from '@/utils/ownProfileLinks';
+
 
 /** A URL in the body that names a profile on this instance. */
 export interface ComposerProfileLink {
   /** The normalized, openable URL, exactly as the resolver will be asked about it. */
   url: string;
-  /** The handle its path names. Not yet known to belong to anybody. */
-  handle: string;
 }
 
 /**
@@ -77,14 +71,19 @@ export function composerProfileLinks(
   const links: ComposerProfileLink[] = [];
   for (const text of texts) {
     for (const url of extractUrls(text)) {
-      const handle = ownProfileLinkHandle(url);
-      if (!handle) continue;
+      // The gate is `isProfileLikeUrl`, not the own-host one: the write
+      // boundary spends the same 8 slots on `/@user` and `/users/user` for ANY
+      // host, so a narrower gate here would let eight foreign profile links
+      // through unbudgeted and then name the one person the post does NOT end
+      // up mentioning. The server derives the handle; we only decide which URLs
+      // compete for the budget.
+      if (!isProfileLikeUrl(url, OWN_PROFILE_HOSTS)) continue;
       // Distinct URLs, matching how the write boundary spends its budget: two
       // spellings of one profile (`/@alice` and `/ap/users/alice`) each cost a
       // lookup there, so they each cost a slot here.
       if (seen.has(url)) continue;
       seen.add(url);
-      links.push({ url, handle });
+      links.push({ url });
       if (links.length >= limit) return links;
     }
   }

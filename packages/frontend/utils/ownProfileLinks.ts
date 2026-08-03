@@ -33,7 +33,7 @@ import { WEB_BASE_URL } from '@/config';
  * conversion below off rather than guessing — a misconfigured origin should leave
  * links as links, not mint mentions against a host nobody declared.
  */
-const OWN_PROFILE_HOSTS: readonly string[] = (() => {
+export const OWN_PROFILE_HOSTS: readonly string[] = (() => {
   try {
     return [new URL(WEB_BASE_URL).hostname];
   } catch {
