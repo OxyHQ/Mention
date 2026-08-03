@@ -332,45 +332,6 @@ export const KEEP_FRESHEST_FEDERATED_ACTOR: ResolutionRule = {
     'affected document is reported individually, saying which remedy it got.',
 };
 
-export const DERIVE_LANE_OWNER_TYPE: ResolutionRule = {
-  id: 'derive-lane-owner-type',
-  collection: 'lanes',
-  finding:
-    'lanes.ownerType is MISSING from a document, and ownerType is NOT NULL with ' +
-    'no default and no declared substitute. lanes_owner_type_check would reject ' +
-    'the row with a 23502.',
-  decision:
-    "A lane with no `ownerType` is copied as `'user'` — but ONLY while the " +
-    'source holds NO channels at all, and that is re-measured on every run. ' +
-    '\n\n' +
-    'The absence is a live product bug rather than legacy shape: the writer on ' +
-    '`main` never set the field. `ownerType` appears nowhere in ' +
-    '`lanes.routes.ts` and `Lane.create({…})` omits it, so EVERY lane the ' +
-    'deployed app has ever created lacks the discriminator that every lane ' +
-    'query scopes by — production holds one lane and it is invisible to its own ' +
-    "owner. The port's `insertLane` writes it, so this is a backlog of one " +
-    'document rather than a class that keeps growing.' +
-    '\n\n' +
-    'The value is DERIVED, not chosen. `ownerType` discriminates a polymorphic ' +
-    "owner over exactly two possibilities, and `'channel'` requires a channel to " +
-    'own it: production holds ZERO channels — the `channels`, `channelmembers` ' +
-    'and `channelfollows` collections are absent from the database entirely — so ' +
-    'no lane in it can be channel-owned, and one possibility remains. That is ' +
-    'the whole derivation, and it is a fact about the data rather than a ' +
-    'preference about defaults.' +
-    '\n\n' +
-    'Which is why this is a RULE and not `absentAs`. A blanket substitute would ' +
-    'keep answering after the premise expires, and a channel-owned lane is a ' +
-    'thing the product supports — the moment one channel exists, an absent ' +
-    "`ownerType` stops being derivable and becomes a question about WHICH owner. " +
-    'So the rule stands down entirely as soon as the source holds any channel, ' +
-    'and every such lane blocks the copy again for a human to answer. It fails ' +
-    'closed by construction rather than by remembering to revisit it, and it ' +
-    'cannot rot: the measurement it rests on is taken fresh each time it runs. ' +
-    'Every lane it acts on is reported by id, carrying the `ownerId` whose kind ' +
-    'was inferred.',
-};
-
 /**
  * A reply or thread link whose target the migration does not produce.
  *
@@ -541,7 +502,6 @@ const VALUE_RESOLUTIONS: readonly ResolutionRule[] = [
   DROP_UNREAD_FEED_ENTITY_FOLLOWS,
   MAP_LEGACY_PUSH_TOKEN_TYPE,
   KEEP_FRESHEST_FEDERATED_ACTOR,
-  DERIVE_LANE_OWNER_TYPE,
 ];
 
 /**
@@ -1031,32 +991,6 @@ async function planSentinelActorRekeys(
  * Takes the source rather than reaching for one, so the audit phase and the
  * copy phase provably run it against the same database.
  */
-/**
- * The lanes {@link DERIVE_LANE_OWNER_TYPE} may answer — empty unless the source
- * holds no channel at all.
- *
- * The channel count is the rule's PREMISE, so it is measured here rather than
- * remembered: `count` returns 0 for a collection that does not exist, which is
- * the state production is in, and any channel at all stands the rule down for
- * every lane at once. That is the fail-closed direction — an un-derivable
- * `ownerType` goes back to blocking, which is a question for a human, rather
- * than quietly taking a value that used to be right.
- */
-async function planLaneOwnerTypes(source: MongoSource): Promise<ReadonlySet<string>> {
-  const channels = await source.count('channels');
-  if (channels > 0) return new Set();
-  const lanes = await source
-    .collection('lanes')
-    .find({ ownerType: { $exists: false } }, { projection: { _id: 1 } })
-    .toArray();
-  const ids = new Set<string>();
-  for (const lane of lanes) {
-    const id = describeId(lane);
-    if (id !== undefined) ids.add(id);
-  }
-  return ids;
-}
-
 export async function planResolutions(source: MongoSource): Promise<ResolutionPlan> {
   // Drops FIRST: the re-key set is computed against them so one document can
   // never be claimed by both remedies.
@@ -1066,10 +1000,7 @@ export async function planResolutions(source: MongoSource): Promise<ResolutionPl
   // constraint and make that group's finding look answered.
   const rekeyed = await planSentinelActorRekeys(source, inUriGroup);
   return {
-    actedOn: new Map([
-      [KEEP_FRESHEST_FEDERATED_ACTOR.id, new Set([...dropped, ...rekeyed])],
-      [DERIVE_LANE_OWNER_TYPE.id, await planLaneOwnerTypes(source)],
-    ]),
+    actedOn: new Map([[KEEP_FRESHEST_FEDERATED_ACTOR.id, new Set([...dropped, ...rekeyed])]]),
   };
 }
 
