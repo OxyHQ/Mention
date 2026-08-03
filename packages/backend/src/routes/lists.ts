@@ -100,13 +100,33 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
     const { mine, publicOnly } = req.query;
+    const ownerId = queryString(req.query.userId)?.trim();
     const q: Record<string, unknown> = {};
     if (mine === 'true') q.ownerOxyUserId = userId;
     if (publicOnly === 'true') q.isPublic = true;
+    // `userId` — ONE account's lists, which is what a profile's Lists tab asks.
+    // Named `userId` because that is what `GET /feeds` and `GET /starter-packs`
+    // already call the same parameter, and the three serve sibling tabs on one
+    // screen; a fourth spelling here is how a client ends up sending the wrong
+    // one, which is precisely what happened.
+    //
+    // Without it that tab fell through to the visibility gate below and answered a
+    // different question entirely: the VIEWER's own lists plus every public list,
+    // on somebody else's profile. It read as a rendering quirk and was a data
+    // leak — you saw your own lists sitting under a stranger's name.
+    //
+    // A non-owner gets that owner's PUBLIC lists only. The two clauses are set
+    // together rather than letting the gate below add its own, because that gate
+    // is written around the viewer and would re-admit every public list from
+    // everyone.
+    if (ownerId) {
+      q.ownerOxyUserId = ownerId;
+      if (ownerId !== userId) q.isPublic = true;
+    }
     // Visibility gate: without an explicit filter the viewer sees their OWN lists
     // plus every public list. The search term (below) narrows within that gate —
     // it never widens it, so a non-owner still can't reach a private list.
-    if (!mine && !publicOnly) q.$or = [{ ownerOxyUserId: userId }, { isPublic: true }];
+    if (!mine && !publicOnly && !ownerId) q.$or = [{ ownerOxyUserId: userId }, { isPublic: true }];
 
     // Filter by `search` (name/description, case-insensitive). Previously ignored —
     // the search tab received every accessible list unfiltered. Regex-ESCAPED so a

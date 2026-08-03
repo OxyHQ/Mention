@@ -105,6 +105,60 @@ describe('GET /lists — search filter (the bug) + visibility gate', () => {
   });
 });
 
+describe("GET /lists — ?userId, ONE account's lists", () => {
+  beforeEach(() => {
+    seed([
+      { _id: 'v-pub', ownerOxyUserId: VIEWER, isPublic: true, title: 'Viewer public', updatedAt: 6 },
+      { _id: 'v-priv', ownerOxyUserId: VIEWER, isPublic: false, title: 'Viewer private', updatedAt: 5 },
+      { _id: 'o-pub', ownerOxyUserId: OTHER, isPublic: true, title: 'Other public', updatedAt: 4 },
+      { _id: 'o-priv', ownerOxyUserId: OTHER, isPublic: false, title: 'Other private', updatedAt: 3 },
+    ]);
+  });
+
+  /**
+   * The bug this parameter exists for. The profile's Lists tab sent `?userId=`
+   * for a long time while the route read only `mine`/`publicOnly`, so it fell
+   * through to the viewer-shaped visibility gate and answered a DIFFERENT
+   * question: the viewer's own lists plus every public one — on somebody else's
+   * profile. It read as a rendering quirk and was a leak between profiles.
+   *
+   * Nothing typed caught it: the tab builds its params in a VARIABLE, and
+   * TypeScript's excess-property check applies only to object literals passed
+   * directly.
+   */
+  it("returns only that owner's lists, not the viewer's", async () => {
+    const res = await request(app).get('/lists').query({ userId: OTHER }).expect(200);
+    const titles = (res.body.items as Array<{ title: string }>).map((l) => l.title);
+
+    expect(titles).toEqual(['Other public']);
+    expect(titles).not.toContain('Viewer public');
+    expect(titles).not.toContain('Viewer private');
+  });
+
+  /**
+   * The load-bearing half. `?userId=` must not become a way to read somebody's
+   * PRIVATE lists — a filter that widens what a viewer can see is worse than the
+   * bug it replaced.
+   */
+  it("never exposes another owner's private lists", async () => {
+    const res = await request(app).get('/lists').query({ userId: OTHER }).expect(200);
+    const titles = (res.body.items as Array<{ title: string }>).map((l) => l.title);
+    expect(titles).not.toContain('Other private');
+  });
+
+  it('returns the viewer their own private lists when they ask for themselves', async () => {
+    const res = await request(app).get('/lists').query({ userId: VIEWER }).expect(200);
+    const titles = (res.body.items as Array<{ title: string }>).map((l) => l.title);
+    expect(titles).toEqual(['Viewer public', 'Viewer private']);
+  });
+
+  it('still narrows within the owner when a search term is given', async () => {
+    const res = await request(app).get('/lists').query({ userId: OTHER, search: 'public' }).expect(200);
+    const titles = (res.body.items as Array<{ title: string }>).map((l) => l.title);
+    expect(titles).toEqual(['Other public']);
+  });
+});
+
 describe('GET /lists — offset pagination', () => {
   // Five public lists, all matching "team", newest-first by updatedAt.
   const lists: Doc[] = Array.from({ length: 5 }, (_, i) => ({
