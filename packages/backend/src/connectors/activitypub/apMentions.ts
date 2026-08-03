@@ -65,6 +65,9 @@ export interface ResolvedInboundMentions {
 
 /** Matches a whole `<a …>…</a>` anchor, capturing its `href`. Anchors never nest. */
 const MENTION_ANCHOR_REGEX = /<a\b[^>]*?\bhref="([^"]*)"[^>]*>.*?<\/a>/gis;
+const MAX_INBOUND_MENTION_TAGS = 25;
+const MAX_INBOUND_MENTION_HREF_LENGTH = 2048;
+const INBOUND_MENTION_RESOLUTION_CONCURRENCY = 4;
 
 /**
  * Canonicalize an actor/profile href for equality matching: drop the fragment and
@@ -131,9 +134,18 @@ export function extractMentionTags(object: Record<string, unknown>): InboundMent
     if (!entry || typeof entry !== 'object') continue;
     const record = entry as { type?: unknown; href?: unknown; name?: unknown };
     if (primaryApType(record.type as string | string[] | undefined) !== 'Mention') continue;
-    if (typeof record.href !== 'string' || record.href.trim().length === 0) continue;
+    if (tags.length >= MAX_INBOUND_MENTION_TAGS) break;
+    if (typeof record.href !== 'string') continue;
+    const href = record.href.trim();
+    if (href.length === 0 || href.length > MAX_INBOUND_MENTION_HREF_LENGTH) continue;
+    try {
+      const url = new URL(href);
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') continue;
+    } catch {
+      continue;
+    }
     tags.push({
-      href: record.href.trim(),
+      href,
       name: typeof record.name === 'string' ? record.name.trim() : undefined,
     });
   }
@@ -194,25 +206,29 @@ export async function resolveInboundMentions(
   const ids = new Set<string>();
   const localIds = new Set<string>();
 
-  await Promise.all(
-    [...byHref.values()].map(async (tag) => {
-      try {
-        const resolved = await resolveMentionOxyId(tag.href);
-        if (!resolved) return;
-        ids.add(resolved.oxyUserId);
-        if (resolved.isLocal) localIds.add(resolved.oxyUserId);
-        // Map BOTH candidate anchor hrefs (actor URI + reconstructed profile URL)
-        // to this id so the content anchor matches regardless of which form the
-        // origin server used.
-        anchorMap.set(normalizeActorHref(tag.href), resolved.oxyUserId);
-        const profileHref = reconstructProfileHref(tag.name);
-        if (profileHref) anchorMap.set(normalizeActorHref(profileHref), resolved.oxyUserId);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        logger.warn(`[Federation] failed to resolve inbound mention ${tag.href}: ${message}`);
-      }
-    }),
-  );
+  const distinctTags = [...byHref.values()];
+  for (let index = 0; index < distinctTags.length; index += INBOUND_MENTION_RESOLUTION_CONCURRENCY) {
+    const batch = distinctTags.slice(index, index + INBOUND_MENTION_RESOLUTION_CONCURRENCY);
+    await Promise.all(
+      batch.map(async (tag) => {
+        try {
+          const resolved = await resolveMentionOxyId(tag.href);
+          if (!resolved) return;
+          ids.add(resolved.oxyUserId);
+          if (resolved.isLocal) localIds.add(resolved.oxyUserId);
+          // Map BOTH candidate anchor hrefs (actor URI + reconstructed profile URL)
+          // to this id so the content anchor matches regardless of which form the
+          // origin server used.
+          anchorMap.set(normalizeActorHref(tag.href), resolved.oxyUserId);
+          const profileHref = reconstructProfileHref(tag.name);
+          if (profileHref) anchorMap.set(normalizeActorHref(profileHref), resolved.oxyUserId);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          logger.warn(`[Federation] failed to resolve inbound mention ${tag.href}: ${message}`);
+        }
+      }),
+    );
+  }
 
   return { ids: [...ids], localIds: [...localIds], anchorMap };
 }

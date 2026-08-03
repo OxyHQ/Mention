@@ -314,4 +314,23 @@ describe('handleCreate — inbound @mention ingestion', () => {
     expect(primaryVariantText()).not.toContain('[mention:');
     expect(mocks.createMentionNotifications).not.toHaveBeenCalled();
   });
+
+  it('caps inbound Mention tag resolution and ignores non-http hrefs', async () => {
+    const actorMap: Record<string, string> = { [AUTHOR_URI]: AUTHOR_OXY_ID };
+    const tag = Array.from({ length: 30 }, (_, index) => {
+      const href = `${REMOTE}/users/mention-${index}`;
+      actorMap[href] = `oxy_mention_${index}`;
+      return { type: 'Mention', href, name: `@mention-${index}@remote.example` };
+    });
+    tag.unshift({ type: 'Mention', href: 'ftp://remote.example/users/ignored', name: '@ignored@remote.example' });
+    stubActors(actorMap);
+
+    await inboxProcessingService.processInboxActivity(createActivity('<p>many mentions</p>', tag), AUTHOR_URI);
+
+    expect(createdPost().mentions).toHaveLength(25);
+    expect(createdPost().mentions).toContain('oxy_mention_0');
+    expect(createdPost().mentions).toContain('oxy_mention_24');
+    expect(createdPost().mentions).not.toContain('oxy_mention_25');
+    expect(createdPost().mentions).not.toContain('oxy_ignored');
+  });
 });

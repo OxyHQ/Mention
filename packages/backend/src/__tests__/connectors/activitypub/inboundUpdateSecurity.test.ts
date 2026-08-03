@@ -211,4 +211,22 @@ describe('handleUpdate — NoSQL-injection safety + ownership scope', () => {
 
     expect(mocks.postUpdateOne).not.toHaveBeenCalled();
   });
+
+  it('returns early for an Update whose target post is not stored locally', async () => {
+    mocks.postFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
+
+    await inboxProcessingService.processInboxActivity(
+      updateActivity({
+        tag: Array.from({ length: 50 }, (_, index) => ({
+          type: 'Mention',
+          href: `https://remote.example/users/mention-${index}`,
+          name: `@mention-${index}@remote.example`,
+        })),
+      }),
+      ACTOR_URI,
+    );
+
+    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
+    expect(mocks.actorFindOne).not.toHaveBeenCalled();
+  });
 });

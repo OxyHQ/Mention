@@ -965,7 +965,11 @@ export class InboxProcessingService {
       }).lean<
         { _id: mongoose.Types.ObjectId; oxyUserId?: string | null; mentions?: unknown; parentPostId?: string | null } | null
       >();
-      const ownerOxyUserId = existingPost?.oxyUserId ?? (await actorService.getOrFetchActor(actorUri))?.oxyUserId ?? null;
+      if (!existingPost) {
+        logger.debug(`Skipping federated Update for unknown post: ${objectActivityId}`);
+        return;
+      }
+      const ownerOxyUserId = existingPost.oxyUserId ?? null;
 
       // Re-resolve the edited Note's @mentions the SAME way as fresh ingest so an
       // edit's mentions stay correct: each `Mention` tag → federated/local Oxy user
