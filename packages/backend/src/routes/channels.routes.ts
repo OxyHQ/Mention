@@ -785,19 +785,16 @@ router.put(
  * THE ORDER OF THE WRITES IS LOAD-BEARING, and the FIRST one is the whole reason
  * this handler is not a one-liner:
  *
- *  1. **`$unset` `channelId` on the channel's posts.** Skip it and those posts are
- *     reachable from NOTHING: still excluded from their author's profile and their
- *     followers' timeline (`EXCLUDE_CHANNEL_POSTS` matches on the field's
- *     presence, not on the channel existing), while the `channel|<id>` feed no
- *     longer resolves. They also become anonymous forever, because hydration
- *     treats a post whose channel is missing as unsigned.
- *  2. unset `laneId` on those same posts and delete the channel's lanes and their
+ *  1. **Keep `channelId` on the channel's posts.** Its presence permanently keeps
+ *     those posts off author surfaces and makes hydration fail closed when the
+ *     channel row is gone. Removing it would expose writers of unsigned posts.
+ *  2. unset `laneId` on those posts and delete the channel's lanes and their
  *     mutes — a lane whose publisher is gone can never be reached or managed.
  *  3. delete the membership and follow rows,
  *  4. delete the channel.
  *
- * An interruption partway through leaves posts that have already been released
- * back to their authors, which is the safe direction to fail in.
+ * An interruption partway through can leave stale channel administration rows,
+ * but it never releases channel posts to their writers' identity surfaces.
  */
 router.delete('/:id', ...writeLimiters, validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
@@ -814,7 +811,7 @@ router.delete('/:id', ...writeLimiters, validateObjectId('id'), async (req: Auth
       return sendErrorResponse(res, 403, 'Forbidden', 'Only the owner can delete this channel');
     }
 
-    await Post.updateMany({ channelId }, { $unset: { channelId: '', laneId: '' } });
+    await Post.updateMany({ channelId }, { $unset: { laneId: '' } });
 
     const lanes = await Lane.find({ ownerType: 'channel', ownerId: channelId })
       .select('_id')

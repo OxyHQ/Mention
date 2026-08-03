@@ -125,7 +125,8 @@ export function collectAuthorshipUserIds(authorship: PostAuthorshipEntry[] | und
  *
  * A stored `null` would satisfy `$exists` and wrongly exclude the post, which is
  * why nothing ever writes one: `PostCreationService` sets `channelId` only when
- * there IS a channel, and the delete cascade `$unset`s it.
+ * there IS a channel. Channel deletion deliberately preserves that id as a
+ * permanent ownership and anonymity marker even after the channel row is gone.
  */
 export const EXCLUDE_CHANNEL_POSTS = { channelId: { $exists: false } } as const;
 

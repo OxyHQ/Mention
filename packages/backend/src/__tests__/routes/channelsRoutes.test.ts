@@ -11,12 +11,9 @@ import { MAX_CHANNEL_MEMBERS, MAX_CHANNELS_PER_OWNER } from '@mention/shared-typ
  * Four things here fail SILENTLY if they regress, which is why each has a test of
  * its own rather than being implied by the happy path:
  *
- *  1. **The delete order.** `$unset` `channelId` on the posts FIRST. Skip it and
- *     those posts are reachable from NOTHING — still excluded from their author's
- *     profile and their followers' timeline (the exclusion matches on the FIELD's
- *     presence, not on the channel existing), while the `channel|<id>` feed no
- *     longer resolves. They also become permanently anonymous, because hydration
- *     treats a post whose channel is missing as unsigned.
+ *  1. **The delete order and retained marker.** Clear `laneId` on the posts FIRST,
+ *     but retain `channelId`: its presence keeps the posts anonymous and excluded
+ *     from author surfaces after the channel row is deleted.
  *  2. **The 409 is the unique index, not the pre-check.** `findOne` is not a lock.
  *  3. **The owner's membership row is written at create time**, which is what
  *     makes "may publish" ONE question with ONE answer — no "or the owner" branch
@@ -524,7 +521,7 @@ describe('PUT /channels/:id', () => {
 });
 
 describe('DELETE /channels/:id', () => {
-  it('releases the posts FIRST, then the lanes, then the rows, then the channel', async () => {
+  it('clears post lanes FIRST, then deletes the lanes, rows, and channel', async () => {
     channelFindById.mockReturnValue(chain({ ownerOxyUserId: VIEWER_ID }));
     laneFind.mockReturnValue(chain([{ _id: 'lane_1' }]));
 
@@ -541,16 +538,16 @@ describe('DELETE /channels/:id', () => {
     ]);
   });
 
-  it('unsets BOTH channelId and laneId on the released posts', async () => {
-    // A post left pointing at a dead channel is reachable from nothing at all,
-    // and a post left in a lane whose publisher is gone can never be managed.
+  it('retains channelId as the anonymity marker while unsetting laneId', async () => {
+    // The dead channel marker keeps the post anonymous and off author surfaces;
+    // a lane whose publisher is gone can never be managed and must be removed.
     channelFindById.mockReturnValue(chain({ ownerOxyUserId: VIEWER_ID }));
 
     await request(buildApp()).delete(`/channels/${CHANNEL_ID}`);
 
     expect(postUpdateMany).toHaveBeenCalledWith(
       { channelId: CHANNEL_ID },
-      { $unset: { channelId: '', laneId: '' } },
+      { $unset: { laneId: '' } },
     );
   });
 

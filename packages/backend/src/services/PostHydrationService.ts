@@ -2318,12 +2318,10 @@ export class PostHydrationService {
       ...(typeof post.laneId === 'string' && laneMap.has(post.laneId)
         ? { lane: laneMap.get(post.laneId) }
         : {}),
-      // The channel signature. Absent when the post has no channel, and absent
-      // when its channel row is gone (the delete cascade `$unset`s `channelId`
-      // before removing the Channel, so this is only reachable if that cascade was
-      // interrupted). Note that an ABSENT channel on a post that HAS a `channelId`
-      // still anonymizes the author above — the row loses its signature rather
-      // than gaining the writer's.
+      // The channel signature. Absent when the post has no channel or its channel
+      // row is gone. Channel deletion deliberately retains `channelId`: an absent
+      // channel on a post that HAS the marker still anonymizes the author above —
+      // the row loses its signature rather than gaining the writer's.
       ...(channel ? { channel } : {}),
       // Include parentPostId for thread hierarchy in replies
       ...(post.parentPostId ? { parentPostId: String(post.parentPostId) } : {}),
