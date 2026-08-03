@@ -16,8 +16,14 @@
  * the `#anchor` in `https://example.com/page#anchor` is linkified as a tag inside
  * the link. That is a bug you can only get wrong once per call site, which is
  * precisely the shape of thing that belongs in one place. The precedence is fixed
- * here (see {@link ENTITY_PRECEDENCE}) and callers choose only WHICH kinds they
- * want, never their order.
+ * inside {@link scanTextEntities} — in the order the alternatives are pushed onto
+ * the pattern — and callers choose only WHICH kinds they want, never their order.
+ *
+ * {@link DEFAULT_ENTITY_KINDS} is NOT that order. It is the default SET of kinds,
+ * and reordering it changes nothing: the array is read into a `Set`. Reordering
+ * the `alternatives.push` sequence is what changes behaviour, and doing so turns
+ * 41 tests red — verified by mutation, so nobody has to rediscover it by guessing
+ * which of the two is load-bearing.
  *
  * HERMES SAFETY. This module ships into the React Native bundle, so it may not
  * contain a Unicode property escape: Hermes has them compiled out and throws at
@@ -113,14 +119,17 @@ export interface ScanTextEntitiesOptions {
 }
 
 /**
- * Match order, highest precedence first — the reason this module exists.
+ * The default SET of kinds — every kind, because a caller who asks for nothing
+ * specific wants everything found.
  *
- * Both markup forms come before `url` so a target that happens to look like a
- * URL stays part of its mention rather than being torn out of the middle of the
- * markup. `url` comes before `hashtag` and `cashtag` so a fragment or a path
- * segment inside a link is consumed by the link.
+ * NOT the match order, despite reading like one: this is consumed as a `Set`, so
+ * reordering it changes nothing. The order that decides which kind wins an
+ * overlap is the `alternatives.push` sequence in {@link scanTextEntities}, and
+ * the reasoning for it lives there — both markup forms before `url` so a target
+ * that looks like a URL stays inside its mention, and `url` before the sigil
+ * kinds so a fragment or path segment inside a link is consumed by the link.
  */
-const ENTITY_PRECEDENCE: readonly TextEntityKind[] = [
+const DEFAULT_ENTITY_KINDS: readonly TextEntityKind[] = [
   'mentionDisplay',
   'mentionPlaceholder',
   'url',
@@ -221,7 +230,7 @@ function sigilSource(kinds: ReadonlySet<TextEntityKind>): string {
  */
 export function createTextEntityPattern(options: ScanTextEntitiesOptions = {}): RegExp {
   const {
-    kinds = ENTITY_PRECEDENCE,
+    kinds = DEFAULT_ENTITY_KINDS,
     urlTerminator = 'whitespace',
     bareWww = true,
   } = options;
@@ -231,11 +240,11 @@ export function createTextEntityPattern(options: ScanTextEntitiesOptions = {}): 
 
   if (wanted.has('mentionDisplay')) alternatives.push(MENTION_DISPLAY_SOURCE);
   if (wanted.has('mentionPlaceholder')) alternatives.push(MENTION_PLACEHOLDER_SOURCE);
-  if (wanted.has('url')) alternatives.push(urlSource(urlTerminator, bareWww));
   // Both sigil entities share one boundary group, so they contribute a single
   // trailing alternative rather than one each.
   const sigils = sigilSource(wanted);
   if (sigils) alternatives.push(sigils);
+  if (wanted.has('url')) alternatives.push(urlSource(urlTerminator, bareWww));
 
   if (alternatives.length === 0) {
     throw new Error('scanTextEntities: `kinds` selected no entity kinds to match');
