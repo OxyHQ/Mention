@@ -651,7 +651,11 @@ export async function resolvePostIdFromObjectUri(objectUri: string): Promise<str
   }
 
   const imported = await Post.findOne(
-    { 'federation.activityId': objectUri },
+    {
+      'federation.activityId': objectUri,
+      status: 'published',
+      visibility: PostVisibility.PUBLIC,
+    },
     { _id: 1 },
   ).lean();
   return imported ? String(imported._id) : null;
