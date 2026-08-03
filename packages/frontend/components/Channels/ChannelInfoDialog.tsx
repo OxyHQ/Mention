@@ -142,12 +142,25 @@ function ChannelInfoDialogContent({ onClose }: { onClose: () => void }) {
 
       <View className="flex-row items-center justify-center gap-2 py-4">{dots}</View>
 
-      <View className="gap-3">
-        <Button variant="primary" size="large" onPress={onPrimary}>
-          {isLastStep ? t('channels.explainer.done') : t('channels.explainer.next')}
-        </Button>
-        <Button variant="ghost" size="large" onPress={onSecondary}>
+      {/*
+       * ONE ROW, and each button takes an equal half of it.
+       *
+       * Reading order is what puts the secondary first: left to right the pair
+       * says "leave" then "continue", and the primary keeps the end of the line
+       * a thumb reaches for. `flex-1` on both rather than letting each size to
+       * its own label, because the split must not move as the labels do, and
+       * they change on every card (Cancel to Back, Next to Got it) and in every
+       * language. Halves also mean the longest label anywhere is measured
+       * against a fixed box: the widest pairs are Spanish "Cancelar / Siguiente"
+       * and Italian "Indietro / Ho capito", both well past any English one, so
+       * English is the wrong string to eyeball this with.
+       */}
+      <View className="flex-row items-center gap-3">
+        <Button variant="ghost" size="large" className="flex-1" onPress={onSecondary}>
           {isFirstStep ? t('channels.explainer.cancel') : t('channels.explainer.back')}
+        </Button>
+        <Button variant="primary" size="large" className="flex-1" onPress={onPrimary}>
+          {isLastStep ? t('channels.explainer.done') : t('channels.explainer.next')}
         </Button>
       </View>
     </Dialog>
