@@ -15,6 +15,7 @@ import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { Icon } from '@/lib/icons';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { MoreIcon } from '@/assets/icons/more-icon';
+import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 
 // Components
 import UserName from './UserName';
@@ -236,13 +237,25 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
         }
     }, [profileData, handle, t]);
 
-    // Operators only, and first: it is the one action in the menu that is about
-    // running this account rather than about the viewer's relationship to it.
-    // Everyone else never sees a row that would refuse them.
+    // Operators only, and first: these are the actions about RUNNING this account
+    // rather than about the viewer's relationship to it. Everyone else never sees
+    // a row that would refuse them.
+    //
+    // Insights leads because reading how the channel is doing is the frequent
+    // visit and changing how it is configured is the rare one. It is the channel's
+    // answer to the [Analytics] button a person gets on their own profile header —
+    // a channel has no such header, because it is never anybody's "own profile":
+    // no session's subject can be a channel, so the menu is where its operators'
+    // actions live.
     const leadingActions = useMemo(
         () =>
             operatesThisChannel
                 ? [
+                    {
+                        icon: <AnalyticsIcon size={22} className="text-foreground" />,
+                        label: t('insights.title', { defaultValue: 'Insights' }),
+                        onPress: () => router.push(`/c/${handle}/insights`),
+                    },
                     {
                         icon: <Icon name="settings-outline" size={22} className="text-foreground" />,
                         label: t('channels.settings.title', { defaultValue: 'Channel settings' }),

@@ -697,6 +697,10 @@
     "perPost": "por publicación",
     "topPerformingPosts": "Publicaciones con Mejor Rendimiento",
     "unableToLoadPosts": "No se pudieron cargar las publicaciones",
+    "unavailable": {
+      "title": "Estadísticas no disponibles",
+      "message": "No se han podido cargar estas estadísticas. Puede que no tengas acceso a esta cuenta o que el servicio no esté disponible temporalmente."
+    },
     "postsByType": "Publicaciones por Tipo",
     "postType": {
       "text": "Texto",
@@ -1855,6 +1859,9 @@
       "makePrimary": "Hacer principal",
       "removeCategory": "Quitar {{category}}",
       "categoryUnavailable": "No disponible en esta versión"
+    },
+    "insights": {
+      "operatorOnly": "Solo un operador puede ver las estadísticas de este canal"
     },
     "writers": {
       "caption": "Las personas a quienes este canal ha nombrado en sus publicaciones.",

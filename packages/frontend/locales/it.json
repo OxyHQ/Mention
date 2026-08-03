@@ -691,6 +691,10 @@
     "perPost": "per post",
     "topPerformingPosts": "Post con Migliori Prestazioni",
     "unableToLoadPosts": "Impossibile caricare i post",
+    "unavailable": {
+      "title": "Statistiche non disponibili",
+      "message": "Non è stato possibile caricare queste statistiche. Potresti non avere accesso a questo account oppure il servizio potrebbe essere temporaneamente non disponibile."
+    },
     "postsByType": "Post per Tipo",
     "postType": {
       "text": "Testo",
@@ -1635,6 +1639,9 @@
       "makePrimary": "Rendi principale",
       "removeCategory": "Rimuovi {{category}}",
       "categoryUnavailable": "Non disponibile in questa versione"
+    },
+    "insights": {
+      "operatorOnly": "Solo un operatore può vedere le statistiche di questo canale"
     },
     "writers": {
       "caption": "Le persone che questo canale ha indicato nei suoi post.",
