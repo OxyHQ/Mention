@@ -131,8 +131,6 @@ NODE_ENV=production ./gradlew :app:assembleRelease \
 
 ## MongoDB → PostgreSQL Migration
 
-Binding contract: `packages/backend/src/db/MIGRATION-CONTRACT.md` (Mention's deltas + per-table conventions in `schema/CONVENTIONS.md`). Ecosystem-wide rules live in oxy-api's `packages/api/src/db/MIGRATION-CONTRACT.md`.
-
 - **PostGIS-on-RDS privilege gotcha is not Mention-specific** — see `~/Oxy/AGENTS.md` § PostgreSQL / RDS for the finding.
 - **Production's `mention` role OWNS the `mention` database** (`pg_database.datdba` = `mention`), so it holds schema `CREATE` and full DML by ownership with no `GRANT` anywhere. A rehearsal/probe database created by a different role (e.g. `oxyadmin`) misrepresents that — a `42501` permission-denied measured against such a probe is an artefact of the probe, not a fact about production (general trap: `~/Oxy/AGENTS.md` § PostgreSQL / RDS).
 
