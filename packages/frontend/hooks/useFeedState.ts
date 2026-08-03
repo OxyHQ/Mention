@@ -33,6 +33,10 @@ import {
     isFeedCacheStaleForSafety,
     subscribeToSafetyFilterChanges,
 } from '@/stores/safetyInvalidation';
+import {
+    isFeedCacheStaleForByline,
+    subscribeToBylineChanges,
+} from '@/stores/bylineInvalidation';
 
 // Re-export so callers that already imported from here keep working.
 export { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
@@ -499,19 +503,24 @@ export function useFeedState({
 
             const feedTypeToCheck = showOnlySaved ? 'saved' : type;
 
-            // A retained slice is only good if it postdates ALL THREE classes of
-            // change that decide what a list contains: an engagement (like/boost/
-            // save), a lane write (a post moved between lanes, a lane's displayMode
-            // changed, a lane muted), and a safety-rule change (muted words, the
-            // sensitive-content toggle — these decide what the server is willing to
-            // send at all). Each lives in its own authority module and none can see
-            // another's writes, so all three are asked. Ask them HERE rather than at
-            // each call site: a caller that consults two of the three still returns
-            // a plausible feed, which is why that mistake survives review.
+            // A retained slice is only good if it postdates ALL FOUR classes of
+            // change that decide what a feed shows. Three decide what a list
+            // CONTAINS: an engagement (like/boost/save), a lane write (a post moved
+            // between lanes, a lane's displayMode changed, a lane muted), and a
+            // safety-rule change (muted words, the sensitive-content toggle — these
+            // decide what the server is willing to send at all). The fourth decides
+            // what a row already in the list SAYS: a channel turning its byline on
+            // or off adds or removes the writer from every one of its posts, and the
+            // client was never sent the writer's id while it was off. Each lives in
+            // its own authority module and none can see another's writes, so all
+            // four are asked. Ask them HERE rather than at each call site: a caller
+            // that consults three of the four still returns a plausible feed, which
+            // is why that mistake survives review.
             const cacheIsStale = (retainedAt: number): boolean =>
                 isFeedCacheStale(feedTypeToCheck, userId, currentUserId, retainedAt)
                 || isLaneFeedCacheStale(userId, currentUserId, filters?.laneId, retainedAt)
-                || isFeedCacheStaleForSafety(retainedAt);
+                || isFeedCacheStaleForSafety(retainedAt)
+                || isFeedCacheStaleForByline(retainedAt);
 
             // Check SQLite for cached data (cold-start optimization).
             // Only relevant when using the SQLite path (useMemoryFeed === false).
@@ -577,6 +586,11 @@ export function useFeedState({
             // what the server is willing to send at all, so a slice retained under
             // the old rules holds content the viewer asked not to see (or is
             // missing content they just asked for). See `stores/safetyInvalidation`.
+            //
+            // FOURTH EXCEPTION — a slice that predates a channel changing its
+            // byline. The posts are the same posts; their AUTHOR LIST is not, and
+            // the writer's id was never sent while the channel kept them anonymous,
+            // so nothing held here can reconstruct it. See `stores/bylineInvalidation`.
             const seeded = seededCacheRef.current;
             if (useMemoryFeed && !forceRefresh && seeded && type !== 'replies') {
                 seededCacheRef.current = undefined;
@@ -585,7 +599,7 @@ export function useFeedState({
                     isFetchingRef.current = false;
                     return;
                 }
-                logger.debug('Warm cache predates an engagement, lane write or safety change — revalidating');
+                logger.debug('Warm cache predates an engagement, lane write, safety change or byline change — revalidating');
             }
 
             try {
@@ -731,6 +745,24 @@ export function useFeedState({
     // `fetchInitial` off the ref, so it never needs re-subscribing.
     useEffect(
         () => subscribeToSafetyFilterChanges(() => {
+            void fetchInitialRef.current?.(true);
+        }),
+        [],
+    );
+
+    // A channel turning its byline on or off rewrites the author list of every
+    // post it has published, and the client cannot derive the new one: with the
+    // byline off the writer's id is never sent here at all. So, as above, the
+    // posts have to be asked for again — and the same two halves apply, for a
+    // sharper version of the same reason. The settings screen is pushed over the
+    // CHANNEL'S OWN PAGE, so the surface most in need of converging is the one
+    // still mounted underneath, and Back lands the operator straight on it.
+    //
+    // A separate subscription rather than a shared one: these are two different
+    // write classes with two different authorities, and one listener serving both
+    // would make either module's signal impossible to test without the other.
+    useEffect(
+        () => subscribeToBylineChanges(() => {
             void fetchInitialRef.current?.(true);
         }),
         [],

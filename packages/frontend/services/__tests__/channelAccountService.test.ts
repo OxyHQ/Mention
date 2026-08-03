@@ -14,6 +14,16 @@
  * Without this test the frontend half of that fix is unpinned: pointing the read
  * back at the bare settings path would restore the bug with every backend test
  * still green.
+ *
+ * The write also has to REPORT itself, and that is the second thing pinned here.
+ * Flipping the toggle rewrites the byline of every post the channel has published,
+ * and the caches holding those posts have no way to learn it: a byline is not a
+ * field a client can correct (with disclosure off the writer's id is never sent
+ * here at all), so the only answer is to ask the server again. This is the join
+ * between the two halves of that fix and the one place a regression would be
+ * completely silent — `useFeedState` keeps honouring the signal perfectly, the
+ * service simply stops sending it, and every surface goes back to needing a
+ * reload.
  */
 
 import { authenticatedClient } from '@/utils/api';
@@ -25,6 +35,12 @@ import { channelAccountService } from '../channelAccountService';
 // imports stay first and keeps `import/first` satisfied.
 jest.mock('@/utils/api', () => ({
   authenticatedClient: { get: jest.fn(), put: jest.fn() },
+}));
+
+const mockNoteBylineChanged = jest.fn();
+
+jest.mock('@/stores/bylineInvalidation', () => ({
+  noteChannelBylineChanged: (...args: unknown[]) => mockNoteBylineChanged(...args),
 }));
 
 const mockGet = jest.mocked(authenticatedClient.get);
@@ -104,5 +120,37 @@ describe('channelAccountService.setSignPosts', () => {
     await expect(channelAccountService.setSignPosts(CHANNEL, true)).resolves.toEqual({
       signPosts: true,
     });
+  });
+
+  /**
+   * BOTH directions, because they are not the same fix. Turning the byline OFF
+   * could in principle be served by stripping the writer out of the cached posts;
+   * turning it ON cannot, because the writer's id was never sent while the channel
+   * kept them anonymous. A report that fired on only one of them would leave the
+   * other needing a reload — and would still look like a working feature to
+   * whoever tested the direction that happened to be covered.
+   */
+  it.each([[true], [false]])(
+    'reports the change once the server has accepted it (signPosts: %s)',
+    async (value) => {
+      mockPut.mockResolvedValue({ data: { channel: { signPosts: value } } });
+
+      await channelAccountService.setSignPosts(CHANNEL, value);
+
+      // Named by the CHANNEL, never by the operator: the writers list this scopes
+      // is keyed on the account whose setting moved.
+      expect(mockNoteBylineChanged).toHaveBeenCalledTimes(1);
+      expect(mockNoteBylineChanged).toHaveBeenCalledWith(CHANNEL);
+    },
+  );
+
+  it('reports nothing when the server refuses the write', async () => {
+    mockPut.mockRejectedValue(new Error('network'));
+
+    await expect(channelAccountService.setSignPosts(CHANNEL, true)).rejects.toThrow();
+
+    // A refused toggle leaves every surface exactly as the caches already have it,
+    // and throwing away a feed for a change that did not land is pure cost.
+    expect(mockNoteBylineChanged).not.toHaveBeenCalled();
   });
 });

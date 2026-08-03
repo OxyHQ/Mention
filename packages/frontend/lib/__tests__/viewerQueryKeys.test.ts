@@ -192,6 +192,29 @@ describe('viewer-scoped private cache', () => {
     ).toBe(false);
   });
 
+  it('matches ONE channel\'s writers list, not the whole family', () => {
+    // A byline write names one channel. A reader holding several channels' writer
+    // lists must not have the others refetched — on a channel that does not
+    // disclose, that request spends itself re-deriving a 404.
+    const changed = viewerQueryKeys.channelWriters('viewer-a', 'channel-1');
+    expect(viewerQueryKeys.isChannelWriters(changed, 'channel-1')).toBe(true);
+    expect(viewerQueryKeys.isChannelWriters(changed, 'channel-2')).toBe(false);
+    expect(
+      viewerQueryKeys.isChannelWriters(
+        viewerQueryKeys.channelAccountSettings('viewer-a', 'channel-1'),
+        'channel-1',
+      ),
+    ).toBe(false);
+    // A channel id the caller does not have resolves to the empty slot the key
+    // factory writes, so it must not be matched by a real id.
+    expect(
+      viewerQueryKeys.isChannelWriters(
+        viewerQueryKeys.channelWriters('viewer-a', undefined),
+        'channel-1',
+      ),
+    ).toBe(false);
+  });
+
   it('removes only A when the active account switches A to B', async () => {
     const queryClient = new QueryClient();
     const aSearch = viewerQueryKeys.search('viewer-a', 'saved', 'oxy', true);

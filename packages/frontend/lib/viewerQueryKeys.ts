@@ -494,6 +494,17 @@ export const viewerQueryKeys = {
    */
   isOperatedAccounts: (queryKey: readonly unknown[]): boolean =>
     viewerQueryKeys.isFamily(queryKey, 'accounts') && queryKey[3] === 'operated',
+  /**
+   * ONE channel's writers list, whichever viewer's copy it is.
+   *
+   * Scoped rather than family-wide because the event that invalidates it names a
+   * channel: its operator turned the byline on or off. A reader who has visited
+   * several channels holds an entry for each, and the others did not change —
+   * refetching them would spend a request to arrive back at the same answer, and
+   * on a channel that does not disclose, that answer is a 404.
+   */
+  isChannelWriters: (queryKey: readonly unknown[], channelId: string): boolean =>
+    viewerQueryKeys.isFamily(queryKey, 'channel-writers') && queryKey[3] === channelId,
 };
 
 /** The single factory for every Mention-owned React Query key. */
