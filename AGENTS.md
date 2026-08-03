@@ -463,7 +463,7 @@ Runs at all ingest chokepoints: `PostCreationService`, `feed.controller` reply p
 - `BASELINE_CLASSIFIER_VERSION` (`services/BaselineContentClassifier.ts`) — ranking only trusts scores stamped at or above this version. The constant is the source of truth; never restate its value here, and bump it whenever a Stage-A signal changes meaning so older stamps stop being honored.
 
 **Stage B — async AI enrichment (`PostClassificationService`, Alia):**
-Uses DOTTED `$set` to enrich the existing subdoc — NEVER a whole-subdoc overwrite (would wipe Stage A fields). Topics via `postClassification.topicRefs` resolved through `TopicService.resolveTopicRefs`. Readers prefer `topicRefs`, fall back to `extracted.topics`, then neutral.
+Uses DOTTED `$set` to enrich the existing subdoc — NEVER a whole-subdoc overwrite (would wipe Stage A fields). Topics via `postClassification.topicRefs` resolved through `TopicService.resolveTopicRefs`. Readers prefer `topicRefs`, fall back to the Stage-A slug-only `postClassification.topics`, then neutral (`[]`) — see `UserPreferenceService.getCanonicalTopics` and `ranking/signals/classification.ts#getCanonicalTopics`. There is no `extracted` subdoc; it was removed along with its sole writer.
 
 **MongoDB text-index `language_override` rule:** never let a text index's `language_override` point at a field holding free-form content-language codes — MongoDB rejects writes with error 17262 (`"language override unsupported"`). The `content.text_text` index uses `language_override:'textSearchLanguage'` (a sentinel field no document populates → always falls back to English stemming).
 
