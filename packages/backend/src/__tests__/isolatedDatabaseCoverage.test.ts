@@ -33,6 +33,21 @@
  * `markEmptyPosts` is also `private`, so a gate keyed on ITS name would find
  * zero callers, pass forever and protect nothing — the entry point below is the
  * PUBLIC cycle a test can actually reach.
+ *
+ * ## Connection budget — measured, and the measurement has a known blind spot
+ *
+ * Each listed file creates its own database, which costs one extra
+ * `bun run db:migrate` subprocess on top of the run's usual load. The config's
+ * own budget is `maxWorkers` 10 x `PG_MAX_POOL_SIZE` 8 = 80 against a
+ * `max_connections` of 100, and a full ~490-file run was measured at a PEAK of
+ * 60 concurrent connections with the eleven isolated databases in play.
+ *
+ * That sample was taken at 1 Hz on a dedicated local container, so it CANNOT
+ * see a sub-second spike while the eleven migrate subprocesses start together,
+ * and CI's Postgres is not the instance it was taken on. If a run ever fails
+ * here with `sorry, too many clients already`, that is the gap — re-measure at
+ * a higher sampling rate against CI's own database before changing `maxWorkers`
+ * or `PG_MAX_POOL_SIZE`, rather than treating 60 as headroom that was proven.
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
