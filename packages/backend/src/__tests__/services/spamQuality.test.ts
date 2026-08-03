@@ -3,6 +3,7 @@ import { MtnConfig } from '@mention/shared-types';
 import {
   computeDeterministicScores,
   SPAM_QUALITY_CONFIG,
+  visibleText,
   type DeterministicScores,
   type ScoreContext,
 } from '../../services/contentClassification/spamQuality';
@@ -249,5 +250,20 @@ describe('v5 low-effort + bot hardening', () => {
     expect(computeDeterministicScores(text, 0, undefined)).toEqual(withoutContext);
     expect(computeDeterministicScores(text, 0, {})).toEqual(withoutContext);
     expect(computeDeterministicScores(text, 0, { isFederated: false })).toEqual(withoutContext);
+  });
+});
+
+describe('visibleText — shared entity definitions', () => {
+  it('removes a non-ASCII hashtag whole', () => {
+    expect(visibleText('hello #BundesländerTurnier world')).toBe('hello world');
+    expect(visibleText('hello #हिन्दी world')).toBe('hello world');
+  });
+
+  it('keeps a digit-leading #2026, which is not a hashtag', () => {
+    expect(visibleText('ran #2026 miles')).toBe('ran #2026 miles');
+  });
+
+  it('removes a URL and the #fragment inside it as ONE piece of scaffolding', () => {
+    expect(visibleText('read https://ex.test/p#part2 now')).toBe('read now');
   });
 });

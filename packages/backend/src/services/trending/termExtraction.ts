@@ -21,6 +21,7 @@
 
 import { MtnConfig } from '@mention/shared-types';
 import { stripMentionPlaceholders } from '@mention/shared-types/mentions';
+import { stripTextEntities } from '@mention/shared-types/textEntities';
 
 /**
  * Function words dropped before phrases are built, unioned across the languages
@@ -135,8 +136,20 @@ export function isTrendStopWord(term: string): boolean {
  */
 const SEGMENT_BOUNDARY = /[^\p{L}\p{N}' ]+/u;
 
-/** Strips URLs, @mentions and the `#` marker (keeping the tag's word). */
-const URL_PATTERN = /https?:\/\/\S+|www\.\S+/gi;
+/**
+ * URL runs, located by the shared scanner from
+ * `@mention/shared-types/textEntities` — the same definition the renderer
+ * linkifies — so a link that a reader sees as one link is one thing here too.
+ * `bareWww` stays on: a `www.…` run is a link somebody pasted, and its path
+ * segments are no more a topic than a scheme-bearing one's.
+ *
+ * The rest of the tokenizer below keeps its own patterns deliberately. They are
+ * not entity definitions — they encode this module's stripping ORDER, which is
+ * load-bearing (see the sequence in {@link collectTrendPhrases}) — so folding
+ * them into a shared scanner would unify things that only look alike.
+ */
+const URL_SCAN = { kinds: ['url'] } as const;
+/** Strips @mentions and the `#` marker (keeping the tag's word). */
 const MENTION_PATTERN = /@[\p{L}\p{N}_.-]+(?:@[\p{L}\p{N}.-]+)?/gu;
 
 /*
@@ -252,13 +265,14 @@ export function collectTrendPhrases(text: string | null | undefined): string[] {
   // rule below reads every word of an all-caps post as a proper noun.
   const carriesCase = /\p{Ll}/u.test(text ?? '');
 
-  const cleaned = stripMentionPlaceholders(text ?? '')
+  const withoutLinks = stripMentionPlaceholders(text ?? '')
     // Mention links first: they are the shape most likely to contain something
     // that looks like prose, so removing them whole has to happen before the
     // generic link rule salvages their label.
     .replace(MENTION_LINK_PATTERN, ' ')
-    .replace(MARKDOWN_LINK_PATTERN, '$1 ')
-    .replace(URL_PATTERN, ' ')
+    .replace(MARKDOWN_LINK_PATTERN, '$1 ');
+
+  const cleaned = stripTextEntities(withoutLinks, URL_SCAN)
     // Bare handles BEFORE `@mention`s: the `@mention` pattern would otherwise
     // match the `@instance.tld` half of `someone@instance.tld` and leave the
     // orphaned local part behind as a word.

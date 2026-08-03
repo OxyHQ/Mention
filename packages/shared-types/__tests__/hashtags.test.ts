@@ -158,7 +158,11 @@ describe('Hermes safety', () => {
   // verbatim into the Metro bundle, and neither `hermesc` nor any web/V8 run
   // reproduces the crash — so this assertion is the only thing between a
   // reintroduced `\p{…}` and a device.
-  const SHIPPED_SOURCES = ['src/hashtags.ts', 'src/hashtagRanges.generated.ts'];
+  const SHIPPED_SOURCES = [
+    'src/hashtags.ts',
+    'src/hashtagRanges.generated.ts',
+    'src/textEntities.ts',
+  ];
 
   it.each(SHIPPED_SOURCES)('%s contains no Unicode property escape', (relative) => {
     const contents = readFileSync(join(import.meta.dir, '..', relative), 'utf8');

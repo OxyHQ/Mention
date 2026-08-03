@@ -3,7 +3,7 @@
  * runner). Both provide the same describe/it/expect globals.
  */
 
-import { extractUrls, removeUrlFromText, toOpenableUrl, trimUrlTrailingPunct } from '../extractUrls';
+import { extractUrls, removeUrlFromText } from '../extractUrls';
 
 describe('extractUrls', () => {
   it('extracts a plain https URL', () => {
@@ -87,29 +87,9 @@ describe('removeUrlFromText', () => {
   });
 });
 
-describe('trimUrlTrailingPunct', () => {
-  it('splits the URL from its trailing punctuation', () => {
-    expect(trimUrlTrailingPunct('https://x.com).')).toEqual({
-      url: 'https://x.com',
-      trailing: ').',
-    });
-  });
-
-  it('returns the URL unchanged when there is no trailing punctuation', () => {
-    expect(trimUrlTrailingPunct('https://x.com/path')).toEqual({
-      url: 'https://x.com/path',
-      trailing: '',
-    });
-  });
-});
-
-describe('toOpenableUrl', () => {
-  it('keeps http(s) URLs as-is', () => {
-    expect(toOpenableUrl('https://x.com')).toBe('https://x.com');
-    expect(toOpenableUrl('http://x.com')).toBe('http://x.com');
-  });
-
-  it('prefixes scheme-less URLs with https://', () => {
-    expect(toOpenableUrl('www.x.com')).toBe('https://www.x.com');
-  });
-});
+// `trimUrlTrailingPunctuation` and `toOpenableUrl` moved to
+// `@mention/shared-types/textEntities` when the four URL matchers were unified,
+// and are covered by that package's own suite — including the two cases this
+// copy could not have caught, since the behavior did not exist here: a BALANCED
+// bracket is kept (`http://[::1]` survives), and the scheme test no longer
+// mistakes a host beginning with "http" for a scheme-bearing URL.

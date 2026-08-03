@@ -1,42 +1,52 @@
 /**
- * The single compiled pattern behind `components/common/LinkifiedText.tsx`.
+ * The entity scan behind `components/common/LinkifiedText.tsx`.
  *
- * It lives here rather than in the component for the same reason
- * {@link URL_PATTERN_SOURCE} does: it is pure data with no React or React Native
- * dependency, so which characters it accepts can be asserted directly instead of
- * through a rendered tree.
+ * It lives here rather than in the component because it is pure data with no
+ * React or React Native dependency, so which characters it accepts can be
+ * asserted directly instead of through a rendered tree.
+ *
+ * The scan itself is `scanTextEntities` from `@mention/shared-types/textEntities`
+ * — the same function the backend's extractor and the outbound-federation
+ * linkifier call, so a tag that is STORED is also LINKED, and a URL that gets a
+ * preview card is the same run of characters that gets the link. This module
+ * only pins the OPTIONS the reading surface wants.
  */
 
-import { HASHTAG_BODY_SOURCE, HASHTAG_BOUNDARY_SOURCE } from '@mention/shared-types/hashtags';
-import { URL_PATTERN_SOURCE } from './extractUrls';
+import {
+  createTextEntityPattern,
+  scanTextEntities,
+  type TextEntity,
+} from '@mention/shared-types/textEntities';
 
 /**
- * Matches every inline entity `LinkifiedText` renders, in one pass:
+ * What `LinkifiedText` renders: the hydrated `[@Display](username)` mention form,
+ * URLs including the bare `www.` shorthand, hashtags and cashtags.
  *
- *   1) Mentions in the backend's `[@DisplayName](username)` form
- *   2) URLs: `http(s)://…` or `www.…` (shared source from `./extractUrls`)
- *   3) Entities preceded by a word boundary capture: hashtags and cashtags
- *
- * Compiled once at module scope (the source is static) so re-rendering many
- * LinkifiedText rows never re-`new RegExp(...)`. The global flag keeps
- * `lastIndex` state, so every caller must reset it before scanning and drain the
- * loop to completion (`exec` → null resets it to 0).
- *
- * The hashtag alternative and its word boundary come from
- * `@mention/shared-types/hashtags` — the same source the backend extractor and
- * the outbound-federation linkifier compile, so a tag that is STORED is also
- * LINKED. It accepts letters of any script, which is what
- * `#BundesländerTurnier` needs; the old `#[A-Za-z][A-Za-z0-9_]*` stopped dead at
- * the `ä` and linked only `#Bundesl`.
- *
- * `u` is required — the shared class bodies carry astral `\u{…}` escapes — and
- * is safe for the rest of the pattern, whose mention, URL and cashtag
- * alternatives already use only escapes that are legal in u-mode. Those class
- * bodies are explicit code-point RANGES, never Unicode property escapes,
- * because this regex is built at module load on Hermes, which has property
- * escapes compiled out and would throw at boot.
+ * `mentionPlaceholder` is deliberately absent. A raw `[mention:<id>]` reaching
+ * this component means hydration did not resolve it, and the existing behavior —
+ * render the literal text — is correct: linkifying it would turn an unresolved
+ * or hand-typed id into a profile link nobody authorized.
  */
-export const LINKIFY_PATTERN = new RegExp(
-  `(\\[@([^\\]]+)\\]\\(([^)]+)\\))|(${URL_PATTERN_SOURCE})|(^|${HASHTAG_BOUNDARY_SOURCE})(#${HASHTAG_BODY_SOURCE}|\\$[A-Z]{1,6}(?:\\.[A-Z]{1,2})?)`,
-  'gu',
-);
+const LINKIFY_KINDS = ['mentionDisplay', 'url', 'hashtag', 'cashtag'] as const;
+
+/**
+ * Locate every entity `LinkifiedText` should linkify, in reading order.
+ *
+ * Returns spans that partition the text along with the plain runs between them,
+ * so the renderer walks the list emitting `text.slice(cursor, start)` and then
+ * the entity.
+ */
+export function scanLinkifyEntities(text: string): TextEntity[] {
+  return scanTextEntities(text, { kinds: LINKIFY_KINDS });
+}
+
+/**
+ * The compiled pattern, exported ONLY so tests can assert on `.source`.
+ *
+ * That assertion is the Hermes gate: this regex is built at module load on a
+ * phone, and Hermes has Unicode property escapes compiled out and throws on
+ * every one of them — so a property escape here is a crash at boot that neither
+ * a V8 test run nor `hermesc` reproduces. Checking the compiled source is the
+ * only check that catches it before a device does.
+ */
+export const LINKIFY_PATTERN_SOURCE = createTextEntityPattern({ kinds: LINKIFY_KINDS }).source;

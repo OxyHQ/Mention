@@ -1,24 +1,18 @@
-import { LINKIFY_PATTERN } from '../linkifyPattern';
+import { LINKIFY_PATTERN_SOURCE, scanLinkifyEntities } from '../linkifyPattern';
 
 /**
- * The pattern `LinkifiedText` renders with, exercised directly.
+ * The scan `LinkifiedText` renders with, exercised directly.
  *
  * Rendering the component would need the expo-router/Bloom provider tree; the
- * bug is entirely in which characters the pattern accepts, so this drives the
- * pattern itself — the same object the component imports, not a copy of it.
+ * bug is entirely in which characters the scan accepts, so this drives the scan
+ * itself — the same function the component imports, not a copy of it.
  */
-const entitiesIn = (text: string): string[] => {
-  LINKIFY_PATTERN.lastIndex = 0;
-  const found: string[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = LINKIFY_PATTERN.exec(text)) !== null) {
-    // Group 6 is the hashtag/cashtag alternative (5 is the preceding boundary).
-    if (match[6]) found.push(match[6]);
-  }
-  return found;
-};
+const entitiesIn = (text: string): string[] =>
+  scanLinkifyEntities(text)
+    .filter((entity) => entity.kind === 'hashtag' || entity.kind === 'cashtag')
+    .map((entity) => entity.raw);
 
-describe('LINKIFY_PATTERN — hashtags', () => {
+describe('LinkifiedText scan — hashtags', () => {
   it('links #BundesländerTurnier WHOLE, not just #Bundesl', () => {
     // The reported bug, on https://mention.earth/p/6a6faff7a2a3bead331e02b5:
     // `#[A-Za-z][A-Za-z0-9_]*` ended the match at the `ä`.
@@ -60,15 +54,25 @@ describe('LINKIFY_PATTERN — hashtags', () => {
   });
 
   it('still matches mentions, URLs and cashtags', () => {
-    LINKIFY_PATTERN.lastIndex = 0;
     const text = 'hi [@Dev](dev) see https://mention.earth and $AAPL plus #Café';
-    const all = text.match(LINKIFY_PATTERN) ?? [];
-    expect(all).toHaveLength(4);
+    expect(scanLinkifyEntities(text).map((entity) => entity.kind)).toEqual([
+      'mentionDisplay',
+      'url',
+      'cashtag',
+      'hashtag',
+    ]);
     expect(entitiesIn(text)).toEqual(['$AAPL', '#Café']);
+  });
+
+  it('does not linkify an unresolved [mention:<id>] placeholder', () => {
+    // Hydration turns an authorized mention into the `[@Label](handle)` form.
+    // A raw placeholder reaching the renderer was never resolved, so linking it
+    // would fabricate a profile link out of text somebody typed.
+    expect(scanLinkifyEntities('hi [mention:abc123] there')).toEqual([]);
   });
 });
 
-describe('LINKIFY_PATTERN — Hermes safety', () => {
+describe('LinkifiedText scan — Hermes safety', () => {
   // This regex is built at MODULE LOAD. React Native's Hermes has Unicode
   // property escapes compiled out and throws `SyntaxError: Invalid RegExp:
   // Invalid property name` on every one of them at runtime, so a property escape
@@ -76,17 +80,13 @@ describe('LINKIFY_PATTERN — Hermes safety', () => {
   // accepts them, V8 (web, and this test runner) executes them fine, and the
   // Metro bundle builds clean, so nothing else in CI can catch it.
   it('compiles to explicit code-point ranges, never a property escape', () => {
-    expect(LINKIFY_PATTERN.source).not.toContain('\\p{');
-    expect(LINKIFY_PATTERN.source).not.toContain('\\P{');
+    expect(LINKIFY_PATTERN_SOURCE).not.toContain('\\p{');
+    expect(LINKIFY_PATTERN_SOURCE).not.toContain('\\P{');
   });
 
-  it('carries the u flag the shared class bodies require', () => {
-    expect(LINKIFY_PATTERN.flags).toContain('u');
-  });
-
-  // Vacuity floor: an empty or ASCII-sized source would satisfy the assertions
+  // Vacuity floor: an empty or ASCII-sized source would satisfy the assertion
   // above while matching none of the scripts the tests exercise.
   it('embeds the full unicode ranges', () => {
-    expect(LINKIFY_PATTERN.source.length).toBeGreaterThan(10000);
+    expect(LINKIFY_PATTERN_SOURCE.length).toBeGreaterThan(10000);
   });
 });

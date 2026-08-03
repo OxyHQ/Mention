@@ -7,6 +7,7 @@
 
 import { PostType, MtnConfig } from '@mention/shared-types';
 import type { ForYouFeedTuning, PostContent } from '@mention/shared-types';
+import { scanTextEntities } from '@mention/shared-types/textEntities';
 import { isSensitivePost, DISCOVERY_SAFE_MATCH } from '../../feedSafety';
 import { detectLowEffort } from '../../../../services/contentClassification/lowEffort';
 import { detectBotShape } from '../../../../services/contentClassification/botSignals';
@@ -62,8 +63,22 @@ function hasAltText(post: CandidatePost): boolean {
   return Array.isArray(content?.media) && content.media.some((m) => typeof m?.alt === 'string' && m.alt.trim().length > 0);
 }
 
-/** HTTP(S) URL token — global so `.match()` collects every hit. */
-const TEXT_URL_PATTERN = /https?:\/\/[^\s]+/gi;
+/**
+ * HTTP(S) URL tokens, located by the shared scanner from
+ * `@mention/shared-types/textEntities` — the same definition the renderer
+ * linkifies and the link-preview extractor stores.
+ *
+ * `bareWww: false`: this feeds a bot-shape signal and a host denylist, both of
+ * which need a link that is definitely a link. A scheme-less `www.…` run has no
+ * scheme to resolve, and synthesizing one would let a plain sentence count
+ * against an author.
+ */
+const TEXT_URL_SCAN = { kinds: ['url'], bareWww: false } as const;
+
+/** Every URL inlined in a text body, in reading order. */
+function textUrls(text: string): string[] {
+  return scanTextEntities(text, TEXT_URL_SCAN).map((entity) => entity.value);
+}
 
 /** All URLs cited in `content.sources` or inlined in the post's primary body. */
 function contentUrls(post: CandidatePost): string[] {
@@ -72,14 +87,13 @@ function contentUrls(post: CandidatePost): string[] {
   if (Array.isArray(content?.sources)) {
     for (const source of content.sources) if (typeof source?.url === 'string' && source.url) urls.push(source.url);
   }
-  const matches = contentText(post).match(TEXT_URL_PATTERN);
-  if (matches) urls.push(...matches);
+  urls.push(...textUrls(contentText(post)));
   return urls;
 }
 
 /** Count of HTTP(S) URLs inlined in a text body (the bot-shape link signal). */
 function countTextUrls(text: string): number {
-  return (text.match(TEXT_URL_PATTERN) ?? []).length;
+  return textUrls(text).length;
 }
 
 /** The lowercase host of a URL, or `undefined` when it is not parseable. */

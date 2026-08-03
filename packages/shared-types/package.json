@@ -32,6 +32,11 @@
       "import": "./dist/hashtags.js",
       "require": "./dist/hashtags.js"
     },
+    "./textEntities": {
+      "types": "./dist/textEntities.d.ts",
+      "import": "./dist/textEntities.js",
+      "require": "./dist/textEntities.js"
+    },
     "./feed": {
       "types": "./dist/feed.d.ts",
       "import": "./dist/feed.js",

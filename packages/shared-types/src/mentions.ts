@@ -7,7 +7,15 @@
  * inferring recipients from arbitrary text a user typed.
  */
 
-const MENTION_PLACEHOLDER_PATTERN = /\[mention:([^\]\s]+)\]/g;
+import { scanTextEntities, stripTextEntities } from './textEntities';
+
+/**
+ * The placeholder form is defined ONCE, in `./textEntities`, alongside every
+ * other inline entity — this module used to carry its own copy, and the
+ * outbound-federation linkifier carried a third that differed on whether an id
+ * could contain whitespace.
+ */
+const PLACEHOLDER_ONLY = ['mentionPlaceholder'] as const;
 
 /**
  * Above this many DISTINCT mentioned users, a post is a broadcast rather than a
@@ -82,16 +90,15 @@ export function isMentionBroadcast(distinctMentionCount: number): boolean {
  * placeholder do not fuse into one.
  */
 export function stripMentionPlaceholders(text: string): string {
-  return text.replace(MENTION_PLACEHOLDER_PATTERN, ' ');
+  return stripTextEntities(text, { kinds: PLACEHOLDER_ONLY });
 }
 
 export function extractMentionIds(text: string): string[] {
   if (!text) return [];
 
   const ids = new Set<string>();
-  for (const match of text.matchAll(MENTION_PLACEHOLDER_PATTERN)) {
-    const id = match[1]?.trim();
-    if (id) ids.add(id);
+  for (const entity of scanTextEntities(text, { kinds: PLACEHOLDER_ONLY })) {
+    if (entity.value) ids.add(entity.value);
   }
   return [...ids];
 }

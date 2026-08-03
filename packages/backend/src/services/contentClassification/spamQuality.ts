@@ -16,6 +16,11 @@
  */
 
 import type { PostClassificationScores } from '@mention/shared-types';
+import {
+  countTextEntities,
+  scanTextEntities,
+  stripTextEntities,
+} from '@mention/shared-types/textEntities';
 import { detectLowEffort, type LowEffortResult } from './lowEffort';
 import {
   detectBotShape,
@@ -285,10 +290,17 @@ const PROFANITY_TERMS: readonly string[] = [
   'slut',
 ];
 
-/** Matches HTTP(S) URLs. */
-const URL_PATTERN = /https?:\/\/[^\s]+/gi;
-/** Matches a hashtag token. */
-const HASHTAG_PATTERN = /#[\p{L}\p{N}_]+/gu;
+/**
+ * The link/tag scaffolding kinds, located by the shared scanner from
+ * `@mention/shared-types/textEntities` — the SAME definitions the renderer
+ * linkifies and the extractor stores, so what this discounts as scaffolding is
+ * exactly what a reader sees as a link.
+ *
+ * `bareWww: false` keeps the URL signal meaning what it has always meant here: a
+ * scheme-bearing link. A bare `www.…` run stays prose.
+ */
+const SCAFFOLD_KINDS = ['url', 'hashtag'] as const;
+const SCAFFOLD_SCAN = { kinds: SCAFFOLD_KINDS, bareWww: false } as const;
 /** Matches an @-mention token. */
 const MENTION_PATTERN = /@[\p{L}\p{N}_.-]+/gu;
 /** Matches any cased letter (for the caps ratio). */
@@ -341,9 +353,7 @@ function longestRepeatRun(text: string): number {
  * SAME visible-prose definition the ingest-time classifier uses (no divergence).
  */
 export function visibleText(text: string): string {
-  return text
-    .replace(URL_PATTERN, ' ')
-    .replace(HASHTAG_PATTERN, ' ')
+  return stripTextEntities(text, SCAFFOLD_SCAN)
     .replace(MENTION_PATTERN, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -367,7 +377,7 @@ interface TextFeatures {
 function extractFeatures(rawText: string, hashtagCount: number): TextFeatures {
   const visible = visibleText(rawText);
 
-  const urlCount = (rawText.match(URL_PATTERN) ?? []).length;
+  const urlCount = countTextEntities(scanTextEntities(rawText, SCAFFOLD_SCAN), 'url');
   const mentionCount = (rawText.match(MENTION_PATTERN) ?? []).length;
 
   let casedLetters = 0;
