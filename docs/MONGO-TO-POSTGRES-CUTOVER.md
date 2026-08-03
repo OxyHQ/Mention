@@ -244,6 +244,40 @@ which database you are actually pointed at before any DDL runs:
 
 Expect `DRY RUN — 19 migration(s) would be applied; nothing was written`.
 
+**Read `journalEntries` off that line and compare it against
+`meta/_journal.json` in the tree you built the image from. Refuse if they
+disagree.** This is the one assertion that makes a wrong migrate result LOOK
+wrong, and it is worth more than the rest of the output combined.
+
+The reason is that every other field is identical in the good case and the bad
+one. **The migrations ship INSIDE the image** (`Dockerfile`:
+`COPY … packages/backend/drizzle/`), so an image built before a migration
+existed carries a journal that has never heard of it. Run the migrator from that
+image and it finds nothing above the ledger's high-water and prints
+`No pending Postgres migrations`, exit 0 — which is byte-identical to the
+genuinely-current case. `Applied N` has the same shape, the exit code is the
+same, and an empty pending list reads as *"we are current"* when it actually
+means *"this image cannot see the migration you need."*
+
+`journalEntries` separates them, because the count comes from the journal the
+IMAGE carries rather than from the database. Measured 2026-08-03: an image built
+at `b9b4318f` reports **18** and silently no-ops; the image rebuilt after `0018`
+landed reports **19** and applies it. Nothing else in either output differs.
+
+**The field is logged on exactly two lines, and this is why the dry run is not
+optional.** `migrate.ts` attaches `journalEntries` to `No pending Postgres
+migrations` and to the `DRY RUN` line — and to neither `Applying` nor `Applied`.
+So a real run that succeeds never tells you which journal it used. The two
+places the number IS printed are precisely the two "nothing happened / nothing
+would happen" states, which is where the ambiguity lives: a stale image
+announces itself on the `No pending` line if you read the field, and a correct
+image proves itself on the `DRY RUN` line before you commit to any DDL.
+
+**This also fixes the ordering.** Because the journal travels in the image, a
+probe or a database can only be brought to a migration the image contains — so
+**build first, then migrate.** Migrating before rebuilding is a no-op that
+reports success.
+
 Then the real run: expect `Applied 19 Postgres migration(s)` and exit 0.
 **Re-derive that number rather than trusting this line** — it is `0000`–`0018` as
 of `94ba6797`, and §1 records the real database as holding no ledger, so every
