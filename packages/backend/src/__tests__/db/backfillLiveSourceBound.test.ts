@@ -54,15 +54,19 @@ const planFor = (collection: string) => {
 };
 
 /**
- * A source that INSERTS a document the first time a collection is streamed.
+ * A source that runs `write` the first time PHASE 2 streams `collection`.
  *
  * The race cannot be reproduced by seeding Mongo up front — the whole point is a
- * write that lands after phase 1 has passed that collection and before phase 2
- * reaches it. Wrapping `collection()` is the only seam that can do that from a
- * test, and it writes through the same driver handle the audit reads, so the
- * document is as real as any other.
+ * write that lands after phase 1 has built its key set and before phase 2
+ * reaches the collection. Wrapping `collection()` is the only seam that can do
+ * that from a test, and `write` goes through the same driver `Db` the audit
+ * reads, so the documents are as real as any other.
  */
-function sourceThatWritesBetweenPasses(inner: MongoSource, collection: string, doc: object): MongoSource {
+function sourceThatWritesBetweenPasses(
+  inner: MongoSource,
+  collection: string,
+  write: () => Promise<void>
+): MongoSource {
   let streamed = 0;
   return {
     listCollections: () => inner.listCollections(),
@@ -79,20 +83,19 @@ function sourceThatWritesBetweenPasses(inner: MongoSource, collection: string, d
             const cursor = handle.find(...args);
             // Phase 1's scan: nothing to do.
             if (streamed !== 2) return cursor;
-            // Phase 2's. The write is AWAITED inside the iterator rather than
-            // fired off beside it: an un-awaited insert lands whenever it lands,
-            // which makes the race a coin flip AND leaks the document into the
-            // next test. Deferring it into the first `next()` puts it exactly
-            // where production puts it — after the key set, before the check.
             // `batchSize()` must return the WRAPPER, not the cursor.
             // `streamCollection` calls `.find(...).batchSize(n)` and iterates
             // what THAT returns, so handing back the real cursor discards the
-            // wrapper, the insert never runs, and the test passes its two
-            // orphan assertions vacuously — which is exactly what it did.
+            // wrapper and the write never runs — which is what it did, and the
+            // test passed its orphan assertions vacuously.
+            //
+            // The write is AWAITED inside the iterator rather than fired off
+            // beside it: an un-awaited insert lands whenever it lands, which
+            // makes the race a coin flip AND leaks documents into the next test.
             const wrapper = {
               batchSize: () => wrapper,
               async *[Symbol.asyncIterator]() {
-                await mongo.collection(collection).insertOne(doc as never);
+                await write();
                 yield* cursor;
               },
             };
@@ -170,27 +173,34 @@ describe('a document written between the two passes', () => {
     await mongo.collection('reports').insertOne(reportDoc(seededReport));
     await mongo.collection('moderation_outbox').insertOne(outboxFor(seededReport));
 
-    // Arrives after phase 1 has streamed `moderation_outbox`. Its `reportId`
-    // names a report that exists, so the ONLY way it can look like an orphan is
-    // the race — which is what makes this fixture discriminating rather than
-    // merely late.
-    const late = outboxFor(seededReport);
+    // A PAIR — a report and an outbox row naming it — both landing after phase 1
+    // built its key set. That pairing is the whole fixture, and getting it wrong
+    // is how this test first passed against an unbounded phase 2: an outbox row
+    // pointing at a report phase 1 ALREADY HAD cannot be an orphan whatever the
+    // bound does, so it measured nothing. It is also the production shape — the
+    // 407 false orphans were rows built from arrays embedded in a post document
+    // that arrived, parent and children together, mid-run.
+    const lateReport = new ObjectId();
     const report = await audit(
-      sourceThatWritesBetweenPasses(source, 'moderation_outbox', late)
+      sourceThatWritesBetweenPasses(source, 'moderation_outbox', async () => {
+        await mongo.collection('reports').insertOne(reportDoc(lateReport));
+        await mongo.collection('moderation_outbox').insertOne(outboxFor(lateReport) as never);
+      })
     );
 
-    // The insert is the whole fixture, so assert it happened. Without this the
-    // two clean assertions below hold just as well when the race was never
-    // staged at all.
+    // The race is the fixture, so assert it was actually staged. Without this
+    // the clean assertions below hold just as well when nothing was written.
     expect(await mongo.collection('moderation_outbox').countDocuments({})).toBe(2);
+    expect(await mongo.collection('reports').countDocuments({})).toBe(2);
 
     expect(report.findings.filter((finding) => finding.kind === 'referential-integrity')).toEqual([]);
     expect(report.orphans).toEqual([]);
 
-    // …and the report SAYS it did not read it.
+    // …and the report SAYS what it did not read, on both collections.
     expect(report.liveSourceBound).toBeDefined();
-    expect(report.liveSourceBound?.excluded).toBe(1);
+    expect(report.liveSourceBound?.excluded).toBe(2);
     expect(report.liveSourceBound?.excludedByCollection.get('moderation_outbox')).toBe(1);
+    expect(report.liveSourceBound?.excludedByCollection.get('reports')).toBe(1);
   });
 
   it('reports a bound of zero when nothing is written while it runs', async () => {
