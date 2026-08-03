@@ -1350,46 +1350,45 @@ export class PostHydrationService {
 
     const authorship = normalizeAuthorship(post.authorship as PostAuthorshipEntry[] | undefined);
 
-    // Privacy checks only apply to local users (federated posts are public by definition).
     // Hydration can be used for globally-broadcast DTOs and for nested quote/boost
     // references fetched by id, so enforce post-level ACL here instead of relying
-    // on callers to pre-filter every referenced post.
-    if (!isFederatedPost) {
-      const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
-      // Pending collaborators may PREVIEW the post they were invited to (so the
-      // collab-invite UI can render the actual content before they accept),
-      // alongside the owner and accepted collaborators. All three bypass the
-      // unpublished/private/followers-only/restricted ACL checks below.
-      const viewerOwnsPost =
-        viewerContext.viewerId === authorId ||
-        (viewerEntry?.role === 'collaborator' &&
-          (viewerEntry.status === 'accepted' || viewerEntry.status === 'pending'));
+    // on callers to pre-filter every referenced post. This includes federated
+    // posts: ActivityPub objects without Public addressing are stored as
+    // followers-only, and legacy federated orphans can otherwise be reached by id.
+    const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
+    // Pending collaborators may PREVIEW the post they were invited to (so the
+    // collab-invite UI can render the actual content before they accept),
+    // alongside the owner and accepted collaborators. All three bypass the
+    // unpublished/private/followers-only/restricted ACL checks below.
+    const viewerOwnsPost =
+      viewerContext.viewerId === authorId ||
+      (viewerEntry?.role === 'collaborator' &&
+        (viewerEntry.status === 'accepted' || viewerEntry.status === 'pending'));
 
-      if ((post.status ?? 'published') !== 'published' && !viewerOwnsPost) {
+    if ((post.status ?? 'published') !== 'published' && !viewerOwnsPost) {
+      return null;
+    }
+
+    const visibility = (post.visibility ?? PostVisibility.PUBLIC) as PostVisibility;
+    if (visibility === PostVisibility.PRIVATE && !viewerOwnsPost) {
+      return null;
+    }
+
+    if (visibility === PostVisibility.FOLLOWERS_ONLY && !viewerOwnsPost) {
+      if (!viewerContext.viewerId || !viewerContext.follows.has(authorId)) {
         return null;
       }
+    }
 
-      const visibility = (post.visibility ?? PostVisibility.PUBLIC) as PostVisibility;
-      if (visibility === PostVisibility.PRIVATE && !viewerOwnsPost) {
+    if (viewerContext.restrictedIds.has(authorId) && !viewerOwnsPost) {
+      return null;
+    }
+
+    // Filter posts from private/followers_only profiles. Own posts are always
+    // visible; public profiles pass through.
+    if (viewerContext.privateProfileIds.has(authorId) && !viewerOwnsPost) {
+      if (!viewerContext.viewerId || !viewerContext.follows.has(authorId)) {
         return null;
-      }
-
-      if (visibility === PostVisibility.FOLLOWERS_ONLY && !viewerOwnsPost) {
-        if (!viewerContext.viewerId || !viewerContext.follows.has(authorId)) {
-          return null;
-        }
-      }
-
-      if (viewerContext.restrictedIds.has(authorId) && !viewerOwnsPost) {
-        return null;
-      }
-
-      // Filter posts from private/followers_only profiles. Own posts are always
-      // visible; public profiles pass through.
-      if (viewerContext.privateProfileIds.has(authorId) && !viewerOwnsPost) {
-        if (!viewerContext.viewerId || !viewerContext.follows.has(authorId)) {
-          return null;
-        }
       }
     }
 
@@ -1460,7 +1459,6 @@ export class PostHydrationService {
       content.text = finalText;
     }
 
-    const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
     const includeAuthorship = viewerEntry != null;
 
     return {

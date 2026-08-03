@@ -408,6 +408,55 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     expect(hydrated.user?.instance).toBe('bsky.brid.gy');
   });
 
+  it('drops non-public orphan federated posts for anonymous/global hydration', async () => {
+    service = new PostHydrationService();
+
+    const orphanRow = {
+      ...originalRow(),
+      oxyUserId: null,
+      authorship: [],
+      status: 'published',
+      visibility: 'followers_only',
+      federation: { activityId: 'https://remote.example/users/alice/statuses/secret' },
+    };
+    postFind.mockReturnValue([]);
+    getUsersByIds.mockResolvedValue([]);
+
+    const hydrated = await service.hydratePosts([orphanRow], {
+      viewerId: undefined,
+      maxDepth: 0,
+      includeLinkMetadata: false,
+      includeFullMetadata: false,
+    });
+
+    expect(hydrated).toEqual([]);
+  });
+
+  it('does not embed a non-public orphan federated boost original for anonymous/global hydration', async () => {
+    service = new PostHydrationService();
+
+    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
+      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
+      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
+        return [{
+          ...originalRow(),
+          oxyUserId: null,
+          authorship: [],
+          visibility: 'followers_only',
+          federation: { activityId: 'https://remote.example/users/alice/statuses/secret' },
+        }];
+      }
+      return [];
+    });
+    getUsersByIds.mockResolvedValue([makeOxyUser(BOOSTER_OXY_ID, 'booster', 'Booster')]);
+
+    const [hydrated] = await hydrateBoost(undefined);
+
+    expect(hydrated, 'public boost should still hydrate').toBeTruthy();
+    expect(hydrated.boost).toBeNull();
+    expect(hydrated.originalPost).toBeNull();
+  });
+
   it('renders the Oxy name.displayName for a resolved federated boost original', async () => {
     service = new PostHydrationService();
 
