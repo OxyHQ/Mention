@@ -1,3 +1,36 @@
+-- PREREQUISITE: PostGIS must already be installed in this database, and the
+-- application role CANNOT install it.
+--
+-- This file creates `posts.geo` and `posts.content_geo` as `geography` columns,
+-- so on a database without PostGIS it fails here, at the first statement that
+-- names the type:
+--
+--     ERROR:  type "geography" does not exist
+--     LINE 66:  "content_geo" "geography" GENERATED ALWAYS AS (ST_MakePoint...
+--
+-- (measured 2026-08-03 by applying this file to a fresh database).
+--
+-- `src/db/extensions.ts` runs `create extension if not exists postgis` before
+-- any migration, and `IF NOT EXISTS` short-circuits on the duplicate check
+-- BEFORE the privilege check — which is what lets that step be a no-op for an
+-- unprivileged role. It is not a fallback: on a database where PostGIS is
+-- genuinely absent, the application role is REFUSED.
+--
+--     create extension postgis;
+--     ERROR:  permission denied to create extension "postgis"
+--
+-- Measured 2026-08-03 against RDS as `mention` on a database `mention` OWNS
+-- (reproduced twice). Ownership is not enough; PostGIS is not a trusted
+-- extension, so it takes a role with `rds_superuser`.
+--
+-- So a NEW target database — disaster recovery, staging, another region — needs
+-- one privileged statement before the migrator ever runs:
+--
+--     CREATE EXTENSION postgis;    -- as the master user, once, per database
+--
+-- Production satisfies this already: its `spatial_ref_sys` is owned by
+-- `rdsadmin`, i.e. someone ran exactly that and it was never written down. This
+-- header is where it is written down. See `src/db/MIGRATION-CONTRACT.md`.
 CREATE TABLE "articles" (
 	"id" text PRIMARY KEY NOT NULL,
 	"post_id" text,

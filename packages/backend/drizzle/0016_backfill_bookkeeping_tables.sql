@@ -1,13 +1,26 @@
 -- The backfill's two bookkeeping tables, created HERE and by nothing else.
 --
--- Both used to be created at RUNTIME with `create table if not exists`, by
--- `checkpointStore.ts` and `resolutionLogStore.ts`. That put a `CREATE` on the
--- copy's very first statement, which is a privilege the running role may not
--- hold — and a run that dies there has read nothing, resolved nothing, and
--- leaves an operator to work out that the failure was a permission and not the
--- data. The tables now arrive with the schema, and those two modules VERIFY
--- rather than create (`assertBookkeepingTableExists`), so no path creates them
--- late.
+-- WHAT THIS DOES NOT DO, stated first because it was written believing the
+-- opposite: it does NOT remove the copy's need for `CREATE` on the schema.
+-- `bulkLoad.ts` runs `create unlogged table "<staging>" … with no data` on every
+-- single load — thousands of times per run — so a role that genuinely lacked
+-- `CREATE` could not run this copy either way. Pre-creating two tables removes
+-- one CREATE out of thousands. Nothing here is a privilege fix.
+--
+-- (The `42501` that motivated it was an artefact of a THROWAWAY probe database
+-- owned by `oxyadmin`. Production's `mention` role OWNS the `mention` database,
+-- so since PG15 it holds `CREATE` on `public` through `pg_database_owner`, and
+-- always did — measured 2026-08-03.)
+--
+-- WHAT IT ACTUALLY BUYS, which is reason enough on its own. Both tables used to
+-- be created at RUNTIME with `create table if not exists`, by
+-- `checkpointStore.ts` and `resolutionLogStore.ts`. That spelling ACCEPTS
+-- whatever a previous run left behind — a column since dropped, a CHECK never
+-- added — and reports success. Here the shape is versioned and reviewable, it
+-- is created once, and a database that skipped the migration fails with a
+-- sentence naming the migration instead of a `42P01` from whichever insert
+-- happened to run first. Those two modules now VERIFY rather than create
+-- (`assertBookkeepingTableExists`), so no path creates them late.
 --
 -- They are deliberately NOT in the drizzle schema barrel. `tablesWithoutAPlan()`
 -- refuses to start a copy while any barrel table has no plan feeding it, and

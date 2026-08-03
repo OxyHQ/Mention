@@ -1361,6 +1361,22 @@ export function transformDocument(
   // child added — and it cannot chain, so a grandchild (`post_variant_media`
   // under `post_content_variants`) would still be stranded. Dropping the whole
   // document needs no enumeration and has no depth.
+  //
+  // The mirror-image risk — that removing NINE child rows instead of one parent
+  // row strands something OUTSIDE the document — is measured, not assumed. Of
+  // the nine tables the posts plan writes, exactly two are the target of any
+  // foreign key at all (`post_variant_media` and `post_variant_alt_texts`, both
+  // pointing at `post_content_variants`), and both references come from rows the
+  // SAME document emits, which this pass removes in the same step. Nothing
+  // outside a document points at any of these ids, so the drop cannot manufacture
+  // an orphan in the other direction.
+  //
+  // `every` rather than `some`, and it is load-bearing for a FLATTENING plan
+  // (`post_recent_repliers` emits one row per replier). Today all its rows carry
+  // the one `postId`, so the rule's answer is the same for every one of them and
+  // the document is all-or-nothing. A future plan where only SOME primary rows
+  // drop still produces rows, so the document must survive — `some` would delete
+  // the ones nothing was wrong with.
   const primaryRows = resolved.filter((row) => tableName(row.table) === tableName(plan.table));
   const primaryDrop =
     primaryRows.length > 0 &&

@@ -12,6 +12,55 @@ deltas.** The per-table conventions are in `schema/CONVENTIONS.md`.
 Stack: Drizzle ORM over **`postgres.js`** (`drizzle-orm/postgres-js`), migrations
 applied by `src/db/migrate.ts`. Package manager: bun only.
 
+## PREREQUISITE: PostGIS, installed by a privileged role, once per database
+
+**A new target database needs one statement before the migrator can run, and the
+application role cannot issue it.**
+
+```sql
+CREATE EXTENSION postgis;   -- as the master user (rds_superuser), once
+```
+
+Without it, migration `0000` fails at the first `geography` column:
+
+```
+ERROR:  type "geography" does not exist
+LINE 66:  "content_geo" "geography" GENERATED ALWAYS AS (ST_MakePoint...
+```
+
+`ensureExtensions` runs `create extension if not exists postgis` ahead of every
+migration and looks like it covers this. It does not: `IF NOT EXISTS`
+short-circuits on the duplicate check **before** the privilege check, which is
+exactly what makes it a no-op for an unprivileged role on a database that
+already has the extension — and a hard failure on one that does not.
+
+```
+create extension postgis;
+ERROR:  permission denied to create extension "postgis"
+```
+
+Measured 2026-08-03 against RDS as `mention`, on a database `mention` **owns**,
+reproduced twice. Ownership is not enough — PostGIS is not a trusted extension.
+
+Production is already satisfied: `spatial_ref_sys` there is owned by `rdsadmin`,
+so someone ran exactly this once and it was never recorded. The futures where
+this bites are the ones with no context available — disaster recovery, a staging
+environment, a region migration.
+
+## Who owns what, and why a probe database misrepresents it
+
+`pg_database.datdba` for the production `mention` database is **`mention`**, the
+application role itself. Since PG15 `public` is owned by `pg_database_owner`, so
+the owning role gets `CREATE` on it, runs the migrator, **owns every table the
+migration creates**, and holds full DML by ownership — no `GRANT` anywhere.
+
+This matters when rehearsing. A throwaway database created by `oxyadmin` gives
+the same role none of that, and a copy run there fails on privileges production
+does not have: two separate `42501`/`42501`-shaped failures during the cutover
+rehearsal were read as production facts before anyone measured the production
+side. **A rehearsal target must be created `OWNER mention`**, or it is testing a
+configuration that will never exist.
+
 ## Mention is independent, and that is the whole reason it can move
 
 Mention owns its OWN logical database (`mention-production`) on the shared Mongo

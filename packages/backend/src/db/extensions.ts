@@ -28,13 +28,30 @@
  * there is no environment where the ordering can be wrong, and no migration
  * number that can be assigned wrongly.
  *
- * ## Why `IF NOT EXISTS` is the right spelling on a managed database
+ * ## Why `IF NOT EXISTS` is the right spelling on a managed database, and what
+ * it does NOT do
  *
- * `CREATE EXTENSION` normally needs a superuser (`rds_superuser` on RDS), which
- * the application's migration role may not have. `IF NOT EXISTS` short-circuits
- * on the duplicate check BEFORE any privilege check, so once the extension is
- * installed — by infrastructure, by the master user, once — this step is a
- * NOTICE and a no-op for an unprivileged role.
+ * `CREATE EXTENSION` needs `rds_superuser` on RDS for a non-trusted extension,
+ * and PostGIS is not trusted. `IF NOT EXISTS` short-circuits on the duplicate
+ * check BEFORE any privilege check, so once the extension is installed — by
+ * infrastructure, by the master user, once — this step is a NOTICE and a no-op
+ * for an unprivileged role.
+ *
+ * That is the whole of what it buys. It is NOT a fallback that installs PostGIS
+ * where PostGIS is absent, and the difference only shows up on a database nobody
+ * has prepared:
+ *
+ * ```
+ * create extension postgis;
+ * ERROR:  permission denied to create extension "postgis"
+ * ```
+ *
+ * Measured 2026-08-03 against RDS as `mention`, on a database `mention` OWNS,
+ * reproduced twice — **owning the database is not enough.** So a new target
+ * database is a two-party job: a privileged role runs `CREATE EXTENSION postgis`
+ * once, and only then can the application role migrate. `drizzle/0000`'s header
+ * carries the failure it produces otherwise, and `MIGRATION-CONTRACT.md` carries
+ * the prerequisite.
  *
  * ## The trap the docker image does NOT cover
  *

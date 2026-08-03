@@ -47,12 +47,12 @@
  * barrel table has no plan feeding it, and this table has no Mongo source by
  * construction.
  *
- * It is nonetheless created by a migration rather than at runtime, which is the
- * part that changed. `create table if not exists` here meant the copy's FIRST
- * statement needed `CREATE` on the schema — a privilege the running role may
- * not hold, failing with a `42501` that names a permission and not the actual
- * problem. See `bookkeepingTables.ts` for the whole argument, including why
- * `dropCheckpointTable` is gone rather than kept.
+ * It is nonetheless created by a MIGRATION rather than at runtime, which is the
+ * part that changed — so that its shape is versioned rather than decided by a
+ * `create table if not exists` that accepts whatever a previous run left. It is
+ * NOT a privilege fix: the copy still needs `CREATE` on the schema for
+ * `bulkLoad.ts`'s staging tables. See `bookkeepingTables.ts` for the whole
+ * argument, including why `dropCheckpointTable` is gone rather than kept.
  *
  * ## The checkpoint is an OPTIMISATION, and that ordering matters
  *

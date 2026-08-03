@@ -5,17 +5,17 @@
  * ## What changed, and what else believed the old answer
  *
  * `checkpointStore.ts` and `resolutionLogStore.ts` each used to open with
- * `create table if not exists`. That reads as harmless — the statement is
- * idempotent, the table is bookkeeping, nothing else touches it — and it put a
- * `CREATE` on the FIRST statement of the copy, before a single document had been
- * read. A role without `CREATE` on the schema fails there with `42501`, which
- * says "permission denied for schema public" and not "your migrations are
- * behind", so the operator's first guess is the wrong one.
+ * `create table if not exists`. The tables are now created by
+ * `0016_backfill_bookkeeping_tables` and these two modules only ASK.
  *
- * The tables are now created by `0016_backfill_bookkeeping_tables`. That makes
- * the runtime question a different one — not "is it there yet" but "did the
- * migration run" — and the error has to say so, because those have opposite
- * fixes and only one of them is a privilege.
+ * **This is not a privilege fix.** `bulkLoad.ts` creates an unlogged staging
+ * table on every load, thousands of times per run, so the copy needs `CREATE` on
+ * the schema regardless of what happens here — see 0016's own header for the
+ * measurement. What changed is that a table's shape is no longer decided by a
+ * statement that silently accepts whatever a previous run left behind, and that
+ * the runtime question became a different one: not "is it there yet" but "did
+ * the migration run". The error has to say so, because a `42P01` from whichever
+ * insert ran first sends the reader looking for a permission.
  *
  * ## Why the check is not just left to the first `insert`
  *
