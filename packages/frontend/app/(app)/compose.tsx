@@ -2298,6 +2298,7 @@ const ComposeScreenBody = () => {
                   }
                 }}
                 style={styles.backBtn}
+                accessibilityLabel={t('compose.close.a11y', { defaultValue: 'Close composer' })}
               >
                 <BackArrowIcon size={20} className="text-foreground" />
               </IconButton>
@@ -2306,6 +2307,9 @@ const ComposeScreenBody = () => {
                 <IconButton variant="icon"
                   style={styles.iconBtn}
                   onPress={() => setShowModeToggle(!showModeToggle)}
+                  accessibilityLabel={showModeToggle
+                    ? t('compose.hideModeOptions.a11y', { defaultValue: 'Hide posting mode options' })
+                    : t('compose.showModeOptions.a11y', { defaultValue: 'Show posting mode options' })}
                 >
                   {showModeToggle ? (
                     <HideIcon size={20} className="text-foreground" />
@@ -2327,12 +2331,14 @@ const ComposeScreenBody = () => {
                     );
                     bottomSheet.openBottomSheet(true);
                   }}
+                  accessibilityLabel={t('compose.openDrafts.a11y', { defaultValue: 'Open drafts and scheduled posts' })}
                 >
                   <DraftsIcon size={20} className="text-foreground" />
                 </IconButton>
                 <IconButton variant="icon"
                   style={styles.iconBtn}
                   onPress={() => clearAllControl.open()}
+                  accessibilityLabel={t('compose.clearAll.a11y', { defaultValue: 'Clear all content' })}
                 >
                   <DotIcon size={20} className="text-foreground" />
                 </IconButton>
@@ -3985,7 +3991,12 @@ const ComposeScreen = () => {
             options={{
               title: t('New post'),
               leftComponents: [
-                <IconButton variant="icon" key="back" onPress={() => safeBack()}>
+                <IconButton
+                  variant="icon"
+                  key="back"
+                  onPress={() => safeBack()}
+                  accessibilityLabel={t('compose.close.a11y', { defaultValue: 'Close composer' })}
+                >
                   <BackArrowIcon size={20} className="text-foreground" />
                 </IconButton>,
               ],
