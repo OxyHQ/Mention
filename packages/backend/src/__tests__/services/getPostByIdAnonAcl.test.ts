@@ -101,9 +101,10 @@ import { PostHydrationService } from '../../services/PostHydrationService';
 interface PostRowOverrides {
   visibility?: string;
   status?: string;
+  federation?: Record<string, unknown>;
 }
 
-function postRow({ visibility = 'public', status = 'published' }: PostRowOverrides) {
+function postRow({ visibility = 'public', status = 'published', federation }: PostRowOverrides) {
   return {
     _id: POST_ID,
     oxyUserId: AUTHOR_ID,
@@ -117,6 +118,7 @@ function postRow({ visibility = 'public', status = 'published' }: PostRowOverrid
     status,
     hashtags: [],
     mentions: [],
+    ...(federation ? { federation } : {}),
   };
 }
 
@@ -171,6 +173,18 @@ describe('getPostById ACL — anonymous viewer cannot see non-public posts', () 
 
   it('DROPS a followers-only post (→ getPostById 404)', async () => {
     const result = await hydrateAsAnon(service, postRow({ visibility: 'followers_only', status: 'published' }));
+    expect(result).toHaveLength(0);
+  });
+
+  it('DROPS a federated followers-only post (→ getPostById 404)', async () => {
+    const result = await hydrateAsAnon(
+      service,
+      postRow({
+        visibility: 'followers_only',
+        status: 'published',
+        federation: { activityId: 'https://remote.test/posts/private', actorUri: 'https://remote.test/users/author' },
+      }),
+    );
     expect(result).toHaveLength(0);
   });
 
