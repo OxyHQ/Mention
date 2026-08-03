@@ -30,8 +30,16 @@ export interface ProfileDesign {
   bannerUrl?: string;
   avatar?: string;
   /**
-   * The compact profile header (no banner). DERIVED from the account kind — a
-   * channel gets it, everybody else gets the default layout — never chosen.
+   * The compact profile header. DERIVED from the account kind — a channel gets
+   * it, everybody else gets the default layout — never chosen.
+   *
+   * The causality runs THIS way round, and it matters: a channel has no banner,
+   * so it gets the layout that has none. Not "minimalist happens to hide the
+   * banner, so a channel's is unreachable" — there is nothing to reach.
+   * `UpdateAccountInput` has no banner field and `PUT /profile/settings/:userId`
+   * accepts only `channel.signPosts`; that is the design, not an omission, and
+   * adding either would be building a surface the layout deliberately does not
+   * have.
    * There is no stored setting behind this and no picker: the "Profile Style"
    * control and BOTH of its columns (`minimalistMode`, `coverPhotoEnabled`) were
    * removed, so an account that once picked minimalist now renders exactly like
