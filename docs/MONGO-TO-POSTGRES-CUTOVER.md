@@ -195,15 +195,61 @@ instance permanently (see AGENTS.md § Fediverse Discovery).
 The copy needs the schema, so this precedes it. The deploy in §3.4 runs the same
 migrator again; it is idempotent and the second run is a no-op.
 
-Run it with a task definition whose `DATABASE_URL` secret is
-`/oxy/mention/DATABASE_URL`:
+Run it on **`oxy-mention`** — the LIVE task definition, revision from §0 — with
+only `command` overridden. That is the pattern `migrate.ts` was built around: the
+migrator compiles into the same image the service runs, so a one-shot needs no
+task definition of its own.
 
 ```bash
 --overrides '{"containerOverrides":[{"name":"mention","command":[
    "bun","packages/backend/dist/src/db/migrate.js"]}]}'
 ```
 
-Expect `Applied 17 Postgres migration(s)` and exit 0. Measured at 0.5s against an
+#### Three other task definitions look right, and every one of them is wrong
+
+**This step has NO target-database guard.** `--target-database` protects the copy
+in §3.3; nothing equivalent protects this one. `migrate.ts` applies the journal to
+whatever `DATABASE_URL` names and cannot tell one database from another, so **the
+task definition is the only thing deciding** — the precise failure
+`db/backfill/targetDatabase.ts` exists to make impossible one step later.
+
+Measured 2026-08-03:
+
+| Task definition | Its `DATABASE_URL` resolves to | Verdict |
+| --- | --- | --- |
+| `oxy-mention` | `/oxy/mention/DATABASE_URL` | **the one you want** |
+| `oxy-mention-pgaudit` | `/oxy/_tmp/mention-pg-audit/PROBE_DATABASE_URL` | rehearsal only — the PROBE |
+| `oxy-pg-migrate` | `/oxy/oxy-api/DATABASE_URL` | **oxy-api's. Not Mention's.** |
+| `oxy-pg-backfill` | `/oxy/oxy-api/DATABASE_URL` | **oxy-api's. Not Mention's.** |
+
+`oxy-pg-migrate` is the name somebody half-remembering "the Postgres migration
+task" reaches for, and it runs an `oxy/oxy-api` image against oxy-api's database —
+the wrong application entirely, not merely the wrong database.
+
+`oxy-mention-pgaudit` is the subtler one, because everything about it is right
+except the ending: right image, right application, **probe** database. Used here
+it applies the whole journal to `mention_audit_probe`, prints `Applied 19` and
+exits 0 — while the real database stays unmigrated and §3.3 then copies five
+million rows into a schema that does not exist.
+
+**So dry-run first.** `DRY_RUN=true` reports what WOULD be applied and writes
+nothing, not even the ledger table, which makes it the cheapest way to find out
+which database you are actually pointed at before any DDL runs:
+
+```bash
+--overrides '{"containerOverrides":[{"name":"mention",
+   "environment":[{"name":"DRY_RUN","value":"true"}],
+   "command":["bun","packages/backend/dist/src/db/migrate.js"]}]}'
+```
+
+Expect `DRY RUN — 19 migration(s) would be applied; nothing was written`.
+
+Then the real run: expect `Applied 19 Postgres migration(s)` and exit 0.
+**Re-derive that number rather than trusting this line** — it is `0000`–`0018` as
+of `94ba6797`, and §1 records the real database as holding no ledger, so every
+journal entry is pending and the count is simply `len(meta/_journal.json entries)`
+at whatever commit you deploy. It has already been wrong twice here, reading `17`
+after `0017` landed and `18` after `0018` landed. Measured at 0.5s against an
 empty database, run by the application role holding no grants.
 
 ### 3.3 The copy — **the most dangerous step in this migration**
