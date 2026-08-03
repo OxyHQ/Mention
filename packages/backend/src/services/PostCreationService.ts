@@ -997,23 +997,70 @@ class PostCreationService {
 
     // Federation is published-only: a draft never fans out even if a username is
     // resolvable, and the collab-pending gate is honored via `ctx.skipFederation`.
-    // The federation username is resolved server-side from the authoritative owner
-    // id (only after these gates pass), so the fan-out no longer depends on the
-    // SDK having populated `req.user.username` — which it never does, because the
-    // auth middleware runs without `loadUser:true` on every `POST /posts` path.
-    if (!ctx.skipFederation && isPublished && oxyUserId) {
-      const federationUsername = await this.resolveFederationUsername(oxyUserId, ctx.senderUsername);
-      if (federationUsername) {
-        try {
-          // Late-bound accessor avoids a circular import with the connector registry.
-          await getPostFederator().federateNewPost(post, oxyUserId, federationUsername);
-          post.metadata = { ...(post.metadata ?? {}), federationDelivered: true };
-          post.markModified('metadata');
-          await post.save();
-        } catch (fedError) {
-          logger.error('PostCreationService: failed to federate post', fedError);
-        }
-      }
+    if (!ctx.skipFederation) {
+      await this.federatePublishedPost(post, {
+        oxyUserId,
+        senderUsername: ctx.senderUsername,
+      });
+    }
+  }
+
+  /**
+   * Deliver ONE published local post outbound, and stamp it as delivered.
+   *
+   * The single implementation of "federate this post", shared by the publish
+   * pipeline above and by the batch path (`connectors/threadFederation.ts`),
+   * which federates a thread/beast batch after `createThread` has written every
+   * row. Two implementations of this would drift on exactly the gates that
+   * matter — published-only, a resolvable username, the delivered stamp — so
+   * there is one, and callers differ only in WHEN they call it.
+   *
+   * The federation username is resolved server-side from the authoritative owner
+   * id, and only after the gates pass, so the fan-out never depends on the SDK
+   * having populated `req.user.username` — which it never does, because the auth
+   * middleware runs without `loadUser:true` on every `POST /posts` path.
+   *
+   * `alsoDeliverToAudiencesOf` names OTHER local accounts whose remote followers
+   * should also receive this activity. It is only ever set for a cross-account
+   * thread; see the note on it in `connectors/threadFederation.ts` for what it
+   * does and does not buy.
+   *
+   * Returns whether the post was actually handed to the connectors — the batch
+   * path reads it to stop a chain at the first link that did not go out. Never
+   * throws: a delivery failure is logged and reported as `false`.
+   */
+  async federatePublishedPost(
+    post: IPost,
+    ctx: {
+      oxyUserId: string | null;
+      senderUsername?: string;
+      alsoDeliverToAudiencesOf?: string[];
+    },
+  ): Promise<boolean> {
+    const isPublished = (post.status ?? 'published') === 'published';
+    if (!isPublished || !ctx.oxyUserId) return false;
+
+    const federationUsername = await this.resolveFederationUsername(
+      ctx.oxyUserId,
+      ctx.senderUsername,
+    );
+    if (!federationUsername) return false;
+
+    try {
+      // Late-bound accessor avoids a circular import with the connector registry.
+      await getPostFederator().federateNewPost(
+        post,
+        ctx.oxyUserId,
+        federationUsername,
+        ctx.alsoDeliverToAudiencesOf,
+      );
+      post.metadata = { ...(post.metadata ?? {}), federationDelivered: true };
+      post.markModified('metadata');
+      await post.save();
+      return true;
+    } catch (fedError) {
+      logger.error('PostCreationService: failed to federate post', fedError);
+      return false;
     }
   }
 }

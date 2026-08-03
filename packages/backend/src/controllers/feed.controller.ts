@@ -195,22 +195,21 @@ class FeedController {
    * `POST /posts` reply path. Passing `parentPostId` is what routes it to the
    * reply-addressing branch of `federateNewPost`. A pending-review (private) reply
    * carries `visibility: private`, so the connector skips it.
+   *
+   * **The whole DOCUMENT goes through the seam, never a field list.** The Note
+   * builder reads more than `LocalPostEventPayload` names — `metadata.isSensitive`
+   * becomes the Note's `sensitive` flag and `quoteOf` becomes its quote fields —
+   * so a hand-picked payload silently federated a sensitive reply UNMARKED and a
+   * quote reply with no quote. `PostCreationService` has always passed the
+   * document; this path now does too, which is also what stops the next field the
+   * builder learns to read from going missing here alone. `createdAt` needs no
+   * normalization for the same reason: the builder accepts a `Date` or an ISO
+   * string and emits ISO either way.
    */
   private federateReply(reply: IPost, replierOxyUserId: string): void {
-    // `createdAt` is a Mongoose timestamp (a Date at runtime, though typed as
-    // string on IPost); normalize to a canonical ISO 8601 string for the wire.
-    const createdAt = new Date(reply.createdAt).toISOString();
     federateAsResolvedActor(replierOxyUserId, 'reply', (username) => ({
       kind: 'post.create',
-      post: {
-        _id: reply._id,
-        content: reply.content,
-        hashtags: reply.hashtags,
-        mentions: reply.mentions,
-        visibility: reply.visibility,
-        createdAt,
-        parentPostId: reply.parentPostId ? String(reply.parentPostId) : null,
-      },
+      post: reply,
       actorOxyUserId: replierOxyUserId,
       actorUsername: username,
     }));

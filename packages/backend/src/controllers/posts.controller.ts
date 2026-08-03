@@ -67,6 +67,7 @@ import {
 import { postCollaborationService, CollabValidationError, CollabStateError } from '../services/PostCollaborationService';
 import { resolveMcpAutoAcceptIds } from '../mcp/utils/resolveMcpAutoAcceptIds';
 import { federateAsResolvedActor } from '../connectors/outboundFederation';
+import { federatePostBatchDetached } from '../connectors/threadFederation';
 import {
   EngagementPostNotFoundError,
   removeVoteCommand,
@@ -1150,7 +1151,38 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    /**
+     * Each entry's author-written language renditions, PRIMARY FIRST — validated
+     * for the whole batch before a single row is written, like every other
+     * refusal above, because a variant rejected on entry 3 would otherwise leave
+     * entries 1 and 2 already published.
+     *
+     * The creation loop reads the validated array from here rather than
+     * revalidating, so the batch cannot be checked under one set of rules and
+     * written under another. An entry that sent no variants yields an empty
+     * array and its plain `content.text` stays the body, exactly as before.
+     */
+    const entryVariants: PostContentVariant[][] = [];
+    for (const entry of posts) {
+      // The shared media set the variants localize — resolved the same way the
+      // creation loop resolves it, so a variant may only override alt text for
+      // media the entry actually carries.
+      const entryMediaIds = normalizeMediaItems(entry?.content?.media).map((item) => item.id);
+      const variantResult = validateAuthorVariants(entry?.content?.variants, entryMediaIds);
+      if (!variantResult.ok) {
+        return res.status(400).json({ message: variantResult.error });
+      }
+      entryVariants.push(variantResult.variants);
+    }
+
     const createdPostObjects: Array<{ content?: StoredPostContent }> = [];
+    /**
+     * The created DOCUMENTS, in publication order — what outbound federation
+     * needs. `createdPostObjects` beside it is the plain-object form hydration
+     * takes; federation stamps `metadata.federationDelivered` back onto the row,
+     * so it needs the document rather than a snapshot of it.
+     */
+    const createdPostDocs: IPost[] = [];
     let mainPostId: string | null = null;
     let previousPostId: string | null = null;
 
@@ -1181,10 +1213,16 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         }
       }
 
-      // Build post content
+      // Build post content. When the entry carries author language renditions the
+      // FIRST is the primary and its text IS the body — the same rule
+      // `POST /posts` applies, and the reason the plain `content.text` is only a
+      // fallback: a multilingual entry that stored `content.text` instead would
+      // lose every rendition it was written in.
+      const authorLanguageVariants = entryVariants[i];
       const postContent: PostContent = {
-        text: content?.text || '',
-        media: normalizeMediaItems(content?.media)
+        text: authorLanguageVariants[0]?.text ?? content?.text ?? '',
+        media: normalizeMediaItems(content?.media),
+        ...(authorLanguageVariants.length > 0 ? { variants: authorLanguageVariants } : {}),
       };
 
       if (processedContentLocation) {
@@ -1196,21 +1234,25 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         postContent.sources = sources;
       }
 
+      // An article belongs to the ENTRY that carries one, in both modes. This was
+      // read from the root only, so a beast batch — n independent posts that share
+      // nothing but the action that wrote them — silently discarded the article on
+      // every box but the first, and a thread did the same to a continuation.
+      // `POST /posts` puts no such condition on it (a reply may carry an article),
+      // so there was never a rule here, only a missing loop.
       let pendingArticleDoc: IArticle | null = null;
-      if (i === 0) {
-        const sanitizedArticle = sanitizeArticle(content?.article);
-        if (sanitizedArticle) {
-          pendingArticleDoc = new ArticleModel({
-            createdBy: userId,
-            title: sanitizedArticle.title || undefined,
-            body: sanitizedArticle.body || undefined,
-          });
-          postContent.article = {
-            articleId: pendingArticleDoc._id.toString(),
-            title: sanitizedArticle.title,
-            excerpt: sanitizedArticle.body ? sanitizedArticle.body.slice(0, MAX_ARTICLE_EXCERPT_LENGTH) : undefined,
-          };
-        }
+      const sanitizedArticle = sanitizeArticle(content?.article);
+      if (sanitizedArticle) {
+        pendingArticleDoc = new ArticleModel({
+          createdBy: userId,
+          title: sanitizedArticle.title || undefined,
+          body: sanitizedArticle.body || undefined,
+        });
+        postContent.article = {
+          articleId: pendingArticleDoc._id.toString(),
+          title: sanitizedArticle.title,
+          excerpt: sanitizedArticle.body ? sanitizedArticle.body.slice(0, MAX_ARTICLE_EXCERPT_LENGTH) : undefined,
+        };
       }
 
       // Handle event data
@@ -1255,9 +1297,11 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         postContent.pollId = pollId;
       }
 
-      // Extract and merge hashtags from text with user-provided ones
-      const text = content?.text || '';
-      const uniqueTags = mergeHashtags(text, hashtags);
+      // Extract and merge hashtags from text with user-provided ones. Read off the
+      // body that is actually stored (the primary rendition when the entry has
+      // renditions), or a multilingual entry's tags would come from a string
+      // nobody will ever see.
+      const uniqueTags = mergeHashtags(postContent.text ?? '', hashtags);
 
       // Create post
       const attachmentsInput = content?.attachments || content?.attachmentOrder || postData.attachments || postData.attachmentOrder;
@@ -1405,7 +1449,32 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       // Track the latest post so the next iteration chains onto it
       previousPostId = String(post._id);
 
+      createdPostDocs.push(post);
       createdPostObjects.push(post.toObject());
+    }
+
+    // Outbound federation for the whole batch, detached, walking the chain
+    // parent-first. This is the half `skipNotifications` above removes: that
+    // flag returns from `PostCreationService.create` BEFORE its side-effect
+    // stage, and federation lives inside that stage — which is why a published
+    // thread federated nothing while the same thread scheduled federated
+    // completely, since the scheduled publisher runs the full pipeline per entry
+    // when its time arrives.
+    //
+    // A SCHEDULED batch is skipped for exactly that reason: its entries are not
+    // published, nobody may read them yet, and `ScheduledPostPublisher` will
+    // federate each one at the moment it goes live. Federating here would
+    // announce a post the ACL still refuses.
+    //
+    // Detached on purpose — each entry's fan-out runs the SSRF guard (which
+    // resolves DNS) once per target inbox, so awaiting it would put
+    // `entries × inboxes` lookups in front of the response. See
+    // `connectors/threadFederation.ts` for the ordering and consent rules.
+    if (!threadScheduledFor) {
+      federatePostBatchDetached({
+        entries: createdPostDocs,
+        shape: mode === 'thread' ? 'chain' : 'independent',
+      });
     }
 
     await Promise.all(
@@ -1929,6 +1998,13 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // reusing the shared Note builder so a reply's `inReplyTo` + parent Mention
     // survive. Local + published + public non-boost only; the same gates as
     // creation. Username resolved server-side from the authoritative oxyUserId.
+    //
+    // The whole DOCUMENT goes through the seam. The Note builder reads more than
+    // `LocalPostEventPayload` names — `metadata.isSensitive` becomes the Note's
+    // `sensitive` flag, `quoteOf` its quote fields — so a hand-picked field list
+    // re-federated an edited sensitive post as UNMARKED and dropped the quote,
+    // which is the shape `PostCreationService` has always avoided by passing the
+    // document.
     if (
       post.federation == null &&
       post.oxyUserId &&
@@ -1939,15 +2015,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       const editorOxyUserId = String(post.oxyUserId);
       federateAsResolvedActor(editorOxyUserId, 'post update', (username) => ({
         kind: 'post.update',
-        post: {
-          _id: post._id,
-          content: post.content,
-          hashtags: post.hashtags,
-          mentions: post.mentions,
-          visibility: post.visibility,
-          createdAt: new Date(post.createdAt).toISOString(),
-          parentPostId: post.parentPostId ? String(post.parentPostId) : null,
-        },
+        post,
         actorOxyUserId: editorOxyUserId,
         actorUsername: username,
       }));

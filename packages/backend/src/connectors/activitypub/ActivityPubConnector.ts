@@ -196,6 +196,37 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
   }
 
   /**
+   * Deliver a `post.create` to the acting account's followers AND to the remote
+   * followers of `audienceOxyUserIds` — the OTHER local accounts taking part in
+   * the same batch-composed thread.
+   *
+   * **This makes those instances KNOW about the entry; it does not make it reach
+   * their users.** Mastodon inserts a status into home timelines by looking up
+   * the STATUS AUTHOR's own followers on that instance
+   * (`FanOutOnWriteService#deliver_to_all_followers!` →
+   * `@status.account.followers_for_local_distribution`), so delivering B's entry
+   * to an instance because someone there follows A does not put it in that
+   * person's timeline. What it does buy is completeness: the instance holds the
+   * whole conversation, so opening the thread shows every part of it instead of
+   * a chain with holes. Do not read this as reach — it is not.
+   *
+   * Only `post.create` has an audience to widen; every other event kind falls
+   * through to the ordinary {@link deliver}.
+   */
+  async deliverToExtraAudiences(
+    event: LocalNetworkEvent<PostContent>,
+    audienceOxyUserIds: string[],
+  ): Promise<void> {
+    if (event.kind !== 'post.create') {
+      await this.deliver(event);
+      return;
+    }
+    await followService.federateNewPost(event.post, event.actorOxyUserId, event.actorUsername, {
+      extraAudienceOxyUserIds: audienceOxyUserIds,
+    });
+  }
+
+  /**
    * Delivery boundary for durable callers. Existing outbound callers retain
    * the best-effort {@link deliver} semantics; engagement events use strict
    * FollowService variants so a queue failure reaches the Mongo outbox.

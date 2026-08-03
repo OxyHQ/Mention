@@ -44,6 +44,15 @@ export interface PostFederator {
     },
     senderOxyUserId: string,
     senderUsername: string,
+    /**
+     * OTHER local accounts whose remote followers should also receive this
+     * activity, on top of the sender's own. Set only for a cross-account thread,
+     * where each entry answers an account the reader may not follow; see
+     * `connectors/threadFederation.ts` for what that does and does not buy.
+     * Network-neutral on purpose — each connector decides what "that account's
+     * audience" means on its own network.
+     */
+    alsoDeliverToAudiencesOf?: string[],
   ): Promise<void>;
 }
 
