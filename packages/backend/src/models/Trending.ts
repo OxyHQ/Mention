@@ -1,12 +1,10 @@
 import mongoose, { Document, Schema } from "mongoose";
 import { TREND_CATEGORIES } from "@mention/shared-types";
 import type { TrendCategory, TrendStatus } from "@mention/shared-types";
+// The enum moved to the schema, beside the array the `trending.type` CHECK is
+// built from — see `db/schema/discovery.ts`.
+import { TrendingType } from "../db/schema/discovery";
 
-export enum TrendingType {
-  HASHTAG = 'hashtag',
-  TOPIC = 'topic',
-  ENTITY = 'entity',
-}
 
 /**
  * Retention window for trending rows, in seconds (90 days).

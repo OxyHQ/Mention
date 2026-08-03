@@ -26,8 +26,49 @@ import { TREND_CATEGORIES } from '@mention/shared-types';
 import type { TrendGraphEdgeDTO, TrendGraphNodeDTO } from '@mention/shared-types';
 import { createdAt, generatedId, inList, timestamptz, tsvector, updatedAt } from './columns';
 
-/** `TrendingType`. */
+/** The vocabulary the `trending.type` CHECK enforces. */
 export const TRENDING_TYPES = ['hashtag', 'topic', 'entity'] as const;
+
+/**
+ * The same three strings as a string ENUM — the PUBLIC vocabulary.
+ *
+ * Both spellings exist on purpose, and `TrendingService.ts` explains why:
+ * TypeScript treats enums nominally, so an enum member is not assignable to
+ * `'hashtag'` and vice versa. The enum is what `routes/trending.routes.ts`
+ * validates `?type=` against; everything that touches a row uses the column's
+ * own literal union. They are identical at runtime, which is what makes the
+ * boundary conversion a no-op rather than a translation.
+ *
+ * It lives HERE, beside the array the CHECK is built from, rather than in
+ * `models/Trending.ts` where it used to. An enum is a VALUE, so importing it
+ * executed `mongoose.model(...)` — two production files registered a Mongoose
+ * model to read three constants, on data that is already Postgres.
+ */
+export enum TrendingType {
+  HASHTAG = 'hashtag',
+  TOPIC = 'topic',
+  ENTITY = 'entity',
+}
+
+/**
+ * The two spellings cannot drift.
+ *
+ * Adjacency is a convention; this is a compile error. Each direction is needed:
+ * the first catches an enum member the CHECK would refuse, the second catches a
+ * vocabulary entry the route would silently stop accepting as a `?type=` filter.
+ */
+const _trendingTypeCoversVocabulary: Record<(typeof TRENDING_TYPES)[number], TrendingType> = {
+  hashtag: TrendingType.HASHTAG,
+  topic: TrendingType.TOPIC,
+  entity: TrendingType.ENTITY,
+};
+const _vocabularyCoversTrendingType: Record<TrendingType, (typeof TRENDING_TYPES)[number]> = {
+  [TrendingType.HASHTAG]: 'hashtag',
+  [TrendingType.TOPIC]: 'topic',
+  [TrendingType.ENTITY]: 'entity',
+};
+void _trendingTypeCoversVocabulary;
+void _vocabularyCoversTrendingType;
 
 /** `TrendStatus` — present only while a trend is bursting hard enough to say so. */
 export const TREND_STATUSES = ['hot'] as const;

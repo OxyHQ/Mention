@@ -28,7 +28,7 @@ import { randomUUID } from 'node:crypto';
 import { MtnConfig } from '@mention/shared-types';
 import { asc, eq, inArray, lt } from 'drizzle-orm';
 
-import { TrendingType } from '../../models/Trending';
+import { TrendingType } from '../../db/schema/discovery';
 
 const mocks = vi.hoisted(() => ({
   resolveNames: vi.fn(),

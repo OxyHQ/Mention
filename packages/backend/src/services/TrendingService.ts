@@ -21,7 +21,7 @@ import {
 } from '../db/schema/discovery';
 import { postContentVariants } from '../db/schema/postContent';
 import { posts } from '../db/schema/posts';
-import { TrendingType } from '../models/Trending';
+import { TrendingType } from '../db/schema/discovery';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
 import { emitTrendsUpdated } from '../utils/socket';
