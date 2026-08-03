@@ -236,4 +236,97 @@ describe('the explainer opens, steps and closes', () => {
 
     unmount(renderer);
   });
+
+  /**
+   * BOTH controls on ONE line.
+   *
+   * Stacked, the card grows tall enough on a phone to push the copy it is
+   * explaining off the top of the sheet, and the second button lands under the
+   * thumb that just pressed the first. The className is what is asserted because
+   * it is what decides this: `react-native-css` emits real CSS on web and a
+   * runtime style on native, so there is no single computed value both platforms
+   * expose to a renderer test. The width behaviour that className produces is
+   * verified in a real browser instead, at the narrowest supported viewport and
+   * in the language with the longest labels.
+   */
+  it('puts both buttons on one row, each taking half of it', () => {
+    const renderer = mount();
+    TestRenderer.act(() => {
+      showChannelInfo();
+    });
+
+    const rows = renderer.root.findAll(
+      (node) =>
+        typeof node.props?.className === 'string' &&
+        node.props.className.includes('flex-row') &&
+        textIn(node).includes(COPY.next) &&
+        textIn(node).includes(COPY.cancel),
+      { deep: true },
+    );
+    expect(rows.length).toBeGreaterThan(0);
+
+    // Each half, so the split cannot move when the labels do (they change on
+    // every card and in every language).
+    const halves = renderer.root.findAll(
+      (node) =>
+        typeof node.props?.className === 'string' && node.props.className.includes('flex-1'),
+      { deep: true },
+    );
+    const labelled = new Set(halves.map((node) => textIn(node)).filter(Boolean));
+    expect([...labelled].sort()).toEqual([COPY.cancel, COPY.next].sort());
+
+    unmount(renderer);
+  });
+});
+
+/**
+ * No dash anywhere in this copy, in any language.
+ *
+ * An em dash reads as an aside, and every sentence here is load-bearing: what
+ * following a channel commits you to, why there is no reply box, whose words
+ * these are. It also sets prose that a translator then has to imitate, and the
+ * three catalogs drifted apart on exactly that before (English reached for the
+ * dash twice, Spanish and Italian used a colon and read better for it).
+ *
+ * A hyphen INSIDE a word is untouched, because that is spelling rather than
+ * punctuation and some languages need it. What is rejected is a dash standing
+ * between clauses, in any of its shapes: the check is written against a
+ * character CLASS rather than the em dash alone, so a well-meaning swap to an en
+ * dash or a spaced hyphen does not slip through.
+ */
+describe('the copy carries no dashes, in any language', () => {
+  const DASHES = /[—–‒―−]|(?:^|\s)-(?:\s|$)/;
+  const CATALOGS = {
+    en: require('@/locales/en.json'),
+    es: require('@/locales/es.json'),
+    it: require('@/locales/it.json'),
+  } as Record<string, { channels: { explainer: Record<string, unknown> } }>;
+
+  function strings(node: unknown, path: string): [string, string][] {
+    if (typeof node === 'string') return [[path, node]];
+    if (node && typeof node === 'object') {
+      return Object.entries(node).flatMap(([key, value]) =>
+        strings(value, path ? `${path}.${key}` : key),
+      );
+    }
+    return [];
+  }
+
+  it.each(Object.keys(CATALOGS))('%s', (language) => {
+    const entries = strings(CATALOGS[language].channels.explainer, '');
+
+    // Vacuity floor: an explainer that lost its copy would pass every assertion
+    // below by having nothing to check.
+    expect(entries.length).toBeGreaterThanOrEqual(11);
+
+    expect(entries.filter(([, value]) => DASHES.test(value)).map(([path]) => path)).toEqual([]);
+  });
+
+  it('still accepts a hyphen inside a word, so the rule is about punctuation', () => {
+    // Without this the check reads as "no hyphen character at all", which would
+    // be a different and wrong rule for a language that hyphenates.
+    expect(DASHES.test('a well-known channel')).toBe(false);
+    expect(DASHES.test('a channel — like this')).toBe(true);
+    expect(DASHES.test('a channel - like this')).toBe(true);
+  });
 });
