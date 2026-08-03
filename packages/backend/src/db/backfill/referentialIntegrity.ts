@@ -57,8 +57,10 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sqlColumnName } from '../casing';
 import type { Database } from '../postgres';
-import type { AuditFinding } from './audit';
+import type { AuditFinding, RefusedDocuments } from './audit';
+import { recordRefusedDocument, refusedDocumentFindings } from './audit';
 import { streamCollection, type MongoSource } from './mongoSource';
+import { BackfillValueError, describeId } from './values';
 import { planTables, singlePrimaryKeyProperty, tableName, type CollectionPlan } from './plan';
 import {
   ORPHAN_RESOLUTIONS,
@@ -569,6 +571,7 @@ export async function auditReferentialIntegrity(
   // yet, so asking them anything would answer from an empty map. An empty
   // `ParentKeys` is honest about that — `keysFor` throws rather than pretending.
   const noParents = parentKeysFrom(new Map());
+  const refused: RefusedDocuments = new Map();
 
   for (const { plan } of planned) {
     collectionsInspected += 1;
@@ -579,6 +582,7 @@ export async function auditReferentialIntegrity(
     for await (const documents of streamCollection(source, plan.collection, batchSize)) {
       for (const doc of documents) {
         documentsRead += 1;
+        try {
         transformDocument(plan, doc, resolutions, noParents, (row) => {
           const name = tableName(row.table);
           // Keys are taken from `source`, not `written`: phase 1 is building the
@@ -593,6 +597,15 @@ export async function auditReferentialIntegrity(
           }
           if (name === primaryName) primaryRowsEmitted += 1;
         });
+        } catch (error) {
+          // The SAME treatment `auditDefaultedColumns` gives a refusal, for the
+          // same reason: this pass runs the transforms too, so aborting on the
+          // first refused document would move the queue here rather than drain
+          // it. Only `BackfillValueError` is caught — it is the one class that
+          // names a document; anything else is a defect in the migration.
+          if (!(error instanceof BackfillValueError)) throw error;
+          recordRefusedDocument(refused, plan.collection, error, describeId(doc));
+        }
       }
     }
 
@@ -625,6 +638,7 @@ export async function auditReferentialIntegrity(
   for (const { plan } of planned) {
     for await (const documents of streamCollection(source, plan.collection, batchSize)) {
       for (const doc of documents) {
+        try {
         transformDocument(plan, doc, resolutions, parents, (row) => {
           const name = tableName(row.table);
 
@@ -694,6 +708,13 @@ export async function auditReferentialIntegrity(
             orphansByConstraint.set(relation.constraint, accumulator);
           }
         });
+        } catch (error) {
+          // Caught and NOT recorded: phase 1 already tallied this document, and
+          // a `BackfillValueError` comes from parsing a value before any rule
+          // runs, so the two phases refuse exactly the same set. Recording here
+          // would double every count.
+          if (!(error instanceof BackfillValueError)) throw error;
+        }
       }
     }
   }
@@ -710,7 +731,10 @@ export async function auditReferentialIntegrity(
   }
 
   const orphans: RelationOrphans[] = [];
-  const findings: AuditFinding[] = [];
+  // Refusals FIRST: they are the reason any later number in this report might
+  // be short, so an operator reading top-down learns that before reading a
+  // count that was taken over fewer documents than the collection holds.
+  const findings: AuditFinding[] = [...refusedDocumentFindings(refused)];
 
   for (const relation of relations) {
     const accumulator = orphansByConstraint.get(relation.constraint);

@@ -74,6 +74,7 @@ import { streamCollection } from './mongoSource';
 import type { ResolutionContext, ResolutionRule } from './resolutions';
 import { parentKeysFrom, transformDocument } from './resolutions';
 import { tableShape } from './rowBuilder';
+import { BackfillValueError } from './values';
 
 /** One thing the schema would refuse — or one thing wrong with a rule. */
 export interface AuditFinding {
@@ -93,7 +94,18 @@ export interface AuditFinding {
     | 'dropped-document'
     | 'resolution-overreach'
     | 'defaulted-column'
-    | 'stale-acknowledgement';
+    | 'stale-acknowledgement'
+    /**
+     * A document the transform REFUSED — `buildRow` would not build it.
+     *
+     * Its own kind because it arrives as an exception rather than a query
+     * result: the transform throws, so before this existed the first such
+     * document ABORTED the pass instead of joining the report. That made the
+     * audit a queue — one document per run, each costing a rebuild — and two
+     * production runs bought two instances of one class before it was clear
+     * there might be a third.
+     */
+    | 'refused-document';
   /** Human-readable, and specific enough to act on without opening the code. */
   readonly detail: string;
   /** Documents affected, where the audit can count them. */
@@ -124,6 +136,81 @@ const SAMPLE_LIMIT = 5;
  * the number, which is how the previous cap went unnoticed: nothing named it.
  */
 export const COLLISION_GROUPS_REPORTED = 50;
+
+/**
+ * Documents a transform REFUSED, keyed by `collection` and the path that
+ * refused them.
+ *
+ * Aggregated rather than listed one per document, because
+ * `preferredPostTypes.text` holding a float is ONE defect however many rows
+ * carry it — and keyed by COLLECTION as well as path, because two collections
+ * can refuse at the same field name and reporting only one of them would leave
+ * the next round exactly where this one started.
+ */
+export type RefusedDocuments = Map<
+  string,
+  { collection: string; path: string; rows: number; ids: string[]; message: string }
+>;
+
+/** Add one refusal to the tally. */
+export function recordRefusedDocument(
+  refused: RefusedDocuments,
+  collection: string,
+  error: BackfillValueError,
+  documentId: string | undefined
+): void {
+  const key = `${collection}\u0000${error.path}`;
+  const entry = refused.get(key) ?? {
+    collection,
+    path: error.path,
+    rows: 0,
+    ids: [],
+    message: error.message,
+  };
+  entry.rows += 1;
+  if (entry.ids.length < SAMPLE_LIMIT && documentId !== undefined) entry.ids.push(documentId);
+  refused.set(key, entry);
+}
+
+/**
+ * One finding per refusing (collection, path).
+ *
+ * The prose names the COLLECTION and the PATH ahead of the value, because the
+ * value is the instance and those two are the defect. That ordering is not
+ * cosmetic: both production instances of this class were integer columns
+ * holding a fractional accumulator, and what hid them was the NAME —
+ * `preferredPostTypes.text` reads like a score, `interactionCount` reads like a
+ * tick, and both are `+=` a fractional weight. `preferredRegions.count` is the
+ * same kind of value and was already `double precision`, with a comment saying
+ * why. The convention existed; the outliers were named as if they were counters.
+ */
+export function refusedDocumentFindings(refused: RefusedDocuments): AuditFinding[] {
+  return [...refused.values()]
+    .sort((a, b) =>
+      a.collection === b.collection
+        ? a.path < b.path
+          ? -1
+          : a.path > b.path
+            ? 1
+            : 0
+        : a.collection < b.collection
+          ? -1
+          : 1
+    )
+    .map((entry) => ({
+      collection: entry.collection,
+      kind: 'refused-document' as const,
+      detail:
+        `${entry.collection}.${entry.path} REFUSED ${entry.rows} document(s): ` +
+        `${entry.message}. The transform will not build the row, so the copy cannot ` +
+        'write it. Fix the data, widen the column, or teach the transform what the ' +
+        'value means — the same three ways forward as any other finding. Check the ' +
+        "NAME against what the writer does: a field called a count that is `+=`'d a " +
+        'fractional weight is this defect, and reads like a counter.',
+      documents: entry.rows,
+      sampleIds: entry.ids,
+    }));
+}
 
 /**
  * Which STRICT prefixes of a dotted path hold an ARRAY in this collection.
@@ -716,9 +803,12 @@ export async function auditDefaultedColumns(
   // than answering from an empty map.
   const noParents = parentKeysFrom(new Map());
 
+  const refused: RefusedDocuments = new Map();
+
   for await (const documents of streamCollection(source, plan.collection, batchSize)) {
     for (const doc of documents) {
       const documentId = describeDocumentId(doc);
+      try {
       transformDocument(plan, doc, resolutions, noParents, (row) => {
         // `source`, not `written`: a row a rule drops still says what the
         // transform decided, and measuring only surviving rows would let a rule
@@ -741,6 +831,19 @@ export async function auditDefaultedColumns(
           omissions.set(key, entry);
         }
       });
+      } catch (error) {
+        // ONLY this class. A `BackfillValueError` names one document and one
+        // path — it is a fact about the data, which is what a finding is.
+        // Anything else is a defect in the migration itself and must still
+        // abort, because continuing past it would report on rows built by code
+        // that is already known to be wrong.
+        if (!(error instanceof BackfillValueError)) throw error;
+        recordRefusedDocument(refused, plan.collection, error, documentId);
+        // The document's rows are NOT counted. A transform that threw partway
+        // may already have emitted some, so the omission denominator for this
+        // collection is a lower bound — which is the honest direction: it can
+        // only under-report an omission, never invent one.
+      }
     }
   }
 
@@ -753,6 +856,8 @@ export async function auditDefaultedColumns(
 
   const findings: AuditFinding[] = [];
   const seenProperties = new Set<string>();
+
+  findings.push(...refusedDocumentFindings(refused));
 
   for (const [key, entry] of [...omissions].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
     seenProperties.add(entry.property);
@@ -1013,6 +1118,12 @@ export function auditWouldBlockCopy(finding: AuditFinding): boolean {
     // in the PLAN rather than in the data, same family as
     // `undetected-relation`: there is nothing to fix in Mongo, and a stale
     // exemption is exactly how this gate would decay into a formality.
-    finding.kind === 'stale-acknowledgement'
+    finding.kind === 'stale-acknowledgement' ||
+    // The transform refused to build the row, so the copy cannot write it.
+    // Reporting rather than aborting changes WHEN it is learned, never whether
+    // it stops the copy — and no rule may clear it, because a rule answering
+    // "this value is not the shape the column takes" would be the migration
+    // deciding it does not need to be.
+    finding.kind === 'refused-document'
   );
 }
