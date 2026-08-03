@@ -18,13 +18,7 @@ import { NOTIFICATION_RETENTION_SECONDS, notifications } from '../../db/schema/d
 import { NOTIFICATION_TTL_SECONDS } from '../../models/Notification';
 import { TRENDING_TTL_SECONDS } from '../../models/Trending';
 import { ENGAGEMENT_OUTBOX_RETENTION_SECONDS } from '../../models/EngagementOutbox';
-import { MODERATION_EVENT_RETENTION_SECONDS } from '../../models/ModerationEvent';
-import { MODERATION_OUTBOX_RETENTION_SECONDS } from '../../models/ModerationOutbox';
 import { TRENDING_RETENTION_SECONDS } from '../../db/schema/discovery';
-import {
-  MODERATION_EVENT_RETENTION_SECONDS as PG_MODERATION_EVENT_RETENTION_SECONDS,
-  MODERATION_OUTBOX_RETENTION_SECONDS as PG_MODERATION_OUTBOX_RETENTION_SECONDS,
-} from '../../db/schema/moderation';
 import { ENGAGEMENT_OUTBOX_RETENTION_SECONDS as PG_ENGAGEMENT_OUTBOX_RETENTION_SECONDS } from '../../db/schema/outbox';
 
 let db: Database;
@@ -60,12 +54,13 @@ describe('the retention constants still equal the Mongoose models\'', () => {
   it('engagement outbox', () => {
     expect(PG_ENGAGEMENT_OUTBOX_RETENTION_SECONDS).toBe(ENGAGEMENT_OUTBOX_RETENTION_SECONDS);
   });
-  it('moderation outbox', () => {
-    expect(PG_MODERATION_OUTBOX_RETENTION_SECONDS).toBe(MODERATION_OUTBOX_RETENTION_SECONDS);
-  });
-  it('moderation events', () => {
-    expect(PG_MODERATION_EVENT_RETENTION_SECONDS).toBe(MODERATION_EVENT_RETENTION_SECONDS);
-  });
+  /**
+   * `moderation_outbox` and `moderation_events` had a case each here and no
+   * longer can: their Mongoose models are deleted, so there is no second number
+   * left to disagree with. Both are named in `REGISTERED_WITHOUT_A_MODEL` below,
+   * which is the half that must outlive the model — the sweep is now the only
+   * thing bounding those two tables.
+   */
 });
 
 /** Every `.ts` under `directory`, walked — never a directory someone named. */
@@ -130,8 +125,6 @@ describe('the sweep registry', () => {
       'AuthorFollowerSnapshot.ts',
       'EngagementOutbox.ts',
       'FeedInteraction.ts',
-      'ModerationEvent.ts',
-      'ModerationOutbox.ts',
       'Notification.ts',
       'TrendSummary.ts',
       'Trending.ts',
@@ -156,6 +149,15 @@ describe('the sweep registry', () => {
       // 7-day TTL was the only thing bounding the largest rows in the schema (a
       // whole batch of nodes and edges in two jsonb columns).
       'trend_graphs',
+      // `models/ModerationOutbox.ts`, deleted when the CrowdSource delivery queue
+      // moved to `moderation_outbox`. A `dead_letter` row is deliberately kept
+      // for a human to read and is never claimed again, so nothing else in the
+      // system will ever remove one — the 90-day sweep is the whole bound.
+      'moderation_outbox',
+      // `models/ModerationEvent.ts`, deleted with it. Every row here is a webhook
+      // dedupe claim, written once per delivery and never revisited after its
+      // handler runs; the id IS the primary key, so the table only grows.
+      'moderation_events',
     ];
     expect(EXPIRY_SWEEP_TARGETS).toHaveLength(
       ttlModels.length + REGISTERED_WITHOUT_A_MODEL.length
