@@ -1,16 +1,33 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { Image, type ImageProps } from 'expo-image';
 import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
 import { Button } from '@oxyhq/bloom/button';
-import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 
 type SheetStep = 0 | 1 | 2;
 
-const STEP_KEYS: readonly { title: string; body: string }[] = [
-  { title: 'fediverse.sheet.step1.title', body: 'fediverse.sheet.step1.body' },
-  { title: 'fediverse.sheet.step2.title', body: 'fediverse.sheet.step2.body' },
-  { title: 'fediverse.sheet.step3.title', body: 'fediverse.sheet.step3.body' },
+/**
+ * The three explainer steps, each with the illustration that belongs to it. Kept in
+ * ONE table rather than a parallel array of artwork: a step and its picture drifting
+ * apart is the failure this shape makes impossible.
+ */
+const STEP_KEYS: readonly { title: string; body: string; art: ImageProps['source'] }[] = [
+  {
+    title: 'fediverse.sheet.step1.title',
+    body: 'fediverse.sheet.step1.body',
+    art: require('@/assets/illustrations/fediverse/fediverse-network.webp'),
+  },
+  {
+    title: 'fediverse.sheet.step2.title',
+    body: 'fediverse.sheet.step2.body',
+    art: require('@/assets/illustrations/fediverse/fediverse-visibility.webp'),
+  },
+  {
+    title: 'fediverse.sheet.step3.title',
+    body: 'fediverse.sheet.step3.body',
+    art: require('@/assets/illustrations/fediverse/fediverse-control.webp'),
+  },
 ];
 
 export interface FediverseInfoOptions {
@@ -154,8 +171,35 @@ function FediverseInfoDialogContent({
       label={t('fediverse.badge.a11yLabel')}
     >
       <View className="items-center gap-4 py-4">
-        <View className="w-20 h-20 rounded-full bg-primary/10 items-center justify-center">
-          <FediverseIcon size={40} className="text-primary" />
+        {/* Illustration plate.
+
+            The plate colour is deliberately FIXED in both themes rather than
+            following the surface. These illustrations are line drawings whose
+            strokes were drawn to sit on a light ground; on a dark plate the ones
+            carrying no fill behind them — step 1's orbit rings, step 3's saucer
+            rim and rocks — lose almost all of their contrast, and there is no
+            amount of background tuning that saves them, because a dark ground
+            leaves no headroom beneath itself for dark ink. So the plate is a
+            light card in both modes, exactly the colour baked into the artwork,
+            which is what makes the letterbox seamless at any width. The hairline
+            belongs to the plate, not to the theme, hence a translucent black.
+
+            `aria-hidden` covers all three platforms in one prop (RN maps it onto
+            `accessibilityElementsHidden` and `importantForAccessibility`,
+            react-native-web emits the DOM attribute): the art restates the step's
+            title and body and adds nothing a screen reader should hear. Every
+            step still reads completely with images off. */}
+        <View
+          aria-hidden
+          className="w-full max-w-[300px] aspect-[4/3] self-center rounded-[20px] overflow-hidden border border-black/5 bg-[#eef1f6]"
+        >
+          <Image
+            source={STEP_KEYS[step].art}
+            className="w-full h-full"
+            contentFit="contain"
+            transition={180}
+            alt=""
+          />
         </View>
         <Text className="text-foreground text-xl font-bold text-center">
           {t(STEP_KEYS[step].title)}
