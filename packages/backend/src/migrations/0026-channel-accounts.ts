@@ -25,29 +25,23 @@
  *  2. **`ownerType` is unset from every `lanes` row.** After the index re-key
  *     nothing reads it; leaving it would make a `lanes` document disagree with its
  *     own schema forever.
- *  3. **`channelId` is unset from every `posts` row, and `post_channel_chrono_v1`
- *     dropped.** The field is no longer declared on the schema, so a surviving
- *     value would be invisible to Mongoose and yet still present in the
- *     collection — the exact shape that makes a later `$exists` query lie.
+ *  3. **The migration refuses to run while any legacy channel post exists, then
+ *     drops `post_channel_chrono_v1`.** `channelId` was the only marker keeping a
+ *     person-authored channel post off that person's profile and follower feeds.
+ *     Deleting it would disclose the writer, so those posts must be migrated to
+ *     provisioned Oxy channel accounts (or explicitly removed) first.
  *  4. **The three channel collections are DROPPED** (`channels`,
  *     `channelmembers`, `channelfollows`). Membership lives in Oxy's account
  *     graph and a follow is an ordinary Oxy follow, so nothing here has a reader
  *     any more.
  *
- * **This is a CLEAN CUT with no data migration, and that is a deliberate
- * decision rather than an omission.** Rewriting the existing channel posts —
- * moving `oxyUserId`/`authorship` to an Oxy account that does not exist and
- * cannot be created from here — is not something a migration can do; the channel
- * accounts would have to be provisioned in Oxy first. The rows that would need it
- * are test data, confirmed disposable, so they are left exactly as they are minus
- * the dead field. `__tests__/models/channelAccountSchema.test.ts` states the
- * precondition this satisfies: a person-authored post carrying a channel marker
- * was held off its author's surfaces by that marker and nothing else, so the
- * marker cannot be dropped while one that matters still exists.
+ * Rewriting legacy channel posts is not something this migration can do: their
+ * replacement Oxy channel accounts must be provisioned first. The preflight is
+ * therefore deliberately fail-closed and runs before ANY destructive operation.
  *
  * Idempotent: `createIndex` with an identical spec is a no-op, `dropIndex` and
  * `drop` tolerate an absent target (checked, not assumed — see `dropIfPresent`),
- * and an `$unset` over rows that no longer carry the field matches nothing.
+ * and the lane `$unset` matches nothing after the first successful run.
  */
 
 import mongoose from 'mongoose';
@@ -90,6 +84,18 @@ export const migrationChannelAccounts: Migration = {
   id: MIGRATION_CHANNEL_ACCOUNTS,
 
   async run(db: mongoose.mongo.Db): Promise<void> {
+    const posts = db.collection(Post.collection.collectionName);
+    const legacyChannelPost = await posts.findOne(
+      { channelId: { $exists: true } },
+      { projection: { _id: 1, channelId: 1 } },
+    );
+    if (legacyChannelPost) {
+      throw new Error(
+        'Migration 0026 cannot retire channels while legacy channel posts exist; ' +
+          'migrate them to provisioned Oxy channel accounts or explicitly remove them first',
+      );
+    }
+
     const lanes = db.collection(Lane.collection.collectionName);
 
     // New first, old second — see the docstring: the unique constraint must never
@@ -108,12 +114,7 @@ export const migrationChannelAccounts: Migration = {
       { $unset: { ownerType: '' } },
     );
 
-    const posts = db.collection(Post.collection.collectionName);
     const droppedPostIndex = await dropIndexIfPresent(posts, 'post_channel_chrono_v1');
-    const unsetChannelId = await posts.updateMany(
-      { channelId: { $exists: true } },
-      { $unset: { channelId: '' } },
-    );
 
     const droppedCollections: string[] = [];
     for (const name of RETIRED_COLLECTIONS) {
@@ -131,7 +132,6 @@ export const migrationChannelAccounts: Migration = {
       laneIndexesDropped: droppedLaneIndexes,
       lanesOwnerTypeUnset: unsetOwnerType.modifiedCount,
       postChannelIndexDropped: droppedPostIndex,
-      postsChannelIdUnset: unsetChannelId.modifiedCount,
       collectionsDropped: droppedCollections,
     });
   },
