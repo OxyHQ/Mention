@@ -97,6 +97,16 @@ describe('post subject provider', () => {
     expect(await postProvider.snapshot('not-an-object-id')).toBeNull();
   });
 
+  it('does not disclose unpublished or non-public posts to another reporter', async () => {
+    posts.set(
+      POST_ID,
+      textPost(POST_ID, 'Private draft.', { status: 'draft', visibility: 'private' }),
+    );
+
+    expect(await postProvider.snapshot(POST_ID, 'oxy-attacker')).toBeNull();
+    expect(await postProvider.snapshot(POST_ID, 'oxy-author')).not.toBeNull();
+  });
+
   it('drops a language tag the contract would refuse rather than failing the report', async () => {
     posts.set(
       POST_ID,
@@ -157,6 +167,19 @@ describe('post subject provider', () => {
 
     // A jury judging a reply needs what it replied to; a missing parent is context that
     // does not exist, not a reason to fail the report.
+    expect(snapshot?.context).toBeUndefined();
+  });
+
+  it('omits private or unpublished neighbouring context', async () => {
+    posts.set(
+      PARENT_ID,
+      textPost(PARENT_ID, 'Private parent.', { status: 'scheduled', visibility: 'private' }),
+    );
+    posts.set(POST_ID, textPost(POST_ID, 'Public reply.', { parentPostId: PARENT_ID }));
+
+    const snapshot = await postProvider.snapshot(POST_ID, 'oxy-attacker');
+
+    expect(snapshot?.content).toMatchObject({ data: { text: 'Public reply.' } });
     expect(snapshot?.context).toBeUndefined();
   });
 
