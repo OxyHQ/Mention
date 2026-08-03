@@ -17,7 +17,7 @@ import {
 } from '../scripts/lib/adminDeletionPreflight';
 import { assertAdminRunComplete } from '../scripts/lib/adminScriptLifecycle';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
-import { ReportedType } from '../models/Report.model';
+import { REPORTED_TYPES } from '../db/schema/moderation';
 import { contentLabels, labelers, reports } from '../db/schema/moderation';
 import { articles } from '../db/schema/articles';
 import {
@@ -303,7 +303,7 @@ describe('administrative deletion preflight', () => {
       (match) => match[1],
     );
     // The set is EMPTY now: `Report.model` was the last one, imported for the
-    // `ReportedType` enum, and that enum's values are literals checked against
+    // `REPORTED_TYPES` set, and its values are literals checked against
     // the schema's own union. Asserting the exact set rather than a count keeps
     // a swap visible, and an empty expectation still fails the moment one comes
     // back.
@@ -879,7 +879,7 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       arm: 'always',
       plant: async (s) => {
         await getDb().insert(reports).values({
-          reportedType: ReportedType.USER,
+          reportedType: 'user' satisfies (typeof REPORTED_TYPES)[number],
           reportedId: s.other,
           reporter: s.oxyUserId,
           categories: ['spam'],
@@ -1414,7 +1414,7 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       arm: 'always',
       plant: async (s) => {
         await getDb().insert(reports).values({
-          reportedType: ReportedType.USER,
+          reportedType: 'user' satisfies (typeof REPORTED_TYPES)[number],
           reportedId: s.oxyUserId,
           reporter: s.other,
           categories: ['spam'],

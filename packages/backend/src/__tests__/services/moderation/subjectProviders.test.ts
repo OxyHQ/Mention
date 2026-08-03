@@ -42,7 +42,6 @@ import { clearServiceScope, seedPost, serviceScope } from '../../helpers/service
 import { deletePostRecord, replacePostContent } from '../../../db/posts/postRepository';
 import type { PostRecord, PostRecordInput } from '../../../db/posts/postRecord';
 import { buildModerationReportInput } from '../../../services/moderation/EvidenceSnapshotService';
-import { ReportCategory, ReportedType } from '../../../models/Report.model';
 import { createPostSubjectProvider } from '../../../services/moderation/subjects/postSubject';
 import { createUserSubjectProvider } from '../../../services/moderation/subjects/userSubject';
 
@@ -63,7 +62,7 @@ function textPost(text: string, extra: Partial<PostRecordInput> = {}): Promise<P
 }
 
 const postProvider = createPostSubjectProvider({
-  reportedType: ReportedType.POST,
+  reportedType: 'post' as const,
   subjectType: 'social.post',
 });
 
@@ -304,10 +303,10 @@ describe('report input — what the SDK is handed', () => {
   function reportFor(postId: string) {
     return {
       id: '507f1f77bcf86cd799439011',
-      reportedType: ReportedType.POST,
+      reportedType: 'post' as const,
       reportedId: postId,
       reporter: REPORTER,
-      categories: [ReportCategory.HARASSMENT, ReportCategory.SPAM],
+      categories: ['harassment', 'spam'],
       details: 'This account keeps targeting me.',
       createdAt: new Date('2026-07-28T18:00:00.000Z'),
     };
@@ -455,7 +454,7 @@ describe('report input — what the SDK is handed', () => {
   it('refuses to describe a reported type Mention does not store', async () => {
     const post = await textPost('The reported text.');
     await expect(
-      buildModerationReportInput({ ...reportFor(post.id), reportedType: ReportedType.MESSAGE }),
+      buildModerationReportInput({ ...reportFor(post.id), reportedType: 'message' as const }),
     ).rejects.toThrow(/No moderation subject provider is registered/);
   });
 
@@ -475,7 +474,7 @@ describe('report input — what the SDK is handed', () => {
       ...report,
       id: '507f1f77bcf86cd799439099',
       reporter: scope.user('someone-else'),
-      categories: [ReportCategory.SPAM],
+      categories: ['spam'],
       details: undefined,
     });
 
