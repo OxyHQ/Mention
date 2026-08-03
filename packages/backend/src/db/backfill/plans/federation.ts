@@ -172,6 +172,30 @@ const federatedActorsPlan: CollectionPlan = {
         'progress, which is what the column then says.',
     })),
   ],
+  // Measured 2026-08-03 against 64,156 actors. Same cause as the `posts`
+  // entries: a Mongoose schema deletion does not `$unset` the stored key.
+  uncarriedFields: [
+    {
+      sourcePath: 'displayName',
+      observed: 16_651,
+      reason:
+        'No reader and no writer in this repo. The live replacement is Oxy ' +
+        "`name.displayName` via `getUsersByIds`, which is contract-tested — " +
+        'and `~/AGENTS.md` is explicit that Oxy owns the canonical display ' +
+        'name and app code must not rebuild it. What these 16,651 documents ' +
+        'hold is a snapshot that stopped being maintained thirteen months ago, ' +
+        'so carrying it would import a stale name to sit beside the live one.',
+    },
+    {
+      sourcePath: 'externalId',
+      observed: 480,
+      reason:
+        'Duplicates `uri`, which is copied and is `NOT NULL UNIQUE`. Separate ' +
+        'and still open: production carries an ORPHAN INDEX on this field, and ' +
+        '`scripts/reconcileFederatedActorExternalIdIndex.ts` exists to drop it. ' +
+        'That decision belongs to decommission, not to the copy.',
+    },
+  ],
   transform: (doc, emit, resolutions) => {
     const id = ownId(doc);
 

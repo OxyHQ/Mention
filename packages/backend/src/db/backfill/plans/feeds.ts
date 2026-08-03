@@ -157,6 +157,19 @@ const customFeedsPlan: CollectionPlan = {
       filledWhenAbsent: '2 of 3 feeds carry it; `default: 0` in the model.',
     },
   ],
+  uncarriedFields: [
+    {
+      sourcePath: 'includeReposts',
+      observed: 1,
+      reason:
+        'RENAMED to `includeBoosts`, which this plan carries. One document ' +
+        'still holds the old key because a Mongoose schema rename does not ' +
+        '`$unset` the previous one; the successor is carried above and takes ' +
+        'the model default where absent. Whether this is the same document as ' +
+        'one of the two carrying `includeBoosts` was not measured — with three ' +
+        'rows in the collection it changes nothing either way.',
+    },
+  ],
   transform: (doc, emit) => {
     const feedId = ownId(doc);
 

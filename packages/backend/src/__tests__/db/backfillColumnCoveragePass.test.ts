@@ -197,6 +197,54 @@ describe('auditColumnCoverageForPlan', () => {
     expect(auditWouldBlockCopy(findings[0]!)).toBe(false);
   });
 
+  it('accepts an uncarried field whose count has not grown', async () => {
+    // The healthy half. A field deleted from a Mongoose schema keeps its stored
+    // key — MongoDB does not `$unset` on a schema change — so the data outlives
+    // the code and the target has no column to notice missing. Declaring it is
+    // the only way anything can look at it, and a frozen count is what "nothing
+    // writes this any more" looks like when it is still true.
+    await mongo.collection(COLLECTION).insertMany([
+      { title: 'a', legacy: 'residue' },
+      { title: 'b', legacy: 'residue' },
+      { title: 'c' },
+    ]);
+    const findings = await run({
+      ...mappedPlan,
+      columnCoverage: undefined,
+      unmappedColumns: [
+        { table: gadgets, column: gadgets.nickname, reason: 'the source has no such field' },
+      ],
+      uncarriedFields: [{ sourcePath: 'legacy', observed: 2, reason: 'superseded by `title`' }],
+    });
+    expect(findings).toStrictEqual([]);
+  });
+
+  it('reports an uncarried field that has STARTED being written again', async () => {
+    // The tripwire, and the whole reason the declaration records a NUMBER
+    // rather than reading "nothing writes this". A prose note is true when
+    // written and silent forever after; the count makes the claim checkable,
+    // and growth is the one observation that falsifies it.
+    await mongo.collection(COLLECTION).insertMany([
+      { title: 'a', legacy: 'residue' },
+      { title: 'b', legacy: 'residue' },
+      { title: 'c', legacy: 'WRITTEN AFTER THE REASON WAS RECORDED' },
+    ]);
+    const findings = await run({
+      ...mappedPlan,
+      columnCoverage: undefined,
+      unmappedColumns: [
+        { table: gadgets, column: gadgets.nickname, reason: 'the source has no such field' },
+      ],
+      uncarriedFields: [{ sourcePath: 'legacy', observed: 2, reason: 'superseded by `title`' }],
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.kind).toBe('stale-acknowledgement');
+    expect(findings[0]?.documents).toBe(3);
+    expect(findings[0]?.detail).toMatch(/3 hold it now/);
+    expect(findings[0]?.detail).toMatch(/dropping live data/);
+    expect(auditWouldBlockCopy(findings[0]!)).toBe(true);
+  });
+
   it('reaches a NOT NULL column filled with a fabricated constant', async () => {
     // The disguise `auditDefaultedColumns` cannot see: the transform SUPPLIES
     // `weight`, so nothing is omitted and no defaulted-column finding is raised,

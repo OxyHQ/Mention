@@ -348,6 +348,45 @@ const postsPlan: CollectionPlan = {
       filledWhenAbsent: 'Identical to `collabFederationDeferred` above, same cause.',
     },
   ],
+  // Fields production documents HOLD that this table has no column for. All
+  // measured 2026-08-03 against 597,737 posts.
+  //
+  // MongoDB does not `$unset` a field when it leaves a Mongoose schema, so a
+  // deletion on `main` months ago left the keys in place while the code lost
+  // the path — and under strict mode a non-schema path is not even exposed on a
+  // hydrated document, so only a `.lean()` read could see them and none does.
+  // The port is not dropping these; `main` dropped them and the data stayed.
+  uncarriedFields: [
+    {
+      sourcePath: 'extracted.topics',
+      observed: 51_974,
+      reason:
+        'A TOMBSTONE, and the count is what proves it: 51,974 documents hold ' +
+        'the field and ZERO hold a non-empty one. The deleted ' +
+        '`TopicExtractionService` wrote `{topics: [], extractedAt}` from two ' +
+        'sweeps that were NOT gated on Alia while the only writer of real ' +
+        'topics was, so every stored value is the empty array. There is nothing ' +
+        'in it to carry.',
+    },
+    {
+      sourcePath: 'extracted.extractedAt',
+      observed: 40_721,
+      reason:
+        'The other half of the same tombstone — when the sweep visited, for a ' +
+        'sweep whose output was always empty. Fewer documents carry it than ' +
+        'carry `topics`, which is the two sweeps differing, not a second fact.',
+    },
+    {
+      sourcePath: 'federatedActorId',
+      observed: 40,
+      reason:
+        'Superseded by `oxyUserId`, and that is measured rather than assumed: ' +
+        'ALL 40 documents carrying it also carry an `oxyUserId`, so no post ' +
+        'loses its author. Worth stating precisely because the other half of ' +
+        'the usual claim is FALSE for these — none of the 40 has a ' +
+        '`federation.actorUri` at all, so `oxyUserId` is carrying them alone.',
+    },
+  ],
   transform: (doc, emit) => {
     const postId = ownId(doc);
     const parentPostId = id(doc, 'parentPostId');

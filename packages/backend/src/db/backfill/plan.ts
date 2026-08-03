@@ -37,7 +37,11 @@
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import type { ResolutionContext, ResolutionRule } from './resolutions';
-import type { ColumnCoverage, UnmappedColumnAcknowledgement } from './columnCoverage';
+import type {
+  ColumnCoverage,
+  UncarriedField,
+  UnmappedColumnAcknowledgement,
+} from './columnCoverage';
 import type { MongoDocument } from './values';
 
 /** Collect a row for a table. Called once per row a document produces. */
@@ -315,6 +319,12 @@ export interface CollectionPlan {
    * "a finding"; re-measured every run, exactly as `defaultedColumns` is.
    */
   readonly unmappedColumns?: readonly UnmappedColumnAcknowledgement[];
+  /**
+   * Source fields this plan deliberately does not carry — the mirror image of
+   * {@link unmappedColumns}, and the half a schema-driven check can never see,
+   * because there is no column to notice missing.
+   */
+  readonly uncarriedFields?: readonly UncarriedField[];
   /**
    * Build every row one document produces.
    *

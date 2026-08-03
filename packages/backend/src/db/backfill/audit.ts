@@ -958,9 +958,13 @@ export async function auditColumnCoverageForPlan(
   options: { readonly batchSize?: number } = {}
 ): Promise<AuditFinding[]> {
   const declarations = plan.columnCoverage ?? [];
+  const uncarried = plan.uncarriedFields ?? [];
   const populated: PopulatedCounts = new Map();
   const sourceCounts = new Map<string, number>();
   for (const declaration of declarations) sourceCounts.set(declaration.sourcePath, 0);
+  // Counted in the SAME stream, so a field nothing carries costs one property
+  // read per document rather than a query of its own.
+  for (const field of uncarried) sourceCounts.set(field.sourcePath, 0);
   const paths = [...sourceCounts.keys()];
 
   // This pass decides no reference, so the orphan rules are not consulted —
@@ -990,7 +994,7 @@ export async function auditColumnCoverageForPlan(
     }
   }
 
-  return auditColumnCoverage({
+  const findings = auditColumnCoverage({
     collection: plan.collection,
     primaryTable: plan.table,
     tables: [plan.table, ...(plan.childTables ?? [])],
@@ -1000,6 +1004,36 @@ export async function auditColumnCoverageForPlan(
     coverage: declarations,
     sourceCounts,
   }).map(coverageAuditFinding);
+
+  // THE OTHER HALF, and the one a schema-driven check structurally cannot
+  // reach: a source field with no column. Nothing is missing from the target,
+  // so nothing looks wrong — the only way to notice is to have written down
+  // that the field exists and is deliberately not carried.
+  //
+  // A count that has GROWN is the finding. If the field is genuinely dead the
+  // number is frozen, so growth means something started writing it again and
+  // this migration is now dropping live data under a reason that was true when
+  // it was written. Shrinkage is not reported: a retention sweep or a purge
+  // removing documents is not evidence about the field.
+  for (const field of uncarried) {
+    const seen = sourceCounts.get(field.sourcePath) ?? 0;
+    if (seen <= field.observed) continue;
+    findings.push({
+      collection: plan.collection,
+      kind: 'stale-acknowledgement',
+      detail:
+        `${plan.collection}.${field.sourcePath} is declared uncarried ` +
+        `("${field.reason}") on the basis that ${field.observed} document(s) ` +
+        `held it and nothing writes it any more. ${seen} hold it now. Something ` +
+        'started writing the field again, so the reason has stopped being true ' +
+        'and this migration is dropping live data — add a column and map it, or ' +
+        'establish why the new writes are also disposable and re-record the count.',
+      documents: seen,
+      sampleIds: [],
+    });
+  }
+
+  return findings;
 }
 
 /**

@@ -108,6 +108,37 @@ export interface ColumnCoverage {
   readonly filledWhenAbsent?: string;
 }
 
+/**
+ * A source field this plan deliberately does NOT carry, and why nothing is lost.
+ *
+ * The mirror image of {@link UnmappedColumnAcknowledgement}: that one is a
+ * column with no source, this is a source with no column. Five exist, all the
+ * same shape — a field deleted from its Mongoose schema by a named commit on
+ * `main`, which does NOT `$unset` it from the documents, so the data outlived
+ * the code by months. `federatedactors.displayName` sat on 16,651 documents
+ * with no reader for thirteen months.
+ *
+ * ## `observed` is the tripwire, and it is the whole reason this is a
+ * declaration rather than a comment
+ *
+ * A prose note saying "nothing writes this any more" is true when written and
+ * silent forever after. The count makes it checkable: if the field is genuinely
+ * dead the number is frozen, so ANY growth means something started writing it
+ * again and the migration is now dropping live data. Recording the number turns
+ * a claim about the past into a check on the future.
+ */
+export interface UncarriedField {
+  /** Dotted path into the source document. */
+  readonly sourcePath: string;
+  /**
+   * Why no column exists, specific enough to re-decide from. "Superseded by X"
+   * is a reason; "unused" is a finding wearing a reason's clothes.
+   */
+  readonly reason: string;
+  /** How many documents held it when the reason was written. */
+  readonly observed: number;
+}
+
 /** What one pass observed: per table, per column, how many rows carried a value. */
 export type PopulatedCounts = Map<string, Map<string, number>>;
 
