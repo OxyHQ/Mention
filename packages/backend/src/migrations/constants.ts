@@ -245,3 +245,10 @@ export const MIGRATION_CHANNEL_ACCOUNTS = '0026-channel-accounts';
  * authority. See {@link ./0027-post-channel-writer-index}.
  */
 export const MIGRATION_POST_CHANNEL_WRITER_INDEX = '0027-post-channel-writer-index';
+
+/**
+ * Remove duplicate member ids from existing starter packs, preserving the
+ * owner's chosen order. The write side is now a setter on the schema path; this
+ * repairs the packs that landed before it. See {@link ./0028-starter-pack-member-dedupe}.
+ */
+export const MIGRATION_STARTER_PACK_MEMBER_DEDUPE = '0028-starter-pack-member-dedupe';

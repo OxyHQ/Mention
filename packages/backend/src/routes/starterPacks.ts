@@ -1,6 +1,6 @@
 import express, { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import StarterPack, { IStarterPack } from '../models/StarterPack';
+import StarterPack, { dedupeMemberIds, IStarterPack } from '../models/StarterPack';
 import { escapeRegex } from '../utils/textProcessing';
 import { resolveUserSummaries, isFallbackUserSummary } from '../services/PostHydrationService';
 import { invalidate as invalidateUserSummaries } from '../services/userSummaryCache';
@@ -213,7 +213,11 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     const { name, description, memberOxyUserIds = [] } = req.body || {};
     if (!name) return res.status(400).json({ error: 'Name is required' });
 
-    const members = Array.isArray(memberOxyUserIds) ? memberOxyUserIds : [];
+    // Deduped BEFORE the cap so repeats cannot consume it — the limit is on how
+    // many accounts a pack curates, and a client that sends one twice has not
+    // curated two. The model dedupes on write regardless; doing it here too is
+    // what makes the 400 honest rather than counting entries nobody will see.
+    const members = dedupeMemberIds(memberOxyUserIds);
     if (members.length > MAX_MEMBERS) return res.status(400).json({ error: `Maximum ${MAX_MEMBERS} members allowed` });
 
     const pack = await StarterPack.create({
@@ -329,8 +333,9 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     if (description !== undefined) pack.description = String(description);
     const previousMemberIds = [...(pack.memberOxyUserIds || [])];
     if (Array.isArray(memberOxyUserIds)) {
-      if (memberOxyUserIds.length > MAX_MEMBERS) return res.status(400).json({ error: `Maximum ${MAX_MEMBERS} members allowed` });
-      pack.memberOxyUserIds = memberOxyUserIds;
+      const nextMemberIds = dedupeMemberIds(memberOxyUserIds);
+      if (nextMemberIds.length > MAX_MEMBERS) return res.status(400).json({ error: `Maximum ${MAX_MEMBERS} members allowed` });
+      pack.memberOxyUserIds = nextMemberIds;
     }
     await pack.save();
     if (Array.isArray(memberOxyUserIds)) {

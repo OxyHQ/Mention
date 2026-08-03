@@ -20,6 +20,29 @@ export interface StarterPackSource {
   syncedAt: Date;
 }
 
+/**
+ * A pack's membership, with duplicates removed and first-occurrence order kept.
+ *
+ * ON THE MODEL, NOT IN A ROUTE, BECAUSE THE ROUTES ALREADY DISAGREED. Of the
+ * three write paths, only `POST /:id/members` deduped (it unions into a `Set`);
+ * `POST /` and `PUT /:id` stored whatever array the client sent. So the same pack
+ * could be duplicate-free or not depending purely on which endpoint the UI
+ * happened to use — and pack `6a35840f2160a431714b96d5` reached production with
+ * seven entries for five accounts, the same id twice, twice over.
+ *
+ * A setter is the one place no future write path can go around: `create`,
+ * `save`, and a direct assignment all pass through it. Note it does NOT cover
+ * `$push`/`$addToSet` in a raw update — nothing does that today, and `$addToSet`
+ * would be correct anyway.
+ *
+ * Order is preserved rather than sorted: the members list is rendered in stored
+ * order and the owner chose it. Deduping must not silently reshuffle their pack.
+ */
+export function dedupeMemberIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((id): id is string => typeof id === 'string' && id.length > 0))];
+}
+
 export interface IStarterPack extends Document {
   ownerOxyUserId: string;
   name: string;
@@ -43,7 +66,7 @@ const StarterPackSchema = new Schema<IStarterPack>({
   ownerOxyUserId: { type: String, required: true, index: true },
   name: { type: String, required: true },
   description: { type: String },
-  memberOxyUserIds: { type: [String], default: [] },
+  memberOxyUserIds: { type: [String], default: [], set: dedupeMemberIds },
   usedByOxyUserIds: { type: [String], default: [] },
   useCount: { type: Number, default: 0 },
   source: { type: StarterPackSourceSchema },

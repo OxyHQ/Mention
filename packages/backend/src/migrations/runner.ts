@@ -38,6 +38,7 @@ import { migrationChannelIndexes } from './0024-channel-indexes';
 import { migrationChannelFollowUserIndex } from './0025-channel-follow-user-index';
 import { migrationChannelAccounts } from './0026-channel-accounts';
 import { migrationPostChannelWriterIndex } from './0027-post-channel-writer-index';
+import { migrationStarterPackMemberDedupe } from './0028-starter-pack-member-dedupe';
 import { MIGRATIONS_COLLECTION } from './constants';
 
 export interface Migration {
@@ -101,6 +102,7 @@ const MIGRATIONS: readonly Migration[] = [
   migrationChannelFollowUserIndex,
   migrationChannelAccounts,
   migrationPostChannelWriterIndex,
+  migrationStarterPackMemberDedupe,
 ];
 
 /**
