@@ -18,6 +18,7 @@ import {
   ARTICLE_ATTACHMENT_KEY,
   EVENT_ATTACHMENT_KEY,
   ROOM_ATTACHMENT_KEY,
+  PODCAST_ATTACHMENT_KEY,
   createMediaAttachmentKey,
 } from './composeUtils';
 import type { ThreadItem } from '@/hooks/useThreadManager';
@@ -279,17 +280,27 @@ export const buildEditPost = (params: BuildEditPostParams): UpdatePostRequest =>
  * to their predecessor, which a channel post cannot have, so none of them may.
  * The composer answers that once and hands down the result, so the value the
  * header draws and the value the wire carries cannot disagree.
+ *
+ * @param laneId The lane this post goes on, and `undefined` where this box may
+ * not carry one. Passed in for the SAME reason as the account above: `POST
+ * /posts/thread` takes a lane on every entry of a beast batch but on a thread's
+ * ROOT only, and refuses one on a continuation with a 400 that fails the WHOLE
+ * batch before anything is written. So a lane chosen in beast mode and then left
+ * behind by a switch to thread must not reach the wire — the composer narrows it
+ * once, and the icon the box draws and the field it sends read the same value.
  */
 export const buildThreadPost = (
   item: ThreadItem,
   variantContent?: PostContentVariant[] | null,
   publishAsOxyUserId?: string,
+  laneId?: string,
 ): CreateThreadPostRequest => {
   const threadHasPoll = item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0);
   const threadHasLocation = Boolean(item.location);
   const threadHasArticle = Boolean(item.article && (item.article.title?.trim() || item.article.body?.trim()));
   const threadHasEvent = Boolean(item.event && item.event.name?.trim());
   const threadHasRoom = Boolean(item.room && item.room.roomId);
+  const threadPodcastId = item.podcast?.syraPodcastId;
   const threadFormattedSources = (item.sources || []).filter(s => s.url.trim().length > 0);
   const threadHasSources = threadFormattedSources.length > 0;
   const mentionIds = reconcileMentionIds(
@@ -310,6 +321,7 @@ export const buildThreadPost = (
     if (threadHasArticle) threadOrder.push(ARTICLE_ATTACHMENT_KEY);
     if (threadHasEvent) threadOrder.push(EVENT_ATTACHMENT_KEY);
     if (threadHasRoom) threadOrder.push(ROOM_ATTACHMENT_KEY);
+    if (threadPodcastId) threadOrder.push(PODCAST_ATTACHMENT_KEY);
     item.mediaIds.forEach((media) => {
       threadOrder.push(createMediaAttachmentKey(media.id));
     });
@@ -324,6 +336,7 @@ export const buildThreadPost = (
     includeRoom: threadHasRoom,
     includeLocation: threadHasLocation,
     includeSources: threadHasSources,
+    podcastId: threadPodcastId,
   });
 
   const threadArticlePayload = threadHasArticle && item.article ? {
@@ -375,6 +388,9 @@ export const buildThreadPost = (
           ...(item.room.host && { host: item.room.host }),
         }
       }),
+      // Read per ENTRY by `POST /posts/thread`, in both modes, so a box that is
+      // not the first may attach a show of its own.
+      ...(threadPodcastId && { podcast: { syraPodcastId: threadPodcastId } }),
       ...(threadAttachmentsPayload.length > 0 && { attachments: threadAttachmentsPayload })
     },
     mentions: mentionIds,
@@ -398,6 +414,10 @@ export const buildThreadPost = (
     // post: dropped, the post publishes under the caller's own name instead of
     // the account they chose, with a 201 and nothing to see.
     publishAsOxyUserId,
+    // Plainly, for the same reason as the account above: a typo inside a
+    // conditional spread compiles clean and ships nothing, and a lane that goes
+    // missing is a post that quietly lands off the lane it was written for.
+    laneId,
   };
 };
 
@@ -407,6 +427,7 @@ export const shouldIncludeThreadItem = (item: ThreadItem): boolean => {
          (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)) ||
          Boolean(item.article && (item.article.title?.trim() || item.article.body?.trim())) ||
          Boolean(item.event && item.event.name?.trim()) ||
+         Boolean(item.podcast?.syraPodcastId) ||
          Boolean(item.room && item.room.roomId) ||
          Boolean(item.sources && item.sources.length > 0 && item.sources.some(s => s.url.trim().length > 0));
 };

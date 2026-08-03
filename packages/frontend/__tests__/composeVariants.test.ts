@@ -54,6 +54,8 @@ const threadItem = (overrides: Partial<ThreadItem> & { id: string }): ThreadItem
   article: null,
   event: null,
   room: null,
+  podcast: null,
+  laneId: null,
   attachmentOrder: [],
   replyPermission: ['anyone'],
   reviewReplies: false,

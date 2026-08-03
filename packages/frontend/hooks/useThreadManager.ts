@@ -9,6 +9,7 @@ import { ComposerMediaItem } from "@/utils/composeUtils";
 import { Source } from "@/hooks/useSourcesManager";
 import { ArticleData } from "@/hooks/useArticleManager";
 import { EventData } from "@/hooks/useEventManager";
+import { PodcastAttachmentData } from "@/hooks/usePodcastManager";
 import { RoomAttachmentData } from "@/hooks/useRoomManager";
 import type { Draft } from "@/hooks/useDrafts";
 import type { ReplyPermission } from "@/components/Compose/ReplySettingsSheet";
@@ -39,6 +40,17 @@ export interface ThreadItem {
   article: ArticleData | null;
   event: EventData | null;
   room: RoomAttachmentData | null;
+  podcast: PodcastAttachmentData | null;
+  /**
+   * The publisher's lane for this post, or `null` for none.
+   *
+   * Per ITEM because `POST /posts/thread` reads `laneId` off each entry: in
+   * BEAST mode every entry is an independent top-level post and takes its own,
+   * and in THREAD mode only the root does — a continuation is a reply, and the
+   * server refuses a lane on one (400). The composer decides which boxes may
+   * offer the choice; this field only holds the answer.
+   */
+  laneId: string | null;
   attachmentOrder: string[];
   replyPermission: ReplyPermission[];
   reviewReplies: boolean;
@@ -86,6 +98,11 @@ export const useThreadManager = () => {
       article: null,
       event: null,
       room: null,
+      podcast: null,
+      // A new box is on no lane. Inheriting the one above would put a post on a
+      // lane nobody chose for it — the same reason the account is not carried
+      // forward either.
+      laneId: null,
       attachmentOrder: [],
       replyPermission: defaults?.replyPermission ?? ["anyone"],
       reviewReplies: defaults?.reviewReplies ?? false,
@@ -394,7 +411,12 @@ export const useThreadManager = () => {
     (threadId: string, publishAs: AccountNode | null) => {
       setThreadItems((prev) =>
         prev.map((item) =>
-          item.id === threadId ? { ...item, publishAs } : item
+          // The lane goes with the account, in both directions: a lane belongs
+          // to one publisher, so the one picked while this box was the author's
+          // is not a lane the channel has. Kept, it reaches the server as a lane
+          // the new publisher does not own — a 404 the author only sees after
+          // pressing post.
+          item.id === threadId ? { ...item, publishAs, laneId: null } : item
         )
       );
     },
@@ -509,6 +531,38 @@ export const useThreadManager = () => {
     );
   }, []);
 
+  // Podcast management
+  const setThreadPodcast = useCallback(
+    (threadId: string, podcast: PodcastAttachmentData | null) => {
+      setThreadItems((prev) =>
+        prev.map((item) => (item.id === threadId ? { ...item, podcast } : item))
+      );
+    },
+    []
+  );
+
+  const removeThreadPodcast = useCallback((threadId: string) => {
+    setThreadItems((prev) =>
+      prev.map((item) =>
+        item.id === threadId ? { ...item, podcast: null } : item
+      )
+    );
+  }, []);
+
+  /**
+   * Assign this box to one of its publisher's lanes, or to none.
+   *
+   * Setting the box's ACCOUNT clears it (see {@link setThreadPublishAs}): a lane
+   * belongs to one publisher, so a lane picked for the author is not a lane the
+   * channel has, and carrying it across would send the server a lane the new
+   * publisher does not own — refused, after the author already pressed post.
+   */
+  const setThreadLaneId = useCallback((threadId: string, laneId: string | null) => {
+    setThreadItems((prev) =>
+      prev.map((item) => (item.id === threadId ? { ...item, laneId } : item))
+    );
+  }, []);
+
   // Attachment order management
   const setThreadAttachmentOrder = useCallback(
     (threadId: string, attachmentOrder: string[]) => {
@@ -576,6 +630,10 @@ export const useThreadManager = () => {
       article: null,
       event: null,
       room: null,
+      podcast: null,
+      // Neither the attachments nor the lane were ever persisted in a draft, so
+      // a restored box starts on none of them.
+      laneId: null,
       attachmentOrder: [],
       replyPermission: ["anyone"],
       reviewReplies: false,
@@ -619,6 +677,9 @@ export const useThreadManager = () => {
     removeThreadEvent,
     setThreadRoom,
     removeThreadRoom,
+    setThreadPodcast,
+    removeThreadPodcast,
+    setThreadLaneId,
     setThreadAttachmentOrder,
     addThreadAttachment,
     removeThreadAttachment,

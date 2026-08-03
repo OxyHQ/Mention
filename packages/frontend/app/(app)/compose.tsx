@@ -29,6 +29,8 @@ import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEve
 import { PodcastCard } from '@/components/Podcast/PodcastCard';
 import RoomCard from '@/components/RoomCard';
 import ComposeToolbar from '@/components/ComposeToolbar';
+import { formatScheduledShort } from '@/utils/dateUtils';
+import { ScheduleIcon, ScheduleIconActive } from '@/assets/icons/schedule-icon';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxyhq/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
@@ -300,6 +302,9 @@ const ComposeScreenBody = () => {
     removeThreadEvent,
     setThreadRoom,
     removeThreadRoom,
+    setThreadPodcast,
+    removeThreadPodcast,
+    setThreadLaneId,
     setThreadReplyPermission,
     setThreadQuotesDisabled,
     setThreadSensitive,
@@ -527,9 +532,9 @@ const ComposeScreenBody = () => {
     !replyToPostId && threadItems.length === 0 && (!isEditMode || editCollabEligible);
 
   /**
-   * Whether this post can be put on a lane from HERE.
+   * Whether any post written here can be put on a lane at all.
    *
-   * A reply cannot carry one at all — the server refuses it (400) and
+   * A reply cannot carry one — the server refuses it (400) and
    * `CreateReplyRequest` drops what it does not name, so offering the choice
    * would end in a 201 and a silently discarded lane. An edit cannot either: the
    * edit payload is an `UpdatePostRequest` and moving a post between lanes is a
@@ -538,6 +543,19 @@ const ComposeScreenBody = () => {
    * nothing the author could do here to make either work.
    */
   const laneEligible = !replyToPostId && !isEditMode;
+
+  /**
+   * Whether a CONTINUATION box may carry its own lane, answered per posting mode
+   * — the same shape as the account predicates above, and for the same reason.
+   *
+   * `POST /posts/thread` reads `laneId` off each entry, but honors it on a BEAST
+   * entry (an independent top-level post) and on a THREAD's root only: a
+   * continuation is created as a reply, and the controller refuses a lane on one
+   * with a 400 that fails the WHOLE batch before anything is written. So the
+   * first box keeps the control in both modes — it is the root either way — and
+   * the rest get it only in beast mode.
+   */
+  const threadLaneEligible = laneEligible && postingMode === 'beast';
 
   /**
    * Whether any post written here can be published AS another account.
@@ -869,6 +887,10 @@ const ComposeScreenBody = () => {
         article: null,
         event: null,
         room: null,
+        podcast: null,
+        // Nor a lane: an intent URL names no publisher, and a lane belongs to
+        // one. It stays the author's choice to make.
+        laneId: null,
         attachmentOrder: [],
         replyPermission: ['anyone'],
         reviewReplies: false,
@@ -1134,7 +1156,16 @@ const ComposeScreenBody = () => {
         scheduledAt: scheduledAtValue,
         isSensitive,
         quotedPostId: quotedPost?.id,
-        collaboratorIds: collaborators.length > 0 ? collaborators.map((c) => c.id) : undefined,
+        // Guarded by the same predicate that hides the people icon, like the
+        // lane below. Ungated, adding a second box AFTER naming a collaborator
+        // hid the control but kept the value, and `POST /posts/thread` refuses
+        // `collaboratorIds` on any entry — so the whole batch came back 400
+        // "Collaborators are not supported on threads" for a choice the author
+        // could no longer see, let alone undo.
+        collaboratorIds:
+          collaboratorsEligible && collaborators.length > 0
+            ? collaborators.map((c) => c.id)
+            : undefined,
         // Guarded by the same predicate that hides the affordance, so a lane
         // chosen before a quote turned into a reply can never reach the wire.
         laneId: laneEligible && laneId ? laneId : undefined,
@@ -1159,6 +1190,10 @@ const ComposeScreenBody = () => {
             // per-post account chosen in beast mode and then switched back to
             // thread cannot reach the wire behind a row that stopped showing it.
             threadPublishAsEligible ? item.publishAs?.accountId : undefined,
+            // Same narrowing, same reason, and here the cost of skipping it is
+            // the whole batch: a lane left on a box by a switch back to thread
+            // mode is a 400 that refuses every post in the composer.
+            threadLaneEligible && item.laneId ? item.laneId : undefined,
           );
           allPosts.push(threadPost);
         }
@@ -1699,6 +1734,30 @@ const ComposeScreenBody = () => {
     openScheduleSheet(ScheduleSheet);
   }, [openScheduleSheet]);
 
+  /**
+   * When everything written here goes out, drawn in EVERY box's identity row.
+   *
+   * The time is a property of the BATCH — `POST /posts/thread` reads
+   * `scheduledFor` from the top level and stamps every entry with the same
+   * instant, in both posting modes (a per-entry time is not a field of the
+   * request and is ignored). So every box says the same thing: one box reading
+   * "now" under another reading a date would be claiming a publish time its post
+   * is not going to get.
+   *
+   * ONE element, handed to all of them, rather than one per box. Two copies of a
+   * fact this cheap to share is two things that can disagree, and the failure
+   * mode is the quiet one — clearing the schedule reverts the box that cleared
+   * it while the rest keep showing a time nothing will publish at. Sharing the
+   * node makes that unrepresentable rather than merely tested.
+   */
+  const scheduleTimeSlot = useMemo(() => (
+    <ComposeScheduleIndicator
+      scheduledLabel={scheduledAt ? formatScheduledShort(scheduledAt) : null}
+      onPress={handleSchedulePress}
+      disabled={isPosting}
+    />
+  ), [scheduledAt, handleSchedulePress, isPosting]);
+
   // The people icon toggles the search, so a second press closes what the first
   // one opened rather than leaving the only exit inside the panel.
   const handleCollaboratorsPress = useCallback(() => {
@@ -1725,14 +1784,35 @@ const ComposeScreenBody = () => {
   }, [bottomSheet, laneId, effectiveMainPublishAs]);
 
   /**
+   * The same picker for one thread box. Only reachable in beast mode, where the
+   * box is an independent top-level post; the lanes on offer are its OWN
+   * publisher's, read from that box's account rather than the composer's, since
+   * beast boxes may each go out as somebody different.
+   */
+  const handleThreadLanePress = useCallback((threadId: string) => {
+    const item = threadItems.find((entry) => entry.id === threadId);
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <LanePickerSheet
+          selectedLaneId={item?.laneId ?? null}
+          onSelect={(next) => setThreadLaneId(threadId, next)}
+          publishAs={threadPublishAsEligible ? item?.publishAs ?? null : null}
+          onClose={() => bottomSheet.openBottomSheet(false)}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, threadItems, setThreadLaneId, threadPublishAsEligible]);
+
+  /**
    * Answers the picker for whichever box opened it.
    *
-   * Changing the MAIN post's author also CLEARS the lane, in both directions: a
+   * Changing a box's author also CLEARS that box's lane, in both directions: a
    * lane belongs to one publisher, so a lane picked for the author is not a lane
    * the channel has, and vice versa. Carrying the old choice across would send a
    * lane its new publisher does not own — which the server refuses, after the
-   * author has already pressed post. A thread item carries no lane at all, so
-   * there is nothing to clear on that path.
+   * author has already pressed post. A thread box now carries its own lane, so
+   * `setThreadPublishAs` clears it on that path for the same reason.
    */
   const handlePublishAsSelect = useCallback((next: AccountNode | null) => {
     if (publishAsTargetId === MAIN_ITEM_ID) {
@@ -2082,6 +2162,23 @@ const ComposeScreenBody = () => {
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, savePodcast]);
 
+  /**
+   * The same picker, answering for one thread box. A show is per POST — the
+   * thread controller reads `content.podcast` off every entry, root or not — so
+   * each box attaches its own rather than inheriting the first box's.
+   */
+  const openThreadPodcastPicker = useCallback((threadId: string) => {
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <PodcastPickerSheet
+          onClose={() => bottomSheet.openBottomSheet(false)}
+          onSelect={(next) => setThreadPodcast(threadId, next)}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, setThreadPodcast]);
+
   const handleSensitiveToggle = useCallback(() => {
     setIsSensitive(prev => !prev);
   }, []);
@@ -2303,13 +2400,18 @@ const ComposeScreenBody = () => {
 
             <View style={styles.threadContainer}>
               {/* Language tabs. They govern the WHOLE composer: switching tab
-                  switches the main post and every thread item to that language. */}
+                  switches the main post and every thread item to that language,
+                  and ADDING one adds it to every box — which is why the add
+                  affordance sits here rather than in the first box's toolbar,
+                  where it read as that post's own attachment. */}
               <LanguageTabs
                 primaryTag={variants.primaryTag}
                 variantTags={variants.variantTags}
                 activeTag={activeTag}
                 onSelect={setActiveTag}
                 onEdit={handleEditLanguage}
+                onAdd={handleAddLanguage}
+                canAdd={canAddLanguage(variants)}
                 disabled={isPosting}
               />
 
@@ -2330,16 +2432,7 @@ const ComposeScreenBody = () => {
                     // B" name row the published post will.
                     collaborators={collaboratorsEligible ? collaborators : undefined}
                     onPressAvatar={mainPublishAsEligible ? handleMainPublishAsPress : undefined}
-                    // The header's time slot says when the post goes out: "now"
-                    // until a time is picked, then the time itself. Passed ONLY
-                    // while scheduled, so the unscheduled row is untouched.
-                    timeSlot={scheduledAt ? (
-                      <ComposeScheduleIndicator
-                        scheduledLabel={formatScheduledLabel(scheduledAt)}
-                        onPress={handleSchedulePress}
-                        disabled={isPosting}
-                      />
-                    ) : undefined}
+                    timeSlot={scheduleTimeSlot}
                   >
                     <MentionTextInput
                       ref={mainTextInputRef}
@@ -2604,27 +2697,21 @@ const ComposeScreenBody = () => {
                       onLocationPress={requestLocation}
                       onGifPress={handleMainGifPress}
                       onEmojiPress={handleMainEmojiPress}
-                      onSchedulePress={handleSchedulePress}
                       onSourcesPress={openSourcesSheet}
                       onArticlePress={openArticleEditor}
                       onEventPress={openEventEditor}
                       onRoomPress={handleMainRoomPress}
                       onPodcastPress={openPodcastPicker}
-                      // Only the MAIN toolbar: languages are composer-wide, so a
-                      // per-item copy would offer to add a language to one post
-                      // of a set that shares them all.
-                      onLanguagePress={handleAddLanguage}
-                      hasLanguages={variants.variantTags.length > 0}
-                      languageEnabled={canAddLanguage(variants)}
-                      // Also main-toolbar only, and omitted outright where the
-                      // post cannot take collaborators — a reply, a thread, or
-                      // an edit of an already-collaborative post.
+                      // Omitted outright where the post cannot take
+                      // collaborators — a reply, a thread, or an edit of an
+                      // already-collaborative post. A batch refuses them at the
+                      // server, so a second box takes the icon away.
                       onCollaboratorsPress={collaboratorsEligible ? handleCollaboratorsPress : undefined}
                       hasCollaborators={collaborators.length > 0}
                       collaboratorsEnabled={collaborators.length < MAX_POST_COLLABORATORS}
-                      // Main toolbar only (one lane per post, and in a thread it
-                      // is the root's), and omitted outright where the post
-                      // cannot take one — see `laneEligible`.
+                      // This box is the batch's ROOT in either mode, which is the
+                      // entry the wire takes a lane on in both — so unlike the
+                      // continuations it keeps the control whatever the mode.
                       onLanePress={laneEligible ? handleLanePress : undefined}
                       hasLane={Boolean(laneId)}
                       hasLocation={!!location}
@@ -2636,7 +2723,6 @@ const ComposeScreenBody = () => {
                       hasEvent={hasEventContent}
                       hasRoom={hasRoomContent}
                       hasPodcast={hasPodcastContent}
-                      hasSchedule={Boolean(scheduledAt)}
                       hasSourceErrors={invalidSources}
                       disabled={isPosting}
                     />
@@ -2741,7 +2827,17 @@ const ComposeScreenBody = () => {
                   onRoomRemove={handleThreadRoomRemove}
                   onReplySettingsPress={handleThreadReplySettingsPress}
                   onSensitiveToggle={handleThreadSensitiveToggle}
+                  onPodcastPress={openThreadPodcastPicker}
+                  onPodcastRemove={removeThreadPodcast}
                   onPublishAsPress={threadPublishAsEligible ? handleThreadPublishAsPress : undefined}
+                  // A continuation is a reply and the server refuses a lane on
+                  // one, so the icon is absent in thread mode and present in
+                  // beast — see `threadLaneEligible`.
+                  onLanePress={threadLaneEligible ? handleThreadLanePress : undefined}
+                  // The SAME node the main box gets — one publish time for the
+                  // whole batch, so every row says it and clearing it clears
+                  // them all in one render.
+                  timeSlot={scheduleTimeSlot}
                   getFileDownloadUrl={getFileDownloadUrl}
                   textInputRef={handleThreadTextInputRef}
                   styles={styles}
@@ -2859,6 +2955,48 @@ const ComposeScreenBody = () => {
             </ScrollView>
 
             <View style={[styles.bottomBar, bottomBarVisible && { paddingBottom: 80 }]}>
+              {/* WHEN everything written here goes out.
+                  It used to be an icon in the first box's attachment row, which
+                  made it look like that post's schedule. It is not one:
+                  `POST /posts/thread` reads `scheduledFor` from the TOP level
+                  and stamps every entry with the same instant, and a per-entry
+                  time is not a field of the request at all. So it sits down here
+                  with the other whole-batch decisions, where no box owns it —
+                  and unlike them it is never hidden, because the batch has a
+                  publish time in both posting modes. */}
+              <TouchableOpacity
+                onPress={handleSchedulePress}
+                disabled={isPosting}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={t('compose.schedule.a11y', { defaultValue: 'Schedule this post' })}
+                style={[styles.replySettingsPill, { backgroundColor: theme.colors.backgroundSecondary }]}
+              >
+                {/* The FILLED cut once a time is set, not just a tint — the
+                    pairing the rest of the app uses, and the half a
+                    colour-blind reader still gets. Its own glyph, never the
+                    event control's `CalendarIcon`: two different actions drawn
+                    as one picture is the collision that pairing fixed. */}
+                {scheduledAt ? (
+                  <ScheduleIconActive size={16} color={theme.colors.primary} />
+                ) : (
+                  <ScheduleIcon size={16} color={theme.colors.textSecondary} />
+                )}
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.replySettingsText,
+                    { color: scheduledAt ? theme.colors.primary : theme.colors.textSecondary },
+                  ]}
+                >
+                  {/* The SAME short spelling the identity rows show, so the two
+                      places that name this instant cannot read differently. */}
+                  {scheduledAt
+                    ? formatScheduledShort(scheduledAt)
+                    : t('compose.schedule.now', { defaultValue: 'Now' })}
+                </Text>
+                <Ionicons name="chevron-down" size={12} color={theme.colors.textTertiary} />
+              </TouchableOpacity>
               {!(postingMode === 'beast' && threadItems.length > 0) && (
                 <>
                   <TouchableOpacity

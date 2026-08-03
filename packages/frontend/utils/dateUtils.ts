@@ -16,6 +16,30 @@ export const formatScheduledLabel = (date: Date): string => {
   }
 };
 
+/**
+ * The publish time as it reads INSIDE a line of other text — the composer's
+ * identity row, where it stands in the slot that otherwise says "now".
+ *
+ * Shorter than {@link formatScheduledLabel} but never ambiguous, which rules out
+ * the obvious "12/03": the whole point of the slot is knowing when the post goes
+ * out, so the TIME is always there, and the year appears exactly when it is not
+ * the current one. A bare day-and-month would read as a date already passed.
+ */
+export const formatScheduledShort = (date: Date): string => {
+  const isThisYear = date.getFullYear() === new Date().getFullYear();
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      month: "short",
+      day: "numeric",
+      ...(isThisYear ? {} : { year: "numeric" }),
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(date);
+  } catch {
+    return date.toLocaleString();
+  }
+};
+
 type DateDiff = {
   value: number;
   unit: 'now' | 'second' | 'minute' | 'hour' | 'day' | 'month';
