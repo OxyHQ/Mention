@@ -1,7 +1,6 @@
 import React, { useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { CommentIcon } from '@/assets/icons/comment-icon';
 import { TranslateIcon } from '@/assets/icons/translate-icon';
 import { BoostIcon, BoostIconActive } from '@/assets/icons/boost-icon';
