@@ -37,6 +37,7 @@ import {
   fetchAndUpsertAtprotoProfile,
   mapProfileToNormalizedActor,
   splitHandle,
+  upsertAtprotoActor,
 } from '../../../connectors/atproto/profile.mapper';
 
 const DID = 'did:plc:ewvi7nxzyoun6zhxrhs64oiz';
@@ -250,6 +251,17 @@ describe('fetchAndUpsertAtprotoProfile', () => {
 
     expect(actor).not.toBeNull();
     expect(actor?.oxyUserId).toBeUndefined();
+    expect(mocks.updateOne).not.toHaveBeenCalled();
+  });
+
+  it('does not adopt another identity when a reassigned handle collides during upsert', async () => {
+    mocks.findOneAndUpdate.mockRejectedValueOnce(new Error('E11000 duplicate key'));
+
+    const actor = mapProfileToNormalizedActor(PROFILE)!;
+    const resolved = await upsertAtprotoActor(actor);
+
+    expect(resolved.oxyUserId).toBeUndefined();
+    expect(mocks.resolveFederatedActorIdentity).not.toHaveBeenCalled();
     expect(mocks.updateOne).not.toHaveBeenCalled();
   });
 
