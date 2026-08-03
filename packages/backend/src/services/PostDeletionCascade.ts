@@ -103,9 +103,24 @@ const POST_REFERENCE_DISPOSITION: Record<PostReferenceProbeName, ReferenceDispos
 };
 
 /** The claim this cascade makes, in the shape the residue check verifies. */
-const CASCADED_POST_REFERENCES: readonly PostReferenceProbeName[] = (
+export const CASCADED_POST_REFERENCES: readonly PostReferenceProbeName[] = (
   Object.keys(POST_REFERENCE_DISPOSITION) as PostReferenceProbeName[]
 ).filter((name) => POST_REFERENCE_DISPOSITION[name] === 'cascade');
+
+/**
+ * The references this module deliberately does NOT remove — the `retain` and
+ * `cancel-pending` halves of the table above.
+ *
+ * Derived from the same `Record` rather than written out a second time, so a
+ * disposition that changes moves both lists at once. Exported for a caller that
+ * has to declare its position to `assertPostsSafeToDelete`
+ * (`keptByPolicy`): a reference this module keeps on purpose must not read to
+ * that gate as one nobody thought about, and the only honest way to say so is
+ * to name the decision's owner rather than to claim the rows are gone.
+ */
+export const POST_REFERENCES_KEPT_BY_POLICY: readonly PostReferenceProbeName[] = (
+  Object.keys(POST_REFERENCE_DISPOSITION) as PostReferenceProbeName[]
+).filter((name) => POST_REFERENCE_DISPOSITION[name] !== 'cascade');
 
 /**
  * The fields the cascade reads off a post. Deliberately the same set the
@@ -409,6 +424,39 @@ function referenceLegs(targets: readonly CascadedPostRow[]): CascadeLeg[] {
       run: () => Bookmark.deleteMany({ postId: { $in: objectIds } }).exec(),
     },
   ];
+}
+
+/**
+ * The reference legs alone, over MANY posts, for an ADMINISTRATIVE caller.
+ *
+ * WHY A SECOND ENTRY POINT EXISTS, RATHER THAN A FLAG ON THE FIRST.
+ *
+ * {@link cascadeDeletedPost} serves the LIVE delete route: one post, already
+ * removed by the request that authorized it, and the user has been told the
+ * delete succeeded. It must therefore never throw — a derived row that could not
+ * be removed is not a reason to report a completed deletion as a failure — so it
+ * swallows everything and states the residue in a log.
+ *
+ * An administrative cascade is the opposite case in both respects. It deletes
+ * MANY posts, and it runs inside a job that can be re-run, so a leg that failed
+ * MUST reach the caller: a BullMQ retry re-running the whole cascade is exactly
+ * the recovery the live path does not have. Returning the failed leg NAMES is
+ * what makes that possible without either caller inheriting the other's error
+ * posture — a shared flag would put both postures in one function and let the
+ * wrong one be selected by a default.
+ *
+ * Scope is deliberately narrow: the reference legs and nothing else. It does not
+ * delete the `Post` rows (the caller owns which posts die and in what order), it
+ * does not expand the boost closure (use {@link collectBoostClosure}), and it
+ * does not repair counters (the surviving-row set depends on which posts the
+ * caller is destroying, which only the caller knows). Duplicating any of those
+ * here would put a second implementation beside the caller's.
+ */
+export async function cascadePostReferences(
+  targets: readonly CascadedPostRow[],
+): Promise<{ failedLegs: string[] }> {
+  if (targets.length === 0) return { failedLegs: [] };
+  return { failedLegs: await runLegs(referenceLegs(targets)) };
 }
 
 export interface PostDeletionCascadeInput {

@@ -173,8 +173,24 @@ describe('Read-path invariant — feeds/hydration never touch a node', () => {
   // Hot read-path modules: anything a feed/hydration request executes. None may
   // reference the node model, node endpoints, or the node services.
   const HOT_PATH_DIRS = ['src/mtn/feed', 'src/controllers', 'src/services'];
-  // The node layer itself is the ONLY place node I/O is allowed — exclude it.
-  const NODE_LAYER = path.normalize('src/services/mtn');
+  /**
+   * The two directories under a scanned root that are not read paths at all.
+   *
+   *  - `src/services/mtn` is the node layer itself: the only place node I/O is
+   *    allowed to live.
+   *  - `src/services/channelDeletion` is an administrative cascade. It has to
+   *    ENUMERATE the node models in order to delete their rows when a channel is
+   *    destroyed — leaving a chain and a node registration behind would be exactly
+   *    the orphan that cascade exists to prevent — and nothing in it is reachable
+   *    from a feed or hydration request.
+   *
+   * Neither exemption widens what a hot path may do; both name a directory that is
+   * not one.
+   */
+  const NOT_A_READ_PATH = [
+    path.normalize('src/services/mtn'),
+    path.normalize('src/services/channelDeletion'),
+  ];
   const FORBIDDEN = [
     'MentionUserNode',
     'MentionNodeSyncService',
@@ -197,8 +213,7 @@ describe('Read-path invariant — feeds/hydration never touch a node', () => {
     for (const entry of entries) {
       const full = path.join(abs, entry);
       const rel = path.relative(path.resolve(__dirname, '../../../../'), full);
-      // The node layer (src/services/mtn) is the allowed home of node I/O.
-      if (path.normalize(rel).startsWith(NODE_LAYER)) continue;
+      if (NOT_A_READ_PATH.some((excluded) => path.normalize(rel).startsWith(excluded))) continue;
       if (statSync(full).isDirectory()) {
         files.push(...walk(rel));
       } else if (full.endsWith('.ts') && !full.endsWith('.test.ts')) {
