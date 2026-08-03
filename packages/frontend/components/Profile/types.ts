@@ -369,6 +369,11 @@ export interface ChannelHeaderProps extends ProfileHeaderBaseProps {
   UserNameComponent: UserNameComponent;
   isPrivate: boolean;
   privacySettings?: ProfileData['privacy'];
+  /**
+   * The channel's categories, in stored order. Only the PRIMARY (element 0) is
+   * drawn here; the full list lives on the about screen.
+   */
+  accountCategories?: ProfileData['accountCategories'];
   /** Extra element rendered inline after the name (e.g. the fediverse badge). */
   trailingBadge?: React.ReactNode;
 }

@@ -23,6 +23,8 @@ import { openExternalLink } from '@/utils/openExternalLink';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import type { ExternalNetwork } from '@/services/feedService';
 import type { ProfileData } from '@/hooks/useProfileData';
+import { useAccountCategoryLabel } from '@/hooks/useAccountCategoryLabel';
+import { nameableAccountCategoryIds } from '@/utils/accountCategories';
 import { useProfileAccount } from '@/components/Profile/hooks/useProfileAccount';
 import type { ProfileRouteFamily } from '@/components/Profile/profileRoute';
 import { BloomColorScope } from '@oxyhq/bloom/theme';
@@ -79,6 +81,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
   const insets = useSafeAreaInsets();
   const safeBack = useSafeBack();
   const { t } = useTranslation();
+  const categoryLabel = useAccountCategoryLabel();
 
   // Format join date
   const joinDate = useMemo(() => {
@@ -100,6 +103,21 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
       year: 'numeric'
     });
   }, [profileData?.verified, profileData?.verifiedAt, profileData?.createdAt]);
+
+  // Every category the account carries that this build can name, in the
+  // account's OWN order — the first is its primary. Filtered, never sorted:
+  // sorting would destroy the one thing the order encodes, and an id from a
+  // newer vocabulary is dropped rather than shown as its raw slug (this screen
+  // is for readers, so a row saying "unavailable" would be noise; the picker,
+  // whose reader OWNS the account, keeps it instead).
+  const categories = useMemo(
+    () =>
+      nameableAccountCategoryIds(profileData?.accountCategories).map((id) => ({
+        id,
+        label: categoryLabel(id),
+      })),
+    [profileData?.accountCategories, categoryLabel],
+  );
 
   // Federation identity for the Fediverse / Bluesky section (federated profiles
   // only): the network, the canonical `@user@domain` handle, and a web-openable
@@ -235,6 +253,29 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
             }}
           />
         </View>
+
+        {/* Categories — the WHOLE ordered list, which is what makes this the
+            counterpart to the profile: the header names only the primary, so
+            without this surface the other three would be unreadable anywhere.
+            The order is the account's own and is never sorted here; the first
+            row is marked as the primary, which is the only thing that explains
+            why that one and not another appears under the name. */}
+        {categories.length > 0 && (
+          <SettingsListGroup title={t('accountCategories.title', { defaultValue: 'Categories' })}>
+            {categories.map((category, index) => (
+              <SettingsListItem
+                key={category.id}
+                icon={<RowIcon name="pricetags" />}
+                title={category.label}
+                value={
+                  index === 0
+                    ? t('accountCategories.primary', { defaultValue: 'Primary' })
+                    : undefined
+                }
+              />
+            ))}
+          </SettingsListGroup>
+        )}
 
         {/* Account details — dates, location, activity */}
         {hasAccountDetails && (

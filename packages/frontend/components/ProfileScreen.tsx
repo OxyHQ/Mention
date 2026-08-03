@@ -35,6 +35,7 @@ import {
     ProfileHeader,
     ProfileShell,
     PrivateBadge,
+    AccountCategoryLine,
     useSubscription,
     useProfileAccount,
     useProfileChrome,
@@ -370,6 +371,15 @@ const PersonProfile: React.FC<PersonProfileProps> = ({
                         style={userNameStyle}
                         trailingBadge={fediverseBadge}
                         handleTrailing={followsYouTag}
+                    />
+                    {/* Non-personal accounts route here too — an organization, a
+                        project or a bot is a `person`-FAMILY url (only `channel`
+                        gets `/c/`), and all four kinds carry categories. A
+                        personal account never has any, so this renders nothing
+                        for the overwhelming majority of profiles. */}
+                    <AccountCategoryLine
+                        accountCategories={profileData.accountCategories}
+                        align="start"
                     />
                     {isPrivate && (
                         <View className="flex-row items-center gap-2 flex-wrap">

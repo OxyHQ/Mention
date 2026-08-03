@@ -284,6 +284,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                     verified={profileData.verified}
                     isPrivate={isPrivate}
                     privacySettings={profileData.privacy}
+                    accountCategories={profileData.accountCategories}
                     UserNameComponent={UserName}
                 />
                 {/* The last element of the centred masthead, and the boundary

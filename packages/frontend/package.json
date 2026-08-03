@@ -90,6 +90,7 @@
     "@livekit/react-native-webrtc": "^144.1.1",
     "@mention/shared-types": "workspace:*",
     "@oxyhq/bloom": "catalog:",
+    "@oxyhq/contracts": "catalog:",
     "@oxyhq/core": "catalog:",
     "@oxyhq/services": "catalog:",
     "@react-native-async-storage/async-storage": "^2.2.0",

@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useUserByUsername, queryKeys as sdkQueryKeys } from '@oxyhq/services';
 import { useAuth } from '@oxyhq/services/ui/client';
-import type { AccountKind, User } from '@oxyhq/core';
+import type { AccountCategoryId, AccountKind, User } from '@oxyhq/core';
 import { useAppearanceStore, type UserAppearance, type ProfileMedia } from '@/stores/appearanceStore';
 import { APP_COLOR_PRESETS, HEX_TO_APP_COLOR } from '@oxyhq/bloom/theme';
 import { MEDIA_VARIANT_BANNER } from '@mention/shared-types/post';
@@ -44,6 +44,16 @@ export interface ProfileData {
    * signature below, where it would arrive as `unknown` and tempt a cast.
    */
   kind?: AccountKind;
+  /**
+   * What this account IS, as an ORDERED list of category ids — element 0 is the
+   * primary. Named here for the same reason as `kind`: it arrives on the Oxy
+   * `User` and would otherwise reach renderers as `unknown` through the
+   * permissive index signature below, where reading it costs a cast.
+   *
+   * Absent rather than `[]` when the account has none, and never present at all
+   * for a `personal` account: a person has interests, not a sector.
+   */
+  accountCategories?: AccountCategoryId[];
   name: User['name'];
   bio?: string;
   verified?: boolean;
