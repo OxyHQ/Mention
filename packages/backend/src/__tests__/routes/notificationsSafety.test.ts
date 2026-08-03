@@ -40,7 +40,15 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: mocks.createScopedOxyClient,
+  createUserScopedOxyServices: () => undefined,
   getServiceOxyClient: () => ({ getUsersByIds: mocks.getUsersByIds }),
+}));
+
+// Which recipient ids the viewer's inbox covers is `notificationInboxScope.test.ts`'s
+// subject; here it is held at "just the viewer" so these cases stay about the
+// sensitive-content and muted-word gates.
+vi.mock('../../services/notificationInbox', () => ({
+  resolveNotificationInboxIds: async (viewerId: string) => [viewerId],
 }));
 
 vi.mock('../../utils/mediaResolver', () => ({

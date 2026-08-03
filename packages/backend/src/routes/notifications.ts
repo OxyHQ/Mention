@@ -8,7 +8,12 @@ import PushToken from '../models/PushToken';
 import { sendPushToUser } from '../utils/push';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
-import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
+import {
+  createScopedOxyClient,
+  createUserScopedOxyServices,
+  getServiceOxyClient,
+} from '../utils/oxyHelpers';
+import { resolveNotificationInboxIds } from '../services/notificationInbox';
 import { queryInt, queryString } from '../utils/queryParams';
 import { apiRateLimiter } from '../middleware/rateLimiter';
 import type { HydratedPost } from '@mention/shared-types';
@@ -52,6 +57,20 @@ const SYSTEM_ACTOR: ActorProfile = {
 };
 
 /**
+ * Every `recipientId` this request's viewer may read — themselves, plus any
+ * CHANNEL they operate (a channel has no session of its own, so its inbox is
+ * only reachable this way). See `services/notificationInbox`.
+ *
+ * EVERY recipient-scoped query in this file goes through here. A handler that
+ * filters on `recipientId: userId` directly is not a smaller version of this —
+ * it is a channel notification the operator can see in the list and then cannot
+ * mark read, delete, or have counted in the badge.
+ */
+async function inboxRecipientIds(req: AuthRequest, userId: string): Promise<string[]> {
+  return resolveNotificationInboxIds(userId, createUserScopedOxyServices(req));
+}
+
+/**
  * Lean shape of a Notification as read in the GET handler. `entityId` is the raw
  * reference id (never populated — the post rows are batch-fetched by `$in`
  * below); `string` covers legacy/defensive reads.
@@ -77,7 +96,13 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     const limit = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_NOTIFICATIONS_PAGE_SIZE, 1), MAX_NOTIFICATIONS_PAGE_SIZE);
 
     // Build query with cursor support
-    const query: { recipientId: string; _id?: { $lt: mongoose.Types.ObjectId } } = { recipientId: userId };
+    const recipientIds = await inboxRecipientIds(req, userId);
+    /** The channels among them — everything in the scope that is not the viewer. */
+    const operatedChannelIds = new Set(recipientIds.filter((id) => id !== userId));
+    const query: {
+      recipientId: { $in: string[] };
+      _id?: { $lt: mongoose.Types.ObjectId };
+    } = { recipientId: { $in: recipientIds } };
     if (cursor) {
       // Validate cursor is a valid ObjectId
       if (!mongoose.Types.ObjectId.isValid(cursor)) {
@@ -104,7 +129,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         .limit(limit + 1)
         .lean<LeanNotification[]>(),
       Notification.countDocuments({
-        recipientId: userId,
+        recipientId: { $in: recipientIds },
         read: false
       }),
       loadShowSensitiveContent(userId),
@@ -126,16 +151,28 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       notificationsRaw.map((n) => n.actorId).filter(Boolean)
     ));
 
+    // Channels named as the RECIPIENT of a row on this page. A notification the
+    // viewer received because they operate a channel says "liked your post" about
+    // a post the viewer very likely did not write, so the row has to name whose
+    // inbox it arrived in or it is simply wrong on its face. Resolving the
+    // channel's public profile costs nothing extra — it joins the actor batch
+    // below, and a channel is usually also the actor's target anyway.
+    const channelRecipientIds = Array.from(new Set(
+      notificationsRaw.map((n) => n.recipientId).filter((id) => Boolean(id) && id !== userId),
+    ));
+
     const profilesMap = new Map<string, ActorProfile>();
     if (uniqueActorIds.includes('system')) {
       profilesMap.set('system', SYSTEM_ACTOR);
     }
     // Single bulk fetch for all real actors (chunked/deduped by the SDK) instead
     // of one getUserById HTTP request per actor.
-    const realActorIds = uniqueActorIds.filter((id) => id !== 'system');
-    if (realActorIds.length > 0) {
+    const profileIdsToResolve = Array.from(new Set(
+      [...uniqueActorIds, ...channelRecipientIds].filter((id) => id !== 'system'),
+    ));
+    if (profileIdsToResolve.length > 0) {
       try {
-        const profiles = await getServiceOxyClient().getUsersByIds(realActorIds);
+        const profiles = await getServiceOxyClient().getUsersByIds(profileIdsToResolve);
         for (const profile of profiles) {
           if (profile?.id) profilesMap.set(profile.id, profile);
         }
@@ -202,7 +239,16 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         // to a post the viewer wrote: a sensitive post is no surprise to its own author,
         // and hiding "someone liked your post" because the post uses a word THEY muted
         // would silently drop real engagement on their own work.
-        const isOwnPost = post.viewerState?.isOwner === true || post.viewerState?.isCollaborator === true;
+        //
+        // A post authored by a channel the viewer OPERATES is their own work by the
+        // same argument — `viewerState.isOwner` cannot see it, because the owner of
+        // that post is the channel account and the viewer is a person. Without this
+        // an operator's own muted word silently deletes their channel's engagement,
+        // which is the exact failure the paragraph above exists to prevent.
+        const isOwnPost =
+          post.viewerState?.isOwner === true ||
+          post.viewerState?.isCollaborator === true ||
+          (post.user?.id !== undefined && operatedChannelIds.has(post.user.id));
 
         if (!isOwnPost && compiledMuteWords && isMutedSubject(
           compiledMuteWords,
@@ -257,6 +303,17 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           preview,
           post: embeddedPost,
           actorId_populated: toPopulatedActor(actor, n.actorId),
+          // Present ONLY when the row was addressed somewhere other than the
+          // viewer — i.e. to a channel they operate. Its absence is what the
+          // client reads as "this one is mine", so it must never be populated
+          // for the viewer's own rows. It carries the channel's PUBLIC profile
+          // and nothing else: who WROTE the post behind it stays server-side
+          // (`UserSettings.channel.signPosts` is the only thing that discloses a
+          // writer, and it does so on the post, not here).
+          recipientId_populated:
+            n.recipientId === userId
+              ? undefined
+              : toPopulatedActor(profilesMap.get(n.recipientId), n.recipientId),
         };
       });
 
@@ -329,7 +386,7 @@ const markAsReadHandler = async (req: AuthRequest, res: Response) => {
     }
 
     const notification = await Notification.findOneAndUpdate(
-      { _id: req.params.id, recipientId: userId },
+      { _id: req.params.id, recipientId: { $in: await inboxRecipientIds(req, userId) } },
       { read: true },
       { new: true }
     );
@@ -361,8 +418,12 @@ const markAllAsReadHandler = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
+    // Clears the CHANNEL rows too. A channel's inbox is shared by its operators
+    // (one row per event, not one per operator), so this is deliberately a shared
+    // action: leaving them out would leave the badge permanently non-zero with no
+    // control that clears it.
     await Notification.updateMany(
-      { recipientId: userId },
+      { recipientId: { $in: await inboxRecipientIds(req, userId) } },
       { read: true }
     );
 
@@ -383,7 +444,10 @@ router.get('/unread-count', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
-    const count = await Notification.countDocuments({ recipientId: userId, read: false });
+    const count = await Notification.countDocuments({
+      recipientId: { $in: await inboxRecipientIds(req, userId) },
+      read: false,
+    });
     res.json({ count });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching unread count' });
@@ -398,7 +462,7 @@ router.patch('/:id/archive', async (req: AuthRequest, res: Response) => {
 
     // If we had an archived flag, we'd set it here. For now, mark as read.
     const notification = await Notification.findOneAndUpdate(
-      { _id: req.params.id, recipientId: userId },
+      { _id: req.params.id, recipientId: { $in: await inboxRecipientIds(req, userId) } },
       { read: true },
       { new: true }
     );
@@ -426,7 +490,7 @@ router.delete("/:id", async (req: AuthRequest, res: Response) => {
 
     const notification = await Notification.findOneAndDelete({
       _id: req.params.id,
-      recipientId: userId
+      recipientId: { $in: await inboxRecipientIds(req, userId) }
     });
 
     if (!notification) {

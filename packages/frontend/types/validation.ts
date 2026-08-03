@@ -139,6 +139,17 @@ export const ZRawNotification = z.looseObject({
   preview: z.string().optional(),
   post: ZEmbeddedPost.optional(),
   actorId_populated: ZActor.optional(),
+  /**
+   * The account this notification was addressed to, present ONLY when that is not
+   * the viewer — i.e. a CHANNEL they operate, whose inbox has no session of its
+   * own and is read through theirs. Its absence means "addressed to me", so the
+   * row can be rendered without it.
+   *
+   * It names the channel, never the person who wrote the channel's post — that
+   * disclosure is `UserSettings.channel.signPosts` and is decided server-side on
+   * the post itself.
+   */
+  recipientId_populated: ZActor.optional(),
 });
 
 export type TEmbeddedPost = z.infer<typeof ZEmbeddedPost>;

@@ -418,6 +418,27 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   const timeLabel = formatRelativeTimeLocalized(item.createdAt, t);
   const actionText = descriptor.actionPhrase(t);
 
+  // The CHANNEL whose inbox this arrived in, when it is not the viewer's own.
+  // A channel has no session, so its operators read it through theirs — and the
+  // action phrases are written in the first person ("liked your post"), which is
+  // only true of a channel row once the row says whose it is.
+  //
+  // It names the channel and nothing more. Which operator WROTE the post behind
+  // it is not on this payload by design, so no arrangement of this line can
+  // disclose it.
+  const channelLabel = useMemo(() => {
+    const recipient = item.leadNotification.recipientId_populated;
+    if (!recipient) return undefined;
+    const id = recipient.id ?? recipient._id;
+    const displayName = ghostGuardedName(recipient.name?.displayName, id);
+    if (displayName) return displayName;
+    return recipient.username ? `@${recipient.username}` : undefined;
+  }, [item.leadNotification.recipientId_populated]);
+
+  const channelText = channelLabel
+    ? t('notification.forChannel', { defaultValue: 'For {{channel}}', channel: channelLabel })
+    : undefined;
+
   // The bold byline name: grouped -> "María and 3 others"; welcome -> the welcome
   // title; single -> the resolved display name (or @handle floor).
   const bylineName = useMemo(() => {
@@ -432,7 +453,12 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   const hasDisplayName = isSingleActor && !!resolvedPrimary.displayName;
   const showHandleLine = hasDisplayName && !!resolvedPrimary.handle;
 
-  const accessibilityLabel = isWelcome ? `${bylineName}. ${actionText}` : `${bylineName} ${actionText}`;
+  const accessibilityLabel = [
+    isWelcome ? `${bylineName}. ${actionText}` : `${bylineName} ${actionText}`,
+    channelText,
+  ]
+    .filter(Boolean)
+    .join('. ');
 
   const previewText = useMemo(() => {
     if (!descriptor.hasPreview) return undefined;
@@ -668,6 +694,12 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
                 </Text>
               ) : null}
             </View>
+
+            {channelText ? (
+              <Text className="text-muted-foreground text-[13px] leading-4" numberOfLines={1}>
+                {channelText}
+              </Text>
+            ) : null}
 
             {actionText ? (
               <Text className="text-muted-foreground text-[15px] leading-5" numberOfLines={2}>
