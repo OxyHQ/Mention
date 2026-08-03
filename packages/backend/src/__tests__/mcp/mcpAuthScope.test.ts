@@ -4,7 +4,7 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OxyServices } from '@oxyhq/core';
 
-process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-secret';
+process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-secret-that-is-at-least-32-bytes';
 
 vi.mock('../../mcp/services/mcpRevocationService', () => ({
   isRevoked: vi.fn().mockResolvedValue(false),
