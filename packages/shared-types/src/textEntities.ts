@@ -10,20 +10,31 @@
  * definitions that differed on whitespace and the URL run had four that differed
  * on the bare-`www.` form and on the terminator.
  *
- * WHY A SCANNER AND NOT A BAG OF REGEX SOURCES. Sharing only the sources would
- * still leave every call site free to pick its own alternation ORDER, and the
- * order is the load-bearing part: a URL has to be matched before a hashtag, or
- * the `#anchor` in `https://example.com/page#anchor` is linkified as a tag inside
- * the link. That is a bug you can only get wrong once per call site, which is
- * precisely the shape of thing that belongs in one place. The precedence is fixed
- * inside {@link scanTextEntities} — in the order the alternatives are pushed onto
- * the pattern — and callers choose only WHICH kinds they want, never their order.
+ * WHY A SCANNER AND NOT A BAG OF REGEX SOURCES. Sharing only the sources leaves
+ * every call site applying them SEQUENTIALLY, and a sequence of replaces is
+ * order-sensitive in a way a single alternation is not. The classifiers really
+ * did strip URLs before hashtags; reversing those two lines would have pulled the
+ * `#anchor` out of `https://example.com/page#anchor` first and then matched the
+ * URL against the wreckage. One pass over one pattern removes that class of
+ * mistake outright — every entity is matched against the ORIGINAL text and the
+ * spans come back non-overlapping — instead of leaving each call site to
+ * rediscover the right sequence.
  *
- * {@link DEFAULT_ENTITY_KINDS} is NOT that order. It is the default SET of kinds,
- * and reordering it changes nothing: the array is read into a `Set`. Reordering
- * the `alternatives.push` sequence is what changes behaviour, and doing so turns
- * 41 tests red — verified by mutation, so nobody has to rediscover it by guessing
- * which of the two is load-bearing.
+ * BE PRECISE ABOUT WHICH ORDER MATTERS. Two plausible-sounding claims about this
+ * file are false, and both have been believed here:
+ *
+ *  - {@link DEFAULT_ENTITY_KINDS} is a SET, not an order. It is read through a
+ *    `Set`, so reordering it changes nothing at all.
+ *  - Within the pattern, `url` sitting ahead of `hashtag` is NOT what protects
+ *    `https://example.com/page#anchor`. An alternation is tried at each POSITION
+ *    in turn, so the URL wins by starting earlier and running greedily to
+ *    whitespace, whichever order the two alternatives are in. Moving the `url`
+ *    alternative last changes no result and fails no test — measured on this file
+ *    and on the two commits before it.
+ *
+ * Exactly ONE step of the assembly order is load-bearing — the markup forms
+ * before the sigil group — and it is documented at the sequence itself, in
+ * {@link createTextEntityPattern}, next to the code it constrains.
  *
  * HERMES SAFETY. This module ships into the React Native bundle, so it may not
  * contain a Unicode property escape: Hermes has them compiled out and throws at
@@ -123,11 +134,10 @@ export interface ScanTextEntitiesOptions {
  * specific wants everything found.
  *
  * NOT the match order, despite reading like one: this is consumed as a `Set`, so
- * reordering it changes nothing. The order that decides which kind wins an
- * overlap is the `alternatives.push` sequence in {@link scanTextEntities}, and
- * the reasoning for it lives there — both markup forms before `url` so a target
- * that looks like a URL stays inside its mention, and `url` before the sigil
- * kinds so a fragment or path segment inside a link is consumed by the link.
+ * reordering it changes nothing. The alternation order is the
+ * `alternatives.push` sequence in {@link createTextEntityPattern}, and the one
+ * step of it that is load-bearing is explained there, next to the code it
+ * constrains.
  */
 const DEFAULT_ENTITY_KINDS: readonly TextEntityKind[] = [
   'mentionDisplay',
@@ -238,13 +248,30 @@ export function createTextEntityPattern(options: ScanTextEntitiesOptions = {}): 
   const wanted = new Set(kinds);
   const alternatives: string[] = [];
 
+  // THIS SEQUENCE IS THE ALTERNATION ORDER. One step of it is load-bearing: the
+  // MARKUP forms must come before the sigil group.
+  //
+  // An alternation only decides between alternatives that can begin at the SAME
+  // index, which is why most of this order is free — moving `url` last changes
+  // no result and fails no test. `[@Ada](ada)` is the exception. `[` is not a
+  // word character, so it is a legal leading boundary for a sigil, and the sigil
+  // group can therefore match `@Ada` at the very same index 0 where the
+  // display-mention markup starts. Whichever is written first wins; if that were
+  // the sigil group, every hydrated mention in the product would degrade to a
+  // bare handle carrying the display NAME instead of a link to the account.
+  //
+  // Moving `sigilSource` above these two turns seven tests red, the first of
+  // which asserts this rule by name rather than tripping over it. Only reachable
+  // since `bareHandle` was added: before it the sigil group could not begin with
+  // `@` at all, and no ordering in this function changed anything.
   if (wanted.has('mentionDisplay')) alternatives.push(MENTION_DISPLAY_SOURCE);
   if (wanted.has('mentionPlaceholder')) alternatives.push(MENTION_PLACEHOLDER_SOURCE);
-  // Both sigil entities share one boundary group, so they contribute a single
-  // trailing alternative rather than one each.
+  if (wanted.has('url')) alternatives.push(urlSource(urlTerminator, bareWww));
+  // The sigil entities share ONE boundary group, so they contribute a single
+  // alternative rather than one each — which is also why they cannot be
+  // reordered relative to one another.
   const sigils = sigilSource(wanted);
   if (sigils) alternatives.push(sigils);
-  if (wanted.has('url')) alternatives.push(urlSource(urlTerminator, bareWww));
 
   if (alternatives.length === 0) {
     throw new Error('scanTextEntities: `kinds` selected no entity kinds to match');

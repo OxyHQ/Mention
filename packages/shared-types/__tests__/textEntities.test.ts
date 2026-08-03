@@ -81,6 +81,26 @@ describe('precedence', () => {
     expect(kinds('https://example.com/page#anchor', { kinds: ['hashtag'] })).toEqual([]);
   });
 
+  it('puts the markup alternatives ahead of the sigil group', () => {
+    // The ONE step of the assembly order that is load-bearing, asserted by name
+    // so a reorder produces a failure that explains itself rather than a scatter
+    // of unrelated reds.
+    //
+    // `[` is not a word character, so it is a legal leading boundary for a
+    // sigil: the sigil group can match `@Ada` at the very same index 0 where
+    // `[@Ada](ada)` starts, and whichever alternative is written first wins. Put
+    // the sigil group first and every hydrated mention degrades to a bare handle
+    // carrying the display NAME instead of a link to the account.
+    const source = createTextEntityPattern().source;
+    expect(source.indexOf('?<mdLabel>')).toBeLessThan(source.indexOf('?<handle>'));
+    expect(source.indexOf('?<mentionId>')).toBeLessThan(source.indexOf('?<handle>'));
+
+    // The behaviour that order buys.
+    expect(scanTextEntities('[@Ada](ada)').map((entity) => entity.kind)).toEqual([
+      'mentionDisplay',
+    ]);
+  });
+
   it('a mention target that looks like a URL stays part of the mention', () => {
     const found = scanTextEntities('[@Bob](https://example.com/bob)');
     expect(found.map((e) => e.kind)).toEqual(['mentionDisplay']);
