@@ -1,9 +1,10 @@
-import React, { type ReactNode } from 'react';
+import React, { useMemo, type ReactNode } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { FollowButton } from '@oxyhq/services/ui/client';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { mergeKnownIdentity, useKnownIdentities } from '@/stores/identityUpdates';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { ThemedText } from './ThemedText';
@@ -115,13 +116,29 @@ export function ProfileCard({
   const router = useRouter();
   const { t } = useTranslation();
 
+  // Corrected against any profile edit made in this session, for the same reason
+  // a post row is: `profile` is a snapshot the surface that fetched it is still
+  // holding, and nothing rewrites it. This ONE row is what search results,
+  // who-to-follow, list and starter-pack members, followers and following,
+  // engagement and collaborator lists, pokes and subscriptions all draw — so
+  // resolving it here is what makes an edit reach all of them without each of
+  // them having to remember to.
+  const knownIdentities = useKnownIdentities();
+  const resolved = useMemo(
+    () => mergeKnownIdentity(profile, knownIdentities.get(profile.id)),
+    [profile, knownIdentities],
+  );
+
   // A federated profile's canonical handle carries its instance (`user@domain`),
   // so the row never needs a separate "globe + instance" line. An unresolved
   // author has no handle at all — it must never fall back to the raw id, so a
   // profile with neither name nor handle degrades to "Unknown user" and is not
-  // pressable (no `/@<id>` links).
-  const handle = getNormalizedUserHandle(profile) ?? '';
-  const displayName = profile.name?.displayName?.trim();
+  // pressable (no `/@<id>` links). Derived from the CORRECTED profile: a rename
+  // changes the handle, and a row whose link still pointed at the old one would
+  // 404 on tap.
+  const handle = getNormalizedUserHandle(resolved) ?? '';
+
+  const displayName = resolved.name?.displayName?.trim();
   const canPress = Boolean(onPress) || handle.length > 0;
   // `UserName` owns the "display name else @handle, shown once" rule and the
   // handle line beneath it. Hand it the degraded "Unknown user" label ONLY when
@@ -152,11 +169,11 @@ export function ProfileCard({
         activeOpacity={0.7}
         accessibilityRole="button">
         <Avatar
-          source={profile.avatar || undefined}
+          source={resolved.avatar || undefined}
           size={40}
           variant={MEDIA_VARIANT_AVATAR}
-          verified={profile.verified}
-          placeholderColor={getUserPlaceholderColor(profile)}
+          verified={resolved.verified}
+          placeholderColor={getUserPlaceholderColor(resolved)}
         />
         <View className="flex-1 gap-0.5">
           {/* Identity line via the shared UserName: the name + verified /
@@ -165,10 +182,10 @@ export function ProfileCard({
           <UserName
             name={nameLabel}
             handle={handle || undefined}
-            verified={profile.verified}
-            isFederated={profile.isFederated}
-            isAgent={profile.isAgent}
-            isAutomated={profile.isAutomated}
+            verified={resolved.verified}
+            isFederated={resolved.isFederated}
+            isAgent={resolved.isAgent}
+            isAutomated={resolved.isAutomated}
             style={IDENTITY_STYLE}
           />
           {meta ? (
@@ -178,18 +195,18 @@ export function ProfileCard({
               {meta}
             </ThemedText>
           ) : null}
-          {profile.description ? (
+          {resolved.description ? (
             <ThemedText
               className="text-sm leading-5 text-muted-foreground"
               numberOfLines={2}>
-              {profile.description}
+              {resolved.description}
             </ThemedText>
           ) : null}
         </View>
       </TouchableOpacity>
       {showFollowButton && (
         <FollowButton
-          userId={profile.id}
+          userId={resolved.id}
           size="small"
           initiallyFollowing={initiallyFollowing}
           onFollowChange={onFollowChange}

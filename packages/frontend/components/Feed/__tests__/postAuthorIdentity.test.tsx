@@ -97,11 +97,25 @@ jest.mock('@/components/Post/PostHeader', () => {
     default: (props: {
       avatarSource?: string | null;
       user?: { displayName?: string; handle?: string };
+      boostedBy?: { avatar?: string | null };
+      authors?: { id: string; avatar?: string | null }[];
     }) =>
-      ReactActual.createElement(
-        Text,
-        { testID: 'author-identity' },
-        `${props.avatarSource ?? ''}|${props.user?.displayName ?? ''}|${props.user?.handle ?? ''}`,
+      ReactActual.createElement(ReactActual.Fragment, null,
+        ReactActual.createElement(
+          Text,
+          { testID: 'author-identity' },
+          `${props.avatarSource ?? ''}|${props.user?.displayName ?? ''}|${props.user?.handle ?? ''}`,
+        ),
+        ReactActual.createElement(
+          Text,
+          { testID: 'booster-avatar' },
+          props.boostedBy?.avatar ?? '',
+        ),
+        ReactActual.createElement(
+          Text,
+          { testID: 'byline-avatars' },
+          (props.authors ?? []).map((a) => a.avatar ?? '').join(','),
+        ),
       ),
   };
 });
@@ -146,6 +160,10 @@ function renderRow() {
 
 function identityOf(renderer: TestRenderer.ReactTestRenderer): string {
   return String(renderer.root.findByProps({ testID: 'author-identity' }).props.children);
+}
+
+function probe(renderer: TestRenderer.ReactTestRenderer, testID: string): string {
+  return String(renderer.root.findByProps({ testID }).props.children);
 }
 
 afterEach(() => {
@@ -231,5 +249,84 @@ describe('a post row follows its author’s identity', () => {
 
     const renderer = renderRow();
     expect(identityOf(renderer)).toBe('avatar-before|Daily|daily');
+  });
+});
+
+/**
+ * The row draws three actors, not one.
+ *
+ * `boostedBy` puts whoever reposted the post into the SAME avatar cluster as the
+ * author, and a collaborative byline draws one avatar per collaborator there
+ * too. Correcting only the author is more conspicuous than correcting nothing:
+ * a collaborator who is also the author would be drawn twice, differently, in
+ * one cluster.
+ */
+describe('every actor on the row follows its identity', () => {
+  const BOOSTER = 'booster-1';
+  const COLLABORATOR = 'collab-1';
+
+  function renderCollabRepost() {
+    act(() => {
+      mounted = TestRenderer.create(
+        <PostItem
+          post={{
+            ...stalePost(),
+            authors: [
+              { id: CHANNEL_ID, username: 'daily', name: { displayName: 'Daily' }, avatar: 'avatar-before' },
+              { id: COLLABORATOR, username: 'co', name: { displayName: 'Co' }, avatar: 'collab-before' },
+            ],
+          } as never}
+          repostedBy={{
+            id: BOOSTER,
+            username: 'boo',
+            name: { displayName: 'Boo' },
+            avatar: 'booster-before',
+          } as never}
+        />,
+      );
+    });
+    if (!mounted) throw new Error('the row did not render');
+    return mounted;
+  }
+
+  it('starts from what the server hydrated', () => {
+    const renderer = renderCollabRepost();
+    expect(probe(renderer, 'booster-avatar')).toBe('booster-before');
+    expect(probe(renderer, 'byline-avatars')).toBe('avatar-before,collab-before');
+  });
+
+  it('repaints the reposter when THEIR profile is edited', () => {
+    const renderer = renderCollabRepost();
+
+    act(() => {
+      noteIdentityChanged({ id: BOOSTER, avatar: 'booster-after' });
+    });
+
+    expect(probe(renderer, 'booster-avatar')).toBe('booster-after');
+    // and nobody else moved
+    expect(probe(renderer, 'byline-avatars')).toBe('avatar-before,collab-before');
+  });
+
+  it('repaints one collaborator on the byline without touching the others', () => {
+    const renderer = renderCollabRepost();
+
+    act(() => {
+      noteIdentityChanged({ id: COLLABORATOR, avatar: 'collab-after' });
+    });
+
+    expect(probe(renderer, 'byline-avatars')).toBe('avatar-before,collab-after');
+    expect(probe(renderer, 'booster-avatar')).toBe('booster-before');
+  });
+
+  it('draws one person the same way wherever they appear in the row', () => {
+    const renderer = renderCollabRepost();
+
+    // The channel is both the post's author and the first byline entry.
+    act(() => {
+      noteIdentityChanged({ id: CHANNEL_ID, avatar: 'avatar-after' });
+    });
+
+    expect(identityOf(renderer)).toBe('avatar-after|Daily|daily');
+    expect(probe(renderer, 'byline-avatars')).toBe('avatar-after,collab-before');
   });
 });
