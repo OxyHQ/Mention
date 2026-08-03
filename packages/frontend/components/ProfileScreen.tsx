@@ -132,6 +132,12 @@ const PersonProfile: React.FC<PersonProfileProps> = ({
                     feeds: t('profile.tabs.feeds', { defaultValue: 'Feeds' }),
                     starter_packs: t('profile.tabs.starter_packs', { defaultValue: 'Starter Packs' }),
                     lists: t('profile.tabs.lists', { defaultValue: 'Lists' }),
+                    // A person has no writers tab — `profileTabsForAccountKind`
+                    // drops it for every kind but `channel`. The label is still
+                    // passed because `labels` covers every `ProfileTab` by
+                    // contract: the caller has no reason to know which subset
+                    // survives, and an unused label costs one `t()`.
+                    writers: t('profile.tabs.writers', { defaultValue: 'Writers' }),
                 },
                 laneTabs,
                 profileData?.kind,

@@ -207,6 +207,7 @@
   "profile.tabs.videos": "Videos",
   "profile.tabs.likes": "Likes",
   "profile.tabs.boosts": "Boosts",
+  "profile.tabs.writers": "Writers",
   "profile.stats.boosts": "Boosts",
   "profile.stats.replies": "Replies",
   "profile.posts": "posts",
@@ -1876,6 +1877,12 @@
       "signPosts": "Name the writer",
       "signPostsFooter": "The channel signs its own posts. With this on, the person who wrote one is named alongside it — with it off, they never leave the server at all.",
       "identityFooter": "The channel’s name, handle, picture and the people who may publish as it belong to the account itself — change them where you manage your Oxy accounts."
+    },
+    "writers": {
+      "caption": "The people this channel has named on its posts.",
+      "lastWrote": "Last wrote {{time}}",
+      "empty": "No writers yet",
+      "emptyDetail": "This channel names the person who wrote each post. None have been published yet."
     }
   },
   "trendGraph": {

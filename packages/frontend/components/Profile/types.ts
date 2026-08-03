@@ -12,7 +12,28 @@ import type { useAuth } from '@oxyhq/services/ui/client';
 
 // Tab configuration
 export const TAB_NAMES = ['posts', 'replies', 'media', 'videos', 'likes', 'boosts', 'feeds', 'starter_packs', 'lists'] as const;
-export type ProfileTab = typeof TAB_NAMES[number];
+
+/**
+ * Tabs only a CHANNEL account's profile has, appended after {@link TAB_NAMES}.
+ *
+ * A separate list rather than another entry in `TAB_NAMES` filtered back out for
+ * everybody else, because the two directions are not the same statement:
+ * `CHANNEL_EXCLUDED_TABS` names tabs a channel CANNOT FILL, while this names one
+ * that only a channel HAS. Folding them together would make `TAB_NAMES` a list
+ * no account actually gets, and every reader of it would have to consult the
+ * filter to know what it means.
+ *
+ * - **`writers`** — the people this channel has already named on its posts. It
+ *   exists at all only because `UserSettings.channel.signPosts` is a channel-only
+ *   setting: a person's post has no writer distinct from its author, so the tab
+ *   has no subject anywhere else. Whether a given channel gets it is a second,
+ *   RUNTIME question — see {@link buildProfileTabDescriptors}.
+ */
+export const CHANNEL_ONLY_TAB_NAMES = ['writers'] as const;
+
+export type ProfileTab =
+  | (typeof TAB_NAMES)[number]
+  | (typeof CHANNEL_ONLY_TAB_NAMES)[number];
 
 /**
  * The static tabs a CHANNEL account's profile does NOT get.
@@ -93,7 +114,7 @@ export function profileTabsForAccountKind(
 ): readonly ProfileTab[] {
   if (kind !== 'channel') return TAB_NAMES;
   const excluded = CHANNEL_EXCLUDED_TABS as readonly ProfileTab[];
-  return TAB_NAMES.filter((tab) => !excluded.includes(tab));
+  return [...TAB_NAMES.filter((tab) => !excluded.includes(tab)), ...CHANNEL_ONLY_TAB_NAMES];
 }
 
 /**
@@ -146,14 +167,24 @@ export function laneTabKey(laneId: string): string {
  * step — see {@link profileTabsForAccountKind} for which tabs it drops and why.
  * `labels` still covers every {@link ProfileTab}: the caller has no reason to
  * know which subset survives, and an unused label costs one `t()`.
+ *
+ * `disclosesWriters` is the one input the account's KIND cannot answer. Every
+ * channel could have a writers tab; only a channel that NAMES its writers gets
+ * one, and that is a Mention-owned setting the profile DTO does not carry — the
+ * screen learns it by asking the writers endpoint, which refuses when there is
+ * no list. It defaults to `false` so the tab is absent unless something
+ * affirmatively says otherwise, which is the same direction the disclosure
+ * itself fails in: a missing answer must never name anybody.
  */
 export function buildProfileTabDescriptors(
   labels: Readonly<Record<ProfileTab, string>>,
   lanes: readonly LaneTabInput[] = [],
   accountKind?: AccountKind,
+  disclosesWriters = false,
 ): ProfileTabDescriptor[] {
   const descriptors: ProfileTabDescriptor[] = [];
   for (const tab of profileTabsForAccountKind(accountKind)) {
+    if (tab === 'writers' && !disclosesWriters) continue;
     descriptors.push({ key: tab, label: labels[tab], tab });
     if (tab === 'posts') {
       for (const lane of lanes) {

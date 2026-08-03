@@ -246,6 +246,7 @@
   "profile.tabs.videos": "Vídeos",
   "profile.tabs.likes": "Me gusta",
   "profile.tabs.boosts": "Impulsos",
+  "profile.tabs.writers": "Quién escribe",
   "profile.stats.boosts": "Impulsos",
   "profile.stats.replies": "Respuestas",
   "profile.posts": "publicaciones",
@@ -1847,6 +1848,12 @@
       "signPosts": "Nombrar a quien escribe",
       "signPostsFooter": "El canal firma sus propias publicaciones. Con esto activado, también se nombra a quien la escribió; desactivado, esa persona no sale del servidor.",
       "identityFooter": "El nombre, el identificador, la imagen del canal y quienes pueden publicar como él pertenecen a la cuenta: cámbialos donde gestionas tus cuentas de Oxy."
+    },
+    "writers": {
+      "caption": "Las personas a quienes este canal ha nombrado en sus publicaciones.",
+      "lastWrote": "Escribió por última vez {{time}}",
+      "empty": "Todavía no hay nadie nombrado",
+      "emptyDetail": "Este canal nombra a quien escribe cada publicación. Todavía no ha publicado ninguna."
     }
   },
   "trendGraph": {

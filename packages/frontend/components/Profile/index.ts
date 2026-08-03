@@ -9,6 +9,7 @@ export { useProfileAccount } from './hooks/useProfileAccount';
 export { useProfileChrome } from './hooks/useProfileChrome';
 export { useProfileMoreMenu } from './hooks/useProfileMoreMenu';
 export { useJustFollowed } from './hooks/useJustFollowed';
+export { useChannelWriters } from './hooks/useChannelWriters';
 
 // Components
 export { ProfileSkeleton } from './ProfileSkeleton';
@@ -19,6 +20,7 @@ export { ProfileStats } from './ProfileStats';
 export { ProfileMeta } from './ProfileMeta';
 export { ProfileCommunities } from './ProfileCommunities';
 export { ProfileTabs } from './ProfileTabs';
+export { ProfileWriters } from './ProfileWriters';
 export { PrivateBadge } from './PrivateBadge';
 export { ProfileContent } from './ProfileContent';
 

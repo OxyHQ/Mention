@@ -34,6 +34,7 @@ import {
     useProfileChrome,
     useProfileMoreMenu,
     useJustFollowed,
+    useChannelWriters,
     buildProfileTabDescriptors,
     profileTabIndex,
     type LaneTabInput,
@@ -72,11 +73,17 @@ interface ChannelProfileProps {
  * - **Four tabs, not nine.** `profileTabsForAccountKind` drops the five a channel
  *   account can never fill; see its docstring for the three separate reasons.
  * - **No tab in the URL.** `/c/<handle>` is ONE route with no sub-tabs beneath
- *   it, so its tabs are local state. Writing `/@<handle>/media` here would
- *   navigate a channel out of its own URL family.
+ *   it, so its tabs are local state — the writers tab included. Writing
+ *   `/@<handle>/media` here would navigate a channel out of its own URL family,
+ *   and giving ONE channel tab a `/c/<handle>/…` route of its own while the
+ *   other four stay local state would be a worse inconsistency than either
+ *   answer applied uniformly. `about` and `settings` are separate SCREENS, not
+ *   tabs, which is why they have routes.
  *
- * What is ADDED is the operator's way in: a channel has no login, so its
- * settings are reachable only from the overflow menu of whoever operates it.
+ * What is ADDED is the operator's way in — a channel has no login, so its
+ * settings are reachable only from the overflow menu of whoever operates it —
+ * and a FIFTH tab that only a channel can have: `writers`, present when this
+ * channel names the people who write for it (see below).
  */
 const ChannelProfile: React.FC<ChannelProfileProps> = ({
     username,
@@ -100,6 +107,18 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
         },
     });
 
+    // Whether this channel NAMES the people who write for it, which is the whole
+    // rule for the writers tab. It is not on the profile DTO — the disclosure is
+    // a Mention-owned setting on the channel account, and the writers endpoint
+    // reports it only by REFUSING (one 404 for "not a channel", "does not sign"
+    // and "you may not see this channel" alike). So the tab is keyed on the
+    // query having succeeded, never on the list being non-empty: a channel that
+    // discloses and has published nothing signed keeps its tab and says so.
+    //
+    // The tab's own content reads this same hook, so the two share one cached
+    // answer and opening the tab costs no second request.
+    const { disclosed: disclosesWriters } = useChannelWriters(profileData?.id);
+
     const tabDescriptors = useMemo(
         () =>
             buildProfileTabDescriptors(
@@ -113,11 +132,13 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                     feeds: t('profile.tabs.feeds', { defaultValue: 'Feeds' }),
                     starter_packs: t('profile.tabs.starter_packs', { defaultValue: 'Starter Packs' }),
                     lists: t('profile.tabs.lists', { defaultValue: 'Lists' }),
+                    writers: t('profile.tabs.writers', { defaultValue: 'Writers' }),
                 },
                 laneTabs,
                 'channel',
+                disclosesWriters,
             ),
-        [t, laneTabs],
+        [t, laneTabs, disclosesWriters],
     );
 
     const activeTab = profileTabIndex(tabDescriptors, activeTabKey);
