@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'bun:test';
-import { localProfilePathHandle, ownProfileUrlHandle } from '../src/profileUrls';
+import {
+  fediverseProfilePathSegment,
+  isProfileLikeUrl,
+  localProfilePathHandle,
+  ownProfileUrlHandle,
+} from '../src/profileUrls';
 
 /** The instance under test, as a caller would supply its own web origin. */
 const OURS = ['mention.earth'];
@@ -123,5 +128,80 @@ describe('ownProfileUrlHandle — only a profile on one of OUR hosts', () => {
     // A build with an unparseable web base URL must leave links as links rather
     // than mint mentions against a host nobody declared.
     expect(ownProfileUrlHandle('https://mention.earth/@alice', [])).toBeUndefined();
+  });
+});
+
+describe('fediverseProfilePathSegment — the shapes a stored actor is keyed by', () => {
+  it('reads the human profile page on ANY host', () => {
+    expect(fediverseProfilePathSegment('https://mastodon.social/@alice')).toBe('alice');
+  });
+
+  it('reads the Mastodon/Pleroma actor URI', () => {
+    expect(fediverseProfilePathSegment('https://mastodon.social/users/alice')).toBe('alice');
+    // Misskey keys this by an opaque id rather than a username; it is a lookup
+    // key, never a handle.
+    expect(fediverseProfilePathSegment('https://misskey.io/users/9abc123')).toBe('9abc123');
+  });
+
+  it('keeps a federated profile rendered by an instance whole', () => {
+    expect(fediverseProfilePathSegment('https://mastodon.social/@alice@example.org')).toBe(
+      'alice@example.org',
+    );
+  });
+
+  it('returns the segment VERBATIM, so the caller decides about decoding', () => {
+    expect(fediverseProfilePathSegment('https://mastodon.social/@caf%C3%A9')).toBe('caf%C3%A9');
+  });
+
+  it('tolerates a trailing slash', () => {
+    expect(fediverseProfilePathSegment('https://mastodon.social/@alice/')).toBe('alice');
+  });
+
+  it('is not a profile once the path goes deeper', () => {
+    expect(fediverseProfilePathSegment('https://mastodon.social/@alice/media')).toBeUndefined();
+    expect(
+      fediverseProfilePathSegment('https://mastodon.social/users/alice/statuses/1'),
+    ).toBeUndefined();
+  });
+
+  it('is not a profile for an ordinary link', () => {
+    expect(fediverseProfilePathSegment('https://example.com/blog/post-1')).toBeUndefined();
+    expect(fediverseProfilePathSegment('https://example.com/')).toBeUndefined();
+  });
+
+  it('refuses a non-http scheme and a non-URL', () => {
+    expect(fediverseProfilePathSegment('javascript:alert(1)')).toBeUndefined();
+    expect(fediverseProfilePathSegment('alice')).toBeUndefined();
+    // `file:` is the one that reaches the path matcher: its pathname really is
+    // `/@alice`, and its origin is the string `null`, so admitting it would key
+    // a stored-actor lookup on `null/@alice`.
+    expect(fediverseProfilePathSegment('file:///@alice')).toBeUndefined();
+  });
+
+  it('does NOT read our own minted actor URI — that shape is ours, not a stored actor', () => {
+    expect(fediverseProfilePathSegment('https://mention.earth/ap/users/alice')).toBeUndefined();
+  });
+});
+
+describe('isProfileLikeUrl — which links compete for a body’s mention budget', () => {
+  it('admits a profile on somebody else’s host', () => {
+    expect(isProfileLikeUrl('https://mastodon.social/@alice', OURS)).toBe(true);
+  });
+
+  it('admits a profile on ours, including our minted actor URI', () => {
+    expect(isProfileLikeUrl('https://mention.earth/@alice', OURS)).toBe(true);
+    expect(isProfileLikeUrl('https://mention.earth/ap/users/alice', OURS)).toBe(true);
+  });
+
+  it('refuses an ordinary link', () => {
+    expect(isProfileLikeUrl('https://example.com/blog/post-1', OURS)).toBe(false);
+  });
+
+  it('admits a REMOTE profile shape regardless of whose hosts the caller declared', () => {
+    // The clause that answers for another instance does not consult `ownHosts`
+    // at all — a client with an unparseable base URL still sees the same
+    // candidates the write boundary will.
+    expect(isProfileLikeUrl('https://mastodon.social/@alice', [])).toBe(true);
+    expect(isProfileLikeUrl('https://mention.earth/ap/users/alice', [])).toBe(false);
   });
 });

@@ -6,7 +6,11 @@ import {
   normalizeMentionIds,
   reconcileMentionIds,
 } from '@mention/shared-types/mentions';
-import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
+import {
+  fediverseProfilePathSegment,
+  isProfileLikeUrl,
+  ownProfileUrlHandle,
+} from '@mention/shared-types/profileUrls';
 import {
   scanTextEntities,
   toOpenableUrl,
@@ -161,11 +165,13 @@ function profileHrefKeys(href: string): ProfileHrefKeys | undefined {
   } catch {
     return undefined;
   }
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined;
-
-  const path = url.pathname.replace(/\/$/, '');
-  const segment = /^\/@([^/]+)$/.exec(path)?.[1] ?? /^\/users\/([^/]+)$/.exec(path)?.[1];
+  // The path SHAPES come from the shared matcher rather than a second pair of
+  // regexes here: the composer gates its mention candidates on the same function,
+  // so a shape one side recognised and the other did not would let the two
+  // disagree about which links compete for the per-body budget.
+  const segment = fediverseProfilePathSegment(href);
   if (!segment) return undefined;
+  const path = url.pathname.replace(/\/$/, '');
 
   // A username with non-ASCII characters arrives percent-encoded in `pathname`,
   // while `acct` is stored decoded. A malformed escape is not decodable — keep the
@@ -233,10 +239,7 @@ export async function resolveProfileLinkIdentity(
  * remote actor's profile shape, or a profile on one of our own hosts.
  */
 export function isProfileLikeHref(href: string): boolean {
-  return (
-    profileHrefKeys(href) !== undefined
-    || ownProfileUrlHandle(href, OWN_DOMAINS) !== undefined
-  );
+  return isProfileLikeUrl(href, OWN_DOMAINS);
 }
 
 /**

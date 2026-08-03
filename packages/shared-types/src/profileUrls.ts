@@ -47,6 +47,63 @@ const ACTOR_URI_PATH = /^\/ap\/users\/([^/]+)\/?$/;
 const PROFILE_PAGE_PATH = /^\/@([^/]+)\/?$/;
 
 /**
+ * The Mastodon/Pleroma actor URI — `https://<host>/users/<user-or-opaque-id>`.
+ *
+ * The Misskey family keys this by an opaque id rather than a username, which is
+ * why the segment is not read as a handle anywhere: it is a lookup key for a
+ * stored actor, and only ever meaningful on somebody else's host. OUR profiles
+ * are published at `/@name` and `/ap/users/name` — a `/users/name` URL on our own
+ * host is not one of ours, and must not be resolved as if it were.
+ */
+const REMOTE_ACTOR_URI_PATH = /^\/users\/([^/]+)\/?$/;
+
+/**
+ * The RAW path segment a URL names IF the URL has one of the two shapes every
+ * fediverse server publishes a profile at, with NO opinion about who served it.
+ *
+ * Both shapes are emitted from one place because two subsystems key stored actors
+ * off them — the inbound ingest and the write-time fold — and a candidate gate
+ * that admitted a shape the resolver does not, or vice versa, would make a
+ * composer announce a mention the write boundary will not store (or stay silent
+ * about one it will). Verbatim, not decoded: the caller decides, since an `acct`
+ * is matched decoded while a stored `uri` is matched as written.
+ */
+export function fediverseProfilePathSegment(url: string): string | undefined {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return undefined;
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return undefined;
+  return (
+    PROFILE_PAGE_PATH.exec(parsed.pathname)?.[1] ?? REMOTE_ACTOR_URI_PATH.exec(parsed.pathname)?.[1]
+  );
+}
+
+/**
+ * True when a URL could name a user AT ALL — the gate for treating it as a
+ * mention candidate rather than as an ordinary link.
+ *
+ * The two clauses are the two ways an identity can be found: a stored actor's
+ * profile shape on any host, or a profile on one of OUR hosts (which resolves
+ * through Oxy instead). Purely syntactic and I/O-free, so a composer can run it
+ * on every keystroke and the write boundary can run it before spending a lookup
+ * — and, being ONE function, the two cannot disagree about which links compete
+ * for the per-body budget.
+ *
+ * `ownHosts` is the caller's own notion of "us", for the same reason
+ * {@link ownProfileUrlHandle} takes it: the app's web base URL on the client, the
+ * federation domains plus the identity apex on the server.
+ */
+export function isProfileLikeUrl(url: string, ownHosts: readonly string[]): boolean {
+  return (
+    fediverseProfilePathSegment(url) !== undefined
+    || ownProfileUrlHandle(url, ownHosts) !== undefined
+  );
+}
+
+/**
  * The handle a profile URL's PATH names, with NO opinion about who served it.
  *
  * The caller MUST have already established that the host is ours — see the host-
