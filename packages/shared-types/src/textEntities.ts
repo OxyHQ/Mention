@@ -33,12 +33,18 @@ import {
   HASHTAG_BODY_SOURCE,
   HASHTAG_BOUNDARY_SOURCE,
 } from './hashtags';
+import {
+  UNICODE_LETTER_RANGES,
+  UNICODE_MARK_RANGES,
+  UNICODE_NUMBER_RANGES,
+} from './hashtagRanges.generated';
 
 /** Every inline entity kind this module knows how to find. */
 export type TextEntityKind =
   | 'url'
   | 'mentionPlaceholder'
   | 'mentionDisplay'
+  | 'bareHandle'
   | 'hashtag'
   | 'cashtag';
 
@@ -66,6 +72,7 @@ export interface TextEntity {
    *                         {@link trimUrlTrailingPunctuation})
    *  - `mentionPlaceholder` the Oxy user id
    *  - `mentionDisplay`     the link target (a username or `handle@instance`)
+   *  - `bareHandle`         the handle without its `@`
    *  - `hashtag`            the tag without its `#`
    *  - `cashtag`            the symbol without its `$`
    */
@@ -117,6 +124,7 @@ const ENTITY_PRECEDENCE: readonly TextEntityKind[] = [
   'mentionDisplay',
   'mentionPlaceholder',
   'url',
+  'bareHandle',
   'hashtag',
   'cashtag',
 ];
@@ -150,6 +158,27 @@ const MENTION_PLACEHOLDER_SOURCE = '\\[mention:(?<mentionId>[^\\]\\s]+)\\]';
  */
 const CASHTAG_SOURCE = '\\$(?<cashtag>[A-Z]{1,6}(?:\\.[A-Z]{1,2})?)';
 
+/**
+ * A bare `@handle` typed into prose, as opposed to the two markup forms.
+ *
+ * Letters, numbers, combining marks, `_`, `.` and `-`. Marks are in for the same
+ * reason they are in a hashtag: in Devanagari, Arabic, Thai and decomposed
+ * Vietnamese a written letter is not one code point, so a class without them
+ * ends the handle mid-grapheme and leaves the orphaned marks behind as prose.
+ *
+ * `@` is deliberately NOT in the class, which together with the shared leading
+ * boundary is what keeps this off an email-shaped `someone@instance.tld`: the
+ * `@` there is preceded by `e`, a continuation character, so no handle opens.
+ * That hazard is real and documented — trending once harvested this instance's
+ * own domain out of `@someone@mention.earth` — and it is why a two-part
+ * federated handle stays a DIFFERENT entity, owned by `termExtraction`, rather
+ * than being folded in here.
+ *
+ * `-` is last in the class body so it reads as a literal, not a range.
+ */
+const HANDLE_BODY_SOURCE =
+  `[${UNICODE_LETTER_RANGES}${UNICODE_NUMBER_RANGES}${UNICODE_MARK_RANGES}_.-]+`;
+
 /** Build the URL alternative for the requested terminator and `www.` policy. */
 function urlSource(terminator: 'whitespace' | 'html', bareWww: boolean): string {
   // `<` ends a run only in HTML mode; in plain text it is an ordinary character
@@ -160,9 +189,9 @@ function urlSource(terminator: 'whitespace' | 'html', bareWww: boolean): string 
 }
 
 /**
- * The sigil entities (`#tag`, `$TICKER`) share one leading word-boundary guard,
- * so a `#` or `$` landing inside a word opens nothing — `a#b` and `US$5` are not
- * entities.
+ * The sigil entities (`#tag`, `$TICKER`, `@handle`) share one leading
+ * word-boundary guard, so a sigil landing inside a word opens nothing — `a#b`,
+ * `US$5` and the `@` of `someone@instance.tld` are not entities.
  *
  * The guard CONSUMES the preceding character rather than using a lookbehind. A
  * lookbehind would be tidier and Hermes is documented to support it, but this
@@ -175,6 +204,7 @@ function sigilSource(kinds: ReadonlySet<TextEntityKind>): string {
   const alternatives: string[] = [];
   if (kinds.has('hashtag')) alternatives.push(`#(?<hashtag>${HASHTAG_BODY_SOURCE})`);
   if (kinds.has('cashtag')) alternatives.push(CASHTAG_SOURCE);
+  if (kinds.has('bareHandle')) alternatives.push(`@(?<handle>${HANDLE_BODY_SOURCE})`);
   if (alternatives.length === 0) return '';
   return `(?<boundary>^|${HASHTAG_BOUNDARY_SOURCE})(?:${alternatives.join('|')})`;
 }
@@ -271,6 +301,9 @@ function classify(
   }
   if (groups.url !== undefined) {
     return { kind: 'url', raw, start, end, value: groups.url };
+  }
+  if (groups.handle !== undefined) {
+    return { kind: 'bareHandle', raw, start, end, value: groups.handle };
   }
   if (groups.hashtag !== undefined) {
     return { kind: 'hashtag', raw, start, end, value: groups.hashtag };

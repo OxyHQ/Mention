@@ -218,6 +218,46 @@ describe('cashtag', () => {
   });
 });
 
+// --- bare handles -----------------------------------------------------------
+
+describe('bareHandle', () => {
+  it('matches a handle typed into prose', () => {
+    expect(values('hi @alice there', { kinds: ['bareHandle'] })).toEqual(['alice']);
+  });
+
+  it('matches at the very start of the text', () => {
+    expect(values('@alice speaks', { kinds: ['bareHandle'] })).toEqual(['alice']);
+  });
+
+  it('does NOT swallow an email-shaped someone@instance.tld', () => {
+    // The hazard `termExtraction` documents: the local part is a continuation
+    // character, so no handle opens at that `@`. Left unguarded, trending
+    // harvested this instance's own domain out of `@someone@mention.earth`.
+    expect(kinds('someone@instance.tld')).toEqual([]);
+    expect(kinds('mail someone@instance.tld now')).toEqual([]);
+    expect(kinds('foo.bar@instance.tld')).toEqual([]);
+  });
+
+  it('takes only the local part of a two-part federated handle', () => {
+    // The `@user@host` form is a DIFFERENT entity, owned by `termExtraction`
+    // whose strip order is incident-documented. `@` is not in the handle class,
+    // so the run ends at the second one and the host cannot open its own.
+    expect(values('hi @user@host.tld')).toEqual(['user']);
+  });
+
+  it('keeps a non-Latin handle whole rather than cutting at a combining mark', () => {
+    expect(values('@हिन्दी', { kinds: ['bareHandle'] })).toEqual(['हिन्दी']);
+  });
+
+  it('loses to a URL, so a path segment is not read as a handle', () => {
+    expect(kinds('https://x.com/@alice')).toEqual(['url']);
+  });
+
+  it('loses to the display-mention markup', () => {
+    expect(kinds('[@Ada](ada)')).toEqual(['mentionDisplay']);
+  });
+});
+
 // --- spans -------------------------------------------------------------------
 
 describe('spans', () => {
@@ -242,8 +282,15 @@ describe('spans', () => {
 
   it('finds every kind in one ordered pass', () => {
     expect(
-      kinds('[@Ada](ada) [mention:x1] https://x.com #tag $AAPL'),
-    ).toEqual(['mentionDisplay', 'mentionPlaceholder', 'url', 'hashtag', 'cashtag']);
+      kinds('[@Ada](ada) [mention:x1] https://x.com @bob #tag $AAPL'),
+    ).toEqual([
+      'mentionDisplay',
+      'mentionPlaceholder',
+      'url',
+      'bareHandle',
+      'hashtag',
+      'cashtag',
+    ]);
   });
 });
 
@@ -300,10 +347,59 @@ describe('Hermes safety', () => {
   // This module is built at module load inside the React Native bundle, and
   // Hermes has Unicode property escapes compiled OUT — every `\p{…}` atom throws
   // at RUNTIME, so one here is a crash at boot. Neither `hermesc` nor any V8 run
-  // reproduces it, which is why a text scan of the shipped source is the check.
-  it('the compiled pattern contains no Unicode property escape', () => {
-    const source = createTextEntityPattern().source;
-    expect(/\\[pP]\{/.test(source)).toBe(false);
+  // reproduces it, which is why a text scan is the check.
+  const PROPERTY_ESCAPE = /\\[pP]\{/;
+  const DIST = join(import.meta.dir, '..', 'dist');
+
+  /**
+   * Every BUILT file the scanner actually pulls in, followed transitively from
+   * `dist/textEntities.js`.
+   *
+   * Walking the real closure rather than naming files: a hardcoded list keeps
+   * passing when a future edit introduces a NEW dependency carrying a property
+   * escape, which is precisely the hole a source grep leaves. This scans what
+   * ships — `dist/`, the artefact Metro resolves for this package — so a
+   * property escape anywhere the scanner can reach is caught wherever it was
+   * written.
+   */
+  const scannerClosure = (): string[] => {
+    const seen = new Set<string>();
+    const queue = ['textEntities.js'];
+    while (queue.length > 0) {
+      const relative = queue.pop() as string;
+      if (seen.has(relative)) continue;
+      seen.add(relative);
+      const contents = readFileSync(join(DIST, relative), 'utf8');
+      for (const match of contents.matchAll(/require\("(\.[^"]+)"\)/g)) {
+        queue.push(`${match[1].replace(/^\.\//, '')}.js`);
+      }
+    }
+    return [...seen];
+  };
+
+  it('no built file the scanner reaches carries a property escape', () => {
+    const closure = scannerClosure();
+
+    // Vacuity floor: a traversal that silently found nothing would pass the
+    // assertion below without having looked at anything.
+    expect(closure.length).toBeGreaterThanOrEqual(3);
+    expect(closure).toContain('hashtagRanges.generated.js');
+
+    const offenders = closure.flatMap((relative) =>
+      readFileSync(join(DIST, relative), 'utf8')
+        .split('\n')
+        .map((line, n) => ({ relative, line, n: n + 1 }))
+        .filter(({ line }) => PROPERTY_ESCAPE.test(line))
+        // Print the whole offending line, never a truncated capture group.
+        .map(({ line, n }) => `${relative}:${n}: ${line.trim()}`),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('the compiled pattern contains no property escape', () => {
+    // The strongest check: the exact string handed to `new RegExp`, whichever
+    // file each fragment came from.
+    expect(PROPERTY_ESCAPE.test(createTextEntityPattern().source)).toBe(false);
   });
 
   it('every option combination compiles under the u flag', () => {
@@ -311,21 +407,34 @@ describe('Hermes safety', () => {
       for (const bareWww of [true, false]) {
         const pattern = createTextEntityPattern({ urlTerminator, bareWww });
         expect(pattern.flags).toContain('u');
-        expect(/\\[pP]\{/.test(pattern.source)).toBe(false);
+        expect(PROPERTY_ESCAPE.test(pattern.source)).toBe(false);
       }
     }
   });
 
-  it('the shipped source file writes no property-escape notation, even in prose', () => {
+  it('the shipped source writes no property-escape notation, even in prose', () => {
+    // The gate is a flat text scan, so the notation is banned in comments too —
+    // a gate that needs a parser to tell code from prose is one that eventually
+    // gets an exception carved into it.
     const relative = 'src/textEntities.ts';
     const contents = readFileSync(join(import.meta.dir, '..', relative), 'utf8');
     const offenders = contents
       .split('\n')
       .map((line, n) => ({ line, n: n + 1 }))
-      .filter(({ line }) => /\\[pP]\{/.test(line));
-    // Print the whole offending line, never a truncated capture group.
-    expect(offenders.map(({ n, line }) => `${relative}:${n}: ${line.trim()}`)).toEqual([]);
+      .filter(({ line }) => PROPERTY_ESCAPE.test(line))
+      .map(({ n, line }) => `${relative}:${n}: ${line.trim()}`);
+    expect(offenders).toEqual([]);
   });
+
+  // WHAT THIS DOES NOT COVER, stated plainly rather than left to be assumed:
+  // the APP bundle. A real `expo export --platform android` was checked and
+  // carries property escapes that are NOT ours and that this can never gate —
+  // zod ships `_emoji` as a string constant, and another dependency ships
+  // `[\p{L}\p{N}_@]`. Both are lazily compiled rather than module-load regex
+  // literals, so neither is a boot crash, but it means "zero escapes in the
+  // bundle" is not an assertion anyone can hold. The closure walk above is the
+  // strongest honest version: zero in everything THIS package ships.
+  // `bun run check:bundle-escapes` re-runs the real-bundle attribution.
 });
 
 // --- shape -------------------------------------------------------------------

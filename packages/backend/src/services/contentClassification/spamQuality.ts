@@ -299,10 +299,8 @@ const PROFANITY_TERMS: readonly string[] = [
  * `bareWww: false` keeps the URL signal meaning what it has always meant here: a
  * scheme-bearing link. A bare `www.…` run stays prose.
  */
-const SCAFFOLD_KINDS = ['url', 'hashtag'] as const;
+const SCAFFOLD_KINDS = ['url', 'bareHandle', 'hashtag'] as const;
 const SCAFFOLD_SCAN = { kinds: SCAFFOLD_KINDS, bareWww: false } as const;
-/** Matches an @-mention token. */
-const MENTION_PATTERN = /@[\p{L}\p{N}_.-]+/gu;
 /** Matches any cased letter (for the caps ratio). */
 const LETTER_PATTERN = /\p{L}/u;
 const UPPER_LETTER_PATTERN = /\p{Lu}/u;
@@ -354,7 +352,6 @@ function longestRepeatRun(text: string): number {
  */
 export function visibleText(text: string): string {
   return stripTextEntities(text, SCAFFOLD_SCAN)
-    .replace(MENTION_PATTERN, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -377,8 +374,12 @@ interface TextFeatures {
 function extractFeatures(rawText: string, hashtagCount: number): TextFeatures {
   const visible = visibleText(rawText);
 
-  const urlCount = countTextEntities(scanTextEntities(rawText, SCAFFOLD_SCAN), 'url');
-  const mentionCount = (rawText.match(MENTION_PATTERN) ?? []).length;
+  // ONE scan for both counts. Counting mentions on the raw text with a separate
+  // pattern read the `/@alice` inside a URL as a mention — precedence now means
+  // the link consumes it.
+  const scaffold = scanTextEntities(rawText, SCAFFOLD_SCAN);
+  const urlCount = countTextEntities(scaffold, 'url');
+  const mentionCount = countTextEntities(scaffold, 'bareHandle');
 
   let casedLetters = 0;
   let upperLetters = 0;

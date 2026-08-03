@@ -266,4 +266,21 @@ describe('visibleText — shared entity definitions', () => {
   it('removes a URL and the #fragment inside it as ONE piece of scaffolding', () => {
     expect(visibleText('read https://ex.test/p#part2 now')).toBe('read now');
   });
+
+  it('removes a bare @handle', () => {
+    expect(visibleText('hey @alice look')).toBe('hey look');
+  });
+
+  it('keeps an email-shaped address, which is not a handle', () => {
+    // The local part is a continuation character, so no handle opens at that
+    // `@` — the hazard `termExtraction` documents, held here too.
+    expect(visibleText('write someone@instance.tld now')).toBe('write someone@instance.tld now');
+  });
+
+  it('does not read the /@alice inside a URL as a mention', () => {
+    // `mentionCount` was counted with its own pattern over the RAW text, so a
+    // profile URL scored as both a link AND a mention. Precedence means the
+    // link consumes it now.
+    expect(visibleText('see https://x.test/@alice')).toBe('see');
+  });
 });

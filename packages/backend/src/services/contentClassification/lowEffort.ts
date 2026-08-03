@@ -35,9 +35,7 @@ const SHORTCODE_PATTERN = /:[a-z0-9_+-]+:/gi;
  * `bareWww: false` keeps this measuring what it has always measured: a
  * scheme-bearing link. A bare `www.…` run stays prose here.
  */
-const SCAFFOLD_KINDS = ['url', 'hashtag'] as const;
-/** @-mention token. */
-const MENTION_PATTERN = /@[\p{L}\p{N}_.-]+/gu;
+const SCAFFOLD_KINDS = ['url', 'bareHandle', 'hashtag'] as const;
 /** Any Unicode emoji / pictographic glyph. */
 const EMOJI_PATTERN = /\p{Extended_Pictographic}/gu;
 /** A single "content" character — a letter or a digit (real, non-decorative text). */
@@ -93,8 +91,6 @@ export function detectLowEffort(rawText: string, cfg: LowEffortConfig): LowEffor
   // read repeatedly (unlike a stateful RegExp#test on a /g/ pattern).
   const shortcodeCount = (raw.match(SHORTCODE_PATTERN) ?? []).length;
   const emojiCount = (raw.match(EMOJI_PATTERN) ?? []).length;
-  const mentionCount = (raw.match(MENTION_PATTERN) ?? []).length;
-
   // Shortcodes come out first (they can contain characters the scanner would
   // otherwise read), and the ONE scan of what remains supplies both the tallies
   // and the spans to strip — so a URL and the `#fragment` inside it can never be
@@ -104,9 +100,9 @@ export function detectLowEffort(rawText: string, cfg: LowEffortConfig): LowEffor
   const scaffold = scanTextEntities(withoutShortcodes, scanOptions);
   const urlCount = countTextEntities(scaffold, 'url');
   const hashtagCount = countTextEntities(scaffold, 'hashtag');
+  const mentionCount = countTextEntities(scaffold, 'bareHandle');
 
   const stripped = stripTextEntities(withoutShortcodes, scanOptions)
-    .replace(MENTION_PATTERN, ' ')
     .replace(EMOJI_PATTERN, ' ');
 
   const realTextLength = (stripped.match(LETTER_PATTERN) ?? []).length;

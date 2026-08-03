@@ -105,7 +105,8 @@
     "lint": "tsc --noEmit --noUnusedLocals --noUnusedParameters",
     "generate:hashtag-ranges": "node scripts/generateHashtagRanges.mjs",
     "test": "bun test",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "bun run build",
+    "check:bundle-escapes": "node scripts/checkBundleEscapes.mjs"
   },
   "keywords": [
     "typescript",
