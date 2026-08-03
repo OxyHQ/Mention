@@ -15,6 +15,7 @@ import { ArticleIcon } from '@/assets/icons/article-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { ScheduleIcon, ScheduleIconActive } from '@/assets/icons/schedule-icon';
 import { LaneIcon } from '@/assets/icons/lane-icon';
+import { TranslateIcon } from '@/assets/icons/translate-icon';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 interface ComposeToolbarProps {
@@ -268,13 +269,13 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     accessibilityLabel={t('compose.languages.add', { defaultValue: 'Add a language' })}
                 >
                     {/* The SAME icon the post component marks a translation
-                        with, in the same two states: `PostActions` renders
-                        `isTranslated ? 'language' : 'language-outline'` tinted
-                        primary or secondary. Here "carries another language" is
-                        the authoring side of that same fact, so the control that
-                        writes one and the badge that reads one look alike. */}
-                    <Ionicons
-                        name={hasLanguages ? 'language' : 'language-outline'}
+                        with — `PostActions` draws it too, tinted primary or
+                        secondary. Here "carries another language" is the
+                        authoring side of that same fact, so the control that
+                        writes one and the badge that reads one look alike.
+                        The state is the tint alone now; the pair it replaced
+                        distinguished the two by shape as well. */}
+                    <TranslateIcon
                         size={20}
                         color={disabled || !languageEnabled
                             ? theme.colors.textTertiary
