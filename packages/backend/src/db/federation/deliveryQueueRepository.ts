@@ -19,7 +19,7 @@
  * `<> true` should be visible where the query is.
  */
 
-import { and, asc, eq, inArray, lte, or, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import { federationDeliveryQueue } from '../schema/federation';
@@ -232,23 +232,59 @@ export async function hasDeliveriesFromSender(
  * `inArray`, never `= any(${keys})`: a raw JS array binds as a ROW constructor
  * and Postgres raises `op ANY/ALL (array) requires array on right side`.
  */
+function referencesObjects(objectUris: readonly string[]): SQL | undefined {
+  const keys = [...objectUris];
+  return or(
+    inArray(sql<string>`${federationDeliveryQueue.activityJson}->>'id'`, keys),
+    inArray(sql<string>`${federationDeliveryQueue.activityJson}->'object'->>'id'`, keys),
+    inArray(sql<string>`${federationDeliveryQueue.activityJson}->>'object'`, keys),
+  );
+}
+
 export async function hasDeliveriesReferencingObjects(
   objectUris: readonly string[],
   db: DatabaseOrTransaction = getDb(),
 ): Promise<boolean> {
   if (objectUris.length === 0) return false;
-  const keys = [...objectUris];
 
   const rows = await db
     .select({ id: federationDeliveryQueue.id })
     .from(federationDeliveryQueue)
-    .where(
-      or(
-        inArray(sql<string>`${federationDeliveryQueue.activityJson}->>'id'`, keys),
-        inArray(sql<string>`${federationDeliveryQueue.activityJson}->'object'->>'id'`, keys),
-        inArray(sql<string>`${federationDeliveryQueue.activityJson}->>'object'`, keys),
-      ),
-    )
+    .where(referencesObjects(objectUris))
     .limit(1);
   return rows.length > 0;
+}
+
+/**
+ * How many queued deliveries reference one of these AP object URIs.
+ *
+ * The dry-run half of {@link deleteDeliveriesReferencingObjects}, and it shares
+ * the predicate with the probe above rather than restating it: the preflight
+ * WAIVES `federation_delivery_queue.activity_json` on the strength of the purge's
+ * cascade, so a delete asking a narrower question than the probe would clear a
+ * gate for rows it then failed to remove.
+ */
+export async function countDeliveriesReferencingObjects(
+  objectUris: readonly string[],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<number> {
+  if (objectUris.length === 0) return 0;
+  const [row] = await db
+    .select({ total: count() })
+    .from(federationDeliveryQueue)
+    .where(referencesObjects(objectUris));
+  return row?.total ?? 0;
+}
+
+/** Remove every queued delivery naming one of these AP object URIs. */
+export async function deleteDeliveriesReferencingObjects(
+  objectUris: readonly string[],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<number> {
+  if (objectUris.length === 0) return 0;
+  const removed = await db
+    .delete(federationDeliveryQueue)
+    .where(referencesObjects(objectUris))
+    .returning({ id: federationDeliveryQueue.id });
+  return removed.length;
 }
