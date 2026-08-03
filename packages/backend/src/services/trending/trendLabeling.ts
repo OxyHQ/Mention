@@ -32,6 +32,7 @@
 import { normalizeTrendCategory } from '@mention/shared-types';
 import type { TrendCategory } from '@mention/shared-types';
 import { ruleBasedTopicClassifier } from '../contentClassification/TopicClassifier';
+import { canonicalHashtag } from '../contentClassification/taxonomy';
 import { collectTrendPhrases } from './termExtraction';
 
 /**
@@ -44,12 +45,20 @@ import { collectTrendPhrases } from './termExtraction';
  * That is not hypothetical: `POLITICS` stayed on the live list after the fix
  * that would have written `Politics`, because its run had started first.
  *
- * Bump whenever a change would produce a different string for the same posts.
+ * Bump whenever a change would produce a different LABEL for the same posts —
+ * the displayed name or the category, since both are stored here and both are
+ * shown.
  *
  * v2: a corpus spelling is preferred only when it adds capitalization and is
  * not shouted (see {@link presentableSurfaceForm}).
+ *
+ * v3: the category is the topic the most posts support, rather than the first
+ * slug the classifier returns — which was its rule array's line order. Missing
+ * this bump reproduced the incident described above one release later: `US`
+ * stayed filed under Science after the fix that would have written `other`,
+ * because its run had started first and its label was reused verbatim.
  */
-export const TREND_LABEL_VERSION = 2;
+export const TREND_LABEL_VERSION = 3;
 
 /** What a trend is shown as. */
 export interface TrendLabel {
@@ -276,7 +285,15 @@ function deriveCategory(term: string, excerpts: readonly string[]): TrendCategor
   // on-topic token available — a trend on `esports` should not be categorised
   // from the prose around it — and it is evidence about the subject rather than
   // about whatever else its posts happened to mention.
-  const fromTerm = ruleBasedTopicClassifier.classify({ text: '', hashtagsNorm: [term] });
+  // Canonicalized first, exactly as ingest does. `HASHTAG_TOPIC_MAP` keys on
+  // canonical slugs alone, so the raw term matched only when it already WAS one
+  // — and those are refused as candidates now, which left this branch
+  // unreachable. Through the alias it answers for `climate`, `spotify` and
+  // every other variant a person actually types.
+  const fromTerm = ruleBasedTopicClassifier.classify({
+    text: '',
+    hashtagsNorm: [canonicalHashtag(term)],
+  });
   for (const slug of fromTerm) {
     const category = TOPIC_SLUG_TO_CATEGORY[slug];
     if (category) return normalizeTrendCategory(category);

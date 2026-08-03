@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { deriveTrendLabel, fallbackTrendLabel } from '../services/trending/trendLabeling';
+import {
+  deriveTrendLabel,
+  fallbackTrendLabel,
+  TREND_LABEL_VERSION,
+} from '../services/trending/trendLabeling';
 
 /**
  * Deterministic trend labelling — no model, no key, no network.
@@ -231,5 +235,51 @@ describe('deriveCategory — evidence, not file order', () => {
     });
 
     expect(label.category).not.toBe('finance');
+  });
+});
+
+describe('TREND_LABEL_VERSION guards the labels it stamps', () => {
+  /*
+   * A stored label is REUSED for the life of a run unless its version differs,
+   * so a rules fix reaches nothing already running until the version moves.
+   * Forgetting that has now shipped twice: `POLITICS` survived the fix that
+   * would have written `Politics`, and `US` stayed filed under Science after
+   * the fix that would have written `other`.
+   *
+   * The rule lived in a doc comment both times. This table is the gate: change
+   * what labelling produces and it fails, and the only way to make it pass is
+   * to update the expectation — at which point the version below is right
+   * there, in the same file, failing too.
+   */
+  const CASES: ReadonlyArray<[string, string[], string, string]> = [
+    ['orioles', ['the orioles won again', 'orioles bullpen is set'], 'Orioles', 'other'],
+    [
+      'senate',
+      ['breaking news the senate voted today', 'the senate bill passed', 'senate news'],
+      'Senate',
+      'politics',
+    ],
+    ['esports', ['a big esports final tonight'], 'Esports', 'video-games'],
+    // The one case where the two branches DISAGREE, and therefore the only one
+    // that can tell them apart: `climate` maps to Science on its own, while its
+    // posts here are about an election. Without it the table passed with the
+    // term-mapping branch deleted entirely — a gate that could not fail for the
+    // rule it was written to guard.
+    [
+      'climate',
+      ['the election result is disputed in congress', 'senate campaign trail'],
+      'Climate',
+      'science',
+    ],
+  ];
+
+  it.each(CASES)('labels %s deterministically', (term, excerpts, displayName, category) => {
+    const label = deriveTrendLabel({ term, excerpts });
+    expect(label.displayName).toBe(displayName);
+    expect(label.category).toBe(category);
+  });
+
+  it('is at v3 — bump it in the same change that alters the table above', () => {
+    expect(TREND_LABEL_VERSION).toBe(3);
   });
 });
