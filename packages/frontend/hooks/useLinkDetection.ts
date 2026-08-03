@@ -3,6 +3,7 @@ import { useAuth } from '@oxyhq/services/ui/client';
 import { MAX_POST_LINK_PREVIEWS } from '@mention/shared-types/post';
 import { type LinkMetadata, useLinksStore } from '../stores/linksStore';
 import { extractUrls } from '@/utils/extractUrls';
+import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
 import { logger } from '@oxyhq/core/logger';
 
 /**
@@ -10,6 +11,12 @@ import { logger } from '@oxyhq/core/logger';
  * shows up to `MAX_POST_LINK_PREVIEWS` cards (the same cap the backend applies),
  * so only that many URLs are resolved — metadata for links that would never get
  * a card is wasted work.
+ *
+ * A URL naming a profile on THIS instance gets no card, because the published
+ * post will not have one: hydration withholds it server-side for exactly these
+ * URLs (`PostHydrationService.ownProfileLinkUrls`), since the reader is shown a
+ * mention there rather than a link. Offering the card in the composer would be
+ * showing the author an attachment their post is not going to carry.
  */
 export const useLinkDetection = (text: string) => {
   const [detectedLinks, setDetectedLinks] = useState<LinkMetadata[]>([]);
@@ -75,7 +82,14 @@ export const useLinkDetection = (text: string) => {
 
     // Debounce link detection (wait 500ms after user stops typing)
     fetchTimeoutRef.current = setTimeout(async () => {
-      const urls = extractUrls(text).slice(0, MAX_POST_LINK_PREVIEWS);
+      // Capped BEFORE the profile-link filter, matching hydration: a body with
+      // more than `MAX_POST_LINK_PREVIEWS` links, one of them a profile link,
+      // renders one card fewer rather than promoting the next link into the
+      // freed slot. Filtering first would show the author a card the published
+      // post does not have.
+      const urls = extractUrls(text)
+        .slice(0, MAX_POST_LINK_PREVIEWS)
+        .filter((url) => ownProfileLinkHandle(url) === undefined);
 
       if (urls.length === 0) {
         setDetectedLinks([]);

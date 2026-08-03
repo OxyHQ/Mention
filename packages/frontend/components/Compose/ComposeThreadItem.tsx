@@ -16,6 +16,7 @@ import { PodcastCard } from '@/components/Podcast/PodcastCard';
 import RoomCard from '@/components/RoomCard';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTextInput';
+import ComposeMentionSummary from '@/components/Compose/ComposeMentionSummary';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
@@ -74,6 +75,12 @@ export interface ComposeThreadItemStyles {
 
 interface ComposeThreadItemProps {
   item: ThreadItem;
+  /**
+   * This item's language renditions, primary body excluded. A thread item is its
+   * own post, so its mentions are the union across its own renditions — the
+   * summary under it has to read all of them.
+   */
+  variantTexts: readonly string[];
   isFocused: boolean;
   isPosting: boolean;
   postingMode: 'thread' | 'beast';
@@ -147,6 +154,7 @@ interface ComposeThreadItemProps {
 
 const ComposeThreadItem = memo<ComposeThreadItemProps>(({
   item,
+  variantTexts,
   isFocused,
   isPosting,
   postingMode,
@@ -289,6 +297,12 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
             onValueChange={handleMentionValueChange}
             onFocus={handleFocus}
             multiline
+          />
+          {/* Who this item will address — a thread item is its own post, so it
+              carries its own mentions and its own pasted profile links. */}
+          <ComposeMentionSummary
+            texts={[item.text, ...variantTexts]}
+            mentions={item.mentions}
           />
           <View style={styles.toolbarWrapper}>
             <ComposeToolbar

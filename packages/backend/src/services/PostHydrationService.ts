@@ -56,9 +56,11 @@ import { PostContentVariant, PostMetadata, StoredPostContent } from '@mention/sh
 /**
  * The hosts whose `/@alice` URLs name a user in OUR namespace.
  *
- * These must be the same hosts the READER's linkifier recognises
- * (`packages/frontend/utils/linkifyPattern.ts`, which derives its list from the
- * app's `WEB_BASE_URL`), because the two decisions are halves of one behaviour:
+ * These must be the same hosts the app recognises
+ * (`packages/frontend/utils/ownProfileLinks.ts`, which derives its list from the
+ * app's `WEB_BASE_URL` and is shared by the reader's linkifier, the composer's
+ * card gate and the composer's mention summary), because the decisions are all
+ * halves of one behaviour:
  * the renderer turns such a URL into a mention, and {@link ownProfileLinkUrls}
  * withholds the preview card that would otherwise sit under it. If the lists
  * disagree the reader sees the mismatch — a mention with a redundant card, or a

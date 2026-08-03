@@ -73,6 +73,13 @@ jest.mock('@/components/Compose', () => {
   };
 });
 
+// Stubbed like every other child here: this suite is about the connector STYLE,
+// and the summary reaches the Oxy SDK to resolve who a pasted link names.
+jest.mock('@/components/Compose/ComposeMentionSummary', () => {
+  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { __esModule: true, default: RNView };
+});
+
 jest.mock('@/components/Compose/InteractionSettingsPills', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return { __esModule: true, default: RNView };
@@ -122,6 +129,7 @@ function renderItem(postingMode: 'thread' | 'beast') {
     tree = TestRenderer.create(
       <ComposeThreadItem
         item={item}
+        variantTexts={[]}
         isFocused
         isPosting={false}
         postingMode={postingMode}

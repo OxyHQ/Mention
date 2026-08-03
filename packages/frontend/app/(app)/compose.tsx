@@ -39,6 +39,7 @@ import type { CreatePostRequest, HydratedPost } from '@mention/shared-types';
 import { MAX_POST_COLLABORATORS, MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useTheme } from '@oxyhq/bloom/theme';
 import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTextInput';
+import ComposeMentionSummary from '@/components/Compose/ComposeMentionSummary';
 import { SEO } from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
 import { Header } from '@/components/Header';
@@ -2446,6 +2447,13 @@ const ComposeScreenBody = () => {
                       multiline
                       autoFocus
                     />
+                    {/* Who this post will address, including anybody a pasted
+                        profile link resolves to — the only place that mention is
+                        visible, since the body shows their URL. */}
+                    <ComposeMentionSummary
+                      texts={[postContent, ...variantTextsForItem(variants, MAIN_ITEM_ID)]}
+                      mentions={mentions}
+                    />
                   </ComposeIdentityHeader>
 
                   {/* Attachments row (poll + article + media + link) */}
@@ -2794,6 +2802,7 @@ const ComposeScreenBody = () => {
                 <ComposeThreadItem
                   key={`thread-${item.id}`}
                   item={item}
+                  variantTexts={variantTextsForItem(variants, item.id)}
                   isFocused={focusedItemId === item.id}
                   isPosting={isPosting}
                   postingMode={postingMode}

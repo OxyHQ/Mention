@@ -17,12 +17,10 @@
 import {
   createTextEntityPattern,
   scanTextEntities,
-  toOpenableUrl,
   trimUrlTrailingPunctuation,
   type TextEntity,
 } from '@mention/shared-types/textEntities';
-import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
-import { WEB_BASE_URL } from '@/config';
+import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
 
 /**
  * What `LinkifiedText` renders: the hydrated `[@Display](username)` mention form,
@@ -34,24 +32,6 @@ import { WEB_BASE_URL } from '@/config';
  * or hand-typed id into a profile link nobody authorized.
  */
 const LINKIFY_KINDS = ['mentionDisplay', 'url', 'hashtag', 'cashtag'] as const;
-
-/**
- * This instance's own public web host — the one whose `/@alice` URLs name a user
- * in OUR namespace rather than somebody else's.
- *
- * Read from the configured web base URL, the same constant share links are built
- * from, so a staging build recognises staging's own links and not production's.
- * A base URL that does not parse yields no hosts at all, which turns the
- * conversion below off rather than guessing — a misconfigured origin should leave
- * links as links, not mint mentions against a host nobody declared.
- */
-const OWN_PROFILE_HOSTS: readonly string[] = (() => {
-  try {
-    return [new URL(WEB_BASE_URL).hostname];
-  } catch {
-    return [];
-  }
-})();
 
 /**
  * A URL that names a profile on THIS instance, re-read as the mention it is.
@@ -92,9 +72,7 @@ function asOwnProfileMention(entity: TextEntity): TextEntity {
   const { url } = trimUrlTrailingPunctuation(entity.value);
   if (!url) return entity;
 
-  // `toOpenableUrl` supplies the scheme a bare `www.` form omits, so a pasted
-  // `www.<us>/@alice` is recognised as the same thing as the full form.
-  const handle = ownProfileUrlHandle(toOpenableUrl(url), OWN_PROFILE_HOSTS);
+  const handle = ownProfileLinkHandle(url);
   if (!handle) return entity;
 
   return {

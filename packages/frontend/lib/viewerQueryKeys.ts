@@ -28,6 +28,14 @@ export const publicQueryKeys = {
     query,
   ] as const,
   feedModules: () => [...PUBLIC_ROOT, 'feed-modules'] as const,
+  /**
+   * Who a profile link pasted into the composer names, keyed by the handle its
+   * path spells. Public: the answer is the same for every author, and it is the
+   * same lookup the server does when it decides whether that link becomes a real
+   * mention.
+   */
+  profileLinkMention: (handle: string) =>
+    [...PUBLIC_ROOT, 'profile-link-mention', handle] as const,
   marketplaceCategories: () => [
     ...PUBLIC_ROOT,
     'marketplace-categories',
