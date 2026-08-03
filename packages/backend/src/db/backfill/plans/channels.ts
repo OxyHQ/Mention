@@ -38,6 +38,9 @@ import {
   lanes,
 } from '../../schema/channels';
 import type { CollectionPlan } from '../plan';
+import type { ResolutionContext } from '../resolutions';
+import { DERIVE_LANE_OWNER_TYPE } from '../resolutions';
+import type { MongoDocument } from '../values';
 import { buildRow } from '../rowBuilder';
 import { bool, id, int, ownId, reqStr, str } from '../values';
 import { optionalDate, timestamps } from './timestamps';
@@ -186,11 +189,48 @@ const channelFollowsPlan: CollectionPlan = {
 };
 
 /** `lanes` → `lanes`. */
+/**
+ * A lane's owner kind, derived for the documents the pre-pass answered.
+ *
+ * The DECISION belongs to {@link DERIVE_LANE_OWNER_TYPE} and is taken there,
+ * against the whole source: whether a lane's absent `ownerType` is derivable at
+ * all depends on the channel count, which is a fact about the COLLECTION and a
+ * transform sees one document. Reading the pre-pass answer here — rather than
+ * re-deciding from the document — is what keeps the audit, the copy and both
+ * verifier passes from disagreeing about which lanes were answered.
+ *
+ * A lane the rule did not claim keeps `reqStr`, so it throws with the document
+ * named rather than quietly acquiring a value: absent AND un-derivable is a
+ * question for a human, and the audit already refuses the copy over it.
+ */
+function laneOwnerType(doc: MongoDocument, rowId: string, resolutions: ResolutionContext): string {
+  if (resolutions.actedOn.get(DERIVE_LANE_OWNER_TYPE.id)?.has(rowId) !== true) {
+    return reqStr(doc, 'ownerType');
+  }
+  const ownerId = reqStr(doc, 'ownerId');
+  resolutions.record({
+    rule: DERIVE_LANE_OWNER_TYPE,
+    documentId: rowId,
+    detail:
+      "ownerType was absent and is copied as 'user' — the source holds no " +
+      'channel, so no lane in it can be channel-owned and one possibility ' +
+      'remains.',
+    // The id whose KIND was inferred. Nothing else records what this lane was
+    // taken to be, so it is what a later reader would need to check the call.
+    evidence: { 'lanes.ownerId': ownerId, 'lanes.ownerType (written)': 'user' },
+  });
+  return 'user';
+}
+
 const lanesPlan: CollectionPlan = {
   collection: 'lanes',
   table: lanes,
   enumAudits: [
-    { path: 'ownerType', column: lanes.ownerType },
+    // NOT `absentAs`. The substitute is derivable only while the source holds no
+    // channel, so it is a rule that re-measures its own premise rather than a
+    // declared default that would keep answering after the premise expires —
+    // see {@link DERIVE_LANE_OWNER_TYPE}.
+    { path: 'ownerType', column: lanes.ownerType, resolvedBy: DERIVE_LANE_OWNER_TYPE },
     { path: 'displayMode', column: lanes.displayMode, absentAs: 'mixed' },
   ],
   uniquenessAudits: [
@@ -205,7 +245,7 @@ const lanesPlan: CollectionPlan = {
       ],
     },
   ],
-  transform: (doc, emit) => {
+  transform: (doc, emit, resolutions) => {
     const rowId = ownId(doc);
     emit(
       lanes,
@@ -213,7 +253,7 @@ const lanesPlan: CollectionPlan = {
         lanes,
         {
           id: rowId,
-          ownerType: reqStr(doc, 'ownerType'),
+          ownerType: laneOwnerType(doc, rowId, resolutions),
           // POLYMORPHIC — an Oxy account id or a `channels.id`, discriminated by
           // `ownerType`. No foreign key, for the reason recorded in
           // `schema/deferredForeignKeys.ts`.
