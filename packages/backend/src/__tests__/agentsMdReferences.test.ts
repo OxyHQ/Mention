@@ -39,16 +39,6 @@ const UNRESOLVABLE_BY_DESIGN: ReadonlyMap<string, string> = new Map([
   ['_worker.js', 'the deleted Cloudflare Pages Advanced-Mode worker; cited as history, must not come back'],
   ['_routes.json', 'deleted alongside that worker; cited as history'],
   ['services/FederationService.ts', 'the removed facade the connectors module replaced; cited as history'],
-  [
-    '.expo/types/router.d.ts',
-    "expo-router's generated route types — written into a gitignored .expo/ by the dev server, absent on a clean checkout",
-  ],
-  [
-    'packages/api/src/routes/privacy.ts',
-    'a CROSS-REPO pointer: oxy-api lives in OxyHQServices, so this resolves for a reader and never against ' +
-      "this repo's `git ls-files`. The reference is correct and load-bearing — it names where the block " +
-      'refusal has to live, precisely because Mention has no block route of its own to guard',
-  ],
 ]);
 
 /**
@@ -107,5 +97,27 @@ describe('AGENTS.md file references', () => {
 
     expect(nowResolving, 'these are listed in UNRESOLVABLE_BY_DESIGN but now resolve — '
       + `delete the entry:\n  ${nowResolving.join('\n  ')}\n`).toEqual([]);
+  });
+
+  it('drops an exemption once AGENTS.md stops making the reference', () => {
+    // The OTHER way an exemption rots, and the one the check above cannot see:
+    // the document stops naming the path at all. The entry then exempts nothing,
+    // and because an unmade reference can never resolve, it sits there passing
+    // forever while reading as a live decision about a real reference.
+    //
+    // This is not hypothetical. Two changes landed within minutes of each other
+    // for one cross-repo path — `packages/api/src/routes/privacy.ts`, which lives
+    // in OxyHQServices — one adding the exemption and one rewriting the sentence
+    // so the path was no longer written as a reference. The exemption survived as
+    // dead weight, and nothing failed.
+    const unreferenced = [...UNRESOLVABLE_BY_DESIGN.keys()]
+      .filter((reference) => !references.includes(reference))
+      .sort();
+
+    expect(
+      unreferenced,
+      'these are listed in UNRESOLVABLE_BY_DESIGN but AGENTS.md no longer references them, so the entry '
+        + `exempts nothing — delete it:\n  ${unreferenced.join('\n  ')}\n`,
+    ).toEqual([]);
   });
 });
