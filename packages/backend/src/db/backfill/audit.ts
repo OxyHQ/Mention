@@ -175,27 +175,35 @@ async function arrayPrefixes(
 function missingWithinStructure(
   segments: readonly string[],
   absolutePrefix: string,
-  arrays: ReadonlySet<string>
+  arrays: ReadonlySet<string>,
+  leafPredicate: Record<string, unknown> = { $exists: false }
 ): Record<string, unknown> {
   for (let index = 1; index < segments.length; index += 1) {
     const relative = segments.slice(0, index).join('.');
     const absolute = absolutePrefix === '' ? relative : `${absolutePrefix}.${relative}`;
     if (!arrays.has(absolute)) continue;
     return {
-      [relative]: { $elemMatch: missingWithinStructure(segments.slice(index), absolute, arrays) },
+      [relative]: {
+        $elemMatch: missingWithinStructure(
+          segments.slice(index),
+          absolute,
+          arrays,
+          leafPredicate
+        ),
+      },
     };
   }
   // No array boundary left. Inside an `$elemMatch` the element itself is the
   // subject and exists by construction, so a single remaining segment is the
-  // leaf and its absence is the whole question.
+  // leaf and `leafPredicate` is the whole question.
   const leaf = segments.join('.');
-  if (segments.length === 1) return { [leaf]: { $exists: false } };
+  if (segments.length === 1) return { [leaf]: leafPredicate };
   // A plain subdocument between here and the leaf. It has to EXIST for a row to
   // be emitted — two keys in one object, which is an implicit AND, rather than
   // `$and`, so this composes inside an `$elemMatch` unchanged.
   return {
     [segments.slice(0, -1).join('.')]: { $exists: true },
-    [leaf]: { $exists: false },
+    [leaf]: leafPredicate,
   };
 }
 
@@ -330,6 +338,39 @@ async function missingRequiredFilter(
 }
 
 /**
+ * How many documents would actually emit a row carrying an explicit NULL at
+ * `path`, for a column on a CHILD table.
+ *
+ * `distinct` reports `null` for a path whose PARENT is null — `content.media:
+ * null` yields a `content.media.type` of `null` even though no element exists —
+ * and such a document emits no child row at all, so it cannot violate the NOT
+ * NULL. This is the same blind spot {@link missingRequiredFilter} fixes for the
+ * ABSENT case, thirty lines up, in the sibling branch that was left behind:
+ * measured against production, `posts.content.media.type = null` reported
+ * 252,948 documents and **zero** of them have an element carrying a null type.
+ *
+ * `$type: 'null'` rather than `: null`, because `{field: null}` in Mongo matches
+ * a MISSING field too — which is the other branch's question, not this one.
+ *
+ * Returns `null` when the path cannot describe an element value at all, in which
+ * case the caller keeps its existing behaviour rather than inventing one.
+ */
+async function nullValuedElementCount(
+  collection: ReadOnlyCollection,
+  plan: CollectionPlan,
+  path: string,
+  column: PgColumn
+): Promise<number | null> {
+  if (tableName(column.table) === tableName(plan.table)) return null;
+  const segments = path.split('.');
+  if (segments.length === 1) return null;
+  const filter = missingWithinStructure(segments, '', await arrayPrefixes(collection, path), {
+    $type: 'null',
+  });
+  return collection.countDocuments(filter);
+}
+
+/**
  * Check every enum-backed column of a plan against `distinct()` on the source.
  *
  * `distinct` is the right instrument: it is a single index-assisted pass that
@@ -380,6 +421,16 @@ export async function auditEnums(
         // involved, `23502` is, and `absentAs` is the plan declaring that the
         // transform substitutes a default before the value ever gets there.
         if (audit.absentAs !== undefined) continue;
+        // For a CHILD table, `distinct` reports null for a path whose PARENT is
+        // null, and such a document emits no row to violate anything. Ask the
+        // narrower question before reporting — see `nullValuedElementCount`.
+        const nullValued = await nullValuedElementCount(
+          collection,
+          plan,
+          audit.path,
+          audit.column
+        );
+        if (nullValued === 0) continue;
         findings.push(
           await describeEnumFinding(
             source,

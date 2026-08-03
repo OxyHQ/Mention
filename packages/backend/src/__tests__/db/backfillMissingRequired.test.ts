@@ -140,6 +140,56 @@ describe('auditMissingRequired, through auditEnums, on an array-nested path', ()
     expect(finding?.sampleIds.sort()).toEqual([String(id('b1')), String(id('b2'))].sort());
   });
 
+  it('counts only ELEMENTS carrying an explicit null, never a null parent', async () => {
+    // The null-VALUE branch, and the half the `$exists` fix left behind. It is
+    // the same blind spot one function over: `distinct` reports `null` for a
+    // path whose PARENT is null, so `content.media: null` puts `null` in the
+    // observed set even though no element exists — and a document with no media
+    // emits no `post_media` row, so it cannot violate a NOT NULL.
+    //
+    // ## What this case can and cannot see — stated, not implied
+    //
+    // **This harness cannot reproduce the production shape.** Measured: against
+    // `mention-production` (Mongo 8) `distinct('content.media.type')` returns
+    // `["NULL","gif","image","video"]`, where the NULL comes from traversing a
+    // null parent — `{'content.media.type': {$type:'null'}}` matches ZERO
+    // documents and no array holds a null element. `mongodb-memory-server` does
+    // NOT emit that null, so the branch is unreachable from a fixture and a
+    // test asserting "no finding" here passes whether the guard is present or
+    // absent. That was verified by mutation before writing this comment: with
+    // `if (nullValued === 0) continue;` deleted, such a case stayed GREEN.
+    //
+    // So this asserts the half that IS observable — the counter the guard reads
+    // returns 1 for an element that genuinely carries a null and 0 for a null
+    // parent — and the branch's real verification is the production audit,
+    // where the finding covered 252,948 documents and 0 refused rows.
+    await mongo.collection('posts').insertMany([
+      { _id: id('c1'), replyPermission: REPLY_PERMISSION, content: { media: null } },
+      {
+        _id: id('c2'),
+        replyPermission: REPLY_PERMISSION,
+        content: { media: [{ id: 'bmr-m5', type: 'image' }] },
+      },
+      {
+        _id: id('c3'),
+        replyPermission: REPLY_PERMISSION,
+        content: { media: [{ id: 'bmr-m6', type: null }] },
+      },
+    ]);
+
+    const posts = mongo.collection('posts');
+    // What the guard asks: an element that EXISTS and holds an explicit null.
+    const genuinelyNull = await posts.countDocuments({
+      'content.media': { $elemMatch: { type: { $type: 'null' } } },
+    });
+    // What the finding's own count asks — `{path: null}` matches null OR
+    // MISSING, which is why production reported 252,948 for zero refused rows.
+    const nullOrMissing = await posts.countDocuments({ 'content.media.type': null });
+
+    expect(genuinelyNull).toBe(1);
+    expect(nullOrMissing).toBe(2);
+  });
+
   it('raises NOTHING when every element carries the field', async () => {
     // The false-positive direction on its own, because a gate that cries wolf
     // gets disabled by whoever hits it next — and this one refused a copy of
