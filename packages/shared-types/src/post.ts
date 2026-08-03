@@ -799,11 +799,16 @@ export interface CreateThreadRequest {
   mode: 'thread' | 'beast'; // thread = linked posts, beast = separate posts
   posts: CreateThreadPostRequest[];
   /**
-   * ISO time to publish the whole batch at, instead of immediately. BEAST mode
-   * only — the server refuses it in thread mode, where each continuation is
-   * created as a reply to the one before it and publishing them separately would
-   * let a reply precede the post it answers. One time covers every post: the
-   * author picked a moment for the set.
+   * ISO time to publish the whole batch at, instead of immediately. Accepted in
+   * BOTH modes. One time covers every post, because the author picked a moment
+   * for the set, not n moments.
+   *
+   * A THREAD is schedulable even though its continuations are replies to one
+   * another: the ordering that makes that safe lives in the publish path, not in
+   * a refusal here. `claimAndPublishScheduledPost` will not publish a post whose
+   * parent has not published, and `ScheduledPostPublisher` walks each chain
+   * parent-first and stops at its first failure — so a reply can never precede
+   * the post it answers, under any interleaving or partial failure.
    */
   scheduledFor?: string;
   /**

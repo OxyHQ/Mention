@@ -41,9 +41,11 @@ import { Post } from '../../models/Post';
 
 // Route the creator through a real Post constructor so the linkage params the
 // controller passes (`parentPostId`/`threadId`) land on a document with a real
-// `_id`. `save()` is a no-op (no DB). The MTN emission is suppressed by the
-// controller's `skipNotifications/skipSocketEmit/skipFederationDelivery` and is
-// best-effort anyway, so it never touches this test path.
+// `_id`. `save()` is a no-op (no DB). The MTN emission is best-effort inside the
+// (stubbed) creator, and outbound federation runs detached from the controller
+// against this same stub, so neither touches the linkage this file asserts on —
+// the batch federation wiring has its own coverage in
+// `createThreadFederation.test.ts`.
 vi.mock('../../services/PostCreationService', () => ({
   postCreationService: {
     create: vi.fn(async (params: Record<string, unknown>) => {

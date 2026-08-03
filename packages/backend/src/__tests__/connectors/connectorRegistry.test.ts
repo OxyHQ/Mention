@@ -173,3 +173,79 @@ describe('ConnectorRegistry durable delivery', () => {
     );
   });
 });
+
+/**
+ * The extra-audience capability, declared locally the same way `deliverDurably`
+ * is: a connector that cannot widen an audience simply does not implement the
+ * method, and the registry falls through to plain `deliver` rather than anything
+ * in `@oxyhq/federation` having to grow a field for one app's addressing need.
+ *
+ * Each case is asserted against a connector that implements BOTH methods, so a
+ * dispatch that picked the wrong one would call the wrong spy rather than
+ * quietly doing the same thing.
+ */
+describe('ConnectorRegistry extra audiences', () => {
+  function makeAudienceConnector() {
+    const plain = vi.fn().mockResolvedValue(undefined);
+    const widened = vi.fn().mockResolvedValue(undefined);
+    const connector = Object.assign(makeConnector('activitypub', plain), {
+      deliverToExtraAudiences: widened,
+    });
+    return { connector, plain, widened };
+  }
+
+  it('routes to the widened path only when audiences were named', async () => {
+    const { connector, plain, widened } = makeAudienceConnector();
+    const registry = new ConnectorRegistry([connector]);
+
+    await registry.federateNewPost(POST, 'oxy-1', 'alice', ['oxy-2']);
+
+    expect(widened).toHaveBeenCalledTimes(1);
+    expect(widened).toHaveBeenCalledWith(
+      { kind: 'post.create', post: POST, actorOxyUserId: 'oxy-1', actorUsername: 'alice' },
+      ['oxy-2'],
+    );
+    expect(plain).not.toHaveBeenCalled();
+  });
+
+  it('takes the ordinary path when no audience was named', async () => {
+    const { connector, plain, widened } = makeAudienceConnector();
+    const registry = new ConnectorRegistry([connector]);
+
+    await registry.federateNewPost(POST, 'oxy-1', 'alice');
+
+    expect(plain).toHaveBeenCalledTimes(1);
+    expect(widened).not.toHaveBeenCalled();
+  });
+
+  it('takes the ordinary path for an EMPTY audience list', async () => {
+    // A single-voice thread passes `[]` on every entry, which must cost nothing.
+    const { connector, plain, widened } = makeAudienceConnector();
+    const registry = new ConnectorRegistry([connector]);
+
+    await registry.federateNewPost(POST, 'oxy-1', 'alice', []);
+
+    expect(plain).toHaveBeenCalledTimes(1);
+    expect(widened).not.toHaveBeenCalled();
+  });
+
+  it('falls back to plain delivery for a connector without the capability', async () => {
+    const plain = vi.fn().mockResolvedValue(undefined);
+    const registry = new ConnectorRegistry([makeConnector('atproto', plain)]);
+
+    await registry.federateNewPost(POST, 'oxy-1', 'alice', ['oxy-2']);
+
+    expect(plain).toHaveBeenCalledTimes(1);
+  });
+
+  it('still refuses when the acting account does not share, audiences or not', async () => {
+    mocks.isFediverseSharingEnabled.mockResolvedValue(false);
+    const { connector, plain, widened } = makeAudienceConnector();
+    const registry = new ConnectorRegistry([connector]);
+
+    await registry.federateNewPost(POST, 'oxy-1', 'alice', ['oxy-2']);
+
+    expect(plain).not.toHaveBeenCalled();
+    expect(widened).not.toHaveBeenCalled();
+  });
+});
