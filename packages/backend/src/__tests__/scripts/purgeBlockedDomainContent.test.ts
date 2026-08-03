@@ -130,7 +130,15 @@ const ALLOWED = 'mastodon.social';
 const BLOCKED_ACTOR_URI = `https://${BLOCKED}/users/bad`;
 const GHOST_ACTOR_URI = `https://${BLOCKED}/users/ghost`;
 const BLOCKED_MEDIA_URL = `https://${BLOCKED}/media/1.jpg`;
-const BLOCKED_CACHED_MEDIA_URL = `https://${BLOCKED}/media/cached.jpg`;
+/**
+ * Media a blocked actor's post embeds from a THIRD-PARTY host, already cached.
+ *
+ * Deliberately NOT on the blocked host: phase 3 sweeps the media cache by host,
+ * so a blocked-host URL is reached whether or not the post cascade reads
+ * `post_media.remote_url`, and a fixture using one cannot tell the two apart.
+ * This row is reachable ONLY through the post that references it.
+ */
+const THIRD_PARTY_MEDIA_URL = 'https://cdn.example.org/embedded.jpg';
 const ALLOWED_MEDIA_URL = `https://${ALLOWED}/media/2.jpg`;
 const BLOCKED_POST_ACTIVITY_ID = `https://${BLOCKED}/notes/1`;
 
@@ -214,7 +222,7 @@ async function clearFixtures(): Promise<void> {
     .where(
       inArray(federatedMediaCache.remoteUrl, [
         BLOCKED_MEDIA_URL,
-        BLOCKED_CACHED_MEDIA_URL,
+        THIRD_PARTY_MEDIA_URL,
         ALLOWED_MEDIA_URL,
       ]),
     );
@@ -389,7 +397,7 @@ async function seed(): Promise<void> {
       postId: P.blockedPost,
       position: 1,
       mediaId: 'oxy-file-id-cached',
-      remoteUrl: BLOCKED_CACHED_MEDIA_URL,
+      remoteUrl: THIRD_PARTY_MEDIA_URL,
       type: 'image',
     },
     { postId: P.allowedPost, position: 0, mediaId: ALLOWED_MEDIA_URL, type: 'image' },
@@ -523,7 +531,7 @@ async function seed(): Promise<void> {
 
   await db.insert(federatedMediaCache).values([
     { remoteUrl: BLOCKED_MEDIA_URL, state: 'cached', oxyFileId: 'file-blocked' },
-    { remoteUrl: BLOCKED_CACHED_MEDIA_URL, state: 'cached', oxyFileId: 'file-blocked-cached' },
+    { remoteUrl: THIRD_PARTY_MEDIA_URL, state: 'cached', oxyFileId: 'file-embedded' },
     { remoteUrl: ALLOWED_MEDIA_URL, state: 'cached', oxyFileId: 'file-allowed' },
   ]);
 }
@@ -738,9 +746,11 @@ describe('purgeBlockedDomainContent — what it removes', () => {
     await run();
 
     expect(h.deletedFileIds).toContain('file-blocked');
-    // Reached only through `post_media.remote_url`, which is where the origin URL
-    // lives once the cache has rewritten `media_id` to an Oxy file id.
-    expect(h.deletedFileIds).toContain('file-blocked-cached');
+    // Reached ONLY through `post_media.remote_url` — the column that holds the
+    // origin once the cache has rewritten `media_id` to an Oxy file id. Its host
+    // is not blocked, so the media phase never sees it; the post that embedded it
+    // is the only route.
+    expect(h.deletedFileIds).toContain('file-embedded');
     expect(h.deletedFileIds).not.toContain('file-allowed');
   });
 
