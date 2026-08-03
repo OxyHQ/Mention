@@ -271,7 +271,6 @@ const postsPlan: CollectionPlan = {
   columnCoverage: [
     { table: posts, column: posts.writtenByOxyUserId, sourcePath: 'writtenByOxyUserId' },
     { table: posts, column: posts.laneId, sourcePath: 'laneId' },
-    { table: posts, column: posts.channelId, sourcePath: 'channelId' },
     { table: posts, column: posts.curated, sourcePath: 'curated' },
     ...(
       [
@@ -429,11 +428,13 @@ const postsPlan: CollectionPlan = {
           // is what makes a lane that no longer exists a FINDING rather than a
           // value nobody looked at.
           laneId: id(doc, 'laneId'),
-          // The channel a post was published TO. Zero production documents
-          // carry one today, so this reports as unverified rather than clean —
-          // which is the honest answer, since a mapping nothing exercises is
-          // indistinguishable from a mapping that does not work.
-          channelId: id(doc, 'channelId'),
+          // `channelId` is deliberately NOT mapped, and this is the note rather
+          // than an omission: zero production documents carry one, and the
+          // re-port onto main's design is expected to DELETE the column — under
+          // that design the channel IS the author, so there is nothing for a
+          // `channel_id` to hold. Adding a mapping for a column that is about
+          // to disappear buys nothing and would have to be removed by whoever
+          // lands the schema change.
 
           // The four self-references. Emitted normally; the runner defers them.
           boostOf: id(doc, 'boostOf'),

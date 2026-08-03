@@ -521,26 +521,25 @@ const userSettingsPlan: CollectionPlan = {
           // null for a missing path, so no `?? false` here — that would migrate
           // every person's settings as a channel that does not sign.
           //
-          // TWO spellings, and both are real — one in the data, one in the
-          // writer.
+          // The PATH is `channel`, not `channelAccount`, and that is a fact
+          // about MONGO rather than about the column's name.
           //
-          // Mongo STORES `channel`: `ChannelAccountSchema` is mounted at
-          // `channel:` in the deleted model (recovered from `8b783a8d^`), and
-          // `channelAccount.signPosts` matches ZERO of 39,349 documents.
-          // Reading only `channelAccount` — which is what this line did, with
-          // the correct reasoning above it — dropped every value the field
-          // holds. Only counting the SOURCE side finds a mapping that looks
-          // right and reads a field nothing has.
+          // `ChannelAccountSchema` is mounted at `channel:` in the deleted model
+          // (recovered from `8b783a8d^`), and `channelAccount.signPosts` matches
+          // ZERO of 39,349 documents. Reading only `channelAccount` — which is
+          // what this line did, with the correct reasoning above it — dropped
+          // every value the field holds. Only counting the SOURCE side finds a
+          // mapping that looks right and reads a field nothing has.
           //
-          // `channelAccount` is nonetheless the path `SETTINGS_COLUMN_BY_PATH`
-          // registers, because the DTO renamed the subdocument at the port. It
-          // is kept HERE rather than in the writer-coverage test because that
-          // test guards a real invariant — every path a writer can produce is a
-          // path the backfill reads — and a migration that reads both spellings
-          // cannot lose data under either. On this corpus the second read is
-          // inert.
-          channelAccountSignPosts:
-            bool(doc, 'channel.signPosts') ?? bool(doc, 'channelAccount.signPosts'),
+          // `channelAccount` is the DTO's spelling, registered in
+          // `SETTINGS_COLUMN_BY_PATH` because that map translates API dot-paths
+          // to COLUMNS. Nothing has ever written it to Mongo: the settings PUT
+          // writes Postgres, and the Mongoose model that wrote `channel` is
+          // deleted. So there is no second era of data to read and no reason to
+          // read both — a defensive `??` here would be a compatibility shim for
+          // a case that cannot occur. The divergence is declared once, in
+          // `backfillSettingsPathCoverage`, where it is about the two NAMES.
+          channelAccountSignPosts: bool(doc, 'channel.signPosts'),
 
           interestTags: strArray(doc, 'interests.tags'),
 
