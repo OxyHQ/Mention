@@ -10,6 +10,7 @@ import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { queryInt } from '../utils/queryParams';
 import { PostVisibility } from '@mention/shared-types';
 import { decodeSearchCursor, encodeSearchCursor } from '../utils/searchCursor';
+import { isAbsoluteHttpUrl } from '../connectors/shared/url';
 import { DISCOVERY_SAFE_MATCH } from '../mtn/feed/feedSafety';
 import { loadMuteWords, loadShowSensitiveContent } from '../services/safety/viewerSafety';
 import {
@@ -23,6 +24,9 @@ const router = express.Router();
 
 /** Search result page size. */
 const DEFAULT_SEARCH_LIMIT = 20;
+/** Mongo's MaxTimeMSExpired — a query that hit `maxTimeMS`, not a server fault. */
+const MONGO_MAX_TIME_MS_EXPIRED = 50;
+
 const MAX_SEARCH_LIMIT = 100;
 // One of the four projections that feed `PostHydrationService`; they must agree
 // on every field hydration reads. `writtenByOxyUserId` is what lets a channel
@@ -211,6 +215,29 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         ...(showSensitiveContent ? {} : DISCOVERY_SAFE_MATCH),
       };
 
+      // A PASTED URL IS NOT A TEXT QUERY, AND FEEDING IT TO $text IS BOTH WRONG
+      // AND EXPENSIVE.
+      //
+      // Mongo's text index TOKENISES, and a multi-term $text search is an OR. So
+      // `https://x.com/thinkymachines` becomes roughly `https OR x.com OR
+      // thinkymachines` — and `https` alone appears in a large share of every
+      // post ever written. Two consequences, and the quiet one is worse:
+      //
+      //   - it times out. Sorting by createdAt (not by text score) means Mongo
+      //     must collect EVERY match before it can order them, so the query blew
+      //     through config.search.maxTimeMS and surfaced as a 500. Observed in
+      //     production at 3017/3036/3119/3078 ms against a 3_000 ms cap.
+      //   - when it does NOT time out, the results are noise: posts that merely
+      //     contain the word "https", ranked as if they matched what was pasted.
+      //
+      // Somebody pasting a profile URL is naming an ACCOUNT; the people lane
+      // answers that (see `federatedUsernameFromUpstreamUrl` and the bridge
+      // resolution lane). The posts lane has nothing to say about it, so it says
+      // so immediately instead of scanning the collection to say it slowly.
+      if (isAbsoluteHttpUrl(operators.textQuery)) {
+        res.json({ posts: [], hasMore: false });
+        return;
+      }
       // Use the Post text index instead of scanning every variant with a regex.
       if (operators.textQuery) {
         filter.$text = { $search: operators.textQuery };
@@ -404,11 +431,26 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 
     res.json(results);
   } catch (error) {
+    // A query that ran out of time is a CAPACITY answer, not a fault. It was
+    // reaching the client as a 500, which reads as "the server is broken" and
+    // hides the real one behind the same status as a genuine crash. 503 says
+    // what happened and is retryable.
+    //
+    // The log previously carried `errorName` ALONE — so the production incident
+    // this branch was diagnosed from showed `MongoServerError` and nothing else:
+    // no code, no message, nothing that named the query or the limit. Diagnosing
+    // it needed the source and a stopwatch against the 3_000 ms cap. Carry the
+    // code and message so the next one is readable from the logs.
+    const isTimeout = typeof error === 'object' && error !== null
+      && (error as { code?: unknown }).code === MONGO_MAX_TIME_MS_EXPIRED;
     logger.error('Search request failed', {
       errorName: error instanceof Error ? error.name : 'UnknownError',
+      errorCode: typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined,
+      reason: error instanceof Error ? error.message : 'unknown',
+      timedOut: isTimeout,
     });
-    res.status(500).json({
-      message: "Error performing search"
+    res.status(isTimeout ? 503 : 500).json({
+      message: isTimeout ? 'Search timed out' : 'Error performing search',
     });
   }
 });
