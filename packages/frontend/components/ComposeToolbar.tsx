@@ -6,6 +6,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@oxyhq/bloom/hooks';
 import { PressableScale } from '@oxyhq/bloom/pressable-scale';
 import { MediaIcon } from '@/assets/icons/media-icon';
+import { ChannelIcon } from '@/assets/icons/channel-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
 import { LocationIcon } from '@/assets/icons/location-icon';
 import { EmojiIcon } from '@/assets/icons/emoji-icon';
@@ -345,10 +346,11 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     accessibilityRole="button"
                     accessibilityLabel={t('channels.compose.choose', { defaultValue: 'Choose who posts' })}
                 >
-                    {/* A megaphone — a channel is a broadcast, and this is the
-                        only control on the row that changes WHO the post is by. */}
-                    <Ionicons
-                        name={hasPublishAs ? 'megaphone' : 'megaphone-outline'}
+                    {/* The SAME glyph the sidebar's Channels row uses. This is
+                        the only control on the row that changes WHO the post is
+                        by, and a reader who has seen it in the sidebar should not
+                        have to learn a second symbol for the same idea. */}
+                    <ChannelIcon
                         size={20}
                         color={disabled
                             ? theme.colors.textTertiary
