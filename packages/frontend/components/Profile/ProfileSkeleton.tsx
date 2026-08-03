@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { POST_ITEM_SPACING } from '@/styles/shared';
+import { CHANNEL_AVATAR_SIZE } from './ChannelHeader';
 import { LAYOUT } from './types';
 
 /**
@@ -44,10 +45,14 @@ const TAB_CHIP_WIDTHS = [42, 54, 50, 58, 44, 56];
 const FEED_ROW_COUNT = 4;
 
 // A CHANNEL's anatomy, which is a different shape rather than a smaller one: no
-// banner to overlap, a 70px avatar on the RIGHT with the name beside it, four
-// stats (no replies — a channel can author none) and four tabs. Mirrors
-// `ChannelHeader` + `useProfileChrome({ hasBannerBand: false })`.
-const CHANNEL_AVATAR_SIZE = 70;
+// banner to overlap, a CENTRED masthead (avatar, then name, then handle, then
+// the follow control), four stats (no replies — a channel can author none) and
+// four tabs. Mirrors `ChannelHeader` + `useProfileChrome({ hasBannerBand:
+// false })`.
+//
+// The avatar size is IMPORTED rather than restated: it is the one measurement
+// where a disagreement between this file and the header is a visible jump at
+// the moment the data lands.
 const CHANNEL_CONTENT_OFFSET = 60;
 const CHANNEL_STAT_CHIP_WIDTHS = [96, 104, 78, 84];
 const CHANNEL_TAB_CHIP_WIDTHS = [42, 50, 58, 56];
@@ -97,23 +102,35 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
       <View className="flex-1 bg-background" accessibilityRole="progressbar">
         <View style={{ paddingTop: insets.top + CHANNEL_CONTENT_OFFSET }}>
           <View className="bg-background px-4 pb-4">
-            {/* Name/handle on the left, avatar on the right — `ChannelHeader`. */}
-            <View className="flex-row justify-between items-start mb-4 gap-4">
-              <View className="flex-1">
-                <View className="mt-2.5 mb-1">
-                  <Skeleton.Box width="70%" height={22} borderRadius={6} />
-                </View>
-                <Skeleton.Box width="45%" height={14} borderRadius={6} />
-              </View>
+            {/* Centred masthead — avatar, then name, then handle. The margins
+                are `ChannelHeader`'s own: the name Text carries `marginTop: 12,
+                marginBottom: 4` and the handle sits straight under it, so the
+                placeholders repeat those as `mt-3` / `mb-1` rather than a
+                rhythm of their own.
+                Each bar is drawn SHORTER than the line it stands in — a
+                full-height slab reads as a block, not a line — so it is centred
+                inside a wrapper of the line's TRUE height: `h-7` (28px) for the
+                24px display name, `h-5` (20px) for the 15px/20 handle. Measured
+                in a browser: without the wrappers the masthead came out 12px
+                short and everything below it, the follow control and the tab
+                strip included, sat 12px high and jumped when the data landed —
+                which is the exact defect a skeleton exists to prevent. */}
+            <View className="items-center w-full">
               <Skeleton.Circle
                 size={CHANNEL_AVATAR_SIZE}
                 style={{ borderWidth: AVATAR_RING, borderColor: theme.colors.background }}
               />
+              <View className="mt-3 mb-1 h-7 justify-center">
+                <Skeleton.Box width={180} height={22} borderRadius={6} />
+              </View>
+              <View className="h-5 justify-center">
+                <Skeleton.Box width={110} height={14} borderRadius={6} />
+              </View>
             </View>
 
-            {/* Follow button — the whole action row; a channel has no poke and
-                no self view. */}
-            <View className="mt-3 mb-2 flex-row">
+            {/* Follow button — the whole action row, and the last element of the
+                centred masthead; a channel has no poke and no self view. */}
+            <View className="mt-4 mb-4 flex-row justify-center">
               <Skeleton.Box width={92} height={36} borderRadius={999} />
             </View>
 
