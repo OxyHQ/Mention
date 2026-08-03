@@ -13,6 +13,8 @@ import {
   DuplicateReportError,
   createReport,
 } from '../services/moderation/ReportIntakeService';
+import { viewerOperatesAccount } from '../services/operatedAccountAccess';
+import { createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 import { queryInt } from '../utils/queryParams';
 
@@ -117,6 +119,44 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({
         message: 'details must be 500 characters or less'
       });
+    }
+
+    /**
+     * You cannot report an account you OPERATE — yourself, or a channel /
+     * organization / project / bot you speak as.
+     *
+     * A report is an accusation laid before a jury by somebody who was not party
+     * to the material. Filed against your own account it is not a moderation
+     * request at all: it opens a CrowdSource case, draws real reviewers onto it,
+     * and asks them to rule on whether you should be enforced against for what
+     * you published. There is no state of the world in which that is the thing the
+     * reporter meant, so it is refused rather than filed — the affordance is also
+     * absent from the UI, but that is a consequence of it being meaningless, not
+     * the thing that prevents it.
+     *
+     * **400, not 403.** An operator has MORE authority over this account than a
+     * stranger does, so "forbidden" states the opposite of what is true: nothing
+     * is being withheld from them. The target is simply not a valid target for
+     * this verb. It also matches what the two neighbouring self-refusals already
+     * answer — `POST /mute` for muting yourself, and Oxy's own
+     * `POST /privacy/blocked/:id` for blocking yourself — so the same mistake gets
+     * the same status wherever a client makes it.
+     *
+     * Only `user` reports ask this. The other reported types name objects, not
+     * accounts, and the analogous rule for a POST is a different question with a
+     * different answer already (`postManagementAccess`).
+     */
+    if (reportedType === ReportedType.USER) {
+      const operatesTarget = await viewerOperatesAccount({
+        targetOxyUserId: reportedId,
+        callerId: reporter,
+        memberReader: createUserScopedOxyServices(req),
+      });
+      if (operatesTarget) {
+        return res.status(400).json({
+          message: 'You cannot report an account you operate',
+        });
+      }
     }
 
     const { report, outboxEventId } = await createReport({

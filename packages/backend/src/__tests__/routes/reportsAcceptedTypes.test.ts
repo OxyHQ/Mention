@@ -34,6 +34,22 @@ vi.mock('../../services/moderation/ReportIntakeService', async () => {
   return { ...actual, createReport: (...args: unknown[]) => createReport(...args) };
 });
 
+/**
+ * A `user` report now asks whether the reporter OPERATES the account named
+ * (`services/operatedAccountAccess.ts`), which reaches Oxy for identity and the
+ * account graph. Stubbed to "an account nobody here operates" so this file keeps
+ * testing what it is about — which reported TYPES the route accepts — rather than
+ * silently becoming a test of the operator gate, which
+ * `reportsOperatedAccount.test.ts` owns.
+ */
+vi.mock('../../services/PostHydrationService', () => ({
+  resolveUserSummaries: vi.fn(async () => new Map()),
+}));
+
+vi.mock('../../utils/oxyHelpers', () => ({
+  createUserScopedOxyServices: () => ({ listAccountMembers: vi.fn(async () => []) }),
+}));
+
 import reportsRoutes from '../../routes/reports.routes';
 import { ReportedType } from '../../models/Report.model';
 import { deliverableTypes } from '../../services/moderation/subjects/registry';

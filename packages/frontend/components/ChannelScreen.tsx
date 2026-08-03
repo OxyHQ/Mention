@@ -5,7 +5,6 @@ import { useQuery } from '@tanstack/react-query';
 import { BloomColorScope } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { FollowButton as OxyFollowButton, useAuth, useFollow } from '@oxyhq/services/ui/client';
-import type { AccountNode } from '@oxyhq/core';
 import { lanesService } from '@/services/lanesService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { logger } from '@oxyhq/core/logger';
@@ -33,6 +32,7 @@ import {
     useProfileAccount,
     useProfileChrome,
     useProfileMoreMenu,
+    useOperatesAccount,
     useJustFollowed,
     useChannelWriters,
     buildProfileTabDescriptors,
@@ -91,7 +91,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
     profileData,
     loading,
 }) => {
-    const { user: currentUser, oxyServices } = useAuth();
+    const { user: currentUser } = useAuth();
     const { t } = useTranslation();
 
     const [activeTabKey, setActiveTabKey] = useState<string>('posts');
@@ -164,21 +164,18 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
         false,
     );
 
-    // Whether the viewer OPERATES this channel, which is what puts its settings
-    // in reach. A channel account has no login of its own, so there is no other
-    // signal on the profile itself. This query is the reason the check lives on
-    // the channel screen and not in the shared lookup: the account graph is a
-    // real request, and a person's profile would pay for it to answer a question
-    // that can only ever be no.
-    const operatedAccountsQuery = useQuery<AccountNode[]>({
-        queryKey: viewerQueryKeys.operatedAccounts(currentUser?.id),
-        queryFn: () => oxyServices.listAccounts(),
-        enabled: Boolean(currentUser?.id) && Boolean(profileData?.id),
+    // Whether the viewer OPERATES this channel — what puts its settings in reach,
+    // and what keeps mute / block / report out of a menu where they would be
+    // addressed at an account the viewer publishes as. A channel account has no
+    // login of its own, so there is no other signal on the profile itself.
+    //
+    // The check is shared with the person screen rather than local to this one:
+    // only `channel` routes to `/c/<handle>`, so an organization, project or bot
+    // renders over there and needs the identical answer.
+    const operatesThisChannel = useOperatesAccount({
+        accountId: profileData?.id,
+        accountKind: profileData?.kind,
     });
-    const operatesThisChannel = Boolean(
-        profileData?.id &&
-        operatedAccountsQuery.data?.some((account) => account.accountId === profileData.id),
-    );
 
     // The chrome's compact-header offsets and the scrolled-name overlay both need
     // to know how wide the icon cluster is: subscribe + share + more.
@@ -256,9 +253,14 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
         [operatesThisChannel, handle, t],
     );
 
+    // `viewerOperatesAccount`, never `isOwnProfile: false` as this read before.
+    // That literal was true of the LOGIN identity — a channel can never be signed
+    // in as, so it is never "your own profile" — and it silently answered a
+    // different question from the one the menu asks, which is how an operator came
+    // to be offered Block and Report against their own channel.
     const handleMoreOptions = useProfileMoreMenu({
         profileData,
-        isOwnProfile: false,
+        viewerOperatesAccount: operatesThisChannel,
         leadingActions,
     });
 

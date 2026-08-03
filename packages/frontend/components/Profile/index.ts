@@ -8,6 +8,7 @@ export { useProfileScroll } from './hooks/useProfileScroll';
 export { useProfileAccount } from './hooks/useProfileAccount';
 export { useProfileChrome } from './hooks/useProfileChrome';
 export { useProfileMoreMenu } from './hooks/useProfileMoreMenu';
+export { useOperatesAccount } from './hooks/useOperatesAccount';
 export { useJustFollowed } from './hooks/useJustFollowed';
 export { useChannelWriters } from './hooks/useChannelWriters';
 
