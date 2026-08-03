@@ -109,6 +109,9 @@ jest.mock('@/components/common/ContentDialog', () => ({ ContentDialogHost: () =>
 jest.mock('@/components/Fediverse/FediverseInfoDialog', () => ({
   FediverseInfoDialogProvider: () => null,
 }));
+jest.mock('@/components/Channels/ChannelInfoDialog', () => ({
+  ChannelInfoDialogProvider: () => null,
+}));
 jest.mock('@/components/providers/LiveFeatureProviders', () => ({ LiveFeatureHost: () => null }));
 
 jest.mock('@oxyhq/bloom/tab-bar', () => ({

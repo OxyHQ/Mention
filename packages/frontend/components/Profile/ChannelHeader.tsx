@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { View } from 'react-native';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';
+import { showChannelInfo } from '@/components/Channels/ChannelInfoDialog';
 import { PrivateBadge } from './PrivateBadge';
 import type { ChannelActionsProps, ChannelHeaderProps } from './types';
 
@@ -99,10 +100,15 @@ export const ChannelHeader = memo(function ChannelHeader({
         verified={verified}
         // Not a guess and not a conditional: this component only ever draws a
         // channel (the route canonicalizes anything else away before it
-        // renders), so the marker states what the page is. It stays INERT —
-        // `AccountBadge` has no explainer for a channel to open, and the page
-        // itself is the explanation.
+        // renders), so the marker states what the page is.
         kind="channel"
+        // THE opt-in, and the only one. A channel is an unfamiliar kind of
+        // account, and this is the one screen where a reader who wants to know
+        // what it is has room for the answer — everywhere else the marker sits
+        // in a row that is already a tap going somewhere, so it stays inert
+        // there (see `AccountBadge`). The handler is channel-specific on
+        // purpose: it cannot reach the fediverse explainer, nor that one this.
+        onExplainChannel={showChannelInfo}
         align="center"
         variant="default"
         trailingBadge={trailingBadge}

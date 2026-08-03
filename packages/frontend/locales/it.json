@@ -1634,6 +1634,25 @@
       "lastWrote": "Ha scritto l’ultima volta {{time}}",
       "empty": "Ancora nessuno indicato",
       "emptyDetail": "Questo canale indica chi scrive ogni post. Non ne ha ancora pubblicato nessuno."
+    },
+    "explainer": {
+      "title": "Informazioni sui canali",
+      "step1": {
+        "title": "Che cos’è un canale?",
+        "body": "Un canale è un account che pubblica per conto proprio. Seguendolo, i suoi post arrivano nel tuo feed senza che tu segua nessuna delle persone che ci scrivono: è proprio a questa separazione che serve un canale."
+      },
+      "step2": {
+        "title": "Pubblica, non risponde",
+        "body": "I post di un canale sono post normali: arrivano nei feed, nella ricerca e nel fediverso come quelli di chiunque altro, e puoi ricondividerne uno sul tuo profilo. Quello che manca è il riquadro delle risposte: un canale non accetta mai risposte, ed è così che sono fatti i canali, non un’impostazione che qualcuno ha disattivato."
+      },
+      "step3": {
+        "title": "Chi ha scritto questo?",
+        "body": "Un canale firma i propri post. Con «Indica chi scrive» attivo, accanto al canale viene mostrata la persona che ha scritto il post; disattivato, il post è solo del canale. È una scelta del canale stesso, non qualcosa che manca."
+      },
+      "next": "Avanti",
+      "back": "Indietro",
+      "done": "Ho capito",
+      "cancel": "Annulla"
     }
   },
   "trendGraph": {

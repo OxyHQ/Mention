@@ -26,6 +26,7 @@ import { ConfirmPromptProvider } from '@/components/common/ConfirmPrompt';
 import { ActionMenuHost } from '@/components/common/ActionMenu';
 import { ContentDialogHost } from '@/components/common/ContentDialog';
 import { FediverseInfoDialogProvider } from '@/components/Fediverse/FediverseInfoDialog';
+import { ChannelInfoDialogProvider } from '@/components/Channels/ChannelInfoDialog';
 import { LiveFeatureHost } from '@/components/providers/LiveFeatureProviders';
 import { LiveRoomControllerProvider } from '@/context/LiveRoomContext';
 import i18n from '@/lib/i18n';
@@ -151,6 +152,7 @@ export const AppProviders = memo(function AppProviders({
                               <ActionMenuHost />
                               <ContentDialogHost />
                               <FediverseInfoDialogProvider />
+                              <ChannelInfoDialogProvider />
                             </HomeRefreshProvider>
                             <LiveFeatureHost />
                           </LiveRoomControllerProvider>
