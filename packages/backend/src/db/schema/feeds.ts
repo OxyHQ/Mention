@@ -70,8 +70,18 @@ export const FEED_GENERATOR_NETWORKS = ['atproto'] as const;
 export const FEED_INTERACTION_RETENTION_SECONDS = 90 * 24 * 60 * 60;
 
 /** `FeedReview.rating` bounds, from the Mongoose `min`/`max`. */
-const RATING_MIN = 1;
-const RATING_MAX = 5;
+/**
+ * The review scale, exported because the ROUTE has to enforce it too.
+ *
+ * `feed_reviews_rating_check` is the floor, not the gate: a value outside the
+ * range — or a fractional one, which an `integer` column refuses outright — 500s
+ * on a request path. Mongoose declared the same `min`/`max` and never ran them
+ * (`runValidators` is set nowhere in this package) and cast whatever it was
+ * given, so the port turns a quietly-stored bad value into a visible error.
+ * Better, but the honest answer to a malformed body is a 400.
+ */
+export const RATING_MIN = 1;
+export const RATING_MAX = 5;
 
 export const customFeeds = pgTable(
   'custom_feeds',
