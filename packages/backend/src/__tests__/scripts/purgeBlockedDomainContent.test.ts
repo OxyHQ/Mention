@@ -1074,9 +1074,21 @@ describe('purgeBlockedDomainContent — re-running', () => {
     expect(orphanScope, 'the orphan-posts phase recorded a cursor').toBeDefined();
     // A uuid v7 — exactly what a post created after the cutover carries, and what
     // the deleted guard would have refused.
+    //
+    // `completedAt`, never `completed`. `completed` is the name on
+    // `AdminScriptCursorUpdate`, the repository's WRITE DTO; the column is
+    // `completed_at`, and a key naming no column is DROPPED in silence — Drizzle's
+    // `buildUpdateSet` iterates the table's columns and never the object's keys, so
+    // the statement is built, executed and reported successful with that field
+    // simply absent from it. Only `tsc` sees it, and the suite does not run `tsc`.
+    //
+    // What it establishes is the fixture, not the mechanism: `resumePoint` reads
+    // `cursor` and `scanned` and never `completed_at`, so parking the stamp back to
+    // NULL is what keeps the row an HONEST description of the state this test
+    // resumes from — a sweep stopped mid-range, not one that ran to exhaustion.
     await getDb()
       .update(adminScriptCursors)
-      .set({ cursor: '01924f3c-0000-7000-8000-0123456789ab', completed: false })
+      .set({ cursor: '01924f3c-0000-7000-8000-0123456789ab', completedAt: null })
       .where(eq(adminScriptCursors.id, orphanScope!.id));
     /**
      * One orphan post, with an id that sorts BEFORE that cursor.
