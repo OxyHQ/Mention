@@ -174,6 +174,29 @@ export function auditColumnCoverage(input: {
               'turns into a formality.',
           });
         }
+        // THE ROT CASE, and the one an allowlist that only grows will hit.
+        // A declaration reading "the source has no such field" is a claim about
+        // the SOURCE, and the source keeps moving. If it later gains values and
+        // nothing writes the column, the acknowledgement is no longer an
+        // exception — it is excusing live data loss, silently, with a comment
+        // over it. Only reachable when a `sourcePath` was declared, which is
+        // why an acknowledged column is worth giving one.
+        if (populated === 0 && sourceValues !== null && sourceValues > 0) {
+          findings.push({
+            collection: input.collection,
+            table: name,
+            column: sqlName,
+            kind: 'stale-acknowledgement',
+            sourceValues,
+            populated: 0,
+            detail:
+              `${sqlName} is declared in \`unmappedColumns\` ("${acknowledged.get(key)}") ` +
+              `but the source now holds ${sourceValues} value(s) at \`${sourcePath}\` ` +
+              'and nothing writes the column. The reason has stopped being true, ' +
+              'so the declaration is excusing real data loss rather than ' +
+              'describing an absence. Map the column or rewrite the reason.',
+          });
+        }
         continue;
       }
 

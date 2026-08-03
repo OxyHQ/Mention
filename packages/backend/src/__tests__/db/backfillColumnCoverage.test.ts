@@ -148,6 +148,49 @@ describe('auditColumnCoverage', () => {
     expect(findings[0]?.detail).toMatch(/no longer happens/);
   });
 
+  it('reports an acknowledgement whose REASON has stopped being true', () => {
+    // The rot case, and the one an allowlist that only grows will eventually
+    // hit: the declaration says the source has no such field, the source later
+    // gains values, and nothing writes the column. Without this the
+    // acknowledgement silently excuses live data loss — a hole with a comment
+    // over it rather than a documented exception.
+    const findings = audit(
+      [{ id: 'a', mapped: 'x' }, { id: 'b', mapped: 'y' }],
+      {
+        unmapped: [
+          { table: widgets, column: widgets.dropped, reason: 'the source has no such field' },
+          { table: widgets, column: widgets.partial, reason: 'retired before the port' },
+        ],
+        coverage: [{ table: widgets, column: widgets.dropped, sourcePath: 'thing.dropped' }],
+        sourceCounts: new Map([['thing.dropped', 42]]),
+      }
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.kind).toBe('stale-acknowledgement');
+    expect(findings[0]?.column).toBe('bcc_widgets.dropped');
+    expect(findings[0]?.sourceValues).toBe(42);
+    expect(findings[0]?.detail).toMatch(/stopped being true/);
+    expect(findings[0]?.detail).toMatch(/excusing real data loss/);
+  });
+
+  it('keeps an acknowledgement whose reason still holds', () => {
+    // The healthy half beside it: source genuinely empty, column genuinely
+    // unwritten, declaration genuinely correct — and therefore silent. Without
+    // this case, a rot check that fired on every acknowledgement would pass.
+    const findings = audit(
+      [{ id: 'a', mapped: 'x' }],
+      {
+        unmapped: [
+          { table: widgets, column: widgets.dropped, reason: 'the source has no such field' },
+          { table: widgets, column: widgets.partial, reason: 'retired before the port' },
+        ],
+        coverage: [{ table: widgets, column: widgets.dropped, sourcePath: 'thing.dropped' }],
+        sourceCounts: new Map([['thing.dropped', 0]]),
+      }
+    );
+    expect(findings).toStrictEqual([]);
+  });
+
   it('reports an acknowledgement naming a column the table does not have', () => {
     const other = pgTable('bcc_other', { id: text().primaryKey(), gone: text() });
     const findings = audit([{ id: 'a', mapped: 'x' }], {
