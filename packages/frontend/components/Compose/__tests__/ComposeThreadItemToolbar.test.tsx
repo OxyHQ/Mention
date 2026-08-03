@@ -145,6 +145,11 @@ function renderItem(
     tree = TestRenderer.create(
       <ComposeThreadItem
         item={baseItem}
+        // Required since the mention summary reads every rendition of a body,
+        // not just the primary one. Defaulted here rather than made optional on
+        // the component: a caller that forgets it would silently stop counting
+        // the language variants toward the post's mentions.
+        variantTexts={[]}
         isFocused
         isPosting={false}
         postingMode={postingMode}
