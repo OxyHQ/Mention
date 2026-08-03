@@ -6,7 +6,6 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@oxyhq/bloom/hooks';
 import { PressableScale } from '@oxyhq/bloom/pressable-scale';
 import { MediaIcon } from '@/assets/icons/media-icon';
-import { ChannelIcon } from '@/assets/icons/channel-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
 import { LocationIcon } from '@/assets/icons/location-icon';
 import { EmojiIcon } from '@/assets/icons/emoji-icon';
@@ -45,15 +44,6 @@ interface ComposeToolbarProps {
      * throw the lane away with nothing to tell them.
      */
     onLanePress?: () => void;
-    /**
-     * Choose WHO the post is by — the author themselves, or a channel account
-     * they operate. Main toolbar only, and omitted entirely on a reply, an edit
-     * and a thread: the server refuses another author on all three, and the reply
-     * and update payloads drop fields they do not name, so an affordance there
-     * would take the author's choice, answer 201 and publish under their own name
-     * with nothing to tell them.
-     */
-    onPublishAsPress?: () => void;
     hasLocation?: boolean;
     isGettingLocation?: boolean;
     hasPoll?: boolean;
@@ -72,8 +62,6 @@ interface ComposeToolbarProps {
     hasCollaborators?: boolean;
     /** The post is already assigned to one of the author's lanes. */
     hasLane?: boolean;
-    /** The post is authored by a channel account rather than by the author. */
-    hasPublishAs?: boolean;
     /** False once the post holds the maximum collaborators. */
     collaboratorsEnabled?: boolean;
     hasSourceErrors?: boolean;
@@ -96,7 +84,6 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     onLanguagePress,
     onCollaboratorsPress,
     onLanePress,
-    onPublishAsPress,
     hasLocation = false,
     isGettingLocation = false,
     hasPoll = false,
@@ -112,7 +99,6 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     hasCollaborators = false,
     collaboratorsEnabled = true,
     hasLane = false,
-    hasPublishAs = false,
     hasSourceErrors = false,
     disabled = false,
 }) => {
@@ -338,28 +324,10 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                 </PressableScale>
             )}
 
-            {onPublishAsPress && (
-                <PressableScale
-                    onPress={withHaptic(onPublishAsPress)}
-                    disabled={disabled}
-                    className="p-1"
-                    accessibilityRole="button"
-                    accessibilityLabel={t('channels.compose.choose', { defaultValue: 'Choose who posts' })}
-                >
-                    {/* The SAME glyph the sidebar's Channels row uses. This is
-                        the only control on the row that changes WHO the post is
-                        by, and a reader who has seen it in the sidebar should not
-                        have to learn a second symbol for the same idea. */}
-                    <ChannelIcon
-                        size={20}
-                        color={disabled
-                            ? theme.colors.textTertiary
-                            : hasPublishAs
-                                ? theme.colors.primary
-                                : theme.colors.textSecondary}
-                    />
-                </PressableScale>
-            )}
+            {/* WHO the post is by is not on this row. It is the box's own avatar
+                — the thing that already shows the answer — so the control and
+                what it changes are the same object, and every box in beast mode
+                gets its own without a toolbar each. */}
 
             {onLanePress && (
                 <PressableScale

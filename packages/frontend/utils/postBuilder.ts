@@ -202,7 +202,17 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     ...(quotedPostId ? { quotedPostId } : {}),
     ...(collaboratorIds && collaboratorIds.length > 0 ? { collaboratorIds } : {}),
     ...(laneId ? { laneId } : {}),
-    ...(publishAsOxyUserId ? { publishAsOxyUserId } : {}),
+    // A plain property, deliberately, where every other optional field here uses
+    // a conditional spread. TypeScript does NOT excess-property-check a spread,
+    // so a typo inside one compiles clean and the field silently never ships —
+    // measured: `...(id ? { publishAsOxyUserIdTYPO: id } : {})` produces zero
+    // errors in this file. Both builders declare their return type, so written
+    // plainly the same typo is a `TS2353`.
+    //
+    // This one field earns the inconsistency because it decides WHO AUTHORS the
+    // post: dropped, the post publishes under the caller's own name instead of
+    // the account they chose, with a 201 and nothing to see.
+    publishAsOxyUserId,
     ...(isSensitive ? { metadata: { isSensitive: true } } : {}),
     ...(wasScheduled && scheduledAt ? {
       status: 'scheduled' as const,
@@ -261,9 +271,19 @@ export const buildEditPost = (params: BuildEditPostParams): UpdatePostRequest =>
   };
 };
 
+/**
+ * @param publishAsOxyUserId The account THIS post is authored by, when it is not
+ * the caller. Passed in rather than read off `item.publishAs` because whether the
+ * payload may carry one is a property of the whole composer — BEAST mode posts
+ * are independent, so each may name its own; a THREAD's continuations are replies
+ * to their predecessor, which a channel post cannot have, so none of them may.
+ * The composer answers that once and hands down the result, so the value the
+ * header draws and the value the wire carries cannot disagree.
+ */
 export const buildThreadPost = (
   item: ThreadItem,
   variantContent?: PostContentVariant[] | null,
+  publishAsOxyUserId?: string,
 ): CreateThreadPostRequest => {
   const threadHasPoll = item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0);
   const threadHasLocation = Boolean(item.location);
@@ -363,6 +383,21 @@ export const buildThreadPost = (
     reviewReplies: item.reviewReplies || false,
     quotesDisabled: item.quotesDisabled || false,
     ...(item.isSensitive ? { metadata: { isSensitive: true } } : {}),
+    // Named here as well as chosen in the composer: this object is a whitelist,
+    // so a field it omits vanishes on the way out with a 201 and no error
+    // anywhere — publishing under the author's own name instead of the chosen
+    // account's, which is the one mistake this control exists to prevent.
+    // A plain property, deliberately, where every other optional field here uses
+    // a conditional spread. TypeScript does NOT excess-property-check a spread,
+    // so a typo inside one compiles clean and the field silently never ships —
+    // measured: `...(id ? { publishAsOxyUserIdTYPO: id } : {})` produces zero
+    // errors in this file. Both builders declare their return type, so written
+    // plainly the same typo is a `TS2353`.
+    //
+    // This one field earns the inconsistency because it decides WHO AUTHORS the
+    // post: dropped, the post publishes under the caller's own name instead of
+    // the account they chose, with a 201 and nothing to see.
+    publishAsOxyUserId,
   };
 };
 

@@ -1610,6 +1610,16 @@
       "useOwnMedia": "Usar otras imágenes para {{language}}",
       "useSharedArticle": "Usar el artículo original",
       "localizeArticle": "Escribir el artículo en {{language}}"
+    },
+    "publishAs": {
+      "title": "Publicar como",
+      "none": "Yo",
+      "noneSubtitle": "La publicación sale con tu propio nombre, como siempre",
+      "current": "Actual",
+      "empty": "Todavía no gestionas ninguna otra cuenta. Un canal es una cuenta que la gente sigue sin seguir a quienes escriben en ella.",
+      "manage": "Crear o gestionar canales",
+      "alsoPostToProfile": "Publicar también en mi perfil",
+      "alsoPostToProfileHint": "Republica la publicación en tu propio perfil en cuanto se publique."
     }
   },
   "post": {
@@ -1822,18 +1832,8 @@
     "signInRequired": "Inicia sesión para gestionar tus canales",
     "signInRequiredDesc": "Un canal es una cuenta que la gente sigue sin seguir a quienes escriben en ella.",
     "compose": {
-      "choose": "Elegir quién publica",
       "repostFailed": "Se publicó en el canal, pero no se pudo republicar en tu perfil.",
       "scheduledNoRepost": "Programada. Republícala en tu perfil cuando se publique."
-    },
-    "picker": {
-      "title": "Publicar como",
-      "none": "Yo",
-      "noneSubtitle": "La publicación sale con tu nombre, como siempre",
-      "current": "Actual",
-      "empty": "Un canal es una cuenta que la gente sigue sin seguir a quienes escriben en ella. Puedes publicar como los canales que gestionas.",
-      "alsoPostToProfile": "Publicar también en mi perfil",
-      "alsoPostToProfileHint": "Republica la publicación del canal en tu perfil en cuanto se publique."
     },
     "settings": {
       "title": "Ajustes del canal",

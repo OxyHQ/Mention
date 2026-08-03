@@ -42,9 +42,15 @@ jest.mock('@oxyhq/bloom/theme', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/avatar', () => {
+/**
+ * The identity row is its own component with its own concerns (the account the
+ * box publishes as, the collaborative byline) and its own coverage. These cases
+ * are about the LINE BETWEEN the rows, so the header stands in as a plain View
+ * that still renders the body the author is writing into.
+ */
+jest.mock('@/components/Compose/ComposeIdentityHeader', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { Avatar: RNView };
+  return { __esModule: true, default: RNView };
 });
 
 jest.mock('@/components/ComposeToolbar', () => {
@@ -90,6 +96,7 @@ const item: ThreadItem = {
   reviewReplies: false,
   quotesDisabled: false,
   isSensitive: false,
+  publishAs: null,
 };
 
 /**
@@ -116,8 +123,7 @@ function renderItem(postingMode: 'thread' | 'beast') {
         isFocused
         isPosting={false}
         postingMode={postingMode}
-        userAvatar={undefined}
-        userVerified={false}
+        publishAs={null}
         onMentionValueChange={noop}
         onFocus={noop}
         onRemove={noop}

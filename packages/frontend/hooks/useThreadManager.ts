@@ -12,6 +12,7 @@ import { EventData } from "@/hooks/useEventManager";
 import { RoomAttachmentData } from "@/hooks/useRoomManager";
 import type { Draft } from "@/hooks/useDrafts";
 import type { ReplyPermission } from "@/components/Compose/ReplySettingsSheet";
+import type { AccountNode } from "@oxyhq/core";
 
 /**
  * A thread item as it comes back OUT of a stored draft: the persisted subset,
@@ -43,6 +44,22 @@ export interface ThreadItem {
   reviewReplies: boolean;
   quotesDisabled: boolean;
   isSensitive: boolean;
+  /**
+   * The account this post is published AS, or `null` for the author themselves.
+   *
+   * Per ITEM rather than per composer because BEAST mode posts are independent —
+   * they share a composer and nothing else — so one of them going out under a
+   * channel says nothing about the next. A THREAD is the opposite: its
+   * continuations are replies to their predecessor, which a channel post cannot
+   * have, so the whole thread stays the author's and this value is never read
+   * there.
+   *
+   * The whole {@link AccountNode} rather than its id, for the same reason the
+   * main composer holds one: the value has to survive without a live account
+   * query, and a header that could not resolve the id would draw the author's own
+   * avatar over a post going out as somebody else.
+   */
+  publishAs: AccountNode | null;
 }
 
 export interface ThreadItemDefaults {
@@ -74,6 +91,10 @@ export const useThreadManager = () => {
       reviewReplies: defaults?.reviewReplies ?? false,
       quotesDisabled: defaults?.quotesDisabled ?? false,
       isSensitive: defaults?.isSensitive ?? false,
+      // A new box is the author's own. The account is a per-post decision, so
+      // it is never inherited from the box above — carrying one forward would
+      // publish under an identity nobody chose for this post.
+      publishAs: null,
     };
     setThreadItems((prev) => [...prev, newThread]);
     return newThread.id;
@@ -369,6 +390,17 @@ export const useThreadManager = () => {
     []
   );
 
+  const setThreadPublishAs = useCallback(
+    (threadId: string, publishAs: AccountNode | null) => {
+      setThreadItems((prev) =>
+        prev.map((item) =>
+          item.id === threadId ? { ...item, publishAs } : item
+        )
+      );
+    },
+    []
+  );
+
   // Sources management
   const setThreadSources = useCallback(
     (threadId: string, sources: Source[]) => {
@@ -549,6 +581,11 @@ export const useThreadManager = () => {
       reviewReplies: false,
       quotesDisabled: false,
       isSensitive: false,
+      // A draft never persisted the author of a box — the account graph can move
+      // between the save and the restore, so a stored id could name an account
+      // the caller no longer operates. Restoring to the author is the choice that
+      // cannot publish under an identity nobody re-confirmed.
+      publishAs: null,
     })));
   }, []);
 
@@ -589,6 +626,7 @@ export const useThreadManager = () => {
     setThreadReviewReplies,
     setThreadQuotesDisabled,
     setThreadSensitive,
+    setThreadPublishAs,
     clearAllThreads,
     loadThreadsFromDraft,
   };
