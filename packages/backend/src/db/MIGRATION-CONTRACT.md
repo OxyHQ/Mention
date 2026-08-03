@@ -12,6 +12,12 @@ deltas.** The per-table conventions are in `schema/CONVENTIONS.md`.
 Stack: Drizzle ORM over **`postgres.js`** (`drizzle-orm/postgres-js`), migrations
 applied by `src/db/migrate.ts`. Package manager: bun only.
 
+## The cutover itself
+
+The sequence, the commands, the rollback pin and the open items live in
+[`docs/MONGO-TO-POSTGRES-CUTOVER.md`](../../../../docs/MONGO-TO-POSTGRES-CUTOVER.md).
+This file is the WHY; that one is what someone follows at 3am.
+
 ## PREREQUISITE: PostGIS, installed by a privileged role, once per database
 
 **A new target database needs one statement before the migrator can run, and the
