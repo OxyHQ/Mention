@@ -47,6 +47,7 @@ import { COLLECTION_PLANS } from '../../db/backfill/collectionMap';
 import {
   createResolutionContext,
   parentKeysFrom,
+  type ParentKeys,
   planResolutions,
   ResolutionLog,
 } from '../../db/backfill/resolutions';
@@ -68,6 +69,21 @@ const postsPlan = () => {
   return plan;
 };
 
+/**
+ * The `posts` rows the target holds, taken from the fixture.
+ *
+ * Declaring this is not optional any more: `posts` now carries orphan
+ * resolutions, and `keysFor` REFUSES a table nobody loaded rather than
+ * answering from an empty set — deciding a reference against the wrong parents
+ * is the failure that contract exists to prevent. Reading the ids back out of
+ * Mongo mirrors what the runner does (the parent set is what the copy has
+ * already written) and cannot drift as fixtures change.
+ */
+async function postParents(): Promise<ParentKeys> {
+  const rows = await mongo.collection('posts').find({}, { projection: { _id: 1 } }).toArray();
+  return parentKeysFrom(new Map([['posts', new Set(rows.map((row) => String(row._id)))]]));
+}
+
 async function copy(collection: string) {
   const plan = COLLECTION_PLANS.find((entry) => entry.collection === collection);
   if (!plan) throw new Error(`no plan for ${collection}`);
@@ -75,7 +91,7 @@ async function copy(collection: string) {
     db: getDb(),
     source,
     resolutions: createResolutionContext(await planResolutions(source), new ResolutionLog()),
-    parents: parentKeysFrom(new Map()),
+    parents: await postParents(),
   });
 }
 
@@ -84,7 +100,7 @@ async function copyPosts() {
     db: getDb(),
     source,
     resolutions: createResolutionContext(await planResolutions(source), new ResolutionLog()),
-    parents: parentKeysFrom(new Map()),
+    parents: await postParents(),
   });
 }
 

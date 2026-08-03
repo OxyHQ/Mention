@@ -64,6 +64,8 @@ import {
   type CollectionPlan,
 } from './plan';
 import { describeId, type MongoDocument } from './values';
+import { posts } from '../schema/posts';
+import { postRecentRepliers } from '../schema/postContent';
 
 // ---------------------------------------------------------------------------
 // what a rule IS
@@ -369,6 +371,148 @@ export const DERIVE_LANE_OWNER_TYPE: ResolutionRule = {
     'was inferred.',
 };
 
+/**
+ * A reply or thread link whose target the migration does not produce.
+ *
+ * Measured on `mention-production` (2026-08-03): 459 rows on `parent_post_id`
+ * and 379 on `thread_id`. Both columns are NULLABLE and both declare
+ * `ON DELETE set null`, so NULL is not a workaround here — it is the answer the
+ * schema already gives when the parent goes away, applied one moment earlier.
+ *
+ * The post is KEPT. It is somebody's writing, it carries its own text, media
+ * and engagement, and the only thing missing is a pointer to a post Mention
+ * never held. Dropping it to satisfy a link would delete the content to save
+ * the reference.
+ *
+ * Nulling the column does NOT quietly turn a reply into a top-level post:
+ * `plans/posts.ts` derives `isReply` from `parentPostId !== null ||
+ * federationInReplyTo !== null` while BUILDING the row, and this rule runs
+ * afterwards on the built row — so a federated reply keeps `isReply` true and
+ * keeps `federation.inReplyTo`, which is the URI the parent would be fetched by
+ * if it ever arrives. The post stays a reply; it stops claiming a local parent
+ * that does not exist.
+ */
+export const NULL_LINK_TO_A_POST_MENTION_NEVER_HELD: ResolutionRule = {
+  id: 'null-link-to-a-post-mention-never-held',
+  collection: 'posts',
+  finding:
+    'posts.parent_post_id and posts.thread_id name a `posts` row the migration ' +
+    'does not produce. Both columns are NULLABLE, so writing NULL would keep ' +
+    'the row — but that is a decision, not a default.',
+  decision:
+    'The column is written NULL and the POST IS KEPT. Both relations declare ' +
+    '`ON DELETE set null`, so this is the schema\'s own answer to a parent that ' +
+    'is not there, taken at copy time rather than at delete time. The ' +
+    'alternative — dropping the post — would discard text, media and ' +
+    'engagement in order to preserve a pointer to something Mention never had.' +
+    '\n\n' +
+    'The reply does not stop being a reply. `isReply` is derived while the row ' +
+    'is built, from `parentPostId` OR `federation.inReplyTo`, and this rule ' +
+    'runs on the built row — so a federated reply keeps `isReply` true and ' +
+    'keeps the `inReplyTo` URI, which is how the parent would be matched if it ' +
+    'ever lands. What is lost is a local id that resolved to nothing.' +
+    '\n\n' +
+    'Every affected post is reported BY ID, carrying the value that was ' +
+    'nulled, so the link is recoverable from the report if a parent arrives ' +
+    'later.',
+};
+
+/**
+ * A "recently replied" face whose post the migration does not produce.
+ *
+ * 457 rows, measured on `mention-production` (2026-08-03). `post_id` is NOT
+ * NULL, so there is no value that satisfies the constraint: the row cannot be
+ * written at all, and dropping it is the only outcome available. That is why
+ * this carries no `whyNotNull` — nothing is being chosen.
+ *
+ * It costs nothing either way. `plans/content.ts` establishes what this table
+ * is: a read-model projection of who replied recently, drawn as faces on a
+ * post, which `PostRecentReplierService` rewrites on the next reply and
+ * `EngagementProjectionReconciliationService` repairs wholesale. A row here
+ * describes a post that will not exist in Postgres, so it is a cached face on
+ * a page nobody can open.
+ */
+export const DROP_RECENT_REPLIER_OF_A_VANISHED_POST: ResolutionRule = {
+  id: 'drop-recent-replier-of-a-vanished-post',
+  collection: 'post_recent_repliers',
+  finding:
+    'post_recent_repliers.post_id names a `posts` row the migration does not ' +
+    'produce. The column is NOT NULL, so no value satisfies the constraint and ' +
+    'the row cannot be written at all.',
+  decision:
+    'The row is DROPPED, which is the only outcome a NOT NULL foreign key ' +
+    'leaves available — there is no value to write instead. Nothing is lost ' +
+    'that a reader could observe: this table is a recency PROJECTION (the ' +
+    'faces shown on a post), rebuilt by `PostRecentReplierService` on the next ' +
+    'reply and repaired wholesale by ' +
+    '`EngagementProjectionReconciliationService`. The dropped rows describe ' +
+    'posts that will not exist in Postgres, so they are cached faces on a page ' +
+    'that cannot be opened. Every dropped row is reported BY ID.',
+};
+
+/**
+ * A boost of a post Mention does not hold.
+ *
+ * This is the one rule here that removes a post, so the evidence is stated
+ * rather than asserted. Measured against `mention-production` (2026-08-03),
+ * over ALL 348 such rows live at the time — not a sample:
+ *
+ * - every one is `type: 'boost'` and `status: 'published'`;
+ * - ZERO carry any `content.text`;
+ * - ZERO carry any media;
+ * - ZERO carry a like, reply, quote or boost of their own;
+ * - ZERO are referenced by any reply, quote, boost, `Like` row or
+ *   recent-replier row.
+ *
+ * A boost row's entire content IS the pointer. `PostHydrationService` embeds
+ * the boosted original at `maxDepth >= 1` and the body is intentionally empty,
+ * so a boost whose `boostOf` names nothing renders blank TODAY, in production,
+ * before this migration touches it. Keeping the row by writing NULL would not
+ * preserve anything a reader can see — it would produce a post with no
+ * content, no target and no way to render, which is strictly worse than not
+ * having it: `type: 'boost'` with `boostOf: NULL` is a shape no writer
+ * produces and no reader expects.
+ *
+ * 347 of the 348 are federated (an Announce arrived for an original Mention
+ * never stored) and span 2024-04 to 2026-08. The single local row is the test
+ * account boosting a post created two seconds earlier that was then deleted —
+ * deleting a post does not delete boosts of it. Two causes, one remedy.
+ */
+export const DROP_BOOST_OF_A_POST_MENTION_NEVER_HELD: ResolutionRule = {
+  id: 'drop-boost-of-a-post-mention-never-held',
+  collection: 'posts',
+  finding:
+    'posts.boost_of names a `posts` row the migration does not produce. The ' +
+    'column is NULLABLE, so writing NULL would keep the row — but that is a ' +
+    'decision, not a default.',
+  decision:
+    'The BOOST POST IS DROPPED, and every dropped id is reported. These posts ' +
+    'are unrenderable in production TODAY, before the migration touches them: ' +
+    "a boost's body is intentionally empty and its entire content is the " +
+    'pointer, which `PostHydrationService` follows to embed the original. A ' +
+    'boost whose target does not exist already renders blank.' +
+    '\n\n' +
+    'Measured over ALL 348 such rows live in `mention-production` on ' +
+    '2026-08-03, not a sample: every one is `type: boost` and `published`; ' +
+    'none carries text; none carries media; none carries a like, reply, quote ' +
+    'or boost of its own; and none is referenced by any reply, quote, boost, ' +
+    '`Like` row or recent-replier row. So the drop discards no writing and ' +
+    'strands no child.' +
+    '\n\n' +
+    'NULL is the worse answer, which is why this is a drop and not a ' +
+    '`null-column`. It would keep a `type: boost` row with `boostOf: NULL` — a ' +
+    'shape no writer produces and no reader expects — leaving a permanently ' +
+    'blank entry in its author\'s profile and in any feed that includes ' +
+    'boosts, indistinguishable from a rendering bug. Dropping it removes a row ' +
+    'that already shows nothing.' +
+    '\n\n' +
+    '347 of the 348 are federated: an Announce arrived for an original Mention ' +
+    'never stored, spanning 2024-04 to 2026-08. The one local row is the test ' +
+    'account boosting a post created two seconds earlier and since deleted — ' +
+    'deleting a post does not delete boosts of it. Different causes, same ' +
+    'remedy, and the id of each is in the report.',
+};
+
 /** Rules that act on a VALUE rather than on a missing parent. */
 const VALUE_RESOLUTIONS: readonly ResolutionRule[] = [
   DROP_UNREAD_FEED_ENTITY_FOLLOWS,
@@ -380,11 +524,64 @@ const VALUE_RESOLUTIONS: readonly ResolutionRule[] = [
 /**
  * Every declared orphan resolution.
  *
- * EMPTY, deliberately — see this file's header. The first entry belongs to
- * whoever runs the first `--audit-only` against production and DECIDES what to
- * do about what it reports.
+ * These four are the answer to the first `--audit-only` run against
+ * production, which reported exactly these relations and nothing else:
+ * `post_recent_repliers.post_id` 457, `posts.boost_of` 347,
+ * `posts.parent_post_id` 459, `posts.thread_id` 379 (run 8, 2026-08-03).
+ *
+ * Every one of them points at `posts.id`, and none of them is a schema defect:
+ * they are references to posts Mention never held — overwhelmingly federated,
+ * where a reply or an Announce arrived for an original that was never fetched.
+ * The remedy differs by what the column can hold and by what the row is worth
+ * without it, which is why there are three rules rather than one.
  */
-export const ORPHAN_RESOLUTIONS: readonly OrphanRelation[] = [];
+export const ORPHAN_RESOLUTIONS: readonly OrphanRelation[] = [
+  orphanResolution({
+    rule: NULL_LINK_TO_A_POST_MENTION_NEVER_HELD,
+    action: 'null-column',
+    collection: 'posts',
+    table: posts,
+    column: posts.parentPostId,
+    targetTable: posts,
+    parentCollection: 'posts',
+  }),
+  orphanResolution({
+    rule: NULL_LINK_TO_A_POST_MENTION_NEVER_HELD,
+    action: 'null-column',
+    collection: 'posts',
+    table: posts,
+    column: posts.threadId,
+    targetTable: posts,
+    parentCollection: 'posts',
+  }),
+  orphanResolution({
+    rule: DROP_RECENT_REPLIER_OF_A_VANISHED_POST,
+    action: 'drop-row',
+    collection: 'post_recent_repliers',
+    table: postRecentRepliers,
+    column: postRecentRepliers.postId,
+    targetTable: posts,
+    parentCollection: 'posts',
+  }),
+  orphanResolution({
+    rule: DROP_BOOST_OF_A_POST_MENTION_NEVER_HELD,
+    action: 'drop-row',
+    collection: 'posts',
+    table: posts,
+    column: posts.boostOf,
+    targetTable: posts,
+    parentCollection: 'posts',
+    whyNotNull:
+      'Writing NULL would keep a `type: boost` row whose entire content is the ' +
+      'pointer being nulled — a shape no writer produces and no reader ' +
+      'expects, rendering blank forever in its author\'s profile and in every ' +
+      'feed that includes boosts. Measured over all 348 live rows: none ' +
+      'carries text, media or engagement, and none is referenced by anything. ' +
+      'The row already shows nothing; the drop removes it rather than ' +
+      'preserving an empty frame.',
+    carry: [posts.type, posts.oxyUserId, posts.createdAt],
+  }),
+];
 
 /**
  * Every rule the report enumerates, including ones that did nothing.
