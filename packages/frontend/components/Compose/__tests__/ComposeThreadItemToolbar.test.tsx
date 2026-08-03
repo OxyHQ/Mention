@@ -59,6 +59,16 @@ jest.mock('@oxyhq/bloom/pressable-scale', () => {
   return { PressableScale: TouchableOpacity };
 });
 
+// Cut at the component boundary, like the header and the text input below.
+// `ComposeMentionSummary` reaches `useProfileLinkMentions` -> `utils/api` ->
+// `lib/oxyServices`, which is ESM and blows the suite up before a single case
+// runs — and this file is about which CONTROLS a box draws, so the summary is
+// noise either way. The chain appeared under it without this file changing.
+jest.mock('@/components/Compose/ComposeMentionSummary', () => ({
+  __esModule: true,
+  default: () => null,
+}));
+
 jest.mock('@/components/Compose/ComposeIdentityHeader', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return { __esModule: true, default: RNView };
