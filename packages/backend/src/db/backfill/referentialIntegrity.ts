@@ -399,6 +399,38 @@ export interface ReferentialIntegrityReport {
   readonly orphans: readonly RelationOrphans[];
   readonly emissions: readonly PlanEmission[];
   readonly findings: readonly AuditFinding[];
+  /**
+   * What the pass DECLINED to look at, because the source kept being written
+   * while it ran.
+   *
+   * Absent when the pass did not run. Printed always, including when it is
+   * zero: a bound nobody sees is a vacuity floor waiting to happen, and a run
+   * that skipped forty thousand recent documents must not read as a run that
+   * found them clean.
+   */
+  readonly liveSourceBound?: LiveSourceBound;
+}
+
+/**
+ * The instant this pass fixed its subject at, and the cost of doing so.
+ *
+ * A gate over a LIVE source cannot honestly claim "everything" — production
+ * writes while it reads. It can claim "everything that existed when I started",
+ * and this is that sentence in code: phase 1 records the greatest `_id` it saw
+ * per collection, phase 2 streams no further, and whatever arrived in between
+ * is counted and reported rather than silently included or silently dropped.
+ *
+ * Without it the two phases answer about two different databases: 2026-08-03's
+ * production run reported 407 orphan rows across five relations whose parent
+ * rows are EMBEDDED in the same document that produces them — structurally
+ * impossible — because every one of those documents was written inside the
+ * run's last four minutes, after the key set had been built.
+ */
+export interface LiveSourceBound {
+  /** Documents newer than the bound, per collection, at the time phase 2 ran. */
+  readonly excludedByCollection: ReadonlyMap<string, number>;
+  /** Their total — the headline the report prints. */
+  readonly excluded: number;
 }
 
 /** The report for a pass that deliberately did not run. */
@@ -572,6 +604,8 @@ export async function auditReferentialIntegrity(
   // `ParentKeys` is honest about that — `keysFor` throws rather than pretending.
   const noParents = parentKeysFrom(new Map());
   const refused: RefusedDocuments = new Map();
+  /** The greatest `_id` phase 1 saw per collection — phase 2's ceiling. */
+  const highWater = new Map<string, unknown>();
 
   for (const { plan } of planned) {
     collectionsInspected += 1;
@@ -582,6 +616,9 @@ export async function auditReferentialIntegrity(
     for await (const documents of streamCollection(source, plan.collection, batchSize)) {
       for (const doc of documents) {
         documentsRead += 1;
+        // The subject is fixed HERE. `streamCollection` sorts by `_id`, so the
+        // last one seen is the greatest, and phase 2 goes no further.
+        if (doc._id !== undefined && doc._id !== null) highWater.set(plan.collection, doc._id);
         try {
         transformDocument(plan, doc, resolutions, noParents, (row) => {
           const name = tableName(row.table);
@@ -636,7 +673,18 @@ export async function auditReferentialIntegrity(
   let referencesChecked = 0;
 
   for (const { plan } of planned) {
-    for await (const documents of streamCollection(source, plan.collection, batchSize)) {
+    // Bounded by what phase 1 actually saw. Bounding the REFERENCES alone would
+    // not do: a document written between the passes would still be streamed and
+    // still be checked against a key set taken before it existed, which is the
+    // whole defect.
+    const ceiling = highWater.get(plan.collection);
+    for await (const documents of streamCollection(
+      source,
+      plan.collection,
+      batchSize,
+      undefined,
+      ceiling
+    )) {
       for (const doc of documents) {
         try {
         transformDocument(plan, doc, resolutions, parents, (row) => {
@@ -788,8 +836,24 @@ export async function auditReferentialIntegrity(
 
   findings.push(...describeOverreach(applied, relations, orphansByConstraint));
 
+  // Measured AFTER both passes, so it says what the bound actually cost by the
+  // time the pass ended rather than what it cost at the instant it was set.
+  const excludedByCollection = new Map<string, number>();
+  let excluded = 0;
+  for (const { plan } of planned) {
+    const ceiling = highWater.get(plan.collection);
+    if (ceiling === undefined) continue;
+    const newer = await source
+      .collection(plan.collection)
+      .countDocuments({ _id: { $gt: ceiling } } as Record<string, unknown>);
+    if (newer === 0) continue;
+    excludedByCollection.set(plan.collection, newer);
+    excluded += newer;
+  }
+
   const report: ReferentialIntegrityReport = {
     coverage,
+    liveSourceBound: { excludedByCollection, excluded },
     relationsInspected: relations.length,
     relationsExercised: exercised.size,
     collectionsInspected,

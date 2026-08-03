@@ -527,6 +527,30 @@ function reportReferentialIntegrity(report: ReferentialIntegrityReport): void {
     }
   }
 
+  // The SUBJECT, before any count taken over it. A bound nobody sees is a
+  // vacuity floor waiting to happen: a run that declined to look at forty
+  // thousand recent documents must not read as a run that found them clean.
+  const bound = report.liveSourceBound;
+  if (bound === undefined) {
+    say('  Live-source bound: UNKNOWN — this report does not say what it declined to read.');
+  } else if (bound.excluded === 0) {
+    say(
+      '  Live-source bound: nothing was written to any mapped collection while this ' +
+        'pass ran, so it read every document that existed when it started AND every ' +
+        'one that exists now.'
+    );
+  } else {
+    say(
+      `  Live-source bound: ${bound.excluded} document(s) arrived while this pass ran ` +
+        'and were EXCLUDED — it reports on the source as it stood when it started, ' +
+        'which is the only instant a two-phase check can honestly speak about. They ' +
+        'are not clean and not dirty; they were not looked at.'
+    );
+    for (const [collection, count] of [...bound.excludedByCollection].sort()) {
+      say(`    ${collection.padEnd(32)} ${count} document(s) newer than the bound`);
+    }
+  }
+
   say(
     `  ${report.relationsInspected} foreign key(s) derived from the schema, ` +
       `${report.relationsExercised} of them exercised by this data; ` +
