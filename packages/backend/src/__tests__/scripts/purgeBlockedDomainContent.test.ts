@@ -466,6 +466,17 @@ async function seed(): Promise<void> {
     payloadPostId: P.blockedPost,
     payloadRelationshipId: 'purge-test-relationship',
     expiresAt: new Date(Date.now() + 86_400_000),
+    /**
+     * NOT due, and that is a claim about another file rather than about this one.
+     *
+     * `engagement_outbox` is drained GLOBALLY by `dispatchEngagementOutbox`, and
+     * `engagementWritePath.test.ts` keeps its producers and its drainer in one
+     * file precisely so its counts are deterministic. A due row written here is
+     * claimed by that suite's dispatcher and reported as an extra `processed`, in
+     * a file this one never touches. The purge deletes by post id whatever the
+     * status, so backing the row off costs this fixture nothing.
+     */
+    availableAt: new Date(Date.now() + 86_400_000),
   });
   await db.insert(pgReports).values({
     reportedType: 'post',
