@@ -256,6 +256,13 @@ describe('the referential pass, which runs the transforms too', () => {
     // same queue, one pass along. Mutation-tested: re-throwing here leaves every
     // other test in the suite green.
     //
+    // The ORDERING is what makes that worse than a queue. Referential integrity
+    // only ever runs once nothing else blocks, so its first refusal would have
+    // landed on the run we had every reason to believe was the clean one — the
+    // last gate before a cutover, failing for the first time at the moment it
+    // was supposed to say yes. Not a queue we knew about: a trapdoor under the
+    // finish line.
+    //
     // `moderation_outbox` is used because its plan carries a real foreign key,
     // so the pass has relations to derive and does not trip its own vacuity
     // floor — a refusal reported by a pass that inspected nothing would prove
