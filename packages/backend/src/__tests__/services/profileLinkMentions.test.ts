@@ -117,6 +117,35 @@ describe('a profile link on OUR OWN host', () => {
     expect(fold.rewritten).toBe(true);
   });
 
+  it.skip('decodes a percent-encoded handle, so the screen and the store agree', async () => {
+    // The composer's roster and the renderer both read `ownProfileUrlHandle`,
+    // which decodes. This resolver used to pass the RAW path segment on, so
+    // `…/@caf%C3%A9` asked Oxy for `caf%C3%A9`, missed, and left a link the
+    // author had already been told would be a mention.
+    mocks.resolveOxyUser.mockImplementation(async (username: string) =>
+      username === 'café' ? { _id: ALICE_OXY_ID } : null,
+    );
+    const content = body(`hola https://${OWN_HOST}/@caf%C3%A9 que tal`);
+
+    const fold = await foldProfileLinkMentions(content, []);
+
+    expect(mocks.resolveOxyUser).toHaveBeenCalledWith('café');
+    expect(fold.mentions).toEqual([ALICE_OXY_ID]);
+  });
+
+  it.skip('never treats a MODERATION-blocked host as one of ours', async () => {
+    // The branch used to key on `isBlockedDomain`, which is true for blocked
+    // instances as well as for us — so this asked Oxy to resolve `alice` as one
+    // of OUR users. Unreachable from ingest; reachable from a composed body.
+    const content = body(`see https://poa.st/@alice here`);
+
+    const fold = await foldProfileLinkMentions(content, []);
+
+    expect(mocks.resolveOxyUser).not.toHaveBeenCalled();
+    expect(fold.mentions).toEqual([]);
+    expect(content.text).toBe('see https://poa.st/@alice here');
+  });
+
   it('leaves the prose punctuation that merely followed the link', async () => {
     const content = body(`talk to https://${OWN_HOST}/@alice.`);
 
