@@ -25,7 +25,7 @@
  *   - federated share.
  *
  * The core is the exported PURE {@link runFeedQualityEval}: models + services are
- * injected so it is unit-testable with mocks. `main()` does the Mongo/Oxy wiring.
+ * injected so it is unit-testable with mocks. `main()` does the Postgres/Oxy wiring.
  *
  * Runnable as a Fargate one-shot (do NOT run it as part of normal deploys):
  *   bun packages/backend/dist/src/scripts/evalFeedQuality.js --viewer <oxyId> --top-k 20
@@ -413,9 +413,9 @@ function buildReport(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Online mode — engagement-per-impression + report-rate from FeedInteraction.
+// Online mode — engagement-per-impression + report-rate from `feed_interactions`.
 //
-// The `FeedInteraction` collection (90-day TTL) already records every impression /
+// The `feed_interactions` table (90-day retention, swept by `db/expiry.ts`) already records every impression /
 // click / like / reply / boost / save / report, so engagement-per-impression and
 // report-per-impression are derivable at query time — no background aggregator is
 // needed. Split by the deterministic A/B bucket (recomputed from `userId`), this is
@@ -579,7 +579,7 @@ export function formatOnlineLines(
   const row = (label: string, r: OnlineEngagementReport): string =>
     `    ${label.padEnd(9)} impressions=${r.impressions}  eng/imp=${fmt(r.engagementPerImpression, 4)}  report/imp=${fmt(r.reportPerImpression, 5)}`;
   lines.push('');
-  lines.push(`  ONLINE (FeedInteraction, last ${Math.round(windowMs / (24 * 60 * 60 * 1000))}d):`);
+  lines.push(`  ONLINE (feed_interactions, last ${Math.round(windowMs / (24 * 60 * 60 * 1000))}d):`);
   lines.push(row('overall', online.overall));
   for (const [bucket, report] of Object.entries(online.byBucket).sort()) {
     lines.push(row(bucket, report));
@@ -636,13 +636,13 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
 
   // Imports local to main() keep the pure core free of heavy runtime coupling.
-  const mongoose = (await import('mongoose')).default;
   const { logger } = await import('../utils/logger');
   const { MtnConfig } = await import('@mention/shared-types');
   const { findActorByAcct, findActorByUri, findActorsByUris } = await import('../db/federation/actorRepository');
-  const { connectPostgres, closePostgres } = await import('../db/postgres');
-  const { and, eq, isNotNull, or, sql } = await import('drizzle-orm');
+  const { connectPostgres, closePostgres, getDb } = await import('../db/postgres');
+  const { and, eq, gte, isNotNull, or, sql } = await import('drizzle-orm');
   const { posts } = await import('../db/schema/posts');
+  const { feedInteractions } = await import('../db/schema/feeds');
   const { CHRONO_DESC, findPostRecords, loadPostRecord } = await import('../db/posts/postRepository');
   const { baselineContentClassifier } = await import('../services/BaselineContentClassifier');
   const { feedRankingService } = await import('../services/FeedRankingService');
@@ -654,12 +654,12 @@ async function main(): Promise<void> {
   const { getServiceOxyClient } = await import('../utils/oxyHelpers');
   const { FEED_QUALITY_LABELS, resolveLabeledPosts } = await import('./fixtures/feedQualityLabels');
 
-  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
-  const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
-
   try {
-    await mongoose.connect(mongoUri, { dbName });
-    // Posts are still Mongo; the federated actors this labels them by are not.
+    // Postgres only. This script connected to Mongo as well until
+    // `trackFeedInteraction` ported: its online mode read the `FeedInteraction`
+    // collection, and the comment here still said "posts are still Mongo" long
+    // after they stopped being. Every read it now makes -- posts, federated
+    // actors, labels, interactions -- is Postgres.
     await connectPostgres();
     logger.info('[evalFeedQuality] connected');
 
@@ -796,16 +796,24 @@ async function main(): Promise<void> {
     });
     for (const line of formatReportLines(report)) logger.info(line);
 
-    // ---- Online mode: engagement-per-impression + report-rate from FeedInteraction ----
+    // ---- Online mode: engagement-per-impression + report-rate from `feed_interactions` ----
     if (args.online) {
-      const { FeedInteraction } = await import('../models/FeedInteraction');
       const { resolveDiscoveryGateBucket } = await import('../mtn/feed/discoveryGateExperiment');
       const since = new Date(Date.now() - args.onlineWindowMs);
-      const grouped = await FeedInteraction.aggregate<OnlineInteractionRow>([
-        { $match: { createdAt: { $gte: since } } },
-        { $group: { _id: { userId: '$userId', event: '$event' }, count: { $sum: 1 } } },
-        { $project: { _id: 0, userId: '$_id.userId', event: '$_id.event', count: 1 } },
-      ]);
+      // Reads POSTGRES, because `trackFeedInteraction` writes Postgres. This
+      // moved with the writer rather than after it: a reader left on Mongo would
+      // have gone on returning rows — the pre-cutover backfill's — and reported
+      // a shrinking engagement rate as its window slid past the last Mongo
+      // write, with nothing anywhere saying the store had changed underneath it.
+      const grouped = await getDb()
+        .select({
+          userId: feedInteractions.userId,
+          event: feedInteractions.event,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(feedInteractions)
+        .where(gte(feedInteractions.createdAt, since))
+        .groupBy(feedInteractions.userId, feedInteractions.event);
       const online = aggregateOnlineByBucket(grouped, (userId) => resolveDiscoveryGateBucket(userId) ?? 'none');
       for (const line of formatOnlineLines(online, args.onlineWindowMs)) logger.info(line);
     }
@@ -813,13 +821,11 @@ async function main(): Promise<void> {
     const elapsed = Math.round((Date.now() - startedAt) / 1000);
     logger.info(`[evalFeedQuality] done in ${elapsed}s`);
 
-    await mongoose.disconnect();
     await closePostgres();
     process.exit(0);
   } catch (error) {
     const { logger } = await import('../utils/logger');
     logger.error('[evalFeedQuality] failed', error);
-    await mongoose.disconnect();
     await closePostgres();
     process.exit(1);
   }

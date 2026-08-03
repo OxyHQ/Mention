@@ -205,7 +205,6 @@ import {
 } from '../db/blocklist/blockedDomainPurgeRepository';
 import { canonicalFederationHost } from '@oxyhq/federation';
 import { getBlockedDomainPolicy } from '../connectors/activitypub/federationBlockPolicy';
-import { FeedInteraction } from '../models/FeedInteraction';
 import {
   ACTOR_DOMAIN,
   FEDERATION_DOMAIN,
@@ -628,45 +627,32 @@ async function countOrDeleteDistinctPosts(
  * `feed_interactions` — the ONE lane that deletes from BOTH stores, because both
  * hold rows that are real.
  *
- * Every other entity in this cascade has a live Postgres writer and no live Mongo
- * writer, so naming Postgres is simply naming where the rows are. This one is
- * half-ported in the other direction: the table, its indexes, its expiry sweep
- * and the deletion preflight's `feed_interactions.post_uri` probe are all
- * Postgres, and the BACKFILL populates it — but the only writer in the running
- * application is still `trackFeedInteraction`, which writes the Mongo
- * collection (`mtn/feed/FeedInteractionTracker.ts`).
+ * This used to delete from BOTH stores and sum the counts, because the table was
+ * half-ported in the unusual direction: everything around it was Postgres — the
+ * table, its indexes, the expiry sweep, the deletion preflight's
+ * `feed_interactions.post_uri` probe, the backfill that populates it — while the
+ * only writer in the running application still wrote Mongo.
  *
- * Either single-store choice is wrong in a way that does not announce itself.
- * Postgres only leaves every row written since the cutover behind, silently, for
- * up to the 90-day TTL. Mongo only leaves the backfilled rows behind — and those
- * are precisely the ones `collectPostCascadeResidue` re-probes afterwards, so
- * the run would fail its own residue check on a cascade that did exactly what its
- * code said.
+ * `trackFeedInteraction` now writes Postgres, so the Mongo half is a delete that
+ * matches nothing new, and it is gone as that docblock said it should be.
  *
- * The reported count is the SUM, which slightly over-counts a row that exists in
- * both stores. That is the honest direction for a number an operator reads as
- * "references removed", and the alternative — reporting one store — would report
- * a zero as "nothing to remove" for whichever store is empty.
- *
- * When `trackFeedInteraction` ports, the Mongo half here becomes a delete that
- * matches nothing, and that is what this whole task exists to remove: delete it
- * with the writer.
+ * One consequence worth stating rather than discovering: rows written to the
+ * Mongo collection BEFORE the writer ported are no longer purged by this script.
+ * They are not reachable by anything — no reader remains, the collection is not
+ * copied by a second backfill, and its 90-day TTL expires them on its own — but
+ * "the purge no longer touches them" is a true sentence about a blocked domain's
+ * residue, so it belongs here rather than in a commit message.
  */
 async function purgeFeedInteractions(
   postKeys: readonly string[],
   dryRun: boolean,
 ): Promise<number> {
-  const inPostgres = await countOrDelete(
+  return countOrDelete(
     feedInteractions,
     feedInteractions.id,
     inArray(feedInteractions.postUri, [...postKeys]),
     dryRun,
   );
-  const filter = { postUri: { $in: [...postKeys] } };
-  const inMongo = dryRun
-    ? await FeedInteraction.countDocuments(filter).exec()
-    : ((await FeedInteraction.deleteMany(filter).exec()).deletedCount ?? 0);
-  return inPostgres + inMongo;
 }
 
 // --- post cascade ------------------------------------------------------------

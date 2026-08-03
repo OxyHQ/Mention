@@ -11,6 +11,7 @@ import { logger } from '../../utils/logger';
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
+import { feedInteractions } from '../../db/schema/feeds';
 
 /**
  * Whether the post came from another instance — the impression-origin label.
@@ -50,17 +51,31 @@ export interface FeedInteractionData {
 
 /**
  * Record feed interactions for analytics and ranking feedback.
- * Writes to the FeedInteraction model asynchronously.
  *
  * Returns the post's new `viewsCount` when this interaction counted a view, and
  * `null` otherwise — see {@link applyImpressionSignals}. Nothing else the server
  * does here is invisible to the caller, so nothing else needs returning.
+ *
+ * The raw row goes to `feed_interactions` in POSTGRES. It was the last live
+ * Mongo write in the request path, and the last one to find because it was a
+ * dynamic `import('../../models/FeedInteraction')` — invisible to a
+ * static-import scan. Everything else about this function already wrote
+ * Postgres: the view count, the dwell aggregate and the preference signal below.
+ *
+ * Leaving it on Mongo would not have failed, which is what made it dangerous:
+ * the Postgres table exists, is indexed, is swept by `db/expiry.ts` and is
+ * probed by the deletion preflight, and the backfill fills it — so after the
+ * cutover it would have sat frozen at the backfill snapshot while every new row
+ * accumulated in a Mongo collection nothing reads.
+ *
+ * `createdAt` is written EXPLICITLY from the caller's timestamp rather than
+ * left to the column default. The caller stamps the interaction when it
+ * happened; this write is awaited inside a request but the value it records is
+ * not "now", and a default would quietly re-date every row to insert time.
  */
 export async function trackFeedInteraction(interaction: FeedInteractionData): Promise<number | null> {
   try {
-    // Lazy import to avoid circular dependency at module load time
-    const { FeedInteraction } = await import('../../models/FeedInteraction');
-    await FeedInteraction.create({
+    await getDb().insert(feedInteractions).values({
       userId: interaction.userId,
       feedDescriptor: interaction.feedDescriptor,
       postUri: interaction.postUri,
@@ -69,7 +84,7 @@ export async function trackFeedInteraction(interaction: FeedInteractionData): Pr
       createdAt: interaction.timestamp,
     });
   } catch (error) {
-    // Non-critical — log and move on
+    // Non-critical — log and move on. Analytics must never fail a feed request.
     logger.warn('[FeedInteractionTracker] Failed to record interaction', error);
   }
 

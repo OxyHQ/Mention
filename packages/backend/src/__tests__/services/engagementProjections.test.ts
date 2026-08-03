@@ -66,6 +66,7 @@ import {
   recordRecentReplierForPost,
   repairRecentRepliersAfterPostDelete,
 } from '../../services/PostRecentReplierService';
+import { withDeadlockRetry } from '../helpers/serviceFixtures';
 import { logger } from '../../utils/logger';
 
 let db: Database;
@@ -193,8 +194,18 @@ beforeAll(async () => {
 afterEach(async () => {
   vi.clearAllMocks();
   if (createdPostIds.length > 0) {
-    // `post_recent_repliers.post_id` and `bookmarks.post_id` both cascade.
-    await db.delete(posts).where(inArray(posts.id, createdPostIds));
+    // `post_recent_repliers.post_id` and `bookmarks.post_id` both cascade —
+    // which is exactly why this needs the shared retry. `posts` self-references
+    // itself four times, so a bulk delete takes locks beyond the rows it names
+    // and two suites deleting concurrently deadlock; `withDeadlockRetry` exists
+    // for this and every other bulk delete against `posts` already uses it.
+    //
+    // Unretried, the loser's cleanup throws and its rows SURVIVE — and the red
+    // then lands in whichever suite seeds those keys next, naming a constraint
+    // (`post_recent_repliers_post_id_oxy_user_id_key`) in a file that did
+    // nothing wrong. Observed against `purgeBlockedDomainContent.test.ts`,
+    // which reported a `23505` on its own fixture while the deadlock was here.
+    await withDeadlockRetry(() => db.delete(posts).where(inArray(posts.id, createdPostIds)));
     createdPostIds.length = 0;
   }
 });

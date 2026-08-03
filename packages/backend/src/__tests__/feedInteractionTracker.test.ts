@@ -53,9 +53,11 @@ vi.mock('../services/UserPreferenceService', () => ({
   },
 }));
 
-import { closePostgres, connectPostgres } from '../db/postgres';
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../db/postgres';
+import { feedInteractions } from '../db/schema/feeds';
 import { clearPostScope, postScope, seedPost } from './helpers/postFixtures';
-import { applyImpressionSignals } from '../mtn/feed/FeedInteractionTracker';
+import { applyImpressionSignals, trackFeedInteraction } from '../mtn/feed/FeedInteractionTracker';
 
 const scope = postScope('impression-signals');
 const AUTHOR = scope.user('author');
@@ -240,5 +242,115 @@ describe('applyImpressionSignals', () => {
       await expect(applyImpressionSignals(impression('https://remote.example/notlocal')))
         .resolves.toBeNull();
     });
+  });
+});
+
+
+/**
+ * The raw analytics row — the write that was still going to Mongo.
+ *
+ * `applyImpressionSignals` above covers the DERIVED signals, which were already
+ * Postgres. Nothing covered the raw row at all, which is how it stayed on a
+ * dynamic `import('../../models/FeedInteraction')` after every other write in
+ * this file's subject had moved: the Postgres table exists, is indexed, is
+ * swept and is backfilled, so the divergence produced no error anywhere — it
+ * would simply have frozen `feed_interactions` at the backfill snapshot while
+ * new rows accumulated in a collection nothing reads.
+ *
+ * Scoped by `userId`, so the cleanup names this file's own rows rather than
+ * emptying a table every other suite shares.
+ */
+describe('trackFeedInteraction — the raw analytics row', () => {
+  const RAW_VIEWER = scope.user('raw-viewer');
+
+  beforeAll(async () => {
+    await connectPostgres();
+  });
+
+  afterEach(async () => {
+    await getDb().delete(feedInteractions).where(eq(feedInteractions.userId, RAW_VIEWER));
+    await clearPostScope(scope);
+  });
+
+  afterAll(async () => {
+    await closePostgres();
+  });
+
+  const rowsForViewer = () =>
+    getDb().select().from(feedInteractions).where(eq(feedInteractions.userId, RAW_VIEWER));
+
+  it('writes the row to Postgres, carrying the CALLER\'s timestamp', async () => {
+    // The timestamp is the load-bearing field. `created_at` has a `now()`
+    // default, so an insert that omitted it would look correct in every other
+    // respect and silently re-date every interaction to insert time — which is
+    // the column the retention sweep and the online report both range-scan.
+    const happenedAt = new Date('2026-07-04T05:06:07.000Z');
+    const post = await seedPost(scope, { oxyUserId: AUTHOR });
+
+    await trackFeedInteraction({
+      userId: RAW_VIEWER,
+      feedDescriptor: 'for_you',
+      postUri: post.id,
+      event: 'click',
+      durationMs: 1234,
+      timestamp: happenedAt,
+    });
+
+    const rows = await rowsForViewer();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      userId: RAW_VIEWER,
+      feedDescriptor: 'for_you',
+      postUri: post.id,
+      event: 'click',
+      durationMs: 1234,
+    });
+    expect(rows[0]?.createdAt).toBeInstanceOf(Date);
+    expect(rows[0]?.createdAt.toISOString()).toBe(happenedAt.toISOString());
+  });
+
+  it('writes the row on the impression path too, not only the plain events', async () => {
+    // `impression` is the one event with derived side effects, and it returns
+    // early through `applyImpressionSignals`. A raw write placed after that
+    // branch would record every event EXCEPT the most common one.
+    const post = await seedPost(scope, { oxyUserId: AUTHOR });
+    recordDedupedView.mockResolvedValue(7);
+
+    await trackFeedInteraction({
+      userId: RAW_VIEWER,
+      feedDescriptor: 'for_you',
+      postUri: post.id,
+      event: 'impression',
+      durationMs: 4000,
+      timestamp: new Date(),
+    });
+
+    const rows = await rowsForViewer();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.event).toBe('impression');
+  });
+
+  it('records an interaction whose postUri names no post — analytics carry no foreign key', async () => {
+    // The healthy case above has a real post; this is the same write with the
+    // one thing the schema deliberately does NOT constrain. `post_uri` is
+    // client-supplied and carries no foreign key on purpose, so a forged or
+    // already-deleted id must still record rather than raise — a feed request
+    // must never fail because its analytics did.
+    await expect(
+      trackFeedInteraction({
+        userId: RAW_VIEWER,
+        feedDescriptor: 'for_you',
+        postUri: 'no-such-post-id',
+        event: 'click',
+        timestamp: new Date(),
+      }),
+    ).resolves.toBeNull();
+
+    const rows = await rowsForViewer();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.postUri).toBe('no-such-post-id');
+    // Omitted by the caller, so it must be NULL rather than 0 — a zero would be
+    // a dwell measurement nobody took.
+    expect(rows[0]?.durationMs).toBeNull();
   });
 });

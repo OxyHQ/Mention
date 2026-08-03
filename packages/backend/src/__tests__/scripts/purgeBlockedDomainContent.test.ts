@@ -1,4 +1,3 @@
-import { MongoMemoryServer } from 'mongodb-memory-server';
 import { canonicalFederationHost } from '@oxyhq/federation';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 // Type-only, so it is erased before the hoisted `vi.unmock` below runs and does
@@ -35,17 +34,22 @@ import type { PurgeOptions, PurgeReport } from '../../scripts/purgeBlockedDomain
  * The fixture is Postgres now, and the reference rows below are seeded and then
  * asserted GONE — which is the assertion the old suite had no way to make.
  *
- * ## Mongo is still here, for exactly one collection
+ * ## Mongo is gone from this file
  *
- * `feed_interactions` is the one entity whose live writer is still Mongo
- * (`mtn/feed/FeedInteractionTracker.ts`), so the cascade deletes both stores and
- * this file runs a real in-memory Mongo to prove it deletes both. A STANDALONE
- * server suffices: the replica set the old fixture needed was for the engagement
- * teardown's transaction, and that transaction is Postgres's now.
+ * It used to run a real in-memory Mongo for exactly one entity:
+ * `feed_interactions`, whose live writer was still
+ * `mtn/feed/FeedInteractionTracker.ts` writing the Mongo collection while its
+ * Postgres table was backfilled, indexed, swept and probed. The cascade deleted
+ * both stores and this file proved it deleted both.
  *
- * The repo-wide `setup.ts` replaces `mongoose.connect` with a no-op so no test
- * can open a connection by accident; this file opts out and imports everything
- * dynamically below the hoisted unmock.
+ * That writer now writes Postgres, so the Mongo half of the cascade is gone and
+ * the whole apparatus went with it — the `MongoMemoryServer`, the `unmock`, the
+ * connection, and the second seed. The file is Postgres-only, which is what
+ * every other entity in the cascade already was.
+ *
+ * Pre-port rows still sitting in the Mongo collection are no longer purged by
+ * anything; nothing reads them and their 90-day TTL expires them. See
+ * `purgeFeedInteractions` for why that is recorded rather than silent.
  *
  * ## What is mocked, and why only this
  *
@@ -54,8 +58,6 @@ import type { PurgeOptions, PurgeReport } from '../../scripts/purgeBlockedDomain
  * the ordering guarantee (bytes before the row that names them) is asserted
  * rather than assumed.
  */
-vi.unmock('mongoose');
-
 const h = vi.hoisted(() => ({
   deletedFileIds: [] as string[],
   mediaCacheEnabled: { value: true },
@@ -75,7 +77,6 @@ vi.mock('../../scripts/lib/adminScriptLifecycle', async (importOriginal) => ({
   closeAdminScriptResources: vi.fn(async () => undefined),
 }));
 
-const mongoose = (await import('mongoose')).default;
 const { and, eq, inArray, like } = await import('drizzle-orm');
 const { closePostgres, connectPostgres, getDb } = await import('../../db/postgres');
 const {
@@ -114,7 +115,6 @@ const {
   federatedMediaCache: m.federatedMediaCache,
 }));
 const { adminScriptCursors } = await import('../../db/schema/adminScripts');
-const { FeedInteraction } = await import('../../models/FeedInteraction');
 const { withDeadlockRetry } = await import('../helpers/serviceFixtures');
 const { POST_REFERENCE_PROBE_NAMES } = await import('../../scripts/lib/adminDeletionPreflight');
 const { FEDERATION_DOMAIN } = await import('../../connectors/activitypub/constants');
@@ -163,20 +163,15 @@ const P = {
   localBoost: 'purge-test-local-boost',
 } as const;
 
-let server: MongoMemoryServer;
 let labelerId: string;
 
 beforeAll(async () => {
-  server = await MongoMemoryServer.create();
-  await mongoose.connect(server.getUri(), { dbName: 'purge-blocked-domain' });
   await connectPostgres();
 }, 180_000);
 
 afterAll(async () => {
   await clearFixtures();
   await closePostgres();
-  await mongoose.disconnect();
-  await server.stop();
 });
 
 /**
@@ -193,7 +188,6 @@ afterAll(async () => {
  */
 async function clearFixtures(): Promise<void> {
   const db = getDb();
-  await FeedInteraction.deleteMany({});
   await withDeadlockRetry(() => db.delete(pgLikes).where(inArray(pgLikes.userId, ACCOUNTS)));
   await withDeadlockRetry(() =>
     db.delete(pgBookmarks).where(inArray(pgBookmarks.userId, ACCOUNTS)),
@@ -502,14 +496,7 @@ async function seed(): Promise<void> {
     senderOxyUserId: 'oxy-local',
     nextAttemptAt: new Date(),
   });
-  // The split-store lane: BOTH halves seeded, because the cascade deletes both.
   await db.insert(pgFeedInteractions).values({
-    userId: 'oxy-local',
-    feedDescriptor: 'for_you',
-    postUri: P.blockedPost,
-    event: 'impression',
-  });
-  await FeedInteraction.create({
     userId: 'oxy-local',
     feedDescriptor: 'for_you',
     postUri: P.blockedPost,
@@ -585,7 +572,6 @@ async function snapshotEverything(): Promise<string> {
     db.select().from(federatedFollows).where(inArray(federatedFollows.localUserId, ACCOUNTS)),
     cursorRows(),
   ]);
-  const mongoInteractions = await FeedInteraction.find({}).lean();
   return JSON.stringify([
     postRows.map((row) => `${row.id}|${row.statsBoostsCount}|${row.statsLikesCount}`).sort(),
     likeRows.map((row) => `${row.userId}|${row.postId}`).sort(),
@@ -598,7 +584,6 @@ async function snapshotEverything(): Promise<string> {
     subscriptionRows.map((row) => `${row.subscriberId}|${row.authorId}`).sort(),
     actorRows.map((row) => row.uri).sort(),
     followRows.map((row) => `${row.localUserId}|${row.remoteActorUri}`).sort(),
-    mongoInteractions.length,
     scopes.map((row) => row.scope).sort(),
   ]);
 }
@@ -681,16 +666,22 @@ describe('purgeBlockedDomainContent — what it removes', () => {
     });
   });
 
-  it('deletes the Mongo feed interactions too, because that writer has not ported', async () => {
+  it('deletes the feed interactions from Postgres, and counts each row once', async () => {
     await seed();
 
     const report = await run();
 
-    // The one entity whose live writer is still Mongo while its Postgres table
-    // is backfilled and probed. Deleting either store alone leaves real rows
-    // behind — Postgres-only silently, Mongo-only as a residue failure.
-    expect(await FeedInteraction.countDocuments({ postUri: P.blockedPost })).toBe(0);
-    expect(report.totals.feedInteractions).toBe(2);
+    // This lane used to delete BOTH stores and report the SUM, which over-counted
+    // a row present in both — the honest direction while the writer was split,
+    // and wrong the moment it stopped being. One seeded row, one deleted, one
+    // counted: the count is now a count rather than an upper bound.
+    expect(
+      await getDb()
+        .select()
+        .from(pgFeedInteractions)
+        .where(eq(pgFeedInteractions.postUri, P.blockedPost)),
+    ).toEqual([]);
+    expect(report.totals.feedInteractions).toBe(1);
     expect(report.issues.cascadeResidue).toBe(0);
   });
 
