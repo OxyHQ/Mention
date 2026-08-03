@@ -28,6 +28,31 @@ function resolveToken(): string {
   return ctx?.userToken || "";
 }
 
+function tokenScopes(token: string): Set<string> {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return new Set();
+    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { scope?: unknown };
+    if (typeof decoded.scope !== "string") return new Set();
+    return new Set(decoded.scope.split(/\s+/).map((scope) => scope.trim()).filter(Boolean));
+  } catch {
+    return new Set();
+  }
+}
+
+function assertTokenScopeForMethod(method: string): void {
+  if (["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase())) return;
+  const token = resolveToken();
+  if (token && !tokenScopes(token).has("mcp:write")) {
+    const error: ApiError = {
+      status: 403,
+      message: "This action requires the mcp:write OAuth scope.",
+      body: { error: "insufficient_scope", required_scope: "mcp:write" },
+    };
+    throw error;
+  }
+}
+
 function headers(): Record<string, string> {
   const h: Record<string, string> = {
     "Content-Type": "application/json",
@@ -60,6 +85,7 @@ async function request<T = unknown>(
     body?: unknown;
   },
 ): Promise<T> {
+  assertTokenScopeForMethod(method);
   const url = buildUrl(path, options?.query);
   const attempts = method === "GET" ? 2 : 1;
 
