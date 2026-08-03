@@ -74,6 +74,8 @@ import { streamCollection } from './mongoSource';
 import type { ResolutionContext, ResolutionRule } from './resolutions';
 import { parentKeysNotConsulted, transformDocument } from './resolutions';
 import { tableShape } from './rowBuilder';
+import type { CoverageFinding, PopulatedCounts } from './columnCoverage';
+import { auditColumnCoverage, holdsValueAt, recordPopulated } from './columnCoverage';
 import { BackfillValueError } from './values';
 
 /** One thing the schema would refuse — or one thing wrong with a rule. */
@@ -95,6 +97,24 @@ export interface AuditFinding {
     | 'resolution-overreach'
     | 'defaulted-column'
     | 'stale-acknowledgement'
+    /**
+     * A column the source holds values for and the copy would not fill — or
+     * would fill for MORE rows than the source has values. Proven loss or
+     * proven invention, in a place Postgres accepts without complaint.
+     */
+    | 'column-coverage'
+    /**
+     * The check could not establish anything about a column — either nothing
+     * says where its value comes from, or the declared path matches no document
+     * so a typo and a genuinely absent field look identical from here.
+     *
+     * An admission, not a verdict, and the one kind here that does NOT block.
+     * Neither shape is evidence of loss: an undeclared empty column may be
+     * correct, and a path matching nothing has nothing to lose. Blocking the
+     * copy on either would be gating on paperwork rather than on evidence,
+     * which is how a gate gets switched off by whoever hits it next.
+     */
+    | 'unverified-column'
     /**
      * A document the transform REFUSED — `buildRow` would not build it.
      *
@@ -840,10 +860,10 @@ export async function auditDefaultedColumns(
         // that is already known to be wrong.
         if (!(error instanceof BackfillValueError)) throw error;
         recordRefusedDocument(refused, plan.collection, error, documentId);
-        // The document's rows are NOT counted. A transform that threw partway
-        // may already have emitted some, so the omission denominator for this
-        // collection is a lower bound — which is the honest direction: it can
-        // only under-report an omission, never invent one.
+        // The document's rows are NOT counted, and none of them was: a refusal
+        // reaches no `emit` call, because `transformDocument` collects a
+        // document's rows before emitting any of them. So the omission
+        // denominator loses this document whole rather than in part.
       }
     }
   }
@@ -896,6 +916,162 @@ export async function auditDefaultedColumns(
   }
 
   return findings;
+}
+
+/**
+ * How many values each column RECEIVES, against how many the source holds.
+ *
+ * ## Why this is a pass and not a query
+ *
+ * The question is what the TRANSFORM emits per column, and only running it can
+ * answer that. The database cannot: `copyRowsInto` builds its `INSERT` column
+ * list from the properties present in the rows, so a column no row carries is
+ * omitted from the statement and Postgres supplies its DEFAULT on every row.
+ * Asking the copied table "which columns are entirely NULL" therefore cannot
+ * see the worst member of this class at all — the value is there, it is just
+ * nobody's.
+ *
+ * ## Both counts come from ONE stream, deliberately
+ *
+ * The source counts are accumulated from the SAME documents the transform runs
+ * on, rather than from a `countDocuments` beside it. Two queries would be two
+ * instants over a live source, which is the defect that manufactured five
+ * phantom orphan findings out of nothing but elapsed time — and here it would
+ * manufacture them in both directions at once. One stream cannot disagree with
+ * itself.
+ *
+ * A document whose transform THROWS contributes to neither side, so a refusal
+ * cannot inflate one count against the other. That holds without buffering here
+ * because `transformDocument` collects a document's rows before emitting any of
+ * them — a refusal reaches no `emit` call at all — and the source paths are
+ * counted after the transform returns. `auditDefaultedColumns` already reports
+ * the refusal itself, so it is skipped rather than reported twice.
+ *
+ * It costs one more full read of every mapped collection, which is stated
+ * rather than hidden — the same trade `auditDefaultedColumns` makes, for the
+ * same reason: a separate function is the one that can be exercised on its own.
+ */
+export async function auditColumnCoverageForPlan(
+  source: MongoSource,
+  plan: CollectionPlan,
+  resolutions: ResolutionContext,
+  options: { readonly batchSize?: number } = {}
+): Promise<AuditFinding[]> {
+  const declarations = plan.columnCoverage ?? [];
+  const uncarried = plan.uncarriedFields ?? [];
+  const populated: PopulatedCounts = new Map();
+  const sourceCounts = new Map<string, number>();
+  for (const declaration of declarations) sourceCounts.set(declaration.sourcePath, 0);
+  // Counted in the SAME stream, so a field nothing carries costs one property
+  // read per document rather than a query of its own.
+  for (const field of uncarried) sourceCounts.set(field.sourcePath, 0);
+  const paths = [...sourceCounts.keys()];
+
+  // This pass decides no reference, so the orphan rules are not consulted —
+  // the third state, neither "unloaded" (which refuses) nor "loaded and empty".
+  const noParents = parentKeysNotConsulted();
+  let rowsEmitted = 0;
+
+  for await (const documents of streamCollection(source, plan.collection, options.batchSize ?? 1000)) {
+    for (const doc of documents) {
+      try {
+        transformDocument(plan, doc, resolutions, noParents, (row) => {
+          // `source`, not `written`: a row a rule drops still says what the
+          // transform mapped, and counting only survivors would let a drop rule
+          // answer a question about column coverage.
+          recordPopulated(populated, row.table, row.source);
+          rowsEmitted += 1;
+        });
+      } catch (error) {
+        if (!(error instanceof BackfillValueError)) throw error;
+        continue;
+      }
+      // Only for a document the transform accepted, which is what keeps the two
+      // counts describing the same set of documents.
+      for (const path of paths) {
+        if (holdsValueAt(doc, path)) sourceCounts.set(path, (sourceCounts.get(path) ?? 0) + 1);
+      }
+    }
+  }
+
+  const findings = auditColumnCoverage({
+    collection: plan.collection,
+    primaryTable: plan.table,
+    tables: [plan.table, ...(plan.childTables ?? [])],
+    populated,
+    rowsEmitted,
+    ...(plan.unmappedColumns === undefined ? {} : { unmapped: plan.unmappedColumns }),
+    coverage: declarations,
+    sourceCounts,
+  }).map(coverageAuditFinding);
+
+  // THE OTHER HALF, and the one a schema-driven check structurally cannot
+  // reach: a source field with no column. Nothing is missing from the target,
+  // so nothing looks wrong — the only way to notice is to have written down
+  // that the field exists and is deliberately not carried.
+  //
+  // A count that has GROWN is the finding. If the field is genuinely dead the
+  // number is frozen, so growth means something started writing it again and
+  // this migration is now dropping live data under a reason that was true when
+  // it was written. Shrinkage is not reported: a retention sweep or a purge
+  // removing documents is not evidence about the field.
+  for (const field of uncarried) {
+    const seen = sourceCounts.get(field.sourcePath) ?? 0;
+    if (seen <= field.observed) continue;
+    findings.push({
+      collection: plan.collection,
+      kind: 'stale-acknowledgement',
+      detail:
+        `${plan.collection}.${field.sourcePath} is declared uncarried ` +
+        `("${field.reason}") on the basis that ${field.observed} document(s) ` +
+        `held it and nothing writes it any more. ${seen} hold it now. Something ` +
+        'started writing the field again, so the reason has stopped being true ' +
+        'and this migration is dropping live data — add a column and map it, or ' +
+        'establish why the new writes are also disposable and re-record the count.',
+      documents: seen,
+      sampleIds: [],
+    });
+  }
+
+  return findings;
+}
+
+/**
+ * A coverage finding as an audit finding — and whether it stops the copy.
+ *
+ * The split is between what the check DEMONSTRATED and what it could not tell.
+ * A column the source holds values for and the transform never fills is proven
+ * data loss and blocks, in the same family as `defaulted-column`: Postgres
+ * accepts the row, so an un-blocked finding is data disappearing with nothing
+ * left to notice it afterwards.
+ *
+ * The two shapes that block NOTHING are the two where there is nothing to lose.
+ * An empty column with no declaration is the check admitting it cannot say. A
+ * declared path matching no document is the same admission from the other side:
+ * a typo and a genuinely absent field are indistinguishable from here, and
+ * neither has values to drop. Refusing the copy over either would be gating on
+ * paperwork rather than on evidence — and it would refuse it permanently for
+ * every correctly mapped column whose source field simply holds nothing yet.
+ */
+function coverageAuditFinding(finding: CoverageFinding): AuditFinding {
+  const unverified =
+    finding.kind === 'declared-never-observed' ||
+    (finding.kind === 'never-populated' && finding.sourceValues === null);
+  return {
+    collection: finding.collection,
+    // A stale acknowledgement keeps the kind it already has, so the two lists
+    // of rotted exemptions — this one and `defaultedColumns`' — read as one
+    // class in the report rather than two that happen to mean the same thing.
+    kind:
+      finding.kind === 'stale-acknowledgement'
+        ? 'stale-acknowledgement'
+        : unverified
+          ? 'unverified-column'
+          : 'column-coverage',
+    detail: finding.detail,
+    documents: finding.sourceValues ?? finding.populated,
+    sampleIds: [],
+  };
 }
 
 /** The document `_id` as a string, for a sample list. */
@@ -1120,6 +1296,17 @@ export function auditWouldBlockCopy(finding: AuditFinding): boolean {
     // `undetected-relation`: there is nothing to fix in Mongo, and a stale
     // exemption is exactly how this gate would decay into a formality.
     finding.kind === 'stale-acknowledgement' ||
+    // A column the source holds values for that nothing writes, or one written
+    // for rows the source has nothing for. It blocks for the same reason
+    // `defaulted-column` does and no other class does: Postgres ACCEPTS it. A
+    // row that inserts cleanly while missing a value, or carrying a fabricated
+    // one, leaves nothing behind to notice — and this is the class that already
+    // shipped eleven times through a run that reported AUDIT CLEAN.
+    //
+    // `unverified-column` deliberately does NOT appear here: it says the check
+    // could not tell, and blocking on an admission would make the gate about
+    // paperwork rather than about evidence.
+    finding.kind === 'column-coverage' ||
     // The transform refused to build the row, so the copy cannot write it.
     // Reporting rather than aborting changes WHEN it is learned, never whether
     // it stops the copy — and no rule may clear it, because a rule answering

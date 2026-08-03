@@ -692,6 +692,8 @@ export class ResolutionLog {
   private readonly records = new Map<string, ResolutionRecord>();
   /** Documents a rule removed WHOLE, by collection — see `dropDocument`. */
   private readonly dropped = new Map<string, Set<string>>();
+  /** Record keys a durable writer has already been handed — see {@link drain}. */
+  private readonly persisted = new Set<string>();
 
   record(entry: ResolutionRecord): void {
     this.records.set(`${entry.rule.id} ${entry.documentId} ${entry.within ?? ''}`, entry);
@@ -723,8 +725,41 @@ export class ResolutionLog {
    * declared and this data did not need it.
    */
   summary(): readonly ResolutionSummary[] {
+    return this.summarize([...this.records.entries()]);
+  }
+
+  /**
+   * Records no durable writer has been handed yet, MARKING them handed over.
+   *
+   * The audit trail was written once, after the copy returned — so a run that
+   * DIED wrote nothing, and the durable record was empty for exactly the runs
+   * that need one. A failed 26-minute attempt resolved hundreds of rows and
+   * recorded none of them.
+   *
+   * A `finally` is NOT the fix and is worth naming, because it looks like one:
+   * a write issued on a connection whose transaction has aborted executes
+   * nothing at all until a rollback, while raising nothing and reading as
+   * handled. Draining as the copy goes means the rows are already durable when
+   * the failure happens, which needs no cooperation from the failure.
+   *
+   * Idempotent by KEY rather than by count: a transform is re-run several times
+   * per document (the deferred pass, the referential audit, both verifier
+   * passes) and {@link record} overwrites on the same key, so draining twice
+   * cannot write a record twice.
+   */
+  drain(): readonly ResolutionSummary[] {
+    const fresh = [...this.records.entries()].filter(([key]) => !this.persisted.has(key));
+    for (const [key] of fresh) this.persisted.add(key);
+    return this.summarize(fresh);
+  }
+
+  /** Every rule with the subset of records given, in a stable order. */
+  private summarize(
+    entries: ReadonlyArray<readonly [string, ResolutionRecord]>
+  ): readonly ResolutionSummary[] {
     return RESOLUTION_RULES.map((rule) => {
-      const records = [...this.records.values()]
+      const records = entries
+        .map(([, entry]) => entry)
         .filter((entry) => entry.rule.id === rule.id)
         .sort((a, b) => (a.documentId < b.documentId ? -1 : a.documentId > b.documentId ? 1 : 0));
       return {

@@ -30,6 +30,30 @@
  * declared, the check falls back to "never populated at all", which is strictly
  * weaker and says so.
  *
+ * ## The comparison runs in BOTH directions, and the other one is worse
+ *
+ * Under-population is missing data and it is visible as missing. OVER-population
+ * is a column filled for more rows than the source has values for — a mapping
+ * that answers `?? ''` or `?? false` where the source held nothing — and it is
+ * strictly more dangerous, because a NULL is obviously absent whereas a
+ * fabricated constant is confidently wrong. 134 such fallbacks exist across the
+ * plans today; most are correct (a counter with no source field genuinely is
+ * zero) and that is exactly why the check REPORTS rather than refuses, with
+ * {@link ColumnCoverage.filledWhenAbsent} as the written answer.
+ *
+ * The related shape this check is measured against, because it is the one the
+ * sweep that found the eleven structurally could not see: **a column with a
+ * DEFAULT that no plan feeds is never NULL in the target.** `copyRowsInto`
+ * builds its `INSERT` column list from the properties PRESENT in the rows
+ * (`groupByColumnSet`), so a column no row carries is omitted from the statement
+ * entirely and Postgres supplies the default on every row. A database-side
+ * "which columns are 100% NULL" query cannot see it; this check can, because it
+ * counts what the TRANSFORM emitted, not what the table ended up holding. The
+ * `NOT NULL DEFAULT` half of that class belongs to `auditDefaultedColumns`,
+ * which counts the rows a transform omits a defaulted property for; the NULLABLE
+ * half — `column.notNull` is false, `hasDefault` is true — was checked by
+ * neither, and lands here as `never-populated`.
+ *
  * ## The three states a nullable column may be in
  *
  * Every nullable, non-generated column must be one of:
@@ -70,10 +94,79 @@ export interface ColumnCoverage {
   readonly column: PgColumn;
   /** Dotted path into the source document, for the count comparison. */
   readonly sourcePath: string;
+  /**
+   * Why the column carries a value for rows the source has NO value for — a
+   * `?? 0` fallback, or a value derived from something other than this path.
+   *
+   * Declaring it suppresses the `over-populated` finding for this column, and
+   * that is the whole of its effect: it is the written answer to "you are
+   * inventing this value", not a way to silence the comparison. Unlike
+   * `unmappedColumns` this one is NOT re-measured for rot, and deliberately: a
+   * fallback that never fires because every document happens to hold a value is
+   * inert, not wrong, and reporting it would be the check crying wolf.
+   */
+  readonly filledWhenAbsent?: string;
+}
+
+/**
+ * A source field this plan deliberately does NOT carry, and why nothing is lost.
+ *
+ * The mirror image of {@link UnmappedColumnAcknowledgement}: that one is a
+ * column with no source, this is a source with no column. Five exist, all the
+ * same shape — a field deleted from its Mongoose schema by a named commit on
+ * `main`, which does NOT `$unset` it from the documents, so the data outlived
+ * the code by months. `federatedactors.displayName` sat on 16,651 documents
+ * with no reader for thirteen months.
+ *
+ * ## `observed` is the tripwire, and it is the whole reason this is a
+ * declaration rather than a comment
+ *
+ * A prose note saying "nothing writes this any more" is true when written and
+ * silent forever after. The count makes it checkable: if the field is genuinely
+ * dead the number is frozen, so ANY growth means something started writing it
+ * again and the migration is now dropping live data. Recording the number turns
+ * a claim about the past into a check on the future.
+ */
+export interface UncarriedField {
+  /** Dotted path into the source document. */
+  readonly sourcePath: string;
+  /**
+   * Why no column exists, specific enough to re-decide from. "Superseded by X"
+   * is a reason; "unused" is a finding wearing a reason's clothes.
+   */
+  readonly reason: string;
+  /** How many documents held it when the reason was written. */
+  readonly observed: number;
 }
 
 /** What one pass observed: per table, per column, how many rows carried a value. */
 export type PopulatedCounts = Map<string, Map<string, number>>;
+
+/**
+ * Does this document hold a value at a dotted path?
+ *
+ * Deliberately NOT `values.at()`, which stops at an array: a segment applied to
+ * one returns `undefined`, so `content.media.url` would read as absent on every
+ * document and every child-table declaration would land in the typo case. This
+ * descends into arrays and asks whether ANY element yields a value, which is
+ * the same semantics Mongo's own dotted-path matching applies — and it is what
+ * makes the count comparable to a `countDocuments` on the same path.
+ */
+export function holdsValueAt(document: unknown, path: string): boolean {
+  return valueSeenAt(document, path.split('.'), 0);
+}
+
+function valueSeenAt(value: unknown, segments: readonly string[], index: number): boolean {
+  if (value === null || value === undefined) return false;
+  if (index === segments.length) return true;
+  if (Array.isArray(value)) {
+    return value.some((element) => valueSeenAt(element, segments, index));
+  }
+  if (typeof value !== 'object') return false;
+  const segment = segments[index];
+  if (segment === undefined) return false;
+  return valueSeenAt((value as Record<string, unknown>)[segment], segments, index + 1);
+}
 
 /** Accumulate a column's populated count from an emitted row. */
 export function recordPopulated(
@@ -101,6 +194,13 @@ export interface CoverageFinding {
   readonly kind:
     | 'never-populated'
     | 'partially-populated'
+    /**
+     * Filled for MORE rows than the source holds values — a fabricated
+     * constant. Only assertable on the plan's primary table, where the contract
+     * is one row per document and the two counts are therefore in the same
+     * unit; see the note in {@link auditColumnCoverage}.
+     */
+    | 'over-populated'
     | 'stale-acknowledgement'
     /**
      * A declared `sourcePath` that matches NOTHING. Not a finding about the
@@ -116,13 +216,27 @@ export interface CoverageFinding {
 /**
  * Every nullable column a plan writes that nothing fills.
  *
+ * ## The two counts are only in the same UNIT on the primary table
+ *
+ * `sourceCounts` counts DOCUMENTS holding a value; `populated` counts emitted
+ * ROWS carrying one. `CollectionPlan.table` is documented as "one row per
+ * document", so on that table the two are directly comparable and a surplus is
+ * real. A child table is filled from a subdocument ARRAY, so one document
+ * routinely produces several rows and `populated > sourceValues` is the normal
+ * case rather than a finding — over-population is therefore not asserted there.
+ * Under-population stays sound on both: a document holding a value at the path
+ * emits at least one row carrying it, so a shortfall is a shortfall either way.
+ *
  * @param populated What the pass observed, keyed by table then by the column's
  *   TypeScript property name — which is what an emitted row is keyed by.
  * @param sourceCounts Populated counts from the SOURCE for columns that declare
  *   a `sourcePath`. Absent entries fall back to the weaker never-populated test.
+ * @param primaryTable The plan's `table`. Only its columns can be checked for
+ *   over-population, for the unit reason above.
  */
 export function auditColumnCoverage(input: {
   readonly collection: string;
+  readonly primaryTable: PgTable;
   readonly tables: readonly PgTable[];
   readonly populated: PopulatedCounts;
   readonly unmapped?: readonly UnmappedColumnAcknowledgement[];
@@ -141,9 +255,15 @@ export function auditColumnCoverage(input: {
     acknowledged.set(`${tableName(entry.table)}.${entry.column.name}`, entry.reason);
   }
   const declaredPaths = new Map<string, string>();
+  const filledWhenAbsent = new Map<string, string>();
   for (const entry of input.coverage ?? []) {
-    declaredPaths.set(`${tableName(entry.table)}.${entry.column.name}`, entry.sourcePath);
+    const key = `${tableName(entry.table)}.${entry.column.name}`;
+    declaredPaths.set(key, entry.sourcePath);
+    if (entry.filledWhenAbsent !== undefined) {
+      filledWhenAbsent.set(key, entry.filledWhenAbsent);
+    }
   }
+  const primary = tableName(input.primaryTable);
 
   const findings: CoverageFinding[] = [];
   const seen = new Set<string>();
@@ -156,8 +276,18 @@ export function auditColumnCoverage(input: {
     if (!observed || observed.size === 0) continue;
 
     for (const [property, column] of Object.entries(getTableColumns(table))) {
-      if (column.notNull) continue;
       const key = `${name}.${property}`;
+      // A NOT NULL column cannot be "never populated" — the row carries a value
+      // or the insert fails — so with nothing declared there is nothing here to
+      // say, and `auditDefaultedColumns` owns the omission half of that class.
+      //
+      // But it does NOT own the disguise: a transform answering `?? false` or
+      // `?? 0` SUPPLIES the property, so nothing is omitted, no finding is
+      // raised, and the column holds one fabricated constant on every row. 78
+      // columns are in exactly that state in the rehearsed corpus. Declaring a
+      // `sourcePath` on a NOT NULL column is how that gets measured rather than
+      // assumed, so a declared column stays in scope whatever its nullability.
+      if (column.notNull && !declaredPaths.has(key)) continue;
       const sqlName = `${name}.${sqlColumnName(column)}`;
       const populated = observed.get(property) ?? 0;
       const sourcePath = declaredPaths.get(key);
@@ -282,6 +412,41 @@ export function auditColumnCoverage(input: {
             `source document(s) hold a value at \`${sourcePath}\` — ${sourceValues - populated} ` +
             'are being dropped. A column that is partly written passes every ' +
             '"is it ever non-null" test, which is why the comparison is a COUNT.',
+        });
+        continue;
+      }
+
+      // THE OTHER DIRECTION, and the one no all-null sweep can ever reach: the
+      // column is filled for rows the source has NOTHING for. A `?? ''` or
+      // `?? false` fallback does this, and so does a column left to a database
+      // DEFAULT — both produce a value nobody chose, on every row, with no
+      // error and nothing missing to notice. Under-population is visibly absent
+      // data; this is confidently wrong data, which is worse.
+      //
+      // Restricted to the primary table because only there are the two counts
+      // in the same unit (see the note above), and suppressed by an explicit
+      // `filledWhenAbsent` — a counter with no source field genuinely is zero,
+      // and the point is to make somebody write that down once.
+      if (
+        sourceValues !== null &&
+        populated > sourceValues &&
+        name === primary &&
+        !filledWhenAbsent.has(key)
+      ) {
+        findings.push({
+          collection: input.collection,
+          table: name,
+          column: sqlName,
+          kind: 'over-populated',
+          sourceValues,
+          populated,
+          detail:
+            `${sqlName} is filled for ${populated} row(s) but only ${sourceValues} ` +
+            `source document(s) hold a value at \`${sourcePath}\` — ${populated - sourceValues} ` +
+            'row(s) carry a value the source did not supply. A fabricated ' +
+            'constant is not a missing value: it passes every null check and ' +
+            'reads as real data. If the fallback is correct, say so in ' +
+            '`filledWhenAbsent`; if it is not, the column should be NULL there.',
         });
       }
     }

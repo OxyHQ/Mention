@@ -387,6 +387,15 @@ async function main(): Promise<number> {
         onCheckpoint: (collection, checkpoint, documentsCopied) =>
           saveCheckpoint(db, collection, checkpoint, documentsCopied),
         onCompleted: (collection) => markCompleted(db, collection),
+        // The audit trail, made durable AS the copy goes — see
+        // `ResolutionLog.drain`. A run that dies at level 4 keeps what levels
+        // 1–3 decided; the version that wrote once at the end kept nothing from
+        // exactly the runs whose record matters most.
+        onResolutions: async (summaries) => {
+          const written = await writeResolutionLog(db, RUN_ID, summaries);
+          resolutionRowsWritten += written;
+          if (written > 0) say(`  resolution log: ${written} record(s) persisted`);
+        },
       },
       state,
       options.only
@@ -417,7 +426,15 @@ async function main(): Promise<number> {
     reportFindings(summary.findings);
     reportReferentialIntegrity(summary.referentialIntegrity);
     reportResolutionsApplied(summary.resolutions, 'RESOLUTIONS APPLIED');
-    await persistResolutionLog(db, summary.resolutions);
+    // `undrained` rather than the whole summary: the levels already wrote most
+    // of it, and re-passing every record would double the rows. The EXPECTED
+    // total still comes from the complete summary, so the comparison below is
+    // over the whole run rather than over its tail.
+    await persistResolutionLog(
+      db,
+      summary.undrainedResolutions,
+      summary.resolutions.reduce((total, entry) => total + entry.records.length, 0)
+    );
 
     if (options.verify) return await runVerification(db, source, options);
     return 0;
@@ -515,7 +532,12 @@ async function runPreAudit(
   reportFindings(findings);
   reportReferentialIntegrity(referentialIntegrity);
   reportResolutionsApplied(log.summary(), 'RESOLUTIONS THE COPY WOULD APPLY');
-  await persistResolutionLog(db, log.summary());
+  const summaries = log.summary();
+  await persistResolutionLog(
+    db,
+    summaries,
+    summaries.reduce((total, entry) => total + entry.records.length, 0)
+  );
   return findings.filter(auditWouldBlockCopy).length;
 }
 
@@ -727,18 +749,32 @@ function reportReferentialIntegrity(report: ReferentialIntegrityReport): void {
  */
 async function persistResolutionLog(
   db: Database,
-  summaries: readonly ResolutionSummary[]
+  summaries: readonly ResolutionSummary[],
+  expected: number
 ): Promise<void> {
-  const expected = summaries.reduce((total, summary) => total + summary.records.length, 0);
-  const written = await writeResolutionLog(db, RUN_ID, summaries);
+  resolutionRowsWritten += await writeResolutionLog(db, RUN_ID, summaries);
   heading('RESOLUTION LOG');
   say(`  run id: ${RUN_ID}`);
-  say(`  ${written} record(s) written to \`${RESOLUTION_LOG_TABLE}\` (report claimed ${expected}).`);
-  if (written !== expected) {
+  say(
+    `  ${resolutionRowsWritten} record(s) written to \`${RESOLUTION_LOG_TABLE}\` ` +
+      `(report claimed ${expected}).`
+  );
+  if (resolutionRowsWritten !== expected) {
     say('  MISMATCH — the printed report and the durable log disagree. Trust neither.');
   }
   say(`  read it back:  select * from ${RESOLUTION_LOG_TABLE} where run_id = '${RUN_ID}';`);
 }
+
+/**
+ * Rows this process has made durable, across every level and the final flush.
+ *
+ * A running total rather than one write's return value, because the trail is
+ * now written AS the copy goes — so the "two numbers from two paths that must
+ * agree" check has to span the whole run rather than its last statement, or a
+ * run that wrote 1,400 rows across five levels and 100 at the end would report
+ * 100 against 1,500 and read as a catastrophic mismatch.
+ */
+let resolutionRowsWritten = 0;
 
 function reportResolutionsApplied(
   summaries: readonly ResolutionSummary[],

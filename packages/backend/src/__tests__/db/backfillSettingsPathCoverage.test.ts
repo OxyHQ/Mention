@@ -99,6 +99,27 @@ function setPath(target: Record<string, unknown>, path: string, value: unknown):
   current[segments[segments.length - 1] as string] = value;
 }
 
+/**
+ * Registry paths that are NOT Mongo paths, and the Mongo path each really is.
+ *
+ * `SETTINGS_COLUMN_BY_PATH` translates API dot-paths to COLUMNS, and for one
+ * entry the DTO's spelling and Mongo's diverge: the deleted Mongoose model
+ * mounts `ChannelAccountSchema` at `channel:`, so production holds
+ * `channel.signPosts` and holds `channelAccount.signPosts` on ZERO of 39,349
+ * documents. Nothing has ever written the DTO spelling to Mongo — the settings
+ * PUT writes Postgres and the model that wrote `channel` is gone.
+ *
+ * So this is a real divergence between two names, declared once, and NOT a
+ * compatibility shim in the transform: reading both spellings there would be
+ * defending against a case that cannot occur. Each entry carries the Mongo path
+ * the plan must read instead, so the assertion below can check THAT rather than
+ * merely skipping the row — an exemption that only subtracts is how a gate
+ * quietly stops covering something.
+ */
+const DTO_PATHS_MONGO_NEVER_HELD: Readonly<Record<string, string>> = Object.freeze({
+  'channelAccount.signPosts': 'channel.signPosts',
+});
+
 function settingsPlan() {
   const plan = COLLECTION_PLANS.find((entry) => entry.collection === 'usersettings');
   if (!plan) throw new Error('no plan for usersettings');
@@ -130,8 +151,10 @@ describe('settings path coverage', () => {
     // column type, including a boolean.
     const entries = Object.entries(SETTINGS_COLUMN_BY_PATH);
     const dropped: string[] = [];
+    const exempt = new Set(Object.keys(DTO_PATHS_MONGO_NEVER_HELD));
 
     for (const [index, [path, columnProperty]] of entries.entries()) {
+      if (exempt.has(path)) continue;
       const value = plant(columnProperty, index);
       const doc: Record<string, unknown> = { _id: 'b'.repeat(24), oxyUserId: 'bfs-viewer' };
       setPath(doc, path, value);
@@ -171,6 +194,43 @@ describe('settings path coverage', () => {
     // checking nothing. Forty is below the 47 registered today and above any
     // plausible accident.
     expect(entries.length).toBeGreaterThan(40);
+  });
+
+  it('reads the MONGO path for the one column whose DTO name differs', () => {
+    // The exemption above subtracts a row from the main check, so it has to add
+    // one back or it is just a hole. This plants at the path production
+    // ACTUALLY holds and asserts the column receives it.
+    //
+    // Worth the separate case rather than a special branch inside the loop: the
+    // failure it guards is the one that shipped. The plan read
+    // `channelAccount.signPosts`, which matches zero of 39,349 documents, and
+    // the column came out 100% NULL — which for a flag that is NULL on every
+    // account that is not a channel is exactly what health looks like. No
+    // null-based check could have seen it.
+    for (const [dtoPath, mongoPath] of Object.entries(DTO_PATHS_MONGO_NEVER_HELD)) {
+      const columnProperty = SETTINGS_COLUMN_BY_PATH[dtoPath];
+      if (columnProperty === undefined) {
+        throw new Error(
+          `${dtoPath} is exempted here but is no longer registered in ` +
+            'SETTINGS_COLUMN_BY_PATH — the exemption now describes nothing.'
+        );
+      }
+      const value = plant(columnProperty, 0);
+      const doc: Record<string, unknown> = { _id: 'c'.repeat(24), oxyUserId: 'bfs-channel' };
+      setPath(doc, mongoPath, value);
+
+      let row: Record<string, unknown> | undefined;
+      transformDocument(
+        settingsPlan(),
+        doc,
+        emptyResolutions(),
+        parentKeysFrom(new Map()),
+        (emitted) => {
+          if (emitted.table === userSettings) row = emitted.source;
+        }
+      );
+      expect(row?.[columnProperty], `${mongoPath} -> ${columnProperty}`).toStrictEqual(value);
+    }
   });
 
   it('registers every settings column the plan fills from a single path', () => {

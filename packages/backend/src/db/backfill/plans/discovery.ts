@@ -50,7 +50,7 @@ import type { MongoDocument } from '../values';
 import type { ResolutionContext } from '../resolutions';
 import { MAP_LEGACY_PUSH_TOKEN_TYPE } from '../resolutions';
 import { buildRow } from '../rowBuilder';
-import { bool, id, int, jsonArray, num, ownId, reqDate, reqId, reqInt, reqNum, reqStr, str, strArray } from '../values';
+import { bool, date, id, int, jsonArray, num, ownId, reqDate, reqId, reqInt, reqNum, reqStr, str, strArray } from '../values';
 import { optionalDate, timestamps, updatedOnly } from './timestamps';
 
 /** `trendings` → `trending`. */
@@ -90,6 +90,35 @@ const trendingPlan: CollectionPlan = {
       ],
     },
   ],
+  // EIGHT of these were dropped by a complete, exit-0, `AUDIT CLEAN` rehearsal.
+  // Migration `0006_trend_labels_and_bridged_identity` added the columns and no
+  // plan was ever extended to feed them, which produces exactly one row per
+  // document — so every row-cardinality check passed while the labels, the
+  // burst statistic, the onset time and the actor lists were all discarded.
+  // Declaring where each column comes from is what turns that from invisible
+  // into measured.
+  columnCoverage: [
+    { table: trending, column: trending.displayName, sourcePath: 'displayName' },
+    { table: trending, column: trending.category, sourcePath: 'category' },
+    { table: trending, column: trending.labelVersion, sourcePath: 'labelVersion' },
+    { table: trending, column: trending.languages, sourcePath: 'languages' },
+    { table: trending, column: trending.authorCount, sourcePath: 'authorCount' },
+    { table: trending, column: trending.burstScore, sourcePath: 'burstScore' },
+    { table: trending, column: trending.startedAt, sourcePath: 'startedAt' },
+    { table: trending, column: trending.status, sourcePath: 'status' },
+    { table: trending, column: trending.actorIds, sourcePath: 'actorIds' },
+    { table: trending, column: trending.terms, sourcePath: 'terms' },
+    { table: trending, column: trending.topicId, sourcePath: 'topicId' },
+    {
+      table: trending,
+      column: trending.description,
+      sourcePath: 'description',
+      filledWhenAbsent:
+        'the column is NOT NULL DEFAULT \'\' and a trend without a description ' +
+        'is displayed as having none — the empty string IS the absence here, ' +
+        'not a stand-in for a value that was lost.',
+    },
+  ],
   transform: (doc, emit) => {
     emit(
       trending,
@@ -99,10 +128,30 @@ const trendingPlan: CollectionPlan = {
           id: ownId(doc),
           type: reqStr(doc, 'type'),
           name: reqStr(doc, 'name'),
+          // The DISPLAY label ("Kremer Trade" for the term `orioles`). A row
+          // without one falls back to `name`, so dropping it silently degraded
+          // every labelled trend to its raw retrieval term.
+          displayName: str(doc, 'displayName'),
+          category: str(doc, 'category'),
+          labelVersion: int(doc, 'labelVersion'),
+          languages: strArray(doc, 'languages'),
           description: str(doc, 'description') ?? '',
           score: reqNum(doc, 'score'),
           volume: int(doc, 'volume') ?? 0,
+          // DISTINCT authors, which is what the reporting floor is applied to —
+          // a stored row without it cannot explain why it qualified.
+          authorCount: int(doc, 'authorCount'),
+          // The actual trend measurement, in standard deviations above the
+          // term's own baseline. `score` only orders the list.
+          burstScore: num(doc, 'burstScore'),
           momentum: num(doc, 'momentum') ?? 0,
+          startedAt: date(doc, 'startedAt'),
+          status: str(doc, 'status'),
+          actorIds: strArray(doc, 'actorIds'),
+          // Every term the row stands for, `name` first. Without it a merged
+          // row opens onto a feed missing every post that used one of the other
+          // names — the merge would be actively harmful rather than merely lossy.
+          terms: strArray(doc, 'terms'),
           rank: reqInt(doc, 'rank'),
           // An Oxy Topic-registry id. Declared `Schema.Types.ObjectId` in the
           // model and `text` here with no foreign key, because the registry is

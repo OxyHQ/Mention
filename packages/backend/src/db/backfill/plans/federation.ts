@@ -142,6 +142,60 @@ const federatedActorsPlan: CollectionPlan = {
       resolvedBy: KEEP_FRESHEST_FEDERATED_ACTOR,
     },
   ],
+  columnCoverage: [
+    { table: federatedActors, column: federatedActors.networkAcct, sourcePath: 'networkAcct' },
+    {
+      table: federatedActors,
+      column: federatedActors.protocol,
+      sourcePath: 'protocol',
+      filledWhenAbsent:
+        '61,991 of 64,156 actors carry it. The 2,165 that do not predate atproto ' +
+        "entirely, and `models/FederatedActor.ts` declares " +
+        "`default: 'activitypub'` — which is also the only protocol that existed " +
+        'when those rows were written.',
+    },
+    ...(
+      [
+        ['outboxBackfillCursorItemOffset', 'outboxBackfill.cursorItemOffset', 64_109],
+        ['outboxBackfillProcessedCount', 'outboxBackfill.processedCount', 64_140],
+        ['outboxBackfillImportedCount', 'outboxBackfill.importedCount', 64_140],
+        ['outboxBackfillExistingCount', 'outboxBackfill.existingCount', 64_140],
+        ['outboxBackfillPageCount', 'outboxBackfill.pageCount', 64_140],
+      ] as const
+    ).map(([property, sourcePath, present]) => ({
+      table: federatedActors,
+      column: federatedActors[property],
+      sourcePath,
+      filledWhenAbsent:
+        `${present.toLocaleString('en-US')} of 64,156 actors carry it; the model ` +
+        'declares `default: 0`. A crawl counter that was never written is zero ' +
+        'progress, which is what the column then says.',
+    })),
+  ],
+  // Measured 2026-08-03 against 64,156 actors. Same cause as the `posts`
+  // entries: a Mongoose schema deletion does not `$unset` the stored key.
+  uncarriedFields: [
+    {
+      sourcePath: 'displayName',
+      observed: 16_651,
+      reason:
+        'No reader and no writer in this repo. The live replacement is Oxy ' +
+        "`name.displayName` via `getUsersByIds`, which is contract-tested — " +
+        'and `~/AGENTS.md` is explicit that Oxy owns the canonical display ' +
+        'name and app code must not rebuild it. What these 16,651 documents ' +
+        'hold is a snapshot that stopped being maintained thirteen months ago, ' +
+        'so carrying it would import a stale name to sit beside the live one.',
+    },
+    {
+      sourcePath: 'externalId',
+      observed: 480,
+      reason:
+        'Duplicates `uri`, which is copied and is `NOT NULL UNIQUE`. Separate ' +
+        'and still open: production carries an ORPHAN INDEX on this field, and ' +
+        '`scripts/reconcileFederatedActorExternalIdIndex.ts` exists to drop it. ' +
+        'That decision belongs to decommission, not to the copy.',
+    },
+  ],
   transform: (doc, emit, resolutions) => {
     const id = ownId(doc);
 
@@ -204,6 +258,14 @@ const federatedActorsPlan: CollectionPlan = {
           username: sentinelAcct ? uri : reqStr(doc, 'username'),
           domain: reqStr(doc, 'domain'),
           acct: sentinelAcct ? uri : storedAcct,
+          // DROPPED by the rehearsed copy on all 135 bridged actors, and the
+          // consequence is not cosmetic: this is the ONLY field on which two
+          // rows for the same upstream person match, so
+          // `resolveFederatedActorIdentity` de-duplicates on it. Without it the
+          // same X account mirrored by two bridges stays two people, which is
+          // precisely the misattribution the bridge policy exists to prevent —
+          // and it would surface weeks later as wrong bylines, never as an error.
+          networkAcct: str(doc, 'networkAcct'),
           summary: str(doc, 'summary'),
           avatarUrl: str(doc, 'avatarUrl'),
           headerUrl: str(doc, 'headerUrl'),
@@ -308,6 +370,17 @@ const federatedFollowsPlan: CollectionPlan = {
       ],
     },
   ],
+  columnCoverage: [
+    {
+      table: federatedFollows,
+      column: federatedFollows.network,
+      sourcePath: 'network',
+      filledWhenAbsent:
+        '29 of 62 follows carry it; the model declares ' +
+        "`default: 'activitypub'`, and the 33 without it predate atproto " +
+        'support entirely, so that is also what they were.',
+    },
+  ],
   transform: (doc, emit) => {
     emit(
       federatedFollows,
@@ -407,6 +480,17 @@ const federationDeliveryQueuePlan: CollectionPlan = {
       constraint: 'federation_delivery_queue_attempts_check',
       min: 0,
       absentAs: 0,
+    },
+  ],
+  columnCoverage: [
+    {
+      table: federationDeliveryQueue,
+      column: federationDeliveryQueue.migratedToBullmq,
+      sourcePath: 'migratedToBullmq',
+      filledWhenAbsent:
+        '92 of 118 rows carry it; the model declares `default: false`. The 26 ' +
+        'without it were enqueued before the BullMQ migration flag existed, ' +
+        'which is exactly what `false` says about them.',
     },
   ],
   transform: (doc, emit) => {
