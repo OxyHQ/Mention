@@ -6,11 +6,16 @@ import { postAcceptsReplies, reportableReplyPermission } from '@/utils/postRepli
  * pinned composer. Both call this and nothing else, so an answer that is wrong
  * here is wrong on both.
  *
- * The channel case is the one worth pinning: a channel post still takes no
- * replies, but a channel is an Oxy ACCOUNT, so the DTO carries nothing that says
- * "channel" — the refusal reaches the client as the server's own verdict in
- * `permissions.canReply`. A predicate that read only `replyPermission` would
- * offer a reply affordance on every channel post.
+ * Two cases are worth pinning, and they pull in opposite directions.
+ *
+ * A channel post still takes no replies, and although a channel is an Oxy
+ * ACCOUNT — so the DTO carries nothing that says "channel" — the refusal DOES
+ * reach the client: `PostCreationService` persists `replyPermission: ['nobody']`
+ * on anything published as a channel account.
+ *
+ * And `permissions.canReply` must NOT be read here, however authoritative it
+ * looks. It is viewer-resolved and false for an anonymous viewer, so honouring
+ * it hides the affordance from every signed-out visitor on every post.
  */
 /**
  * `metadata` is built here rather than spread in by each case: `PostMetadataState`
@@ -51,12 +56,24 @@ describe('postAcceptsReplies', () => {
     expect(postAcceptsReplies(makePost({ replyPermission: ['nobody'] }))).toBe(false);
   });
 
-  it('refuses whenever the server resolved the viewer out, whatever the permission says', () => {
-    // The shape a CHANNEL post arrives in: nothing on the DTO names a channel,
-    // and its stated permission can be anything — the server's own verdict is
-    // the only thing that carries the refusal.
+  it('refuses a channel post, which arrives stating `nobody`', () => {
+    // The shape a CHANNEL post arrives in. Nothing on the DTO names a channel,
+    // and nothing needs to: the server wrote its refusal into the setting.
+    expect(postAcceptsReplies(makePost({ replyPermission: ['nobody'] }))).toBe(false);
+  });
+
+  /**
+   * The regression this file exists to prevent, and the fixture that catches it:
+   * `canReply: false` with a permissive setting is EXACTLY what an ordinary post
+   * looks like to a signed-out reader, because `computeReplyPermission` opens
+   * with `if (!viewerId) return false`. A predicate that consults `canReply`
+   * passes every other case here and still hides the reply affordance from every
+   * anonymous visitor — which is what shipped, and what the deploy's route-chunk
+   * check caught by failing to find the button.
+   */
+  it('still offers the affordance when the viewer is merely signed out', () => {
     expect(postAcceptsReplies(makePost({ canReply: false, replyPermission: ['anyone'] }))).toBe(
-      false,
+      true,
     );
   });
 
