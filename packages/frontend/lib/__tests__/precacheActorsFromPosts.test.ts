@@ -17,11 +17,17 @@
  */
 
 import { queryClient as mockQueryClient } from '@/lib/queryClient';
+import { noteIdentityChanged } from '@/lib/actorCache';
+import { resetIdentityUpdates } from '@/stores/identityUpdates';
 import { precacheActorsFromPosts } from '../precacheActorsFromPosts';
 
 const mockUpsertCachedUsers = jest.fn();
 jest.mock('@oxyhq/services', () => ({
   upsertCachedUsers: (...args: unknown[]) => mockUpsertCachedUsers(...args),
+  // `stores/identityUpdates` writes the edit through the SDK's single-user
+  // upsert; this file is about what reaches the BATCH one, so it only has to
+  // exist.
+  upsertCachedUser: jest.fn(),
 }));
 
 /**
@@ -32,7 +38,9 @@ jest.mock('@oxyhq/services', () => ({
  * still be undefined when the mock is hoisted above it — and both the module
  * under test and this file import that one shared reference.
  */
-jest.mock('@/lib/queryClient', () => ({ queryClient: { __sentinel: 'queryClient' } }));
+jest.mock('@/lib/queryClient', () => ({
+  queryClient: { __sentinel: 'queryClient', invalidateQueries: jest.fn() },
+}));
 
 /** The users the upsert was asked to prime on its single call. */
 function upsertedUsers(): unknown[] {
@@ -120,5 +128,106 @@ describe('precacheActorsFromPosts — no-op inputs', () => {
   it('ignores non-object entries in the batch', () => {
     precacheActorsFromPosts([null, 42, 'post', { user: { id: 'author-5' } }]);
     expect(upsertedUsers()).toEqual([{ id: 'author-5' }]);
+  });
+});
+
+/**
+ * The merge-upsert this file delegates to is a MERGE, which is exactly why a
+ * stale author is dangerous here rather than harmless: a real avatar id
+ * overrides a real avatar id, so the pre-edit picture wins on arrival. Verified
+ * against the SDK's own implementation — seed an entry, upsert an edit, then
+ * upsert a hydrated author still carrying the old picture, and the entry is back
+ * to the old picture.
+ *
+ * Whether a given response IS stale is a race (the server is told about the
+ * write and drops its identity caches on receipt), and that is the point: on a
+ * channel's own page every post in the response is authored by the account whose
+ * picture just changed, so losing that race decides what its header shows. The
+ * correction removes the race from the answer.
+ */
+describe('precacheActorsFromPosts — an identity the viewer just edited', () => {
+  const EDITED = 'channel-1';
+
+  /** The users handed to the upsert on its LAST call. */
+  function lastUpsertedUsers(): unknown[] {
+    const calls = mockUpsertCachedUsers.mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    return calls[calls.length - 1][1] as unknown[];
+  }
+
+  /** That account as the server still hydrates it: the picture from before the edit. */
+  function staleAuthorPost() {
+    return { user: { id: EDITED, username: 'daily', avatar: 'avatar-before' } };
+  }
+
+  afterEach(() => {
+    resetIdentityUpdates();
+  });
+
+  it('corrects a stale author on its way into the cache', () => {
+    noteIdentityChanged({ id: EDITED, username: 'daily', avatar: 'avatar-after' });
+
+    precacheActorsFromPosts([staleAuthorPost()]);
+
+    expect(lastUpsertedUsers()).toEqual([
+      { id: EDITED, username: 'daily', avatar: 'avatar-after' },
+    ]);
+  });
+
+  it('leaves every other author in the same batch untouched', () => {
+    noteIdentityChanged({ id: EDITED, avatar: 'avatar-after' });
+
+    precacheActorsFromPosts([
+      staleAuthorPost(),
+      { user: { id: 'someone-else', username: 'else', avatar: 'their-avatar' } },
+    ]);
+
+    expect(lastUpsertedUsers()).toEqual([
+      { id: EDITED, username: 'daily', avatar: 'avatar-after' },
+      { id: 'someone-else', username: 'else', avatar: 'their-avatar' },
+    ]);
+  });
+
+  it('retires the correction once hydration carries the edit, and stops correcting', () => {
+    noteIdentityChanged({ id: EDITED, username: 'daily', avatar: 'avatar-after' });
+
+    // The server has caught up: this batch already names the new picture.
+    precacheActorsFromPosts([
+      { user: { id: EDITED, username: 'daily', avatar: 'avatar-after' } },
+    ]);
+
+    // So a value that differs AFTERWARDS is a genuine change made somewhere else
+    // — another device, accounts.oxy.so — and must reach the cache unedited.
+    precacheActorsFromPosts([
+      { user: { id: EDITED, username: 'daily', avatar: 'avatar-changed-elsewhere' } },
+    ]);
+
+    expect(lastUpsertedUsers()).toEqual([
+      { id: EDITED, username: 'daily', avatar: 'avatar-changed-elsewhere' },
+    ]);
+  });
+
+  it('does not retire on a batch that agrees about only SOME of the edit', () => {
+    noteIdentityChanged({
+      id: EDITED,
+      username: 'daily',
+      name: { displayName: 'Daily Digest' },
+      avatar: 'avatar-after',
+    });
+
+    // The picture caught up, the name did not — that is not the server agreeing.
+    precacheActorsFromPosts([
+      { user: { id: EDITED, username: 'daily', avatar: 'avatar-after', name: { displayName: 'Daily' } } },
+    ]);
+    precacheActorsFromPosts([staleAuthorPost()]);
+
+    expect(lastUpsertedUsers()).toEqual([
+      {
+        id: EDITED,
+        username: 'daily',
+        name: { displayName: 'Daily Digest' },
+        avatar: 'avatar-after',
+      },
+    ]);
   });
 });

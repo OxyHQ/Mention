@@ -465,6 +465,15 @@ export const viewerQueryKeys = {
     viewerQueryKeys.isFamily(queryKey, 'appearance') &&
     queryKey[3] === 'user' &&
     queryKey[4] === userId,
+  /**
+   * Whichever viewer's {@link viewerQueryKeys.operatedAccounts} list this is.
+   * The `accounts` family also holds `channelAccountSettings`, which a profile
+   * edit never changes, so the family alone is too wide — and a caller that
+   * reached past `isFamily` into `queryKey[3]` itself would be the second place
+   * that knows this key's shape.
+   */
+  isOperatedAccounts: (queryKey: readonly unknown[]): boolean =>
+    viewerQueryKeys.isFamily(queryKey, 'accounts') && queryKey[3] === 'operated',
 };
 
 /** The single factory for every Mention-owned React Query key. */

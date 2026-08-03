@@ -21,10 +21,9 @@
 
 import { useCallback, useMemo } from 'react';
 import { useInfiniteQuery, useQuery, keepPreviousData } from '@tanstack/react-query';
-import { upsertCachedUsers } from '@oxyhq/services';
+import { cacheActors } from '@/lib/actorCache';
 import { useAuth } from '@oxyhq/services/ui/client';
 import type { User } from '@oxyhq/core';
-import { queryClient } from '@/lib/queryClient';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { isAuthError } from '@/utils/authErrors';
 import { logger } from '@oxyhq/core/logger';
@@ -82,8 +81,8 @@ async function loadRecommendationsPage(
     const page = await fetchRecommendationsPage({ excludeTypes, limit, cursor });
     const users = page.recommendations.filter((u) => u.id.length > 0);
     if (users.length > 0) {
-      upsertCachedUsers(queryClient, users);
-      void enrichMissingAvatars(users, getUsersByIds, queryClient);
+      cacheActors(users);
+      void enrichMissingAvatars(users, getUsersByIds);
     }
     return { ...page, recommendations: users };
   } catch (err) {
