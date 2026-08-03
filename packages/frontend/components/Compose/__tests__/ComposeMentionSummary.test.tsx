@@ -60,7 +60,22 @@ function stubEndpoint(byUrl: Record<string, StubbedMention>): void {
   }));
 }
 
-/** The URLs the composer actually asked about, across every request it made. */
+/**
+ * The URLs the composer actually asked about, across every request it made.
+ *
+ * LOAD-BEARING, not decoration — do not trim these assertions as redundant with
+ * the rendered-row ones. This wire shipped broken once: the hook read `.url` off
+ * elements of what was already a `string[]`, so every request left as
+ * `{"urls":[null]}` and the endpoint rejected it. Nobody would ever have been
+ * named, and NO assertion about the rendered output could have caught it —
+ * a row that renders nothing is indistinguishable from a body that correctly
+ * mentions nobody. Only the outgoing request separates them.
+ *
+ * `tsc` could not see it either: the read went through a
+ * `JSON.parse(...) as { url: string }[]` cast, which made the wrong access
+ * legal. The only type errors on the branch at the time were in a test file,
+ * pointing away from the fault.
+ */
 function askedUrls(): string[][] {
   return mockPost.mock.calls.map(([, body]) => (body as { urls: string[] }).urls);
 }
