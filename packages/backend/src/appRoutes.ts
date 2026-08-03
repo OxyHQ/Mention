@@ -27,6 +27,7 @@ import profileLinkMentionsRoutes, {
   profileLinkMentionsRateLimiter,
 } from './routes/profileLinkMentions.routes';
 import lanesRoutes, { publicLanesRouter } from './routes/lanes.routes';
+import channelWritersRoutes from './routes/channelWriters.routes';
 import reportsRoutes from './routes/reports.routes';
 import { createCrowdSourceWebhookRoutes } from './routes/crowdSourceWebhook.routes';
 import trendingRoutes from './routes/trending.routes';
@@ -113,6 +114,10 @@ export function createAppRoutes({
   publicApi.use('/starter-packs', optionalAuth, starterPacksRoutes);
   // Reader-agnostic: the lanes a visitor needs to draw a publisher's tabs.
   publicApi.use('/lanes', optionalAuth, publicLanesRouter);
+  // A channel's page is public, so its writers list is readable anonymously —
+  // the reader's identity only decides whether a RESTRICTED channel is visible
+  // at all. The disclosure gate itself is inside the route.
+  publicApi.use('/channels', optionalAuth, channelWritersRoutes);
   publicApi.use('/mtn/nodes', optionalAuth, mtnNodesRoutes);
   publicApi.use('/statistics', optionalAuth, publicStatisticsRouter);
 

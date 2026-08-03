@@ -892,6 +892,31 @@ PostSchema.index(
   { name: 'post_lane_chrono_v1', partialFilterExpression: { laneId: { $exists: true } } },
 );
 
+// A channel's writers tab: the distinct people who have published under one
+// channel, and when each of them last did.
+//
+// The three equality terms lead, so the channel's signed posts are ONE
+// contiguous range; `writtenByOxyUserId` is the aggregation's group key and
+// `createdAt` the value it takes the max of, so both live in the index and the
+// `$group` never fetches a post document.
+//
+// `partialFilterExpression` on `{ $type: 'string' }`, NOT `sparse` and NOT
+// `$exists`. Sparse would cover every post (they all have `visibility`), and
+// `$exists` admits a stored `null` — while only a `$type` filter narrows the
+// index to the posts that actually carry a writer, which is a vanishing fraction
+// of the collection. The query in `routes/channelWriters.routes.ts` carries the
+// SAME `{ $type: 'string' }` term so the planner can prove eligibility.
+//
+// NOTE: `autoIndex`/`autoCreate` are OFF in production — created by migration
+// `0027-post-channel-writer-index`, not on model load.
+PostSchema.index(
+  { oxyUserId: 1, visibility: 1, status: 1, writtenByOxyUserId: 1, createdAt: -1 },
+  {
+    name: 'post_channel_writer_v1',
+    partialFilterExpression: { writtenByOxyUserId: { $type: 'string' } },
+  },
+);
+
 // Saved posts with text search: optimizes saved posts queries with a regex over
 // the post's bodies. Compound index helps when filtering by _id (from
 // savedPostIds) and searching the (multikey) variant bodies.
