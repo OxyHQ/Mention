@@ -105,6 +105,16 @@ describe('POST /mcp/oauth/register (RFC 7591 DCR)', () => {
     expect(res.body.error).toBe('invalid_redirect_uri');
     expect(mocks.registeredClientCreate).not.toHaveBeenCalled();
   });
+
+  it('rejects an arbitrary HTTPS redirect_uri that is not a trusted MCP callback', async () => {
+    const res = await request(app)
+      .post('/mcp/oauth/register')
+      .send({ redirect_uris: ['https://attacker.example/oauth/callback'] });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_redirect_uri');
+    expect(res.body.error_description).toContain('trusted MCP client callback');
+    expect(mocks.registeredClientCreate).not.toHaveBeenCalled();
+  });
 });
 
 describe('authorize honours a dynamically-registered client', () => {
@@ -114,7 +124,7 @@ describe('authorize honours a dynamically-registered client', () => {
     vi.clearAllMocks();
   });
 
-  it('redirects to consent when the client + redirect_uri come from Mongo', async () => {
+  it('redirects to consent when the client + redirect_uri come from Mongo and match a trusted callback', async () => {
     const dynamicRedirect = 'https://claude.ai/api/mcp/auth_callback';
     mocks.registeredClientFindOne.mockReturnValue({
       lean: () => Promise.resolve({
@@ -137,5 +147,28 @@ describe('authorize honours a dynamically-registered client', () => {
     expect(res.status).toBe(302);
     expect(res.headers.location).toContain('/oauth/mcp/authorize');
     expect(res.headers.location).toContain('client_id=mcp-dcr-abc');
+  });
+
+  it('rejects a stored dynamic client whose redirect_uri is not trusted', async () => {
+    const attackerRedirect = 'https://attacker.example/oauth/callback';
+    mocks.registeredClientFindOne.mockReturnValue({
+      lean: () => Promise.resolve({
+        clientId: 'mcp-dcr-evil',
+        label: 'Evil Client',
+        redirectUris: [attackerRedirect],
+      }),
+    });
+
+    const res = await request(app).get('/mcp/oauth/authorize').query({
+      response_type: 'code',
+      client_id: 'mcp-dcr-evil',
+      redirect_uri: attackerRedirect,
+      code_challenge: 'a'.repeat(43),
+      code_challenge_method: 'S256',
+      scope: 'mcp:read',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_client');
   });
 });
