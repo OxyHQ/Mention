@@ -54,6 +54,7 @@ vi.mock('../services/FeedSeenPostsService', () => ({
   },
 }));
 
+import { MtnConfig } from '@mention/shared-types';
 import { FeedEngine } from '../mtn/feed/engine/FeedEngine';
 import { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
 import { ScoreCursor } from '../mtn/feed/CursorBuilder';
@@ -232,6 +233,119 @@ describe('FeedEngine — ranked mode', () => {
       ...first.items.map((item) => item.id),
       ...second.items.map((item) => item.id),
     ])).toEqual(new Set([oid(10).toString(), oid(9).toString(), oid(8).toString()]));
+  });
+});
+
+describe('FeedEngine — ranked pagination coverage', () => {
+  const PAGE_LIMIT = 6;
+  const PROLIFIC_POSTS = 12;
+  const SOLO_AUTHORS = 12;
+
+  /**
+   * A thin follow graph: ONE prolific author interleaved with a long tail of
+   * one-post authors, strictly score-descending. This is the shape
+   * `maxPerAuthorPerPage` exists for — the prolific author supplies far more
+   * page-eligible candidates than the cap admits, so the reranker has to defer
+   * some of them.
+   */
+  function thinGraphPool(): CandidatePost[] {
+    const posts: CandidatePost[] = [];
+    let score = PROLIFIC_POSTS + SOLO_AUTHORS;
+    for (let i = 0; i < Math.max(PROLIFIC_POSTS, SOLO_AUTHORS); i += 1) {
+      if (i < PROLIFIC_POSTS) {
+        posts.push(makePost(posts.length + 1, { oxyUserId: 'prolific', _testScore: score }));
+        score -= 1;
+      }
+      if (i < SOLO_AUTHORS) {
+        posts.push(makePost(posts.length + 1, { oxyUserId: `solo-${i}`, _testScore: score }));
+        score -= 1;
+      }
+    }
+    return posts;
+  }
+
+  function rankedDef(sourceId: string): FeedDefinition {
+    return {
+      id: 'test-ranked-pagination',
+      title: 'Test ranked pagination',
+      mode: 'ranked',
+      sources: [{ module: sourceId, enabled: true }],
+      signals: [],
+      filters: [],
+    };
+  }
+
+  /**
+   * Drain a ranked pagination session to exhaustion and report what each page
+   * served.
+   *
+   * A SINGLE page cannot observe this class of bug: page one looks complete and
+   * correctly ordered, and the loss only appears as the union of every page
+   * falling short of the pool. That is why the check has to paginate.
+   */
+  async function drainRanked(
+    def: FeedDefinition,
+    limit: number,
+    poolSize: number,
+  ): Promise<{ pages: string[][]; served: string[] }> {
+    const pages: string[][] = [];
+    let cursor: string | undefined;
+    // A page that reports `hasMore` must serve at least one item, so a pool of
+    // N posts can never need more than N pages. Exceeding that is a loop, not a
+    // long session, and must fail loudly rather than spin.
+    for (let page = 0; page <= poolSize; page += 1) {
+      const result = await engine.run(def, { currentUserId: 'viewer' }, { limit, cursor });
+      pages.push(result.items.map((item) => item.id));
+      if (!result.hasMore || !result.nextCursor) {
+        return { pages, served: pages.flat() };
+      }
+      cursor = result.nextCursor;
+    }
+    throw new Error(`Ranked session did not terminate within ${poolSize} pages`);
+  }
+
+  it('serves every candidate across the session — per-author-cap overflow rolls forward, never strands', async () => {
+    // Vacuity floor: the fixture only exercises the cap if the prolific author
+    // brings more page-eligible posts than one page may admit from them.
+    expect(PROLIFIC_POSTS).toBeGreaterThan(MtnConfig.ranking.diversity.maxPerAuthorPerPage);
+
+    const pool = thinGraphPool();
+    registry.register(sourceReturning('thin-graph', pool));
+
+    const { served } = await drainRanked(rankedDef('thin-graph'), PAGE_LIMIT, pool.length);
+
+    const poolIds = pool.map((post) => String(post._id));
+    const servedSet = new Set(served);
+    const stranded = poolIds.filter((id) => !servedSet.has(id));
+
+    // The reranker's documented contract: it DEFERS, it never drops. A deferred
+    // slice scores ABOVE the page tail, so the score cursor minted from that
+    // tail excludes it from every subsequent page — it is lost, not deferred.
+    expect({ strandedCount: stranded.length, strandedIds: stranded }).toEqual({
+      strandedCount: 0,
+      strandedIds: [],
+    });
+    expect(servedSet.size).toBe(poolIds.length);
+    // A session must not repeat either: coverage bought with duplicates is not
+    // coverage.
+    expect(served.length).toBe(servedSet.size);
+  });
+
+  it('control: a pool with one post per author strands nothing (the cap never binds)', async () => {
+    const pool = Array.from({ length: PROLIFIC_POSTS + SOLO_AUTHORS }, (_, i) =>
+      makePost(i + 1, { oxyUserId: `solo-${i}`, _testScore: PROLIFIC_POSTS + SOLO_AUTHORS - i }));
+    registry.register(sourceReturning('one-each', pool));
+
+    const { served } = await drainRanked(rankedDef('one-each'), PAGE_LIMIT, pool.length);
+
+    const servedSet = new Set(served);
+    const stranded = pool.map((post) => String(post._id)).filter((id) => !servedSet.has(id));
+
+    expect({ strandedCount: stranded.length, strandedIds: stranded }).toEqual({
+      strandedCount: 0,
+      strandedIds: [],
+    });
+    expect(served.length).toBe(servedSet.size);
   });
 });
 

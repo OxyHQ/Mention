@@ -18,8 +18,20 @@
  *
  * Properties:
  *  - Never DROPS an item. Overflow / still-conflicting items are appended at the
- *    tail in their original (rank) order, so they still emit (and roll forward
- *    via pagination) rather than being lost.
+ *    tail in their original (rank) order, so they still emit rather than being
+ *    lost. Output length always equals input length.
+ *  - That deferral is only worth anything if the caller reranks the items it is
+ *    about to SERVE. It does NOT survive a caller that reranks a deeper pool and
+ *    truncates afterwards: a ranked page is continued by a score-descending
+ *    keyset cursor minted from the page's own LOWEST anchor, so an item deferred
+ *    past the page window scores ABOVE that cursor and is filtered out of every
+ *    subsequent page — deferred here, dropped there, silently and permanently.
+ *    `FeedEngine.finalizeRanked` therefore selects the page window BEFORE
+ *    calling this; any future caller paginating on a keyset must do the same.
+ *  - Consequence of the above: when one author owns MORE of the page window than
+ *    `maxPerAuthor` admits, the cap is arithmetically unsatisfiable — the page
+ *    cannot hold fewer of that author's items without losing them. The cap then
+ *    degrades to ORDERING, and their surplus lands as a run at the page tail.
  *  - Preserves overall rank order as closely as the constraints allow: items are
  *    emitted greedily in rank order, an item is only deferred when emitting it
  *    now would violate the gap or the per-author cap.

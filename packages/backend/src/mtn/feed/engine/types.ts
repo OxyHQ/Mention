@@ -246,11 +246,13 @@ export interface FeedExecution {
   /**
    * DISCOVERY-SHARE CAP (Phase 5) — the maximum SHARE (0..1) of a rendered ranked
    * page that may come from DISCOVERY lanes (slices whose anchor post carries the
-   * opaque `_discovery` marker). After author diversification and BEFORE page
-   * truncation, `capDiscoveryShare` DEFERS — never drops (same contract as
-   * `diversifyByAuthor`) — discovery slices beyond `floor(maxDiscoveryShare ·
-   * limit)` to the page tail, guaranteeing a floor for trusted (following /
-   * affinity / lists) content. Unset (every feed except For You) = no cap. On a
+   * opaque `_discovery` marker). After author diversification, and INSIDE the
+   * already-selected page window, `capDiscoveryShare` DEFERS — never drops (same
+   * contract as `diversifyByAuthor`) — discovery slices beyond
+   * `floor(maxDiscoveryShare · limit)` to the page tail, guaranteeing a floor for
+   * trusted (following / affinity / lists) content. Running it on a deeper pool
+   * and truncating afterwards would make that deferral a silent drop; see
+   * `FeedEngine.finalizeRanked`. Unset (every feed except For You) = no cap. On a
    * thin follow graph the cap is simply unmet and discovery backfills the page.
    */
   maxDiscoveryShare?: number;
