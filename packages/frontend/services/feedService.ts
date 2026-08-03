@@ -30,7 +30,7 @@ import {
   syncFeedWidget,
 } from '../modules/mention-widgets/feedWidgetSync';
 import { FeedFilters } from '../utils/feedUtils';
-import { authenticatedClient, publicClient, isNotFoundError } from '../utils/api';
+import { authenticatedClient, publicClient } from '../utils/api';
 import { oxyServices } from '@/lib/oxyServices';
 import { logger } from '@oxyhq/core/logger';
 import { normalizeApiError } from '@/utils/apiError';
@@ -1013,15 +1013,15 @@ class FeedService {
    * Query can surface a retryable error state.
    */
   async resolveExternalActor(handle: string): Promise<ExternalActorResolution | null> {
-    try {
-      const response = await authenticatedClient.get<ExternalActorResolution>('/federation/resolve', {
-        params: { handle },
-      });
-      return response.data ?? null;
-    } catch (error) {
-      if (isNotFoundError(error)) return null;
-      throw error;
-    }
+    // No not-found branch: "nobody by that handle" is an ORDINARY answer to a
+    // search probe, so the endpoint says it with `{ actor: null }` and a 200
+    // rather than a 404. A thrown error here is now a real fault and stays
+    // thrown — it is not quietly folded into "no match" the way a 404 was.
+    const response = await authenticatedClient.get<{ actor: ExternalActorResolution | null }>(
+      '/federation/resolve',
+      { params: { handle } },
+    );
+    return response.data?.actor ?? null;
   }
 
   /**

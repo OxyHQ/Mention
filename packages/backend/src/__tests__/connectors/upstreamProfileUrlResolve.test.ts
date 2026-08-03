@@ -139,7 +139,7 @@ describe('GET /federation/resolve — a pasted profile URL', () => {
     const res = await request(app).get('/federation/resolve').query({ handle: 'https://x.com/elonmusk' });
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({
+    expect(res.body.actor).toMatchObject({
       network: 'activitypub',
       // The account, not the bridge it was reached through. `externalId` keeps
       // the protocol id, which is what the follow is addressed to.
@@ -147,7 +147,7 @@ describe('GET /federation/resolve — a pasted profile URL', () => {
       externalId: 'https://bird.makeup/users/elonmusk',
       oxyUserId: 'oxy-user-1',
     });
-    expect(res.body.handle).not.toContain('bird.makeup');
+    expect(res.body.actor.handle).not.toContain('bird.makeup');
     expect(resolve).toHaveBeenCalledWith('elonmusk@bird.makeup');
   });
 
@@ -174,7 +174,7 @@ describe('GET /federation/resolve — a pasted profile URL', () => {
     expect(res.status).toBe(200);
     // Which bridge answered is an implementation detail of how we reached the
     // account, and it must not reach the reader as the account's name.
-    expect(res.body.handle).toBe('elonmusk@x.com');
+    expect(res.body.actor.handle).toBe('elonmusk@x.com');
     expect(resolve.mock.calls.map(([acct]) => acct)).toEqual(['elonmusk@bird.makeup', 'elonmusk@mastox.eu']);
   });
 
@@ -195,7 +195,8 @@ describe('GET /federation/resolve — a pasted profile URL', () => {
 
     const res = await request(app).get('/federation/resolve').query({ handle: 'https://x.com/elonmusk' });
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
+    expect(res.body.actor).toBeNull();
     // Every reviewed bridge was still asked — a wrong answer from one is not an
     // answer about the others.
     expect(resolve.mock.calls.map(([acct]) => acct)).toEqual(['elonmusk@bird.makeup', 'elonmusk@mastox.eu']);
@@ -208,15 +209,17 @@ describe('GET /federation/resolve — a pasted profile URL', () => {
 
     const res = await request(app).get('/federation/resolve').query({ handle: 'https://x.com/elonmusk' });
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
+    expect(res.body.actor).toBeNull();
   });
 
-  it('answers 404 for a URL on a host no reviewed bridge covers, without asking anyone', async () => {
+  it('answers a plain no-match for a URL on a host no reviewed bridge covers, without asking anyone', async () => {
     const res = await request(app)
       .get('/federation/resolve')
       .query({ handle: 'https://mastodon.social/@Gargron' });
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
+    expect(res.body.actor).toBeNull();
     expect(resolve).not.toHaveBeenCalled();
   });
 
@@ -228,7 +231,7 @@ describe('GET /federation/resolve — a pasted profile URL', () => {
       .query({ handle: '@alice@mastodon.social' });
 
     expect(res.status).toBe(200);
-    expect(res.body.handle).toBe('alice@mastodon.social');
+    expect(res.body.actor.handle).toBe('alice@mastodon.social');
     expect(resolve).toHaveBeenCalledWith('@alice@mastodon.social');
     expect(classifyQuery).toHaveBeenCalledWith('@alice@mastodon.social');
   });
@@ -251,19 +254,23 @@ describe('GET /federation/resolve — a pasted profile URL', () => {
     const res = await request(app).get('/federation/resolve').query({ handle: 'alice.bsky.social' });
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({
+    expect(res.body.actor).toMatchObject({
       handle: 'alice@bsky.social',
       externalId: 'did:plc:z72i7hdynmk6r22z27h6tvur',
     });
   });
 
-  it('still answers 404 for a local username without asking a connector', async () => {
+  it('still refuses a local username without asking a connector, with a plain no-match', async () => {
     classifyQuery.mockReturnValue('local');
 
     const res = await request(app).get('/federation/resolve').query({ handle: '@nate' });
 
-    expect(res.status).toBe(404);
-    expect(res.body.error).toBe('Not an external handle');
+    expect(res.status).toBe(200);
+    expect(res.body.actor).toBeNull();
+    // The load-bearing half: a local handle is answered WITHOUT touching a
+    // connector. `actor: null` alone would also be produced by asking one and
+    // getting nothing, which is a different thing costing a network round trip
+    // on every keystroke that types a local name.
     expect(resolve).not.toHaveBeenCalled();
   });
 });
