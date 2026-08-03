@@ -441,3 +441,98 @@ describe('writtenByOxyUserId is projected on every path that hydrates a post', (
     expect(sources[2]).toMatch(/'writtenByOxyUserId',/);
   });
 });
+
+/**
+ * Who the post MENU is drawn for.
+ *
+ * `viewerState.isOwner` is the single flag the client's three-dot menu reads —
+ * delete, edit, pin, move to lane, reply options all hang off it. Derived from
+ * `authorship` alone it is false for everybody on a channel post, because the
+ * only entry there is the CHANNEL and no session can ever have a channel as its
+ * subject. The symptom is a post whose author cannot manage it.
+ *
+ * Independent of the byline: disclosure is the channel's choice (`signPosts`),
+ * while managing your own writing is not, so a channel that signs nothing still
+ * gives its writer the menu.
+ */
+describe('PostHydrationService — who may manage a channel post', () => {
+  let service: PostHydrationService;
+
+  beforeEach(() => {
+    cacheStore.clear();
+    getUserById.mockReset();
+    getUsersByIds.mockReset();
+    userSettingsFind.mockReset();
+    userSettingsFind.mockReturnValue([]);
+    getUserById.mockResolvedValue(null);
+    getUsersByIds.mockImplementation(async (ids: string[]) =>
+      [CHANNEL_ACCOUNT, WRITER_ACCOUNT, PERSON_ACCOUNT].filter((u) => ids.includes(u.id)),
+    );
+    service = new PostHydrationService();
+  });
+
+  it('gives the WRITER the menu, though authorship names only the channel', async () => {
+    const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], {
+      maxDepth: 0,
+      viewerId: WRITER_ID,
+    });
+
+    expect(hydrated.viewerState?.isOwner).toBe(true);
+    expect(hydrated.permissions?.canDelete).toBe(true);
+    expect(hydrated.permissions?.canEdit).toBe(true);
+    expect(hydrated.permissions?.canPin).toBe(true);
+    // The row that made it false: the writer is deliberately absent from here.
+    expect(hydrated.authors.map((a) => a.id)).toEqual([CHANNEL_ID]);
+  });
+
+  it('does so even when the channel signs NOTHING', async () => {
+    // Disclosure and management are different questions. A channel that keeps
+    // its writers anonymous still lets them manage what they wrote.
+    userSettingsFind.mockReturnValue([{ oxyUserId: CHANNEL_ID, channel: { signPosts: false } }]);
+
+    const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], {
+      maxDepth: 0,
+      viewerId: WRITER_ID,
+    });
+
+    expect(hydrated.viewerState?.isOwner).toBe(true);
+    expect(hydrated.authors.map((a) => a.id)).toEqual([CHANNEL_ID]);
+  });
+
+  it('gives NOBODY ELSE the menu on that post', async () => {
+    const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], {
+      maxDepth: 0,
+      viewerId: PERSON_ID,
+    });
+
+    expect(hydrated.viewerState?.isOwner).toBe(false);
+    expect(hydrated.permissions?.canDelete).toBe(false);
+  });
+
+  it('CONTROL: an ordinary author still gets it, and a stranger still does not', async () => {
+    // Without this the two assertions above would pass on a predicate that had
+    // simply stopped granting anybody anything.
+    const [mine] = await service.hydratePosts([postRow(PERSON_ID)], {
+      maxDepth: 0,
+      viewerId: PERSON_ID,
+    });
+    expect(mine.viewerState?.isOwner).toBe(true);
+
+    const [theirs] = await service.hydratePosts([postRow(PERSON_ID)], {
+      maxDepth: 0,
+      viewerId: WRITER_ID,
+    });
+    expect(theirs.viewerState?.isOwner).toBe(false);
+  });
+
+  it('still ships no writer id on the DTO', async () => {
+    // Granting the menu must not become a second way to leak the column the
+    // anonymity rule keeps off the wire.
+    const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], {
+      maxDepth: 0,
+      viewerId: WRITER_ID,
+    });
+
+    expect(JSON.stringify(hydrated)).not.toContain(WRITER_ID);
+  });
+});

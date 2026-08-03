@@ -50,6 +50,7 @@ vi.mock('../../models/Post', async (importOriginal) => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: hoisted.createScopedOxyClient,
+  createUserScopedOxyServices: vi.fn(() => undefined),
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({

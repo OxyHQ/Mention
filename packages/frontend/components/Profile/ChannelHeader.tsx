@@ -3,10 +3,6 @@ import { View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';
-import { LiveAvatar } from '@/components/ui/LiveAvatar';
-import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
-import { useLiveUsers } from '@/hooks/useLiveUsers';
-import { PresenceIndicator } from '@/components/PresenceIndicator';
 import { PrivateBadge } from './PrivateBadge';
 import type { ChannelActionsProps, ChannelHeaderProps } from './types';
 
@@ -29,13 +25,10 @@ export const ChannelHeader = memo(function ChannelHeader({
   verified,
   isPrivate,
   privacySettings,
-  profileId,
   UserNameComponent,
   trailingBadge,
 }: ChannelHeaderProps) {
   const theme = useTheme();
-  const { isLive } = useLiveUsers();
-  const isProfileLive = isLive(profileId);
   return (
     <View className="flex-row justify-between items-start mb-4 relative w-full gap-4">
       <View className="flex-1">
@@ -53,25 +46,19 @@ export const ChannelHeader = memo(function ChannelHeader({
         />
         {isPrivate && <PrivateBadge privacySettings={privacySettings} />}
       </View>
+      {/* No live badge and no presence dot, and neither is an omission: both
+          report on a SESSION, and `isActAsEligibleKind` refuses `channel`, so no
+          session can ever have one as its subject. A channel cannot be online
+          and cannot host a live room — the states could not occur, rather than
+          being hidden. */}
       <View className="relative">
-        {isProfileLive ? (
-          <View className="border-[3px] border-background bg-secondary rounded-full">
-            <LiveAvatar
-              userId={profileId}
-              source={avatarUri ?? undefined}
-              size={70}
-              variant={MEDIA_VARIANT_AVATAR_LG}
-            />
-          </View>
-        ) : (
-          <ZoomableAvatar
-            source={avatarUri}
-            size={70}
-            className="border-[3px] border-background bg-secondary"
-            style={{ width: 70, height: 70, borderRadius: 35 }}
-            imageStyle={{}}
-          />
-        )}
+        <ZoomableAvatar
+          source={avatarUri}
+          size={70}
+          className="border-[3px] border-background bg-secondary"
+          style={{ width: 70, height: 70, borderRadius: 35 }}
+          imageStyle={{}}
+        />
         {verified && (
           <View
             className="absolute rounded-[10px] p-0.5 bg-background"
@@ -79,13 +66,6 @@ export const ChannelHeader = memo(function ChannelHeader({
           >
             <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
           </View>
-        )}
-        {profileId && (
-          <PresenceIndicator
-            userId={profileId}
-            size="small"
-            style={{ position: 'absolute', bottom: 2, right: 2 }}
-          />
         )}
       </View>
     </View>

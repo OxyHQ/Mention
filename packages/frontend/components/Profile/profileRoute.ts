@@ -21,6 +21,23 @@ export function profileBasePath(family: ProfileRouteFamily, handle: string): Hre
 }
 
 /**
+ * One of an account's SUB-surfaces, under whichever family it belongs to.
+ *
+ * The sub-routes are the reason this is a function rather than two string
+ * literals at each call site: `about` exists under both families, so every
+ * caller has to answer "which one am I on" and getting it wrong is invisible —
+ * `/@channel/about` renders perfectly well, it is simply a URL that account does
+ * not own.
+ */
+export function profileSubPath(
+  family: ProfileRouteFamily,
+  handle: string,
+  subpath: string,
+): Href {
+  return family === 'channel' ? `/c/${handle}/${subpath}` : `/@${handle}/${subpath}`;
+}
+
+/**
  * Where a reader sitting on `routedFamily` for this account should actually be,
  * or `null` when they are already there.
  *
@@ -48,9 +65,20 @@ export function canonicalProfileHref(params: {
   handle: string;
   /** False while the account is still resolving. */
   resolved: boolean;
+  /**
+   * The sub-surface the reader is on (`'about'`, …), so a wrong-family SUB-route
+   * lands on its counterpart rather than dumping the reader on the profile root.
+   *
+   * It is carried through the redirect rather than dropped because losing it is
+   * itself a bug report: somebody taps "Joined" and arrives at the top of a
+   * profile they were already looking at, which reads as a dead link.
+   */
+  subpath?: string;
 }): Href | null {
   if (!params.resolved || !params.handle) return null;
   const target = profileRouteFamilyForKind(params.kind);
   if (target === params.routedFamily) return null;
-  return profileBasePath(target, params.handle);
+  return params.subpath
+    ? profileSubPath(target, params.handle, params.subpath)
+    : profileBasePath(target, params.handle);
 }

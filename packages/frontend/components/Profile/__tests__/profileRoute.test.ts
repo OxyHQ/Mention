@@ -3,6 +3,7 @@ import {
   canonicalProfileHref,
   profileBasePath,
   profileRouteFamilyForKind,
+  profileSubPath,
   type ProfileRouteFamily,
 } from '@/components/Profile/profileRoute';
 
@@ -169,5 +170,91 @@ describe('canonicalProfileHref', () => {
     ).filter((href) => href !== null);
 
     expect(redirects).toHaveLength(ALL_KINDS.length);
+  });
+});
+
+describe('profileSubPath', () => {
+  it('serves a channel sub-surface under /c/', () => {
+    expect(profileSubPath('channel', 'news', 'about')).toBe('/c/news/about');
+  });
+
+  it('serves a person sub-surface under /@', () => {
+    expect(profileSubPath('person', 'nate', 'about')).toBe('/@nate/about');
+  });
+});
+
+describe('canonicalProfileHref — sub-routes', () => {
+  it('carries the sub-surface across the redirect, both ways', () => {
+    // Dropping it would land the reader at the top of a profile they were
+    // already looking at, which reads as a dead link rather than a redirect.
+    expect(
+      canonicalProfileHref({
+        routedFamily: 'person',
+        kind: 'channel',
+        handle: 'news',
+        resolved: true,
+        subpath: 'about',
+      }),
+    ).toBe('/c/news/about');
+    expect(
+      canonicalProfileHref({
+        routedFamily: 'channel',
+        kind: 'personal',
+        handle: 'nate',
+        resolved: true,
+        subpath: 'about',
+      }),
+    ).toBe('/@nate/about');
+  });
+
+  it('stays put on the right family, sub-route included', () => {
+    expect(
+      canonicalProfileHref({
+        routedFamily: 'channel',
+        kind: 'channel',
+        handle: 'news',
+        resolved: true,
+        subpath: 'about',
+      }),
+    ).toBeNull();
+  });
+
+  /**
+   * The same fixed-point property as the profile root, now that sub-routes have
+   * widened the surface. A sub-route redirecting to its counterpart is exactly
+   * the shape that can ping-pong, since BOTH ends now exist and both are
+   * legitimately reachable.
+   */
+  it('reaches a fixed point in one hop for a sub-route too', () => {
+    let redirects = 0;
+    for (const routedFamily of FAMILIES) {
+      for (const kind of ALL_KINDS) {
+        const first = canonicalProfileHref({
+          routedFamily,
+          kind,
+          handle: 'acct',
+          resolved: true,
+          subpath: 'about',
+        });
+        if (first === null) continue;
+        redirects += 1;
+        expect(String(first).endsWith('/about')).toBe(true);
+
+        const landedFamily: ProfileRouteFamily = String(first).startsWith('/c/')
+          ? 'channel'
+          : 'person';
+        expect(
+          canonicalProfileHref({
+            routedFamily: landedFamily,
+            kind,
+            handle: 'acct',
+            resolved: true,
+            subpath: 'about',
+          }),
+        ).toBeNull();
+      }
+    }
+    // Vacuity floor, same as the root case.
+    expect(redirects).toBe(ALL_KINDS.length);
   });
 });

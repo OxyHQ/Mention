@@ -82,12 +82,12 @@ function postRow(extra: Record<string, unknown> = {}) {
       selectSpy(fields);
       return chain;
     },
-    lean: () => Promise.resolve({ _id: POST_ID, ...extra }),
+    lean: () => Promise.resolve({ _id: POST_ID, oxyUserId: USER_ID, ...extra }),
   };
   return chain;
 }
 
-/** What the ownership-scoped lookup answers for a post this caller does not own. */
+/** What the by-id lookup answers for a post that does not exist. */
 function missingPostRow() {
   const chain = {
     select: (fields: string) => {
@@ -155,16 +155,33 @@ describe('PATCH /posts/:id/lane', () => {
     expect(postUpdateOne).toHaveBeenCalled();
   });
 
-  it('scopes the lookup to the caller, so somebody else\'s post is a 404', async () => {
+  it('looks the post up by id and authorizes separately, still 404ing a stranger', async () => {
+    // The lookup is no longer the gate — it cannot be, because a channel post's
+    // `oxyUserId` is the channel and scoping by the caller made every one of
+    // them unreachable. `postManagementRefusal` is the gate now, and a refusal
+    // answers the SAME 404, so nothing about the reply changed.
     postFindOne.mockReturnValue(postRow());
     const res = makeRes();
     await updatePostLane(makeReq({ laneId: LANE_ID }), res as never);
-    expect(postFindOne).toHaveBeenCalledWith({ _id: POST_ID, oxyUserId: USER_ID });
+    expect(postFindOne).toHaveBeenCalledWith({ _id: POST_ID });
 
-    postFindOne.mockReturnValue({ select: () => ({ lean: async () => null }) });
+    postFindOne.mockReturnValue(missingPostRow());
     const missing = makeRes();
     await updatePostLane(makeReq({ laneId: LANE_ID }), missing as never);
     expect(missing.statusCode).toBe(404);
+  });
+
+  it('404s a post belonging to somebody else, with no lane lookup', async () => {
+    // Present, readable, and none of the caller's business: no member reader is
+    // configured in this suite, so the operator path cannot admit them either.
+    postFindOne.mockReturnValue(postRow({ oxyUserId: 'someone-else' }));
+    const res = makeRes();
+
+    await updatePostLane(makeReq({ laneId: LANE_ID }), res as never);
+
+    expect(res.statusCode).toBe(404);
+    expect(laneExists).not.toHaveBeenCalled();
+    expect(postUpdateOne).not.toHaveBeenCalled();
   });
 
   it('refuses a lane on a reply and on a boost', async () => {
@@ -206,46 +223,61 @@ describe('PATCH /posts/:id/lane', () => {
 });
 
 /**
- * A CHANNEL post is not reachable through this route at all, and that is the
- * whole of its channel story now.
+ * A CHANNEL post IS movable through this route — by the person who wrote it —
+ * and the lane it may be moved into is the CHANNEL's, never the mover's.
  *
- * The lookup is scoped by `{ _id, oxyUserId: userId }`, and a channel is an Oxy
- * account that AUTHORS its own posts — so a channel post's `oxyUserId` is the
- * channel, never the caller, and the query simply does not match. The old
- * deanonymization here (a channel post measured against the CALLER's personal
- * lanes, then served on a lane tab scoped to that one author) is unreachable by
- * construction rather than by a passed-through field.
- *
- * The cost is a real gap, stated rather than hidden: a channel post's lane cannot
- * be MOVED after creation through this route. It can still be set at creation,
- * where `PostCreationService` measures it against the post's actual owner.
+ * That second half is the dangerous one. A channel post carries the channel as
+ * its author and a human in `writtenByOxyUserId`; measuring the lane against the
+ * MOVER would offer their personal lanes, and a lane tab is scoped to one author
+ * even though the post's DTO stays anonymous — so the writer's identity would be
+ * recoverable from which tab the post appears on. The route therefore reads the
+ * publisher off the POST, and these tests pin exactly that, in both directions.
  */
-describe('PATCH /posts/:id/lane — a channel post is not this caller\'s to move', () => {
+describe('PATCH /posts/:id/lane — a channel post moves against the CHANNEL\'s lanes', () => {
   const CHANNEL_ACCOUNT = 'oxy-channel-account';
 
-  it('404s: the ownership-scoped lookup cannot see a post the channel authored', async () => {
-    // The route's own filter is the gate. `postFindOne` answering null IS what a
-    // real `{ _id, oxyUserId: <caller> }` query does for a channel-authored post.
-    postFindOne.mockReturnValue(missingPostRow());
+  /** A channel post: authored by the channel, written by this caller. */
+  function channelPostRow(extra: Record<string, unknown> = {}) {
+    return postRow({ oxyUserId: CHANNEL_ACCOUNT, writtenByOxyUserId: USER_ID, ...extra });
+  }
 
+  it('lets the WRITER move it, though the channel is the author', async () => {
+    postFindOne.mockReturnValue(channelPostRow());
     const res = makeRes();
+
     await updatePostLane(makeReq({ laneId: LANE_ID }), res as never);
 
-    expect(res.statusCode).toBe(404);
-    expect(laneExists).not.toHaveBeenCalled();
-    expect(postUpdateOne).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(200);
   });
 
-  it('scopes the post lookup by the CALLER, which is what makes that true', async () => {
-    postFindOne.mockReturnValue(postRow());
+  it('measures the lane against the CHANNEL, never the caller', async () => {
+    postFindOne.mockReturnValue(channelPostRow());
 
     await updatePostLane(makeReq({ laneId: LANE_ID }), makeRes() as never);
 
-    expect(postFindOne).toHaveBeenCalledWith({ _id: POST_ID, oxyUserId: USER_ID });
+    expect(laneExists).toHaveBeenCalledWith({ _id: LANE_ID, ownerId: CHANNEL_ACCOUNT });
+    // Stated as its own assertion because it is the whole point: the caller's
+    // own lanes are NOT eligible, and the two ids differ so this can tell them
+    // apart.
+    expect(laneExists).not.toHaveBeenCalledWith({ _id: LANE_ID, ownerId: USER_ID });
     expect(CHANNEL_ACCOUNT).not.toBe(USER_ID);
   });
 
-  it('CONTROL: an ordinary post is measured against its OWNER, one comparison', async () => {
+  it('writes scoped to the CHANNEL, so the update cannot silently match nothing', async () => {
+    // `updateOne` reports a filter that matches nothing as success. Scoped by the
+    // caller, a channel post answered 200 with the new lane summary while never
+    // moving.
+    postFindOne.mockReturnValue(channelPostRow());
+
+    await updatePostLane(makeReq({ laneId: LANE_ID }), makeRes() as never);
+
+    expect(postUpdateOne).toHaveBeenCalledWith(
+      { _id: POST_ID, oxyUserId: CHANNEL_ACCOUNT },
+      { $set: { laneId: LANE_ID } },
+    );
+  });
+
+  it('CONTROL: an ordinary post is still measured against its own owner', async () => {
     postFindOne.mockReturnValue(postRow());
 
     await updatePostLane(makeReq({ laneId: LANE_ID }), makeRes() as never);
@@ -253,7 +285,17 @@ describe('PATCH /posts/:id/lane — a channel post is not this caller\'s to move
     expect(laneExists).toHaveBeenCalledWith({ _id: LANE_ID, ownerId: USER_ID });
   });
 
-  it('projects every field the validator reads', async () => {
+  it('refuses a stranger who neither authored nor wrote it', async () => {
+    postFindOne.mockReturnValue(postRow({ oxyUserId: CHANNEL_ACCOUNT, writtenByOxyUserId: 'other-human' }));
+    const res = makeRes();
+
+    await updatePostLane(makeReq({ laneId: LANE_ID }), res as never);
+
+    expect(res.statusCode).toBe(404);
+    expect(postUpdateOne).not.toHaveBeenCalled();
+  });
+
+  it('projects every field the validator and the authorization read', async () => {
     // A projection that does not ask for a field hands `undefined` to the
     // validator with no error anywhere — which is exactly how the previous
     // channel bug shipped.
@@ -262,6 +304,8 @@ describe('PATCH /posts/:id/lane — a channel post is not this caller\'s to move
     await updatePostLane(makeReq({ laneId: LANE_ID }), makeRes() as never);
 
     const selected = String(selectSpy.mock.calls[0]?.[0] ?? '').split(/\s+/);
-    expect(selected).toEqual(expect.arrayContaining(['parentPostId', 'boostOf', 'laneId']));
+    expect(selected).toEqual(
+      expect.arrayContaining(['parentPostId', 'boostOf', 'laneId', 'oxyUserId', 'writtenByOxyUserId']),
+    );
   });
 });

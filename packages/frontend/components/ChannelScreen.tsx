@@ -261,7 +261,6 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                     verified={profileData.verified}
                     isPrivate={isPrivate}
                     privacySettings={profileData.privacy}
-                    profileId={profileData.id}
                     UserNameComponent={UserName}
                 />
                 <View className="mt-3 mb-2">
@@ -288,14 +287,20 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                     profileHandle={handle}
                     identity={identity}
                     showReplies={false}
-                    // A channel's secondary surfaces live in the PERSON URL
-                    // family today: `/c/<handle>` has no `about`, `followers` or
-                    // `following` route of its own, and those screens read an
-                    // account by handle without caring what kind it is. Pointing
-                    // at them keeps the rows working; giving the channel family
-                    // its own sub-routes is a separate decision, not something to
-                    // fake here.
-                    aboutHref={`/@${handle}/about`}
+                    // The channel's OWN about page. `/@<handle>/about` renders
+                    // fine for a channel, which is exactly why this was wrong
+                    // and silent: it is the person family's route, and an
+                    // account should never be sat on a URL it does not own.
+                    aboutHref={`/c/${handle}/about`}
+                    // STILL the person family, and deliberately so pending a
+                    // decision. These two are not a second `about`: both render
+                    // `connections.tsx`, whose tab strip navigates with a
+                    // hardcoded `/@` and whose four tabs include `who-may-know`
+                    // — a list of accounts the VIEWER might know, which is not
+                    // about this profile at all and makes no sense hanging off a
+                    // channel. Moving them under `/c/` means making that screen
+                    // family-aware AND deciding its tab set per account kind, so
+                    // it is its own change rather than a line here.
                     followingHref={`/@${handle}/following`}
                     followersHref={`/@${handle}/followers`}
                     onPostsPress={handlePostsPress}
@@ -412,6 +417,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                 loading={loading}
                 profileData={profileData}
                 banner={null}
+                skeletonVariant="channel"
                 headerActions={headerActions}
                 summary={summary}
                 tabBar={tabBar}

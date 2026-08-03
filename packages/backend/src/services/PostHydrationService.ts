@@ -40,6 +40,7 @@ import {
   getViewerEntry,
   normalizeAuthorship,
 } from '../utils/postAuthorship';
+import { canManagePostWithoutLookup } from './postManagementAccess';
 import { normalizeMentionIds } from '../utils/textProcessing';
 import { isReplyPost } from '../utils/postReply';
 import { degradedActorSummary } from '../utils/degradedActorSummary';
@@ -2316,7 +2317,7 @@ export class PostHydrationService {
     const content = this.buildContent(post, pollMap, viewerContext, resolved, inlineVariants);
     const attachments = this.buildAttachments(post, pollMap, resolved);
     const linkPreviews = linkPreviewMap.get(postId) ?? [];
-    const viewerState = this.buildViewerState(postId, viewerContext, authorship);
+    const viewerState = this.buildViewerState(post, postId, viewerContext, authorship);
     const permissions = this.buildPermissions(post, authorId, viewerContext, authorship);
     const authorPrivacy = authorPrivacyMap.get(authorId) ?? { ...DEFAULT_PRIVACY };
     const replierAvatars = recentReplierMap?.get(postId);
@@ -2653,13 +2654,34 @@ export class PostHydrationService {
     return attachments;
   }
 
+  /**
+   * `isOwner` is what the client's post menu draws itself from — delete, edit,
+   * pin, move to lane, reply options — so it has to name everybody who may
+   * actually manage the post.
+   *
+   * `authorship` alone does not. A CHANNEL post's owner entry is the CHANNEL,
+   * an account nobody can ever be signed in as, so on `authorship` alone every
+   * channel post is unmanageable by everyone — the menu comes up empty for the
+   * person who wrote it. The writer is carried in `writtenByOxyUserId` and never
+   * in `authorship` (putting them there would break the channel's anonymity and
+   * put the post back on their own profile), which is why this reads both.
+   *
+   * `canManagePostWithoutLookup` is the SAME predicate the write routes take
+   * their fast path from, so the button and the route agree by construction on
+   * everything it covers. What it deliberately does not cover is a co-operator
+   * who did not write the post: that is a membership question only Oxy can
+   * answer, and this runs once per post per hydration. They see no button and
+   * would not be refused if they reached the route — affordance ⊆ permission.
+   */
   private buildViewerState(
+    post: RawPost,
     postId: string,
     viewerContext: ViewerContext,
     authorship: PostAuthorshipEntry[],
   ): PostViewerState {
     const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
-    const isOwner = viewerEntry?.role === 'owner';
+    const isOwner =
+      viewerEntry?.role === 'owner' || canManagePostWithoutLookup(post, viewerContext.viewerId);
     const isCollaborator = viewerEntry?.role === 'collaborator' && viewerEntry.status === 'accepted';
 
     return {
@@ -2681,7 +2703,10 @@ export class PostHydrationService {
     authorship: PostAuthorshipEntry[],
   ): PostPermissions {
     const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
-    const isOwner = viewerEntry?.role === 'owner';
+    // Same reading as `buildViewerState` — and it has to be the same, or the
+    // menu and the permission flags beside it would disagree about one post.
+    const isOwner =
+      viewerEntry?.role === 'owner' || canManagePostWithoutLookup(post, viewerContext.viewerId);
     const isAcceptedCollaborator = viewerEntry?.role === 'collaborator' && viewerEntry.status === 'accepted';
     const canReply = this.computeReplyPermission(post, authorId, viewerContext);
 

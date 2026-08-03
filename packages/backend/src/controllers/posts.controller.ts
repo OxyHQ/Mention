@@ -55,6 +55,7 @@ import {
   cacheAccountMemberReads,
   PublishAsAccessError,
 } from '../services/publishAsAccount';
+import { postManagementRefusal } from '../services/postManagementAccess';
 import { Lane } from '../models/Lane';
 import { sendSuccessResponse } from '../utils/apiHelpers';
 import type { LaneDisplayMode } from '@mention/shared-types';
@@ -1646,9 +1647,23 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const post = await Post.findOne({ _id: req.params.id, oxyUserId: userId });
+    // Fetched by id and authorized separately, rather than scoped by
+    // `{ oxyUserId: userId }`. A CHANNEL post's `oxyUserId` is the channel — an
+    // account nobody can be signed in as — so the scoped lookup made every
+    // channel post uneditable by everybody, including the person who wrote it.
+    // A refusal still answers 404, so the reply is unchanged for a caller who
+    // may not touch this post.
+    const post = await Post.findOne({ _id: req.params.id });
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
+    }
+    const editRefusal = await postManagementRefusal({
+      post,
+      callerId: userId,
+      memberReader: createUserScopedOxyServices(req),
+    });
+    if (editRefusal) {
+      return res.status(editRefusal.status).json({ message: editRefusal.message });
     }
 
     // The 30-minute edit window exists because READERS have already seen a
@@ -2056,9 +2071,19 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const post = await Post.findOne({ _id: req.params.id, oxyUserId: userId });
+    // By id then authorized — see `updatePost` for why the owner-scoped lookup
+    // could not serve a channel post.
+    const post = await Post.findOne({ _id: req.params.id });
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
+    }
+    const settingsRefusal = await postManagementRefusal({
+      post,
+      callerId: userId,
+      memberReader: createUserScopedOxyServices(req),
+    });
+    if (settingsRefusal) {
+      return res.status(settingsRefusal.status).json({ message: settingsRefusal.message });
     }
 
     const { isPinned, hideEngagementCounts, replyPermission, reviewReplies, quotesDisabled } = req.body;
@@ -2170,30 +2195,42 @@ export const updatePostLane = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'laneId must be a lane id or null' });
     }
 
-    const post = await Post.findOne({ _id: req.params.id, oxyUserId: userId })
-      .select('parentPostId boostOf laneId')
+    const post = await Post.findOne({ _id: req.params.id })
+      .select('parentPostId boostOf laneId oxyUserId writtenByOxyUserId')
       .lean<{
         _id: unknown;
         parentPostId?: string;
         boostOf?: string;
         laneId?: string;
+        oxyUserId?: string;
+        writtenByOxyUserId?: string;
       } | null>();
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
+    }
+    const laneRefusal = await postManagementRefusal({
+      post,
+      callerId: userId,
+      memberReader: createUserScopedOxyServices(req),
+    });
+    if (laneRefusal) {
+      return res.status(laneRefusal.status).json({ message: laneRefusal.message });
     }
 
     // The SAME rule the create path applies, from the same definition: a lane
     // belongs to its publisher, and replies/boosts carry none.
     //
-    // The publisher is `userId` rather than something read off the post, and the
-    // two cannot disagree: the lookup above is already scoped by
-    // `{ oxyUserId: userId }`, so a post authored by any other account — a channel
-    // included — is a 404 here and never reaches this call. That is also the limit
-    // of this route today: a channel post's lane is not movable through it, since
-    // the channel is the author and the caller is not.
+    // **The publisher is read off the POST, never taken as the caller.** It used
+    // to be `userId`, which was safe only because the lookup above was scoped by
+    // `{ oxyUserId: userId }` — the two could not disagree. They can now: a
+    // channel post is authored by the channel and moved by a human, so passing
+    // the caller here would offer the WRITER's own lanes for a post the channel
+    // published. A channel post landing in a personal lane deanonymizes the
+    // writer, because a lane tab is scoped to one author even though the post's
+    // DTO stays anonymous.
     await assertLaneAssignable({
       laneId,
-      authorId: userId,
+      authorId: post.oxyUserId ? String(post.oxyUserId) : null,
       parentPostId: post.parentPostId,
       boostOf: post.boostOf,
     });
@@ -2201,8 +2238,13 @@ export const updatePostLane = async (req: AuthRequest, res: Response) => {
     // `$unset`, never a stored `null`: the `post_lane_chrono_v1` partial filter
     // is `{ laneId: { $exists: true } }`, which a null satisfies — leaving a
     // laneless post indexed forever.
+    //
+    // Scoped by the post's AUTHOR for the same reason the lane check above is.
+    // Left as `{ oxyUserId: userId }` this matched nothing for a channel post —
+    // and `updateOne` reports that as success, so the handler answered 200 with
+    // the new lane's summary while the post had not moved.
     await Post.updateOne(
-      { _id: post._id, oxyUserId: userId },
+      { _id: post._id, oxyUserId: post.oxyUserId },
       laneId ? { $set: { laneId } } : { $unset: { laneId: '' } },
     );
 
@@ -2249,9 +2291,31 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
     // parent has not published) and nobody can see them either, so leaving them
     // behind would be a silent black hole in the author's queue rather than a
     // cancellation. Empty for a published post and for a lone scheduled one.
-    const cancelledContinuations = await scheduledContinuationIds(String(req.params.id), userId);
+    // Resolved and authorized BEFORE anything is deleted or walked, because both
+    // of the steps below need the post's AUTHOR — which for a channel post is
+    // the channel, not the caller.
+    const target = await Post.findOne({ _id: req.params.id }).select('oxyUserId writtenByOxyUserId').lean<{
+      oxyUserId?: string;
+      writtenByOxyUserId?: string;
+    } | null>();
+    if (!target) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+    const deleteRefusal = await postManagementRefusal({
+      post: target,
+      callerId: userId,
+      memberReader: createUserScopedOxyServices(req),
+    });
+    if (deleteRefusal) {
+      return res.status(deleteRefusal.status).json({ message: deleteRefusal.message });
+    }
+    const authorId = target.oxyUserId ? String(target.oxyUserId) : userId;
 
-    const post = await Post.findOneAndDelete({ _id: req.params.id, oxyUserId: userId });
+    const cancelledContinuations = await scheduledContinuationIds(String(req.params.id), authorId);
+
+    // Still scoped by author, so two concurrent deletes cannot both proceed —
+    // the second finds nothing and answers 404, exactly as before.
+    const post = await Post.findOneAndDelete({ _id: req.params.id, oxyUserId: authorId });
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
     }

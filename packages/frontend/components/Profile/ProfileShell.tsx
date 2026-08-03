@@ -53,6 +53,11 @@ export interface ProfileShellProps {
   tabBar: React.ReactElement | null;
   /** Which surface the active tab renders. */
   tabs: ProfileTabsProps;
+  /**
+   * Which anatomy the loading skeleton should hold space for. Defaults to a
+   * person; a channel's page is a different shape, not a smaller one.
+   */
+  skeletonVariant?: 'person' | 'channel';
 }
 
 /**
@@ -79,6 +84,7 @@ export function ProfileShell({
   summary,
   tabBar,
   tabs,
+  skeletonVariant = 'person',
 }: ProfileShellProps) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -114,7 +120,7 @@ export function ProfileShell({
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
 
       {loading ? (
-        <ProfileSkeleton />
+        <ProfileSkeleton variant={skeletonVariant} />
       ) : !profileData ? (
         <EmptyState
           customIcon={<NoUpdatesIllustration width={200} height={200} />}
