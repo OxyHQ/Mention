@@ -360,6 +360,22 @@ export const laneWriteRateLimiter = rateLimit({
 });
 
 /**
+ * `GET /channels/:oxyUserId/writers` — anonymously reachable, and the one route
+ * here whose cost scales with a channel's whole publishing history: the writers
+ * list is an aggregation over every public post that channel has published.
+ * Cheap per call (the scan is index-covered) but unbounded in call rate, and an
+ * unauthenticated caller keys to a hashed IP.
+ *
+ * Its OWN store prefix, for the reason spelled out above `lanesStore`: two
+ * limiters sharing a prefix share a counter. The prefix is a LITERAL because
+ * `rateLimitPrefixUniqueness.test.ts` resolves prefixes by reading SOURCE.
+ */
+export const channelWritersRateLimiter = rateLimit({
+  store: new RedisStore({ prefix: 'rate-limit:channel-writers:', windowMs: 60 * 1000 }),
+  ...complianceOptions(120, 'Too many channel writer requests. Please slow down.'),
+});
+
+/**
  * Rate limiter for `POST /statistics/post/:postId/view`.
  *
  * The only WRITE on the statistics router, and the only route there that reaches

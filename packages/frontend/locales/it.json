@@ -208,6 +208,7 @@
   "profile.tabs.videos": "Video",
   "profile.tabs.likes": "Mi piace",
   "profile.tabs.boosts": "Boost",
+  "profile.tabs.writers": "Chi scrive",
   "profile.stats.boosts": "Boost",
   "profile.stats.replies": "Risposte",
   "profile.posts": "post",
@@ -1627,6 +1628,12 @@
       "signPosts": "Indica chi scrive",
       "signPostsFooter": "Il canale firma i propri post. Con questa opzione attiva viene indicata anche la persona che l’ha scritto; disattivata, non lascia mai il server.",
       "identityFooter": "Nome, identificativo, immagine del canale e chi può pubblicare come lui appartengono all’account: modificali dove gestisci i tuoi account Oxy."
+    },
+    "writers": {
+      "caption": "Le persone che questo canale ha indicato nei suoi post.",
+      "lastWrote": "Ha scritto l’ultima volta {{time}}",
+      "empty": "Ancora nessuno indicato",
+      "emptyDetail": "Questo canale indica chi scrive ogni post. Non ne ha ancora pubblicato nessuno."
     }
   },
   "trendGraph": {

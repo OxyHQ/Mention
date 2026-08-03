@@ -8,6 +8,7 @@ import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
 import { FederatedActor } from '../models/FederatedActor';
 import { UserSettings } from '../models/UserSettings';
+import { disclosesWriters, loadSigningChannelIds } from './channelWriterDisclosure';
 import { actorService } from '../connectors/activitypub/actor.service';
 import { ACTOR_DOMAIN, FEDERATION_DOMAIN, FEDERATION_ENABLED } from '../connectors/activitypub/constants';
 import { deriveBridgyActorUri } from '../connectors/activitypub/bridgy';
@@ -1559,23 +1560,16 @@ export class PostHydrationService {
   }
 
   /**
-   * The channel accounts in this page that DISCLOSE their writers, in ONE
-   * indexed `UserSettings` query keyed by the candidate authors' ids.
+   * The channel accounts in this page that DISCLOSE their writers.
    *
    * Only posts that actually carry a `writtenByOxyUserId` contribute a
-   * candidate, so an ordinary page of posts asks about nothing and the query is
-   * skipped entirely.
+   * candidate, so an ordinary page of posts asks about nothing and
+   * {@link loadSigningChannelIds} skips its query entirely.
    *
-   * **It fails CLOSED, three times over, and each one matters.** The set holds
-   * only ids whose settings row says `channel.signPosts === true`: a channel
-   * with no settings row is absent, a channel that never opted in is absent, and
-   * a lookup that THROWS yields an empty set — so every failure mode lands on
-   * "do not disclose". Anonymity is the safe answer here; naming a writer who
-   * did not consent cannot be undone by a later request that works.
-   *
-   * The `=== true` is deliberate rather than incidental. The value is read out
-   * of a document, so it is not the schema's word that reaches this line, and a
-   * loose read would disclose on any truthy value a stray write left behind.
+   * The decision itself — including the fail-closed reading of
+   * `channel.signPosts` — belongs to `services/channelWriterDisclosure`, which
+   * the channel's writers list reads too. Hydration collects the candidates; it
+   * does not decide.
    */
   private async buildSigningChannelIds(nodes: HydratedGraphNode[]): Promise<Set<string>> {
     const candidateAuthorIds = new Set<string>();
@@ -1587,26 +1581,7 @@ export class PostHydrationService {
       if (authorId) candidateAuthorIds.add(authorId);
     }
 
-    if (candidateAuthorIds.size === 0) {
-      return new Set();
-    }
-
-    try {
-      const rows = await UserSettings.find({ oxyUserId: { $in: [...candidateAuthorIds] } })
-        .select('oxyUserId channel.signPosts')
-        .lean<Array<{ oxyUserId?: string; channel?: { signPosts?: unknown } }>>();
-
-      const signing = new Set<string>();
-      for (const row of rows) {
-        if (row?.oxyUserId && row.channel?.signPosts === true) {
-          signing.add(String(row.oxyUserId));
-        }
-      }
-      return signing;
-    } catch (error) {
-      logger.error('[PostHydration] Failed to load channel signing settings:', error);
-      return new Set();
-    }
+    return loadSigningChannelIds(candidateAuthorIds);
   }
 
   /**
@@ -2269,12 +2244,13 @@ export class PostHydrationService {
 
     // The human behind a channel post, named only when the channel says to.
     //
-    // FAIL-CLOSED, and every clause is load-bearing: the account has to BE a
-    // channel (`user.kind`, which the identity cache carries), that channel has
-    // to be in `signingChannelIds` — which holds only accounts whose settings
-    // row says `signPosts === true`, so a missing row, a channel that never
-    // opted in, and a failed lookup are all absent from it — and the post has to
-    // carry a writer. Miss any one and nothing is disclosed.
+    // FAIL-CLOSED. {@link disclosesWriters} owns both disclosure clauses — the
+    // account has to BE a channel, and that channel has to be in
+    // `signingChannelIds`, which holds only accounts whose settings row says
+    // `signPosts === true`, so a missing row, a channel that never opted in and
+    // a failed lookup are all absent from it. The remaining conditions here are
+    // about the BYLINE rather than about consent: the post has to carry a
+    // writer, and that writer must not already be in it.
     //
     // `userMap` only holds the writer when the SAME conditions already sent the
     // id to the batch, so an undisclosed writer is not merely unrendered: they
@@ -2288,8 +2264,7 @@ export class PostHydrationService {
     if (
       writerId &&
       authors.length > 0 &&
-      user.kind === 'channel' &&
-      signingChannelIds.has(authorId) &&
+      disclosesWriters(authorId, user, signingChannelIds) &&
       !authors.some((author) => author.id === writerId)
     ) {
       const writer = userMap.get(writerId);

@@ -230,6 +230,26 @@ export const viewerQueryKeys = {
     'channel-settings',
     accountId,
   ] as const,
+  /**
+   * The people ONE channel has already NAMED on its posts, keyed by that
+   * channel's `oxyUserId`.
+   *
+   * Deliberately not under `accounts` beside {@link channelAccountSettings},
+   * which is the operator's read of a preference. This is a public derived list
+   * about the same account, and the two are invalidated by different events.
+   *
+   * Keyed by viewer for the reason {@link lanesForOwner} gives, plus a sharper
+   * one: the server answers 404 both for a channel that does not name its
+   * writers and for a RESTRICTED channel this reader may not see. Those two are
+   * indistinguishable by design, and that refusal decides whether the tab
+   * exists at all — so one viewer's 404 must never be served to another as the
+   * absence of a tab.
+   */
+  channelWriters: (viewerId: ViewerId, channelId: string | null | undefined) => [
+    ...viewerQueryKeys.all(viewerId),
+    'channel-writers',
+    channelId ?? '',
+  ] as const,
   pokesRoot: (viewerId: ViewerId) => [
     ...viewerQueryKeys.all(viewerId),
     'pokes',
