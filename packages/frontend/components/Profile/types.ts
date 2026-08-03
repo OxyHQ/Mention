@@ -267,6 +267,12 @@ export interface UserNameProps {
   handle?: string | null;
   verified?: boolean;
   isFederated?: boolean;
+  /**
+   * The account's Oxy kind. Passed alongside `isFederated` so the identity
+   * marker beside the name is chosen from the account's whole state in one
+   * place ({@link AccountBadge}) rather than by a per-surface conditional.
+   */
+  kind?: AccountKind;
   isAgent?: boolean;
   isAutomated?: boolean;
   variant?: 'default' | 'small';
@@ -285,6 +291,13 @@ export interface UserNameProps {
   };
   unifiedColors?: boolean;
   onPress?: () => void;
+  /**
+   * Opt IN to making the federated marker open the fediverse explainer. Absent
+   * (the default) leaves it a plain icon — see {@link AccountBadge}. Only the
+   * profile screen passes it: that is the one surface where a reader asking
+   * "what is this?" has somewhere to put the answer.
+   */
+  onExplainNetwork?: () => void;
   /**
    * Opt-in tap-to-copy for the `@handle`. Default off so the handle stays plain
    * text inside navigable parents (e.g. who-to-follow cards), letting the parent

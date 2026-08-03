@@ -863,6 +863,7 @@ const PostItem: React.FC<PostItemProps> = ({
                             handle: authorHandle || '',
                             verified: author.verified,
                             isFederated: author.isFederated,
+                            kind: author.kind,
                             instance: author.instance,
                         }}
                         authors={bylineAuthors && bylineAuthors.length > 0 ? bylineAuthors : undefined}

@@ -16,7 +16,7 @@ import { Portal } from '@oxyhq/bloom/portal';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import UserName from '@/components/UserName';
-import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
+import { AccountBadge } from '@/components/AccountBadge';
 import { useFederatedFollowSync } from '@/components/Profile/hooks/useFederatedFollowSync';
 import { type ProfileHoverCardProps } from './types';
 
@@ -421,9 +421,15 @@ function CardContent({
           {profile.isFederated && profile.instance && (
             <Text className="text-muted-foreground text-xs">@{profile.instance}</Text>
           )}
-          {profile.isFederated && (
-            <RemoteActorBadge size={13} className="text-muted-foreground" />
-          )}
+          {/* Inert, like every non-profile surface. It matters more here than
+              most: this row navigates on a raw `onPointerUp` on an ancestor, so
+              a pressable marker used to have to fight the parent for the tap. */}
+          <AccountBadge
+            isFederated={profile.isFederated}
+            kind={profile.kind}
+            size={13}
+            className="text-muted-foreground"
+          />
         </View>
       </View>
 

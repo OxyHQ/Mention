@@ -156,23 +156,6 @@ jest.mock('@oxyhq/bloom/button', () => {
   return { Button, ButtonText: Text };
 });
 
-// Reached through ProfileCard → RemoteActorBadge → FediverseInfoDialog.
-jest.mock('@oxyhq/bloom/dialog', () => {
-  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
-  const Passthrough = ({ children }: { children?: React.ReactNode }) => <View>{children}</View>;
-  return {
-    Dialog: Passthrough,
-    DialogContent: Passthrough,
-    DialogHeader: Passthrough,
-    DialogTitle: Passthrough,
-    DialogDescription: Passthrough,
-    DialogFooter: Passthrough,
-    DialogTrigger: Passthrough,
-    BottomSheet: Passthrough,
-    useDialogControl: () => ({ open: jest.fn(), close: jest.fn() }),
-  };
-});
-
 jest.mock('@oxyhq/bloom/settings-list', () => {
   const { Text, View } = jest.requireActual<typeof import('react-native')>('react-native');
   return {

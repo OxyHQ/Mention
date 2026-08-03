@@ -517,6 +517,7 @@ function ListMembers({
                 // (typed `unknown`), so it is narrowed rather than cast.
                 verified: typeof member.verified === 'boolean' ? member.verified : undefined,
                 isFederated: member.isFederated,
+                kind: member.kind,
                 instance: member.instance,
               }}
               showFollowButton

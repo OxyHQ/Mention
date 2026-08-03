@@ -8,7 +8,7 @@ import UserName from '../UserName';
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
+import { AccountBadge } from '@/components/AccountBadge';
 import { BoostIcon } from '@/assets/icons/boost-icon';
 import { formatTimeAgo } from '@/utils/dateUtils';
 import { displayNameOrHandle } from '@/utils/displayName';
@@ -49,6 +49,8 @@ interface User {
   handle: string;
   verified?: boolean;
   isFederated?: boolean;
+  /** Account kind, so a channel's post header carries the channel marker. */
+  kind?: PostUser['kind'];
   instance?: string;
 }
 
@@ -422,9 +424,13 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                       {`\u00A0@${user.handle}`}
                     </Text>
                   ) : null}
-                  {user.isFederated ? (
-                    <RemoteActorBadge size={13} className="text-muted-foreground" containerClassName="self-center ml-1" />
-                  ) : null}
+                  <AccountBadge
+                    isFederated={user.isFederated}
+                    kind={user.kind}
+                    size={13}
+                    className="text-muted-foreground"
+                    containerClassName="self-center ml-1"
+                  />
                 </View>
               </ProfileHoverCard>
             )}

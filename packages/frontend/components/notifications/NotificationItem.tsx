@@ -20,7 +20,7 @@ import type { PostUser } from '@mention/shared-types';
 import UserName from '../UserName';
 import { LinkifiedText } from '../common/LinkifiedText';
 import { ProfileHoverCard } from '../ProfileHoverCard';
-import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
+import { AccountBadge } from '@/components/AccountBadge';
 import CollabAcceptSheet from '@/components/Compose/CollabAcceptSheet';
 import { DoneAllIcon } from '@/assets/icons/done-all-icon';
 import { TrashIcon } from '@/assets/icons/trash-icon';
@@ -79,6 +79,8 @@ interface ResolvedActor {
   avatar?: string | null;
   verified: boolean;
   isFederated: boolean;
+  /** Oxy account kind, so a channel actor carries the channel marker. */
+  kind?: PostUser['kind'];
 }
 
 /**
@@ -103,7 +105,20 @@ function ghostGuardedName(rawName: string | undefined | null, actorId: string | 
  * than the copy the notification arrived with.
  */
 type CachedIdentity = Partial<
-  Pick<User, 'id' | 'username' | 'name' | 'avatar' | 'verified' | 'isFederated' | 'instance' | 'federation'>
+  Pick<
+    User,
+    | 'id'
+    | 'username'
+    | 'name'
+    | 'avatar'
+    | 'verified'
+    | 'isFederated'
+    | 'instance'
+    | 'federation'
+    // What the account IS, which decides the marker beside its name. A profile
+    // edit never changes it, so it only ever arrives from the cache entry.
+    | 'kind'
+  >
 >;
 
 /** Normalized profile handle (local `username`, federated `username@instance`). */
@@ -153,6 +168,7 @@ function mergeActor(actor: GroupedActor | undefined, cached: CachedIdentity | un
     avatar: cached?.avatar ?? actor?.avatar ?? undefined,
     verified: cached?.verified === true,
     isFederated: cached?.isFederated === true,
+    kind: cached?.kind,
   };
 }
 
@@ -635,8 +651,14 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
                       {` @${resolvedPrimary.handle}`}
                     </Text>
                   ) : null}
-                  {isSingleActor && resolvedPrimary.isFederated ? (
-                    <RemoteActorBadge size={13} className="text-muted-foreground" containerClassName="self-center ml-1" />
+                  {isSingleActor ? (
+                    <AccountBadge
+                      isFederated={resolvedPrimary.isFederated}
+                      kind={resolvedPrimary.kind}
+                      size={13}
+                      className="text-muted-foreground"
+                      containerClassName="self-center ml-1"
+                    />
                   ) : null}
                 </View>
               </ProfileHoverCard>

@@ -212,6 +212,7 @@ function SimilarAccountItem({
     // The carousel card has no room for a bio; the wide desktop row does.
     description: isCarousel ? undefined : account.bio,
     isFederated: account.isFederated,
+    kind: account.kind,
     instance: account.instance,
     federation: account.federation,
   };

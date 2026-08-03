@@ -1609,6 +1609,9 @@
     }
   },
   "channels": {
+    "badge": {
+      "a11yLabel": "Questo account è un canale"
+    },
     "signInRequired": "Accedi per gestire i tuoi canali",
     "signInRequiredDesc": "Un canale è un account che si segue senza seguire chi ci scrive.",
     "compose": {

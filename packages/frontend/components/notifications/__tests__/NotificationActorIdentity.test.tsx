@@ -73,7 +73,7 @@ jest.mock('@/components/common/LinkifiedText', () => {
   const { Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
   return { LinkifiedText: ({ text }: { text?: string }) => <RNText>{text}</RNText> };
 });
-jest.mock('@/components/Fediverse/FediverseBadge', () => ({ RemoteActorBadge: () => null }));
+jest.mock('@/components/AccountBadge', () => ({ AccountBadge: () => null }));
 jest.mock('@/components/Compose/CollabAcceptSheet', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/assets/icons/done-all-icon', () => ({ DoneAllIcon: () => null }));
 jest.mock('@/assets/icons/trash-icon', () => ({ TrashIcon: () => null }));
