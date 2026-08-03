@@ -1993,7 +1993,10 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // `content` is the object this request will persist, and the fold rewrites it
     // in place — no `markModified` equivalent is needed, because the whole column
     // is written back below rather than a tracked subtree of a live document.
-    const foldedMentions = { mentions: mentions !== undefined ? mentions : post.mentions }; // MUT
+    const foldedMentions = await foldProfileLinkMentions(
+      content,
+      mentions !== undefined ? mentions : post.mentions,
+    );
     const nextMentions = reconcileMentionIdsForPost(
       mentionTextsFromContent(content),
       foldedMentions.mentions,
