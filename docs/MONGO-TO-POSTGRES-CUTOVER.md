@@ -195,15 +195,42 @@ instance permanently (see AGENTS.md § Fediverse Discovery).
 The copy needs the schema, so this precedes it. The deploy in §3.4 runs the same
 migrator again; it is idempotent and the second run is a no-op.
 
-Run it on **`oxy-mention`** — the LIVE task definition, revision from §0 — with
-only `command` overridden. That is the pattern `migrate.ts` was built around: the
-migrator compiles into the same image the service runs, so a one-shot needs no
-task definition of its own.
+**This step needs a task definition that does not exist by default, and the
+reason is the whole trap. Read the next three paragraphs before running
+anything.**
+
+`migrate.ts`'s docblock says a one-shot can reuse the LIVE task definition with
+only `command` overridden, and that is true in general. **It is false here.** At
+this point in the window the live `oxy-mention` revision is still built from
+`main`, and `main` has **no `postgres` dependency and no `drizzle/` directory at
+all** — measured 2026-08-03. Its image contains neither
+`dist/src/db/migrate.js` nor a single migration. Point this step at it and you
+get `Cannot find package 'postgres'`, not a migration.
+
+And the trunk-built image that *does* contain them is produced by the merge at
+**§3.4 — one step LATER**, which §3.3 cannot be moved ahead of because the copy
+needs the schema. **So §3.2 is not satisfiable with the artefacts a normal
+deploy leaves lying around.** `containerOverrides` cannot override `image`, so
+this is not fixable with a flag.
+
+**Register a dedicated task definition** pairing a **trunk-built image** with the
+real `/oxy/mention/DATABASE_URL`, and run the migrator on that:
 
 ```bash
 --overrides '{"containerOverrides":[{"name":"mention","command":[
    "bun","packages/backend/dist/src/db/migrate.js"]}]}'
 ```
+
+**Assert the image before you trust the result** — see the `journalEntries`
+paragraph below, which is exactly the check that tells a right image from a
+wrong one when both exit 0.
+
+There is a read-only sibling for inspecting the live database without touching
+it: **`oxy-mention-LIVE-PROD-DB-readonly`**, a trunk-built image plus the
+production connection whose DEFAULT command is a read-only check, so a bare
+`run-task` on it cannot do anything but read. It is deliberately named to make a
+reader hesitate. Use it for questions (does PostGIS exist, who owns the
+database, is it empty); never for the migration.
 
 #### Three other task definitions look right, and every one of them is wrong
 
@@ -379,11 +406,40 @@ half: a task refuses to become ready if migrations are pending, so a bypassed
 migration step surfaces as a task that will not serve rather than one that serves
 wrongly.
 
-Bring the service back up as part of this step:
+**Set `ALLOW_ZERO_DESIRED_COUNT=mention` on this deploy.** Without it the deploy
+**refuses and exits 1** — traffic already stopped, copy already done, window
+burning.
+
+`.github/scripts/deploy-ecs-image.sh` requires a positive `desiredCount`, in two
+places: a pre-check before anything mutates, and a steady-state check that
+refuses to accept a zero-task rollout. That guard is right for every ordinary
+deploy — a zero-count service means capacity was lost, and rolling a new image
+onto nothing is a green deploy and an outage.
+
+**The cutover is the one case where zero is deliberate, and the reason is data,
+not convenience.** §3.1 stopped traffic at `desiredCount 0`; the image still on
+the service is `main`-built and therefore **Mongo-backed**. Scaling up before
+the new image is live would let real user writes land in the store being
+abandoned, *after* the copy has already read it — and the copy is not
+incremental, so nothing recovers them. **Downtime is acceptable here; losing
+writes is not.** Keeping the service at zero for the whole window is what
+prevents that, and the opt-in is what lets the deploy proceed anyway.
+
+It **names the service** rather than being a boolean, for the same reason
+`--confirm-truncate` names the database: a bare `true` pasted out of a runbook
+authorises a zero-count deploy of anything.
+
+**Bring the service back up only AFTER the rollout has completed** — this is the
+step that ends the outage, and it must not be moved earlier:
 
 ```bash
 aws ecs update-service --cluster oxy-cluster --service mention --desired-count 2
 ```
+
+If a rollback happens instead, note that `rollback_service` reuses the
+`desiredCount` it captured at the start rather than assuming 2 — so a rollback
+during a zero-count deploy restores zero, and this same command is still what
+brings the service back.
 
 ### 3.4a The one thing in the deploy that can block the window
 

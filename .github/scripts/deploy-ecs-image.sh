@@ -21,6 +21,31 @@ AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
 AWS_PARTITION="${AWS_PARTITION:-aws}"
 POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
 POST_DEPLOY_TASK_COMMAND_JSON="${POST_DEPLOY_TASK_COMMAND_JSON:-}"
+# Deploy a service that is deliberately scaled to ZERO — and say which one.
+#
+# Every ordinary deploy must refuse a zero-count service: it means capacity was
+# lost, and rolling a new image onto nothing produces a green deploy and an
+# outage. That guard stays.
+#
+# The exception it exists for is the Mongo->Postgres cutover. Traffic is stopped
+# at desiredCount 0 for the whole window ON PURPOSE, because the running image
+# is Mongo-backed: bringing it up after the copy has finished would let real
+# user writes land in the store being abandoned, and the copy is not
+# incremental, so nothing recovers them. Downtime is acceptable there; losing
+# writes is not.
+#
+# It names the SERVICE rather than being a boolean, for the same reason
+# `--confirm-truncate` names the database instead of taking `true`: a bare
+# `true` left in a workflow file or pasted out of a runbook authorises a
+# zero-count deploy of ANYTHING, and the value that would be wrong is exactly
+# the value that is easiest to copy.
+ALLOW_ZERO_DESIRED_COUNT="${ALLOW_ZERO_DESIRED_COUNT:-}"
+
+# Whether this run may proceed against a zero-count service.
+zero_desired_count_allowed=false
+if [[ -n "$ALLOW_ZERO_DESIRED_COUNT" && "$ALLOW_ZERO_DESIRED_COUNT" == "$APP" ]]; then
+  zero_desired_count_allowed=true
+fi
 # What `RUN_MIGRATIONS=true` runs, in order, each as its own one-shot task on the
 # image being rolled out. A non-zero exit from any of them stops the release
 # before `update-service`.
@@ -133,10 +158,16 @@ if [[ -z "$current_task_definition" ]]; then
 fi
 
 service_desired_count="$(jq -r '.services[0].desiredCount // empty' <<<"$service_json")"
-if ! [[ "$service_desired_count" =~ ^[0-9]+$ ]] ||
-   (( service_desired_count < 1 )); then
-  echo "::error::ECS service $APP must have a positive desiredCount before deployment (current: ${service_desired_count:-missing}). Scale the service up explicitly before retrying."
+if ! [[ "$service_desired_count" =~ ^[0-9]+$ ]]; then
+  echo "::error::ECS service $APP reported a non-numeric desiredCount (${service_desired_count:-missing}); refusing to deploy."
   exit 1
+fi
+if (( service_desired_count < 1 )) && [[ "$zero_desired_count_allowed" != true ]]; then
+  echo "::error::ECS service $APP must have a positive desiredCount before deployment (current: ${service_desired_count:-missing}). Scale the service up explicitly before retrying, or set ALLOW_ZERO_DESIRED_COUNT=$APP if this is a deliberate zero-capacity deploy."
+  exit 1
+fi
+if (( service_desired_count < 1 )); then
+  echo "::warning::Deploying $APP at desiredCount=0, authorised by ALLOW_ZERO_DESIRED_COUNT=$APP. The rollout will complete with zero running tasks and the service will serve NOTHING until it is scaled up."
 fi
 
 task_definition_file="$(mktemp)"
@@ -228,13 +259,22 @@ wait_for_service_rollout() {
               "$desired" =~ ^[0-9]+$ &&
               "$service_desired" =~ ^[0-9]+$ ]]; then
         echo "::warning::ECS returned non-numeric task counts for the $label rollout; retrying."
-      elif (( service_desired < 1 )); then
+      elif (( service_desired < 1 )) && [[ "$zero_desired_count_allowed" != true ]]; then
         echo "::error::ECS service $APP reached desiredCount=0 during the $label rollout."
         return 1
       elif [[ "$rollout_state" == "COMPLETED" ]]; then
-        if (( desired < 1 )); then
+        # Both zero-checks need the same exemption. Under an authorised
+        # zero-count deploy the steady state genuinely IS zero tasks, so a
+        # bypass applied only to the pre-check would let the release start and
+        # then kill it mid-rollout — later, and harder to read, than refusing up
+        # front.
+        if (( desired < 1 )) && [[ "$zero_desired_count_allowed" != true ]]; then
           echo "::error::ECS $label rollout for $APP completed at desiredCount=0; refusing to accept a zero-task steady state."
           return 1
+        fi
+        if (( desired < 1 )); then
+          echo "$label rollout for $APP completed at desiredCount=0, as authorised."
+          return 0
         fi
         if [[ "$running" == "$desired" ]]; then
           return 0

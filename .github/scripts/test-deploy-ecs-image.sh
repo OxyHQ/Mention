@@ -327,6 +327,7 @@ run_release() {
     CLUSTER=deploy-test
     APP=deploy-test
     CONTAINER_NAME=deploy-test
+    ALLOW_ZERO_DESIRED_COUNT="${DEPLOY_TEST_ALLOW_ZERO_DESIRED_COUNT:-}"
     IMAGE_URI="example.invalid/deploy-test@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     MAX_WAIT_SECS=5
     POLL_INTERVAL=1
@@ -586,5 +587,63 @@ grep -F \
   "Nothing was rolled back; this release needs a human." \
   "$test_directory/smoke-no-rollback-failure/output.log" \
   >/dev/null
+
+# ALLOW_ZERO_DESIRED_COUNT, in the three states that matter.
+#
+# The cutover deploys `mention` while it is deliberately scaled to zero, because
+# the running image is Mongo-backed and bringing it up after the copy would let
+# real writes land in the store being abandoned. Every OTHER deploy must still
+# refuse a zero-count service.
+#
+# The middle case is the point of the trio: it proves the opt-in NAMES the
+# service rather than merely being present. A boolean would pass cases 1 and 3
+# and fail only this one, which is why `true` is not accepted.
+
+# 1. Absent -> refuses. (The pre-existing `zero-desired-count` case above already
+#    covers the unset variable; this repeats it with the variable explicitly
+#    empty, which is what a workflow passing an unset secret actually produces.)
+DEPLOY_TEST_ALLOW_ZERO_DESIRED_COUNT="" \
+  run_release zero-count-optin-absent false false false 0 false 0
+grep -F \
+  "must have a positive desiredCount before deployment (current: 0)" \
+  "$test_directory/zero-count-optin-absent/output.log" \
+  >/dev/null
+if [[ -s "$test_directory/zero-count-optin-absent/aws.log" ]]; then
+  echo "Zero-count deploy with no opt-in reached a mutating AWS call." >&2
+  exit 1
+fi
+
+# 2. Names the WRONG service -> refuses. This is the case a bare boolean cannot
+#    distinguish, and the one that makes a copy-pasted confirmation useless.
+DEPLOY_TEST_ALLOW_ZERO_DESIRED_COUNT="some-other-service" \
+  run_release zero-count-optin-wrong-service false false false 0 false 0
+grep -F \
+  "must have a positive desiredCount before deployment (current: 0)" \
+  "$test_directory/zero-count-optin-wrong-service/output.log" \
+  >/dev/null
+if [[ -s "$test_directory/zero-count-optin-wrong-service/aws.log" ]]; then
+  echo "Zero-count deploy authorised by the WRONG service name reached a mutating AWS call." >&2
+  echo "The opt-in is being read as a boolean rather than compared against APP." >&2
+  exit 1
+fi
+
+# 3. Names THIS service -> proceeds, and says so rather than passing silently.
+DEPLOY_TEST_ALLOW_ZERO_DESIRED_COUNT="deploy-test" \
+  run_release zero-count-optin-correct true false false 0 false 0 completed-zero-deployment
+grep -F \
+  "Deploying deploy-test at desiredCount=0, authorised by ALLOW_ZERO_DESIRED_COUNT=deploy-test" \
+  "$test_directory/zero-count-optin-correct/output.log" \
+  >/dev/null
+grep -F \
+  "completed at desiredCount=0, as authorised" \
+  "$test_directory/zero-count-optin-correct/output.log" \
+  >/dev/null
+if grep -qF \
+  "refusing to accept a zero-task steady state" \
+  "$test_directory/zero-count-optin-correct/output.log"; then
+  echo "An authorised zero-count deploy was still killed by the steady-state guard." >&2
+  echo "The exemption was applied to the pre-check only; both zero-checks need it." >&2
+  exit 1
+fi
 
 echo "Deployment script transaction tests passed."
