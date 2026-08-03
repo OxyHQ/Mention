@@ -21,9 +21,10 @@
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { assertBookkeepingTableExists } from '../../db/backfill/bookkeepingTables';
 import {
+  CHECKPOINT_TABLE,
   clearState,
-  ensureCheckpointTable,
   loadState,
   saveCheckpoint,
 } from '../../db/backfill/checkpointStore';
@@ -37,7 +38,7 @@ beforeAll(async () => {
   // This file touches the shared table too, so it plays by the same rule it
   // exists to establish.
   releaseCheckpointTable = await lockCheckpointTable();
-  await ensureCheckpointTable(getDb());
+  await assertBookkeepingTableExists(getDb(), CHECKPOINT_TABLE);
 }, 120_000);
 
 afterEach(async () => {

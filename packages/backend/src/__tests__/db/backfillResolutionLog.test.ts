@@ -20,11 +20,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
-import {
-  RESOLUTION_LOG_TABLE,
-  ensureResolutionLogTable,
-  writeResolutionLog,
-} from '../../db/backfill/resolutionLogStore';
+import { assertBookkeepingTableExists } from '../../db/backfill/bookkeepingTables';
+import { RESOLUTION_LOG_TABLE, writeResolutionLog } from '../../db/backfill/resolutionLogStore';
 import { RESOLUTION_RULES, type ResolutionSummary } from '../../db/backfill/resolutions';
 
 const RUN_A = 'brl-run-a';
@@ -62,7 +59,7 @@ async function rowsFor(runId: string) {
 
 beforeAll(async () => {
   await connectPostgres();
-  await ensureResolutionLogTable(getDb());
+  await assertBookkeepingTableExists(getDb(), RESOLUTION_LOG_TABLE);
 }, 120_000);
 
 afterEach(async () => {

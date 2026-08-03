@@ -1,13 +1,12 @@
 /**
  * Mutual exclusion over the ONE checkpoint table several test files share.
  *
- * `mention_backfill_checkpoints` is global state with no per-file scoping: it
- * is created at runtime from a single constant, keyed by collection name, and
- * two test files own operations that span the WHOLE table —
- * `backfillCheckpoint.test.ts` clears it in `beforeEach`, drops and recreates
- * it, and asserts it is empty; `backfillVerify.test.ts` writes a row into it.
- * Vitest runs test files in parallel workers against one Postgres, so those
- * overlap.
+ * `mention_backfill_checkpoints` is global state with no per-file scoping: one
+ * table named by a single constant, keyed by collection name, and two test
+ * files own operations that span the WHOLE table — `backfillCheckpoint.test.ts`
+ * clears it in `beforeEach` and asserts it is empty; `backfillVerify.test.ts`
+ * writes a row into it. Vitest runs test files in parallel workers against one
+ * Postgres, so those overlap.
  *
  * That is not theoretical. A full-suite run failed on "forgets everything on
  * clear" expecting `{}` and receiving `{mutes: {value: 'aaa', kind: 'string'}}`
@@ -19,10 +18,16 @@
  *
  * Renaming the colliding KEY does not fix it, which is the trap worth writing
  * down. The clear is a table-wide `DELETE` and the assertion is a table-wide
- * `toStrictEqual({})`, so a row under any other name fails it just the same;
- * and the `DROP` leaves a window in which the other file's `saveCheckpoint`
- * (which does not call `ensureCheckpointTable` first) hits a table that does
- * not exist. The collision is table-level and runs in both directions.
+ * `toStrictEqual({})`, so a row under any other name fails it just the same.
+ * The collision is table-level and runs in both directions.
+ *
+ * There used to be a second, sharper version of the same hazard: the file also
+ * DROPPED and recreated the table to exercise `dropCheckpointTable`, leaving a
+ * window in which another file's `saveCheckpoint` hit a table that did not
+ * exist. That is gone — migration `0016_backfill_bookkeeping_tables` owns the
+ * table's lifetime now and no runtime path creates or drops it — so the lock
+ * guards row-level interference only. It is still required: that alone was
+ * enough to produce a random red.
  *
  * A Postgres advisory lock is the fix that needs no production change and
  * weakens no assertion: the files serialise against each other and each still

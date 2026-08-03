@@ -35,15 +35,24 @@
  * committed by the same connection pool, immediately after the batch it
  * describes, and it is still there when a replacement task starts.
  *
- * ## Why it is safe for this table to live outside the drizzle schema
+ * ## Why it is safe for this table to live outside the drizzle SCHEMA, while
+ * still being created by a MIGRATION
  *
- * `mention_backfill_checkpoints` is created by `create table if not exists`
- * here rather than by a migration in `drizzle/`, and that is deliberate: it is
- * migration BOOKKEEPING, not application data, in exactly the same category as
- * the `mention_backfill_stage_*` tables `bulkLoad.ts` creates and drops. Giving
- * it a migration would put a table in every developer's database and in the
- * production schema for the sake of a process that runs a handful of times and
- * is then deleted. `dropCheckpointTable` is how it leaves.
+ * `mention_backfill_checkpoints` is created by
+ * `drizzle/0016_backfill_bookkeeping_tables.sql` and is absent from the schema
+ * barrel. Those are two separate decisions and both matter.
+ *
+ * It stays out of the barrel because it is migration BOOKKEEPING, not
+ * application data: `tablesWithoutAPlan()` refuses to start a copy while any
+ * barrel table has no plan feeding it, and this table has no Mongo source by
+ * construction.
+ *
+ * It is nonetheless created by a migration rather than at runtime, which is the
+ * part that changed. `create table if not exists` here meant the copy's FIRST
+ * statement needed `CREATE` on the schema — a privilege the running role may
+ * not hold, failing with a `42501` that names a permission and not the actual
+ * problem. See `bookkeepingTables.ts` for the whole argument, including why
+ * `dropCheckpointTable` is gone rather than kept.
  *
  * ## The checkpoint is an OPTIMISATION, and that ordering matters
  *
@@ -56,39 +65,12 @@
 
 import { sql } from 'drizzle-orm';
 import type { Database } from '../postgres';
+import { assertBookkeepingTableExists } from './bookkeepingTables';
 import type { Checkpoint } from './mongoSource';
 import type { BackfillState } from './runner';
 
 /** The bookkeeping table this module owns. */
 export const CHECKPOINT_TABLE = 'mention_backfill_checkpoints';
-
-/**
- * Create the checkpoint table if it is not already there.
- *
- * `_id` is stored as TEXT with its BSON KIND alongside, never inferred. A
- * "looks like 24 hex characters ⇒ ObjectId" rule is wrong in both directions,
- * and `{$gt: ObjectId(...)}` against a string `_id` matches NOTHING in Mongo,
- * silently — a resumed run would report "0 documents remaining" and be
- * believed. `mongoSource.ts` carries the same fact at runtime; this is its
- * durable half.
- */
-export async function ensureCheckpointTable(db: Database): Promise<void> {
-  await db.execute(sql`
-    create table if not exists ${sql.identifier(CHECKPOINT_TABLE)} (
-      collection text primary key,
-      checkpoint_value text,
-      checkpoint_kind text check (checkpoint_kind in ('objectId', 'string')),
-      completed boolean not null default false,
-      documents_copied bigint not null default 0,
-      updated_at timestamptz not null default now()
-    )
-  `);
-}
-
-/** Drop the bookkeeping table. Called when the migration is retired. */
-export async function dropCheckpointTable(db: Database): Promise<void> {
-  await db.execute(sql`drop table if exists ${sql.identifier(CHECKPOINT_TABLE)}`);
-}
 
 /**
  * Record where a collection has got to.
@@ -132,9 +114,17 @@ export async function markCompleted(db: Database, collection: string): Promise<v
   `);
 }
 
-/** Read every checkpoint back, as the runner's resume state. */
+/**
+ * Read every checkpoint back, as the runner's resume state.
+ *
+ * The table check lives HERE and in `clearState` because those two are the
+ * copy's front door — the first thing a run touches. `saveCheckpoint` and
+ * `markCompleted` deliberately do not repeat it: they run once per batch, and
+ * paying a catalog lookup thousands of times to re-answer a question settled
+ * before the first document was read buys nothing.
+ */
 export async function loadState(db: Database): Promise<BackfillState> {
-  await ensureCheckpointTable(db);
+  await assertBookkeepingTableExists(db, CHECKPOINT_TABLE);
   const rows = await db.execute<{
     collection: string;
     checkpoint_value: string | null;
@@ -162,6 +152,6 @@ export async function loadState(db: Database): Promise<BackfillState> {
 
 /** Forget every checkpoint, so the next run starts from the beginning. */
 export async function clearState(db: Database): Promise<void> {
-  await ensureCheckpointTable(db);
+  await assertBookkeepingTableExists(db, CHECKPOINT_TABLE);
   await db.execute(sql`delete from ${sql.identifier(CHECKPOINT_TABLE)}`);
 }

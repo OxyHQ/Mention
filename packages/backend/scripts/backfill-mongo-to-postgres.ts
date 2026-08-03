@@ -16,7 +16,7 @@
  *
  * | flag | phases |
  * |---|---|
- * | `--audit-only` | discover + audit. Touches nothing. Run this FIRST. |
+ * | `--audit-only` | discover + audit. Writes no application row. Run this FIRST. |
  * | (default) | discover + audit + copy |
  * | `--verify` | …and verify afterwards |
  * | `--verify-only` | verify an already-copied database |
@@ -95,6 +95,12 @@
  *   time.
  * - Checkpoints live in Postgres (`mention_backfill_checkpoints`), so a resumed
  *   run needs no file to have survived the task that wrote it.
+ * - Neither bookkeeping table is created here. Both come from migration
+ *   `0016_backfill_bookkeeping_tables` and are VERIFIED before anything is read,
+ *   so this tool never needs `CREATE` on the target schema — see
+ *   `db/backfill/bookkeepingTables.ts`. `--audit-only` does write the resolution
+ *   log (that is the whole point of a durable audit trail), which is why the
+ *   check is unconditional rather than copy-only.
  */
 
 import { closePostgres, connectPostgres, type Database } from '../src/db/postgres';
@@ -105,7 +111,14 @@ import {
   NOT_MIGRATED,
   tablesWithoutAPlan,
 } from '../src/db/backfill/collectionMap';
-import { clearState, loadState, markCompleted, saveCheckpoint } from '../src/db/backfill/checkpointStore';
+import { assertBookkeepingTableExists } from '../src/db/backfill/bookkeepingTables';
+import {
+  CHECKPOINT_TABLE,
+  clearState,
+  loadState,
+  markCompleted,
+  saveCheckpoint,
+} from '../src/db/backfill/checkpointStore';
 import { connectMongoSource, redactUri, type MongoSource } from '../src/db/backfill/mongoSource';
 import { randomUUID } from 'node:crypto';
 import { loadParentKeys } from '../src/db/backfill/parentKeys';
@@ -269,6 +282,18 @@ async function main(): Promise<number> {
   const source = await connectMongoSource(mongoUri);
 
   try {
+    // Both bookkeeping tables, checked HERE rather than where they are first
+    // written. The checkpoint table is touched at the START of the copy and the
+    // resolution log at the very END of it, so leaving each to its own writer
+    // means a target missing the second one absorbs the whole run before saying
+    // so — hours of reading, and then no audit trail of what the rules did.
+    // They come from ONE migration, so they are one precondition and belong
+    // together, before anything is read. Inside the `try` so the throw still
+    // closes both connections: a one-shot that leaks the Mongo socket never
+    // exits, and a Fargate task that never exits has to be killed by hand.
+    await assertBookkeepingTableExists(db, CHECKPOINT_TABLE);
+    await assertBookkeepingTableExists(db, RESOLUTION_LOG_TABLE);
+
     if (options.verifyOnly) {
       return await runVerification(db, source, options);
     }

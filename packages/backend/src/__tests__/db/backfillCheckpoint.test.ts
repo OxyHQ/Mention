@@ -17,11 +17,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { assertBookkeepingTableExists } from '../../db/backfill/bookkeepingTables';
 import {
   CHECKPOINT_TABLE,
   clearState,
-  dropCheckpointTable,
-  ensureCheckpointTable,
   loadState,
   markCompleted,
   saveCheckpoint,
@@ -33,10 +32,14 @@ let releaseCheckpointTable: () => Promise<void>;
 beforeAll(async () => {
   await connectPostgres();
   // This file owns table-WIDE operations — it clears the table before every
-  // test, drops it, and asserts it is empty — so it must hold the table for
-  // its whole run. See `checkpointTableLock.ts`.
+  // test and asserts it is empty — so it must hold the table for its whole
+  // run. See `checkpointTableLock.ts`.
   releaseCheckpointTable = await lockCheckpointTable();
-  await ensureCheckpointTable(getDb());
+  // The table comes from migration 0016 and nothing here creates it. Asserted
+  // rather than assumed so a harness that skipped the migrations fails saying
+  // which table and which migration, instead of a `42P01` from the first
+  // `saveCheckpoint` below.
+  await assertBookkeepingTableExists(getDb(), CHECKPOINT_TABLE);
 });
 
 beforeEach(async () => {
@@ -44,15 +47,6 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  // Dropped to prove `dropCheckpointTable` does what it says, then RECREATED
-  // immediately. Vitest runs test files in parallel against ONE database, and
-  // `mention_backfill_checkpoints` is shared state: leaving it dropped raced
-  // `backfillVerify.test.ts`, whose `--start-from-empty` case writes a
-  // checkpoint and died on `relation … does not exist` — a failure in a file
-  // that had touched nothing, arriving only when the scheduler happened to
-  // order the two that way.
-  await dropCheckpointTable(getDb());
-  await ensureCheckpointTable(getDb());
   await releaseCheckpointTable();
   await closePostgres();
 });
@@ -128,13 +122,6 @@ describe('the durable checkpoint', () => {
     const state = await loadState(getDb());
     expect(state.checkpoints).toStrictEqual({});
     expect(state.completed).toStrictEqual([]);
-  });
-
-  it('is safe to create twice — a resumed task calls ensure again', async () => {
-    await ensureCheckpointTable(getDb());
-    await ensureCheckpointTable(getDb());
-    await saveCheckpoint(getDb(), 'posts', { value: 'aaa', kind: 'string' }, 1);
-    expect((await loadState(getDb())).checkpoints.posts?.value).toBe('aaa');
   });
 
   it('refuses a kind the resume path could not act on', async () => {
