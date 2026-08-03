@@ -1,5 +1,6 @@
 import {
   MAX_MENTIONS_PER_POST,
+  MAX_PROFILE_LINKS_PER_BODY,
   mapMentionTexts,
   mentionTextsFromContent,
   normalizeMentionIds,
@@ -223,14 +224,6 @@ export async function resolveProfileLinkIdentity(
 ): Promise<MentionActorResolution | null> {
   return resolveHrefIdentity(href, lookupExistingActorByProfileHref);
 }
-
-/**
- * Max distinct profile links resolved per body. A link-heavy post must not turn
- * into an unbounded burst of lookups (nor, since a resolved link becomes a real
- * mention, into an unbounded burst of notifications) — beyond the cap the extra
- * links stay ordinary links, which is the pre-existing behavior for all of them.
- */
-export const MAX_PROFILE_LINKS_PER_BODY = 8;
 
 /**
  * True when an href could name a user — the gate for spending a lookup on it.

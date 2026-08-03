@@ -1,8 +1,10 @@
-import { MAX_MENTIONS_PER_POST } from '@mention/shared-types/mentions';
+import {
+  MAX_MENTIONS_PER_POST,
+  MAX_PROFILE_LINKS_PER_BODY,
+} from '@mention/shared-types/mentions';
 import { logger } from '../../utils/logger';
 import FederatedActor from '../../models/FederatedActor';
 import {
-  MAX_PROFILE_LINKS_PER_BODY,
   isProfileLikeHref,
   resolveHrefIdentity,
   resolveProfileLinkIdentity,

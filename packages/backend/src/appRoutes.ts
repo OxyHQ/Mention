@@ -23,6 +23,9 @@ import gifsRoutes from './routes/gifs';
 import articlesRoutes from './routes/articles';
 import muteRoutes from './routes/mute.routes';
 import muteWordsRoutes from './routes/muteWords.routes';
+import profileLinkMentionsRoutes, {
+  profileLinkMentionsRateLimiter,
+} from './routes/profileLinkMentions.routes';
 import lanesRoutes, { publicLanesRouter } from './routes/lanes.routes';
 import reportsRoutes from './routes/reports.routes';
 import { createCrowdSourceWebhookRoutes } from './routes/crowdSourceWebhook.routes';
@@ -128,6 +131,9 @@ export function createAppRoutes({
   authenticatedApi.use('/gifs', gifsRoutes);
   authenticatedApi.use('/mute', muteRoutes);
   authenticatedApi.use('/mute-words', muteWordsRoutes);
+  // Authenticated because it takes author-typed URLs and answers with identities;
+  // the mount is the gate, so the handler needs no auth check of its own.
+  authenticatedApi.use('/mentions', profileLinkMentionsRateLimiter, profileLinkMentionsRoutes);
   authenticatedApi.use('/lanes', lanesRoutes);
   authenticatedApi.use('/reports', reportsRoutes);
   authenticatedApi.use('/pokes', pokesRoutes);

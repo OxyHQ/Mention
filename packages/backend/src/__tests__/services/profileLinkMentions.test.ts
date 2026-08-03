@@ -51,11 +51,11 @@ vi.mock('../../utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-import { MAX_MENTIONS_PER_POST } from '@mention/shared-types/mentions';
 import {
+  MAX_MENTIONS_PER_POST,
   MAX_PROFILE_LINKS_PER_BODY,
-  foldProfileLinkMentions,
-} from '../../services/profileLinkMentions';
+} from '@mention/shared-types/mentions';
+import { foldProfileLinkMentions } from '../../services/profileLinkMentions';
 
 /** This instance's own web host, as the federation domain policy sees it. */
 const OWN_HOST = 'mention.earth';

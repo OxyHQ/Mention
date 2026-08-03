@@ -46,6 +46,60 @@ export const MAX_MENTION_NOTIFICATIONS_PER_POST = 8;
 export const MAX_MENTIONS_PER_POST = 2 * MAX_MENTION_NOTIFICATIONS_PER_POST;
 
 /**
+ * Max distinct PROFILE LINKS one body's mentions may be derived from — the
+ * second source of mentions, beside the composer's picker.
+ *
+ * A profile link a body carries is folded into that post's real mentions when we
+ * already store the identity it names, so a link-heavy post must not turn into an
+ * unbounded burst of lookups (nor, since a resolved link becomes a real mention,
+ * into an unbounded burst of notifications). Beyond the cap the surplus links
+ * stay ordinary links, which is the pre-existing behavior for all of them.
+ *
+ * It lives HERE, next to {@link MAX_MENTIONS_PER_POST}, because three separate
+ * places have to agree on it or the composer promises a mention the write
+ * boundary will not store: the fold itself (`services/profileLinkMentions`), the
+ * endpoint that answers "would this URL become a mention" for the composer, and
+ * the composer's own candidate selection (`utils/composerProfileLinks`). This is
+ * a ceiling, not the number of links a given body may resolve — that is narrowed
+ * further by whatever headroom the body's existing mentions leave under
+ * `MAX_MENTIONS_PER_POST`, since the two sources share ONE per-post ceiling.
+ */
+export const MAX_PROFILE_LINKS_PER_BODY = 8;
+
+/**
+ * Who a profile link will mention, named exactly as the published post will name
+ * them — the handle and the label `PostHydrationService` writes when it renders
+ * the `[mention:<id>]` the fold puts in the body.
+ */
+export interface ProfileLinkMentionIdentity {
+  /** The Oxy user id that lands in `post.mentions`. */
+  userId: string;
+  /** Canonical handle — `username` locally, `username@domain` when federated. */
+  handle: string;
+  /** Display name, falling back to the handle when the account declares none. */
+  displayName: string;
+}
+
+/** One URL's answer. */
+export interface ProfileLinkMentionAnswer {
+  /** The URL that was asked about, echoed so answers can be matched to inputs. */
+  url: string;
+  /**
+   * Who it will mention, or `null` when it stays an ordinary link — because we
+   * store no identity for it, or because the identity could not be named. `null`
+   * is the safe direction: the caller says nothing rather than promising a
+   * mention the write boundary would not make.
+   */
+  mention: ProfileLinkMentionIdentity | null;
+}
+
+/** Response of `POST /mentions/profile-links`. */
+export interface ProfileLinkMentionsResponse {
+  /** One answer per requested URL, in request order. */
+  links: ProfileLinkMentionAnswer[];
+}
+
+/**
  * True when a post names so many people that it is a broadcast, not a conversation
  * — the single predicate every mention-notification decision consults.
  *
