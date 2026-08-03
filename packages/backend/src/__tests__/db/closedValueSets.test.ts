@@ -257,6 +257,71 @@ const NO_MONGOOSE_ENUM: Readonly<Record<string, string>> = {
   'post_variant_media.orientation': '`MediaItem.orientation` — same.',
 };
 
+/**
+ * Collections whose Mongoose vocabulary is UNRECOVERABLE — and where the
+ * guarantee went instead.
+ *
+ * ## Why a recovered file can stop loading
+ *
+ * The history path imports the deleted model out of the commit that removed it,
+ * but **a module recovered from git is not hermetic: its own imports resolve
+ * against TODAY's tree.** So a deletion that also drops a shared constant the
+ * historical model consumed makes that model unevaluatable, and the vocabulary
+ * dies with it. Concretely, historical `models/Lane.ts` is:
+ *
+ *     import { LANE_DISPLAY_MODES, LANE_OWNER_TYPES } from '@mention/shared-types';
+ *     …
+ *     enum: [...LANE_OWNER_TYPES],     // line 60 — `undefined` since the redesign
+ *     enum: [...LANE_DISPLAY_MODES],   // line 68 — never reached
+ *
+ * `LANE_OWNER_TYPES` went with the polymorphic lane owner, so the spread throws
+ * `not iterable` and the module dies EIGHT LINES before the enum this file
+ * needs. Nothing is wrong with the path or the plan; the referent is simply
+ * gone.
+ *
+ * ## Why this is a handoff and not a hole
+ *
+ * The obvious repair — compare the column against the Postgres constant it was
+ * declared from — is a TAUTOLOGY: `schema/channels.ts` builds both the column
+ * and its CHECK from `LANE_DISPLAY_MODES`, so the comparison is that constant
+ * against itself and cannot fail for any value, ever. That is precisely the
+ * "four artefacts agreeing is not evidence" loop this file was written to
+ * break, so it is not done.
+ *
+ * What actually inherits the guarantee is the pre-flight **`EnumAudit` in
+ * `backfill/audit.ts`**, which reads the accepted set off the drizzle column and
+ * `distinct()`s the REAL collection before a row is copied. An entry here is
+ * therefore a statement about WHERE the check moved — not that it stopped.
+ *
+ * Three properties keep this from rotting into an ordinary exemption: it is
+ * keyed by COLLECTION with a written reason, the count is PRINTED in the
+ * coverage summary so the loss stays visible, and
+ * `names no exemption that has stopped being one` fails if a listed collection's
+ * model ever loads again.
+ */
+const HISTORY_UNRECOVERABLE: Readonly<Record<string, string>> = {
+  lanes:
+    'historical `models/Lane.ts` spreads `LANE_OWNER_TYPES`, which the channels redesign ' +
+    'removed from @mention/shared-types, so the module throws before declaring ' +
+    '`displayMode`. Its vocabulary is now production\'s to answer for, via `EnumAudit` at ' +
+    'cutover.',
+  // `topics` is deliberately NOT here. Historical `models/Topic.ts` also fails to
+  // evaluate, but no collection plan reads that collection, so nothing needed its
+  // vocabulary — a retired model, which the load case already tolerates. Listing
+  // it was the first thing the staleness check below rejected, on its first run.
+};
+
+/**
+ * The name the numeric comparison already used for this idea.
+ *
+ * It was referenced at exactly one call site and DEFINED NOWHERE — a
+ * `ReferenceError` waiting in a branch that only runs when a numeric path fails
+ * to resolve, which no set has yet done. `tsconfig.json` excludes `src/__tests__`,
+ * so no typecheck has ever looked at this file; a `TS2304` would have named it
+ * the moment it was written.
+ */
+const MONGOOSE_MODEL_DELETED_BY_THE_PORT = HISTORY_UNRECOVERABLE;
+
 /** Sets that exist only in Postgres, with what made them necessary. */
 const POSTGRES_ONLY: Readonly<Record<string, string>> = {
   'custom_feed_definition_modules.kind':
@@ -398,6 +463,16 @@ describe('this gate reports how much it still covers', () => {
   it('accounts for every closed set as compared or explicitly exempt', () => {
     const compared = CLOSED_SETS.filter((set) => resolve(set));
     const exempt = CLOSED_SETS.filter((set) => NO_MONGOOSE_ENUM[set.key] || POSTGRES_ONLY[set.key]);
+    // Counted apart from `exempt` on purpose: an exemption says a Mongoose enum
+    // never existed, this says one existed and can no longer be READ. The two
+    // decay differently and collapsing them would hide which is growing.
+    const unrecoverable = CLOSED_SETS.filter(
+      (set) =>
+        !resolve(set) &&
+        !NO_MONGOOSE_ENUM[set.key] &&
+        !POSTGRES_ONLY[set.key] &&
+        HISTORY_UNRECOVERABLE[SOURCES.get(set.key)?.collection ?? '']
+    );
     const viaHistory = compared.filter((set) =>
       FROM_HISTORY.has(SOURCES.get(set.key)?.collection ?? '')
     );
@@ -405,9 +480,19 @@ describe('this gate reports how much it still covers', () => {
     const summary =
       `closed value sets: ${CLOSED_SETS.length} total — ${compared.length} compared ` +
       `(${compared.length - viaHistory.length} live models, ${viaHistory.length} recovered from ` +
-      `git history), ${exempt.length} exempt with a named reason.\n` +
+      `git history), ${exempt.length} exempt with a named reason, ` +
+      `${unrecoverable.length} whose model no longer evaluates.\n` +
       "Exempt, and therefore production's to answer for at cutover:\n" +
-      exempt.map((set) => `  - ${set.key}`).join('\n');
+      exempt.map((set) => `  - ${set.key}`).join('\n') +
+      (unrecoverable.length === 0
+        ? ''
+        : '\nMongoose vocabulary UNRECOVERABLE — handed off to `EnumAudit` at cutover:\n' +
+          unrecoverable
+            .map(
+              (set) =>
+                `  - ${set.key}: ${HISTORY_UNRECOVERABLE[SOURCES.get(set.key)?.collection ?? '']}`
+            )
+            .join('\n'));
 
     // `process.stdout.write`, not `console.log`: vitest's DEFAULT reporter — the
     // one CI runs — swallows `console` output from a PASSING file, which is
@@ -426,7 +511,7 @@ describe('this gate reports how much it still covers', () => {
     // Not a threshold — thresholds rot in both directions. This says only that
     // nothing fell out of BOTH buckets, so a set can never go uncounted while
     // the printed total keeps looking healthy.
-    expect(compared.length + exempt.length).toBe(CLOSED_SETS.length);
+    expect(compared.length + exempt.length + unrecoverable.length).toBe(CLOSED_SETS.length);
   });
 });
 
@@ -554,6 +639,10 @@ describe('every closed value set is classified', () => {
     for (const set of CLOSED_SETS) {
       if (resolve(set)) continue;
       if (NO_MONGOOSE_ENUM[set.key] || POSTGRES_ONLY[set.key]) continue;
+      // Its model cannot be evaluated at all — see HISTORY_UNRECOVERABLE. The
+      // set is classified, by collection rather than by column, because the
+      // whole model is what went.
+      if (HISTORY_UNRECOVERABLE[SOURCES.get(set.key)?.collection ?? '']) continue;
       const source = SOURCES.get(set.key);
       unclassified.push(
         source
@@ -576,6 +665,10 @@ describe('every closed value set is classified', () => {
     const needed = new Set(COLLECTION_PLANS.map((plan) => plan.collection));
     const missing = [...needed].filter(
       (collection) =>
+        // Listed in HISTORY_UNRECOVERABLE with a written reason and a named
+        // inheritor. Not "ignore this" — the coverage summary prints it, and the
+        // staleness case below fails the moment such a model loads again.
+        !HISTORY_UNRECOVERABLE[collection] &&
         !FROM_HISTORY.has(collection) &&
         !mongoose.modelNames().some((n) => mongoose.model(n).collection.collectionName === collection) &&
         COLLECTION_PLANS.some((plan) => plan.collection === collection && (plan.enumAudits ?? []).length > 0)
@@ -597,6 +690,27 @@ describe('every closed value set is classified', () => {
       }
       if (resolve(set)) {
         stale.push(`${key} is exempted but now resolves to a Mongoose enum — remove the entry.`);
+      }
+    }
+    // The same discipline for the unrecoverable list, keyed by COLLECTION. This
+    // is the property that keeps it from becoming an exemption nobody rechecks:
+    // if the model becomes loadable again — a shared constant restored, a
+    // historical import repaired — the entry must go, and the comparison must
+    // come back rather than staying quietly handed off.
+    for (const [collection, reason] of Object.entries(HISTORY_UNRECOVERABLE)) {
+      if (!COLLECTION_PLANS.some((plan) => plan.collection === collection)) {
+        stale.push(
+          `HISTORY_UNRECOVERABLE names '${collection}', which no collection plan reads — ` +
+            'delete the entry with the plan.'
+        );
+        continue;
+      }
+      if (FROM_HISTORY.has(collection)) {
+        stale.push(
+          `HISTORY_UNRECOVERABLE claims '${collection}' cannot be recovered (${reason}), but its ` +
+            'model loaded from history on this run — remove the entry so the vocabulary is ' +
+            'compared again.'
+        );
       }
     }
     expect(stale.join('\n')).toBe('');

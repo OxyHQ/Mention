@@ -249,13 +249,28 @@ async function loadChildRows(
       .select()
       .from(postAuthorships)
       .where(inArray(postAuthorships.postId, [...postIds]))
-      // Owner FIRST, then collaborators in invite order — the byline order
-      // `getHeaderAuthorshipEntries` renders and the order `getOwner` finds.
+      // Owner FIRST — the byline order `getHeaderAuthorshipEntries` renders and
+      // the order `getOwner` finds. That half is guaranteed by the explicit rank
+      // below, not by the id.
       //
       // Spelled as an explicit rank rather than `asc(role)`: alphabetically
       // 'collaborator' sorts BEFORE 'owner', so the natural ordering puts the
       // byline in the wrong order, and `desc(role)` would only be right by an
       // accident of spelling that a future role name would silently break.
+      //
+      // COLLABORATORS AMONG THEMSELVES ARE ARBITRARY, NOT IN INVITE ORDER, and
+      // this comment used to claim otherwise. `asc(id)` cannot deliver insertion
+      // order here: `uuidv7()` (`db/schema/columns.ts`) is a millisecond
+      // timestamp plus pure randomness with NO monotonic counter, and every
+      // authorship row for a post is written by ONE multi-row insert — so the
+      // ids share a millisecond and their relative order is random. It is STABLE
+      // per post (an id never changes), so a byline does not reshuffle between
+      // reads; it simply is not the order the collaborators were invited in.
+      //
+      // Same rule the sibling load below writes down for topic refs: if true
+      // insertion order ever matters, it needs a `position` column and a
+      // migration, not a different sort. `postContentVariants` and `postSources`
+      // already have one.
       .orderBy(
         sql`case ${postAuthorships.role} when 'owner' then 0 else 1 end`,
         asc(postAuthorships.id),

@@ -76,6 +76,43 @@ if (testPath && needsIsolatedDatabase(testPath)) {
   });
 }
 
+/**
+ * Name every Postgres connection after the TEST FILE that opened it.
+ *
+ * `application_name` reaches `pg_stat_activity`, `log_line_prefix` and any audit
+ * trigger calling `current_setting('application_name')` — so a row written or
+ * deleted during the run can be attributed to a file instead of inferred. That
+ * matters because the obvious substitute does NOT work: grouping by
+ * `pg_backend_pid()` groups by CONNECTION, and `PG_MAX_POOL_SIZE` gives each
+ * worker several, so one file appears as N backends and N files sharing a worker
+ * are indistinguishable. Measured while hunting a cross-file `posts` delete: a
+ * single file's fixture cleanup showed up as four pids and read exactly like
+ * four files racing.
+ *
+ * Carried as a URL PARAMETER rather than a `postgres()` option because this file
+ * must not import anything that reaches `src/config` — see the isolation block
+ * above, which is load-bearing for the same reason. It therefore composes with
+ * that block by construction: this runs after it, so it decorates whichever
+ * database that block settled on (isolated or shared), and the pristine url it
+ * captured for teardown was taken before this ran.
+ *
+ * The strip-then-append is not defensive tidiness. A worker is REUSED across
+ * files and a non-isolated file restores nothing, so the next file would
+ * otherwise append to an already-decorated url and connect as
+ * `application_name=fileA&application_name=fileB`.
+ */
+if (testPath && process.env.DATABASE_URL) {
+  try {
+    const url = new URL(process.env.DATABASE_URL);
+    url.searchParams.delete('application_name');
+    url.searchParams.set('application_name', testPath.split('/').pop() ?? 'unknown.test.ts');
+    process.env.DATABASE_URL = url.toString();
+  } catch {
+    // A url this cannot parse is one `connectPostgres` would fail on anyway, and
+    // naming connections is a diagnostic: it must never be the reason a run dies.
+  }
+}
+
 // --- Mongoose / MongoDB ---
 // Prevent any module from opening a real database connection during tests.
 //
