@@ -9,8 +9,19 @@
  *   --cluster oxy-cluster --task-definition oxy-mention --launch-type FARGATE \
  *   --network-configuration 'awsvpcConfiguration={subnets=[…],securityGroups=[…],assignPublicIp=ENABLED}' \
  *   --overrides '{"containerOverrides":[{"name":"mention","command":[
- *      "bun","run","packages/backend/scripts/backfill-mongo-to-postgres.ts","--audit-only"]}]}'
+ *      "bun","run","packages/backend/scripts/backfill-mongo-to-postgres.ts",
+ *      "--target-database=mention_audit_probe","--audit-only"]}]}'
  * ```
+ *
+ * ## `--target-database` is REQUIRED, on every mode
+ *
+ * The database this writes to is decided entirely by the `DATABASE_URL` secret,
+ * which is a line of JSON on a task definition. `--target-database=<name>` is
+ * the operator saying where they believe that points, and the run refuses
+ * unless `current_database()` agrees — so a stale, wrong-environment or
+ * recreated-under-another-name URL fails closed instead of succeeding quietly.
+ * `--start-from-empty` additionally requires `--confirm-truncate=<name>`.
+ * See `db/backfill/targetDatabase.ts`.
  *
  * ## The phases, and why they are separable
  *
@@ -113,6 +124,10 @@ import {
 } from '../src/db/backfill/collectionMap';
 import { assertBookkeepingTableExists } from '../src/db/backfill/bookkeepingTables';
 import {
+  assertTargetDatabase,
+  assertTargetDeclared,
+} from '../src/db/backfill/targetDatabase';
+import {
   CHECKPOINT_TABLE,
   clearState,
   loadState,
@@ -183,6 +198,16 @@ interface Options {
    * which — see `db/backfill/reset.ts`.
    */
   readonly startFromEmpty: boolean;
+  /**
+   * The database this run believes it is pointed at. REQUIRED.
+   *
+   * Checked against `current_database()` before anything is read or written —
+   * see `db/backfill/targetDatabase.ts` for why an affirmative rather than a
+   * denylist.
+   */
+  readonly targetDatabase: string | undefined;
+  /** Must repeat `targetDatabase` to arm `--start-from-empty`. */
+  readonly confirmTruncate: string | undefined;
   readonly batchSize: number;
   readonly concurrency: number;
   readonly only: readonly string[] | undefined;
@@ -212,6 +237,8 @@ function parseOptions(argv: readonly string[]): Options {
     verifyOnly: flag('verify-only'),
     restart: flag('restart'),
     startFromEmpty: flag('start-from-empty'),
+    targetDatabase: value('target-database'),
+    confirmTruncate: value('confirm-truncate'),
     batchSize: numeric('batch-size', DEFAULT_BATCH_SIZE),
     concurrency: numeric('concurrency', DEFAULT_CONCURRENCY),
     only: only === undefined ? undefined : only.split(',').map((entry) => entry.trim()),
@@ -249,6 +276,11 @@ async function main(): Promise<number> {
   // condition here that someone later re-reads and simplifies.
   assertResetIsAllowed(options);
 
+  // WHERE this run believes it is pointed, stated by the operator and checked
+  // against the connection below. Argument-only, so a mistyped flag is refused
+  // before a socket is opened rather than after two handshakes.
+  const targetDatabase = assertTargetDeclared(options);
+
   const mongoUri = process.env.MONGODB_URI;
   if (!mongoUri) throw new Error('MONGODB_URI is not set — it names the SOURCE database');
   if (!process.env.DATABASE_URL) {
@@ -282,6 +314,11 @@ async function main(): Promise<number> {
   const source = await connectMongoSource(mongoUri);
 
   try {
+    // The FIRST thing done with the connection, before a document is read or a
+    // table is touched: is this the database the operator named? Everything
+    // else in this file assumes the answer is yes.
+    await assertTargetDatabase(db, targetDatabase);
+
     // Both bookkeeping tables, checked HERE rather than where they are first
     // written. The checkpoint table is touched at the START of the copy and the
     // resolution log at the very END of it, so leaving each to its own writer

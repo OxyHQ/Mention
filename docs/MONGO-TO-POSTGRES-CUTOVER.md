@@ -131,26 +131,31 @@ empty database, run by the application role holding no grants.
 Every safety built during the rehearsal points at `mention_audit_probe`. This run
 inverts that. Read this section before running anything.
 
-**What decides the target is the task definition's `DATABASE_URL` secret, and
-nothing else.** The backfill CLI has no database-name guard; it uses what it is
-given. So:
-
-- Use a task definition revision whose `DATABASE_URL` is
-  `/oxy/mention/DATABASE_URL`. **Register it for this purpose and read the
-  registered JSON back before running it.**
-- It must carry **no** `PG_MASTER_PASSWORD` and no probe credential.
-- **Never pass `--start-from-empty` on the real run.** It TRUNCATES every target
-  table. On a first cutover there is nothing to truncate, which is exactly why a
-  stray flag would go unnoticed — and on a resumed or repeated run it destroys
-  the rows already copied.
-- The standing guard is `assertTargetsEmpty`: a fresh run refuses a target that
-  already holds rows. Let it do its job. If it refuses, **stop and read** — it
-  means either the copy already ran or the URL points somewhere unexpected.
+**`--target-database` is REQUIRED and is checked against `current_database()`
+before anything is read or written.** The `DATABASE_URL` secret still decides
+where the connection goes; the flag is the operator stating where they believe it
+goes, and a mismatch refuses with both names in the message. A stale probe URL, a
+wrong environment, or a database recreated under another name all fail closed.
 
 ```bash
 --overrides '{"containerOverrides":[{"name":"mention","command":[
-   "bun","packages/backend/dist/scripts/backfill-mongo-to-postgres.js"]}]}'
+   "bun","packages/backend/dist/scripts/backfill-mongo-to-postgres.js",
+   "--target-database=mention"]}]}'
 ```
+
+Still true and still worth doing, now as belt-and-braces rather than as the only
+protection:
+
+- Use a task definition revision whose `DATABASE_URL` is
+  `/oxy/mention/DATABASE_URL`, carrying **no** `PG_MASTER_PASSWORD` and no probe
+  credential.
+- `assertTargetsEmpty` refuses a fresh run against a target that already holds
+  rows. If it refuses, **stop and read** — either the copy already ran, or you
+  are somewhere unexpected.
+- `--start-from-empty` TRUNCATES every target table and now requires
+  `--confirm-truncate=mention` naming the same database. Do not use it on a
+  first cutover: there is nothing to truncate, which is exactly what would make a
+  stray one invisible until the resumed run destroys what was already copied.
 
 Sizing: the rehearsal ran on 4 vCPU / 30 GB. **Use a larger task for the real
 run** — cost for one run is negligible and the copy is CPU-bound in the
