@@ -139,6 +139,13 @@ export function report(result, log = console.log) {
     log('');
     log('FAIL — these test files exist on disk but the runner never reported them.');
     log('       They were not run, and nothing about the pass ratio would show it.');
+    log('');
+    log('       TWO causes, and the fix differs:');
+    log('         1. the file died before collection — look for an import-time error;');
+    log('         2. the runner\'s `include` does not cover it — look at the config.');
+    log('       vitest collects `src/__tests__/**/*.test.ts`; this walk is WIDER on');
+    log('       purpose, so a colocated `src/foo/bar.test.ts` that never runs is');
+    log('       still caught rather than silently ignored.');
     for (const path of result.missingFromReport) log(`       ${path}`);
   }
 

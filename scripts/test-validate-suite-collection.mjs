@@ -85,6 +85,12 @@ console.log('validate-suite-collection self-test:');
   );
   check('a file on disk but ABSENT from the report FAILS', result.ok === false);
   check('and the gate NAMES it', output(result).includes('/repo/never-ran.test.ts'));
+  // The message must name BOTH causes, because the fix differs: an import-time
+  // error is a broken file, an uncovered `include` is a config decision. A
+  // message naming only the first sends the reader hunting a file that is fine.
+  const text = output(result);
+  check('and names the DIED-AT-COLLECTION cause', text.includes('died before collection'));
+  check('and names the INCLUDE-PATTERN cause', text.includes('`include` does not cover it'));
 }
 
 // ------------------------------------------------------ skips are safe ------
