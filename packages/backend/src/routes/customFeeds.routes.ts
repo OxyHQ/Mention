@@ -31,6 +31,8 @@ import {
   feedGenerators,
   feedLikes,
   feedReviews,
+  RATING_MAX,
+  RATING_MIN,
 } from '../db/schema/feeds';
 import { validateBody, validateObjectId, schemas } from '../middleware/validate';
 import { buildCustomFeedCreatePayload, buildCustomFeedUpdatePatch } from './customFeedWrite';
@@ -1042,6 +1044,25 @@ router.post('/:id/reviews', validateObjectId('id'), validateBody(schemas.createF
 
     const feedId = String(req.params.id);
     const { rating, reviewText } = req.body;
+    /**
+     * Validated HERE, because the column is `integer` with a 1..5 CHECK and a
+     * client is under no obligation to respect either. `4.5` is refused by the
+     * driver before the constraint is even consulted (`invalid input syntax for
+     * type integer`), and `9` by the constraint — both as a 500 on a path where
+     * the request is simply malformed. Mongoose declared the same bounds and
+     * never enforced them, so this is a rule that was written down and is only
+     * now actually applied.
+     */
+    if (
+      typeof rating !== 'number'
+      || !Number.isInteger(rating)
+      || rating < RATING_MIN
+      || rating > RATING_MAX
+    ) {
+      return res.status(400).json({
+        error: `rating must be a whole number between ${RATING_MIN} and ${RATING_MAX}`,
+      });
+    }
     // Mongoose stripped an `undefined` from the update document, so submitting a
     // review with no text NEVER cleared the text a previous submission had left.
     // An omitted `set` key does the same thing; writing `null` unconditionally
