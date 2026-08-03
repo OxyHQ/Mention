@@ -1,6 +1,13 @@
 /**
- * The ONE definition of "may this person publish as that account", and of "is
- * that account a channel".
+ * The ONE definition of "may this person publish as that account", of "may this
+ * person DELETE that account", and of "is that account a channel".
+ *
+ * The first two live together because they share the membership READ, not
+ * because they share an answer — they deliberately do not. Publishing as a
+ * channel asks for membership; deleting one asks for `account:delete`, the
+ * permission Oxy itself gates the account archive on. A second reader for the
+ * second question would be a second answer, and whichever of the two were wrong,
+ * one of them would be wrong in the permissive direction.
  *
  * A channel is an Oxy ACCOUNT (`kind: 'channel'`), not a Mention row, so both
  * questions are answered by Oxy and Mention stores neither. There is deliberately
@@ -63,6 +70,25 @@ import { logger } from '../utils/logger';
  * is one named constant rather than a string scattered through the checks.
  */
 const ACCOUNT_ACT_AS_PERMISSION = 'account:act_as';
+
+/**
+ * The Oxy account permission that authorises DESTROYING an account — what
+ * `DELETE /accounts/:id` gates on (`requireAccountPermission('account:delete')`
+ * in oxy-api's `routes/accounts.ts`), and therefore what destroying that
+ * account's content in Mention gates on too.
+ *
+ * Oxy grants it to the `owner` role ALONE: its `ROLE_PERMISSIONS` map gives
+ * `admin` and `editor` `account:act_as` without it, so the people who may publish
+ * as a channel are strictly wider than the people who may end it. Matching that
+ * here is not a preference — a member who could destroy every post while being
+ * refused the account archive would produce exactly the half-deleted channel the
+ * ordering elsewhere exists to prevent.
+ *
+ * A literal for the same reason as {@link ACCOUNT_ACT_AS_PERMISSION}: Oxy derives
+ * each member's `permissions` from their role server-side and ships the strings,
+ * and neither `@oxyhq/contracts` nor `@oxyhq/core` exports the vocabulary today.
+ */
+const ACCOUNT_DELETE_PERMISSION = 'account:delete';
 
 /** A refusal carrying the status the HTTP layer should answer with. */
 export class PublishAsAccessError extends Error {
@@ -279,6 +305,42 @@ export async function isChannelAccount(
   return (await resolveAccountKind(oxyUserId)) === 'channel';
 }
 
+/**
+ * The caller's ACTIVE membership row on an account, or a refusal.
+ *
+ * The ONE membership read behind every question this module answers, factored so
+ * the publish gate and {@link assertCanDeleteAccount} cannot come to different
+ * conclusions about who a caller is on an account — a second read is a second
+ * answer, and whichever of the two is wrong, one of them is wrong in the
+ * permissive direction. What each caller then DEMANDS of the row is their own
+ * decision; this only establishes which row is theirs.
+ */
+async function readActiveMembership(
+  target: string,
+  callerId: string,
+  memberReader: AccountMemberReader,
+): Promise<AccountMember> {
+  let members: AccountMember[];
+  try {
+    members = await memberReader.listAccountMembers(target);
+  } catch (error) {
+    // Includes Oxy's own 403 for a caller with no `members:read`, which is the
+    // same answer as "not a member" — but it is not distinguishable here from a
+    // genuine outage, and both must refuse. The status says "try again" because
+    // the outage case is the one a client can act on.
+    logger.warn('[publishAsAccount] Failed to read account members', error);
+    throw new PublishAsAccessError(503, 'Could not verify your access to that account');
+  }
+
+  const membership = members.find(
+    (member) => member.memberUserId === callerId && member.status === 'active',
+  );
+  if (!membership) {
+    throw new PublishAsAccessError(403, 'You are not a member of that account');
+  }
+  return membership;
+}
+
 /** What {@link assertCanPublishAsAccount} answers with. */
 export interface PublishAsAuthor {
   /**
@@ -353,24 +415,7 @@ export async function assertCanPublishAsAccount(params: {
     throw new PublishAsAccessError(403, 'You cannot publish as another account');
   }
 
-  let members: AccountMember[];
-  try {
-    members = await params.memberReader.listAccountMembers(target);
-  } catch (error) {
-    // Includes Oxy's own 403 for a caller with no `members:read`, which is the
-    // same answer as "not a member" — but it is not distinguishable here from a
-    // genuine outage, and both must refuse. The status says "try again" because
-    // the outage case is the one a client can act on.
-    logger.warn('[publishAsAccount] Failed to read account members', error);
-    throw new PublishAsAccessError(503, 'Could not verify your access to that account');
-  }
-
-  const membership = members.find(
-    (member) => member.memberUserId === callerId && member.status === 'active',
-  );
-  if (!membership) {
-    throw new PublishAsAccessError(403, 'You are not a member of that account');
-  }
+  const membership = await readActiveMembership(target, callerId, params.memberReader);
 
   // The permission is READ off the membership Oxy resolved, never inferred from
   // `membership.role` — a role list here would be a second copy of Oxy's
@@ -385,4 +430,85 @@ export async function assertCanPublishAsAccount(params: {
   }
 
   return { authorId: target, authorKind };
+}
+
+/**
+ * Refuse unless `callerId` may DELETE the account `targetOxyUserId`, and answer
+ * with the kind Oxy resolved for it.
+ *
+ * ## Why this is not {@link assertCanPublishAsAccount} with a different message
+ *
+ * That gate grades a `channel` at bare ACTIVE MEMBERSHIP, and correctly: a
+ * channel can never be acted as, so over a channel there is no capability
+ * stronger than membership to ask for. Deletion is the exception, because the
+ * stronger right exists and lives at Oxy. `DELETE /accounts/:id` gates on
+ * `account:delete`, which oxy-api's `ROLE_PERMISSIONS` grants to `owner` alone —
+ * `admin` and `editor` hold `account:act_as` and not this. So the set of people
+ * who may publish as a channel is strictly WIDER than the set who may end it.
+ *
+ * Deleting a channel is two halves that answer to two authorities: Mention
+ * destroys its own rows, Oxy archives the account. If Mention accepted a mere
+ * member here, an `editor` could destroy every post the channel has published and
+ * then be refused the archive by Oxy — a channel with no content, no way to undo
+ * it, and an account still standing. Asking for the SAME permission Oxy asks for
+ * is what makes the two halves either both permitted or both refused.
+ *
+ * ## The refusals
+ *
+ *  - **400** — the account's kind could not be resolved at all. Deleting an
+ *    account whose kind is unknown is the risk `ChannelDeletionService` already
+ *    refuses to take at its own door, and this is the same judgement made one
+ *    layer earlier, before a member list is even read.
+ *  - **403** — no caller, no client to ask Oxy with (an unauthenticated or MCP
+ *    caller), the caller is not an ACTIVE member, or they are a member WITHOUT
+ *    `account:delete`.
+ *  - **503** — Oxy could not answer. It fails closed for the reason in the module
+ *    docstring, and here the argument is at its strongest: the action is
+ *    irreversible, so a refusal costs a retry and a wrong allow costs an archive.
+ *
+ * The kind is RETURNED rather than checked here, because "may this person delete
+ * that account" and "is that account a thing Mention knows how to delete" are two
+ * questions. The caller answers the second — `ChannelDeletionService` refuses
+ * anything that is not a channel at its own entry points, and a route wanting a
+ * different status code for that can say so without this gate growing a second
+ * opinion.
+ */
+export async function assertCanDeleteAccount(params: {
+  targetOxyUserId: string | null | undefined;
+  callerId: string | null | undefined;
+  memberReader: AccountMemberReader | undefined;
+}): Promise<AccountKind> {
+  const target = params.targetOxyUserId?.trim();
+  const callerId = params.callerId?.trim();
+  // No self case, deliberately: the accounts this gate governs have no login, so
+  // a caller can never BE one. Were a personal account ever routed here, its owner
+  // holds `account:delete` through their own membership like anybody else, and a
+  // shortcut that skipped the read would be a hole rather than an optimisation.
+  if (!target || !callerId) {
+    throw new PublishAsAccessError(403, 'You cannot delete that account');
+  }
+
+  const kind = await resolveAccountKind(target);
+  if (!kind) {
+    throw new PublishAsAccessError(400, 'That account cannot be deleted');
+  }
+
+  if (!params.memberReader) {
+    throw new PublishAsAccessError(403, 'You cannot delete that account');
+  }
+
+  const membership = await readActiveMembership(target, callerId, params.memberReader);
+
+  // READ off the row Oxy resolved, never inferred from `membership.role` — a role
+  // list here would be a second copy of Oxy's role→permission map, and the copy
+  // is what goes stale on the day a role's grants change. An absent or malformed
+  // `permissions` array is a refusal, not an assumption.
+  if (
+    !Array.isArray(membership.permissions) ||
+    !membership.permissions.includes(ACCOUNT_DELETE_PERMISSION)
+  ) {
+    throw new PublishAsAccessError(403, 'Only an owner of this account can delete it');
+  }
+
+  return kind;
 }

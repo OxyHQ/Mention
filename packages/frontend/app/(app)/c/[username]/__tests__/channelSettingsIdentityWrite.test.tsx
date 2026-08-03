@@ -84,6 +84,7 @@ jest.mock('@oxyhq/core/logger', () => ({
 
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ username: 'daily' }),
+  router: { replace: jest.fn() },
 }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -138,6 +139,17 @@ jest.mock('@/services/channelAccountService', () => ({
     getSettings: jest.fn().mockResolvedValue({ signPosts: false }),
     setSignPosts: jest.fn(),
   },
+}));
+/**
+ * The delete flow, stubbed at its two module boundaries. Neither is exercised
+ * here — the fixture's `callerMembership` is `null`, so the row is not even
+ * rendered — but both are imported by the screen, and the real `@/utils/alerts`
+ * reaches `@oxyhq/bloom/dialog`, which cannot be required under jest.
+ * `__tests__/channelDeleteChannel.test.tsx` is where the flow itself is pinned.
+ */
+jest.mock('@/utils/alerts', () => ({ confirmDialog: jest.fn().mockResolvedValue(false) }));
+jest.mock('@/services/channelDeletionService', () => ({
+  channelDeletionService: { preview: jest.fn(), deleteContent: jest.fn() },
 }));
 
 // eslint-disable-next-line import/first
