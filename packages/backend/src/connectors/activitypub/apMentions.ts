@@ -1,13 +1,19 @@
 import { MAX_MENTIONS_PER_POST } from '@mention/shared-types/mentions';
-import { localProfilePathHandle } from '@mention/shared-types/profileUrls';
 import { logger } from '../../utils/logger';
 import FederatedActor from '../../models/FederatedActor';
+import {
+  MAX_PROFILE_LINKS_PER_BODY,
+  isProfileLikeHref,
+  resolveHrefIdentity,
+  resolveProfileLinkIdentity,
+  type MentionActorResolution,
+  type RemoteMentionResolver,
+} from '../../services/profileLinkMentions';
 import { actorService } from './actor.service';
 import { getApContentMap } from './apLanguage';
 import { primaryApType } from './apSchemas';
 import { bridgedMentionAnchorHrefs } from './bridgy';
-import { isBlockedDomain, resolveOxyUser } from './constants';
-import { normalizeFederatedAcct, runWithTimeout } from './helpers';
+import { runWithTimeout } from './helpers';
 
 /**
  * INBOUND @mention ingestion for federated ActivityPub Notes.
@@ -33,7 +39,9 @@ import { normalizeFederatedAcct, runWithTimeout } from './helpers';
  * A PROFILE LINK with no `Mention` tag behind it — someone pasted
  * `https://mastodon.social/@alice` into a post, or the origin's tag failed to
  * resolve — is resolved the same way and rewritten into the same placeholder, but
- * STRICTLY LOOKUP-ONLY: see {@link lookupExistingActorByProfileHref}.
+ * STRICTLY LOOKUP-ONLY: see {@link resolveProfileLinkIdentity}, which lives in
+ * `services/profileLinkMentions` because a post composed HERE now asks the same
+ * question of the same URL at ITS write boundary.
  *
  * Anchor↔tag matching is BY HREF (never the ambiguous bare `@username` text): the
  * anchor's `href` is compared against the deterministic candidates each resolved
@@ -73,14 +81,6 @@ export interface ResolvedInboundMentions {
    * tag resolved (the common no-mention case), which makes the rewrite a no-op.
    */
   anchorMap: Map<string, string>;
-}
-
-/** A mentioned actor resolved to its Oxy user id and locality. */
-export interface MentionActorResolution {
-  /** The mentioned actor's Oxy user id (federated OR local). */
-  oxyUserId: string;
-  /** True when the actor is a LOCAL Mention user — the only notification target. */
-  isLocal: boolean;
 }
 
 /** Matches a whole `<a …>…</a>` anchor, capturing its `href`. Anchors never nest. */
@@ -172,15 +172,6 @@ export function extractMentionTags(object: Record<string, unknown>): InboundMent
 }
 
 /**
- * Resolve a mentioned actor URI that is NOT one of our own/blocked domains — i.e.
- * a genuine REMOTE actor — to its stored Oxy user id, or `null` when it cannot be
- * resolved. The two mention paths differ ONLY here: the live inbox path
- * fetches-and-creates the actor when unknown; the repair path looks it up without
- * any network fetch or create.
- */
-type RemoteMentionResolver = (href: string) => Promise<string | null>;
-
-/**
  * Live-path remote resolver: resolve — and SYNC/CREATE if new — the remote actor
  * through {@link ActorService.getOrFetchActor}. Used only by the inbox ingest path,
  * where discovering a first-seen mentioned actor is desired.
@@ -205,134 +196,6 @@ const lookupExistingRemoteActorOxyId: RemoteMentionResolver = async (href) => {
   } | null>();
   return actor?.oxyUserId ? String(actor.oxyUserId) : null;
 };
-
-/**
- * Resolve one mentioned actor URI to its Oxy user id.
- *
- * An href on one of our own domains (or the Oxy identity apex) is a LOCAL user:
- * resolve it through Oxy by username — NEVER fetch it as a remote actor (that path
- * rejects own/blocked domains). Any other href is a genuine remote actor, resolved
- * through the supplied {@link RemoteMentionResolver} — fetch-and-create for the
- * live inbox path, lookup-only for the repair path. Returns `null` when the actor
- * cannot be resolved to an Oxy user, so the caller leaves the anchor as bare text
- * rather than minting a broken link.
- */
-async function resolveMentionOxyId(
-  href: string,
-  resolveRemote: RemoteMentionResolver,
-): Promise<MentionActorResolution | null> {
-  let host: string;
-  try {
-    host = new URL(href).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-
-  if (isBlockedDomain(host)) {
-    // The host was just established as one of ours (or the Oxy identity apex), so
-    // reading the handle out of the path alone is safe here — see the host-gate
-    // note on `localProfilePathHandle`.
-    const username = localProfilePathHandle(href);
-    if (!username) return null;
-    const user = await resolveOxyUser(username);
-    const oxyUserId = user ? String(user._id ?? user.id ?? '') : '';
-    return oxyUserId ? { oxyUserId, isLocal: true } : null;
-  }
-
-  const oxyUserId = await resolveRemote(href);
-  return oxyUserId ? { oxyUserId, isLocal: false } : null;
-}
-
-/**
- * The stored-identity lookup keys a fediverse PROFILE URL implies, when the href
- * has one of the two shapes every server publishes a profile at:
- *   - `https://<host>/@<user>` — the human profile page (and its
- *     `https://<host>/@<user>@<origin-host>` form for a REMOTE profile rendered by
- *     an instance, where the trailing host is the one that actually owns the user);
- *   - `https://<host>/users/<user-or-opaque-id>` — the Mastodon/Pleroma actor URI,
- *     which Misskey-family servers key by an opaque id rather than the username.
- *
- * Both keys are emitted because neither shape tells us which one the stored row is
- * keyed by: a `/users/<id>` href IS the actor `uri`, while a `/@<user>` href is
- * only ever matchable via the `acct`. Both are unique+indexed on `FederatedActor`,
- * so the pair costs one indexed lookup. Returns undefined for any other URL shape
- * — the overwhelmingly common case for an ordinary link, which then costs nothing.
- */
-interface ProfileHrefKeys {
-  /** `origin + pathname` (no query/fragment/trailing slash) — the actor-URI key. */
-  uri: string;
-  /** The canonical `user@domain` acct key, in the lowercased form rows store. */
-  acct: string;
-}
-
-function profileHrefKeys(href: string): ProfileHrefKeys | undefined {
-  let url: URL;
-  try {
-    url = new URL(href);
-  } catch {
-    return undefined;
-  }
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined;
-
-  const path = url.pathname.replace(/\/$/, '');
-  const segment = /^\/@([^/]+)$/.exec(path)?.[1] ?? /^\/users\/([^/]+)$/.exec(path)?.[1];
-  if (!segment) return undefined;
-
-  // A username with non-ASCII characters arrives percent-encoded in `pathname`,
-  // while `acct` is stored decoded. A malformed escape is not decodable — keep the
-  // raw segment for it, which simply fails to match any stored acct.
-  let decoded: string;
-  try {
-    decoded = decodeURIComponent(segment);
-  } catch {
-    decoded = segment;
-  }
-
-  // `@user@owner-host` already carries its own domain; a bare `user` takes the
-  // host serving the page. `normalizeFederatedAcct` applies the SAME canonical
-  // lowercasing/validation the actor rows were written with.
-  const acct = normalizeFederatedAcct(
-    decoded.includes('@') ? decoded : `${decoded}@${url.hostname}`,
-  );
-  if (!acct) return undefined;
-
-  return { uri: `${url.origin}${path}`, acct };
-}
-
-/**
- * Resolve a bare PROFILE LINK (an in-content anchor with no `Mention` tag behind
- * it) against ALREADY-STORED `FederatedActor` rows only.
- *
- * This resolver is LOOKUP-ONLY on EVERY path — including the live inbox path,
- * which does fetch-and-create for a real `Mention` tag. A tag is a machine-readable
- * addressing declaration from the origin server; a URL sitting in post content is
- * arbitrary attacker-controlled text, and dereferencing it would turn any inbound
- * post into a request to a host of the author's choosing (SSRF) with unbounded
- * fan-out. So an unknown profile URL resolves to `null` and its anchor is left
- * exactly as it is today — never fetched, never created.
- */
-const lookupExistingActorByProfileHref: RemoteMentionResolver = async (href) => {
-  const keys = profileHrefKeys(href);
-  if (!keys) return null;
-  const actor = await FederatedActor.findOne(
-    { $or: [{ uri: keys.uri }, { acct: keys.acct }] },
-    { oxyUserId: 1 },
-  ).lean<{ oxyUserId?: string } | null>();
-  return actor?.oxyUserId ? String(actor.oxyUserId) : null;
-};
-
-/**
- * Max distinct profile links resolved per note. A link-heavy post must not turn
- * into an unbounded burst of lookups (nor, since a resolved link becomes a real
- * mention, into an unbounded burst of notifications) — beyond the cap the extra
- * links stay ordinary links, which is the pre-existing behavior for all of them.
- */
-const MAX_CONTENT_PROFILE_LINKS = 8;
-
-/** True when an href could name a user — the gate for spending a lookup on it. */
-function isProfileLikeHref(href: string): boolean {
-  return profileHrefKeys(href) !== undefined || localProfilePathHandle(href) !== undefined;
-}
 
 /**
  * The distinct profile-shaped anchor hrefs of a note's HTML bodies that no
@@ -387,13 +250,16 @@ function collectContentProfileHrefs(
  * allowlist for hydration to render the placeholder at all, and that same
  * allowlist is what puts the post in the mentioned user's mentions feed — so
  * withholding only the notification would be an inconsistency, not a safeguard.
- * The bound on that is {@link MAX_CONTENT_PROFILE_LINKS}, further narrowed to
+ * The bound on that is {@link MAX_PROFILE_LINKS_PER_BODY}, further narrowed to
  * whatever headroom the note's `Mention` tags left under
  * {@link MAX_MENTIONS_PER_POST} — the two mention sources share ONE per-post
  * ceiling, so a tag-saturated note spends no lookups on its links at all.
  *
- * Fail-soft and lookup-only per link (see {@link lookupExistingActorByProfileHref}):
- * a link that resolves to nothing is left exactly as it is today.
+ * Fail-soft and lookup-only per link (see {@link resolveProfileLinkIdentity}): a
+ * link that resolves to nothing is left exactly as it is today. The resolution
+ * itself lives in `services/profileLinkMentions`, because the NATIVE write
+ * boundary asks the identical question about the identical URL — a profile link
+ * has to mean the same thing whether the author was federated or local.
  */
 async function addContentProfileMentions(
   object: Record<string, unknown>,
@@ -403,14 +269,14 @@ async function addContentProfileMentions(
   const hrefs = collectContentProfileHrefs(
     object,
     into.anchorMap,
-    Math.min(MAX_CONTENT_PROFILE_LINKS, headroom),
+    Math.min(MAX_PROFILE_LINKS_PER_BODY, headroom),
   );
   if (hrefs.length === 0) return;
 
   await Promise.all(
     hrefs.map(async (href) => {
       try {
-        const resolved = await resolveMentionOxyId(href, lookupExistingActorByProfileHref);
+        const resolved = await resolveProfileLinkIdentity(href);
         if (!resolved) return;
         into.ids.add(resolved.oxyUserId);
         if (resolved.isLocal) into.localIds.add(resolved.oxyUserId);
@@ -426,7 +292,7 @@ async function addContentProfileMentions(
  * Resolve ONE extracted `Mention` tag to its mentioned actor, or `null` when it
  * cannot be resolved (leaving its anchor as bare text). This is the single seam
  * {@link buildResolvedInboundMentions} varies across its callers: the live inbox
- * path resolves through {@link resolveMentionOxyId} with the fetch-and-create
+ * path resolves through {@link resolveHrefIdentity} with the fetch-and-create
  * remote resolver, the one-shot repair path resolves lookup-only, and the batched
  * outbox path resolves from a precomputed map with NO further I/O.
  */
@@ -545,7 +411,7 @@ export async function resolveInboundMentions(
   object: Record<string, unknown>,
 ): Promise<ResolvedInboundMentions> {
   return buildResolvedInboundMentions(object, (tag) =>
-    resolveMentionOxyId(tag.href, fetchOrCreateRemoteActorOxyId),
+    resolveHrefIdentity(tag.href, fetchOrCreateRemoteActorOxyId),
   );
 }
 
@@ -564,7 +430,7 @@ export async function resolveInboundMentionsExisting(
   object: Record<string, unknown>,
 ): Promise<ResolvedInboundMentions> {
   return buildResolvedInboundMentions(object, (tag) =>
-    resolveMentionOxyId(tag.href, lookupExistingRemoteActorOxyId),
+    resolveHrefIdentity(tag.href, lookupExistingRemoteActorOxyId),
   );
 }
 
@@ -598,7 +464,7 @@ export interface BatchMentionResolveOptions {
  * further TAG I/O, reusing the identical anchor-matching logic as the single-note
  * paths via {@link buildResolvedInboundMentions} — including its profile-link
  * pass, whose per-note lookups are indexed, capped by
- * {@link MAX_CONTENT_PROFILE_LINKS}, and never a remote fetch.
+ * {@link MAX_PROFILE_LINKS_PER_BODY}, and never a remote fetch.
  */
 export async function resolveInboundMentionsForNotes(
   objects: ReadonlyArray<Record<string, unknown>>,
@@ -626,7 +492,7 @@ export async function resolveInboundMentionsForNotes(
     const resolved = await Promise.all(
       batch.map((href) =>
         runWithTimeout(
-          resolveMentionOxyId(href, fetchOrCreateRemoteActorOxyId),
+          resolveHrefIdentity(href, fetchOrCreateRemoteActorOxyId),
           options.perActorTimeoutMs,
         ).catch((err) => {
           logger.warn('[Federation] failed to resolve outbox mention', { error: err });

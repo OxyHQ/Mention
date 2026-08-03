@@ -28,6 +28,7 @@ import {
   FEED_CONSTANTS
 } from '../utils/feedUtils';
 import { mergeHashtags, reconcileMentionIdsForPost } from '../utils/textProcessing';
+import { foldProfileLinkMentions } from '../services/profileLinkMentions';
 import { normalizeMediaItems } from '../utils/mediaInput';
 import { queryString } from '../utils/queryParams';
 import { buildAuthorship } from '../utils/postAuthorship';
@@ -357,9 +358,14 @@ class FeedController {
 
       // Create reply post
       const mergedTags = mergeHashtags(replyContent?.text || '', hashtags);
+      // A profile link the author pasted becomes a real mention here, exactly as
+      // it does on `POST /posts` and on the federated ingest — see
+      // `foldProfileLinkMentions`. Run AFTER the hashtag merge so what counts as
+      // a hashtag is still read off the body the author actually typed.
+      const foldedMentions = await foldProfileLinkMentions(replyContent, mentions);
       const reconciledMentions = reconcileMentionIdsForPost(
         mentionTextsFromContent(replyContent),
-        mentions,
+        foldedMentions.mentions,
       );
 
       // A reply may attach a single Syra podcast show. Like createPost, the
@@ -564,9 +570,12 @@ class FeedController {
       // Create boost
       const mergedTags = mergeHashtags(content?.text || '', hashtags);
       const boostContent = content || { text: '' };
+      // The comment on a boost is a body the author typed, so a profile link in
+      // it becomes a mention on the same terms as every other write boundary.
+      const foldedMentions = await foldProfileLinkMentions(boostContent, mentions);
       const reconciledMentions = reconcileMentionIdsForPost(
         mentionTextsFromContent(boostContent),
-        mentions,
+        foldedMentions.mentions,
       );
 
       const boost = new Post({

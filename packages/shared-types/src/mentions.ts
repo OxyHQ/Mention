@@ -189,6 +189,49 @@ export function reconcileMentionIdsDetailed(
 }
 
 /**
+ * Visit each rendition that can authoritatively mention someone, handing the
+ * visitor a setter for that same slot.
+ *
+ * Author variants are the stored source of truth. `content.text` is considered
+ * only when there are no author variants (the client write convenience shape).
+ * Machine translations never create notification recipients.
+ *
+ * READ AND WRITE GO THROUGH ONE SELECTION, on purpose. A write boundary that
+ * derives a mention from a body has to change that body too — the id it stores
+ * only renders if a `[mention:<id>]` placeholder sits in the text, and
+ * {@link reconcileMentionIds} drops any id that has none. Two functions, one
+ * choosing which renditions may mention and another choosing which to rewrite,
+ * would be one edit away from disagreeing and silently dropping the mention they
+ * had just authorized. So there is one traversal and both callers walk it.
+ */
+function forEachMentionText(
+  content: unknown,
+  visit: (text: string, assign: (next: string) => void) => void,
+): void {
+  if (!content || typeof content !== 'object') return;
+  const record = content as Record<string, unknown>;
+  const variants = Array.isArray(record.variants) ? record.variants : [];
+
+  let sawAuthorVariant = false;
+  for (const entry of variants) {
+    if (!entry || typeof entry !== 'object') continue;
+    const variant = entry as Record<string, unknown>;
+    if (variant.source === 'machine' || typeof variant.text !== 'string') continue;
+    sawAuthorVariant = true;
+    visit(variant.text, (next) => {
+      variant.text = next;
+    });
+  }
+  if (sawAuthorVariant) return;
+
+  if (typeof record.text === 'string') {
+    visit(record.text, (next) => {
+      record.text = next;
+    });
+  }
+}
+
+/**
  * Text renditions that can authoritatively mention someone.
  *
  * Author variants are the stored source of truth. `content.text` is considered
@@ -196,17 +239,32 @@ export function reconcileMentionIdsDetailed(
  * Machine translations never create notification recipients.
  */
 export function mentionTextsFromContent(content: unknown): string[] {
-  if (!content || typeof content !== 'object') return [];
-  const record = content as Record<string, unknown>;
-  const variants = Array.isArray(record.variants) ? record.variants : [];
-
-  const authorTexts = variants.flatMap((entry): string[] => {
-    if (!entry || typeof entry !== 'object') return [];
-    const variant = entry as Record<string, unknown>;
-    if (variant.source === 'machine' || typeof variant.text !== 'string') return [];
-    return [variant.text];
+  const texts: string[] = [];
+  forEachMentionText(content, (text) => {
+    texts.push(text);
   });
-  if (authorTexts.length > 0) return authorTexts;
+  return texts;
+}
 
-  return typeof record.text === 'string' ? [record.text] : [];
+/**
+ * Rewrite, IN PLACE, exactly the renditions {@link mentionTextsFromContent}
+ * reads. Returns true when any of them actually changed.
+ *
+ * In place rather than returning a copy because the callers hold the content
+ * they are about to persist — a plain object being assembled, or a Mongoose
+ * subdocument on a loaded post — and neither can accept a foreign replacement
+ * without the caller knowing which one it is holding.
+ */
+export function mapMentionTexts(
+  content: unknown,
+  transform: (text: string) => string,
+): boolean {
+  let changed = false;
+  forEachMentionText(content, (text, assign) => {
+    const next = transform(text);
+    if (next === text) return;
+    assign(next);
+    changed = true;
+  });
+  return changed;
 }

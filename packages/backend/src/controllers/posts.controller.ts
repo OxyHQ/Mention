@@ -30,6 +30,7 @@ import { metrics } from '../utils/metrics';
 import { postHydrationService, resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
 import { config } from '../config';
 import { mergeHashtags, reconcileMentionIdsForPost } from '../utils/textProcessing';
+import { foldProfileLinkMentions } from '../services/profileLinkMentions';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { extractFollowingIds } from '../utils/privacyHelpers';
 import { queryInt, queryString } from '../utils/queryParams';
@@ -1838,9 +1839,21 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     post.markModified('content.attachments');
 
     if (hashtags !== undefined) post.hashtags = mergeHashtags('', hashtags || []);
+
+    // An edit is a write boundary like any other: a profile link the author has
+    // just pasted into the body becomes a mention here, on the same terms as on
+    // creation (see `foldProfileLinkMentions`). Run after the renditions above
+    // have been rewritten, so it reads the body this edit is actually storing —
+    // and `markModified` because the rewrite lands inside the `content` subtree,
+    // whose nested paths Mongoose does not track on its own.
+    const foldedMentions = await foldProfileLinkMentions(
+      post.content,
+      mentions !== undefined ? mentions : post.mentions,
+    );
+    if (foldedMentions.rewritten) post.markModified('content');
     post.mentions = reconcileMentionIdsForPost(
       mentionTextsFromContent(post.content),
-      mentions !== undefined ? mentions : post.mentions,
+      foldedMentions.mentions,
     );
 
     const collaboratorIds = await postCollaborationService.resolveCollaboratorRefs(

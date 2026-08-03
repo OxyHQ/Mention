@@ -11,6 +11,7 @@ import {
   mentionTextsFromContent,
 } from '@mention/shared-types/mentions';
 import { reconcileMentionIdsForPost } from '../utils/textProcessing';
+import { foldProfileLinkMentions } from './profileLinkMentions';
 import {
   createMentionNotifications,
   createBatchNotifications,
@@ -583,10 +584,26 @@ class PostCreationService {
 
     const primaryLanguage = typeof postData.language === 'string' ? postData.language : undefined;
     const storedContent = this.buildStoredContent(content, inputVariants, primaryLanguage);
+
+    // A profile link the author pasted is a mention, and THIS is where it becomes
+    // one: the URL is rewritten into the same `[mention:<id>]` placeholder the
+    // composer's picker produces, and the id it names is authorized alongside the
+    // ones the picker sent. See `foldProfileLinkMentions` for the whole argument
+    // — the short version is that the federated ingest has always done exactly
+    // this to exactly these URLs, so a post composed here was the odd one out.
+    //
+    // Skipped for a federated ingest, whose body already went through that same
+    // lookup against the same stored identities on the way in, on the HTML it
+    // arrived as. Re-asking here could only spend the lookups a second time for
+    // the same answers.
+    const authorizedMentions = params.federation != null
+      ? params.mentions
+      : (await foldProfileLinkMentions(storedContent, params.mentions)).mentions;
+
     postData.content = storedContent;
     postData.mentions = reconcileMentionIdsForPost(
       mentionTextsFromContent(storedContent),
-      params.mentions,
+      authorizedMentions,
     );
 
     const post = new Post(postData);
