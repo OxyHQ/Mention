@@ -7,7 +7,6 @@ import Bookmark from '../models/Bookmark';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import mongoose from 'mongoose';
 import { createMentionNotifications } from '../utils/notificationUtils';
-import PostSubscription from '../models/PostSubscription';
 import {
   PostVisibility,
   PostAttachmentDescriptor,
@@ -82,6 +81,7 @@ import {
   updateBookmarkFolderForViewer,
 } from '../services/BookmarkFolderService';
 import { repairRecentRepliersAfterPostDelete } from '../services/PostRecentReplierService';
+import { cascadeDeletedPost } from '../services/PostDeletionCascade';
 import { loadScheduledChain } from '../services/scheduledChain';
 
 // Constants from centralized config
@@ -2321,7 +2321,9 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
     }
 
     const postId = post._id.toString();
-    await repairRecentRepliersAfterPostDelete({
+    // Deletes the post's direct replies as well as repairing the projection —
+    // it returns them so the cascade below can clean up what they referenced.
+    const deletedReplies = await repairRecentRepliersAfterPostDelete({
       postId,
       parentPostId: post.parentPostId,
     });
@@ -2357,29 +2359,15 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
       }));
     }
 
-    // Cascading cleanup — best-effort, don't fail the request
-    try {
-      await Promise.allSettled([
-        // Delete associated article
-        post.content?.article?.articleId
-          ? ArticleModel.deleteOne({ _id: post.content.article.articleId }).exec()
-          : Promise.resolve(),
-        // Delete associated poll
-        post.content?.pollId
-          ? Poll.deleteOne({ _id: post.content.pollId }).exec()
-          : Promise.resolve(),
-        // Delete likes for this post
-        Like.deleteMany({ postId }).exec(),
-        // Delete bookmarks for this post
-        Bookmark.deleteMany({ postId }).exec(),
-        // Delete post subscriptions
-        PostSubscription.deleteMany({ postId }).exec(),
-        // Delete notifications referencing this post
-        mongoose.model('Notification').deleteMany({ entityId: postId, entityType: 'post' }).exec(),
-      ]);
-    } catch (cleanupError) {
-      logger.error('Error during cascading post cleanup', cleanupError);
-    }
+    // Cascading cleanup — best-effort (it never throws) and awaited, so the
+    // response is not sent while rows that name a post nobody can load are
+    // still readable. Every known reference is enumerated by
+    // `PostReferenceProbeName`, and the cascade re-runs those probes afterwards
+    // to state what it actually left behind rather than assuming it worked.
+    // The DOCUMENT, never a hand-picked literal: a literal type-checks against
+    // whatever the cascade reads today and silently drops a field added to it
+    // tomorrow.
+    await cascadeDeletedPost({ post, alsoDeleted: deletedReplies });
 
     await deleteScheduledContinuations(cancelledContinuations, userId);
 

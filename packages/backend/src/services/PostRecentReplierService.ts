@@ -33,6 +33,21 @@ export interface DeletedPostProjectionContext {
   parentPostId?: unknown;
 }
 
+/**
+ * A direct reply removed alongside its parent, in the shape
+ * {@link import('./PostDeletionCascade').CascadedPostRow} consumes — the two are
+ * checked against each other by the compiler at the call site in
+ * `posts.controller`.
+ */
+export interface DeletedReplyRow {
+  _id: mongoose.Types.ObjectId;
+  oxyUserId?: string;
+  boostOf?: string;
+  parentPostId?: string;
+  federation?: { activityId?: string; url?: string } | null;
+  content?: { pollId?: string; article?: { articleId?: string } } | null;
+}
+
 function validDate(value: unknown): Date | null {
   const date = value instanceof Date ? value : new Date(String(value ?? ''));
   return Number.isFinite(date.getTime()) ? date : null;
@@ -246,10 +261,26 @@ async function recomputeProjection(
   );
 }
 
+/**
+ * The direct replies this transaction deletes, projected onto the fields the
+ * deletion cascade needs. Read BEFORE the delete, because afterwards nothing
+ * but the ids would be recoverable and half of a post's side tables name it by
+ * its ActivityPub identifiers rather than its id.
+ */
+const DELETED_CHILD_PROJECTION = {
+  _id: 1,
+  oxyUserId: 1,
+  boostOf: 1,
+  parentPostId: 1,
+  federation: 1,
+  'content.pollId': 1,
+  'content.article.articleId': 1,
+} as const;
+
 async function repairDeletedPostProjectionInTransaction(
   input: { postId: string; parentPostId: string },
   session: ClientSession,
-): Promise<void> {
+): Promise<DeletedReplyRow[]> {
   if (input.parentPostId) {
     // The authoritative Post query and projection replacement share one
     // snapshot transaction. A concurrent reply writer touches this same
@@ -259,9 +290,9 @@ async function repairDeletedPostProjectionInTransaction(
   }
 
   const deletedChildren = await Post.find({ parentPostId: input.postId })
-    .select({ _id: 1 })
+    .select(DELETED_CHILD_PROJECTION)
     .session(session)
-    .lean<Array<{ _id: unknown }>>();
+    .lean<DeletedReplyRow[]>();
   const deletedChildIds = deletedChildren
     .map((child) => normalizedId(child._id))
     .filter(Boolean);
@@ -281,19 +312,28 @@ async function repairDeletedPostProjectionInTransaction(
     { postId: { $in: [input.postId, ...deletedChildIds] } },
     { session },
   );
+
+  return deletedChildren;
 }
 
 /**
  * Repair the recent-replier read model after a Post row has already been
  * deleted. Fail-soft by design: projection maintenance must never turn a
  * successful authoritative delete into an API failure.
+ *
+ * Returns the direct replies this call DELETED, which is not something a
+ * projection repair would normally have to say — but it deletes them, and their
+ * own likes, bookmarks, notifications and gates are then nobody's to clean
+ * unless it reports which rows went. Empty when nothing was deleted, and empty
+ * when the repair failed outright: an unreported row is a missed cleanup, while
+ * a falsely reported one would send the cascade after a post that still exists.
  */
 export async function repairRecentRepliersAfterPostDelete(
   input: DeletedPostProjectionContext,
-): Promise<void> {
+): Promise<DeletedReplyRow[]> {
   const postId = normalizedId(input.postId);
   const parentPostId = normalizedId(input.parentPostId);
-  if (!postId) return;
+  if (!postId) return [];
 
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_PROJECTION_REPAIR_ATTEMPTS; attempt += 1) {
@@ -304,15 +344,19 @@ export async function repairRecentRepliersAfterPostDelete(
     if (!session) break;
 
     try {
+      let deletedReplies: DeletedReplyRow[] = [];
       await session.withTransaction(
-        () =>
-          repairDeletedPostProjectionInTransaction(
+        async () => {
+          // Reassigned per attempt: a retried transaction re-reads the
+          // children, and the previous attempt's rows were rolled back.
+          deletedReplies = await repairDeletedPostProjectionInTransaction(
             { postId, parentPostId },
             session,
-          ),
+          );
+        },
         PROJECTION_REPAIR_TRANSACTION_OPTIONS,
       );
-      return;
+      return deletedReplies;
     } catch (error) {
       lastError = error;
       if (
@@ -331,6 +375,7 @@ export async function repairRecentRepliersAfterPostDelete(
     parentPostId: parentPostId || undefined,
     reason: lastError instanceof Error ? lastError.message : String(lastError),
   });
+  return [];
 }
 
 export async function recordRecentReplierForPost(reply: RecentReplyLike): Promise<void> {
