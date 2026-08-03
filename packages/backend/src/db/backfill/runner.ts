@@ -346,6 +346,17 @@ export interface RunnerOptions {
   ) => Promise<void> | void;
   /** Called once a collection's copy AND self-reference pass both finished. */
   readonly onCompleted?: (collection: string) => Promise<void> | void;
+  /**
+   * Called after each LEVEL with the resolution records not yet made durable,
+   * so the audit trail survives a run that dies.
+   *
+   * Per level rather than per batch because a level is the unit whose rows are
+   * all committed — inside one, several collections are copying concurrently
+   * and a drain would race their transforms.
+   */
+  readonly onResolutions?: (
+    summaries: readonly ResolutionSummary[]
+  ) => Promise<void> | void;
   /** Progress reporting. Never the place for data. */
   readonly onProgress?: (message: string) => void;
 }
@@ -638,6 +649,16 @@ export interface RunSummary {
   readonly resolutionPlan: ResolutionPlan;
   /** What the documented resolutions ACTUALLY did, per rule, with the ids. */
   readonly resolutions: readonly ResolutionSummary[];
+  /**
+   * The records `onResolutions` was NOT handed — everything decided after the
+   * last level, which the caller still owes the durable log.
+   *
+   * Separate from {@link resolutions} because they answer different questions:
+   * that one is the whole run for the REPORT, this one is the remainder for the
+   * WRITER. Handing the writer the whole summary after the levels already took
+   * most of it would double every row.
+   */
+  readonly undrainedResolutions: readonly ResolutionSummary[];
 }
 
 /**
@@ -732,6 +753,13 @@ export async function runBackfill(
       }
     });
     await Promise.all(workers);
+
+    // The level's rows are committed, so the record of what the rules DID to
+    // them is made durable now rather than after the whole copy returns. A run
+    // that dies at level 4 of 6 then still has levels 1–3 written down; the
+    // previous shape wrote the trail once at the end, so a 26-minute failure
+    // that resolved hundreds of rows recorded none of them.
+    if (options.onResolutions) await options.onResolutions(resolutionLog.drain());
   }
 
   // Statistics describe an empty table until this runs, so the first queries
@@ -747,5 +775,10 @@ export async function runBackfill(
     copies,
     resolutionPlan,
     resolutions: resolutionLog.summary(),
+    // Drained LAST, after the levels have taken theirs, so a caller can write
+    // the remainder without writing every record a second time. The
+    // self-reference pass and the deferred writes land after the final level,
+    // so this is not always empty.
+    undrainedResolutions: resolutionLog.drain(),
   };
 }

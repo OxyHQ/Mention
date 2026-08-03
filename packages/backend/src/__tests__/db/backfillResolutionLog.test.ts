@@ -22,7 +22,11 @@ import { sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { assertBookkeepingTableExists } from '../../db/backfill/bookkeepingTables';
 import { RESOLUTION_LOG_TABLE, writeResolutionLog } from '../../db/backfill/resolutionLogStore';
-import { RESOLUTION_RULES, type ResolutionSummary } from '../../db/backfill/resolutions';
+import {
+  RESOLUTION_RULES,
+  ResolutionLog,
+  type ResolutionSummary,
+} from '../../db/backfill/resolutions';
 
 const RUN_A = 'brl-run-a';
 const RUN_B = 'brl-run-b';
@@ -111,6 +115,58 @@ describe('the resolution log', () => {
       'brl-only-b',
       'brl-shared-1',
     ]);
+  });
+
+  it('keeps what earlier levels decided when a later one DIES', async () => {
+    // The property the per-level drain exists for, exercised the way it fails:
+    // the trail was written once, after the copy returned, so a run that died
+    // wrote NOTHING — empty for exactly the runs whose record matters. A failed
+    // 26-minute attempt resolved hundreds of rows and recorded none.
+    //
+    // `finally` is not the fix and the fixture would not catch its failure
+    // anyway: a write issued on a connection whose transaction has aborted
+    // executes nothing until a rollback, while raising nothing and reading as
+    // handled. Draining as the copy goes means the rows are already durable
+    // when the failure happens, which is what this asserts.
+    const log = new ResolutionLog();
+    const record = (documentId: string) =>
+      log.record({ rule: rule(), documentId, detail: `brl level detail ${documentId}` });
+
+    record('brl-level1-a');
+    record('brl-level1-b');
+    await writeResolutionLog(getDb(), RUN_A, log.drain());
+
+    record('brl-level2-a');
+    await writeResolutionLog(getDb(), RUN_A, log.drain());
+
+    // …and here the run dies. Nothing else is written.
+    expect((await rowsFor(RUN_A)).map((row) => row.document_id)).toStrictEqual([
+      'brl-level1-a',
+      'brl-level1-b',
+      'brl-level2-a',
+    ]);
+  });
+
+  it('does not write a record twice when a later drain follows an earlier one', async () => {
+    // The other half, and the one that makes the per-level write safe: a
+    // transform is re-run several times per document, so the same record is
+    // re-`record`ed under the same key. A drain that re-handed everything would
+    // turn one cutover into three copies of its own audit trail — and the CLI's
+    // "written vs claimed" check would then read as a mismatch on a healthy run.
+    const log = new ResolutionLog();
+    log.record({ rule: rule(), documentId: 'brl-dup', detail: 'brl first' });
+    expect(await writeResolutionLog(getDb(), RUN_A, log.drain())).toBe(1);
+
+    // Recorded AGAIN, exactly as a re-run transform does.
+    log.record({ rule: rule(), documentId: 'brl-dup', detail: 'brl first' });
+    expect(await writeResolutionLog(getDb(), RUN_A, log.drain())).toBe(0);
+
+    expect(await rowsFor(RUN_A)).toHaveLength(1);
+    // And the complete summary still reports it, because the REPORT and the
+    // WRITER ask different questions of the same log.
+    expect(
+      log.summary().flatMap((entry) => entry.documentIds)
+    ).toStrictEqual(['brl-dup']);
   });
 
   it('writes nothing, and says so, when no rule acted', async () => {
