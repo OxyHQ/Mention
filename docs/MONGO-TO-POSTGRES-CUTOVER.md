@@ -560,10 +560,10 @@ the topology assertion and the 25 migrations, keeping the blocked-domain
 reconciliation as a Postgres-only step — and it is deliberately scheduled AFTER
 the cutover, so this deploy is the last one that carries it.
 
-### 3.4b Two EXPECTED conditions — do not diagnose these as defects
+### 3.4b Three EXPECTED conditions — do not diagnose these as defects
 
-Both are known, both look like corruption to a completeness check, and both will
-be met by someone under time pressure who did not write them down.
+All three are known, all three look like corruption to a completeness check, and
+all three will be met by someone under time pressure who did not write them down.
 
 **(a) 834 posts will have no `post_authorships` row. This is correct.**
 
@@ -604,6 +604,77 @@ absent on every Mongo post, so **every backfilled row lands `false`** and no
 pre-cutover post fans out. Only posts created after the flip carry a `true`.
 Confirm with the two counts in §2.1.
 
+**(c) If you verify while anything is still writing to Mongo, the mismatches are
+not data loss.**
+
+`verifyCollection` streams the source with **no upper `_id` bound**, so any
+document created after the copy read that collection is counted as a row
+Postgres should hold and does not. It looks exactly like loss: a per-table count
+mismatch, with real numbers.
+
+**This is measured, not theoretical.** The referential audit hit the same shape
+on 2026-08-03 and reported **407 orphans** — every one an id created inside the
+run's last four minutes, every parent present in Mongo the whole time. That audit
+now passes an explicit `upTo` bound for this reason; the verifier does not,
+because in the window it runs against a source nothing is writing to.
+
+So: **run §3.4c with the service at `desiredCount 0`.** If you verified early and
+see mismatches, re-run the verification after the writes have stopped before
+concluding anything. **A cutover rolled back over this would be a cutover rolled
+back over nothing.**
+
+### 3.4c Verify the copy against the SOURCE
+
+**This is the only step in the whole window that compares what Postgres holds
+against what Mongo actually contains.** Everything else compares the copy with
+its own account of itself — the resolution-log reconciliation checks that the
+report's record count matches the rows written to the log table, and the row
+counts in §3.5 are read against *the copy's own report*. Both are
+self-consistency checks. Neither can see a document that never became a row.
+
+Run it after §3.4 and before admitting anyone:
+
+```bash
+--overrides '{"containerOverrides":[{"name":"mention","command":[
+   "bun","packages/backend/dist/scripts/backfill-mongo-to-postgres.js",
+   "--verify-only","--target-database=mention"]}]}'
+```
+
+`VERIFY PASS` is the line to look for. A failure prints, per table, the row count
+the transforms produced against the row count Postgres holds — and **a count
+mismatch here is the signal that means the copy lost something.**
+
+**Two costs, and both land on the window's clock:**
+
+- **It re-reads the entire source.** The verifier recomputes what Postgres
+  *should* hold by streaming every document again and re-running each plan's
+  transform. Budget a second full pass over Mongo, not a quick tail check.
+- **It must run with the service still at `desiredCount 0`** — see §3.4b(c).
+  Verify first, admit users second.
+
+**What a PASS covers, and what it does not** — the two halves have different
+reach, and a reader at 3am must not have to infer this:
+
+- **Row counts are TOTAL.** Every document of every mapped collection, every
+  table including child tables, no sampling. This is the half that answers "did
+  we lose data".
+- **Field fidelity is SAMPLED** — 200 documents per collection — and it compares
+  only columns the transform actually supplied. A column the plan never sets is
+  invisible to it by design: an omitted column is one the database default
+  filled, so the transform is not claiming a value there.
+- **No audit runs during the copy at all.** The column-coverage pass — the one
+  that answers "which columns got filled" — runs only under `--audit-only` or
+  `--start-from-empty`, and §3.4 rules the latter out on a first cutover. The
+  §1 pre-flight audit is where that question is answered, and it is answered
+  about the PLANS rather than about the copied rows.
+- **The verifier and the copy read Mongo through the same code.** If a
+  truncation cause ever lived in that shared reader, both would truncate
+  identically and this step would report PASS. That limit is stated rather than
+  papered over; the mitigation is that a driver-level cursor failure propagates
+  as a thrown error rather than a short read, so the loud case stays loud. **Do
+  not build a second reader to close this** — two readers that disagree for their
+  own reasons would be worse than one whose limit is written down.
+
 ### 3.5 Verify BEFORE admitting users
 
 Traffic is already flowing at this point (the service is up and the ALB will
@@ -614,8 +685,12 @@ rather than a gate you can hold traffic behind. If a check fails, §4.
   cycling, not as an error page.
 - `.github/scripts/smoke-mention.sh` runs as part of the deploy — read its result
   rather than assuming.
+- `VERIFY PASS` from §3.4c. **This is the source-to-target comparison**; the row
+  counts below it are the copy's own account of itself and cannot stand in for
+  it.
 - Row counts in Postgres against the copy's own report. Two independent paths
-  agreed to the row in rehearsal; they should again.
+  agreed to the row in rehearsal; they should again — but note this compares the
+  copy against what the copy said it wrote, not against Mongo.
 - One authenticated read of a real feed, and one profile.
 - One federation round trip: the actor JSON at
   `https://api.mention.earth/ap/users/<user>` returns 200 with a `publicKey`
@@ -624,7 +699,9 @@ rather than a gate you can hold traffic behind. If a check fails, §4.
 ### 3.6 What sends us back rather than forward
 
 - Tasks that will not stay `RUNNING`.
-- The copy did not complete, or its row counts disagree with the report.
+- The copy did not complete, or §3.4c reported a count mismatch that **survives a
+  re-verify against a quiesced source** — an early verify against a live one is
+  §3.4b(c), not loss.
 - A feed or profile read that errors rather than merely being slow.
 - Any write path returning 5xx.
 
