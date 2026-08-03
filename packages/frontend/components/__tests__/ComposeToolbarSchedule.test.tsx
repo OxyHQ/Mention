@@ -4,6 +4,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
+import { ScheduleIcon, ScheduleIconActive } from '@/assets/icons/schedule-icon';
 
 /**
  * The schedule control is an ICON, like every other attachment control in this
@@ -108,20 +109,48 @@ describe('ComposeToolbar — the schedule control', () => {
   });
 
   it('tints itself once a time is set, like every other icon in the row', () => {
-    const calendarColor = (tree: TestRenderer.ReactTestRenderer) =>
-      tree.root.findByType(CalendarIcon).props.color;
-
     const unscheduled = renderToolbar();
-    const plainColor = calendarColor(unscheduled);
+    const plainColor = unscheduled.root.findByType(ScheduleIcon).props.color;
     act(() => unscheduled.unmount());
 
     const scheduled = renderToolbar({ hasSchedule: true });
-    const activeColor = calendarColor(scheduled);
+    const activeColor = scheduled.root.findByType(ScheduleIconActive).props.color;
     act(() => scheduled.unmount());
 
     // The same "this attachment is present" signal poll, media and article give.
     expect(plainColor).toBe('#666');
     expect(activeColor).toBe('#7c3aed');
+  });
+
+  /**
+   * The stronger half, and the reason the tint above is no longer the whole
+   * story: the FILLED cut is drawn once a time is set. A colour-blind reader
+   * gets the state from the glyph, and a test that only read the colour could
+   * not tell the two icons apart at all.
+   */
+  it('swaps to the filled glyph once a time is set', () => {
+    const unscheduled = renderToolbar();
+    expect(unscheduled.root.findAllByType(ScheduleIcon)).toHaveLength(1);
+    expect(unscheduled.root.findAllByType(ScheduleIconActive)).toHaveLength(0);
+    act(() => unscheduled.unmount());
+
+    const scheduled = renderToolbar({ hasSchedule: true });
+    expect(scheduled.root.findAllByType(ScheduleIconActive)).toHaveLength(1);
+    expect(scheduled.root.findAllByType(ScheduleIcon)).toHaveLength(0);
+    act(() => scheduled.unmount());
+  });
+
+  /**
+   * The schedule control and the EVENT control used to draw the same
+   * `CalendarIcon`, so two different actions in one row were one picture. Pinned
+   * because the fix is invisible: nothing fails if a later change points either
+   * back at the other's glyph.
+   */
+  it('does not share its glyph with the event control', () => {
+    const tree = renderToolbar({ onEventPress: () => {} });
+    expect(tree.root.findAllByType(ScheduleIcon)).toHaveLength(1);
+    expect(tree.root.findAllByType(CalendarIcon)).toHaveLength(1);
+    act(() => tree.unmount());
   });
 
   it('opens the picker when tapped in EITHER state, so the time stays changeable', () => {

@@ -13,6 +13,7 @@ import { GifIcon } from '@/assets/icons/gif-icon';
 import { SourcesIcon } from '@/assets/icons/sources-icon';
 import { ArticleIcon } from '@/assets/icons/article-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
+import { ScheduleIcon, ScheduleIconActive } from '@/assets/icons/schedule-icon';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 interface ComposeToolbarProps {
@@ -296,7 +297,15 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     // signals its attachment is present.
                     accessibilityLabel={t('compose.schedule.a11y', { defaultValue: 'Schedule this post' })}
                 >
-                    <CalendarIcon size={20} color={scheduleColor} />
+                    {/* The FILLED cut once a time is set, not just a tint. The
+                        colour already says "active"; the glyph saying it too is
+                        what the icon/iconActive pairs elsewhere in the app do,
+                        and it survives a colour-blind reader. */}
+                    {hasSchedule ? (
+                        <ScheduleIconActive size={20} color={scheduleColor} />
+                    ) : (
+                        <ScheduleIcon size={20} color={scheduleColor} />
+                    )}
                 </PressableScale>
             )}
 
