@@ -75,10 +75,21 @@ export const userBehaviors = pgTable(
     oxyUserId: text().notNull().unique('user_behaviors_oxy_user_id_key'),
 
     // Post-type affinity — four fixed buckets, so four columns.
-    preferredPostTypeText: integer().notNull().default(0),
-    preferredPostTypeImage: integer().notNull().default(0),
-    preferredPostTypeVideo: integer().notNull().default(0),
-    preferredPostTypePoll: integer().notNull().default(0),
+    //
+    // doublePrecision, NOT integer: these are ACCUMULATED WEIGHTS, not counts.
+    // `UserPreferenceService` does `preferredPostTypes[type] += contentWeight`,
+    // where the weight is a learning rate scaled by a surface boost — a
+    // fraction. Production holds e.g. 1432.8000000001784, which is what the
+    // audit refused. An integer column would also truncate every future
+    // increment below 1 to zero, silently flattening the affinity signal that
+    // For You ranks on. Every sibling here (`averageEngagementTime`,
+    // `skipRate`, `completionRate`) and every child-table counter
+    // (`user_behavior_authors.weight`, `..._topics.weight`, `..._regions.count`)
+    // is already doublePrecision; these four were the outliers.
+    preferredPostTypeText: doublePrecision().notNull().default(0),
+    preferredPostTypeImage: doublePrecision().notNull().default(0),
+    preferredPostTypeVideo: doublePrecision().notNull().default(0),
+    preferredPostTypePoll: doublePrecision().notNull().default(0),
 
     /** Hours 0..23 the user is most active. A small scalar set. */
     activeHours: integer().array(),
