@@ -46,18 +46,51 @@ Each is a fact to CHECK, not to assume.
 3. **The `mention` role owns the `mention` database** (`pg_database.datdba`),
    so it holds `CREATE` on `public` through `pg_database_owner` and owns every
    table it creates. No grant is needed anywhere. Measured.
-4. **The pre-flight audit is clean.** Run it the day before (§2). The audit is
-   purely a refusal gate — the copy consumes nothing it produces — so it does
-   not have to be inside the window.
+4. **The pre-flight audit is clean.** Run it the day before (§2) — and note it
+   runs AGAIN inside the window. See §2 for why the skip was designed, approved,
+   and then cancelled.
 5. `drizzle/foundation` is merged to `main` and CI is green.
+6. **The trunk's test suite is at its verified baseline.** Measured on
+   `drizzle/channels-plans` @ `b017809c`, three consecutive full runs agreeing
+   exactly: **504 files, 5,939 tests collected, 5,938 passing, 1 failing, zero
+   files dead at load.** The single failure is `closedValueSets.test.ts` ›
+   *"has no set that disagrees with the vocabulary Mongo holds"* — the
+   `notifications.entityType` case, parked pending the production `distinct()`
+   in §2. Anything else red is new and is not this baseline. Re-take with
+   `bun run --cwd packages/backend test` plus
+   `bun run check:suite-collection <report.json> packages/backend/src`.
+
+   The collection gate matters here specifically: a test file that dies before
+   its first `it()` collects zero tests, so it cannot fail an assertion and the
+   pass RATIO goes UP. That is not hypothetical — it hid 296 tests behind a
+   99.9% pass rate on this very branch. **Zero files collecting zero is part of
+   the baseline, not a detail.**
 
 ---
 
-## 2. The day before — pre-flight audit
+## 2. The day before — pre-flight audit and the production readings
 
-The audit costs ~29 minutes and blocks nothing. Run it against the **probe**, not
-production: it reads production Mongo either way, and its verdict is about the
-SOURCE.
+### 2.0 The audit stays INSIDE the window — this reversed
+
+`--skip-audit` was designed, approved, and then **cancelled**. It is not a
+pending task; it is a decision, and the reason should stop anyone re-proposing
+it at 03:40 because the window looks long.
+
+**Why it reversed:** the plans changed materially after the flag was approved,
+and in the hours that followed **the audit's own instruments caught silent data
+loss twice** — a rehearsal scoring a perfect `58/58` on rows while dropping
+eleven populated columns (#92), and a set of carried fields nobody had checked
+(#93). Its value went up at exactly the moment it looked skippable. A gate is
+worth most when you are most tempted to skip it, which is the moment its subject
+has changed.
+
+**Consequence: budget ~86 minutes, not ~36.** Measured components: CI ~4 min,
+deploy ~9 min, copy ~66 min with the audit inside it, plus stop/migrate/verify.
+
+Run the day-before pass anyway. It costs ~29 minutes, blocks nothing, and a
+BLOCK finding found the day before is a scheduling decision rather than a
+window-length crisis. Run it against the **probe**, not production: it reads
+production Mongo either way, and its verdict is about the SOURCE.
 
 ```bash
 aws ecs run-task --cluster oxy-cluster --launch-type FARGATE \
@@ -82,10 +115,35 @@ Column coverage is a separate check (`db/backfill/columnCoverage.ts`) with its
 own line in the report; do not read either number as standing for the other.
 
 **A clean pre-flight is clean AS OF ITS BOUND.** The last run excluded 251
-documents that arrived while the pass ran. Whatever arrives between the audit and
-the copy is un-audited, and if it violates a constraint the copy fails partway —
-loudly, and resumable from its checkpoint. That is the trade for taking the audit
-out of the window, and it was accepted deliberately.
+documents that arrived while the pass ran. Whatever arrives afterwards is
+un-audited by *that* pass — which is now covered, because the in-window audit
+re-reads the source at copy time.
+
+### 2.1 Production readings that must be taken BEFORE the copy
+
+Four queries against production Mongo. Each decides something, and two of them
+can break the copy if taken afterwards instead.
+
+```js
+db.notifications.distinct('entityType')
+db.lanes.distinct('displayMode')
+db.posts.countDocuments({ 'metadata.collabFederationDeferred': true })
+db.posts.countDocuments({ 'metadata.federationDelivered': true })
+```
+
+- **`notifications.entityType`** — decides whether the Postgres CHECK constraint
+  may be tightened. **Tightening that vocabulary before knowing what production
+  holds breaks the copy at a constraint**, mid-window, on a table nobody is
+  watching. One trunk test is parked on this exact reading (§1.6).
+- **`lanes.displayMode`** — one row expected; closes a documented handoff to
+  `EnumAudit`.
+- **The two `metadata.*` counts** — expected **zero**. They confirm there is no
+  retro-federation backlog (§3.4b). If either is non-zero the federation
+  behaviour change stops being backlog-free and needs a decision before the
+  flip, not after.
+
+Host access note: these are DB-level queries and are unaffected by the broken
+host-level access described in §4.
 
 ---
 
@@ -178,9 +236,10 @@ Expected, from the full rehearsal against production Mongo (2026-08-03):
 | rows | 4,986,482 across 58 collections |
 | resolution records | 2,348 written = 2,348 claimed |
 
-If the audit has been taken out of the window (§2), the copy alone is ~36
-minutes. **That skip needs a flag that does not exist yet** — `runBackfill`
-always audits. Until it exists, budget the full 66 minutes.
+**Budget the full ~66 minutes.** The audit is inside this figure and stays there
+— see §2.0. `runBackfill` always audits, and the flag that would have skipped it
+was cancelled rather than left pending, so there is nothing to wait for and
+nothing to enable. **~36 minutes is not an option on the table.**
 
 **If it dies partway:** the checkpoint is in Postgres
 (`mention_backfill_checkpoints`), so re-running RESUMES. Do not clear it, do not
@@ -253,6 +312,50 @@ the topology assertion and the 25 migrations, keeping the blocked-domain
 reconciliation as a Postgres-only step — and it is deliberately scheduled AFTER
 the cutover, so this deploy is the last one that carries it.
 
+### 3.4b Two EXPECTED conditions — do not diagnose these as defects
+
+Both are known, both look like corruption to a completeness check, and both will
+be met by someone under time pressure who did not write them down.
+
+**(a) 834 posts will have no `post_authorships` row. This is correct.**
+
+Measured 2026-08-03 09:55Z against 594,889 posts — **a reading at a timestamp,
+not a constant; re-measure it.** These posts carry no `authorship` array in
+Mongo. In Postgres authorship is a separate table, so the copy faithfully
+produces 834 posts with no child row, and any "every post has an author" check
+will flag exactly 834.
+
+It is **pre-existing, not caused by the migration**: the leak was closed
+2026-07-07, all 834 are federated, **no local user is affected**, and 567 of the
+834 are recoverable by a later backfill (#78). **It is not a rollback trigger.**
+A completeness check reporting 834 is reporting the state of Mongo, faithfully
+carried.
+
+**(b) Collaborative posts will begin federating. This is new behaviour, and it is
+the intended behaviour.**
+
+`maybeFederateOnResolve` fans a collaborative post out to the fediverse once the
+last invite resolves. **That path has been dead since it shipped:** it gates on
+`metadata.collabFederationDeferred`, which `PostMetadataSchema` never declared,
+so Mongoose strict mode discarded it on every save and the gate has always read
+`undefined`. The flag reached the database zero times across 597,109 posts.
+
+Postgres has it as a real column (`metadata_collab_federation_deferred`), so
+**the gate starts working the moment we flip** — unscheduled, on outbound
+federation. Expect first-time outbound `Create(Note)` activity for collaborative
+posts.
+
+Nothing about this duplicates existing content: the guard that prevents a second
+delivery (`metadata.federationDelivered`) was dead in the same way and starts
+working at the same moment. They fail and recover together.
+
+**There is no retro-federation backlog, and this is a property of the default
+rather than a decision anyone made** — so it is worth stating before somebody
+changes the default. Both columns are `NOT NULL DEFAULT false`, the fields are
+absent on every Mongo post, so **every backfilled row lands `false`** and no
+pre-cutover post fans out. Only posts created after the flip carry a `true`.
+Confirm with the two counts in §2.1.
+
 ### 3.5 Verify BEFORE admitting users
 
 Traffic is already flowing at this point (the service is up and the ALB will
@@ -281,6 +384,28 @@ rather than a gate you can hold traffic behind. If a check fails, §4.
 
 ## 4. Rollback
 
+> **HOST-LEVEL ACCESS TO `oxy-mongo` IS BROKEN. READ THIS BEFORE THE WINDOW
+> OPENS, NOT DURING IT.**
+>
+> The root volume is **100% full**, and SSM returns **success-shaped nothing** —
+> a command that appears to succeed and produces no output. That is the worst
+> possible failure mode for a diagnostic path: it is indistinguishable from
+> "nothing to report".
+>
+> **Why this matters more than it looks: Mongo is the rollback target for the
+> entire window.** The rollback below is only cheap because Mongo is untouched
+> and healthy — and right now nobody can log in to check that claim by hand.
+>
+> - **Database-level access still works**, and everything this runbook needs at
+>   the DB level (§2.1, the row counts, the rollback itself) goes through it.
+> - **Host-level diagnosis is unavailable** until the disk is cleared. If the
+>   window needs it — disk, memory, process state, logs on the box — there is
+>   currently **no working path**.
+> - Cause and fix are recorded in `oxy-infra/docs/runbooks/10-mongo-restore.md`,
+>   which also carries the working DB-access path. The fix is small (a dead
+>   container's 13GB log), but **it must be done before the window, not
+>   discovered inside it**.
+
 **Mongo is untouched and authoritative throughout.** The copy only reads it, by
 construction (`mongoSource.ts` hands out a Proxy that throws on anything but a
 read). So rollback is redeploying the pre-cutover image; no data is restored,
@@ -308,10 +433,49 @@ fresh run into the populated one (`assertTargetsEmpty` will refuse it, correctly
 
 ---
 
-## 5. Open items — read before scheduling
+## 5. The parked-file re-port
 
-- **No `--skip-audit` flag exists.** Until it does, the window is ~66 minutes,
-  not ~36. (#76)
+Some files were deliberately parked rather than re-ported, to be done in one
+pass when `main` goes quiet. Two things about it belong here rather than in a
+task description.
+
+### 5.0 THE TRAP — read before touching `PostHydrationService.ts`
+
+**Dropping main's Mongoose imports from `services/PostHydrationService.ts` also
+drops `disclosesWriters` — the only place the `kind === 'channel'` check lives.**
+
+Without it, writer disclosure falls back to the settings row alone. **A settings
+row is not consent.** `UserSettings.channel.signPosts` is keyed on the CHANNEL's
+account, and the disclosure decision is supposed to fail closed at three
+independent points, of which the account-kind check is one.
+
+**Getting this wrong de-anonymises every channel writer** — it publishes the
+human behind each anonymous channel post. It is silent, it is not a crash, and
+no test currently fails on it. Treat any diff that removes an import from that
+file as touching a safety control until proven otherwise.
+
+### 5.1 Step 0 is `git merge-tree`, before any worktree exists
+
+```bash
+git merge-tree --write-tree <trunk> <main>
+```
+
+Free, needs no checkout, no worktree, and no branch — and it gives the **real**
+conflict surface rather than a remembered one.
+
+**Conflict-vs-clean is a property of DRIFT, not of the files.** Any per-file
+list in this document or a task is a reading with a timestamp, and `main` has
+been taking roughly ten commits an hour. **Re-measure with the command above
+rather than trusting a list**, and note that a clean merge is not automatically
+the right merge — see #102, where git merges cleanly and the result is wrong.
+
+---
+
+## 6. Open items — read before scheduling
+
+- **`--skip-audit` was CANCELLED, not deferred.** The audit stays inside the
+  window; budget ~86 minutes end to end. See §2.0 for why it reversed — this is
+  a decision with a reason, not a missing feature. (#76)
 - **~47% of the `posts` copy time is unattributed.** It is a remainder from
   subtraction, not a measured component, and it must not be quoted as one. (#86)
 - **`src/migrations/task.ts` runs 25 Mongo migrations inside the production
@@ -336,7 +500,11 @@ fresh run into the populated one (`assertTargetsEmpty` will refuse it, correctly
   one-shot failed to reach it. (#82)
 - **834 posts carry no `authorship` row** (as of 2026-08-03 09:55Z — a reading,
   not a constant). Pre-existing in Mongo and carried across faithfully; not a
-  cutover blocker, needs its own backfill. (#78)
+  cutover blocker, needs its own backfill. **Expected in-window — see §3.4b(a)
+  before treating a completeness check's 834 as corruption.** (#78)
+- **`oxy-mongo` host access is broken** — root volume 100% full, SSM
+  success-shaped nothing. **Fix before the window**; Mongo is the rollback
+  target. Full detail in the §4 banner. (#104)
 - **A failed copy writes no resolution log.** `persistResolutionLog` runs only
   after the copy returns, so the audit trail is empty for exactly the runs that
   need it most. (#79)
