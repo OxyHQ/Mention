@@ -376,6 +376,26 @@ export const channelWritersRateLimiter = rateLimit({
 });
 
 /**
+ * The channel-deletion router — the preview and the deletion itself.
+ *
+ * The most expensive pair of routes an authenticated caller can reach. Both walk
+ * a channel's ENTIRE publishing history plus the transitive boost closure over
+ * it, and both cost an Oxy membership read before they get that far, so a caller
+ * who is a member of nothing still spends an upstream round trip per request.
+ *
+ * 10/minute, far below every other limiter here, because there is no legitimate
+ * use above it: an operator previews once and deletes once, and a second delete
+ * is a retry after a failure rather than a rhythm. Its OWN store prefix, written
+ * as a LITERAL for the reason spelled out above `lanesStore` —
+ * `rateLimitPrefixUniqueness.test.ts` resolves prefixes by reading SOURCE, so a
+ * prefix built through a factory reads as the default and fails the guard.
+ */
+export const channelDeletionRateLimiter = rateLimit({
+  store: new RedisStore({ prefix: 'rate-limit:channel-deletion:', windowMs: 60 * 1000 }),
+  ...complianceOptions(10, 'Too many channel deletion requests. Please slow down.'),
+});
+
+/**
  * Rate limiter for `POST /statistics/post/:postId/view`.
  *
  * The only WRITE on the statistics router, and the only route there that reaches

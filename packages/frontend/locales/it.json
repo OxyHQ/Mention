@@ -1638,7 +1638,24 @@
       "categoriesAtCap": "Rimuovine una per sceglierne un’altra.",
       "makePrimary": "Rendi principale",
       "removeCategory": "Rimuovi {{category}}",
-      "categoryUnavailable": "Non disponibile in questa versione"
+      "categoryUnavailable": "Non disponibile in questa versione",
+      "dangerZone": "Elimina",
+      "delete": "Elimina questo canale",
+      "deleting": "Eliminazione…",
+      "deleteFooter": "Eliminare un canale distrugge tutto ciò che ha pubblicato. Non si può annullare, e nulla riporta indietro un post una volta sparito.",
+      "deleteConfirmTitle": "Eliminare {{name}}?",
+      "deleteConfirmPosts_one": "Questo distrugge {{count}} post pubblicato da questo canale, insieme a ogni mi piace e ogni salvataggio che ha ricevuto.",
+      "deleteConfirmPosts_other": "Questo distrugge {{count}} post pubblicati da questo canale, insieme a ogni mi piace e ogni salvataggio che hanno ricevuto.",
+      "deleteConfirmEmpty": "Questo canale non ha pubblicato nulla, quindi non ci sono post da distruggere.",
+      "deleteConfirmBoosts_one": "Anche {{count}} boost di un'altra persona sparisce.",
+      "deleteConfirmBoosts_other": "Spariscono anche {{count}} boost di altre persone.",
+      "deleteConfirmFediverse": "A ogni server che ne ha ricevuto una copia viene chiesto di rimuoverla. Noi inviamo la richiesta; non possiamo costringerli a rispettarla.",
+      "deleteConfirmAccount": "L'account del canale viene archiviato alla fine, così nessuno potrà più seguirlo né pubblicare a suo nome.",
+      "deleteConfirmAction_one": "Elimina {{count}} post",
+      "deleteConfirmAction_other": "Elimina {{count}} post",
+      "deleteConfirmActionEmpty": "Elimina questo canale",
+      "deleted": "Canale eliminato",
+      "deleteFailed": "Impossibile eliminare il canale"
     },
     "insights": {
       "operatorOnly": "Solo un operatore può vedere le statistiche di questo canale"

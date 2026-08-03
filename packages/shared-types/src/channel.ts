@@ -48,3 +48,32 @@ export interface ChannelWritersResponse {
   writers: ChannelWriter[];
   nextCursor?: string;
 }
+
+/**
+ * What deleting a channel destroys, counted.
+ *
+ * Shipped so a confirmation can SAY what it is about to take. A channel is a
+ * publication rather than a profile, and "are you sure?" is not informed consent
+ * for destroying an archive — the operator is told how many posts go before they
+ * are asked, and told it again by the same shape once the deletion has run.
+ *
+ * Deliberately NARROWER than the server's own preview, which also carries the
+ * channel id, the replies count (structurally always 0, since a channel takes no
+ * replies) and the number of foreign quotes that are KEPT with their pointer
+ * cleared. Those are operational facts for a log; a person deciding whether to
+ * delete their channel is owed the two numbers below and nothing they would have
+ * to interpret.
+ */
+export interface ChannelDeletionCounts {
+  /** The channel's own posts. Every one of them is destroyed. */
+  posts: number;
+  /**
+   * Other people's boosts of those posts, destroyed alongside them.
+   *
+   * A boost renders entirely from the post it points at, so once that post is
+   * gone it is a card with nothing behind it rather than something somebody
+   * wrote. Stated separately because the rows belong to other people, and an
+   * operator should know their action reaches beyond their own account.
+   */
+  boostsByOthers: number;
+}

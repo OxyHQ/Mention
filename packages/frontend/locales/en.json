@@ -1887,7 +1887,24 @@
       "categoriesAtCap": "Remove one to choose a different category.",
       "makePrimary": "Make primary",
       "removeCategory": "Remove {{category}}",
-      "categoryUnavailable": "Not available in this version"
+      "categoryUnavailable": "Not available in this version",
+      "dangerZone": "Delete",
+      "delete": "Delete this channel",
+      "deleting": "Deleting…",
+      "deleteFooter": "Deleting a channel destroys everything it has published. There is no undo, and nothing brings a post back once it is gone.",
+      "deleteConfirmTitle": "Delete {{name}}?",
+      "deleteConfirmPosts_one": "This destroys {{count}} post published by this channel, along with every like and save on it.",
+      "deleteConfirmPosts_other": "This destroys {{count}} posts published by this channel, along with every like and save on them.",
+      "deleteConfirmEmpty": "This channel has published nothing, so there are no posts to destroy.",
+      "deleteConfirmBoosts_one": "{{count}} boost of them by somebody else goes as well.",
+      "deleteConfirmBoosts_other": "{{count}} boosts of them by other people go as well.",
+      "deleteConfirmFediverse": "Every server that received a copy is asked to remove it. We send that request; we cannot make them honour it.",
+      "deleteConfirmAccount": "The channel account is archived at the end, so nobody can follow it or publish as it again.",
+      "deleteConfirmAction_one": "Delete {{count}} post",
+      "deleteConfirmAction_other": "Delete {{count}} posts",
+      "deleteConfirmActionEmpty": "Delete this channel",
+      "deleted": "Channel deleted",
+      "deleteFailed": "Failed to delete the channel"
     },
     "insights": {
       "operatorOnly": "Only an operator can see this channel’s insights"

@@ -1858,7 +1858,24 @@
       "categoriesAtCap": "Quita una para elegir otra categoría.",
       "makePrimary": "Hacer principal",
       "removeCategory": "Quitar {{category}}",
-      "categoryUnavailable": "No disponible en esta versión"
+      "categoryUnavailable": "No disponible en esta versión",
+      "dangerZone": "Eliminar",
+      "delete": "Eliminar este canal",
+      "deleting": "Eliminando…",
+      "deleteFooter": "Eliminar un canal destruye todo lo que ha publicado. No se puede deshacer, y nada recupera una publicación una vez que desaparece.",
+      "deleteConfirmTitle": "¿Eliminar {{name}}?",
+      "deleteConfirmPosts_one": "Esto destruye {{count}} publicación de este canal, junto con cada me gusta y cada guardado que tenga.",
+      "deleteConfirmPosts_other": "Esto destruye {{count}} publicaciones de este canal, junto con cada me gusta y cada guardado que tengan.",
+      "deleteConfirmEmpty": "Este canal no ha publicado nada, así que no hay publicaciones que destruir.",
+      "deleteConfirmBoosts_one": "{{count}} impulso de otra persona desaparece también.",
+      "deleteConfirmBoosts_other": "{{count}} impulsos de otras personas desaparecen también.",
+      "deleteConfirmFediverse": "A cada servidor que recibió una copia se le pide que la elimine. Enviamos esa petición; no podemos obligarlos a cumplirla.",
+      "deleteConfirmAccount": "La cuenta del canal se archiva al final, así que nadie podrá seguirla ni publicar como ella de nuevo.",
+      "deleteConfirmAction_one": "Eliminar {{count}} publicación",
+      "deleteConfirmAction_other": "Eliminar {{count}} publicaciones",
+      "deleteConfirmActionEmpty": "Eliminar este canal",
+      "deleted": "Canal eliminado",
+      "deleteFailed": "No se pudo eliminar el canal"
     },
     "insights": {
       "operatorOnly": "Solo un operador puede ver las estadísticas de este canal"

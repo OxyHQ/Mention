@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -31,7 +31,9 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { EmptyState } from '@/components/common/EmptyState';
+import { confirmDialog } from '@/utils/alerts';
 import { channelAccountService, type ChannelAccountSettings } from '@/services/channelAccountService';
+import { channelDeletionService } from '@/services/channelDeletionService';
 import { noteIdentityChanged } from '@/lib/actorCache';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { getErrorMessage } from '@/utils/apiError';
@@ -48,6 +50,35 @@ const channelSettingsLogger = createLogger('ChannelAccountSettings');
 
 /** Same cap the create form applies to a new channel's title. */
 const MAX_TITLE_LENGTH = 100;
+
+/**
+ * The Oxy account permission that authorises ending an account, and therefore
+ * the one thing that decides whether this screen offers to.
+ *
+ * Oxy grants it to the `owner` role ALONE, so it is strictly narrower than being
+ * able to operate the channel: an `admin` or `editor` reaches this screen, edits
+ * the profile and flips the byline, and may not delete. Read off the membership
+ * Oxy resolved rather than inferred from `callerMembership.role`, because a role
+ * list here would be a second copy of Oxy's role to permission map and the copy
+ * is what goes stale.
+ *
+ * The affordance is a SUBSET of the permission, never a guess at it: both Mention
+ * routes behind the row gate on this same permission, and Oxy gates the account
+ * archive on it, so a row that appears is a deletion all three will allow.
+ *
+ * A literal because it is a WIRE value — Oxy derives each member's `permissions`
+ * server-side and ships the strings, and neither `@oxyhq/contracts` nor
+ * `@oxyhq/core` exports the vocabulary today. The backend keeps the same constant
+ * for the same reason (`services/publishAsAccount.ts`).
+ */
+const ACCOUNT_DELETE_PERMISSION = 'account:delete';
+
+/**
+ * What a delete attempt ended as. Backing out at the confirmation is a normal
+ * outcome and not an error, so it is expressed as one — a rejection would put a
+ * "failed to delete" toast in front of somebody who just decided not to.
+ */
+type ChannelDeletionOutcome = { deleted: boolean };
 
 /**
  * What an OPERATOR can change about a channel from inside Mention.
@@ -264,6 +295,94 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
     },
   });
 
+  /**
+   * Deleting the channel: Mention's rows, then Oxy's account, in that order and
+   * only ever behind a counted confirmation.
+   *
+   * ## The order is forced, not chosen
+   *
+   * Oxy's account reads exclude an archived account, and Mention's cascade
+   * resolves both the account's KIND (which it refuses to proceed without) and
+   * its USERNAME (which the canonical ids in each `Delete(Tombstone)` are minted
+   * from) through exactly those reads. Archive first and every post the channel
+   * published is stranded permanently, with nothing left that can address a
+   * deletion for it.
+   *
+   * So `archiveAccount` runs only after `deleteContent` has RESOLVED. A failure
+   * between the two halves leaves the survivable state: no posts, the fediverse
+   * told, and an account still standing that a retry archives. The server's
+   * cascade is idempotent, so that retry converges rather than double-deleting.
+   *
+   * ## Why the whole flow is one mutation
+   *
+   * The preview, the question and both halves are one decision, and splitting
+   * them across handlers is how a destructive call ends up reachable without the
+   * question. `deleteContent` is written on the line after the `confirmed` guard
+   * and can be read as unreachable without it.
+   *
+   * The preview is fetched HERE rather than by a query on mount: it walks the
+   * channel's entire publishing history, and its only consumer is a dialog that
+   * does not exist until the operator asks for it.
+   */
+  const deleteMutation = useMutation<ChannelDeletionOutcome, unknown, void>({
+    mutationFn: async () => {
+      const counts = await channelDeletionService.preview(accountId);
+
+      // The count is the point. A channel is a publication, and "are you sure?"
+      // is not informed consent for destroying an archive — so the body says how
+      // many posts go, the button repeats it, and the sentences after it are the
+      // two things a person could otherwise be surprised by: other people's
+      // boosts die with the posts, and remote servers are ASKED rather than made.
+      const confirmed = await confirmDialog({
+        title: t('channels.settings.deleteConfirmTitle', {
+          name: account.name?.displayName ?? '',
+        }),
+        message: [
+          counts.posts > 0
+            ? t('channels.settings.deleteConfirmPosts', { count: counts.posts })
+            : t('channels.settings.deleteConfirmEmpty'),
+          counts.boostsByOthers > 0
+            ? t('channels.settings.deleteConfirmBoosts', { count: counts.boostsByOthers })
+            : null,
+          t('channels.settings.deleteConfirmFediverse'),
+          t('channels.settings.deleteConfirmAccount'),
+        ]
+          .filter((sentence): sentence is string => sentence !== null)
+          .join(' '),
+        okText:
+          counts.posts > 0
+            ? t('channels.settings.deleteConfirmAction', { count: counts.posts })
+            : t('channels.settings.deleteConfirmActionEmpty'),
+        cancelText: t('common.cancel'),
+        destructive: true,
+      });
+      if (!confirmed) return { deleted: false };
+
+      await channelDeletionService.deleteContent(accountId);
+      // Oxy's half, and ONLY now: see the order argument above.
+      await oxyServices.archiveAccount(accountId);
+      return { deleted: true };
+    },
+    onSuccess: (outcome) => {
+      if (!outcome.deleted) return;
+      // The account is archived, so every list that enumerates the caller's
+      // accounts — this screen's own gate, and the composer's publish-as picker
+      // behind the same key — is now wrong.
+      queryClient.invalidateQueries({ queryKey: viewerQueryKeys.operatedAccounts(viewerId) });
+      toast.success(t('channels.settings.deleted', { defaultValue: 'Channel deleted' }));
+      // Home rather than back: back is the channel's own page, which no longer
+      // resolves.
+      router.replace('/');
+    },
+    onError: (error) => {
+      const fallback = t('channels.settings.deleteFailed', {
+        defaultValue: 'Failed to delete the channel',
+      });
+      channelSettingsLogger.error(fallback, error, { accountId });
+      toast(getErrorMessage(error, fallback), { type: 'error' });
+    },
+  });
+
   const openAvatarPicker = useCallback(() => {
     showBottomSheet?.({
       screen: 'FileManagement',
@@ -321,6 +440,17 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
       setCategories((current) => promoteAccountCategoryToPrimary(current, id)),
     [],
   );
+
+  const handleDelete = useCallback(() => deleteMutation.mutate(), [deleteMutation]);
+
+  /**
+   * Whether this operator may end the channel, read off the permission array Oxy
+   * resolved for them. `=== true` rather than a truthiness test, and an absent or
+   * malformed array answers no: this decides whether a destructive control
+   * appears, so anything short of an explicit grant is a refusal.
+   */
+  const canDelete =
+    channel.callerMembership?.permissions?.includes(ACCOUNT_DELETE_PERMISSION) === true;
 
   if (isPending) {
     return (
@@ -532,6 +662,33 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
           }
         />
       </SettingsListGroup>
+
+      {/* Its own group at the very bottom, and shown only to a member Oxy has
+          granted `account:delete`. Two operators can both reach this screen and
+          only one of them see this row, which is correct: publishing as a
+          channel and ending it are different rights, and offering a row the
+          server would refuse is worse than not offering it. */}
+      {canDelete && (
+        <SettingsListGroup
+          title={t('channels.settings.dangerZone', { defaultValue: 'Delete' })}
+          footer={t('channels.settings.deleteFooter', {
+            defaultValue:
+              'Deleting a channel destroys everything it has published. There is no undo, and nothing brings a post back once it is gone.',
+          })}>
+          <SettingsListItem
+            icon={<Ionicons name="trash-outline" size={20} color={colors.error} />}
+            title={
+              deleteMutation.isPending
+                ? t('channels.settings.deleting', { defaultValue: 'Deleting…' })
+                : t('channels.settings.delete', { defaultValue: 'Delete this channel' })
+            }
+            destructive
+            showChevron={false}
+            disabled={deleteMutation.isPending}
+            onPress={deleteMutation.isPending ? undefined : handleDelete}
+          />
+        </SettingsListGroup>
+      )}
 
       {/* Not a settings group: there is no row here to tap. It names the two
           things this screen deliberately does NOT own, so their absence reads as
