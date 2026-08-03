@@ -164,4 +164,67 @@ describe('resolveInboundMentionsForNotes (batched outbox mention resolution)', (
     expect(byNote.size).toBe(0);
     expect(mocks.getOrFetchActor).not.toHaveBeenCalled();
   });
+  it('caps per-note and per-page mention resolution before fetch-and-create work', async () => {
+    mocks.getOrFetchActor.mockImplementation(async (uri: string) => ({
+      oxyUserId: `oxy_${uri.split('/').pop()}`,
+    }));
+
+    const tags = Array.from({ length: 6 }, (_, i) => ({
+      type: 'Mention',
+      href: `${REMOTE}/users/capped-${i}`,
+      name: `@capped-${i}@mastodon.example`,
+    }));
+    const note = {
+      content: tags
+        .map(
+          (_tag, i) =>
+            `<a href="${REMOTE}/@capped-${i}" class="u-url mention">@capped-${i}</a>`,
+        )
+        .join(' '),
+      tag: tags,
+    };
+
+    const byNote = await resolveInboundMentionsForNotes([note], {
+      concurrency: 3,
+      perActorTimeoutMs: 20_000,
+      maxTagsPerNote: 2,
+      maxDistinctActorsPerPage: 10,
+    });
+
+    expect(mocks.getOrFetchActor).toHaveBeenCalledTimes(2);
+    expect(mocks.getOrFetchActor).toHaveBeenCalledWith(`${REMOTE}/users/capped-0`);
+    expect(mocks.getOrFetchActor).toHaveBeenCalledWith(`${REMOTE}/users/capped-1`);
+    const resolved = resolutionFor(byNote, note);
+    expect(resolved.ids).toEqual(['oxy_capped-0', 'oxy_capped-1']);
+    expect(applyMentionPlaceholders(note, resolved.anchorMap).content).toContain(
+      '[mention:oxy_capped-0]',
+    );
+    expect(applyMentionPlaceholders(note, resolved.anchorMap).content).toContain(
+      '[mention:oxy_capped-1]',
+    );
+    expect(applyMentionPlaceholders(note, resolved.anchorMap).content).toContain('@capped-2');
+  });
+
+  it('caps distinct mention actors across the whole outbox page', async () => {
+    mocks.getOrFetchActor.mockImplementation(async (uri: string) => ({
+      oxyUserId: `oxy_${uri.split('/').pop()}`,
+    }));
+
+    const noteA = noteMentioning(`${REMOTE}/users/page-0`, `${REMOTE}/@page-0`, '@page-0');
+    const noteB = noteMentioning(`${REMOTE}/users/page-1`, `${REMOTE}/@page-1`, '@page-1');
+    const noteC = noteMentioning(`${REMOTE}/users/page-2`, `${REMOTE}/@page-2`, '@page-2');
+
+    const byNote = await resolveInboundMentionsForNotes([noteA, noteB, noteC], {
+      concurrency: 3,
+      perActorTimeoutMs: 20_000,
+      maxTagsPerNote: 25,
+      maxDistinctActorsPerPage: 2,
+    });
+
+    expect(mocks.getOrFetchActor).toHaveBeenCalledTimes(2);
+    expect(resolutionFor(byNote, noteA).ids).toEqual(['oxy_page-0']);
+    expect(resolutionFor(byNote, noteB).ids).toEqual(['oxy_page-1']);
+    expect(resolutionFor(byNote, noteC).ids).toEqual([]);
+  });
+
 });

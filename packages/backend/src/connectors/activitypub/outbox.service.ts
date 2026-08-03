@@ -68,6 +68,14 @@ const OUTBOX_ACTOR_RESOLVE_CONCURRENCY = 3;
 const OUTBOX_ACTOR_RESOLVE_TIMEOUT_MS = 20 * 1000; // 20 seconds
 
 /**
+ * Hard caps for resolving @mentions in an outbox page. ActivityPub `tag` arrays
+ * are remote-controlled and can be huge; mentions beyond these bounds degrade to
+ * bare text rather than triggering more actor fetch/Oxy resolution work.
+ */
+const OUTBOX_MENTION_TAGS_PER_NOTE_LIMIT = 25;
+const OUTBOX_MENTION_ACTORS_PER_PAGE_LIMIT = 100;
+
+/**
  * Bounded concurrency for importing boosts (Announce) during outbox backfill.
  * Each import may fetch the boosted Note from a remote instance, so this is
  * parallelized in small batches rather than run strictly sequentially.
@@ -638,9 +646,13 @@ export class OutboxSyncService {
       // build loop below to rewrite each anchor into a `[mention:<id>]` placeholder
       // BEFORE the body is derived and to set the post's `mentions` allowlist,
       // mirroring the inbox Create path (the raw `insertMany` bypasses that path).
-      const pendingNoteCandidates = noteCandidates.filter(
-        (c) => !existingIds.has(c.activityId),
-      );
+      const pendingNoteCandidates = noteCandidates.filter((c) => {
+        if (existingIds.has(c.activityId)) return false;
+        const rawContent = c.note.content || '';
+        return (
+          typeof rawContent !== 'string' || rawContent.length <= FEDERATION_MAX_CONTENT_LENGTH
+        );
+      });
 
       // SELF-HEAL candidates: notes that match an EXISTING post whose stored body
       // still shows its @mentions as bare `@name` text. Such posts were imported
@@ -686,6 +698,8 @@ export class OutboxSyncService {
         {
           concurrency: OUTBOX_ACTOR_RESOLVE_CONCURRENCY,
           perActorTimeoutMs: OUTBOX_ACTOR_RESOLVE_TIMEOUT_MS,
+          maxTagsPerNote: OUTBOX_MENTION_TAGS_PER_NOTE_LIMIT,
+          maxDistinctActorsPerPage: OUTBOX_MENTION_ACTORS_PER_PAGE_LIMIT,
         },
       );
       // Shared no-mention default for a note the map has no entry for (never

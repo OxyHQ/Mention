@@ -244,8 +244,9 @@ type MentionTagResolver = (tag: InboundMentionTag) => Promise<MentionActorResolu
 async function buildResolvedInboundMentions(
   object: Record<string, unknown>,
   resolveTag: MentionTagResolver,
+  tagsOverride?: ReadonlyArray<InboundMentionTag>,
 ): Promise<ResolvedInboundMentions> {
-  const tags = extractMentionTags(object);
+  const tags = tagsOverride ? [...tagsOverride] : extractMentionTags(object);
   if (tags.length === 0) return { ids: [], localIds: [], anchorMap: new Map() };
 
   // Dedupe by actor href so a user mentioned twice is resolved once.
@@ -334,6 +335,10 @@ export interface BatchMentionResolveOptions {
    * "unresolved" (its anchor stays bare text) rather than stalling the batch.
    */
   perActorTimeoutMs: number;
+  /** Max Mention tags considered on any single note before network I/O. */
+  maxTagsPerNote?: number;
+  /** Max distinct mention actor hrefs resolved across the whole page. */
+  maxDistinctActorsPerPage?: number;
 }
 
 /**
@@ -362,10 +367,39 @@ export async function resolveInboundMentionsForNotes(
   const byNote = new Map<Record<string, unknown>, ResolvedInboundMentions>();
   if (objects.length === 0) return byNote;
 
-  // 1. Union of DISTINCT mention actor hrefs across every note in the page.
+  // 1. Union of DISTINCT mention actor hrefs across every note in the page,
+  //    with hard caps before any network/Oxy work. Remote AP tag arrays are
+  //    attacker-controlled, so concurrency/timeouts alone are not enough: without
+  //    a total cap a single outbox page could force unbounded batches of actor
+  //    fetches. Tags beyond these caps intentionally degrade to bare text.
+  const maxTagsPerNote = options.maxTagsPerNote ?? Number.POSITIVE_INFINITY;
+  const maxDistinctActorsPerPage = options.maxDistinctActorsPerPage ?? Number.POSITIVE_INFINITY;
   const distinctHrefs = new Set<string>();
+  const tagsByNote = new Map<Record<string, unknown>, InboundMentionTag[]>();
+  let droppedForCaps = 0;
   for (const object of objects) {
-    for (const tag of extractMentionTags(object)) distinctHrefs.add(tag.href);
+    const tags = extractMentionTags(object);
+    const tagsToConsider = Number.isFinite(maxTagsPerNote)
+      ? tags.slice(0, Math.max(0, maxTagsPerNote))
+      : tags;
+    droppedForCaps += Math.max(0, tags.length - tagsToConsider.length);
+    const allowedTags: InboundMentionTag[] = [];
+    for (const tag of tagsToConsider) {
+      if (!distinctHrefs.has(tag.href)) {
+        if (distinctHrefs.size >= maxDistinctActorsPerPage) {
+          droppedForCaps++;
+          continue;
+        }
+        distinctHrefs.add(tag.href);
+      }
+      allowedTags.push(tag);
+    }
+    tagsByNote.set(object, allowedTags);
+  }
+  if (droppedForCaps > 0) {
+    logger.warn(
+      `[Federation] skipped ${droppedForCaps} outbox mention tag(s) due to per-note/page caps`,
+    );
   }
 
   // 2. Resolve each distinct href AT MOST once (fetch-and-create) in bounded
@@ -399,8 +433,10 @@ export async function resolveInboundMentionsForNotes(
   for (const object of objects) {
     byNote.set(
       object,
-      await buildResolvedInboundMentions(object, (tag) =>
-        Promise.resolve(resolutions.get(tag.href) ?? null),
+      await buildResolvedInboundMentions(
+        object,
+        (tag) => Promise.resolve(resolutions.get(tag.href) ?? null),
+        tagsByNote.get(object) ?? [],
       ),
     );
   }
