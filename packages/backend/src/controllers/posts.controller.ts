@@ -2060,8 +2060,10 @@ export const updatePostLane = async (req: AuthRequest, res: Response) => {
     // 'user'`, so without it a CHANNEL post is measured against the CALLER's own
     // personal lanes and can be moved into one. `laneSource`'s user branch then
     // serves that lane scoped by `{ laneId, oxyUserId: <author> }` — and it
-    // deliberately does NOT apply `EXCLUDE_CHANNEL_POSTS`, precisely because this
-    // pairing is supposed to be impossible by construction. The DTO still renders
+    // deliberately does NOT apply the `channel_id is null` exclusion that every
+    // author-relationship query carries (`followedAuthorsSql`,
+    // `utils/postAuthorship`), precisely because this pairing is supposed to be
+    // impossible by construction. The DTO still renders
     // anonymous under `signPosts: false`, but the SURFACE is the author's own lane
     // tab, so anyone reading it learns which author wrote every "Unknown user"
     // post on it. `PostCreationService.create` has always passed this; this was

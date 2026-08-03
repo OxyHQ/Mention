@@ -82,6 +82,8 @@ export const SETTINGS_COLUMN_BY_PATH: Readonly<Record<string, WritableColumn>> =
   'privacy.restrictedUsers': 'privacyRestrictedUsers',
   'privacy.labelPreferences.subscribedLabelers': 'privacySubscribedLabelers',
 
+  'channelAccount.signPosts': 'channelAccountSignPosts',
+
   'profileCustomization.coverPhotoEnabled': 'profileCoverPhotoEnabled',
   'profileCustomization.minimalistMode': 'profileMinimalistMode',
 
@@ -376,6 +378,12 @@ function assembleRecord(row: SettingsRow, labelActions: LabelAction[]): UserSett
       minimalistMode: row.profileMinimalistMode,
       profileMedia,
     },
+    // ABSENT when the column is NULL, which is what says "this account is not a
+    // channel". Defaulting it to `{ signPosts: false }` would make every
+    // person's settings read as a channel that does not sign.
+    ...(row.channelAccountSignPosts === null || row.channelAccountSignPosts === undefined
+      ? {}
+      : { channelAccount: { signPosts: row.channelAccountSignPosts } }),
     ...(row.interestTags ? { interests: { tags: row.interestTags } } : {}),
     feedSettings: {
       diversity: {

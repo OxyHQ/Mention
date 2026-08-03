@@ -3,7 +3,6 @@ import { Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
-import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
@@ -15,7 +14,7 @@ import { SEO } from '@/components/SEO';
 import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 import { trendingService } from '@/services/trendingService';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
-import { buildTrendTree, type TrendTreeNode, type TrendTreeRelation } from '@/utils/trendGraphTree';
+import { buildTrendTree, type TrendTreeNode } from '@/utils/trendGraphTree';
 import { useTrendNavigation } from '@/hooks/useTrendNavigation';
 
 /**
@@ -81,17 +80,14 @@ export default function TrendGraphScreen() {
       </PanelStickyHeader>
 
       <ScrollView className="flex-1" contentContainerClassName="pb-16">
-        <View className="px-4 pb-3">
-          <ThemedText className="mb-1 font-primary text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            {t('trendGraph.eyebrow')}
-          </ThemedText>
-          <ThemedText type="title" className="mb-1 font-primary text-[28px] font-bold">
-            {t('trendGraph.title')}
-          </ThemedText>
-          <ThemedText className="font-primary text-sm text-muted-foreground">
-            {t('trendGraph.subtitle')}
-          </ThemedText>
-        </View>
+        {/*
+          No title block here. The header above already names the screen, and
+          repeating it in 28px — under an uppercase eyebrow — spent the first
+          fifth of the viewport saying the same thing three times.
+        */}
+        <ThemedText className="px-4 pb-3 pt-1 font-primary text-[13px] text-muted-foreground">
+          {t('trendGraph.subtitle')}
+        </ThemedText>
 
         <FilterRow
           values={data?.availableLanguages ?? []}
@@ -177,98 +173,113 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-/** A root term, the terms merged into it, and the near misses of each. */
+/**
+ * A root term with the terms merged into it.
+ *
+ * The name leads and the measurement follows it on the same line, right
+ * aligned. The first version put a long metric sentence ABOVE the name, which
+ * inverted the hierarchy — the row's own subject read as its caption — and cost
+ * two lines per term.
+ */
 function Branch({ entry }: { entry: TrendTreeNode }) {
-  const { t } = useTranslation();
-
   return (
-    <View className="border-border" style={styles.branchBorder}>
+    <View className="border-border py-1" style={styles.branchBorder}>
       <TermRow
         term={entry.node.term}
         label={entry.node.displayName ?? entry.node.term}
-        caption={t('trendGraph.node.counts', {
-          posts: entry.node.volume,
-          authors: entry.node.authorCount,
-        })}
-        badge={
-          entry.children.length > 0
-            ? t('trendGraph.badge.merged', { count: entry.children.length })
-            : undefined
-        }
+        volume={entry.node.volume}
+        authors={entry.node.authorCount}
         emphasis
       />
 
       {entry.children.length > 0 ? (
-        <View className="border-border pl-3" style={styles.trunk}>
+        // The trunk: one continuous rule down the left of everything merged into
+        // the term above. This is what makes the block read as a tree at a
+        // glance rather than as an indent.
+        <View className="ml-1 border-border pl-3" style={styles.trunk}>
           {entry.children.map((child) => (
-            <View key={child.node.term}>
-              <TermRow
-                term={child.node.term}
-                label={child.node.displayName ?? child.node.term}
-                caption={t('trendGraph.node.counts', {
-                  posts: child.node.volume,
-                  authors: child.node.authorCount,
-                })}
-              />
-              <RelationList relations={child.related} />
-            </View>
+            <TermRow
+              key={child.node.term}
+              term={child.node.term}
+              label={child.node.displayName ?? child.node.term}
+              volume={child.node.volume}
+              authors={child.node.authorCount}
+            />
           ))}
         </View>
       ) : null}
 
-      <RelationList relations={entry.related} />
+      <RelatedLine entry={entry} />
     </View>
   );
 }
 
-/** The near misses of one term — related, and deliberately not merged. */
-function RelationList({ relations }: { relations: TrendTreeRelation[] }) {
-  const { t } = useTranslation();
-  const { navigateToTerm } = useTrendNavigation();
+/** How many related terms are named before the rest become a count. */
+const RELATED_SHOWN = 3;
 
-  if (relations.length === 0) return null;
+/**
+ * The near misses of a branch, on ONE line.
+ *
+ * Every unmerged edge used to get its own sentence — "Related to X — N shared
+ * posts, not merged" — repeated for the root and for each child. One term
+ * produced seven consecutive lines of it and the detail buried the tree it was
+ * annotating. The same fact fits in a line: these were related and were not
+ * merged, and the exact counts belong on the term's own screen.
+ */
+function RelatedLine({ entry }: { entry: TrendTreeNode }) {
+  const { t } = useTranslation();
+
+  const names = useMemo(() => {
+    const seen = new Set<string>();
+    const all = [entry, ...entry.children].flatMap((node) => node.related);
+    const ordered = [...all].sort((left, right) => right.posts - left.posts);
+    const out: string[] = [];
+    for (const relation of ordered) {
+      if (seen.has(relation.term)) continue;
+      seen.add(relation.term);
+      out.push(relation.displayName ?? relation.term);
+    }
+    return out;
+  }, [entry]);
+
+  if (names.length === 0) return null;
+
+  const shown = names.slice(0, RELATED_SHOWN);
+  const rest = names.length - shown.length;
 
   return (
-    <View className="border-border pb-1 pl-3" style={styles.dashedTrunk}>
-      {relations.map((relation) => (
-        <TouchableOpacity
-          key={relation.term}
-          accessibilityRole="button"
-          activeOpacity={0.7}
-          onPress={() => navigateToTerm(relation.term, 'graph')}
-          className="flex-row items-center py-1"
-          style={styles.webCursor}
-        >
-          <ThemedText className="shrink font-primary text-[12px] text-muted-foreground">
-            {t('trendGraph.edge.related', {
-              term: relation.displayName ?? relation.term,
-              posts: relation.posts,
-            })}
-          </ThemedText>
-        </TouchableOpacity>
-      ))}
+    <View className="ml-1 border-border pb-1 pl-3" style={styles.dashedTrunk}>
+      <ThemedText className="font-primary text-[12px] text-muted-foreground" numberOfLines={2}>
+        {t('trendGraph.related', {
+          terms: shown.join(', '),
+          count: rest,
+        })}
+      </ThemedText>
     </View>
   );
 }
 
 /**
- * One term, laid out like a trend row: the measurement above in muted small
- * type, the name below in bold. Same anatomy as `TrendItemRow`, so the two
- * screens read as one app.
+ * One term: name first, measurement trailing.
+ *
+ * No chevron. Twenty of them down a screen is twenty repetitions of "this is
+ * tappable" — which the row already communicates, and which `TrendItemRow` says
+ * with a sparkline or nothing at all.
  */
 function TermRow({
   term,
   label,
-  caption,
-  badge,
+  volume,
+  authors,
   emphasis = false,
 }: {
   term: string;
   label: string;
-  caption: string;
-  badge?: string;
+  volume: number;
+  authors: number;
   emphasis?: boolean;
 }) {
+  const { t } = useTranslation();
   const { navigateToTerm } = useTrendNavigation();
 
   return (
@@ -276,30 +287,20 @@ function TermRow({
       accessibilityRole="button"
       activeOpacity={0.7}
       onPress={() => navigateToTerm(term, 'graph')}
-      className="flex-row items-center justify-between border-border py-3"
-      style={[styles.webCursor, styles.rowBorder]}
+      className="flex-row items-baseline justify-between py-1.5"
+      style={styles.webCursor}
     >
-      <View className="mr-3 flex-1">
-        <View className="mb-0.5 flex-row items-center">
-          <ThemedText className="font-primary text-[12px] text-muted-foreground">
-            {caption}
-          </ThemedText>
-          {badge ? (
-            <View className="ml-2 rounded-full bg-primary/10 px-1.5 py-0.5">
-              <ThemedText className="font-primary text-[11px] font-semibold text-primary">
-                {badge}
-              </ThemedText>
-            </View>
-          ) : null}
-        </View>
-        <ThemedText
-          className={`font-primary text-foreground ${emphasis ? 'text-[16px] font-bold' : 'text-[14px] font-semibold'}`}
-          numberOfLines={2}
-        >
-          {label}
-        </ThemedText>
-      </View>
-      <Ionicons name="chevron-forward" size={14} className="text-muted-foreground" />
+      <ThemedText
+        className={`mr-3 shrink font-primary text-foreground ${emphasis ? 'text-[15px] font-bold' : 'text-[14px]'}`}
+        numberOfLines={1}
+      >
+        {label}
+      </ThemedText>
+      <ThemedText className="shrink-0 font-primary text-[12px] text-muted-foreground">
+        {t('trendGraph.node.posts', { count: volume })}
+        {' · '}
+        {t('trendGraph.node.authors', { count: authors })}
+      </ThemedText>
     </TouchableOpacity>
   );
 }
@@ -351,7 +352,6 @@ const styles = StyleSheet.create({
   webCursor: Platform.select({ web: { cursor: 'pointer' }, default: {} }),
   // Hairline separators, the same weight `TrendItemRow` uses — the app draws
   // lists with rules, not with cards.
-  rowBorder: { borderBottomWidth: 0.5 },
   branchBorder: { borderBottomWidth: 0.5 },
   // The trunk a branch hangs from. Solid for merged terms, dashed for the ones
   // that were related and not merged, which is the distinction the screen exists

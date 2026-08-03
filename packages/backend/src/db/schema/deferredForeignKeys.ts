@@ -104,6 +104,10 @@ const OXY_ACCOUNT_COLUMN_NAMES: ReadonlySet<string> = new Set([
   'oxy_user_id',
   'user_id',
   'owner_oxy_user_id',
+  // The person who wrote a CHANNEL post. An Oxy account id like every other on
+  // this list — it is here only because the name is not one the predicate would
+  // otherwise recognise, and there is no users table for it to point at.
+  'written_by_oxy_user_id',
   'local_user_id',
   'sender_oxy_user_id',
   'actor_id',

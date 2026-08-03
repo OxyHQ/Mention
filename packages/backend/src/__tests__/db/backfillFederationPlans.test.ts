@@ -25,7 +25,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { MongoClient, ObjectId, type Db } from 'mongodb';
-import { eq } from 'drizzle-orm';
+import { eq, inArray, like } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import {
   actorKeyPairs,
@@ -38,13 +38,17 @@ import {
 import { mongoSourceFromDb, type MongoSource } from '../../db/backfill/mongoSource';
 import { copyCollection } from '../../db/backfill/runner';
 import { COLLECTION_PLANS } from '../../db/backfill/collectionMap';
-import { auditEnums, auditWouldBlockCopy } from '../../db/backfill/audit';
+import { auditEnums, auditUniqueness, auditWouldBlockCopy } from '../../db/backfill/audit';
 import {
   createResolutionContext,
+  federatedActorDuplicatesToDrop,
+  KEEP_FRESHEST_FEDERATED_ACTOR,
   parentKeysFrom,
   planResolutions,
   ResolutionLog,
+  transformDocument,
 } from '../../db/backfill/resolutions';
+import { droppedDocuments } from '../../db/backfill/referentialIntegrity';
 
 let mongod: MongoMemoryServer;
 let client: MongoClient;
@@ -59,6 +63,8 @@ const REMOTE_MEDIA = 'https://bff.example/media/1.png';
 const PRIVATE_KEY = '-----BEGIN PRIVATE KEY-----\nbff-secret-material\n-----END PRIVATE KEY-----';
 const LAST_SYNC = new Date('2025-01-02T03:04:05.006Z');
 const LOCKED_UNTIL = new Date('2025-01-02T03:14:05.006Z');
+/** The colliding-actor cases below; cleaned by prefix, never by exact uri. */
+const DUP_URI_PREFIX = 'https://bff-dup.example/users/';
 
 const planFor = (collection: string) => {
   const plan = COLLECTION_PLANS.find((entry) => entry.collection === collection);
@@ -90,6 +96,8 @@ afterEach(async () => {
   // `federated_actor_fields` CASCADEs from `federated_actors`.
   await db.delete(actorKeyPairs).where(eq(actorKeyPairs.oxyUserId, OWNER));
   await db.delete(federatedActors).where(eq(federatedActors.uri, ACTOR_URI));
+  await db.delete(federatedActors).where(like(federatedActors.uri, `${DUP_URI_PREFIX}%`));
+  await db.delete(federatedActors).where(like(federatedActors.uri, 'did:plc:bff%'));
   await db.delete(federatedFollows).where(eq(federatedFollows.localUserId, OWNER));
   await db.delete(federatedMediaCache).where(eq(federatedMediaCache.remoteUrl, REMOTE_MEDIA));
   await db
@@ -342,5 +350,373 @@ describe('follows and the media cache', () => {
     expect(row?.posterFileId).toBeNull();
     expect(row?.failCount).toBe(2);
     expect(row?.state).toBe('pending');
+  });
+});
+
+/**
+ * The duplicate-actor collisions, and the rule that answers them at COPY TIME.
+ *
+ * Production holds 569 groups of `federatedactors` documents sharing one `uri`,
+ * because the upsert that writes them filters on a column MongoDB has no unique
+ * index for (`autoIndex` is off and no migration ever created the three the
+ * schema declares), so two concurrent resolutions of a first-seen actor both
+ * miss the read and both insert. The count is still GROWING, which is the whole
+ * reason this is a resolution rule rather than a script: a dedup run tonight is
+ * stale by morning, while a copy-time rule is correct however many groups exist
+ * at the moment the copy runs.
+ *
+ * Sizes matter here and a PAIR is the case that cannot see the bug. Two rows
+ * cannot distinguish "sorted by freshest" from "reversed", and cannot show a
+ * survivor that is neither the lowest nor the highest `_id`. Every case below
+ * therefore uses a three-way group, a twenty-one-way group, or both.
+ */
+describe('duplicate federated actors', () => {
+  /** `_id`s that sort ASCENDING in insertion order, so the tie-break is observable. */
+  const oid = (n: number) => new ObjectId(`6a3b060e272930c46a78${String(n).padStart(4, '0')}`);
+
+  async function seedGroup(
+    uri: string,
+    rows: ReadonlyArray<{ id: ObjectId; lastFetchedAt?: Date; postsCount?: number }>
+  ) {
+    await mongo.collection('federatedactors').insertMany(
+      rows.map((row) => ({
+        _id: row.id,
+        uri,
+        username: 'dup',
+        domain: 'bff-dup.example',
+        acct: `dup@bff-dup.example`,
+        ...(row.lastFetchedAt === undefined ? {} : { lastFetchedAt: row.lastFetchedAt }),
+        ...(row.postsCount === undefined ? {} : { postsCount: row.postsCount }),
+      }))
+    );
+  }
+
+  /**
+   * What phase 1 of the referential audit measures, for one group.
+   *
+   * Assembled from a real `transformDocument` walk rather than read off the
+   * copy: `documentsDroppedByRule` is the number that separates "a rule decided
+   * to remove this" from "the transform lost it", and only the resolution log
+   * knows it.
+   */
+  const walkEmission = (uri: string) => walkEmissionWhere({ uri });
+
+  async function walkEmissionWhere(filter: Record<string, unknown>) {
+    const log = new ResolutionLog();
+    const resolutions = createResolutionContext(await planResolutions(source), log);
+    let documentsRead = 0;
+    let primaryRowsEmitted = 0;
+    for await (const doc of mongo.collection('federatedactors').find(filter)) {
+      documentsRead += 1;
+      transformDocument(
+        planFor('federatedactors'),
+        doc as Record<string, unknown>,
+        resolutions,
+        parentKeysFrom(new Map()),
+        (row) => {
+          if (row.table === federatedActors) primaryRowsEmitted += 1;
+        }
+      );
+    }
+    return {
+      collection: 'federatedactors',
+      documentsRead,
+      primaryRowsEmitted,
+      documentsDroppedByRule: resolutions.documentsDroppedIn('federatedactors'),
+    };
+  }
+
+  describe('the survivor choice', () => {
+    // A pure test of the ORDER, because the order IS the rule. Driven directly
+    // so the twenty-one-way case is exercised without seeding 21 documents to
+    // observe one comparison.
+    it('keeps the freshest of a THREE-way group, even when it is neither the first nor the last id', () => {
+      const rows = [
+        { id: '00000000000000000000000a', lastFetchedAt: new Date('2026-06-01T00:00:00Z') },
+        // The middle id, and the freshest — the case a pair cannot express.
+        { id: '00000000000000000000000b', lastFetchedAt: new Date('2026-07-01T00:00:00Z') },
+        { id: '00000000000000000000000c', lastFetchedAt: new Date('2026-05-01T00:00:00Z') },
+      ];
+      expect(federatedActorDuplicatesToDrop(rows).sort()).toEqual([
+        '00000000000000000000000a',
+        '00000000000000000000000c',
+      ]);
+    });
+
+    it('keeps exactly one of a TWENTY-ONE-way group and drops the other twenty', () => {
+      const rows = Array.from({ length: 21 }, (_, index) => ({
+        id: `0000000000000000000000${String(index).padStart(2, '0')}`,
+        // Freshest in the MIDDLE of the group, so neither "first wins" nor
+        // "last wins" can pass by accident.
+        lastFetchedAt: new Date(2026, 0, index === 10 ? 31 : 1 + index),
+      }));
+      const dropped = federatedActorDuplicatesToDrop(rows);
+      expect(dropped).toHaveLength(20);
+      expect(dropped).not.toContain('000000000000000000000010');
+    });
+
+    it('sorts a row that was NEVER re-fetched last, whatever its id', () => {
+      const rows = [
+        { id: '00000000000000000000000f', lastFetchedAt: undefined },
+        { id: '00000000000000000000000a', lastFetchedAt: new Date('2020-01-01T00:00:00Z') },
+      ];
+      // NULLS LAST: a row with no `lastFetchedAt` was never refreshed after its
+      // insert, so it is the frozen copy — even against a survivor last fetched
+      // in 2020, and even though its id sorts higher.
+      expect(federatedActorDuplicatesToDrop(rows)).toEqual(['00000000000000000000000f']);
+    });
+
+    it('breaks an exact tie on id DESCENDING, so two phases of one run cannot disagree', () => {
+      const at = new Date('2026-07-01T00:00:00Z');
+      const rows = [
+        { id: '00000000000000000000000a', lastFetchedAt: at },
+        { id: '00000000000000000000000c', lastFetchedAt: at },
+        { id: '00000000000000000000000b', lastFetchedAt: at },
+      ];
+      // The same tie-break `findActorByOxyUserId` applies (`last_fetched_at desc
+      // nulls last, id desc`), so the migration and the live reader choose the
+      // same row by construction.
+      expect(federatedActorDuplicatesToDrop(rows).sort()).toEqual([
+        '00000000000000000000000a',
+        '00000000000000000000000b',
+      ]);
+    });
+
+    it('leaves a group of one alone', () => {
+      expect(federatedActorDuplicatesToDrop([{ id: 'x', lastFetchedAt: new Date() }])).toEqual([]);
+    });
+  });
+
+  it('copies ONE row for a three-way collision — the maintained one, with its own column values', async () => {
+    const uri = `${DUP_URI_PREFIX}three`;
+    await seedGroup(uri, [
+      { id: oid(1), lastFetchedAt: new Date('2026-06-23T23:47:25.940Z'), postsCount: 11 },
+      { id: oid(2), lastFetchedAt: new Date('2026-07-15T04:47:42.330Z'), postsCount: 99 },
+      { id: oid(3), postsCount: 7 },
+    ]);
+
+    await copy('federatedactors');
+
+    const rows = await getDb().select().from(federatedActors).where(eq(federatedActors.uri, uri));
+    expect(rows).toHaveLength(1);
+    // Not merely "a row survived": the SURVIVOR's own values. `postsCount` is
+    // read from the maintained row, which is the one the resolver kept current
+    // — a merge would have taken the max and this asserts it did not.
+    expect(rows[0]?.id).toBe(oid(2).toHexString());
+    expect(rows[0]?.postsCount).toBe(99);
+
+    // The two removals are a DECISION, not data loss, and the migration says so
+    // with the same numbers: three documents read, one row emitted, two dropped
+    // BY RULE. `droppedDocuments` is what accuses a transform of losing data,
+    // and it must stay at zero.
+    const emission = await walkEmission(uri);
+    expect(emission.documentsRead).toBe(3);
+    expect(emission.primaryRowsEmitted).toBe(1);
+    expect(emission.documentsDroppedByRule).toBe(2);
+    expect(droppedDocuments(emission)).toBe(0);
+  });
+
+  it('copies ONE row for a TWENTY-ONE-way collision', async () => {
+    const uri = `${DUP_URI_PREFIX}twentyone`;
+    await seedGroup(
+      uri,
+      Array.from({ length: 21 }, (_, index) => ({
+        id: oid(100 + index),
+        lastFetchedAt: new Date(2026, 0, index === 13 ? 28 : 1 + index),
+      }))
+    );
+
+    await copy('federatedactors');
+
+    const rows = await getDb().select().from(federatedActors).where(eq(federatedActors.uri, uri));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.id).toBe(oid(113).toHexString());
+
+    const emission = await walkEmission(uri);
+    expect(emission.documentsRead).toBe(21);
+    expect(emission.primaryRowsEmitted).toBe(1);
+    expect(emission.documentsDroppedByRule).toBe(20);
+    expect(droppedDocuments(emission)).toBe(0);
+  });
+
+  it('reports every dropped document BY ID under the rule', async () => {
+    const uri = `${DUP_URI_PREFIX}reported`;
+    await seedGroup(uri, [
+      { id: oid(21), lastFetchedAt: new Date('2026-01-01T00:00:00Z') },
+      { id: oid(22), lastFetchedAt: new Date('2026-02-01T00:00:00Z') },
+      { id: oid(23), lastFetchedAt: new Date('2026-03-01T00:00:00Z') },
+    ]);
+
+    const log = new ResolutionLog();
+    await copyCollection(planFor('federatedactors'), {
+      db: getDb(),
+      source,
+      resolutions: createResolutionContext(await planResolutions(source), log),
+      parents: parentKeysFrom(new Map()),
+    });
+
+    const summary = log
+      .summary()
+      .find((entry) => entry.rule.id === KEEP_FRESHEST_FEDERATED_ACTOR.id);
+    // BY ID — a rule that acted on rows it cannot name has not reported
+    // anything an operator can check against the audit.
+    expect(summary?.documentIds).toEqual([oid(21).toHexString(), oid(22).toHexString()]);
+  });
+
+  it('stops the uniqueness finding BLOCKING, without silencing it', async () => {
+    const uri = `${DUP_URI_PREFIX}audited`;
+    await seedGroup(uri, [
+      { id: oid(31), lastFetchedAt: new Date('2026-01-01T00:00:00Z') },
+      { id: oid(32), lastFetchedAt: new Date('2026-02-01T00:00:00Z') },
+      { id: oid(33), lastFetchedAt: new Date('2026-03-01T00:00:00Z') },
+    ]);
+
+    const resolutions = createResolutionContext(await planResolutions(source), new ResolutionLog());
+    const findings = await auditUniqueness(source, planFor('federatedactors'), resolutions);
+    const uriFinding = findings.find((entry) => entry.detail.includes('federated_actors_uri_key'));
+
+    // Still COMPUTED, still COUNTED, still PRINTED with its ids — carrying the
+    // rule that answers it. A resolution that made the finding disappear would
+    // be a silenced check.
+    expect(uriFinding).toBeDefined();
+    expect(uriFinding?.documents).toBe(3);
+    expect(uriFinding?.sampleIds).toHaveLength(3);
+    expect(uriFinding?.resolvedBy?.id).toBe(KEEP_FRESHEST_FEDERATED_ACTOR.id);
+    expect(auditWouldBlockCopy(uriFinding as NonNullable<typeof uriFinding>)).toBe(false);
+  });
+
+  it('RE-KEYS the sentinel-acct rows onto their DIDs — 21 distinct accounts, none deleted', async () => {
+    // The `handle.invalid` shape: the AppView's error string for a handle that
+    // does not verify, identical for every affected account, so it identifies
+    // nobody. Production holds 21 rows carrying it and they are 21 DISTINCT
+    // Bluesky DIDs — dropping twenty to satisfy the constraint would delete
+    // twenty real accounts, which is the loss the ingest fix exists to prevent.
+    const dids = Array.from({ length: 21 }, (_, index) => `did:plc:bffdup${String(index).padStart(18, 'x')}`);
+    await mongo.collection('federatedactors').insertMany(
+      dids.map((did, index) => ({
+        _id: oid(200 + index),
+        uri: did,
+        protocol: 'atproto',
+        username: 'handle.invalid',
+        domain: 'bsky.social',
+        acct: 'handle.invalid',
+        lastFetchedAt: new Date(2026, 0, 1 + index),
+      }))
+    );
+
+    await copy('federatedactors');
+
+    // ALL 21 land — nothing is dropped — and each carries its OWN DID as its
+    // identity, which is what the connector now writes at ingest.
+    const rows = await getDb()
+      .select()
+      .from(federatedActors)
+      .where(inArray(federatedActors.uri, dids));
+    expect(rows).toHaveLength(21);
+    expect(new Set(rows.map((row) => row.acct)).size).toBe(21);
+    for (const row of rows) {
+      expect(row.acct).toBe(row.uri);
+      expect(row.username).toBe(row.uri);
+      expect(row.domain).toBe('bsky.social');
+    }
+    // The sentinel survives nowhere — a copy left in one column is a copy the
+    // next collision is built from.
+    expect(rows.some((row) => row.acct === 'handle.invalid')).toBe(false);
+    expect(rows.some((row) => row.username === 'handle.invalid')).toBe(false);
+
+    // And it is a RE-KEY, not a drop: nothing was removed, so the emission is
+    // faithful without any rule-recorded removal at all.
+    const emission = await walkEmissionWhere({ acct: 'handle.invalid' });
+    expect(emission.documentsRead).toBe(21);
+    expect(emission.primaryRowsEmitted).toBe(21);
+    expect(emission.documentsDroppedByRule).toBe(0);
+    expect(droppedDocuments(emission)).toBe(0);
+  });
+
+  it('stops the acct finding blocking once the re-key answers it', async () => {
+    const dids = Array.from({ length: 3 }, (_, index) => `did:plc:bffrk${String(index).padStart(19, 'y')}`);
+    await mongo.collection('federatedactors').insertMany(
+      dids.map((did, index) => ({
+        _id: oid(230 + index),
+        uri: did,
+        protocol: 'atproto',
+        username: 'handle.invalid',
+        domain: 'bsky.social',
+        acct: 'handle.invalid',
+        lastFetchedAt: new Date(2026, 0, 1 + index),
+      }))
+    );
+
+    const resolutions = createResolutionContext(await planResolutions(source), new ResolutionLog());
+    const findings = await auditUniqueness(source, planFor('federatedactors'), resolutions);
+    for (const index of ['federated_actors_acct_key', 'federated_actors_domain_username_key']) {
+      const finding = findings.find((entry) => entry.detail.includes(index));
+      expect(finding, index).toBeDefined();
+      // Still computed and printed with its ids, carrying the rule.
+      expect(finding?.documents).toBe(3);
+      expect(finding?.resolvedBy?.id).toBe(KEEP_FRESHEST_FEDERATED_ACTOR.id);
+      expect(auditWouldBlockCopy(finding as NonNullable<typeof finding>)).toBe(false);
+    }
+  });
+
+  it('REFUSES a uri group that also carries the sentinel, rather than letting the two remedies collide', async () => {
+    // The one shape where the remedies contradict each other: two rows sharing
+    // a `uri` AND carrying the sentinel acct. The transform decides from one
+    // document and checks the sentinel first, so both would be RE-KEYED — and
+    // two rows would land sharing a `uri`, violating the constraint this rule
+    // exists to satisfy. The pre-pass therefore leaves the whole group alone
+    // and the finding blocks, which is the fail-closed answer.
+    //
+    // No such group exists in production (the 21 sentinel rows carry 21
+    // distinct DIDs); this pins the guard so a later change cannot quietly
+    // create one.
+    const did = 'did:plc:bffcollide00000000000000';
+    await mongo.collection('federatedactors').insertMany(
+      [0, 1].map((index) => ({
+        _id: oid(250 + index),
+        uri: did,
+        protocol: 'atproto',
+        username: 'handle.invalid',
+        domain: 'bsky.social',
+        acct: 'handle.invalid',
+        lastFetchedAt: new Date(2026, 0, 1 + index),
+      }))
+    );
+
+    const resolutions = createResolutionContext(await planResolutions(source), new ResolutionLog());
+    const findings = await auditUniqueness(source, planFor('federatedactors'), resolutions);
+    const uriFinding = findings.find((entry) => entry.detail.includes('federated_actors_uri_key'));
+
+    expect(uriFinding).toBeDefined();
+    expect(uriFinding?.resolvedBy).toBeUndefined();
+    expect(auditWouldBlockCopy(uriFinding as NonNullable<typeof uriFinding>)).toBe(true);
+  });
+
+  it('still BLOCKS a NON-sentinel acct shared across DIFFERENT uris — neither remedy applies', async () => {
+    // Two different actors that happen to share an acct. Not one actor fetched
+    // twice (so the drop must not touch them) and not the sentinel (so the
+    // re-key must not either). `resolvesUniquenessGroup` fails closed and a
+    // human decides — which is the property that keeps the rule from becoming
+    // a general licence to delete a colliding row.
+    await mongo.collection('federatedactors').insertMany(
+      Array.from({ length: 3 }, (_, index) => ({
+        _id: oid(41 + index),
+        uri: `${DUP_URI_PREFIX}shared-${index}`,
+        username: 'shared',
+        domain: 'bff-dup.example',
+        acct: 'shared@bff-dup.example',
+        lastFetchedAt: new Date(2026, 0, 1 + index),
+      }))
+    );
+
+    const resolutions = createResolutionContext(await planResolutions(source), new ResolutionLog());
+    const findings = await auditUniqueness(source, planFor('federatedactors'), resolutions);
+    const acctFinding = findings.find((entry) =>
+      entry.detail.includes('federated_actors_acct_key')
+    );
+
+    expect(acctFinding).toBeDefined();
+    expect(acctFinding?.resolvedBy).toBeUndefined();
+    expect(auditWouldBlockCopy(acctFinding as NonNullable<typeof acctFinding>)).toBe(true);
   });
 });

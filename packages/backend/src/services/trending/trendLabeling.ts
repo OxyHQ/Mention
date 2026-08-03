@@ -272,16 +272,37 @@ function surfaceForm(phrase: string, excerpts: readonly string[]): string | null
  * exactly one place to evolve.
  */
 function deriveCategory(term: string, excerpts: readonly string[]): TrendCategory {
-  const slugs = ruleBasedTopicClassifier.classify({
-    text: excerpts.join(' \n ').toLowerCase(),
-    // The TERM is passed as a hashtag because that is what it is: a normalized,
-    // `#`-stripped token, the exact shape the classifier's hashtag rules key on.
-    // Withholding it would throw away the single most on-topic token available —
-    // a trend on `esports` would be classified purely from the prose around it.
-    hashtagsNorm: [term],
-  });
+  // The TERM's own mapping wins outright when it has one. It is the single most
+  // on-topic token available — a trend on `esports` should not be categorised
+  // from the prose around it — and it is evidence about the subject rather than
+  // about whatever else its posts happened to mention.
+  const fromTerm = ruleBasedTopicClassifier.classify({ text: '', hashtagsNorm: [term] });
+  for (const slug of fromTerm) {
+    const category = TOPIC_SLUG_TO_CATEGORY[slug];
+    if (category) return normalizeTrendCategory(category);
+  }
 
-  for (const slug of slugs) {
+  // Otherwise the topic the most POSTS support, not the first the classifier
+  // happens to return. `classify` emits slugs in the order its rule array is
+  // written, so taking the first made file order the tiebreak: `Trump` was
+  // filed under Science because one post said "climate change" and the science
+  // rule sits two lines above the politics rule. Counting posts asks the
+  // question the row actually poses — what are these mostly about.
+  const support = new Map<string, number>();
+  for (const excerpt of excerpts) {
+    for (const slug of ruleBasedTopicClassifier.classify({
+      text: excerpt.toLowerCase(),
+      hashtagsNorm: [],
+    })) {
+      support.set(slug, (support.get(slug) ?? 0) + 1);
+    }
+  }
+
+  const ranked = [...support.entries()].sort(
+    // Ties break by slug so two batches over identical posts agree.
+    ([leftSlug, left], [rightSlug, right]) => right - left || leftSlug.localeCompare(rightSlug),
+  );
+  for (const [slug] of ranked) {
     const category = TOPIC_SLUG_TO_CATEGORY[slug];
     if (category) return normalizeTrendCategory(category);
   }

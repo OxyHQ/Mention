@@ -237,6 +237,26 @@ export const userSettings = pgTable(
     /** `labelers.id` values the viewer subscribes to. Read whole. */
     privacySubscribedLabelers: text().array(),
 
+    /**
+     * Whether a post published by this account, WHEN THIS ACCOUNT IS A CHANNEL,
+     * also names the person who wrote it.
+     *
+     * **NULLABLE, and the null is the point.** Mongo held this in a
+     * `channelAccount` subdocument that is ABSENT on a person's settings, which
+     * is what makes "is this account a channel" a question nothing here has to
+     * answer. Flattened to `NOT NULL DEFAULT false` that distinction would be
+     * destroyed — every person's settings would read as a channel that does not
+     * sign, and the two states are then indistinguishable at every call site.
+     * So: NULL = not a channel account, false = a channel that does not sign,
+     * true = one that does.
+     *
+     * `false` is the default for a channel that HAS the setting, matching
+     * `channels.sign_posts` — a channel post is anonymous behind the channel
+     * unless its owner says otherwise. Getting that backwards would publish
+     * every writer's identity by omission.
+     */
+    channelAccountSignPosts: boolean(),
+
     // ── profileCustomization ──
     profileCoverPhotoEnabled: boolean().notNull().default(true),
     profileMinimalistMode: boolean().notNull().default(false),

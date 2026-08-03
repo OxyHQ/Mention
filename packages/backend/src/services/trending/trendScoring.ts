@@ -115,10 +115,12 @@ export function scoreTrendCandidate(candidate: TrendCandidate): ScoredTrend | nu
  *    anything?
  *  - `minAuthors` — how many PEOPLE? One account posting fifty times and fifty
  *    people agreeing are opposite facts that a post count cannot tell apart.
- *  - `maxPostsPerAuthor` — is anyone saying it more than a few times? This is
- *    the half the author floor misses: two accounts alternating all day clear
- *    "how many people" trivially, and Mention's own list was topped by exactly
- *    that shape (see the config note for the measurements).
+ *    Repetition is discounted BEFORE this point rather than judged here:
+ *    `authorPostCap` counts each author at most twice, so `volume` already
+ *    means "how widely", not "how much". The ceiling that used to sit here
+ *    refused a term for a high posts-per-author average, which cannot tell one
+ *    account spraying from a crowd containing one loud member — and refused
+ *    `news` at eight distinct authors for exactly that reason.
  *  - `maxDocumentFrequency` — is this a subject, or just how the network talks?
  *    A term carried by a large share of EVERYTHING posted is vocabulary. This
  *    is the floor a stop-word list can never be: it needs no word to have been
@@ -130,12 +132,10 @@ export function scoreTrendCandidate(candidate: TrendCandidate): ScoredTrend | nu
  * keep out, which is the failure mode a never-blank list invites.
  */
 export function clearsFloors(candidate: TrendCandidate): boolean {
-  const { minVolume, minAuthors, maxPostsPerAuthor, maxDocumentFrequency } =
-    MtnConfig.trending.detection;
+  const { minVolume, minAuthors, maxDocumentFrequency } = MtnConfig.trending.detection;
 
   if (candidate.volume < minVolume) return false;
   if (candidate.authorCount < minAuthors) return false;
-  if (candidate.volume > candidate.authorCount * maxPostsPerAuthor) return false;
   // Measured only; an unmeasured frequency passes rather than deleting the term.
   return (candidate.documentFrequency ?? 0) <= maxDocumentFrequency;
 }

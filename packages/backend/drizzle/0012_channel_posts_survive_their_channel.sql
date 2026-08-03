@@ -1,0 +1,31 @@
+-- `posts.channel_id` was `ON DELETE CASCADE`, so deleting ONE channel destroyed
+-- every post ever published to it — irreversibly, and including posts written by
+-- other publishers. That contradicts the rule `DELETE /channels/:id` documents at
+-- length (deleting a channel RELEASES its posts back to their authors, which is
+-- what makes them reappear on a profile: the exclusion is `channel_id is null`),
+-- and it contradicted `posts.lane_id` directly beside it, which carries the
+-- identical argument — deleting the curation is not deleting the content — and
+-- has always been `set null`. An inconsistency, not a considered exception.
+--
+-- It was unreachable while `deleteChannelCascade` was the only writer, and that
+-- is precisely the reasoning this rejects: "correct because the application
+-- always releases first" is a property of ONE call site, and more are being
+-- added right now (the domain-purge sweep, whose own defect was that its deletes
+-- matched nothing — when it starts deleting for real, a direct channel delete
+-- becomes reachable).
+--
+-- The release in `deleteChannelCascade` STAYS. This statement protects the row;
+-- the release performs the rest of the product rule, and a defence that only
+-- works because the other one does is the shape this migration exists to end.
+--
+-- LOCKING, for whoever schedules this against a populated `posts`: `ADD
+-- CONSTRAINT` without `NOT VALID` validates every existing row under an ACCESS
+-- EXCLUSIVE lock. It is written the way drizzle-kit generates it deliberately —
+-- a hand-written `NOT VALID` + `VALIDATE CONSTRAINT` pair is not modelled in the
+-- snapshot, so the next `drizzle-kit generate` would propose the difference back
+-- as a spurious diff. `posts` is not yet the authoritative store on this branch,
+-- so the scan is cheap today; if that stops being true before this ships, split
+-- it by hand and re-sync the snapshot rather than leaving the two disagreeing.
+ALTER TABLE "posts" DROP CONSTRAINT "posts_channel_id_channels_id_fk";
+--> statement-breakpoint
+ALTER TABLE "posts" ADD CONSTRAINT "posts_channel_id_channels_id_fk" FOREIGN KEY ("channel_id") REFERENCES "public"."channels"("id") ON DELETE set null ON UPDATE no action;

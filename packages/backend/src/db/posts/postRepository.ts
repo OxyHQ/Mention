@@ -525,6 +525,7 @@ function assembleRecord(row: PostRow, children: PostChildRows): PostRecord {
     quotesDisabled: row.quotesDisabled,
 
     boostOf: row.boostOf,
+    writtenByOxyUserId: row.writtenByOxyUserId,
     laneId: row.laneId,
     channelId: row.channelId,
     quoteOf: row.quoteOf,
@@ -745,6 +746,7 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     // `where lane_id is not null`, so NULL is exactly the state that stays out
     // of it: "absent" and "null" are one state here rather than two that can
     // disagree.
+    writtenByOxyUserId: input.writtenByOxyUserId ?? null,
     laneId: input.laneId ?? null,
     channelId: input.channelId ?? null,
     quoteOf: input.quoteOf ?? null,

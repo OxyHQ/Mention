@@ -10,7 +10,7 @@ import type {
   FetchPostsResult,
 } from '@oxyhq/federation';
 import { withEngineId, type FederatedActorRecord } from '../../db/federation/actorRecord';
-import { resolveOxyExternalUser } from '../identity';
+import { resolveFederatedActorIdentity } from '../identity';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorService } from './actor.service';
 import { deliveryService } from './delivery.service';
@@ -53,6 +53,34 @@ function toNoteSource(
   post: LocalPostEventPayload<PostContent>,
 ): NoteSourcePost & { visibility: string } {
   return { ...post, id: String(post._id) };
+}
+
+/**
+ * The `<local>@<domain>` identity a BRIDGED actor row is held under, or
+ * `undefined` for the ordinary actor whose identity is its own protocol acct.
+ *
+ * `networkAcct` is written by the shared resolver when a reviewed bridge entry
+ * re-labels an actor onto the network it was republished from, and it is the only
+ * place that identity exists on the row — `acct`, `uri` and `domain` all keep
+ * addressing the bridge. Reading `acct` regardless is not a cosmetic slip: the
+ * registry falls back to `mapIdentity` whenever a resolved actor carries no Oxy
+ * user, which is exactly the state a first-ever ingest leaves it in, and
+ * `PUT /users/resolve` keys on the actor URI — so the fallback would rename the
+ * user the ingest just re-labelled straight back to its bridge handle.
+ *
+ * Typed against `FederatedActorRecord` rather than the deleted `IFederatedActor`:
+ * `network_acct` is a column on `federated_actors` and the record carries it, so
+ * the feature ports across unchanged.
+ */
+function bridgedIdentity(
+  actor: FederatedActorRecord,
+): { federatedUsername: string; instanceDomain: string } | undefined {
+  const networkAcct = actor.networkAcct;
+  if (!networkAcct) return undefined;
+  const instanceDomain = domainFromAcct(networkAcct);
+  return instanceDomain === undefined
+    ? undefined
+    : { federatedUsername: networkAcct, instanceDomain };
 }
 
 /**
@@ -223,21 +251,32 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     );
   }
 
-  /** Resolve/mint the Oxy user a normalized actor maps to. */
+  /**
+   * Resolve/mint the Oxy user a normalized actor maps to.
+   *
+   * The same decision the ingest path makes — a bridged actor's identity can
+   * already be held by another row (the same person mirrored twice, or held
+   * natively over atproto and again through Bridgy Fed), and minting a second
+   * one for it does not merely duplicate: oxy-api's unique username index refuses
+   * it, so the actor resolves to nothing at all.
+   */
   mapIdentity(actor: NormalizedExternalActor): Promise<string | null> {
-    return resolveOxyExternalUser(actor);
+    return resolveFederatedActorIdentity(actor);
   }
 
   /** Map a stored {@link FederatedActorRecord} to the network-neutral shape. */
   private normalizeActor(actor: FederatedActorRecord): NormalizedExternalActor {
+    const bridged = bridgedIdentity(actor);
     return {
       network: 'activitypub',
       externalId: actor.uri,
       handle: actor.acct,
-      // For AP the acct IS the canonical `user@domain` Oxy username, and the
-      // stored `domain` is its instance host.
-      federatedUsername: actor.acct,
-      instanceDomain: actor.domain,
+      // For an ordinary AP actor the acct IS the canonical `user@domain` Oxy
+      // username and the stored `domain` is its instance host. For a BRIDGED one
+      // they are the PROTOCOL address and nothing more — the identity is on the
+      // network it was re-labelled onto, and `handle` above keeps the address.
+      federatedUsername: bridged?.federatedUsername ?? actor.acct,
+      instanceDomain: bridged?.instanceDomain ?? actor.domain,
       // Display names are owned by the Oxy API (`name.displayName`); a federated
       // actor row carries no local name copy.
       avatarUrl: actor.avatarUrl,

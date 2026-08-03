@@ -1,17 +1,22 @@
 import express from 'express';
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Rate limiting on `GET /lanes/mine`.
  *
  * That route is the only one on the lanes router whose cost scales with the
- * CALLER'S OWN HISTORY and is not cached: `countPostsByLane` runs a `$group` that
- * walks one index entry per lane-bearing post the caller has ever written, with
- * no page and no cache. Every sibling is a point lookup or a bounded list, so
- * this is a bound on one aggregation rather than a limiter on a surface — and the
- * test asserts exactly that asymmetry, because a limiter accidentally applied to
- * the whole router would pass a test that only hammered `/mine`.
+ * CALLER'S OWN HISTORY and is not cached: `countPostsByLane` runs a `group by`
+ * that walks one index entry per lane-bearing post the caller has ever written,
+ * with no page and no cache. Every sibling is a point lookup or a bounded list,
+ * so this is a bound on one aggregation rather than a limiter on a surface — and
+ * the test asserts exactly that asymmetry, because a limiter accidentally
+ * applied to the whole router would pass a test that only hammered `/mine`.
+ *
+ * The queries are REAL and answer from an empty database. They used to be four
+ * mocked Mongoose models; porting the route made those mocks inert, and a
+ * limiter test does not need them — an identity with no lanes is the cheapest
+ * possible request either way.
  *
  * TWO stand-ins are required, and WITHOUT EITHER THIS TEST CANNOT FAIL:
  *
@@ -85,38 +90,6 @@ vi.mock('../../config', async (importOriginal) => {
   };
 });
 
-/** The models the handler touches — stubbed so a request's only cost is the limiter. */
-vi.mock('../../models/Lane', () => ({
-  Lane: {
-    find: () => ({ sort: () => ({ lean: async () => [] }) }),
-    findById: () => ({ select: () => ({ lean: async () => null }) }),
-    findOne: () => ({ select: () => ({ lean: async () => null }) }),
-    countDocuments: async () => 0,
-    create: async () => ({ toObject: () => ({}) }),
-    deleteOne: async () => ({ deletedCount: 1 }),
-  },
-  normalizeLaneName: (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase(),
-}));
-
-vi.mock('../../models/LaneMute', () => ({
-  LaneMute: {
-    find: () => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) }),
-    findOne: () => ({ select: () => ({ lean: async () => null }) }),
-    countDocuments: async () => 0,
-    create: async () => ({}),
-    deleteOne: async () => ({ deletedCount: 0 }),
-    deleteMany: async () => ({ deletedCount: 0 }),
-  },
-}));
-
-vi.mock('../../models/Post', () => ({
-  Post: { aggregate: async () => [], updateMany: async () => ({ modifiedCount: 0 }) },
-}));
-
-vi.mock('../../models/Channel', () => ({
-  Channel: { findById: () => ({ select: () => ({ lean: async () => null }) }) },
-}));
-
 vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: async () => new Map(),
 }));
@@ -134,6 +107,7 @@ vi.mock('@oxyhq/core/server', async (importOriginal) => {
   };
 });
 
+import { closePostgres, connectPostgres } from '../../db/postgres';
 import lanesRouter from '../../routes/lanes.routes';
 
 /**
@@ -162,6 +136,14 @@ async function hammer(app: express.Express, path: string, count: number): Promis
   }
   return status;
 }
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
 
 beforeEach(() => {
   vi.clearAllMocks();

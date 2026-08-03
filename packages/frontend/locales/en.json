@@ -409,6 +409,7 @@
   "settings.privacy.failedToLoadMutedWords": "Failed to load muted words",
   "common.remove": "Remove",
   "common.tryAgain": "Try again",
+  "common.loadMore": "Load more",
   "common.saving": "Saving...",
   "settings.sections.preferences": "Preferences",
   "Select your preferred language": "Select your preferred language",
@@ -1962,18 +1963,17 @@
       "all": "All"
     },
     "node": {
-      "counts": "{{posts}} posts · {{authors}} distinct authors"
-    },
-    "edge": {
-      "related": "Related to {{term}} — {{posts}} shared posts, not merged"
+      "posts_one": "{{count}} post",
+      "posts_other": "{{count}} posts",
+      "authors_one": "{{count}} author",
+      "authors_other": "{{count}} authors"
     },
     "sections": {
       "stories": "Merged stories",
       "ungrouped": "Terms on their own"
     },
-    "eyebrow": "Behind the list",
-    "badge": {
-      "merged": "{{count}} merged"
-    }
+    "related_zero": "Related, not merged: {{terms}}",
+    "related_one": "Related, not merged: {{terms}} +{{count}} more",
+    "related_other": "Related, not merged: {{terms}} +{{count}} more"
   }
 }

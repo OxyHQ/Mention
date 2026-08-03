@@ -17,9 +17,9 @@ const RESOLVE_GC_TIME = 30 * 60 * 1000;
  *
  * Debounces the query, and only calls `GET /federation/resolve` when the
  * debounced value LOOKS like a remote handle (`@user@host`, `user.bsky.social`,
- * `did:…`, `at://…`) — a bare local `@username` never triggers a resolve and
- * stays entirely on the Oxy people search. Resolution and caching are owned by
- * React Query.
+ * `did:…`, `at://…`) or a pasted profile link (`https://x.com/elonmusk`) — a bare
+ * local `@username` never triggers a resolve and stays entirely on the Oxy people
+ * search. Resolution and caching are owned by React Query.
  *
  * The lookup is a non-blocking ENRICHMENT of the normal people results: the
  * resolved actor is merged into them as one more row, and every non-result — a

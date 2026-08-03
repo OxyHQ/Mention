@@ -35,7 +35,7 @@ import {
 import { mongoSourceFromDb, type MongoSource } from '../../db/backfill/mongoSource';
 import { copyCollection } from '../../db/backfill/runner';
 import { COLLECTION_PLANS } from '../../db/backfill/collectionMap';
-import { auditEnums, auditNumerics, auditWouldBlockCopy } from '../../db/backfill/audit';
+import { auditEnums, auditNumerics, auditWouldBlockCopy, type AuditFinding } from '../../db/backfill/audit';
 import {
   createResolutionContext,
   parentKeysFrom,
@@ -182,6 +182,95 @@ describe('the enum audit against real Mongo', () => {
       .collection('pushtokens')
       .insertOne({ _id: new ObjectId(), userId: OWNER, token: TOKEN });
     expect(await auditEnums(source, planFor('pushtokens'))).toEqual([]);
+  });
+
+  it('reports the legacy android spelling IN FULL, and does not block on it', async () => {
+    // Production holds exactly one (`6a2ff5aaf24acd91fb263a88`). A resolved
+    // finding is still computed, counted and printed — the rule is what stops
+    // it blocking, not silence.
+    await mongo
+      .collection('pushtokens')
+      .insertOne({ _id: new ObjectId(), userId: OWNER, token: TOKEN, type: 'android' });
+
+    const findings = await auditEnums(source, planFor('pushtokens'));
+    const type = findings.find((finding) => finding.detail.includes('"android"'));
+
+    expect(type).toBeDefined();
+    expect(type?.documents).toBe(1);
+    expect(auditWouldBlockCopy(type as AuditFinding)).toBe(false);
+    expect(type?.resolvedBy?.id).toBe('map-legacy-push-token-type');
+  });
+});
+
+describe('the legacy push-token transport spelling', () => {
+  /** The copy, plus the rule log it produced — the record is half the point. */
+  async function copyPushTokens() {
+    const { log, resolutions } = await freshContext();
+    await copyCollection(planFor('pushtokens'), {
+      db: getDb(),
+      source,
+      resolutions,
+      parents: parentKeysFrom(new Map()),
+    });
+    return log.summary();
+  }
+
+  it('rewrites android to fcm and REPORTS the row it rewrote', async () => {
+    await mongo
+      .collection('pushtokens')
+      .insertOne({ _id: new ObjectId(), userId: OWNER, token: TOKEN, type: 'android', platform: 'android' });
+
+    const summaries = await copyPushTokens();
+    const rows = await getDb().select().from(pushTokens).where(eq(pushTokens.token, TOKEN));
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].type).toBe('fcm');
+    // `platform` is untouched: the rule is about the TRANSPORT spelling, and
+    // 'android' is a legal platform.
+    expect(rows[0].platform).toBe('android');
+
+    // A value that stops existing has to leave a trace, or the migration
+    // silently rewrote production data.
+    const summary = summaries.find((entry) => entry.rule.id === 'map-legacy-push-token-type');
+    expect(summary?.documents).toBe(1);
+    expect(summary?.records[0].detail).toContain('"android"');
+    expect(summary?.records[0].evidence).toStrictEqual({
+      'push_tokens.type (source)': 'android',
+      'push_tokens.type (written)': 'fcm',
+    });
+  });
+
+  it('sends any OTHER unaccepted value to unknown rather than guessing a transport', async () => {
+    // NARROW BY CONSTRUCTION. `android` earned `fcm` on evidence; a value
+    // nobody has examined gets the vocabulary's own escape hatch, because
+    // mapping it onto a real transport would be inventing a fact.
+    await mongo
+      .collection('pushtokens')
+      .insertOne({ _id: new ObjectId(), userId: OWNER, token: TOKEN, type: 'carrier-pigeon' });
+
+    const summaries = await copyPushTokens();
+    const rows = await getDb().select().from(pushTokens).where(eq(pushTokens.token, TOKEN));
+
+    expect(rows[0].type).toBe('unknown');
+    const summary = summaries.find((entry) => entry.rule.id === 'map-legacy-push-token-type');
+    expect(summary?.documents).toBe(1);
+    expect(summary?.records[0].evidence?.['push_tokens.type (written)']).toBe('unknown');
+  });
+
+  it('leaves an ACCEPTED value alone, and records nothing', async () => {
+    // The accepted set is read off the column, so a value the schema admits
+    // must pass through untouched — otherwise the rule would rewrite rows it
+    // was never written for, which is `resolution-overreach`.
+    await mongo
+      .collection('pushtokens')
+      .insertOne({ _id: new ObjectId(), userId: OWNER, token: TOKEN, type: 'apns' });
+
+    const summaries = await copyPushTokens();
+    const rows = await getDb().select().from(pushTokens).where(eq(pushTokens.token, TOKEN));
+
+    expect(rows[0].type).toBe('apns');
+    const summary = summaries.find((entry) => entry.rule.id === 'map-legacy-push-token-type');
+    expect(summary?.documents ?? 0).toBe(0);
   });
 });
 

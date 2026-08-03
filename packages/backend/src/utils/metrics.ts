@@ -54,6 +54,11 @@ const DEFINITIONS = {
     help: 'Feed interstitial engagement events',
     labelNames: ['kind', 'event', 'descriptor'],
   },
+  federated_actor_upsert_failed_total: {
+    kind: 'counter',
+    help: 'Federated actor cache rows that could not be written, by protocol and refusing constraint',
+    labelNames: ['protocol', 'reason'],
+  },
   trend_events_total: {
     kind: 'counter',
     help: 'Trending-topic impressions and presses, by surface and batch freshness',

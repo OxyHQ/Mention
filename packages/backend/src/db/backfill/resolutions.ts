@@ -56,6 +56,7 @@
 
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { sqlColumnName } from '../casing';
+import { isUnresolvedAtprotoHandle, UNRESOLVED_HANDLE } from '../../connectors/atproto/unresolvedHandle';
 import type { MongoSource } from './mongoSource';
 import {
   singlePrimaryKeyProperty,
@@ -214,8 +215,127 @@ export const DROP_UNREAD_FEED_ENTITY_FOLLOWS: ResolutionRule = {
     'row is reported BY ID under this rule.',
 };
 
+export const MAP_LEGACY_PUSH_TOKEN_TYPE: ResolutionRule = {
+  id: 'map-legacy-push-token-type',
+  collection: 'pushtokens',
+  finding:
+    'pushtokens.type = "android" is not one of fcm | apns | unknown. The CHECK ' +
+    'on push_tokens.type would reject these rows.',
+  decision:
+    '"android" is REWRITTEN to "fcm"; any other unaccepted value becomes ' +
+    '"unknown". Measured on the whole collection — 11 documents — before ' +
+    'choosing: all eleven carry `platform: "android"` and a 142-character ' +
+    'token, ten of them already say `type: "fcm"`, and the single "android" row ' +
+    'is the OLDEST (2026-06-15) while every row written after 2026-07-12 says ' +
+    '"fcm". The decisive one: the same user (6981c9178fcdefaf81988ffb) owns ' +
+    'both that row AND two later "fcm" rows, so this is one device family ' +
+    'either side of a writer change, not a different transport. FCM *is* the ' +
+    'Android transport, so the two spellings name the same thing and the value ' +
+    'is a historical one rather than a bad one. Dropping the row instead would ' +
+    'discard a live push registration (`enabled: true`) to avoid writing a ' +
+    'value the target vocabulary already has a place for. The fallback to ' +
+    '"unknown" is what keeps the rule NARROW BY CONSTRUCTION: it is defined ' +
+    'over the complement of the accepted set, which the column supplies, so a ' +
+    'future unaccepted value is handled honestly instead of being silently ' +
+    'mapped to a transport nobody verified. Every rewritten row is reported by ' +
+    'id, carrying the value it had.',
+};
+
+/**
+ * Duplicate `federatedactors` rows for ONE actor, produced by an unindexed
+ * concurrent upsert.
+ *
+ * The finding is 569 colliding `uri` groups covering 1,156 documents, measured
+ * against `mention-production` on 2026-08-03 — and it is still growing, which is
+ * why this is a COPY-TIME rule and not a script somebody runs the night before.
+ * The writer is `findOneAndUpdate({uri}, …, {upsert:true})` in
+ * `connectors/activitypub/actor.service.ts` and its atproto twin in
+ * `connectors/atproto/profile.mapper.ts`. MongoDB only guarantees an upsert
+ * inserts once when a UNIQUE INDEX covers the filter; `models/FederatedActor.ts`
+ * declares `uri`, `acct` and `(domain, username)` unique, but `autoIndex` is off
+ * in production and no migration ever created them, so two concurrent
+ * resolutions of a first-seen actor both miss the read and both insert.
+ *
+ * The port already fixes the writer — `db/federation/actorRepository.ts` upserts
+ * `ON CONFLICT (uri) DO UPDATE` against a real constraint — so this rule cleans
+ * up what the unindexed years produced and nothing recreates it afterwards.
+ */
+export const KEEP_FRESHEST_FEDERATED_ACTOR: ResolutionRule = {
+  id: 'keep-freshest-federated-actor',
+  collection: 'federatedactors',
+  finding:
+    'Several federatedactors documents share one `uri` — and, through it, one ' +
+    '`acct` and one `(domain, username)`. federated_actors_uri_key, ' +
+    'federated_actors_acct_key and federated_actors_domain_username_key would ' +
+    'each reject all but one of them.',
+  decision:
+    'The row with the GREATEST `lastFetchedAt` survives (a document carrying ' +
+    'none sorts last); ties break on `_id` DESCENDING so the choice is ' +
+    'deterministic. Every other row in the group is DROPPED and reported by id. ' +
+    '\n\n' +
+    'Why most-recently-fetched and not created-first, which is the intuitive ' +
+    'rule: the rows were IDENTICAL at insert — they are the same remote actor ' +
+    'fetched twice, milliseconds apart (519 of the 569 groups were created ' +
+    'within 10ms and NOT ONE spans more than a second). They differ today only ' +
+    'because every later `findOneAndUpdate({uri})` updated whichever row the ' +
+    'collection scan reached first, so exactly one row of each group kept being ' +
+    'refreshed and the rest froze at their insert values — 577 of the 587 ' +
+    'discarded rows were never fetched again at all. That makes ' +
+    '"most-recently-synced" and "most-complete" the SAME row, and makes ' +
+    'created-first actively wrong: the maintained row is the lowest `_id` in ' +
+    '433 groups and the highest in 134, so ordering by `_id` would discard the ' +
+    'live row in roughly a quarter of them. ' +
+    '\n\n' +
+    'Nothing is lost. Measured across all 569 groups: no discarded row holds an ' +
+    '`oxyUserId` the survivor lacks and no two rows point at different Oxy ' +
+    'users (566 identical, 3 survivor-only, 0 the other way, 0 conflicting); ' +
+    'only 2 groups have a discarded row carrying any non-empty value the ' +
+    'survivor lacks, and those are one `summary` and one `lastOutboxSyncAt` — ' +
+    'the latter being the sticky cooldown stamp a fresh row is better off ' +
+    'without. A discarded row never leads on `postsCount`, follower counts, ' +
+    'backfill progress or profile-field count, so a MERGE would be machinery ' +
+    'for a case that does not occur. Nothing references an actor by `_id` ' +
+    'either — `federatedfollows` keys on `remoteActorUri` and no post carries ' +
+    'an actor id — so a dropped row strands no child. ' +
+    '\n\n' +
+    'THE DROP IS SCOPED TO `uri` ON PURPOSE. Rows sharing a `uri` are one actor ' +
+    'fetched twice; that is what makes discarding a duplicate lossless. Rows ' +
+    'that share an `acct` or a `(domain, username)` under DIFFERENT `uri`s are ' +
+    'DIFFERENT actors that a derivation bug gave one identity, and dropping ' +
+    'those would delete real accounts. The grouping must never be widened to ' +
+    '`acct` or `(domain, username)`; those rows are answered by the SECOND ' +
+    'remedy below, which removes nothing. ' +
+    '\n\n' +
+    'REMEDY TWO — RE-KEY, for a row whose `acct` is Bluesky\'s ' +
+    '`handle.invalid`. That is the AppView\'s error string for a handle whose ' +
+    'DNS/DID verification failed, identical for every affected account, so it ' +
+    'identifies nobody: production holds 21 rows carrying it and they are 21 ' +
+    'DISTINCT Bluesky DIDs. `acct` and `username` are rewritten to the row\'s ' +
+    'own `uri`, which for an atproto actor IS its DID — the stable identifier ' +
+    'the protocol actually guarantees, already unique, and impossible to ' +
+    'confuse with a real handle because it contains a `:` that no DNS name may. ' +
+    'Nothing is dropped and no account is lost. ' +
+    '\n\n' +
+    'This is the SAME substitution the connector now applies at ingest ' +
+    '(`atprotoIdentityHandle`), so a re-keyed row lands in exactly the shape the ' +
+    'fixed writer would have produced — the backlog gets the current rule, not a ' +
+    'special case, and nothing downstream has to know these rows predate the fix. ' +
+    'oxy-api accepts it unchanged: `normalizeFederatedResolveUsername` splits on ' +
+    'the FIRST `@`, so `did:plc:…@bsky.social` binds to `bsky.social` like any ' +
+    'other handle. ' +
+    '\n\n' +
+    'The two remedies are ONE decision — give every row an identity that is ' +
+    'actually its own, and remove only the rows that are not a separate thing at ' +
+    'all — which is why they are one rule with one id rather than two. Each ' +
+    'affected document is reported individually, saying which remedy it got.',
+};
+
 /** Rules that act on a VALUE rather than on a missing parent. */
-const VALUE_RESOLUTIONS: readonly ResolutionRule[] = [DROP_UNREAD_FEED_ENTITY_FOLLOWS];
+const VALUE_RESOLUTIONS: readonly ResolutionRule[] = [
+  DROP_UNREAD_FEED_ENTITY_FOLLOWS,
+  MAP_LEGACY_PUSH_TOKEN_TYPE,
+  KEEP_FRESHEST_FEDERATED_ACTOR,
+];
 
 /**
  * Every declared orphan resolution.
@@ -384,17 +504,251 @@ export interface ResolutionPlan {
 }
 
 /**
+ * One `federatedactors` document, reduced to what the survivor choice reads.
+ *
+ * `lastFetchedAt` is `unknown` because it is whatever Mongo holds. A document
+ * written before the field existed has none, and a `Date` is the only shape
+ * worth ordering by — {@link fetchedAtMillis} decides that once rather than at
+ * two comparison sites.
+ */
+interface ActorDuplicateCandidate {
+  readonly id: string;
+  readonly lastFetchedAt: unknown;
+}
+
+/**
+ * When an actor row was last refreshed, as a number, or `-Infinity` for never.
+ *
+ * NULLS LAST is the whole point and is why this is not `Date.parse`: a row with
+ * no `lastFetchedAt` was never fetched after its insert, which makes it the LEAST
+ * eligible survivor, and any finite sentinel would sort it above a real 1970
+ * timestamp. `-Infinity` cannot.
+ */
+function fetchedAtMillis(value: unknown): number {
+  if (value instanceof Date) {
+    const millis = value.getTime();
+    return Number.isNaN(millis) ? Number.NEGATIVE_INFINITY : millis;
+  }
+  return Number.NEGATIVE_INFINITY;
+}
+
+/**
+ * The rows of one colliding group that do NOT survive, in the rule's order.
+ *
+ * Exported for the tests, which pin the ORDERING rather than a fixture: the
+ * choice is the rule, so it is what has to be exercised against a pair, a
+ * three-way group and a twenty-one-way one — a pair cannot distinguish
+ * "sorted correctly" from "reversed", and it is the size that made two earlier
+ * readings of this data wrong.
+ */
+export function federatedActorDuplicatesToDrop(
+  group: readonly ActorDuplicateCandidate[]
+): string[] {
+  if (group.length < 2) return [];
+  const ordered = [...group].sort((a, b) => {
+    const byFetched = fetchedAtMillis(b.lastFetchedAt) - fetchedAtMillis(a.lastFetchedAt);
+    if (byFetched !== 0) return byFetched;
+    // `_id` DESCENDING. Only reachable when two rows were fetched at the same
+    // millisecond or never — the survivor is then arbitrary but must not be
+    // RANDOM, or two phases of one run could disagree about which row to write.
+    // Descending matches `findActorByOxyUserId`'s own tie-break
+    // (`last_fetched_at desc nulls last, id desc`), so the migration and the
+    // live reader pick the same row by construction rather than by review.
+    return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+  });
+  return ordered.slice(1).map((row) => row.id);
+}
+
+/**
+ * One sentinel-acct row, reduced to what the re-key needs.
+ *
+ * `uri` is carried because it IS the replacement identity — an atproto actor's
+ * `uri` is its DID — so the pre-pass can refuse a row that has none rather than
+ * emitting a re-key with nothing to re-key to.
+ */
+interface SentinelActorCandidate extends ActorDuplicateCandidate {
+  /** The row's protocol URI — for an atproto actor, its DID. */
+  readonly uri: string;
+  /** Whether its stored `acct` is Bluesky's unresolved-handle sentinel. */
+  readonly sentinel: boolean;
+}
+
+/**
+ * Every `federatedactors` document {@link KEEP_FRESHEST_FEDERATED_ACTOR} acts on.
+ *
+ * Grouped in MongoDB rather than streamed and grouped here: the collection is
+ * ~63,000 documents and only the fields the choice reads are projected, so the
+ * whole answer is two aggregations returning the colliding groups alone.
+ */
+async function planFederatedActorDuplicates(source: MongoSource): Promise<{
+  /** Rows the drop remedy removes. */
+  readonly dropped: ReadonlySet<string>;
+  /**
+   * EVERY row of EVERY `uri`-colliding group, dropped or not.
+   *
+   * The re-key remedy excludes all of them, and that exclusion is load-bearing
+   * rather than tidy: a sentinel row sharing its `uri` with another row cannot
+   * be safely re-keyed, because the transform would re-key BOTH and land two
+   * rows on one `uri`. Worse, merely PUTTING such a row in `actedOn` makes the
+   * `uri` finding look answered — `resolvesUniquenessGroup` counts ids, not
+   * remedies — so the group would sail past the audit and fail at COPY time
+   * against the constraint. Both halves have to stand the row down.
+   */
+  readonly inUriGroup: ReadonlySet<string>;
+}> {
+  const dropped = new Set<string>();
+  const inUriGroup = new Set<string>();
+  // No existence check, deliberately: an aggregation over a collection that
+  // does not exist returns an empty cursor, which is the same answer a guard
+  // would produce and cannot be wrong.
+  //
+  // `source.count()` looks like the guard to reach for and is NOT usable here.
+  // It answers from a MEMOISED `listCollections()` — captured once, on the first
+  // call anywhere in the process — so a collection created after that snapshot
+  // counts as 0 and would stand this rule down silently, leaving every
+  // collision to block with no indication the pre-pass had been skipped. That
+  // is not hypothetical: it is what the first version of this function did, and
+  // the tests below caught it only because they assert the rule ACTED rather
+  // than that the copy succeeded.
+  const groups = await source
+    .collection('federatedactors')
+    .aggregate<{ rows?: unknown }>(
+      [
+        // Grouped on `uri` ALONE — see the rule's `decision`. Widening this to
+        // `acct` or `(domain, username)` would delete distinct actors.
+        {
+          $group: {
+            _id: '$uri',
+            rows: { $push: { id: '$_id', uri: '$uri', acct: '$acct', lastFetchedAt: '$lastFetchedAt' } },
+            count: { $sum: 1 },
+          },
+        },
+        { $match: { count: { $gt: 1 } } },
+      ],
+      // 569 groups today, but the number is growing while the unindexed writer
+      // is live, and a `$group` over the whole collection is exactly the shape
+      // that outgrows the 100 MB in-memory limit unannounced.
+      { allowDiskUse: true }
+    )
+    .toArray();
+
+  for (const group of groups) {
+    const candidates = readCandidates(group.rows);
+    for (const row of candidates) inUriGroup.add(row.id);
+    // A `uri` group containing a SENTINEL-acct row is left entirely alone, so
+    // the finding blocks and a human looks at it.
+    //
+    // Not a hypothetical tidiness guard — it is what keeps the two remedies
+    // from contradicting each other. The transform decides which remedy a row
+    // gets from the row itself, and it checks the sentinel FIRST (that is the
+    // only check that can be made from one document). A row that is both a
+    // sentinel AND a `uri` duplicate would therefore be re-keyed instead of
+    // dropped, leaving two rows sharing a `uri` and violating the very
+    // constraint this rule exists to satisfy. Refusing the whole group is the
+    // fail-closed answer, and it costs nothing today: production's 21 sentinel
+    // rows carry 21 DISTINCT DIDs, so no such group exists.
+    if (candidates.some((row) => row.sentinel)) continue;
+    for (const id of federatedActorDuplicatesToDrop(candidates)) dropped.add(id);
+  }
+  return { dropped, inUriGroup };
+}
+
+/** Parse one `$group` bucket's pushed rows, discarding anything unusable. */
+function readCandidates(rows: unknown): SentinelActorCandidate[] {
+  if (!Array.isArray(rows)) return [];
+  return rows.flatMap((row) => {
+    if (row === null || typeof row !== 'object') return [];
+    const entry = row as { id?: unknown; uri?: unknown; acct?: unknown; lastFetchedAt?: unknown };
+    // A document with no `_id` cannot be named in the report, and a rule that
+    // cannot report what it acted on has not answered anything — leaving it out
+    // keeps the group unresolved, which blocks. Not reachable in Mongo, written
+    // because the alternative is a silent drop.
+    if (entry.id === undefined || entry.id === null) return [];
+    return [
+      {
+        id: String(entry.id),
+        uri: typeof entry.uri === 'string' ? entry.uri : '',
+        sentinel: typeof entry.acct === 'string' && isUnresolvedAtprotoHandle(entry.acct),
+        lastFetchedAt: entry.lastFetchedAt,
+      },
+    ];
+  });
+}
+
+/**
+ * Every sentinel-acct row whose re-key RESOLVES its collision — all but the
+ * freshest of each group.
+ *
+ * The transform re-keys EVERY sentinel row, the freshest included, so the whole
+ * population lands in the shape the fixed writer produces. This set is narrower
+ * on purpose: it is the rows that have to MOVE for the group to stop colliding,
+ * which is the question `resolvesUniquenessGroup` asks (all but one). The
+ * freshest row's re-key is normalisation — the group would already be legal
+ * without it — so counting it here would make the rule look like it empties the
+ * group and the finding would block.
+ *
+ * Every row belonging to a `uri`-colliding group is excluded — see
+ * {@link planFederatedActorDuplicates}'s `inUriGroup`. That is what keeps the
+ * two remedies from claiming one document, and it is not vacuous: a sentinel
+ * row that shares a `uri` slipped through an earlier version of this and made
+ * the `uri` finding read as answered while the copy would have violated the
+ * constraint.
+ */
+async function planSentinelActorRekeys(
+  source: MongoSource,
+  excluded: ReadonlySet<string>
+): Promise<ReadonlySet<string>> {
+  const rekeyed = new Set<string>();
+  const groups = await source
+    .collection('federatedactors')
+    .aggregate<{ rows?: unknown }>(
+      [
+        // Matched on the VALUE rather than scanned: the sentinel is one exact
+        // string, so Mongo answers from `acct` alone.
+        { $match: { acct: UNRESOLVED_HANDLE } },
+        {
+          $group: {
+            _id: '$acct',
+            rows: { $push: { id: '$_id', uri: '$uri', acct: '$acct', lastFetchedAt: '$lastFetchedAt' } },
+            count: { $sum: 1 },
+          },
+        },
+        { $match: { count: { $gt: 1 } } },
+      ],
+      { allowDiskUse: true }
+    )
+    .toArray();
+
+  for (const group of groups) {
+    // A row with no `uri` has no DID to be re-keyed ONTO, so it is left out and
+    // its group keeps blocking — the same fail-closed answer as a missing `_id`.
+    const candidates = readCandidates(group.rows).filter(
+      (row) => row.uri.length > 0 && !excluded.has(row.id)
+    );
+    for (const id of federatedActorDuplicatesToDrop(candidates)) rekeyed.add(id);
+  }
+  return rekeyed;
+}
+
+/**
  * Run every rule's pre-pass against the source.
  *
  * Takes the source rather than reaching for one, so the audit phase and the
  * copy phase provably run it against the same database.
  */
 export async function planResolutions(source: MongoSource): Promise<ResolutionPlan> {
-  // No rule declares a pre-pass yet. The parameter is still required so adding
-  // one is a change to this function's BODY rather than to its signature and
-  // every call site.
-  void source;
-  return { actedOn: new Map() };
+  // Drops FIRST: the re-key set is computed against them so one document can
+  // never be claimed by both remedies.
+  const { dropped, inUriGroup } = await planFederatedActorDuplicates(source);
+  // Excluded by `inUriGroup`, not by `dropped`: a sentinel row in a REFUSED uri
+  // group was never dropped, and re-keying it would both break the `uri`
+  // constraint and make that group's finding look answered.
+  const rekeyed = await planSentinelActorRekeys(source, inUriGroup);
+  return {
+    actedOn: new Map([
+      [KEEP_FRESHEST_FEDERATED_ACTOR.id, new Set([...dropped, ...rekeyed])],
+    ]),
+  };
 }
 
 // ---------------------------------------------------------------------------

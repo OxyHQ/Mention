@@ -41,9 +41,11 @@ const seededIds = new Map<string, string[]>();
 /**
  * Channels and lanes a scope created.
  *
- * Cleaned AFTER the posts, always: `posts.channel_id` is `ON DELETE CASCADE`, so
- * a channel removed first takes its posts with it — and a post the suite thinks
- * it deleted itself is a post whose absence proves nothing.
+ * Cleaned AFTER the posts. That USED to be load-bearing: `posts.channel_id` was
+ * `ON DELETE CASCADE`, so a channel removed first took its posts with it — and
+ * a post the suite thinks it deleted itself is a post whose absence proves
+ * nothing. Migration `0012` made that column `ON DELETE SET NULL`, so the order
+ * is now only tidy; a suite that relies on it for anything else should say so.
  */
 const seededChannelIds = new Map<string, string[]>();
 const seededLaneIds = new Map<string, string[]>();

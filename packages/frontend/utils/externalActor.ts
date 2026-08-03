@@ -13,6 +13,7 @@
  *  - `user.bsky.social` / any bare DNS handle       → atproto (Bluesky)
  *  - `did:plc:…` / `did:web:…`                       → atproto
  *  - `at://…`                                        → atproto
+ *  - `https://x.com/elonmusk`                        → a pasted profile link
  */
 
 /** A `did:plc:` or `did:web:` identifier. */
@@ -44,6 +45,31 @@ function isAtprotoHandle(query: string): boolean {
 }
 
 /**
+ * True when `query` is an absolute http(s) URL naming something under a host — a
+ * pasted profile link.
+ *
+ * Deliberately WIDER than the set the backend can actually resolve, and it must
+ * stay that way. Which hosts republish which network is a reviewed moderation
+ * policy that lives in the backend (`connectors/activitypub/federationBridgePolicy`),
+ * and restating any part of it here would give it a second copy to drift from —
+ * with the drift landing on this side, where a link that silently stops
+ * resolving is indistinguishable from an account we do not have. Being wider can
+ * only ever cost one request that answers 404 (which this hook already treats as
+ * the same quiet `null` as any other miss); being narrower would lose links for
+ * networks the backend has since learned to reach.
+ */
+function isPastedProfileUrl(query: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(query);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
+  return url.hostname.length > 0 && url.pathname.replace(/\//g, '').length > 0;
+}
+
+/**
  * Whether a raw search query looks like a REMOTE actor handle the connectors can
  * resolve. Only these queries are sent to `GET /federation/resolve`; a local
  * `@username` / `username` returns false and stays on the existing people search.
@@ -53,5 +79,6 @@ export function looksLikeRemoteHandle(raw: string): boolean {
   if (!query) return false;
   if (DID_RE.test(query) || AT_URI_RE.test(query)) return true;
   if (isFediverseAcct(query)) return true;
+  if (isPastedProfileUrl(query)) return true;
   return isAtprotoHandle(query);
 }
