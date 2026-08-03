@@ -1,5 +1,6 @@
 import { REPORTED_TYPES } from '../../db/schema/moderation';
 import { getDb } from '../../db/postgres';
+import { isUniqueViolation } from '../../db/pgErrors';
 import {
   findDuplicateReport,
   insertReport,
@@ -130,39 +131,70 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
   }
   const deliverable = subjectProviderFor(reportedType) !== undefined;
 
-  return await getDb().transaction(async (tx) => {
+  try {
+    return await getDb().transaction(async (tx) => {
+      const existing = await findDuplicateReport(
+        reporter,
+        reportedId,
+        reportedType as ReportedType,
+        tx,
+      );
+      if (existing) throw new DuplicateReportError(existing);
+
+      const report = await insertReport(
+        {
+          reportedType: reportedType as ReportedType,
+          reportedId,
+          reporter,
+          categories: input.categories,
+          details: input.details,
+          localStatus: deliverable ? 'queued' : 'received',
+          ...(deliverable ? {} : { localStatusReason: localOnlyReason(reportedType) }),
+        },
+        tx,
+      );
+
+      if (!deliverable) return { report };
+
+      const outboxEventId = await enqueueModerationOutboxEvent(
+        {
+          eventId: reportSubmitEventId(report.id),
+          kind: 'report.submit',
+          payload: { reportId: report.id },
+        },
+        tx,
+      );
+
+      return { report, outboxEventId };
+    });
+  } catch (error: unknown) {
+    /**
+     * The same duplicate, reached by the OTHER route.
+     *
+     * The read above and the insert are one transaction, but two intakes running at
+     * once both read nothing and both insert; `reports_reporter_reported_key` is
+     * what refuses the second, and it arrives here as a raw 23505. Left alone the
+     * route answers `500 Error creating report` — telling somebody their report
+     * failed when it is already filed, and inviting the retry that cannot succeed.
+     *
+     * Mongo declared no such index, so this state is one the Postgres schema made
+     * REACHABLE rather than one that was always here: there, the double-tap stored
+     * two reports and delivered both.
+     *
+     * The winner's row is exactly what the loser should have found, so read it and
+     * give the answer the sequential path gives. Read OUTSIDE the transaction —
+     * `tx` is aborted by the time the violation surfaces, and any query on it would
+     * fail with 25P02.
+     */
+    if (!isUniqueViolation(error, 'reports_reporter_reported_key')) throw error;
     const existing = await findDuplicateReport(
       reporter,
       reportedId,
       reportedType as ReportedType,
-      tx,
     );
-    if (existing) throw new DuplicateReportError(existing);
-
-    const report = await insertReport(
-      {
-        reportedType: reportedType as ReportedType,
-        reportedId,
-        reporter,
-        categories: input.categories,
-        details: input.details,
-        localStatus: deliverable ? 'queued' : 'received',
-        ...(deliverable ? {} : { localStatusReason: localOnlyReason(reportedType) }),
-      },
-      tx,
-    );
-
-    if (!deliverable) return { report };
-
-    const outboxEventId = await enqueueModerationOutboxEvent(
-      {
-        eventId: reportSubmitEventId(report.id),
-        kind: 'report.submit',
-        payload: { reportId: report.id },
-      },
-      tx,
-    );
-
-    return { report, outboxEventId };
-  });
+    // No winner to point at means the constraint fired for something this function
+    // did not do. Reporting it as a duplicate would be inventing a cause.
+    if (!existing) throw error;
+    throw new DuplicateReportError(existing);
+  }
 }

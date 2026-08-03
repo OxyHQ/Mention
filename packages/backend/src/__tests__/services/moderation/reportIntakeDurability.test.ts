@@ -1,53 +1,56 @@
-import mongoose from 'mongoose';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { and, eq, like, sql } from 'drizzle-orm';
 
 /**
  * §7.1 — a 201 means stored-and-will-retry, never "CrowdSource accepted it".
  *
- * The property under test is atomicity: the `Report` and its `ModerationOutbox`
- * event commit in ONE transaction, so neither of the two silent failure modes is
+ * The property under test is atomicity: the report row and its delivery event
+ * commit in ONE transaction, so neither of the two silent failure modes is
  * reachable. A report with no delivery event is a report nothing will ever send,
  * and nobody finds out until somebody asks why a case never opened; a delivery
  * event with no report is a worker looking up an id that was rolled back.
  *
- * Both are invisible at the moment they happen, which is why this is asserted on
- * the SESSION each write receives rather than on the end state. A test that only
- * checked "both rows exist" passes just as happily against two sequential writes
- * outside a transaction — and that is exactly the regression worth catching.
- *
  * The second property, asserted at the bottom: a report whose type has no subject
- * provider gets NO delivery event. Not one that is skipped later — none. That is what
- * keeps a type this application cannot describe from dead-lettering in the queue an
- * operator has to be able to read, and it is why the two branches decide `localStatus`
- * and the outbox row from one fact rather than two.
+ * provider gets NO delivery event. Not one that is skipped later — none. That is
+ * what keeps a type this application cannot describe from dead-lettering in the
+ * queue an operator has to be able to read, and it is why the two branches decide
+ * `localStatus` and the outbox row from one fact rather than two.
+ *
+ * ## What the Postgres port changed
+ *
+ * The old file asserted on the SESSION each write received, because in Mongo that
+ * was the only way to tell one transaction from two adjacent writes. There is no
+ * session to inspect now, and the substitute is stronger rather than weaker: a
+ * `before insert` TRIGGER on `moderation_outbox`, scoped to one probe subject so
+ * it is invisible to every other suite, refuses the delivery event for real — and
+ * the assertion is that the REPORT is not there afterwards. That is the claim two
+ * sequential writes fail and a session-identity check could only imply.
+ *
+ * Two tests are gone rather than translated, because what they named no longer
+ * exists:
+ *
+ *  - *"refuses to write a delivery event outside a transaction"* — the guard moved
+ *    from `session.inTransaction()` to `requireTransaction`, and
+ *    `__tests__/db/moderationOutboxRepository.test.ts` drives it directly against
+ *    the root connection. Re-asserting it here through intake would be a second,
+ *    weaker copy of a stronger check.
+ *  - *"refuses to report success for a transaction that produced no result"* —
+ *    that guarded Mongo's `withTransaction`, which can return without having run
+ *    its body (it re-invokes the callback on a transient error). Drizzle's
+ *    `db.transaction(fn)` RETURNS the callback's value and has no re-invoke path,
+ *    so there is no state in which intake could answer 201 about a body that never
+ *    ran. Restating it would be asserting a property of the driver.
+ *
+ * And one test is NEW, because the port made a race reachable that Mongo never
+ * had: `reports_reporter_reported_key`. See its own comment.
  */
-
-vi.mock('../../../models/Report.model', async () => {
-  const actual = await vi.importActual<typeof import('../../../models/Report.model')>(
-    '../../../models/Report.model',
-  );
-  return {
-    ...actual,
-    default: {
-      findOne: vi.fn(),
-      create: vi.fn(),
-    },
-  };
-});
-
-vi.mock('../../../models/ModerationOutbox', () => ({
-  MODERATION_OUTBOX_RETENTION_SECONDS: 90 * 24 * 60 * 60,
-  default: {
-    updateOne: vi.fn(),
-  },
-}));
 
 /**
  * The registry is mocked so both branches of the delivery decision are exercised
- * deterministically. Which types actually have providers is pinned separately, by the
- * vacuity floor in `routes/reportsAcceptedTypes.test.ts` — asserting it here too would
- * couple this file to Mention's own nouns, and the property under test is about any
- * application's.
+ * deterministically. Which types actually have providers is pinned separately, by
+ * the vacuity floor in `routes/reportsAcceptedTypes.test.ts` — asserting it here
+ * too would couple this file to Mention's own nouns, and the property under test
+ * is about any application's.
  */
 vi.mock('../../../services/moderation/subjects/registry', async () => {
   const actual = await vi.importActual<
@@ -56,75 +59,54 @@ vi.mock('../../../services/moderation/subjects/registry', async () => {
   return { ...actual, subjectProviderFor: vi.fn() };
 });
 
-import ModerationOutbox from '../../../models/ModerationOutbox';
-import Report, { ReportCategory, ReportedType } from '../../../models/Report.model';
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { moderationOutbox, reports } from '../../../db/schema/moderation';
+import { sqlStateOf } from '../../../db/pgErrors';
 import {
   DuplicateReportError,
   createReport,
+  type CreateReportInput,
 } from '../../../services/moderation/ReportIntakeService';
 import { reportSubmitEventId } from '../../../services/moderation/ModerationOutboxService';
 import { subjectProviderFor } from '../../../services/moderation/subjects/registry';
 
-interface TransactionSpy {
-  /** Whether the body ran to completion inside `withTransaction`. */
-  committed: boolean;
-  /** Set when the transaction body threw, i.e. the transaction aborted. */
-  aborted: unknown;
-  ended: boolean;
-  /** The session object the service hands to each write. */
-  session: mongoose.ClientSession;
+/** Namespaces every row this file writes, so a parallel file cannot collide. */
+const PREFIX = 'moderation:test-intake:';
+
+/**
+ * The reported id the atomicity probe trigger below refuses to accept. Scoping the
+ * trigger to one subject rather than to the table is what keeps it invisible to
+ * every other suite sharing this database.
+ */
+const ATOMICITY_PROBE_SUBJECT = `${PREFIX}atomicity-probe`;
+
+/** A distinct reporter per test: `(reporter, reported_id, reported_type)` is unique. */
+let reporterSeq = 0;
+function nextReporter(): string {
+  reporterSeq += 1;
+  return `${PREFIX}reporter-${reporterSeq}`;
 }
 
-function stubSession(): TransactionSpy {
-  const session = {
-    /**
-     * Reports being INSIDE a transaction, because `enqueueModerationOutboxEvent`
-     * refuses to write otherwise. The stub has to model that or every test here
-     * would fail on the guard rather than on the behaviour it targets.
-     */
-    inTransaction: () => true,
-    withTransaction: vi.fn(async (operation: () => Promise<void>) => {
-      try {
-        await operation();
-        spy.committed = true;
-      } catch (error: unknown) {
-        // Mongo aborts the transaction and rethrows: NOTHING the body wrote is
-        // durable. Modelling that is the whole point of this stub.
-        spy.aborted = error;
-        throw error;
-      }
-    }),
-    endSession: vi.fn(async () => {
-      spy.ended = true;
-    }),
-  };
-  const spy: TransactionSpy = {
-    committed: false,
-    aborted: undefined,
-    ended: false,
-    session: session as unknown as mongoose.ClientSession,
-  };
-  vi.spyOn(mongoose, 'startSession').mockResolvedValue(spy.session);
-  return spy;
-}
-
-function queryReturning<T>(value: T) {
+function postInput(overrides: Partial<CreateReportInput> = {}): CreateReportInput {
   return {
-    session: vi.fn().mockReturnThis(),
-    lean: vi.fn().mockResolvedValue(value),
+    reporter: nextReporter(),
+    reportedType: 'post',
+    reportedId: `${PREFIX}subject`,
+    categories: ['harassment'],
+    details: 'This is targeted at me repeatedly.',
+    ...overrides,
   };
 }
 
-const REPORT_ID = '507f1f77bcf86cd799439011';
-
-function mockCreatedReport(): void {
-  vi.mocked(Report.create).mockResolvedValue([
-    {
-      _id: new mongoose.Types.ObjectId(REPORT_ID),
-      id: REPORT_ID,
-      localStatus: 'queued',
-    },
-  ] as never);
+/** A live room: accepted by the API, and nothing in Mention can describe it. */
+function roomInput(overrides: Partial<CreateReportInput> = {}): CreateReportInput {
+  return {
+    reporter: nextReporter(),
+    reportedType: 'room',
+    reportedId: `${PREFIX}room`,
+    categories: ['harassment'],
+    ...overrides,
+  };
 }
 
 /** A provider for the reported type: the report is deliverable. */
@@ -136,224 +118,262 @@ function withSubjectProvider(): void {
   });
 }
 
-const INPUT = {
-  reporter: 'oxy-user-reporter',
-  reportedType: ReportedType.POST,
-  reportedId: '507f1f77bcf86cd799439022',
-  categories: [ReportCategory.HARASSMENT],
-  details: 'This is targeted at me repeatedly.',
-};
+async function outboxRowsFor(reportId: string) {
+  return getDb()
+    .select()
+    .from(moderationOutbox)
+    .where(eq(moderationOutbox.payloadReportId, reportId));
+}
 
-/** A live room: accepted by the API, and nothing in Mention can describe it. */
-const ROOM_INPUT = {
-  reporter: 'oxy-user-reporter',
-  reportedType: ReportedType.ROOM,
-  reportedId: 'room_123',
-  categories: [ReportCategory.HARASSMENT],
-};
+async function reportRowsFor(reporter: string) {
+  return getDb().select().from(reports).where(eq(reports.reporter, reporter));
+}
+
+beforeAll(async () => {
+  const db = await connectPostgres();
+  /**
+   * A deterministic mid-transaction failure. Intake writes the report BEFORE the
+   * outbox row, so a refused insert here is the only clean way to ask "did the
+   * earlier write survive?" — and it is a REAL rollback rather than a mocked throw.
+   *
+   * The probe value is spliced as a LITERAL, not bound: a `$1` inside a function
+   * body has no inferable type and Postgres refuses the whole DDL (42P18). It is a
+   * local `const` of identifier-shaped characters, never a runtime value.
+   */
+  await db.execute(sql`
+    create or replace function moderation_outbox_atomicity_probe() returns trigger as $$
+    begin
+      if exists (
+        select 1 from reports r
+        where r.id = new.payload_report_id
+          and r.reported_id = ${sql.raw(`'${ATOMICITY_PROBE_SUBJECT}'`)}
+      ) then
+        raise exception 'moderation outbox atomicity probe';
+      end if;
+      return new;
+    end;
+    $$ language plpgsql;
+  `);
+  await db.execute(sql`
+    create or replace trigger moderation_outbox_atomicity_probe_trigger
+    before insert on moderation_outbox
+    for each row execute function moderation_outbox_atomicity_probe();
+  `);
+});
+
+afterAll(async () => {
+  await getDb().execute(
+    sql`drop trigger if exists moderation_outbox_atomicity_probe_trigger on moderation_outbox`,
+  );
+  await getDb().execute(sql`drop function if exists moderation_outbox_atomicity_probe()`);
+  await closePostgres();
+});
 
 describe('report intake — durable reception (§7.1)', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    // The events cascade from their reports, so one delete clears both.
+    await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
     vi.clearAllMocks();
     withSubjectProvider();
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  afterEach(async () => {
+    await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
   });
 
-  it('writes the report and its delivery event with the SAME transaction session', async () => {
-    const transaction = stubSession();
-    vi.mocked(Report.findOne).mockReturnValue(queryReturning(null) as never);
-    mockCreatedReport();
-    vi.mocked(ModerationOutbox.updateOne).mockResolvedValue({} as never);
+  it('writes the report and its delivery event together', async () => {
+    const input = postInput();
 
-    const result = await createReport(INPUT);
+    const result = await createReport(input);
 
-    expect(transaction.committed).toBe(true);
-    expect(result.outboxEventId).toBe(reportSubmitEventId(REPORT_ID));
+    expect(result.report.localStatus).toBe('queued');
+    expect(result.outboxEventId).toBe(reportSubmitEventId(result.report.id));
 
     /**
-     * The assertion that matters: both writes received the SAME session instance, and
-     * that instance is the one `withTransaction` was called on. Identity is the whole
-     * property — a different session, or `undefined`, means the two writes commit
-     * independently however adjacent they look in the source.
+     * The event names this report and is ready to go out. "Both rows exist" is a
+     * weaker claim than atomicity — two sequential writes satisfy it too — which is
+     * what the probe test below is for.
      */
-    const reportSession = vi.mocked(Report.create).mock.calls[0][1]?.session;
-    const outboxSession = vi.mocked(ModerationOutbox.updateOne).mock.calls[0][2]?.session;
-    expect(reportSession).toBe(transaction.session);
-    expect(outboxSession).toBe(transaction.session);
-
-    expect(ModerationOutbox.updateOne).toHaveBeenCalledWith(
-      { _id: reportSubmitEventId(REPORT_ID) },
+    expect(await outboxRowsFor(result.report.id)).toEqual([
       expect.objectContaining({
-        $setOnInsert: expect.objectContaining({
-          _id: reportSubmitEventId(REPORT_ID),
-          kind: 'report.submit',
-          payload: { reportId: REPORT_ID },
-          status: 'pending',
-          attempts: 0,
-        }),
+        id: reportSubmitEventId(result.report.id),
+        kind: 'report.submit',
+        payloadReportId: result.report.id,
+        status: 'pending',
+        attempts: 0,
       }),
-      expect.objectContaining({ upsert: true }),
-    );
+    ]);
   });
 
   it('aborts the whole intake when the delivery event cannot be written', async () => {
-    const transaction = stubSession();
-    vi.mocked(Report.findOne).mockReturnValue(queryReturning(null) as never);
-    mockCreatedReport();
-    const outboxFailure = new Error('outbox write rejected');
-    vi.mocked(ModerationOutbox.updateOne).mockRejectedValue(outboxFailure);
+    const input = postInput({ reportedId: ATOMICITY_PROBE_SUBJECT });
 
-    await expect(createReport(INPUT)).rejects.toThrow('outbox write rejected');
+    // Read the SQLSTATE rather than the message: drizzle re-wraps the driver error
+    // as "Failed query: …", so the plpgsql text is only on `cause`. `P0001` is
+    // `raise_exception`, i.e. the probe fired and nothing else did.
+    const rejection = await createReport(input).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(rejection).not.toBeNull();
+    expect(sqlStateOf(rejection)).toBe('P0001');
 
     /**
-     * The transaction aborted, so the report Mongo had "created" is not durable and
-     * the caller answers 5xx rather than 201. This is the assertion that fails when
-     * the two writes are merely sequential: there, the report would survive and the
-     * user would be told 201 about a report nothing will ever deliver.
+     * The transaction aborted, so the report is not durable and the caller answers
+     * 5xx rather than 201. This is the assertion that fails when the two writes are
+     * merely sequential: there, the report would survive and the user would be told
+     * 201 about a report nothing will ever deliver.
      */
-    expect(transaction.aborted).toBe(outboxFailure);
-    expect(transaction.committed).toBe(false);
-    expect(transaction.ended).toBe(true);
+    expect(await reportRowsFor(input.reporter)).toHaveLength(0);
   });
 
   it('answers a duplicate report without queueing a second delivery', async () => {
-    stubSession();
-    const existing = { _id: new mongoose.Types.ObjectId(REPORT_ID), localStatus: 'submitted' };
-    vi.mocked(Report.findOne).mockReturnValue(queryReturning(existing) as never);
+    const input = postInput();
+    const first = await createReport(input);
 
-    await expect(createReport(INPUT)).rejects.toBeInstanceOf(DuplicateReportError);
+    await expect(createReport(input)).rejects.toBeInstanceOf(DuplicateReportError);
 
-    expect(Report.create).not.toHaveBeenCalled();
-    expect(ModerationOutbox.updateOne).not.toHaveBeenCalled();
+    // One report, one event — the second attempt wrote neither.
+    expect(await reportRowsFor(input.reporter)).toHaveLength(1);
+    expect(await outboxRowsFor(first.report.id)).toHaveLength(1);
   });
 
-  it('refuses to write a delivery event outside a transaction', async () => {
-    /**
-     * The invariant this whole collection exists for, enforced rather than reviewed.
-     *
-     * A required `session` parameter is satisfied by any session — including a bare
-     * `startSession()` nobody opened a transaction on. That type-checks perfectly,
-     * commits the outbox row on its own, and passes any test that only asserts the row
-     * exists; it fails as lost moderation work with no trace on the day something
-     * restarts between the two writes. So the check is on `inTransaction()`, not on the
-     * parameter being present.
-     *
-     * This matters beyond Mention: every app copying this template inherits the guard
-     * instead of inheriting a comment asking them to be careful.
-     */
-    vi.spyOn(mongoose, 'startSession').mockResolvedValue({
-      inTransaction: () => false,
-      withTransaction: vi.fn(async (operation: () => Promise<void>) => {
-        await operation();
-      }),
-      endSession: vi.fn().mockResolvedValue(undefined),
-    } as never);
-    vi.mocked(Report.findOne).mockReturnValue(queryReturning(null) as never);
-    mockCreatedReport();
+  it.each([
+    ['deliverable', () => withSubjectProvider(), postInput],
+    ['local-only', () => vi.mocked(subjectProviderFor).mockReturnValue(undefined), roomInput],
+  ])(
+    'answers a CONCURRENT duplicate the same way it answers a sequential one (%s)',
+    async (_branch, arrange, build) => {
+      /**
+       * A race Postgres made REACHABLE and Mongo never had.
+       *
+       * The dedup read and the insert are one transaction, but two intakes running
+       * at once both read nothing and both insert; `reports_reporter_reported_key`
+       * is what refuses the second. Mongo declared no such index, so there the
+       * double-tap simply stored two reports and delivered two of them.
+       *
+       * Left alone the refusal surfaces as a raw 23505, which the route answers
+       * `500 Error creating report` to — telling somebody their report failed when
+       * it is already filed. So the constraint violation is translated back into
+       * the SAME `DuplicateReportError` the sequential path raises, and the answer
+       * is 409 either way.
+       *
+       * Staged rather than hoped for: the colliding row is held in an UNCOMMITTED
+       * transaction, so intake's own read genuinely sees nothing and its insert
+       * genuinely blocks. `settled` proves it blocked — without that check this
+       * test would pass just as well against a sequential duplicate, which is the
+       * case above.
+       */
+      arrange();
+      const input = build();
 
-    await expect(createReport(INPUT)).rejects.toThrow(
-      /Refusing to enqueue moderation outbox event .* outside a transaction/,
-    );
-  });
+      let releaseHolder = (): void => undefined;
+      const held = new Promise<void>((resolve) => {
+        releaseHolder = resolve;
+      });
+      let holderInserted = (): void => undefined;
+      const inserted = new Promise<void>((resolve) => {
+        holderInserted = resolve;
+      });
 
-  it('refuses to report success for a transaction that produced no result', async () => {
-    /**
-     * The guard that stops a silent empty success. `withTransaction` can return without
-     * having run its body — Mongo retries a transient transaction error by re-invoking
-     * it, and a driver or a mock that swallows the callback would otherwise leave
-     * `createReport` returning `undefined` while the caller answers 201 about a report
-     * that was never written.
-     */
-    vi.spyOn(mongoose, 'startSession').mockResolvedValue({
-      withTransaction: vi.fn(async () => undefined),
-      endSession: vi.fn().mockResolvedValue(undefined),
-    } as never);
+      const holder = getDb().transaction(async (tx) => {
+        await tx.insert(reports).values({
+          reportedType: input.reportedType,
+          reportedId: input.reportedId,
+          reporter: input.reporter,
+          categories: input.categories,
+          localStatus: 'queued',
+        });
+        holderInserted();
+        await held;
+      });
+      await inserted;
 
-    await expect(createReport(INPUT)).rejects.toThrow(
-      'Report intake transaction completed without a result',
-    );
-    expect(Report.create).not.toHaveBeenCalled();
-  });
+      let settled = false;
+      const racer = createReport(input).then(
+        () => {
+          settled = true;
+          return null;
+        },
+        (error: unknown) => {
+          settled = true;
+          return error;
+        },
+      );
+
+      // Long enough for a non-blocking insert to have completed and set the flag.
+      // If the racer proceeds instead of waiting, two rows exist for one key.
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      expect(settled).toBe(false);
+
+      releaseHolder();
+      await holder;
+
+      expect(await racer).toBeInstanceOf(DuplicateReportError);
+      // And the loser learns about the WINNER's row, not about nothing.
+      expect((await racer as DuplicateReportError).existing.reporter).toBe(input.reporter);
+      expect(await reportRowsFor(input.reporter)).toHaveLength(1);
+    },
+  );
 
   it('never stores a DELIVERABLE report without a delivery event', async () => {
-    const transaction = stubSession();
-    vi.mocked(Report.findOne).mockReturnValue(queryReturning(null) as never);
-    mockCreatedReport();
-    vi.mocked(ModerationOutbox.updateOne).mockResolvedValue({} as never);
+    const input = postInput();
 
-    const result = await createReport(INPUT);
+    const result = await createReport(input);
 
     /**
-     * A report whose type has a provider always leaves with a route out. `queued` and
-     * the outbox row are decided from ONE fact and written in one transaction, so the
-     * pair cannot come apart — a row claiming `queued` with nothing to deliver it is a
-     * report that waits forever while every status field says it is on its way.
+     * A report whose type has a provider always leaves with a route out. `queued`
+     * and the outbox row are decided from ONE fact and written in one transaction,
+     * so the pair cannot come apart — a row claiming `queued` with nothing to
+     * deliver it is a report that waits forever while every status field says it is
+     * on its way.
      */
     expect(result.outboxEventId).toBeDefined();
-    expect(Report.create).toHaveBeenCalledWith(
-      [expect.objectContaining({ localStatus: 'queued' })],
-      { session: transaction.session },
-    );
-    expect(ModerationOutbox.updateOne).toHaveBeenCalledTimes(1);
+    expect(
+      await getDb()
+        .select()
+        .from(reports)
+        .where(and(eq(reports.id, result.report.id), eq(reports.localStatus, 'queued'))),
+    ).toHaveLength(1);
+    expect(await outboxRowsFor(result.report.id)).toHaveLength(1);
   });
 
   it('stores a report with no subject provider and queues nothing', async () => {
     /**
      * The local-only path, and the assertion the gate change exists for.
      *
-     * A type with no provider keeps the behaviour the application had before CrowdSource:
-     * the report is a receipt and a local record. Enqueueing one anyway would send it to
-     * the delivery worker, which would raise `ModerationSubjectUnsupportedError` with
-     * `retryable: false` — dead-lettering a report that is not defective and putting a
-     * permanent entry in the queue an operator is supposed to be able to trust.
+     * A type with no provider keeps the behaviour the application had before
+     * CrowdSource: the report is a receipt and a local record. Enqueueing one anyway
+     * would send it to the delivery worker, which would raise
+     * `ModerationSubjectUnsupportedError` with `retryable: false` — dead-lettering a
+     * report that is not defective and putting a permanent entry in the queue an
+     * operator is supposed to be able to trust.
      */
-    const transaction = stubSession();
     vi.mocked(subjectProviderFor).mockReturnValue(undefined);
-    vi.mocked(Report.findOne).mockReturnValue(queryReturning(null) as never);
-    mockCreatedReport();
+    const input = roomInput();
 
-    const result = await createReport(ROOM_INPUT);
+    const result = await createReport(input);
 
-    expect(transaction.committed).toBe(true);
     expect(result.outboxEventId).toBeUndefined();
     // Nothing was enqueued. Not "enqueued and skipped later" — never written.
-    expect(ModerationOutbox.updateOne).not.toHaveBeenCalled();
+    expect(await outboxRowsFor(result.report.id)).toHaveLength(0);
 
     /**
-     * `received`, with the reason ON the row. A missing outbox event is also what a lost
-     * write looks like, so "there was never a route out" has to be recorded rather than
-     * inferred months later from which types happened to have providers at the time.
+     * `received`, with the reason ON the row. A missing outbox event is also what a
+     * lost write looks like, so "there was never a route out" has to be recorded
+     * rather than inferred months later from which types happened to have providers
+     * at the time.
      */
-    const [documents] = vi.mocked(Report.create).mock.calls[0];
-    expect(documents[0]).toMatchObject({
+    expect(result.report).toMatchObject({
       reportedType: 'room',
       localStatus: 'received',
       localStatusReason: expect.stringContaining('not sent for community review'),
     });
-  });
-
-  it('keeps the local-only report inside the same transaction', async () => {
-    /**
-     * The transaction is not conditional on there being two writes. `withTransaction`
-     * still wraps the intake, so the duplicate check and the insert are one atomic
-     * decision — and, more importantly, the shape of the function does not change
-     * between the two branches, so a later edit cannot make one of them the
-     * carefully-ordered version.
-     */
-    const transaction = stubSession();
-    vi.mocked(subjectProviderFor).mockReturnValue(undefined);
-    vi.mocked(Report.findOne).mockReturnValue(queryReturning(null) as never);
-    mockCreatedReport();
-
-    await createReport(ROOM_INPUT);
-
-    expect(Report.create).toHaveBeenCalledWith([expect.anything()], {
-      session: transaction.session,
+    // Read back, not merely returned: the reason has to survive the write.
+    expect((await reportRowsFor(input.reporter))[0]).toMatchObject({
+      localStatus: 'received',
+      localStatusReason: expect.stringContaining('not sent for community review'),
     });
-    expect(transaction.ended).toBe(true);
   });
 });
 
@@ -361,49 +381,50 @@ describe('report intake — an operator is not an identifier', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     withSubjectProvider();
-    /**
-     * Inert while the guard holds — intake throws before it ever opens a session.
-     *
-     * It is here for the run where the guard does NOT hold, which is the only run
-     * that tells you whether these tests are worth anything. Without it, removing the
-     * guard sends `createReport` into a real `mongoose.startSession()` against no
-     * connection: the tests fail by a five-second timeout that names nothing and
-     * looks like flake. With it they fail in milliseconds, on the assertions below,
-     * showing intake running to completion and queueing a delivery for an operator.
-     */
-    stubSession();
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  afterEach(async () => {
+    await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
   });
 
   /**
-   * `CreateReportInput` types these as strings and the route rejects a missing
-   * one, but a type is erased at runtime and a truthiness check passes
-   * `{$ne: null}`. Handed that, the dedup `findOne` matches an UNRELATED report
-   * and intake answers "you already reported this" about somebody else's row —
-   * so the failure is not a crash, it is a wrong answer about another user.
+   * `CreateReportInput` types these as strings and the route rejects a missing one,
+   * but a type is erased at runtime and a truthiness check passes `{$ne: null}`.
    *
-   * The refusal is asserted BEFORE any query runs: `Report.findOne` must not have
-   * been called at all. A guard that rejects after building the query has already
-   * sent the operator to Mongo.
+   * In Mongo, handed that, the dedup `findOne` matched an UNRELATED report and
+   * intake answered "you already reported this" about somebody else's row — a wrong
+   * answer about another user rather than a crash. A parameterised query cannot be
+   * turned into a different query by one of its parameters, so that particular
+   * failure is not reachable here; what is left is the difference between a named
+   * refusal and a driver error from deep inside a repository.
+   *
+   * The guard stays in `createReport` rather than at the route because
+   * `createReport` is exported: a queue worker, a reconciliation script or a future
+   * admin path is under no obligation to have passed the route's validation, and a
+   * guard that only exists at one caller is a guard that holds until the second one
+   * arrives.
    */
   it.each([
     ['reportedId', { reportedId: { $ne: null } }],
     ['reporter', { reporter: { $ne: null } }],
     ['reportedType', { reportedType: { $ne: null } }],
-  ])('refuses an operator in %s before it reaches the query', async (_field, override) => {
-    await expect(
-      createReport({ ...INPUT, ...override } as unknown as typeof INPUT),
-    ).rejects.toThrow(TypeError);
-    expect(Report.findOne).not.toHaveBeenCalled();
+  ])('refuses an operator in %s', async (_field, override) => {
+    const input = { ...postInput(), ...override } as unknown as CreateReportInput;
+
+    await expect(createReport(input)).rejects.toThrow(TypeError);
+
+    // Nothing reached the table under any of the three spellings.
+    expect(
+      await getDb().select().from(reports).where(like(reports.reporter, `${PREFIX}%`)),
+    ).toHaveLength(0);
   });
 
   it('refuses a reportedType outside the enum, even as a string', async () => {
-    await expect(
-      createReport({ ...INPUT, reportedType: 'planet' } as unknown as typeof INPUT),
-    ).rejects.toThrow(/not a reportable type/);
-    expect(Report.findOne).not.toHaveBeenCalled();
+    const input = { ...postInput(), reportedType: 'planet' } as unknown as CreateReportInput;
+
+    await expect(createReport(input)).rejects.toThrow(/not a reportable type/);
+    expect(
+      await getDb().select().from(reports).where(like(reports.reporter, `${PREFIX}%`)),
+    ).toHaveLength(0);
   });
 });
