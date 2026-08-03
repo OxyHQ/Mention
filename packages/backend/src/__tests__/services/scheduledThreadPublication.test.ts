@@ -37,6 +37,7 @@ import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/
 import type { PostRecord } from '../../db/posts/postRecord';
 import { postCreationService } from '../../services/PostCreationService';
 import { scheduledPostPublisher } from '../../services/ScheduledPostPublisher';
+import { pastSweepWindow } from './scheduledPublisherWindow';
 
 const scope = serviceScope('scheduled-thread-publication');
 const AUTHOR = scope.user('author');
@@ -120,7 +121,7 @@ describe('a scheduled thread publishes as one unit, in order', () => {
   it('publishes root before every continuation, on a single sweep', async () => {
     await seedThread();
 
-    const published = await scheduledPostPublisher.publishDuePosts(NOW);
+    const published = await scheduledPostPublisher.publishDuePosts(pastSweepWindow(NOW));
 
     expect(published).toBe(3);
     expect(publishOrder).toEqual(['root', 'c1', 'c2']);
@@ -138,7 +139,7 @@ describe('a scheduled thread publishes as one unit, in order', () => {
   it('orders the chain rather than trusting the order the due set arrives in', async () => {
     await seedThread();
 
-    await scheduledPostPublisher.publishDuePosts(NOW);
+    await scheduledPostPublisher.publishDuePosts(pastSweepWindow(NOW));
 
     expect(publishOrder).toEqual(['root', 'c1', 'c2']);
   });
@@ -146,7 +147,7 @@ describe('a scheduled thread publishes as one unit, in order', () => {
   it('still publishes independent posts concurrently — a beast batch is unchanged', async () => {
     await seedPosts([['a', null], ['b', null], ['c', null]]);
 
-    const published = await scheduledPostPublisher.publishDuePosts(NOW);
+    const published = await scheduledPostPublisher.publishDuePosts(pastSweepWindow(NOW));
 
     expect(published).toBe(3);
     expect([...publishOrder].sort()).toEqual(['a', 'b', 'c']);
@@ -158,7 +159,7 @@ describe('a partial failure never leaves a continuation ahead of its parent', ()
     await seedThread();
     pipelineFailures.add('c1');
 
-    const published = await scheduledPostPublisher.publishDuePosts(NOW);
+    const published = await scheduledPostPublisher.publishDuePosts(pastSweepWindow(NOW));
 
     // `c2` was never even attempted: it replies to a post that did not go out.
     expect(publishOrder).toEqual(['root', 'c1']);
@@ -169,7 +170,7 @@ describe('a partial failure never leaves a continuation ahead of its parent', ()
   it('resumes the chain from where it stopped on the next sweep', async () => {
     await seedThread();
     pipelineFailures.add('c1');
-    await scheduledPostPublisher.publishDuePosts(NOW);
+    await scheduledPostPublisher.publishDuePosts(pastSweepWindow(NOW));
 
     // The failure was transient. The CLAIM already flipped `c1` — that write
     // committed before the pipeline threw — so `c2` is now free to follow it,
@@ -177,7 +178,7 @@ describe('a partial failure never leaves a continuation ahead of its parent', ()
     pipelineFailures.clear();
     publishOrder = [];
 
-    await scheduledPostPublisher.publishDuePosts(NOW);
+    await scheduledPostPublisher.publishDuePosts(pastSweepWindow(NOW));
 
     expect(publishOrder).toEqual(['c2']);
     expect(await statuses()).toEqual({
@@ -196,7 +197,7 @@ describe('a partial failure never leaves a continuation ahead of its parent', ()
     ]);
     pipelineFailures.add('a-root');
 
-    const published = await scheduledPostPublisher.publishDuePosts(NOW);
+    const published = await scheduledPostPublisher.publishDuePosts(pastSweepWindow(NOW));
 
     expect(publishOrder).toContain('b-root');
     expect(publishOrder).toContain('b-1');
