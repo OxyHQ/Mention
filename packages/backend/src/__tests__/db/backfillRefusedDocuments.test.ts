@@ -38,8 +38,10 @@ import {
   type AuditFinding,
   type RefusedDocuments,
 } from '../../db/backfill/audit';
+import { auditReferentialIntegrity } from '../../db/backfill/referentialIntegrity';
+import { COLLECTION_PLANS } from '../../db/backfill/collectionMap';
 import { mongoSourceFromDb, type MongoSource } from '../../db/backfill/mongoSource';
-import { closePostgres, connectPostgres } from '../../db/postgres';
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { buildRow } from '../../db/backfill/rowBuilder';
 import { pushTokens } from '../../db/schema/discovery';
 import { BackfillValueError, ownId, reqInt, reqStr } from '../../db/backfill/values';
@@ -56,6 +58,12 @@ let mongo: Db;
 let source: MongoSource;
 
 const OWNER = 'brd-u1';
+
+const planFor = (collection: string) => {
+  const plan = COLLECTION_PLANS.find((entry) => entry.collection === collection);
+  if (!plan) throw new Error(`no plan for ${collection}`);
+  return plan;
+};
 
 /**
  * A plan whose transform refuses any document carrying a non-integer `weight`.
@@ -121,6 +129,7 @@ beforeAll(async () => {
 afterEach(async () => {
   await mongo.collection('pushtokens').deleteMany({});
   await mongo.collection('gifs').deleteMany({});
+  await mongo.collection('moderation_outbox').deleteMany({});
 });
 
 afterAll(async () => {
@@ -236,6 +245,52 @@ describe('two collections refusing at the same field name', () => {
     expect(findings.flatMap((finding) => finding.sampleIds).sort()).toEqual(
       [String(inPushTokens), String(inGifs)].sort()
     );
+  });
+});
+
+describe('the referential pass, which runs the transforms too', () => {
+  it('REPORTS the refusal instead of aborting, so fixing one pass does not just move the queue', async () => {
+    // Without this the change would have been half a fix: `auditDefaultedColumns`
+    // runs FIRST and its findings block, so the moment those cleared, the first
+    // refused document would have aborted referential integrity instead — the
+    // same queue, one pass along. Mutation-tested: re-throwing here leaves every
+    // other test in the suite green.
+    //
+    // `moderation_outbox` is used because its plan carries a real foreign key,
+    // so the pass has relations to derive and does not trip its own vacuity
+    // floor — a refusal reported by a pass that inspected nothing would prove
+    // nothing.
+    const refusedId = new ObjectId();
+    await mongo.collection('moderation_outbox').insertOne({
+      _id: refusedId,
+      kind: 'report.submit',
+      payload: { reportId: new ObjectId().toHexString() },
+      status: 'pending',
+      // `attempts` is an integer column; a fraction is refused exactly as
+      // `interactionCount` is in production.
+      attempts: 2.5,
+      expiresAt: new Date('2030-01-01T00:00:00.000Z'),
+    });
+
+    const report = await auditReferentialIntegrity(
+      getDb(),
+      source,
+      [
+        { plan: planFor('reports'), documents: 0 },
+        { plan: planFor('moderation_outbox'), documents: 1 },
+      ],
+      createResolutionContext(await planResolutions(source), new ResolutionLog())
+    );
+
+    const finding = report.findings.find((entry) => entry.kind === 'refused-document');
+    expect(finding).toBeDefined();
+    expect(finding?.collection).toBe('moderation_outbox');
+    expect(finding?.documents).toBe(1);
+    expect(finding?.sampleIds).toEqual([String(refusedId)]);
+    // ONE finding, not two: phase 2 re-runs the same transforms over the same
+    // documents, and recording there as well would double every count.
+    expect(report.findings.filter((entry) => entry.kind === 'refused-document')).toHaveLength(1);
+    expect(auditWouldBlockCopy(finding as AuditFinding)).toBe(true);
   });
 });
 
