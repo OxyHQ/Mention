@@ -1,5 +1,5 @@
-import mongoose from 'mongoose';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { like } from 'drizzle-orm';
 
 /**
  * The three ways a delivery ends without reaching CrowdSource.
@@ -8,28 +8,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * that is invisible: a report retried for days because the content was deleted, a
  * report marked unsupported because the service was briefly down, or a report
  * silently dead-lettered because the integration was not switched on yet.
+ *
+ * ## What the Postgres port changed
+ *
+ * The report is a REAL ROW, and the assertions are on what it now holds rather
+ * than on the `$set` document a mocked `updateOne` was handed. Those are
+ * different claims: the old one could not see a write that named a path the
+ * schema does not have, and — more to the point here — "the report is untouched"
+ * was `updates.length === 0`, which is a statement about calls. It is now a
+ * comparison against the row as it was before the delivery ran, so a write that
+ * lands the same values is no longer indistinguishable from no write at all.
+ *
+ * The subject registry and the CrowdSource client stay mocked: one is the seam
+ * this file drives directly, the other is a network client.
  */
 
 type Doc = Record<string, unknown>;
-
-let report: Doc | null;
-let updates: Doc[];
-
-vi.mock('../../../models/Report.model', async () => {
-  const actual = await vi.importActual<typeof import('../../../models/Report.model')>(
-    '../../../models/Report.model',
-  );
-  return {
-    ...actual,
-    default: {
-      findById: vi.fn(() => ({ lean: async () => (report ? { ...report } : null) })),
-      updateOne: vi.fn(async (_filter: Doc, update: Doc) => {
-        updates.push((update.$set as Doc | undefined) ?? {});
-        return { matchedCount: 1, modifiedCount: 1 };
-      }),
-    },
-  };
-});
 
 const snapshot = vi.fn();
 
@@ -47,18 +41,26 @@ vi.mock('../../../services/moderation/crowdSourceClient', () => ({
   resetCrowdSourceClient: vi.fn(),
 }));
 
-import { ReportCategory, ReportedType } from '../../../models/Report.model';
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { reports } from '../../../db/schema/moderation';
+import { findReportById } from '../../../db/moderation/reportRepository';
 import {
   CrowdSourceUnavailableError,
   ModerationDeliveryRejectedError,
   deliverReportOutboxEvent,
 } from '../../../services/moderation/ModerationDeliveryWorker';
 import { subjectProviderFor } from '../../../services/moderation/subjects/registry';
-import type { ModerationOutboxEvent } from '../../../services/moderation/ModerationOutboxService';
+import type { ModerationOutboxEvent } from '../../../db/moderation/moderationOutboxRepository';
 
-const REPORT_ID = '507f1f77bcf86cd799439011';
+/** Namespaces every row this file writes, so a parallel file cannot collide. */
+const PREFIX = 'moderation:test-delivery-undeliverable:';
 
-function event(payload: Doc = { reportId: REPORT_ID }): ModerationOutboxEvent {
+/** An id that names no row — a uuid v7 shape nothing here mints. */
+const MISSING_REPORT_ID = '01920000-0000-7000-8000-000000000000';
+
+let reportId: string;
+
+function event(payload: Doc): ModerationOutboxEvent {
   return {
     _id: 'moderation:report.submit:x',
     kind: 'report.submit',
@@ -70,17 +72,28 @@ function event(payload: Doc = { reportId: REPORT_ID }): ModerationOutboxEvent {
   } as ModerationOutboxEvent;
 }
 
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 describe('delivery worker — the undeliverable cases', () => {
-  beforeEach(() => {
-    updates = [];
-    report = {
-      _id: new mongoose.Types.ObjectId(REPORT_ID),
-      reportedType: ReportedType.POST,
-      reportedId: '507f1f77bcf86cd799439022',
-      reporter: 'oxy-user-reporter',
-      categories: [ReportCategory.SPAM],
-      createdAt: new Date('2026-07-28T18:00:00.000Z'),
-    };
+  beforeEach(async () => {
+    await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
+    const [row] = await getDb()
+      .insert(reports)
+      .values({
+        reportedType: 'post',
+        reportedId: `${PREFIX}subject`,
+        reporter: `${PREFIX}reporter`,
+        categories: ['spam'],
+        localStatus: 'queued',
+      })
+      .returning({ id: reports.id });
+    reportId = row.id;
     vi.clearAllMocks();
     vi.mocked(subjectProviderFor).mockReturnValue({
       reportedType: 'post',
@@ -89,18 +102,19 @@ describe('delivery worker — the undeliverable cases', () => {
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.restoreAllMocks();
+    await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
   });
 
   it('closes a report whose content is gone instead of retrying for days', async () => {
     snapshot.mockResolvedValue(null);
 
-    await deliverReportOutboxEvent(event());
+    await deliverReportOutboxEvent(event({ reportId }));
 
     // Deletion between the report and its delivery is ordinary. There is nothing to
     // review, so the event completes and the report says why.
-    expect(updates[0]).toMatchObject({
+    expect(await findReportById(reportId)).toMatchObject({
       localStatus: 'closed',
       localStatusReason: expect.stringContaining('no longer exists'),
     });
@@ -121,11 +135,12 @@ describe('delivery worker — the undeliverable cases', () => {
      * file a genuine defect at `received`, indistinguishable from the deliberate
      * local-only reports, where nothing alerts on it.
      */
-    await expect(deliverReportOutboxEvent(event())).rejects.toMatchObject({
+    const before = await findReportById(reportId);
+    await expect(deliverReportOutboxEvent(event({ reportId }))).rejects.toMatchObject({
       name: 'ModerationSubjectUnsupportedError',
       retryable: false,
     });
-    expect(updates).toHaveLength(0);
+    expect(await findReportById(reportId)).toEqual(before);
   });
 
   it('defers, retryably, when the integration is not configured', async () => {
@@ -138,21 +153,25 @@ describe('delivery worker — the undeliverable cases', () => {
     );
     vi.mocked(getCrowdSourceClient).mockReturnValue(undefined);
 
-    await expect(deliverReportOutboxEvent(event())).rejects.toBeInstanceOf(
+    const before = await findReportById(reportId);
+    await expect(deliverReportOutboxEvent(event({ reportId }))).rejects.toBeInstanceOf(
       CrowdSourceUnavailableError,
     );
-    await expect(deliverReportOutboxEvent(event())).rejects.toMatchObject({ retryable: true });
+    await expect(deliverReportOutboxEvent(event({ reportId }))).rejects.toMatchObject({
+      retryable: true,
+    });
     // The report is untouched — nothing about it changed, only the world's readiness.
-    expect(updates).toHaveLength(0);
+    expect(await findReportById(reportId)).toEqual(before);
   });
 
   it('completes an event whose report no longer exists', async () => {
-    report = null;
+    await expect(
+      deliverReportOutboxEvent(event({ reportId: MISSING_REPORT_ID })),
+    ).resolves.toBeUndefined();
 
-    await expect(deliverReportOutboxEvent(event())).resolves.toBeUndefined();
-
-    // Retrying would keep looking for a row that will never come back.
-    expect(updates).toHaveLength(0);
+    // Retrying would keep looking for a row that will never come back — and the
+    // report this file DID seed must not have been touched instead.
+    expect((await findReportById(reportId))?.localStatus).toBe('queued');
   });
 
   it('dead-letters an event with no report id', async () => {
