@@ -248,7 +248,7 @@ real `/oxy/mention/DATABASE_URL`, and run the migrator on that:
 
 ```bash
 --overrides '{"containerOverrides":[{"name":"mention","command":[
-   "bun","packages/backend/dist/src/db/migrate.js"]}]}'
+   "bun","packages/backend/dist/src/db/migrate.js","--target-database=mention"]}]}'
 ```
 
 **Assert the image before you trust the result** — see the `journalEntries`
@@ -264,11 +264,20 @@ database, is it empty); never for the migration.
 
 #### Three other task definitions look right, and every one of them is wrong
 
-**This step has NO target-database guard.** `--target-database` protects the copy
-in §3.3; nothing equivalent protects this one. `migrate.ts` applies the journal to
-whatever `DATABASE_URL` names and cannot tell one database from another, so **the
-task definition is the only thing deciding** — the precise failure
-`db/backfill/targetDatabase.ts` exists to make impossible one step later.
+**This step now HAS a target-database guard.** `--target-database=<name>` is
+REQUIRED — including for `DRY_RUN` — and is asserted against `current_database()`
+as the FIRST statement on the connection, before the ledger read and before
+`ensureExtensions`. The task definition is therefore no longer the only thing
+deciding.
+
+The three task definitions below still look right and are still wrong. What the
+guard changes is what happens when somebody picks one: **a silent success becomes
+a refusal that names both databases.** That matters here more than it does for
+the copy, because this step is the one that fails success-shaped — aimed at the
+wrong database the copy dies on a missing table, while the migrator finds an
+empty ledger, applies the whole journal, logs `Applied 19` and exits 0, leaving
+the real database untouched for the copy to write into a schema that does not
+exist.
 
 Measured 2026-08-03:
 
@@ -290,13 +299,16 @@ exits 0 — while the real database stays unmigrated and §3.3 then copies five
 million rows into a schema that does not exist.
 
 **So dry-run first.** `DRY_RUN=true` reports what WOULD be applied and writes
-nothing, not even the ledger table, which makes it the cheapest way to find out
-which database you are actually pointed at before any DDL runs:
+nothing, not even the ledger table. The guard now answers "which database am I
+pointed at" on its own — and `--target-database` is required on the dry run too,
+deliberately, so the rehearsal exercises the same refusal the real run does
+rather than being the one mode that skips it:
 
 ```bash
 --overrides '{"containerOverrides":[{"name":"mention",
    "environment":[{"name":"DRY_RUN","value":"true"}],
-   "command":["bun","packages/backend/dist/src/db/migrate.js"]}]}'
+   "command":["bun","packages/backend/dist/src/db/migrate.js",
+   "--target-database=mention"]}]}'
 ```
 
 Expect `DRY RUN — 19 migration(s) would be applied; nothing was written`.

@@ -423,7 +423,7 @@ diff -u \
 # task from the reconciliation task and so recorded the wrong one by name.
 run_release migration-failure false true false 1
 printf '%s\n' \
-  'task:bun packages/backend/dist/src/db/migrate.js' \
+  'task:bun packages/backend/dist/src/db/migrate.js --target-database=mention' \
   tasklogs \
   >"$test_directory/migration-failure/expected.log"
 diff -u \
@@ -450,7 +450,7 @@ fi
 # reordering -- grepping for both entries would pass either way round.
 run_release migration-order true true false 0
 printf '%s\n' \
-  'task:bun packages/backend/dist/src/db/migrate.js' \
+  'task:bun packages/backend/dist/src/db/migrate.js --target-database=mention' \
   'task:bun packages/backend/dist/scripts/migrate.js' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
@@ -476,7 +476,7 @@ DEPLOY_TEST_TASK_LAST_STATUS=RUNNING
 run_release migration-task-never-stops false true false 0
 DEPLOY_TEST_TASK_LAST_STATUS=STOPPED
 printf '%s\n' \
-  'task:bun packages/backend/dist/src/db/migrate.js' \
+  'task:bun packages/backend/dist/src/db/migrate.js --target-database=mention' \
   >"$test_directory/migration-task-never-stops/expected.log"
 diff -u \
   "$test_directory/migration-task-never-stops/expected.log" \
