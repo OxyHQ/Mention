@@ -604,10 +604,6 @@ describe('reply policy — every registered source has a declared intent', () =>
     // A lane holds ORIGINAL posts only — a reply is refused a lane at the write
     // boundary — so there is nothing for a roots-only clause to exclude.
     lane: 'includes-replies',
-    // A channel holds ORIGINAL posts only — a reply cannot be published to a
-    // channel and no reply TO a channel post is ever created (`channelReplyGate`)
-    // — so there is nothing for a roots-only clause to exclude.
-    channel: 'includes-replies',
     saved: 'includes-replies',
     mutuals: 'includes-replies',
   };

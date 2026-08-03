@@ -37,7 +37,7 @@ import {
 import { mcpAuthCodes, mcpConnections, mcpRegisteredClients } from './mcp';
 import { entityFollows } from './engagement';
 import { actorKeyPairs, federatedActors, federatedMediaCache } from './federation';
-import { channelMembers, laneMutes, lanes } from './channels';
+import { laneMutes, lanes } from './channels';
 import { gifs } from './discovery';
 import {
   contentLabels,
@@ -177,23 +177,15 @@ export function isOxyAccountColumn(column: PgColumn): boolean {
  */
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
   {
-    table: channelMembers,
-    column: channelMembers.invitedByOxyUserId,
-    reason:
-      'The Oxy account that sent the invite. An Oxy account id like every ' +
-      'other, and it is listed here only because the name is not one the ' +
-      'predicate recognizes — there is no users table for it to point at.',
-  },
-  {
     table: lanes,
     column: lanes.ownerId,
     reason:
-      'POLYMORPHIC: an Oxy account id when `owner_type` is `user`, a ' +
-      '`channels.id` when it is `channel`. A constraint can name only one ' +
-      'target, and half of the values point at a service Postgres cannot see ' +
-      'anyway. The polymorphism is deliberate — it is what lets a channel own a ' +
-      'lane with no migration — and `owner_type` is the discriminator every ' +
-      'reader branches on.',
+      'The publisher: an Oxy account id, whether that account is a person or a ' +
+      'channel. It USED to be polymorphic — an Oxy account id or a ' +
+      '`channels.id`, discriminated by `owner_type` — and it is still ' +
+      'unconstrained for the reason every other Oxy account id here is: the ' +
+      'accounts live in a service Postgres cannot see, so there is no table to ' +
+      'point at.',
   },
   {
     table: laneMutes,

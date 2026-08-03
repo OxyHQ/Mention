@@ -1,92 +1,53 @@
-import React, { useMemo, useCallback, useState, useEffect, useContext, useRef } from 'react';
-import {
-    Animated,
-    ImageBackground,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    Share,
-    Platform,
-} from 'react-native';
-import { toast } from '@oxyhq/bloom/toast';
-import { router, useLocalSearchParams, type Href } from 'expo-router';
+import React, { useMemo, useCallback, useState, useEffect } from 'react';
+import { Text, TouchableOpacity, View, Share } from 'react-native';
+import { Redirect, router, type Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BloomColorScope, useTheme } from '@oxyhq/bloom/theme';
+import { BloomColorScope } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { FollowButton as OxyFollowButton, useAuth, useFollow } from '@oxyhq/services/ui/client';
-import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
-import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
 import { usePostsStore } from '@/stores/postsStore';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
-import { muteService } from '@/services/muteService';
 import { lanesService } from '@/services/lanesService';
-import { reportService } from '@/services/reportService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { showActionMenu } from '@/components/common/ActionMenu';
-import type { ActionMenuAction } from '@/components/common/actionMenuGroups';
-import { ReportModal } from '@/components/report/ReportModal';
-import { AddToListSheet } from '@/components/Lists/AddToListSheet';
-import { AddToStarterPackSheet } from '@/components/AddToStarterPackSheet';
-import { confirmDialog } from '@/utils/alerts';
 import { openExternalLink } from '@/utils/openExternalLink';
 import type { FeedType } from '@mention/shared-types';
 import { logger } from '@oxyhq/core/logger';
-import { useSafeBack } from '@/hooks/useSafeBack';
-import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
-import { EmptyState } from '@/components/common/EmptyState';
-import { getNormalizedUserHandle } from '@oxyhq/core';
-import { usePanelStickyTopInset, usePanelStickyTabsTopInset, PANEL_HEADER_HEIGHT } from '@/components/shell/PanelChrome';
+import type { ProfileData } from '@/hooks/useProfileData';
 
 // Icons
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { Icon } from '@/lib/icons';
 import { ShareIcon } from '@/assets/icons/share-icon';
-import { ComposeIcon } from '@/assets/icons/compose-icon';
 import { MailIcon } from '@/assets/icons/mail-icon';
 import { MoreIcon } from '@/assets/icons/more-icon';
 import { ExternalLinkIcon } from '@/assets/icons/external-link-icon';
-import { List as ListIcon } from '@/assets/icons/list-icon';
-import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
-import { MuteIcon } from '@/assets/icons/mute-icon';
-import { BlockIcon } from '@/assets/icons/block-icon';
-import { ReportIcon } from '@/assets/icons/report-icon';
 
 // Components
-import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import UserName from './UserName';
 import AnimatedTabBar from './common/AnimatedTabBar';
-import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
 import { IconButton } from '@/components/ui/Button';
 import { SEO } from '@/components/SEO';
+import { FediverseSharingBadge } from '@/components/Fediverse/FediverseBadge';
 
 // Profile components
 import {
-    ProfileSkeleton,
     ProfileContent,
-    ProfileTabs,
+    ProfileHeader,
+    ProfileShell,
+    PrivateBadge,
     useSubscription,
-    useProfileScroll,
+    useProfileAccount,
+    useProfileChrome,
+    useProfileMoreMenu,
+    useJustFollowed,
     buildProfileTabDescriptors,
     laneTabKey,
     profileTabIndex,
-    LAYOUT,
-    shouldFeedOwnProfileScroll,
-    shouldGridOwnProfileScroll,
+    profileTabsForAccountKind,
     type LaneTabInput,
     type ProfileScreenProps,
     type ProfileTab,
 } from './Profile';
 import { SuggestedUsers } from './suggestions/SuggestedUsers';
-
-const IS_WEB = Platform.OS === 'web';
-
-// Banner image wrapped for the pull-to-zoom parallax (scale driven by the shared
-// scrollY). Created once at module scope so it is a stable component type.
-const AnimatedImageBackground = Animated.createAnimatedComponent(ImageBackground);
 
 // Helper functions
 const isProfilePrivate = (
@@ -104,48 +65,37 @@ const isProfilePrivate = (
 // Feed types for clearing cache
 const FEED_TYPES: FeedType[] = ['posts', 'replies', 'media', 'likes', 'boosts'];
 
-// Top-right header action icon metrics (IconButton `variant="icon"` renders a
-// 32×32 touch target; the cluster uses NativeWind `gap-1` = 4px). Used to size
-// the scrolled name overlay so it never overlaps the icons.
-const HEADER_ACTION_ICON_SIZE = 32;
-const HEADER_ACTION_ICON_GAP = 4;
-const HEADER_OVERLAY_ICON_CLEARANCE = 12;
-
-/**
- * Profile Screen - Main orchestrator component
- * Follows industry best practices with clean separation of concerns
- */
-interface MentionProfileContentProps extends ProfileScreenProps {
+interface PersonProfileProps extends ProfileScreenProps {
     username: string;
+    handle: string;
     isFederated: boolean;
     profileData: ProfileData | null;
     loading: boolean;
 }
 
-const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
+/**
+ * ONE PERSON's profile page, at `/@<handle>`.
+ *
+ * Person-shaped throughout, and deliberately so: it has a banner, a poke, the
+ * full tab strip, a self view with edit/analytics/settings, and sub-routes under
+ * its own URL family. A CHANNEL satisfies none of that and has its own screen
+ * (`ChannelScreen`); the two share the chrome, the body, the account lookup and
+ * the canonicalization, and nothing else.
+ */
+const PersonProfile: React.FC<PersonProfileProps> = ({
     tab = 'posts',
     laneId,
     username,
+    handle,
     isFederated,
     profileData,
     loading,
 }) => {
-    const { user: currentUser, oxyServices } = useAuth();
-    const theme = useTheme();
+    const { user: currentUser } = useAuth();
     const { t } = useTranslation();
-    const insets = useSafeAreaInsets();
-    const bottomSheet = useContext(BottomSheetContext);
 
-    // Web sticky-chrome top insets, resolved from the shared PanelChrome source
-    // of truth. They carry the panel's `PANEL_TOP_INSET` gutter while the rounded
-    // shell frame is shown (>=500px, same breakpoint as the sidebar) and collapse
-    // to 0 at full-bleed so the profile banner / header band / tab bar pin flush
-    // to the viewport top instead of leaving a stray gutter band.
-    const panelStickyTopInset = usePanelStickyTopInset();
-    const panelStickyTabsTopInset = usePanelStickyTabsTopInset();
-
-    // Active tab — use local state so tab switching doesn't trigger router
-    // navigation. Held as the tab's KEY, not its index: the strip's length now
+    // Active tab — local state so tab switching doesn't trigger router
+    // navigation. Held as the tab's KEY, not its index: the strip's length
     // depends on how many lanes the publisher has, so an index means a different
     // tab before and after that list loads. A lane deep link therefore paints
     // `posts` for one frame and settles on the lane once its key resolves.
@@ -157,7 +107,7 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
     // signed-out visitor sees the same strip; keyed by viewer anyway, like every
     // other private read, so an account switch drops it with the namespace.
     const { data: laneTabs = [] } = useQuery<LaneTabInput[]>({
-        queryKey: viewerQueryKeys.lanesForOwner(currentUser?.id, 'user', profileData?.id),
+        queryKey: viewerQueryKeys.lanesForOwner(currentUser?.id, profileData?.id),
         enabled: Boolean(profileData?.id) && !isFederated,
         queryFn: async () => {
             const lanes = await lanesService.listForOwner(profileData?.id ?? '');
@@ -165,8 +115,9 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
         },
     });
 
-    // Tabs — all users (including federated) get the full static strip since the
-    // data is in Oxy/Mention DB; lane tabs are spliced in after `posts`.
+    // Every person — federated included — gets the full static strip, since the
+    // data behind each tab is in Oxy/Mention's DB either way. Lane tabs are
+    // spliced in after `posts`.
     const tabDescriptors = useMemo(
         () =>
             buildProfileTabDescriptors(
@@ -182,8 +133,9 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                     lists: t('profile.tabs.lists', { defaultValue: 'Lists' }),
                 },
                 laneTabs,
+                profileData?.kind,
             ),
-        [t, laneTabs],
+        [t, laneTabs, profileData?.kind],
     );
 
     const activeTab = profileTabIndex(tabDescriptors, activeTabKey);
@@ -191,101 +143,61 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
     const activeProfileTab: ProfileTab = activeDescriptor?.tab ?? 'posts';
     const activeLaneId = activeDescriptor?.laneId;
 
-    const safeBack = useSafeBack();
-
-    // Profile content height for scroll-to functionality
-    const [profileContentHeight, setProfileContentHeight] = useState(0);
-
-    // Scroll handling
-    const { scrollY, onScroll, assignScrollRef, scrollToContent } = useProfileScroll({
-        profileId: profileData?.id,
-        currentTab: activeProfileTab,
-        currentLaneId: activeLaneId,
-    });
-
     // Follow data — federated users are stored in Oxy, so useFollow works with their Oxy ID
     const stableUserId = profileData?.id || '';
-    const { followerCount: rawFollowerCount, followingCount: rawFollowingCount, isFollowing: isFollowingProfileUser = false } = useFollow(stableUserId);
+    const {
+        followerCount: rawFollowerCount,
+        followingCount: rawFollowingCount,
+        isFollowing: isFollowingProfileUser = false,
+    } = useFollow(stableUserId);
     const followerCount = rawFollowerCount ?? 0;
     const followingCount = rawFollowingCount ?? 0;
 
-    // Track "just followed" — show suggestions only on the follow action, not on revisits
-    const [justFollowed, setJustFollowed] = useState(false);
-    const followSettledRef = useRef(false);
-    const prevFollowRef = useRef(isFollowingProfileUser);
-    const prevUserIdRef = useRef(stableUserId);
+    // Show suggestions only on the follow ACTION, never on a revisit.
+    const justFollowed = useJustFollowed(stableUserId, isFollowingProfileUser);
 
-    // Compute follow transition during render instead of chained effects
-    if (prevUserIdRef.current !== stableUserId) {
-        // Reset tracking when navigating to a different profile
-        prevUserIdRef.current = stableUserId;
-        followSettledRef.current = false;
-        prevFollowRef.current = false;
-        if (justFollowed) setJustFollowed(false);
-    } else if (!followSettledRef.current) {
-        // Skip initial store hydration
-        followSettledRef.current = true;
-        prevFollowRef.current = isFollowingProfileUser;
-    } else if (isFollowingProfileUser !== prevFollowRef.current) {
-        // Detect user-initiated follow/unfollow
-        if (isFollowingProfileUser) {
-            setJustFollowed(true);
-        } else if (justFollowed) {
-            setJustFollowed(false);
-        }
-        prevFollowRef.current = isFollowingProfileUser;
-    }
-
-    // Subscription handling
     const { subscribed, loading: subLoading, toggle: toggleSubscription } = useSubscription(
         profileData?.id,
         currentUser?.id,
-        currentUser?.id === profileData?.id
+        currentUser?.id === profileData?.id,
     );
 
-    // Computed values
     const design = profileData?.design;
     const avatarUri = design?.avatar;
-    const bannerUri =
-        design?.coverPhotoEnabled && design?.bannerUrl
-            ? design.bannerUrl
-            : undefined;
-    const minimalistMode = design?.minimalistMode ?? false;
-    const profileHandle = useMemo(() => {
-        return getNormalizedUserHandle({
-            username: profileData?.username || username,
-            instance: profileData?.instance,
-            isFederated: profileData?.isFederated,
-        }) || username;
-    }, [profileData?.username, profileData?.instance, profileData?.isFederated, username]);
+    // A stored banner is shown whenever there is one. Whether the banner BAND
+    // exists at all is not in question here — a person's layout has one, and an
+    // account with no image set gets the tinted placeholder.
+    const bannerUri = design?.bannerUrl;
 
-    // Memoized checks
     const isOwnProfile = useMemo(() => {
         if (isFederated) return false;
         if (!currentUser?.id || !profileData?.id) return false;
         return currentUser.id === profileData.id;
     }, [currentUser?.id, profileData?.id, isFederated]);
 
-    // User's profile color hex for passing to buttons
     const isPrivate = useMemo(
         () => isProfilePrivate(profileData, profileData?.privacy),
-        [profileData]
+        [profileData],
     );
 
-    const nativeFeedOwnsScroll = shouldFeedOwnProfileScroll({
-        tab: activeProfileTab,
-        isWeb: IS_WEB,
-        isPrivate,
-        isOwnProfile,
+    // Number of action icons in the top-right cluster; sizes the scrolled name
+    // overlay so a long display name truncates instead of sliding under them.
+    const headerActionCount = useMemo(() => {
+        let count = 1; // share is always present
+        if (!isOwnProfile) count += 2; // subscribe + more
+        // DM is local-only — remote (federated) actors have no Mention inbox.
+        if (!isOwnProfile && !isFederated) count += 1;
+        if (isFederated) count += 1; // open-on-instance
+        return count;
+    }, [isOwnProfile, isFederated]);
+
+    const chrome = useProfileChrome({
+        profileId: profileData?.id,
+        currentTab: activeProfileTab,
+        currentLaneId: activeLaneId,
+        headerActionCount,
+        hasBannerBand: true,
     });
-    const nativeGridOwnsScroll = shouldGridOwnProfileScroll({
-        tab: activeProfileTab,
-        isWeb: IS_WEB,
-        isPrivate,
-        isOwnProfile,
-    });
-    const nativeListOwnsScroll =
-        nativeFeedOwnsScroll || nativeGridOwnsScroll;
 
     // Clear cached feed data for private profiles
     useEffect(() => {
@@ -297,24 +209,23 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
         }
     }, [isPrivate, isOwnProfile, profileData?.id]);
 
-    // Handlers
     const onTabPress = useCallback(
         (index: number) => {
             if (!username) return;
             const descriptor = tabDescriptors[index];
             if (!descriptor) return;
             setActiveTabKey(descriptor.key);
-            // Update URL silently for deep-linking / sharing without triggering
-            // navigation. A lane tab routes by id under its own segment, so it
-            // can never collide with a static tab's file name.
+            // Update the URL silently for deep-linking / sharing without
+            // triggering navigation. A lane tab routes by id under its own
+            // segment, so it can never collide with a static tab's file name.
             const path: Href = descriptor.laneId
-                ? `/@${profileHandle}/lane/${descriptor.laneId}`
+                ? `/@${handle}/lane/${descriptor.laneId}`
                 : descriptor.tab === 'posts'
-                    ? `/@${profileHandle}`
-                    : `/@${profileHandle}/${descriptor.tab}`;
+                    ? `/@${handle}`
+                    : `/@${handle}/${descriptor.tab}`;
             router.replace(path);
         },
-        [username, profileHandle, tabDescriptors]
+        [username, handle, tabDescriptors],
     );
 
     // The stats row jumps to a tab BY NAME. Resolving the index at press time is
@@ -325,12 +236,12 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
         (key: string) => {
             const index = profileTabIndex(tabDescriptors, key);
             if (index === activeTab) {
-                scrollToContent(profileContentHeight);
+                chrome.scrollToContent(chrome.contentHeight);
             } else {
                 onTabPress(index);
             }
         },
-        [activeTab, profileContentHeight, onTabPress, scrollToContent, tabDescriptors],
+        [activeTab, chrome, onTabPress, tabDescriptors],
     );
 
     const handlePostsPress = useCallback(() => scrollOrSwitch('posts'), [scrollOrSwitch]);
@@ -339,14 +250,12 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
 
     const handleShare = useCallback(async () => {
         if (!profileData) return;
-
         try {
-            const shareUrl = `https://mention.earth/@${profileHandle}`;
+            const shareUrl = `https://mention.earth/@${handle}`;
             const shareMessage = t('profile.share.message', {
                 name: profileData.design.displayName,
                 defaultValue: `Check out ${profileData.design.displayName}'s profile on Mention!`,
             });
-
             await Share.share({
                 message: `${shareMessage}\n\n${shareUrl}`,
                 url: shareUrl,
@@ -358,132 +267,10 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
         } catch {
             logger.error('Error sharing profile');
         }
-    }, [profileData, profileHandle, t]);
+    }, [profileData, handle, t]);
 
-    // More options menu (block, mute, report)
-    const handleMoreOptions = useCallback(() => {
-        if (!profileData || isOwnProfile) return;
+    const handleMoreOptions = useProfileMoreMenu({ profileData, isOwnProfile });
 
-        const displayUsername = profileData.username;
-
-        const handleMute = async () => {
-            const success = await muteService.muteUser(profileData.id);
-            if (success) {
-                toast(t('profile.muted', { username: displayUsername, defaultValue: `@${displayUsername} has been muted` }), { type: 'success' });
-            } else {
-                toast(t('profile.muteFailed', { defaultValue: 'Failed to mute user' }), { type: 'error' });
-            }
-        };
-
-        const handleBlock = async () => {
-            const confirmed = await confirmDialog({
-                title: t('profile.blockUser', { defaultValue: `Block @${displayUsername}` }),
-                message: t('profile.blockConfirm', { username: displayUsername, defaultValue: `They won't be able to find your profile, posts, or mentions. They won't be notified that you blocked them.` }),
-                okText: t('profile.block', { defaultValue: 'Block' }),
-                cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
-                destructive: true,
-            });
-            // Backing out of the confirm returns to where it was opened from —
-            // the menu — instead of dumping the user back on the profile with
-            // nothing to show for the trip.
-            if (!confirmed) {
-                openMenu();
-                return;
-            }
-            try {
-                await oxyServices.blockUser(profileData.id);
-                toast(t('profile.blocked', { username: displayUsername, defaultValue: `@${displayUsername} has been blocked` }), { type: 'success' });
-            } catch {
-                toast(t('profile.blockFailed', { defaultValue: 'Failed to block user' }), { type: 'error' });
-            }
-        };
-
-        const handleReport = () => {
-            bottomSheet.setBottomSheetContent(
-                <ReportModal
-                    visible={true}
-                    onClose={() => bottomSheet.openBottomSheet(false)}
-                    onSubmit={async (categories, details) => {
-                        const success = await reportService.reportUser(profileData.id, categories, details);
-                        if (success) {
-                            toast(t('report.thankYou', { defaultValue: 'Thank you for helping keep our community safe.' }), { type: 'success' });
-                        } else {
-                            toast(t('report.failed', { defaultValue: 'Failed to submit report.' }), { type: 'error' });
-                        }
-                    }}
-                />
-            );
-            bottomSheet.openBottomSheet(true);
-        };
-
-        const handleAddToList = () => {
-            bottomSheet.setBottomSheetContent(
-                <AddToListSheet
-                    targetUserId={profileData.id}
-                    targetLabel={`@${displayUsername}`}
-                    onClose={() => bottomSheet.openBottomSheet(false)}
-                />
-            );
-            bottomSheet.openBottomSheet(true);
-        };
-
-        const handleAddToStarterPack = () => {
-            bottomSheet.setBottomSheetContent(
-                <AddToStarterPackSheet
-                    targetUserId={profileData.id}
-                    targetLabel={`@${displayUsername}`}
-                    onClose={() => bottomSheet.openBottomSheet(false)}
-                />
-            );
-            bottomSheet.openBottomSheet(true);
-        };
-
-        const actions: ActionMenuAction[] = [
-            {
-                icon: <ListIcon size={22} className="text-foreground" />,
-                label: t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' }),
-                onPress: handleAddToList,
-            },
-            {
-                icon: <StarterPackIcon size={22} className="text-foreground" />,
-                label: t('starterPacks.addTo.menuItem', { defaultValue: 'Add/remove from starter packs' }),
-                onPress: handleAddToStarterPack,
-            },
-            {
-                icon: <MuteIcon size={22} className="text-foreground" />,
-                label: t('profile.muteUser', { username: displayUsername, defaultValue: `Mute @${displayUsername}` }),
-                onPress: handleMute,
-            },
-        ];
-
-        const destructiveActions: ActionMenuAction[] = [
-            {
-                icon: <BlockIcon size={22} color={theme.colors.error} />,
-                label: t('profile.blockUser', { username: displayUsername, defaultValue: `Block @${displayUsername}` }),
-                onPress: handleBlock,
-                color: theme.colors.error,
-            },
-            {
-                icon: <ReportIcon size={22} color={theme.colors.error} />,
-                label: t('profile.reportUser', { defaultValue: 'Report' }),
-                onPress: handleReport,
-                color: theme.colors.error,
-            },
-        ];
-
-        // Named so the block flow can reopen the exact same menu after a
-        // cancelled confirm.
-        function openMenu() {
-            showActionMenu({
-                label: t('profile.moreOptions', { username: displayUsername, defaultValue: `Options for @${displayUsername}` }),
-                groups: [actions, destructiveActions],
-            });
-        }
-
-        openMenu();
-    }, [profileData, isOwnProfile, theme, t, bottomSheet, oxyServices]);
-
-    // DM button handler
     const handleDM = useCallback(() => {
         if (!profileData?.id) return;
         const params = new URLSearchParams({
@@ -498,144 +285,116 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
         if (profileData?.actorUri) openExternalLink(profileData.actorUri);
     }, [profileData?.actorUri]);
 
-    // Animations
-    const headerBackgroundOpacity = useMemo(
-        () =>
-            scrollY.interpolate({
-                inputRange: [0, LAYOUT.HEADER_HEIGHT_EXPANDED],
-                outputRange: [0, 1],
-                extrapolate: 'clamp',
-            }),
-        [scrollY]
-    );
-
-    // Pull-to-zoom banner parallax: on overscroll (negative scroll offset, i.e.
-    // pulling the content down past the top) the banner scales 1 → 1.5. Uses the
-    // same `scrollY` Animated.Value as the banner fade above for consistency; on
-    // web `window.scrollY` never goes negative, so this stays clamped at 1 (no
-    // rubber-band there) while native's bouncing ScrollView drives the zoom.
-    const bannerScale = useMemo(
-        () =>
-            scrollY.interpolate({
-                inputRange: [-150, 0],
-                outputRange: [1.5, 1],
-                extrapolateLeft: 'extend',
-                extrapolateRight: 'clamp',
-            }),
-        [scrollY]
-    );
-
-    // Header name overlay opacity - shows when scrolled past profile content.
-    // Guard against the pre-measurement window: until ProfileContent's onLayout
-    // reports a real height, profileContentHeight is 0, which would make the
-    // interpolation input range [-20, 20] resolve to ~0.5 at scrollY=0 and paint
-    // the overlay (avatar + name) on top of the header icons and profile content.
-    // Keep the threshold strictly positive and force opacity 0 until measured.
-    const headerNameOpacity = useMemo(() => {
-        if (profileContentHeight <= 0) {
-            return 0;
-        }
-        // Reveal a touch later than the exact content height so the overlay only
-        // appears once the real name has scrolled out of view.
-        const revealStart = Math.max(profileContentHeight - 20, 1);
-        return scrollY.interpolate({
-            inputRange: [revealStart, profileContentHeight + 20],
-            outputRange: [0, 1],
-            extrapolate: 'clamp',
-        });
-    }, [scrollY, profileContentHeight]);
-
-    // Number of action icons rendered in the top-right cluster. Drives the right
-    // boundary of the scrolled name overlay so a long display name truncates
-    // instead of sliding under the icons.
-    const headerActionCount = useMemo(() => {
-        let count = 1; // share is always present
-        if (!isOwnProfile) count += 2; // subscribe + more
-        // DM is local-only — remote (federated) actors have no Mention inbox.
-        if (!isOwnProfile && !isFederated) count += 1; // DM
-        if (isFederated) count += 1; // open-on-instance
-        return count;
-    }, [isOwnProfile, isFederated]);
-
-    // Each IconButton is HEADER_ACTION_ICON_SIZE wide with HEADER_ACTION_ICON_GAP
-    // between them; the cluster is offset from the right edge by
-    // (DEFAULT_PADDING - 8). Reserve that span (plus breathing room) so the
-    // overlay never collides with the icons.
-    const headerOverlayRight = useMemo(
-        () =>
-            (LAYOUT.DEFAULT_PADDING - 8) +
-            headerActionCount * HEADER_ACTION_ICON_SIZE +
-            (headerActionCount - 1) * HEADER_ACTION_ICON_GAP +
-            HEADER_OVERLAY_ICON_CLEARANCE,
-        [headerActionCount]
-    );
-
-    // Dynamic styles
-    const themedStyles = useMemo(
+    const userNameStyle = useMemo(
         () => ({
-            container: { paddingTop: insets.top },
-            headerActions: { top: insets.top + 6 },
-            headerNameOverlay: { top: insets.top + 6, right: headerOverlayRight },
-            scrollView: { marginTop: minimalistMode ? 0 : LAYOUT.HEADER_HEIGHT_NARROWED },
-            contentContainer: {
-                paddingTop: minimalistMode
-                    ? insets.top + 60
-                    : LAYOUT.HEADER_HEIGHT_EXPANDED - insets.top,
-            },
+            name: { fontSize: 24, fontWeight: 'bold' as const, marginTop: 10, marginBottom: 4 },
+            handle: { fontSize: 15, marginBottom: 12 },
+            container: undefined,
         }),
-        [insets.top, minimalistMode, headerOverlayRight]
+        [],
     );
 
-    const profileSummary = useMemo(() => {
+    const identity = useMemo(() => {
+        if (!profileData) return null;
+        // Own, non-federated profile opted into fediverse sharing (absent flag ⇒
+        // on): a tappable badge next to the handle explaining the fediverse.
+        const fediverseBadge =
+            isOwnProfile && !profileData.isFederated && currentUser?.fediverseSharing !== false ? (
+                <FediverseSharingBadge size={20} />
+            ) : undefined;
+        // Passive "Follows you" tag inline to the right of the @handle when this
+        // profile follows the viewer. Never shown on the viewer's own profile.
+        const followsYouTag =
+            !isOwnProfile && currentUser?.id && profileData.followsYou ? (
+                <View className="bg-secondary px-2 py-0.5 rounded-full">
+                    <Text className="text-secondary-foreground text-xs font-medium" numberOfLines={1}>
+                        {t('profile.followsYou', { defaultValue: 'Follows you' })}
+                    </Text>
+                </View>
+            ) : undefined;
+        return (
+            <>
+                <ProfileHeader
+                    username={profileData.username}
+                    avatarUri={avatarUri}
+                    isOwnProfile={isOwnProfile}
+                    isFederated={profileData.isFederated}
+                    actorUri={profileData.actorUri}
+                    isFollowing={profileData.isFollowing}
+                    currentUsername={currentUser?.username}
+                    profileId={profileData.id}
+                    FollowButtonComponent={OxyFollowButton}
+                />
+                <View>
+                    <UserName
+                        name={profileData.design.displayName}
+                        handle={profileData.username}
+                        verified={profileData.verified}
+                        isFederated={profileData.isFederated}
+                        copyableHandle
+                        variant="default"
+                        style={userNameStyle}
+                        trailingBadge={fediverseBadge}
+                        handleTrailing={followsYouTag}
+                    />
+                    {isPrivate && (
+                        <View className="flex-row items-center gap-2 flex-wrap">
+                            <PrivateBadge privacySettings={profileData.privacy} />
+                        </View>
+                    )}
+                </View>
+            </>
+        );
+    }, [profileData, isOwnProfile, isPrivate, avatarUri, currentUser, userNameStyle, t]);
+
+    const summary = useMemo(() => {
         if (!profileData) return null;
         return (
             <View>
                 <ProfileContent
                     profileData={profileData}
-                    avatarUri={avatarUri}
                     isOwnProfile={isOwnProfile}
                     isPrivate={isPrivate}
-                    currentUsername={currentUser?.username}
                     followingCount={followingCount}
                     followerCount={followerCount}
-                    username={username}
-                    FollowButtonComponent={OxyFollowButton}
+                    profileHandle={handle}
+                    identity={identity}
+                    showReplies={profileTabsForAccountKind(profileData.kind).includes('replies')}
+                    aboutHref={`/@${handle}/about`}
+                    followingHref={`/@${handle}/following`}
+                    followersHref={`/@${handle}/followers`}
                     onPostsPress={handlePostsPress}
                     onBoostsPress={handleBoostsPress}
                     onRepliesPress={handleRepliesPress}
-                    onLayout={setProfileContentHeight}
+                    onLayout={chrome.setContentHeight}
                 />
                 {!isOwnProfile && (
-                    <SuggestedUsers
-                        visible={justFollowed}
-                        sourceUserId={profileData.id}
-                    />
+                    <SuggestedUsers visible={justFollowed} sourceUserId={profileData.id} />
                 )}
             </View>
         );
     }, [
-        avatarUri,
-        currentUser?.username,
+        chrome.setContentHeight,
         followerCount,
         followingCount,
+        handle,
         handleBoostsPress,
         handlePostsPress,
         handleRepliesPress,
+        identity,
         isOwnProfile,
         isPrivate,
         justFollowed,
         profileData,
-        username,
     ]);
 
     // The tab bar, and — on the viewer's OWN profile only — the way in to their
     // lanes. It belongs beside these tabs because a lane's whole effect is on
     // which of them a post lands on, and because the composer's lane icon was
-    // otherwise the only door to the screen that manages them. Not a sidebar
-    // entry: every item there needs an `icon`/`iconActive` pair and no lane glyph
-    // exists. The row carries the hairline so it stays continuous under the
-    // button, which sits outside the tab bar's own bordered box.
-    const profileTabBar = useMemo(
+    // otherwise the only door to the screen that manages them. The row carries
+    // the hairline so it stays continuous under the button, which sits outside
+    // the tab bar's own bordered box.
+    const tabBar = useMemo(
         () => (
             <View className="flex-row items-center border-b border-border bg-background">
                 <View className="flex-1" style={{ minWidth: 0 }}>
@@ -666,6 +425,85 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
         [activeDescriptor?.key, onTabPress, tabDescriptors, username, isOwnProfile, t],
     );
 
+    const headerActions = (
+        <>
+            {/* The bell is a toggle rendered as two different glyphs, so its
+                label has to carry the state a sighted user reads from the icon —
+                a static "Notifications" would leave a screen reader unable to
+                tell subscribed from not. */}
+            {!isOwnProfile && (
+                <IconButton
+                    variant="icon"
+                    onPress={toggleSubscription}
+                    disabled={subLoading}
+                    accessibilityLabel={
+                        subscribed
+                            ? t('profile.actions.unsubscribe', {
+                                handle,
+                                defaultValue: 'Stop notifying me about new posts from @{{handle}}',
+                            })
+                            : t('profile.actions.subscribe', {
+                                handle,
+                                defaultValue: 'Notify me about new posts from @{{handle}}',
+                            })
+                    }
+                >
+                    {subscribed ? (
+                        <BellActive size={18} className="text-primary" />
+                    ) : (
+                        <Bell size={18} className="text-foreground" />
+                    )}
+                </IconButton>
+            )}
+            {!isOwnProfile && !isFederated && (
+                <IconButton
+                    variant="icon"
+                    onPress={handleDM}
+                    accessibilityLabel={t('profile.actions.message', {
+                        handle,
+                        defaultValue: 'Message @{{handle}}',
+                    })}
+                >
+                    <MailIcon size={18} className="text-foreground" />
+                </IconButton>
+            )}
+            {isFederated && (
+                <IconButton
+                    variant="icon"
+                    onPress={handleOpenOnInstance}
+                    accessibilityLabel={t('profile.actions.openOnInstance', {
+                        handle,
+                        defaultValue: 'Open @{{handle}} on their home instance',
+                    })}
+                >
+                    <ExternalLinkIcon size={18} className="text-foreground" />
+                </IconButton>
+            )}
+            <IconButton
+                variant="icon"
+                onPress={handleShare}
+                accessibilityLabel={t('profile.actions.share', {
+                    handle,
+                    defaultValue: "Share @{{handle}}'s profile",
+                })}
+            >
+                <ShareIcon size={18} className="text-foreground" />
+            </IconButton>
+            {!isOwnProfile && (
+                <IconButton
+                    variant="icon"
+                    onPress={handleMoreOptions}
+                    accessibilityLabel={t('profile.actions.more', {
+                        handle,
+                        defaultValue: 'More options for @{{handle}}',
+                    })}
+                >
+                    <MoreIcon size={18} className="text-foreground" />
+                </IconButton>
+            )}
+        </>
+    );
+
     return (
         <>
             {profileData ? (
@@ -692,468 +530,53 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                     type="profile"
                 />
             ) : null}
-            {/* WEB: `web:z-auto` stops this screen wrapper from being its own
-                stacking context (RN-web otherwise renders every View as
-                `position:relative; z-index:0`, which would TRAP the sticky header
-                chrome below it). With `z-index:auto` the profile chrome (banner
-                z-1, action cluster + compact name z-101) competes directly in the
-                rounded panel's stacking context, so the action/name chrome paints
-                ABOVE the bleed-mask overlay (z-30) and the feed (z-3) but below the
-                panel border frame (z-120) — exactly like the home header. No effect
-                on native. */}
-            <View className="flex-1 bg-background web:z-auto relative flex-col" style={[{ overflow: 'visible' }, themedStyles.container]}>
-                <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
-
-                {loading ? (
-                    <ProfileSkeleton />
-                ) : !profileData ? (
-                    <EmptyState
-                        customIcon={<NoUpdatesIllustration width={200} height={200} />}
-                        title={t('profile.notFound.title', { defaultValue: 'Profile not found' })}
-                        subtitle={t('profile.notFound.message', { defaultValue: "This profile couldn't be loaded. The user may not exist or their server may be unavailable." })}
-                        action={{ label: t('common.goBack', { defaultValue: 'Go Back' }), onPress: safeBack }}
-                    />
-                ) : (
-                    <>
-                        {/* Banner. NATIVE: `absolute left-0 right-0 top:0`
-                            (height 170, zIndex 1) over the NON-scrolling root — the
-                            content scrolls OVER it, and the `bg-background` overlay
-                            fades it out over the first 120px via
-                            `headerBackgroundOpacity`. WEB: there is no inner
-                            ScrollView (the DOCUMENT scrolls), so an `absolute` banner
-                            would scroll away. Instead it is `web:sticky` +
-                            `panelStickyTopInset` (pinned to the rounded panel's
-                            PANEL_TOP_INSET top-gutter inset — from the single shared
-                            constant, no literal `top-2` here — and sticky's
-                            containing block is the panel column, so it stays
-                            INSIDE the panel, never viewport-fixed). The negative
-                            bottom margin (`-170px`) cancels its flow height so the
-                            content's own `marginTop + paddingTop` offset is NOT
-                            double-counted — the banner occupies 0 net flow and the
-                            content still starts ~170px down and scrolls over it, then
-                            the banner fades to the background, exactly as on native.
-                            Its `web:z-[1]` keeps it BELOW the content (`zIndex: 3`),
-                            preserving native's content-over-banner layering. */}
-                        {!minimalistMode &&
-                            (bannerUri ? (
-                                <View
-                                    className="left-0 right-0 overflow-hidden web:sticky web:z-[1] web:[margin-bottom:-170px]"
-                                    style={[webStickyChrome.banner, panelStickyTopInset, { height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED }]}
-                                >
-                                    <AnimatedImageBackground
-                                        source={{ uri: bannerUri }}
-                                        className="absolute left-0 right-0 top-0 overflow-hidden"
-                                        style={{
-                                            height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED,
-                                            transform: [{ scale: bannerScale }],
-                                        }}
-                                    />
-                                    <Animated.View
-                                        className="absolute left-0 right-0 top-0 overflow-hidden bg-background"
-                                        style={{
-                                            height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED,
-                                            zIndex: 1,
-                                            pointerEvents: 'none',
-                                            opacity: headerBackgroundOpacity,
-                                        }}
-                                    />
-                                </View>
-                            ) : (
-                                <View
-                                    className="left-0 right-0 overflow-hidden bg-primary/[0.125] web:sticky web:z-[1] web:[margin-bottom:-170px]"
-                                    style={[webStickyChrome.banner, panelStickyTopInset, { height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED }]}
-                                >
-                                    <Animated.View
-                                        className="bg-background"
-                                        style={[
-                                            StyleSheet.absoluteFill,
-                                            {
-                                                opacity: headerBackgroundOpacity,
-                                            },
-                                        ]}
-                                    />
-                                </View>
-                            ))}
-
-                        {/* Pinned header-band surface (WEB only). When the header
-                            chrome is pinned in contact with the tab bar, the action
-                            cluster + compact-name overlay are 0-flow-height anchors
-                            with NO background of their own — so the scrolling feed
-                            (z-3) would show THROUGH the header band while the opaque
-                            tabs (`bg-background`) sit right below, reading as an
-                            incoherent transparent-header / opaque-tabs split. This
-                            sticky surface fills the 48px header band (PANEL_TOP_INSET
-                            .. PANEL_TOP_INSET + PANEL_HEADER_HEIGHT, i.e. flush with
-                            the tabs at top:56) with the SAME `bg-background` token the
-                            tab bar uses, so header + tabs read as ONE cohesive opaque
-                            bar. Its opacity is driven by the SAME
-                            `headerBackgroundOpacity` as the banner fade: 0 when
-                            expanded (the banner shows through — restored parallax
-                            preserved) → 1 once scrolled (opaque, matching the tabs).
-                            `web:z-[100]` paints it ABOVE the feed content (z-3) and the
-                            tabs (z-5) but BELOW the chrome icons/name overlay (z-101),
-                            so the icons stay on top. It intentionally receives web
-                            pointer events to prevent clicks from reaching covered feed
-                            content while the band is opaque; the higher z-101 header
-                            controls remain interactive. The `-48px` bottom margin
-                            (cancels its flow height, like the banner's `-170px`)
-                            keeps it a 0-flow overlay. Empty on native, where the chrome
-                            is an absolute overlay over the non-scrolling root. */}
-                        {IS_WEB && (
-                            <View
-                                className="left-0 right-0 web:sticky web:z-[100] web:pointer-events-auto web:[margin-bottom:-48px]"
-                                style={[panelStickyTopInset, { height: PANEL_HEADER_HEIGHT }]}
-                            >
-                                <Animated.View
-                                    className="bg-background"
-                                    style={[StyleSheet.absoluteFill, { opacity: headerBackgroundOpacity }]}
-                                />
-                            </View>
-                        )}
-
-                        {/* Header actions cluster (subscribe / DM / open-instance /
-                            share / more). NATIVE: `absolute`, `top: insets.top+6`,
-                            `right: DEFAULT_PADDING-8`, zIndex 10 — pinned at the top
-                            of the non-scrolling root. WEB: the cluster lives inside a
-                            full-width `web:sticky` + `panelStickyTopInset` wrapper
-                            pinned to the panel's PANEL_TOP_INSET top-gutter inset
-                            (same pattern as the PanelStickyHeader the home header
-                            uses — sticky's containing block is the panel column, so
-                            the cluster stays INSIDE the panel, never viewport-fixed).
-                            The wrapper has 0 flow height (its only child is
-                            `absolute`) and is `pointer-events-none` so it never blocks
-                            the feed; the cluster itself re-enables pointer events. Its
-                            `web:z-[101]` matches the home header so it paints above
-                            the feed/content (z-3) and the bleed mask (z-30) but below
-                            the panel's border frame (z-120). */}
-                        <View className="left-0 right-0 web:sticky web:z-[101] web:pointer-events-none" style={[webStickyChrome.chromeAnchor, panelStickyTopInset]}>
-                            <View
-                                className="absolute flex-row items-center gap-1 web:pointer-events-auto"
-                                style={[{ zIndex: 10, right: LAYOUT.DEFAULT_PADDING - 8 }, themedStyles.headerActions]}
-                            >
-                                {/* The bell is a toggle rendered as two different
-                                    glyphs, so its label has to carry the state a
-                                    sighted user reads from the icon — a static
-                                    "Notifications" would leave a screen reader
-                                    unable to tell subscribed from not. */}
-                                {!isOwnProfile && (
-                                    <IconButton
-                                        variant="icon"
-                                        onPress={toggleSubscription}
-                                        disabled={subLoading}
-                                        accessibilityLabel={
-                                            subscribed
-                                                ? t('profile.actions.unsubscribe', {
-                                                    handle: profileHandle,
-                                                    defaultValue: 'Stop notifying me about new posts from @{{handle}}',
-                                                })
-                                                : t('profile.actions.subscribe', {
-                                                    handle: profileHandle,
-                                                    defaultValue: 'Notify me about new posts from @{{handle}}',
-                                                })
-                                        }
-                                    >
-                                        {subscribed ? (
-                                            <BellActive size={18} className="text-primary" />
-                                        ) : (
-                                            <Bell size={18} className="text-foreground" />
-                                        )}
-                                    </IconButton>
-                                )}
-                                {!isOwnProfile && !isFederated && (
-                                    <IconButton
-                                        variant="icon"
-                                        onPress={handleDM}
-                                        accessibilityLabel={t('profile.actions.message', {
-                                            handle: profileHandle,
-                                            defaultValue: 'Message @{{handle}}',
-                                        })}
-                                    >
-                                        <MailIcon size={18} className="text-foreground" />
-                                    </IconButton>
-                                )}
-                                {isFederated && (
-                                    <IconButton
-                                        variant="icon"
-                                        onPress={handleOpenOnInstance}
-                                        accessibilityLabel={t('profile.actions.openOnInstance', {
-                                            handle: profileHandle,
-                                            defaultValue: 'Open @{{handle}} on their home instance',
-                                        })}
-                                    >
-                                        <ExternalLinkIcon size={18} className="text-foreground" />
-                                    </IconButton>
-                                )}
-                                <IconButton
-                                    variant="icon"
-                                    onPress={handleShare}
-                                    accessibilityLabel={t('profile.actions.share', {
-                                        handle: profileHandle,
-                                        defaultValue: "Share @{{handle}}'s profile",
-                                    })}
-                                >
-                                    <ShareIcon size={18} className="text-foreground" />
-                                </IconButton>
-                                {!isOwnProfile && (
-                                    <IconButton
-                                        variant="icon"
-                                        onPress={handleMoreOptions}
-                                        accessibilityLabel={t('profile.actions.more', {
-                                            handle: profileHandle,
-                                            defaultValue: 'More options for @{{handle}}',
-                                        })}
-                                    >
-                                        <MoreIcon size={18} className="text-foreground" />
-                                    </IconButton>
-                                )}
-                            </View>
-                        </View>
-
-                        {/* Compact name overlay (avatar + name + posts-count), fades
-                            in via `headerNameOpacity` once the real name scrolls past.
-                            NATIVE: `absolute`, `top: insets.top+6`, `left:
-                            DEFAULT_PADDING`, `right: headerOverlayRight` (truncates
-                            before the action icons), zIndex 10. WEB: same full-width
-                            `web:sticky` + `panelStickyTopInset` wrapper as the
-                            actions cluster, so it pins to the panel's PANEL_TOP_INSET
-                            top-gutter inset INSIDE the panel (never viewport-fixed).
-                            The fade is driven by the same
-                            window-fed `scrollY` interpolation as native. The overlay
-                            is `pointer-events-none` (matching native), and the wrapper
-                            consumes 0 net flow height.
-
-                            It is `aria-hidden` because it is a purely visual restatement
-                            of the avatar, name, verified badge and post count the profile
-                            summary below already renders — a screen reader would otherwise
-                            announce that identity twice on every profile, and the overlay
-                            holds nothing focusable to lose. One prop covers all three
-                            platforms: RN's View maps `aria-hidden` onto
-                            `accessibilityElementsHidden` (iOS) AND
-                            `importantForAccessibility: 'no-hide-descendants'` (Android),
-                            and react-native-web emits the DOM attribute. */}
-                        <View className="left-0 right-0 web:sticky web:z-[101] web:pointer-events-none" style={[webStickyChrome.chromeAnchor, panelStickyTopInset]}>
-                            <Animated.View
-                                className="absolute"
-                                aria-hidden
-                                style={[
-                                    { zIndex: 10, left: LAYOUT.DEFAULT_PADDING, flexDirection: 'row', alignItems: 'center', gap: 10 },
-                                    themedStyles.headerNameOverlay,
-                                    { opacity: headerNameOpacity },
-                                    { pointerEvents: 'none' },
-                                ]}
-                            >
-                                <Avatar
-                                    source={avatarUri}
-                                    size={32}
-                                    variant={MEDIA_VARIANT_AVATAR}
-                                />
-                                <View style={{ flex: 1, minWidth: 0 }}>
-                                    <UserName
-                                        name={profileData.design.displayName}
-                                        verified={profileData.verified}
-                                        style={{ name: { fontSize: 18, fontWeight: 'bold', marginBottom: -3 } }}
-                                        unifiedColors={true}
-                                    />
-                                    <Text className="text-muted-foreground text-[13px]" numberOfLines={1}>
-                                        {t('profile.postsCount', {
-                                            count: profileData.postsCount,
-                                            defaultValue: `${profileData.postsCount} posts`,
-                                        })}
-                                    </Text>
-                                </View>
-                            </Animated.View>
-                        </View>
-
-                        {/* Main scroll content.
-
-                            NATIVE FEED TABS: Feed's FlashList owns the scroll and
-                            receives profile info as `ListHeaderComponent` and
-                            tabs as a separate sticky data row, keeping post rows
-                            virtualized without pinning the whole summary.
-                            NATIVE GRID TABS: ProfileGridList's FlashList owns the
-                            scroll with the same header/sticky-tab row contract.
-                            The existing Animated.ScrollView remains the sole
-                            owner only for the bounded card tabs.
-
-                            WEB: the DOCUMENT scrolls (no inner ScrollView — that
-                            would break the document-scroll model the home/explore
-                            screens use). The body renders in normal flow inside a
-                            plain `View`; the header/banner/name-overlay animations
-                            read the same `scrollY` shared value, now fed by the
-                            window 'scroll' listener in LayoutScrollContext. The tab
-                            bar pins via `web:sticky` (its own `bg-background` keeps
-                            the feed from showing through). */}
-                        {IS_WEB ? (
-                            <View style={[{ zIndex: 3 }, themedStyles.scrollView, themedStyles.contentContainer]}>
-                                {/* Profile info + suggestions */}
-                                {profileSummary}
-
-                                {/* Tabs — sticky in the SECOND tier, pinned flush
-                                    BELOW the header chrome band (`web:sticky` +
-                                    `panelStickyTabsTopInset` = PANEL_TOP_INSET +
-                                    PANEL_HEADER_HEIGHT while framed, the same 56px
-                                    offset the home screen's `level={1}` tab bar uses;
-                                    it collapses to just PANEL_HEADER_HEIGHT at
-                                    full-bleed, in lockstep with the first-tier inset).
-                                    The banner fade, action cluster and compact-name
-                                    overlay above all pin at the FIRST tier
-                                    (`panelStickyTopInset`, PANEL_TOP_INSET while framed,
-                                    0 at full-bleed); pinning the tab bar at that same
-                                    inset made the two bands occupy the same vertical
-                                    space and OVERLAP. Stacking the tabs one header
-                                    height down lands them directly under the header
-                                    chrome — header on top, tabs flush below — while
-                                    the document scrolls (mirrors native's
-                                    `stickyHeaderIndices={[1]}` pinning below the
-                                    absolute header overlay). It lives inside the z-3
-                                    content wrapper, so `web:z-[5]` keeps it above the
-                                    feed content (which scrolls under it); the
-                                    `bg-background` on AnimatedTabBar keeps the feed
-                                    from showing through, and the pinned tab bar paints
-                                    over the lower-z banner that sits behind it. */}
-                                <View className="web:sticky web:z-[5]" style={panelStickyTabsTopInset}>
-                                    {profileTabBar}
-                                </View>
-
-                                {/* Tab content */}
-                                <ProfileTabs
-                                    tab={activeProfileTab}
-                                    laneId={activeLaneId}
-                                    profileId={profileData?.id}
-                                    isPrivate={isPrivate}
-                                    isOwnProfile={isOwnProfile}
-                                    isFederated={isFederated}
-                                    actorUri={profileData?.actorUri}
-                                />
-                            </View>
-                        ) : nativeListOwnsScroll ? (
-                            <View
-                                style={[
-                                    {
-                                        zIndex: 3,
-                                        flex: 1,
-                                        minHeight: 0,
-                                    },
-                                    themedStyles.scrollView,
-                                ]}
-                            >
-                                <ProfileTabs
-                                    tab={activeProfileTab}
-                                    laneId={activeLaneId}
-                                    profileId={profileData.id}
-                                    isPrivate={isPrivate}
-                                    isOwnProfile={isOwnProfile}
-                                    isFederated={isFederated}
-                                    actorUri={profileData.actorUri}
-                                    listOwnsScroll
-                                    listHeaderComponent={profileSummary}
-                                    listStickyHeaderComponent={profileTabBar}
-                                    listContentContainerStyle={themedStyles.contentContainer}
-                                    listOnScroll={nativeGridOwnsScroll ? onScroll : undefined}
-                                    listScrollRef={nativeGridOwnsScroll ? assignScrollRef : undefined}
-                                />
-                            </View>
-                        ) : (
-                            <Animated.ScrollView
-                                ref={assignScrollRef}
-                                showsVerticalScrollIndicator={false}
-                                onScroll={onScroll}
-                                scrollEventThrottle={16}
-                                style={[{ zIndex: 3 }, themedStyles.scrollView]}
-                                contentContainerStyle={themedStyles.contentContainer}
-                                stickyHeaderIndices={[1]}
-                                nestedScrollEnabled={true}
-                                removeClippedSubviews={true}
-                                disableIntervalMomentum={true}
-                                decelerationRate="normal"
-                            >
-                                {/* Profile info + suggestions wrapper (keeps stickyHeaderIndices stable) */}
-                                {profileSummary}
-
-                                {/* Tabs */}
-                                {profileTabBar}
-
-                                {/* Tab content */}
-                                <ProfileTabs
-                                    tab={activeProfileTab}
-                                    laneId={activeLaneId}
-                                    profileId={profileData.id}
-                                    isPrivate={isPrivate}
-                                    isOwnProfile={isOwnProfile}
-                                    isFederated={isFederated}
-                                    actorUri={profileData?.actorUri}
-                                />
-                            </Animated.ScrollView>
-                        )}
-
-                        {/* FAB that rides the BottomBar's show/hide (web mobile). */}
-                        <BottomBarAwareFab
-                            onPress={() => router.push('/compose')}
-                            icon={<ComposeIcon size={20} className="text-primary-foreground" />}
-                            accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
-                        />
-
-                    </>
-                )}
-            </View>
+            <ProfileShell
+                chrome={chrome}
+                loading={loading}
+                profileData={profileData}
+                banner={{ uri: bannerUri }}
+                headerActions={headerActions}
+                summary={summary}
+                tabBar={tabBar}
+                tabs={{
+                    tab: activeProfileTab,
+                    laneId: activeLaneId,
+                    profileId: profileData?.id,
+                    isPrivate,
+                    isOwnProfile,
+                    isFederated,
+                    actorUri: profileData?.actorUri,
+                }}
+            />
         </>
     );
 };
 
-// WEB vs NATIVE positioning for the profile header chrome (banner, action
-// cluster, compact-name overlay). NATIVE pins each piece `absolute` to the top
-// of the NON-scrolling root (the content scrolls over them inside the inner
-// Animated.ScrollView). WEB has no inner ScrollView — the DOCUMENT scrolls — so
-// each piece pins via `web:sticky` + the shared `panelStickyTopInset` style
-// (the rounded panel's PANEL_TOP_INSET top-gutter inset, from the single
-// PanelChrome source of truth — no literal `top-2` here). `position: sticky`
-// keeps the panel column as its containing block, so the chrome stays INSIDE the
-// rounded center panel (never viewport-fixed), mirroring the home header's
-// PanelStickyHeader. These bespoke overlapping layers keep their own `web:z-[…]`,
-// negative margins and pointer-events, so they consume `panelStickyTopInset`
-// rather than the full <PanelStickyHeader> wrapper (which would flatten their
-// z-layout and break the banner/name fades). The web `position`/`z` live in
-// NativeWind classes; this StyleSheet only supplies the native `absolute` anchor
-// (web entries are empty so the classes win).
-const webStickyChrome = StyleSheet.create({
-    banner: {
-        ...Platform.select({
-            web: {},
-            default: { position: 'absolute' as const, top: 0, zIndex: 1 },
-        }),
-    },
-    chromeAnchor: {
-        ...Platform.select({
-            web: {},
-            default: { position: 'absolute' as const, top: 0, zIndex: 10 },
-        }),
-    },
-});
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ tab = 'posts', laneId }) => {
+    const { username, handle, isFederated, profileData, loading, colorName, canonicalHref } =
+        useProfileAccount('person');
 
-const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts', laneId }) => {
-    let { username: urlUsername } = useLocalSearchParams<{ username: string }>();
-    if (urlUsername?.startsWith('@')) {
-        urlUsername = urlUsername.slice(1);
+    // A channel account's page is `/c/<handle>`. Sitting on `/@<handle>` for one
+    // is a URL nobody should keep — a post row links every author to `/@`, since
+    // the DTO says nothing about account kind, so this is how a reader reaches a
+    // channel at all. The rule itself lives in `profileRoute.ts`, shared with the
+    // channel screen so the two can never disagree about which way to send.
+    if (canonicalHref) {
+        return <Redirect href={canonicalHref} />;
     }
-    const username = urlUsername || '';
-    const isFederated = username.includes('@');
-    const { data: profileData, loading } = useProfileData(username);
-    const { colorName: profileColorName } = useProfileScreenColor({
-        username,
-        designColor: profileData?.design?.color,
-    });
 
     return (
-        <BloomColorScope colorPreset={profileColorName} asChild>
+        <BloomColorScope colorPreset={colorName} asChild>
             {/* `web:z-auto` so this profile wrapper does not become its own
                 stacking context and trap the sticky header chrome below the
-                panel's bleed-mask/border overlays (see MentionProfileContent's
-                root for the full rationale). No effect on native. */}
+                panel's bleed-mask/border overlays (see ProfileShell's root for
+                the full rationale). No effect on native. */}
             <View className="flex-1 bg-background web:z-auto">
-                <MentionProfileContent
+                <PersonProfile
                     tab={tab}
                     laneId={laneId}
                     username={username}
+                    handle={handle}
                     isFederated={isFederated}
                     profileData={profileData}
                     loading={loading}
@@ -1163,5 +586,4 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts', laneId })
     );
 };
 
-
-export default MentionProfile;
+export default ProfileScreen;

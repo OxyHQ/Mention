@@ -11,6 +11,7 @@ const EXPORT_PAGE_SIZE = 200;
 import { getDb } from '../db/postgres';
 import { bookmarks, likes } from '../db/schema/engagement';
 // Block and Restrict routes removed - frontend should use Oxy services directly
+import type { AccountKind } from '@oxyhq/contracts';
 import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { buildSettingsResponseForViewer } from '../utils/userSettings';
 import {
@@ -19,7 +20,8 @@ import {
   loadUserSettings,
   updateUserSettings,
 } from '../db/userProfile/userSettingsRepository';
-import { ensureProfileMediaPublic } from '../utils/oxyHelpers';
+import { createUserScopedOxyServices, ensureProfileMediaPublic } from '../utils/oxyHelpers';
+import { assertCanPublishAsAccount, PublishAsAccessError } from '../services/publishAsAccount';
 import { canViewProfileDesign } from '../utils/privacyHelpers';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxyhq/core/server';
@@ -27,6 +29,7 @@ import { type TrackSummary, type PodcastSummary } from '@syra.fm/sdk';
 import { EXTERNAL_EMBED_SOURCES, type EmbedPlayerSource, canonicalizeLanguageTag } from '@mention/shared-types';
 import { syraClient } from '../utils/syraPodcast';
 import { federateAsResolvedActor } from '../connectors/outboundFederation';
+import { operatedAccountSettingsRateLimiter } from '../middleware/security';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -102,13 +105,102 @@ router.get('/settings/:userId', async (req: AuthRequest, res: Response) => {
 });
 
 /**
+ * PUT /api/profile/settings/:userId — settings of an account the caller OPERATES.
+ *
+ * A channel account has no login, so nobody can ever authenticate AS one and use
+ * `PUT /settings` below: without this route its settings are unreachable and the
+ * `signPosts` toggle is a control that writes nowhere. That is the whole reason
+ * the route takes an id at all.
+ *
+ * It is deliberately NOT a general "write someone else's settings" endpoint. The
+ * body accepts exactly one field, and authorization is `assertCanPublishAsAccount`
+ * — the same gate the publish path uses, which answers "may this person act for
+ * that account" out of Oxy's account graph rather than a Mention-side copy. Using
+ * the same gate is what keeps the two answers from drifting: whoever may publish
+ * as the channel is whoever may configure how it signs.
+ */
+router.put(
+  '/settings/:userId',
+  operatedAccountSettingsRateLimiter,
+  async (req: AuthRequest, res: Response) => {
+    const targetUserId = req.params.userId as string;
+    try {
+      const callerId = getAuthenticatedUserId(req);
+
+      const validationError = validateRequired(targetUserId, 'userId');
+      if (validationError) {
+        return sendErrorResponse(res, 400, 'Bad Request', validationError);
+      }
+
+      const signPosts = (req.body as { channel?: { signPosts?: unknown } } | undefined)?.channel
+        ?.signPosts;
+      // Strictly boolean: this decides whether the human who wrote a post is
+      // disclosed, so a truthy non-boolean (`"false"` from a form, `1`) must not
+      // read as consent to disclose.
+      if (typeof signPosts !== 'boolean') {
+        return sendErrorResponse(res, 400, 'Bad Request', 'channel.signPosts must be a boolean');
+      }
+
+      let authorKind: AccountKind | null;
+      try {
+        ({ authorKind } = await assertCanPublishAsAccount({
+          publishAsOxyUserId: targetUserId,
+          callerId,
+          memberReader: createUserScopedOxyServices(req),
+        }));
+      } catch (error) {
+        if (error instanceof PublishAsAccessError) {
+          return sendErrorResponse(res, error.status, 'Forbidden', error.message);
+        }
+        throw error;
+      }
+      // The gate admits every account the caller may act for — a channel, and also
+      // an organization / project / bot. `channel.signPosts` means something on
+      // exactly one of those: it decides whether a CHANNEL discloses the human who
+      // wrote a post, and `PostHydrationService` reads it only for a `kind:
+      // 'channel'` author. So the kind the gate resolved is checked here, which
+      // also covers the target being the CALLER'S OWN account (the gate answers
+      // that one without resolving anything, so `authorKind` is `null`) — writing
+      // the field onto a personal settings row would be storing a control that
+      // nothing reads.
+      if (authorKind !== 'channel') {
+        return sendErrorResponse(res, 400, 'Bad Request', 'That account cannot be published as');
+      }
+
+      // WIRE `channel`, STORAGE `channelAccount`, and the two are deliberately
+      // not renamed into agreement here. `channel.signPosts` is what the client
+      // sends and reads (`frontend/services/channelAccountService.ts`), so it is
+      // an API contract; `channelAccount.signPosts` is the settings path this
+      // repository maps to the `channel_account_sign_posts` column, named apart
+      // from the retired `channels` table it used to live beside. Renaming
+      // either side to match the other would be a breaking change to the half
+      // that is not broken.
+      const record = await updateUserSettings(targetUserId, {
+        set: { 'channelAccount.signPosts': signPosts },
+      });
+
+      return sendSuccessResponse(res, 200, {
+        channel: { signPosts: record.channelAccount?.signPosts === true },
+      });
+    } catch (err) {
+      logger.error('[ProfileSettings] Error updating operated account settings:', {
+        userId: req.user?.id,
+        targetUserId,
+        error: err,
+      });
+      return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to update settings');
+    }
+    },
+);
+
+/**
  * PUT /api/profile/settings
  * Update current user's settings
  */
 router.put('/settings', async (req: AuthRequest, res: Response) => {
   try {
     const oxyUserId = getAuthenticatedUserId(req);
-    const { appearance, profileHeaderImage, privacy, profileCustomization, profileMedia, interests, feedSettings, notificationPreferences, externalEmbeds, fediversePreferredLanguage } = req.body || {};
+    const { appearance, profileHeaderImage, privacy, profileMedia, interests, feedSettings, notificationPreferences, externalEmbeds, fediversePreferredLanguage } = req.body || {};
 
     // Dot-notation leaf paths mapped to the value Mongo should store. The values
     // are deliberately heterogeneous (scalars, arrays, sub-documents) and are only
@@ -124,7 +216,7 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
     // rebroadcast the actor to remote followers (see below).
     let bannerChanged = false;
 
-    // Dot-notation, same safe pattern as `profileCustomization`/`externalEmbeds` below:
+    // Dot-notation, same safe pattern as `profileMedia`/`externalEmbeds` below:
     // each field is set at its own leaf path, so a partial `appearance` payload (e.g. the
     // color picker sending only `primaryColor`) only touches the fields present in the
     // request and leaves every other appearance field untouched.
@@ -162,15 +254,6 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       bannerChanged = true;
     }
     
-    if (profileCustomization) {
-      if (typeof profileCustomization.coverPhotoEnabled === 'boolean') {
-        update['profileCustomization.coverPhotoEnabled'] = profileCustomization.coverPhotoEnabled;
-      }
-      if (typeof profileCustomization.minimalistMode === 'boolean') {
-        update['profileCustomization.minimalistMode'] = profileCustomization.minimalistMode;
-      }
-    }
-
     // Profile media: an Instagram-style pinned Syra song OR podcast show
     // (mutually exclusive — one field, one value, so setting either type
     // automatically replaces the other). The client sends only an untrusted

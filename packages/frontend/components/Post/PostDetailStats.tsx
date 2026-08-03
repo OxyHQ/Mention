@@ -35,10 +35,10 @@ interface Props {
    * The reply restriction the AUTHOR chose, which is the only kind this block
    * reports. Absent or `['anyone']` = no restriction to report.
    *
-   * Callers derive it with `reportableReplyPermission`, which is what makes a
-   * CHANNEL post absent here: the server persists `['nobody']` on one as defence
-   * in depth, but a channel refusing replies is what a channel is rather than
-   * something somebody switched off, so this block says nothing about it at all.
+   * Callers derive it with `reportableReplyPermission`, which reports only what
+   * the author set. A post the SERVER refused the viewer replies on — a channel
+   * account's post, or an audience the viewer is outside of — has no author
+   * decision to name, so this block says nothing about it at all.
    */
   replyPermission?: ReplyPermission[];
   /** Whether the author turned off quote posts. */

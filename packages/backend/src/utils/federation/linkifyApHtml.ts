@@ -1,3 +1,4 @@
+import { scanTextEntities, trimUrlTrailingPunctuation } from '@mention/shared-types/textEntities';
 import { escapeApHtml, escapeApHtmlAttr, normalizeApBody, wrapApParagraphs } from './plainTextToApHtml';
 
 /**
@@ -33,44 +34,28 @@ export interface LinkifyApHtmlOptions {
 }
 
 /**
- * Left-to-right token scanner for the three inline reference kinds a Mention post
- * body carries. URL is tried FIRST so a `#fragment` (or any trailing text) inside
- * a link is consumed by the URL token and never re-matched as a hashtag.
- *  - `url`       — a bare `http(s)://…` run (up to whitespace or `<`)
- *  - `mentionId` — the id inside a `[mention:<id>]` placeholder
- *  - `hashtag`   — the tag text after `#` (ASCII word chars, mirroring the stored
- *                  hashtag extraction so a content `#tag` matches the `tag` array)
+ * The three inline reference kinds a Mention post body carries, as the shared
+ * scanner names them. Precedence — URL before hashtag, so a `#fragment` inside a
+ * link is consumed by the link and never re-matched as a tag — is fixed inside
+ * `scanTextEntities`, which is the point of it living there.
+ *
+ *  - `url`               a bare `http(s)://…` run
+ *  - `mentionPlaceholder` the id inside a `[mention:<id>]` placeholder
+ *  - `hashtag`           the tag text after `#`
+ *
+ * `urlTerminator: 'html'` stops a URL run at `<` as well as at whitespace: the
+ * output of this function is HTML, so a run that swallowed a following tag would
+ * put markup inside an `href`.
+ *
+ * `bareWww: false` — a scheme-less `www.…` is not linkified outbound. The anchor
+ * this builds is consumed by other servers, so a synthesized `https://` on
+ * something the author never wrote as a link is a guess this path should not
+ * make on their behalf.
+ *
+ * Cashtags are absent: they resolve to a Mention search route that means nothing
+ * on a remote instance.
  */
-const TOKEN_REGEX = /(?<url>https?:\/\/[^\s<]+)|\[mention:(?<mentionId>[^\]]+)\]|#(?<hashtag>[A-Za-z0-9_]+)/g;
-
-/**
- * Sentence punctuation that is almost never part of a URL and should stay OUTSIDE
- * the link. A closing paren is handled separately (only trimmed when unbalanced),
- * so a Wikipedia-style `…_(disambiguation)` URL survives intact.
- */
-const TRAILING_URL_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', '"', "'", '’', '”', '»']);
-
-/**
- * Split a raw matched URL run into the real URL and any trailing prose punctuation
- * (`see https://x.com.` → the `.` is a sentence end, not part of the URL). The
- * trimmed suffix is re-emitted as escaped plain text by the caller.
- */
-function splitTrailingUrlPunctuation(raw: string): { url: string; trailing: string } {
-  let end = raw.length;
-  while (end > 0) {
-    const ch = raw[end - 1];
-    if (ch === ')') {
-      const head = raw.slice(0, end);
-      const opens = (head.match(/\(/g) ?? []).length;
-      const closes = (head.match(/\)/g) ?? []).length;
-      if (closes <= opens) break; // balanced → the ')' belongs to the URL
-    } else if (!TRAILING_URL_PUNCTUATION.has(ch)) {
-      break;
-    }
-    end -= 1;
-  }
-  return { url: raw.slice(0, end), trailing: raw.slice(end) };
-}
+const AP_ENTITY_KINDS = ['url', 'mentionPlaceholder', 'hashtag'] as const;
 
 /** Mastodon-compatible mention anchor. `href` is attribute-escaped, label is text-escaped. */
 function mentionAnchor(link: ApMentionLink): string {
@@ -116,28 +101,31 @@ export function linkifyApHtml(text: string, options: LinkifyApHtmlOptions = {}):
   let out = '';
   let cursor = 0;
 
-  for (const match of normalized.matchAll(TOKEN_REGEX)) {
-    const index = match.index ?? 0;
+  const entities = scanTextEntities(normalized, {
+    kinds: AP_ENTITY_KINDS,
+    urlTerminator: 'html',
+    bareWww: false,
+  });
 
+  for (const entity of entities) {
     // Plain text between the previous token and this one — escaped as element text.
-    if (index > cursor) out += escapeApHtml(normalized.slice(cursor, index));
+    if (entity.start > cursor) out += escapeApHtml(normalized.slice(cursor, entity.start));
 
-    const groups = match.groups ?? {};
-    if (groups.url !== undefined) {
-      const { url, trailing } = splitTrailingUrlPunctuation(groups.url);
+    if (entity.kind === 'url') {
+      const { url, trailing } = trimUrlTrailingPunctuation(entity.value);
       out += urlAnchor(url);
       if (trailing) out += escapeApHtml(trailing);
-    } else if (groups.mentionId !== undefined) {
+    } else if (entity.kind === 'mentionPlaceholder') {
       // Resolved → a mention anchor. Undeclared/unresolvable → DROP: the internal
       // `[mention:<id>]` placeholder must never leak to the wire.
-      const link = mentions?.get(groups.mentionId);
+      const link = mentions?.get(entity.value);
       if (link) out += mentionAnchor(link);
-    } else if (groups.hashtag !== undefined) {
-      const href = hashtagHref?.(groups.hashtag);
-      out += href ? hashtagAnchor(groups.hashtag, href) : escapeApHtml(match[0]);
+    } else if (entity.kind === 'hashtag') {
+      const href = hashtagHref?.(entity.value);
+      out += href ? hashtagAnchor(entity.value, href) : escapeApHtml(entity.raw);
     }
 
-    cursor = index + match[0].length;
+    cursor = entity.end;
   }
 
   if (cursor < normalized.length) out += escapeApHtml(normalized.slice(cursor));

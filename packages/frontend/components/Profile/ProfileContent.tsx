@@ -1,26 +1,16 @@
-import React, { memo, useMemo } from 'react';
+import React, { memo } from 'react';
 import { View, Text, StyleSheet, type LayoutChangeEvent } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
-import UserName from '@/components/UserName';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
-import {
-  ProfileHeaderDefault,
-  ProfileHeaderMinimalist,
-  ProfileActions,
-} from './ProfileHeader';
 import { ProfileStats } from './ProfileStats';
 import { ProfileMeta } from './ProfileMeta';
 import { LinkSummary } from './LinkSummary';
 import { ProfileMedia } from './ProfileMedia';
 import { FollowedByRow } from './FollowedByRow';
 import { ProfileCommunities } from './ProfileCommunities';
-import { PrivateBadge } from './PrivateBadge';
 import { LAYOUT } from './types';
 import type { ProfileContentProps } from './types';
-import { getNormalizedUserHandle } from '@oxyhq/core';
-import { useAuth } from '@oxyhq/services/ui/client';
-import { FediverseSharingBadge } from '@/components/Fediverse/FediverseBadge';
 import { mergeBioAndProfileLinks } from '@/utils/mergeBioAndProfileLinks';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { useExpandableText } from '@/hooks/useExpandableText';
@@ -29,153 +19,78 @@ import { useExpandableText } from '@/hooks/useExpandableText';
 const BIO_COLLAPSE_CHARS = 200;
 
 /**
- * Main profile content section
- * Contains header, bio, meta info, stats, and communities
+ * Everything on a profile page between the identity block and the tab strip.
+ *
+ * Shared by both profile screens, and the sharing is the point: bio, joined
+ * date, follow-graph stats, pinned media, mutual followers, links and
+ * communities are the same reading of an account whoever it belongs to. What
+ * differs — which header, which URL family the rows link into, whether a
+ * replies stat is honest — arrives as props, so there is one implementation of
+ * each row rather than one per screen.
  */
 export const ProfileContent = memo(function ProfileContent({
   profileData,
-  avatarUri,
   isOwnProfile,
   isPrivate,
-  currentUsername,
   followingCount,
   followerCount,
-  username,
-  FollowButtonComponent,
+  profileHandle,
+  identity,
+  showReplies,
+  aboutHref,
+  followingHref,
+  followersHref,
   onPostsPress,
   onBoostsPress,
   onRepliesPress,
   onLayout,
 }: ProfileContentProps) {
   const { t } = useTranslation();
-  const { user, isAuthenticated } = useAuth();
   const design = profileData.design;
-  const minimalistMode = design.minimalistMode;
-  // Own, non-federated profile opted into fediverse sharing (absent flag ⇒ on):
-  // a tappable badge next to the handle explaining the fediverse.
-  const fediverseBadge =
-    isOwnProfile && !profileData.isFederated && user?.fediverseSharing !== false ? (
-      <FediverseSharingBadge size={20} />
-    ) : undefined;
-  // Passive "Follows you" tag rendered inline to the right of the @handle when
-  // this profile follows the viewer. Requires an authenticated viewer (a signed-
-  // out visitor has no "you") and is never shown on the viewer's own profile.
-  const followsYouTag =
-    !isOwnProfile && isAuthenticated && profileData.followsYou ? (
-      <View className="bg-secondary px-2 py-0.5 rounded-full">
-        <Text className="text-secondary-foreground text-xs font-medium" numberOfLines={1}>
-          {t('profile.followsYou', { defaultValue: 'Follows you' })}
-        </Text>
-      </View>
-    ) : undefined;
-  const profileHandle = getNormalizedUserHandle({
-    username: profileData.username || username,
-    instance: profileData.instance,
-    isFederated: profileData.isFederated,
-  }) || username;
-  const collapseLongBio = useAppearanceStore((s) => s.mySettings?.appearance?.collapseLongBio) ?? true;
+  const collapseLongBio =
+    useAppearanceStore((s) => s.mySettings?.appearance?.collapseLongBio) ?? true;
   // `collapseLongBio` is passed as the reset key so toggling it in Settings
   // collapses the bio back to false instead of leaving it stuck expanded.
-  const bioExpand = useExpandableText(profileData.bio ?? '', collapseLongBio ? BIO_COLLAPSE_CHARS : Infinity, collapseLongBio);
+  const bioExpand = useExpandableText(
+    profileData.bio ?? '',
+    collapseLongBio ? BIO_COLLAPSE_CHARS : Infinity,
+    collapseLongBio,
+  );
 
   const handleLayout = (event: LayoutChangeEvent) => {
     onLayout?.(event.nativeEvent.layout.height);
   };
 
-  const userNameStyle = useMemo(() => ({
-    name: { fontSize: 24, fontWeight: 'bold' as const, marginTop: 10, marginBottom: 4 },
-    handle: { fontSize: 15, marginBottom: 12 },
-    container: undefined,
-  }), []);
-
   return (
     <View
       className="bg-background"
-      style={[
-        { paddingHorizontal: LAYOUT.DEFAULT_PADDING, paddingBottom: LAYOUT.DEFAULT_PADDING },
-        minimalistMode && { paddingTop: 0, marginTop: 0 },
-      ]}
+      style={{
+        paddingHorizontal: LAYOUT.DEFAULT_PADDING,
+        paddingBottom: LAYOUT.DEFAULT_PADDING,
+      }}
       onLayout={handleLayout}
     >
-      {minimalistMode ? (
-        <ProfileHeaderMinimalist
-          displayName={design.displayName}
-          username={profileData.username}
-          avatarUri={avatarUri}
-          verified={profileData.verified}
-          isPrivate={isPrivate}
-          privacySettings={profileData.privacy}
-          isOwnProfile={isOwnProfile}
-          profileId={profileData.id}
-          trailingBadge={fediverseBadge}
-          UserNameComponent={UserName}
-        />
-      ) : (
-        <ProfileHeaderDefault
-          username={profileData.username}
-          avatarUri={avatarUri}
-          isOwnProfile={isOwnProfile}
-          isFederated={profileData.isFederated}
-          actorUri={profileData.actorUri}
-          isFollowing={profileData.isFollowing}
-          currentUsername={currentUsername}
-          profileId={profileData.id}
-          FollowButtonComponent={FollowButtonComponent}
-        />
-      )}
+      {identity}
 
-      {/* Action buttons for minimalist mode */}
-      {minimalistMode && (
-        <View className="mt-3 mb-2">
-          <ProfileActions
-            isOwnProfile={isOwnProfile}
-            isFederated={profileData.isFederated}
-            actorUri={profileData.actorUri}
-            currentUsername={currentUsername}
-            profileUsername={profileData.username}
-            profileId={profileData.id}
-            isFollowing={profileData.isFollowing}
-            FollowButtonComponent={FollowButtonComponent}
-          />
-        </View>
-      )}
-
-      {/* Name and handle for default mode */}
-      {!minimalistMode && (
-        <View>
-          <UserName
-            name={design?.displayName}
-            handle={profileData.username}
-            verified={profileData.verified}
-            isFederated={profileData.isFederated}
-            copyableHandle
-            variant="default"
-            style={userNameStyle}
-            trailingBadge={fediverseBadge}
-            handleTrailing={followsYouTag}
-          />
-          {isPrivate && (
-            <View className="flex-row items-center gap-2 flex-wrap">
-              <PrivateBadge privacySettings={profileData.privacy} />
-            </View>
-          )}
-        </View>
-      )}
-
-      {/* Bio */}
-      {!minimalistMode && profileData.bio && (
+      {/* Bio. Not a view-layer nicety: the same text ships on the user DTO and
+          federates as the actor's ActivityPub `summary`, so hiding it here would
+          make the page disagree with what the rest of the network already reads
+          — and with the owner's own edit form, which offers the field. For a
+          channel it is also the only place the page says what it publishes. */}
+      {profileData.bio && (
         <LinkifiedText
           text={bioExpand.displayText}
           className="text-foreground"
           style={{ fontSize: 15, lineHeight: 20, marginBottom: 12 }}
-          suffix={bioExpand.isTruncated ? (
-            <Text
-              className="text-primary"
-              onPress={bioExpand.toggle}
-            >
-              {bioExpand.isExpanded ? ` ${t('common.showLess', 'Show less')}` : ` ${t('profile.bio.readMore', 'Read more')}`}
-            </Text>
-          ) : null}
+          suffix={
+            bioExpand.isTruncated ? (
+              <Text className="text-primary" onPress={bioExpand.toggle}>
+                {bioExpand.isExpanded
+                  ? ` ${t('common.showLess', 'Show less')}`
+                  : ` ${t('profile.bio.readMore', 'Read more')}`}
+              </Text>
+            ) : null
+          }
         />
       )}
 
@@ -188,7 +103,11 @@ export const ProfileContent = memo(function ProfileContent({
               className="flex-row items-center py-1.5 border-b border-border gap-2"
               style={{ borderBottomWidth: StyleSheet.hairlineWidth }}
             >
-              <Text className="text-muted-foreground text-[13px] font-semibold" style={{ width: 100 }} numberOfLines={1}>
+              <Text
+                className="text-muted-foreground text-[13px] font-semibold"
+                style={{ width: 100 }}
+                numberOfLines={1}
+              >
                 {field.name}
               </Text>
               <LinkifiedText
@@ -208,8 +127,7 @@ export const ProfileContent = memo(function ProfileContent({
       <ProfileMeta
         location={profileData.primaryLocation}
         createdAt={profileData.createdAt}
-        username={username}
-        profileHandle={profileHandle}
+        aboutHref={aboutHref}
       />
 
       {/* Stats (following, followers, posts) */}
@@ -220,9 +138,9 @@ export const ProfileContent = memo(function ProfileContent({
           postsCount={profileData.postsCount ?? 0}
           boostsCount={profileData.boostsCount ?? 0}
           repliesCount={profileData.repliesCount ?? 0}
-          profileUsername={profileData.username}
-          profileHandle={profileHandle}
-          username={username}
+          showReplies={showReplies}
+          followingHref={followingHref}
+          followersHref={followersHref}
           onPostsPress={onPostsPress}
           onBoostsPress={onBoostsPress}
           onRepliesPress={onRepliesPress}
@@ -241,7 +159,13 @@ export const ProfileContent = memo(function ProfileContent({
       <FollowedByRow profileId={profileData.id} username={profileHandle} />
 
       {/* Links (Instagram-style summary row + bottom sheet) */}
-      <LinkSummary links={mergeBioAndProfileLinks(profileData.linksMetadata, profileData.links, profileData.bio)} />
+      <LinkSummary
+        links={mergeBioAndProfileLinks(
+          profileData.linksMetadata,
+          profileData.links,
+          profileData.bio,
+        )}
+      />
 
       {/* Communities */}
       {profileData.communities &&

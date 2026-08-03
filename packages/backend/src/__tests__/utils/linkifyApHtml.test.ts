@@ -64,6 +64,25 @@ describe('linkifyApHtml — #hashtags', () => {
   it('leaves #tags as plain text when no hashtagHref is supplied', () => {
     expect(linkifyApHtml('big #News', {})).toBe('<p>big #News</p>');
   });
+
+  // The reported bug, on the outbound-federation path: the ASCII-only class cut
+  // the anchor at the first non-ASCII letter, so remote instances received a
+  // link to `#Bundesl` plus a stray `änderTurnier` in the text.
+  it('wraps a non-ASCII #tag WHOLE, not truncated at the first accent', () => {
+    expect(linkifyApHtml('Das #BundesländerTurnier war toll', opts)).toBe(
+      '<p>Das <a href="https://mention.earth/hashtag/bundesl%C3%A4nderturnier" class="mention hashtag" rel="tag">#BundesländerTurnier</a> war toll</p>',
+    );
+  });
+
+  it('wraps a #tag in a non-Latin script', () => {
+    expect(linkifyApHtml('big #東京 today', opts)).toBe(
+      '<p>big <a href="https://mention.earth/hashtag/%E6%9D%B1%E4%BA%AC" class="mention hashtag" rel="tag">#東京</a> today</p>',
+    );
+  });
+
+  it('does not link a digit-leading tag', () => {
+    expect(linkifyApHtml('see you in #2026', opts)).toBe('<p>see you in #2026</p>');
+  });
 });
 
 describe('linkifyApHtml — URLs', () => {
@@ -124,5 +143,48 @@ describe('linkifyApHtml — composes with paragraphs / <br>', () => {
   it('returns an empty string for an empty/whitespace-only body', () => {
     expect(linkifyApHtml('', opts)).toBe('');
     expect(linkifyApHtml('   \n\n ', opts)).toBe('');
+  });
+});
+
+describe('linkifyApHtml — shared entity definitions', () => {
+  it('renders a whitespace-bearing placeholder as literal text', () => {
+    // This file used to carry its own `[^\]]+` placeholder pattern while the
+    // write boundary used `[^\]\s]+`. Under the loose one this was consumed as a
+    // placeholder — and then DROPPED, since no authorized id can contain a
+    // space, silently deleting text the author typed.
+    expect(linkifyApHtml('hi [mention:foo bar] there', opts)).toBe(
+      '<p>hi [mention:foo bar] there</p>',
+    );
+  });
+
+  it('linkifies a non-ASCII hashtag whole, matching what is stored', () => {
+    expect(linkifyApHtml('das #BundesländerTurnier', opts)).toContain(
+      '>#BundesländerTurnier</a>',
+    );
+  });
+
+  it('leaves a digit-leading #2026 as plain text, as the extractor does', () => {
+    expect(linkifyApHtml('see you in #2026', opts)).toBe('<p>see you in #2026</p>');
+  });
+
+  it('does not linkify a scheme-less www. run', () => {
+    // Outbound anchors are consumed by other servers; synthesizing a scheme onto
+    // something the author never wrote as a link is not this path's call.
+    expect(linkifyApHtml('visit www.example.com', opts)).toBe('<p>visit www.example.com</p>');
+  });
+
+  it('stops a URL at a following tag rather than swallowing it', () => {
+    // The `html` terminator — a run taken to the next whitespace would put
+    // markup inside the href.
+    expect(linkifyApHtml('see https://ex.com/a<b', opts)).toBe(
+      '<p>see <a href="https://ex.com/a">https://ex.com/a</a>&lt;b</p>',
+    );
+  });
+
+  it('keeps a balanced closing paren inside the URL', () => {
+    const url = 'https://en.wikipedia.org/wiki/Foo_(bar)';
+    expect(linkifyApHtml(`see ${url}`, opts)).toBe(
+      `<p>see <a href="${url}">${url}</a></p>`,
+    );
   });
 });

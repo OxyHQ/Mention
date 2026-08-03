@@ -39,6 +39,10 @@ vi.mock('../../services/PostHydrationService', () => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
   getServiceOxyClient: () => ({ getUserById: vi.fn(), getUsersByIds: vi.fn(async () => []) }),
+  // `undefined` = no membership reader, which is exactly what a caller who names
+  // no account gets. These batches name none, so the publish-as gate answers
+  // "the caller" without asking Oxy anything.
+  createUserScopedOxyServices: vi.fn(() => undefined),
 }));
 
 vi.mock('../../utils/notificationUtils', () => ({

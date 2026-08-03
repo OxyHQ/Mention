@@ -66,25 +66,18 @@ describe('canonical post cache contract', () => {
   // on every feed surface while the raw API response still has it — and both of
   // these are optional on `HydratedPost`, so omitting them type-checks cleanly.
   //
-  // Dropping `channel` was not cosmetic: the backend deliberately degrades
-  // `post.user` to "Unknown user" on a channel post and expects the channel to
-  // supply the identity, so a lost `channel` renders the post as an unknown
-  // author rather than as the channel that published it.
-  it('carries the lane and the channel, which decide how a post is signed', () => {
+  it('carries the lane, which decides which profile tab a post is on', () => {
     const post = makePost('signed', {
       lane: { id: 'lane-1', name: 'Opinion', displayMode: 'mixed' },
-      channel: { id: 'ch-1', handle: 'nateonoxy', title: 'Nate on Oxy', signPosts: false },
     });
 
     const item = toFeedItem(post);
 
     expect(item.lane).toEqual(post.lane);
-    expect(item.channel).toEqual(post.channel);
 
     // And it must survive the SQLite round trip, which is what a warm start reads.
     const restored = rowToFeedItem(postToRow(item));
     expect(restored?.lane).toEqual(post.lane);
-    expect(restored?.channel).toEqual(post.channel);
   });
 
   it('adds only local rendering fields without synthesizing identity or viewer aliases', () => {
@@ -145,19 +138,21 @@ describe('canonical post cache contract', () => {
   /**
    * `PostItem` reads `storePost ?? post`, so this converter decides what a post
    * looks like on every feed surface — the cached copy WINS over the API
-   * response. A channel is the signature of the row (its avatar, its name) and
-   * the reason a channel post says nothing about replies; drop it here and a
-   * channel post renders under its author's face and reports "Replies are off",
-   * because the `['nobody']` the server persists as defence in depth survives in
-   * `metadata` while the channel that explains it does not.
+   * response. A CHANNEL post is the case that proves it: its author IS the
+   * channel account, so its whole signature travels in `user`, and a converter
+   * that dropped or reshaped that field would render the post under nobody.
    *
    * `FeedItem` extends `HydratedPost`, so a field this function forgets is a
    * runtime-only loss — nothing about it is visible to the type-check.
    */
-  it('carries the channel that signs a post, through SQLite too', () => {
-    const channel = { id: 'channel-1', handle: 'news', title: 'News', signPosts: true };
+  it('carries a channel account author verbatim, through SQLite too', () => {
     const post = makePost('channel-post', {
-      channel,
+      user: {
+        id: 'channel-account-1',
+        username: 'news',
+        name: { displayName: 'News' },
+        avatar: 'avatar-news',
+      },
       metadata: {
         visibility: PostVisibility.PUBLIC,
         createdAt: '2026-07-26T00:00:00.000Z',
@@ -167,10 +162,10 @@ describe('canonical post cache contract', () => {
     });
 
     const item = toFeedItem(post);
-    expect(item.channel).toEqual(channel);
+    expect(item.user).toEqual(post.user);
 
     const restored = rowToFeedItem(postToRow(item));
-    expect(restored?.channel).toEqual(channel);
+    expect(restored?.user).toEqual(post.user);
   });
 
   it('rehydrates mutable state from columns but rejects legacy raw rows', () => {

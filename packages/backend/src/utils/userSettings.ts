@@ -1,14 +1,6 @@
 import type { UserSettingsRecord } from '../db/userProfile/userSettingsRecord';
 import { resolveBannerUrl } from './mediaResolver';
 
-/**
- * Default profile customization settings
- */
-export const DEFAULT_PROFILE_CUSTOMIZATION = {
-  coverPhotoEnabled: true,
-  minimalistMode: false,
-} as const;
-
 function nonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0
     ? value.trim()
@@ -33,16 +25,6 @@ function resolveProfileHeaderImage(value: unknown): string | undefined {
  */
 export function extractPublicProfileData(doc: Partial<UserSettingsRecord> | null | undefined, userId: string) {
   const customization = doc?.profileCustomization || {};
-  const profileCustomization = {
-    coverPhotoEnabled:
-      typeof customization.coverPhotoEnabled === 'boolean'
-        ? customization.coverPhotoEnabled
-        : DEFAULT_PROFILE_CUSTOMIZATION.coverPhotoEnabled,
-    minimalistMode:
-      typeof customization.minimalistMode === 'boolean'
-        ? customization.minimalistMode
-        : DEFAULT_PROFILE_CUSTOMIZATION.minimalistMode,
-  };
 
   return {
     oxyUserId: userId,
@@ -50,7 +32,6 @@ export function extractPublicProfileData(doc: Partial<UserSettingsRecord> | null
       primaryColor: doc.appearance.primaryColor,
     } : undefined,
     profileHeaderImage: resolveProfileHeaderImage(doc?.profileHeaderImage),
-    profileCustomization,
     // Pinned Syra "profile media" (a song OR a podcast show) — already
     // denormalized + verified at save time, so it is public-safe and
     // rendered/played by viewers as-is. Normalize the stored `null` default to
@@ -70,7 +51,6 @@ export function redactedProfileDesign(userId: string) {
     oxyUserId: userId,
     appearance: undefined,
     profileHeaderImage: undefined,
-    profileCustomization: undefined,
     profileMedia: undefined,
   };
 }

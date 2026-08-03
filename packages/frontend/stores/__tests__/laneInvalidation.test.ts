@@ -80,7 +80,7 @@ describe('lane list invalidation', () => {
 
     expect(predicate({ queryKey: viewerQueryKeys.ownedLanes(VIEWER) })).toBe(true);
     expect(predicate({ queryKey: viewerQueryKeys.mutedLanes(VIEWER) })).toBe(true);
-    expect(predicate({ queryKey: viewerQueryKeys.lanesForOwner(VIEWER, 'user', 'a') })).toBe(true);
+    expect(predicate({ queryKey: viewerQueryKeys.lanesForOwner(VIEWER, 'a') })).toBe(true);
     // A different viewer's lanes still match the family — an account switch
     // drops that namespace wholesale, so "this family, whoever it belongs to"
     // and "this family, for the signed-in viewer" describe the same entries.

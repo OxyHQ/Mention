@@ -19,6 +19,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { LaneIcon } from '@/assets/icons/lane-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Icon, type IconName } from '@/lib/icons';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -299,7 +300,7 @@ export default function LanesScreen() {
 
                     <SettingsListGroup title={t('lanes.addLane', { defaultValue: 'New lane' })}>
                         <View className="px-4 py-3 flex-row items-center gap-3">
-                            <Icon name="git-branch-outline" size={20} color={colors.textSecondary} />
+                            <LaneIcon size={20} color={colors.textSecondary} />
                             <TextInput
                                 className="flex-1 text-[15px] text-foreground"
                                 placeholder={t('lanes.namePlaceholder', { defaultValue: 'Lane name' })}

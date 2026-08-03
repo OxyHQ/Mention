@@ -51,12 +51,49 @@ export interface FederatablePost {
   parentPostId?: string | null;
 }
 
+/**
+ * The app→SDK half of the id translation described on {@link FederatablePost} —
+ * the ONE place a `post.create` / `post.update` event's payload is built.
+ *
+ * THE SPREAD IS THE POINT, and it is why this is a function rather than an
+ * object literal at each call site. `LocalPostEventPayload` names FEWER fields
+ * than the Note builder reads: `metadata.isSensitive` becomes the Note's
+ * `sensitive` flag and `quoteOf` becomes its quote fields, and neither is on the
+ * type. A hand-picked literal type-checks identically and silently drops them —
+ * a sensitive reply federating UNMARKED, a quote reply with no quote — which is
+ * what `__tests__/connectors/outboundPostPayloadShape.test.ts` exists to refuse.
+ * Passing the whole record and renaming two keys keeps every field the builder
+ * might read, including ones it learns to read later.
+ *
+ * `createdAt` is widened for the same reason `_id` is renamed: a `PostRecord`
+ * carries an instant, while the event carries the ISO string every connector
+ * puts on the wire as `published`.
+ */
+export function toFederationPostPayload<T extends FederatablePost>(
+  post: T,
+): T & { _id: string; createdAt: string } {
+  return {
+    ...post,
+    _id: post.id,
+    createdAt: post.createdAt instanceof Date ? post.createdAt.toISOString() : post.createdAt,
+  };
+}
+
 /** The subset of the connector registry that `PostCreationService` depends on. */
 export interface PostFederator {
   federateNewPost(
     post: FederatablePost,
     senderOxyUserId: string,
     senderUsername: string,
+    /**
+     * OTHER local accounts whose remote followers should also receive this
+     * activity, on top of the sender's own. Set only for a cross-account thread,
+     * where each entry answers an account the reader may not follow; see
+     * `connectors/threadFederation.ts` for what that does and does not buy.
+     * Network-neutral on purpose — each connector decides what "that account's
+     * audience" means on its own network.
+     */
+    alsoDeliverToAudiencesOf?: string[],
   ): Promise<void>;
 }
 

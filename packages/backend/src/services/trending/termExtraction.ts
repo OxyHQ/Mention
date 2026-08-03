@@ -21,6 +21,7 @@
 
 import { MtnConfig } from '@mention/shared-types';
 import { stripMentionPlaceholders } from '@mention/shared-types/mentions';
+import { stripTextEntities } from '@mention/shared-types/textEntities';
 
 /**
  * Function words dropped before phrases are built, unioned across the languages
@@ -135,8 +136,20 @@ export function isTrendStopWord(term: string): boolean {
  */
 const SEGMENT_BOUNDARY = /[^\p{L}\p{N}' ]+/u;
 
-/** Strips URLs, @mentions and the `#` marker (keeping the tag's word). */
-const URL_PATTERN = /https?:\/\/\S+|www\.\S+/gi;
+/**
+ * URL runs, located by the shared scanner from
+ * `@mention/shared-types/textEntities` — the same definition the renderer
+ * linkifies — so a link that a reader sees as one link is one thing here too.
+ * `bareWww` stays on: a `www.…` run is a link somebody pasted, and its path
+ * segments are no more a topic than a scheme-bearing one's.
+ *
+ * The rest of the tokenizer below keeps its own patterns deliberately. They are
+ * not entity definitions — they encode this module's stripping ORDER, which is
+ * load-bearing (see the sequence in {@link collectTrendPhrases}) — so folding
+ * them into a shared scanner would unify things that only look alike.
+ */
+const URL_SCAN = { kinds: ['url'] } as const;
+/** Strips @mentions and the `#` marker (keeping the tag's word). */
 const MENTION_PATTERN = /@[\p{L}\p{N}_.-]+(?:@[\p{L}\p{N}.-]+)?/gu;
 
 /*
@@ -189,6 +202,40 @@ export interface TrendTermInput {
   text?: string | null;
   /** Canonical hashtags for the post (lowercase, `#`-stripped, already deduped). */
   hashtags?: readonly string[];
+  /**
+   * The post's detected languages (ISO 639-1, primary first).
+   *
+   * Read for ONE purpose: deciding whether capitalization can mean anything
+   * here. See {@link capitalizationNamesThings}.
+   */
+  languages?: readonly string[];
+}
+
+/**
+ * Languages whose orthography capitalizes EVERY noun, not just proper ones.
+ *
+ * In German `Tag` is "day", `Menschen` is "people" and `Land` is "country" —
+ * all capitalized mid-sentence, exactly like a name. The naming rule below
+ * reads that capital as "this word names something", which is true in English,
+ * Spanish, French and Italian and false in German, so it admitted the whole
+ * dictionary: `Tag` reached the live trending list from eight posts wishing
+ * each other a nice day.
+ *
+ * This is a fact about ORTHOGRAPHY, not a vocabulary list. It has two entries
+ * because two languages do this, and it does not go stale as new words appear —
+ * which is the whole reason it is a language set rather than the German stop
+ * words it would otherwise take to fix the same bug.
+ *
+ * The consequence is deliberate: in these languages a term can only reach the
+ * list as a HASHTAG its author chose to write. Case cannot tell a name from a
+ * noun there, so nothing is guessed from it.
+ */
+const NOUN_CAPITALIZING_LANGUAGES: ReadonlySet<string> = new Set(['de', 'lb']);
+
+/** Whether a mid-sentence capital is evidence of naming, for these languages. */
+function capitalizationNamesThings(languages: readonly string[] | undefined): boolean {
+  if (!languages || languages.length === 0) return true;
+  return !languages.some((code) => NOUN_CAPITALIZING_LANGUAGES.has(code.toLowerCase()));
 }
 
 /**
@@ -211,7 +258,7 @@ export function extractTrendTerms(input: TrendTermInput): string[] {
     terms.push(term);
   };
 
-  for (const phrase of collectTrendPhrases(input.text)) push(phrase);
+  for (const phrase of collectTrendPhrases(input.text, input.languages)) push(phrase);
 
   // Caller-supplied hashtags last: a tag that never appeared in the visible text
   // (the composer's own tag field, or a federated `tag` array) is still a term,
@@ -235,7 +282,10 @@ export function extractTrendTerms(input: TrendTermInput): string[] {
  * whatever happened to be written early. Same tokenizing and the same stop
  * words either way, so the two can never disagree about what a phrase IS.
  */
-export function collectTrendPhrases(text: string | null | undefined): string[] {
+export function collectTrendPhrases(
+  text: string | null | undefined,
+  languages?: readonly string[],
+): string[] {
   const { minTokenLength, maxTokenLength, maxPhraseTokens } = MtnConfig.trending.terms;
 
   const phrases: string[] = [];
@@ -247,18 +297,21 @@ export function collectTrendPhrases(text: string | null | undefined): string[] {
     phrases.push(phrase);
   };
 
-  // A post with no lower-case letter at all carries NO case information — it is
-  // shouting, not naming — so nothing in it counts as a name. Without this the
-  // rule below reads every word of an all-caps post as a proper noun.
-  const carriesCase = /\p{Ll}/u.test(text ?? '');
+  // Two ways a capital can fail to mean anything. A post with no lower-case
+  // letter at all carries NO case information — it is shouting, not naming — and
+  // in a language that capitalizes every noun the capital never distinguished a
+  // name in the first place.
+  const carriesCase =
+    /\p{Ll}/u.test(text ?? '') && capitalizationNamesThings(languages);
 
-  const cleaned = stripMentionPlaceholders(text ?? '')
+  const withoutLinks = stripMentionPlaceholders(text ?? '')
     // Mention links first: they are the shape most likely to contain something
     // that looks like prose, so removing them whole has to happen before the
     // generic link rule salvages their label.
     .replace(MENTION_LINK_PATTERN, ' ')
-    .replace(MARKDOWN_LINK_PATTERN, '$1 ')
-    .replace(URL_PATTERN, ' ')
+    .replace(MARKDOWN_LINK_PATTERN, '$1 ');
+
+  const cleaned = stripTextEntities(withoutLinks, URL_SCAN)
     // Bare handles BEFORE `@mention`s: the `@mention` pattern would otherwise
     // match the `@instance.tld` half of `someone@instance.tld` and leave the
     // orphaned local part behind as a word.

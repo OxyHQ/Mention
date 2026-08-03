@@ -1,6 +1,6 @@
 import type { PostAuthorshipEntry, PostAuthorRole, PostAuthorStatus } from '@mention/shared-types';
 import { MAX_POST_COLLABORATORS } from '@mention/shared-types';
-import { and, eq, exists, inArray, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, eq, exists, inArray, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { postAuthorships, posts } from '../db/schema';
 
@@ -130,26 +130,20 @@ export function collectAuthorshipUserIds(authorship: PostAuthorshipEntry[] | und
  * Returns a predicate matching NOTHING for an empty id list, which is the honest
  * answer and matches Mongo's `$in: []`.
  *
- * ## Channel posts are excluded unconditionally
+ * ## There is deliberately NO channel exclusion here, and re-adding one would be a symptom rather than a fix
  *
- * A post published to a CHANNEL belongs to the channel and only to the channel:
- * it never appears on its author's profile and never reaches their followers'
- * timeline. To put one on your own profile you BOOST it — a separate row, owned
- * by you, that says so.
+ * A channel post used to be authored by the PERSON who wrote it and marked with a
+ * `channel_id`, so a flat `channel_id is null` term was the only thing keeping it
+ * off that person's own profile and out of their followers' timelines. A channel
+ * is an Oxy ACCOUNT now and AUTHORS its own posts, so the `post_authorships`
+ * clause below excludes it by construction — the writer is recorded in
+ * `posts.written_by_oxy_user_id`, which these matchers never look at. The column,
+ * its partial index and the term were all dropped by
+ * `0017_a_channel_is_an_account`.
  *
- * The exclusion lives HERE rather than at the call sites, so a new profile or
- * following query inherits it instead of having to remember it. Mongo spelled it
- * `{ channelId: { $exists: false } }` and had to keep it a flat conjunctive term,
- * because `ChronoCursor.applyToQuery` ASSIGNS `match.$or` and a disjunctive
- * spelling would have stopped filtering after page one — a channel post leaking
- * onto its author's profile only once the reader scrolled.
- *
- * `channel_id is null` carries no such hazard and is TOTAL: it matches every
- * post written before channels existed as well as every ordinary post, so there
- * is no backfill to do and no second clause to add. Mongo needed the note that
- * nothing may ever store an explicit `null` (it would satisfy `$exists` and
- * wrongly exclude the post); here `null` IS "no channel", so the two states
- * cannot diverge.
+ * That makes `posts.written_by_oxy_user_id` load-bearing: fold it into
+ * `post_authorships` and every channel post reappears on its writer's surfaces
+ * with nothing left to stop it.
  */
 export function followedAuthorsSql(authorIds: readonly string[]): SQL {
   if (authorIds.length === 0) return sql`false`;
@@ -165,7 +159,7 @@ export function followedAuthorsSql(authorIds: readonly string[]): SQL {
         ),
       ),
   );
-  return and(authored, isNull(posts.channelId)) as SQL;
+  return authored;
 }
 
 /** Single-author form of {@link followedAuthorsSql} — the profile feed's match. */

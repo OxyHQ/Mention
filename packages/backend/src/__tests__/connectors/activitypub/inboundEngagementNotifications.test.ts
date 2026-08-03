@@ -145,6 +145,11 @@ vi.mock('../../../connectors/activitypub/outbox.service', () => ({
   },
 }));
 
+// The channel reply gate resolves the parent author's account kind here.
+vi.mock('../../../services/publishAsAccount', () => ({
+  isChannelAccount: () => Promise.resolve(false),
+}));
+
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
 
 /** Stub the remote actor (liker/booster/reply-author) resolved via `FederatedActor.findOne`. */

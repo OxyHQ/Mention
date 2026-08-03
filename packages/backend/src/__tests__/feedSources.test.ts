@@ -51,7 +51,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 import { closePostgres, connectPostgres, type Database } from '../db/postgres';
-import { bookmarks, channels, lanes, likes, posts, userSettings } from '../db/schema';
+import { bookmarks, lanes, likes, posts, userSettings } from '../db/schema';
 import { insertPostRecord } from '../db/posts/postRepository';
 import type { PostRecord, PostRecordInput } from '../db/posts/postRecord';
 import {
@@ -62,7 +62,6 @@ import {
 import { videosSource } from '../mtn/feed/engine/sources/discoverySources';
 import {
   authoredSource,
-  channelSource,
   keywordsSource,
   laneSource,
   savedSource,
@@ -73,31 +72,11 @@ import type { CandidatePost, FeedEngineContext } from '../mtn/feed/engine/types'
 let db: Database;
 const created: string[] = [];
 const settingsOwners: string[] = [];
-/**
- * Lanes and channels the suite created, cleaned in the same `afterEach`.
- *
- * Posts go first, then lanes and channels. That order USED to be load-bearing:
- * `posts.channel_id` was `ON DELETE CASCADE`, so a channel deleted before its
- * posts took them with it — and a post the suite believes it deleted itself is
- * a post whose absence proves nothing. Migration `0012` made that column
- * `ON DELETE SET NULL`, so the hazard is gone and the order is now only tidy.
- */
+/** Lanes the suite created, deleted after its posts in the same `afterEach`. */
 const laneIds: string[] = [];
-const channelIds: string[] = [];
 const likedPostIds: string[] = [];
-/** Lane and channel names have a per-suite unique index; a counter is enough. */
+/** A lane name has a per-publisher unique index; a counter is enough. */
 let laneSeq = 0;
-
-/** One public channel owned by this suite's author. */
-async function channel(): Promise<string> {
-  const handle = `feedsrc-chan-${laneSeq++}`;
-  const [row] = await db
-    .insert(channels)
-    .values({ handle, handleLower: handle, title: 'a channel', ownerOxyUserId: AUTHOR })
-    .returning({ id: channels.id });
-  channelIds.push(row.id);
-  return row.id;
-}
 
 const VIEWER = 'feedsrc-viewer';
 const FOLLOW = 'feedsrc-follow';
@@ -173,8 +152,6 @@ afterEach(async () => {
   // After the posts — see `laneIds`.
   const usedLanes = laneIds.splice(0);
   if (usedLanes.length > 0) await db.delete(lanes).where(inArray(lanes.id, usedLanes));
-  const usedChannels = channelIds.splice(0);
-  if (usedChannels.length > 0) await db.delete(channels).where(inArray(channels.id, usedChannels));
   const owners = settingsOwners.splice(0);
   if (owners.length > 0) await db.delete(userSettings).where(inArray(userSettings.oxyUserId, owners));
 });
@@ -703,7 +680,7 @@ describe('the authored source (the profile feed)', () => {
       const name = `feedsrc-${displayMode}-${laneSeq++}`;
       const [row] = await db
         .insert(lanes)
-        .values({ ownerType: 'user', ownerId: AUTHOR, name, nameLower: name, displayMode })
+        .values({ ownerId: AUTHOR, name, nameLower: name, displayMode })
         .returning({ id: lanes.id });
       laneIds.push(row.id);
       return row.id;
@@ -783,19 +760,19 @@ describe('the authored source (the profile feed)', () => {
 describe('the lane source', () => {
   async function lane(
     displayMode: 'mixed' | 'tab' | 'hidden',
-    owner: { ownerType: 'user' | 'channel'; ownerId: string },
+    ownerId: string,
   ): Promise<string> {
     const name = `feedsrc-src-${laneSeq++}`;
     const [row] = await db
       .insert(lanes)
-      .values({ ...owner, name, nameLower: name, displayMode })
+      .values({ ownerId, name, nameLower: name, displayMode })
       .returning({ id: lanes.id });
     laneIds.push(row.id);
     return row.id;
   }
 
   it('serves a `tab` lane, scoped to its publisher', async () => {
-    const laneId = await lane('tab', { ownerType: 'user', ownerId: AUTHOR });
+    const laneId = await lane('tab', AUTHOR);
     const mine = await create({ laneId, createdAt: at(1) });
     // Same lane id, DIFFERENT publisher. Unreachable through the write path
     // (`assertLaneAssignable` refuses the pairing), which is exactly why the
@@ -807,7 +784,7 @@ describe('the lane source', () => {
   });
 
   it.each(['mixed', 'hidden'] as const)('serves nothing for a `%s` lane', async (displayMode) => {
-    const laneId = await lane(displayMode, { ownerType: 'user', ownerId: AUTHOR });
+    const laneId = await lane(displayMode, AUTHOR);
     await create({ laneId });
 
     // The gate that stops this descriptor being the way to read a lane its owner
@@ -817,7 +794,7 @@ describe('the lane source', () => {
 
   it('withholds a private publisher\'s lane from a non-follower', async () => {
     await setProfileVisibility(AUTHOR, 'private');
-    const laneId = await lane('tab', { ownerType: 'user', ownerId: AUTHOR });
+    const laneId = await lane('tab', AUTHOR);
     await create({ laneId });
 
     expect(
@@ -826,10 +803,14 @@ describe('the lane source', () => {
     expect(await laneSource.gather({ currentUserId: AUTHOR }, { laneId }, 31)).toHaveLength(1);
   });
 
-  it('serves a channel-owned lane through the channel gate instead', async () => {
-    const channelId = await channel();
-    const laneId = await lane('tab', { ownerType: 'channel', ownerId: channelId });
-    const post = await create({ laneId, channelId, createdAt: at(0) });
+  it('serves a CHANNEL account\'s lane through the same publisher gate', async () => {
+    // A channel is an Oxy account, so its lane tab answers to `canViewAuthorFeed`
+    // exactly as a person's does — ONE publisher, one check, no second branch and
+    // no channel table to consult. `CHANNEL_ACCOUNT` is an ordinary `oxyUserId`
+    // here precisely because that is all a channel is now.
+    const CHANNEL_ACCOUNT = 'feedsrc-channel-account';
+    const laneId = await lane('tab', CHANNEL_ACCOUNT);
+    const post = await create({ oxyUserId: CHANNEL_ACCOUNT, laneId, createdAt: at(0) });
 
     const served = await laneSource.gather({ currentUserId: VIEWER }, { laneId }, 31);
     expect(idsOf(served)).toEqual([post.id]);
@@ -839,38 +820,16 @@ describe('the lane source', () => {
     expect(await laneSource.gather({}, { laneId: 'feedsrc-no-such-lane' }, 31)).toEqual([]);
     expect(await laneSource.gather({}, {}, 31)).toEqual([]);
   });
-});
 
-/**
- * `channelSource` — the ONLY feed surface a channel post is reachable from.
- *
- * The second case is the one that matters and it is a DEANONYMIZATION guard, not
- * a tidiness rule: under `signPosts: false` the DTO hides the writer, so a
- * channel post appearing on its author's own profile tab tells every reader who
- * wrote every "Unknown user" post there. The exclusion lives inside
- * `authorFeedSql` so a new profile query inherits it.
- */
-describe('the channel source', () => {
-  it('serves the channel\'s posts, and keeps them off their author\'s profile', async () => {
-    const channelId = await channel();
-    const inChannel = await create({ channelId, createdAt: at(1) });
-    const onProfile = await create({ createdAt: at(0) });
-
-    const channelTab = await channelSource.gather({ currentUserId: VIEWER }, { channelId }, 31);
-    expect(idsOf(channelTab)).toEqual([inChannel.id]);
-
-    const profile = await authoredSource.gather(
-      { currentUserId: VIEWER },
-      { authorId: AUTHOR, filter: 'posts' },
-      31,
-    );
-    expect(idsOf(profile)).toEqual([onProfile.id]);
-  });
-
-  it('serves nothing for an unknown channel id or no id at all', async () => {
-    expect(await channelSource.gather({}, { channelId: 'feedsrc-no-such-channel' }, 31)).toEqual([]);
-    expect(await channelSource.gather({}, {}, 31)).toEqual([]);
-  });
+  /**
+   * `main` carried a case here asserting the lane query's Mongo `$or` keyset
+   * literal (`{createdAt: {$lt}}` / `{createdAt, _id: {$lt}}`). It is NOT ported:
+   * its subject was the SHAPE of a Mongo match object, and `laneSource` builds no
+   * match object — it calls the shared `fetchChrono`, so the keyset is
+   * `chronoCursorSql` + `chronoOrderBy` and is exercised for every source at once
+   * by `feedCursor.test.ts` and `chronoCursor.test.ts`. Re-expressing it here
+   * would assert that drizzle emits the SQL drizzle emits.
+   */
 });
 
 describe('the saved source', () => {

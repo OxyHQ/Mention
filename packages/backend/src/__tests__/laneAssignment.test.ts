@@ -22,21 +22,23 @@ import { eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { lanes } from '../db/schema/channels';
 import { assertLaneAssignable, LaneAssignmentError } from '../utils/laneAssignment';
-import type { LaneOwnerType } from '@mention/shared-types';
 
 const AUTHOR = 'laneassign-author';
+/**
+ * A CHANNEL account. Nothing distinguishes it from {@link AUTHOR} but the id:
+ * a channel is an Oxy account, so it publishes into its own lanes through the
+ * same single `ownerId` comparison everybody else does.
+ */
 const CHANNEL = 'laneassign-channel';
 const seeded: string[] = [];
 let seq = 0;
 
 /** One lane, cleaned with the rest. Returns its id. */
-async function lane(
-  owner: { ownerType: LaneOwnerType; ownerId: string } = { ownerType: 'user', ownerId: AUTHOR },
-): Promise<string> {
+async function lane(ownerId: string = AUTHOR): Promise<string> {
   const name = `laneassign-${seq++}`;
   const [row] = await getDb()
     .insert(lanes)
-    .values({ ...owner, name, nameLower: name })
+    .values({ ownerId, name, nameLower: name })
     .returning({ id: lanes.id });
   seeded.push(row.id);
   return row.id;
@@ -97,38 +99,37 @@ describe('assertLaneAssignable — replies and boosts', () => {
 });
 
 describe('assertLaneAssignable — ownership', () => {
-  it('accepts the AUTHOR\'s own lane when the post has no channel', async () => {
+  it('scopes the lookup to the post\'s OWNER', async () => {
     const laneId = await lane();
     await expect(assertLaneAssignable({ laneId, authorId: AUTHOR })).resolves.toBeUndefined();
   });
 
-  it('refuses a CHANNEL-owned lane on a post with no channel', async () => {
-    // The same lane id, wrong publisher TYPE. This is what stops a post mixing a
-    // channel's lane with a personal destination.
-    const laneId = await lane({ ownerType: 'channel', ownerId: CHANNEL });
-    await expect(assertLaneAssignable({ laneId, authorId: AUTHOR })).rejects.toMatchObject({
-      status: 404,
-    });
-  });
-
-  it('scopes to the CHANNEL when the post has one, and refuses the author\'s lane', async () => {
-    const channelLane = await lane({ ownerType: 'channel', ownerId: CHANNEL });
+  it('scopes it to the CHANNEL when the channel is the post\'s owner', async () => {
+    // A channel is an Oxy account and authors its own posts, so the caller passes
+    // the channel as `authorId` and the same single comparison applies — a lane of
+    // the WRITER'S is not eligible, which is what stops a channel post being filed
+    // under a personal lane tab. Stated in BOTH directions, because one direction
+    // alone passes just as well against a lookup that matches everything.
+    const channelLane = await lane(CHANNEL);
     const authorLane = await lane();
 
     await expect(
-      assertLaneAssignable({ laneId: channelLane, authorId: AUTHOR, channelId: CHANNEL }),
+      assertLaneAssignable({ laneId: channelLane, authorId: CHANNEL }),
     ).resolves.toBeUndefined();
-    // The publisher is the channel, so a lane of the AUTHOR'S is not eligible.
-    // This is the pairing that deanonymizes a channel writer if it gets through.
+    // The pairing that deanonymizes a channel writer if it gets through: the
+    // DTO stays anonymous, but a lane tab is scoped to one author.
     await expect(
-      assertLaneAssignable({ laneId: authorLane, authorId: AUTHOR, channelId: CHANNEL }),
+      assertLaneAssignable({ laneId: authorLane, authorId: CHANNEL }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      assertLaneAssignable({ laneId: channelLane, authorId: AUTHOR }),
     ).rejects.toMatchObject({ status: 404 });
   });
 
   it('answers 404 for a lane belonging to somebody else', async () => {
     // Scoped lookup ⇒ a foreign lane is indistinguishable from a missing one.
     // Neither answer is an oracle for whether a given lane id is real.
-    const laneId = await lane({ ownerType: 'user', ownerId: 'laneassign-somebody-else' });
+    const laneId = await lane('laneassign-somebody-else');
     await expect(assertLaneAssignable({ laneId, authorId: AUTHOR })).rejects.toMatchObject({
       status: 404,
       message: 'Lane not found',

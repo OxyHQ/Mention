@@ -33,7 +33,6 @@ export * from './list';
 export * from './lane';
 
 // Channels (a shared, multi-user destination people follow without following its authors)
-export * from './channel';
 
 // Activity subscriptions ("notify me when this account posts")
 export * from './subscription';

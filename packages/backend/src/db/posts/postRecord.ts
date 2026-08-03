@@ -186,14 +186,6 @@ export interface PostRecord {
   writtenByOxyUserId: string | null;
 
   laneId: string | null;
-  /**
-   * The channel this post was published TO — a DESTINATION, and the opposite of
-   * a lane in every way that matters. A post carrying one belongs to the
-   * channel and only to the channel: `authorFeedSql` excludes it from its
-   * author's profile and from their followers' timelines unconditionally, and
-   * neither federation nor the MTN chain ever sees it.
-   */
-  channelId: string | null;
 
   /** The stored renditions plus the shared media/article/poll/location. */
   content: StoredPostContent;
@@ -280,7 +272,6 @@ export interface PostRecordInput {
   scheduledFor?: Date | null;
   writtenByOxyUserId?: string | null;
   laneId?: string | null;
-  channelId?: string | null;
   content: StoredPostContent;
   mentions?: string[];
   metadata?: PostMetadata;

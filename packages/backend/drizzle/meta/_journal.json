@@ -120,6 +120,13 @@
       "when": 1785741653371,
       "tag": "0016_backfill_bookkeeping_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1785760833073,
+      "tag": "0017_a_channel_is_an_account",
+      "breakpoints": true
     }
   ]
 }

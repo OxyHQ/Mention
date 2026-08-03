@@ -18,6 +18,11 @@
  *  thread[0].text … thread[4].text.
  */
 
+import {
+  HASHTAG_DISALLOWED_SOURCE,
+  HASHTAG_LEADING_MARKS_SOURCE,
+} from '@mention/shared-types/hashtags';
+
 /** Hard cap on text length applied after assembly (text + url + tags + via). */
 export const MAX_POST_LENGTH = 500;
 /** Hard cap on hashtags accepted from intent. */
@@ -211,18 +216,26 @@ const parseFiniteNumber = (raw: string | undefined): number | undefined => {
 };
 
 /**
+ * Chars a stored hashtag may not contain, and orphaned leading combining marks —
+ * both from the shared definition in `@mention/shared-types/hashtags`, so a tag
+ * this composer prefills normalizes to exactly what the backend will store.
+ */
+const HASHTAG_DISALLOWED_CHARS = new RegExp(HASHTAG_DISALLOWED_SOURCE, 'gu');
+const HASHTAG_LEADING_MARKS = new RegExp(HASHTAG_LEADING_MARKS_SOURCE, 'u');
+
+/**
  * Normalize a hashtag: lowercase, strip leading `#`s, drop non-tag chars.
  * Returns `undefined` if the resulting tag is empty.
  *
- * Note: we intentionally keep letters, digits, and `_` only — same shape the
- * backend hashtag indexer accepts. Emoji/diacritics are dropped to avoid
- * federation interop drift.
+ * Keeps letters, digits, combining marks and `_` — the shape the backend
+ * hashtag indexer accepts. Marks are kept because in Devanagari, Arabic, Thai
+ * and decomposed Vietnamese a written letter is not one code point; dropping
+ * them rewrote those tags into a different word. Emoji are still dropped.
  */
 const normalizeHashtag = (raw: string): string | undefined => {
   const lower = raw.toLowerCase().replace(/^#+/, '').trim();
   if (lower.length === 0) return undefined;
-  // Keep word chars + unicode letters (BMP). Drop everything else.
-  const cleaned = lower.replace(/[^\p{L}\p{N}_]/gu, '');
+  const cleaned = lower.replace(HASHTAG_DISALLOWED_CHARS, '').replace(HASHTAG_LEADING_MARKS, '');
   return cleaned.length > 0 ? cleaned : undefined;
 };
 

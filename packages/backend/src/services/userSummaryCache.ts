@@ -38,8 +38,10 @@ import { logger } from '../utils/logger';
  *    {@link CachedUserSummary}).
  *  - `v4` — adds the bounded `starterPackScore` (ranking-side, see
  *    {@link CachedUserSummary}).
+ *  - `v5` — the cached Oxy user now carries `kind` (the account
+ *    classification), which the reply gate reads off `user.kind`.
  */
-const USER_SUMMARY_PREFIX = 'usersummary:v4:';
+const USER_SUMMARY_PREFIX = 'usersummary:v5:';
 
 /**
  * TTL for a cached summary. Display name / avatar / verification change rarely;
@@ -57,6 +59,11 @@ const SUMMARY_TTL_SECONDS = config.cache.userSummaryTtlSeconds;
  * All three are OPTIONAL: a user whose count was unavailable, who set no account
  * languages, or whom nobody curated simply omits the field and the corresponding
  * signal falls back to its neutral multiplier.
+ *
+ * The account `kind` is NOT one of them — it lives on `user.kind`, because it is
+ * part of the Oxy user DTO rather than a Mention-side signal. `services/publishAsAccount`
+ * reads it from there, which is what keeps ONE copy of it: a second field here
+ * would be free to disagree with the one the DTO ships.
  */
 export interface CachedUserSummary {
   user: PostUser;

@@ -6,6 +6,7 @@ import type {
 } from '@oxyhq/federation';
 import { logger } from '../utils/logger';
 import { isFediverseSharingEnabled } from '../services/fediverseSharing';
+import { toFederationPostPayload } from '../services/serviceRegistry';
 import type { FederatablePost, PostFederator } from '../services/serviceRegistry';
 
 /**
@@ -15,6 +16,26 @@ import type { FederatablePost, PostFederator } from '../services/serviceRegistry
  */
 type DurableNetworkConnector = NetworkConnector<PostContent> & {
   deliverDurably?: (event: LocalNetworkEvent<PostContent>) => Promise<void>;
+};
+
+/**
+ * Optional capability for delivering an event to OTHER local accounts' audiences
+ * as well as the acting account's own. Declared here, alongside
+ * {@link DurableNetworkConnector} and for the same reason: the upstream
+ * `NetworkConnector` contract has no slot for it, and a connector that cannot do
+ * it simply does not implement the method — the registry falls back to plain
+ * `deliver`, so nothing has to be widened in `@oxyhq/federation` for one app's
+ * addressing need.
+ *
+ * The parameter is a list of Oxy user ids, NOT inboxes, so it stays
+ * network-neutral: an ActivityPub connector reads it as "those accounts' remote
+ * followers", and another network is free to read it in its own terms.
+ */
+type AudienceAwareNetworkConnector = NetworkConnector<PostContent> & {
+  deliverToExtraAudiences?: (
+    event: LocalNetworkEvent<PostContent>,
+    audienceOxyUserIds: string[],
+  ) => Promise<void>;
 };
 
 /** The Oxy user whose `fediverseSharing` consent gates a given outbound event. */
@@ -84,7 +105,7 @@ export class ConnectorRegistry implements PostFederator {
    */
   private async deliverToEnabledConnectors(
     event: LocalNetworkEvent<PostContent>,
-    durable: boolean,
+    options: { durable?: boolean; alsoDeliverToAudiencesOf?: string[] },
   ): Promise<unknown[]> {
     const actorOxyUserId = actingOxyUserId(event);
     if (!(await isFediverseSharingEnabled(actorOxyUserId))) {
@@ -92,11 +113,17 @@ export class ConnectorRegistry implements PostFederator {
       return [];
     }
 
+    const extraAudiences = options.alsoDeliverToAudiencesOf ?? [];
+
     const results = await Promise.allSettled(
       this.connectors.map((connector) => {
         const durableConnector = connector as DurableNetworkConnector;
-        if (durable && durableConnector.deliverDurably) {
+        if (options.durable && durableConnector.deliverDurably) {
           return durableConnector.deliverDurably(event);
+        }
+        const audienceConnector = connector as AudienceAwareNetworkConnector;
+        if (extraAudiences.length > 0 && audienceConnector.deliverToExtraAudiences) {
+          return audienceConnector.deliverToExtraAudiences(event, extraAudiences);
         }
         return connector.deliver(event);
       }),
@@ -116,7 +143,7 @@ export class ConnectorRegistry implements PostFederator {
   }
 
   async deliver(event: LocalNetworkEvent<PostContent>): Promise<void> {
-    await this.deliverToEnabledConnectors(event, false);
+    await this.deliverToEnabledConnectors(event, {});
   }
 
   /**
@@ -124,7 +151,7 @@ export class ConnectorRegistry implements PostFederator {
    * rejection is surfaced after fan-out so the event can be retried.
    */
   async deliverStrict(event: LocalNetworkEvent<PostContent>): Promise<void> {
-    const failures = await this.deliverToEnabledConnectors(event, true);
+    const failures = await this.deliverToEnabledConnectors(event, { durable: true });
     if (failures.length > 0) {
       const error = new Error(`Connector delivery failed for ${event.kind}`);
       (error as Error & { failures: unknown[] }).failures = failures;
@@ -144,21 +171,17 @@ export class ConnectorRegistry implements PostFederator {
     post: FederatablePost,
     senderOxyUserId: string,
     senderUsername: string,
+    alsoDeliverToAudiencesOf?: string[],
   ): Promise<void> {
-    await this.deliver({
-      kind: 'post.create',
-      // The app→SDK half of the id translation described on
-      // {@link FederatablePost}. `createdAt` is widened the same way: a
-      // `PostRecord` carries an instant, the event carries the ISO string every
-      // connector puts on the wire as `published`.
-      post: {
-        ...post,
-        _id: post.id,
-        createdAt: post.createdAt instanceof Date ? post.createdAt.toISOString() : post.createdAt,
+    await this.deliverToEnabledConnectors(
+      {
+        kind: 'post.create',
+        post: toFederationPostPayload(post),
+        actorOxyUserId: senderOxyUserId,
+        actorUsername: senderUsername,
       },
-      actorOxyUserId: senderOxyUserId,
-      actorUsername: senderUsername,
-    });
+      { alsoDeliverToAudiencesOf },
+    );
   }
 
   /** The connector that owns `subject` (a handle / URI / DID), if any. */

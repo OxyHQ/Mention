@@ -80,3 +80,20 @@ describe('detectLowEffort — real text', () => {
     expect(detectLowEffort('   ', CFG).realTextLength).toBe(0);
   });
 });
+
+describe('detectLowEffort — shared hashtag definition', () => {
+  const cfg = SPAM_QUALITY_CONFIG.lowEffort;
+
+  it('discounts a non-ASCII hashtag as scaffolding, marks and all', () => {
+    // The local `#[\p{L}\p{N}_]+` pattern cut a Devanagari tag at its first
+    // combining mark, leaving the orphaned marks behind to be counted as prose.
+    expect(detectLowEffort('#हिन्दी', cfg).realTextLength).toBe(0);
+  });
+
+  it('treats a digit-leading #2026 as prose, not as a tag', () => {
+    // `#2026` is not a hashtag under the shared definition, so it is not
+    // decoration either — detection and storage now agree on that.
+    expect(detectLowEffort('#2026', cfg).realTextLength).toBe(0);
+    expect(detectLowEffort('ran #2026 miles today', cfg).isNoRealText).toBe(false);
+  });
+});

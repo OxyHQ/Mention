@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import {
   extractMentionIds,
   MAX_MENTIONS_PER_POST,
+  mapMentionTexts,
   mentionTextsFromContent,
   normalizeMentionIds,
   reconcileMentionIds,
@@ -47,6 +48,60 @@ describe('canonical mention reconciliation', () => {
         ],
       }),
     ).toEqual(['[mention:primary]', '[mention:secondary]']);
+  });
+});
+
+/**
+ * A write boundary that DERIVES a mention from a body has to change that body
+ * too: the id it stores only renders if a placeholder sits in the text, and
+ * `reconcileMentionIds` drops any id that has none. So the renditions that may
+ * mention somebody and the renditions that get rewritten have to be the SAME
+ * set, and these pin that they are — including for the shapes where the two
+ * could plausibly disagree (a machine translation, and the `text` convenience
+ * form that only counts when there are no author variants at all).
+ */
+describe('rewriting the renditions that can mention', () => {
+  it('rewrites exactly the renditions `mentionTextsFromContent` reads', () => {
+    const content = {
+      variants: [
+        { source: 'author', text: 'see https://x/@a' },
+        { source: 'author', text: 'mira https://x/@a' },
+        { source: 'machine', text: 'voir https://x/@a' },
+      ],
+    };
+
+    expect(mapMentionTexts(content, (text) => text.replace('https://x/@a', '[mention:a]'))).toBe(
+      true,
+    );
+    expect(content.variants.map((v) => v.text)).toEqual([
+      'see [mention:a]',
+      'mira [mention:a]',
+      'voir https://x/@a',
+    ]);
+  });
+
+  it('falls back to `text` on exactly the bodies that have no author variant', () => {
+    const clientShape = { text: 'see https://x/@a' };
+    mapMentionTexts(clientShape, () => 'rewritten');
+    expect(clientShape.text).toBe('rewritten');
+
+    // An author variant exists, so `text` is the hydration convenience copy and
+    // is NOT a rendition anybody can be mentioned from — nor one to write to.
+    const storedShape = { text: 'convenience copy', variants: [{ source: 'author', text: 'body' }] };
+    mapMentionTexts(storedShape, () => 'rewritten');
+    expect(storedShape.text).toBe('convenience copy');
+    expect(storedShape.variants[0].text).toBe('rewritten');
+  });
+
+  it('reports no change when the transform returns the text it was given', () => {
+    const content = { text: 'nothing to do here' };
+    expect(mapMentionTexts(content, (text) => text)).toBe(false);
+    expect(content.text).toBe('nothing to do here');
+  });
+
+  it('is a no-op on a body with no renditions at all', () => {
+    expect(mapMentionTexts({ media: [] }, () => 'rewritten')).toBe(false);
+    expect(mapMentionTexts(undefined, () => 'rewritten')).toBe(false);
   });
 });
 

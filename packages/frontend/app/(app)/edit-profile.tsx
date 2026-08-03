@@ -16,7 +16,6 @@ import { ColorSwatchPicker } from '@/components/settings/ColorSwatchPicker';
 import { Icon } from '@/lib/icons';
 import { useAppColorSave } from '@/hooks/useAppColorSave';
 import { BannerSection } from '@/components/Profile/EditProfile/BannerSection';
-import { ProfileStyleSection } from '@/components/Profile/EditProfile/ProfileStyleSection';
 import { PinnedMediaSection } from '@/components/Profile/EditProfile/PinnedMediaSection';
 
 export default function EditProfileScreen() {
@@ -113,8 +112,6 @@ export default function EditProfileScreen() {
         )}
         <SettingsListDivider />
         <BannerSection />
-        <SettingsListDivider />
-        <ProfileStyleSection />
         <SettingsListDivider />
         <View className="px-5 py-3 gap-3">
           <View className="flex-row items-center gap-3">

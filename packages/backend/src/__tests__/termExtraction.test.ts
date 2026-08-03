@@ -361,3 +361,39 @@ describe('isTrendStopWord — the detection-time filter', () => {
     expect(isTrendStopWord('')).toBe(false);
   });
 });
+
+describe('capitalization is only evidence where it discriminates', () => {
+  it('stops German nouns from reading as names', () => {
+    // Live, 2026-08-03: `Tag` reached the trending list from eight German posts
+    // wishing each other a nice day. German capitalizes EVERY noun, so the
+    // mid-sentence capital that means "this names something" in English means
+    // nothing here — the rule was admitting the dictionary.
+    const german = 'Heute noch n Tag Urlaub war definitiv ne gute Idee';
+
+    expect(extractTrendTerms({ text: german, languages: ['de'] })).not.toContain('tag');
+    expect(extractTrendTerms({ text: german, languages: ['de'] })).not.toContain('urlaub');
+  });
+
+  it('still reads the same capital as a name in English', () => {
+    expect(extractTrendTerms({ text: 'a great day for Zelensky today', languages: ['en'] }))
+      .toContain('zelensky');
+  });
+
+  it('leaves a German post its author-chosen hashtags', () => {
+    // The consequence of the rule, stated: in these languages a term reaches the
+    // list only because someone typed it as a tag. Nothing is guessed from case.
+    expect(
+      extractTrendTerms({
+        text: 'Morgähn. Heute noch n Tag Urlaub',
+        hashtags: ['krachmachwach'],
+        languages: ['de'],
+      }),
+    ).toContain('krachmachwach');
+  });
+
+  it('assumes capitalization means something when no language was detected', () => {
+    // Detection is a separate signal that can be absent, and losing every
+    // untagged term would be a far larger regression than the one being fixed.
+    expect(extractTrendTerms({ text: 'a great day for Zelensky today' })).toContain('zelensky');
+  });
+});

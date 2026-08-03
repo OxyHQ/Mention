@@ -224,3 +224,15 @@ export const MIGRATION_CHANNEL_INDEXES = '0024-channel-indexes';
  * authority. See {@link ./0025-channel-follow-user-index}.
  */
 export const MIGRATION_CHANNEL_FOLLOW_USER_INDEX = '0025-channel-follow-user-index';
+
+/**
+ * Retire the Mention-local channel: re-key the `lanes` indexes onto `ownerId`
+ * alone (a channel is an Oxy account, so `ownerType` had one reachable value),
+ * unset the now-undeclared `lanes.ownerType` and `posts.channelId`, drop
+ * `post_channel_chrono_v1`, and drop the `channels` / `channelmembers` /
+ * `channelfollows` collections — membership is Oxy's account graph and following
+ * a channel is an ordinary Oxy follow. Production disables Mongoose
+ * auto-indexing, so this migration is the schema authority for the new lane
+ * indexes. See {@link ./0026-channel-accounts}.
+ */
+export const MIGRATION_CHANNEL_ACCOUNTS = '0026-channel-accounts';

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { logger } from '../../../utils/logger';
 import { activityPubConnector } from '../ActivityPubConnector';
 import { AP_CONTEXT } from '@oxyhq/federation';
@@ -57,17 +57,18 @@ function outboxScope(oxyUserId: string) {
     eq(posts.visibility, 'public'),
     eq(posts.status, 'published'),
     eq(posts.isReply, false),
-    // The outbox and the featured collection are AUTHOR surfaces, so a channel
-    // post is excluded for the same reason it is excluded from the profile: the
-    // post belongs to the CHANNEL, and channels have no ActivityPub presence in
-    // v1. Listing one here would publish it to the fediverse under the writer's
-    // actor — the opposite of what the channel signs, and a de-anonymization
-    // when `signPosts` is false.
+    // There is NO channel exclusion here, and adding one back would be wrong.
+    // The outbox and the featured collection are AUTHOR surfaces, and a channel
+    // is an Oxy account that AUTHORS its own posts — so this actor's outbox IS
+    // the channel's own outbox when the actor is a channel, and a channel post
+    // federates under the channel's identity like any other post. The
+    // `channel_id is null` term that used to stand here existed only because a
+    // channel post was authored by a PERSON and would otherwise have gone out
+    // under the writer's actor.
     //
-    // It lives in this shared scope rather than at the three call sites so the
-    // count, the page window and the featured collection cannot drift: a
-    // `totalItems` computed without it would promise items no page ever yields.
-    isNull(posts.channelId),
+    // The scope stays shared across the three call sites so the count, the page
+    // window and the featured collection cannot drift: a `totalItems` computed
+    // under a different filter would promise items no page ever yields.
   );
 }
 

@@ -135,14 +135,12 @@ describe('PostCreationService.create — laneId', () => {
     ).rejects.toMatchObject({ status: 400 });
   });
 
-  it('refuses a CHANNEL-owned lane on a post with no channel', async () => {
-    // The ownership lookup is scoped by publisher, and the publisher of a post
-    // with no channel is its author — so a channel's lane is invisible to it and
-    // answers the same 404 somebody else's would.
-    const channelLane = await seedLane(scope, {
-      ownerType: 'channel',
-      ownerId: 'post-creation-lane-channel',
-    });
+  it('scopes the ownership lookup to the author, so a CHANNEL account\'s lane is a 404', async () => {
+    // A channel is an Oxy account and authors its own posts, so its lanes are
+    // scoped by the same single `ownerId` comparison — and a post this person
+    // authored is measured against THEIR lanes, never the channel's. Publishing
+    // as the channel is `publishAsOxyUserId`, which changes the post's owner.
+    const channelLane = await seedLane(scope, { ownerId: 'post-creation-lane-channel' });
 
     await expect(
       postCreationService.create({

@@ -287,6 +287,40 @@ export const NOT_MIGRATED: readonly ExcludedCollection[] = [
       'predates the feature leaving the product. There has been no `Space` ' +
       'model and no reader for either shape since.',
   },
+
+  // --- the Mention-local channel, retired by 0017_a_channel_is_an_account ----
+  {
+    collection: 'channels',
+    reason:
+      'A channel is an Oxy ACCOUNT now (`kind: "channel"`), not a Mention row. ' +
+      '`0017_a_channel_is_an_account` DROPS the `channels` table, so there is ' +
+      'no target to copy into — this is an excluded collection rather than an ' +
+      'unfed table. MEASURED EMPTY: the collection does not exist in ' +
+      'mention-production, its plan copied 0 rows, and 0 of 596,309 posts ' +
+      'carry a `channelId` (0 distinct values). The identity, the membership ' +
+      'and the follow graph all live in Oxy; what a channel POSTED is ' +
+      'unaffected, because those posts are ordinary posts whose author is the ' +
+      'channel account.',
+  },
+  {
+    collection: 'channelmembers',
+    reason:
+      'Membership of a channel is membership of an Oxy ACCOUNT, answered out ' +
+      'of the Oxy account graph (`listAccountMembers`) rather than a Mention ' +
+      'table. `0017_a_channel_is_an_account` drops `channel_members`. MEASURED ' +
+      'EMPTY: the collection does not exist in mention-production and its plan ' +
+      'copied 0 rows.',
+  },
+  {
+    collection: 'channelfollows',
+    reason:
+      'Following a channel is a NORMAL Oxy follow of the channel account — ' +
+      'which is the whole point of the redesign, since it is what lets people ' +
+      'follow a channel without following its authors. ' +
+      '`0017_a_channel_is_an_account` drops `channel_follows`. MEASURED EMPTY: ' +
+      'the collection does not exist in mention-production and its plan copied ' +
+      '0 rows.',
+  },
 ];
 
 /** How the runner classified a live collection. */

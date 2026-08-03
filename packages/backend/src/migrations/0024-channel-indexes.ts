@@ -49,6 +49,15 @@
  * creates a collection on first run, and nothing is backfilled — a post written
  * before channels existed simply carries no `channelId`, which is exactly what the
  * partial filter excludes.
+ *
+ * HISTORY: the three collections and the `posts` field this created were removed
+ * by `0026-channel-accounts`, when a channel became an Oxy account rather than a
+ * Mention row. This migration is kept, and does exactly what it always did, so a
+ * database's ledger still tells the truth about what ran on it — an already-applied
+ * migration is skipped forever, so rewriting one to "not have happened" only
+ * changes what a FRESH database does. The collection names are literals now
+ * because the models they came from are gone; they are the same names Mongoose
+ * derived from `Channel` / `ChannelMember` / `ChannelFollow`.
  */
 
 import mongoose from 'mongoose';

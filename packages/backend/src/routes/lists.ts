@@ -221,18 +221,40 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
     const mine = queryString(req.query.mine);
     const publicOnly = queryString(req.query.publicOnly);
+    // `userId` — ONE account's lists, which is what a profile's Lists tab asks.
+    // Named `userId` because that is what `GET /feeds` and `GET /starter-packs`
+    // already call the same parameter, and the three serve sibling tabs on one
+    // screen; a fourth spelling here is how a client ends up sending the wrong
+    // one, which is precisely what happened.
+    //
+    // Without it that tab fell through to the visibility gate below and answered a
+    // different question entirely: the VIEWER's own lists plus every public list,
+    // on somebody else's profile. It read as a rendering quirk and was a data
+    // leak — you saw your own lists sitting under a stranger's name.
+    const ownerId = queryString(req.query.userId)?.trim();
 
     // Visibility gate, applied UNCONDITIONALLY: the viewer sees their OWN lists
     // plus every public list. It used to be skipped whenever `mine` or
     // `publicOnly` was present but not the literal `'true'` — so `?mine=false`
     // (and `?mine[]=true`, which arrives as an array) produced an unfiltered
-    // query that returned every private list in the database. `mine=true` and
-    // `publicOnly=true` still NARROW within the gate; nothing widens it.
+    // query that returned every private list in the database. `mine=true`,
+    // `publicOnly=true` and `userId` still NARROW within the gate; nothing
+    // widens it.
+    //
+    // Every clause is ANDed, which is what lets the owner filter stand on its
+    // own here: Mongo needed the non-owner's `isPublic` written beside a
+    // top-level `$or` that would otherwise have re-admitted everybody's public
+    // lists, and there is no such disjunction to escape from.
     const conditions: Array<SQL | undefined> = [
       or(eq(accountLists.ownerOxyUserId, userId), eq(accountLists.isPublic, true)),
     ];
     if (mine === 'true') conditions.push(eq(accountLists.ownerOxyUserId, userId));
     if (publicOnly === 'true') conditions.push(eq(accountLists.isPublic, true));
+    if (ownerId) {
+      conditions.push(eq(accountLists.ownerOxyUserId, ownerId));
+      // A non-owner gets that owner's PUBLIC lists only.
+      if (ownerId !== userId) conditions.push(eq(accountLists.isPublic, true));
+    }
 
     // Filter by `search` (title/description, case-insensitive). LIKE-ESCAPED so a
     // raw query can't be read as a wildcard and match everything.

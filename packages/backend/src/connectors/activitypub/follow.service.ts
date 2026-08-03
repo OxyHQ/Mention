@@ -1,8 +1,10 @@
 import { logger } from '../../utils/logger';
 import {
   findActorByUri,
+  findActorInboxesByUris,
   findActorsByOxyUserIds,
 } from '../../db/federation/actorRepository';
+import { distinctRemoteActorUris } from '../../db/federation/followRepository';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import { loadPostRecord } from '../../db/posts/postRepository';
 import { asc, inArray } from 'drizzle-orm';
@@ -647,11 +649,49 @@ export class FollowService {
   /**
    * Federate a newly created local post to all remote followers.
    */
+  /**
+   * The remote inboxes of every accepted inbound follower of `oxyUserIds`, in
+   * the SAME two reads (and with the same shared-inbox preference) the delivery
+   * engine uses for one account's own followers. Deduped; empty for accounts
+   * with no remote followers.
+   *
+   * Only the cross-account thread path asks for this — see
+   * {@link ActivityPubConnector.deliverToExtraAudiences} for why it is
+   * completeness rather than reach. Fail-soft: a read error yields no extra
+   * inboxes rather than sinking the delivery, since the acting account's own
+   * follower fan-out is the part that matters.
+   */
+  private async resolveAudienceInboxes(oxyUserIds: string[]): Promise<string[]> {
+    const unique = [...new Set(oxyUserIds.filter(Boolean))];
+    if (unique.length === 0) return [];
+    try {
+      // DISTINCT in SQL, one statement for all the accounts at once — the same
+      // read `deliveryService` performs for a single account's own followers.
+      const actorUris = await distinctRemoteActorUris({
+        localUserIds: unique,
+        direction: 'inbound',
+        statuses: ['accepted'],
+      });
+      if (actorUris.length === 0) return [];
+
+      const actors = await findActorInboxesByUris(actorUris);
+      const inboxes = new Set<string>();
+      for (const actor of actors) {
+        const inbox = actor.sharedInboxUrl || actor.inboxUrl;
+        if (inbox) inboxes.add(inbox);
+      }
+      return [...inboxes];
+    } catch (err) {
+      logger.warn('[FedDeliver] failed to resolve extra audience inboxes', err);
+      return [];
+    }
+  }
+
   async federateNewPost(
     post: NoteSourcePost & { visibility: string },
     senderOxyUserId: string,
     senderUsername: string,
-    options: { throwOnError?: boolean } = {},
+    options: { throwOnError?: boolean; extraAudienceOxyUserIds?: string[] } = {},
   ): Promise<void> {
     if (!FEDERATION_ENABLED) return;
     // Defensive: the `ConnectorRegistry` outbound seam already gates every
@@ -695,11 +735,18 @@ export class FollowService {
       // fields (+ FEP-e232 Link tag); a non-quote post resolves to null. Fail-soft:
       // an unresolvable quoted post federates the commentary without quote fields.
       const quote = await this.resolveQuoteContext(post);
+      // The OTHER accounts of a cross-account thread: their remote followers'
+      // instances receive this entry too, so the conversation they already hold
+      // half of is complete when a reader opens it. Empty for every other post.
+      const audienceInboxes = await this.resolveAudienceInboxes(
+        options.extraAudienceOxyUserIds ?? [],
+      );
       const activity = this.buildCreateNoteActivity(post, senderUsername, reply?.context, mentions ?? undefined, poll ?? undefined, quote ?? undefined);
       await deliveryService.deliverToFollowers(activity, senderOxyUserId, senderUsername, {
         extraInboxes: [
           ...(reply?.parentAuthorInbox ? [reply.parentAuthorInbox] : []),
           ...(mentions?.inboxes ?? []),
+          ...audienceInboxes,
         ],
       });
     } catch (err) {

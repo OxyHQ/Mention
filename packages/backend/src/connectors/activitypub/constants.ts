@@ -1,9 +1,10 @@
-import { registrableApex, type User } from '@oxyhq/core';
+import { type User } from '@oxyhq/core';
 import { createDomainPolicy, createUrlBuilders } from '@oxyhq/federation';
 import { config } from '../../config';
 import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { getBlockedDomainPolicy, resolveFederationBlocks } from './federationBlockPolicy';
+import { OXY_IDENTITY_APEX } from './ownDomain';
 
 export const FEDERATION_DOMAIN = config.federation.domain;
 export const ACTOR_DOMAIN = config.federation.actorDomain;
@@ -12,32 +13,6 @@ if (ACTOR_DOMAIN !== FEDERATION_DOMAIN) {
 }
 export const OXY_API_URL = config.oxyApiUrl;
 
-/**
- * Oxy's identity apex — the anchor domain of the DID layer. Every Oxy/Mention
- * user is ALSO published as `acct:<username>@<apex>` (e.g. `acct:alice@oxy.so`),
- * so an actor on this apex is one of OUR OWN users, never a remote federated
- * source. Treating it as remote makes `ActorService.fetchRemoteActor` create
- * duplicate `FederatedActor` rows for local users and call Oxy
- * `PUT /users/resolve` against the platform's own identities — hence it is
- * folded into {@link isBlockedDomain} below.
- *
- * Derived from `OXY_API_URL`'s registrable domain via the Public Suffix List
- * (`https://api.oxy.so` → `oxy.so`); overridable with `OXY_IDENTITY_APEX` for
- * non-production anchors. The trailing literal is only reached if the API URL is
- * malformed (no registrable domain) and no override is set.
- */
-const oxyApiHost = (() => {
-  try {
-    return new URL(OXY_API_URL).hostname;
-  } catch {
-    return OXY_API_URL;
-  }
-})();
-export const OXY_IDENTITY_APEX = (
-  config.federation.oxyIdentityApex
-  || registrableApex(oxyApiHost)
-  || 'oxy.so'
-).toLowerCase();
 export const FEDERATION_ENABLED = config.federation.enabled;
 export const FEDERATION_MAX_CONTENT_LENGTH = config.federation.maxContentLength;
 export const FEDERATION_DELIVERY_RETRIES = config.federation.deliveryRetries;

@@ -13,6 +13,7 @@
  * in `routes/webShell.routes.ts`, which is the only caller of these functions.
  */
 import { OxyServices, getNormalizedUserHandle } from '@oxyhq/core';
+import type { AccountKind } from '@oxyhq/core';
 import type { HydratedPost } from '@mention/shared-types';
 import { config } from '../config';
 
@@ -50,6 +51,27 @@ export interface OxyProfileData {
   avatar?: string;
   bio?: string;
   description?: string;
+  /**
+   * The Oxy account classification. Only `channel` is acted on here, and only to
+   * decide which canonical URL the profile lives at — see
+   * {@link canonicalProfilePath}.
+   */
+  kind?: AccountKind;
+}
+
+/**
+ * Where a profile canonically lives on the web: `/c/<handle>` for a channel
+ * account, `/@<handle>` for everyone else.
+ *
+ * ONE definition, so the OG `og:url` a crawler reads and the redirect a browser
+ * follows cannot disagree — a canonical URL that redirects is a canonical URL
+ * that is wrong.
+ */
+export function canonicalProfilePath(profile: OxyProfileData): string {
+  const username = profile.username ?? '';
+  return profile.kind === 'channel'
+    ? `/c/${encodeURIComponent(username)}`
+    : `/@${encodeURIComponent(username)}`;
 }
 
 /**
@@ -160,7 +182,7 @@ export function mapProfileOg(data: OxyProfileData | null | undefined): OgData | 
     title: displayName ? `${displayName} (@${username}) on Mention` : `@${username} on Mention`,
     description: (data.bio || data.description || '').trim(),
     image,
-    url: `${WEB_ORIGIN}/@${username}`,
+    url: `${WEB_ORIGIN}${canonicalProfilePath(data)}`,
     type: 'profile',
   };
 }

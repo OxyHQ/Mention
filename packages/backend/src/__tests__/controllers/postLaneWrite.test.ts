@@ -16,13 +16,7 @@ import { PostType } from '@mention/shared-types';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import {
-  clearPostScope,
-  postScope,
-  seedChannel,
-  seedLane,
-  seedPost,
-} from '../helpers/postFixtures';
+import { clearPostScope, postScope, seedLane, seedPost } from '../helpers/postFixtures';
 
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (objs: object[]) => objs) },
@@ -32,6 +26,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
+  createUserScopedOxyServices: vi.fn(() => undefined),
   getServiceOxyClient: vi.fn(() => ({})),
 }));
 
@@ -206,79 +201,55 @@ describe('PATCH /posts/:id/lane', () => {
   });
 });
 
+
 /**
- * A CHANNEL post may not take a PERSONAL lane — and this path is the one that let
- * it, because it never read `channel_id` and so never passed it to
- * `assertLaneAssignable`.
+ * A CHANNEL post is not reachable through this route at all, and that is the
+ * whole of its channel story now.
  *
- * The validator derives the publisher as `channelId ? 'channel' : 'user'`, so
- * without it a channel post is measured against the CALLER's own lanes. Two
- * invariants break at once, and the second is the serious one:
+ * The lookup is scoped by `{ id, oxy_user_id: userId }`, and a channel is an Oxy
+ * account that AUTHORS its own posts — so a channel post's `oxyUserId` is the
+ * channel, never the caller, and the query simply does not match. The old
+ * deanonymization here (a channel post measured against the CALLER's personal
+ * lanes, then served on a lane tab scoped to that one author) is unreachable by
+ * construction rather than by a passed-through field.
  *
- *  1. "a post with `channelId` never appears on its author's profile"
- *     (`shared-types/src/channel.ts`, rule 3);
- *  2. it DEANONYMIZES. `laneSource`'s user branch scopes by `oxy_user_id` and
- *     deliberately does NOT apply the channel exclusion, on the stated grounds
- *     that the pairing is impossible by construction. Under `signPosts: false`
- *     the DTO is anonymous but the SURFACE is scoped to one author, so a reader
- *     of that lane tab learns who wrote every "Unknown user" post on it.
+ * The cost is a real gap, stated rather than hidden: a channel post's lane cannot
+ * be MOVED after creation through this route. It can still be set at creation,
+ * where `PostCreationService` measures it against the post's actual owner.
  *
  * These are ROW assertions rather than "was the lookup called with these
- * arguments". The omission that caused the bug was a missing PROJECTION — the
- * handler read a row that did not carry `channelId` — and a call-argument
- * assertion is exactly what cannot see that: it observes the argument the
- * handler passed, having been handed the field by a mock that always supplies it.
+ * arguments", and the pair is deliberate: a 404 on its own passes against a
+ * route that refuses everything, so the CONTROL — the same caller, the same
+ * lane, a post they authored — is what makes the first case about the channel.
  */
-describe('PATCH /posts/:id/lane — channel posts', () => {
-  it('404s a channel post pointed at one of the caller\'s PERSONAL lanes', async () => {
-    const channelId = await seedChannel(scope);
-    const personalLane = await seedLane(scope, { ownerType: 'user', ownerId: USER_ID });
-    const post = await seedPost(scope, { oxyUserId: USER_ID, channelId });
+describe('PATCH /posts/:id/lane — a channel post is not this caller\'s to move', () => {
+  const CHANNEL_ACCOUNT = scope.user('channel-account');
 
+  it('404s a post the channel authored, and writes nothing', async () => {
+    const personalLane = await seedLane(scope, { ownerId: USER_ID });
+    const post = await seedPost(scope, { oxyUserId: CHANNEL_ACCOUNT });
     const res = makeRes();
+
     await updatePostLane(makeReq(post.id, { laneId: personalLane }), res as never);
 
-    // The lane exists and belongs to the caller, but not to the channel — which
-    // is precisely what the channel-scoped lookup finds nothing for.
+    // The lane exists and belongs to the caller — the post does not, which is
+    // precisely what the ownership-scoped lookup finds nothing for.
     expect(res.statusCode).toBe(404);
     expect(await storedLaneId(post.id)).toBeNull();
+    expect(CHANNEL_ACCOUNT).not.toBe(USER_ID);
   });
 
-  it('accepts a lane the CHANNEL owns', async () => {
-    const channelId = await seedChannel(scope);
-    const channelLane = await seedLane(scope, { ownerType: 'channel', ownerId: channelId });
-    const post = await seedPost(scope, { oxyUserId: USER_ID, channelId });
-
-    const res = makeRes();
-    await updatePostLane(makeReq(post.id, { laneId: channelLane }), res as never);
-
-    expect(res.statusCode).toBe(200);
-    expect(await storedLaneId(post.id)).toBe(channelLane);
-  });
-
-  it('CONTROL: an ordinary post still takes the caller\'s own lane', async () => {
-    const personalLane = await seedLane(scope, { ownerType: 'user', ownerId: USER_ID });
+  it('CONTROL: the same caller moves their OWN post into that same lane', async () => {
+    const personalLane = await seedLane(scope, { ownerId: USER_ID });
     const post = await seedPost(scope, { oxyUserId: USER_ID });
-
     const res = makeRes();
+
     await updatePostLane(makeReq(post.id, { laneId: personalLane }), res as never);
 
-    // Same lane, same caller, no channel — and the opposite outcome to the first
-    // case, which is what makes that one about the channel rather than about the
-    // lane being unreachable for some other reason.
+    // The opposite outcome from one changed fact — who authored the post — which
+    // is what makes the case above about the author rather than about the lane
+    // being unreachable for some other reason.
     expect(res.statusCode).toBe(200);
     expect(await storedLaneId(post.id)).toBe(personalLane);
-  });
-
-  it('CONTROL: a channel-owned lane is refused on a post with NO channel', async () => {
-    const channelId = await seedChannel(scope);
-    const channelLane = await seedLane(scope, { ownerType: 'channel', ownerId: channelId });
-    const post = await seedPost(scope, { oxyUserId: USER_ID });
-
-    const res = makeRes();
-    await updatePostLane(makeReq(post.id, { laneId: channelLane }), res as never);
-
-    expect(res.statusCode).toBe(404);
-    expect(await storedLaneId(post.id)).toBeNull();
   });
 });

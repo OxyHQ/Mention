@@ -27,10 +27,6 @@ describe('extractPublicProfileData', () => {
     const result = extractPublicProfileData(
       {
         profileHeaderImage: 'new-banner-file',
-        profileCustomization: {
-          coverPhotoEnabled: true,
-          minimalistMode: false,
-        },
       },
       'user-1',
     );
@@ -38,10 +34,11 @@ describe('extractPublicProfileData', () => {
     expect(result.profileHeaderImage).toBe(
       'https://cloud.oxy.so/new-banner-file?variant=w1280',
     );
-    expect(result.profileCustomization).toEqual({
-      coverPhotoEnabled: true,
-      minimalistMode: false,
-    });
+    // `profileCustomization` is no longer part of the public design DTO at all:
+    // its two layout booleans were removed with the "Profile Style" picker, and
+    // the only field left in the stored subdoc (`profileMedia`) is emitted at
+    // the top level.
+    expect('profileCustomization' in result).toBe(false);
   });
 
   it('attaches the banner variant to an already-absolute Oxy CDN url', () => {
@@ -93,10 +90,6 @@ describe('buildSettingsResponseForViewer', () => {
         oxyUserId: 'target-user',
         appearance: { themeMode: 'system', primaryColor: '#00f' },
         profileHeaderImage: 'banner-file',
-        profileCustomization: {
-          coverPhotoEnabled: true,
-          minimalistMode: false,
-        },
         privacy: {
           profileVisibility: 'public',
           showSensitiveContent: true,
@@ -114,10 +107,7 @@ describe('buildSettingsResponseForViewer', () => {
       oxyUserId: 'target-user',
       appearance: { primaryColor: '#00f' },
       profileHeaderImage: 'https://cloud.oxy.so/banner-file?variant=w1280',
-      profileCustomization: {
-        coverPhotoEnabled: true,
-        minimalistMode: false,
-      },
+      profileMedia: undefined,
     });
     if (result) {
       expect('privacy' in result).toBe(false);
@@ -135,8 +125,6 @@ describe('buildSettingsResponseForViewer', () => {
         appearance: { themeMode: 'system', primaryColor: '#00f' },
         profileHeaderImage: 'banner-file',
         profileCustomization: {
-          coverPhotoEnabled: true,
-          minimalistMode: false,
           profileMedia: {
             type: 'podcast',
             syraPodcastId: 'show-1',
@@ -160,7 +148,6 @@ describe('buildSettingsResponseForViewer', () => {
       oxyUserId: 'target-user',
       appearance: undefined,
       profileHeaderImage: undefined,
-      profileCustomization: undefined,
       profileMedia: undefined,
     });
   });

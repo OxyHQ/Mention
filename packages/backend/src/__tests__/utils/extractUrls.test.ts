@@ -50,3 +50,26 @@ describe('extractUrls', () => {
     expect(extractUrls('https://a.test', 0)).toEqual([]);
   });
 });
+
+describe('extractUrls — shared entity definitions', () => {
+  it('keeps a balanced closing paren, which belongs to the URL', () => {
+    const url = 'https://en.wikipedia.org/wiki/Foo_(bar)';
+    expect(extractUrls(`see ${url}`)).toEqual([url]);
+  });
+
+  it('keeps the balanced bracket closing an IPv6 host', () => {
+    // Trimming `]` unconditionally yields `http://[::1`, which does not parse —
+    // so the URL was silently DROPPED by the `new URL()` guard below.
+    expect(extractUrls('see http://[::1] now')).toEqual(['http://[::1]']);
+  });
+
+  it('trims an unbalanced closing paren wrapping the link', () => {
+    expect(extractUrls('and (https://z.test)')).toEqual(['https://z.test']);
+  });
+
+  it('normalizes a host that merely starts with "http"', () => {
+    // The old scheme test was `startsWith('http')`, which read this host as
+    // already scheme-bearing and emitted an unopenable bare value.
+    expect(extractUrls('visit www.httpbin.test')).toEqual(['https://www.httpbin.test']);
+  });
+});

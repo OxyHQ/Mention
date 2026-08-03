@@ -37,7 +37,7 @@
  * genuinely changes behaviour and is escalated rather than settled here.
  */
 
-import { channels, lanes } from './channels';
+import { lanes } from './channels';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
@@ -147,28 +147,29 @@ export const posts = pgTable(
      * The PERSON who wrote this post, when the post's author is a channel
      * account rather than a human.
      *
-     * A channel is becoming a real Oxy account, so `oxy_user_id` and
-     * `post_authorships` will hold the CHANNEL. That leaves the writer with
-     * nowhere else on the row — and Mention still needs them: a channel whose
-     * `signPosts` is on renders a "by <writer>" line beneath the channel's
-     * byline.
+     * A channel IS an Oxy account, so `oxy_user_id` and `post_authorships` hold
+     * the CHANNEL. That leaves the writer with nowhere else on the row — and
+     * Mention still needs them: a channel whose `channel_account_sign_posts` is
+     * on names the writer as a second author in the collaborative byline.
      *
      * **It is its own column and must NEVER become a `post_authorships` row.**
      * That looks like tidying and breaks two things, both load-bearing:
      *
      *  - `getHeaderAuthorshipEntries` (`utils/postAuthorship`) would render the
-     *    writer as a CO-AUTHOR, so the DTO would name the person a channel with
-     *    `signPosts: false` exists to keep anonymous.
+     *    writer as a CO-AUTHOR, so the DTO would name the person a channel that
+     *    does not sign its posts exists to keep anonymous.
      *  - `authorFeedSql` matches through `post_authorships`, so the post would
-     *    reappear on the writer's OWN profile — exactly what the
-     *    `channel_id is null` exclusion is there to prevent. Kept out, that
-     *    clause can eventually be deleted; put in, it has to stay forever.
+     *    reappear on the writer's OWN profile and in their followers' timelines.
+     *    This is the WHOLE of what keeps it off those surfaces: the
+     *    `channel_id is null` exclusion that used to do it is gone with the
+     *    column, because with the channel as the author the authorship matchers
+     *    exclude the post on their own.
      *
-     * Both properties are pinned against real rows in
-     * `__tests__/models/channelAccountSchema.test.ts`.
+     * There is deliberately no `written_by_oxy_user_id` on the DTO — see
+     * `PostHydrationService`, which decides disclosure server-side.
      *
-     * No index: nothing reads the column yet, and the read it is being added for
-     * takes a post the caller already holds and resolves its writer by id.
+     * No index: the read it exists for takes a post the caller already holds and
+     * resolves its writer by id.
      */
     writtenByOxyUserId: text(),
 
@@ -252,47 +253,6 @@ export const posts = pgTable(
      * same thing for the same reason.
      */
     laneId: text().references(() => lanes.id, { onDelete: 'set null' }),
-
-    /**
-     * The channel this post was published TO.
-     *
-     * A lane is a lens; a channel is a DESTINATION. A post carrying one belongs
-     * to the channel and only to the channel: it is excluded unconditionally
-     * from every author-relationship query (`followedAuthorsSql` in
-     * `utils/postAuthorship`) and accepts no replies.
-     *
-     * There is deliberately NO companion boolean — the presence of this value IS
-     * the rule. In Mongo that mattered because the exclusion had to stay a flat
-     * conjunctive term (`ChronoCursor.applyToQuery` ASSIGNS `match.$or`, so a
-     * disjunctive spelling silently stopped filtering after page one). Here the
-     * exclusion is `channel_id is null`, which is total: it matches every post
-     * written before channels existed as well as every ordinary post, so no
-     * backfill is owed and no second clause is needed.
-     *
-     * ## SET NULL, and it was CASCADE — migration `0012`
-     *
-     * `ON DELETE CASCADE` here meant that deleting ONE channel destroyed every
-     * post ever published to it, irreversibly, INCLUDING posts written by other
-     * publishers. That contradicted the product rule its own delete route
-     * documents at length — deleting a channel RELEASES its posts back to their
-     * authors — and it contradicted `lane_id` directly above, which carries the
-     * identical argument (deleting the curation is not deleting the content)
-     * and always said `set null`. An inconsistency, not a considered exception,
-     * which is the shape a future reader resolves in whichever direction is
-     * nearest.
-     *
-     * It was unreachable while `deleteChannelCascade` was the only writer, and
-     * that is exactly the reasoning the flip rejects: "correct because the
-     * application always releases first" is a property of ONE call site, and
-     * this repo is actively adding others (a destructive domain-purge sweep is
-     * being ported alongside this). The FK is what makes the guarantee hold for
-     * a caller nobody has written yet.
-     *
-     * The release in `deleteChannelCascade` STAYS. This protects the row; the
-     * release is what performs the rest of the product rule — see the fixture
-     * in `__tests__/db/channelRepository.test.ts` that distinguishes them.
-     */
-    channelId: text().references(() => channels.id, { onDelete: 'set null' }),
 
     /**
      * The post this one replies to.
@@ -716,14 +676,6 @@ export const posts = pgTable(
     index('post_lane_chrono_v1')
       .on(t.laneId, t.visibility, t.status, t.createdAt.desc(), t.id.desc())
       .where(sql`${t.laneId} is not null`),
-    /**
-     * The channel page's keyset, on the same reasoning as the lane index above —
-     * and doing double duty as the index behind `channel_id is null`'s
-     * complement, the only set this table's author queries ever exclude.
-     */
-    index('post_channel_chrono_v1')
-      .on(t.channelId, t.visibility, t.status, t.createdAt.desc(), t.id.desc())
-      .where(sql`${t.channelId} is not null`),
 
     // Multikey → GIN. These are the array predicates the feed engine actually
     // runs (`hashtags: {$in}`, `postClassification.languages: {$in}`,

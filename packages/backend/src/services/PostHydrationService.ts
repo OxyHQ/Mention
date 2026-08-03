@@ -1,10 +1,10 @@
 import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostUser, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostReplyContext, PostViewerState, PostVisibility, PostAuthorshipEntry, MEDIA_VARIANT_THUMB } from '@mention/shared-types';
-import type { ChannelSummary, LaneDisplayMode, LaneSummary } from '@mention/shared-types';
+import type { LaneDisplayMode, LaneSummary } from '@mention/shared-types';
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { bookmarks as bookmarksTable, likes as likesTable } from '../db/schema/engagement';
 import { pollOptions, pollVotes, polls as pollsTable } from '../db/schema/polls';
-import { channels as channelsTable, lanes as lanesTable } from '../db/schema/channels';
+import { lanes as lanesTable } from '../db/schema/channels';
 import { posts } from '../db/schema/posts';
 import { userSettings } from '../db/schema/userProfile';
 import {
@@ -21,11 +21,12 @@ import {
   findActorsByUris,
 } from '../db/federation/actorRepository';
 import { actorService } from '../connectors/activitypub/actor.service';
-import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
+import { ACTOR_DOMAIN, FEDERATION_DOMAIN, FEDERATION_ENABLED } from '../connectors/activitypub/constants';
 import { deriveBridgyActorUri } from '../connectors/activitypub/bridgy';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { extractUrls } from '../utils/extractUrls';
+import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
 import {
   getBlockedUserIds,
   getRestrictedUserIds,
@@ -64,6 +65,41 @@ import { loadRecentReplierIds } from './PostRecentReplierService';
 import { PostContentVariant, PostMetadata, StoredPostContent } from '@mention/shared-types';
 
 /**
+ * The hosts whose `/@alice` URLs name a user in OUR namespace.
+ *
+ * These must be the same hosts the app recognises
+ * (`packages/frontend/utils/ownProfileLinks.ts`, which derives its list from the
+ * app's `WEB_BASE_URL` and is shared by the reader's linkifier, the composer's
+ * card gate and the composer's mention summary), because the decisions are all
+ * halves of one behaviour:
+ * the renderer turns such a URL into a mention, and {@link ownProfileLinkUrls}
+ * withholds the preview card that would otherwise sit under it. If the lists
+ * disagree the reader sees the mismatch — a mention with a redundant card, or a
+ * link that lost its card for no visible reason.
+ *
+ * The federation domain rather than `FRONTEND_URL`: they agree in production,
+ * but `FRONTEND_URL` is a CORS origin and is `http://localhost:8110` in
+ * development, where the app's own base URL is not. `ACTOR_DOMAIN` defaults to
+ * the same value and is only distinct when actor URIs are served elsewhere.
+ */
+const OWN_PROFILE_HOSTS: readonly string[] = [
+  ...new Set([FEDERATION_DOMAIN, ACTOR_DOMAIN].filter((host): host is string => Boolean(host))),
+];
+
+/**
+ * True when a URL names a profile on this instance — the URLs the reader is
+ * shown a MENTION for rather than a link.
+ *
+ * The same `ownProfileUrlHandle` the linkifier decides with, so the two cannot
+ * drift into disagreeing about a URL: whatever the renderer swallows into a
+ * mention is exactly what loses its card, and everything else keeps one. Purely
+ * syntactic, so this costs a `URL` parse per extracted link and no I/O.
+ */
+function isOwnProfileLink(url: string): boolean {
+  return ownProfileUrlHandle(url, OWN_PROFILE_HOSTS) !== undefined;
+}
+
+/**
  * A raw post plain-object as returned by `.lean()` or `.toObject()`.
  * Covers all fields accessed during hydration, including federated-only fields.
  */
@@ -71,6 +107,13 @@ interface RawPost {
   _id?: unknown;
   id?: string;
   oxyUserId?: string;
+  /**
+   * The human who wrote a post published BY a `channel` account, recorded here
+   * rather than in `authorship` (which would put the post back on their own
+   * profile and their followers' timelines). Read only to decide the byline —
+   * it never reaches a DTO field of its own.
+   */
+  writtenByOxyUserId?: string;
   authorship?: PostAuthorshipEntry[];
   /** The post's STORED content: renditions (`variants[0]` is the primary) + the shared media/article. */
   content?: Partial<StoredPostContent>;
@@ -94,8 +137,6 @@ interface RawPost {
   quoteOf?: unknown;
   /** The author's lane for this post — the `› Lane name` chip. Local curation only. */
   laneId?: string;
-  /** The channel this post was published to — the row's SIGNATURE, not a chip. */
-  channelId?: string;
   originalPostId?: unknown;
   parentPostId?: unknown;
   threadId?: unknown;
@@ -248,6 +289,10 @@ function toCachedUser(userId: string, userData: OxyUser): CachedUserSummary {
     // Bare Oxy file id (or a mirrored absolute URL) — never pre-resolved here.
     avatar: userData.avatar ?? null,
     verified: Boolean(userData.verified || userData.isVerified),
+    // The account classification, passed through UNCHANGED like every other Oxy
+    // user field. It is what tells a renderer to link a channel's post to
+    // `/c/<handle>`, and what `services/publishAsAccount` reads server-side.
+    kind: userData.kind,
     isFederated: isFederated || undefined,
     federation: federation
       ? { domain: federation.domain, actorUri: federation.actorUri, actorId: federation.actorId }
@@ -892,14 +937,13 @@ export class PostHydrationService {
     // Everything else is independent and can run concurrently.
     const [
       ,
-      { userMap, recentReplierMap, replyParentAuthorIdByPostId, selfContinuationPostIds },
+      { userMap, recentReplierMap, replyParentAuthorIdByPostId, selfContinuationPostIds, signingChannelIds },
       pollMap,
       authorPrivacyMap,
       linkPreviewMap,
       orphanAuthorMap,
       quoteCountMap,
       laneMap,
-      channelMap,
     ] = await Promise.all([
       this.populateViewerInteractions(postIds, viewerContext),
       (async () => {
@@ -908,13 +952,21 @@ export class PostHydrationService {
         // batch below. So resolving "whom does each reply answer" adds no Oxy
         // round trip and no latency of its own — the parent authors are merged
         // into the one `buildUserMap` call the rest of hydration already makes.
-        const [replierAggResult, replyParents] = await Promise.all([
+        // The channel-disclosure lookup joins them for the same reason: it is
+        // one indexed settings query over the graph, it feeds the SAME user
+        // batch, and its answer is what decides whether a channel's WRITER is
+        // resolved at all. An undisclosed writer is never even looked up.
+        const [replierAggResult, replyParents, signingIds] = await Promise.all([
           this.loadRecentReplierProjection(postIds),
           this.buildReplyParentAuthorMap(postsForHydration, viewerContext),
+          this.buildSigningChannelIds(postsForHydration),
         ]);
         const extraUserIds = new Set(replierAggResult.allReplierIds);
         for (const parentAuthorId of replyParents.parentAuthorIds) {
           extraUserIds.add(parentAuthorId);
+        }
+        for (const writerId of this.collectDisclosedWriterIds(postsForHydration, signingIds)) {
+          extraUserIds.add(writerId);
         }
         const uMap = await this.buildUserMap(postsForHydration, extraUserIds);
         const rMap = this.buildReplierAvatarsFromUserMap(replierAggResult.perPostRepliers, uMap);
@@ -923,6 +975,7 @@ export class PostHydrationService {
           recentReplierMap: rMap,
           replyParentAuthorIdByPostId: replyParents.parentAuthorIdByPostId,
           selfContinuationPostIds: replyParents.selfContinuationPostIds,
+          signingChannelIds: signingIds,
         };
       })(),
       this.buildPollMap(postsForHydration),
@@ -937,7 +990,6 @@ export class PostHydrationService {
         ? this.buildQuoteCountMap(postIds)
         : Promise.resolve(undefined),
       this.buildLaneMap(postsForHydration),
-      this.buildChannelMap(postsForHydration),
     ]);
     const mentionCache: Map<string, PostUser> = new Map(userMap);
 
@@ -960,7 +1012,7 @@ export class PostHydrationService {
           replyParentAuthorIdByPostId,
           selfContinuationPostIds,
           laneMap,
-          channelMap,
+          signingChannelIds,
         })
       )
     );
@@ -1584,67 +1636,90 @@ export class PostHydrationService {
   }
 
   /**
-   * The channels of every post in the graph, in ONE indexed query keyed by channel
-   * id. Sits in the same `Promise.all` as {@link buildLaneMap}, and propagates to
-   * `originalPost` / `quotedPost` / `boost.originalPost` for free, because those
-   * are the SAME objects out of `summaryMap` — which is what makes a BOOST of a
-   * channel post render as "the channel posted, reposted by X" with no extra work.
+   * The channel accounts in this page that DISCLOSE their writers, in ONE
+   * indexed `UserSettings` query keyed by the candidate authors' ids.
    *
-   * `signPosts` travels with the summary because it is what tells the renderer
-   * whether a `· by @author` line exists at all — and, more importantly, it is the
-   * value {@link buildPostSummary} reads to decide whether the author travels in
-   * the DTO in the first place.
+   * Only posts that actually carry a `writtenByOxyUserId` contribute a
+   * candidate, so an ordinary page of posts asks about nothing and the query is
+   * skipped entirely.
    *
-   * Fail-soft: a lookup failure yields an empty map, so the post renders under its
-   * author rather than not rendering at all. That is the RIGHT failure for a
-   * `signPosts: true` channel and the wrong one for a `signPosts: false` channel,
-   * so {@link buildPostSummary} treats a post whose channel is missing from this
-   * map as anonymous anyway — see there.
+   * **It fails CLOSED, three times over, and each one matters.** The set holds
+   * only ids whose settings row says `channel.signPosts === true`: a channel
+   * with no settings row is absent, a channel that never opted in is absent, and
+   * a lookup that THROWS yields an empty set — so every failure mode lands on
+   * "do not disclose". Anonymity is the safe answer here; naming a writer who
+   * did not consent cannot be undone by a later request that works.
+   *
+   * The `=== true` is deliberate rather than incidental. The value is read out
+   * of a document, so it is not the schema's word that reaches this line, and a
+   * loose read would disclose on any truthy value a stray write left behind.
    */
-  private async buildChannelMap(nodes: HydratedGraphNode[]): Promise<Map<string, ChannelSummary>> {
-    const channelIds = Array.from(
-      new Set(
-        nodes
-          .map(({ post }) => post?.channelId)
-          .filter((id): id is string => typeof id === 'string' && id.length > 0),
-      ),
-    );
+  private async buildSigningChannelIds(nodes: HydratedGraphNode[]): Promise<Set<string>> {
+    const candidateAuthorIds = new Set<string>();
+    for (const { post } of nodes) {
+      if (typeof post?.writtenByOxyUserId !== 'string' || post.writtenByOxyUserId.length === 0) {
+        continue;
+      }
+      const authorId = post.oxyUserId ? String(post.oxyUserId) : '';
+      if (authorId) candidateAuthorIds.add(authorId);
+    }
 
-    if (channelIds.length === 0) {
-      return new Map();
+    if (candidateAuthorIds.size === 0) {
+      return new Set();
     }
 
     try {
       const rows = await getDb()
         .select({
-          id: channelsTable.id,
-          handle: channelsTable.handle,
-          title: channelsTable.title,
-          avatar: channelsTable.avatar,
-          signPosts: channelsTable.signPosts,
+          oxyUserId: userSettings.oxyUserId,
+          signPosts: userSettings.channelAccountSignPosts,
         })
-        .from(channelsTable)
-        .where(inArray(channelsTable.id, channelIds));
+        .from(userSettings)
+        .where(inArray(userSettings.oxyUserId, [...candidateAuthorIds]));
 
-      const map = new Map<string, ChannelSummary>();
-      for (const channel of rows) {
-        map.set(channel.id, {
-          id: channel.id,
-          handle: channel.handle,
-          title: channel.title,
-          ...(channel.avatar ? { avatar: channel.avatar } : {}),
-          // `=== true` is kept rather than trusting the column's NOT NULL
-          // default: this value decides whether the WRITER travels in the DTO,
-          // and the safe answer for anything that is not exactly `true` is
-          // anonymous. See `buildPostSummary`.
-          signPosts: channel.signPosts === true,
-        });
+      const signing = new Set<string>();
+      for (const row of rows) {
+        // `=== true` rather than a truthy read, and the column being nullable is
+        // what makes that a real distinction: `channel_account_sign_posts` is
+        // NULL for every account that is not a channel and for every channel that
+        // has never chosen, so `null` and `false` both have to land on "do not
+        // disclose" — which they do, and which a `Boolean(...)` would too, but
+        // only until somebody widens the column. This value decides whether the
+        // WRITER travels in the DTO.
+        if (row.signPosts === true) signing.add(row.oxyUserId);
       }
-      return map;
+      return signing;
     } catch (error) {
-      logger.error('[PostHydration] Failed to build channel map:', error);
-      return new Map();
+      logger.error('[PostHydration] Failed to load channel signing settings:', error);
+      return new Set();
     }
+  }
+
+  /**
+   * The writer ids this page will actually DISCLOSE — merged into the single
+   * `buildUserMap` batch so a disclosed writer resolves through the ordinary
+   * identity path, exactly like any other author.
+   *
+   * Gated on the settings answer rather than on the column, so an undisclosed
+   * writer is not resolved, not cached, and cannot reach a DTO by accident. The
+   * remaining condition — that the author really is a `channel` account — is
+   * checked at byline time, where the resolved `user.kind` is known.
+   */
+  private collectDisclosedWriterIds(
+    nodes: HydratedGraphNode[],
+    signingChannelIds: Set<string>,
+  ): Set<string> {
+    const writerIds = new Set<string>();
+    if (signingChannelIds.size === 0) return writerIds;
+
+    for (const { post } of nodes) {
+      const writerId = typeof post?.writtenByOxyUserId === 'string' ? post.writtenByOxyUserId : '';
+      const authorId = post?.oxyUserId ? String(post.oxyUserId) : '';
+      if (writerId && authorId && signingChannelIds.has(authorId)) {
+        writerIds.add(writerId);
+      }
+    }
+    return writerIds;
   }
 
   private async buildUserMap(
@@ -1748,6 +1823,22 @@ export class PostHydrationService {
    * render and gains one on a later render once Oxy has resolved it. Only
    * top-level posts carry previewable text; nested boosts/quotes have no preview
    * of their own.
+   *
+   * A URL naming a profile on THIS instance gets no card ({@link isOwnProfileLink}),
+   * because the reader is not shown a link there: the linkifier renders that span
+   * as a mention, and a card underneath would preview a page the reader can no
+   * longer see a link to. It is dropped before the batch call rather than after,
+   * so we also stop asking the preview service to scrape our own profile pages.
+   * The suppression is per URL, not per post — a post carrying a profile link AND
+   * an article still gets the article's card.
+   *
+   * One bounded consequence, stated rather than hidden: {@link extractUrls}
+   * applies the `MAX_POST_LINK_PREVIEWS` cap BEFORE this filter, so a post
+   * carrying more than that many links, one of which is a profile link, renders
+   * one card fewer instead of promoting the next link into the freed slot. Moving
+   * the filter ahead of the cap would mean teaching a generally-named URL
+   * extractor about profile links, which is a worse trade for a case that needs
+   * five links in one body to reach.
    */
   private async buildLinkPreviewMap(
     nodes: HydratedGraphNode[],
@@ -1765,7 +1856,7 @@ export class PostHydrationService {
       const text = resolvedMap.get(postId)?.text;
       if (!text || typeof text !== 'string') continue;
 
-      const urls = extractUrls(text);
+      const urls = extractUrls(text).filter((url) => !isOwnProfileLink(url));
       if (urls.length === 0) continue;
 
       postToUrls.set(postId, urls);
@@ -2202,10 +2293,10 @@ export class PostHydrationService {
     selfContinuationPostIds: Set<string>;
     /** The author's lanes, keyed by lane id — the `› Lane name` chip in the name row. */
     laneMap: Map<string, LaneSummary>;
-    /** The channels posts were published to, keyed by channel id — the row's SIGNATURE. */
-    channelMap: Map<string, ChannelSummary>;
+    /** Channel accounts in this page whose `signPosts` is on — see {@link buildSigningChannelIds}. */
+    signingChannelIds: Set<string>;
   }): Promise<HydratedPostSummary | null> {
-    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap, replyParentAuthorIdByPostId, selfContinuationPostIds, laneMap, channelMap } = params;
+    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap, replyParentAuthorIdByPostId, selfContinuationPostIds, laneMap, signingChannelIds } = params;
 
     const postId = this.resolveId(post);
     if (!postId) return null;
@@ -2243,41 +2334,14 @@ export class PostHydrationService {
     // federated post uses its federation-derived author (its `oxyUserId` is null,
     // so there is nothing in `userMap`), and its authorship carries no usable
     // owner — the byline falls back to `user` from an empty `authors[]`.
-    // The channel this post was published to, when it has one. It is the row's
-    // SIGNATURE — the renderer paints the channel's avatar and name — and it is a
-    // separate field precisely so nothing can collapse it into `user`: Oxy owns
-    // identity, and a `PostUser` fabricated from a channel would break `/@handle`
-    // links and poison the identity cache.
-    const channel = typeof post.channelId === 'string'
-      ? channelMap.get(post.channelId)
-      : undefined;
-
-    // **ANONYMITY IS ENFORCED IN THE DTO, NOT IN THE RENDERER.** With
-    // `signPosts: false` the writer must not travel at all — hiding them only in
-    // the UI is not anonymity when anyone can read the API response.
     //
-    // The condition is deliberately written as "the post has a channel and that
-    // channel did not say to sign it", NOT as "the channel says not to sign it":
-    // a channel row that failed to load leaves `channel` undefined, and treating
-    // THAT as "sign it" would publish the author on a lookup failure. Fail closed.
-    //
-    // It does not vary by viewer — including for the writer's own view. A
-    // viewer-conditional identity is how a cached DTO leaks one, and `viewerState`
-    // plus `authorship` (emitted only to a participant) already carry everything
-    // the writer's own affordances need.
-    const anonymousUnderChannel = typeof post.channelId === 'string' && channel?.signPosts !== true;
-
-    // `degradedActorSummary(postId)` — the POST's id, never the author's, so not
-    // even an opaque identifier for the writer travels. It is the shape the repo
-    // already uses for "there is no identity to show here" (empty username, so no
-    // `@handle` line and no profile link), which means every existing renderer
-    // handles it correctly with no new case.
-    const user = anonymousUnderChannel
-      ? degradedActorSummary(postId)
-      : orphanAuthor ?? userMap.get(authorId) ?? degradedActorSummary(authorId);
-    const headerEntries = orphanAuthor || anonymousUnderChannel
-      ? []
-      : getHeaderAuthorshipEntries(authorship);
+    // A CHANNEL post takes this same path and no other. The channel is an Oxy
+    // account and authors its own posts, so `authorId` IS the channel and `user`
+    // resolves through the ordinary identity route — real handle, real avatar,
+    // real `name.displayName`. `user` stays the channel whatever the byline
+    // says: the channel is the signature.
+    const user = orphanAuthor ?? userMap.get(authorId) ?? degradedActorSummary(authorId);
+    const headerEntries = orphanAuthor ? [] : getHeaderAuthorshipEntries(authorship);
     const authors: HydratedAuthor[] = headerEntries.map((entry) => {
       const summary = userMap.get(entry.oxyUserId) ?? degradedActorSummary(entry.oxyUserId);
       return {
@@ -2286,6 +2350,40 @@ export class PostHydrationService {
         status: entry.status,
       };
     });
+
+    // The human behind a channel post, named only when the channel says to.
+    //
+    // FAIL-CLOSED, and every clause is load-bearing: the account has to BE a
+    // channel (`user.kind`, which the identity cache carries), that channel has
+    // to be in `signingChannelIds` — which holds only accounts whose settings
+    // row says `signPosts === true`, so a missing row, a channel that never
+    // opted in, and a failed lookup are all absent from it — and the post has to
+    // carry a writer. Miss any one and nothing is disclosed.
+    //
+    // `userMap` only holds the writer when the SAME conditions already sent the
+    // id to the batch, so an undisclosed writer is not merely unrendered: they
+    // were never resolved, and `writtenByOxyUserId` has no DTO field to leak
+    // through either. Anonymity does not depend on this branch being right.
+    //
+    // Appended to an EXISTING byline, never used to start one: `authors` leads
+    // with the owner, so a lone writer would read as the primary author — the
+    // one thing `user` staying the channel is meant to prevent.
+    const writerId = typeof post.writtenByOxyUserId === 'string' ? post.writtenByOxyUserId : '';
+    if (
+      writerId &&
+      authors.length > 0 &&
+      user.kind === 'channel' &&
+      signingChannelIds.has(authorId) &&
+      !authors.some((author) => author.id === writerId)
+    ) {
+      const writer = userMap.get(writerId);
+      // Absent only if the batch never resolved them; a resolve MISS still
+      // yields the degraded summary, which renders as "Unknown user" with no
+      // handle rather than as a raw id.
+      if (writer) {
+        authors.push({ ...writer, role: 'writer', status: 'accepted' });
+      }
+    }
 
     const baseContent: StoredPostContent = post?.content ?? {};
     const resolved = resolvedMap.get(postId) ?? resolveVariant(baseContent);
@@ -2396,13 +2494,6 @@ export class PostHydrationService {
       ...(typeof post.laneId === 'string' && laneMap.has(post.laneId)
         ? { lane: laneMap.get(post.laneId) }
         : {}),
-      // The channel signature. Absent when the post has no channel, and absent
-      // when its channel row is gone (the delete cascade `$unset`s `channelId`
-      // before removing the Channel, so this is only reachable if that cascade was
-      // interrupted). Note that an ABSENT channel on a post that HAS a `channelId`
-      // still anonymizes the author above — the row loses its signature rather
-      // than gaining the writer's.
-      ...(channel ? { channel } : {}),
       // Include parentPostId for thread hierarchy in replies
       ...(post.parentPostId ? { parentPostId: String(post.parentPostId) } : {}),
       // The reply marker rides on the POST, so every surface that renders one —
