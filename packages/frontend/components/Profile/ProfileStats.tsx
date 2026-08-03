@@ -16,6 +16,7 @@ export const ProfileStats = memo(function ProfileStats({
   postsCount,
   boostsCount,
   repliesCount,
+  showReplies = true,
   profileUsername,
   profileHandle,
   username,
@@ -94,18 +95,20 @@ export const ProfileStats = memo(function ProfileStats({
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        className="gap-1"
-        style={styles.statItem}
-        onPress={onRepliesPress}
-      >
-        <Text className="text-foreground" style={styles.statNumber}>
-          {formatCompactNumber(repliesCount ?? 0)}
-        </Text>
-        <Text className="text-muted-foreground" style={styles.statLabel}>
-          {t('profile.stats.replies')}
-        </Text>
-      </TouchableOpacity>
+      {showReplies && (
+        <TouchableOpacity
+          className="gap-1"
+          style={styles.statItem}
+          onPress={onRepliesPress}
+        >
+          <Text className="text-foreground" style={styles.statNumber}>
+            {formatCompactNumber(repliesCount ?? 0)}
+          </Text>
+          <Text className="text-muted-foreground" style={styles.statLabel}>
+            {t('profile.stats.replies')}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 });

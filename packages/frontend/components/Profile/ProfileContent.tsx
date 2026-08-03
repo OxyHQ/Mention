@@ -16,7 +16,7 @@ import { ProfileMedia } from './ProfileMedia';
 import { FollowedByRow } from './FollowedByRow';
 import { ProfileCommunities } from './ProfileCommunities';
 import { PrivateBadge } from './PrivateBadge';
-import { LAYOUT } from './types';
+import { LAYOUT, profileTabsForAccountKind } from './types';
 import type { ProfileContentProps } from './types';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { useAuth } from '@oxyhq/services/ui/client';
@@ -162,8 +162,15 @@ export const ProfileContent = memo(function ProfileContent({
         </View>
       )}
 
-      {/* Bio */}
-      {!minimalistMode && profileData.bio && (
+      {/* Bio — in BOTH layouts. It used to be default-only, which was tolerable
+          while minimalist was a layout a person opted into for themselves; it is
+          now the one and only layout a CHANNEL gets, and a channel's bio is the
+          only place its page says what it publishes. It is also not a
+          view-layer nicety: the same text ships on the user DTO and federates as
+          the actor's ActivityPub `summary`, so hiding it here made the page
+          disagree with what the rest of the network already reads — and with the
+          operator's own edit form, which offers the field. */}
+      {profileData.bio && (
         <LinkifiedText
           text={bioExpand.displayText}
           className="text-foreground"
@@ -220,6 +227,9 @@ export const ProfileContent = memo(function ProfileContent({
           postsCount={profileData.postsCount ?? 0}
           boostsCount={profileData.boostsCount ?? 0}
           repliesCount={profileData.repliesCount ?? 0}
+          // The same derivation the tab strip uses, so the stat and the tab it
+          // jumps to appear and disappear together.
+          showReplies={profileTabsForAccountKind(profileData.kind).includes('replies')}
           profileUsername={profileData.username}
           profileHandle={profileHandle}
           username={username}

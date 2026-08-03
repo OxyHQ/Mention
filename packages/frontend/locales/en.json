@@ -426,11 +426,6 @@
   "settings.appearance.postTextLength.more": "More",
   "settings.appearance.postTextLength.muchMore": "Much more",
   "settings.appearance.postTextLength.all": "Show all",
-  "settings.profileCustomization.profileStyle": "Profile Style",
-  "settings.profileCustomization.styleDefault": "Default",
-  "settings.profileCustomization.styleDefaultDesc": "Classic layout with cover photo",
-  "settings.profileCustomization.styleMinimalist": "Minimalist",
-  "settings.profileCustomization.styleMinimalistDesc": "Clean layout without cover photo",
   "settings.account.manageAccount": "Manage account",
   "settings.editProfile.signInRequired": "Sign in to customize your profile",
   "settings.editProfile.signInRequiredDesc": "Choose your profile layout and accent color.",
@@ -1899,5 +1894,14 @@
     "related_zero": "Related, not merged: {{terms}}",
     "related_one": "Related, not merged: {{terms}} +{{count}} more",
     "related_other": "Related, not merged: {{terms}} +{{count}} more"
-  }
+  },
+  "channels.settings.profile": "Channel profile",
+  "channels.settings.changePicture": "Change picture",
+  "channels.settings.bioPlaceholder": "What this channel is about",
+  "channels.settings.bioLabel": "Channel description",
+  "channels.settings.saveProfile": "Save changes",
+  "channels.settings.saving": "Saving…",
+  "channels.settings.profileSaved": "Channel updated",
+  "channels.settings.profileSaveFailed": "Failed to update the channel profile",
+  "channels.settings.identityFooter": "The channel’s handle and the people who may publish as it belong to the account itself — change them where you manage your Oxy accounts."
 }

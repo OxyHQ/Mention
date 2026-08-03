@@ -1,4 +1,5 @@
 import type { ViewStyle, TextStyle, StyleProp } from 'react-native';
+import type { AccountKind } from '@oxyhq/core';
 import type { ProfileData } from '@/hooks/useProfileData';
 
 /**
@@ -11,6 +12,74 @@ import type { useAuth } from '@oxyhq/services/ui/client';
 // Tab configuration
 export const TAB_NAMES = ['posts', 'replies', 'media', 'videos', 'likes', 'boosts', 'feeds', 'starter_packs', 'lists'] as const;
 export type ProfileTab = typeof TAB_NAMES[number];
+
+/**
+ * The static tabs a CHANNEL account's profile does NOT get.
+ *
+ * Not one rule with five instances — THREE separate findings across five tabs,
+ * and the differences matter, because the day one of these mechanisms changes it
+ * is the reason recorded here that says whether the tab should come back:
+ *
+ * - **`replies`** — a channel is a publisher, not a conversant, and the model
+ *   refuses replies on BOTH sides of it. Nobody may reply to a channel post
+ *   (`utils/channelReplyGate.ts`, which keys on the post AUTHOR's account kind at
+ *   five write sites), and the channel may not author one either:
+ *   `PostCreationService` rejects `publishAsOxyUserId` together with
+ *   `parentPostId`, in its own words because "a channel takes no replies at all".
+ *
+ * - **`likes`** — the tab does not read the channel's posts at all; it reads the
+ *   `Like` collection keyed by the LIKER (`gatherAuthorLikes` →
+ *   `Like.find({ userId })`). Every writer of that row takes the liker from an
+ *   authenticated session (`likePost`) or from a resolved remote actor (the AP
+ *   inbox). A channel can never be a session subject — `isActAsEligibleKind`
+ *   refuses the kind — so no row can ever name one.
+ *
+ * - **`feeds`, `starter_packs`, `lists`** — all three are OWNED resources, and in
+ *   all three the owner column has exactly one meaningful writer: the session
+ *   subject. `CustomFeed.ownerOxyUserId`, `StarterPack.ownerOxyUserId` and
+ *   `AccountList.ownerOxyUserId` are each set from `req.user.id` on create, no
+ *   create route takes an act-for parameter (`publishAsOxyUserId` exists only on
+ *   post creation and on the channel-settings route), and no update route can
+ *   reassign an owner. A channel cannot own one, so the tab is not merely empty —
+ *   it asks a question the account can never answer. (`FeedGenerator.createdBy`
+ *   and mirrored starter packs have a second writer, the atproto mirror, but it
+ *   only ever names a `type: 'federated'` account Mention resolved through the
+ *   identity bridge, which never requests `kind: 'channel'`.)
+ *
+ * `boosts` is deliberately NOT here, and the near-miss is worth stating: a boost
+ * IS one of the channel's own `Post` rows (the tab is `buildAuthorFeedMatch` plus
+ * `boostOf != null` — the same rows the posts tab filters), so it is a well-formed
+ * question about a channel. `PostCreationService` does refuse a boost together
+ * with `publishAsOxyUserId` today, so the tab is currently empty in practice, but
+ * that refusal is a statement about the boost ROW ("its own row belongs to the
+ * booster"), not about channels — unlike the five above, nothing about the
+ * account kind is what empties it.
+ *
+ * Lane tabs are unaffected: a lane's owner is an `oxyUserId` and a channel
+ * account is one, so a channel has lanes like any other publisher.
+ */
+const CHANNEL_EXCLUDED_TABS = [
+  'replies',
+  'likes',
+  'feeds',
+  'starter_packs',
+  'lists',
+] as const satisfies readonly ProfileTab[];
+
+/**
+ * The static tabs this account kind's profile shows, in strip order.
+ *
+ * The ONE place the tab set is derived from the account kind. An absent kind
+ * reads as `personal` (the column's default), which is also every federated and
+ * unresolved profile — none of which is a channel.
+ */
+export function profileTabsForAccountKind(
+  kind: AccountKind | undefined,
+): readonly ProfileTab[] {
+  if (kind !== 'channel') return TAB_NAMES;
+  const excluded = CHANNEL_EXCLUDED_TABS as readonly ProfileTab[];
+  return TAB_NAMES.filter((tab) => !excluded.includes(tab));
+}
 
 /**
  * One tab of a profile, as the tab bar actually renders it.
@@ -49,20 +118,27 @@ export function laneTabKey(laneId: string): string {
 }
 
 /**
- * The profile's tab strip: the nine static tabs, with the publisher's lane tabs
- * spliced in directly AFTER `posts`.
+ * The profile's tab strip: the static tabs this account KIND gets, with the
+ * publisher's lane tabs spliced in directly AFTER `posts`.
  *
  * That position is the point of the feature — a lane is a second reading of the
  * same body of work, so it belongs beside the main tab rather than past Lists
  * where nobody scrolls. It is also exactly why `REPLIES_TAB_INDEX = 1` and
  * `BOOSTS_TAB_INDEX = 5` had to go: with one lane they name the wrong tabs.
+ *
+ * The kind is taken here rather than by the caller filtering afterwards, so a
+ * screen cannot render a strip a channel has no business having by forgetting a
+ * step — see {@link profileTabsForAccountKind} for which tabs it drops and why.
+ * `labels` still covers every {@link ProfileTab}: the caller has no reason to
+ * know which subset survives, and an unused label costs one `t()`.
  */
 export function buildProfileTabDescriptors(
   labels: Readonly<Record<ProfileTab, string>>,
   lanes: readonly LaneTabInput[] = [],
+  accountKind?: AccountKind,
 ): ProfileTabDescriptor[] {
   const descriptors: ProfileTabDescriptor[] = [];
-  for (const tab of TAB_NAMES) {
+  for (const tab of profileTabsForAccountKind(accountKind)) {
     descriptors.push({ key: tab, label: labels[tab], tab });
     if (tab === 'posts') {
       for (const lane of lanes) {
@@ -247,6 +323,14 @@ export interface ProfileStatsProps {
   postsCount: number;
   boostsCount: number;
   repliesCount: number;
+  /**
+   * Whether the replies stat is shown. Follows the SAME rule as the replies TAB
+   * — an account that can never author a reply has no honest replies count to
+   * offer, and the stat is a jump link to a tab that would not be there. The
+   * caller derives it from {@link profileTabsForAccountKind} so the two cannot
+   * disagree.
+   */
+  showReplies?: boolean;
   profileUsername?: string;
   profileHandle?: string;
   username: string;

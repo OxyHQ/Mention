@@ -94,9 +94,13 @@ export interface ProfileMediaPodcast {
  */
 export type ProfileMedia = ProfileMediaSong | ProfileMediaPodcast;
 
+/**
+ * What is left of the old "Profile Style" feature's storage: the pinned Syra
+ * media, and nothing else. Its two layout booleans (`coverPhotoEnabled`,
+ * `minimalistMode`) were removed with the picker that wrote them — the profile
+ * layout is now derived from the account kind, not stored.
+ */
 export interface ProfileCustomization {
-  coverPhotoEnabled?: boolean;
-  minimalistMode?: boolean;
   profileMedia?: ProfileMedia | null;
 }
 
@@ -264,8 +268,6 @@ const ProfileMediaSchema = new Schema({
 }, { _id: false });
 
 const ProfileCustomizationSchema = new Schema<ProfileCustomization>({
-  coverPhotoEnabled: { type: Boolean, default: true },
-  minimalistMode: { type: Boolean, default: false },
   profileMedia: { type: ProfileMediaSchema, default: null },
 }, { _id: false });
 

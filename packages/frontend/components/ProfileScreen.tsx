@@ -165,8 +165,11 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
         },
     });
 
-    // Tabs — all users (including federated) get the full static strip since the
-    // data is in Oxy/Mention DB; lane tabs are spliced in after `posts`.
+    // Tabs — every PERSON (federated included) gets the full static strip, since
+    // the data behind each tab is in Oxy/Mention's DB either way; a channel
+    // account gets the subset its kind can actually fill, which
+    // `buildProfileTabDescriptors` derives from the kind itself. Lane tabs are
+    // spliced in after `posts` for both.
     const tabDescriptors = useMemo(
         () =>
             buildProfileTabDescriptors(
@@ -182,8 +185,9 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                     lists: t('profile.tabs.lists', { defaultValue: 'Lists' }),
                 },
                 laneTabs,
+                profileData?.kind,
             ),
-        [t, laneTabs],
+        [t, laneTabs, profileData?.kind],
     );
 
     const activeTab = profileTabIndex(tabDescriptors, activeTabKey);
@@ -246,10 +250,13 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
     // Computed values
     const design = profileData?.design;
     const avatarUri = design?.avatar;
-    const bannerUri =
-        design?.coverPhotoEnabled && design?.bannerUrl
-            ? design.bannerUrl
-            : undefined;
+    // A stored banner is shown whenever there is one. The `coverPhotoEnabled`
+    // gate that used to gate it here went with the "Profile Style" picker that
+    // was its only writer — left in place it would have kept suppressing the
+    // banner of everyone who ever picked Minimalist, with no control anywhere
+    // left to turn it back on. Whether a banner renders AT ALL is decided one
+    // level up, by `minimalistMode`.
+    const bannerUri = design?.bannerUrl;
     const minimalistMode = design?.minimalistMode ?? false;
     const profileHandle = useMemo(() => {
         return getNormalizedUserHandle({

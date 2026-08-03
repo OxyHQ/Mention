@@ -409,11 +409,6 @@
   "settings.appearance.postTextLength.more": "Di più",
   "settings.appearance.postTextLength.muchMore": "Molto di più",
   "settings.appearance.postTextLength.all": "Mostra tutto",
-  "settings.profileCustomization.profileStyle": "Stile Profilo",
-  "settings.profileCustomization.styleDefault": "Predefinito",
-  "settings.profileCustomization.styleDefaultDesc": "Layout classico con foto di copertina",
-  "settings.profileCustomization.styleMinimalist": "Minimalista",
-  "settings.profileCustomization.styleMinimalistDesc": "Layout pulito senza foto di copertina",
   "settings.account.manageAccount": "Gestisci account",
   "settings.editProfile.signInRequired": "Accedi per personalizzare il tuo profilo",
   "settings.editProfile.signInRequiredDesc": "Scegli il layout del tuo profilo e il colore d'accento.",
@@ -1650,5 +1645,14 @@
     "related_zero": "Correlati, non uniti: {{terms}}",
     "related_one": "Correlati, non uniti: {{terms}} +{{count}} altri",
     "related_other": "Correlati, non uniti: {{terms}} +{{count}} altri"
-  }
+  },
+  "channels.settings.profile": "Profilo del canale",
+  "channels.settings.changePicture": "Cambia immagine",
+  "channels.settings.bioPlaceholder": "Di cosa parla questo canale",
+  "channels.settings.bioLabel": "Descrizione del canale",
+  "channels.settings.saveProfile": "Salva modifiche",
+  "channels.settings.saving": "Salvataggio…",
+  "channels.settings.profileSaved": "Canale aggiornato",
+  "channels.settings.profileSaveFailed": "Impossibile aggiornare il profilo del canale",
+  "channels.settings.identityFooter": "L’identificativo del canale e le persone che possono pubblicare a suo nome appartengono all’account stesso: modificali dove gestisci i tuoi account Oxy."
 }
