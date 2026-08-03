@@ -1193,6 +1193,38 @@ export function parentKeysFrom(loaded: ReadonlyMap<string, ReadonlySet<string>>)
   };
 }
 
+/**
+ * A parent set for a pass that is NOT deciding references at all.
+ *
+ * THREE distinct answers exist here and only two of them were reachable before
+ * the first orphan resolution was declared, which is why this is a late
+ * addition rather than part of the original design:
+ *
+ *  - **unloaded** (`parentKeysFrom(new Map())`) — THROWS. The copy must never
+ *    decide a reference against a set nobody built, so the run is refused.
+ *  - **loaded and empty** — stands the rules down. "This table holds no rows
+ *    yet" is a real answer and it is honoured.
+ *  - **not consulted** — this. The caller runs transforms for a purpose that
+ *    has nothing to do with references (measuring defaulted columns, or
+ *    building the key set the reference check will later use), so there is no
+ *    reference decision to get wrong.
+ *
+ * The first two were indistinguishable in practice while `ORPHAN_RESOLUTIONS`
+ * was empty, because `resolveOrphanedReferences` returned before ever calling
+ * `keysFor`. Declaring the first resolution on `posts` woke that path up and
+ * the audit's own defaulted-column pass — which had always passed an unloaded
+ * set, correctly, since it decides nothing — started refusing the whole run.
+ *
+ * **The COPY must never use this.** Its fail-closed refusal is the thing that
+ * stops a reference being decided against the wrong parents; this exists only
+ * for passes that make no such decision, and `backfillOrphanResolutions.test.ts`
+ * pins that the copy still refuses an unloaded set.
+ */
+export function parentKeysNotConsulted(): ParentKeys {
+  const none: ReadonlySet<string> = new Set();
+  return { keysFor: () => none };
+}
+
 /** Every parent table an `absent-parent` rule decides against. */
 export function parentTablesForRules(): PgTable[] {
   const seen = new Set<string>();

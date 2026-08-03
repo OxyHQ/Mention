@@ -28,6 +28,8 @@ import { eq, inArray } from 'drizzle-orm';
 import { mongoSourceFromDb, type MongoSource } from '../../db/backfill/mongoSource';
 import { COLLECTION_PLANS } from '../../db/backfill/collectionMap';
 import { copyCollection } from '../../db/backfill/runner';
+import { auditDefaultedColumns } from '../../db/backfill/audit';
+import { auditReferentialIntegrity } from '../../db/backfill/referentialIntegrity';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { postRecentRepliers } from '../../db/schema/postContent';
@@ -331,5 +333,48 @@ describe('a recent-replier row naming a post Mention never held', () => {
 
     expect(kept.map((row) => row.postId)).toStrictEqual([present.toHexString()]);
     expect(reportedIds(log, 'drop-recent-replier-of-a-vanished-post')).toHaveLength(1);
+  });
+});
+
+describe('the audit passes that run transforms but decide no reference', () => {
+  /**
+   * The regression that reached PRODUCTION, and the reason this file exists in
+   * the shape it does.
+   *
+   * `auditDefaultedColumns` runs every transform to measure which columns rows
+   * omit. It decides no reference, so it had always passed an UNLOADED parent
+   * set — correct, and inert, for exactly as long as `ORPHAN_RESOLUTIONS` was
+   * empty: `resolveOrphanedReferences` returned before ever calling `keysFor`.
+   *
+   * Declaring the first resolution on `posts` woke that path up, and run 9 died
+   * two minutes in with `MissingParentKeysError` before reaching a single
+   * finding. The full test suite was green — 600 tests — because nothing
+   * exercised an audit pass over a collection that HAS resolutions declared.
+   * A rule can therefore be correct in every test and still stop the run.
+   */
+  it('run over a collection that HAS declared resolutions, without refusing', async () => {
+    const boost = new ObjectId();
+    await mongo
+      .collection('posts')
+      .insertMany([
+        basePost(new ObjectId()),
+        basePost(boost, { type: 'boost', boostOf: new ObjectId().toHexString() }),
+      ]);
+
+    const resolutions = createResolutionContext(await planResolutions(source), new ResolutionLog());
+
+    // Both passes, because both run transforms for a non-reference purpose and
+    // both used to pass an unloaded set.
+    await expect(auditDefaultedColumns(source, planFor('posts'), resolutions)).resolves.toBeInstanceOf(
+      Array
+    );
+    await expect(
+      auditReferentialIntegrity(
+        getDb(),
+        source,
+        [{ plan: planFor('posts'), documents: 2 }],
+        resolutions
+      )
+    ).resolves.toBeDefined();
   });
 });

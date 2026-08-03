@@ -72,7 +72,7 @@ import { allowedValues, describeNumericBound, numericIsAccepted, tableName } fro
 import type { MongoSource, ReadOnlyCollection } from './mongoSource';
 import { streamCollection } from './mongoSource';
 import type { ResolutionContext, ResolutionRule } from './resolutions';
-import { parentKeysFrom, transformDocument } from './resolutions';
+import { parentKeysNotConsulted, transformDocument } from './resolutions';
 import { tableShape } from './rowBuilder';
 import { BackfillValueError } from './values';
 
@@ -798,10 +798,11 @@ export async function auditDefaultedColumns(
   const omissions = new Map<string, { table: PgTable; property: string; rows: number; ids: string[] }>();
   const rowsPerTable = new Map<string, number>();
 
-  // The rules cannot be asked anything here: their parent sets belong to the
-  // referential audit's own two phases, and an empty `ParentKeys` throws rather
-  // than answering from an empty map.
-  const noParents = parentKeysFrom(new Map());
+  // This pass measures DEFAULTED COLUMNS; it decides no reference, so the
+  // orphan rules are not consulted. That is a third state, distinct from both
+  // "unloaded" (which refuses) and "loaded and empty" (which means the table is
+  // genuinely empty) — see `parentKeysNotConsulted`.
+  const noParents = parentKeysNotConsulted();
 
   const refused: RefusedDocuments = new Map();
 
