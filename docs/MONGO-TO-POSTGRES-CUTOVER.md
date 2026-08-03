@@ -177,7 +177,7 @@ two halves. Do both here, and do them BEFORE the merge in §3.4.**
 
 ```bash
 aws ecs update-service --cluster oxy-cluster --service mention --desired-count 0
-gh variable set ALLOW_ZERO_DESIRED_COUNT --body mention
+gh variable set ALLOW_ZERO_DESIRED_COUNT --body "mention:$(date -u -d '+2 days' +%F)"
 ```
 
 **Why it must be set before the merge, not after.** The deploy has **no manual
@@ -191,8 +191,16 @@ betting on beating CI.
 pre-check, with traffic already stopped and the copy already done — see §3.4 for
 the full reasoning and the unset half.
 
-**A variable left set cannot authorise anything on its own**, which is what makes
-this pairing acceptable rather than merely convenient: the script consults it
+**The value carries an EXPIRY — `mention:<YYYY-MM-DD>` — and both halves are
+checked.** Give it a date a day or two out. If the window slips past it the
+deploy **refuses**, loudly, and you fix it in thirty seconds by re-setting the
+variable; it can never fail toward permitting. The expiry is a backstop for the
+unset in §3.4 being skipped, not a replacement for it — a forgotten variable
+disarms itself the day after rather than leaving this repo permanently easier to
+deploy onto nothing.
+
+**A variable left set cannot authorise anything on its own** either, which is
+what makes this pairing acceptable rather than merely convenient: the script consults it
 only when `desiredCount` is ALREADY 0, and that takes a deliberate scale-down. It
 needs a second deliberate act to become live. Do not "clean up" the pairing on
 the theory that the variable alone is the danger — it is the scale-down that

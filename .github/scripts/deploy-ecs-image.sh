@@ -42,9 +42,44 @@ POST_DEPLOY_TASK_COMMAND_JSON="${POST_DEPLOY_TASK_COMMAND_JSON:-}"
 ALLOW_ZERO_DESIRED_COUNT="${ALLOW_ZERO_DESIRED_COUNT:-}"
 
 # Whether this run may proceed against a zero-count service.
+#
+# The value is `<service>:<YYYY-MM-DD>` and BOTH halves must hold: the service
+# must be this one, and the date must not have passed. Every other shape refuses.
+#
+# The expiry is what keeps this from being a permanent reduction in protection.
+# Without it, a variable set for one window and never removed silently disarms
+# the zero-count guard forever, and the failure only shows up the day somebody
+# scales to zero for an unrelated reason and a deploy reports green onto no
+# capacity. With it, a forgotten variable disarms ITSELF the day after.
+#
+# It fails toward REFUSING, which is the direction that matters: if the window
+# slips past the expiry the deploy refuses loudly, mid-window, and is fixed in
+# thirty seconds by updating the variable. It can never fail toward permitting.
 zero_desired_count_allowed=false
-if [[ -n "$ALLOW_ZERO_DESIRED_COUNT" && "$ALLOW_ZERO_DESIRED_COUNT" == "$APP" ]]; then
-  zero_desired_count_allowed=true
+if [[ -n "$ALLOW_ZERO_DESIRED_COUNT" ]]; then
+  if [[ ! "$ALLOW_ZERO_DESIRED_COUNT" =~ ^[A-Za-z0-9_-]+:[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+    echo "::error::ALLOW_ZERO_DESIRED_COUNT is set but malformed: expected <service>:<YYYY-MM-DD>, e.g. $APP:$(date -u -d '+2 days' +%F). Refusing to treat an unparseable authorisation as permission."
+    exit 1
+  fi
+  zero_optin_service="${ALLOW_ZERO_DESIRED_COUNT%%:*}"
+  zero_optin_expiry="${ALLOW_ZERO_DESIRED_COUNT#*:}"
+  # A regex-valid but NONEXISTENT date (2026-13-45) would sort after every real
+  # date and therefore never expire — fail-open, the one direction this must not
+  # have. Round-tripping it through `date` rejects that.
+  if ! zero_optin_parsed="$(date -u -d "$zero_optin_expiry" +%F 2>/dev/null)" ||
+     [[ "$zero_optin_parsed" != "$zero_optin_expiry" ]]; then
+    echo "::error::ALLOW_ZERO_DESIRED_COUNT carries an invalid date: $zero_optin_expiry. Refusing."
+    exit 1
+  fi
+  zero_optin_today="$(date -u +%F)"
+  # ISO dates compare correctly as strings; the expiry day itself is still valid.
+  if [[ "$zero_optin_expiry" < "$zero_optin_today" ]]; then
+    echo "::error::ALLOW_ZERO_DESIRED_COUNT expired on $zero_optin_expiry (today is $zero_optin_today). If this window is still running, update the variable; do not delete the expiry."
+    exit 1
+  fi
+  if [[ "$zero_optin_service" == "$APP" ]]; then
+    zero_desired_count_allowed=true
+  fi
 fi
 # What `RUN_MIGRATIONS=true` runs, in order, each as its own one-shot task on the
 # image being rolled out. A non-zero exit from any of them stops the release
@@ -163,11 +198,11 @@ if ! [[ "$service_desired_count" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 if (( service_desired_count < 1 )) && [[ "$zero_desired_count_allowed" != true ]]; then
-  echo "::error::ECS service $APP must have a positive desiredCount before deployment (current: ${service_desired_count:-missing}). Scale the service up explicitly before retrying, or set ALLOW_ZERO_DESIRED_COUNT=$APP if this is a deliberate zero-capacity deploy."
+  echo "::error::ECS service $APP must have a positive desiredCount before deployment (current: ${service_desired_count:-missing}). Scale the service up explicitly before retrying, or set ALLOW_ZERO_DESIRED_COUNT=$APP:<YYYY-MM-DD> if this is a deliberate zero-capacity deploy."
   exit 1
 fi
 if (( service_desired_count < 1 )); then
-  echo "::warning::Deploying $APP at desiredCount=0, authorised by ALLOW_ZERO_DESIRED_COUNT=$APP. The rollout will complete with zero running tasks and the service will serve NOTHING until it is scaled up."
+  echo "::warning::Deploying $APP at desiredCount=0, authorised by ALLOW_ZERO_DESIRED_COUNT=$ALLOW_ZERO_DESIRED_COUNT (expires $zero_optin_expiry). The rollout will complete with zero running tasks and the service will serve NOTHING until it is scaled up."
 fi
 
 task_definition_file="$(mktemp)"
