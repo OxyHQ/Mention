@@ -154,9 +154,12 @@ export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promis
       { upsert: true, returnDocument: 'after', lean: true },
     ) as IFederatedActor | null;
   } catch (err) {
-    // A rare unique-key collision (a handle reassigned across DIDs) must not
-    // abort discovery — log and continue with no stamped row.
+    // A unique-key collision can mean that this mutable handle was reassigned to
+    // a different DID. Without a row bound to this DID, identity merging could
+    // adopt the previous holder's Oxy user and attribute the new actor's posts to
+    // them. Fail closed until a later refresh can persist this DID safely.
     logger.warn('[atproto] failed to upsert federated actor', err);
+    return { ...actor, oxyUserId: undefined };
   }
 
   const existingOxyId = fedActor?.oxyUserId ?? undefined;
