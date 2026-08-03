@@ -148,6 +148,41 @@ describe('auditColumnCoverage', () => {
     expect(findings[0]?.detail).toMatch(/no longer happens/);
   });
 
+  it('reports a declared source path that matches NOTHING — the typo case', () => {
+    // The vacuity case. A path with a typo finds zero source documents, the
+    // column is empty, and a count comparison sees 0 = 0 and calls it agreement.
+    // It is indistinguishable from a legitimately absent field FROM HERE, which
+    // is exactly why it cannot be allowed to read as clean.
+    const findings = audit(
+      [{ id: 'a', mapped: 'x' }, { id: 'b', mapped: 'y' }],
+      {
+        coverage: [{ table: widgets, column: widgets.dropped, sourcePath: 'thing.drpoped' }],
+        sourceCounts: new Map([['thing.drpoped', 0]]),
+        unmapped: [{ table: widgets, column: widgets.partial, reason: 'retired before the port' }],
+      }
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.kind).toBe('declared-never-observed');
+    expect(findings[0]?.column).toBe('bcc_widgets.dropped');
+    expect(findings[0]?.detail).toMatch(/thing\.drpoped/);
+    expect(findings[0]?.detail).toMatch(/mistyped or renamed/);
+  });
+
+  it('does NOT report a path that matches documents', () => {
+    // The healthy counterpart. Without it, a vacuity check that fired on every
+    // declared path would pass the case above — and would then bury the real
+    // findings under one entry per column.
+    const findings = audit(
+      [{ id: 'a', mapped: 'x', dropped: 'd' }],
+      {
+        coverage: [{ table: widgets, column: widgets.dropped, sourcePath: 'thing.dropped' }],
+        sourceCounts: new Map([['thing.dropped', 1]]),
+        unmapped: [{ table: widgets, column: widgets.partial, reason: 'retired before the port' }],
+      }
+    );
+    expect(findings).toStrictEqual([]);
+  });
+
   it('reports an acknowledgement whose REASON has stopped being true', () => {
     // The rot case, and the one an allowlist that only grows will eventually
     // hit: the declaration says the source has no such field, the source later

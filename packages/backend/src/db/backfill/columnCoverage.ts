@@ -98,7 +98,16 @@ export interface CoverageFinding {
   readonly collection: string;
   readonly table: string;
   readonly column: string;
-  readonly kind: 'never-populated' | 'partially-populated' | 'stale-acknowledgement';
+  readonly kind:
+    | 'never-populated'
+    | 'partially-populated'
+    | 'stale-acknowledgement'
+    /**
+     * A declared `sourcePath` that matches NOTHING. Not a finding about the
+     * data — the field may genuinely be absent from this corpus — and not
+     * clean either, because it is exactly what a typo looks like.
+     */
+    | 'declared-never-observed';
   readonly sourceValues: number | null;
   readonly populated: number;
   readonly detail: string;
@@ -197,6 +206,43 @@ export function auditColumnCoverage(input: {
               'describing an absence. Map the column or rewrite the reason.',
           });
         }
+        continue;
+      }
+
+      // THE VACUITY CASE — checked AFTER the acknowledgement above, not before.
+      // A column that is DECLARED unmapped because the source has no such field,
+      // and whose path then matches nothing, is the declaration being
+      // CORROBORATED; reporting it there would turn every honest
+      // acknowledgement into a typo warning. This is for a column nobody
+      // acknowledged, where the path is what was supposed to prove coverage.
+      // A `sourcePath` with a typo — or naming a field Mongo renamed years ago —
+      // finds zero source documents, and a check comparing counts then sees
+      // 0 = 0 and reports agreement. It reads exactly like a column that is
+      // legitimately empty, which is the same green-result-standing-in-for-an-
+      // answer that let eleven dropped columns through in the first place.
+      //
+      // So it gets its own state rather than a verdict: the path is named, and
+      // the message says outright that this is indistinguishable from a typo.
+      // Confirming the field really is absent is a human's job; making the
+      // question visible is this check's.
+      if (sourcePath !== undefined && sourceValues === 0) {
+        seen.add(key);
+        findings.push({
+          collection: input.collection,
+          table: name,
+          column: sqlName,
+          kind: 'declared-never-observed',
+          sourceValues: 0,
+          populated,
+          detail:
+            `${sqlName} declares its source as \`${sourcePath}\`, and NO source ` +
+            'document holds a value there. That is what a mistyped or renamed ' +
+            'path looks like, and it is also what a genuinely absent field looks ' +
+            'like — the two are indistinguishable from here, so this is reported ' +
+            'rather than passed. Confirm the path against a real document, then ' +
+            'either correct it or move the column to `unmappedColumns` with the ' +
+            'reason the field is gone.',
+        });
         continue;
       }
 
