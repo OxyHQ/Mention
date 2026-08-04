@@ -805,7 +805,10 @@ describe('duplicate federated actors', () => {
     // that named only the rule would not let an operator tell a re-keyed
     // account from a dropped duplicate.
     expect(record).toBeDefined();
-    expect(record?.detail).toContain('claimed by another row under a DIFFERENT `uri`');
+    expect(record?.detail).toContain('does not identify this row');
+    // The `acct` it HAD is what tells a re-keyed sentinel from a re-keyed
+    // shared handle in the report — the rule has one re-key and two ways to
+    // earn it, so the evidence has to carry the value rather than the reason.
     expect(record?.evidence?.acct).toBe('shared@bff-dup.example');
     // The freshest row is not acted on at all, so it has no record.
     expect(
@@ -816,13 +819,14 @@ describe('duplicate federated actors', () => {
     ).toEqual([oid(45).toHexString()]);
   });
 
-  it('leaves the sentinel group to remedy two — the identity re-key claims none of its rows', async () => {
-    // Asserted on the PLAN rather than on the copy, because the two remedies
-    // compute the SAME set for this group (both keep the freshest of it), so
-    // no outcome of a run can tell which one acted. What differs is the claim
-    // `rekeyedActorIdentities` makes about itself, and the transform reads that
-    // set to decide a remedy — so a row in it that remedy three does not
-    // actually re-key is a set that lies to its only consumer.
+  it('moves EVERY row of a sentinel group but counts only all-but-one as answering it', async () => {
+    // The one case where "who moves" and "whose movement resolves the finding"
+    // differ, asserted on the PLAN because no outcome of a run can show the
+    // difference: the sentinel identifies nobody, so even the freshest row must
+    // stop carrying it — but the group is already legal once all but one has
+    // moved, and `resolvesUniquenessGroup` asks exactly that. Counting the
+    // freshest would make the rule look like it EMPTIES the group, which is the
+    // shape that fails closed, and this finding would block.
     const dids = Array.from({ length: 3 }, (_, index) => `did:plc:bffown${String(index).padStart(19, 'z')}`);
     await mongo.collection('federatedactors').insertMany(
       dids.map((did, index) => ({
@@ -837,19 +841,48 @@ describe('duplicate federated actors', () => {
     );
 
     const plan = await planResolutions(source);
-    expect(plan.rekeyedActorIdentities.size).toBe(0);
-    // The floor that stops the line above passing vacuously: the group IS a
-    // collision and IS answered — by remedy two, which acts on all but the
-    // freshest of the three.
+    expect(plan.rekeyedActorIdentities.size).toBe(3);
     expect(plan.actedOn.get(KEEP_FRESHEST_FEDERATED_ACTOR.id)?.size).toBe(2);
   });
 
-  it('still BLOCKS an acct group that OVERLAPS a uri group, rather than letting the remedies collide', async () => {
-    // Two rows of one `uri` (remedy one's) sharing an acct with a third row
-    // under a different `uri` (remedy three's). Re-keying inside the `uri` pair
-    // would leave both of them landing — two rows on one `uri` — so every row
-    // of a `uri` group is excluded from the re-key, which leaves too few
-    // candidates to answer the acct group and it blocks.
+  it('re-keys a LONE sentinel row, which no collision would ever reach', async () => {
+    // `handle.invalid` identifies nobody whether or not a second row carries
+    // it, so a `count > 1` pre-pass would leave this row holding a value that
+    // is an error string — and the next row to arrive with it builds the
+    // collision on top. The transform used to catch this from the document
+    // itself; now the pre-pass has to reach it.
+    const did = 'did:plc:bfflonesentinel000000000';
+    await mongo.collection('federatedactors').insertOne({
+      _id: oid(64),
+      uri: did,
+      protocol: 'atproto',
+      username: 'handle.invalid',
+      domain: 'bsky.social',
+      acct: 'handle.invalid',
+      lastFetchedAt: new Date('2026-01-01T00:00:00Z'),
+    });
+
+    await copy('federatedactors');
+
+    const [row] = await getDb()
+      .select()
+      .from(federatedActors)
+      .where(eq(federatedActors.uri, did));
+    expect(row?.acct).toBe(did);
+    expect(row?.username).toBe(did);
+    // Alone, so it answers no finding — nothing collided.
+    const plan = await planResolutions(source);
+    expect(plan.rekeyedActorIdentities.size).toBe(1);
+    expect(plan.actedOn.get(KEEP_FRESHEST_FEDERATED_ACTOR.id)?.size).toBe(0);
+  });
+
+  it('REFUSES a uri group the re-key also claims, so neither remedy acts on it', async () => {
+    // Two rows of one `uri` sharing an acct with a third row under a different
+    // `uri`. The acct is claimed across two uris, so the re-key wants rows the
+    // drop wants — and a row both want is a row neither may have: dropping it
+    // discards an account the re-key was keeping, re-keying it puts two rows on
+    // one value. The drop refuses the whole group, the re-key subtracts every
+    // row of it, and BOTH findings block.
     await mongo.collection('federatedactors').insertMany([
       ...[0, 1].map((index) => ({
         _id: oid(51 + index),
@@ -876,14 +909,28 @@ describe('duplicate federated actors', () => {
       entry.detail.includes('federated_actors_acct_key')
     );
     expect(acctFinding).toBeDefined();
+    // The floor: the audit DID see a three-row acct group here, so the empty
+    // re-key set below is a decision rather than a pass that found nothing.
+    expect(acctFinding?.documents).toBe(3);
     expect(acctFinding?.resolvedBy).toBeUndefined();
     expect(auditWouldBlockCopy(acctFinding as NonNullable<typeof acctFinding>)).toBe(true);
 
-    // And the `uri` pair is STILL answered by the drop — the exclusion stands
-    // remedy three down, not remedy one.
+    // The subtraction that makes the refusal real, and it cannot be seen from a
+    // run: the two rows sharing a `uri` ARE re-key candidates — their acct is
+    // claimed across two uris — and must not actually be re-keyed, because both
+    // would move onto the SAME value and collide on `acct` as well as `uri`.
+    // A copy would report that as a 23505 hours in; the plan refuses it here.
+    const plan = await planResolutions(source);
+    expect(plan.rekeyedActorIdentities.size).toBe(0);
+
+    // And the `uri` pair is NOT dropped either. That is the deliberate cost of
+    // one notion instead of two: an overlap stands BOTH remedies down rather
+    // than letting one act on a row the other claims. No such group has been
+    // measured — production's 569 duplicate groups share an acct AND a uri, so
+    // the re-key never claims them.
     const uriFinding = findings.find((entry) => entry.detail.includes('federated_actors_uri_key'));
-    expect(uriFinding?.resolvedBy?.id).toBe(KEEP_FRESHEST_FEDERATED_ACTOR.id);
-    expect(auditWouldBlockCopy(uriFinding as NonNullable<typeof uriFinding>)).toBe(false);
+    expect(uriFinding?.resolvedBy).toBeUndefined();
+    expect(auditWouldBlockCopy(uriFinding as NonNullable<typeof uriFinding>)).toBe(true);
   });
 
   it('still BLOCKS when a colliding row has no uri to be re-keyed onto', async () => {

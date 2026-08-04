@@ -39,7 +39,6 @@ import {
   federationDeliveryQueue,
 } from '../../schema/federation';
 import type { CollectionPlan } from '../plan';
-import { isUnresolvedAtprotoHandle } from '../../../connectors/atproto/unresolvedHandle';
 import { KEEP_FRESHEST_FEDERATED_ACTOR } from '../resolutions';
 import { buildRow } from '../rowBuilder';
 import {
@@ -118,16 +117,16 @@ const federatedActorsPlan: CollectionPlan = {
     {
       index: 'federated_actors_acct_key',
       key: [{ path: 'acct', normalize: 'exact' }],
-      // The SAME rule answers this one through ALL THREE of its remedies, which
-      // is why they are one rule: almost every acct collision is two rows of
-      // one `uri` group and is cleared by the drop, the `handle.invalid` group
-      // is cleared by remedy two, and a real handle claimed by two `uri`s is
-      // cleared by remedy three. Either way `resolvesUniquenessGroup` sees
+      // The SAME rule answers this one through BOTH its remedies, which is why
+      // they are one rule: almost every acct collision is two rows of one `uri`
+      // group and is cleared by the drop, and an `acct` that identifies none of
+      // the rows carrying it — the sentinel, or a handle two `uri`s claim — is
+      // cleared by the re-key. Either way `resolvesUniquenessGroup` sees
       // all-but-one of the group acted on.
       //
-      // It still fails CLOSED for what none of them is written for — a group
-      // overlapping a `uri` group, or a row with no `uri` to be re-keyed onto —
-      // and those findings block so a human decides.
+      // It still fails CLOSED for what neither is written for — a group the
+      // re-key and the drop both claim, or a row with no `uri` to be re-keyed
+      // onto — and those findings block so a human decides.
       resolvedBy: KEEP_FRESHEST_FEDERATED_ACTOR,
     },
     {
@@ -138,7 +137,7 @@ const federatedActorsPlan: CollectionPlan = {
       //
       // The rule reaches this index through the OTHER two keys rather than
       // through one of its own: a `uri` group is answered by the drop, and a
-      // group whose rows also share an `acct` is answered by remedy three,
+      // group whose rows also share an `acct` is answered by the re-key,
       // because both act on IDS and this audit asks about the same ids. A
       // `(domain, username)` collision whose rows carry DIFFERENT `acct`s is
       // answered by nothing and blocks — no such group has been measured, and
@@ -210,48 +209,25 @@ const federatedActorsPlan: CollectionPlan = {
 
     const uri = reqStr(doc, 'uri');
     const storedAcct = reqStr(doc, 'acct');
-    // REMEDY TWO, checked FIRST and decided from this document alone: an `acct`
-    // that is Bluesky's unresolved-handle sentinel identifies nobody, so the row
-    // is re-keyed onto its own DID — which for an atproto actor IS its `uri`.
-    // The same substitution `atprotoIdentityHandle` now applies at ingest, so
-    // the row lands in the shape the fixed writer would have produced.
+    // THE RE-KEY: this row's stored `acct` does not identify it — either
+    // another `uri` claims the same handle, or it is the sentinel that
+    // identifies nobody — so `acct` and `username` become the row's own `uri`.
     //
-    // The pre-pass guarantees a sentinel row is never ALSO a `uri` duplicate
-    // (it refuses any such group outright), which is what makes checking the
-    // sentinel before the drop safe — otherwise a row needing to be dropped
-    // would be re-keyed instead and two rows would share a `uri`.
-    const sentinelAcct = isUnresolvedAtprotoHandle(storedAcct);
-    // REMEDY THREE, and the one decision here that CANNOT be made from this
-    // document: whether another `uri` claims this `acct`. The pre-pass answers
-    // it once against the whole collection and this consults the answer — the
-    // same shape as the drop below, and for the same reason.
-    const ambiguousIdentity =
-      !sentinelAcct && resolutions.rekeyedActorIdentities.has(id);
-    /** Either re-key remedy: `acct` and `username` become the row's own `uri`. */
-    const rekeyed = sentinelAcct || ambiguousIdentity;
-    if (sentinelAcct) {
+    // Consulted, not derived. Both halves of that condition are properties of
+    // the GROUP a row belongs to, and a transform sees one document, so the
+    // pre-pass answers once against the whole collection and every phase reads
+    // the same answer — exactly like the drop below.
+    const rekeyed = resolutions.rekeyedActorIdentities.has(id);
+    if (rekeyed) {
       resolutions.record({
         rule: KEEP_FRESHEST_FEDERATED_ACTOR,
         documentId: id,
         detail:
-          `acct ${JSON.stringify(storedAcct)} is the AppView's error string for a ` +
-          'handle that does not verify, not an identity — every such account ' +
-          'carries the same one. `acct` and `username` are re-keyed to this ' +
-          "row's own DID, which is unique and is what the connector now writes. " +
-          'Nothing is dropped.',
-        evidence: { uri, acct: storedAcct, username: reqStr(doc, 'username') },
-      });
-    } else if (ambiguousIdentity) {
-      resolutions.record({
-        rule: KEEP_FRESHEST_FEDERATED_ACTOR,
-        documentId: id,
-        detail:
-          `acct ${JSON.stringify(storedAcct)} is claimed by another row under a ` +
-          'DIFFERENT `uri` — two accounts one handle was derived for, not one ' +
-          'account fetched twice. This is not the row the resolver has been ' +
-          "keeping current, so `acct` and `username` are re-keyed to this row's " +
-          'own `uri` (unique by `federated_actors_uri_key`) and the freshest row ' +
-          'keeps the handle. Nothing is dropped and no account is lost.',
+          `acct ${JSON.stringify(storedAcct)} does not identify this row — it is ` +
+          'either shared with another `uri` or the sentinel that identifies ' +
+          "nobody — so `acct` and `username` are re-keyed to this row's own " +
+          '`uri`, which `federated_actors_uri_key` already guarantees is its ' +
+          'alone. Nothing is dropped and no account is lost.',
         evidence: { uri, acct: storedAcct, username: reqStr(doc, 'username') },
       });
     }
@@ -262,10 +238,10 @@ const federatedActorsPlan: CollectionPlan = {
     // document. Every phase reads that same decision, so the audit, the copy
     // and both verifier passes cannot disagree about which row survives.
     //
-    // `actedOn` is the UNION of all three remedies, so a re-keyed row has to be
-    // stood down here explicitly or it would be dropped instead — and a remedy
-    // three row is a separate account, which is the one outcome this rule
-    // promises never to remove.
+    // `actedOn` unions both remedies, so a re-keyed row has to be stood down
+    // here explicitly or it would be dropped instead — and a re-keyed row is a
+    // separate account, which is the one outcome this rule promises never to
+    // remove.
     if (!rekeyed && resolutions.actedOn.get(KEEP_FRESHEST_FEDERATED_ACTOR.id)?.has(id) === true) {
       resolutions.dropDocument(
         KEEP_FRESHEST_FEDERATED_ACTOR,
@@ -288,10 +264,10 @@ const federatedActorsPlan: CollectionPlan = {
           id,
           protocol: str(doc, 'protocol') ?? 'activitypub',
           uri,
-          // Re-keyed onto the row's own `uri` by either re-key remedy — the DID
-          // for a sentinel row, the actor URI for a row whose handle another
-          // `uri` also claims. The stored value verbatim for every other actor,
-          // which is all but 22 documents.
+          // Re-keyed onto the row's own `uri` for a row whose stored `acct`
+          // identifies somebody else or nobody — the DID for a native atproto
+          // actor, the actor URI otherwise. The stored value verbatim for every
+          // other actor, which is all but 22 documents.
           username: rekeyed ? uri : reqStr(doc, 'username'),
           domain: reqStr(doc, 'domain'),
           acct: rekeyed ? uri : storedAcct,
