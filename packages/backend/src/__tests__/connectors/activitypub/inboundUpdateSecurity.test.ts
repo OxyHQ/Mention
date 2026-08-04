@@ -127,6 +127,7 @@ vi.mock('../../../connectors/activitypub/outbox.service', () => ({
 }));
 
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
+import { actorService } from '../../../connectors/activitypub/actor.service';
 
 const EDITED_NOTE_ID = `${ACTOR_URI}/statuses/900`;
 
@@ -171,7 +172,17 @@ beforeEach(async () => {
   });
 });
 
+// The profile-update effect under test. Spying rather than mocking the module
+// keeps every OTHER actor-service path real — the owner-resolution fallback in
+// `handleUpdate` reads the seeded actor row through `getOrFetchActor`.
+let fetchRemoteActor: ReturnType<typeof vi.spyOn<typeof actorService, 'fetchRemoteActor'>>;
+
+beforeEach(() => {
+  fetchRemoteActor = vi.spyOn(actorService, 'fetchRemoteActor').mockResolvedValue(null);
+});
+
 afterEach(async () => {
+  fetchRemoteActor.mockRestore();
   await clearFederationScope(scope);
 });
 
@@ -210,6 +221,43 @@ describe('handleUpdate — NoSQL-injection safety + ownership scope', () => {
       .from(posts)
       .where(eq(posts.id, edited.id));
     expect(row.isEdited).toBe(false);
+  });
+
+  it('refetches the actor for EVERY AS2 actor type, not a hand-picked subset', async () => {
+    // This branch used to read `Person | Service | Application`, so a `Group`
+    // (every Lemmy community) or an `Organization` (every Mention channel, since
+    // channels federate as one) had its profile edits applied to NOTHING — no
+    // error, no log, the rename simply never landed. The predicate is now the
+    // engine's shared AS2 actor vocabulary.
+    for (const type of ['Person', 'Service', 'Application', 'Group', 'Organization']) {
+      fetchRemoteActor.mockClear();
+      await inboxProcessingService.processInboxActivity(
+        { id: `${ACTOR_URI}#update-${type}`, type: 'Update', actor: ACTOR_URI, object: { id: ACTOR_URI, type } },
+        ACTOR_URI,
+      );
+      expect(fetchRemoteActor).toHaveBeenCalledWith(ACTOR_URI);
+    }
+  });
+
+  it('does not treat a non-actor object as an actor', async () => {
+    // The other side of the branch, and it must be a type that actually REACHES
+    // it: a `Note` exits on the preceding `if`, so asserting on one cannot tell a
+    // real predicate from `else if (true)`.
+    for (const type of ['Video', 'Question', 'Tombstone', 'Event']) {
+      fetchRemoteActor.mockClear();
+      await inboxProcessingService.processInboxActivity(
+        { id: `${ACTOR_URI}#update-${type}`, type: 'Update', actor: ACTOR_URI, object: { id: `${ACTOR_URI}/x`, type } },
+        ACTOR_URI,
+      );
+      expect(fetchRemoteActor).not.toHaveBeenCalled();
+    }
+  });
+
+  it('still routes an edited Note down the content path, not the actor path', async () => {
+    await inboxProcessingService.processInboxActivity(updateActivity(), ACTOR_URI);
+
+    expect(fetchRemoteActor).not.toHaveBeenCalled();
+    expect(await storedVariants(edited.id)).toEqual([{ tag: 'es', body: 'texto editado' }]);
   });
 
   it('ignores an Update whose object.id is not a string (no updateOne, no injectable filter)', async () => {
