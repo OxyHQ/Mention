@@ -546,7 +546,7 @@ const FeedsScreen: React.FC = () => {
         {canEdit ? (
           <BottomBarAwareFab
             onPress={() => router.push('/feeds/new')}
-            icon={<Ionicons name="add" size={24} color={theme.colors.tertiaryForeground} />}
+            icon={<Ionicons name="add" size={24} color={theme.colors.primaryForeground} />}
             accessibilityLabel={t('feeds.create.title', { defaultValue: 'Create feed' })}
           />
         ) : null}

@@ -169,7 +169,7 @@ export default function ExploreLayout() {
           {/* Search FAB that rides the BottomBar's show/hide (web mobile). */}
           <BottomBarAwareFab
             onPress={() => router.push('/search')}
-            icon={<Search size={22} className="text-tertiary-foreground" />}
+            icon={<Search size={22} className="text-primary-foreground" />}
             accessibilityLabel={t('Search')}
           />
         </ThemedView>
