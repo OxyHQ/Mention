@@ -98,11 +98,20 @@ async function main(): Promise<void> {
   let scanned = 0;
   let changed = 0;
   let written = 0;
+  let matched = 0;
   const samples: Array<{ id: string; before: string; after: string }> = [];
 
+  // `.lean()` IS LOAD-BEARING, and its absence cost a silent no-op run. Without
+  // it each variant is a Mongoose subdocument whose own enumerable properties
+  // are internals — `_doc` among them, holding the ORIGINAL values. Spreading
+  // one therefore carries the original text along, and the cast on the way back
+  // in prefers it over the field we set: the update runs, writes a document
+  // identical to the one already stored, and reports success. No error, no
+  // corruption, nothing changed.
   const cursor = Post
     .find({ oxyUserId: { $in: [...domainByUser.keys()] } }, { oxyUserId: 1, 'content.variants': 1 })
     .limit(MAX)
+    .lean<Array<{ _id: unknown; oxyUserId?: string; content?: { variants?: StoredVariant[] } }>>()
     .cursor();
 
   for await (const post of cursor) {
@@ -122,8 +131,12 @@ async function main(): Promise<void> {
       });
     }
     if (!DRY_RUN) {
-      await Post.updateOne({ _id: post._id }, { $set: { 'content.variants': next } });
-      written += 1;
+      // Counted from what Mongo REPORTS, never from "we called update". The
+      // first run of this script logged 213 written while modifying nothing —
+      // a distinction the caller cannot make without asking.
+      const result = await Post.updateOne({ _id: post._id }, { $set: { 'content.variants': next } });
+      written += result.modifiedCount;
+      matched += result.matchedCount;
     }
   }
 
@@ -131,7 +144,10 @@ async function main(): Promise<void> {
     dryRun: DRY_RUN,
     scanned,
     changed,
+    matched,
     written,
+    // A run that changed rows but modified none is the failure this catches.
+    noOpWrites: !DRY_RUN && changed > 0 && written === 0,
     cappedAt: scanned >= MAX ? MAX : undefined,
     samples,
   });
