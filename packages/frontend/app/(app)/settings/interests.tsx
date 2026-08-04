@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Loading } from '@oxyhq/bloom/loading';
 import { SettingsListGroup } from '@oxyhq/bloom/settings-list';
 import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
-import { useFollowTarget } from '@oxyhq/services';
+import { resolveFollowPrimaryAction, useFollowTarget } from '@oxyhq/services';
 import type { TopicData } from '@oxyhq/core';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -20,7 +20,7 @@ import {
     useTopicFollowTargetId,
     type FollowedTopic,
 } from '@/hooks/useTopicFollows';
-import { resolveTopicChipAction, topicFollowUri } from '@/services/followGraph';
+import { topicFollowUri } from '@/services/followGraph';
 
 /**
  * Your interests — a searchable grid of topics, where selecting one FOLLOWS it.
@@ -226,13 +226,23 @@ function TopicChip({ topic, seeded, followsReady }: TopicChipProps) {
 
     const isOffHere = follow.isFollowing && follow.status.applicationMode === 'disabled';
 
+    /*
+     * The SDK decides WHAT a press means; this only routes its answer to the
+     * matching mutation. The middle case is the one worth naming: a follow the
+     * viewer switched OFF in Mention still reads as followed globally, so a
+     * press turns it back on HERE rather than unfollowing it everywhere and
+     * throwing away a relationship they still hold in every other Oxy app.
+     *
+     * The `never` arm is what keeps this honest as that rule grows: a new action
+     * upstream becomes a type error here instead of a press that silently does
+     * nothing.
+     */
     const onPress = useCallback(() => {
-        switch (
-        resolveTopicChipAction({
+        const action = resolveFollowPrimaryAction({
             isFollowing: follow.isFollowing,
             applicationMode: follow.status.applicationMode,
-        })
-        ) {
+        });
+        switch (action) {
             case 'follow':
                 void follow.follow();
                 return;
@@ -241,6 +251,11 @@ function TopicChip({ topic, seeded, followsReady }: TopicChipProps) {
                 return;
             case 'unfollow':
                 void follow.unfollow();
+                return;
+            default: {
+                const unhandled: never = action;
+                throw new Error(`Unhandled follow action: ${String(unhandled)}`);
+            }
         }
     }, [follow]);
 

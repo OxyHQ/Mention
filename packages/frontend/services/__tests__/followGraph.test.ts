@@ -1,17 +1,20 @@
 /**
- * The two decisions in `followGraph.ts` that are expensive to get wrong and
- * silent when they are.
+ * The decision in `followGraph.ts` that is expensive to get wrong and silent
+ * when it is.
  *
  * A target's URI becomes a permanent row in a graph every Oxy application
  * shares, and `ensureFollowTarget` is idempotent on it — so a URI that differs
  * from what another surface would build does not fail, it quietly gives one
- * person two parallel follows of one topic. And the chip's press rule has a
- * middle case whose wrong answer discards a relationship the person still holds
- * in every other application, while looking like an ordinary unfollow.
+ * person two parallel follows of one topic.
+ *
+ * The chip's press rule used to be tested here too. It is now
+ * `resolveFollowPrimaryAction` from `@oxyhq/services`, tested where it lives;
+ * what remains on this side is routing its answer to a mutation, which the
+ * `never` arm at the call site turns into a type error rather than a silent
+ * no-op.
  */
 
-import type { FollowApplicationMode } from '@oxyhq/contracts';
-import { OXY_TOPIC_KIND, resolveTopicChipAction, topicFollowUri } from '../followGraph';
+import { OXY_TOPIC_KIND, topicFollowUri } from '../followGraph';
 
 /** The registry accepts a target URI only if it is absolute. */
 const ABSOLUTE_URI = /^[a-z][a-z0-9+.-]*:/i;
@@ -49,45 +52,5 @@ describe('topicFollowUri', () => {
 
   it('is absolute, which the registry requires', () => {
     expect(topicFollowUri('climate')).toMatch(ABSOLUTE_URI);
-  });
-});
-
-describe('resolveTopicChipAction', () => {
-  /**
-   * Every combination, because the interesting one is a state no fixture
-   * produces by accident: followed globally AND switched off in this
-   * application. `effectiveState` reports `not_following` for it — correctly,
-   * since the question it answers is "does this act here" — so a rule derived
-   * from that field alone lands on `follow`, while a rule that only asks
-   * "following?" lands on `unfollow`. Both are wrong, and differently.
-   */
-  const cases: Array<{
-    isFollowing: boolean;
-    applicationMode: FollowApplicationMode;
-    expected: 'follow' | 'unfollow' | 'enable-here';
-  }> = [
-    { isFollowing: false, applicationMode: 'inherit', expected: 'follow' },
-    { isFollowing: false, applicationMode: 'enabled', expected: 'follow' },
-    // Not following, and explicitly off here — still nothing to re-enable.
-    { isFollowing: false, applicationMode: 'disabled', expected: 'follow' },
-    { isFollowing: true, applicationMode: 'inherit', expected: 'unfollow' },
-    { isFollowing: true, applicationMode: 'enabled', expected: 'unfollow' },
-    { isFollowing: true, applicationMode: 'disabled', expected: 'enable-here' },
-  ];
-
-  it.each(cases)(
-    'isFollowing=$isFollowing applicationMode=$applicationMode -> $expected',
-    ({ isFollowing, applicationMode, expected }) => {
-      expect(resolveTopicChipAction({ isFollowing, applicationMode })).toBe(expected);
-    },
-  );
-
-  it('never unfollows everywhere a relationship that is merely off here', () => {
-    // Stated separately from the table because it is the damage, not the
-    // mapping: this press must not be able to reach `unfollow`, whatever the
-    // rule is later refactored into.
-    expect(resolveTopicChipAction({ isFollowing: true, applicationMode: 'disabled' })).not.toBe(
-      'unfollow',
-    );
   });
 });

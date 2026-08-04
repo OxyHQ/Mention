@@ -25,8 +25,6 @@
  * anybody pressed either. Channels join when the user graph itself migrates.
  */
 
-import type { FollowApplicationMode } from '@oxyhq/contracts';
-
 /**
  * The platform kind for a topic. Seeded by the API, owned by nobody — named here
  * rather than inlined so the one place that has to agree with the migration is
@@ -61,28 +59,4 @@ const OXY_IDENTITY_ORIGIN = 'https://oxy.so';
  */
 export function topicFollowUri(slug: string): string {
   return `${OXY_IDENTITY_ORIGIN}/topics/${encodeURIComponent(slug.trim().toLowerCase())}`;
-}
-
-/**
- * What ONE press of a chip should do, given the viewer's current relationship.
- *
- * The middle case is the whole reason this is a function rather than an `if` at
- * the call site: a follow the viewer switched OFF in Mention still reads as
- * followed globally, so pressing it must turn it back on HERE — not unfollow it
- * everywhere, which would throw away a relationship the person still holds in
- * every other Oxy application.
- *
- * `@oxyhq/services` decides the identical rule for its own button
- * (`resolveFollowPrimaryAction`) and exports it from the component module, but
- * the package barrel does not re-export it and no subpath reaches it — `.`,
- * `./ui` and `./ui/client` all omit it. Delete this and import theirs the moment
- * that is fixed; until then a chip either duplicates the rule or gets it wrong.
- */
-export function resolveTopicChipAction(input: {
-  isFollowing: boolean;
-  applicationMode: FollowApplicationMode;
-}): 'follow' | 'unfollow' | 'enable-here' {
-  if (!input.isFollowing) return 'follow';
-  if (input.applicationMode === 'disabled') return 'enable-here';
-  return 'unfollow';
 }
