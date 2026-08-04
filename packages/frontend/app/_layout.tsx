@@ -165,6 +165,8 @@ export default function RootLayout() {
           under it: on web `useScrollRestoration()` throws outside its provider, so
           a scrollable mounted beside it (a right rail, an overlay) crashes. */}
       <BloomProvider
+        // TEMPORARY: colour-policy preview. Remove with `components/dev/` and
+        // the `.bloom-local` symlink once the colour system lands upstream.
         imageResolver={resolveImageSource}
         haptics={!hapticsDisabled}
         defaultMode="system"

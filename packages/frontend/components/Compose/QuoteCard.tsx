@@ -47,7 +47,7 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
   if (loading) {
     return (
       <View
-        className="border-border bg-secondary rounded-2xl border px-4 py-3"
+        className="border-border bg-muted rounded-2xl border px-4 py-3"
         accessibilityRole="progressbar"
         accessibilityLabel={t('compose.quote.loading', { defaultValue: 'Loading quoted post' })}
       >
@@ -64,7 +64,7 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
   if (!post) return null;
 
   return (
-    <View className="border-border bg-secondary relative rounded-2xl border px-4 py-3">
+    <View className="border-border bg-muted relative rounded-2xl border px-4 py-3">
       <View className="flex-row items-start">
         {/* `avatar` is a bare Oxy file id OR an absolute URL, for local and
             federated authors alike — Bloom's Avatar accepts both shapes

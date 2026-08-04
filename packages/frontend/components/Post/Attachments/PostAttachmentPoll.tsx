@@ -28,7 +28,7 @@ const PostAttachmentPoll: React.FC<PostAttachmentPollProps> = ({ pollId, pollDat
         <PollCard pollId={pollId} width={MEDIA_CARD_WIDTH} />
       ) : pollData ? (
         // Fallback to simple display if we only have poll data without ID
-        <View className="bg-secondary p-4 rounded-[15px]">
+        <View className="bg-muted p-4 rounded-[15px]">
           <Text className="text-foreground text-base font-bold mb-3">{pollData.question}</Text>
           {pollData.options?.map((option: string, optIdx: number) => (
             <View key={optIdx} className="bg-background border border-border p-3 rounded-lg mb-2">
@@ -38,7 +38,7 @@ const PostAttachmentPoll: React.FC<PostAttachmentPollProps> = ({ pollId, pollDat
         </View>
       ) : (
         // Debug: Show what we received
-        <View className="bg-secondary p-4 rounded-[15px]">
+        <View className="bg-muted p-4 rounded-[15px]">
           <Text className="text-destructive text-base font-bold mb-3">
             {IS_DEVELOPMENT ? 'Poll data missing' : 'Poll unavailable'}
           </Text>

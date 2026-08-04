@@ -149,7 +149,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
             style={StyleSheet.absoluteFill}
           />
         ) : (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.secondary }]} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.contrast50 }]} />
         )}
         {isUploading && (
           <View className="absolute inset-0 bg-black/50 justify-center items-center">
@@ -175,7 +175,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         disableSticky={true}
       />
 
-      <View className="flex-row items-center px-3 py-2.5 mx-4 mt-3 mb-2 rounded-xl bg-secondary gap-2.5">
+      <View className="flex-row items-center px-3 py-2.5 mx-4 mt-3 mb-2 rounded-xl bg-muted gap-2.5">
         <Ionicons name="search" size={20} color={theme.colors.textSecondary} />
         <TextInput
           className="flex-1 text-[15px] text-foreground"

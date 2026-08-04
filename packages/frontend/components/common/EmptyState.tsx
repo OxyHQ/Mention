@@ -79,13 +79,18 @@ export const EmptyState = memo<EmptyStateProps>(
                             <View
                                 className="w-[72px] h-[72px] rounded-full justify-center items-center mb-3"
                                 style={{
-                                    backgroundColor: icon.backgroundColor || theme.colors.error + '15',
+                                    // `error + '15'` only ever worked because that token is a flat hex.
+                                    // Bloom colour tokens resolve to `rgb(...)`, where a hex
+                                    // alpha tail is malformed and parses back as fully OPAQUE —
+                                    // a solid red disc under a red icon. `negativeSubtle` is the
+                                    // real tinted surface and needs no alpha maths.
+                                    backgroundColor: icon.backgroundColor || theme.colors.negativeSubtle,
                                 }}
                             >
                                 <Ionicons
                                     name={icon.name}
                                     size={icon.size || 36}
-                                    color={icon.color || theme.colors.error}
+                                    color={icon.color || theme.colors.negativeSubtleForeground}
                                 />
                             </View>
                         )}
@@ -106,24 +111,29 @@ export const EmptyState = memo<EmptyStateProps>(
 
                         {error.onRetry && (
                             <TouchableOpacity
-                                className="flex-row items-center justify-center py-2 px-4 rounded-[20px] min-w-[100px] gap-1.5 bg-primary"
+                                // The retry action is a secondary moment, not the
+                                // screen's brand statement — and its label follows
+                                // the fill's own foreground rather than `card`,
+                                // which only looked right while every fill happened
+                                // to be dark.
+                                className="flex-row items-center justify-center py-2 px-4 rounded-[20px] min-w-[100px] gap-1.5 bg-secondary"
                                 style={{ opacity: isRetrying ? 0.6 : 1 }}
                                 onPress={handleRetry}
                                 disabled={isRetrying}
                                 activeOpacity={0.8}
                             >
                                 {isRetrying ? (
-                                    <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
+                                    <Loading className="text-secondary-foreground" variant="inline" size="small" style={{ flex: undefined }} />
                                 ) : (
                                     <>
                                         <Ionicons
                                             name="refresh"
                                             size={18}
-                                            color={theme.colors.card}
+                                            color={theme.colors.secondaryForeground}
                                         />
                                         <Text
                                             className="text-[15px] font-semibold"
-                                            style={{ color: theme.colors.card }}
+                                            style={{ color: theme.colors.secondaryForeground }}
                                         >
                                             Try again
                                         </Text>

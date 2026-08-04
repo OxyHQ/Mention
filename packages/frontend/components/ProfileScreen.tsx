@@ -336,8 +336,8 @@ const PersonProfile: React.FC<PersonProfileProps> = ({
         // profile follows the viewer. Never shown on the viewer's own profile.
         const followsYouTag =
             !isOwnProfile && currentUser?.id && profileData.followsYou ? (
-                <View className="bg-secondary px-2 py-0.5 rounded-full">
-                    <Text className="text-secondary-foreground text-xs font-medium" numberOfLines={1}>
+                <View className="bg-muted px-2 py-0.5 rounded-full">
+                    <Text className="text-muted-foreground text-xs font-medium" numberOfLines={1}>
                         {t('profile.followsYou', { defaultValue: 'Follows you' })}
                     </Text>
                 </View>

@@ -123,7 +123,7 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
         </View>
       )}
       notice={pastDue ? (
-        <View className="px-4 py-2 bg-secondary border-b border-border">
+        <View className="px-4 py-2 bg-muted border-b border-border">
           <Text className="text-xs text-muted-foreground">
             {t('compose.scheduled.pastDueNotice', {
               defaultValue: 'Its time has passed — it may already be live. Reopen this list to refresh.',
@@ -155,7 +155,7 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
 
       <View className="flex-row items-center gap-2 px-4 py-3">
         <TouchableOpacity
-          className="flex-1 flex-row items-center justify-center gap-2 py-3 rounded-full bg-secondary"
+          className="flex-1 flex-row items-center justify-center gap-2 py-3 rounded-full bg-muted"
           onPress={onEdit}
           disabled={busy}
           activeOpacity={0.85}

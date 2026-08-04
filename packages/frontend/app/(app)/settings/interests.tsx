@@ -273,7 +273,7 @@ function InterestButton({ label, isSelected, onPress }: InterestButtonProps) {
                 "px-4 py-2.5 rounded-full border",
                 isSelected
                     ? "bg-primary border-primary"
-                    : "bg-secondary border-border"
+                    : "bg-muted border-border"
             )}
             onPress={onPress}
             activeOpacity={0.7}

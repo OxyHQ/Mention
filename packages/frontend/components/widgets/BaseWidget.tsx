@@ -11,8 +11,13 @@ type BaseWidgetProps = {
 
 export function BaseWidget({ title, icon, divider, children }: BaseWidgetProps) {
     return (
+        // The gap BELOW a widget belongs to the widget, not to the column that
+        // holds it: a flex `gap` is charged per child regardless of the child's
+        // height, so a rail whose widgets have all hidden themselves would still
+        // reserve the spacing between them. Owning the margin here lets the
+        // column collapse to nothing when every widget renders null.
         <View
-            className={`gap-2${divider ? ' pb-4 border-border' : ''}`}
+            className={`gap-2 mb-4${divider ? ' pb-4 border-border' : ''}`}
             style={[styles.base, divider && styles.divider]}
         >
             {title && (

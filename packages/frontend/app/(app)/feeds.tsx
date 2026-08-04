@@ -128,7 +128,7 @@ const PresetRow = ({
         accessibilityRole="button"
         accessibilityLabel={t(preset.labelKey)}
       >
-        <View className="w-9 h-9 rounded-full items-center justify-center bg-secondary">
+        <View className="w-9 h-9 rounded-full items-center justify-center bg-muted">
           <Ionicons name={PRESET_ICONS[preset.id] ?? 'sparkles'} size={20} color={theme.colors.primary} />
         </View>
         <View className="flex-1 gap-0.5">
@@ -183,7 +183,7 @@ const TrendFeedRow = ({
         accessibilityRole="button"
         accessibilityLabel={trend.displayName}
       >
-        <View className="w-9 h-9 rounded-full items-center justify-center bg-secondary">
+        <View className="w-9 h-9 rounded-full items-center justify-center bg-muted">
           <Ionicons name="trending-up" size={20} color={theme.colors.primary} />
         </View>
         <View className="flex-1 gap-0.5">
@@ -451,7 +451,7 @@ const FeedsScreen: React.FC = () => {
         {t('feeds.discoverNew.title')}
       </Text>
 
-      <View className="flex-row items-center px-3 h-[38px] rounded-[10px] mt-2 mb-1 gap-2 bg-secondary">
+      <View className="flex-row items-center px-3 h-[38px] rounded-[10px] mt-2 mb-1 gap-2 bg-muted">
         <Search size={18} className="text-muted-foreground" />
         <TextInput
           style={styles.searchInput}
@@ -546,7 +546,7 @@ const FeedsScreen: React.FC = () => {
         {canEdit ? (
           <BottomBarAwareFab
             onPress={() => router.push('/feeds/new')}
-            icon={<Ionicons name="add" size={24} color="white" />}
+            icon={<Ionicons name="add" size={24} color={theme.colors.tertiaryForeground} />}
             accessibilityLabel={t('feeds.create.title', { defaultValue: 'Create feed' })}
           />
         ) : null}

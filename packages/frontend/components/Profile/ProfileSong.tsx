@@ -52,7 +52,7 @@ export const ProfileSong = memo(function ProfileSong({ song, isOwnProfile, onEdi
           />
         ) : (
           <View
-            className="rounded-md bg-secondary items-center justify-center"
+            className="rounded-md bg-muted items-center justify-center"
             style={{ width: 32, height: 32 }}
           >
             <Ionicons name="musical-note-outline" size={16} color={colors.textSecondary} />

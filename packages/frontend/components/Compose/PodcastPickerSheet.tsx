@@ -50,7 +50,7 @@ const PodcastResultRow = memo(function PodcastResultRow({
           />
         ) : (
           <View
-            className="rounded-md bg-secondary items-center justify-center"
+            className="rounded-md bg-muted items-center justify-center"
             style={{ width: 40, height: 40 }}
           >
             <Ionicons name="mic-outline" size={20} color={colors.textSecondary} />
@@ -98,7 +98,7 @@ const PodcastPickerSheet = memo(function PodcastPickerSheet({
       </Text>
 
       {/* Search input — mirrors MediaPickerSheet's styled search row. */}
-      <View className="flex-row items-center px-3 py-2.5 rounded-xl bg-secondary gap-2.5">
+      <View className="flex-row items-center px-3 py-2.5 rounded-xl bg-muted gap-2.5">
         <Ionicons name="search-outline" size={16} color={colors.textSecondary} />
         <TextInput
           className="flex-1 text-[15px] text-foreground"

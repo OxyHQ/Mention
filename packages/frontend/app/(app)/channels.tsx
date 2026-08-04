@@ -137,7 +137,7 @@ export default function ChannelsScreen() {
               placeholder={t('channels.handlePlaceholder', { defaultValue: 'handle' })}
               accessibilityLabel={t('channels.handleLabel', { defaultValue: 'Channel handle' })}
               className={cn(
-                'bg-secondary text-foreground rounded-2xl px-4 py-3 text-[15px]',
+                'bg-muted text-foreground rounded-2xl px-4 py-3 text-[15px]',
                 handleError && 'border border-destructive',
               )}
             />
@@ -156,7 +156,7 @@ export default function ChannelsScreen() {
             maxLength={MAX_TITLE_LENGTH}
             placeholder={t('channels.titlePlaceholder', { defaultValue: 'Channel name' })}
             accessibilityLabel={t('channels.titleLabel', { defaultValue: 'Channel name' })}
-            className="bg-secondary text-foreground rounded-2xl px-4 py-3 text-[15px]"
+            className="bg-muted text-foreground rounded-2xl px-4 py-3 text-[15px]"
           />
 
           <Item

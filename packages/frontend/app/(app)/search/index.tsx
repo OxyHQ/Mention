@@ -1029,7 +1029,7 @@ export default function SearchIndex() {
                             <Text className="text-sm text-muted-foreground">{t("error.fetch_trends")}</Text>
                             <TouchableOpacity
                                 onPress={() => void fetchTrends()}
-                                className="self-start rounded-full bg-secondary px-4 py-2"
+                                className="self-start rounded-full bg-muted px-4 py-2"
                                 accessibilityRole="button"
                             >
                                 <Text className="text-sm font-semibold text-primary">{t("search.retry", "Retry")}</Text>
@@ -1048,7 +1048,7 @@ export default function SearchIndex() {
                                     <TouchableOpacity
                                         key={operator.operator}
                                         onPress={() => handleOperatorPress(operator.insert)}
-                                        className="rounded-full bg-secondary px-3 py-1.5"
+                                        className="rounded-full bg-muted px-3 py-1.5"
                                         accessibilityRole="button"
                                         accessibilityLabel={t(`search.operator.${operator.labelKey}`, operator.description)}
                                     >
@@ -1072,7 +1072,7 @@ export default function SearchIndex() {
                                     <TouchableOpacity
                                         key={value}
                                         onPress={() => handleOperatorValuePress(item.token, value)}
-                                        className="rounded-full bg-secondary px-3 py-1.5"
+                                        className="rounded-full bg-muted px-3 py-1.5"
                                         accessibilityRole="button"
                                     >
                                         <Text className="text-xs font-medium text-muted-foreground">

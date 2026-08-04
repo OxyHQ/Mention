@@ -300,7 +300,7 @@ const LabelerDetailScreen: React.FC = () => {
   const body = (
     <>
       {/* Hero card */}
-      <View className="rounded-2xl p-4 gap-3 bg-secondary">
+      <View className="rounded-2xl p-4 gap-3 bg-muted">
         <View className="flex-row items-center gap-2 flex-wrap">
           <Text className="text-xl font-bold text-foreground">{labeler.name}</Text>
           {labeler.isOfficial && (
@@ -373,7 +373,7 @@ const LabelerDetailScreen: React.FC = () => {
             {t('labelers.labelDefinitions', { defaultValue: 'Label Definitions' })}
           </Text>
 
-          <View className="rounded-2xl p-4 gap-3 bg-secondary">
+          <View className="rounded-2xl p-4 gap-3 bg-muted">
             {(labeler.labelDefinitions ?? []).map((ld, index) => {
               const severity: Severity = ld.severity ?? 'low';
               const currentAction: LabelAction = labelActions[ld.slug] ?? ld.defaultAction ?? 'warn';

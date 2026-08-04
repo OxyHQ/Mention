@@ -480,7 +480,7 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
           <Pressable
             onPress={openAvatarPicker}
             accessibilityRole="button"
-            className="bg-secondary rounded-full px-4 py-2">
+            className="bg-muted rounded-full px-4 py-2">
             <Text className="text-foreground text-[14px] font-semibold">
               {t('channels.settings.changePicture', { defaultValue: 'Change picture' })}
             </Text>
@@ -493,7 +493,7 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
           maxLength={MAX_TITLE_LENGTH}
           placeholder={t('channels.titlePlaceholder', { defaultValue: 'Channel name' })}
           accessibilityLabel={t('channels.titleLabel', { defaultValue: 'Channel name' })}
-          className="bg-secondary text-foreground rounded-2xl px-4 py-3 text-[15px]"
+          className="bg-muted text-foreground rounded-2xl px-4 py-3 text-[15px]"
         />
 
         <TextInput
@@ -507,7 +507,7 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
           accessibilityLabel={t('channels.settings.bioLabel', {
             defaultValue: 'Channel description',
           })}
-          className="bg-secondary text-foreground rounded-2xl px-4 py-3 text-[15px] min-h-[96px]"
+          className="bg-muted text-foreground rounded-2xl px-4 py-3 text-[15px] min-h-[96px]"
         />
 
         <Item
@@ -566,7 +566,7 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
                     <Pressable
                       onPress={() => handlePromoteCategory(id)}
                       accessibilityRole="button"
-                      className="bg-secondary rounded-full px-3 py-1.5">
+                      className="bg-muted rounded-full px-3 py-1.5">
                       <Text className="text-foreground text-[13px] font-semibold">
                         {t('channels.settings.makePrimary', { defaultValue: 'Make primary' })}
                       </Text>

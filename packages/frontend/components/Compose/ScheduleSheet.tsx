@@ -107,7 +107,7 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
         </Text>
 
         {scheduledAt && (
-          <View className="flex-row items-center rounded-[14px] py-3 px-3.5 mb-4.5 bg-secondary" style={{ borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border }}>
+          <View className="flex-row items-center rounded-[14px] py-3 px-3.5 mb-4.5 bg-muted" style={{ borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border }}>
             <View className="flex-1">
               <Text className="text-[13px] text-muted-foreground mb-1">
                 {t('compose.schedule.current', { defaultValue: 'Currently scheduled' })}
@@ -166,7 +166,7 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
               onChangeText={setCustomDate}
               placeholder={t('compose.schedule.datePlaceholder')}
               placeholderTextColor={theme.colors.textTertiary}
-              className="rounded-xl text-base text-foreground bg-secondary px-3"
+              className="rounded-xl text-base text-foreground bg-muted px-3"
               style={{
                 borderWidth: StyleSheet.hairlineWidth,
                 borderColor: theme.colors.border,
@@ -185,7 +185,7 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
               onChangeText={setCustomTime}
               placeholder={t('compose.schedule.timePlaceholder')}
               placeholderTextColor={theme.colors.textTertiary}
-              className="rounded-xl text-base text-foreground bg-secondary px-3"
+              className="rounded-xl text-base text-foreground bg-muted px-3"
               style={{
                 borderWidth: StyleSheet.hairlineWidth,
                 borderColor: theme.colors.border,

@@ -198,7 +198,7 @@ export function AccountBadge({
       // answer a question the reader did not ask.
       return (
         <View className={visual.containerClassName} style={visual.style}>
-          <View className="bg-secondary rounded-full px-2 py-0.5">
+          <View className="bg-muted rounded-full px-2 py-0.5">
             <Text className="text-muted-foreground text-xs font-medium">Bluesky</Text>
           </View>
         </View>

@@ -115,7 +115,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({
         >
             <View className="gap-4 pb-6">
                         <TextInput
-                            className="text-lg font-semibold p-4 rounded-xl border border-border bg-secondary text-foreground min-h-[56px]"
+                            className="text-lg font-semibold p-4 rounded-xl border border-border bg-muted text-foreground min-h-[56px]"
                             placeholder={t("compose.event.namePlaceholder", {
                                 defaultValue: "Event name",
                             })}
@@ -127,7 +127,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({
 
                         <View className="flex-row gap-3">
                             <TouchableOpacity
-                                className="flex-1 p-4 rounded-xl border border-border bg-secondary"
+                                className="flex-1 p-4 rounded-xl border border-border bg-muted"
                                 onPress={() => setShowDatePicker(true)}
                                 activeOpacity={0.7}
                             >
@@ -140,7 +140,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({
                             </TouchableOpacity>
 
                             <TouchableOpacity
-                                className="flex-1 p-4 rounded-xl border border-border bg-secondary"
+                                className="flex-1 p-4 rounded-xl border border-border bg-muted"
                                 onPress={() => setShowTimePicker(true)}
                                 activeOpacity={0.7}
                             >
@@ -154,13 +154,13 @@ export const EventEditor: React.FC<EventEditorProps> = ({
                         </View>
 
                         {showDatePicker && (
-                            <View className="rounded-xl border border-border bg-secondary p-3 mt-2">
+                            <View className="rounded-xl border border-border bg-muted p-3 mt-2">
                                 <Calendar value={eventDate} onChange={handleDateChange} />
                             </View>
                         )}
 
                         {showTimePicker && (
-                            <View className="rounded-xl border border-border bg-secondary p-3 mt-2">
+                            <View className="rounded-xl border border-border bg-muted p-3 mt-2">
                                 <Text className="text-sm font-semibold text-foreground mb-3">
                                     {t("compose.event.selectTime", { defaultValue: "Select time" })}
                                 </Text>
@@ -185,7 +185,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({
                         )}
 
                         <TextInput
-                            className="text-[15px] p-4 rounded-xl border border-border bg-secondary text-foreground min-h-[56px]"
+                            className="text-[15px] p-4 rounded-xl border border-border bg-muted text-foreground min-h-[56px]"
                             placeholder={t("compose.event.locationPlaceholder", {
                                 defaultValue: "Location (optional)",
                             })}
@@ -196,7 +196,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({
                         />
 
                         <TextInput
-                            className="text-[15px] p-4 rounded-xl border border-border bg-secondary text-foreground min-h-[120px]"
+                            className="text-[15px] p-4 rounded-xl border border-border bg-muted text-foreground min-h-[120px]"
                             style={{ textAlignVertical: "top" }}
                             placeholder={t("compose.event.descriptionPlaceholder", {
                                 defaultValue: "Description (optional)",

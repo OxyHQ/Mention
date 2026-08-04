@@ -101,7 +101,7 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
         </Text>
 
         {imageUrl ? (
-          <View className="mx-4 mb-3 rounded-[15px] overflow-hidden border border-border bg-secondary">
+          <View className="mx-4 mb-3 rounded-[15px] overflow-hidden border border-border bg-muted">
             <Image
               source={{ uri: imageUrl }}
               className="w-full"
@@ -158,7 +158,7 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
           </ScrollView>
         ) : null}
 
-        <View className="mx-4 rounded-xl border-[1.5px] border-border bg-secondary px-3 py-2.5">
+        <View className="mx-4 rounded-xl border-[1.5px] border-border bg-muted px-3 py-2.5">
           <TextInput
             className="text-sm text-foreground"
             style={inputStyle}

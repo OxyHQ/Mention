@@ -216,7 +216,7 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
               accessibilityState={{ checked: row.hasUser, disabled: row.pending }}
             >
               <View className="flex-row items-center gap-3 flex-1">
-                <View className="w-9 h-9 rounded-lg items-center justify-center bg-secondary">
+                <View className="w-9 h-9 rounded-lg items-center justify-center bg-muted">
                   <StarterPackIcon size={18} className="text-foreground" />
                 </View>
                 <Text className="text-foreground text-[15px] font-medium flex-1" numberOfLines={1}>

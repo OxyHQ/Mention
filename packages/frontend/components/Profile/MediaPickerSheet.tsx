@@ -139,7 +139,7 @@ const SongResultRow = memo(function SongResultRow({
           />
         ) : (
           <View
-            className="rounded-md bg-secondary items-center justify-center"
+            className="rounded-md bg-muted items-center justify-center"
             style={{ width: 40, height: 40 }}
           >
             <Ionicons name="musical-note-outline" size={20} color={colors.textSecondary} />
@@ -193,7 +193,7 @@ const PodcastResultRow = memo(function PodcastResultRow({
           />
         ) : (
           <View
-            className="rounded-md bg-secondary items-center justify-center"
+            className="rounded-md bg-muted items-center justify-center"
             style={{ width: 40, height: 40 }}
           >
             <Ionicons name="mic-outline" size={20} color={colors.textSecondary} />
@@ -356,7 +356,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
       </Text>
 
       {/* SONG / PODCAST toggle */}
-      <View className="flex-row p-1 rounded-full bg-secondary mb-3">
+      <View className="flex-row p-1 rounded-full bg-muted mb-3">
         <Pressable
           onPress={() => switchTab('song')}
           accessibilityRole="button"
@@ -390,7 +390,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
       </View>
 
       {/* Search input — mirrors GifPickerSheet's styled search row. */}
-      <View className="flex-row items-center px-3 py-2.5 rounded-xl bg-secondary gap-2.5">
+      <View className="flex-row items-center px-3 py-2.5 rounded-xl bg-muted gap-2.5">
         <Ionicons name="search-outline" size={16} color={colors.textSecondary} />
         <TextInput
           className="flex-1 text-[15px] text-foreground"
@@ -485,7 +485,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
 
       {/* Selected song — start offset + save */}
       {isSongTab && selectedSong && (
-        <View className="bg-secondary rounded-xl p-3 mt-2">
+        <View className="bg-muted rounded-xl p-3 mt-2">
           <View className="flex-row items-center gap-3">
             {selectedSong.artworkUrl ? (
               <Image
@@ -568,7 +568,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
 
       {/* Selected podcast — save (no start offset, no preview) */}
       {!isSongTab && selectedPodcast && (
-        <View className="bg-secondary rounded-xl p-3 mt-2">
+        <View className="bg-muted rounded-xl p-3 mt-2">
           <View className="flex-row items-center gap-3">
             {selectedPodcast.artworkUrl ? (
               <Image

@@ -466,7 +466,7 @@ const ModuleCard = ({
   const hasBody = enabled && (isAccounts || hasParams);
 
   return (
-    <View className="rounded-2xl p-4 bg-secondary mb-2">
+    <View className="rounded-2xl p-4 bg-muted mb-2">
       <View className="flex-row items-center gap-3">
         <View className="flex-1 gap-0.5">
           <Text className="text-[15px] font-semibold text-foreground">{label}</Text>
@@ -756,7 +756,7 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
           keyboardShouldPersistTaps="handled"
         >
           {/* Details */}
-          <View className="rounded-2xl p-4 bg-secondary">
+          <View className="rounded-2xl p-4 bg-muted">
             <View className="gap-1">
               <Text className="text-sm font-semibold text-foreground">{t('feeds.builder.titleLabel')}</Text>
               <TextInput

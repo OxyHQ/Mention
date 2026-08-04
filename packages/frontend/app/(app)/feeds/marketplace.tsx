@@ -317,7 +317,7 @@ export default function FeedMarketplaceScreen() {
     () => (
       <View>
         {searchVisible && (
-          <View className="flex-row items-center gap-2 mx-4 mt-2 mb-1 border border-border rounded-xl px-3 py-[9px] bg-secondary">
+          <View className="flex-row items-center gap-2 mx-4 mt-2 mb-1 border border-border rounded-xl px-3 py-[9px] bg-muted">
             <Ionicons name="search" size={16} color={theme.colors.textSecondary} />
             <TextInput
               value={search}

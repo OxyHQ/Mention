@@ -116,7 +116,7 @@ const LanguagePickerSheet = memo(function LanguagePickerSheet({
         <View className="w-9 h-9 ml-auto" />
       </View>
 
-      <View className="mx-4 mt-3 rounded-xl border-[1.5px] border-border bg-secondary px-3 py-2.5">
+      <View className="mx-4 mt-3 rounded-xl border-[1.5px] border-border bg-muted px-3 py-2.5">
         <TextInput
           className="text-sm text-foreground"
           placeholder={t('compose.languages.searchPlaceholder', { defaultValue: 'Search languages' })}

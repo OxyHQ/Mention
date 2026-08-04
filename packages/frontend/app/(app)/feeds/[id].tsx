@@ -111,7 +111,7 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
       >
         {({ pressed }) => (
           <>
-            <View style={[headerStyles.pressHighlight, pressed && { opacity: 1 }]} className="bg-secondary" />
+            <View style={[headerStyles.pressHighlight, pressed && { opacity: 1 }]} className="bg-muted" />
             <Avatar source={feed.coverImage} size={36} variant={MEDIA_VARIANT_AVATAR} />
             <View className="flex-1">
               <Text className="text-[15px] font-bold leading-snug text-foreground" numberOfLines={2}>
@@ -382,7 +382,7 @@ const TopicsTab = React.memo(function TopicsTab({ keywords }: { keywords: string
     <ScrollView contentContainerStyle={styles.topicsList}>
       {keywords.map((keyword) => (
         <View key={keyword} style={[styles.topicRow, { borderBottomColor: theme.colors.border }]}>
-          <View className="w-10 h-10 rounded-full items-center justify-center bg-secondary">
+          <View className="w-10 h-10 rounded-full items-center justify-center bg-muted">
             <Ionicons name="pricetag" size={18} color={theme.colors.textSecondary} />
           </View>
           <Text className="text-base font-medium text-foreground">{keyword}</Text>
@@ -453,7 +453,7 @@ const WriteReviewModal = React.memo(function WriteReviewModal({
             placeholder={t('feeds.detail.reviewPlaceholder')}
             placeholderTextColor={theme.colors.textSecondary}
             style={reviewStyles.modalTextInput}
-            className="text-foreground border border-border bg-secondary"
+            className="text-foreground border border-border bg-muted"
             multiline
             maxLength={500}
             textAlignVertical="top"
@@ -853,7 +853,7 @@ export default function CustomFeedTimelineScreen() {
       {!isLoading && !hasError && (
         <BottomBarAwareFab
           onPress={() => router.push('/compose')}
-          icon={<ComposeIcon size={22} className="text-primary-foreground" />}
+          icon={<ComposeIcon size={22} className="text-tertiary-foreground" />}
           accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
         />
       )}

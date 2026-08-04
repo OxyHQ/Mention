@@ -91,7 +91,7 @@ export const ProfileHeader = memo(function ProfileHeader({
       <View className="relative">
         {isProfileLive ? (
           <Animated.View
-            className="border-[3px] border-background bg-secondary rounded-full"
+            className="border-[3px] border-background bg-muted rounded-full"
             style={liveAvatarCollapseStyle}
           >
             <LiveAvatar userId={profileId} source={avatarUri ?? undefined} size={90} variant={MEDIA_VARIANT_AVATAR_LG} />
@@ -100,7 +100,7 @@ export const ProfileHeader = memo(function ProfileHeader({
           <ZoomableAvatar
             source={avatarUri}
             size={90}
-            className="border-[3px] border-background bg-secondary"
+            className="border-[3px] border-background bg-muted"
             style={{ width: 90, height: 90, borderRadius: 45 }}
             imageStyle={{}}
             collapseProgress={avatarCollapseProgress}

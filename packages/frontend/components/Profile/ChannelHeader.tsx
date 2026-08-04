@@ -80,7 +80,7 @@ export const ChannelHeader = memo(function ChannelHeader({
       <ZoomableAvatar
         source={avatarUri}
         size={CHANNEL_AVATAR_SIZE}
-        className="border-[3px] border-background bg-secondary"
+        className="border-[3px] border-background bg-muted"
         style={{
           width: CHANNEL_AVATAR_SIZE,
           height: CHANNEL_AVATAR_SIZE,

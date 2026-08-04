@@ -71,7 +71,7 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
 
             <View className="mb-2.5">
                 <TextInput
-                    className="border-[1.5px] rounded-[10px] px-3 py-2.5 text-sm min-h-[44px] text-foreground bg-secondary"
+                    className="border-[1.5px] rounded-[10px] px-3 py-2.5 text-sm min-h-[44px] text-foreground bg-muted"
                     style={{
                         textAlignVertical: "top",
                         borderColor: pollTitle.length > 0 ? theme.colors.primary : theme.colors.border,
@@ -92,13 +92,13 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
             <View className="mb-2 gap-2">
                 {pollOptions.map((option, index) => (
                     <View key={index} className="flex-row items-center gap-2">
-                        <View className="w-6 h-6 rounded-full items-center justify-center shrink-0 bg-secondary">
+                        <View className="w-6 h-6 rounded-full items-center justify-center shrink-0 bg-muted">
                             <Text className="text-xs font-bold text-muted-foreground">
                                 {index + 1}
                             </Text>
                         </View>
                         <TextInput
-                            className="flex-1 border-[1.5px] rounded-[10px] px-3 py-2.5 text-sm min-h-[44px] text-foreground bg-secondary"
+                            className="flex-1 border-[1.5px] rounded-[10px] px-3 py-2.5 text-sm min-h-[44px] text-foreground bg-muted"
                             style={{
                                 borderColor: option.length > 0 ? theme.colors.primary : theme.colors.border,
                             }}
@@ -127,7 +127,7 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
                     onPress={onAddOption}
                     activeOpacity={0.7}
                 >
-                    <View className="w-6 h-6 rounded-full items-center justify-center bg-secondary">
+                    <View className="w-6 h-6 rounded-full items-center justify-center bg-muted">
                         <Plus size={16} className="text-primary" />
                     </View>
                     <Text className="text-sm font-semibold text-primary">

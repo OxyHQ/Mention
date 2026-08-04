@@ -98,7 +98,7 @@ export function InterstitialShell<TItem>({
   const impressionRef = useInterstitialImpression(report, !isLoading && items.length > 0);
 
   return (
-    <View ref={impressionRef} className="bg-secondary border-border w-full border-b">
+    <View ref={impressionRef} className="bg-muted border-border w-full border-b">
       <View className="flex-row items-center justify-between px-3 pb-2 pt-3">
         <ThemedText className="text-base font-bold" numberOfLines={1}>
           {title}

@@ -303,13 +303,13 @@ const RoomDetailScreen = () => {
                   </View>
                 )}
                 {isScheduled && (
-                  <View className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary">
+                  <View className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted">
                     <Ionicons name="calendar-outline" size={14} color={theme.colors.text} />
                     <Text className="text-xs font-bold text-foreground">SCHEDULED</Text>
                   </View>
                 )}
                 {isEnded && (
-                  <View className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary">
+                  <View className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted">
                     <Text className="text-xs font-bold text-muted-foreground">ENDED</Text>
                   </View>
                 )}
@@ -349,7 +349,7 @@ const RoomDetailScreen = () => {
                       />
                     ))}
                     {hiddenParticipantCount > 0 && (
-                      <View className="h-8 px-2 items-center justify-center rounded-lg bg-secondary">
+                      <View className="h-8 px-2 items-center justify-center rounded-lg bg-muted">
                         <Text className="text-xs font-semibold text-muted-foreground">
                           +{hiddenParticipantCount}
                         </Text>
@@ -422,7 +422,7 @@ const RoomDetailScreen = () => {
                 </TouchableOpacity>
               )}
               {!isHost && isScheduled && (
-                <View className="flex-1 flex-row items-center justify-center gap-2 py-3.5 rounded-3xl bg-secondary">
+                <View className="flex-1 flex-row items-center justify-center gap-2 py-3.5 rounded-3xl bg-muted">
                   <Ionicons name="time-outline" size={20} color={theme.colors.textSecondary} />
                   <Text className="text-base font-semibold text-muted-foreground">
                     Room not started yet
@@ -444,7 +444,7 @@ const RoomDetailScreen = () => {
                 </TouchableOpacity>
               )}
               {isEnded && (
-                <View className="flex-1 flex-row items-center justify-center gap-2 py-3.5 rounded-3xl bg-secondary">
+                <View className="flex-1 flex-row items-center justify-center gap-2 py-3.5 rounded-3xl bg-muted">
                   <Ionicons name="checkmark-done" size={20} color={theme.colors.textSecondary} />
                   <Text className="text-base font-semibold text-muted-foreground">
                     This room has ended

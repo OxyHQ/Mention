@@ -96,7 +96,7 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
   const theme = useTheme();
   const openWidgetMenu = useWidgetItemMenu();
 
-  const { rooms, isLoading, hasFetched, error, hiddenRoomIds, startPolling, stopPolling, hideRoom } =
+  const { rooms, hasFetched, error, hiddenRoomIds, startPolling, stopPolling, hideRoom } =
     useLiveRoomsStore();
 
   useEffect(() => {
@@ -140,8 +140,13 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
     [openWidgetMenu, hideRoom, t],
   );
 
+  // Same rule as the other rail widgets: a failed fetch is settled, and a
+  // settled widget with nothing to list renders nothing at all rather than an
+  // error report. Rooms already on screen survive a later failure.
+  const hasSettled = hasFetched || error !== null;
+
   if (!isAuthenticated) return null;
-  if (hasFetched && !error && visibleRooms.length === 0) return null;
+  if (hasSettled && visibleRooms.length === 0) return null;
 
   return (
     <BaseWidget
@@ -149,7 +154,7 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
       icon={<Ionicons name="radio-outline" size={16} color={theme.colors.text} />}
       divider={divider}
     >
-      {isLoading && !hasFetched ? (
+      {!hasSettled ? (
         <View className="gap-2.5 py-1">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton.Row key={i} style={{ alignItems: 'center', gap: 8 }}>
@@ -161,8 +166,6 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
             </Skeleton.Row>
           ))}
         </View>
-      ) : error ? (
-        <Text className="text-destructive">{error}</Text>
       ) : (
         <View className="gap-2">
           <View>

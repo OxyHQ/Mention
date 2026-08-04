@@ -76,7 +76,7 @@ export const ArticleEditor: React.FC<ArticleEditorProps> = ({
         >
             <View className="gap-4 pb-6">
                 <TextInput
-                    className="text-lg font-bold rounded-[14px] border-[1.5px] border-border bg-secondary px-4 py-3 text-foreground"
+                    className="text-lg font-bold rounded-[14px] border-[1.5px] border-border bg-muted px-4 py-3 text-foreground"
                     placeholder={t("compose.article.titlePlaceholder", {
                         defaultValue: "Article title",
                     })}
@@ -87,7 +87,7 @@ export const ArticleEditor: React.FC<ArticleEditorProps> = ({
                 />
 
                 <TextInput
-                    className="min-h-[240px] rounded-[14px] border-[1.5px] border-border bg-secondary px-4 py-3 text-[15px] text-foreground"
+                    className="min-h-[240px] rounded-[14px] border-[1.5px] border-border bg-muted px-4 py-3 text-[15px] text-foreground"
                     style={{ textAlignVertical: "top" }}
                     placeholder={t("compose.article.bodyPlaceholder", {
                         defaultValue: "Start writing…",

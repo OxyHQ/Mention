@@ -863,7 +863,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
             />
 
             {showPoster && (
-                <View style={styles.posterLayer} className="bg-secondary" pointerEvents="none">
+                <View style={styles.posterLayer} className="bg-muted" pointerEvents="none">
                     {posterUrl && !posterFailed ? (
                         <Image
                             source={{ uri: posterUrl }}
@@ -1060,7 +1060,7 @@ const VideoItem = memo<VideoItemProps>(({
                 />
             ) : (
                 // Outside the live window (or errored): no decoder, just a poster.
-                <View style={[styles.video, styles.videoPlaceholder]} className="bg-secondary">
+                <View style={[styles.video, styles.videoPlaceholder]} className="bg-muted">
                     {item.posterUrl && !posterFailed ? (
                         <Image
                             source={{ uri: item.posterUrl }}

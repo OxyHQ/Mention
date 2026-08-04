@@ -776,7 +776,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
           {thumbnailUrl ? (
             <Image
               source={{ uri: thumbnailUrl }}
-              className="bg-secondary self-center ml-3 rounded-lg"
+              className="bg-muted self-center ml-3 rounded-lg"
               style={{ width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE }}
               contentFit="cover"
               transition={150}

@@ -41,7 +41,7 @@ export const PinnedMediaSection: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel={t('profile.media.add')}
         >
-          <View className="w-8 h-8 rounded-full bg-secondary items-center justify-center">
+          <View className="w-8 h-8 rounded-full bg-muted items-center justify-center">
             <Ionicons name="add" size={16} color={colors.primary} />
           </View>
           <Text className="text-primary text-[15px]">{t('profile.media.add')}</Text>
