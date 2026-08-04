@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -12,9 +12,18 @@ import { toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
-import { upsertCachedUser } from '@oxyhq/services';
+import { clearedFieldsFromAccountUpdate } from '@oxyhq/services';
 import { createLogger } from '@oxyhq/core/logger';
-import { getNormalizedUserHandle, type AccountNode } from '@oxyhq/core';
+import {
+  getNormalizedUserHandle,
+  type AccountNode,
+  type UpdateAccountInput,
+} from '@oxyhq/core';
+import {
+  MAX_ACCOUNT_CATEGORIES,
+  SELECTABLE_ACCOUNT_CATEGORY_IDS,
+  type AccountCategoryId,
+} from '@oxyhq/contracts';
 
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -22,15 +31,54 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { EmptyState } from '@/components/common/EmptyState';
+import { confirmDialog } from '@/utils/alerts';
 import { channelAccountService, type ChannelAccountSettings } from '@/services/channelAccountService';
+import { channelDeletionService } from '@/services/channelDeletionService';
+import { noteIdentityChanged } from '@/lib/actorCache';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { getErrorMessage } from '@/utils/apiError';
+import { useAccountCategoryLabel } from '@/hooks/useAccountCategoryLabel';
+import {
+  accountCategoriesEqual,
+  isKnownAccountCategoryId,
+  promoteAccountCategoryToPrimary,
+  toggleAccountCategory,
+} from '@/utils/accountCategories';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
 const channelSettingsLogger = createLogger('ChannelAccountSettings');
 
 /** Same cap the create form applies to a new channel's title. */
 const MAX_TITLE_LENGTH = 100;
+
+/**
+ * The Oxy account permission that authorises ending an account, and therefore
+ * the one thing that decides whether this screen offers to.
+ *
+ * Oxy grants it to the `owner` role ALONE, so it is strictly narrower than being
+ * able to operate the channel: an `admin` or `editor` reaches this screen, edits
+ * the profile and flips the byline, and may not delete. Read off the membership
+ * Oxy resolved rather than inferred from `callerMembership.role`, because a role
+ * list here would be a second copy of Oxy's role to permission map and the copy
+ * is what goes stale.
+ *
+ * The affordance is a SUBSET of the permission, never a guess at it: both Mention
+ * routes behind the row gate on this same permission, and Oxy gates the account
+ * archive on it, so a row that appears is a deletion all three will allow.
+ *
+ * A literal because it is a WIRE value — Oxy derives each member's `permissions`
+ * server-side and ships the strings, and neither `@oxyhq/contracts` nor
+ * `@oxyhq/core` exports the vocabulary today. The backend keeps the same constant
+ * for the same reason (`services/publishAsAccount.ts`).
+ */
+const ACCOUNT_DELETE_PERMISSION = 'account:delete';
+
+/**
+ * What a delete attempt ended as. Backing out at the confirmation is a normal
+ * outcome and not an error, so it is expressed as one — a rejection would put a
+ * "failed to delete" toast in front of somebody who just decided not to.
+ */
+type ChannelDeletionOutcome = { deleted: boolean };
 
 /**
  * What an OPERATOR can change about a channel from inside Mention.
@@ -151,6 +199,7 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
   const { colors } = useTheme();
   const queryClient = useQueryClient();
   const { user, oxyServices, showBottomSheet } = useAuth();
+  const categoryLabel = useAccountCategoryLabel();
   const viewerId = user?.id;
   const accountId = channel.accountId;
   const account = channel.account;
@@ -163,13 +212,22 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
   const [displayName, setDisplayName] = useState(account.name?.displayName ?? '');
   const [bio, setBio] = useState(account.bio ?? '');
   const [avatar, setAvatar] = useState(account.avatar ?? '');
+  // Seeded VERBATIM, including any id this build cannot name. Dropping an
+  // unrecognised one on load would delete — on the next save, silently — a
+  // category the owner set from a newer client.
+  const [categories, setCategories] = useState<AccountCategoryId[]>(
+    account.accountCategories ?? [],
+  );
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
 
   const trimmedName = displayName.trim();
   const trimmedBio = bio.trim();
+  const categoriesChanged = !accountCategoriesEqual(categories, account.accountCategories ?? []);
   const profileChanged =
     trimmedName !== (account.name?.displayName ?? '').trim() ||
     trimmedBio !== (account.bio ?? '').trim() ||
-    avatar !== (account.avatar ?? '');
+    avatar !== (account.avatar ?? '') ||
+    categoriesChanged;
   // An empty display name is refused rather than sent: at Oxy an empty
   // `displayName` CLEARS the explicit name and falls back to a composed
   // first/last, which a channel does not have — so saving one would leave the
@@ -201,25 +259,28 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
     [signPostsMutation],
   );
 
-  const profileMutation = useMutation<AccountNode, unknown, void>({
-    mutationFn: () =>
-      oxyServices.updateAccount(accountId, {
-        name: { displayName: trimmedName },
-        // `null` is Oxy's documented clear for both; an empty string would store
-        // one rather than remove it.
-        bio: trimmedBio.length > 0 ? trimmedBio : null,
-        avatar: avatar.length > 0 ? avatar : null,
-      }),
-    onSuccess: async (updated) => {
-      // The channel's page reads the SDK's user cache, so the authoritative
-      // account goes in through the SDK's own merge-upsert. A plain
-      // `setQueryData` would REPLACE the entry and strip the viewer
-      // `relationship` and `_count` an account object does not carry.
-      upsertCachedUser(queryClient, updated.account, viewerId);
-      // The operated-accounts list feeds this screen, the channels screen and
-      // the composer's publish-as picker, all of which show the name.
-      await queryClient.invalidateQueries({
-        queryKey: viewerQueryKeys.operatedAccounts(viewerId),
+  // The mutation takes the write INPUT as its variable rather than closing over
+  // the form state, because `onSuccess` needs it: which fields the operator
+  // EMPTIED is not recoverable from the response (Oxy omits a cleared scalar
+  // exactly as it omits an untouched one), so the input is the only witness.
+  const profileMutation = useMutation<AccountNode, unknown, UpdateAccountInput>({
+    mutationFn: (input) => oxyServices.updateAccount(accountId, input),
+    onSuccess: (updated, input) => {
+      // A channel's name, picture and description are held by more caches than
+      // this screen can see — the SDK's user cache behind its page, the
+      // operated-accounts list behind the composer's publish-as picker, and a
+      // copy embedded in every post the channel has ever published.
+      // `noteIdentityChanged` is the single authority that reaches all of them;
+      // writing any one of them from here is how the others get forgotten.
+      //
+      // The whole ACCOUNT goes over, not a hand-picked payload of its fields.
+      // The door picks the ones it carries, so it is the one place the set is
+      // decided and a field added there arrives here already supplied — whereas
+      // an object literal type-checks identically while silently omitting one,
+      // which is exactly how the description came to be missing for as long as
+      // this screen has been able to edit it.
+      noteIdentityChanged(updated.account, viewerId, {
+        cleared: clearedFieldsFromAccountUpdate(input),
       });
       toast.success(
         t('channels.settings.profileSaved', { defaultValue: 'Channel updated' }),
@@ -228,6 +289,94 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
     onError: (error) => {
       const fallback = t('channels.settings.profileSaveFailed', {
         defaultValue: 'Failed to update the channel profile',
+      });
+      channelSettingsLogger.error(fallback, error, { accountId });
+      toast(getErrorMessage(error, fallback), { type: 'error' });
+    },
+  });
+
+  /**
+   * Deleting the channel: Mention's rows, then Oxy's account, in that order and
+   * only ever behind a counted confirmation.
+   *
+   * ## The order is forced, not chosen
+   *
+   * Oxy's account reads exclude an archived account, and Mention's cascade
+   * resolves both the account's KIND (which it refuses to proceed without) and
+   * its USERNAME (which the canonical ids in each `Delete(Tombstone)` are minted
+   * from) through exactly those reads. Archive first and every post the channel
+   * published is stranded permanently, with nothing left that can address a
+   * deletion for it.
+   *
+   * So `archiveAccount` runs only after `deleteContent` has RESOLVED. A failure
+   * between the two halves leaves the survivable state: no posts, the fediverse
+   * told, and an account still standing that a retry archives. The server's
+   * cascade is idempotent, so that retry converges rather than double-deleting.
+   *
+   * ## Why the whole flow is one mutation
+   *
+   * The preview, the question and both halves are one decision, and splitting
+   * them across handlers is how a destructive call ends up reachable without the
+   * question. `deleteContent` is written on the line after the `confirmed` guard
+   * and can be read as unreachable without it.
+   *
+   * The preview is fetched HERE rather than by a query on mount: it walks the
+   * channel's entire publishing history, and its only consumer is a dialog that
+   * does not exist until the operator asks for it.
+   */
+  const deleteMutation = useMutation<ChannelDeletionOutcome, unknown, void>({
+    mutationFn: async () => {
+      const counts = await channelDeletionService.preview(accountId);
+
+      // The count is the point. A channel is a publication, and "are you sure?"
+      // is not informed consent for destroying an archive — so the body says how
+      // many posts go, the button repeats it, and the sentences after it are the
+      // two things a person could otherwise be surprised by: other people's
+      // boosts die with the posts, and remote servers are ASKED rather than made.
+      const confirmed = await confirmDialog({
+        title: t('channels.settings.deleteConfirmTitle', {
+          name: account.name?.displayName ?? '',
+        }),
+        message: [
+          counts.posts > 0
+            ? t('channels.settings.deleteConfirmPosts', { count: counts.posts })
+            : t('channels.settings.deleteConfirmEmpty'),
+          counts.boostsByOthers > 0
+            ? t('channels.settings.deleteConfirmBoosts', { count: counts.boostsByOthers })
+            : null,
+          t('channels.settings.deleteConfirmFediverse'),
+          t('channels.settings.deleteConfirmAccount'),
+        ]
+          .filter((sentence): sentence is string => sentence !== null)
+          .join(' '),
+        okText:
+          counts.posts > 0
+            ? t('channels.settings.deleteConfirmAction', { count: counts.posts })
+            : t('channels.settings.deleteConfirmActionEmpty'),
+        cancelText: t('common.cancel'),
+        destructive: true,
+      });
+      if (!confirmed) return { deleted: false };
+
+      await channelDeletionService.deleteContent(accountId);
+      // Oxy's half, and ONLY now: see the order argument above.
+      await oxyServices.archiveAccount(accountId);
+      return { deleted: true };
+    },
+    onSuccess: (outcome) => {
+      if (!outcome.deleted) return;
+      // The account is archived, so every list that enumerates the caller's
+      // accounts — this screen's own gate, and the composer's publish-as picker
+      // behind the same key — is now wrong.
+      queryClient.invalidateQueries({ queryKey: viewerQueryKeys.operatedAccounts(viewerId) });
+      toast.success(t('channels.settings.deleted', { defaultValue: 'Channel deleted' }));
+      // Home rather than back: back is the channel's own page, which no longer
+      // resolves.
+      router.replace('/');
+    },
+    onError: (error) => {
+      const fallback = t('channels.settings.deleteFailed', {
+        defaultValue: 'Failed to delete the channel',
       });
       channelSettingsLogger.error(fallback, error, { accountId });
       toast(getErrorMessage(error, fallback), { type: 'error' });
@@ -255,7 +404,53 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
     });
   }, [showBottomSheet]);
 
-  const handleSaveProfile = useCallback(() => profileMutation.mutate(), [profileMutation]);
+  const handleSaveProfile = useCallback(
+    () =>
+      profileMutation.mutate({
+        name: { displayName: trimmedName },
+        // `null` is Oxy's documented clear for both; an empty string would store
+        // one rather than remove it.
+        bio: trimmedBio.length > 0 ? trimmedBio : null,
+        avatar: avatar.length > 0 ? avatar : null,
+        // Sent whole and IN ORDER, because that is the only shape Oxy accepts:
+        // there is no add/remove verb, and element 0 is what records the
+        // primary. `[]` is the documented clear — unlike `bio` and `avatar`,
+        // this field is not nullable, since the empty case already has one
+        // spelling and a second could only ever disagree with it.
+        accountCategories: categories,
+      }),
+    [profileMutation, trimmedName, trimmedBio, avatar, categories],
+  );
+
+  // Both take the previous list rather than closing over `categories`, so the
+  // handlers stay identity-stable and can never apply an edit to a stale one.
+  const handleToggleCategory = useCallback(
+    (id: AccountCategoryId) =>
+      setCategories((current) => toggleAccountCategory(current, id, MAX_ACCOUNT_CATEGORIES)),
+    [],
+  );
+
+  // "Make primary" IS a re-ordering — the primary is the first element and
+  // nothing else records it — so this is the whole mechanism, not a shortcut
+  // for one. There is deliberately no drag handle: a list of at most four
+  // needs a verb, not a gesture, and a gesture would be the ONLY way to set
+  // the one field that decides what a reader sees under the channel's name.
+  const handlePromoteCategory = useCallback(
+    (id: AccountCategoryId) =>
+      setCategories((current) => promoteAccountCategoryToPrimary(current, id)),
+    [],
+  );
+
+  const handleDelete = useCallback(() => deleteMutation.mutate(), [deleteMutation]);
+
+  /**
+   * Whether this operator may end the channel, read off the permission array Oxy
+   * resolved for them. `=== true` rather than a truthiness test, and an absent or
+   * malformed array answers no: this decides whether a destructive control
+   * appears, so anything short of an explicit grant is a refusal.
+   */
+  const canDelete =
+    channel.callerMembership?.permissions?.includes(ACCOUNT_DELETE_PERMISSION) === true;
 
   if (isPending) {
     return (
@@ -326,6 +521,128 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
         />
       </View>
 
+      {/* Categories — what the channel IS. A settings GROUP rather than part of
+          the input block above, because every line here is a row to tap.
+          The order is the model: element 0 is the primary and there is no
+          separate field recording it, so the list is shown in its stored order
+          and "Make primary" moves a row to the front. */}
+      <SettingsListGroup
+        title={t('channels.settings.categories', { defaultValue: 'Categories' })}
+        footer={t('channels.settings.categoriesFooter', {
+          max: MAX_ACCOUNT_CATEGORIES,
+          defaultValue:
+            'The first category is the channel’s primary — the only one shown on its profile. The rest appear on its about page. Choose up to {{max}}.',
+        })}>
+        {categories.map((id, index) => {
+          const known = isKnownAccountCategoryId(id);
+          // An id from a newer vocabulary keeps its ROW — it counts against the
+          // cap at Oxy, so hiding it would leave the owner unable to add a
+          // fourth with no visible reason — but it is never printed raw.
+          const label = known
+            ? categoryLabel(id)
+            : t('channels.settings.categoryUnavailable', {
+                defaultValue: 'Not available in this version',
+              });
+          return (
+            <SettingsListItem
+              key={id}
+              icon={
+                <Ionicons
+                  name={index === 0 ? 'star' : 'pricetags-outline'}
+                  size={20}
+                  color={index === 0 ? colors.primary : colors.textSecondary}
+                />
+              }
+              title={label}
+              value={
+                index === 0
+                  ? t('accountCategories.primary', { defaultValue: 'Primary' })
+                  : undefined
+              }
+              showChevron={false}
+              rightElement={
+                <View className="flex-row items-center gap-2">
+                  {index > 0 && (
+                    <Pressable
+                      onPress={() => handlePromoteCategory(id)}
+                      accessibilityRole="button"
+                      className="bg-secondary rounded-full px-3 py-1.5">
+                      <Text className="text-foreground text-[13px] font-semibold">
+                        {t('channels.settings.makePrimary', { defaultValue: 'Make primary' })}
+                      </Text>
+                    </Pressable>
+                  )}
+                  <Pressable
+                    onPress={() => handleToggleCategory(id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('channels.settings.removeCategory', {
+                      category: label,
+                      defaultValue: `Remove ${label}`,
+                    })}
+                    className="p-1">
+                    <Ionicons name="close" size={18} color={colors.textSecondary} />
+                  </Pressable>
+                </View>
+              }
+            />
+          );
+        })}
+
+        <SettingsListItem
+          icon={<Ionicons name="add" size={20} color={colors.textSecondary} />}
+          title={t('channels.settings.addCategory', { defaultValue: 'Add a category' })}
+          description={
+            categories.length >= MAX_ACCOUNT_CATEGORIES
+              ? t('channels.settings.categoriesAtCap', {
+                  defaultValue: 'Remove one to choose a different category.',
+                })
+              : undefined
+          }
+          disabled={categories.length >= MAX_ACCOUNT_CATEGORIES}
+          showChevron={false}
+          rightElement={
+            <Ionicons
+              name={categoryPickerOpen ? 'chevron-up' : 'chevron-down'}
+              size={18}
+              color={colors.textSecondary}
+            />
+          }
+          onPress={
+            categories.length >= MAX_ACCOUNT_CATEGORIES
+              ? undefined
+              : () => setCategoryPickerOpen((open) => !open)
+          }
+        />
+      </SettingsListGroup>
+
+      {/* Collapsed by default: the vocabulary is 46 entries, which is a screen
+          of its own between the profile fields and the byline switch. Only
+          SELECTABLE ids are offered — a withdrawn one stays readable on an
+          account that already carries it, but must never be newly added, and
+          Oxy refuses that write anyway. */}
+      {categoryPickerOpen && (
+        <SettingsListGroup>
+          {SELECTABLE_ACCOUNT_CATEGORY_IDS.map((id) => {
+            const selected = categories.includes(id);
+            const atCap = categories.length >= MAX_ACCOUNT_CATEGORIES;
+            return (
+              <SettingsListItem
+                key={id}
+                title={categoryLabel(id)}
+                showChevron={false}
+                disabled={!selected && atCap}
+                rightElement={
+                  selected ? (
+                    <Ionicons name="checkmark" size={20} color={colors.primary} />
+                  ) : undefined
+                }
+                onPress={!selected && atCap ? undefined : () => handleToggleCategory(id)}
+              />
+            );
+          })}
+        </SettingsListGroup>
+      )}
+
       <SettingsListGroup
         title={t('channels.settings.byline', { defaultValue: 'Byline' })}
         footer={t('channels.settings.signPostsFooter', {
@@ -345,6 +662,33 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
           }
         />
       </SettingsListGroup>
+
+      {/* Its own group at the very bottom, and shown only to a member Oxy has
+          granted `account:delete`. Two operators can both reach this screen and
+          only one of them see this row, which is correct: publishing as a
+          channel and ending it are different rights, and offering a row the
+          server would refuse is worse than not offering it. */}
+      {canDelete && (
+        <SettingsListGroup
+          title={t('channels.settings.dangerZone', { defaultValue: 'Delete' })}
+          footer={t('channels.settings.deleteFooter', {
+            defaultValue:
+              'Deleting a channel destroys everything it has published. There is no undo, and nothing brings a post back once it is gone.',
+          })}>
+          <SettingsListItem
+            icon={<Ionicons name="trash-outline" size={20} color={colors.error} />}
+            title={
+              deleteMutation.isPending
+                ? t('channels.settings.deleting', { defaultValue: 'Deleting…' })
+                : t('channels.settings.delete', { defaultValue: 'Delete this channel' })
+            }
+            destructive
+            showChevron={false}
+            disabled={deleteMutation.isPending}
+            onPress={deleteMutation.isPending ? undefined : handleDelete}
+          />
+        </SettingsListGroup>
+      )}
 
       {/* Not a settings group: there is no row here to tap. It names the two
           things this screen deliberately does NOT own, so their absence reads as

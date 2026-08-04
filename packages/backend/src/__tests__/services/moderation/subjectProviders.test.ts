@@ -119,6 +119,18 @@ describe('post subject provider', () => {
     expect(await postProvider.snapshot('not-an-object-id')).toBeNull();
   });
 
+  it('does not disclose unpublished or non-public posts to another reporter', async () => {
+    // Delivery to CrowdSource runs later, without the reporter's delegated Oxy
+    // credentials, so follower/block/restriction relationships cannot be
+    // re-evaluated at send time. The snapshot therefore fails closed to public,
+    // published material — while an author reporting their OWN post still gets
+    // one, or nobody could report their own content.
+    const post = await textPost('Private draft.', { status: 'draft', visibility: 'private' });
+
+    expect(await postProvider.snapshot(post.id, 'oxy-attacker')).toBeNull();
+    expect(await postProvider.snapshot(post.id, AUTHOR)).not.toBeNull();
+  });
+
   it('drops a language tag the contract would refuse rather than failing the report', async () => {
     const post = await seedPost(scope, {
       oxyUserId: AUTHOR,
@@ -225,6 +237,18 @@ describe('post subject provider', () => {
     const post = await textPost('The reply.', { parentPostId: parent.id });
 
     expect((await postProvider.snapshot(post.id))?.context).toBeUndefined();
+  });
+
+  it('omits private or unpublished neighbouring context', async () => {
+    // The gate covers the NEIGHBOUR too: a public reply is reportable, but the
+    // private post it answers must not ride along into the envelope as context.
+    const parent = await textPost('Private parent.', { status: 'scheduled', visibility: 'private' });
+    const post = await textPost('Public reply.', { parentPostId: parent.id });
+
+    const snapshot = await postProvider.snapshot(post.id, 'oxy-attacker');
+
+    expect(snapshot?.content).toMatchObject({ data: { text: 'Public reply.' } });
+    expect(snapshot?.context).toBeUndefined();
   });
 
   it('passes a declared content warning through as a provenance-named hint', async () => {

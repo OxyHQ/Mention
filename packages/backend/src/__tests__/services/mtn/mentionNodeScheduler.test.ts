@@ -179,8 +179,30 @@ describe('Read-path invariant — feeds/hydration never touch a node', () => {
   // Hot read-path modules: anything a feed/hydration request executes. None may
   // reference the node model, node endpoints, or the node services.
   const HOT_PATH_DIRS = ['src/mtn/feed', 'src/controllers', 'src/services'];
-  // The node layer itself is the ONLY place node I/O is allowed — exclude it.
-  const NODE_LAYER = `${path.join('src', 'services', 'mtn')}${path.sep}`;
+  /**
+   * The two directories under a scanned root that are not read paths at all.
+   *
+   *  - `src/services/mtn` is the node layer itself: the only place node I/O is
+   *    allowed to live.
+   *  - `src/services/channelDeletion` is an administrative cascade. It has to
+   *    ENUMERATE the node models in order to delete their rows when a channel is
+   *    destroyed — leaving a chain and a node registration behind would be exactly
+   *    the orphan that cascade exists to prevent — and nothing in it is reachable
+   *    from a feed or hydration request.
+   *
+   * Neither exemption widens what a hot path may do; both name a directory that is
+   * not one.
+   *
+   * Applied when the HOT-PATH set is selected, deliberately NOT inside the walk:
+   * these files must still be SCANNED so their tokens reach the `reachable`
+   * vacuity floor below. Skipping them during the walk hides the node layer from
+   * that floor, and a forbidden token whose only remaining definition site lives
+   * there would then read as "deleted symbol" and fail — or, worse, be deleted.
+   */
+  const NOT_A_READ_PATH = [
+    path.normalize('src/services/mtn'),
+    path.normalize('src/services/channelDeletion'),
+  ];
   const FORBIDDEN = [
     // Re-expressed when the Mongoose `MentionUserNode` model gave way to
     // Postgres. The invariant is unchanged — no hot-path module may reach the
@@ -295,7 +317,9 @@ describe('Read-path invariant — feeds/hydration never touch a node', () => {
         HOT_PATH_DIRS.some(
           (dir) => entry.relative === dir || entry.relative.startsWith(`${dir}${path.sep}`),
         )
-        && !entry.relative.startsWith(NODE_LAYER),
+        && !NOT_A_READ_PATH.some(
+          (dir) => entry.relative === dir || entry.relative.startsWith(`${dir}${path.sep}`),
+        ),
     );
 
     // FLOOR — the walk reached every hot-path directory, and recursed into it.

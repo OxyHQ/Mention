@@ -133,6 +133,21 @@ describe('POST /mcp/oauth/register (RFC 7591 DCR)', () => {
     expect(res.body.error).toBe('invalid_redirect_uri');
     expect(await dcrRowCount()).toBe(before);
   });
+
+  it('rejects an arbitrary HTTPS redirect_uri that is not a trusted MCP callback', async () => {
+    // HTTPS is not the bar. Dynamic registration is public, so an arbitrary
+    // origin passing the scheme check would become an OAuth client for account
+    // API tokens; only a callback a first-party static client already trusts may
+    // be registered.
+    const before = await dcrRowCount();
+    const res = await request(app)
+      .post('/mcp/oauth/register')
+      .send({ redirect_uris: ['https://attacker.example/oauth/callback'] });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_redirect_uri');
+    expect(res.body.error_description).toContain('trusted MCP client callback');
+    expect(await dcrRowCount()).toBe(before);
+  });
 });
 
 describe('authorize honours a dynamically-registered client', () => {
@@ -180,5 +195,32 @@ describe('authorize honours a dynamically-registered client', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_request');
+  });
+
+  it('rejects a stored dynamic client whose redirect_uri is not trusted', async () => {
+    // The registration gate cannot be the only one: rows written before the
+    // rule existed, and rows whose callback stopped being trusted, are already
+    // in the table. The persisted row is not itself the authorization, so
+    // authorize re-asks the question against a REAL stored row.
+    const attackerRedirect = 'https://attacker.example/oauth/callback';
+    const evilClientId = `${SCOPE}-dcr-evil`;
+    await getDb().delete(mcpRegisteredClients).where(eq(mcpRegisteredClients.clientId, evilClientId));
+    await createRegisteredClient({
+      clientId: evilClientId,
+      label: 'Evil Client',
+      redirectUris: [attackerRedirect],
+    });
+
+    const res = await request(app).get('/mcp/oauth/authorize').query({
+      response_type: 'code',
+      client_id: evilClientId,
+      redirect_uri: attackerRedirect,
+      code_challenge: 'a'.repeat(43),
+      code_challenge_method: 'S256',
+      scope: 'mcp:read',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_client');
   });
 });

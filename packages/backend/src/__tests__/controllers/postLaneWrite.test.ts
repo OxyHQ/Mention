@@ -59,7 +59,14 @@ function makeReq(postId: string, body: Record<string, unknown>): OxyAuthRequest 
   return { user: { id: USER_ID }, params: { id: postId }, body } as unknown as OxyAuthRequest;
 }
 
-/** The stored `lane_id`, which is what the handler is judged on. */
+/**
+ * The stored `lane_id`, which is what the handler is judged on.
+ *
+ * Every case below asserts the ROW rather than the reply, and for a specific
+ * reason: an `UPDATE` whose filter matches nothing is not an error, so a write
+ * scoped to the wrong id answers 200 with the new lane's summary while the post
+ * has not moved. Only reading the column back tells those two apart.
+ */
 async function storedLaneId(postId: string): Promise<string | null> {
   const [row] = await getDb()
     .select({ laneId: posts.laneId })
@@ -131,18 +138,35 @@ describe('PATCH /posts/:id/lane', () => {
     expect(await storedLaneId(post.id)).toBe(laneId);
   });
 
-  it('scopes the lookup to the caller, so somebody else\'s post is a 404', async () => {
+  it('looks the post up by id and authorizes separately, still 404ing a stranger', async () => {
+    // The lookup is no longer the gate — it cannot be, because a channel post's
+    // `oxyUserId` is the channel and scoping the query by the caller made every
+    // one of them unreachable. `postManagementRefusal` is the gate now, and a
+    // refusal answers the SAME 404, so nothing about the reply changed.
+    //
+    // Which is exactly why the fixture is a post that EXISTS and belongs to
+    // somebody else: a viewer-scoped query answering nothing would pass whether
+    // the authorization check existed or not.
     const laneId = await seedLane(scope);
     const mine = await seedPost(scope, { oxyUserId: USER_ID });
-    const theirs = await seedPost(scope, { oxyUserId: scope.user('somebody-else') });
 
     const ok = makeRes();
     await updatePostLane(makeReq(mine.id, { laneId }), ok as never);
     expect(ok.statusCode).toBe(200);
 
+    // The stranger's post gets the stranger's OWN lane, so `assertLaneAssignable`
+    // would ACCEPT this pairing. That leaves `postManagementRefusal` as the only
+    // thing that can produce the 404 — sharing `laneId` here instead made the
+    // lane check answer it, and the case passed with the authorization deleted.
+    const stranger = scope.user('somebody-else');
+    const theirLane = await seedLane(scope, { ownerId: stranger });
+    const theirs = await seedPost(scope, { oxyUserId: stranger });
+
     const forbidden = makeRes();
-    await updatePostLane(makeReq(theirs.id, { laneId }), forbidden as never);
+    await updatePostLane(makeReq(theirs.id, { laneId: theirLane }), forbidden as never);
     expect(forbidden.statusCode).toBe(404);
+    // No member reader is configured in this suite, so the operator path cannot
+    // admit them either — and the row is proof the refusal came before the write.
     expect(await storedLaneId(theirs.id)).toBeNull();
 
     const missing = makeRes();
@@ -203,52 +227,98 @@ describe('PATCH /posts/:id/lane', () => {
 
 
 /**
- * A CHANNEL post is not reachable through this route at all, and that is the
- * whole of its channel story now.
+ * A CHANNEL post IS movable through this route — by the person who wrote it —
+ * and the lane it may be moved into is the CHANNEL's, never the mover's.
  *
- * The lookup is scoped by `{ id, oxy_user_id: userId }`, and a channel is an Oxy
- * account that AUTHORS its own posts — so a channel post's `oxyUserId` is the
- * channel, never the caller, and the query simply does not match. The old
- * deanonymization here (a channel post measured against the CALLER's personal
- * lanes, then served on a lane tab scoped to that one author) is unreachable by
- * construction rather than by a passed-through field.
+ * That second half is the dangerous one. A channel post carries the channel as
+ * its author and a human in `writtenByOxyUserId`; measuring the lane against the
+ * MOVER would offer their personal lanes, and a lane tab is scoped to one author
+ * even though the post's DTO stays anonymous — so the writer's identity would be
+ * recoverable from which tab the post appears on. The route therefore reads the
+ * publisher off the POST, and these cases pin exactly that, in both directions.
  *
- * The cost is a real gap, stated rather than hidden: a channel post's lane cannot
- * be MOVED after creation through this route. It can still be set at creation,
- * where `PostCreationService` measures it against the post's actual owner.
+ * ## Which semantics these encode, and why it is not the branch's own
  *
- * These are ROW assertions rather than "was the lookup called with these
- * arguments", and the pair is deliberate: a 404 on its own passes against a
- * route that refuses everything, so the CONTROL — the same caller, the same
- * lane, a post they authored — is what makes the first case about the channel.
+ * This branch shipped the OPPOSITE answer — the lookup was narrowed by
+ * `oxy_user_id = userId`, so a channel post was a 404 here and its lane could
+ * never be moved after creation — and `updatePostLane` carried a written note
+ * saying that the catch-up merge would have to decide between the two rather
+ * than resolve them mechanically. The merged route decides for `main`: the
+ * lookup is by id alone, `postManagementRefusal` authorizes, and
+ * `assertLaneAssignable` is handed `post.oxyUserId`. So these are `main`'s
+ * claims, re-expressed against real rows — the branch's "unreachable by
+ * construction" cases would now pass for no reason at all.
+ *
+ * They are ROW assertions rather than "was the lookup called with these
+ * arguments". `main` asserted the lane check's Mongo FILTER
+ * (`{_id, ownerId: CHANNEL}`) and the update's filter; both spell a query that
+ * no longer exists, and neither could tell a write that landed from one that
+ * matched nothing. Seeding a lane under each owner and reading `lane_id` back
+ * answers the same question about the code that actually runs.
  */
-describe('PATCH /posts/:id/lane — a channel post is not this caller\'s to move', () => {
+describe('PATCH /posts/:id/lane — a channel post moves against the CHANNEL\'s lanes', () => {
   const CHANNEL_ACCOUNT = scope.user('channel-account');
+  const OTHER_HUMAN = scope.user('other-human');
 
-  it('404s a post the channel authored, and writes nothing', async () => {
+  it('lets the WRITER move it, though the channel is the author', async () => {
+    const channelLane = await seedLane(scope, { ownerId: CHANNEL_ACCOUNT });
+    const post = await seedPost(scope, {
+      oxyUserId: CHANNEL_ACCOUNT,
+      writtenByOxyUserId: USER_ID,
+    });
+    const res = makeRes();
+
+    await updatePostLane(makeReq(post.id, { laneId: channelLane }), res as never);
+
+    expect(res.statusCode).toBe(200);
+    // The ROW, because the write is scoped by the post's AUTHOR: left scoped to
+    // the caller it matched nothing, which an `UPDATE` reports as success — the
+    // handler answered 200 with the new lane's summary while the post stayed put.
+    expect(await storedLaneId(post.id)).toBe(channelLane);
+    expect(CHANNEL_ACCOUNT).not.toBe(USER_ID);
+  });
+
+  it('refuses the writer’s OWN lane, which is what would deanonymize them', async () => {
     const personalLane = await seedLane(scope, { ownerId: USER_ID });
-    const post = await seedPost(scope, { oxyUserId: CHANNEL_ACCOUNT });
+    const post = await seedPost(scope, {
+      oxyUserId: CHANNEL_ACCOUNT,
+      writtenByOxyUserId: USER_ID,
+    });
     const res = makeRes();
 
     await updatePostLane(makeReq(post.id, { laneId: personalLane }), res as never);
 
-    // The lane exists and belongs to the caller — the post does not, which is
-    // precisely what the ownership-scoped lookup finds nothing for.
+    // The caller may move this post (the case above proves it) and owns this
+    // lane — and it is still refused, because the publisher comes off the POST.
+    // A channel post on a personal lane tab recovers the writer's identity that
+    // `signPosts` exists to keep undisclosed.
     expect(res.statusCode).toBe(404);
     expect(await storedLaneId(post.id)).toBeNull();
-    expect(CHANNEL_ACCOUNT).not.toBe(USER_ID);
   });
 
-  it('CONTROL: the same caller moves their OWN post into that same lane', async () => {
+  it('refuses a stranger who neither authored nor wrote it', async () => {
+    const channelLane = await seedLane(scope, { ownerId: CHANNEL_ACCOUNT });
+    const post = await seedPost(scope, {
+      oxyUserId: CHANNEL_ACCOUNT,
+      writtenByOxyUserId: OTHER_HUMAN,
+    });
+    const res = makeRes();
+
+    await updatePostLane(makeReq(post.id, { laneId: channelLane }), res as never);
+
+    expect(res.statusCode).toBe(404);
+    expect(await storedLaneId(post.id)).toBeNull();
+  });
+
+  it('CONTROL: an ordinary post is still measured against its own owner', async () => {
+    // Without this, every case above passes against a route that refuses
+    // everything.
     const personalLane = await seedLane(scope, { ownerId: USER_ID });
     const post = await seedPost(scope, { oxyUserId: USER_ID });
     const res = makeRes();
 
     await updatePostLane(makeReq(post.id, { laneId: personalLane }), res as never);
 
-    // The opposite outcome from one changed fact — who authored the post — which
-    // is what makes the case above about the author rather than about the lane
-    // being unreachable for some other reason.
     expect(res.statusCode).toBe(200);
     expect(await storedLaneId(post.id)).toBe(personalLane);
   });

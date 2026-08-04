@@ -262,15 +262,6 @@ jest.mock('@oxyhq/bloom/loading', () => {
 
 jest.mock('@oxyhq/bloom/toast', () => ({ toast: jest.fn() }));
 
-// Reached through ProfileCard → RemoteActorBadge → FediverseInfoDialog.
-jest.mock('@oxyhq/bloom/dialog', () => {
-  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
-  return {
-    Dialog: ({ children }: { children?: React.ReactNode }) => <View>{children}</View>,
-    useDialogControl: () => ({ open: jest.fn(), close: jest.fn() }),
-  };
-});
-
 jest.mock('@oxyhq/bloom/button', () => {
   const { TouchableOpacity } =
     jest.requireActual<typeof import('react-native')>('react-native');

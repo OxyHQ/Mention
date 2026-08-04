@@ -45,11 +45,13 @@ import {
   mentionSignedRecords,
   mentionUserNodes,
 } from '../../db/schema/mtn';
-import { contentLabels, labelers, reports } from '../../db/schema/moderation';
+import { contentLabels, labelers, moderationEnforcements, reports } from '../../db/schema/moderation';
 import { endorsementOutbox, engagementOutbox } from '../../db/schema/outbox';
 import { pollVotes, polls } from '../../db/schema/polls';
 import { postAuthorships, postMentions, postRecentRepliers } from '../../db/schema/postContent';
 import { posts } from '../../db/schema/posts';
+import { laneMutes, lanes } from '../../db/schema/channels';
+import { mcpConnections } from '../../db/schema/mcp';
 import { userBehaviorAuthors, userBehaviors, userSettings } from '../../db/schema/userProfile';
 import {
   hasDeliveriesFromSender,
@@ -192,6 +194,26 @@ export interface PostDeletionAcknowledgements {
    */
   removedByCascade?: readonly PostReferenceProbeName[];
   /**
+   * Probes whose rows the caller deliberately LEAVES IN PLACE, because a written
+   * policy says they must outlive the post — `Report.reportedId(post)`, whose
+   * removal strands an inbound CrowdSource decision on a retry loop, and the two
+   * durable queues whose live backlog is cancelled while their completed rows
+   * stay as a log.
+   *
+   * Kept SEPARATE from {@link removedByCascade} on purpose, even though the gate
+   * treats both the same way. That one is a CLAIM that the rows are gone, and
+   * {@link collectPostCascadeResidue} re-runs exactly those probes afterwards to
+   * check it; this one is a decision that they stay, which the same check would
+   * report as a failure. Collapsing them would make a deliberately retained
+   * reference indistinguishable from a cascade leg that had silently stopped
+   * working — the one confusion this module exists to remove.
+   *
+   * Compiler-checked against {@link POST_REFERENCE_PROBE_NAMES} like its sibling,
+   * so a probe added upstream cannot be inherited into an existing caller's
+   * policy without somebody deciding.
+   */
+  keptByPolicy?: readonly PostReferenceProbeName[];
+  /**
    * The caller deliberately LEAVES `parent_post_id` / `quote_of` / `thread_id`
    * pointing at a removed post, because the referencing posts belong to OTHER
    * users and deleting them would destroy their content to remove someone
@@ -304,7 +326,10 @@ export async function assertPostsSafeToDelete(
   if (targets.length === 0) return;
 
   const idStrings = unique(targets.map((target) => target.id));
-  const acknowledged = new Set<PostReferenceProbeName>(options.removedByCascade ?? []);
+  const acknowledged = new Set<PostReferenceProbeName>([
+    ...(options.removedByCascade ?? []),
+    ...(options.keptByPolicy ?? []),
+  ]);
   const referenceProbes = buildPostReferenceProbes(targets);
 
   const danglingReferences = options.allowDanglingReplyReferences
@@ -357,13 +382,91 @@ export async function collectPostCascadeResidue(
   );
 }
 
-function actorReferenceProbes(
+/**
+ * Every known reference to an ACTOR, as executable probes.
+ *
+ * Exported so a test can assert which probes exist and which bucket each sits
+ * in — the two facts that decide whether a reference is checked at all. A probe
+ * that is missing here is invisible to every guard built on top of it, and
+ * nothing else in the tree would notice its absence.
+ *
+ * `includeReferencesRemovedByGoneActorCascade` returns ONLY the probes that
+ * cascade does not remove; everything appended afterwards is what it does.
+ */
+/**
+ * Every ACTOR reference this module probes, as a closed union.
+ *
+ * The sibling {@link POST_REFERENCE_PROBE_NAMES} has always been one; this one
+ * was not, and the asymmetry was invisible from any diff. Deleting a POST probe
+ * breaks the build, while deleting an ACTOR probe compiled clean and left only a
+ * test to notice — a test that can be resolved away at the same moment as the
+ * probe when both sides of a merge conflict are taken together. Typing the probe
+ * list against this union is what makes a removed actor probe a COMPILER error
+ * rather than something a hand-written list has to remember.
+ */
+export const ACTOR_REFERENCE_PROBE_NAMES = [
+  'bookmarks.user_id',
+  'mutes.user_id/muted_id',
+  'mute_words.user_id',
+  'feed_interactions.user_id',
+  'feed_likes.user_id',
+  'feed_reviews.reviewer_id',
+  'post_subscriptions.subscriber_id/author_id',
+  'push_tokens.user_id',
+  'pokes.poker_id/poked_id',
+  'reports.reporter/reported_id(user)',
+  'polls.created_by/poll_votes.user_id',
+  'articles.created_by',
+  'postgates.created_by',
+  'threadgates.created_by',
+  'post_recent_repliers.oxy_user_id',
+  'engagement_outbox.payload actor/owner',
+  'account_lists owner/member',
+  'custom_feeds owner/member',
+  'starter_packs owner/member/used_by',
+  'feed_generators.created_by',
+  'labelers.creator_id',
+  'content_labels created_by/target_id(user)',
+  'federation_delivery_queue.sender_oxy_user_id',
+  'endorsement_outbox pending owner/member',
+  'user_behaviors references from another viewer',
+  'posts non-owner authorship/federation.actor_uri',
+  'federated_follows.local_user_id',
+  'posts.written_by_oxy_user_id',
+  'lanes.owner_id',
+  'lane_mutes.viewer/lane_owner',
+  'mcp_connections.oxy_user_id/active_oxy_user_id',
+  'moderation_enforcements.subject_id',
+  'user_settings privacy references from another viewer',
+  'posts.federation_actor_uri without linked Oxy identity',
+  'federated_follows.remote_actor_uri',
+  'posts owner/authorship/mentions',
+  'likes.user_id',
+  'entity_follows.user_id',
+  'notifications recipient/actor',
+  'user_settings.oxy_user_id',
+  'user_behaviors.oxy_user_id',
+  'user_feed_preferences.oxy_user_id',
+  'author_follower_snapshots.oxy_user_id',
+  'actor_key_pairs.oxy_user_id',
+  'mention_user_nodes.oxy_user_id',
+  'mention_repo_heads.oxy_user_id',
+  'mention_signed_records.oxy_user_id',
+  'mention_node_ingest_witnesses.oxy_user_id',
+] as const;
+
+export type ActorReferenceProbeName = (typeof ACTOR_REFERENCE_PROBE_NAMES)[number];
+
+/** A {@link ReferenceProbe} whose name is a declared actor reference. */
+export type ActorReferenceProbe = ReferenceProbe & { name: ActorReferenceProbeName };
+
+export function actorReferenceProbes(
   target: ActorDeletionTarget,
   includeReferencesRemovedByGoneActorCascade: boolean,
-): ReferenceProbe[] {
+): ActorReferenceProbe[] {
   const oxyUserId = target.oxyUserId?.trim();
   const actorUri = target.actorUri;
-  const probes: ReferenceProbe[] = [];
+  const probes: ActorReferenceProbe[] = [];
 
   if (oxyUserId) {
     probes.push(
@@ -620,6 +723,85 @@ function actorReferenceProbes(
       {
         name: 'federated_follows.local_user_id',
         hasReference: () => existsFollow({ localUserId: oxyUserId }),
+      },
+      {
+        /**
+         * The writer behind a channel post, which is the ONE reference to a
+         * person deliberately outside `authorship[]` — putting them in it would
+         * both end the channel's anonymity and put the post back on their own
+         * profile. That same choice puts the column outside every authorship
+         * matcher and, until this probe, outside every guard: the gone-actor
+         * cascade removes posts by owner and by authorship, so a channel post
+         * written by this actor survives it holding their id.
+         */
+        name: 'posts.written_by_oxy_user_id',
+        hasReference: () => anyRow(posts, posts.id, eq(posts.writtenByOxyUserId, oxyUserId)),
+      },
+      {
+        name: 'lanes.owner_id',
+        hasReference: () => anyRow(lanes, lanes.id, eq(lanes.ownerId, oxyUserId)),
+      },
+      {
+        name: 'lane_mutes.viewer/lane_owner',
+        hasReference: () =>
+          anyRow(
+            laneMutes,
+            laneMutes.id,
+            or(
+              eq(laneMutes.viewerOxyUserId, oxyUserId),
+              eq(laneMutes.laneOwnerOxyUserId, oxyUserId),
+            ),
+          ),
+      },
+      {
+        name: 'mcp_connections.oxy_user_id/active_oxy_user_id',
+        hasReference: () =>
+          anyRow(
+            mcpConnections,
+            mcpConnections.id,
+            or(
+              eq(mcpConnections.oxyUserId, oxyUserId),
+              eq(mcpConnections.activeOxyUserId, oxyUserId),
+            ),
+          ),
+      },
+      {
+        /**
+         * `subject_id` holds whichever id the case was about, so it names this
+         * actor for an `identity.profile` subject. Kept as a BLOCKER rather than
+         * something a cascade may remove: it is the record that an enforcement
+         * action was carried out, and its `decisionId + revision + action`
+         * uniqueness is what makes a later correction idempotent.
+         */
+        name: 'moderation_enforcements.subject_id',
+        hasReference: () =>
+          anyRow(
+            moderationEnforcements,
+            moderationEnforcements.id,
+            eq(moderationEnforcements.subjectId, oxyUserId),
+          ),
+      },
+      {
+        /**
+         * Another viewer's settings naming this actor. Scoped to OTHER rows for
+         * the same reason `UserBehavior references from another viewer` is: the
+         * actor's own settings row is covered by `user_settings.oxy_user_id`
+         * below, which the gone-actor cascade removes, while a stranger's row
+         * survives it holding the id.
+         */
+        name: 'user_settings privacy references from another viewer',
+        hasReference: () =>
+          anyRow(
+            userSettings,
+            userSettings.id,
+            and(
+              ne(userSettings.oxyUserId, oxyUserId),
+              or(
+                arrayContains(userSettings.privacyRestrictedUsers, [oxyUserId]),
+                arrayContains(userSettings.privacySubscribedLabelers, [oxyUserId]),
+              ),
+            ),
+          ),
       },
     );
   } else {

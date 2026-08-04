@@ -987,6 +987,24 @@ class FeedController {
       const currentUserId = req.user?.id;
       const limit = validateAndNormalizeLimit(req.query.limit, FEED_CONSTANTS.DEFAULT_LIMIT);
       const cursor = queryString(req.query.cursor);
+      const requestOxyClient = createScopedOxyClient(req);
+
+      // This is a public route, but the relationship it exposes is only public
+      // when the quoted post itself is viewable. Hydrate the anchor first so it
+      // passes through the same post/profile ACL as post detail before either
+      // enumerating its quotes or embedding it as nested quote context.
+      const anchorPost = await loadPostRecord(postId);
+      if (!anchorPost) {
+        return res.status(404).json({ message: 'Post not found' });
+      }
+      const [visibleAnchor] = await postHydrationService.hydratePosts([anchorPost], {
+        viewerId: currentUserId,
+        oxyClient: requestOxyClient,
+        maxDepth: 0,
+      });
+      if (!visibleAnchor) {
+        return res.status(404).json({ message: 'Post not available' });
+      }
 
       const conditions: SQL[] = [
         eq(postsTable.quoteOf, postId),
@@ -1003,7 +1021,6 @@ class FeedController {
 
       const hasMore = page.length > limit;
       const slicedPosts = hasMore ? page.slice(0, limit) : page;
-      const requestOxyClient = createScopedOxyClient(req);
 
       let filteredPosts = slicedPosts;
       if (currentUserId) {
@@ -1020,6 +1037,7 @@ class FeedController {
         viewerId: currentUserId,
         oxyClient: requestOxyClient,
         maxDepth: 1,
+        publicReferencesOnly: true,
         includeLinkMetadata: true,
       });
       const items = hydrated.filter((post) => post?.id && post.user?.id);

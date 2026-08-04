@@ -666,6 +666,87 @@ export async function stampLastOutboxSyncAt(
     .where(eq(federatedActors.id, actorId));
 }
 
+/**
+ * Claim the atproto profile-graph sync for one actor, at most once per cooldown
+ * window across every task.
+ *
+ * The claim IS the write: a conditional `UPDATE … RETURNING` whose predicate
+ * carries the cooldown and the lease, so the row count answers "did I get it".
+ * A read-then-write would let several concurrent public profile-feed requests
+ * each see a free lease and fan out duplicate starter-pack and feed-resolution
+ * jobs — which is the exact cost this exists to bound.
+ *
+ * `uri` is in the predicate as well as `id`: the caller resolved the DID before
+ * awaiting, and an actor re-resolved onto a different identity in between must
+ * not have work done under the id the caller still holds.
+ *
+ * @returns `true` when this caller owns the lease and must release it.
+ */
+export async function claimAtprotoGraphSync(
+  actorId: string,
+  uri: string,
+  now: Date,
+  cooldownCutoff: Date,
+  staleLeaseCutoff: Date,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<boolean> {
+  const claimed = await db
+    .update(federatedActors)
+    .set({ atprotoGraphSyncStartedAt: now, updatedAt: new Date() })
+    .where(
+      and(
+        eq(federatedActors.id, actorId),
+        eq(federatedActors.uri, uri),
+        eq(federatedActors.protocol, 'atproto'),
+        isNotNull(federatedActors.oxyUserId),
+        // Cooldown: never run, or last completed long enough ago.
+        or(
+          isNull(federatedActors.lastAtprotoGraphSyncAt),
+          lte(federatedActors.lastAtprotoGraphSyncAt, cooldownCutoff),
+        ),
+        // Lease: nobody holds it, or the holder died and its lease went stale.
+        or(
+          isNull(federatedActors.atprotoGraphSyncStartedAt),
+          lte(federatedActors.atprotoGraphSyncStartedAt, staleLeaseCutoff),
+        ),
+      ),
+    )
+    .returning({ id: federatedActors.id });
+
+  return claimed.length > 0;
+}
+
+/**
+ * Release the lease taken by {@link claimAtprotoGraphSync}.
+ *
+ * `heldSince` is in the predicate so a caller whose lease already expired and
+ * was re-claimed by somebody else cannot clear the NEW holder's lease on its way
+ * out — the late finisher simply writes nothing.
+ *
+ * `completed: false` releases without stamping the cooldown, so a failed run is
+ * retried on the next view rather than sitting out the full window.
+ */
+export async function releaseAtprotoGraphSync(
+  actorId: string,
+  heldSince: Date,
+  completed: boolean,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<void> {
+  await db
+    .update(federatedActors)
+    .set({
+      atprotoGraphSyncStartedAt: null,
+      ...(completed ? { lastAtprotoGraphSyncAt: new Date() } : {}),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(federatedActors.id, actorId),
+        eq(federatedActors.atprotoGraphSyncStartedAt, heldSince),
+      ),
+    );
+}
+
 /** A whitespace/markup normalization of one actor's stored remote text. */
 export interface ActorTextPatch {
   username?: string;

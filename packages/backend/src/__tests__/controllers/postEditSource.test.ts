@@ -20,7 +20,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Response } from 'express';
 import type { OxyAuthRequest } from '@oxyhq/core/server';
-import { eq } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 const { resolveUserSummaries } = vi.hoisted(() => ({ resolveUserSummaries: vi.fn() }));
@@ -32,6 +32,12 @@ vi.mock('../../services/PostHydrationService', () => ({
   isFallbackUserSummary: (user: { username?: string }) => !user.username,
 }));
 
+// `utils/oxyHelpers` is deliberately NOT doubled. The controller only reaches
+// it for `createUserScopedOxyServices(req)`, and the real one returns
+// `undefined` for a request carrying no bearer — which is exactly what a stub
+// would have returned, while a module factory would silently blank every other
+// export the controller graph reads. `utils/logger` is already mocked globally
+// in `__tests__/setup.ts`.
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { insertPostRecord } from '../../db/posts/postRepository';
@@ -39,6 +45,8 @@ import { getPostEditSource } from '../../controllers/postEditSource.controller';
 
 const OWNER = 'oxy-edit-source-owner';
 const OTHER = 'oxy-edit-source-other';
+/** A channel account: authored by nobody who can sign in as it. */
+const CHANNEL = 'oxy-edit-source-channel';
 
 let db: Database;
 
@@ -66,8 +74,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  await db.delete(posts).where(eq(posts.oxyUserId, OWNER));
-  await db.delete(posts).where(eq(posts.oxyUserId, OTHER));
+  await db.delete(posts).where(inArray(posts.oxyUserId, [OWNER, OTHER, CHANNEL]));
 });
 
 afterAll(async () => {
@@ -83,6 +90,8 @@ describe('getPostEditSource', () => {
 
   it('returns the raw author bodies and drops orphan mention ids', async () => {
     const post = await insertPostRecord({
+      // A real row always names its author, and the handler authorizes on it
+      // (`postManagementRefusal`) rather than on the query filter.
       oxyUserId: OWNER,
       authorship: [{ oxyUserId: OWNER, role: 'owner', status: 'accepted' }],
       type: PostType.IMAGE,
@@ -139,9 +148,13 @@ describe('getPostEditSource', () => {
   /**
    * THE security case, and the reason the suite runs on real rows.
    *
-   * Mutation: drop `eq(posts.oxyUserId, userId)` from the controller's predicate
-   * and this goes red with a 200 and the draft's body in the response — the
-   * mocked version stayed green under exactly that change.
+   * The boundary MOVED: the lookup is by id alone now, so the query finds this
+   * draft and `postManagementRefusal` is the only thing that stops it being
+   * served. That is what makes this fixture load-bearing — a viewer-scoped query
+   * answering `null` would pass whether the authorization check existed or not.
+   *
+   * Mutation: delete the `postManagementRefusal` call from the controller and
+   * this goes red with a 200 and the draft's body in the response.
    */
   it("does not reveal another owner's draft", async () => {
     const draft = await insertPostRecord({
@@ -158,6 +171,8 @@ describe('getPostEditSource', () => {
     await getPostEditSource(request(draft.id, OWNER), res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(404);
+    // Nothing of the draft may reach the caller — not its body, not its
+    // existence beyond the same 404 a missing post answers.
     expect(res.json).toHaveBeenCalledWith({ message: 'Post not found' });
   });
 
@@ -186,7 +201,62 @@ describe('getPostEditSource', () => {
     // the guard would have rejected outright, now resolves normally.
     const res = responseDouble();
     await getPostEditSource(request('not-an-id-of-any-shape', OWNER), res as unknown as Response);
+
     expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Post not found' });
+  });
+
+  it("lets a CHANNEL post's writer open it, though the channel is the author", async () => {
+    // The defect this route shares with `updatePost`: a channel post is authored
+    // by an account nobody can sign in as, so an owner-scoped lookup refused the
+    // composer to the very person who wrote it. The row here is the real shape —
+    // `oxy_user_id` is the CHANNEL and `written_by_oxy_user_id` is the human — so
+    // a query narrowed back to the viewer finds nothing and this goes red.
+    //
+    // It costs no Oxy round trip: `canManagePostWithoutLookup` answers from the
+    // two columns already in hand, which is why the writer is admitted even
+    // though `memberReader` is `undefined` here.
+    const post = await insertPostRecord({
+      oxyUserId: CHANNEL,
+      writtenByOxyUserId: OWNER,
+      authorship: [{ oxyUserId: CHANNEL, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: { variants: [{ source: 'author', text: 'from the channel' }] },
+    });
+
+    const res = responseDouble();
+    await getPostEditSource(request(post.id, OWNER), res as unknown as Response);
+
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: post.id,
+        content: expect.objectContaining({ text: 'from the channel' }),
+      }),
+    );
+  });
+
+  it('refuses the same channel post to somebody who neither wrote it nor operates it', async () => {
+    // The vacuity floor for the case above: admitting the WRITER must not be
+    // admitting everybody. `OTHER` wrote nothing and Oxy resolves no membership
+    // here, so `postManagementRefusal` falls through to its 404.
+    const post = await insertPostRecord({
+      oxyUserId: CHANNEL,
+      writtenByOxyUserId: OWNER,
+      authorship: [{ oxyUserId: CHANNEL, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: { variants: [{ source: 'author', text: 'from the channel' }] },
+    });
+
+    const res = responseDouble();
+    await getPostEditSource(request(post.id, OTHER), res as unknown as Response);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Post not found' });
   });
 
   it('serves a post whose id is a uuid v7', async () => {

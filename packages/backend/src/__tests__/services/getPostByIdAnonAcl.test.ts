@@ -159,6 +159,23 @@ describe('getPostById ACL — anonymous viewer cannot see non-public posts', () 
     expect(await hydrateAsAnon(post)).toHaveLength(0);
   });
 
+  it('DROPS a federated followers-only post (→ getPostById 404)', async () => {
+    // `mapApVisibility` turns a Note that is not publicly addressed into
+    // `followers_only`, so "federated" does NOT imply public. The ACL used to
+    // bypass every federated post, which served a remote author's private post
+    // to anyone who asked for it by id.
+    const post = await seedPost(scope, {
+      oxyUserId: AUTHOR_ID,
+      visibility: PostVisibility.FOLLOWERS_ONLY,
+      federation: {
+        activityId: 'https://remote.test/posts/private',
+        actorUri: 'https://remote.test/users/author',
+      },
+    });
+
+    expect(await hydrateAsAnon(post)).toHaveLength(0);
+  });
+
   it('DROPS an unpublished (draft) post (→ getPostById 404)', async () => {
     const post = await seedPost(scope, { oxyUserId: AUTHOR_ID, status: 'draft' });
 

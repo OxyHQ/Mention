@@ -16,9 +16,9 @@ import { migrationChannelAccounts } from '../../migrations/0026-channel-accounts
  *  - IDEMPOTENCE. `dropIndex` on a missing index raises `IndexNotFound`, and a
  *    migration that throws on its second run blocks every later migration on any
  *    database where this one already succeeded;
- *  - that the dead FIELDS are unset, not just the indexes dropped. `channelId` is
- *    no longer declared on the schema, so a surviving value would be invisible to
- *    Mongoose and yet still present in the collection.
+ *  - that legacy channel posts make the migration fail closed before any data or
+ *    indexes are changed. Removing their only marker would expose their human
+ *    writer on profile and follower feeds.
  */
 
 interface Call {
@@ -28,7 +28,13 @@ interface Call {
   options?: unknown;
 }
 
-function makeDb(options: { existingIndexes?: string[]; existingCollections?: string[] } = {}) {
+function makeDb(
+  options: {
+    existingIndexes?: string[];
+    existingCollections?: string[];
+    legacyChannelPost?: { _id: string; channelId: string };
+  } = {},
+) {
   const existingIndexes = new Set(
     options.existingIndexes ?? [
       'ownerType_1_ownerId_1_createdAt_-1',
@@ -45,6 +51,12 @@ function makeDb(options: { existingIndexes?: string[]; existingCollections?: str
   const db = {
     collection: (collectionName: string) => ({
       collectionName,
+      findOne: (filter: Record<string, unknown>, findOptions?: Record<string, unknown>) => {
+        calls.push({ op: 'findOne', collection: collectionName, arg: filter, options: findOptions });
+        return Promise.resolve(
+          collectionName === 'posts' ? (options.legacyChannelPost ?? null) : null,
+        );
+      },
       createIndex: (key: Record<string, unknown>, opts?: Record<string, unknown>) => {
         calls.push({ op: 'createIndex', collection: collectionName, arg: key, options: opts });
         return Promise.resolve('ok');
@@ -134,7 +146,7 @@ describe('migration 0026 — channel accounts', () => {
     ]);
   });
 
-  it('unsets the undeclared fields, not just the indexes', async () => {
+  it('unsets the obsolete lane owner type', async () => {
     const { db, calls } = makeDb();
 
     await migrationChannelAccounts.run(db);
@@ -147,11 +159,24 @@ describe('migration 0026 — channel accounts', () => {
         arg: { ownerType: { $exists: true } },
         options: { $unset: { ownerType: '' } },
       },
+    ]);
+  });
+
+  it('fails before changing anything when a legacy channel post exists', async () => {
+    const { db, calls } = makeDb({
+      legacyChannelPost: { _id: 'legacy-post', channelId: 'legacy-channel' },
+    });
+
+    await expect(migrationChannelAccounts.run(db)).rejects.toThrow(
+      'Migration 0026 cannot retire channels while legacy channel posts exist',
+    );
+
+    expect(calls).toEqual([
       {
-        op: 'updateMany',
+        op: 'findOne',
         collection: 'posts',
         arg: { channelId: { $exists: true } },
-        options: { $unset: { channelId: '' } },
+        options: { projection: { _id: 1, channelId: 1 } },
       },
     ]);
   });

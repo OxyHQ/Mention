@@ -27,7 +27,9 @@ import { activityIdUnderActor } from './activitypub/helpers';
 import { posts } from '../db/schema/posts';
 import type { FederatedActorRecord } from '../db/federation/actorRecord';
 import {
+  claimAtprotoGraphSync,
   findActorByOxyUserId,
+  releaseAtprotoGraphSync,
   setActorOxyUserId,
   stampLastOutboxSyncAt,
 } from '../db/federation/actorRepository';
@@ -60,6 +62,12 @@ const FEDERATED_ACTOR_PROFILE_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 /** Max number of recent outbox posts to pull per background profile sync. */
 const OUTBOX_SYNC_LIMIT = 20;
+
+/** Minimum interval between costly atproto starter-pack/feed-reference syncs. */
+const ATPROTO_GRAPH_SYNC_MIN_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/** Expire abandoned graph-sync claims if a worker dies while the detached task runs. */
+const ATPROTO_GRAPH_SYNC_LOCK_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 class FederatedProfileSync {
   /**
@@ -148,14 +156,7 @@ class FederatedProfileSync {
             // (no orphan): a re-resolved atproto actor carries `oxyUserId`; when it
             // does not yet, the next view (after the backfill stamps it) picks it up.
             if (ATPROTO_ENABLED && cachedActor.oxyUserId) {
-              const graphDid = cachedActor.uri;
-              const graphOwner = cachedActor.oxyUserId;
-              void syncAtprotoProfileGraph(graphDid, graphOwner).catch((err) => {
-                const message = err instanceof Error ? err.message : String(err);
-          logger.warn('[FedSync] atproto graph sync failed', {
-            error: message,
-          });
-              });
+              await this.syncAtprotoGraphIfDue(cachedActor);
             }
           }
           // Stamp the post-backfill time so `shouldReportPending` can clear. The
@@ -335,6 +336,61 @@ class FederatedProfileSync {
         logger.warn('[FedSync] background profile sync failed', {
           error: message,
         });
+      }
+    })();
+  }
+
+  /**
+   * Claim and run the expensive atproto profile-graph sync at most once per actor
+   * per cooldown window. The claim is a conditional UPDATE on the actor row, so
+   * concurrent public profile-feed requests — and several API tasks — cannot fan
+   * out duplicate starter-pack/member-resolution jobs before the previous one
+   * finishes.
+   */
+  private async syncAtprotoGraphIfDue(actor: FederatedActorRecord): Promise<void> {
+    if (!actor.oxyUserId || !actor.uri) return;
+
+    const now = new Date();
+    const cooldownCutoff = new Date(now.getTime() - ATPROTO_GRAPH_SYNC_MIN_INTERVAL_MS);
+    const staleLeaseCutoff = new Date(now.getTime() - ATPROTO_GRAPH_SYNC_LOCK_TTL_MS);
+
+    let claimed = false;
+    try {
+      claimed = await claimAtprotoGraphSync(
+        actor.id,
+        actor.uri,
+        now,
+        cooldownCutoff,
+        staleLeaseCutoff,
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      // At `error`, not `warn`: a claim that cannot be written is the failure
+      // that makes this whole path silently never run, and it is invisible from
+      // the outside — the profile still renders, it just never gains its starter
+      // packs or its custom feeds.
+      logger.error('[FedSync] failed to claim atproto graph sync', { acct: actor.acct, error: message });
+      return;
+    }
+
+    if (!claimed) {
+      logger.info('[FedSync] atproto graph sync skipped (cooldown/lease)', { acct: actor.acct });
+      return;
+    }
+
+    const graphDid = actor.uri;
+    const graphOwner = actor.oxyUserId;
+    void (async () => {
+      // The lease is released on BOTH paths. Leaving it held after a throw would
+      // wedge this actor for the full `ATPROTO_GRAPH_SYNC_LOCK_TTL_MS` on an
+      // error the next view could simply have retried.
+      try {
+        await syncAtprotoProfileGraph(graphDid, graphOwner);
+        await releaseAtprotoGraphSync(actor.id, now, true);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn('[FedSync] atproto graph sync failed', { acct: actor.acct, error: message });
+        await releaseAtprotoGraphSync(actor.id, now, false);
       }
     })();
   }

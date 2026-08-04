@@ -174,6 +174,25 @@ export const federatedActors = pgTable(
     outboxBackfillCompletedAt: timestamptz(),
     outboxBackfillLastError: text(),
 
+    // ── atproto profile-graph sync ──
+    //
+    // Two stamps, not one, because they answer different questions and a single
+    // column cannot do both: `lastAtprotoGraphSyncAt` is the COOLDOWN (when the
+    // work last completed) and `atprotoGraphSyncStartedAt` is the LEASE (a run is
+    // in flight, and since when). Collapsing them loses the ability to tell a
+    // finished sync from a crashed one, which is what makes the lease reclaimable
+    // after `ATPROTO_GRAPH_SYNC_LOCK_TTL_MS` instead of wedging the actor forever.
+    //
+    // Viewing any atproto profile can trigger this, and several public
+    // profile-feed requests across several tasks arrive at once — so the claim is
+    // a conditional UPDATE on these columns and the row count IS the answer. It
+    // is deliberately NOT the `outbox_backfill_locked_until` lease beside it:
+    // that one governs post import, this one governs starter-pack and custom-feed
+    // resolution, and sharing a column would make either job silently starve the
+    // other.
+    lastAtprotoGraphSyncAt: timestamptz(),
+    atprotoGraphSyncStartedAt: timestamptz(),
+
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

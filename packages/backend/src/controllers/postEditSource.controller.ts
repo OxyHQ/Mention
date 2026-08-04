@@ -1,5 +1,5 @@
 import type { Response } from 'express';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import type {
   PostContent,
@@ -18,6 +18,8 @@ import {
   resolveUserSummaries,
 } from '../services/PostHydrationService';
 import { logger } from '../utils/logger';
+import { createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { postManagementRefusal } from '../services/postManagementAccess';
 
 /**
  * Return the owner's raw author source for editing.
@@ -53,16 +55,28 @@ export const getPostEditSource = async (
   const postId = String(req.params.id);
 
   try {
-    // Ownership is part of the PREDICATE, not a check after the read: a post
-    // this viewer does not own must be indistinguishable from one that does not
-    // exist, or the endpoint becomes a post-existence oracle for ids the viewer
-    // has no claim on.
-    const [post] = await findPostRecords(
-      and(eq(posts.id, postId), eq(posts.oxyUserId, userId)),
-      { orderBy: CHRONO_DESC, limit: 1 },
-    );
+    // By id then authorized, matching `updatePost` — this endpoint loads the post
+    // INTO the composer, so narrowing the read by `oxy_user_id = userId` while
+    // the edit route accepts a channel's writer would let the edit succeed
+    // against a post the composer could never open.
+    //
+    // The endpoint does not become an existence oracle by losing the narrowing:
+    // `postManagementRefusal` below answers 404 for a post the caller may not
+    // touch, so "not yours" and "does not exist" stay the same reply.
+    const [post] = await findPostRecords(eq(posts.id, postId), {
+      orderBy: CHRONO_DESC,
+      limit: 1,
+    });
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
+    }
+    const refusal = await postManagementRefusal({
+      post,
+      callerId: userId,
+      memberReader: createUserScopedOxyServices(req),
+    });
+    if (refusal) {
+      return res.status(refusal.status).json({ message: refusal.message });
     }
 
     const variants = authorVariants(post.content);

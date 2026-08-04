@@ -26,7 +26,8 @@ import UserName from './UserName';
 import AnimatedTabBar from './common/AnimatedTabBar';
 import { IconButton } from '@/components/ui/Button';
 import { SEO } from '@/components/SEO';
-import { FediverseSharingBadge } from '@/components/Fediverse/FediverseBadge';
+import { FediverseSharingBadge } from '@/components/AccountBadge';
+import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
 
 // Profile components
 import {
@@ -34,10 +35,12 @@ import {
     ProfileHeader,
     ProfileShell,
     PrivateBadge,
+    AccountCategoryLine,
     useSubscription,
     useProfileAccount,
     useProfileChrome,
     useProfileMoreMenu,
+    useOperatesAccount,
     useJustFollowed,
     buildProfileTabDescriptors,
     laneTabKey,
@@ -131,6 +134,12 @@ const PersonProfile: React.FC<PersonProfileProps> = ({
                     feeds: t('profile.tabs.feeds', { defaultValue: 'Feeds' }),
                     starter_packs: t('profile.tabs.starter_packs', { defaultValue: 'Starter Packs' }),
                     lists: t('profile.tabs.lists', { defaultValue: 'Lists' }),
+                    // A person has no writers tab — `profileTabsForAccountKind`
+                    // drops it for every kind but `channel`. The label is still
+                    // passed because `labels` covers every `ProfileTab` by
+                    // contract: the caller has no reason to know which subset
+                    // survives, and an unused label costs one `t()`.
+                    writers: t('profile.tabs.writers', { defaultValue: 'Writers' }),
                 },
                 laneTabs,
                 profileData?.kind,
@@ -269,7 +278,26 @@ const PersonProfile: React.FC<PersonProfileProps> = ({
         }
     }, [profileData, handle, t]);
 
-    const handleMoreOptions = useProfileMoreMenu({ profileData, isOwnProfile });
+    /**
+     * This screen serves more than people. Only a `channel` routes to
+     * `/c/<handle>`, so an ORGANIZATION, PROJECT or BOT renders here at
+     * `/@<handle>` — and the viewer may operate one of those without it ever being
+     * their own id, which is precisely the case `isOwnProfile` cannot see.
+     *
+     * `isOwnProfile` still governs everything else on this screen, and correctly:
+     * edit-profile, analytics, settings and the lanes button all act on the
+     * VIEWER'S OWN account, so operating an organization must not put them within
+     * reach. Only the hostile menu asks the wider question.
+     */
+    const operatesThisAccount = useOperatesAccount({
+        accountId: profileData?.id,
+        accountKind: profileData?.kind,
+    });
+
+    const handleMoreOptions = useProfileMoreMenu({
+        profileData,
+        viewerOperatesAccount: isOwnProfile || operatesThisAccount,
+    });
 
     const handleDM = useCallback(() => {
         if (!profileData?.id) return;
@@ -298,9 +326,11 @@ const PersonProfile: React.FC<PersonProfileProps> = ({
         if (!profileData) return null;
         // Own, non-federated profile opted into fediverse sharing (absent flag ⇒
         // on): a tappable badge next to the handle explaining the fediverse.
+        // The PROFILE is where the explainer is opted into — the marker is inert
+        // on every other surface (see `AccountBadge`).
         const fediverseBadge =
             isOwnProfile && !profileData.isFederated && currentUser?.fediverseSharing !== false ? (
-                <FediverseSharingBadge size={20} />
+                <FediverseSharingBadge size={20} onExplainNetwork={showFediverseInfo} />
             ) : undefined;
         // Passive "Follows you" tag inline to the right of the @handle when this
         // profile follows the viewer. Never shown on the viewer's own profile.
@@ -331,11 +361,25 @@ const PersonProfile: React.FC<PersonProfileProps> = ({
                         handle={profileData.username}
                         verified={profileData.verified}
                         isFederated={profileData.isFederated}
+                        kind={profileData.kind}
+                        // The profile is the ONE surface that opts the marker in:
+                        // a reader here has room for the answer, and the identity
+                        // line is not itself a link to somewhere else.
+                        onExplainNetwork={showFediverseInfo}
                         copyableHandle
                         variant="default"
                         style={userNameStyle}
                         trailingBadge={fediverseBadge}
                         handleTrailing={followsYouTag}
+                    />
+                    {/* Non-personal accounts route here too — an organization, a
+                        project or a bot is a `person`-FAMILY url (only `channel`
+                        gets `/c/`), and all four kinds carry categories. A
+                        personal account never has any, so this renders nothing
+                        for the overwhelming majority of profiles. */}
+                    <AccountCategoryLine
+                        accountCategories={profileData.accountCategories}
+                        align="start"
                     />
                     {isPrivate && (
                         <View className="flex-row items-center gap-2 flex-wrap">

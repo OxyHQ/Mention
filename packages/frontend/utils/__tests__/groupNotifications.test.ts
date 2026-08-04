@@ -23,10 +23,12 @@ function notification(fields: {
   actorId: string;
   createdAt: string;
   read?: boolean;
+  /** Defaults to the viewer; a channel id models a row from an inbox they operate. */
+  recipientId?: string;
 }): TRawNotification {
   return {
     _id: fields.id,
-    recipientId: 'viewer',
+    recipientId: fields.recipientId ?? 'viewer',
     actorId: fields.actorId,
     type: fields.type,
     entityId: fields.entityId,
@@ -138,5 +140,43 @@ describe('groupNotifications', () => {
 
   it('returns nothing for an empty list', () => {
     expect(groupNotifications([])).toEqual([]);
+  });
+
+  describe('inboxes do not merge into one another', () => {
+    // The list carries rows addressed to the viewer alongside rows addressed to a
+    // CHANNEL they operate (a channel has no session of its own). `type:'follow'`
+    // stores the FOLLOWER in `entityId`, so one person following both the viewer
+    // and their channel produces two rows identical in type and entityId — keyed
+    // on those alone they collapse into one and the channel's follow disappears.
+    it('keeps the same actor following the viewer and their channel apart', () => {
+      const rows = groupNotifications([
+        notification({
+          id: 'follow-me', type: 'follow', entityId: 'actor-a', actorId: 'actor-a', createdAt: at(0),
+        }),
+        notification({
+          id: 'follow-channel', type: 'follow', entityId: 'actor-a', actorId: 'actor-a',
+          createdAt: at(HOUR_MS), recipientId: 'channel-1',
+        }),
+      ]);
+
+      expect(idsPerRow(rows)).toEqual([['follow-me'], ['follow-channel']]);
+    });
+
+    it('still groups within ONE inbox (control)', () => {
+      // Without this, the case above would also pass if grouping had simply been
+      // switched off altogether.
+      const rows = groupNotifications([
+        notification({
+          id: 'a', type: 'like', entityId: 'post-1', actorId: 'actor-a',
+          createdAt: at(0), recipientId: 'channel-1',
+        }),
+        notification({
+          id: 'b', type: 'like', entityId: 'post-1', actorId: 'actor-b',
+          createdAt: at(HOUR_MS), recipientId: 'channel-1',
+        }),
+      ]);
+
+      expect(idsPerRow(rows)).toEqual([['a', 'b']]);
+    });
   });
 });

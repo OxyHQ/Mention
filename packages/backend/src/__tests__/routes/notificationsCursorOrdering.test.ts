@@ -46,6 +46,12 @@ vi.mock('../../services/PostHydrationService', () => ({
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: mocks.createScopedOxyClient,
+  // The route hands this to `resolveNotificationInboxIds`; a module factory
+  // replaces the WHOLE module, so an export the route calls and this factory
+  // omits is `undefined is not a function` on every request. Which recipient ids
+  // the inbox covers is `notificationsChannelInbox.test.ts`'s subject; held at
+  // "just the viewer" here so these cases stay about pagination and ordering.
+  createUserScopedOxyServices: () => undefined,
   getServiceOxyClient: () => ({ getUsersByIds: mocks.getUsersByIds }),
 }));
 vi.mock('../../utils/push', () => ({

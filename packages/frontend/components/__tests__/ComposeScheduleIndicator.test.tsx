@@ -56,7 +56,7 @@ jest.mock('@oxyhq/bloom/avatar-group', () => ({ AvatarGroup: () => null }));
 jest.mock('@oxyhq/bloom/toast', () => ({ toast: jest.fn() }));
 // The federated badge drags Bloom's dialog into the module graph and never
 // renders here: `PostHeader` only mounts it for a federated author.
-jest.mock('@/components/Fediverse/FediverseBadge', () => ({ RemoteActorBadge: () => null }));
+jest.mock('@/components/AccountBadge', () => ({ AccountBadge: () => null }));
 // `@oxyhq/core` ships ESM that jest does not transform, and only the collab
 // byline calls into it — a solo header never reaches this.
 jest.mock('@oxyhq/core', () => ({ getNormalizedUserHandle: () => '' }));

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   countTextEntities,
   createTextEntityPattern,
+  qualifyBareHandles,
   scanTextEntities,
   stripTextEntities,
   toOpenableUrl,
@@ -249,6 +250,48 @@ describe('bareHandle', () => {
     expect(values('@alice speaks', { kinds: ['bareHandle'] })).toEqual(['alice']);
   });
 
+  /**
+   * `.` and `-` are IN the handle class because a handle can contain them, but
+   * it cannot END with one — and prose puts a full stop straight after a handle
+   * constantly. Seen live in a synced profile bio: "Now building
+   * @thinkymachines. Previously CTO @openai" yielded the handle
+   * `thinkymachines.`, sentence punctuation and all, which every consumer then
+   * linkified, stored or qualified as if somebody had typed it.
+   */
+  it('does not take the sentence punctuation that follows a handle', () => {
+    expect(values('Now building @thinkymachines. Previously CTO @openai', { kinds: ['bareHandle'] }))
+      .toEqual(['thinkymachines', 'openai']);
+    expect(values('@other- and @name.', { kinds: ['bareHandle'] })).toEqual(['other', 'name']);
+  });
+
+  /**
+   * The other half, and the reason this is a trailing-only trim rather than
+   * dropping `.` from the class: an atproto handle IS a dotted DNS name, so a
+   * rule that removed interior dots would break every Bluesky handle we hold.
+   */
+  it('keeps the dots INSIDE a handle that legitimately has them', () => {
+    expect(values('@alice.bsky.social posts', { kinds: ['bareHandle'] })).toEqual(['alice.bsky.social']);
+    expect(values('@some-name here', { kinds: ['bareHandle'] })).toEqual(['some-name']);
+  });
+
+  it('yields nothing for a sigil followed only by punctuation', () => {
+    expect(values('@... nothing', { kinds: ['bareHandle'] })).toEqual([]);
+    expect(values('@-', { kinds: ['bareHandle'] })).toEqual([]);
+  });
+
+  /**
+   * `raw`/`start`/`end` describe the span a caller REPLACES, so a trim that
+   * shortened the value while leaving the span long would make every rewrite
+   * eat the following character. Asserted directly because the failure would
+   * show up as corrupted text at a call site, not here.
+   */
+  it('reports a span that covers exactly the trimmed handle', () => {
+    const text = 'Now building @thinkymachines. Previously';
+    const [entity] = scanTextEntities(text, { kinds: ['bareHandle'] });
+    expect(text.slice(entity.start, entity.end)).toBe('@thinkymachines');
+    expect(entity.raw).toBe('@thinkymachines');
+  });
+
   it('does NOT swallow an email-shaped someone@instance.tld', () => {
     // The hazard `termExtraction` documents: the local part is a continuation
     // character, so no handle opens at that `@`. Left unguarded, trending
@@ -258,11 +301,29 @@ describe('bareHandle', () => {
     expect(kinds('foo.bar@instance.tld')).toEqual([]);
   });
 
-  it('takes only the local part of a two-part federated handle', () => {
-    // The `@user@host` form is a DIFFERENT entity, owned by `termExtraction`
-    // whose strip order is incident-documented. `@` is not in the handle class,
-    // so the run ends at the second one and the host cannot open its own.
-    expect(values('hi @user@host.tld')).toEqual(['user']);
+  it('yields the WHOLE two-part handle, not just its local part', () => {
+    // This used to assert `['user']`, and that was a real defect rather than a
+    // neutral choice: a profile bio reading "building cool stuff @expo@x.com"
+    // linkified `@expo` alone, which names the LOCAL account of that name — a
+    // link to the wrong person, in a bio, silently.
+    //
+    // `federatedHandle` is its own kind ahead of `bareHandle` in the pattern, so
+    // the two-part form wins at the index where both could match.
+    expect(values('hi @user@host.tld')).toEqual(['user@host.tld']);
+    expect(kinds('hi @user@host.tld')).toEqual(['federatedHandle']);
+  });
+
+  /**
+   * `termExtraction` is unaffected and must stay so: it scans with
+   * `kinds: ['url']` only, and does its own handle stripping — the strip whose
+   * ORDER is incident-documented, after trending once harvested this instance's
+   * own domain out of `@someone@mention.earth`. Asserted here because that
+   * incident is the reason this two-part form was left alone for so long, and
+   * the next person to read that comment should not have to re-derive whether
+   * this change reopened it.
+   */
+  it('leaves a url-only scan seeing no handles at all', () => {
+    expect(kinds('@someone@mention.earth posts', { kinds: ['url'] })).toEqual([]);
   });
 
   it('keeps a non-Latin handle whole rather than cutting at a combining mark', () => {
@@ -475,5 +536,112 @@ describe('TextEntity shape', () => {
     expect(found[0].label).toBe('Ada');
     expect(found[1].label).toBeUndefined();
     expect(found[2].label).toBeUndefined();
+  });
+});
+
+/**
+ * A federated actor's own words carry handles that only mean something next to
+ * the network they were written on. Mira Murati's synced bio read "Now building
+ * @thinkymachines. Previously CTO @openai" — both accounts on X, both rendered
+ * here as if they were local names.
+ */
+describe('qualifyBareHandles', () => {
+  it('qualifies the bare handles in a real synced bio', () => {
+    expect(qualifyBareHandles('Now building @thinkymachines. Previously CTO @openai', 'x.com'))
+      .toBe('Now building @thinkymachines@x.com. Previously CTO @openai@x.com');
+  });
+
+  /**
+   * The case that makes appending unsafe. The scanner treats a two-part handle
+   * as an entity it does not own, so `@alice@mastodon.social` arrives as the
+   * bare `@alice`; appending without looking would yield
+   * `@alice@x.com@mastodon.social` — a handle naming nobody, written into the
+   * database.
+   */
+  it('leaves an already-qualified handle exactly as it is', () => {
+    expect(qualifyBareHandles('ping @alice@mastodon.social ok', 'x.com'))
+      .toBe('ping @alice@mastodon.social ok');
+    expect(qualifyBareHandles('@a@b.com and @c', 'x.com'))
+      .toBe('@a@b.com and @c@x.com');
+  });
+
+  it('never touches a handle inside a URL, or an email', () => {
+    expect(qualifyBareHandles('see https://x.com/@handle now', 'x.com'))
+      .toBe('see https://x.com/@handle now');
+    expect(qualifyBareHandles('mail nate@oxy.so please', 'x.com'))
+      .toBe('mail nate@oxy.so please');
+  });
+
+  it('returns the original string when there is nothing to qualify', () => {
+    const untouched = 'no handles here at all';
+    expect(qualifyBareHandles(untouched, 'x.com')).toBe(untouched);
+    expect(qualifyBareHandles('', 'x.com')).toBe('');
+  });
+
+  it('does nothing without a domain, rather than writing a trailing @', () => {
+    expect(qualifyBareHandles('hi @alice', '')).toBe('hi @alice');
+    expect(qualifyBareHandles('hi @alice', '   ')).toBe('hi @alice');
+  });
+
+  it('lower-cases the domain it appends but never the handle', () => {
+    // The handle's case is the actor's own and is displayed; the domain is a
+    // hostname and is not.
+    expect(qualifyBareHandles('hi @OpenAI', 'X.com')).toBe('hi @OpenAI@x.com');
+  });
+
+  it('is idempotent, so a re-sync cannot stack domains', () => {
+    const once = qualifyBareHandles('CTO @openai', 'x.com');
+    expect(qualifyBareHandles(once, 'x.com')).toBe(once);
+  });
+
+  it('keeps the punctuation that follows a handle', () => {
+    // The trailing-dot trim above is what makes this work: without it the
+    // sentence's period ends up INSIDE the qualified handle.
+    expect(qualifyBareHandles('building @thinkymachines. done', 'x.com'))
+      .toBe('building @thinkymachines@x.com. done');
+  });
+});
+
+describe('federatedHandle', () => {
+  it('reads the handle a synced bio actually contains', () => {
+    expect(values('building cool stuff @expo@x.com 𝝠')).toEqual(['expo@x.com']);
+  });
+
+  /**
+   * The precedence that matters. Both alternatives can match at the same index
+   * and the first one written wins, so if `bareHandle` came first every
+   * federated handle would degrade to its local part — a link to a DIFFERENT,
+   * local account. Asserted on the pattern by name so a reorder fails with an
+   * explanation instead of a scatter of unrelated reds.
+   */
+  it('is written ahead of bareHandle in the pattern', () => {
+    const source = createTextEntityPattern().source;
+    expect(source.indexOf('?<fedLocal>')).toBeLessThan(source.indexOf('?<handle>'));
+  });
+
+  it('still loses to a URL and never opens on an email', () => {
+    expect(kinds('https://x.com/@alice@bad.tld')).toEqual(['url']);
+    expect(kinds('mail someone@instance.tld now')).toEqual([]);
+  });
+
+  it('requires the domain to look like one, and falls back rather than vanishing', () => {
+    // A dotless host is not a domain, so `@a@b` must not read as federated. The
+    // subtlety is WHERE that is enforced: rejecting it in `classify` comes too
+    // late, because the regex has already consumed the span — `@a@b` then
+    // yielded NOTHING, losing the bare handle it used to produce. Requiring the
+    // dot in the pattern lets the bare alternative match instead.
+    //
+    // One handle, not two: after `@a`, the character before the second `@` is a
+    // letter, and the shared leading boundary refuses to open a handle there.
+    // That is the same guard that keeps `someone@instance.tld` from matching,
+    // and it is why `@b` is prose here.
+    expect(kinds('@a@b')).toEqual(['bareHandle']);
+    expect(values('@a@b')).toEqual(['a']);
+  });
+
+  it('gives the sentence back its full stop', () => {
+    expect(values('ask @alice@mastodon.social.')).toEqual(['alice@mastodon.social']);
+    const [entity] = scanTextEntities('ask @alice@mastodon.social.');
+    expect(entity.raw).toBe('@alice@mastodon.social');
   });
 });

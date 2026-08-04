@@ -1,26 +1,63 @@
 import React, { memo } from 'react';
 import { View } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { useTheme } from '@oxyhq/bloom/theme';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';
-import { LiveAvatar } from '@/components/ui/LiveAvatar';
-import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
-import { useLiveUsers } from '@/hooks/useLiveUsers';
-import { PresenceIndicator } from '@/components/PresenceIndicator';
+import { showChannelInfo } from '@/components/Channels/ChannelInfoDialog';
+import { AccountCategoryLine } from './AccountCategoryLine';
 import { PrivateBadge } from './PrivateBadge';
 import type { ChannelActionsProps, ChannelHeaderProps } from './types';
 
 /**
- * A CHANNEL's profile header: name on the left, a 70px avatar on the right.
+ * The avatar's edge-to-edge footprint.
  *
- * The compact shape is not a style preference — it is what a channel IS. There
- * is no banner because `UpdateAccountInput` has no banner field to set, so the
- * layout has no band for one rather than an empty band; and the avatar does not
- * collapse on scroll because there is no banner for it to overlap in the first
- * place. This used to be `ProfileHeaderMinimalist`, selected by a
- * `design.minimalistMode` flag that was itself defined as `kind === 'channel'` —
- * a layout name for an account fact, which is exactly the confusion this split
- * removes.
+ * Exported because `ProfileSkeleton` draws the placeholder that this avatar
+ * replaces, and a skeleton exists to hold the EXACT box the real content lands
+ * in. Two copies of this number is a layout shift at the moment the data
+ * arrives — the one thing the skeleton is there to prevent — so the two read the
+ * same constant rather than agreeing by convention.
+ */
+export const CHANNEL_AVATAR_SIZE = 96;
+
+/**
+ * A CHANNEL's profile header: a CENTRED masthead — the avatar on top, then the
+ * name, then the handle, then the follow control, each centred under the last.
+ *
+ * The centring is composed for what a channel page IS rather than inherited
+ * from the person page. A person's header is asymmetric because it has a banner
+ * to hang off: the avatar is pinned left and pulled up to overlap the band, and
+ * the controls fill the space beside it. `UpdateAccountInput` has no banner
+ * field, so a channel has no band, and the person layout with the band deleted
+ * leaves an avatar pushed to one side of a row that no longer has anything on
+ * the other — an alignment that was a consequence of the banner, kept after the
+ * banner was gone. With nothing to overlap, the avatar is the top of the page,
+ * and the top of a page with no other anchor is its centre. (This is why the
+ * header is its own component at all: it used to be `ProfileHeaderMinimalist`,
+ * chosen by a `design.minimalistMode` flag that was itself defined as
+ * `kind === 'channel'` — a layout name for an account fact. Nothing here should
+ * become a flag on the person header again.)
+ *
+ * WHAT IS CENTRED STOPS AT THE FOLLOW BUTTON, and the boundary is deliberate.
+ * Below it `ProfileContent` renders the bio, the joined/location row, the stats,
+ * the links and the communities, all left-aligned, sharing one gutter with the
+ * tab strip and the feed rows beneath them. Two reasons that body does not
+ * follow the masthead:
+ *
+ *  - The bio is PROSE, and centred ragged prose gives the eye no fixed left edge
+ *    to return to. It also carries inline links and a "Read more" toggle, which
+ *    centring would park at a different x on every channel.
+ *  - The stats row is a denser rendering of the TAB STRIP — its cells are jump
+ *    links that scroll to the posts and boosts tabs, or navigate to the follower
+ *    lists. Keeping it on the same left gutter as the strip it points into keeps
+ *    that relationship legible; centred, it would float free of the thing it
+ *    controls.
+ *
+ * The column needs no `max-width` of its own, and that is measured rather than
+ * assumed. The shell caps the center panel long before the viewport does, and
+ * the panel is WIDEST in the middle of the range rather than at the end:
+ * measured in a browser, a 1600px viewport gives a 592px panel while a 900px
+ * one gives 817px (the RightBar is gone by then, so the center takes the room).
+ * 817px is the worst case a centred masthead ever sees, and it reads fine.
+ * A `max-width` would not move anything anyway — every item in the stack is
+ * intrinsically sized and centred — it would only shift the axis they centre on.
  */
 export const ChannelHeader = memo(function ChannelHeader({
   displayName,
@@ -29,71 +66,80 @@ export const ChannelHeader = memo(function ChannelHeader({
   verified,
   isPrivate,
   privacySettings,
-  profileId,
+  accountCategories,
   UserNameComponent,
   trailingBadge,
 }: ChannelHeaderProps) {
-  const theme = useTheme();
-  const { isLive } = useLiveUsers();
-  const isProfileLive = isLive(profileId);
   return (
-    <View className="flex-row justify-between items-start mb-4 relative w-full gap-4">
-      <View className="flex-1">
-        <UserNameComponent
-          name={displayName}
-          handle={username}
-          verified={false}
-          variant="default"
-          trailingBadge={trailingBadge}
-          style={{
-            name: { fontSize: 24, fontWeight: 'bold' as const, marginTop: 10, marginBottom: 4 },
-            handle: { fontSize: 15, marginBottom: 12 },
-            container: undefined,
-          }}
-        />
-        {isPrivate && <PrivateBadge privacySettings={privacySettings} />}
-      </View>
-      <View className="relative">
-        {isProfileLive ? (
-          <View className="border-[3px] border-background bg-secondary rounded-full">
-            <LiveAvatar
-              userId={profileId}
-              source={avatarUri ?? undefined}
-              size={70}
-              variant={MEDIA_VARIANT_AVATAR_LG}
-            />
-          </View>
-        ) : (
-          <ZoomableAvatar
-            source={avatarUri}
-            size={70}
-            className="border-[3px] border-background bg-secondary"
-            style={{ width: 70, height: 70, borderRadius: 35 }}
-            imageStyle={{}}
-          />
-        )}
-        {verified && (
-          <View
-            className="absolute rounded-[10px] p-0.5 bg-background"
-            style={{ left: -6, bottom: -2 }}
-          >
-            <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
-          </View>
-        )}
-        {profileId && (
-          <PresenceIndicator
-            userId={profileId}
-            size="small"
-            style={{ position: 'absolute', bottom: 2, right: 2 }}
-          />
-        )}
-      </View>
+    <View className="items-center w-full">
+      {/* No live badge and no presence dot, and neither is an omission: both
+          report on a SESSION, and `isActAsEligibleKind` refuses `channel`, so no
+          session can ever have one as its subject. A channel cannot be online
+          and cannot host a live room — the states could not occur, rather than
+          being hidden. */}
+      <ZoomableAvatar
+        source={avatarUri}
+        size={CHANNEL_AVATAR_SIZE}
+        className="border-[3px] border-background bg-secondary"
+        style={{
+          width: CHANNEL_AVATAR_SIZE,
+          height: CHANNEL_AVATAR_SIZE,
+          borderRadius: CHANNEL_AVATAR_SIZE / 2,
+        }}
+        imageStyle={{}}
+      />
+      <UserNameComponent
+        name={displayName}
+        handle={username}
+        // Inline, next to the name, rather than the corner badge this header
+        // used to pin to the avatar. That badge was positioned against the
+        // avatar's left edge — coherent only while the avatar sat at the right
+        // end of a row — and it drew `checkmark-circle` from Ionicons where
+        // every other identity surface in the app draws the shared
+        // `VerifiedIcon` through `UserName`. Inline also puts it beside the
+        // channel marker below, so the two facts about this identity read as
+        // one cluster instead of two conventions.
+        verified={verified}
+        // Not a guess and not a conditional: this component only ever draws a
+        // channel (the route canonicalizes anything else away before it
+        // renders), so the marker states what the page is.
+        kind="channel"
+        // THE opt-in, and the only one. A channel is an unfamiliar kind of
+        // account, and this is the one screen where a reader who wants to know
+        // what it is has room for the answer — everywhere else the marker sits
+        // in a row that is already a tap going somewhere, so it stays inert
+        // there (see `AccountBadge`). The handler is channel-specific on
+        // purpose: it cannot reach the fediverse explainer, nor that one this.
+        onExplainChannel={showChannelInfo}
+        align="center"
+        variant="default"
+        trailingBadge={trailingBadge}
+        style={{
+          name: { fontSize: 24, fontWeight: 'bold' as const, marginTop: 12, marginBottom: 4 },
+          handle: { fontSize: 15 },
+          container: undefined,
+        }}
+      />
+      {/* What the channel IS, under its handle — one line of muted text, the
+          last thing in the identity stack before the controls. It renders
+          nothing at all when there is no primary category to name, so a channel
+          without one keeps exactly the masthead it had before. */}
+      <AccountCategoryLine accountCategories={accountCategories} align="center" />
+      {/* `PrivateBadge` is `self-start`, which would pull it to the left edge of
+          this centred column. The wrapper shrinks to the badge's own width, so
+          starting inside it and being centred are the same position. */}
+      {isPrivate && (
+        <View className="mt-1">
+          <PrivateBadge privacySettings={privacySettings} />
+        </View>
+      )}
     </View>
   );
 });
 
 /**
- * The follow control under a channel's header.
+ * The follow control under a channel's header — centred, as the last element of
+ * the masthead above it.
  *
  * There is no poke here, and its absence is structural rather than suppressed: a
  * poke is addressed to a person, and a channel account can never be signed in as
@@ -113,7 +159,7 @@ export const ChannelActions = memo(function ChannelActions({
 }: ChannelActionsProps) {
   if (!profileId) return null;
   return (
-    <View className="flex-row items-center gap-3">
+    <View className="flex-row items-center justify-center gap-3">
       <FollowButtonComponent userId={profileId} initiallyFollowing={isFollowing} />
     </View>
   );

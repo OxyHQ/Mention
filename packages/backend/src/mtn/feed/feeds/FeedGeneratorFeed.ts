@@ -53,6 +53,12 @@ export class FeedGeneratorFeed implements FeedAPI {
 
   async peekLatest(context: FeedContext): Promise<HydratedPost | undefined> {
     try {
+      if (!context.currentUserId) {
+        logger.info('[FeedGeneratorFeed] anonymous peek suppressed for side-effectful feedgen import', {
+          uri: this.generatorUri,
+        });
+        return undefined;
+      }
       if (!(await this.isAtprotoBacked())) return undefined;
 
       const { posts } = await getFeed(this.generatorUri, { limit: 1 });
@@ -74,6 +80,12 @@ export class FeedGeneratorFeed implements FeedAPI {
 
   async fetch(options: FeedFetchOptions, context: FeedContext): Promise<FeedAPIResponse> {
     try {
+      if (!context.currentUserId) {
+        logger.info('[FeedGeneratorFeed] anonymous fetch suppressed for side-effectful feedgen import', {
+          uri: this.generatorUri,
+        });
+        return { ...EMPTY_RESPONSE };
+      }
       if (!(await this.isAtprotoBacked())) return { ...EMPTY_RESPONSE };
 
       const { posts, cursor } = await getFeed(this.generatorUri, {

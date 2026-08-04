@@ -100,6 +100,27 @@ describe('resolvePostIdFromObjectUri', () => {
     await expect(resolvePostIdFromObjectUri(localNoteUri(draft))).resolves.toBeNull();
   });
 
+  it('refuses an IMPORTED post that is not publicly readable', async () => {
+    // The second branch needs its own fixture: the local branch is reached by
+    // URI SHAPE, so a remote activity id never exercises it. Ungated, this
+    // resolves — and the id then becomes a quote reference published to the
+    // fediverse for a post that is not public here.
+    const privateActivityId = 'https://remote.example/users/bob/statuses/9002';
+    await seed({
+      visibility: PostVisibility.PRIVATE,
+      federation: { activityId: privateActivityId, actorUri: 'https://remote.example/users/bob' },
+    });
+
+    const draftActivityId = 'https://remote.example/users/bob/statuses/9003';
+    await seed({
+      status: 'draft',
+      federation: { activityId: draftActivityId, actorUri: 'https://remote.example/users/bob' },
+    });
+
+    await expect(resolvePostIdFromObjectUri(privateActivityId)).resolves.toBeNull();
+    await expect(resolvePostIdFromObjectUri(draftActivityId)).resolves.toBeNull();
+  });
+
   it('answers null for a URI naming nothing here, whatever its id shape', async () => {
     // An id of any shape is a bound parameter that matches no row: a uuid we
     // never minted, a 24-char ObjectId hex, and a value that is neither.

@@ -1,16 +1,33 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
+import { Image, type ImageProps } from 'expo-image';
+import { Dialog, useDialogControl, useDialogFrame } from '@oxyhq/bloom/dialog';
 import { Button } from '@oxyhq/bloom/button';
-import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 
 type SheetStep = 0 | 1 | 2;
 
-const STEP_KEYS: readonly { title: string; body: string }[] = [
-  { title: 'fediverse.sheet.step1.title', body: 'fediverse.sheet.step1.body' },
-  { title: 'fediverse.sheet.step2.title', body: 'fediverse.sheet.step2.body' },
-  { title: 'fediverse.sheet.step3.title', body: 'fediverse.sheet.step3.body' },
+/**
+ * The three explainer steps, each with the illustration that belongs to it. Kept in
+ * ONE table rather than a parallel array of artwork: a step and its picture drifting
+ * apart is the failure this shape makes impossible.
+ */
+const STEP_KEYS: readonly { title: string; body: string; art: ImageProps['source'] }[] = [
+  {
+    title: 'fediverse.sheet.step1.title',
+    body: 'fediverse.sheet.step1.body',
+    art: require('@/assets/illustrations/fediverse/fediverse-network.webp'),
+  },
+  {
+    title: 'fediverse.sheet.step2.title',
+    body: 'fediverse.sheet.step2.body',
+    art: require('@/assets/illustrations/fediverse/fediverse-visibility.webp'),
+  },
+  {
+    title: 'fediverse.sheet.step3.title',
+    body: 'fediverse.sheet.step3.body',
+    art: require('@/assets/illustrations/fediverse/fediverse-control.webp'),
+  },
 ];
 
 export interface FediverseInfoOptions {
@@ -126,26 +143,6 @@ function FediverseInfoDialogContent({
     setStep((current) => (current - 1) as SheetStep);
   }, [control, isFirstStep]);
 
-  const primaryLabel = isLastStep
-    ? showEnableCta
-      ? t('fediverse.sheet.enable')
-      : t('fediverse.sheet.done')
-    : t('fediverse.sheet.next');
-  const secondaryLabel = isFirstStep ? t('fediverse.sheet.cancel') : t('fediverse.sheet.back');
-
-  const dots = useMemo(
-    () =>
-      STEP_KEYS.map((_, index) => (
-        <View
-          key={index}
-          className={
-            index === step ? 'w-2 h-2 rounded-full bg-primary' : 'w-2 h-2 rounded-full bg-border'
-          }
-        />
-      )),
-    [step],
-  );
-
   return (
     <Dialog
       control={control}
@@ -153,10 +150,84 @@ function FediverseInfoDialogContent({
       placement={{ base: 'bottom', md: 'center' }}
       label={t('fediverse.badge.a11yLabel')}
     >
+      <FediverseInfoSteps
+        step={step}
+        showEnableCta={showEnableCta}
+        onPrimary={onPrimary}
+        onSecondary={onSecondary}
+      />
+    </Dialog>
+  );
+}
+
+/**
+ * The stepped content, and the declaration of WHICH step is on screen.
+ *
+ * `useDialogFrame` is why this is its own component rather than JSX inlined
+ * above: the frame channel is published by Bloom's `DialogMorphContent`, which
+ * wraps the surface's CHILDREN, so a caller that declares the frame from the
+ * component rendering `<Dialog>` itself sits outside the provider and the hook
+ * quietly no-ops. Advancing a step changes the key while the surface stays
+ * open, which is exactly the in-place swap the morph exists for: Bloom animates
+ * the panel from the outgoing step's height to the incoming one's (260ms) and
+ * fades the incoming content in over a deliberately shorter 150ms, so the new
+ * step has landed by the time the panel finishes settling. We declare identity
+ * and nothing else — no local height measurement, no opacity shared value, no
+ * `entering` animation. Reimplementing any of that here would fight the morph
+ * for the same two properties.
+ */
+function FediverseInfoSteps({
+  step,
+  showEnableCta,
+  onPrimary,
+  onSecondary,
+}: {
+  step: SheetStep;
+  showEnableCta: boolean;
+  onPrimary: () => void;
+  onSecondary: () => void;
+}) {
+  const { t } = useTranslation();
+  useDialogFrame({ key: `fediverse-info#${step}` });
+
+  const isFirstStep = step === 0;
+  const isLastStep = step === 2;
+  const primaryLabel = isLastStep
+    ? showEnableCta
+      ? t('fediverse.sheet.enable')
+      : t('fediverse.sheet.done')
+    : t('fediverse.sheet.next');
+  const secondaryLabel = isFirstStep ? t('fediverse.sheet.cancel') : t('fediverse.sheet.back');
+
+  return (
+    <>
       <View className="items-center gap-4 py-4">
-        <View className="w-20 h-20 rounded-full bg-primary/10 items-center justify-center">
-          <FediverseIcon size={40} className="text-primary" />
-        </View>
+        {/* The artwork is transparent line art and sits DIRECTLY on the sheet's
+            own surface — no card, plate or fill behind it, in either theme. Each
+            file is fitted to one shared canvas by its visible-ink box, so the
+            three subjects come out the same size and this slot never changes
+            shape as the steps advance.
+
+            `aria-hidden` covers all three platforms in one prop (RN maps it onto
+            `accessibilityElementsHidden` and `importantForAccessibility`,
+            react-native-web emits the DOM attribute): the art restates the step's
+            title and body and adds nothing a screen reader should hear. Every
+            step still reads completely with images off.
+
+            No `transition`: the step change is ONE animation and Bloom's dialog
+            morph owns it. expo-image's own cross-fade is a second animation over
+            the same swap, and it does not run in step with the first — measured
+            in a browser, it pushed the new art's first paint from 64ms to 300ms
+            after the tap, i.e. past the end of the panel's 260ms reshape, so the
+            picture arrived visibly after the words and the panel had already
+            finished resizing around it. */}
+        <Image
+          aria-hidden
+          source={STEP_KEYS[step].art}
+          className="w-full h-[168px]"
+          contentFit="contain"
+          alt=""
+        />
         <Text className="text-foreground text-xl font-bold text-center">
           {t(STEP_KEYS[step].title)}
         </Text>
@@ -165,16 +236,38 @@ function FediverseInfoDialogContent({
         </Text>
       </View>
 
-      <View className="flex-row items-center justify-center gap-2 py-4">{dots}</View>
+      <View className="flex-row items-center justify-center gap-2 py-4">
+        {STEP_KEYS.map((entry, index) => (
+          <View
+            key={entry.title}
+            className={
+              index === step ? 'w-2 h-2 rounded-full bg-primary' : 'w-2 h-2 rounded-full bg-border'
+            }
+          />
+        ))}
+      </View>
 
-      <View className="gap-3">
-        <Button variant="primary" size="large" onPress={onPrimary}>
-          {primaryLabel}
-        </Button>
-        <Button variant="ghost" size="large" onPress={onSecondary}>
+      {/* One navigation row: the way back on the left, the way forward on the
+          right, matching both the reading order and the direction the progress
+          dots advance in.
+
+          The widths are deliberately asymmetric. `Back`/`Cancel` is short in
+          every language we ship, while the primary carries the longest label on
+          the sheet (`Attiva la condivisione`), so the secondary takes only the
+          width of its own text and the primary takes everything left over —
+          which puts the free pixels exactly where the overflow risk is. `shrink`
+          lets the secondary give way first if even that is not enough.
+
+          These are Bloom Buttons as they come — a variant and a layout class,
+          no wrapper element. */}
+      <View className="flex-row items-center gap-3">
+        <Button variant="ghost" size="large" className="shrink" onPress={onSecondary}>
           {secondaryLabel}
         </Button>
+        <Button variant="primary" size="large" className="flex-1" onPress={onPrimary}>
+          {primaryLabel}
+        </Button>
       </View>
-    </Dialog>
+    </>
   );
 }

@@ -22,9 +22,19 @@
  * Not a read followed by a write: an id naming someone else's notification
  * updates no row and reports nothing, with no window in which the ownership that
  * was checked differs from the ownership that was written.
+ *
+ * ## The scope is a LIST, and that is what makes the narrowing visible
+ *
+ * A viewer's inbox is their own rows plus every CHANNEL they operate — a channel
+ * has no session of its own, so its notifications are reachable no other way
+ * (`services/notificationInbox`). Both functions therefore take the resolved id
+ * set rather than one id, so a caller that means "just this person" has to say
+ * so. The socket handlers in `server.ts` do exactly that, deliberately and with
+ * their reason written beside them; passing a bare `userId` would have been the
+ * same narrowing made by accident and invisible in review.
  */
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { notifications } from '../db/schema/discovery';
 import {
@@ -80,30 +90,51 @@ export async function enrichNotificationActor(
 }
 
 /**
- * Mark one of `recipientId`'s notifications read.
+ * Mark one notification read, within `recipientIds` — the viewer plus any
+ * channel they operate.
  *
  * @returns The enriched notification, or `undefined` when no notification with
- *   that id belongs to this recipient — which the caller must treat as "not
- *   theirs, or not there", never as a write that silently did nothing.
+ *   that id belongs to any of those recipients — which the caller must treat as
+ *   "not theirs, or not there", never as a write that silently did nothing.
  */
 export async function markNotificationRead(
-  recipientId: string,
+  recipientIds: readonly string[],
   notificationId: string,
 ): Promise<EnrichedNotification | undefined> {
+  // An empty scope must match NOTHING. Drizzle renders `inArray(col, [])` as a
+  // false constant, so this is already the safe direction — asserted rather than
+  // assumed, because the alternative rendering would mark every row in the table
+  // read for a caller whose scope failed to resolve.
+  if (recipientIds.length === 0) return undefined;
+
   const [notification] = await getDb()
     .update(notifications)
     .set({ read: true })
-    .where(and(eq(notifications.id, notificationId), eq(notifications.recipientId, recipientId)))
+    .where(
+      and(
+        eq(notifications.id, notificationId),
+        inArray(notifications.recipientId, [...recipientIds]),
+      ),
+    )
     .returning();
 
   if (!notification) return undefined;
   return enrichNotificationActor(notification);
 }
 
-/** Mark every one of `recipientId`'s notifications read. */
-export async function markAllNotificationsRead(recipientId: string): Promise<void> {
+/**
+ * Mark every notification addressed to `recipientIds` read.
+ *
+ * Clears the CHANNEL rows too. A channel's inbox is shared by its operators (one
+ * row per event, not one per operator), so this is deliberately a shared action:
+ * leaving them out would leave the badge permanently non-zero with no control
+ * that clears it.
+ */
+export async function markAllNotificationsRead(recipientIds: readonly string[]): Promise<void> {
+  if (recipientIds.length === 0) return;
+
   await getDb()
     .update(notifications)
     .set({ read: true })
-    .where(eq(notifications.recipientId, recipientId));
+    .where(inArray(notifications.recipientId, [...recipientIds]));
 }

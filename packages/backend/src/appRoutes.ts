@@ -27,6 +27,8 @@ import profileLinkMentionsRoutes, {
   profileLinkMentionsRateLimiter,
 } from './routes/profileLinkMentions.routes';
 import lanesRoutes, { publicLanesRouter } from './routes/lanes.routes';
+import channelWritersRoutes from './routes/channelWriters.routes';
+import channelDeletionRoutes from './routes/channelDeletion.routes';
 import reportsRoutes from './routes/reports.routes';
 import { createCrowdSourceWebhookRoutes } from './routes/crowdSourceWebhook.routes';
 import trendingRoutes from './routes/trending.routes';
@@ -113,6 +115,10 @@ export function createAppRoutes({
   publicApi.use('/starter-packs', optionalAuth, starterPacksRoutes);
   // Reader-agnostic: the lanes a visitor needs to draw a publisher's tabs.
   publicApi.use('/lanes', optionalAuth, publicLanesRouter);
+  // A channel's page is public, so its writers list is readable anonymously —
+  // the reader's identity only decides whether a RESTRICTED channel is visible
+  // at all. The disclosure gate itself is inside the route.
+  publicApi.use('/channels', optionalAuth, channelWritersRoutes);
   publicApi.use('/mtn/nodes', optionalAuth, mtnNodesRoutes);
   publicApi.use('/statistics', optionalAuth, publicStatisticsRouter);
 
@@ -135,6 +141,12 @@ export function createAppRoutes({
   // the mount is the gate, so the handler needs no auth check of its own.
   authenticatedApi.use('/mentions', profileLinkMentionsRateLimiter, profileLinkMentionsRoutes);
   authenticatedApi.use('/lanes', lanesRoutes);
+  // The SAME `/channels` prefix the public writers router carries, one mount
+  // later: that router hands an unmatched path straight on, so a `/channels`
+  // route that needs a caller lands here behind `requireAuth` rather than needing
+  // a second prefix for the same noun (`/posts` and `/statistics` are split the
+  // same way).
+  authenticatedApi.use('/channels', channelDeletionRoutes);
   authenticatedApi.use('/reports', reportsRoutes);
   authenticatedApi.use('/pokes', pokesRoutes);
   authenticatedApi.use('/entity-follows', entityFollowRoutes);

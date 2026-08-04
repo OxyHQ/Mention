@@ -13,7 +13,10 @@
  *  2. DYNAMICALLY-registered clients (RFC 7591) persisted in
  *     `mcp_registered_clients` — created by `POST /mcp/oauth/register`. Clients
  *     that refuse to use a pre-shared `client_id` (Claude) register themselves
- *     this way. Use {@link getMcpClientAsync} to resolve a client id against
+ *     this way. Dynamic registration is limited to the trusted first-party
+ *     redirect URIs below; arbitrary HTTPS callbacks must never become OAuth
+ *     clients for account API tokens. Use {@link getMcpClientAsync} to resolve
+ *     a client id against
  *     BOTH sources; the sync {@link getMcpClient} only sees static clients.
  */
 import { config } from '../../config';
@@ -39,6 +42,17 @@ const CLIENTS: Record<string, McpClient> = {
 };
 
 /**
+ * Dynamic registration is public for MCP compatibility, so it must not create
+ * trust for arbitrary web origins. Only callbacks that are already trusted by a
+ * first-party static client may be registered dynamically.
+ */
+export function areTrustedDynamicRedirectUris(redirectUris: string[]): boolean {
+  if (redirectUris.length === 0) return false;
+  const trustedRedirects = new Set(Object.values(CLIENTS).flatMap((client) => client.redirectUris));
+  return redirectUris.every((uri) => trustedRedirects.has(uri));
+}
+
+/**
  * Look up a STATIC client by id; returns `undefined` for unknown clients. Does
  * NOT see dynamically-registered clients — use {@link getMcpClientAsync} for a
  * lookup that covers both static config and the `McpRegisteredClient` store.
@@ -61,7 +75,10 @@ export async function getMcpClientAsync(
   if (staticClient) return staticClient;
 
   const registered = await findRegisteredClient(clientId);
-  if (!registered) return undefined;
+  // A row that predates the trust rule, or one whose callback stopped being
+  // trusted, must not resolve to a client — the persisted row is not itself the
+  // authorization.
+  if (!registered || !areTrustedDynamicRedirectUris(registered.redirectUris)) return undefined;
   return {
     clientId: registered.clientId,
     label: registered.label,

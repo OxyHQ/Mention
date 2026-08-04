@@ -15,8 +15,11 @@ import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { userPreferenceService } from '../services/UserPreferenceService';
 import { recordDedupedView } from '../services/feedViewCounter';
 import { validateRequired } from '../utils/apiHelpers';
-import { queryInt } from '../utils/queryParams';
+import { queryInt, queryString } from '../utils/queryParams';
 import { checkFollowAccess, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
+import { createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { postManagementRefusal } from '../services/postManagementAccess';
+import { viewerOperatesAccount } from '../services/operatedAccountAccess';
 
 /**
  * Language the AI weekly summary is written in when the viewer's Oxy account
@@ -333,19 +336,99 @@ async function queryUserStatistics(
   return value;
 }
 
+/** Either the account these numbers are about, or the refusal to answer with. */
+type StatisticsSubject =
+  | { ok: true; subjectId: string }
+  | { ok: false; status: number; message: string };
+
 /**
- * Get user statistics (overall analytics)
- * Shows post views, interactions, follower changes, and engagement ratios
+ * WHOSE numbers a period-scoped statistics request is asking for.
+ *
+ * Without `?accountId`, the session — which is every request the app made before
+ * channels had a page. With it, the named account, once the caller is confirmed
+ * to operate it.
+ *
+ * ── WHY A PARAMETER WAS THE MISSING PIECE, AND NOT THE AGGREGATION ────────────
+ *
+ * The account-level query below already attributes a channel's posts correctly:
+ * it matches `authorship` on the `owner` entry, and a channel post's owner IS the
+ * channel (`PostCreationService` resolves `authorId` through the publish-as gate
+ * and builds `authorship` from it, recording the human as `writtenByOxyUserId`
+ * OUTSIDE the array). So a channel's totals were always computable and were never
+ * reachable: the subject was hard-wired to `req.user.id`, and `isActAsEligibleKind`
+ * refuses `channel`, so no session's subject can ever BE a channel. The numbers
+ * were correct and unaskable — which is why this takes a subject rather than
+ * touching the pipeline.
+ *
+ * What stays out of reach is the per-WRITER split of a channel's numbers. Nothing
+ * here reports "how did MY posts for this channel do": `writtenByOxyUserId` is a
+ * disclosure the channel consents to per post (`channel.signPosts`), not a
+ * reporting dimension, and slicing a shared account's performance by contributor
+ * would publish a leaderboard over people who agreed only to be named.
+ *
+ * ── THE AUTHORITY ─────────────────────────────────────────────────────────────
+ *
+ * {@link viewerOperatesAccount}, which is {@link assertCanPublishAsAccount} under
+ * another name — the same gate that decides who may publish as the account and who
+ * may manage what it published. Reusing it settles "which members" with the answer
+ * the server already enforces rather than a new one: any ACTIVE member of a
+ * channel (a channel can never be acted as, so membership is the whole right over
+ * it), and an `account:act_as` holder for an organization / project / bot. A
+ * personal account that is not the caller is refused whoever asks.
+ *
+ * IT FAILS CLOSED HERE, and that is the same boolean landing the other way up
+ * rather than a contradiction. `viewerOperatesAccount` documents itself as failing
+ * toward ALLOWING, because its first callers ask it whether to permit a PROTECTIVE
+ * action (block, report, mute) that a non-operator should keep. This asks the
+ * opposite kind of question — may I READ this account's private performance — so
+ * the identical `false` refuses instead of permitting. Every unknown answer, an
+ * Oxy outage included, therefore withholds the numbers.
+ *
+ * The one cost of that reuse: it collapses Oxy's 503 into a plain refusal, so an
+ * outage reads as "you do not operate this account" rather than "try again". A
+ * second membership reader that preserved the distinction would be a second
+ * answer to the authorization question, and whichever of the two was wrong would
+ * be wrong about who may read a private dashboard — so the accurate status is
+ * deliberately the thing given up.
+ */
+async function resolveStatisticsSubject(req: AuthRequest): Promise<StatisticsSubject> {
+  const callerId = req.user?.id;
+  if (!callerId) {
+    return { ok: false, status: 401, message: 'Unauthorized' };
+  }
+
+  const requested = queryString(req.query.accountId)?.trim();
+  // Naming your own account is naming none — the same short-circuit the publish-as
+  // gate makes, so the ordinary request costs no lookup.
+  if (!requested || requested === callerId) {
+    return { ok: true, subjectId: callerId };
+  }
+
+  const operates = await viewerOperatesAccount({
+    targetOxyUserId: requested,
+    callerId,
+    memberReader: createUserScopedOxyServices(req),
+  });
+  if (!operates) {
+    return { ok: false, status: 403, message: 'You do not have access to that account’s insights' };
+  }
+  return { ok: true, subjectId: requested };
+}
+
+/**
+ * Get account statistics (overall analytics)
+ * Shows post views, interactions, and engagement ratios for the viewer, or for an
+ * account they operate when `?accountId` names one.
  */
 export const getUserStatistics = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+    const subject = await resolveStatisticsSubject(req);
+    if (!subject.ok) {
+      return res.status(subject.status).json({ message: subject.message });
     }
 
     const days = requestedStatsDays(req.query.days);
-    res.json(await queryUserStatistics(userId, days));
+    res.json(await queryUserStatistics(subject.subjectId, days));
   } catch (error) {
     logger.error('Error fetching user statistics:', error);
     res.status(500).json({
@@ -459,11 +542,22 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
 
     const { postId } = req.params;
 
-    const insights = await withStatisticsTimeout(async (tx) => {
-      const [post] = await tx
+    /**
+     * The post row is read on its OWN, ahead of the counts, because the
+     * authorization decision below reaches Oxy's account graph over HTTP and a
+     * transaction must never be held open across a network call —
+     * {@link withStatisticsTimeout} arms a `statement_timeout` inside a real
+     * transaction, so folding the refusal into it would pin a connection for
+     * the length of somebody else's request. Two round trips on the happy path
+     * is the price, and the second one is only reached by a caller already
+     * proven entitled to the answer.
+     */
+    const post = await withStatisticsTimeout(async (tx) => {
+      const [row] = await tx
         .select({
           id: posts.id,
           oxyUserId: posts.oxyUserId,
+          writtenByOxyUserId: posts.writtenByOxyUserId,
           createdAt: posts.createdAt,
           likesCount: posts.statsLikesCount,
           boostsCount: posts.statsBoostsCount,
@@ -474,15 +568,43 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
         .from(posts)
         .where(eq(posts.id, String(postId)))
         .limit(1);
-      if (!post) return null;
-      if (post.oxyUserId !== userId) return { post, forbidden: true as const };
+      return row ?? null;
+    });
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
 
-      // Three `countDocuments` calls became ONE query with three `FILTER`
-      // aggregates: the three predicates read the same table and the union of
-      // them is the rows worth scanning at all. Every column here belongs to
-      // `posts`, which IS in this statement's FROM, so the bare renderings are
-      // correct — `qualified()` is for a correlated reference, and there is none.
-      const [related] = await tx
+    // Same authority as editing or deleting it: the author, the person who wrote
+    // it for an account that authored it, or somebody who operates that account.
+    // A channel post's author is the channel, so the plain `oxyUserId === userId`
+    // test this replaces refused its own writer. `writtenByOxyUserId` is
+    // projected above for exactly this reason and is never sent to the client.
+    //
+    // The refusal keeps this route's own 403 rather than adopting the 404 the
+    // write routes answer with. Nothing here is protecting the existence of the
+    // post — the select already answered that, and it did so before this change
+    // too.
+    const refusal = await postManagementRefusal({
+      post,
+      callerId: userId,
+      memberReader: createUserScopedOxyServices(req),
+    });
+    if (refusal) {
+      return res.status(refusal.status === 404 ? 403 : refusal.status).json({
+        message:
+          refusal.status === 404
+            ? 'You can only view insights for your own posts'
+            : refusal.message,
+      });
+    }
+
+    // Three `countDocuments` calls became ONE query with three `FILTER`
+    // aggregates: the three predicates read the same table and the union of
+    // them is the rows worth scanning at all. Every column here belongs to
+    // `posts`, which IS in this statement's FROM, so the bare renderings are
+    // correct — `qualified()` is for a correlated reference, and there is none.
+    const related = await withStatisticsTimeout(async (tx) => {
+      const [row] = await tx
         .select({
           replies: sql<number>`count(*) filter (where ${posts.parentPostId} = ${post.id})`.mapWith(Number),
           boosts: sql<number>`count(*) filter (where ${posts.boostOf} = ${post.id})`.mapWith(Number),
@@ -496,18 +618,10 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
             eq(posts.quoteOf, post.id),
           ),
         );
-
-      return { post, forbidden: false as const, related };
+      // A bare aggregate with no `GROUP BY` always returns exactly one row, so
+      // the zeroes come from Postgres rather than from a fallback here.
+      return row;
     });
-
-    if (!insights) {
-      return res.status(404).json({ message: 'Post not found' });
-    }
-    if (insights.forbidden) {
-      return res.status(403).json({ message: 'You can only view insights for your own posts' });
-    }
-
-    const { post, related } = insights;
 
     // Calculate engagement metrics. The counters are `NOT NULL DEFAULT 0`
     // columns, so the `post.stats || { … }` fallback the Mongo version needed
@@ -633,13 +747,15 @@ export const getFollowerChanges = async (req: AuthRequest, res: Response) => {
  */
 export const getEngagementRatios = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+    // Same subject rule as `/statistics/user` — the two are read side by side on
+    // one screen, so a viewer who may see the totals may see the ratios over them.
+    const subject = await resolveStatisticsSubject(req);
+    if (!subject.ok) {
+      return res.status(subject.status).json({ message: subject.message });
     }
 
     const days = requestedStatsDays(req.query.days);
-    const statistics = await queryUserStatistics(userId, days);
+    const statistics = await queryUserStatistics(subject.subjectId, days);
     const totalViews = statistics.overview.totalViews;
     const totalInteractions = statistics.overview.totalInteractions;
     const totalLikes = statistics.interactions.likes;
@@ -696,6 +812,22 @@ export const getEngagementRatios = async (req: AuthRequest, res: Response) => {
 /**
  * Get AI-generated weekly summary
  * Computes current vs previous week stats and generates a personalized insight via Alia
+ *
+ * VIEWER-ONLY, deliberately — it takes no `?accountId` while the two routes above
+ * do. What it returns is not a number an account owns but a second-person
+ * retrospective ("your week", "you posted less than last week") written in the
+ * READER's account language, and the screen behind it renders the reader's own
+ * avatar. Pointed at a shared account it would address one operator as though the
+ * channel's week were theirs, in a voice the other operators never chose, and the
+ * "personalized" framing would be a claim about a person the data cannot support
+ * — a channel's posts are attributable to the ACCOUNT, never to whichever member
+ * happens to be reading.
+ *
+ * So the recap stays a personal surface and the channel insights screen does not
+ * offer it, rather than the route quietly answering for the caller while the
+ * client believed it had asked about the channel. Giving a channel a recap of its
+ * own means deciding whose voice it speaks in first; that is a product decision,
+ * not a parameter.
  */
 export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
   try {

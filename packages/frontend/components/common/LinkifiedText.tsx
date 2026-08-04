@@ -54,6 +54,20 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
             </Text>
           </ProfileHoverCard>
         );
+      } else if (entity.kind === 'federatedHandle') {
+        // The handle already names its host, so it routes verbatim — no
+        // normalization, and nothing inferred about which instance it is on.
+        elements.push(
+          <ProfileHoverCard key={`f-${key++}`} username={entity.value} inline>
+            <Text
+              className="text-primary"
+              style={linkStyle}
+              onPress={() => router.push(`/@${entity.value}`)}
+            >
+              {entity.raw}
+            </Text>
+          </ProfileHoverCard>
+        );
       } else if (entity.kind === 'url') {
         const { url, trailing } = trimUrlTrailingPunctuation(entity.value);
         const href = toOpenableUrl(url);

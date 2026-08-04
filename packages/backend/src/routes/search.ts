@@ -1,6 +1,7 @@
 import express, { Response } from "express";
 import { and, arrayContains, desc, eq, exists, gte, lte, lt, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
+import { QUERY_CANCELED, sqlStateOf } from '../db/pgErrors';
 import { posts } from '../db/schema/posts';
 import { postAuthorships, postContentVariants, postMedia, postMentions } from '../db/schema/postContent';
 import { findPostRecords } from '../db/posts/postRepository';
@@ -13,6 +14,8 @@ import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { queryInt } from '../utils/queryParams';
 import { PostVisibility } from '@mention/shared-types';
 import { decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
+import { scanTextEntities } from '@mention/shared-types/textEntities';
+import { isAbsoluteHttpUrl } from '../connectors/shared/url';
 import { discoverySafeSql } from '../mtn/feed/feedSafety';
 import { loadMuteWords, loadShowSensitiveContent } from '../services/safety/viewerSafety';
 import {
@@ -44,6 +47,25 @@ function mediaExists(type?: 'image' | 'video' | 'gif'): SQL {
 
 /** Search result page size. */
 const DEFAULT_SEARCH_LIMIT = 20;
+/**
+ * Is this query nothing but a handle — `@alice`, `@alice@x.com`?
+ *
+ * Decided with the SHARED entity scanner rather than a regex written here, so
+ * "what is a handle" has one definition across the composer, the renderer, the
+ * bio qualifier and this route. The test is structural: exactly one entity, of a
+ * handle kind, spanning the entire trimmed query.
+ */
+function isHandleOnlyQuery(query: string): boolean {
+  const trimmed = query.trim();
+  if (!trimmed.startsWith('@')) return false;
+  const [entity, ...rest] = scanTextEntities(trimmed);
+  return rest.length === 0
+    && entity !== undefined
+    && (entity.kind === 'federatedHandle' || entity.kind === 'bareHandle')
+    && entity.start === 0
+    && entity.end === trimmed.length;
+}
+
 const MAX_SEARCH_LIMIT = 100;
 /**
  * Parse search operators from query string.
@@ -199,6 +221,58 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       // "sensitive", never re-implemented here.
       if (!showSensitiveContent) conditions.push(discoverySafeSql());
 
+      /**
+       * A PASTED URL IS NOT A TEXT QUERY — the BEHAVIOUR carries over from
+       * Mongo, the REASON does not, and the difference matters to whoever
+       * touches this next.
+       *
+       * On Mongo this was a performance defence. The text index tokenises and a
+       * multi-term `$text` search is an OR, so `https://x.com/thinkymachines`
+       * became roughly `https OR x.com OR thinkymachines`, `https` alone
+       * appeared in a large share of every post ever written, and sorting by
+       * `createdAt` rather than by text score forced Mongo to collect EVERY
+       * match before ordering — blowing through `config.search.maxTimeMS` at an
+       * observed 3017/3036/3119/3078 ms against a 3000 ms cap. A typed-alone
+       * handle failed the same way: `@betomoedano@x.com` tokenised to roughly
+       * `betomoedano OR x OR com`, and `com` matched most of the collection.
+       *
+       * NEITHER failure mode exists here, measured on this schema's own
+       * `english` configuration:
+       *
+       *   websearch_to_tsquery('https://x.com/thinkymachines')
+       *     => 'https' & '/x.com/thinkymachines'     -- AND, not OR
+       *   to_tsvector('see https://example.org/a and text')
+       *     => '/a' 'example.org' 'example.org/a' 'see' 'text'
+       *                                             -- no bare 'https' lexeme
+       *   websearch_to_tsquery('@betomoedano@x.com')
+       *     => 'betomoedano@x.com'                  -- ONE email token
+       *
+       * The parser folds the scheme into the url token, so a document carrying
+       * a URL does not carry `https` as a lexeme at all, and the AND makes the
+       * query demand one. Both examples match nothing, through the GIN index,
+       * in no time.
+       *
+       * What survives untouched is the half that was never about cost: somebody
+       * pasting a profile URL is naming an ACCOUNT, and the people lane answers
+       * that (`federatedUsernameFromUpstreamUrl`, the bridge resolution lane).
+       * The posts lane has nothing to say about it.
+       *
+       * So the branch stays, and its job here is to make the empty answer
+       * INTENTIONAL rather than incidental. Postgres happens to agree with it
+       * today only because `websearch_to_tsquery` ANDs; a later move to
+       * `plainto_tsquery`, an added `or`, or a different text-search
+       * configuration would turn that silent agreement back into noise with
+       * nothing to catch it.
+       *
+       * ALONE is the condition, and it is doing real work: `@alice what did you
+       * think` is a sentence about somebody and stays an ordinary text search.
+       * Only a query that is nothing but a handle short-circuits, and posts
+       * MENTIONING an account already have their own operator, `to:`.
+       */
+      if (isAbsoluteHttpUrl(operators.textQuery) || isHandleOnlyQuery(operators.textQuery)) {
+        res.json({ posts: [], hasMore: false });
+        return;
+      }
       // The GIN-indexed `search_vector` on the renditions — the port of the Mongo
       // text index, and there for the same reason: never a regex scan over every
       // variant. `websearch_to_tsquery` is the parser whose input language matches
@@ -410,11 +484,32 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 
     res.json(results);
   } catch (error) {
+    // A query that ran out of time is a CAPACITY answer, not a fault. It was
+    // reaching the client as a 500, which reads as "the server is broken" and
+    // hides the real one behind the same status as a genuine crash. 503 says
+    // what happened and is retryable.
+    //
+    // The log previously carried `errorName` ALONE — so the production incident
+    // this branch was diagnosed from showed `MongoServerError` and nothing else:
+    // no code, no message, nothing that named the query or the limit. Diagnosing
+    // it needed the source and a stopwatch against the cap. Carry the SQLSTATE
+    // and the message so the next one is readable from the logs.
+    //
+    // Read through `sqlStateOf`, never `error.code`: drizzle re-wraps the driver
+    // error and the SQLSTATE lives on `cause`, so the direct read this replaces
+    // matched nothing — it was still testing for Mongo's `MaxTimeMSExpired`,
+    // a code Postgres does not produce, which made the 503 branch unreachable
+    // and every timed-out search a 500.
+    const sqlState = sqlStateOf(error);
+    const isTimeout = sqlState === QUERY_CANCELED;
     logger.error('Search request failed', {
       errorName: error instanceof Error ? error.name : 'UnknownError',
+      sqlState,
+      reason: error instanceof Error ? error.message : 'unknown',
+      timedOut: isTimeout,
     });
-    res.status(500).json({
-      message: "Error performing search"
+    res.status(isTimeout ? 503 : 500).json({
+      message: isTimeout ? 'Search timed out' : 'Error performing search',
     });
   }
 });

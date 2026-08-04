@@ -42,6 +42,18 @@ export const SERIALIZATION_FAILURE = '40001';
 export const DEADLOCK_DETECTED = '40P01';
 
 /**
+ * A statement Postgres CANCELLED — `statement_timeout` expiring, or an explicit
+ * `pg_cancel_backend`.
+ *
+ * A capacity answer, not a fault, and the port of Mongo's `MaxTimeMSExpired`
+ * (code 50): a caller that distinguished the two there has to keep
+ * distinguishing them here, or a query that ran out of time reaches the client
+ * as a 500 and hides a real crash behind the same status. Never retryable in
+ * place — the budget will not be larger on the second attempt.
+ */
+export const QUERY_CANCELED = '57014';
+
+/**
  * Depth ceiling on the `cause` walk. A cyclic chain is not something any driver
  * produces, but an unbounded walk turns one into a hang inside a `catch`.
  */

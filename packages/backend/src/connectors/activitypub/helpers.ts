@@ -673,10 +673,20 @@ export async function resolvePostIdFromObjectUri(objectUri: string): Promise<str
     if (local) return local.id;
   }
 
+  // Published + public, not merely "imported": this resolves a remote-supplied
+  // object URI into a LOCAL post id that then gets referenced as a quote, so an
+  // unpublished or non-public post reached through it would be disclosed to the
+  // fediverse by the reference alone.
   const [imported] = await db
     .select({ id: posts.id })
     .from(posts)
-    .where(eq(posts.federationActivityId, objectUri))
+    .where(
+      and(
+        eq(posts.federationActivityId, objectUri),
+        eq(posts.status, 'published'),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+      ),
+    )
     .limit(1);
   return imported ? imported.id : null;
 }

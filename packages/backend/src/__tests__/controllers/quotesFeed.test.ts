@@ -78,8 +78,8 @@ function makeRes() {
   };
 }
 
-function makeReq(query: Record<string, string> = {}) {
-  return { params: { postId: quotedId }, query, user: undefined } as never;
+function makeReq(query: Record<string, string> = {}, postId?: string) {
+  return { params: { postId: postId ?? quotedId }, query, user: undefined } as never;
 }
 
 /** One page of the quotes feed, as the route actually serves it. */
@@ -143,6 +143,38 @@ describe('FeedController.getQuotesFeed', () => {
     expect(body.items.map((item) => item.id)).toEqual([newest, middle, backfilled]);
   });
 
+  it('does not enumerate quotes when the anchor is unavailable to the viewer', async () => {
+    // `getQuotesFeed` is a public route, but "who quoted this" is only public
+    // when the quoted post itself is viewable. The anchor goes through the same
+    // post/profile ACL as post detail BEFORE any quote is enumerated, so an
+    // anonymous caller learns nothing about a private post's quote graph.
+    //
+    // Hydration is mocked in this suite, so the ACL verdict has to be INJECTED:
+    // seeding a private anchor would prove nothing, because the mock returns a
+    // DTO for whatever it is handed. Dropping the anchor on its own (first)
+    // hydration call is exactly the verdict the real ACL returns for a post the
+    // viewer may not read.
+    await seed({ quoteOf: quotedId });
+    hydratePosts.mockResolvedValueOnce([]);
+    const res = makeRes();
+
+    await feedController.getQuotesFeed(makeReq(), res as never);
+
+    expect(res.statusCode).toBe(404);
+    // ONE hydration — the anchor's. The quote page was never built, so the
+    // quote graph of an unreadable post is not disclosed even in part.
+    expect(hydratePosts).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns not found without enumerating quotes when the anchor does not exist', async () => {
+    const res = makeRes();
+
+    await feedController.getQuotesFeed(makeReq({}, 'no-such-post-id'), res as never);
+
+    expect(res.statusCode).toBe(404);
+    expect(hydratePosts).not.toHaveBeenCalled();
+  });
+
   it('walks EVERY quote across page boundaries, with no row skipped or repeated', async () => {
     // The timestamps are chosen so a page boundary lands BETWEEN two quotes
     // authored in the same instant: newest-first with `limit: 2`, page one ends
@@ -194,7 +226,7 @@ describe('FeedController.getQuotesFeed', () => {
 
     expect(hydratePosts).toHaveBeenCalledWith(
       expect.any(Array),
-      expect.objectContaining({ maxDepth: 1 }),
+      expect.objectContaining({ maxDepth: 1, publicReferencesOnly: true }),
     );
   });
 

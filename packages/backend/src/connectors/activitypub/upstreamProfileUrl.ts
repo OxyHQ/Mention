@@ -2,6 +2,7 @@ import {
   FEDERATION_NETWORKS,
   blueskyUsernameFromHandle,
   parseUpstreamProfileUrl,
+  upstreamProfileUrl,
   type FederationBridgeEntry,
   type FederationNetwork,
 } from '@oxyhq/federation';
@@ -119,4 +120,53 @@ export function upstreamProfileUrlCandidates(
       bridgeHost: entry.host,
       expectedFederatedUsername,
     }));
+}
+
+/**
+ * THE SAME DERIVATION, STARTING FROM THE HANDLE WE OURSELVES RENDER.
+ *
+ * A relabelled actor is stored, displayed, searched and linked as
+ * `@elonmusk@x.com`. That string was the one thing you could not paste back in:
+ * `https://x.com/elonmusk` resolved, `@elonmusk@bird.makeup` resolved, and
+ * `@elonmusk@x.com` — the identity on the profile page — answered 404. The
+ * handle we show has to be a handle we accept, or the loop is open.
+ *
+ * It fails for a reason worth naming: `x.com` is not a fediverse host. There is
+ * no WebFinger there and never will be, so the ordinary connector lane cannot
+ * resolve a network identity by construction, however long it waits. The
+ * identity exists only as a bridge relabel, so reading it back means running the
+ * relabel BACKWARDS — which is exactly what a pasted profile URL already does.
+ *
+ * So this does not reimplement anything: it turns the handle into the canonical
+ * upstream profile URL and hands it to {@link upstreamProfileUrlCandidates}. One
+ * derivation, one set of reviewed entries, one place to fix. In particular the
+ * per-network username rule (Bluesky's dropped `.bsky.social`) is applied by
+ * that function rather than restated here, which is the drift this shape exists
+ * to prevent.
+ *
+ * The caller still enforces `expectedFederatedUsername`, so a wrong guess
+ * resolves to nothing rather than to somebody else — the same guard that makes
+ * the pasted-URL lane safe, and the reason this can be tried without risking a
+ * misattribution.
+ */
+export function networkHandleCandidates(
+  raw: string,
+  entries: readonly FederationBridgeEntry[] = FEDERATION_BRIDGE_POLICY,
+): UpstreamProfileUrlCandidate[] {
+  const cleaned = raw.trim().replace(/^@/, '');
+  const atIndex = cleaned.indexOf('@');
+  if (atIndex <= 0 || atIndex === cleaned.length - 1) return [];
+
+  const local = cleaned.slice(0, atIndex);
+  const domain = cleaned.slice(atIndex + 1).toLowerCase();
+  // No separator check here on purpose. `upstreamProfileUrlCandidates` already
+  // refuses a handle carrying `@`, `/` or whitespace, and re-stating it would be
+  // a second copy of a rule that exists to have exactly one — measured, not
+  // assumed: removing a duplicate guard from this function left every case
+  // green, which is what a redundant guard looks like.
+  const network = Object.values(FEDERATION_NETWORKS)
+    .find((candidate) => candidate.domain.toLowerCase() === domain);
+  if (!network) return [];
+
+  return upstreamProfileUrlCandidates(upstreamProfileUrl(network, local), entries);
 }

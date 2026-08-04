@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { Spinner } from '@/components/ui/Spinner';
 import { Feed } from '@/components/Feed/index';
+import { ProfileWriters } from './ProfileWriters';
 import MediaGrid from './MediaGrid';
 import VideosGrid from './VideosGrid';
 import { FeedCard } from '@/components/FeedCard';
@@ -137,6 +138,12 @@ export const ProfileTabs = memo(function ProfileTabs({
         viewerId={user?.id}
       />
     );
+  }
+
+  // Writers tab — a channel's masthead. The strip only carries it for a channel
+  // that names its writers, so reaching here already means the list exists.
+  if (tab === 'writers') {
+    return <ProfileWriters channelOxyUserId={profileId} />;
   }
 
   // Media grid

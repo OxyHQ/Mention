@@ -5,7 +5,6 @@ import { useQuery } from '@tanstack/react-query';
 import { BloomColorScope } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { FollowButton as OxyFollowButton, useAuth, useFollow } from '@oxyhq/services/ui/client';
-import type { AccountNode } from '@oxyhq/core';
 import { lanesService } from '@/services/lanesService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { logger } from '@oxyhq/core/logger';
@@ -16,6 +15,7 @@ import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { Icon } from '@/lib/icons';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { MoreIcon } from '@/assets/icons/more-icon';
+import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 
 // Components
 import UserName from './UserName';
@@ -33,7 +33,9 @@ import {
     useProfileAccount,
     useProfileChrome,
     useProfileMoreMenu,
+    useOperatesAccount,
     useJustFollowed,
+    useChannelWriters,
     buildProfileTabDescriptors,
     profileTabIndex,
     type LaneTabInput,
@@ -72,11 +74,17 @@ interface ChannelProfileProps {
  * - **Four tabs, not nine.** `profileTabsForAccountKind` drops the five a channel
  *   account can never fill; see its docstring for the three separate reasons.
  * - **No tab in the URL.** `/c/<handle>` is ONE route with no sub-tabs beneath
- *   it, so its tabs are local state. Writing `/@<handle>/media` here would
- *   navigate a channel out of its own URL family.
+ *   it, so its tabs are local state — the writers tab included. Writing
+ *   `/@<handle>/media` here would navigate a channel out of its own URL family,
+ *   and giving ONE channel tab a `/c/<handle>/…` route of its own while the
+ *   other four stay local state would be a worse inconsistency than either
+ *   answer applied uniformly. `about` and `settings` are separate SCREENS, not
+ *   tabs, which is why they have routes.
  *
- * What is ADDED is the operator's way in: a channel has no login, so its
- * settings are reachable only from the overflow menu of whoever operates it.
+ * What is ADDED is the operator's way in — a channel has no login, so its
+ * settings are reachable only from the overflow menu of whoever operates it —
+ * and a FIFTH tab that only a channel can have: `writers`, present when this
+ * channel names the people who write for it (see below).
  */
 const ChannelProfile: React.FC<ChannelProfileProps> = ({
     username,
@@ -84,7 +92,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
     profileData,
     loading,
 }) => {
-    const { user: currentUser, oxyServices } = useAuth();
+    const { user: currentUser } = useAuth();
     const { t } = useTranslation();
 
     const [activeTabKey, setActiveTabKey] = useState<string>('posts');
@@ -100,6 +108,18 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
         },
     });
 
+    // Whether this channel NAMES the people who write for it, which is the whole
+    // rule for the writers tab. It is not on the profile DTO — the disclosure is
+    // a Mention-owned setting on the channel account, and the writers endpoint
+    // reports it only by REFUSING (one 404 for "not a channel", "does not sign"
+    // and "you may not see this channel" alike). So the tab is keyed on the
+    // query having succeeded, never on the list being non-empty: a channel that
+    // discloses and has published nothing signed keeps its tab and says so.
+    //
+    // The tab's own content reads this same hook, so the two share one cached
+    // answer and opening the tab costs no second request.
+    const { disclosed: disclosesWriters } = useChannelWriters(profileData?.id);
+
     const tabDescriptors = useMemo(
         () =>
             buildProfileTabDescriptors(
@@ -113,11 +133,13 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                     feeds: t('profile.tabs.feeds', { defaultValue: 'Feeds' }),
                     starter_packs: t('profile.tabs.starter_packs', { defaultValue: 'Starter Packs' }),
                     lists: t('profile.tabs.lists', { defaultValue: 'Lists' }),
+                    writers: t('profile.tabs.writers', { defaultValue: 'Writers' }),
                 },
                 laneTabs,
                 'channel',
+                disclosesWriters,
             ),
-        [t, laneTabs],
+        [t, laneTabs, disclosesWriters],
     );
 
     const activeTab = profileTabIndex(tabDescriptors, activeTabKey);
@@ -143,21 +165,18 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
         false,
     );
 
-    // Whether the viewer OPERATES this channel, which is what puts its settings
-    // in reach. A channel account has no login of its own, so there is no other
-    // signal on the profile itself. This query is the reason the check lives on
-    // the channel screen and not in the shared lookup: the account graph is a
-    // real request, and a person's profile would pay for it to answer a question
-    // that can only ever be no.
-    const operatedAccountsQuery = useQuery<AccountNode[]>({
-        queryKey: viewerQueryKeys.operatedAccounts(currentUser?.id),
-        queryFn: () => oxyServices.listAccounts(),
-        enabled: Boolean(currentUser?.id) && Boolean(profileData?.id),
+    // Whether the viewer OPERATES this channel — what puts its settings in reach,
+    // and what keeps mute / block / report out of a menu where they would be
+    // addressed at an account the viewer publishes as. A channel account has no
+    // login of its own, so there is no other signal on the profile itself.
+    //
+    // The check is shared with the person screen rather than local to this one:
+    // only `channel` routes to `/c/<handle>`, so an organization, project or bot
+    // renders over there and needs the identical answer.
+    const operatesThisChannel = useOperatesAccount({
+        accountId: profileData?.id,
+        accountKind: profileData?.kind,
     });
-    const operatesThisChannel = Boolean(
-        profileData?.id &&
-        operatedAccountsQuery.data?.some((account) => account.accountId === profileData.id),
-    );
 
     // The chrome's compact-header offsets and the scrolled-name overlay both need
     // to know how wide the icon cluster is: subscribe + share + more.
@@ -218,13 +237,25 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
         }
     }, [profileData, handle, t]);
 
-    // Operators only, and first: it is the one action in the menu that is about
-    // running this account rather than about the viewer's relationship to it.
-    // Everyone else never sees a row that would refuse them.
+    // Operators only, and first: these are the actions about RUNNING this account
+    // rather than about the viewer's relationship to it. Everyone else never sees
+    // a row that would refuse them.
+    //
+    // Insights leads because reading how the channel is doing is the frequent
+    // visit and changing how it is configured is the rare one. It is the channel's
+    // answer to the [Analytics] button a person gets on their own profile header —
+    // a channel has no such header, because it is never anybody's "own profile":
+    // no session's subject can be a channel, so the menu is where its operators'
+    // actions live.
     const leadingActions = useMemo(
         () =>
             operatesThisChannel
                 ? [
+                    {
+                        icon: <AnalyticsIcon size={22} className="text-foreground" />,
+                        label: t('insights.title', { defaultValue: 'Insights' }),
+                        onPress: () => router.push(`/c/${handle}/insights`),
+                    },
                     {
                         icon: <Icon name="settings-outline" size={22} className="text-foreground" />,
                         label: t('channels.settings.title', { defaultValue: 'Channel settings' }),
@@ -235,9 +266,14 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
         [operatesThisChannel, handle, t],
     );
 
+    // `viewerOperatesAccount`, never `isOwnProfile: false` as this read before.
+    // That literal was true of the LOGIN identity — a channel can never be signed
+    // in as, so it is never "your own profile" — and it silently answered a
+    // different question from the one the menu asks, which is how an operator came
+    // to be offered Block and Report against their own channel.
     const handleMoreOptions = useProfileMoreMenu({
         profileData,
-        isOwnProfile: false,
+        viewerOperatesAccount: operatesThisChannel,
         leadingActions,
     });
 
@@ -261,10 +297,14 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                     verified={profileData.verified}
                     isPrivate={isPrivate}
                     privacySettings={profileData.privacy}
-                    profileId={profileData.id}
+                    accountCategories={profileData.accountCategories}
                     UserNameComponent={UserName}
                 />
-                <View className="mt-3 mb-2">
+                {/* The last element of the centred masthead, and the boundary
+                    the left-aligned body starts after — so it gets an equal
+                    gap on both sides rather than the tighter `mb` a control
+                    tucked under a left-aligned name row wanted. */}
+                <View className="mt-4 mb-4">
                     <ChannelActions
                         profileId={profileData.id}
                         isFollowing={profileData.isFollowing}
@@ -288,14 +328,20 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                     profileHandle={handle}
                     identity={identity}
                     showReplies={false}
-                    // A channel's secondary surfaces live in the PERSON URL
-                    // family today: `/c/<handle>` has no `about`, `followers` or
-                    // `following` route of its own, and those screens read an
-                    // account by handle without caring what kind it is. Pointing
-                    // at them keeps the rows working; giving the channel family
-                    // its own sub-routes is a separate decision, not something to
-                    // fake here.
-                    aboutHref={`/@${handle}/about`}
+                    // The channel's OWN about page. `/@<handle>/about` renders
+                    // fine for a channel, which is exactly why this was wrong
+                    // and silent: it is the person family's route, and an
+                    // account should never be sat on a URL it does not own.
+                    aboutHref={`/c/${handle}/about`}
+                    // STILL the person family, and deliberately so pending a
+                    // decision. These two are not a second `about`: both render
+                    // `connections.tsx`, whose tab strip navigates with a
+                    // hardcoded `/@` and whose four tabs include `who-may-know`
+                    // — a list of accounts the VIEWER might know, which is not
+                    // about this profile at all and makes no sense hanging off a
+                    // channel. Moving them under `/c/` means making that screen
+                    // family-aware AND deciding its tab set per account kind, so
+                    // it is its own change rather than a line here.
                     followingHref={`/@${handle}/following`}
                     followersHref={`/@${handle}/followers`}
                     onPostsPress={handlePostsPress}
@@ -412,6 +458,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                 loading={loading}
                 profileData={profileData}
                 banner={null}
+                skeletonVariant="channel"
                 headerActions={headerActions}
                 summary={summary}
                 tabBar={tabBar}

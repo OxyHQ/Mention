@@ -103,9 +103,17 @@ export function groupNotifications(
       continue;
     }
 
-    // Build a group key from type + entityId
+    // Build a group key from recipient + type + entityId.
+    //
+    // The RECIPIENT is part of the key because the list now carries rows
+    // addressed to a channel the viewer operates alongside their own. Those two
+    // inboxes collide on the pair that matters most: `type:'follow'` stores the
+    // FOLLOWER in `entityId`, so one person following both you and your channel
+    // produces two rows identical in type and entityId. Keyed on those alone they
+    // merge into one row, and the channel's follow disappears behind the personal
+    // one with nothing to reveal it.
     const entityId = objectId(n.entityId) || String(n.entityId || '');
-    const groupKey = `${n.type}:${entityId}`;
+    const groupKey = `${n.recipientId}:${n.type}:${entityId}`;
 
     const open = openGroups.get(groupKey);
 

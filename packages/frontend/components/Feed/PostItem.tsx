@@ -46,6 +46,7 @@ import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } fro
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { SubtleHover } from '@oxyhq/bloom/subtle-hover';
 import { useThreadHoverStore } from '@/stores/threadHoverStore';
+import { mergeKnownIdentity, useKnownIdentities } from '@/stores/identityUpdates';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { reportFeedInteraction } from '@/utils/feedTelemetry';
 import { formatFullTimestamp } from '@/utils/dateUtils';
@@ -170,6 +171,43 @@ const PostItem: React.FC<PostItemProps> = ({
     const viewPost = storePost ?? post;
     const viewPostId = viewPost?.id ? String(viewPost.id) : undefined;
 
+    // Every actor on this row, corrected against any profile edit made in this
+    // session.
+    //
+    // Each of them is a SNAPSHOT of an identity taken when the server hydrated
+    // the post, and nothing rewrites those: the feed store's retained slice and
+    // the SQLite copy both keep them, and a remount warm-starts from that slice
+    // rather than refetching page 1. So a picture changed after a post was
+    // fetched stays wrong on that row until something throws the whole cache
+    // away — which is why a full reload looked like the only fix.
+    // `stores/identityUpdates` is the one authority that knows better, and
+    // resolving it HERE covers every post surface at once: a feed row, a post
+    // detail, a quote card and a boosted original are all this same component.
+    //
+    // All THREE actors, not just the author. They sit side by side in one row —
+    // `boostedBy` puts the reposter's picture in the same avatar cluster as the
+    // author's — so correcting one and not the others is more conspicuous than
+    // correcting none: the same person would be drawn twice, differently, in one
+    // cluster.
+    const knownIdentities = useKnownIdentities();
+    const author = useMemo(
+        () => (viewPost?.user ? mergeKnownIdentity(viewPost.user, knownIdentities.get(viewPost.user.id)) : undefined),
+        [viewPost?.user, knownIdentities],
+    );
+    const reposter = useMemo(
+        () => (repostedBy ? mergeKnownIdentity(repostedBy, knownIdentities.get(repostedBy.id)) : undefined),
+        [repostedBy, knownIdentities],
+    );
+    // The collaborative byline: owner plus each accepted collaborator, drawn as
+    // the avatar cluster that replaces the solo avatar.
+    const bylineAuthors = useMemo(
+        () =>
+            viewPost?.authors?.map((entry) =>
+                mergeKnownIdentity(entry, knownIdentities.get(entry.id)),
+            ),
+        [viewPost?.authors, knownIdentities],
+    );
+
     const viewerState =
         viewPost?.viewerState ?? { isOwner: false, isCollaborator: false, isLiked: false, isDownvoted: false, isBoosted: false, isSaved: false };
 
@@ -267,7 +305,7 @@ const PostItem: React.FC<PostItemProps> = ({
     // A CHANNEL post has no separate signature to paint: a channel is an Oxy
     // account, so it IS the author and its avatar arrives in `user.avatar` like
     // anybody else's.
-    const avatarSource = viewPost?.user?.avatar;
+    const avatarSource = author?.avatar;
     const avatarVariant = MEDIA_VARIANT_AVATAR;
 
     // Preload only makes sense when the avatar is already an absolute URL —
@@ -330,8 +368,8 @@ const PostItem: React.FC<PostItemProps> = ({
     // value so they can never diverge. Empty for a degraded/unresolvable author
     // (empty handle) → no `@handle` shown and no tappable link.
     const authorHandle = useMemo(
-        () => getNormalizedUserHandle(viewPost.user) ?? undefined,
-        [viewPost.user],
+        () => (author ? getNormalizedUserHandle(author) ?? undefined : undefined),
+        [author],
     );
 
     // The avatar and the identity line both open the author's own profile.
@@ -354,8 +392,8 @@ const PostItem: React.FC<PostItemProps> = ({
     // Canonical handle of the BOOSTER, on the same terms as `authorHandle`: it
     // drives the "Reposted by" row's link and its hover preview from one value.
     const reposterHandle = useMemo(
-        () => getNormalizedUserHandle(repostedBy) ?? undefined,
-        [repostedBy],
+        () => getNormalizedUserHandle(reposter) ?? undefined,
+        [reposter],
     );
 
     const goToReposter = useCallback((event?: GestureResponderEvent) => {
@@ -612,7 +650,7 @@ const PostItem: React.FC<PostItemProps> = ({
         ],
     );
 
-    if (!viewPost || !viewPost.user) {
+    if (!viewPost || !author) {
         return null;
     }
 
@@ -639,7 +677,7 @@ const PostItem: React.FC<PostItemProps> = ({
     const replyContextRow = resolveReplyContextRow({ post: viewPost, isNested });
 
     const postAuthor = displayNameOrHandle(
-        viewPost.user.name?.displayName,
+        author.name?.displayName,
         authorHandle ? `@${authorHandle}` : '',
     );
     const postTextSummary = content.text
@@ -688,7 +726,7 @@ const PostItem: React.FC<PostItemProps> = ({
     // column grows down). The icon keeps `-ml-4` to poke left into the avatar
     // gutter; repost is the outermost reason, then pinned, then reply.
     const contextRows: React.ReactNode[] = [];
-    if (repostedBy) {
+    if (reposter) {
         contextRows.push(
             <ProfileHoverCard key="reposted" username={reposterHandle}>
                 <TouchableOpacity
@@ -702,7 +740,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         <BoostIcon size={13} color={theme.colors.textSecondary} />
                     </View>
                     <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
-                        {t('post.repostedBy', { defaultValue: 'Reposted by' })} {displayNameOrHandle(repostedBy.name?.displayName, reposterHandle ? `@${reposterHandle}` : '')}
+                        {t('post.repostedBy', { defaultValue: 'Reposted by' })} {displayNameOrHandle(reposter.name?.displayName, reposterHandle ? `@${reposterHandle}` : '')}
                     </Text>
                 </TouchableOpacity>
             </ProfileHoverCard>,
@@ -821,20 +859,21 @@ const PostItem: React.FC<PostItemProps> = ({
                 <View style={{ gap: headerToBlocksGap }}>
                     <PostHeader
                         user={{
-                            displayName: viewPost.user.name?.displayName,
+                            displayName: author.name?.displayName,
                             handle: authorHandle || '',
-                            verified: viewPost.user.verified,
-                            isFederated: viewPost.user.isFederated,
-                            instance: viewPost.user.instance,
+                            verified: author.verified,
+                            isFederated: author.isFederated,
+                            kind: author.kind,
+                            instance: author.instance,
                         }}
-                        authors={viewPost.authors && viewPost.authors.length > 0 ? viewPost.authors : undefined}
+                        authors={bylineAuthors && bylineAuthors.length > 0 ? bylineAuthors : undefined}
                         // `repostedBy` is the only boost that put THIS post in
                         // front of the reader. `viewPost.boost` is the other
                         // boost shape — the row IS the boost, so its author and
                         // its actor are the same account and there is nothing to
                         // pair or reorder; passing it would be a no-op wearing
                         // the clothes of a rule.
-                        boostedBy={repostedBy}
+                        boostedBy={reposter}
                         date={metadata.createdAt}
                         showBoost={Boolean(viewPost.boost) && !isNested}
                         showReply={false}
@@ -842,7 +881,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         contextTop={contextRows.length > 0 ? contextRows : undefined}
                         avatarSource={avatarSource}
                         avatarVariant={avatarVariant}
-                        authorUserId={viewPost.user.id || undefined}
+                        authorUserId={author.id || undefined}
                         onPressUser={goToAuthorProfile}
                         onPressAvatar={goToAuthorProfile}
                         onPressCollaborators={isCollab ? openCollaboratorsList : undefined}

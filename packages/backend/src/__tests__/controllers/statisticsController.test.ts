@@ -54,8 +54,20 @@ vi.mock('../../services/feedViewCounter', () => ({
   // straight into the response as the count.
   recordDedupedView: vi.fn(async () => null),
 }));
-vi.mock('../../utils/oxyHelpers', () => ({
+/**
+ * Spread over the REAL module rather than listing exports, because this one is a
+ * chokepoint that grows: `getPostInsights` reaches
+ * `createUserScopedOxyServices` for its authorization refusal, and a mock that
+ * enumerates exports drops a newly-required one to `undefined` — which throws
+ * inside the handler's own `try`, so the authorization test observes a 500
+ * instead of the 403 it asserts and reads as a broken access-control path.
+ */
+vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../utils/oxyHelpers')>()),
   createScopedOxyClient: vi.fn(() => undefined),
+  // No bearer on these synthetic requests, so the real function would answer
+  // `undefined` anyway — pinned so the gate can never reach a live Oxy client.
+  createUserScopedOxyServices: vi.fn(() => undefined),
   getServiceOxyClient: () => ({
     getUserFollowing: async () => ({ following: followingIds.value }),
   }),

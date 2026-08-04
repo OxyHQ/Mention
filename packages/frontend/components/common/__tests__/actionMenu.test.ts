@@ -96,8 +96,9 @@ describe('action menu wiring', () => {
       join('components', 'Feed', 'PostItem.tsx'),
       // The profile overflow menu. It lives in a hook rather than on a screen
       // because BOTH profile screens open the same menu — a person's and a
-      // channel's — and the rows are identical apart from the operator's
-      // channel-settings entry, which arrives as a prop.
+      // channel's — and what differs between them is data rather than structure:
+      // the operator's channel-settings entry arrives as a prop, and mute /
+      // block / report drop out for a viewer who operates the account.
       join('components', 'Profile', 'hooks', 'useProfileMoreMenu.tsx'),
     ]);
   });

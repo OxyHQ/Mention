@@ -264,6 +264,11 @@ const environmentSchema = z
     FEDIVERSE_SHARING_CACHE_TTL_SECONDS: integerFromEnv(600, { minimum: 1 }),
     VIEWER_RECENT_TOPICS_TTL_SECONDS: integerFromEnv(6 * 60 * 60, { minimum: 1 }),
     USER_SUMMARY_CACHE_TTL_SECONDS: integerFromEnv(10 * 60, { minimum: 1 }),
+    // Deliberately the shortest cache TTL here: it holds an AUTHORIZATION answer
+    // (which channels' inboxes a person may read), and its staleness window is
+    // exactly how long a removed operator keeps reading. See
+    // `services/notificationInbox.ts`.
+    NOTIFICATION_INBOX_CACHE_TTL_SECONDS: integerFromEnv(60, { minimum: 1 }),
     DWELL_AGGREGATE_TTL_SECONDS: integerFromEnv(7 * 24 * 60 * 60, { minimum: 1 }),
     SYRA_PODCAST_CACHE_TTL_SECONDS: integerFromEnv(300, { minimum: 1 }),
 
@@ -779,6 +784,7 @@ export const config = {
     fediverseSharingTtlSeconds: environment.FEDIVERSE_SHARING_CACHE_TTL_SECONDS,
     viewerRecentTopicsTtlSeconds: environment.VIEWER_RECENT_TOPICS_TTL_SECONDS,
     userSummaryTtlSeconds: environment.USER_SUMMARY_CACHE_TTL_SECONDS,
+    notificationInboxTtlSeconds: environment.NOTIFICATION_INBOX_CACHE_TTL_SECONDS,
     dwellAggregateTtlSeconds: environment.DWELL_AGGREGATE_TTL_SECONDS,
     syraPodcastTtlSeconds: environment.SYRA_PODCAST_CACHE_TTL_SECONDS,
     l1MaxEntries: 1_000,

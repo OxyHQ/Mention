@@ -625,18 +625,62 @@ task description.
 
 ### 5.0 THE TRAP — read before touching `PostHydrationService.ts`
 
-**Dropping main's Mongoose imports from `services/PostHydrationService.ts` also
-drops `disclosesWriters` — the only place the `kind === 'channel'` check lives.**
+**CORRECTED 2026-08-04, and the correction inverts the warning. What this
+section used to say is left in place below, because a reader who remembers it
+needs to know it was wrong rather than find it quietly replaced.**
 
-Without it, writer disclosure falls back to the settings row alone. **A settings
-row is not consent.** `UserSettings.channel.signPosts` is keyed on the CHANNEL's
-account, and the disclosure decision is supposed to fail closed at three
-independent points, of which the account-kind check is one.
+**It used to say:** *"Dropping main's Mongoose imports from
+`services/PostHydrationService.ts` also drops `disclosesWriters` — the only
+place the `kind === 'channel'` check lives … Getting this wrong de-anonymises
+every channel writer … no test currently fails on it."*
 
-**Getting this wrong de-anonymises every channel writer** — it publishes the
-human behind each anonymous channel post. It is silent, it is not a crash, and
-no test currently fails on it. Treat any diff that removes an import from that
-file as touching a safety control until proven otherwise.
+**Three things in that are false, measured against trunk `d348cc5a` and main
+`366e0651`:**
+
+1. **`disclosesWriters` is not a Mongoose import, so dropping the Mongoose
+   imports does not drop it.** On main it is line 11,
+   `import { disclosesWriters, loadSigningChannelIds } from './channelWriterDisclosure'`
+   — a sibling SERVICE. The model imports are lines 4–10. **Someone following the
+   old wording literally — dropping 4–10, keeping 11 — does the right thing and
+   believes they dodged a trap that was never armed that way**, and therefore
+   stops looking for the one that is actually there.
+2. **The trunk is NOT missing the account-kind check**, so `disclosesWriters` is
+   not "the only place it lives". `PostHydrationService.ts` on the trunk has
+   `user.kind === 'channel'` in a fail-closed conjunction with
+   `signingChannelIds.has(authorId)` and a writer being present, above a comment
+   naming every clause, plus its own signing-set read. **A trunk-ward resolution
+   therefore de-anonymises nobody.** It keeps both clauses, inline.
+3. **"No test currently fails on it" was true of the trunk alone.** Main's
+   `__tests__/services/channelWriterDisclosure.test.ts` covers `disclosesWriters`
+   for `personal`/`organization`/`project`/`bot`, an unknown kind and an
+   unresolvable account; drop the kind clause and those go red. Absorbing main
+   closes the gap the old text described as open.
+
+**THE HAZARD THE OLD TEXT MISSED ENTIRELY, which is the real one.** Both sides
+implement both clauses — correctly, and independently. The trunk's port
+faithfully rebuilt the inline read that main's `c23934ab` had refactored OUT into
+`services/channelWriterDisclosure.ts`, which exists precisely because **two
+surfaces ask this question** (the post byline and the channel's writers list)
+**and two implementations of a consent gate is how they come to disagree.** The
+risk is not a missing check — it is **TWO consent readers that can drift**, in a
+decision where drift in one direction is unrecoverable: a name published without
+consent cannot be un-published by a later request that gets it right.
+
+**So the resolution is main's STRUCTURE on the trunk's STORE** — delegate to
+`loadSigningChannelIds`/`disclosesWriters`, delete the trunk's inline block — and
+**what a reviewer must check is the ONE-READER property, not the presence of a
+`kind` check.** Both sides pass a `kind`-check inspection; only one of them
+leaves a single reader. The gate is the `signPosts has exactly one reader`
+source scan in that test file, which fails while a second reader exists.
+
+**Field name:** the port renamed it. It is `channelAccount.signPosts` (column
+`user_settings.channel_account_sign_posts`), not `UserSettings.channel.signPosts`.
+The column is NULLABLE and `NULL` means "not a channel", which is why the read is
+`=== true` rather than truthy.
+
+**What survives from the old warning:** a diff to this file's imports IS worth
+treating as touching a safety control until proven otherwise — just not for the
+reason originally given.
 
 ### 5.1 Step 0 is `git merge-tree`, before any worktree exists
 

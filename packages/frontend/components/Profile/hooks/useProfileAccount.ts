@@ -35,7 +35,11 @@ export interface ProfileAccount {
  * FILE is mounted, never what the account is. What the account is comes back in
  * `profileData.kind`, and `canonicalHref` is how the two are reconciled.
  */
-export function useProfileAccount(routedFamily: ProfileRouteFamily): ProfileAccount {
+export function useProfileAccount(
+  routedFamily: ProfileRouteFamily,
+  /** The sub-surface this screen is, when it is not the profile root. */
+  subpath?: string,
+): ProfileAccount {
   const { username: urlUsername } = useLocalSearchParams<{ username: string }>();
   const username = (urlUsername?.startsWith('@') ? urlUsername.slice(1) : urlUsername) || '';
 
@@ -65,6 +69,7 @@ export function useProfileAccount(routedFamily: ProfileRouteFamily): ProfileAcco
     kind: profileData?.kind,
     handle,
     resolved: Boolean(profileData),
+    subpath,
   });
 
   return { username, handle, isFederated, profileData, loading, colorName, canonicalHref };

@@ -11,6 +11,8 @@ import {
   POST_REFERENCE_PROBE_NAMES,
   assertActorAnchorSafeToDelete,
   assertActorSafeToDelete,
+  ACTOR_REFERENCE_PROBE_NAMES,
+  actorReferenceProbes,
   assertNoDeletionBlockers,
   assertPostsSafeToDelete,
   collectReferenceBlockers,
@@ -18,7 +20,7 @@ import {
 import { assertAdminRunComplete } from '../scripts/lib/adminScriptLifecycle';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { REPORTED_TYPES } from '../db/schema/moderation';
-import { contentLabels, labelers, reports } from '../db/schema/moderation';
+import { contentLabels, labelers, moderationEnforcements, reports } from '../db/schema/moderation';
 import { articles } from '../db/schema/articles';
 import {
   actorKeyPairs,
@@ -51,6 +53,8 @@ import {
 import { endorsementOutbox, engagementOutbox } from '../db/schema/outbox';
 import { pollOptions, pollVotes, polls } from '../db/schema/polls';
 import { postMentions, postRecentRepliers } from '../db/schema/postContent';
+import { laneMutes, lanes } from '../db/schema/channels';
+import { mcpConnections } from '../db/schema/mcp';
 import { userBehaviorAuthors, userBehaviors, userSettings } from '../db/schema/userProfile';
 import {
   bookmarks,
@@ -102,6 +106,12 @@ const ACTOR_PROBE_READS: Readonly<Record<string, string>> = {
   'posts owner/authorship/mentions': 'postExists',
   'user_settings.oxy_user_id': 'anyRow',
   'mention_signed_records.oxy_user_id': 'anyRow',
+  'posts.written_by_oxy_user_id': 'anyRow',
+  'lanes.owner_id': 'anyRow',
+  'lane_mutes.viewer/lane_owner': 'anyRow',
+  'mcp_connections.oxy_user_id/active_oxy_user_id': 'anyRow',
+  'moderation_enforcements.subject_id': 'anyRow',
+  'user_settings privacy references from another viewer': 'anyRow',
 };
 
 interface ScannedProbe {
@@ -375,6 +385,67 @@ describe('administrative deletion preflight', () => {
     // THE INVARIANT. A probe reaching no Postgres read is a gate that fails
     // open, and an operator who believes it ran.
     expect(probes.filter((probe) => probe.reads.length === 0).map(describeProbe)).toEqual([]);
+  });
+
+  it('declares every actor probe it builds, and builds every one it declares', () => {
+    // Set EQUALITY, both directions. `toContain` on a hand-written list catches
+    // a probe that was never written; it cannot catch one that was DELETED, nor
+    // a declared name nothing builds. With the probe array typed against
+    // `ACTOR_REFERENCE_PROBE_NAMES`, a removed probe is a compiler error here
+    // and this test is what keeps the union honest in the other direction.
+    // Every call shape, unioned: some probes are built only for a target that
+    // carries no `oxyUserId`, so one shape alone under-reports what exists.
+    const built = new Set(
+      [
+        actorReferenceProbes({ oxyUserId: 'actor-1', actorUri: 'https://remote.example/users/a' }, true),
+        actorReferenceProbes({ oxyUserId: 'actor-1', actorUri: 'https://remote.example/users/a' }, false),
+        actorReferenceProbes({ actorUri: 'https://remote.example/users/a' }, true),
+        actorReferenceProbes({ actorUri: 'https://remote.example/users/a' }, false),
+      ].flat().map((probe) => probe.name),
+    );
+
+    expect([...built].sort()).toEqual([...ACTOR_REFERENCE_PROBE_NAMES].sort());
+  });
+
+  it('probes every user-referencing field a cascade would otherwise strand', () => {
+    const names = actorReferenceProbes(
+      { oxyUserId: 'actor-1', actorUri: 'https://remote.example/users/a' },
+      // The gone-actor bucket: probes its own cascade does NOT remove. Each of
+      // these names a row that survives that cascade holding the actor's id, so
+      // this is the bucket they have to be in to be checked at all.
+      true,
+    ).map((probe) => probe.name);
+
+    // Vacuity floor: a broken traversal returning nothing would satisfy every
+    // `toContain` below by satisfying none of them.
+    expect(names.length).toBeGreaterThanOrEqual(25);
+    expect(new Set(names).size).toBe(names.length);
+
+    for (const name of [
+      // The writer behind a channel post — deliberately outside `authorship[]`
+      // to protect their anonymity, which put it outside every matcher too.
+      'posts.written_by_oxy_user_id',
+      'lanes.owner_id',
+      'lane_mutes.viewer/lane_owner',
+      'mcp_connections.oxy_user_id/active_oxy_user_id',
+      'moderation_enforcements.subject_id',
+      'user_settings privacy references from another viewer',
+    ]) {
+      expect(names).toContain(name);
+    }
+  });
+
+  it('probes author subscriptions by their real fields, and nothing probes them by post', () => {
+    const names = actorReferenceProbes(
+      { oxyUserId: 'actor-1', actorUri: 'https://remote.example/users/a' },
+      true,
+    ).map((probe) => probe.name);
+    // `PostSubscription` is `{ subscriberId, authorId }` — a subscription to an
+    // AUTHOR, with no post reference at all. It belongs to the ACTOR probes and
+    // must never appear among the post ones.
+    expect(names).toContain('post_subscriptions.subscriber_id/author_id');
+    expect(POST_REFERENCE_PROBE_NAMES).not.toContain('post_subscriptions.subscriber_id/author_id');
+
   });
 
   it('uses durable delivery acknowledgements and explicit resource closure', () => {
@@ -1675,7 +1746,177 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
         await getDb().delete(notifications).where(eq(notifications.actorId, s.oxyUserId));
       },
     },
+    {
+      // The channel-writer column. The post is owned by SOMEBODY ELSE, so this
+      // row can only be found by the `written_by` probe — an owner/authorship
+      // probe finding it instead would mean the fixture proved the wrong thing.
+      probe: 'posts.written_by_oxy_user_id',
+      disjunct: 'written_by_oxy_user_id',
+      arm: 'always',
+      plant: async (s) => { await foreignPost({ writtenByOxyUserId: s.oxyUserId }); },
+      clear: async () => { /* `foreignPost` rows are removed by the shared post cleanup. */ },
+    },
+    {
+      probe: 'lanes.owner_id',
+      disjunct: 'owner_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(lanes).values({
+          ownerId: s.oxyUserId,
+          name: `probe-lane-${s.oxyUserId}`,
+          nameLower: `probe-lane-${s.oxyUserId}`,
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(lanes).where(eq(lanes.ownerId, s.oxyUserId));
+      },
+    },
+    {
+      // `lane_mutes.lane_id` is a REAL foreign key, so the mute needs a real
+      // lane. It is owned by `other` in BOTH mute cases: the columns under test
+      // are the mute's own, and a lane owned by the subject would also trip
+      // `lanes.owner_id` and stop isolating the disjunct.
+      probe: 'lane_mutes.viewer/lane_owner',
+      disjunct: 'viewer_oxy_user_id',
+      arm: 'always',
+      plant: async (s) => {
+        const [lane] = await getDb().insert(lanes).values({
+          ownerId: s.other,
+          name: `probe-mutelane-v-${s.oxyUserId}`,
+          nameLower: `probe-mutelane-v-${s.oxyUserId}`,
+        }).returning({ id: lanes.id });
+        await getDb().insert(laneMutes).values({
+          viewerOxyUserId: s.oxyUserId,
+          laneId: lane.id,
+          laneOwnerOxyUserId: s.other,
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(laneMutes).where(eq(laneMutes.viewerOxyUserId, s.oxyUserId));
+        await getDb().delete(lanes).where(eq(lanes.ownerId, s.other));
+      },
+    },
+    {
+      probe: 'lane_mutes.viewer/lane_owner',
+      disjunct: 'lane_owner_oxy_user_id',
+      arm: 'always',
+      plant: async (s) => {
+        const [lane] = await getDb().insert(lanes).values({
+          ownerId: s.other,
+          name: `probe-mutelane-o-${s.oxyUserId}`,
+          nameLower: `probe-mutelane-o-${s.oxyUserId}`,
+        }).returning({ id: lanes.id });
+        await getDb().insert(laneMutes).values({
+          viewerOxyUserId: s.other,
+          laneId: lane.id,
+          laneOwnerOxyUserId: s.oxyUserId,
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(laneMutes).where(eq(laneMutes.laneOwnerOxyUserId, s.oxyUserId));
+        await getDb().delete(lanes).where(eq(lanes.ownerId, s.other));
+      },
+    },
+    {
+      probe: 'mcp_connections.oxy_user_id/active_oxy_user_id',
+      disjunct: 'oxy_user_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(mcpConnections).values({
+          oxyUserId: s.oxyUserId,
+          clientId: `probe-client-${s.oxyUserId}`,
+          clientLabel: 'Probe',
+          scopes: ['mcp:read'],
+          refreshTokenHash: `probe-hash-${s.oxyUserId}`,
+          jti: `probe-jti-o-${s.oxyUserId}`,
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(mcpConnections).where(eq(mcpConnections.oxyUserId, s.oxyUserId));
+      },
+    },
+    {
+      probe: 'mcp_connections.oxy_user_id/active_oxy_user_id',
+      disjunct: 'active_oxy_user_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(mcpConnections).values({
+          oxyUserId: s.other,
+          activeOxyUserId: s.oxyUserId,
+          clientId: `probe-client-a-${s.oxyUserId}`,
+          clientLabel: 'Probe',
+          scopes: ['mcp:read'],
+          refreshTokenHash: `probe-hash-a-${s.oxyUserId}`,
+          jti: `probe-jti-a-${s.oxyUserId}`,
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(mcpConnections).where(eq(mcpConnections.activeOxyUserId, s.oxyUserId));
+      },
+    },
+    {
+      /**
+       * Kept as a BLOCKER rather than something a cascade may remove: it is the
+       * record that an enforcement action was carried out, and its
+       * `decisionId + revision + action` uniqueness is what makes a later
+       * correction idempotent.
+       */
+      probe: 'moderation_enforcements.subject_id',
+      disjunct: 'subject_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(moderationEnforcements).values({
+          decisionId: `probe-decision-${s.oxyUserId}`,
+          decisionRevision: 1,
+          action: 'restrict',
+          caseId: `probe-case-${s.oxyUserId}`,
+          subjectType: 'identity.profile',
+          subjectId: s.oxyUserId,
+          outcome: 'violation',
+          reason: 'probe fixture',
+          mode: 'observe',
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(moderationEnforcements)
+          .where(eq(moderationEnforcements.subjectId, s.oxyUserId));
+      },
+    },
+    {
+      // ANOTHER viewer's settings naming this actor. Planted on `other`, since
+      // the actor's own row is covered by `user_settings.oxy_user_id`, which the
+      // cascade removes — a fixture on the actor's own row would be found by
+      // that probe instead and prove nothing about this one.
+      probe: 'user_settings privacy references from another viewer',
+      disjunct: 'privacy_restricted_users',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(userSettings).values({
+          oxyUserId: s.other,
+          privacyRestrictedUsers: [s.oxyUserId],
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, s.other));
+      },
+    },
+    {
+      probe: 'user_settings privacy references from another viewer',
+      disjunct: 'privacy_subscribed_labelers',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(userSettings).values({
+          oxyUserId: s.other,
+          privacySubscribedLabelers: [s.oxyUserId],
+        });
+      },
+      clear: async (s) => {
+        await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, s.other));
+      },
+    },
   ];
+
+
 
   async function runProbeCase(
     testCase: ActorProbeCase,

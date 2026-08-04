@@ -159,8 +159,25 @@ function mediaOnlySubjectResource(post: SnapshotPost): ModerationResource {
   };
 }
 
-async function loadPost(postId: string): Promise<SnapshotPost | null> {
-  return loadPostRecord(postId);
+/**
+ * Load material only when it is safe to disclose outside Mention.
+ *
+ * CrowdSource delivery runs asynchronously without the reporter's delegated Oxy
+ * credentials, so it cannot reliably re-evaluate follower, profile, block, or
+ * restriction relationships. Fail closed to public, published material while still
+ * allowing an author to report their own post. Row ids are never treated as an
+ * authorization boundary.
+ */
+async function loadPost(postId: string, reporterId?: string): Promise<SnapshotPost | null> {
+  const post = await loadPostRecord(postId);
+  if (!post) return null;
+
+  const ownerId = getOwnerId(normalizeAuthorship(post.authorship)) ?? post.oxyUserId;
+  if (ownerId === reporterId) return post;
+
+  const isPublished = (post.status ?? 'published') === 'published';
+  const isPublic = (post.visibility ?? 'public') === 'public';
+  return isPublished && isPublic ? post : null;
 }
 
 /**
@@ -173,9 +190,10 @@ async function loadPost(postId: string): Promise<SnapshotPost | null> {
 async function contextResource(
   postId: string | undefined,
   role: ModerationContextResource['role'],
+  reporterId?: string,
 ): Promise<ModerationContextResource | null> {
   if (postId === undefined) return null;
-  const neighbour = await loadPost(postId);
+  const neighbour = await loadPost(postId, reporterId);
   if (!neighbour) return null;
   const body = postText(neighbour);
   if (!body) return null;
@@ -203,8 +221,11 @@ export function createPostSubjectProvider(input: {
     reportedType: input.reportedType,
     subjectType: input.subjectType,
 
-    async snapshot(reportedId: string): Promise<ModerationSubjectSnapshot | null> {
-      const post = await loadPost(reportedId);
+    async snapshot(
+      reportedId: string,
+      reporterId?: string,
+    ): Promise<ModerationSubjectSnapshot | null> {
+      const post = await loadPost(reportedId, reporterId);
       if (!post) return null;
 
       const ownerId = getOwnerId(normalizeAuthorship(post.authorship)) ?? post.oxyUserId ?? undefined;
@@ -215,7 +236,7 @@ export function createPostSubjectProvider(input: {
         [post.parentPostId, 'parent'],
         [post.quoteOf, 'quoted'],
       ] as const) {
-        const resource = await contextResource(id ?? undefined, role);
+        const resource = await contextResource(id ?? undefined, role, reporterId);
         if (resource) context.push(resource);
       }
 

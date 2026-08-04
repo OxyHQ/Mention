@@ -102,7 +102,7 @@ export async function buildModerationReportInput(
   const provider = subjectProviderFor(report.reportedType);
   if (!provider) throw new ModerationSubjectUnsupportedError(report.reportedType);
 
-  const snapshot = await provider.snapshot(report.reportedId);
+  const snapshot = await provider.snapshot(report.reportedId, report.reporter);
   if (!snapshot) return null;
 
   const allegationCodes = allegationsForCategories(report.categories);

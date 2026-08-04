@@ -1,6 +1,6 @@
 import express, { Response } from "express";
 import { type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import { and, count, eq, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, count, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
 import {
@@ -14,7 +14,12 @@ import { Server } from 'socket.io';
 import { sendPushToUser } from '../utils/push';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
-import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
+import {
+  createScopedOxyClient,
+  createUserScopedOxyServices,
+  getServiceOxyClient,
+} from '../utils/oxyHelpers';
+import { resolveNotificationInboxIds } from '../services/notificationInbox';
 import { queryInt, queryString } from '../utils/queryParams';
 import { apiRateLimiter } from '../middleware/rateLimiter';
 import type { HydratedPost } from '@mention/shared-types';
@@ -92,6 +97,33 @@ function optionalText(value: unknown): string | undefined {
 }
 
 /**
+ * Every `recipientId` this request's viewer may read — themselves, plus any
+ * CHANNEL they operate (a channel has no session of its own, so its inbox is
+ * only reachable this way). See `services/notificationInbox`.
+ *
+ * EVERY recipient-scoped query in this file goes through here. A handler that
+ * filters on `recipientId = userId` directly is not a smaller version of this —
+ * it is a channel notification the operator can see in the list and then cannot
+ * mark read, delete, or have counted in the badge.
+ */
+async function inboxRecipientIds(req: AuthRequest, userId: string): Promise<string[]> {
+  return resolveNotificationInboxIds(userId, createUserScopedOxyServices(req));
+}
+
+/**
+ * The recipient predicate for one viewer's inbox, over the ids
+ * {@link inboxRecipientIds} resolved.
+ *
+ * `inArray` and not `eq`, at every site: the viewer's own id is only the first
+ * entry. Narrowing any one query back to `eq(recipientId, userId)` does not
+ * hide a channel row, it STRANDS it — the list still shows it and the write it
+ * pairs with silently matches nothing.
+ */
+function recipientScope(recipientIds: string[]): SQL {
+  return inArray(notifications.recipientId, recipientIds);
+}
+
+/**
  * The `:id` path param as a string.
  *
  * Express 5 types every param `string | string[]` (duplicate path segments), and
@@ -119,6 +151,10 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     const cursor = queryString(req.query.cursor);
     const limit = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_NOTIFICATIONS_PAGE_SIZE, 1), MAX_NOTIFICATIONS_PAGE_SIZE);
 
+    const recipientIds = await inboxRecipientIds(req, userId);
+    /** The channels among them — everything in the scope that is not the viewer. */
+    const operatedChannelIds = new Set(recipientIds.filter((id) => id !== userId));
+
     const decodedCursor = cursor ? decodeChronoCursor(cursor) : undefined;
     if (cursor && !decodedCursor) {
       // NOT a query precondition — `INVALID_CURSOR` is a documented response the
@@ -134,7 +170,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     }
 
     const db = getDb();
-    const recipientMatch = eq(notifications.recipientId, userId);
+    const recipientMatch = recipientScope(recipientIds);
     const pageWhere = decodedCursor
       ? and(
           recipientMatch,
@@ -200,16 +236,28 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       notificationsRaw.map((n) => n.actorId).filter(Boolean)
     ));
 
+    // Channels named as the RECIPIENT of a row on this page. A notification the
+    // viewer received because they operate a channel says "liked your post" about
+    // a post the viewer very likely did not write, so the row has to name whose
+    // inbox it arrived in or it is simply wrong on its face. Resolving the
+    // channel's public profile costs nothing extra — it joins the actor batch
+    // below, and a channel is usually also the actor's target anyway.
+    const channelRecipientIds = Array.from(new Set(
+      notificationsRaw.map((n) => n.recipientId).filter((id) => Boolean(id) && id !== userId),
+    ));
+
     const profilesMap = new Map<string, ActorProfile>();
     if (uniqueActorIds.includes('system')) {
       profilesMap.set('system', SYSTEM_ACTOR);
     }
     // Single bulk fetch for all real actors (chunked/deduped by the SDK) instead
     // of one getUserById HTTP request per actor.
-    const realActorIds = uniqueActorIds.filter((id) => id !== 'system');
-    if (realActorIds.length > 0) {
+    const profileIdsToResolve = Array.from(new Set(
+      [...uniqueActorIds, ...channelRecipientIds].filter((id) => id !== 'system'),
+    ));
+    if (profileIdsToResolve.length > 0) {
       try {
-        const profiles = await getServiceOxyClient().getUsersByIds(realActorIds);
+        const profiles = await getServiceOxyClient().getUsersByIds(profileIdsToResolve);
         for (const profile of profiles) {
           if (profile?.id) profilesMap.set(profile.id, profile);
         }
@@ -272,7 +320,16 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         // to a post the viewer wrote: a sensitive post is no surprise to its own author,
         // and hiding "someone liked your post" because the post uses a word THEY muted
         // would silently drop real engagement on their own work.
-        const isOwnPost = post.viewerState?.isOwner === true || post.viewerState?.isCollaborator === true;
+        //
+        // A post authored by a channel the viewer OPERATES is their own work by the
+        // same argument — `viewerState.isOwner` cannot see it, because the owner of
+        // that post is the channel account and the viewer is a person. Without this
+        // an operator's own muted word silently deletes their channel's engagement,
+        // which is the exact failure the paragraph above exists to prevent.
+        const isOwnPost =
+          post.viewerState?.isOwner === true ||
+          post.viewerState?.isCollaborator === true ||
+          (post.user?.id !== undefined && operatedChannelIds.has(post.user.id));
 
         if (!isOwnPost && compiledMuteWords && isMutedSubject(
           compiledMuteWords,
@@ -326,6 +383,17 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           preview,
           post: embeddedPost,
           actorId_populated: toPopulatedActor(actor, n.actorId),
+          // Present ONLY when the row was addressed somewhere other than the
+          // viewer — i.e. to a channel they operate. Its absence is what the
+          // client reads as "this one is mine", so it must never be populated
+          // for the viewer's own rows. It carries the channel's PUBLIC profile
+          // and nothing else: who WROTE the post behind it stays server-side
+          // (`UserSettings.channel.signPosts` is the only thing that discloses a
+          // writer, and it does so on the post, not here).
+          recipientId_populated:
+            n.recipientId === userId
+              ? undefined
+              : toPopulatedActor(profilesMap.get(n.recipientId), n.recipientId),
         };
       });
 
@@ -370,7 +438,10 @@ const markAsReadHandler = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const enriched = await markNotificationRead(userId, pathId(req.params.id));
+    const enriched = await markNotificationRead(
+      await inboxRecipientIds(req, userId),
+      pathId(req.params.id),
+    );
 
     if (!enriched) {
       return res.status(404).json({ message: "Notification not found" });
@@ -397,7 +468,7 @@ const markAllAsReadHandler = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    await markAllNotificationsRead(userId);
+    await markAllNotificationsRead(await inboxRecipientIds(req, userId));
 
     const io = req.app.get('notificationsNamespace') as Server;
     io.to(`user:${userId}`).emit('allNotificationsRead');
@@ -419,7 +490,12 @@ router.get('/unread-count', async (req: AuthRequest, res: Response) => {
     const [row] = await getDb()
       .select({ value: count() })
       .from(notifications)
-      .where(and(eq(notifications.recipientId, userId), eq(notifications.read, false)));
+      .where(
+        and(
+          recipientScope(await inboxRecipientIds(req, userId)),
+          eq(notifications.read, false),
+        ),
+      );
     res.json({ count: row?.value ?? 0 });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching unread count' });
@@ -436,7 +512,12 @@ router.patch('/:id/archive', async (req: AuthRequest, res: Response) => {
     const [notification] = await getDb()
       .update(notifications)
       .set({ read: true })
-      .where(and(eq(notifications.id, pathId(req.params.id)), eq(notifications.recipientId, userId)))
+      .where(
+        and(
+          eq(notifications.id, pathId(req.params.id)),
+          recipientScope(await inboxRecipientIds(req, userId)),
+        ),
+      )
       .returning();
 
     if (!notification) return res.status(404).json({ message: 'Notification not found' });
@@ -462,7 +543,12 @@ router.delete("/:id", async (req: AuthRequest, res: Response) => {
 
     const [notification] = await getDb()
       .delete(notifications)
-      .where(and(eq(notifications.id, pathId(req.params.id)), eq(notifications.recipientId, userId)))
+      .where(
+        and(
+          eq(notifications.id, pathId(req.params.id)),
+          recipientScope(await inboxRecipientIds(req, userId)),
+        ),
+      )
       .returning({ id: notifications.id });
 
     if (!notification) {

@@ -14,7 +14,7 @@ import {
   rotateRefreshTokenFamily,
 } from '../../db/mcp/mcpConnectionRepository';
 import { createRegisteredClient } from '../../db/mcp/mcpRegisteredClientRepository';
-import { getMcpClientAsync, isAllowedRedirectUri } from '../config/mcpClients';
+import { areTrustedDynamicRedirectUris, getMcpClientAsync, isAllowedRedirectUri } from '../config/mcpClients';
 import {
   MCP_ACCESS_TOKEN_TTL_SECONDS,
   MCP_AUTH_CODE_TTL_SECONDS,
@@ -126,9 +126,10 @@ export function createMcpOAuthRoutes(oxy: OxyServices): Router {
   });
 
   // --- Dynamic client registration (RFC 7591) ---
-  // Public clients only: no secret is issued, token_endpoint_auth_method is
-  // `none`, and PKCE + the exact redirect_uri allowlist below carry the
-  // security. redirect_uris MUST be HTTPS.
+  // Public clients only: no secret is issued and token_endpoint_auth_method is
+  // `none`. Because these tokens authenticate to Mention APIs, public DCR does
+  // NOT establish new trust: requested callbacks must already match a trusted
+  // first-party redirect URI from the static MCP client config.
   router.post('/mcp/oauth/register', async (req: Request, res: Response) => {
     try {
       const rawRedirects = req.body?.redirect_uris;
@@ -154,6 +155,13 @@ export function createMcpOAuthRoutes(oxy: OxyServices): Router {
         return res.status(400).json({
           error: 'invalid_redirect_uri',
           error_description: 'All redirect_uris must be valid HTTPS URLs',
+        });
+      }
+
+      if (!areTrustedDynamicRedirectUris(redirectUris)) {
+        return res.status(400).json({
+          error: 'invalid_redirect_uri',
+          error_description: 'redirect_uris must match a trusted MCP client callback',
         });
       }
 

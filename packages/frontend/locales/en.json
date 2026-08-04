@@ -104,6 +104,7 @@
   "notification.action.post": "posted a new update",
   "notification.action.poke": "poked you",
   "notification.action.default": "interacted with your content",
+  "notification.forChannel": "For {{channel}}",
   "notification.like_reply": "{{actorName}} liked your reply",
   "notification.reply_reply": "{{actorName}} replied to your reply",
   "notification.mention_reply": "{{actorName}} mentioned you in a reply",
@@ -206,6 +207,7 @@
   "profile.tabs.videos": "Videos",
   "profile.tabs.likes": "Likes",
   "profile.tabs.boosts": "Boosts",
+  "profile.tabs.writers": "Writers",
   "profile.stats.boosts": "Boosts",
   "profile.stats.replies": "Replies",
   "profile.posts": "posts",
@@ -529,11 +531,11 @@
   "settings.links.rateLimitExceeded": "Too many requests. Please wait a moment before trying again.",
   "common.cancel": "Cancel",
   "fediverse.sheet.step1.title": "What is the fediverse?",
-  "fediverse.sheet.step1.body": "The fediverse is a network of independent, interconnected servers — much like email. Just as a Gmail user can email someone on Outlook, apps like Mastodon and Mention can talk to each other, so people on other servers can follow you and reply to your posts.",
+  "fediverse.sheet.step1.body": "The fediverse works much like email: a network of independent servers that all connect to each other. Just as a Gmail user can email someone on Outlook, apps like Mastodon and Mention can talk to each other, so people on other servers can follow you and reply to your posts.",
   "fediverse.sheet.step2.title": "How sharing works",
   "fediverse.sheet.step2.body": "When sharing is on, your public profile and posts can be seen and followed from other servers across the fediverse. Every server sets its own rules, and Mention can't control or moderate how your content appears once it leaves Mention.",
   "fediverse.sheet.step3.title": "You're always in control",
-  "fediverse.sheet.step3.body": "You can turn fediverse sharing off anytime in Settings. When you do, we ask other servers to delete copies of your content — but because those servers are independent, we can't guarantee every copy is removed.",
+  "fediverse.sheet.step3.body": "You can turn fediverse sharing off anytime in Settings. When you do, we ask other servers to delete copies of your content. Those servers are independent, so we can't guarantee that every copy is removed.",
   "fediverse.sheet.next": "Next",
   "fediverse.sheet.back": "Back",
   "fediverse.sheet.done": "Got it",
@@ -806,6 +808,10 @@
     "perPost": "per post",
     "topPerformingPosts": "Top Performing Posts",
     "unableToLoadPosts": "Unable to load posts",
+    "unavailable": {
+      "title": "Insights unavailable",
+      "message": "These insights could not be loaded. You may not have access to this account, or the service may be temporarily unavailable."
+    },
     "postsByType": "Posts by Type",
     "postType": {
       "text": "Text",
@@ -1858,6 +1864,9 @@
     }
   },
   "channels": {
+    "badge": {
+      "a11yLabel": "This account is a channel"
+    },
     "signInRequired": "Sign in to manage your channels",
     "signInRequiredDesc": "A channel is an account people follow without following the people who write for it.",
     "compose": {
@@ -1871,7 +1880,59 @@
       "byline": "Byline",
       "signPosts": "Name the writer",
       "signPostsFooter": "The channel signs its own posts. With this on, the person who wrote one is named alongside it — with it off, they never leave the server at all.",
-      "identityFooter": "The channel’s name, handle, picture and the people who may publish as it belong to the account itself — change them where you manage your Oxy accounts."
+      "identityFooter": "The channel’s name, handle, picture and the people who may publish as it belong to the account itself — change them where you manage your Oxy accounts.",
+      "categories": "Categories",
+      "categoriesFooter": "The first category is the channel’s primary — the only one shown on its profile. The rest appear on its about page. Choose up to {{max}}.",
+      "addCategory": "Add a category",
+      "categoriesAtCap": "Remove one to choose a different category.",
+      "makePrimary": "Make primary",
+      "removeCategory": "Remove {{category}}",
+      "categoryUnavailable": "Not available in this version",
+      "dangerZone": "Delete",
+      "delete": "Delete this channel",
+      "deleting": "Deleting…",
+      "deleteFooter": "Deleting a channel destroys everything it has published. There is no undo, and nothing brings a post back once it is gone.",
+      "deleteConfirmTitle": "Delete {{name}}?",
+      "deleteConfirmPosts_one": "This destroys {{count}} post published by this channel, along with every like and save on it.",
+      "deleteConfirmPosts_other": "This destroys {{count}} posts published by this channel, along with every like and save on them.",
+      "deleteConfirmEmpty": "This channel has published nothing, so there are no posts to destroy.",
+      "deleteConfirmBoosts_one": "{{count}} boost of them by somebody else goes as well.",
+      "deleteConfirmBoosts_other": "{{count}} boosts of them by other people go as well.",
+      "deleteConfirmFediverse": "Every server that received a copy is asked to remove it. We send that request; we cannot make them honour it.",
+      "deleteConfirmAccount": "The channel account is archived at the end, so nobody can follow it or publish as it again.",
+      "deleteConfirmAction_one": "Delete {{count}} post",
+      "deleteConfirmAction_other": "Delete {{count}} posts",
+      "deleteConfirmActionEmpty": "Delete this channel",
+      "deleted": "Channel deleted",
+      "deleteFailed": "Failed to delete the channel"
+    },
+    "insights": {
+      "operatorOnly": "Only an operator can see this channel’s insights"
+    },
+    "writers": {
+      "caption": "The people this channel has named on its posts.",
+      "lastWrote": "Last wrote {{time}}",
+      "empty": "No writers yet",
+      "emptyDetail": "This channel names the person who wrote each post. None have been published yet."
+    },
+    "explainer": {
+      "title": "About channels",
+      "step1": {
+        "title": "What is a channel?",
+        "body": "A channel is an account that publishes on its own. Following it brings its posts to your feed without you following any of the people who write for it. That separation is what a channel is for."
+      },
+      "step2": {
+        "title": "It publishes, it doesn’t reply",
+        "body": "A channel’s posts are ordinary posts: they reach feeds, search and the fediverse like anyone else’s, and you can boost one to your own profile. What you will not find is a reply box. A channel never takes replies, and that is how channels are built rather than a setting someone switched off."
+      },
+      "step3": {
+        "title": "Who wrote this?",
+        "body": "A channel signs its own posts. With “Name the writer” on, the person who wrote one is shown alongside the channel; with it off, the post is the channel’s alone. That is the channel’s own choice, not something missing."
+      },
+      "next": "Next",
+      "back": "Back",
+      "done": "Got it",
+      "cancel": "Cancel"
     }
   },
   "trendGraph": {
@@ -1908,5 +1969,59 @@
   "channels.settings.saving": "Saving…",
   "channels.settings.profileSaved": "Channel updated",
   "channels.settings.profileSaveFailed": "Failed to update the channel profile",
-  "channels.settings.identityFooter": "The channel’s handle and the people who may publish as it belong to the account itself — change them where you manage your Oxy accounts."
+  "channels.settings.identityFooter": "The channel’s handle and the people who may publish as it belong to the account itself — change them where you manage your Oxy accounts.",
+  "accounts": {
+    "accountCategory": {
+      "news": "News",
+      "politics": "Politics",
+      "business": "Business",
+      "startup": "Startup",
+      "finance": "Finance",
+      "crypto": "Crypto",
+      "marketplace": "Marketplace",
+      "retail": "Retail",
+      "real_estate": "Real estate",
+      "agency": "Agency",
+      "landlord": "Landlord",
+      "cooperative": "Cooperative",
+      "architecture": "Architecture",
+      "technology": "Technology",
+      "software": "Software",
+      "ai": "AI",
+      "security": "Security",
+      "automation": "Automation",
+      "science": "Science",
+      "education": "Education",
+      "books": "Books",
+      "health": "Health",
+      "fitness": "Fitness",
+      "sports": "Sports",
+      "gaming": "Gaming",
+      "music": "Music",
+      "film": "Film",
+      "podcast": "Podcast",
+      "art": "Art",
+      "photography": "Photography",
+      "comedy": "Comedy",
+      "food": "Food",
+      "travel": "Travel",
+      "fashion": "Fashion",
+      "home_garden": "Home & garden",
+      "diy": "DIY",
+      "automotive": "Automotive",
+      "animals": "Animals",
+      "family": "Family",
+      "nonprofit": "Nonprofit",
+      "government": "Government",
+      "community": "Community",
+      "activism": "Activism",
+      "environment": "Environment",
+      "religion": "Religion",
+      "other": "Other"
+    }
+  },
+  "accountCategories": {
+    "title": "Categories",
+    "primary": "Primary"
+  }
 }

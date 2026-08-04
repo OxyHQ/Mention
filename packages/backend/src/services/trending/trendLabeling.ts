@@ -29,10 +29,11 @@
  *    phrase becomes the name.
  */
 
-import { normalizeTrendCategory } from '@mention/shared-types';
+import { MtnConfig, normalizeTrendCategory } from '@mention/shared-types';
 import type { TrendCategory } from '@mention/shared-types';
 import { ruleBasedTopicClassifier } from '../contentClassification/TopicClassifier';
-import { collectTrendPhrases } from './termExtraction';
+import { canonicalHashtag } from '../contentClassification/taxonomy';
+import { collectTrendPhrases, stripNonProse } from './termExtraction';
 
 /**
  * Version of the labelling rules.
@@ -44,12 +45,27 @@ import { collectTrendPhrases } from './termExtraction';
  * That is not hypothetical: `POLITICS` stayed on the live list after the fix
  * that would have written `Politics`, because its run had started first.
  *
- * Bump whenever a change would produce a different string for the same posts.
+ * Bump whenever a change would produce a different LABEL for the same posts —
+ * the displayed name or the category, since both are stored here and both are
+ * shown.
  *
  * v2: a corpus spelling is preferred only when it adds capitalization and is
  * not shouted (see {@link presentableSurfaceForm}).
+ *
+ * v5: the surface form is read from PROSE, with links removed, so a term
+ * appearing lower-case inside a URL cannot outvote the way people write it.
+ *
+ * v4: a topic must be supported by a minimum SHARE of the posts read before it
+ * becomes the category; below that the row reports `other`. One post in twelve
+ * saying "climate change" was enough to file `US` under Science.
+ *
+ * v3: the category is the topic the most posts support, rather than the first
+ * slug the classifier returns — which was its rule array's line order. Missing
+ * this bump reproduced the incident described above one release later: `US`
+ * stayed filed under Science after the fix that would have written `other`,
+ * because its run had started first and its label was reused verbatim.
  */
-export const TREND_LABEL_VERSION = 2;
+export const TREND_LABEL_VERSION = 5;
 
 /** What a trend is shown as. */
 export interface TrendLabel {
@@ -245,7 +261,11 @@ function surfaceForm(phrase: string, excerpts: readonly string[]): string | null
 
   const counts = new Map<string, number>();
   for (const excerpt of excerpts) {
-    for (const match of excerpt.matchAll(pattern)) {
+    // PROSE only, the same text extraction reads. A link is not a spelling
+    // anybody chose: ten bot posts pointing at `rawchili.com/nba/…` made the
+    // commonest form of `NBA` a lower-case one, and a term nobody appears to
+    // capitalize falls through to title case — `Nba`.
+    for (const match of stripNonProse(excerpt).matchAll(pattern)) {
       const surface = match[0].replace(/^#/, '').replace(/\s+/g, ' ');
       counts.set(surface, (counts.get(surface) ?? 0) + 1);
     }
@@ -276,7 +296,15 @@ function deriveCategory(term: string, excerpts: readonly string[]): TrendCategor
   // on-topic token available — a trend on `esports` should not be categorised
   // from the prose around it — and it is evidence about the subject rather than
   // about whatever else its posts happened to mention.
-  const fromTerm = ruleBasedTopicClassifier.classify({ text: '', hashtagsNorm: [term] });
+  // Canonicalized first, exactly as ingest does. `HASHTAG_TOPIC_MAP` keys on
+  // canonical slugs alone, so the raw term matched only when it already WAS one
+  // — and those are refused as candidates now, which left this branch
+  // unreachable. Through the alias it answers for `climate`, `spotify` and
+  // every other variant a person actually types.
+  const fromTerm = ruleBasedTopicClassifier.classify({
+    text: '',
+    hashtagsNorm: [canonicalHashtag(term)],
+  });
   for (const slug of fromTerm) {
     const category = TOPIC_SLUG_TO_CATEGORY[slug];
     if (category) return normalizeTrendCategory(category);
@@ -298,7 +326,17 @@ function deriveCategory(term: string, excerpts: readonly string[]): TrendCategor
     }
   }
 
-  const ranked = [...support.entries()].sort(
+  // Weak evidence has to read like no evidence: one mention among a dozen posts
+  // is not what a row is about.
+  const { minCategorySupport, minCategorySupportPosts } = MtnConfig.trending.labeling;
+  const required = Math.max(
+    minCategorySupportPosts,
+    Math.ceil(excerpts.length * minCategorySupport),
+  );
+
+  const ranked = [...support.entries()]
+    .filter(([, count]) => count >= required)
+    .sort(
     // Ties break by slug so two batches over identical posts agree.
     ([leftSlug, left], [rightSlug, right]) => right - left || leftSlug.localeCompare(rightSlug),
   );

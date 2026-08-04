@@ -208,6 +208,23 @@ export const HASHTAG_ALIASES: Readonly<Record<string, string>> = {
  * canonical hashtags (post-alias). Only includes mappings that are
  * unambiguous; ambiguous tags are left to keyword rules or omitted.
  */
+/**
+ * The canonical form of a hashtag or bare term.
+ *
+ * `HASHTAG_ALIASES` maps variants onto canonical slugs (`climate` → `science`,
+ * `spotify` → `music`) and {@link HASHTAG_TOPIC_MAP} keys on the canonical form
+ * ALONE, so the two only work together if the alias is applied first. Ingest
+ * does that; trend labelling classified the raw term and therefore saw a
+ * different world from the one its posts were classified in — `climate` mapped
+ * to nothing there and to Science here.
+ *
+ * Exported so both paths call the same function rather than each remembering
+ * to do the same step.
+ */
+export function canonicalHashtag(tag: string): string {
+  return HASHTAG_ALIASES[tag] ?? tag;
+}
+
 export const HASHTAG_TOPIC_MAP: Readonly<Record<string, TopicSlug>> = {
   ai: 'ai',
   tech: 'tech',

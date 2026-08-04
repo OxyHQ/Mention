@@ -105,6 +105,80 @@ router.get('/settings/:userId', async (req: AuthRequest, res: Response) => {
 });
 
 /**
+ * GET /api/profile/settings/:userId/channel — the byline setting of a channel the
+ * caller OPERATES.
+ *
+ * The READ half of the route below, and a SEPARATE endpoint from
+ * `GET /settings/:userId` on purpose. That route answers a VIEWER's question
+ * ("what may I see of this profile's design?") and a channel is never its own
+ * viewer — `isActAsEligibleKind` refuses `channel`, so no session can ever be
+ * minted whose subject is one, so `targetUserId === viewerUserId` is unreachable
+ * for a channel and the response is always the public profile-design DTO. That
+ * DTO has no `channel` key, so reading `signPosts` back off it yielded `undefined`
+ * — an operator who turned the toggle ON found it OFF on their next visit while
+ * the stored value, and every post's byline, said otherwise.
+ *
+ * Answering it here rather than widening that DTO keeps the viewer-facing payload
+ * exactly as it was: this field decides whether a human's authorship is disclosed,
+ * so it is served only to the people who may CHANGE it, gated unconditionally
+ * rather than behind a condition a later edit could fall past.
+ *
+ * Authorization is deliberately the SAME gate, with the same `channel`-kind
+ * precondition, as the write below — whoever may configure how a channel signs is
+ * whoever may read how it signs. Asymmetry between the two is what produced the
+ * bug it fixes.
+ */
+router.get(
+  '/settings/:userId/channel',
+  operatedAccountSettingsRateLimiter,
+  async (req: AuthRequest, res: Response) => {
+    const targetUserId = req.params.userId as string;
+    try {
+      const callerId = getAuthenticatedUserId(req);
+
+      const validationError = validateRequired(targetUserId, 'userId');
+      if (validationError) {
+        return sendErrorResponse(res, 400, 'Bad Request', validationError);
+      }
+
+      let authorKind: AccountKind | null;
+      try {
+        ({ authorKind } = await assertCanPublishAsAccount({
+          publishAsOxyUserId: targetUserId,
+          callerId,
+          memberReader: createUserScopedOxyServices(req),
+        }));
+      } catch (error) {
+        if (error instanceof PublishAsAccessError) {
+          return sendErrorResponse(res, error.status, 'Forbidden', error.message);
+        }
+        throw error;
+      }
+      if (authorKind !== 'channel') {
+        return sendErrorResponse(res, 400, 'Bad Request', 'That account cannot be published as');
+      }
+
+      const settings = await loadUserSettings(targetUserId);
+
+      // `=== true` rather than a truthiness test, and the same read the write half
+      // answers with: a channel with no settings row yet has never opted in, and a
+      // truthy non-boolean that reached the column outside the schema (a migration,
+      // a manual repair) must not read as consent to name a writer.
+      return sendSuccessResponse(res, 200, {
+        channel: { signPosts: settings?.channelAccount?.signPosts === true },
+      });
+    } catch (err) {
+      logger.error('[ProfileSettings] Error fetching operated account settings:', {
+        userId: req.user?.id,
+        targetUserId,
+        error: err,
+      });
+      return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to fetch settings');
+    }
+  },
+);
+
+/**
  * PUT /api/profile/settings/:userId — settings of an account the caller OPERATES.
  *
  * A channel account has no login, so nobody can ever authenticate AS one and use

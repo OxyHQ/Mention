@@ -4,14 +4,14 @@
  * Replaces the former SQLite user-priming pass (which wrote embedded post
  * authors into a local table — a silent no-op on web). Now it merge-upserts those
  * user objects into the shared React Query cache via the SDK's
- * `upsertCachedUsers`, so avatars and names populate on web (and native) the
+ * `lib/actorCache`, so avatars and names populate on web (and native) the
  * moment a feed response arrives — WITHOUT a sparse feed author clobbering the
  * `createdAt`, viewer `relationship`, or `_count` an authoritative profile fetch
  * already stored.
  */
 
-import { upsertCachedUsers, type CacheableUser } from '@oxyhq/services';
-import { queryClient } from '@/lib/queryClient';
+import type { CacheableUser } from '@oxyhq/services';
+import { cacheActors } from '@/lib/actorCache';
 
 /**
  * A post-shaped record carrying actors from the canonical hydration contract.
@@ -51,7 +51,12 @@ export function precacheActorsFromPosts(
     if (p.boost?.actor) users.push(p.boost.actor);
   }
 
-  if (users.length > 0) {
-    upsertCachedUsers(queryClient, users);
-  }
+  // Through `lib/actorCache`, like every other surface that primes an actor:
+  // the merge it fronts overrides a real value with a real value, so a response
+  // whose authors were hydrated before a profile write propagated would put the
+  // PRE-EDIT name and picture back over the edit. On a channel's own page every
+  // post in the response is authored by the account whose picture just changed,
+  // which is what made this the surface the bug was found on — but not the only
+  // one that could cause it, which is why the correction is not here.
+  cacheActors(users);
 }

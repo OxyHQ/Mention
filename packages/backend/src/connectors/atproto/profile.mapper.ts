@@ -243,6 +243,14 @@ export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promis
     } else {
       logger.warn('[atproto] failed to upsert federated actor', { did, ...failure });
     }
+
+    // FAIL CLOSED. Continuing with the actor as-is is what makes this dangerous:
+    // no row bound to this DID means identity merging can adopt whatever Oxy user
+    // the PREVIOUS holder of this mutable handle was resolved to, and attribute
+    // this actor's posts to them. Returning without an `oxyUserId` costs this
+    // account's posts until a later refresh persists the DID safely — the
+    // no-orphan rule drops them — which is the recoverable direction.
+    return { ...actor, oxyUserId: undefined };
   }
 
   const existingOxyId = fedActor?.oxyUserId ?? undefined;

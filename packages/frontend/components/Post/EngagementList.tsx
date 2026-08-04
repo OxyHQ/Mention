@@ -83,6 +83,7 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
         avatar: item.avatar,
         verified: item.verified,
         isFederated: item.isFederated,
+        kind: item.kind,
         instance: item.instance,
         federation: item.federation,
       }}

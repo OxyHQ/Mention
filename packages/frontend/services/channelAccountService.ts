@@ -1,4 +1,5 @@
 import { authenticatedClient } from '@/utils/api';
+import { noteChannelBylineChanged } from '@/stores/bylineInvalidation';
 
 const SETTINGS_PATH = '/profile/settings';
 
@@ -36,18 +37,46 @@ export interface ChannelAccountSettings {
  * nothing would leave an operator believing their writers are anonymous.
  */
 class ChannelAccountService {
+  /**
+   * Read from `/channel` rather than from the bare `${SETTINGS_PATH}/:id` the
+   * write below uses, because those two paths answer different questions.
+   * `GET /profile/settings/:id` serves a VIEWER the profile-design DTO, and a
+   * channel is never its own viewer — no session can be minted whose subject is a
+   * channel — so that response never carries a `channel` block at all and this
+   * read came back `false` however the operator had it set.
+   */
   async getSettings(oxyUserId: string): Promise<ChannelAccountSettings> {
     const res = await authenticatedClient.get<{ channel?: Partial<ChannelAccountSettings> }>(
-      `${SETTINGS_PATH}/${encodeURIComponent(oxyUserId)}`,
+      `${SETTINGS_PATH}/${encodeURIComponent(oxyUserId)}/channel`,
     );
     return { signPosts: res.data?.channel?.signPosts === true };
   }
 
+  /**
+   * Flip whether this channel's posts name their writer — and REPORT it, because
+   * the toggle rewrites the byline of every post the channel has ever published
+   * and every cache holding one is now wrong.
+   *
+   * The report is made here, not in the screen's mutation handler, on the rule
+   * this repo has already paid to learn: a signal sent from a caller is a signal
+   * the next caller forgets. `postsStore` reports every engagement write for
+   * exactly that reason, after two call sites that wrote through it without
+   * touching the engagement hooks were found to be silent. This method is the ONE
+   * place this fact is written, so it is the one place that can speak for it —
+   * anything reaching for the toggle later (an onboarding step, a channel-creation
+   * flow, a bulk operator tool) inherits the convergence rather than having to
+   * remember it.
+   *
+   * After the await and only on success: a refused write leaves every surface
+   * exactly as the caches already have it, and a throw here would never reach the
+   * report at all.
+   */
   async setSignPosts(oxyUserId: string, signPosts: boolean): Promise<ChannelAccountSettings> {
     const res = await authenticatedClient.put<{ channel?: Partial<ChannelAccountSettings> }>(
       `${SETTINGS_PATH}/${encodeURIComponent(oxyUserId)}`,
       { channel: { signPosts } },
     );
+    noteChannelBylineChanged(oxyUserId);
     // The server's own answer wins when it sends one; the requested value is the
     // fallback so a terse 200 does not flip the switch back under the operator.
     return { signPosts: res.data?.channel?.signPosts ?? signPosts };

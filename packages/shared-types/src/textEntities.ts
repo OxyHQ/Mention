@@ -61,6 +61,7 @@ export type TextEntityKind =
   | 'url'
   | 'mentionPlaceholder'
   | 'mentionDisplay'
+  | 'federatedHandle'
   | 'bareHandle'
   | 'hashtag'
   | 'cashtag';
@@ -141,6 +142,7 @@ export interface ScanTextEntitiesOptions {
  */
 const DEFAULT_ENTITY_KINDS: readonly TextEntityKind[] = [
   'mentionDisplay',
+  'federatedHandle',
   'mentionPlaceholder',
   'url',
   'bareHandle',
@@ -223,6 +225,20 @@ function sigilSource(kinds: ReadonlySet<TextEntityKind>): string {
   const alternatives: string[] = [];
   if (kinds.has('hashtag')) alternatives.push(`#(?<hashtag>${HASHTAG_BODY_SOURCE})`);
   if (kinds.has('cashtag')) alternatives.push(CASHTAG_SOURCE);
+  // BEFORE `bareHandle`, and that order is the whole thing: both can match at the
+  // same index, and the first alternative written wins. Put the bare form first
+  // and `@expo@x.com` yields `@expo` — a handle that names a DIFFERENT account,
+  // the local one, which is exactly the misrouting this kind exists to stop.
+  if (kinds.has('federatedHandle')) {
+    // The dot is required IN THE PATTERN, not checked after the fact. A rejection
+    // in `classify` comes too late: the regex has already consumed the span, so
+    // `@a@b` — two handles typed back to back, far more common than an account on
+    // a dotless host — would match here, be refused, and yield NOTHING at all,
+    // where it used to yield two bare handles.
+    alternatives.push(
+      `@(?<fedLocal>${HANDLE_BODY_SOURCE})@(?<fedDomain>${HANDLE_BODY_SOURCE}\\.${HANDLE_BODY_SOURCE})`,
+    );
+  }
   if (kinds.has('bareHandle')) alternatives.push(`@(?<handle>${HANDLE_BODY_SOURCE})`);
   if (alternatives.length === 0) return '';
   return `(?<boundary>^|${HASHTAG_BOUNDARY_SOURCE})(?:${alternatives.join('|')})`;
@@ -338,8 +354,31 @@ function classify(
   if (groups.url !== undefined) {
     return { kind: 'url', raw, start, end, value: groups.url };
   }
+  if (groups.fedLocal !== undefined && groups.fedDomain !== undefined) {
+    // A domain cannot end in `.` or `-` either, and prose puts a full stop right
+    // after a handle — same trim, same reason, as the bare form below.
+    // A domain cannot end in `.` or `-`; the pattern already guarantees it
+    // contains one interior dot.
+    const domain = groups.fedDomain.replace(/[.-]+$/, '');
+    if (!domain.includes('.')) return null;
+    const value = `${groups.fedLocal}@${domain}`;
+    return { kind: 'federatedHandle', raw: `@${value}`, start, end: start + value.length + 1, value };
+  }
   if (groups.handle !== undefined) {
-    return { kind: 'bareHandle', raw, start, end, value: groups.handle };
+    // `.` and `-` are in the handle class because a handle can legitimately
+    // contain them (`@alice.bsky.social`, `@some-name`) — but it cannot END with
+    // one, and prose puts a full stop straight after a handle constantly. Left
+    // as matched, `Now building @thinkymachines.` yielded the handle
+    // `thinkymachines.` with the sentence's period inside it: every consumer
+    // then linkified, stored or qualified a handle nobody typed.
+    //
+    // Trimmed HERE rather than at a call site because there are nine of them and
+    // "what may end a handle" is a property of the handle, not of any one
+    // consumer. Same reasoning as {@link trimUrlTrailingPunctuation} for URLs.
+    const handle = groups.handle.replace(/[.-]+$/, '');
+    // A handle of nothing but punctuation (`@...`) is not a handle at all.
+    if (handle.length === 0) return null;
+    return { kind: 'bareHandle', raw: `@${handle}`, start, end: start + handle.length + 1, value: handle };
   }
   if (groups.hashtag !== undefined) {
     return { kind: 'hashtag', raw, start, end, value: groups.hashtag };
@@ -462,4 +501,61 @@ export function trimUrlTrailingPunctuation(raw: string): { url: string; trailing
  */
 export function toOpenableUrl(url: string): string {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
+/**
+ * Qualify the bare `@handle`s in a federated actor's own text with the network
+ * they belong to: `@thinkymachines` → `@thinkymachines@x.com`.
+ *
+ * WHY THE TEXT IS AMBIGUOUS WITHOUT IT. A bio or post written on X says
+ * `@openai` and means the account on X. Copied onto the fediverse verbatim, that
+ * same string reads as a LOCAL handle — so a reader on mention.earth sees
+ * `@openai` and, if anything links it, is sent to whoever holds that name here.
+ * The handle is only meaningful next to the network it was written on, and that
+ * context is lost the moment the text crosses over.
+ *
+ * WHY AT WRITE TIME. Storing the qualified form means every reader — feed,
+ * profile, search, export, another server pulling our actor — gets the same
+ * unambiguous text from the same field, with no renderer left to re-derive it
+ * and no chance of two of them disagreeing. A render-time rewrite would have to
+ * carry the origin network to every surface that displays a bio.
+ *
+ * WHAT IT DELIBERATELY LEAVES ALONE, all decided by {@link scanTextEntities}
+ * rather than re-tested here:
+ *
+ *  - anything inside a URL — `https://x.com/@handle` is one `url` entity, and
+ *    the `@handle` within it is never a separate match;
+ *  - an email-shaped `someone@instance.tld`, which opens no handle at all;
+ *  - a handle that is ALREADY qualified. The scanner treats a two-part handle as
+ *    a different entity it does not own, so `@alice@mastodon.social` arrives as
+ *    the bare `@alice` — appending blindly would produce
+ *    `@alice@x.com@mastodon.social`. The `@` that follows is what tells them
+ *    apart, and it is the one case this function has to judge for itself.
+ *
+ * Pure and allocation-light: one scan, and the string is only rebuilt when there
+ * is something to change.
+ */
+export function qualifyBareHandles(text: string, networkDomain: string): string {
+  const domain = networkDomain.trim().toLowerCase();
+  if (!text || !domain) return text;
+
+  // Scanned with EVERY kind, never `kinds: ['bareHandle']`. Precedence is
+  // decided before the filter, so narrowing the scan does not stop a URL's
+  // `@handle` from matching — it stops the URL from being reported while the
+  // handle inside it still is. The full scan is what keeps links intact.
+  const entities = scanTextEntities(text);
+
+  let result = '';
+  let cursor = 0;
+  for (const entity of entities) {
+    // Only the BARE form. An already-qualified handle is a `federatedHandle`
+    // entity now, so it is skipped by this one test rather than by a lookahead
+    // for a following `@` — that check existed while the scanner reported
+    // `@alice@mastodon.social` as the bare `@alice`, and mutation confirmed it
+    // is dead once the two-part form has its own kind, so it is gone.
+    if (entity.kind !== 'bareHandle') continue;
+    result += text.slice(cursor, entity.end) + `@${domain}`;
+    cursor = entity.end;
+  }
+  return cursor === 0 ? text : result + text.slice(cursor);
 }

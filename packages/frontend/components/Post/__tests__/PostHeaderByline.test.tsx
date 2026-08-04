@@ -40,7 +40,7 @@ jest.mock('@oxyhq/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#8899a6' } }),
 }));
 
-jest.mock('@/components/Fediverse/FediverseBadge', () => ({ RemoteActorBadge: () => null }));
+jest.mock('@/components/AccountBadge', () => ({ AccountBadge: () => null }));
 jest.mock('@/assets/icons/boost-icon', () => ({ BoostIcon: () => null }));
 
 /**

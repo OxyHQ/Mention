@@ -143,6 +143,7 @@
   "notification.action.post": "publicó una nueva actualización",
   "notification.action.poke": "te hizo un poke",
   "notification.action.default": "interactuó con tu contenido",
+  "notification.forChannel": "Para {{channel}}",
   "notification.like_reply": "{{actorName}} le dio me gusta a tu respuesta",
   "notification.reply_reply": "{{actorName}} respondió a tu respuesta",
   "notification.mention_reply": "{{actorName}} te mencionó en una respuesta",
@@ -245,6 +246,7 @@
   "profile.tabs.videos": "Vídeos",
   "profile.tabs.likes": "Me gusta",
   "profile.tabs.boosts": "Impulsos",
+  "profile.tabs.writers": "Quién escribe",
   "profile.stats.boosts": "Impulsos",
   "profile.stats.replies": "Respuestas",
   "profile.posts": "publicaciones",
@@ -695,6 +697,10 @@
     "perPost": "por publicación",
     "topPerformingPosts": "Publicaciones con Mejor Rendimiento",
     "unableToLoadPosts": "No se pudieron cargar las publicaciones",
+    "unavailable": {
+      "title": "Estadísticas no disponibles",
+      "message": "No se han podido cargar estas estadísticas. Puede que no tengas acceso a esta cuenta o que el servicio no esté disponible temporalmente."
+    },
     "postsByType": "Publicaciones por Tipo",
     "postType": {
       "text": "Texto",
@@ -1829,6 +1835,9 @@
     }
   },
   "channels": {
+    "badge": {
+      "a11yLabel": "Esta cuenta es un canal"
+    },
     "signInRequired": "Inicia sesión para gestionar tus canales",
     "signInRequiredDesc": "Un canal es una cuenta que la gente sigue sin seguir a quienes escriben en ella.",
     "compose": {
@@ -1842,7 +1851,59 @@
       "byline": "Firma",
       "signPosts": "Nombrar a quien escribe",
       "signPostsFooter": "El canal firma sus propias publicaciones. Con esto activado, también se nombra a quien la escribió; desactivado, esa persona no sale del servidor.",
-      "identityFooter": "El nombre, el identificador, la imagen del canal y quienes pueden publicar como él pertenecen a la cuenta: cámbialos donde gestionas tus cuentas de Oxy."
+      "identityFooter": "El nombre, el identificador, la imagen del canal y quienes pueden publicar como él pertenecen a la cuenta: cámbialos donde gestionas tus cuentas de Oxy.",
+      "categories": "Categorías",
+      "categoriesFooter": "La primera categoría es la principal del canal: la única que aparece en su perfil. Las demás se muestran en su página de información. Elige un máximo de {{max}}.",
+      "addCategory": "Añadir una categoría",
+      "categoriesAtCap": "Quita una para elegir otra categoría.",
+      "makePrimary": "Hacer principal",
+      "removeCategory": "Quitar {{category}}",
+      "categoryUnavailable": "No disponible en esta versión",
+      "dangerZone": "Eliminar",
+      "delete": "Eliminar este canal",
+      "deleting": "Eliminando…",
+      "deleteFooter": "Eliminar un canal destruye todo lo que ha publicado. No se puede deshacer, y nada recupera una publicación una vez que desaparece.",
+      "deleteConfirmTitle": "¿Eliminar {{name}}?",
+      "deleteConfirmPosts_one": "Esto destruye {{count}} publicación de este canal, junto con cada me gusta y cada guardado que tenga.",
+      "deleteConfirmPosts_other": "Esto destruye {{count}} publicaciones de este canal, junto con cada me gusta y cada guardado que tengan.",
+      "deleteConfirmEmpty": "Este canal no ha publicado nada, así que no hay publicaciones que destruir.",
+      "deleteConfirmBoosts_one": "{{count}} impulso de otra persona desaparece también.",
+      "deleteConfirmBoosts_other": "{{count}} impulsos de otras personas desaparecen también.",
+      "deleteConfirmFediverse": "A cada servidor que recibió una copia se le pide que la elimine. Enviamos esa petición; no podemos obligarlos a cumplirla.",
+      "deleteConfirmAccount": "La cuenta del canal se archiva al final, así que nadie podrá seguirla ni publicar como ella de nuevo.",
+      "deleteConfirmAction_one": "Eliminar {{count}} publicación",
+      "deleteConfirmAction_other": "Eliminar {{count}} publicaciones",
+      "deleteConfirmActionEmpty": "Eliminar este canal",
+      "deleted": "Canal eliminado",
+      "deleteFailed": "No se pudo eliminar el canal"
+    },
+    "insights": {
+      "operatorOnly": "Solo un operador puede ver las estadísticas de este canal"
+    },
+    "writers": {
+      "caption": "Las personas a quienes este canal ha nombrado en sus publicaciones.",
+      "lastWrote": "Escribió por última vez {{time}}",
+      "empty": "Todavía no hay nadie nombrado",
+      "emptyDetail": "Este canal nombra a quien escribe cada publicación. Todavía no ha publicado ninguna."
+    },
+    "explainer": {
+      "title": "Sobre los canales",
+      "step1": {
+        "title": "¿Qué es un canal?",
+        "body": "Un canal es una cuenta que publica por sí misma. Al seguirlo, sus publicaciones llegan a tu feed sin que sigas a ninguna de las personas que escriben en él: esa separación es justo para lo que sirve un canal."
+      },
+      "step2": {
+        "title": "Publica, no responde",
+        "body": "Las publicaciones de un canal son publicaciones normales: llegan a los feeds, a la búsqueda y al fediverso como las de cualquiera, y puedes republicar una en tu propio perfil. Lo que no hay es cuadro de respuesta: un canal nunca acepta respuestas, y así es como están hechos los canales, no un ajuste que alguien haya desactivado."
+      },
+      "step3": {
+        "title": "¿Quién escribió esto?",
+        "body": "Un canal firma sus propias publicaciones. Con «Nombrar a quien escribe» activado, junto al canal aparece la persona que escribió cada una; desactivado, la publicación es solo del canal. Es una decisión del propio canal, no algo que falte."
+      },
+      "next": "Siguiente",
+      "back": "Atrás",
+      "done": "Entendido",
+      "cancel": "Cancelar"
     }
   },
   "trendGraph": {
@@ -1879,5 +1940,59 @@
   "channels.settings.saving": "Guardando…",
   "channels.settings.profileSaved": "Canal actualizado",
   "channels.settings.profileSaveFailed": "No se pudo actualizar el perfil del canal",
-  "channels.settings.identityFooter": "El identificador del canal y las personas que pueden publicar como él pertenecen a la cuenta en sí: cámbialos donde gestionas tus cuentas de Oxy."
+  "channels.settings.identityFooter": "El identificador del canal y las personas que pueden publicar como él pertenecen a la cuenta en sí: cámbialos donde gestionas tus cuentas de Oxy.",
+  "accounts": {
+    "accountCategory": {
+      "news": "Noticias",
+      "politics": "Política",
+      "business": "Negocios",
+      "startup": "Startups",
+      "finance": "Finanzas",
+      "crypto": "Cripto",
+      "marketplace": "Mercado",
+      "retail": "Comercio minorista",
+      "real_estate": "Inmobiliaria",
+      "agency": "Agencia",
+      "landlord": "Arrendador",
+      "cooperative": "Cooperativa",
+      "architecture": "Arquitectura",
+      "technology": "Tecnología",
+      "software": "Software",
+      "ai": "IA",
+      "security": "Seguridad",
+      "automation": "Automatización",
+      "science": "Ciencia",
+      "education": "Educación",
+      "books": "Libros",
+      "health": "Salud",
+      "fitness": "Fitness",
+      "sports": "Deportes",
+      "gaming": "Videojuegos",
+      "music": "Música",
+      "film": "Cine",
+      "podcast": "Pódcast",
+      "art": "Arte",
+      "photography": "Fotografía",
+      "comedy": "Comedia",
+      "food": "Comida",
+      "travel": "Viajes",
+      "fashion": "Moda",
+      "home_garden": "Hogar y jardín",
+      "diy": "Bricolaje",
+      "automotive": "Automoción",
+      "animals": "Animales",
+      "family": "Familia",
+      "nonprofit": "Sin ánimo de lucro",
+      "government": "Gobierno",
+      "community": "Comunidad",
+      "activism": "Activismo",
+      "environment": "Medio ambiente",
+      "religion": "Religión",
+      "other": "Otros"
+    }
+  },
+  "accountCategories": {
+    "title": "Categorías",
+    "primary": "Principal"
+  }
 }

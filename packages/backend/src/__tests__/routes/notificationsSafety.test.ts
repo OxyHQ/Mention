@@ -50,11 +50,24 @@ vi.mock('../../middleware/rateLimiter', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: () => ({ getUserFollowing: mocks.getUserFollowing }),
+  // The route hands this to `resolveNotificationInboxIds`; a module factory
+  // replaces the WHOLE module, so an export the route calls and this factory
+  // omits is `undefined is not a function` on every request.
+  createUserScopedOxyServices: () => undefined,
   getServiceOxyClient: () => ({
     getUsersByIds: mocks.getUsersByIds,
     getLinkPreviews: vi.fn(async () => ({})),
     getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
   }),
+}));
+
+// Which recipient ids the viewer's inbox covers is
+// `notificationsChannelInbox.test.ts`'s subject; here it is held at "just the
+// viewer" so these cases stay about the sensitive-content and muted-word gates.
+// Pinned rather than left real: the live resolver reads Redis and Oxy, neither
+// of which decides anything this file asserts.
+vi.mock('../../services/notificationInbox', () => ({
+  resolveNotificationInboxIds: async (viewerId: string) => [viewerId],
 }));
 
 vi.mock('../../runtime/oxyClient', () => ({

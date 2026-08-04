@@ -33,6 +33,10 @@ import {
 const OWNER_PREFIX = 'oxy-notif-read-';
 const RECIPIENT = `${OWNER_PREFIX}recipient`;
 const OTHER = `${OWNER_PREFIX}someone-else`;
+/** A channel the recipient operates — its inbox is reachable no other way. */
+const CHANNEL = `${OWNER_PREFIX}channel`;
+/** The scope `routes/notifications.ts` resolves for that person, per request. */
+const INBOX = [RECIPIENT, CHANNEL];
 
 let seq = 0;
 
@@ -83,7 +87,7 @@ describe('marking one notification read', () => {
   it('persists, so a later read sees it', async () => {
     const id = await seedNotification(RECIPIENT);
 
-    const enriched = await markNotificationRead(RECIPIENT, id);
+    const enriched = await markNotificationRead([RECIPIENT], id);
 
     expect(enriched).toBeDefined();
     expect(await isRead(id)).toBe(true);
@@ -99,7 +103,7 @@ describe('marking one notification read', () => {
   it('will not mark a notification belonging to someone else', async () => {
     const theirs = await seedNotification(OTHER);
 
-    await expect(markNotificationRead(RECIPIENT, theirs)).resolves.toBeUndefined();
+    await expect(markNotificationRead([RECIPIENT], theirs)).resolves.toBeUndefined();
 
     expect(await isRead(theirs)).toBe(false);
   });
@@ -109,17 +113,63 @@ describe('marking one notification read', () => {
    * did nothing. Both callers turn it into a 404 / a skipped emit.
    */
   it('answers undefined for an id that names no notification', async () => {
-    await expect(markNotificationRead(RECIPIENT, 'no-such-notification')).resolves.toBeUndefined();
+    await expect(markNotificationRead([RECIPIENT], 'no-such-notification')).resolves.toBeUndefined();
   });
 
   /** An actor Oxy cannot resolve must not block the read-state write. */
   it('still marks read when the actor profile does not resolve', async () => {
     const id = await seedNotification(RECIPIENT);
 
-    const enriched = await markNotificationRead(RECIPIENT, id);
+    const enriched = await markNotificationRead([RECIPIENT], id);
 
     expect(enriched?.actorId_populated).toBeDefined();
     expect(await isRead(id)).toBe(true);
+  });
+
+  /**
+   * The whole reason the scope is a LIST.
+   *
+   * A channel has no session of its own, so a notification addressed to it is
+   * reachable only through an operator's resolved inbox. Scoped to the person
+   * alone, the operator SEES the row in `GET /notifications` and then cannot
+   * mark it read — a badge that never clears, with no error anywhere.
+   */
+  it('marks a CHANNEL row read for an operator whose scope includes it', async () => {
+    const id = await seedNotification(CHANNEL);
+
+    const enriched = await markNotificationRead(INBOX, id);
+
+    expect(enriched).toBeDefined();
+    expect(await isRead(id)).toBe(true);
+  });
+
+  /**
+   * The control for the test above. Widening the scope must not turn the
+   * predicate into "any recipient" — it is still an allow-list, and an id
+   * outside it names nothing.
+   */
+  it('will not reach a channel the scope does not name', async () => {
+    const theirs = await seedNotification(OTHER);
+
+    await expect(markNotificationRead(INBOX, theirs)).resolves.toBeUndefined();
+
+    expect(await isRead(theirs)).toBe(false);
+  });
+
+  /**
+   * An unresolvable scope must match NOTHING.
+   *
+   * `inArray(col, [])` renders as the literal `false` (verified against the
+   * dialect), so the guard in the service is belt-and-braces rather than the
+   * only thing standing between a failed scope resolution and a table-wide
+   * write. Both are cheap; the write is not reversible.
+   */
+  it('touches nothing when the scope is empty', async () => {
+    const mine = await seedNotification(RECIPIENT);
+
+    await expect(markNotificationRead([], mine)).resolves.toBeUndefined();
+
+    expect(await isRead(mine)).toBe(false);
   });
 });
 
@@ -128,9 +178,40 @@ describe('marking every notification read', () => {
     const mine = [await seedNotification(RECIPIENT), await seedNotification(RECIPIENT)];
     const theirs = await seedNotification(OTHER);
 
-    await markAllNotificationsRead(RECIPIENT);
+    await markAllNotificationsRead([RECIPIENT]);
 
     for (const id of mine) expect(await isRead(id)).toBe(true);
     expect(await isRead(theirs)).toBe(false);
+  });
+
+  /**
+   * Clear-all clears the CHANNEL rows too, deliberately. A channel's inbox is
+   * shared by its operators — one row per event, not one per operator — so
+   * leaving them out would leave the badge permanently non-zero with no control
+   * that clears it.
+   */
+  it('clears the operated channel\'s rows as well as the person\'s own', async () => {
+    const mine = await seedNotification(RECIPIENT);
+    const channels = await seedNotification(CHANNEL);
+    const theirs = await seedNotification(OTHER);
+
+    await markAllNotificationsRead(INBOX);
+
+    expect(await isRead(mine)).toBe(true);
+    expect(await isRead(channels)).toBe(true);
+    expect(await isRead(theirs)).toBe(false);
+  });
+
+  /**
+   * The failure this one exists to refuse is unbounded: an empty scope reaching
+   * the UPDATE with no predicate marks EVERY notification in the table read, for
+   * every account, from one request whose channel lookup failed.
+   */
+  it('marks nothing at all when the scope is empty', async () => {
+    const mine = await seedNotification(RECIPIENT);
+
+    await markAllNotificationsRead([]);
+
+    expect(await isRead(mine)).toBe(false);
   });
 });

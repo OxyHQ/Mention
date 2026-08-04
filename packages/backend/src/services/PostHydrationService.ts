@@ -20,6 +20,7 @@ import {
   findActorsByOxyUserIds,
   findActorsByUris,
 } from '../db/federation/actorRepository';
+import { disclosesWriters, loadSigningChannelIds } from './channelWriterDisclosure';
 import { actorService } from '../connectors/activitypub/actor.service';
 import { ACTOR_DOMAIN, FEDERATION_DOMAIN, FEDERATION_ENABLED } from '../connectors/activitypub/constants';
 import { deriveBridgyActorUri } from '../connectors/activitypub/bridgy';
@@ -52,6 +53,7 @@ import {
   getViewerEntry,
   normalizeAuthorship,
 } from '../utils/postAuthorship';
+import { canManagePostWithoutLookup } from './postManagementAccess';
 import { normalizeMentionIds } from '../utils/textProcessing';
 import { degradedActorSummary } from '../utils/degradedActorSummary';
 import {
@@ -1636,23 +1638,16 @@ export class PostHydrationService {
   }
 
   /**
-   * The channel accounts in this page that DISCLOSE their writers, in ONE
-   * indexed `UserSettings` query keyed by the candidate authors' ids.
+   * The channel accounts in this page that DISCLOSE their writers.
    *
    * Only posts that actually carry a `writtenByOxyUserId` contribute a
-   * candidate, so an ordinary page of posts asks about nothing and the query is
-   * skipped entirely.
+   * candidate, so an ordinary page of posts asks about nothing and
+   * {@link loadSigningChannelIds} skips its query entirely.
    *
-   * **It fails CLOSED, three times over, and each one matters.** The set holds
-   * only ids whose settings row says `channel.signPosts === true`: a channel
-   * with no settings row is absent, a channel that never opted in is absent, and
-   * a lookup that THROWS yields an empty set — so every failure mode lands on
-   * "do not disclose". Anonymity is the safe answer here; naming a writer who
-   * did not consent cannot be undone by a later request that works.
-   *
-   * The `=== true` is deliberate rather than incidental. The value is read out
-   * of a document, so it is not the schema's word that reaches this line, and a
-   * loose read would disclose on any truthy value a stray write left behind.
+   * The decision itself — including the fail-closed reading of
+   * `channelAccount.signPosts` — belongs to `services/channelWriterDisclosure`, which
+   * the channel's writers list reads too. Hydration collects the candidates; it
+   * does not decide.
    */
   private async buildSigningChannelIds(nodes: HydratedGraphNode[]): Promise<Set<string>> {
     const candidateAuthorIds = new Set<string>();
@@ -1664,35 +1659,7 @@ export class PostHydrationService {
       if (authorId) candidateAuthorIds.add(authorId);
     }
 
-    if (candidateAuthorIds.size === 0) {
-      return new Set();
-    }
-
-    try {
-      const rows = await getDb()
-        .select({
-          oxyUserId: userSettings.oxyUserId,
-          signPosts: userSettings.channelAccountSignPosts,
-        })
-        .from(userSettings)
-        .where(inArray(userSettings.oxyUserId, [...candidateAuthorIds]));
-
-      const signing = new Set<string>();
-      for (const row of rows) {
-        // `=== true` rather than a truthy read, and the column being nullable is
-        // what makes that a real distinction: `channel_account_sign_posts` is
-        // NULL for every account that is not a channel and for every channel that
-        // has never chosen, so `null` and `false` both have to land on "do not
-        // disclose" — which they do, and which a `Boolean(...)` would too, but
-        // only until somebody widens the column. This value decides whether the
-        // WRITER travels in the DTO.
-        if (row.signPosts === true) signing.add(row.oxyUserId);
-      }
-      return signing;
-    } catch (error) {
-      logger.error('[PostHydration] Failed to load channel signing settings:', error);
-      return new Set();
-    }
+    return loadSigningChannelIds(candidateAuthorIds);
   }
 
   /**
@@ -2050,7 +2017,6 @@ export class PostHydrationService {
       post,
       authorId,
       normalizeAuthorship(post.authorship as PostAuthorshipEntry[] | undefined),
-      isFederatedPost,
       viewerContext,
     );
   }
@@ -2058,10 +2024,13 @@ export class PostHydrationService {
   /**
    * May this viewer read this post at all?
    *
-   * The single post-level ACL. Privacy checks apply to LOCAL posts only —
-   * federated posts are public by definition. Hydration is used for
-   * globally-broadcast DTOs and for nested quote/boost references fetched by id,
-   * so the gate lives here rather than relying on every caller to pre-filter.
+   * The single post-level ACL, applied to LOCAL and FEDERATED posts alike.
+   * `mapApVisibility` turns a Note that is not publicly addressed into
+   * `followers_only`, so a federated post is NOT public by definition and a
+   * blanket bypass here served a remote author's private post to anybody who
+   * asked for it by id. Hydration is used for globally-broadcast DTOs and for
+   * nested quote/boost references fetched by id, so the gate lives here rather
+   * than relying on every caller to pre-filter.
    *
    * Extracted from {@link buildPostSummary} (whose behaviour is unchanged) so
    * that {@link buildReplyParentAuthorMap} can ask the identical question about a
@@ -2074,11 +2043,8 @@ export class PostHydrationService {
     post: RawPost,
     authorId: string,
     authorship: PostAuthorshipEntry[],
-    isFederatedPost: boolean,
     viewerContext: ViewerContext,
   ): boolean {
-    if (isFederatedPost) return true;
-
     const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
     // Pending collaborators may PREVIEW the post they were invited to (so the
     // collab-invite UI can render the actual content before they accept),
@@ -2234,7 +2200,6 @@ export class PostHydrationService {
         parent,
         parentAuthorId,
         normalizeAuthorship(parent.authorship as PostAuthorshipEntry[] | undefined),
-        !!parent.federation,
         viewerContext,
       );
       if (!readable) continue;
@@ -2324,7 +2289,7 @@ export class PostHydrationService {
 
     const authorship = normalizeAuthorship(post.authorship as PostAuthorshipEntry[] | undefined);
 
-    if (!this.canViewerReadPost(post, authorId, authorship, isFederatedPost, viewerContext)) {
+    if (!this.canViewerReadPost(post, authorId, authorship, viewerContext)) {
       return null;
     }
 
@@ -2353,12 +2318,13 @@ export class PostHydrationService {
 
     // The human behind a channel post, named only when the channel says to.
     //
-    // FAIL-CLOSED, and every clause is load-bearing: the account has to BE a
-    // channel (`user.kind`, which the identity cache carries), that channel has
-    // to be in `signingChannelIds` — which holds only accounts whose settings
-    // row says `signPosts === true`, so a missing row, a channel that never
-    // opted in, and a failed lookup are all absent from it — and the post has to
-    // carry a writer. Miss any one and nothing is disclosed.
+    // FAIL-CLOSED. {@link disclosesWriters} owns both disclosure clauses — the
+    // account has to BE a channel, and that channel has to be in
+    // `signingChannelIds`, which holds only accounts whose settings row says
+    // `signPosts === true`, so a missing row, a channel that never opted in and
+    // a failed lookup are all absent from it. The remaining conditions here are
+    // about the BYLINE rather than about consent: the post has to carry a
+    // writer, and that writer must not already be in it.
     //
     // `userMap` only holds the writer when the SAME conditions already sent the
     // id to the batch, so an undisclosed writer is not merely unrendered: they
@@ -2372,8 +2338,7 @@ export class PostHydrationService {
     if (
       writerId &&
       authors.length > 0 &&
-      user.kind === 'channel' &&
-      signingChannelIds.has(authorId) &&
+      disclosesWriters(authorId, user, signingChannelIds) &&
       !authors.some((author) => author.id === writerId)
     ) {
       const writer = userMap.get(writerId);
@@ -2401,7 +2366,7 @@ export class PostHydrationService {
     const content = this.buildContent(post, pollMap, viewerContext, resolved, inlineVariants);
     const attachments = this.buildAttachments(post, pollMap, resolved);
     const linkPreviews = linkPreviewMap.get(postId) ?? [];
-    const viewerState = this.buildViewerState(postId, viewerContext, authorship);
+    const viewerState = this.buildViewerState(post, postId, viewerContext, authorship);
     const permissions = this.buildPermissions(post, authorId, viewerContext, authorship);
     const authorPrivacy = authorPrivacyMap.get(authorId) ?? { ...DEFAULT_PRIVACY };
     const replierAvatars = recentReplierMap?.get(postId);
@@ -2738,13 +2703,34 @@ export class PostHydrationService {
     return attachments;
   }
 
+  /**
+   * `isOwner` is what the client's post menu draws itself from — delete, edit,
+   * pin, move to lane, reply options — so it has to name everybody who may
+   * actually manage the post.
+   *
+   * `authorship` alone does not. A CHANNEL post's owner entry is the CHANNEL,
+   * an account nobody can ever be signed in as, so on `authorship` alone every
+   * channel post is unmanageable by everyone — the menu comes up empty for the
+   * person who wrote it. The writer is carried in `writtenByOxyUserId` and never
+   * in `authorship` (putting them there would break the channel's anonymity and
+   * put the post back on their own profile), which is why this reads both.
+   *
+   * `canManagePostWithoutLookup` is the SAME predicate the write routes take
+   * their fast path from, so the button and the route agree by construction on
+   * everything it covers. What it deliberately does not cover is a co-operator
+   * who did not write the post: that is a membership question only Oxy can
+   * answer, and this runs once per post per hydration. They see no button and
+   * would not be refused if they reached the route — affordance ⊆ permission.
+   */
   private buildViewerState(
+    post: RawPost,
     postId: string,
     viewerContext: ViewerContext,
     authorship: PostAuthorshipEntry[],
   ): PostViewerState {
     const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
-    const isOwner = viewerEntry?.role === 'owner';
+    const isOwner =
+      viewerEntry?.role === 'owner' || canManagePostWithoutLookup(post, viewerContext.viewerId);
     const isCollaborator = viewerEntry?.role === 'collaborator' && viewerEntry.status === 'accepted';
 
     return {
@@ -2766,7 +2752,10 @@ export class PostHydrationService {
     authorship: PostAuthorshipEntry[],
   ): PostPermissions {
     const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
-    const isOwner = viewerEntry?.role === 'owner';
+    // Same reading as `buildViewerState` — and it has to be the same, or the
+    // menu and the permission flags beside it would disagree about one post.
+    const isOwner =
+      viewerEntry?.role === 'owner' || canManagePostWithoutLookup(post, viewerContext.viewerId);
     const isAcceptedCollaborator = viewerEntry?.role === 'collaborator' && viewerEntry.status === 'accepted';
     const canReply = this.computeReplyPermission(post, authorId, viewerContext);
 

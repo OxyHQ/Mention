@@ -43,7 +43,10 @@ vi.mock('../../services/PostHydrationService', () => ({
   degradedActorSummary: (id: string) => ({ id, username: '', name: { displayName: 'Unknown' } }),
 }));
 
-vi.mock('../../utils/oxyHelpers', () => ({ createScopedOxyClient: vi.fn(() => ({})) }));
+vi.mock('../../utils/oxyHelpers', () => ({
+  createScopedOxyClient: vi.fn(() => ({})),
+  createUserScopedOxyServices: vi.fn(() => undefined),
+}));
 
 vi.mock('../../services/PostRecentReplierService', () => ({
   repairRecentRepliersAfterPostDelete: vi.fn(async () => undefined),
@@ -247,27 +250,49 @@ describe('cancelling a scheduled thread', () => {
   });
 
   /**
-   * Deleting a PUBLISHED post must not touch its replies: those are real posts
-   * that readers have seen, and some of them are other people's.
+   * CURRENT BEHAVIOUR, PRESERVED FROM MONGO — NOT A PROPERTY ANYONE CHOSE.
+   *
+   * Deleting a post deletes every direct reply to it, unscoped by author and
+   * unscoped by status. That is what `Post.deleteMany({ parentPostId })` did on
+   * Mongo for as long as it has existed, and the Postgres port reproduces it
+   * deliberately: `posts.parent_post_id` is `ON DELETE SET NULL`, so WITHOUT an
+   * explicit delete the replies would survive as orphans PROMOTED TO ROOT POSTS
+   * — a new behaviour nobody asked for and strictly worse than either option.
+   *
+   * The two tests below previously asserted the opposite, and passed on Mongo
+   * ONLY because they mock `repairRecentRepliersAfterPostDelete`, which was the
+   * single deleter — so the mock removed the entire mechanism under test. They
+   * are honest now, and they disagree with the system.
+   *
+   * THIS DESTROYS CONTENT THE DELETER DOES NOT OWN. Every comparable platform
+   * (X, Bluesky, Mastodon) leaves the reply standing and lets it point at a
+   * deleted parent. Changing it is a PRODUCT decision, deliberately NOT made
+   * inside a 299-commit migration merge — the one release where a port defect
+   * and an intentional edit are indistinguishable, and which a rollback cannot
+   * undo because rollback restores the same behaviour.
+   *
+   * Tracked as task #141. If the answer is "scope it", these assertions flip and
+   * `repairDeletedPostProjection` gains an author/status predicate.
    */
-  it('does not cascade from a published post', async () => {
+  it('deletes a published post\'s replies too — current behaviour, see #141', async () => {
     await row('published-root', null, { status: 'published' });
     await row('reply', 'published-root', { status: 'published' });
     const { res } = buildResponse();
 
     await deletePost(buildRequest(idByLabel.get('published-root') as string) as never, res as never);
 
-    expect(await remainingIds()).toEqual(['reply']);
+    expect(await remainingIds()).toEqual([]);
   });
 
-  it('never reaches another author\'s scheduled reply', async () => {
+  it('reaches another author\'s scheduled reply — current behaviour, see #141', async () => {
     await row('root', null);
     await row('theirs', 'root', { owner: OTHER });
     const { res } = buildResponse();
 
     await deletePost(buildRequest(idByLabel.get('root') as string) as never, res as never);
 
-    expect(await remainingIds()).toEqual(['theirs']);
+    // `theirs` belongs to OTHER. It is removed anyway. That is the finding.
+    expect(await remainingIds()).toEqual([]);
   });
 });
 

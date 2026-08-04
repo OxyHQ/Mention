@@ -47,7 +47,12 @@ vi.mock('../../connectors/activitypub/ActivityPubConnector', () => ({
 }));
 
 vi.mock('../../connectors/activitypub/constants', () => ({ FEDERATION_ENABLED: true }));
-vi.mock('../../connectors/atproto/constants', () => ({ ATPROTO_ENABLED: false }));
+vi.mock('../../connectors/atproto/constants', () => ({ ATPROTO_ENABLED: true }));
+
+const syncAtprotoProfileGraph = vi.fn(async () => undefined);
+vi.mock('../../connectors/atproto/profileGraph', () => ({
+  syncAtprotoProfileGraph: (...a: unknown[]) => syncAtprotoProfileGraph(...(a as [string, string])),
+}));
 
 /** atproto backfill: the connector the registry hands back for an atproto URI. */
 const atprotoFetchPosts = vi.fn(async () => ({ posts: [] as unknown[] }));
@@ -270,6 +275,30 @@ describe('federatedProfileSync.syncOnProfileView', () => {
     expect(syncOutboxPostsDetailed).not.toHaveBeenCalled();
   });
 
+  it('claims atproto graph syncs so concurrent profile views cannot duplicate expensive work', async () => {
+    // The claim itself is a ROW: `main` staged it by having a `FederatedActor.updateOne`
+    // double return `modifiedCount: 1` once and `0` afterwards, which is the test
+    // deciding the outcome it then asserts. Three concurrent views against one real
+    // actor row put the claim under genuine contention instead, so the counts below
+    // are produced by whatever the code does rather than by the fixture.
+    //
+    // `atprotoFetchPosts` three times and `syncAtprotoProfileGraph` ONCE is the
+    // whole property: the cheap per-view import is per view, the expensive
+    // starter-pack/member resolution is per actor per cooldown window.
+    connectorFor.mockReturnValue({ fetchPosts: atprotoFetchPosts });
+    await seedCachedActor(atprotoActor({ postsCount: 5 }));
+
+    await Promise.all([
+      federatedProfileSync.syncOnProfileView('at1'),
+      federatedProfileSync.syncOnProfileView('at1'),
+      federatedProfileSync.syncOnProfileView('at1'),
+    ]);
+
+    await vi.waitFor(() => expect(atprotoFetchPosts).toHaveBeenCalledTimes(3));
+    await vi.waitFor(() => expect(syncAtprotoProfileGraph).toHaveBeenCalledOnce());
+    expect(syncAtprotoProfileGraph).toHaveBeenCalledWith('did:plc:abc123', 'at1');
+  });
+
   it('clears pending for an atproto actor once the backfill has been stamped', async () => {
     // postsCount > 0 skips the zero-post short-circuit; a recent stamp inside the
     // cooldown window is what terminates the poll after the background import.
@@ -316,17 +345,10 @@ describe('federatedProfileSync author backfill', () => {
     await federatedProfileSync.syncOnProfileView(oxyUserId);
     // Wait on the ROW the backfill is supposed to write, not on a spy: the task
     // is detached, so there is no promise to await and no call to count.
-    await vi.waitFor(async () => {
-      const stamped = (await readActor(AP_ACTOR_URI))?.lastOutboxSyncAt;
-      // eslint-disable-next-line no-console
-      const [row] = await getDb()
-        .select({ o: posts.oxyUserId, a: posts.federationActivityId })
-        .from(posts)
-        .where(eq(posts.id, claimed));
-      // eslint-disable-next-line no-console
-      console.error('DEBUG stamp', stamped, 'row', JSON.stringify(row));
-      expect(await ownerOf(claimed)).toBe(oxyUserId);
-    }, { timeout: 3000 });
+    await vi.waitFor(
+      async () => expect(await ownerOf(claimed)).toBe(oxyUserId),
+      { timeout: 3000 },
+    );
   }
 
   it("claims ONLY the synced actor's orphaned posts, never a username-prefix sibling's", async () => {

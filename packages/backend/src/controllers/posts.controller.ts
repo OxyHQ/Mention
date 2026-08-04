@@ -18,7 +18,6 @@ import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { getDb } from '../db/postgres';
 import { bookmarks as bookmarksTable, likes as likesTable } from '../db/schema/engagement';
 import { lanes as lanesTable } from '../db/schema/channels';
-import { notifications } from '../db/schema/discovery';
 import { posts as postsTable } from '../db/schema/posts';
 import { postContentVariants } from '../db/schema/postContent';
 import {
@@ -90,6 +89,7 @@ import {
   cacheAccountMemberReads,
   PublishAsAccessError,
 } from '../services/publishAsAccount';
+import { postManagementRefusal } from '../services/postManagementAccess';
 import { sendSuccessResponse } from '../utils/apiHelpers';
 import { sanitizePodcast, resolvePodcastContent } from '../utils/syraPodcast';
 import {
@@ -115,6 +115,32 @@ import {
   updateBookmarkFolderForViewer,
 } from '../services/BookmarkFolderService';
 import { repairRecentRepliersAfterPostDelete } from '../services/PostRecentReplierService';
+import {
+  allDeletionTargets,
+  cascadePostReferences,
+  collectDeletionTargets,
+  PostDeletionTooLargeError,
+  recordDeletionSideEffectFailure,
+  repairSurvivingCounters,
+  reportResidue,
+  type PostDeletionTargets,
+} from '../services/PostDeletionCascade';
+
+/**
+ * The delete's own ownership predicate matched no row — somebody else's post,
+ * or a concurrent delete that claimed it first.
+ *
+ * Thrown rather than returned because it has to ROLL BACK the transaction that
+ * has, by that point, already removed the references and the replies. A plain
+ * `return` would commit those deletions for a post the caller was never allowed
+ * to delete, which is the security-relevant half of the claim.
+ */
+class PostDeletionNotClaimedError extends Error {
+  constructor() {
+    super('Post deletion claim matched no row');
+    this.name = 'PostDeletionNotClaimedError';
+  }
+}
 import { loadScheduledChain } from '../services/scheduledChain';
 
 /**
@@ -1719,9 +1745,23 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
+    // Fetched by id and authorized separately, rather than scoped by
+    // `oxy_user_id = userId`. A CHANNEL post's `oxyUserId` is the channel — an
+    // account nobody can be signed in as — so the scoped lookup made every
+    // channel post uneditable by everybody, including the person who wrote it.
+    // `postManagementRefusal` below is what decides, and it still answers 404,
+    // so the reply is unchanged for a caller who may not touch this post.
     const loaded = await loadPostRecord(String(req.params.id));
-    if (!loaded || loaded.oxyUserId !== userId) {
+    if (!loaded) {
       return res.status(404).json({ message: 'Post not found' });
+    }
+    const editRefusal = await postManagementRefusal({
+      post: loaded,
+      callerId: userId,
+      memberReader: createUserScopedOxyServices(req),
+    });
+    if (editRefusal) {
+      return res.status(editRefusal.status).json({ message: editRefusal.message });
     }
 
     // The 30-minute edit window exists because READERS have already seen a
@@ -2158,9 +2198,19 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
+    // By id then authorized — see `updatePost` for why the owner-scoped lookup
+    // could not serve a channel post.
     const post = await loadPostRecord(String(req.params.id));
-    if (!post || post.oxyUserId !== userId) {
+    if (!post) {
       return res.status(404).json({ message: 'Post not found' });
+    }
+    const settingsRefusal = await postManagementRefusal({
+      post,
+      callerId: userId,
+      memberReader: createUserScopedOxyServices(req),
+    });
+    if (settingsRefusal) {
+      return res.status(settingsRefusal.status).json({ message: settingsRefusal.message });
     }
 
     const { isPinned, hideEngagementCounts, replyPermission, reviewReplies, quotesDisabled } = req.body;
@@ -2299,35 +2349,50 @@ export const updatePostLane = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'laneId must be a lane id or null' });
     }
 
-    // Ownership is IN the predicate, not checked after the read: `oxy_user_id`
-    // narrows the row so a post belonging to somebody else is indistinguishable
-    // from one that does not exist, which is the same 404 Mongo gave.
+    // By id, NOT narrowed by `oxy_user_id` — see `updatePost`. The projection
+    // carries `oxy_user_id` and `written_by_oxy_user_id` because
+    // `postManagementRefusal` reads both: the first names the account that
+    // authored it (a channel, for a channel post) and the second the human who
+    // wrote it, and a projection missing either silently refuses its own writer.
     const [post] = await getDb()
       .select({
         id: postsTable.id,
         parentPostId: postsTable.parentPostId,
         boostOf: postsTable.boostOf,
         laneId: postsTable.laneId,
+        oxyUserId: postsTable.oxyUserId,
+        writtenByOxyUserId: postsTable.writtenByOxyUserId,
       })
       .from(postsTable)
-      .where(and(eq(postsTable.id, String(req.params.id)), eq(postsTable.oxyUserId, userId)))
+      .where(eq(postsTable.id, String(req.params.id)))
       .limit(1);
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
+    }
+    const laneRefusal = await postManagementRefusal({
+      post,
+      callerId: userId,
+      memberReader: createUserScopedOxyServices(req),
+    });
+    if (laneRefusal) {
+      return res.status(laneRefusal.status).json({ message: laneRefusal.message });
     }
 
     // The SAME rule the create path applies, from the same definition: a lane
     // belongs to its publisher, and replies/boosts carry none.
     //
-    // The publisher is `userId` rather than something read off the post, and the
-    // two cannot disagree: the lookup above is already scoped by
-    // `oxy_user_id = userId`, so a post authored by any other account — a channel
-    // included — is a 404 here and never reaches this call. That is also the limit
-    // of this route today: a channel post's lane is not movable through it, since
-    // the channel is the author and the caller is not.
+    // **The publisher is read off the POST, never taken as the caller.** It used
+    // to be `userId`, which was safe only while the lookup above was narrowed by
+    // `oxy_user_id = userId` — the two could not disagree. They can now, because
+    // that narrowing is gone (a channel post's author is the channel, so it made
+    // every channel post unmovable): a channel post is authored by the channel
+    // and moved by a human, so passing the caller here would offer the WRITER's
+    // own lanes for a post the channel published. A channel post landing in a
+    // personal lane deanonymizes the writer, because a lane tab is scoped to one
+    // author even though the post's DTO stays anonymous.
     await assertLaneAssignable({
       laneId,
-      authorId: userId,
+      authorId: post.oxyUserId ? String(post.oxyUserId) : null,
       parentPostId: post.parentPostId,
       boostOf: post.boostOf,
     });
@@ -2339,10 +2404,16 @@ export const updatePostLane = async (req: AuthRequest, res: Response) => {
     // `where lane_id is not null`, so null is the state that removes the row
     // from it. "Absent" and "null" are one state here, so the trap does not
     // survive the port.
+    //
+    // Scoped by the post's AUTHOR, never the caller, for the same reason the
+    // lane check above is. Left as `oxy_user_id = userId` this matched nothing
+    // for a channel post — and an `UPDATE` that matches nothing is not an error,
+    // so the handler answered 200 with the new lane's summary while the post had
+    // not moved.
     await getDb()
       .update(postsTable)
       .set({ laneId: laneId ?? null })
-      .where(and(eq(postsTable.id, post.id), eq(postsTable.oxyUserId, userId)));
+      .where(and(eq(postsTable.id, post.id), eq(postsTable.oxyUserId, post.oxyUserId ?? '')));
 
     const [lane] = laneId
       ? await getDb()
@@ -2387,32 +2458,159 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
     // parent has not published) and nobody can see them either, so leaving them
     // behind would be a silent black hole in the author's queue rather than a
     // cancellation. Empty for a published post and for a lone scheduled one.
-    const cancelledContinuations = await scheduledContinuationIds(String(req.params.id), userId);
-
-    // The owner check is part of the DELETE's own predicate, not a read-then-
-    // delete gap: two concurrent requests cannot both observe the row and both
-    // proceed to the cascade.
-    const post = await deletePostRecord(
-      String(req.params.id),
-      eq(postsTable.oxyUserId, userId),
-    );
-    if (!post) {
+    // Resolved and authorized BEFORE anything is deleted or walked, because both
+    // of the steps below need the post's AUTHOR — which for a channel post is
+    // the channel, not the caller.
+    // Two columns, not a whole `PostRecord`: this read exists only to answer
+    // "may the caller manage this post", and assembling the content graph for it
+    // would be six extra joins on the way to a decision that reads neither.
+    const [target] = await getDb()
+      .select({
+        oxyUserId: postsTable.oxyUserId,
+        writtenByOxyUserId: postsTable.writtenByOxyUserId,
+      })
+      .from(postsTable)
+      .where(eq(postsTable.id, String(req.params.id)))
+      .limit(1);
+    if (!target) {
       return res.status(404).json({ message: 'Post not found' });
     }
-
-    const postId = post.id;
-    await repairRecentRepliersAfterPostDelete({
-      postId,
-      parentPostId: post.parentPostId,
+    const deleteRefusal = await postManagementRefusal({
+      post: target,
+      callerId: userId,
+      memberReader: createUserScopedOxyServices(req),
     });
+    if (deleteRefusal) {
+      return res.status(deleteRefusal.status).json({ message: deleteRefusal.message });
+    }
+    const authorId = target.oxyUserId ? String(target.oxyUserId) : userId;
+
+    const cancelledContinuations = await scheduledContinuationIds(String(req.params.id), authorId);
+
+    /**
+     * ONE TRANSACTION OWNS THE WHOLE SUBTREE, and the ORDER inside it is the
+     * fix for a defect that shipped, not a stylistic preference.
+     *
+     * `posts.parent_post_id` is `ON DELETE SET NULL` and `posts.boost_of` is
+     * `ON DELETE CASCADE`, so the instant the post row goes:
+     *
+     *   - its direct replies stop being findable and are silently PROMOTED to
+     *     root posts (measured: the reply survives with `parent_post_id: null`
+     *     and `is_reply: true`), and
+     *   - every boost of it is removed by the database, taking the only link
+     *     that could have found the boosts' own polymorphic references.
+     *
+     * So the capture comes FIRST, then the reference legs, then the replies,
+     * then the post. Deleting first and repairing after — which is what this
+     * route did — cannot work, and did not.
+     *
+     * The reference legs THROW, and that is only coherent because they are in
+     * here with the `DELETE`: a leg that fails rolls the whole thing back, the
+     * post is NOT deleted, and the 500 is honest and retryable. Outside a
+     * transaction the same throw would report a completed deletion whose
+     * leftovers no retry could ever reach.
+     *
+     * The OWNERSHIP CLAIM keeps its atomic-claim property. `deletePostRecord`
+     * carries the `oxy_user_id` predicate in the DELETE's own `WHERE`, so it is
+     * still one statement that authorizes and removes — not a read-then-write.
+     * Two concurrent requests cannot both claim the row; the loser deletes
+     * nothing, the whole transaction rolls back, and it answers 404 exactly as
+     * before. Moving it inside a transaction changes when it commits, never
+     * what it checks.
+     */
+    let post: PostRecord | null = null;
+    let targets: PostDeletionTargets | null = null;
+    let removedIds: ReadonlySet<string> = new Set<string>();
+    try {
+      await getDb().transaction(async (tx) => {
+        const collected = await collectDeletionTargets(String(req.params.id), tx);
+        if (!collected) return;
+
+        const all = allDeletionTargets(collected);
+        await cascadePostReferences(all, tx);
+
+        // The replies, explicitly — no foreign key removes them, and after the
+        // post row goes there is nothing left to find them by.
+        if (collected.replies.length > 0) {
+          await tx.delete(postsTable).where(
+            inArray(postsTable.id, collected.replies.map((reply) => reply.id)),
+          );
+        }
+
+        // `authorId`, NOT `userId`. Authorization was already decided above by
+        // `postManagementRefusal`, which deliberately admits a channel post's
+        // WRITER and its co-operators — none of whom is the row's
+        // `oxy_user_id`, because a channel post is owned by the CHANNEL and no
+        // session can ever have a channel as its subject. Claiming on the
+        // caller's own id therefore matched nothing and answered 404 to the
+        // person who wrote the post, after telling them they were allowed.
+        // Same trap the lane path names two hundred lines above; this is the
+        // site where it survived the port.
+        //
+        // The claim keeps its atomic-claim property either way: `authorId` comes
+        // from the row this request already read and re-checks the SAME
+        // ownership the refusal decided against, in the DELETE's own `WHERE`, so
+        // this is still one statement that authorizes and removes rather than a
+        // read followed by a write.
+        const claimed = await deletePostRecord(
+          String(req.params.id),
+          eq(postsTable.oxyUserId, authorId),
+          tx,
+        );
+        // Somebody else's post, or a concurrent delete that got there first.
+        // Rolling back is what keeps the replies and the references intact for
+        // whoever the row actually belongs to.
+        if (!claimed) throw new PostDeletionNotClaimedError();
+
+        post = claimed;
+        targets = collected;
+        removedIds = new Set(all.map((row) => row.id));
+      });
+    } catch (error) {
+      if (error instanceof PostDeletionNotClaimedError) {
+        return res.status(404).json({ message: 'Post not found' });
+      }
+      if (error instanceof PostDeletionTooLargeError) {
+        logger.error('Post deletion refused: too many dependent rows', {
+          postId: String(req.params.id),
+          found: error.found,
+        });
+        return res.status(409).json({ message: 'Post has too many dependent rows to delete' });
+      }
+      throw error;
+    }
+    if (!post || !targets) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+    const deletedPost: PostRecord = post;
+    const deletedTargets: PostDeletionTargets = targets;
+    const postId = deletedPost.id;
+
+    // Everything from here is BEST-EFFORT: the deletion is committed and the
+    // user is about to be told it succeeded, so a failure below must not turn
+    // it into a 500. Each one is swallowed and COUNTED — fail-soft is fine,
+    // silent is not.
+    try {
+      await repairRecentRepliersAfterPostDelete({
+        postId,
+        parentPostId: deletedPost.parentPostId,
+      });
+    } catch (error) {
+      recordDeletionSideEffectFailure('recent_replier_projection', error);
+    }
+    try {
+      await repairSurvivingCounters(deletedTargets, removedIds);
+    } catch (error) {
+      recordDeletionSideEffectFailure('surviving_counters', error);
+    }
 
     // MTN dual-write: deleting a LOCAL post tombstones its
     // `app.mention.feed.post` record. (Federated posts never emitted a record.)
-    if (post.federation == null && post.oxyUserId) {
+    if (deletedPost.federation == null && deletedPost.oxyUserId) {
       await emitTombstone({
-        authorOxyUserId: post.oxyUserId,
+        authorOxyUserId: deletedPost.oxyUserId,
         tombstoneRkey: postId,
-        subjectUri: postRecordUri(post.oxyUserId, postId),
+        subjectUri: postRecordUri(deletedPost.oxyUserId, postId),
       });
     }
 
@@ -2423,12 +2621,12 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
     // only — an unpublished/private post was never federated. Username resolved
     // server-side from the authoritative oxyUserId.
     if (
-      post.federation == null &&
-      post.oxyUserId &&
-      post.visibility === PostVisibility.PUBLIC &&
-      post.status === 'published'
+      deletedPost.federation == null &&
+      deletedPost.oxyUserId &&
+      deletedPost.visibility === PostVisibility.PUBLIC &&
+      deletedPost.status === 'published'
     ) {
-      const deleterOxyUserId = post.oxyUserId;
+      const deleterOxyUserId = deletedPost.oxyUserId;
       federateAsResolvedActor(deleterOxyUserId, 'post delete', (username) => ({
         kind: 'post.delete',
         post: { _id: postId },
@@ -2437,43 +2635,19 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
       }));
     }
 
-    // Cascading cleanup — best-effort, don't fail the request
+    // The cascade ITSELF already ran, inside the transaction above — every
+    // reference the delete claims is gone by the time the row is. What is left
+    // here is the VERIFICATION: re-run exactly the claimed probes against the
+    // committed state and say what is actually still there, rather than
+    // assuming the legs worked.
+    //
+    // It has to be outside the transaction to mean anything. Inside, the probes
+    // would read that transaction's own uncommitted deletes and pass by
+    // construction — a check that cannot fail.
     try {
-      await Promise.allSettled([
-        // The article is NOT swept here, and neither is the poll: `articles.post_id`
-        // and `polls.post_id` both carry `ON DELETE CASCADE` to `posts.id`, and
-        // `deletePostRecord` above deletes the Postgres row. The Mongo
-        // `Article.deleteOne`/`Poll.deleteOne` this replaces matched a store the
-        // write path no longer uses. (The article note that used to sit here said
-        // the sweep stayed on Mongo "deliberately — articles are still written
-        // there". That was true when it was written and stopped being true the
-        // moment the article WRITE path moved; it is the same case now.)
-        //
-        // Likes and bookmarks are NOT swept here: `likes.post_id` and
-        // `bookmarks.post_id` both carry `ON DELETE CASCADE` to `posts.id`, so
-        // the row goes with the post inside the same statement. Sweeping them
-        // through the Mongoose models — which nothing has written since
-        // engagement moved — deleted nothing and made the cascade look explicit.
-        // `PostSubscription.deleteMany({ postId })` used to sit here and is
-        // GONE rather than ported: that model is `(subscriberId, authorId)` and
-        // has no `postId` field at all, so the call always matched zero
-        // documents. It described a relation that never existed.
-        //
-        // Notifications ARE a real relation and are now deleted in Postgres.
-        // `notifications.entity_id` is plain `text` with no foreign key, so
-        // nothing cascades from `posts` — and the Mongo delete this replaces had
-        // stopped matching anything once notifications moved, which meant every
-        // deleted post was leaving its notifications behind while
-        // `CASCADED_POST_REFERENCES` went on claiming they were cleaned.
-        getDb()
-          .delete(notifications)
-          .where(and(
-            eq(notifications.entityId, postId),
-            eq(notifications.entityType, 'post'),
-          )),
-      ]);
-    } catch (cleanupError) {
-      logger.error('Error during cascading post cleanup', cleanupError);
+      await reportResidue(allDeletionTargets(deletedTargets), postId);
+    } catch (error) {
+      recordDeletionSideEffectFailure('residue_check', error);
     }
 
     await deleteScheduledContinuations(cancelledContinuations, userId);

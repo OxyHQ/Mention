@@ -21,7 +21,13 @@ import type { ProfileData } from '@/hooks/useProfileData';
 
 export interface ProfileMoreMenuOptions {
   profileData: ProfileData | null;
-  isOwnProfile: boolean;
+  /**
+   * Whether the viewer OPERATES this account — may speak with its voice. Being
+   * the account is one case of it; running a channel, organization, project or
+   * bot is the rest. Callers compute it as
+   * `isOwnProfile || useOperatesAccount(...)`, never as an id comparison alone.
+   */
+  viewerOperatesAccount: boolean;
   /**
    * Rows shown ABOVE the shared ones, for actions that are about RUNNING this
    * account rather than about the viewer's relationship to it. A channel's
@@ -34,16 +40,40 @@ export interface ProfileMoreMenuOptions {
 /**
  * The "…" menu on a profile: add to lists / starter packs, mute, block, report.
  *
- * Shared by both profile screens because it is entirely about the VIEWER's
- * relationship to an account, and that relationship does not change shape when
- * the account is a channel — a channel can be listed, muted, blocked and
- * reported exactly like anybody else. What differs is what an OPERATOR may
- * additionally do, which arrives as {@link ProfileMoreMenuOptions.leadingActions}
- * rather than as a branch in here.
+ * Shared by both profile screens because it is about the VIEWER's relationship to
+ * an account, and that relationship has the same shape whichever kind of account
+ * it is. What differs is what an OPERATOR may additionally do, which arrives as
+ * {@link ProfileMoreMenuOptions.leadingActions} rather than as a branch in here.
+ *
+ * ## Mute, block and report are withheld from an operator
+ *
+ * Not because they would fail, but because they mean nothing: all three are ways
+ * of putting distance between a reader and an account, and there is no distance
+ * to put between somebody and an account they publish as. Muting hides your own
+ * posts from your own feeds; blocking severs you from something you are; a report
+ * asks a jury to rule on whether you should be enforced against for what you
+ * wrote.
+ *
+ * The check is "do I operate this account?", not "is this account me?". The
+ * second is the same question asked narrowly enough to be wrong — a channel,
+ * organization, project or bot is never the viewer's own id — and asking it is
+ * what put Block and Report in a channel operator's menu. Note the whole menu is
+ * NOT suppressed for an operator the way it used to be for your own profile: a
+ * channel's operator opens it to reach the channel's settings.
+ *
+ * Nothing replaces the withheld rows. An operator's own actions are the caller's
+ * to supply through `leadingActions` — the channel screen supplies "Channel
+ * settings" — and the kinds with no operator surface in Mention get a shorter
+ * menu rather than a row that goes nowhere.
+ *
+ * What is deliberately KEPT for an operator: add/remove from lists and starter
+ * packs. Both are curation of the viewer's own collections, and putting an
+ * account you run into a starter pack you assembled is the ordinary use of one,
+ * not an accident.
  */
 export function useProfileMoreMenu({
   profileData,
-  isOwnProfile,
+  viewerOperatesAccount,
   leadingActions,
 }: ProfileMoreMenuOptions): () => void {
   const theme = useTheme();
@@ -52,7 +82,7 @@ export function useProfileMoreMenu({
   const bottomSheet = useContext(BottomSheetContext);
 
   return useCallback(() => {
-    if (!profileData || isOwnProfile) return;
+    if (!profileData) return;
 
     const displayUsername = profileData.username;
 
@@ -164,33 +194,39 @@ export function useProfileMoreMenu({
         }),
         onPress: handleAddToStarterPack,
       },
-      {
-        icon: <MuteIcon size={22} className="text-foreground" />,
-        label: t('profile.muteUser', {
-          username: displayUsername,
-          defaultValue: `Mute @${displayUsername}`,
-        }),
-        onPress: handleMute,
-      },
+      ...(viewerOperatesAccount
+        ? []
+        : [
+          {
+            icon: <MuteIcon size={22} className="text-foreground" />,
+            label: t('profile.muteUser', {
+              username: displayUsername,
+              defaultValue: `Mute @${displayUsername}`,
+            }),
+            onPress: handleMute,
+          },
+        ]),
     ];
 
-    const destructiveActions: ActionMenuAction[] = [
-      {
-        icon: <BlockIcon size={22} color={theme.colors.error} />,
-        label: t('profile.blockUser', {
-          username: displayUsername,
-          defaultValue: `Block @${displayUsername}`,
-        }),
-        onPress: handleBlock,
-        color: theme.colors.error,
-      },
-      {
-        icon: <ReportIcon size={22} color={theme.colors.error} />,
-        label: t('profile.reportUser', { defaultValue: 'Report' }),
-        onPress: handleReport,
-        color: theme.colors.error,
-      },
-    ];
+    const destructiveActions: ActionMenuAction[] = viewerOperatesAccount
+      ? []
+      : [
+        {
+          icon: <BlockIcon size={22} color={theme.colors.error} />,
+          label: t('profile.blockUser', {
+            username: displayUsername,
+            defaultValue: `Block @${displayUsername}`,
+          }),
+          onPress: handleBlock,
+          color: theme.colors.error,
+        },
+        {
+          icon: <ReportIcon size={22} color={theme.colors.error} />,
+          label: t('profile.reportUser', { defaultValue: 'Report' }),
+          onPress: handleReport,
+          color: theme.colors.error,
+        },
+      ];
 
     // Named so the block flow can reopen the exact same menu after a cancelled
     // confirm.
@@ -205,5 +241,5 @@ export function useProfileMoreMenu({
     }
 
     openMenu();
-  }, [profileData, isOwnProfile, leadingActions, theme, t, bottomSheet, oxyServices]);
+  }, [profileData, viewerOperatesAccount, leadingActions, theme, t, bottomSheet, oxyServices]);
 }

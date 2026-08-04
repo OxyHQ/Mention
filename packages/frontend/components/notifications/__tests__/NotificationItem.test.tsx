@@ -133,7 +133,7 @@ jest.mock('@/components/common/LinkifiedText', () => {
   return { LinkifiedText: ({ text }: { text?: string }) => <RNText>{text}</RNText> };
 });
 
-jest.mock('@/components/Fediverse/FediverseBadge', () => ({ RemoteActorBadge: () => null }));
+jest.mock('@/components/AccountBadge', () => ({ AccountBadge: () => null }));
 jest.mock('@/components/Compose/CollabAcceptSheet', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/assets/icons/done-all-icon', () => ({ DoneAllIcon: () => null }));
 jest.mock('@/assets/icons/trash-icon', () => ({ TrashIcon: () => null }));

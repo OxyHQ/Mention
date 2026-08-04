@@ -71,6 +71,20 @@ export interface DeletedPostProjectionContext {
   parentPostId?: unknown;
 }
 
+/**
+ * A direct reply removed alongside its parent, in the shape
+ * {@link import('./PostDeletionCascade').CascadedPostRow} consumes — the two are
+ * checked against each other by the compiler at the call site in
+ * `posts.controller`.
+ */
+export interface DeletedReplyRow {
+  id: string;
+  oxyUserId: string | null;
+  parentPostId: string | null;
+  federationActivityId: string | null;
+  federationUrl: string | null;
+}
+
 function validDate(value: unknown): Date | null {
   const date = value instanceof Date ? value : new Date(String(value ?? ''));
   return Number.isFinite(date.getTime()) ? date : null;
@@ -259,15 +273,28 @@ export async function recordRecentReplierForPost(reply: RecentReplyLike): Promis
 async function repairDeletedPostProjection(
   input: { postId: string; parentPostId: string },
   tx: Transaction,
-): Promise<void> {
+): Promise<DeletedReplyRow[]> {
   if (input.parentPostId) {
     await recomputeRecentRepliers(input.parentPostId, tx);
   }
 
+  // RETURNING carries what the cascade's remaining legs actually need: the id
+  // for the id-keyed ones, and both federation URIs for the URI-keyed ones
+  // (`feed_interactions.post_uri`, the two gate tables, and the delivery
+  // queue's activity JSON). It deliberately does NOT carry `boost_of`, a poll
+  // id or an article id, which main's Mongo shape had to: all three are
+  // `ON DELETE CASCADE` on `posts.id` here, so Postgres removes them with the
+  // row and a leg claiming to is a leg nothing can ever prove ran.
   const deletedChildren = await tx
     .delete(posts)
     .where(eq(posts.parentPostId, input.postId))
-    .returning({ id: posts.id });
+    .returning({
+      id: posts.id,
+      oxyUserId: posts.oxyUserId,
+      parentPostId: posts.parentPostId,
+      federationActivityId: posts.federationActivityId,
+      federationUrl: posts.federationUrl,
+    });
   const deletedChildIds = deletedChildren.map((child) => child.id);
 
   // The deleted parent can have a projection of its own, and so can each direct
@@ -276,6 +303,8 @@ async function repairDeletedPostProjection(
   await tx
     .delete(postRecentRepliers)
     .where(inArray(postRecentRepliers.postId, [input.postId, ...deletedChildIds]));
+
+  return deletedChildren;
 }
 
 /**
@@ -299,18 +328,21 @@ function isRetryableProjectionConflict(error: unknown): boolean {
  */
 export async function repairRecentRepliersAfterPostDelete(
   input: DeletedPostProjectionContext,
-): Promise<void> {
+): Promise<DeletedReplyRow[]> {
   const postId = normalizedId(input.postId);
   const parentPostId = normalizedId(input.parentPostId);
-  if (!postId) return;
+  if (!postId) return [];
 
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_PROJECTION_REPAIR_ATTEMPTS; attempt += 1) {
     try {
-      await getDb().transaction((tx) =>
-        repairDeletedPostProjection({ postId, parentPostId }, tx),
-      );
-      return;
+      let deletedReplies: DeletedReplyRow[] = [];
+      await getDb().transaction(async (tx) => {
+        // Reassigned per attempt: a retried transaction re-reads the children,
+        // and the previous attempt's rows were rolled back.
+        deletedReplies = await repairDeletedPostProjection({ postId, parentPostId }, tx);
+      });
+      return deletedReplies;
     } catch (error) {
       lastError = error;
       if (
@@ -327,6 +359,7 @@ export async function repairRecentRepliersAfterPostDelete(
     parentPostId: parentPostId || undefined,
     reason: lastError instanceof Error ? lastError.message : String(lastError),
   });
+  return [];
 }
 
 /**

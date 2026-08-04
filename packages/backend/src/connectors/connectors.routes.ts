@@ -24,7 +24,11 @@ import { CHRONO_DESC, findPostRecords } from '../db/posts/postRepository';
 import { FEDERATION_BLOCKS, FEDERATION_ENABLED } from './activitypub/constants';
 import { ATPROTO_ENABLED, isDid, isAtUri, isAtprotoHandle } from './atproto/constants';
 import { activityIdUnderActor, normalizeFederatedAcct } from './activitypub/helpers';
-import { upstreamProfileUrlCandidates } from './activitypub/upstreamProfileUrl';
+import {
+  networkHandleCandidates,
+  upstreamProfileUrlCandidates,
+  type UpstreamProfileUrlCandidate,
+} from './activitypub/upstreamProfileUrl';
 import { isAbsoluteHttpUrl } from './shared/url';
 import { connectorRegistry } from './index';
 import { classifyQuery } from './resolve';
@@ -266,21 +270,28 @@ router.get('/blocked-domains', (_req: AuthRequest, res: Response) => {
  * somebody else — the bridge operator's own account, most obviously — is dropped
  * rather than shown as the account that was pasted.
  */
-async function resolveThroughBridges(rawUrl: string): Promise<NormalizedExternalActor | null> {
-  for (const candidate of upstreamProfileUrlCandidates(rawUrl)) {
+async function resolveThroughCandidates(
+  candidates: readonly UpstreamProfileUrlCandidate[],
+): Promise<NormalizedExternalActor | null> {
+  for (const candidate of candidates) {
     // Sequential on purpose: the first answer ends the search, so fanning out
     // would fetch from bridges whose answer is already unnecessary.
     // eslint-disable-next-line no-await-in-loop
     const actor = await connectorRegistry.resolve(candidate.acct);
     if (!actor) continue;
     if (actor.federatedUsername === candidate.expectedFederatedUsername) return actor;
-    logger.info('[Connectors] bridge answered for a different account than the pasted URL names', {
+    logger.info('[Connectors] bridge answered for a different account than the query names', {
       bridgeHost: candidate.bridgeHost,
       expected: candidate.expectedFederatedUsername,
       resolved: actor.federatedUsername,
     });
   }
   return null;
+}
+
+/** The pasted-URL entry point: derive this URL's candidates, then resolve them. */
+async function resolveThroughBridges(rawUrl: string): Promise<NormalizedExternalActor | null> {
+  return resolveThroughCandidates(upstreamProfileUrlCandidates(rawUrl));
 }
 
 /**
@@ -308,9 +319,24 @@ router.get('/resolve', async (req: AuthRequest, res: Response) => {
   }
 
   try {
-    const actor = isPastedUrl
+    let actor = isPastedUrl
       ? await resolveThroughBridges(query)
       : await connectorRegistry.resolve(query);
+
+    // A NETWORK HANDLE IS THE ONE SHAPE THE CONNECTOR LANE CANNOT ANSWER.
+    //
+    // `@elonmusk@x.com` is what this endpoint RETURNS for a bridged actor, what
+    // the profile page shows, and what a reader will type or paste back. But
+    // `x.com` runs no WebFinger — it is not a fediverse host at all — so the
+    // connector can only ever miss, and the handle we render was the one string
+    // that 404'd while both the pasted URL and the bridge acct resolved.
+    //
+    // Tried only AFTER the connector, so nothing that resolves today changes
+    // path: this can add an answer where there was none, never replace one. The
+    // cost is one failed lookup on a query that was already going to 404.
+    if (!actor && !isPastedUrl) {
+      actor = await resolveThroughCandidates(networkHandleCandidates(query));
+    }
     if (!actor) return res.status(404).json({ error: 'Actor not found' });
 
     // Follow state for the (optional) viewer — keyed on the actor's protocol id.

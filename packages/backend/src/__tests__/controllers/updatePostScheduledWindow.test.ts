@@ -45,6 +45,7 @@ const hoisted = vi.hoisted(() => ({
  */
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: hoisted.createScopedOxyClient,
+  createUserScopedOxyServices: vi.fn(() => undefined),
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({

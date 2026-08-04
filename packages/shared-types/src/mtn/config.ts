@@ -166,8 +166,17 @@ export const MtnConfig = {
        * Hard cap on how many items a single author may contribute to one rendered
        * page. Prevents a prolific author from filling the page even with spacing.
        * The reranker never DROPS items — it defers an author's overflow items to
-       * the tail of the page (so they appear after everyone else, or roll to the
-       * next page via pagination) rather than removing them.
+       * the tail of the page (so they appear after everyone else) rather than
+       * removing them.
+       *
+       * It cannot defer them to the NEXT page. The reranker runs on the page
+       * window a ranked feed has already selected, because a ranked page is
+       * continued by a score-descending keyset cursor taken from that page's own
+       * lowest item — anything held back past the window scores above the cursor
+       * and no later page can reach it. So when an author owns more of the window
+       * than this admits, the cap is unsatisfiable and degrades to ordering: their
+       * surplus is served, as a run at the page tail. Raising this value does not
+       * change that; it only lets the run start earlier.
        */
       maxPerAuthorPerPage: 3,
     },
@@ -1057,6 +1066,30 @@ export const MtnConfig = {
        * batch during which a big story breaks.
        */
       maxPerBatch: 12,
+      /**
+       * Posts that must support a topic before it becomes the row's category,
+       * as a SHARE of the excerpts read.
+       *
+       * Without it the category is decided by whichever keyword family a broad
+       * term's heterogeneous posts happen to hit, often by a single mention:
+       * `US` was filed under Science because one post among a dozen said
+       * "climate change", and one saying "world cup" filed `World` under
+       * Sports.
+       *
+       * Below this the row reports `other` — the taxonomy's own word for
+       * "nothing fits". An unlabelled row costs a reader a hint; a confidently
+       * wrong one costs them trust in every other hint on the screen. `Ceuta`
+       * and `Ukraine` already read `other` because nothing matched at all, and
+       * weak evidence should look the same as none, because it is.
+       */
+      minCategorySupport: 0.25,
+      /**
+       * …and never fewer than this many posts, whatever the share works out to.
+       *
+       * A share alone cannot protect a short excerpt list: one post out of two
+       * is 50%, comfortably clear of the bar above, and still one post.
+       */
+      minCategorySupportPosts: 2,
       /**
        * The category taxonomy offered to the labeller. Declared once in
        * `trending.ts` (with the matching type and the degrade-to-`other`

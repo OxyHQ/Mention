@@ -5,6 +5,7 @@ import {
   clearFederationScope,
   federationScope,
   readActor,
+  seedActor,
 } from '../../helpers/federationFixtures';
 
 const scope = federationScope('atproto-profile-mapper');
@@ -39,6 +40,7 @@ import {
   fetchAndUpsertAtprotoProfile,
   mapProfileToNormalizedActor,
   splitHandle,
+  upsertAtprotoActor,
 } from '../../../connectors/atproto/profile.mapper';
 import { metrics } from '../../../utils/metrics';
 
@@ -282,6 +284,40 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     expect(actor).not.toBeNull();
     expect(actor?.oxyUserId).toBeUndefined();
     expect((await readActor(DID))?.oxyUserId).toBeUndefined();
+  });
+
+  it('does not adopt another identity when a reassigned handle collides during upsert', async () => {
+    // A REAL `federated_actors_acct_key` violation, not a rejected mock: the
+    // handle `alice.bsky.social` is already bound to a DIFFERENT DID, which is
+    // exactly what a reassigned Bluesky handle looks like. The upsert is keyed
+    // on `uri` (the DID), so it tries to INSERT and the acct constraint refuses.
+    await clearFederationScope(scope, [DID, DID_TWO]);
+    await seedActor(scope, {
+      protocol: 'atproto',
+      uri: DID_TWO,
+      username: 'alice',
+      domain: 'bsky.social',
+      acct: 'alice.bsky.social',
+      oxyUserId: 'oxy-previous-holder',
+    });
+
+    const actor = mapProfileToNormalizedActor(PROFILE)!;
+    const resolved = await upsertAtprotoActor(actor);
+
+    // Fail closed. Without the early return the caller keeps an actor that has
+    // no row of its own, and identity resolution runs against the handle the
+    // PREVIOUS holder still owns — attributing this DID's posts to them.
+    expect(resolved.oxyUserId).toBeUndefined();
+    expect(mocks.resolveFederatedActorIdentity).not.toHaveBeenCalled();
+    // No row was written for the new DID, and the previous holder's row is intact.
+    expect(await readActor(DID)).toBeNull();
+    expect((await readActor(DID_TWO))?.oxyUserId).toBe('oxy-previous-holder');
+    expect(
+      metrics.getCounter(ACTOR_UPSERT_FAILED_METRIC, {
+        protocol: 'atproto',
+        reason: 'federated_actors_acct_key',
+      }),
+    ).toBe(1);
   });
 
   it('returns null when the profile cannot be fetched', async () => {

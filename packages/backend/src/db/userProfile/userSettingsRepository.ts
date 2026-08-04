@@ -529,6 +529,37 @@ export async function replaceLabelActions(
   );
 }
 
+/**
+ * `channel_account.sign_posts` for several accounts in ONE narrow query — the
+ * writer-disclosure batch path.
+ *
+ * Deliberately NOT {@link loadUserSettingsByIds}: that selects every column and
+ * runs a SECOND query for label actions, and this sits on feed hydration, which
+ * asks about every channel on a page at once. Two columns and one query is what
+ * keeps an ordinary page of posts costing nothing for this.
+ *
+ * A NULL is a real answer — the column is NULL for an account that is not a
+ * channel — so the raw value crosses this boundary rather than a boolean. The
+ * consent decision itself belongs to `services/channelWriterDisclosure.ts`,
+ * which is the one place allowed to turn a stored value into "name this
+ * person"; splitting that across two modules is how the two surfaces that ask
+ * it end up disagreeing.
+ */
+export async function loadChannelSignPostsByIds(
+  oxyUserIds: readonly string[],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<Map<string, boolean | null>> {
+  if (oxyUserIds.length === 0) return new Map();
+  const rows = await db
+    .select({
+      oxyUserId: userSettings.oxyUserId,
+      signPosts: userSettings.channelAccountSignPosts,
+    })
+    .from(userSettings)
+    .where(inArray(userSettings.oxyUserId, [...oxyUserIds]));
+  return new Map(rows.map((row) => [row.oxyUserId, row.signPosts]));
+}
+
 /** Several users' settings in one query — the hydration batch path. */
 export async function loadUserSettingsByIds(
   oxyUserIds: readonly string[],

@@ -28,7 +28,7 @@
 import { detectAll as detectAllLanguages } from 'tinyld/light';
 import { normalizePostHashtags } from '../utils/textProcessing';
 import { extractTrendTerms } from './trending/termExtraction';
-import { HASHTAG_ALIASES } from './contentClassification/taxonomy';
+import { canonicalHashtag } from './contentClassification/taxonomy';
 import { isNsfwHashtag } from './contentClassification/nsfw';
 import { deriveRegion } from './contentClassification/region';
 import {
@@ -414,7 +414,7 @@ export class BaselineContentClassifier {
    * order. Input is already normalized (lowercase, no `#`).
    */
   private applyHashtagAliases(hashtags: string[]): string[] {
-    const aliased = hashtags.map(tag => HASHTAG_ALIASES[tag] ?? tag);
+    const aliased = hashtags.map(canonicalHashtag);
     return [...new Set(aliased)];
   }
 }

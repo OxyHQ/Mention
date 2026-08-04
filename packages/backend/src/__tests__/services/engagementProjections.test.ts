@@ -170,15 +170,33 @@ async function postExists(postId: string): Promise<boolean> {
  */
 const PROJECTION_FAILURE_PROBE = 'projection-failure-probe';
 
+/**
+ * The author whose projection write fails ONCE, with a genuinely retryable
+ * SQLSTATE, and succeeds on the next attempt.
+ *
+ * The one-shot part is `nextval`, which is deliberately NON-transactional: the
+ * counter it advances survives the rollback the raise causes, so the retried
+ * transaction reads `2` and writes normally. Nothing else in Postgres gives a
+ * trigger memory across an aborted transaction, and a mocked driver error would
+ * only prove `isRetryableProjectionConflict` recognises a shape a test invented.
+ */
+const PROJECTION_RETRY_PROBE = 'projection-retry-probe';
+const RETRY_PROBE_SEQUENCE = 'post_recent_repliers_retry_probe_seq';
+
 beforeAll(async () => {
   db = await connectPostgres();
-  // The literal is spliced, not bound: a `$1` inside a function body has no
+  await db.execute(sql.raw(`create sequence if not exists ${RETRY_PROBE_SEQUENCE}`));
+  // The literals are spliced, not bound: a `$1` inside a function body has no
   // inferable type and Postgres refuses the whole DDL (42P18).
   await db.execute(sql`
     create or replace function post_recent_repliers_failure_probe() returns trigger as $$
     begin
       if new.oxy_user_id = ${sql.raw(`'${PROJECTION_FAILURE_PROBE}'`)} then
         raise exception 'recent replier projection probe';
+      end if;
+      if new.oxy_user_id = ${sql.raw(`'${PROJECTION_RETRY_PROBE}'`)}
+        and nextval(${sql.raw(`'${RETRY_PROBE_SEQUENCE}'`)}) = 1 then
+        raise exception 'recent replier projection conflict' using errcode = '40001';
       end if;
       return new;
     end;
@@ -459,6 +477,57 @@ describe('repairing after a parent is deleted', () => {
     expect(await replierIds(childA)).toEqual([]);
   });
 
+  it('REPORTS the children it deleted, carrying the ids the cascade keys on', async () => {
+    /**
+     * The return value is the only record that these rows ever existed — the
+     * post rows are gone by the time this resolves and no other reader learns
+     * of them. `posts.parent_post_id` is `ON DELETE SET NULL`, so the deletion
+     * this repair performs is also the LAST moment the parent link is
+     * queryable; a caller that re-derived the children afterwards would find
+     * none.
+     *
+     * Both federation URIs are asserted because the cascade's URI-keyed legs
+     * read BOTH (`feed_interactions.post_uri`, the two gate tables, and the
+     * delivery queue's activity JSON). Dropping either from the projection
+     * strands exactly the remote rows nobody would think to look for.
+     */
+    const parentPostId = await seedPost();
+    const federated = await seedPost({
+      parentPostId,
+      oxyUserId: 'federated-child',
+      isReply: true,
+      federationActivityId: 'https://remote.example/activities/child-1',
+      federationUrl: 'https://remote.example/@someone/child-1',
+    });
+    const native = await seedPost({
+      parentPostId,
+      oxyUserId: 'native-child',
+      isReply: true,
+    });
+
+    const deleted = await repairRecentRepliersAfterPostDelete({ postId: parentPostId });
+
+    // Order is not part of the contract — the cascade consumes the whole set.
+    expect([...deleted].sort((left, right) => left.id.localeCompare(right.id))).toEqual(
+      [
+        {
+          id: federated,
+          oxyUserId: 'federated-child',
+          parentPostId,
+          federationActivityId: 'https://remote.example/activities/child-1',
+          federationUrl: 'https://remote.example/@someone/child-1',
+        },
+        {
+          id: native,
+          oxyUserId: 'native-child',
+          parentPostId,
+          federationActivityId: null,
+          federationUrl: null,
+        },
+      ].sort((left, right) => left.id.localeCompare(right.id)),
+    );
+  });
+
   it('recomputes nothing when the deleted post was a root post', async () => {
     // A root post has no parent to repair, so the repair is purely the removal
     // of what it took with it.
@@ -476,9 +545,49 @@ describe('repairing after a parent is deleted', () => {
   });
 
   it('does nothing at all without a post id', async () => {
+    // An EMPTY list, never a rejection and never a non-empty one: the return
+    // value is the cascade's input, so anything else here would send the
+    // remaining legs hunting for rows this call never touched.
+    await expect(repairRecentRepliersAfterPostDelete({ postId: '   ' })).resolves.toEqual([]);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('RETRIES a transient write conflict instead of leaving the parent stale', async () => {
+    /**
+     * Without the retry loop this repair is still fail-SOFT — it logs and
+     * resolves — so the damage is silent and permanent: the parent keeps an
+     * avatar for a replier whose post is gone, and nothing revisits it until
+     * the reconciliation sweep happens past. A concurrent reply writer on the
+     * same parent is an ordinary event, not a rare one, which is why one
+     * serialization failure must not be the end of the attempt.
+     *
+     * The probe raises `40001` on the FIRST insert only, so a single-attempt
+     * implementation gives up here and a retrying one converges.
+     */
+    await db.execute(sql.raw(`alter sequence ${RETRY_PROBE_SEQUENCE} restart with 1`));
+    const parentPostId = await seedPost();
+    // `seedPost`, not `reply()` — the latter writes the projection itself and
+    // would spend the one-shot failure during setup instead of during the repair.
+    await seedPost({
+      parentPostId,
+      oxyUserId: PROJECTION_RETRY_PROBE,
+      createdAt: new Date('2026-07-26T12:00:00.000Z'),
+    });
+    const doomed = await seedPost({
+      parentPostId,
+      oxyUserId: 'visible',
+      createdAt: new Date('2026-07-26T11:00:00.000Z'),
+    });
+    await db.delete(posts).where(eq(posts.id, doomed));
+
     await expect(
-      repairRecentRepliersAfterPostDelete({ postId: '   ' }),
-    ).resolves.toBeUndefined();
+      repairRecentRepliersAfterPostDelete({ postId: doomed, parentPostId }),
+    ).resolves.toEqual([]);
+
+    // Both halves are the claim: the parent ended up correct, AND the service
+    // never reported a failure. Asserting only the projection would also pass
+    // for an implementation that gave up and happened to have nothing to write.
+    expect(await replierIds(parentPostId)).toEqual([PROJECTION_RETRY_PROBE]);
     expect(logger.warn).not.toHaveBeenCalled();
   });
 
@@ -504,9 +613,12 @@ describe('repairing after a parent is deleted', () => {
     });
     await db.delete(posts).where(eq(posts.id, doomed));
 
+    // Empty, not partial: the transaction rolled back, so the children it had
+    // deleted are still there. Reporting them would have the cascade clean up
+    // after rows that still exist.
     await expect(
       repairRecentRepliersAfterPostDelete({ postId: doomed, parentPostId }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual([]);
 
     expect(logger.warn).toHaveBeenCalledWith(
       '[PostRecentReplier] Failed to repair projection after post deletion',

@@ -7,6 +7,22 @@
       "reason": "Expo, Jest and ESLint still resolve the legacy CommonJS API. Forcing brace-expansion 5 across those dependency contracts is a breaking transitive override.",
       "compensation": "No server request path or shipped application bundle invokes glob expansion; CI passes only repository-owned paths and patterns.",
       "expires": "2026-10-31"
+    },
+    {
+      "advisory": "GHSA-rgw5-rvv9-x895",
+      "package": "brace-expansion",
+      "scope": "frontend build tooling only",
+      "reason": "The patch is 2.1.3, which SATISFIES the range its dependent already declares (minimatch@8 requires ^2.0.1) \u2014 no override and no contract change is needed. It is unreachable for one reason only: this repository refuses to resolve a version published in the last seven days, and 2.1.3 was published 2026-07-28. The two guards disagree for four days and the supply-chain one is the more valuable of the pair, so this waits it out rather than being installed around.",
+      "compensation": "Build-time only: the copy in the vulnerable range is reached through minimatch@8 under babel-plugin-module-resolver, so no server request path and no shipped bundle invokes it, and CI expands only repository-owned patterns.",
+      "expires": "2026-08-06"
+    },
+    {
+      "advisory": "GHSA-7p8r-x3mc-p8w7",
+      "package": "fast-uri",
+      "scope": "MCP SDK and ESLint",
+      "reason": "Same shape: 3.1.5 fixes it and satisfies the declared ranges, and it was published 2026-07-31 \u2014 inside this repository's seven-day resolution quarantine. Nothing about the fix is contentious; only its age is.",
+      "compensation": "Deliberately WEAK, and said plainly rather than dressed up: the MCP server does parse URIs through this dependency, so unlike the entry above this is not a build-time-only exposure. What bounds it is time and access \u2014 every MCP route is behind OAuth with an audience-pinned JWT, and this entry expires the day the patch becomes installable.",
+      "expires": "2026-08-08"
     }
   ]
 }

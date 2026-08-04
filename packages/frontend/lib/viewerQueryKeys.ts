@@ -230,6 +230,26 @@ export const viewerQueryKeys = {
     'channel-settings',
     accountId,
   ] as const,
+  /**
+   * The people ONE channel has already NAMED on its posts, keyed by that
+   * channel's `oxyUserId`.
+   *
+   * Deliberately not under `accounts` beside {@link channelAccountSettings},
+   * which is the operator's read of a preference. This is a public derived list
+   * about the same account, and the two are invalidated by different events.
+   *
+   * Keyed by viewer for the reason {@link lanesForOwner} gives, plus a sharper
+   * one: the server answers 404 both for a channel that does not name its
+   * writers and for a RESTRICTED channel this reader may not see. Those two are
+   * indistinguishable by design, and that refusal decides whether the tab
+   * exists at all — so one viewer's 404 must never be served to another as the
+   * absence of a tab.
+   */
+  channelWriters: (viewerId: ViewerId, channelId: string | null | undefined) => [
+    ...viewerQueryKeys.all(viewerId),
+    'channel-writers',
+    channelId ?? '',
+  ] as const,
   pokesRoot: (viewerId: ViewerId) => [
     ...viewerQueryKeys.all(viewerId),
     'pokes',
@@ -404,9 +424,19 @@ export const viewerQueryKeys = {
     ...viewerQueryKeys.all(viewerId),
     'weekly-recap',
   ] as const,
-  insights: (viewerId: ViewerId, period: string | number) => [
+  /**
+   * Keyed on the SUBJECT as well as the viewer, because one viewer reads several
+   * accounts' insights: their own, and every channel they operate. Without the
+   * subject, opening a channel's dashboard would serve — and then overwrite — the
+   * cache entry holding the viewer's own numbers, so the two would take turns
+   * showing each other's figures under the wrong name.
+   *
+   * `'self'` for the viewer's own, which no Oxy user id can collide with.
+   */
+  insights: (viewerId: ViewerId, subjectId: string | null | undefined, period: string | number) => [
     ...viewerQueryKeys.all(viewerId),
     'insights',
+    subjectId ?? 'self',
     period,
   ] as const,
   recommendationFilters: (viewerId: ViewerId) => [
@@ -465,6 +495,26 @@ export const viewerQueryKeys = {
     viewerQueryKeys.isFamily(queryKey, 'appearance') &&
     queryKey[3] === 'user' &&
     queryKey[4] === userId,
+  /**
+   * Whichever viewer's {@link viewerQueryKeys.operatedAccounts} list this is.
+   * The `accounts` family also holds `channelAccountSettings`, which a profile
+   * edit never changes, so the family alone is too wide — and a caller that
+   * reached past `isFamily` into `queryKey[3]` itself would be the second place
+   * that knows this key's shape.
+   */
+  isOperatedAccounts: (queryKey: readonly unknown[]): boolean =>
+    viewerQueryKeys.isFamily(queryKey, 'accounts') && queryKey[3] === 'operated',
+  /**
+   * ONE channel's writers list, whichever viewer's copy it is.
+   *
+   * Scoped rather than family-wide because the event that invalidates it names a
+   * channel: its operator turned the byline on or off. A reader who has visited
+   * several channels holds an entry for each, and the others did not change —
+   * refetching them would spend a request to arrive back at the same answer, and
+   * on a channel that does not disclose, that answer is a 404.
+   */
+  isChannelWriters: (queryKey: readonly unknown[], channelId: string): boolean =>
+    viewerQueryKeys.isFamily(queryKey, 'channel-writers') && queryKey[3] === channelId,
 };
 
 /** The single factory for every Mention-owned React Query key. */

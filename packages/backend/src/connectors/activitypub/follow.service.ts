@@ -895,6 +895,20 @@ export class FollowService {
             : undefined)
         : actorUrl(handle);
       if (!href) continue; // federated user with no resolvable actor uri → drop.
+      // For a RELABELLED actor reached by this fallback (no FederatedActor row),
+      // `handle` is the network identity — `@miramurati@x.com` — while the row
+      // path above would have used the protocol acct, `@miramurati@bird.makeup`.
+      // Deliberately NOT reconciled: `href` is what addresses and delivers the
+      // mention, and it is the actor URI in both paths, so nothing about
+      // delivery differs. `name` is a label.
+      //
+      // Deriving the acct from the actor URI's host to make them match was the
+      // obvious repair and is wrong: WebFinger delegation is ordinary, so a
+      // handle's domain and its actor URI's host legitimately differ
+      // (`@alice@example.com` served from `mastodon.example.com`). That would
+      // replace a label that is merely unfamiliar to the receiving server with
+      // one that asserts a domain the account does not have. A truthful label
+      // beats a guessed one when neither affects delivery.
       entries.set(id, { href, handle, isRemote });
     }
 

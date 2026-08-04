@@ -276,6 +276,33 @@ export async function countDeliveriesReferencingObjects(
   return row?.total ?? 0;
 }
 
+/**
+ * Remove only the PENDING deliveries naming one of these AP object URIs.
+ *
+ * The live post-deletion cascade's shape, where the administrative purge uses
+ * the unscoped delete below. Only a pending row can still ACT on a post that is
+ * gone — deliver a `Create(Note)` for something no longer there; a `delivered`
+ * or `failed` row is a log entry, not a pointer anything dereferences, and a
+ * user erasing their own post does not get to erase the record that it was once
+ * sent. `status` is the leading column of `federation_delivery_queue_drain_idx`,
+ * so the narrower question is also the cheaper one.
+ *
+ * `processing` does not exist in `DELIVERY_STATUSES` — a claimed row is a
+ * `pending` row with a lease, so this deliberately shares the predicate with
+ * the probe rather than trying to exclude one.
+ */
+export async function deletePendingDeliveriesReferencingObjects(
+  objectUris: readonly string[],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<number> {
+  if (objectUris.length === 0) return 0;
+  const removed = await db
+    .delete(federationDeliveryQueue)
+    .where(and(eq(federationDeliveryQueue.status, 'pending'), referencesObjects(objectUris)))
+    .returning({ id: federationDeliveryQueue.id });
+  return removed.length;
+}
+
 /** Remove every queued delivery naming one of these AP object URIs. */
 export async function deleteDeliveriesReferencingObjects(
   objectUris: readonly string[],

@@ -9,9 +9,33 @@ on:
 permissions:
   contents: read
 
+# On a pull request a new push genuinely supersedes the old one, so cancelling
+# is right. On main it is backwards: three deploy workflows (deploy-aws,
+# deploy-frontends, deploy-mcp-aws) trigger on `workflow_run` of this workflow
+# and every one of them requires `conclusion == 'success'`, so CI here is not a
+# check — it is the release trigger, and a cancelled run is a release that never
+# happens. Merges land faster than CI completes, so `cancel-in-progress: true`
+# made the repo deploy LESS the busier it got: six of the last eight runs on
+# main were cancelled, one after 54 seconds, leaving production 40+ minutes
+# behind main.
+#
+# Gated on the event rather than on `github.ref != 'refs/heads/main'`. Both are
+# correct for the two triggers this workflow declares, but they differ on
+# triggers it does not have yet: a merge_group run's ref is
+# `refs/heads/gh-readonly-queue/...`, so the ref test would resume cancelling
+# the runs that gate a merge, reintroducing exactly this bug. The event test
+# fails toward NOT cancelling, which costs runner minutes and never a release.
+#
+# The group deliberately still collapses every main push into one lane. That is
+# what bounds the cost: GitHub cancels a previously *pending* run when a new one
+# queues, so main holds at most one running plus one pending run rather than a
+# thundering herd, and the pending one that survives is always the newest
+# commit. Superseded commits are not stranded — deployment-scope.sh diffs
+# against the `deployed/<target>` marker tag, not against the previous commit,
+# so the next successful release carries the whole backlog.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   BUN_VERSION: '1.3.14'
@@ -214,7 +238,7 @@ jobs:
         run: bun run check:suite-collection "$RUNNER_TEMP/backend-report.json" packages/backend/src
       - name: Upload coverage summary
         if: always() && matrix.coverage && steps.scope.outputs.run == 'true'
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: mention-${{ matrix.package }}-coverage-${{ github.sha }}
           path: ${{ runner.temp }}/${{ matrix.package }}-coverage/coverage-summary.json
@@ -439,7 +463,7 @@ jobs:
           fi
       - name: Upload bundle report
         if: always() && steps.scope.outputs.run == 'true'
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: mention-frontend-bundle-${{ github.sha }}
           path: ${{ runner.temp }}/mention-bundle-report.json

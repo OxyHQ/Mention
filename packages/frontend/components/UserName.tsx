@@ -4,12 +4,12 @@ import * as Clipboard from 'expo-clipboard';
 import { toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
-import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
+import { AccountBadge } from '@/components/AccountBadge';
 import { AgentIcon } from '@/assets/icons/agent-icon';
 import { AutomatedIcon } from '@/assets/icons/automated-icon';
 import type { UserNameProps } from '@/components/Profile/types';
 
-const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated, isAgent, isAutomated, unifiedColors, onPress, copyableHandle, variant = 'default', align = 'start', style, trailingBadge, handleTrailing }) => {
+const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated, kind, isAgent, isAutomated, unifiedColors, onPress, onExplainNetwork, onExplainChannel, copyableHandle, variant = 'default', align = 'start', style, trailingBadge, handleTrailing }) => {
     const theme = useTheme();
     const nameStyle = [styles.name, variant === 'small' && styles.nameSmall, style?.name];
 
@@ -112,9 +112,20 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
                 {verified && (
                     <VerifiedIcon size={iconSize} className={unifiedColors ? "text-foreground" : "text-primary"} style={{ transform: [{ translateY: baselineNudge }] }} />
                 )}
-                {isFederated && (
-                    <RemoteActorBadge size={iconSize} color={theme.colors.text} style={{ transform: [{ translateY: baselineNudge }] }} />
-                )}
+                {/* One marker for the account's whole identity state — remote or
+                    channel, never both, and nothing at all for an ordinary local
+                    account. Inert unless the caller passed the handler for the
+                    marker it draws; forwarded, never chosen between here. */}
+                <AccountBadge
+                    isFederated={isFederated}
+                    kind={kind}
+                    onExplainNetwork={onExplainNetwork}
+                    onExplainChannel={onExplainChannel}
+                    size={iconSize}
+                    color={theme.colors.text}
+                    style={{ transform: [{ translateY: baselineNudge }] }}
+                />
+
                 {isAgent && (
                     <AgentIcon size={iconSize} className="text-muted-foreground" style={{ transform: [{ translateY: baselineNudge }] }} />
                 )}

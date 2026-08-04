@@ -66,7 +66,7 @@ describe('viewer-scoped private cache', () => {
       viewerQueryKeys.profileStarterPacks(viewerId, 'profile-1', false),
       viewerQueryKeys.profileLists(viewerId, 'profile-1', false),
       viewerQueryKeys.weeklyRecap(viewerId),
-      viewerQueryKeys.insights(viewerId, 30),
+      viewerQueryKeys.insights(viewerId, null, 30),
       viewerQueryKeys.recommendationFilters(viewerId),
       viewerQueryKeys.recommendations(viewerId, 'agent'),
       viewerQueryKeys.infiniteRecommendations(viewerId, 'agent'),
@@ -94,6 +94,27 @@ describe('viewer-scoped private cache', () => {
     );
     expect(viewerStorageKey('history', 'viewer-a')).toBe('history:viewer-a');
     expect(viewerStorageKey('history', 'viewer-b')).toBe('history:viewer-b');
+  });
+
+  it('separates one viewer’s insights from each account they operate', () => {
+    // One viewer reads several accounts' insights — their own, plus every channel
+    // they operate — so the SUBJECT has to be part of the key as well as the
+    // viewer. Without it, opening a channel's dashboard would read and then
+    // overwrite the entry holding the viewer's own numbers, and the two would
+    // take turns rendering each other's figures under the wrong name.
+    const own = viewerQueryKeys.insights('viewer-a', undefined, 30);
+    const channel = viewerQueryKeys.insights('viewer-a', 'channel-1', 30);
+    const otherChannel = viewerQueryKeys.insights('viewer-a', 'channel-2', 30);
+
+    expect(own).not.toEqual(channel);
+    expect(channel).not.toEqual(otherChannel);
+    // The period still separates windows of the SAME subject.
+    expect(channel).not.toEqual(viewerQueryKeys.insights('viewer-a', 'channel-1', 7));
+    // …and the viewer still separates two operators of the same channel.
+    expect(channel).not.toEqual(viewerQueryKeys.insights('viewer-b', 'channel-1', 30));
+    // An absent subject is the viewer's own, under a token no Oxy id can be.
+    expect(own).toContain('self');
+    expect(viewerQueryKeys.insights('viewer-a', null, 30)).toEqual(own);
   });
 
   it('roots every private key in the normalized viewer namespace', () => {
@@ -173,6 +194,46 @@ describe('viewer-scoped private cache', () => {
       viewerQueryKeys.notifications('viewer-a'),
       'user-1',
     )).toBe(false);
+  });
+
+  it('matches the operated-accounts list without matching its channel-settings sibling', () => {
+    // An identity write invalidates the accounts LIST (the composer's publish-as
+    // picker reads it) and must leave the Mention-owned per-channel settings row
+    // alone — both live in the `accounts` family, so the family alone is too wide.
+    expect(
+      viewerQueryKeys.isOperatedAccounts(viewerQueryKeys.operatedAccounts('viewer-a')),
+    ).toBe(true);
+    expect(
+      viewerQueryKeys.isOperatedAccounts(
+        viewerQueryKeys.channelAccountSettings('viewer-a', 'acct-1'),
+      ),
+    ).toBe(false);
+    expect(
+      viewerQueryKeys.isOperatedAccounts(viewerQueryKeys.notifications('viewer-a')),
+    ).toBe(false);
+  });
+
+  it('matches ONE channel\'s writers list, not the whole family', () => {
+    // A byline write names one channel. A reader holding several channels' writer
+    // lists must not have the others refetched — on a channel that does not
+    // disclose, that request spends itself re-deriving a 404.
+    const changed = viewerQueryKeys.channelWriters('viewer-a', 'channel-1');
+    expect(viewerQueryKeys.isChannelWriters(changed, 'channel-1')).toBe(true);
+    expect(viewerQueryKeys.isChannelWriters(changed, 'channel-2')).toBe(false);
+    expect(
+      viewerQueryKeys.isChannelWriters(
+        viewerQueryKeys.channelAccountSettings('viewer-a', 'channel-1'),
+        'channel-1',
+      ),
+    ).toBe(false);
+    // A channel id the caller does not have resolves to the empty slot the key
+    // factory writes, so it must not be matched by a real id.
+    expect(
+      viewerQueryKeys.isChannelWriters(
+        viewerQueryKeys.channelWriters('viewer-a', undefined),
+        'channel-1',
+      ),
+    ).toBe(false);
   });
 
   it('removes only A when the active account switches A to B', async () => {
