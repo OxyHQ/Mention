@@ -1489,6 +1489,27 @@ export class OutboxSyncService {
    * its own `parentPostId`/`threadId` are resolved (recursing up the chain, with
    * the depth budget threaded through) so the imported ancestor is fully linked.
    */
+  /**
+   * Import the post a Note QUOTES, when we do not already hold it.
+   *
+   * The quote URI is read from the standard AP surfaces and has been for a while
+   * — what was missing is that nothing ever FETCHED the quoted post. A quote of
+   * anything we had not already ingested silently lost its link, and the code
+   * said it would "link on a later pass once the original is ingested" while
+   * nothing existed to ingest it. Measured on a real post: three fields
+   * (`quote`, `quoteUri`, `_misskey_quote`) all naming
+   * `https://mastodon.social/users/lemonde/statuses/117030664429761672`, and the
+   * post rendered with no quote at all.
+   *
+   * Deliberately the SAME machinery a boost and a reply ancestor use — signed
+   * fetch, SSRF-safe, deduped by `federation.activityId`, depth-capped — rather
+   * than a second import path that could drift from it. Fail-soft: any failure
+   * returns null and the quoting post is stored unlinked, exactly as today.
+   */
+  async ensureQuotedNote(objectUri: string): Promise<string | null> {
+    return this.ensureFederatedNote(objectUri);
+  }
+
   private async ensureFederatedNote(objectUri: string, depth = 0): Promise<string | null> {
     // Already stored?
     const existing = await Post.findOne(
