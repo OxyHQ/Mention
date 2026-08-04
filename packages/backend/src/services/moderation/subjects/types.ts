@@ -31,6 +31,7 @@
  *    what happens to the report. Those belong to callers that are shared.
  */
 
+import type { CaseUrgency } from '@oxyhq/crowdsource-contracts';
 import type { ContextInput, ReportSubjectInput, ResourceInput } from '@oxyhq/crowdsource';
 
 /**
@@ -43,6 +44,17 @@ import type { ContextInput, ReportSubjectInput, ResourceInput } from '@oxyhq/cro
  */
 export type ModerationResource = ResourceInput;
 export type ModerationContextResource = ContextInput;
+
+/**
+ * §5.1 `urgency` — how far the material travelled, unchanged.
+ *
+ * The contract's own type, for a reason sharper than consistency: it is a STRICT
+ * object, so an extra key is a validation failure at envelope composition and a
+ * `CrowdSourceReportInputError` is NOT retryable. A provider that invented a
+ * field would not produce a worse-triaged report, it would produce a
+ * permanently undeliverable one.
+ */
+export type ModerationUrgency = CaseUrgency;
 
 /**
  * One reported object, described.
@@ -97,4 +109,28 @@ export interface ModerationSubjectProvider {
    * for days.
    */
   snapshot(reportedId: string, reporterId?: string): Promise<ModerationSubjectSnapshot | null>;
+
+  /**
+   * How far the material had travelled WHEN THE REPORT WAS TAKEN, or `null` when
+   * this application cannot say.
+   *
+   * Called once, at intake, and carried on the outbox row — NEVER at delivery.
+   * Everything here is fingerprinted into the envelope, and a live audience count
+   * is the fastest-moving number an application holds, so a value re-read per
+   * attempt would turn an ordinary outbox retry into a permanent 409 (§10.5).
+   * That failure is invisible when it is written and appears days later as
+   * moderation work stuck in a queue. `ReportIntakeService` is where the freeze
+   * happens and where the whole argument is written down.
+   *
+   * Optional because reach is not a universal property of a noun — a post has an
+   * audience, a profile is not distributed at all (see `userSubject.ts`). A
+   * provider that omits it ships no `urgency`, which is deliberately different
+   * from shipping zeros: §7.4 computes priority from several signals, so an
+   * absent one costs queue position and never a verdict, while a made-up zero is
+   * an assertion nobody can defend.
+   */
+  urgencySnapshot?(
+    reportedId: string,
+    reporterId?: string,
+  ): Promise<ModerationUrgency | null>;
 }

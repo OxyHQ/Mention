@@ -34,6 +34,28 @@ export type ModerationOutboxStatus = 'pending' | 'processing' | 'processed' | 'd
 export interface ModerationOutboxPayload {
   /** The local `Report._id`, for `report.submit`. */
   reportId?: string;
+  /**
+   * §5.1 `urgency` — how far the material had travelled when the report was
+   * TAKEN. `{ hint, reach?, activeDistribution? }`, composed by the subject
+   * provider at intake.
+   *
+   * It lives on the job rather than being read when the job runs, and that is the
+   * whole reason it exists as a stored field. CrowdSource's ingress fingerprints
+   * the entire `{ externalReportId, envelope }` to catch §10.5's "external id
+   * reused with different content", so an audience count read afresh on each
+   * delivery attempt makes an ordinary outbox retry a permanent 409 — days later,
+   * as moderation work stuck in a queue, with nothing failing at the moment the
+   * mistake is made. This row is written once and never updated, which is exactly
+   * the property the envelope needs.
+   *
+   * Typed `unknown` for the same reason as `decision`: it is stored data, read
+   * back by a deployment that need not be the one that wrote it, and the schema
+   * for it belongs to CrowdSource. `EvidenceSnapshotService` validates it against
+   * the published `CaseUrgencySchema` on the way out — a strict object, so a
+   * malformed row would otherwise throw a NON-retryable input error and
+   * dead-letter a report whose only defect is a triage hint.
+   */
+  urgency?: unknown;
   /** The inbound webhook event id, for `decision.apply` (Appendix D). */
   eventId?: string;
   /** The CrowdSource case a decision belongs to. */
@@ -87,6 +109,14 @@ const ModerationOutboxSchema = new Schema<IModerationOutbox>(
     },
     payload: {
       reportId: { type: String },
+      /**
+       * `Mixed`, like `decision` beside it, and for a second reason on top of the
+       * shared one: declaring the sub-paths would let Mongoose materialise an
+       * EMPTY `urgency` object on a row that never had one, and an `{}` reaching
+       * the contract is a validation failure rather than an omission. Absent has
+       * to stay absent.
+       */
+      urgency: { type: Schema.Types.Mixed },
       eventId: { type: String },
       caseId: { type: String },
       decision: { type: Schema.Types.Mixed },
