@@ -10,6 +10,7 @@ import type {
   ModerationResource,
   ModerationSubjectProvider,
   ModerationSubjectSnapshot,
+  ModerationUrgency,
 } from './types';
 
 /**
@@ -75,12 +76,13 @@ interface SnapshotPost {
   createdAt?: Date | string;
   status?: string;
   visibility?: string;
+  stats?: { viewsCount?: number };
   metadata?: { isSensitive?: boolean };
   federation?: { url?: string; sensitive?: boolean };
 }
 
 const SNAPSHOT_PROJECTION =
-  'content authorship oxyUserId parentPostId quoteOf language createdAt status visibility metadata.isSensitive federation.url federation.sensitive';
+  'content authorship oxyUserId parentPostId quoteOf language createdAt status visibility stats.viewsCount metadata.isSensitive federation.url federation.sensitive';
 
 /**
  * §5.2's `sensitivity` hint for a post carrying a content warning.
@@ -170,6 +172,22 @@ function mediaOnlySubjectResource(post: SnapshotPost): ModerationResource {
 }
 
 /**
+ * The two facts that decide where a post is readable.
+ *
+ * An absent field means the permissive value, matching the rest of the schema —
+ * and both predicates have to agree with the disclosure gate below and with the
+ * urgency they feed, or a post could be described as actively distributed by one
+ * and withheld as private by the other.
+ */
+function isPublished(post: SnapshotPost): boolean {
+  return (post.status ?? 'published') === 'published';
+}
+
+function isPublic(post: SnapshotPost): boolean {
+  return (post.visibility ?? 'public') === 'public';
+}
+
+/**
  * Load material only when it is safe to disclose outside Mention.
  *
  * CrowdSource delivery runs asynchronously without the reporter's delegated Oxy
@@ -188,9 +206,7 @@ async function loadPost(postId: string, reporterId?: string): Promise<SnapshotPo
   const ownerId = getOwnerId(normalizeAuthorship(post.authorship)) ?? post.oxyUserId;
   if (ownerId === reporterId) return post;
 
-  const isPublished = (post.status ?? 'published') === 'published';
-  const isPublic = (post.visibility ?? 'public') === 'public';
-  return isPublished && isPublic ? post : null;
+  return isPublished(post) && isPublic(post) ? post : null;
 }
 
 /**
@@ -226,6 +242,73 @@ function permalink(post: SnapshotPost): string {
   return post.federation?.url ?? `${config.web.origin}/p/${post._id.toHexString()}`;
 }
 
+/**
+ * §5.1 `urgency.hint` — ONE token naming how far the material travelled.
+ *
+ * Distribution, and never severity. §7.4 is explicit that triage decides queue
+ * ORDER and does not decide guilt, so a hint that read as evidence the allegation
+ * is TRUE — naming what the content is alleged to be, or repeating an allegation
+ * code — would be a policy violation wearing a scheduling hint's clothes. Every
+ * token below states only where the post is readable.
+ *
+ * The contract constrains this to `^[a-z][a-z0-9_]*$` (max 40), so a descriptive
+ * phrase is not available and the vocabulary itself has to carry the meaning.
+ *
+ * Ordered most-reachable first, because the states overlap and only one token can
+ * be sent. A copy of remote material is published at its origin whatever Mention's
+ * own row says, which outranks anything Mention's visibility can express.
+ *
+ * `public_feed` deliberately does not claim "Mention only". Whether a LOCAL post
+ * also went out to the fediverse is not a fact this row can answer: the obvious
+ * candidate, `metadata.federationDelivered`, is not a declared path on
+ * `PostMetadataSchema` and Mongoose's strict mode strips it on write, so it reads
+ * `undefined` on every post regardless of what happened. Asserting locality from
+ * an absent flag would be inventing a distribution fact — so the token asserts
+ * what is true and denies nothing.
+ */
+function distributionHint(post: SnapshotPost): string {
+  if (post.federation !== undefined) return 'federated_origin';
+  if (!isPublished(post)) return 'not_distributed';
+  return isPublic(post) ? 'public_feed' : 'limited_audience';
+}
+
+/**
+ * §5.1 `urgency.reach` — Mention's own view counter, and nothing else.
+ *
+ * `stats.viewsCount` is the one number this application holds that counts PEOPLE
+ * rather than actions: `feedViewCounter` increments it at most once per
+ * (viewer, post) within a rolling window and only for a published public post.
+ * That is what the contract asks for in its own words — "how many people the
+ * material reached, as the application counts it".
+ *
+ * The rejected candidates matter as much, because triage weights this
+ * logarithmically (`log10(1 + reach) * 2`, capped) and a wrong number is not
+ * visibly wrong — it just quietly orders the queue badly. The author's FOLLOWER
+ * count is a potential audience rather than a reach, and would triage every post
+ * by a large account identically whether or not anyone read it. Likes and boosts
+ * are a SUBSET of the people who saw it, so sending one as reach understates by a
+ * factor that varies with the topic and the author.
+ *
+ * It UNDERCOUNTS a federated post, because a read on a remote instance never comes
+ * back to Mention — which is exactly why `federated_origin` exists as a hint, so
+ * the shortfall is legible instead of silent. Scaling the number up by a guessed
+ * multiplier would put a figure in front of triage that nobody could explain, and
+ * a stated undercount is worth more than an invented estimate.
+ */
+function reachedAudience(post: SnapshotPost): number | undefined {
+  const views = post.stats?.viewsCount;
+  /**
+   * The contract types `reach` as a non-negative integer and refuses anything
+   * else — and a refused envelope is a NON-retryable input error, so a corrupt
+   * counter would cost the whole report rather than just its queue position.
+   * Omitted rather than coerced: a rounded or clamped value would be a number
+   * Mention made up, which is the thing this field must never carry.
+   */
+  return typeof views === 'number' && Number.isInteger(views) && views >= 0
+    ? views
+    : undefined;
+}
+
 export function createPostSubjectProvider(input: {
   reportedType: string;
   subjectType: string;
@@ -233,6 +316,44 @@ export function createPostSubjectProvider(input: {
   return {
     reportedType: input.reportedType,
     subjectType: input.subjectType,
+
+    /**
+     * Read at INTAKE, through the same disclosure gate as the material itself.
+     *
+     * Sharing `loadPost` is what keeps the two answers from disagreeing: a post a
+     * reporter may not be shown produces no snapshot AND no urgency, so a report
+     * can never describe the distribution of material the envelope will not
+     * carry. It also means `limited_audience` and `not_distributed` are only ever
+     * reachable on a self-report, which is the only case where a non-public post
+     * is disclosable at all.
+     *
+     * A comment gets the same treatment as a post, and that is not an oversight:
+     * they are one collection with one `stats.viewsCount`, so a reply that was
+     * read by ten thousand people reached ten thousand people. A profile is the
+     * case with no defensible answer — see `userSubject.ts`.
+     */
+    async urgencySnapshot(
+      reportedId: string,
+      reporterId?: string,
+    ): Promise<ModerationUrgency | null> {
+      const post = await loadPost(reportedId, reporterId);
+      if (!post) return null;
+
+      const reach = reachedAudience(post);
+      return {
+        hint: distributionHint(post),
+        ...(reach === undefined ? {} : { reach }),
+        /**
+         * "Is it still being handed to people right now." `status: 'published'`
+         * plus a public `visibility` is precisely what every feed source and the
+         * post-hydration ACL already require, so this reuses the read path's own
+         * definition of reachable rather than writing a second one. It is also why
+         * a post that an earlier decision RESTRICTED answers `false` here, without
+         * anything in this file knowing that enforcement exists.
+         */
+        activeDistribution: isPublished(post) && isPublic(post),
+      };
+    },
 
     async snapshot(
       reportedId: string,

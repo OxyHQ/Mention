@@ -159,6 +159,45 @@ describe('the outbox write is one Mongo accepts', () => {
     expect(await ModerationOutbox.countDocuments({ _id: eventId })).toBe(1);
   });
 
+  it('round-trips a frozen urgency exactly as the contract shapes it', async () => {
+    /**
+     * The urgency is snapshotted at intake and read back at delivery, so the ROW is
+     * what has to be faithful — a mocked `updateOne` would accept a payload Mongo
+     * stores differently, which is the class of defect this whole file exists for.
+     */
+    const eventId = `moderation:report.submit:${new mongoose.Types.ObjectId().toString()}`;
+    const urgency = { hint: 'public_feed', reach: 250_000, activeDistribution: true };
+
+    await enqueueModerationOutboxEvent(
+      { eventId, kind: 'report.submit', payload: { reportId: 'r5', urgency } },
+      sessionInTransaction(session),
+    );
+
+    const stored = await ModerationOutbox.findById(eventId).lean();
+    expect(stored?.payload).toEqual({ reportId: 'r5', urgency });
+  });
+
+  it('stores NO urgency key for a subject that had none', async () => {
+    /**
+     * Absent has to stay absent, and the difference is not cosmetic: `urgency` is a
+     * STRICT contract object requiring `hint`, so an empty `{}` materialised onto
+     * the row would fail envelope composition with a NON-retryable input error and
+     * dead-letter a report whose only defect is a missing scheduling hint. That is
+     * why the schema path is `Mixed` rather than declared sub-paths — and only the
+     * server can confirm which of the two Mongoose actually wrote.
+     */
+    const eventId = `moderation:report.submit:${new mongoose.Types.ObjectId().toString()}`;
+
+    await enqueueModerationOutboxEvent(
+      { eventId, kind: 'report.submit', payload: { reportId: 'r6' } },
+      sessionInTransaction(session),
+    );
+
+    const stored = await ModerationOutbox.findById(eventId).lean();
+    expect(stored?.payload).toEqual({ reportId: 'r6' });
+    expect(stored?.payload).not.toHaveProperty('urgency');
+  });
+
   it('refuses a session with no transaction open, before touching the server', async () => {
     const eventId = `moderation:report.submit:${new mongoose.Types.ObjectId().toString()}`;
     const noTransaction = { inTransaction: () => false } as unknown as mongoose.ClientSession;
