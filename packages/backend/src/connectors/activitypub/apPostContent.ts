@@ -5,6 +5,7 @@ import {
   type PostContentVariant,
 } from '@mention/shared-types';
 import { normalizeMultilineText } from '@oxyhq/core';
+import { qualifyBareHandles } from '@mention/shared-types/textEntities';
 import { htmlToInlineLabel, htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { normalizePostHashtags } from '../../utils/textProcessing';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
@@ -41,6 +42,15 @@ import { extractApLanguage, getApContentMap } from './apLanguage';
 export interface BuildFederatedNoteContentContext {
   activityId?: string;
   actorUri?: string;
+  /**
+   * The network the author's identity belongs to — `x.com` for a bridged actor,
+   * its own instance host for an ordinary one. Supplied so the bare `@handle`s
+   * the author wrote can be QUALIFIED on ingest, exactly as an actor's bio is.
+   *
+   * Absent leaves the body untouched, which is what every non-ActivityPub caller
+   * and every dry run wants.
+   */
+  identityDomain?: string;
   /**
    * Disable media persistence/queueing for an administrative dry run. Normal
    * ingest defaults to true; false keeps extracted remote URLs unchanged.
@@ -394,9 +404,27 @@ async function assembleFederatedNoteContent(
   // stored in `variants[0]` are the same string by construction. Both read from
   // `source` so `contentMap` values match the rewritten `primaryHtml`.
   const primaryTag = resolveApPrimaryTag(source, primaryHtml);
-  const variants = buildApAuthorVariants(source, primaryTag, text, media.length > 0);
+  // A HANDLE THE AUTHOR TYPED MEANS THE ACCOUNT ON THEIR OWN NETWORK.
+  //
+  // `@Julio_Rodr_` written on X and copied here reads as a LOCAL name, so it
+  // renders as prose and, if anything links it, points at whoever holds that
+  // name on this server. Qualified on ingest — the same rule and the same
+  // scanner used for an actor's bio — it becomes `@Julio_Rodr_@x.com`:
+  // clickable, and resolvable through the bridge lane.
+  //
+  // This is also what makes a bridge's flattened retweet useful. bird.makeup and
+  // mastox do not emit an `Announce`; they publish an ordinary Note whose body
+  // begins `RT: @author`, so there is no boost to model and the original author
+  // survives only as that bare handle. Qualifying it is what turns the one
+  // reference the bridge left behind into something a reader can follow.
+  //
+  // Only BARE handles are touched: a mention the Note carried in its `tag` array
+  // is already a hydrated placeholder, and the shared scanner classifies it as a
+  // different entity — so this cannot double-qualify or disturb one.
+  const qualifiedText = ctx.identityDomain ? qualifyBareHandles(text, ctx.identityDomain) : text;
+  const variants = buildApAuthorVariants(source, primaryTag, qualifiedText, media.length > 0);
 
-  return { text, media, attachments, hashtags, summary, sensitive, variants };
+  return { text: qualifiedText, media, attachments, hashtags, summary, sensitive, variants };
 }
 
 /**

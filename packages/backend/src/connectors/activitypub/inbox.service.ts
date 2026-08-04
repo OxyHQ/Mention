@@ -30,6 +30,7 @@ import {
   resolvePostIdFromObjectUri,
 } from './helpers';
 import { buildFederatedNoteContent, buildFederatedNoteContentForEdit } from './apPostContent';
+import { identityDomainOfActor } from './identityDomain';
 import { applyMentionPlaceholders, resolveInboundMentions } from './apMentions';
 import { isMentionBroadcast } from '@mention/shared-types/mentions';
 import { normalizeMentionIds } from '../../utils/textProcessing';
@@ -529,6 +530,12 @@ export class InboxProcessingService {
     const built = await buildFederatedNoteContent(noteObject, authorOxyUserId, {
       activityId: note.id,
       actorUri,
+      // The author's IDENTITY network, so the bare handles they typed are stored
+      // qualified. `networkAcct` carries the re-labelled identity for a bridged
+      // actor (`pabloiglesias@x.com`), so its domain is `x.com` and not the
+      // bridge host the copy arrived through; an ordinary actor falls back to
+      // its own instance.
+      identityDomain: identityDomainOfActor(actor),
     });
     if (built.skip) {
       logger.debug('[Federation] skipped empty Create', {
