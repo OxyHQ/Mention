@@ -59,9 +59,29 @@ vi.mock('../../../services/moderation/subjects/registry', async () => {
   return { ...actual, subjectProviderFor: vi.fn() };
 });
 
+/**
+ * Real repository, with ONE outcome injectable.
+ *
+ * `findDuplicateReport` runs after the unique violation has already been raised by
+ * a real index on real rows, and the only state it cannot be made to report is the
+ * one where the winning row is deleted in the window between the two — a window
+ * with no seam a single process can schedule. Everything else in that path stays
+ * real: the constraint, the violation, the SQLSTATE, the aborted transaction.
+ *
+ * `vi.fn(actual)` keeps the genuine implementation as the default, so only the test
+ * that calls `mockResolvedValueOnce` sees anything different. This file clears
+ * mocks between tests and never RESETS them, so that default survives.
+ */
+vi.mock('../../../db/moderation/reportRepository', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../../db/moderation/reportRepository')>();
+  return { ...actual, findDuplicateReport: vi.fn(actual.findDuplicateReport) };
+});
+
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
 import { moderationOutbox, reports } from '../../../db/schema/moderation';
 import { sqlStateOf } from '../../../db/pgErrors';
+import { findDuplicateReport } from '../../../db/moderation/reportRepository';
 import {
   DuplicateReportError,
   createReport,
@@ -315,6 +335,52 @@ describe('report intake — durable reception (§7.1)', () => {
       expect(await reportRowsFor(input.reporter)).toHaveLength(1);
     },
   );
+
+  it('raises the original violation, not a duplicate, when there is no winner to name', async () => {
+    /**
+     * The case above is the one that happens; this is the one that must not lie.
+     *
+     * `DuplicateReportError` is a CLAIM — it carries `existing`, the row the caller
+     * is told already covers their report, and the UI turns that into "you already
+     * reported this". If the winner is gone by the time we look (deleted in the
+     * window between the violation and the read, which happens outside the aborted
+     * transaction), then answering "duplicate" would invent both the cause and the
+     * row: there is nothing the reporter can be pointed at, and the report they
+     * filed does not exist either. Re-raising the original violation is the only
+     * honest answer, and it is the one that lets the caller retry.
+     *
+     * Everything here is real except the vanishing: two reports genuinely collide
+     * on `reports_reporter_reported_key`, and Postgres genuinely raises 23505. Only
+     * the lookup's answer is injected, because a concurrent DELETE landing inside
+     * that window is not schedulable from one process.
+     *
+     * `findDuplicateReport` is called TWICE per intake and both calls have to miss
+     * for this path to be reached — which is the two-actor race stated precisely:
+     * the in-transaction pre-check misses because the winner is not committed yet
+     * (READ COMMITTED, exactly as the concurrent case above), and the read after
+     * the violation misses because by then the winner has been deleted. Stubbing
+     * only one of them would leave the other to answer, which is what the first
+     * version of this test did — it reported a `DuplicateReportError` and named the
+     * real row, because the injected `undefined` was consumed by the pre-check and
+     * the genuine implementation served the read that mattered.
+     */
+    const input = postInput();
+    await createReport(input);
+
+    vi.mocked(findDuplicateReport)
+      // The pre-check, inside the transaction: the winner is not visible yet.
+      .mockResolvedValueOnce(undefined)
+      // The read after 23505, outside the aborted transaction: the winner is gone.
+      .mockResolvedValueOnce(undefined);
+
+    const error = await createReport(input).catch((thrown: unknown) => thrown);
+
+    expect(error).not.toBeInstanceOf(DuplicateReportError);
+    expect(sqlStateOf(error)).toBe('23505');
+
+    // The first report is untouched, and no second row was stored.
+    expect(await reportRowsFor(input.reporter)).toHaveLength(1);
+  });
 
   it('never stores a DELIVERABLE report without a delivery event', async () => {
     const input = postInput();

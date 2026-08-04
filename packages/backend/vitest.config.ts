@@ -237,11 +237,27 @@ export default defineConfig({
           functions: 100,
           lines: 100,
         },
+        /**
+         * RAISED when the lease under contention got tested at all.
+         *
+         * The Postgres port rewrote these suites onto real rows and, in doing so,
+         * silently dropped every path that needs a SECOND ACTOR: the four heartbeat
+         * closures and both lease-loss branches went unexecuted while the file
+         * stayed green. Nothing failed — it surfaced only as this threshold, which
+         * is the entire reason the per-file pins exist.
+         *
+         * `moderationOutboxDispatcher` starts on EVERY ECS task, so those are the
+         * paths that keep two tasks from delivering one report. They are now driven
+         * by a real second `leaseOwner` stealing the row mid-delivery rather than by
+         * stubbing `renewModerationOutboxEvent` to answer false — a stub proves the
+         * code reacts to a `false`, while a genuine steal also proves the
+         * repository's `ownedLease` predicate is what produces it.
+         */
         'src/services/moderation/ModerationOutboxService.ts': {
-          statements: 77.41,
-          branches: 57.62,
-          functions: 70.58,
-          lines: 80.23,
+          statements: 91.46,
+          branches: 79.59,
+          functions: 91.66,
+          lines: 92,
         },
         'src/services/moderation/ModerationEnforcementService.ts': {
           statements: 82.35,
@@ -255,11 +271,32 @@ export default defineConfig({
           functions: 100,
           lines: 87.87,
         },
+        /**
+         * LOWERED, and this one is a DENOMINATOR change rather than a regression —
+         * the distinction is the whole reason it is written down instead of just
+         * edited.
+         *
+         * Nothing in this file stopped being covered. The port removed 13 lines
+         * (188 -> 175), so the ONE statement that was already unreachable now weighs
+         * more: 2/70 was 97.14%, the same 2/68 is 97.05%. `origin/main` carries the
+         * identical statement (its line 113) and does not cover it either.
+         *
+         * That statement is `primaryAction`'s `return undefined`, and it is provably
+         * dead: `ACTION_PRECEDENCE` lists all six members of
+         * `ModerationEnforcementAction`, so a non-empty input always matches — and
+         * the input cannot be empty, because every branch of `planEnforcement`
+         * returns a non-empty array literal (the recommendations path is guarded by
+         * `collapsed.length > 0 ? collapsed : [{ action: 'none' }]`) and
+         * `applyDecisionEnforcement` pushes exactly one outcome per planned action
+         * without filtering. Removing it needs the return type to become
+         * non-optional, which is a refactor with call sites, not a coverage fix —
+         * so it is tracked rather than rushed onto the cutover path.
+         */
         'src/services/moderation/ModerationDecisionWorker.ts': {
-          statements: 97.14,
+          statements: 97.05,
           branches: 78.57,
           functions: 100,
-          lines: 96.87,
+          lines: 96.77,
         },
         // The labels feature. Pinned for the same reason as the moderation files
         // above: its failure mode is a viewer's hide/warn/blur silently ceasing
