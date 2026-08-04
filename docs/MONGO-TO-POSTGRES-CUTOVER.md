@@ -127,18 +127,29 @@ aws ecs run-task --cluster oxy-cluster --launch-type FARGATE \
      "--source-database=mention-production","--audit-only"]}]}'
 ```
 
-**`--source-database` is REQUIRED on every mode, and the name in these commands
-was taken from this document and from `resolutions.ts`, not measured against the
-cluster.** It is the mirror of `--target-database`: the operator states which
-Mongo database they believe `MONGODB_URI` points at, and the run refuses unless
-the driver's own `db.databaseName` agrees. That closes the direction nothing
-guarded — a wrong-but-connectable URI makes every collection read as empty, so
-the copy writes nothing and exits 0, and `--verify-only` cannot catch it because
-it reads the same URI.
+**`--source-database` is REQUIRED on every mode.** It is the mirror of
+`--target-database`: the operator states which Mongo database they believe
+`MONGODB_URI` points at, and the run refuses unless the driver's own
+`db.databaseName` agrees. That closes the direction nothing guarded — a
+wrong-but-connectable URI makes every collection read as empty, so the copy
+writes nothing and exits 0, and `--verify-only` cannot catch it because it reads
+the same URI.
 
-**Confirm the name on this run, the day before.** If it is wrong the audit
-refuses immediately and says both sides — which is the failure you want, here,
-outside the window rather than inside it.
+**`mention-production` is MEASURED, not inferred.** Read on 2026-08-04 by a
+read-only one-shot on the `oxy-mention` task definition — so it resolved through
+**the same `MONGODB_URI` secret the copy will use** — which returned
+`DBNAME=mention-production`, `COLLECTIONS=70`. The provenance is the claim: not
+"the database is named this" in the abstract, but "the URI §3.3 connects with
+resolves to this", which is exactly what the guard compares against. A name
+confirmed from anywhere else would be a different fact wearing the same string.
+
+**Why it is still required on `--audit-only`, now that the name is known.** The
+requirement does not exist to compensate for an unverified name; it exists so a
+FUTURE wrong declaration — a copied command line, a renamed database, a second
+environment — surfaces on the day-before run rather than at §3.3. A guard that
+takes an operator-supplied expected value inherits the reliability of that
+value, and no rigour inside the check touches that; what helps is where the
+mismatch first fires.
 
 Read the log by paging `get-log-events` with `nextForwardToken` to exhaustion and
 **confirm you reached the verdict banner**. `filter-log-events` truncates at
