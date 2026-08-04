@@ -229,17 +229,15 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
           </View>
         </View>
 
-        {/* Tab bar — the cell shapes only (bottom border, `py-2.5 px-3` min-60
-            cells). It draws NO active indicator: the real strip is rendered by
-            the profile layout, so it is already mounted and correctly positioned
-            while this skeleton stands in for the content below it. A second,
-            hardcoded indicator under the FIRST cell was right on one tab and
-            wrong on every other — arriving at `/replies` showed the underline
-            beneath "Posts" until the real one measured and jumped. */}
+        {/* Tab bar — matches AnimatedTabBar (bottom border, `py-2.5 px-3`
+            min-60 cells) with an active-indicator hint under the first tab. */}
         <View className="border-b border-border bg-background flex-row">
           {TAB_CHIP_WIDTHS.map((width, index) => (
             <View key={index} className="items-center py-2.5 px-3 min-w-[60px]">
               <Skeleton.Box width={width} height={14} borderRadius={6} />
+              {index === 0 && (
+                <View className="absolute bottom-0 left-3 right-3 h-0.5 rounded-t bg-primary" />
+              )}
             </View>
           ))}
         </View>
