@@ -127,6 +127,15 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
   },
 
   // ── Caller-scoped, or read-only. Safe to share the run's database. ──────────
+  assertPostgresPopulated: {
+    scope: 'caller-scoped',
+    reason:
+      'Read-only: its whole database surface is `select count(*) from <table>`, and it holds ' +
+      'no insert, update or delete. Unscoped by table — it counts every row on purpose — but ' +
+      'the rule this list enforces is about rows a test can CORRUPT, and a count writes ' +
+      'nothing. Its suite additionally never reaches the counting: it imports the pure ' +
+      'evaluatePopulation and passes readings in, so no test drives a query at all.',
+  },
   backfillFederatedBoostCounts: {
     scope: 'caller-scoped',
     reason:
