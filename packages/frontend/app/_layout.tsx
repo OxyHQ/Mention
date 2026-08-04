@@ -8,6 +8,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect, useState } from "react";
 import { AppState, Platform, type AppStateStatus } from "react-native";
 import { BloomProvider } from '@oxyhq/bloom/provider';
+import { APP_DEFAULT_COLOR_PRESET } from '@/lib/colorEntitlement';
 
 // Components
 import AppSplashScreen from '@/components/AppSplashScreen';
@@ -176,7 +177,7 @@ export default function RootLayout() {
         imageResolver={resolveImageSource}
         haptics={!hapticsDisabled}
         defaultMode="system"
-        defaultColorPreset="blue"
+        defaultColorPreset={APP_DEFAULT_COLOR_PRESET}
         persistKey={BLOOM_THEME_PERSIST_KEY}
         storage={BLOOM_THEME_STORAGE}
         // WEB shows the custom splash while fonts load; NATIVE shows nothing here
