@@ -315,6 +315,28 @@ function VirtualizedWebFeed(props: FeedProps) {
         getItemKey: (index) => feedRowKey(feedRows[index]),
     });
 
+    // THE REACT COMPILER MUST NOT MEMOIZE THIS COMPONENT — and today it doesn't,
+    // by accident. `virtualizer` has a STABLE identity for this component's
+    // lifetime and forces re-renders through a reducer INTERNAL to
+    // `useWindowVirtualizer`, so a scroll changes nothing this function can see.
+    // If the compiler memoizes the render, both reads below and the row JSX get
+    // cached on deps that never change and the feed freezes on its first window
+    // — no error, virtualizer healthy, DOM stuck. What prevents that is two
+    // ref-`.current` reads during render, each of which makes the compiler
+    // refuse this whole function (verified: it emits no memo cache at all):
+    //   1. `loadMoreRef.current = handleLoadMore` below
+    //   2. `getPostRowRef`/`getMeasureRef` read their caches inside the row map
+    // Removing BOTH makes this compile to a 64-slot cache and reintroduces the
+    // freeze. Judge that by the compiler's own CompileError/CompileSuccess
+    // events, not by grepping the output for a cache call — this comment would
+    // match such a grep.
+    // This is not hypothetical: `ProfileGridList.web.tsx` has the same shape,
+    // compiles, and shipped frozen — it now carries an explicit `'use no memo'`.
+    // Do not reason about which of these is "safe" structurally; the compiler's
+    // grouping is per-file and a captured ref does NOT reliably prevent it
+    // (measured both ways). If you change this render path, re-verify by
+    // compiling this file with the app's own babel-plugin-react-compiler and
+    // confirming `getVirtualItems()` is still called unguarded.
     const virtualItems = virtualizer.getVirtualItems();
     const totalSize = virtualizer.getTotalSize();
 

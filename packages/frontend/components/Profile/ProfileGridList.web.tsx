@@ -35,6 +35,22 @@ export function ProfileGridList<T extends ProfileGridEntry>({
     listHeaderComponent,
     listStickyHeaderComponent,
 }: ProfileGridListProps<T>) {
+    // REQUIRED — without it this grid renders its first window of rows and then
+    // never updates again. `useWindowVirtualizer` returns an instance whose
+    // identity is stable for the component's lifetime and which forces
+    // re-renders through a reducer INTERNAL to the hook, so scrolling changes
+    // nothing this component can see. The React Compiler therefore groups the
+    // whole render — `getVirtualItems()` included — into one block keyed on
+    // props plus that stable instance, none of which change on scroll, and
+    // serves the first result forever. Measured on production (build
+    // `entry-ff9a95e94…`): mounted rows stayed [0..7] across a 1899px scroll of
+    // a 2322px grid, leaving ~550px of blank space below the last row.
+    // There is no `subscribe` on the virtualizer to drive `useSyncExternalStore`
+    // from, so opting this function out is the available fix; it restores the
+    // behaviour the other three virtualized web lists already have (they opt out
+    // accidentally, by reading a ref during render — see `Feed.web.tsx`).
+    'use no memo';
+
     const rootRef = useRef<HTMLDivElement | null>(null);
     const gridRef = useRef<HTMLDivElement | null>(null);
     const [containerWidth, setContainerWidth] = useState(
