@@ -101,7 +101,25 @@ fi
 # run. Neither replaces the other — this one applies the migrations, that one
 # survives the case where somebody bypassed this one.
 #
-# Both entries run during the dual-run. Postgres does not replace Mongo yet.
+# Both migration entries run during the dual-run. Postgres does not replace
+# Mongo yet.
+#
+# THE THIRD ENTRY IS THE POPULATION FLOOR, and it is last because it is the only
+# one that reads rows: the schema has to exist before rows can be counted.
+#
+# It exists because a 200 is not evidence of a database. A trunk image went live
+# against an empty Postgres on 2026-08-04, every post-deploy smoke check passed
+# — an empty store answers the anonymous feed 200 with no items — and the
+# rollback came from an unrelated task crashing. Placed HERE rather than in the
+# smoke checks because a failure here has routed nothing; a smoke failure rolls
+# back after the image has already served.
+#
+# ITS LIFETIME IS THE CUTOVER'S. It asserts that Postgres is authoritative,
+# which is false before the cutover and false again after a rollback to Mongo —
+# the planned contingency. It therefore ships INSIDE the cutover commit, so
+# reverting the cutover reverts it. Landing it separately would leave a guard
+# that blocks every deploy after a Mongo rollback, for a reason nothing about
+# that rollback would lead anyone to look for.
 MIGRATION_TASK_COMMANDS_JSON='[
   {
     "label": "Postgres migration",
@@ -110,6 +128,10 @@ MIGRATION_TASK_COMMANDS_JSON='[
   {
     "label": "Mongo migration",
     "command": ["bun", "packages/backend/dist/scripts/migrate.js"]
+  },
+  {
+    "label": "Postgres population floor",
+    "command": ["bun", "packages/backend/dist/src/scripts/assertPostgresPopulated.js"]
   }
 ]'
 # Exit code a smoke script uses to say "this failed, and rolling back cannot fix
