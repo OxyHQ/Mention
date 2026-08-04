@@ -307,80 +307,78 @@ export const KEEP_FRESHEST_FEDERATED_ACTOR: ResolutionRule = {
     'that share an `acct` under DIFFERENT `uri`s are DIFFERENT actors that one ' +
     'identity was derived for, and dropping those would delete real accounts. ' +
     'The grouping must never be widened to `acct` or `(domain, username)`; ' +
-    'those rows are answered by the THIRD remedy below, which removes nothing. ' +
+    'those rows are answered by the SECOND remedy below, which removes nothing. ' +
     '\n\n' +
-    'REMEDY TWO — RE-KEY, for a row whose `acct` is Bluesky\'s ' +
-    '`handle.invalid`. That is the AppView\'s error string for a handle whose ' +
-    'DNS/DID verification failed, identical for every affected account, so it ' +
-    'identifies nobody: production holds 21 rows carrying it and they are 21 ' +
-    'DISTINCT Bluesky DIDs. `acct` and `username` are rewritten to the row\'s ' +
-    'own `uri`, which for an atproto actor IS its DID — the stable identifier ' +
-    'the protocol actually guarantees, already unique, and impossible to ' +
-    'confuse with a real handle because it contains a `:` that no DNS name may. ' +
-    'Nothing is dropped and no account is lost. ' +
-    '\n\n' +
-    'This is the SAME substitution the connector now applies at ingest ' +
-    '(`atprotoIdentityHandle`), so a re-keyed row lands in exactly the shape the ' +
-    'fixed writer would have produced — the backlog gets the current rule, not a ' +
-    'special case, and nothing downstream has to know these rows predate the fix. ' +
-    'oxy-api accepts it unchanged: `normalizeFederatedResolveUsername` splits on ' +
-    'the FIRST `@`, so `did:plc:…@bsky.social` binds to `bsky.social` like any ' +
-    'other handle. ' +
-    '\n\n' +
-    'REMEDY THREE — RE-KEY THE LOSERS, for rows that share an `acct` under ' +
-    'DIFFERENT `uri`s. Remedy two answers a value that identifies NOBODY; this ' +
-    'one answers a real handle that TWO rows claim. Measured against ' +
-    '`mention-production` during the cutover window of 2026-08-04: one such ' +
-    'group exists, two rows for `hmans.dev@bsky.brid.gy` under two Bluesky DIDs ' +
-    '(`did:plc:gdgssnismf7rsf5you3ndgmm`, `did:plc:r5vna26rxavzyk5iuyqumdrg`) — ' +
-    'the same person either side of a DID rotation, reaching us over ' +
-    'ActivityPub through Bridgy Fed. They collide on ' +
+    'REMEDY TWO — RE-KEY, for a row whose stored `acct` DOES NOT IDENTIFY IT. ' +
+    'One property, and it holds two ways. (a) The `acct` is SHARED ACROSS ' +
+    'DIFFERENT `uri`s, so it identifies none of the rows carrying it. (b) The ' +
+    '`acct` is Bluesky\'s `handle.invalid`, the AppView\'s error string for a ' +
+    'handle whose DNS/DID verification failed — identical for every affected ' +
+    'account, so it identifies nobody by construction, even where it appears ' +
+    'exactly once. Production holds 21 rows carrying it and they are 21 ' +
+    'DISTINCT Bluesky DIDs. Case (a) was measured during the cutover window of ' +
+    '2026-08-04: one group, two rows for `hmans.dev@bsky.brid.gy` under two ' +
+    'Bluesky DIDs (`did:plc:gdgssnismf7rsf5you3ndgmm`, ' +
+    '`did:plc:r5vna26rxavzyk5iuyqumdrg`) — the same person either side of a DID ' +
+    'rotation, reaching us over ActivityPub through Bridgy Fed. They collide on ' +
     'federated_actors_acct_key AND on federated_actors_domain_username_key, and ' +
-    'nothing at all references either row: 0 posts, 0 federated follows in ' +
-    'either direction, 0 media cache. ' +
+    'nothing references either row: 0 posts, 0 federated follows in either ' +
+    'direction, 0 media cache. ' +
     '\n\n' +
-    'ALL BUT THE FRESHEST are re-keyed onto their own `uri` — `acct` and ' +
-    '`username` both — and nothing is dropped. The survivor is chosen by the ' +
-    'same order the drop uses, so the row the resolver has been keeping current ' +
-    'is the one that keeps the handle. ' +
+    'These are NOT two remedies with one name. They are one question — does ' +
+    'this `acct` identify this row — asked once, by one pre-pass, and answered ' +
+    'from the GROUP rather than from the document, because no transform seeing ' +
+    'one row can tell whether another row claims its handle. `acct` and ' +
+    '`username` are rewritten to the row\'s own `uri`. Nothing is dropped and no ' +
+    'account is lost. ' +
     '\n\n' +
-    'ALL BUT ONE, where remedy two re-keys EVERY row of its group, and the ' +
-    'difference is not a preference: remedy two writes the value the fixed ' +
-    'connector now writes (`atprotoIdentityHandle` substitutes the DID, so a ' +
-    're-keyed sentinel row is in the shape the next refresh would produce ' +
-    'anyway), while `hmans.dev@bsky.brid.gy` is a REAL handle that the live ' +
-    'writer re-derives from the fetched actor document and writes back on every ' +
-    'refresh — `upsertActor` puts `acct` in its ON CONFLICT (uri) DO UPDATE set. ' +
-    'So re-keying the survivor too would be undone by the next refresh while ' +
-    'costing a lookup in the meantime: `findActorByAcct` and the `uriOrAcct` ' +
-    'filter both match on `acct` EXACTLY, so with no row holding the handle, ' +
-    '`@hmans.dev@bsky.brid.gy` resolves to nothing. Re-keying all but one is ' +
-    'therefore the state the writer converges to, reached at copy time. ' +
+    'WHO MOVES follows from the property and is the one place the two cases ' +
+    'differ. A shared handle DOES identify one row — the freshest, which is the ' +
+    'row the resolver has been keeping current — so that row keeps it and every ' +
+    'other moves. The sentinel identifies nobody, so every row moves, the ' +
+    'freshest included. That is not a preference either: `atprotoIdentityHandle` ' +
+    'now substitutes the DID at ingest, so a re-keyed sentinel row lands in ' +
+    'exactly the shape the fixed writer would produce and the next refresh ' +
+    'agrees with it — while `hmans.dev@bsky.brid.gy` is a REAL handle that ' +
+    '`upsertActor` re-derives from the fetched actor and writes back on every ' +
+    'refresh (it is in the ON CONFLICT (uri) DO UPDATE set), so re-keying the ' +
+    'survivor there would be undone by the next refresh while costing every ' +
+    'lookup in between — `findActorByAcct` and the `uriOrAcct` filter both match ' +
+    '`acct` EXACTLY, so with no row holding the handle `@hmans.dev@bsky.brid.gy` ' +
+    'resolves to nothing. ' +
     '\n\n' +
     'ONTO `uri` VERBATIM, and NOT onto a DID extracted from it. For a native ' +
-    'atproto row `uri` IS the DID, but a bridged actor\'s is a URL ' +
-    '(`https://bsky.brid.gy/ap/did:plc:…`) and an ordinary AP actor\'s is ' +
-    '`https://host/users/name` — so "the last path segment" is `name` for a ' +
-    'Mastodon actor, which is NOT unique and is exactly the kind of value this ' +
-    'collision is made of. `uri` is `NOT NULL UNIQUE` on this very table, so ' +
+    'atproto row `uri` IS the DID — the stable identifier the protocol ' +
+    'guarantees. For a bridged actor it is a URL ' +
+    '(`https://bsky.brid.gy/ap/did:plc:…`) and for an ordinary AP actor ' +
+    '`https://host/users/name`, so "the last path segment" is `name` for a ' +
+    'Mastodon actor, which is NOT unique and is exactly the kind of value these ' +
+    'collisions are made of. `uri` is `NOT NULL UNIQUE` on this very table, so ' +
     're-keying onto it is unique BY THE CONSTRAINT rather than by a reading of ' +
-    'what remote ids look like. A derived substring would convert a finding the ' +
-    'audit blocks on into a 23505 hours into the copy. ' +
+    'what remote ids look like; a derived substring would convert a finding the ' +
+    'audit blocks on into a 23505 hours into the copy. oxy-api accepts the ' +
+    'result unchanged: `normalizeFederatedResolveUsername` splits on the FIRST ' +
+    '`@`, so `did:plc:…@bsky.social` binds to `bsky.social` like any other ' +
+    'handle. ' +
     '\n\n' +
-    'What it does NOT answer, deliberately, so the audit still blocks and a ' +
-    'human decides: a `(domain, username)` collision whose rows do NOT also ' +
-    'share an `acct` (no such group has been measured, and inventing a remedy ' +
-    'for an unobserved population is what this file exists to prevent); a group ' +
-    'that overlaps a `uri`-colliding group (those rows are remedy one\'s, and ' +
-    're-keying one would break the `uri` constraint); a row with no `uri`, ' +
-    'which has nothing to be re-keyed onto. The production group above is ' +
-    'answered on BOTH indexes because it is the same two rows under each — the ' +
-    'remedy acts on ids, and `resolvesUniquenessGroup` asks about ids. ' +
+    'What the re-key does NOT answer, deliberately, so the audit still blocks ' +
+    'and a human decides: a `(domain, username)` collision whose rows do NOT ' +
+    'also share an `acct` (no such group has been measured, and inventing a ' +
+    'remedy for an unobserved population is what this file exists to prevent); a ' +
+    'row with no `uri`, which has nothing to be re-keyed onto; and any group the ' +
+    'DROP also claims — rows sharing a `uri` would be re-keyed onto the same ' +
+    'value and still collide, so a `uri` group holding a row the re-key claims ' +
+    'is refused entire and nothing is dropped from it either. The production ' +
+    'group above is answered on BOTH indexes because it is the same two rows ' +
+    'under each — the remedy acts on ids, and `resolvesUniquenessGroup` asks ' +
+    'about ids. ' +
     '\n\n' +
-    'The three remedies are ONE decision — give every row an identity that is ' +
+    'The two remedies are ONE decision — give every row an identity that is ' +
     'actually its own, and remove only the rows that are not a separate thing at ' +
-    'all — which is why they are one rule with one id rather than three. Each ' +
-    'affected document is reported individually, saying which remedy it got.',
+    'all — which is why they are one rule with one id rather than two. Each ' +
+    'affected document is reported individually, saying which remedy it got and ' +
+    'carrying the `acct` it had, which is what tells a re-keyed sentinel from a ' +
+    're-keyed shared handle.',
 };
 
 /**
@@ -831,23 +829,23 @@ export interface ResolutionPlan {
    */
   readonly actedOn: ReadonlyMap<string, ReadonlySet<string>>;
   /**
-   * The `federatedactors` rows REMEDY THREE re-keys, rather than drops.
+   * The `federatedactors` rows the RE-KEY moves, rather than drops.
    *
    * Separate from {@link actedOn} because that set answers a different
    * question. `actedOn` is what the AUDIT reads — "does this rule act on all
-   * but one of the colliding group" — and it deliberately unions every remedy,
-   * since which one a row gets does not change whether the collision is
-   * answered. The TRANSFORM has to know WHICH, and the two remedies are not
-   * interchangeable there: one emits no row at all.
+   * but one of the colliding group" — and it unions both remedies, since which
+   * one a row gets does not change whether the collision is answered. The
+   * TRANSFORM has to know WHICH, because the two are not interchangeable
+   * there: one emits no row at all.
    *
-   * It exists at all because "is this `acct` claimed by another `uri`" is a
-   * property of the GROUP. Remedy two's trigger is answerable from a single
-   * document — `isUnresolvedAtprotoHandle(acct)` — which is why the transform
-   * derives that one inline and consults this one.
+   * The two sets are not the same even for the re-key alone: a SENTINEL group
+   * moves every row while only all-but-one of them ANSWERS the finding. See
+   * {@link planActorIdentityRekeys}, which computes both from one pass.
    *
-   * Sentinel rows are NOT in here. Remedy two re-keys every row of its group,
-   * this one re-keys all but the freshest, and folding them together would
-   * silently give the sentinel group the narrower treatment.
+   * It exists at all because "does this `acct` identify this row" is a property
+   * of the GROUP — no transform, seeing one document, can answer it. That is
+   * why the decision is made once here and CONSULTED there, exactly like the
+   * drop.
    */
   readonly rekeyedActorIdentities: ReadonlySet<string>;
 }
@@ -909,17 +907,15 @@ export function federatedActorDuplicatesToDrop(
 }
 
 /**
- * One sentinel-acct row, reduced to what the re-key needs.
+ * One `federatedactors` row, reduced to what the rule's choices read.
  *
- * `uri` is carried because it IS the replacement identity — an atproto actor's
- * `uri` is its DID — so the pre-pass can refuse a row that has none rather than
- * emitting a re-key with nothing to re-key to.
+ * `uri` is carried because it IS the replacement identity a re-key writes, so
+ * the pre-pass can stand down a row that has none rather than emitting a re-key
+ * with nothing to re-key to.
  */
-interface SentinelActorCandidate extends ActorDuplicateCandidate {
+interface ActorCandidate extends ActorDuplicateCandidate {
   /** The row's protocol URI — for an atproto actor, its DID. */
   readonly uri: string;
-  /** Whether its stored `acct` is Bluesky's unresolved-handle sentinel. */
-  readonly sentinel: boolean;
 }
 
 /**
@@ -929,19 +925,23 @@ interface SentinelActorCandidate extends ActorDuplicateCandidate {
  * ~63,000 documents and only the fields the choice reads are projected, so the
  * whole answer is two aggregations returning the colliding groups alone.
  */
-async function planFederatedActorDuplicates(source: MongoSource): Promise<{
+async function planFederatedActorDuplicates(
+  source: MongoSource,
+  /** {@link planActorIdentityRekeys}'s answer — rows whose `acct` is not theirs. */
+  rekeyCandidates: ReadonlySet<string>
+): Promise<{
   /** Rows the drop remedy removes. */
   readonly dropped: ReadonlySet<string>;
   /**
    * EVERY row of EVERY `uri`-colliding group, dropped or not.
    *
-   * The re-key remedy excludes all of them, and that exclusion is load-bearing
-   * rather than tidy: a sentinel row sharing its `uri` with another row cannot
-   * be safely re-keyed, because the transform would re-key BOTH and land two
-   * rows on one `uri`. Worse, merely PUTTING such a row in `actedOn` makes the
-   * `uri` finding look answered — `resolvesUniquenessGroup` counts ids, not
-   * remedies — so the group would sail past the audit and fail at COPY time
-   * against the constraint. Both halves have to stand the row down.
+   * The re-key excludes all of them, and that exclusion is load-bearing rather
+   * than tidy: rows sharing a `uri` would be re-keyed onto the SAME value, so
+   * they would still collide — and on the one constraint the drop exists to
+   * satisfy. Worse, merely PUTTING such a row in `actedOn` makes the `uri`
+   * finding look answered — `resolvesUniquenessGroup` counts ids, not remedies
+   * — so the group would sail past the audit and fail at COPY time against the
+   * constraint. Both halves have to stand the row down.
    */
   readonly inUriGroup: ReadonlySet<string>;
 }> {
@@ -968,7 +968,7 @@ async function planFederatedActorDuplicates(source: MongoSource): Promise<{
         {
           $group: {
             _id: '$uri',
-            rows: { $push: { id: '$_id', uri: '$uri', acct: '$acct', lastFetchedAt: '$lastFetchedAt' } },
+            rows: { $push: { id: '$_id', uri: '$uri', lastFetchedAt: '$lastFetchedAt' } },
             count: { $sum: 1 },
           },
         },
@@ -984,30 +984,26 @@ async function planFederatedActorDuplicates(source: MongoSource): Promise<{
   for (const group of groups) {
     const candidates = readCandidates(group.rows);
     for (const row of candidates) inUriGroup.add(row.id);
-    // A `uri` group containing a SENTINEL-acct row is left entirely alone, so
-    // the finding blocks and a human looks at it.
-    //
-    // Not a hypothetical tidiness guard — it is what keeps the two remedies
-    // from contradicting each other. The transform decides which remedy a row
-    // gets from the row itself, and it checks the sentinel FIRST (that is the
-    // only check that can be made from one document). A row that is both a
-    // sentinel AND a `uri` duplicate would therefore be re-keyed instead of
-    // dropped, leaving two rows sharing a `uri` and violating the very
-    // constraint this rule exists to satisfy. Refusing the whole group is the
-    // fail-closed answer, and it costs nothing today: production's 21 sentinel
-    // rows carry 21 DISTINCT DIDs, so no such group exists.
-    if (candidates.some((row) => row.sentinel)) continue;
+    // A `uri` group containing a row the RE-KEY claims is left entirely alone,
+    // so the finding blocks and a human looks at it. The two remedies answer
+    // one question — does this row's `acct` identify it — and a row both of
+    // them want is a row neither may have: dropping it discards an account the
+    // re-key was about to keep, and re-keying it leaves two rows on one `uri`.
+    // Refusing the group is the fail-closed answer, and it costs nothing on the
+    // populations measured so far: production's 21 sentinel rows carry 21
+    // DISTINCT DIDs, and the one shared-handle group is two rows under two.
+    if (candidates.some((row) => rekeyCandidates.has(row.id))) continue;
     for (const id of federatedActorDuplicatesToDrop(candidates)) dropped.add(id);
   }
   return { dropped, inUriGroup };
 }
 
 /** Parse one `$group` bucket's pushed rows, discarding anything unusable. */
-function readCandidates(rows: unknown): SentinelActorCandidate[] {
+function readCandidates(rows: unknown): ActorCandidate[] {
   if (!Array.isArray(rows)) return [];
   return rows.flatMap((row) => {
     if (row === null || typeof row !== 'object') return [];
-    const entry = row as { id?: unknown; uri?: unknown; acct?: unknown; lastFetchedAt?: unknown };
+    const entry = row as { id?: unknown; uri?: unknown; lastFetchedAt?: unknown };
     // A document with no `_id` cannot be named in the report, and a rule that
     // cannot report what it acted on has not answered anything — leaving it out
     // keeps the group unresolved, which blocks. Not reachable in Mongo, written
@@ -1017,7 +1013,6 @@ function readCandidates(rows: unknown): SentinelActorCandidate[] {
       {
         id: String(entry.id),
         uri: typeof entry.uri === 'string' ? entry.uri : '',
-        sentinel: typeof entry.acct === 'string' && isUnresolvedAtprotoHandle(entry.acct),
         lastFetchedAt: entry.lastFetchedAt,
       },
     ];
@@ -1025,127 +1020,111 @@ function readCandidates(rows: unknown): SentinelActorCandidate[] {
 }
 
 /**
- * Every sentinel-acct row whose re-key RESOLVES its collision — all but the
- * freshest of each group.
+ * Every row whose stored `acct` does not identify it, and the subset whose
+ * re-key ANSWERS a uniqueness finding.
  *
- * The transform re-keys EVERY sentinel row, the freshest included, so the whole
- * population lands in the shape the fixed writer produces. This set is narrower
- * on purpose: it is the rows that have to MOVE for the group to stop colliding,
- * which is the question `resolvesUniquenessGroup` asks (all but one). The
- * freshest row's re-key is normalisation — the group would already be legal
- * without it — so counting it here would make the rule look like it empties the
- * group and the finding would block.
+ * ONE property, two ways for it to hold, and they are not two remedies:
  *
- * Every row belonging to a `uri`-colliding group is excluded — see
- * {@link planFederatedActorDuplicates}'s `inUriGroup`. That is what keeps the
- * two remedies from claiming one document, and it is not vacuous: a sentinel
- * row that shares a `uri` slipped through an earlier version of this and made
- * the `uri` finding read as answered while the copy would have violated the
- * constraint.
+ * - the `acct` is shared across DIFFERENT `uri`s, so it identifies none of the
+ *   rows carrying it — one person's account either side of an atproto DID
+ *   rotation, in the population measured so far;
+ * - the `acct` is the SENTINEL, which identifies nobody by construction, even
+ *   where it appears exactly once.
+ *
+ * `rekeyed` is who MOVES; `resolving` is whose movement makes a colliding group
+ * legal. They differ in exactly one case and the difference is the property
+ * above, not a preference:
+ *
+ * - a shared handle DOES identify one row — the freshest, which the resolver
+ *   has been keeping current — so that row keeps it and every other moves. Who
+ *   moves and who resolves are then the same rows.
+ * - the sentinel identifies nobody, so EVERY row moves, the freshest included;
+ *   a lone one moves too. But the group is already legal once all but one has
+ *   moved, and `resolvesUniquenessGroup` asks exactly that (all but one) — so
+ *   counting the freshest's move would make the rule look like it EMPTIES the
+ *   group and the finding would block.
+ *
+ * Both exclusions leave a finding blocking rather than answering it wrongly: a
+ * row with no `uri` has no identity of its own to move to, and rows sharing a
+ * `uri` would move onto the same value and still collide (which is why
+ * `inUriGroup` is subtracted by {@link planResolutions} rather than here — the
+ * drop pass needs this answer to decide which groups it must refuse).
  */
-async function planSentinelActorRekeys(
-  source: MongoSource,
-  excluded: ReadonlySet<string>
-): Promise<ReadonlySet<string>> {
+async function planActorIdentityRekeys(source: MongoSource): Promise<{
+  /** Rows whose `acct` and `username` become their own `uri`. */
+  readonly rekeyed: ReadonlySet<string>;
+  /** The subset whose movement answers a uniqueness finding — all but one. */
+  readonly resolving: ReadonlySet<string>;
+}> {
   const rekeyed = new Set<string>();
-  const groups = await source
-    .collection('federatedactors')
-    .aggregate<{ rows?: unknown }>(
-      [
-        // Matched on the VALUE rather than scanned: the sentinel is one exact
-        // string, so Mongo answers from `acct` alone.
-        { $match: { acct: UNRESOLVED_HANDLE } },
-        {
-          $group: {
-            _id: '$acct',
-            rows: { $push: { id: '$_id', uri: '$uri', acct: '$acct', lastFetchedAt: '$lastFetchedAt' } },
-            count: { $sum: 1 },
-          },
-        },
-        { $match: { count: { $gt: 1 } } },
-      ],
-      { allowDiskUse: true }
-    )
-    .toArray();
-
-  for (const group of groups) {
-    // A row with no `uri` has no DID to be re-keyed ONTO, so it is left out and
-    // its group keeps blocking — the same fail-closed answer as a missing `_id`.
-    const candidates = readCandidates(group.rows).filter(
-      (row) => row.uri.length > 0 && !excluded.has(row.id)
-    );
-    for (const id of federatedActorDuplicatesToDrop(candidates)) rekeyed.add(id);
-  }
-  return rekeyed;
-}
-
-/**
- * Every row REMEDY THREE re-keys: all but the freshest of each group of rows
- * that share an `acct` under DIFFERENT `uri`s.
- *
- * Where {@link planSentinelActorRekeys} answers a value that identifies nobody,
- * this answers a real handle that two rows both claim — one person's account
- * either side of an atproto DID rotation, in the population measured so far.
- * Neither row may be dropped (they are separate accounts, whatever their
- * handles say) and both cannot keep the handle, so the loser is re-keyed onto
- * its own `uri` and the freshest keeps what it has.
- *
- * The freshest is NOT re-keyed, and that is the one place this deliberately
- * diverges from remedy two — see the rule's `decision` for why: the live writer
- * re-derives `acct` from the fetched actor and would put the handle straight
- * back, so re-keying the survivor buys a value that does not survive the next
- * refresh and costs every `findActorByAcct` lookup in between.
- *
- * THREE exclusions, each of which leaves the finding blocking rather than
- * answering it wrongly:
- *
- * - the SENTINEL group, which is remedy two's and gets the wider treatment;
- * - every row of a `uri`-colliding group ({@link planFederatedActorDuplicates}'s
- *   `inUriGroup`), for the same reason remedy two excludes them — a row that is
- *   dropped must not also be re-keyed, and the exclusion is what leaves every
- *   remaining candidate holding a DISTINCT `uri` to be re-keyed onto;
- * - a row with no `uri`, which has no identity of its own to move to.
- */
-async function planAmbiguousActorIdentityRekeys(
-  source: MongoSource,
-  excluded: ReadonlySet<string>
-): Promise<ReadonlySet<string>> {
-  const rekeyed = new Set<string>();
+  const resolving = new Set<string>();
   const groups = await source
     .collection('federatedactors')
     .aggregate<{ _id?: unknown; rows?: unknown }>(
       [
-        // The SAME presence filter `auditUniqueness` applies. A Postgres unique
-        // index is NULLS DISTINCT, so a row with no `acct` collides with
-        // nothing and the audit never reports it — a pre-pass that acted on one
-        // would be re-keying rows to answer a finding that does not exist.
-        { $match: { acct: { $nin: [null, undefined] } } },
+        // STRICTER than `auditUniqueness`'s presence filter (`$nin: [null,
+        // undefined]`), and deliberately: a non-string `acct` is not something
+        // this rule can reason about, `reqStr` refuses it at copy time anyway,
+        // and leaving it out keeps its finding blocking. It also makes `_id` a
+        // string for the `$expr` below.
+        { $match: { acct: { $type: 'string' } } },
         {
           $group: {
             _id: '$acct',
-            rows: { $push: { id: '$_id', uri: '$uri', acct: '$acct', lastFetchedAt: '$lastFetchedAt' } },
+            rows: { $push: { id: '$_id', uri: '$uri', lastFetchedAt: '$lastFetchedAt' } },
             count: { $sum: 1 },
           },
         },
-        { $match: { count: { $gt: 1 } } },
+        {
+          $match: {
+            $or: [
+              { count: { $gt: 1 } },
+              // The sentinel identifies nobody even when it appears ONCE, so a
+              // lone row carrying it is re-keyed too — which `count > 1` alone
+              // would never reach. Trimmed and lower-cased for the same reason
+              // `isUnresolvedAtprotoHandle` does it, and built from the shared
+              // constant rather than a second copy of the literal. That
+              // function stays the AUTHORITY and is re-applied below; this only
+              // decides what leaves Mongo, and must never be narrower than it.
+              {
+                $expr: {
+                  $eq: [{ $toLower: { $trim: { input: '$_id' } } }, UNRESOLVED_HANDLE],
+                },
+              },
+            ],
+          },
+        },
       ],
+      // A `$group` over the whole collection is exactly the shape that outgrows
+      // the 100 MB in-memory limit unannounced.
       { allowDiskUse: true }
     )
     .toArray();
 
   for (const group of groups) {
-    // The sentinel group is remedy TWO's, and the two answers differ: it
-    // re-keys every row while this one keeps the freshest. Both writing into
-    // one `actedOn` set is exactly how a group ends up looking EMPTIED rather
-    // than resolved — `resolvesUniquenessGroup` counts all-but-one — which
-    // would block the very finding remedy two already answers.
-    if (typeof group._id === 'string' && isUnresolvedAtprotoHandle(group._id)) continue;
-    const candidates = readCandidates(group.rows).filter(
-      (row) => row.uri.length > 0 && !excluded.has(row.id)
-    );
-    for (const id of federatedActorDuplicatesToDrop(candidates)) rekeyed.add(id);
+    // A row with no `uri` has nothing to be re-keyed ONTO, so it is left out
+    // and its group keeps blocking — the same fail-closed answer as a missing
+    // `_id`.
+    const candidates = readCandidates(group.rows).filter((row) => row.uri.length > 0);
+    const identifiesNobody =
+      typeof group._id === 'string' && isUnresolvedAtprotoHandle(group._id);
+    // ACROSS DIFFERENT `uri`s, and the qualifier is the whole rule. Rows that
+    // share an `acct` AND a `uri` are ONE actor fetched twice — their `acct`
+    // identifies them perfectly well, and they are the DROP's population, 569
+    // groups of it. Claiming them here would re-key rows the drop needs, and
+    // the drop refuses any group this pass claims, so the two remedies would
+    // stand each other down and every duplicate would block.
+    const claimedByOthers = new Set(candidates.map((row) => row.uri)).size > 1;
+    if (!identifiesNobody && !claimedByOthers) continue;
+    // Computed the same way in both cases, because it is the same question:
+    // which rows have to move for this key to stop colliding.
+    const answers = federatedActorDuplicatesToDrop(candidates);
+    for (const id of answers) resolving.add(id);
+    for (const row of identifiesNobody ? candidates.map((entry) => entry.id) : answers) {
+      rekeyed.add(row);
+    }
   }
-  return rekeyed;
+  return { rekeyed, resolving };
 }
 
 /**
@@ -1155,23 +1134,31 @@ async function planAmbiguousActorIdentityRekeys(
  * copy phase provably run it against the same database.
  */
 export async function planResolutions(source: MongoSource): Promise<ResolutionPlan> {
-  // Drops FIRST: both re-key sets are computed against them so one document can
-  // never be claimed by two remedies.
-  const { dropped, inUriGroup } = await planFederatedActorDuplicates(source);
-  // Excluded by `inUriGroup`, not by `dropped`: a sentinel row in a REFUSED uri
-  // group was never dropped, and re-keying it would both break the `uri`
-  // constraint and make that group's finding look answered.
-  const rekeyed = await planSentinelActorRekeys(source, inUriGroup);
-  const identityRekeys = await planAmbiguousActorIdentityRekeys(source, inUriGroup);
+  // The re-key FIRST, because the drop pass has to know which rows it claims: a
+  // `uri` group holding one of them is refused rather than dropped.
+  const identity = await planActorIdentityRekeys(source);
+  const { dropped, inUriGroup } = await planFederatedActorDuplicates(source, identity.rekeyed);
+  // Subtracted HERE rather than inside the re-key pass, which would need
+  // `inUriGroup` to compute what that pass has to supply. A row in a `uri`
+  // group is stood down BOTH ways: re-keying it would move two rows onto one
+  // value, and counting it would make that group's finding look answered.
+  const rekeyed = withoutRows(identity.rekeyed, inUriGroup);
+  const resolving = withoutRows(identity.resolving, inUriGroup);
   return {
     // The UNION, because the audit asks whether the rule answers a collision at
-    // all — which remedy a row got does not change that. The transform needs
-    // the distinction and reads `rekeyedActorIdentities` for it.
-    actedOn: new Map([
-      [KEEP_FRESHEST_FEDERATED_ACTOR.id, new Set([...dropped, ...rekeyed, ...identityRekeys])],
-    ]),
-    rekeyedActorIdentities: identityRekeys,
+    // all — drop or re-key does not change that. The transform needs to know
+    // which, and reads `rekeyedActorIdentities` for it.
+    actedOn: new Map([[KEEP_FRESHEST_FEDERATED_ACTOR.id, new Set([...dropped, ...resolving])]]),
+    rekeyedActorIdentities: rekeyed,
   };
+}
+
+/** The rows of `set` that are not in `excluded`. */
+function withoutRows(
+  set: ReadonlySet<string>,
+  excluded: ReadonlySet<string>
+): ReadonlySet<string> {
+  return new Set([...set].filter((id) => !excluded.has(id)));
 }
 
 // ---------------------------------------------------------------------------
@@ -1183,13 +1170,14 @@ export interface ResolutionContext {
   /** Rows a rule has decided to act on, by rule id. */
   readonly actedOn: ReadonlyMap<string, ReadonlySet<string>>;
   /**
-   * The `federatedactors` rows REMEDY THREE re-keys rather than drops.
+   * The `federatedactors` rows the RE-KEY moves rather than drops.
    *
-   * A transform sees one document, and "another `uri` claims this `acct`" is a
-   * property of the group — so the decision is made once by the pre-pass and
-   * CONSULTED here. See {@link ResolutionPlan.rekeyedActorIdentities} for why it
-   * is not folded into {@link actedOn}: a row in both would be dropped, and
-   * these rows are separate accounts.
+   * A transform sees one document, and "does this `acct` identify this row" is
+   * a property of the group — so the decision is made once by the pre-pass and
+   * CONSULTED here, the same way the drop is. See
+   * {@link ResolutionPlan.rekeyedActorIdentities} for why it is not folded into
+   * {@link actedOn}: a row in both would be dropped, and a re-keyed row is a
+   * separate account.
    */
   readonly rekeyedActorIdentities: ReadonlySet<string>;
   /** Record that a rule changed what a document becomes. */

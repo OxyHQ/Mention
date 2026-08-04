@@ -143,11 +143,13 @@ side of a DID rotation, reaching us over ActivityPub through Bridgy Fed. Nothing
 referenced either row (0 posts, 0 federated follows either way, 0 media cache).
 `KEEP_FRESHEST_FEDERATED_ACTOR` already promised in prose that such rows are
 answered by a re-key; only the `handle.invalid` sentinel was implemented, so the
-code under-implemented its own documentation. **REMEDY THREE** now re-keys all
-but the freshest row of an `acct` group onto its own `uri` and drops nothing —
-so expect the audit to report both findings CARRYING THE RULE rather than
-blocking, and expect the run to record one additional resolution under
-`keep-freshest-federated-actor` naming the non-freshest of those two rows.
+code under-implemented its own documentation. **The re-key now covers the whole
+property it was always described as covering** — an `acct` that does not
+identify the row carrying it, whether because another `uri` claims it or because
+it is the sentinel that identifies nobody — and it drops nothing. So expect the
+audit to report both findings CARRYING THE RULE rather than blocking, and expect
+one additional resolution record under `keep-freshest-federated-actor` naming
+whichever of those two rows is not the freshest by `lastFetchedAt`.
 
 Patching the DATA by hand instead is what NOT to do here, and it was tried and
 reverted in that window. A hand edit and the rule can disagree on BOTH axes,
