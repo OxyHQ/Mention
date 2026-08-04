@@ -397,7 +397,8 @@ describe('surfaces — only the profile arms the FEDIVERSE marker', () => {
     'components/AccountBadge.tsx': 'defines the opt-in',
     'components/Profile/types.ts': 'declares the prop on UserNameProps',
     'components/UserName.tsx': 'forwards its own prop through; opts nothing in itself',
-    'components/ProfileScreen.tsx': 'THE opt-in — the profile is where the explainer belongs',
+    'components/Profile/hooks/usePersonProfileView.tsx':
+      'THE opt-in — the profile is where the explainer belongs, and this hook builds its identity block for both platforms',
     'components/__tests__/AccountBadge.test.tsx': 'this test',
   };
 
@@ -412,7 +413,9 @@ describe('surfaces — only the profile arms the FEDIVERSE marker', () => {
 
   it('the opt-in reaches the badge rather than only being mentioned', () => {
     // The rot check above is satisfied by a comment. This one is not.
-    const profile = sources.find((entry) => entry.rel === 'components/ProfileScreen.tsx');
+    const profile = sources.find(
+      (entry) => entry.rel === 'components/Profile/hooks/usePersonProfileView.tsx',
+    );
     expect(profile?.text).toMatch(/onExplainNetwork=\{/);
   });
 });
