@@ -2028,5 +2028,17 @@
   "accountCategories": {
     "title": "Categories",
     "primary": "Primary"
+  },
+  "settings": {
+    "interests": {
+      "searchPlaceholder": "Search topics",
+      "searchLabel": "Search topics",
+      "noMatches": "No topics match “{{query}}”.",
+      "noTopics": "No topics are available yet.",
+      "chipFollow": "Follow {{topic}}",
+      "chipUnfollow": "Unfollow {{topic}}",
+      "chipOffHere": "Show {{topic}} in Mention again",
+      "description": "Topics you follow shape your feed, and come with you to every Oxy app."
+    }
   }
 }
