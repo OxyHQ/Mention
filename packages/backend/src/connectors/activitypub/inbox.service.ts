@@ -608,11 +608,23 @@ export class InboxProcessingService {
     // hydration embeds the quoted original (mirrors the native quote shape). The
     // quote URI is read from the standard AP quote surfaces (Bridgy Fed bridges a
     // Bluesky quote through them, pointing at the quoted post's brid.gy object
-    // URL). Resolved only when the quoted post is ALREADY imported here — a
-    // not-yet-imported quoted post leaves `quoteOf` null rather than blocking the
-    // Create; it will link on a later pass once the original is ingested.
+    // URL).
+    //
+    // A quoted post we do not already hold is FETCHED, through the same bounded,
+    // signed, SSRF-safe import a boost and a reply ancestor use. This previously
+    // resolved only against posts already imported and left `quoteOf` null
+    // otherwise — the comment promised it would "link on a later pass once the
+    // original is ingested", and nothing ever ingested it. In practice a quote of
+    // any account we do not already hold rendered as a bare `RE: <url>` in the
+    // body, with the reference sitting unused in three separate fields of the
+    // very same object.
     const quoteUri = extractApQuoteUri(object);
-    const quoteOf = quoteUri ? await resolvePostIdFromObjectUri(quoteUri) : null;
+    // Resolve locally first — that also covers a quote of a LOCAL post, which no
+    // fetch would ever find. Only when we hold nothing do we go and get it.
+    const quoteOf = quoteUri
+      ? (await resolvePostIdFromObjectUri(quoteUri))
+        ?? (await outboxSyncService.ensureQuotedNote(quoteUri))
+      : null;
 
     const createdPost = await getPostCreator().create({
       oxyUserId: authorOxyUserId,
