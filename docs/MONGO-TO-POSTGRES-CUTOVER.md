@@ -123,8 +123,22 @@ aws ecs run-task --cluster oxy-cluster --launch-type FARGATE \
   --task-definition <pgaudit revision pointing at PROBE_DATABASE_URL> \
   --network-configuration 'awsvpcConfiguration={subnets=[subnet-08f5cc132b3cab15c,subnet-0bfb367f29d1fd375],securityGroups=[sg-0f0ca416eacab578c],assignPublicIp=ENABLED}' \
   --overrides '{"containerOverrides":[{"name":"mention","command":[
-     "bun","packages/backend/dist/scripts/backfill-mongo-to-postgres.js","--audit-only"]}]}'
+     "bun","packages/backend/dist/scripts/backfill-mongo-to-postgres.js",
+     "--source-database=mention-production","--audit-only"]}]}'
 ```
+
+**`--source-database` is REQUIRED on every mode, and the name in these commands
+was taken from this document and from `resolutions.ts`, not measured against the
+cluster.** It is the mirror of `--target-database`: the operator states which
+Mongo database they believe `MONGODB_URI` points at, and the run refuses unless
+the driver's own `db.databaseName` agrees. That closes the direction nothing
+guarded — a wrong-but-connectable URI makes every collection read as empty, so
+the copy writes nothing and exits 0, and `--verify-only` cannot catch it because
+it reads the same URI.
+
+**Confirm the name on this run, the day before.** If it is wrong the audit
+refuses immediately and says both sides — which is the failure you want, here,
+outside the window rather than inside it.
 
 Read the log by paging `get-log-events` with `nextForwardToken` to exhaustion and
 **confirm you reached the verdict banner**. `filter-log-events` truncates at
@@ -448,7 +462,7 @@ wrong environment, or a database recreated under another name all fail closed.
 ```bash
 --overrides '{"containerOverrides":[{"name":"mention","command":[
    "bun","packages/backend/dist/scripts/backfill-mongo-to-postgres.js",
-   "--target-database=mention"]}]}'
+   "--source-database=mention-production","--target-database=mention"]}]}'
 ```
 
 Still true and still worth doing, now as belt-and-braces rather than as the only
@@ -752,7 +766,7 @@ Run it after §3.4 and before admitting anyone:
 ```bash
 --overrides '{"containerOverrides":[{"name":"mention","command":[
    "bun","packages/backend/dist/scripts/backfill-mongo-to-postgres.js",
-   "--verify-only","--target-database=mention"]}]}'
+   "--source-database=mention-production","--verify-only","--target-database=mention"]}]}'
 ```
 
 `VERIFY PASS` is the line to look for. A failure prints, per table, the row count
