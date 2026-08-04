@@ -23,6 +23,7 @@ import {
     renderFeedRow,
     feedRowKey,
 } from './feedRows';
+import { useScrollMarginOrigin } from './useScrollMarginOrigin';
 
 const logger = createLogger('Feed');
 
@@ -291,7 +292,10 @@ function VirtualizedWebFeed(props: FeedProps) {
     // the scroller; `scrollMargin` is the wrapper's offset from the document top
     // (header + anything above the list), so virtual offsets map to page offsets.
     const wrapperRef = useRef<HTMLDivElement | null>(null);
-    const [scrollMargin, setScrollMargin] = useState(0);
+    // The virtualizer's measurement origin. Box-driven, never stored while the
+    // wrapper is collapsed — see the hook for why the old row-count key was
+    // wrong once a feed can be mounted and hidden at once.
+    const scrollMargin = useScrollMarginOrigin(wrapperRef);
 
     // `contentContainerStyle` (a caller-provided RN style, e.g. paddingBottom) is
     // flattened to a CSS object for the DOM wrapper. It sits OUTSIDE the measured
@@ -300,16 +304,6 @@ function VirtualizedWebFeed(props: FeedProps) {
         () => StyleSheet.flatten(merged.contentContainerStyle) as React.CSSProperties | undefined,
         [merged.contentContainerStyle]
     );
-
-    // Read the wrapper's top offset synchronously after layout so the first
-    // virtual frame already positions rows correctly (no visible jump). This is
-    // a DOM measurement subscription, not a data effect.
-    useLayoutEffect(() => {
-        const node = wrapperRef.current;
-        if (!node) return;
-        const top = node.getBoundingClientRect().top + window.scrollY;
-        setScrollMargin((prev) => (prev !== top ? top : prev));
-    }, [feedRows.length]);
 
     const count = feedRows.length;
 
