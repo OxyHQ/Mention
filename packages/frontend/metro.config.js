@@ -26,6 +26,12 @@ const blockPath = (dir) => {
 config.resolver = {
   ...config.resolver,
   blockList: [
+    // Agent worktrees live under `.claude/worktrees/`, each with its own full
+    // node_modules. They sit inside `monorepoRoot`, which is a watchFolder, so
+    // Metro crawls and watches every one of them — 15 GB at last count, which
+    // exhausts the inotify watch limit and kills `expo start` with ENOSPC
+    // before the dev server ever binds a port.
+    blockPath(path.join(monorepoRoot, '.claude/worktrees')),
     blockPath(path.join(monorepoRoot, 'packages/backend')),
     blockPath(path.join(monorepoRoot, 'packages/shared-types/src')),
     blockPath(path.join(monorepoRoot, 'docs')),
