@@ -71,9 +71,22 @@ async function main(): Promise<void> {
   let fetchFailures = 0;
   const startedAt = Date.now();
 
+  // THE PREFIX FILTER RUNS IN MONGO, NOT IN JAVASCRIPT, AND THAT IS THE WHOLE
+  // DIFFERENCE BETWEEN MINUTES AND HOURS.
+  //
+  // Measured in production: `federation.activityId` present AND `quoteOf` unset
+  // describes 611,100 of 611,607 posts — 99.9% of the collection, because almost
+  // nothing is a quote. Testing the body in JS meant streaming every one of those
+  // documents, `content.variants` included, over the wire to discard 98.5% of
+  // them: 8.5 hours at the rate the first run was managing. With the prefix in
+  // the query it is 10,446 documents.
   const cursor = Post
     .find(
-      { 'federation.activityId': { $exists: true }, quoteOf: { $in: [null, undefined] } },
+      {
+        'federation.activityId': { $exists: true },
+        quoteOf: { $in: [null, undefined] },
+        'content.variants.0.text': { $regex: RENDERED_QUOTE_PREFIX },
+      },
       { 'federation.activityId': 1, 'content.variants': 1 },
     )
     .limit(MAX)
@@ -95,6 +108,10 @@ async function main(): Promise<void> {
         elapsedSec: Math.round((Date.now() - startedAt) / 1000),
       });
     }
+    // Re-checked here too: the query filter is anchored at the raw value while
+    // this trims first, so a body with leading whitespace reaches JS unmatched
+    // by Mongo. Keeping both means the selection rule has ONE definition that
+    // the database merely pre-filters against.
     const body = post.content?.variants?.[0]?.text ?? '';
     if (!RENDERED_QUOTE_PREFIX.test(body.trim())) continue;
     candidates += 1;

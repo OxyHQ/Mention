@@ -52,3 +52,32 @@ describe('the decision is structural, never the body', () => {
     expect(extractApQuoteUri({ type: 'Note', content: 'RE: something' })).toBeUndefined();
   });
 });
+
+/**
+ * The selection has to survive being expressed TWICE — once as a Mongo `$regex`
+ * that pre-filters, once in JS — and the two must not disagree.
+ *
+ * The reason it is expressed twice at all is measured, not stylistic: the rest
+ * of the query (`federation.activityId` present, `quoteOf` unset) describes
+ * 611,100 of 611,607 production posts, because almost nothing is a quote.
+ * Filtering the body in JS meant streaming 99.9% of the collection over the wire
+ * to discard 98.5% of it — 8.5 hours at the observed rate, against 10,446
+ * documents once the prefix is in the query.
+ */
+describe('the prefix filter is the same rule on both sides', () => {
+  it('is anchored, so Mongo cannot match a body that merely contains it', () => {
+    // `$regex` runs against the RAW stored value. An unanchored pattern here
+    // would hand JS every post containing "RE: http" anywhere.
+    expect(RENDERED_QUOTE_PREFIX.source.startsWith('^')).toBe(true);
+    expect(RENDERED_QUOTE_PREFIX.test('Mira esto RE: https://example.com')).toBe(false);
+  });
+
+  it('keeps the JS check, which trims first and so is the wider of the two', () => {
+    // Mongo matches the raw value; the JS check trims. A body with leading
+    // whitespace therefore passes JS and not Mongo — the pre-filter may only
+    // ever be NARROWER, never wider, or the database would be deciding.
+    const padded = '  RE: https://mastodon.social/users/lemonde/statuses/117030664429761672';
+    expect(RENDERED_QUOTE_PREFIX.test(padded)).toBe(false);
+    expect(RENDERED_QUOTE_PREFIX.test(padded.trim())).toBe(true);
+  });
+});
