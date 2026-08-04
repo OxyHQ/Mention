@@ -90,55 +90,16 @@ describe('channel and person profiles are separate screens', () => {
   /**
    * The canonicalization between `/@` and `/c/` is the ONE piece that cannot be
    * duplicated: two screens each deciding where to redirect can build a bounce
-   * loop between them. Every profile screen must reach it through the shared
-   * helper.
-   *
-   * The person profile is TWO files since the web build split its chrome into
-   * the tab group's layout, so a screen may reach `useProfileAccount` either
-   * directly or through `usePersonProfileView`, which calls it once for both.
-   * Which of the two it is, is asserted rather than allowed to be neither.
+   * loop between them. Both screens must reach it through the shared helper.
    */
-  const PROFILE_SCREENS = [
-    ['ProfileScreen.tsx'],
-    ['ProfileScreen.web.tsx'],
-    ['ChannelScreen.tsx'],
-  ];
-
-  it('routes every profile screen through the one canonicalization', () => {
-    const shared = code(read('components', 'Profile', 'hooks', 'usePersonProfileView.tsx'));
-    expect(shared).toMatch(/useProfileAccount\('person'\)/);
-
-    for (const screen of PROFILE_SCREENS) {
-      const source = code(read('components', ...screen));
-      const reachesAccount =
-        /useProfileAccount\(/.test(source) || /usePersonProfileView/.test(source);
-      expect({ screen: screen.join('/'), reachesAccount }).toEqual({
-        screen: screen.join('/'),
-        reachesAccount: true,
-      });
+  it('routes both screens through the one canonicalization', () => {
+    for (const screen of ['ProfileScreen.tsx', 'ChannelScreen.tsx']) {
+      const source = code(read('components', screen));
+      expect(source).toMatch(/useProfileAccount\(/);
       expect(source).toMatch(/canonicalHref/);
       // A screen that builds its own redirect target has left the shared rule.
       expect(source).not.toMatch(/<Redirect href={`/);
     }
-  });
-
-  /**
-   * The tab group's LAYOUT must not redirect, however wrong the URL family is.
-   *
-   * A layout has to render its navigator unconditionally — a `<Redirect/>`
-   * renders null, which leaves the segment with no navigator in the navigation
-   * state and, on web, sends the remount that follows chasing `usePathname()`
-   * until React aborts the render (`[username]/_layout.tsx` carries the full
-   * account). It holds the skeleton instead and lets the SCREEN below redirect,
-   * which is the one place that is allowed to.
-   */
-  it('leaves the redirect to the screen, never the tab layout', () => {
-    const layout = code(read('components', 'Profile', 'ProfileTabsChrome.web.tsx'));
-    expect(layout).not.toMatch(/<Redirect/);
-    // Not vacuous: it does read the shared verdict, it just does not act on it
-    // by unmounting the navigator.
-    expect(layout).toMatch(/canonicalHref/);
-    expect(layout).toMatch(/<Slot \/>/);
   });
 
   /**
@@ -185,9 +146,7 @@ describe('a channel has its own about page', () => {
   });
 
   it('keeps the person profile on the person family, so the check is not vacuous', () => {
-    // The person's summary is built by the hook both platforms share, so that
-    // is where its hrefs are now written.
-    const source = code(read('components', 'Profile', 'hooks', 'usePersonProfileView.tsx'));
+    const source = code(read('components', 'ProfileScreen.tsx'));
     expect(source).toMatch(/aboutHref=\{`\/@\$\{handle\}\/about`\}/);
   });
 

@@ -54,24 +54,6 @@ export interface ProfileShellProps {
   /** Which surface the active tab renders. */
   tabs: ProfileTabsProps;
   /**
-   * WEB only: what to render in the tab area INSTEAD of `<ProfileTabs/>`.
-   *
-   * Supplied by a LAYOUT that owns the chrome and routes the tabs — it passes a
-   * `<Slot/>`, so the tab area is whichever child route the URL names. Native
-   * callers never pass it: there the tab content is a sibling of the summary
-   * inside the scroller that owns them both, and on two of the tabs it IS that
-   * scroller.
-   *
-   * It is kept MOUNTED in every branch, merely hidden while the skeleton or the
-   * not-found state is showing. A layout that swaps its navigator for a plain
-   * screen leaves its segment with no navigator in the navigation state, and on
-   * web the remount that follows chases `usePathname()` until React aborts the
-   * render — `[username]/_layout.tsx` carries the full account. Nothing is
-   * fetched behind the skeleton: without a resolved profile id `ProfileTabs`
-   * renders null.
-   */
-  tabContent?: React.ReactNode;
-  /**
    * Which anatomy the loading skeleton should hold space for. Defaults to a
    * person; a channel's page is a different shape, not a smaller one.
    */
@@ -102,7 +84,6 @@ export function ProfileShell({
   summary,
   tabBar,
   tabs,
-  tabContent,
   skeletonVariant = 'person',
 }: ProfileShellProps) {
   const theme = useTheme();
@@ -137,14 +118,6 @@ export function ProfileShell({
       style={[{ overflow: 'visible' }, chrome.themedStyles.container]}
     >
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
-
-      {/* The routed tab area, held mounted while the chrome above it is still a
-          skeleton or a not-found state — see {@link ProfileShellProps.tabContent}.
-          `display: none` rather than an unmounted branch, because what a layout
-          passes here is a NAVIGATOR and its segment must never be without one. */}
-      {loading || !profileData ? (
-        <View style={hiddenTabContent}>{tabContent}</View>
-      ) : null}
 
       {loading ? (
         <ProfileSkeleton variant={skeletonVariant} />
@@ -352,7 +325,7 @@ export function ProfileShell({
                 {tabBar}
               </View>
 
-              {tabContent ?? <ProfileTabs {...tabs} />}
+              <ProfileTabs {...tabs} />
             </View>
           ) : nativeListOwnsScroll ? (
             <View style={[{ zIndex: 3, flex: 1, minHeight: 0 }, chrome.themedStyles.scrollView]}>
@@ -414,9 +387,6 @@ export function ProfileShell({
 // banner/name fades). The web `position`/`z` live in NativeWind classes; this
 // StyleSheet only supplies the native `absolute` anchor (web entries are empty
 // so the classes win).
-/** Keeps a layout's routed tab area in the tree while the chrome is a skeleton. */
-const hiddenTabContent = { display: 'none' } as const;
-
 const webStickyChrome = StyleSheet.create({
   banner: {
     ...Platform.select({

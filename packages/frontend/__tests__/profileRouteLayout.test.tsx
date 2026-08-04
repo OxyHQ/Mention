@@ -23,16 +23,15 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { ProfileTab } from '@/components/Profile/types';
 import UsernameLayout from '@/app/(app)/[username]/_layout';
-import TabsLayout from '@/app/(app)/[username]/(tabs)/_layout';
-import PostsRoute from '@/app/(app)/[username]/(tabs)/index';
-import RepliesRoute from '@/app/(app)/[username]/(tabs)/replies';
-import MediaRoute from '@/app/(app)/[username]/(tabs)/media';
-import VideosRoute from '@/app/(app)/[username]/(tabs)/videos';
-import LikesRoute from '@/app/(app)/[username]/(tabs)/likes';
-import BoostsRoute from '@/app/(app)/[username]/(tabs)/boosts';
-import FeedsRoute from '@/app/(app)/[username]/(tabs)/feeds';
-import StarterPacksRoute from '@/app/(app)/[username]/(tabs)/starter_packs';
-import ListsRoute from '@/app/(app)/[username]/(tabs)/lists';
+import PostsRoute from '@/app/(app)/[username]/index';
+import RepliesRoute from '@/app/(app)/[username]/replies';
+import MediaRoute from '@/app/(app)/[username]/media';
+import VideosRoute from '@/app/(app)/[username]/videos';
+import LikesRoute from '@/app/(app)/[username]/likes';
+import BoostsRoute from '@/app/(app)/[username]/boosts';
+import FeedsRoute from '@/app/(app)/[username]/feeds';
+import StarterPacksRoute from '@/app/(app)/[username]/starter_packs';
+import ListsRoute from '@/app/(app)/[username]/lists';
 
 let mockUsername: string | undefined = '@nate';
 let mockPathname = '/@nate';
@@ -132,40 +131,6 @@ describe('[username] layout', () => {
       ).toHaveLength(1);
       expect(
         renderer.root.findAllByType('MockSlot' as unknown as React.ComponentType),
-      ).toHaveLength(0);
-
-      act(() => renderer.unmount());
-    },
-  );
-});
-
-describe('[username]/(tabs) layout', () => {
-  /**
-   * The tab group's layout carries the profile chrome on WEB, so it has the
-   * same invariant one level down and a sharper reason to break it: it renders
-   * a skeleton while the account resolves, and a skeleton is not a navigator.
-   * Under jest this exercises the NATIVE half of the platform pair (jest-expo
-   * resolves `.tsx`, never `.web.tsx`), which is the plain `<Slot/>` — so this
-   * asserts the invariant on the file it can reach, and the web half keeps it by
-   * holding `tabContent` mounted behind `display: none`. Verified in a browser,
-   * not here.
-   */
-  it.each(PROFILE_PATHNAMES.filter((path) => !path.endsWith('/about')))(
-    'renders a navigator and nothing else at %s',
-    (pathname) => {
-      mockPathname = pathname;
-      let created: TestRenderer.ReactTestRenderer | undefined;
-      act(() => {
-        created = TestRenderer.create(<TabsLayout />);
-      });
-      if (!created) throw new Error(`tab layout did not render at ${pathname}`);
-      const renderer = created;
-
-      expect(
-        renderer.root.findAllByType('MockSlot' as unknown as React.ComponentType),
-      ).toHaveLength(1);
-      expect(
-        renderer.root.findAllByType('MockProfileScreen' as unknown as React.ComponentType),
       ).toHaveLength(0);
 
       act(() => renderer.unmount());
