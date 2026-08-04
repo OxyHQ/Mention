@@ -120,8 +120,12 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
         return null;
     }
 
+    // No `gap` here on purpose — every widget hides itself when it has nothing
+    // to show, and a gap would still be charged for each hidden one, leaving a
+    // column of blank space where the rail should have collapsed. Widgets carry
+    // their own bottom spacing (see `BaseWidget`).
     return (
-        <View className="flex-col gap-4">
+        <View className="flex-col">
             {allWidgets.map((widget, index) => {
                 const slotKey = (widget as React.ReactElement)?.key?.toString() ?? `widget-${index}`;
                 return (

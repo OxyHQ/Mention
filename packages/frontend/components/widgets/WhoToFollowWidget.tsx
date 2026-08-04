@@ -42,19 +42,10 @@ export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
     );
   }
 
-  if (error) {
-    return (
-      <BaseWidget title={t("Who to follow")} divider={divider}>
-        <View className="py-2 items-center gap-2">
-          <ThemedText className="text-destructive text-[13px]">
-            {error.message}
-          </ThemedText>
-        </View>
-      </BaseWidget>
-    );
-  }
-
-  if (displayedUsers.length === 0) {
+  // A failed fetch leaves the rail with nothing to suggest, which is the same
+  // situation as an empty result — the widget disappears instead of turning the
+  // rail into an error report.
+  if (error || displayedUsers.length === 0) {
     return null;
   }
 
