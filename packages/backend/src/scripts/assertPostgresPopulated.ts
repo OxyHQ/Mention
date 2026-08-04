@@ -76,19 +76,25 @@ export interface PopulationFloor {
 export const POPULATION_FLOORS: readonly PopulationFloor[] = [
   {
     table: 'posts',
-    minimum: 1,
+    minimum: 100_000,
     why:
-      'The copy moved 4,989,522 rows across 58 collections, the overwhelming ' +
-      'majority of them posts. An empty `posts` is not a quiet production — it ' +
-      'is no production.',
+      'The source holds 622,474 posts (counted on production Mongo, 2026-08-04). ' +
+      'A floor of 1 was satisfied by 100 rows of smoke-test residue and let a ' +
+      'trunk image serve a database with 0.016% of production in it — the check ' +
+      'asked "is this literally empty" when the property is "does this hold ' +
+      'production". 100,000 is ~6x below the real count, so a legitimately ' +
+      'smaller copy still passes, and ~1000x above any plausible residue.',
   },
   {
     table: 'federated_actors',
-    minimum: 1,
+    minimum: 10_000,
     why:
-      '64,156 remote actors were measured in the source. It is written at a ' +
-      'DIFFERENT level of the copy than `posts`, which is what makes the pair ' +
-      'able to tell a partial copy from an empty one.',
+      'The source holds 66,258 remote actors (same count, same day). It is ' +
+      'written at a DIFFERENT level of the copy than `posts`, which is what ' +
+      'makes the pair able to tell a partial copy from an empty one — and ' +
+      'federated ingest keeps writing this table while the site serves Mongo, ' +
+      'so it accrues residue fastest and needs the wider margin most. 10,000 is ' +
+      '~6x below the real count and ~500x above the residue observed.',
   },
 ];
 

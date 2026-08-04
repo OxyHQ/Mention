@@ -82,8 +82,24 @@ describe('the pre-rollout population floor', () => {
     // assertion above.
     expect(POPULATION_FLOORS.length).toBeGreaterThanOrEqual(2);
     for (const floor of POPULATION_FLOORS) {
-      expect(floor.minimum).toBeGreaterThanOrEqual(1);
       expect(floor.why.length).toBeGreaterThan(40);
+    }
+  });
+
+  it('sets every floor far above RESIDUE, not merely above zero', () => {
+    // This assertion previously read `toBeGreaterThanOrEqual(1)`, and a floor of
+    // 1 is what shipped. It did not hold: on 2026-08-04 the deploy ran this
+    // check against a Postgres carrying 100 posts and 19 federated actors of
+    // smoke-test and federated-ingest residue, reported `completed
+    // successfully`, and let a trunk image serve 0.016% of production.
+    //
+    // "Above zero" and "holds production" are different questions, and only the
+    // second one is worth a deploy gate. Residue is not hypothetical here:
+    // federated ingest writes `federated_actors` continuously while the site
+    // still serves Mongo, so the number it accrues only ever grows.
+    const OBSERVED_RESIDUE_HIGH_WATER = 100;
+    for (const floor of POPULATION_FLOORS) {
+      expect(floor.minimum).toBeGreaterThan(OBSERVED_RESIDUE_HIGH_WATER * 10);
     }
   });
 });
