@@ -323,16 +323,30 @@ describe('report urgency — an absence is not a zero', () => {
    * between the two stores rather than a trimmed test.
    *
    * Its `it.each` also covered a FRACTIONAL counter (`12.5`) and a NON-NUMERIC one
-   * (`'900'`). Neither is representable here: `stats_views_count` is
-   * `integer NOT NULL`, so Postgres coerces or refuses both, and a fixture that
-   * cannot express its own claim reads as coverage while proving nothing. The
-   * `Number.isInteger` and `typeof === 'number'` halves of `reachedAudience`'s
-   * guard are now defended by the COLUMN TYPE rather than by the code — the guard
-   * stays, because the column is not the only conceivable writer, but its evidence
-   * cannot come from this store.
+   * (`'900'`). Neither is representable here, and the reach of that claim was
+   * MEASURED rather than assumed: `reachedAudience` has exactly one production
+   * caller (`urgencySnapshot`), whose post comes only from `loadPost` ->
+   * `loadPostRecord`, which assembles `stats.viewsCount` from
+   * `posts.stats_views_count` — `integer NOT NULL`. There is no hydrated DTO, no
+   * cache and no external payload feeding it, so the column is the SOLE writer and
+   * Postgres coerces or refuses both shapes before the guard is ever reached.
    *
-   * A NEGATIVE counter IS representable (the column carries no CHECK), so that half
-   * of the guard keeps a real fixture.
+   * They are dropped rather than injected with raw SQL on purpose. Bypassing the
+   * column to store `12.5` would test whether Postgres enforces `integer` — a
+   * guarantee Postgres already makes — wearing the costume of a test of our code,
+   * and it would pass forever regardless of what the guard does. A fixture that
+   * cannot express its own claim is worse than no fixture: it reads as coverage.
+   *
+   * The guard KEEPS both halves anyway, and this is the sentence that should stop
+   * anyone deleting them next year on the grounds that nothing tests them: they are
+   * unreachable through the only writer that exists today, and the guard remains
+   * because a future writer may not be the column.
+   *
+   * A NEGATIVE counter IS still representable — the column carries no CHECK — so
+   * that half of the guard keeps a real fixture. Note the app's own increment path
+   * clamps (`greatest(0, stats_views_count + delta)`), so this too is a value no
+   * current writer produces; it is reachable by direct write, which is exactly what
+   * the fixture below does.
    */
   it('omits reach rather than coercing a negative counter', async () => {
     const id = await seedSubject({ views: -1 });
