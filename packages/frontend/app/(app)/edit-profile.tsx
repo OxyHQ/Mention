@@ -2,13 +2,7 @@ import React, { useMemo } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
-import {
-  useBloomTheme,
-  useTheme,
-  FREE_COLOR_NAMES,
-  PREMIUM_COLOR_NAMES,
-  type AppColorName,
-} from '@oxyhq/bloom/theme';
+import { useBloomTheme, useTheme } from '@oxyhq/bloom/theme';
 import { SettingsListDivider } from '@oxyhq/bloom/settings-list';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { Loading } from '@oxyhq/bloom/loading';
@@ -19,6 +13,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useProfileData } from '@/hooks/useProfileData';
 import { ColorSwatchPicker } from '@/components/settings/ColorSwatchPicker';
+import { entitledColorNames } from '@/lib/colorEntitlement';
 import { Icon } from '@/lib/icons';
 import { useAppColorSave } from '@/hooks/useAppColorSave';
 import { BannerSection } from '@/components/Profile/EditProfile/BannerSection';
@@ -33,26 +28,16 @@ export default function EditProfileScreen() {
   const { colors } = useTheme();
   const { saveColor } = useAppColorSave();
 
-  const normalizedUsername = authUser?.username?.toLowerCase();
   const authUserRecord = authUser as { premium?: { isPremium?: boolean } } | null;
   const isPremium = authUserRecord?.premium?.isPremium ?? false;
-  const isOxyUser = normalizedUsername === 'oxy';
-  const isFaircoinUser = normalizedUsername === 'faircoin';
 
-  // The full list this viewer may pick, built UP from the free presets rather
-  // than down from all of them. Two different gates, and they are not
-  // interchangeable: `oxy` and `faircoin` belong to those accounts and cannot be
-  // bought, while `mono` — black on white and white on black — is what a
-  // subscription buys.
-  const visibleColors = useMemo<readonly AppColorName[]>(
-    () => [
-      ...FREE_COLOR_NAMES,
-      ...(isOxyUser ? (['oxy'] as const) : []),
-      ...(isFaircoinUser ? (['faircoin'] as const) : []),
-      ...(isPremium ? PREMIUM_COLOR_NAMES : []),
-    ],
-    [isPremium, isOxyUser, isFaircoinUser],
-  );
+  // Which presets this viewer may pick — answered by the one authority that also
+  // guards an already-stored preference, so the picker and the applier cannot
+  // disagree about who is entitled to what.
+  const visibleColors = useMemo(
+    () => entitledColorNames({ username: authUser?.username, isPremium }),
+    [authUser?.username, isPremium],
+  )
 
   if (!isAuthenticated) {
     return (

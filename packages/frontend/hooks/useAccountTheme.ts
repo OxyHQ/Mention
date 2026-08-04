@@ -8,6 +8,7 @@ import {
   type ThemeMode,
 } from '@oxyhq/bloom/theme';
 import { useThemeSourceStore, type ThemeSource } from '@/stores/themeSourceStore';
+import { APP_DEFAULT_COLOR_PRESET, isColorEntitled } from '@/lib/colorEntitlement';
 
 /**
  * The portable account theme value that rides the Oxy user DTO
@@ -46,7 +47,7 @@ export function useAccountThemeSync(): void {
   const source = useThemeSourceStore((state) => state.source);
   const hydrated = useThemeSourceStore((state) => state.hydrated);
   const hydrate = useThemeSourceStore((state) => state.hydrate);
-  const { setMode, setColorPreset } = useBloomTheme();
+  const { colorPreset, setMode, setColorPreset } = useBloomTheme();
 
   // Resolve the persisted source once (async on native; already resolved on web).
   useEffect(() => {
@@ -67,6 +68,34 @@ export function useAccountThemeSync(): void {
       setColorPreset(themePreference.colorPreset);
     }
   }, [hydrated, isAuthenticated, source, themePreference, setMode, setColorPreset]);
+
+  // REVOKE a preset the viewer is no longer entitled to.
+  //
+  // Gating the picker only stops someone CHOOSING a colour; it does nothing about
+  // one already chosen. A subscriber who picked the colourless theme and then
+  // lapsed kept rendering it indefinitely, because both the account preference
+  // and Bloom's own local persistence store a preset NAME and validate only that
+  // the name exists. So the paywall held on one screen and nowhere else.
+  //
+  // Deliberately NOT inside the effect above: that one is scoped to the `account`
+  // theme source, while a stale entitlement can arrive by either route — Bloom's
+  // local storage paints on cold boot before any account theme lands, and under
+  // the `app` source it is the only thing that ever paints.
+  //
+  // Guarded on the resolved user object rather than on `isAuthenticated` alone,
+  // because entitlement is READ FROM IT: acting while it is still undefined would
+  // read `isPremium` as false and strip a paying subscriber's theme on every cold
+  // boot, in the window before the session resolves.
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+    const viewer = {
+      username: user.username,
+      isPremium: (user as { premium?: { isPremium?: boolean } }).premium?.isPremium ?? false,
+    };
+    if (!isColorEntitled(colorPreset, viewer)) {
+      setColorPreset(APP_DEFAULT_COLOR_PRESET);
+    }
+  }, [isAuthenticated, user, colorPreset, setColorPreset]);
 }
 
 interface ThemeControls {
