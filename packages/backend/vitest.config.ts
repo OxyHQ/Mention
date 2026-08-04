@@ -203,8 +203,36 @@ export default defineConfig({
         // Raising it back means STAGING the conflict — inserting the colliding
         // replier row so the repair's insert really raises 23505 — not waiting
         // for one.
+        /**
+         * LOWERED, and MEASURED to be a denominator change rather than a
+         * regression — the same distinction as ModerationDecisionWorker above,
+         * and it is written down because the numbers alone cannot tell them apart.
+         *
+         * `#142` removed two statements that were DEAD but EXECUTED: the
+         * reply-delete whose links `ON DELETE SET NULL` had already nulled, and
+         * the projection-delete whose rows `post_recent_repliers.post_id`'s
+         * `ON DELETE CASCADE` had already removed. Executed code is in the
+         * denominator, so deleting it lowers the ratio while the uncovered count
+         * stands still: 70/71 = 98.59%, the same one uncovered over 67/68 = 98.52%.
+         *
+         * VERIFIED, not inferred, because the diff also ADDED two guards
+         * (`if (!input.parentPostId) return;`, `if (!postId) return;`) whose
+         * `return` sits on the `if`'s own line — exactly the shape that produces
+         * statements under 100% with lines at 100%, so a plausible second story
+         * existed. A full-suite coverage run naming the uncovered statement
+         * settles it: there is exactly ONE, `isRetryableProjectionConflict`'s
+         * `return true` on a unique violation, and it predates #142 (it sat at
+         * line 319 of the old file, uncovered then too). Both new guards are
+         * covered.
+         *
+         * That one statement is a pre-existing, accepted gap — a retry path no
+         * test forces a unique violation on. Naming it here is what keeps it from
+         * being invisible; closing it is a fixture that injects a constraint
+         * violation into the projection write, which belongs to the same family
+         * as the moderation contention work and not to a threshold edit.
+         */
         'src/services/PostRecentReplierService.ts': {
-          statements: 98.59,
+          statements: 98.52,
           branches: 82,
           functions: 100,
           lines: 100,
