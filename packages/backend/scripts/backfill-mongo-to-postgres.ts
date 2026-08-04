@@ -183,6 +183,9 @@ import {
   verifyBackfill,
 } from '../src/db/backfill/verify';
 
+/** Per-collection cap on the missing-row ids printed; the count above is exact. */
+const MAX_REPORTED_MISSING_ROWS = 200;
+
 interface Options {
   readonly auditOnly: boolean;
   readonly verify: boolean;
@@ -929,13 +932,36 @@ async function runVerification(
       // a document that arrived after the copy — the sample cannot reach it —
       // while one from a smaller collection can. That distinction is the whole
       // difference between churn and loss, and it is only visible per collection.
+      // The bound goes in the OUTPUT, not only in a runbook. Read alone, "43
+      // row(s) missing" is a statement about five million rows; it is actually a
+      // statement about the sample. Anyone reading this at 03:00 gets the
+      // denominator on the same screen as the numerator.
+      say(
+        `  These come from a SAMPLE, not a full scan: the missing-row check ` +
+          `inspects the first ${DEFAULT_FIDELITY_SAMPLE} document(s) of each ` +
+          `collection, and the stream is ordered by \`_id\`, so it is the OLDEST ` +
+          `${DEFAULT_FIDELITY_SAMPLE}. Do NOT read the count as a whole-database figure.`
+      );
+      say(
+        `  A missing row from a collection LARGER than ${DEFAULT_FIDELITY_SAMPLE} ` +
+          `documents cannot be one that arrived after the copy — the sample cannot ` +
+          `reach it. From a SMALLER collection it can, because there the sample is ` +
+          `the whole collection. That is the difference between churn and loss, ` +
+          `which is why this is grouped by collection and why each line carries its size.`
+      );
       for (const collection of report.collections) {
         if (collection.missingRows.length === 0) continue;
+        const sampled = collection.documents > DEFAULT_FIDELITY_SAMPLE;
         say(
           `    ${collection.collection}: ${collection.missingRows.length} missing ` +
-            `(of ${collection.documents} document(s) in the collection)`
+            `(collection holds ${collection.documents} document(s) — ` +
+            `${sampled ? 'LARGER than the sample, so these CANNOT be post-copy arrivals' : 'fully sampled, so an arrival could appear here'})`
         );
-        for (const row of collection.missingRows) say(`      ${row}`);
+        for (const row of collection.missingRows.slice(0, MAX_REPORTED_MISSING_ROWS)) {
+          say(`      ${row}`);
+        }
+        const hidden = collection.missingRows.length - MAX_REPORTED_MISSING_ROWS;
+        if (hidden > 0) say(`      … and ${hidden} more in this collection`);
       }
     }
     return 1;
