@@ -215,10 +215,6 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                     <View style={styles.composeButtonContainer}>
                         <Pressable
                             onPress={handleComposePress}
-                            // TEMPORARY (colour preview): the compose action is the
-                            // screen's standout moment, which is what the tertiary
-                            // accent exists for. Revert to `bg-primary` when the
-                            // preview harness comes out.
                             className="bg-tertiary"
                             style={[
                                 styles.composeButton,

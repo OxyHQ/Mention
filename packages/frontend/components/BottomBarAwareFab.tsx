@@ -50,9 +50,6 @@ export function BottomBarAwareFab({ onPress, icon, accessibilityLabel, size = 48
     if (!followsBottomBar) {
         return (
             <Fab
-                // TEMPORARY (colour preview): a FAB is the canonical M3 home for
-                // an accent. Drop the `variant` when the harness comes out.
-                variant="tertiary"
                 size={size}
                 onPress={onPress}
                 offset={FAB_BASE_OFFSET}
@@ -78,9 +75,6 @@ export function BottomBarAwareFab({ onPress, icon, accessibilityLabel, size = 48
             style={{ bottom: FAB_BASE_OFFSET + reserved, marginRight: FAB_BASE_OFFSET }}
         >
             <Fab
-                // TEMPORARY (colour preview): a FAB is the canonical M3 home for
-                // an accent. Drop the `variant` when the harness comes out.
-                variant="tertiary"
                 size={size}
                 onPress={onPress}
                 placement="static"

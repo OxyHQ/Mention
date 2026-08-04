@@ -140,9 +140,7 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
     [openWidgetMenu, hideRoom, t],
   );
 
-  // Same rule as the other rail widgets: a failed fetch is settled, and a
-  // settled widget with nothing to list renders nothing at all rather than an
-  // error report. Rooms already on screen survive a later failure.
+  // Same settling rule as `TrendsWidget`.
   const hasSettled = hasFetched || error !== null;
 
   if (!isAuthenticated) return null;

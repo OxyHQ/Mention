@@ -477,7 +477,7 @@ const WriteReviewModal = React.memo(function WriteReviewModal({
               activeOpacity={0.7}
             >
               {submitting ? (
-                <SpinnerIcon size={16} className="text-primary-foreground" />
+                <SpinnerIcon size={16} className="text-tertiary-foreground" />
               ) : (
                 <Text className="text-[15px] font-bold text-white">Submit</Text>
               )}

@@ -1,4 +1,4 @@
-import React, { Component, ReactNode, useMemo } from 'react';
+import React, { Component, ReactNode } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { WhoToFollowWidget } from './WhoToFollowWidget';
@@ -113,17 +113,13 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
         }
     };
 
-    const screenWidgets = getWidgetsForScreen(screenId);
-    const allWidgets = useMemo(() => [...screenWidgets, ...customWidgets], [screenWidgets, customWidgets]);
+    const allWidgets = [...getWidgetsForScreen(screenId), ...customWidgets];
 
     if (allWidgets.length === 0) {
         return null;
     }
 
-    // No `gap` here on purpose — every widget hides itself when it has nothing
-    // to show, and a gap would still be charged for each hidden one, leaving a
-    // column of blank space where the rail should have collapsed. Widgets carry
-    // their own bottom spacing (see `BaseWidget`).
+    // No column `gap` — each widget owns its own bottom margin, see `BaseWidget`.
     return (
         <View className="flex-col">
             {allWidgets.map((widget, index) => {

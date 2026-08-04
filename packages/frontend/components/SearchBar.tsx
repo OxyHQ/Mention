@@ -14,7 +14,10 @@ import { Search } from '@oxyhq/bloom/search'
  * submitting again while already on `/search` re-runs it.
  *
  * WEB pins the bar with `web:sticky` (react-native-web resolves `position:
- * sticky`); on native the class is inert and the bar simply sits in flow.
+ * sticky`); on native the class is inert and the bar simply sits in flow. The
+ * rail holds its children with margins rather than a column `gap`, so the bar
+ * carries its own bottom margin — wrapping it in a spacing `View` instead would
+ * make that wrapper the sticky containing block and leave it nothing to travel.
  */
 export const SearchBar = () => {
     const router = useRouter();
@@ -30,7 +33,7 @@ export const SearchBar = () => {
     };
 
     return (
-        <View className="bg-background w-full z-[1000] web:sticky web:top-0">
+        <View className="bg-background w-full mb-4 z-[1000] web:sticky web:top-0">
             <Search
                 label={t('Search Mention')}
                 value={query}
