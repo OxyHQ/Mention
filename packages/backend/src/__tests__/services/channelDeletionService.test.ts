@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { eq, like } from 'drizzle-orm';
+import { eq, like, sql } from 'drizzle-orm';
 
 /**
  * `ChannelDeletionService` — destroying one channel's archive, against REAL ROWS.
@@ -560,6 +560,73 @@ describe('ChannelDeletionService — federation ordering', () => {
       status: 'accepted',
     });
   }
+
+  it('ROLLS THE BATCH BACK and REFUSES to report success — the posts survive and the caller is told', async () => {
+    /**
+     * INJECTION (3) from the mocked suite this file replaced, rebuilt on a REAL
+     * failure instead of a rejecting double.
+     *
+     * A batch that throws is rolled back, so its posts SURVIVE, and the walk
+     * continues to the next batch. What stops that reading as a completed
+     * deletion is that `deleteChannelContent` THROWS at the end when
+     * `run.failures` is non-empty, naming the batch — the failure is carried by
+     * the exception, not by the returned result.
+     *
+     * That fact is worth pinning precisely because it is easy to get backwards:
+     * the failure list is otherwise internal, read once for a summary, and a
+     * reader who stops at the `if (run.failures.length > 0)` line — as I did —
+     * concludes the result is silently clean. It is not; the function never
+     * returns one.
+     *
+     * THE ROW ASSERTION IS THE ONE THAT MATTERS and needs no instrumentation:
+     * the post is either there or it is not. Mutating the batch to commit on
+     * error reds it while the throw still fires.
+     *
+     * The failure is a REAL Postgres error, raised by a trigger scoped to one
+     * probe recipient id, on the `notifications` delete the cascade performs
+     * inside the batch transaction. A mocked rejection would only prove the
+     * catch recognises a shape the test invented. The trigger is created and
+     * dropped inside this case so it cannot reach another file, and so the
+     * teardown's own delete does not trip it.
+     */
+    const db = getDb();
+    const channelPost = await seedChannelPost();
+    await db.insert(notifications).values({
+      recipientId: `${SCOPE_PREFIX}batch-failure-probe`,
+      actorId: STRANGER,
+      type: 'like',
+      entityType: 'post',
+      entityId: channelPost.id,
+    });
+    await db.execute(sql`
+      create or replace function channel_deletion_batch_failure_probe() returns trigger as $$
+      begin
+        if old.recipient_id = ${sql.raw(`'${SCOPE_PREFIX}batch-failure-probe'`)} then
+          raise exception 'channel deletion batch probe';
+        end if;
+        return old;
+      end;
+      $$ language plpgsql;
+    `);
+    await db.execute(sql`
+      create or replace trigger channel_deletion_batch_failure_probe_trigger
+      before delete on notifications
+      for each row execute function channel_deletion_batch_failure_probe();
+    `);
+
+    try {
+      await expect(deleteChannelContent(CHANNEL, { dryRun: false })).rejects.toThrow(
+        /cascade step\(s\) failed/,
+      );
+    } finally {
+      await db.execute(sql`drop trigger if exists channel_deletion_batch_failure_probe_trigger on notifications`);
+      await db.execute(sql`drop function if exists channel_deletion_batch_failure_probe()`);
+    }
+
+    // THE PROPERTY: the transaction rolled back, so the post is still there —
+    // and the caller was told rather than handed a clean-looking report.
+    expect(await postExists(channelPost.id), 'a rolled-back batch must leave its posts').toBe(true);
+  });
 
   it('sends a post Tombstone while the post still exists', async () => {
     await seedRemoteFollower();
