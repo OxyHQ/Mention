@@ -22,6 +22,15 @@ import NotFoundScreen from '@/components/NotFoundScreen';
  * for unknown single-segment paths, and whether a handle is `@`-prefixed is
  * fixed for the lifetime of a route instance. It cannot appear and disappear
  * underneath a mounted child the way the pathname could.
+ *
+ * This layout deliberately holds NO profile chrome. The tab routes live one
+ * level down in a `(tabs)` group whose own layout owns the banner, the summary
+ * and the tab strip — see `[username]/(tabs)/_layout.tsx` for why the boundary
+ * is drawn there, and `components/Profile/ProfileTabsChrome.tsx` for why web and
+ * native compose that group differently. The screens beside this file
+ * (`/about`, `/followers`, `/following`, `/connections`, `/in-common`,
+ * `/who-may-know`) are full screens with their own headers and must stay
+ * outside that group.
  */
 const UsernameLayout = () => {
     const { username } = useLocalSearchParams<{ username: string }>();

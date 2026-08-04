@@ -1,11 +1,14 @@
 // Types
 export * from './types';
 export * from './profileRoute';
+export * from './profileTabRoute';
+export * from './profileViewer';
 
 // Hooks
 export { useSubscription } from './hooks/useSubscription';
 export { useProfileScroll } from './hooks/useProfileScroll';
 export { useProfileAccount } from './hooks/useProfileAccount';
+export { usePersonProfileView } from './hooks/usePersonProfileView';
 export { useProfileChrome } from './hooks/useProfileChrome';
 export { useProfileMoreMenu } from './hooks/useProfileMoreMenu';
 export { useOperatesAccount } from './hooks/useOperatesAccount';
@@ -21,6 +24,7 @@ export { ProfileStats } from './ProfileStats';
 export { ProfileMeta } from './ProfileMeta';
 export { ProfileCommunities } from './ProfileCommunities';
 export { ProfileTabs } from './ProfileTabs';
+export { ProfileTabBarRow } from './ProfileTabBarRow';
 export { ProfileWriters } from './ProfileWriters';
 export { PrivateBadge } from './PrivateBadge';
 export { AccountCategoryLine } from './AccountCategoryLine';
