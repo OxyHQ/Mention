@@ -477,7 +477,7 @@ const WriteReviewModal = React.memo(function WriteReviewModal({
               activeOpacity={0.7}
             >
               {submitting ? (
-                <SpinnerIcon size={16} className="text-primary-foreground" />
+                <SpinnerIcon size={16} className="text-tertiary-foreground" />
               ) : (
                 <Text className="text-[15px] font-bold text-white">Submit</Text>
               )}
@@ -853,7 +853,7 @@ export default function CustomFeedTimelineScreen() {
       {!isLoading && !hasError && (
         <BottomBarAwareFab
           onPress={() => router.push('/compose')}
-          icon={<ComposeIcon size={22} className="text-primary-foreground" />}
+          icon={<ComposeIcon size={22} className="text-tertiary-foreground" />}
           accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
         />
       )}
