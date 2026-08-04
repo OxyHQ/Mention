@@ -166,16 +166,35 @@ export const FEDERATION_BRIDGE_POLICY: readonly FederationBridgeEntry[] = [
     network: FEDERATION_NETWORKS.x,
     operator: 'mastox.eu (contact @admin@mastox.eu)',
     software: 'Mastodon (stock; no bridge software to fingerprint)',
+    // ONE STRUCTURAL MARKER, NOT A LIST OF TRANSLATIONS.
+    //
+    // This was two literals, English and French, and it silently mis-served 18
+    // of the 50 mastox actors we hold: their notice is in SPANISH, matched
+    // neither, and the per-actor derivation failed closed — so they kept
+    // `@name@mastox.eu` and the notice stayed in their bio unstripped. Nobody
+    // would report that; it just looks like a Mastodon account.
+    //
+    // Enumerating languages cannot converge (this file already says the tell is
+    // free text "in French here and in anything anywhere else"), so the marker
+    // matches the notice's SHAPE instead: a trailing parenthetical that calls
+    // itself a bot, names THIS operator's host, and points at its @admin. That
+    // is the operator's own stamp, applied to mirrors and not to its own
+    // account, so it remains a per-ACTOR proof rather than a host-wide
+    // assumption — the distinction that keeps a human who merely signs up on
+    // this stock Mastodon instance from being published as an X account.
+    //
+    // Verified against all four wordings in production (EN, FR, and both
+    // Spanish forms, whose `@admin` appears bare and host-qualified), and
+    // against negatives: the operator's own profile text, an ordinary bio
+    // mentioning bots, and the same notice naming a DIFFERENT host.
     derive: upstreamHandleFromPreferredUsername([
-      /\(bot from x to mastodon managed by mastox\.eu, contact @admin for any information\)\s*$/i,
-      /\(bot de x . mastodon g.r. par mastox\.eu, contactez @admin pour toute demande\)\s*$/i,
+      /\(bot\b[^)]{0,160}\bmastox\.eu\b[^)]{0,160}@admin[^)]{0,80}\)\s*$/i,
     ]),
     caseRule: 'lowercase',
     relabel: 'enabled',
     upstreamIdStability: 'recyclable',
     boilerplate: [
-      /\s*\(bot from x to mastodon managed by mastox\.eu, contact @admin for any information\)\s*$/i,
-      /\s*\(bot de x . mastodon g.r. par mastox\.eu, contactez @admin pour toute demande\)\s*$/i,
+      /\s*\(bot\b[^)]{0,160}\bmastox\.eu\b[^)]{0,160}@admin[^)]{0,80}\)\s*$/i,
     ],
     consent: 'unconsented',
     evidence:
