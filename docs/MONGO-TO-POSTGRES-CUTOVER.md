@@ -103,6 +103,12 @@ has changed.
 **Consequence: budget ~86 minutes, not ~36.** Measured components: CI ~4 min,
 deploy ~9 min, copy ~66 min with the audit inside it, plus stop/migrate/verify.
 
+**That `~86` has since been superseded — the measured in-window total is
+`≈105 minutes`, and §6 carries the per-step table.** It moved for two reasons,
+not one: the copy drifted (72m41s), and §3.4c was added afterwards, which is a
+second full pass over Mongo. **The argument above is unaffected** — the audit
+stays inside the window either way; only the arithmetic changed.
+
 Run the day-before pass anyway. It costs ~29 minutes, blocks nothing, and a
 BLOCK finding found the day before is a scheduling decision rather than a
 window-length crisis. Run it against the **probe**, not production: it reads
@@ -401,10 +407,15 @@ Expected, from the full rehearsal against production Mongo (2026-08-03):
 | rows | 4,986,482 across 58 collections |
 | resolution records | 2,348 written = 2,348 claimed |
 
-**Budget the full ~66 minutes.** The audit is inside this figure and stays there
-— see §2.0. `runBackfill` always audits, and the flag that would have skipped it
-was cancelled rather than left pending, so there is nothing to wait for and
-nothing to enable. **~36 minutes is not an option on the table.**
+**Budget `72m41s`, not the `65m45s` above.** That table is the REHEARSAL; the
+full copy of production data ran **72m41s, exit 0, 4,989,522 rows** — about
+seven minutes longer, on the real source. Budget the production reading.
+
+The audit is inside both figures and stays there — see §2.0. `runBackfill`
+always audits, and the flag that would have skipped it was cancelled rather than
+left pending, so there is nothing to wait for and nothing to enable. **~36
+minutes is not an option on the table**, and neither is the copy alone: §3.4c
+adds another **18m18s** to the window (§6 has the full per-step table).
 
 #### A count in this runbook is a snapshot, and the run will legitimately see a different one
 
@@ -572,10 +583,10 @@ the topology assertion and the 25 migrations, keeping the blocked-domain
 reconciliation as a Postgres-only step — and it is deliberately scheduled AFTER
 the cutover, so this deploy is the last one that carries it.
 
-### 3.4b Three EXPECTED conditions — do not diagnose these as defects
+### 3.4b Four EXPECTED conditions — do not diagnose these as defects
 
-All three are known, all three look like corruption to a completeness check, and
-all three will be met by someone under time pressure who did not write them down.
+All four are known, all four look like corruption to a completeness check, and
+all four will be met by someone under time pressure who did not write them down.
 
 **(a) 834 posts will have no `post_authorships` row. This is correct.**
 
@@ -635,6 +646,25 @@ see mismatches, re-run the verification after the writes have stopped before
 concluding anything. **A cutover rolled back over this would be a cutover rolled
 back over nothing.**
 
+**(d) A field mismatch can be POSITIONAL — the same rows, re-ranked — and no
+document-count delta will ever explain it.**
+
+The other three conditions are all arrivals or absences: something was created,
+deleted, or never there. This one is neither, which is why it needs naming
+separately — every value is present on both sides and every row exists; only
+which row holds which value moved.
+
+**It was demonstrated, not theorised.** The production verify reported four
+`authorId` mismatches forming a **closed 4-cycle** — row A's *expected* value
+was row B's *found* value, all the way round and back to A — with the
+interaction counts rotating in step with them. **Same four authors, re-ranked.**
+
+The diagnostic is the cycle itself. Sum the mismatched values on each side: if
+the multiset of expected values equals the multiset of found values, nothing was
+lost or gained, and you are looking at ordering, not corruption. **Do not try to
+subtract it out of a count** — it does not move a count at all, in either
+direction, so a completeness check that agrees exactly can still print these.
+
 ### 3.4c Verify the copy against the SOURCE
 
 **This is the only step in the whole window that compares what Postgres holds
@@ -660,7 +690,9 @@ mismatch here is the signal that means the copy lost something.**
 
 - **It re-reads the entire source.** The verifier recomputes what Postgres
   *should* hold by streaming every document again and re-running each plan's
-  transform. Budget a second full pass over Mongo, not a quick tail check.
+  transform. Budget a second full pass over Mongo, not a quick tail check —
+  **measured at `18m18s` against production data**, and it was not in the
+  window's budget at all until it was.
 - **It must run with the service still at `desiredCount 0`** — see §3.4b(c).
   Verify first, admit users second.
 
@@ -858,11 +890,137 @@ the right merge — see #102, where git merges cleanly and the result is wrong.
 
 ## 6. Open items — read before scheduling
 
+- **THE DATA HALF IS CLOSED. The source-to-target comparison has been run
+  against production data, and every discrepancy is accounted for
+  individually** — a claim this runbook has never been able to make before.
+  - **Copy:** exit 0, **72m41s**, **4,989,522 rows** across 58 collections from
+    3,246,360 documents. Resolution log **2438 written == 2438 claimed**, and
+    written **per level** rather than flushed at the end (#79, closed below).
+  - **Verify, second run, with the ids named:** **49 missing rows, all
+    explained, none of them loss.** **Zero of the 49 predate the copy's start** —
+    every one carries an embedded ObjectId timestamp *later* than the moment the
+    copy read its collection, and **46 were minted after the copy had finished
+    entirely**. 44 of them are **child** rows from the largest collection — old
+    parent documents whose field arrays grew — and that collection's primary
+    table, `federated_actors`, has **zero** missing rows.
+  - **Read the reach as carefully as the result.** Row COUNTS are total, every
+    document, no sampling. The **named missing rows are sample-bounded** — the
+    200-document limit applies to that check too, not only to field fidelity
+    (see the verifier defects below) — so "49, all explained" is 49 of what the
+    check could see, and no missing row was a primary row from a collection
+    larger than the sample.
+  - **This closes the DATA question, not the window.** The two items directly
+    below still decide whether a date can be picked at all.
+- **CI HAS NEVER RUN ON THIS TRUNK, and the divergence is what stops it. (#124)**
+  `.github/workflows/ci.yml` triggers on `push: [main]` and `pull_request:
+  [main]` only, so the **299 commits** this branch carries ahead of `main` (as
+  of `60fbb587`) have never been through a single CI job. **A probe PR does not
+  close this:** GitHub builds no merge commit for a conflicted PR, so
+  `refs/pull/N/merge` never exists, no `pull_request` run is created, and the PR
+  sits with no jobs and no red X — the same shape as the `workflow_run` trap in
+  §3.4, where nothing having run looks exactly like nothing needing to run. The
+  only path to a first CI verdict is **landing the absorb**, which resolves the
+  divergence. Until then every "CI is green" statement about this trunk is a
+  statement about `main`, and the local suite is the only evidence there is —
+  evidence about one machine.
+- **`oxy-mongo` host access is broken** — root volume 100% full, SSM
+  success-shaped nothing. **Fix before the window**; Mongo is the rollback
+  target. Full detail in the §4 banner. (#104)
+- **A background wrapper reports the WRAPPER's fate, never the job's — confirm
+  by PID.** Every long step here invites a `nohup … &` launcher or a watcher
+  loop, and both lie in the same direction: an `exit 0` is the launcher exiting,
+  not the run succeeding, and a kill notification names neither, so **a killed
+  wrapper and a killed watcher are indistinguishable from the notification
+  alone**. Confirm which process died by PID, and confirm the JOB from its own
+  log or its ECS task status. Same family as the `workflow_run` item above: the
+  absence of the signal you wanted looks exactly like the good case.
+- **The window budget is now MEASURED, and it is ~105 minutes, not ~86.** Every
+  term below is a stopwatch reading from the full production run, not an
+  estimate:
+
+  | step | measured |
+  |---|---|
+  | §2 pre-flight audit (day before, outside the window) | 36m48s |
+  | §3.2 migrate the real database | ~1 min |
+  | §3.3 copy, audit inside | **72m41s** |
+  | §3.4c verify | **18m18s** |
+  | §3.4 deploy + rollout | ~13 min |
+  | **in-window total** | **≈105 min** |
+
+  **`~86` was stale in TWO terms, and both need saying.** The copy drifted about
+  seven minutes on its own (72m41s against the rehearsal table's 65m45s) — and
+  **§3.4c did not exist when `~86` was written**, so that figure omitted a
+  second full pass over Mongo entirely. A budget can be wrong because a number
+  moved *and* because a step was added; correcting only the first would have
+  produced `~93` and a window that still ran over. §2.0 and §3.3 carry the
+  earlier figures with a pointer here.
+- **The verifier has four known defects. One is fixed, one is filed, two are
+  live and you will meet them in the output.**
+  1. **The missing-row ids were discarded** — the report held every
+     `table:rowId` and printed only the length, which made the single number
+     that can mean data loss unactionable. **FIXED on the trunk at `5c93f2d7`**;
+     without it, tonight's "49, all explained" would have been "49" and
+     unanswerable.
+  2. **The 200-document sample bounds the MISSING-ROW check, not just field
+     fidelity.** `verifyCollection` only queues a row for the existence probe
+     while `documentsSampled < sample`, so on any collection larger than 200
+     documents the named missing rows are a sample, while the row COUNTS beside
+     them are total. Two different reaches in one report.
+  3. **jsonb key-order false positives — a normalisation that stops one level
+     short, not an absent one.** `comparable()` documents "arrays and objects to
+     sorted JSON" and delivers it for objects (`stableJson`, which sorts at
+     every level) but renders a top-level ARRAY with a plain `JSON.stringify`,
+     so object keys nested inside array elements keep their original order and
+     diff. **87 mismatches in both runs — count-stable, which is itself the
+     signature**: churn moves, a rendering bug does not. `stableJson` already
+     recurses through arrays correctly, so the fix is that one call.
+  4. **The FAILURE path prints no vacuity figures. (#137)** `documentsSampled`
+     and `columnsCompared` appear only on the PASS branch, so a failing run
+     hands you mismatches with **no denominator** — you cannot tell a run that
+     compared everything and found problems from one that compared almost
+     nothing.
+- **Bun vs Node — CLOSED, and the METHOD is the part worth keeping.** The trunk's
+  suite was baselined under Bun; the images run Bun but the `test` script names
+  Node, so the two runtimes had never been compared. They agree exactly: **506
+  files / 5965 tests / 0 failures** under Node, identical to the Bun baseline.
+  Three things made that answer trustworthy, and each one had already produced a
+  wrong answer first:
+  - **A linked worktree has no `node_modules` of its own**, and
+    `packages/backend`'s `test` script resolves vitest through a relative
+    `../../node_modules/vitest/vitest.mjs` — so in a worktree the real tree sits
+    outside vitest's `root` and transitive ESM imports fail (`Cannot find
+    package '@oxyhq/contracts'`). That is the harness, not the code. Symlink the
+    repo's `node_modules` into the worktree.
+  - **`bunx vitest` silently substitutes the Bun runtime**; it and `node
+    …/vitest.mjs run` look interchangeable and are not. Whichever you meant to
+    measure, you may have measured the other.
+  - **Prove the runtime from INSIDE a worker.** vitest swallows `console.log`
+    from within a test, `--silent=false` included, so have the test WRITE
+    `process.version` to a file. Anything else is the runtime you believe you
+    launched, not the one that ran.
 - **`--skip-audit` was CANCELLED, not deferred.** The audit stays inside the
-  window; budget ~86 minutes end to end. See §2.0 for why it reversed — this is
-  a decision with a reason, not a missing feature. (#76)
-- **~47% of the `posts` copy time is unattributed.** It is a remainder from
-  subtraction, not a measured component, and it must not be quoted as one. (#86)
+  window. See §2.0 for why it reversed — this is a decision with a reason, not a
+  missing feature. (Its "budget ~86 minutes" figure is stale; see the budget
+  item above.) (#76)
+- **#86 stays DECLINED, and the premise changed without changing the answer.**
+  The transform-side speedup on the `posts` copy is still not being taken, and
+  the reason is now stronger than the original one. §3.4c's verify re-runs
+  `transformDocument` per source document (`verifyCollection`), so the transform
+  is no longer just the copy's hot path — **it is what the data-loss check
+  derives its expected row counts FROM.** Narrowing it for minutes would narrow
+  the check that would have to catch the narrowing, trading acceptable downtime
+  for unacceptable risk. Unchanged: the `~47%` unattributed figure is a
+  remainder from subtraction, not a measured component, and must not be quoted
+  as one. (#86)
+- **PostGIS is a PRIVILEGED prerequisite, and production already has it** —
+  `spatial_ref_sys` owner `rdsadmin`, measured (§1.1). It is listed here because
+  of what it costs when it is absent: the `mention` role **cannot install it on
+  a database it owns**, so any NEW target — a fresh probe, a second rehearsal
+  database — needs an `rds_superuser` to run `CREATE EXTENSION postgis;` once,
+  or migration `0000` dies on `type "geography" does not exist`. That is a
+  dependency on somebody else's credential, which makes it a scheduling input
+  rather than a step you can take mid-window. Check it as a fact; do not assume
+  it from this line. (#80)
 - **`src/migrations/task.ts` runs 25 Mongo migrations inside the production
   deploy**, and it is what makes `purgeBlockedDomainContent` production-reachable.
   Mongo cannot be decommissioned until it is retired — but it does not block this
@@ -887,9 +1045,7 @@ the right merge — see #102, where git merges cleanly and the result is wrong.
   not a constant). Pre-existing in Mongo and carried across faithfully; not a
   cutover blocker, needs its own backfill. **Expected in-window — see §3.4b(a)
   before treating a completeness check's 834 as corruption.** (#78)
-- **`oxy-mongo` host access is broken** — root volume 100% full, SSM
-  success-shaped nothing. **Fix before the window**; Mongo is the rollback
-  target. Full detail in the §4 banner. (#104)
-- **A failed copy writes no resolution log.** `persistResolutionLog` runs only
-  after the copy returns, so the audit trail is empty for exactly the runs that
-  need it most. (#79)
+- **A failed copy writing no resolution log — CLOSED (#79).** It used to be
+  flushed once, after the copy returned, so the audit trail was empty for
+  exactly the runs that needed it most. It is now written **per level**, and the
+  full production run reconciled **2438 written == 2438 claimed**.
