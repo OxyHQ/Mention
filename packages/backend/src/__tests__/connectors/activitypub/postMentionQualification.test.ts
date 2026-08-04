@@ -25,14 +25,28 @@ describe('identityDomainOfActor', () => {
       .toBe('x.com');
   });
 
-  it('falls back to the actor’s own host when it was never re-labelled', () => {
+  /**
+   * An ordinary instance is deliberately NOT answered for. `@alice` on
+   * mastodon.social already means alice there and already resolves, so
+   * qualifying it would lengthen the body of every federated post to say what a
+   * reader could already act on — measured: 1,266 of 5,000 sampled production
+   * posts would have been rewritten, and the samples were ordinary Finnish and
+   * Dutch Mastodon posts. A bridged handle does not resolve until it carries its
+   * network, which is the whole difference.
+   */
+  it('answers for a RE-LABELLED actor only, never an ordinary one', () => {
     expect(identityDomainOfActor({ networkAcct: undefined, domain: 'mastodon.social' }))
-      .toBe('mastodon.social');
+      .toBeUndefined();
+    expect(identityDomainOfActor({ networkAcct: 'wired@x.com', domain: 'bird.makeup' }))
+      .toBe('x.com');
   });
 
-  it('ignores a malformed networkAcct rather than qualifying onto an empty domain', () => {
+  it('ignores a malformed networkAcct rather than qualifying onto a guess', () => {
+    // Malformed means we cannot tell which network this identity is on, so the
+    // body is left alone — never qualified onto the bridge host it arrived
+    // through, which is what the old `domain` fallback would have done.
     for (const networkAcct of ['pabloiglesias', 'pabloiglesias@', '@x.com', '   ']) {
-      expect(identityDomainOfActor({ networkAcct, domain: 'mastox.eu' })).toBe('mastox.eu');
+      expect(identityDomainOfActor({ networkAcct, domain: 'mastox.eu' })).toBeUndefined();
     }
   });
 

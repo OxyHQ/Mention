@@ -11,9 +11,17 @@ import type { IFederatedActor } from '../../models/FederatedActor';
  * `x.com`, so that is the domain to qualify with; using `domain` would qualify
  * it onto the hostname a copy happened to arrive through.
  *
- * Falls back to the stored `domain` for every ordinary actor, where the two are
- * the same thing, and to `undefined` when neither is known — which leaves the
- * body untouched rather than qualifying onto a guess.
+ * ONLY a re-labelled actor gets an answer. `networkAcct` exists precisely for
+ * those, which makes it the discriminator rather than a convenience: an ordinary
+ * instance's `@alice` ALREADY means alice on that instance and already resolves,
+ * so qualifying it would lengthen the text of every federated post to say what a
+ * reader could already act on. A bridged `@Julio_Rodr_` does not resolve at all
+ * until it carries its network, and `x.com` / `instagram.com` / `bsky.social`
+ * are exactly the domains the resolver's bridge lane can answer for.
+ *
+ * So the rule is not "is this a bridge" but "is the qualified handle reachable",
+ * and those two happen to coincide: relabel is enabled only where a reviewed
+ * bridge can be asked.
  */
 export function identityDomainOfActor(
   actor: Pick<IFederatedActor, 'networkAcct' | 'domain'> | null | undefined,
@@ -27,6 +35,10 @@ export function identityDomainOfActor(
       return networkAcct.slice(atIndex + 1).toLowerCase();
     }
   }
-  const domain = actor?.domain?.trim();
-  return domain ? domain.toLowerCase() : undefined;
+  // Deliberately NOT falling back to `domain`. That fallback would make this
+  // answer for every ordinary federated actor too — measured against production
+  // before removing it: 1,266 of 5,000 sampled posts would have been rewritten,
+  // and the samples were ordinary Finnish and Dutch Mastodon posts, not bridge
+  // content.
+  return undefined;
 }
