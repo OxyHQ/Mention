@@ -1,4 +1,14 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedFollow,
+} from '../__tests__/helpers/federationFixtures';
+
+const scope = federationScope('feed-controller-mutuals');
 
 /**
  * Group E — the controller populates `ctx.mutualIds` (Oxy mutuals ∪ federated
@@ -44,17 +54,7 @@ vi.mock('../services/ListSubscriptionService', () => ({
 vi.mock('../services/UserPreferenceService', () => ({
   userPreferenceService: { getUserBehavior: vi.fn(async () => undefined), getTopRegion: vi.fn(() => undefined) },
 }));
-vi.mock('../models/FederatedFollow', () => ({
-  default: { distinct: vi.fn(async () => ['uriB']) },
-}));
-vi.mock('../models/FederatedActor', () => ({
-  default: { find: vi.fn(() => ({ lean: vi.fn(async () => [{ oxyUserId: 'fedmutual' }]) })) },
-}));
 vi.mock('../models/MuteWord', () => ({ MuteWord: { find: vi.fn(() => ({ lean: vi.fn(async () => []) })) } }));
-vi.mock('../models/LaneMute', () => ({
-  LaneMute: { find: vi.fn(() => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) })) },
-}));
-vi.mock('../models/UserSettings', () => ({ default: { findOne: vi.fn(() => ({ lean: vi.fn(async () => null) })) } }));
 
 import { mtnFeedController } from '../mtn/controllers/feed.controller';
 
@@ -68,14 +68,31 @@ function makeRes() {
   return res;
 }
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+const VIEWER = scope.localUserId;
+const MUTUAL_ACTOR = `${scope.origin}/users/mutual`;
+
+beforeEach(async () => {
+  await clearFederationScope(scope);
+  // A MUTUAL federated edge: the viewer follows the actor and is followed back.
+  // Both rows are required — one direction alone must not produce a mutual.
+  await seedActor(scope, { username: 'mutual', uri: MUTUAL_ACTOR, oxyUserId: 'fedmutual' });
+  await seedFollow(scope, { remoteActorUri: MUTUAL_ACTOR, direction: 'outbound', status: 'accepted' });
+  await seedFollow(scope, { remoteActorUri: MUTUAL_ACTOR, direction: 'inbound', status: 'accepted' });
   capturedContext = undefined;
   vi.clearAllMocks();
 });
 
 describe('MtnFeedController.getFeed → ctx.mutualIds', () => {
   it('builds mutualIds (Oxy ∪ federated) for a mutuals descriptor', async () => {
-    const req = { query: { descriptor: 'mutuals' }, user: { id: 'viewer' } } as never;
+    const req = { query: { descriptor: 'mutuals' }, user: { id: VIEWER } } as never;
     await mtnFeedController.getFeed(req, makeRes() as never);
     expect(engineRun).toHaveBeenCalledOnce();
     const mutualIds = capturedContext?.mutualIds as string[];
@@ -85,7 +102,7 @@ describe('MtnFeedController.getFeed → ctx.mutualIds', () => {
   it('builds mutualIds for a For You descriptor (socialProof active by default)', async () => {
     // Phase 5: the For You default signal set enables `socialProof`, so the
     // controller resolves mutuals to widen the network-engager set.
-    const req = { query: { descriptor: 'for_you' }, user: { id: 'viewer' } } as never;
+    const req = { query: { descriptor: 'for_you' }, user: { id: VIEWER } } as never;
     await mtnFeedController.getFeed(req, makeRes() as never);
     expect(getMutualUserIds).toHaveBeenCalled();
     const mutualIds = capturedContext?.mutualIds as string[];
@@ -97,7 +114,7 @@ describe('MtnFeedController.getFeed → ctx.mutualIds', () => {
     // throws, `computeMutualIds` degrades to the surviving federated branch and the
     // feed still serves (200) with the partial mutual set.
     getMutualUserIds.mockRejectedValueOnce(new Error('oxy down'));
-    const req = { query: { descriptor: 'for_you' }, user: { id: 'viewer' } } as never;
+    const req = { query: { descriptor: 'for_you' }, user: { id: VIEWER } } as never;
     const res = makeRes();
     await mtnFeedController.getFeed(req, res as never);
     expect(engineRun).toHaveBeenCalledOnce();
@@ -107,7 +124,7 @@ describe('MtnFeedController.getFeed → ctx.mutualIds', () => {
   });
 
   it('does NOT compute mutualIds for a descriptor that uses neither (following)', async () => {
-    const req = { query: { descriptor: 'following' }, user: { id: 'viewer' } } as never;
+    const req = { query: { descriptor: 'following' }, user: { id: VIEWER } } as never;
     await mtnFeedController.getFeed(req, makeRes() as never);
     expect(capturedContext?.mutualIds).toBeUndefined();
     expect(getMutualUserIds).not.toHaveBeenCalled();
@@ -118,4 +135,8 @@ describe('MtnFeedController.getFeed → ctx.mutualIds', () => {
     await mtnFeedController.getFeed(req, makeRes() as never);
     expect(capturedContext?.mutualIds).toBeUndefined();
   });
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
 });

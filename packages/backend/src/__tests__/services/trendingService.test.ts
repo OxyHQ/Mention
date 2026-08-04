@@ -1,295 +1,426 @@
-import { MtnConfig } from '@mention/shared-types';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 /**
- * Unit coverage for {@link TrendingService}'s candidate aggregation — the ONE
- * pipeline that measures every term.
+ * Trending CANDIDATE AGGREGATION, against real rows.
  *
- * The Post model, topic resolution, redis, sockets, and the AI summary are all
- * mocked so the suite is pure (no DB / network). What is asserted here is the
- * shape of the pipeline itself and the post-aggregation filtering:
- *   (a) sensitive posts are excluded at the `$match` (so their terms never
- *       count toward trending);
- *   (b) the term space is the UNION of extracted terms, hashtags and classified
- *       topic slugs — the property that stops trending being a hashtag ranking;
- *   (c) distinct authors are counted, and a null author cannot inflate them;
- *   (d) blocklisted NSFW terms are dropped even when they arrive from
- *       non-sensitive posts, while ordinary terms survive.
+ * The one pipeline that measures every term, and every property it carries
+ * fails SILENTLY when it breaks — a sensitive post that reaches a trend, a term
+ * space that quietly narrows back to hashtags, an author floor computed from
+ * posts. None of them raises anything; they just produce a plausible list.
+ *
+ * The suite this replaces asserted the SHAPE of a Mongo `$match`/`$group`
+ * object. It could tell you the pipeline named `metadata.isSensitive`, and
+ * nothing at all about whether a sensitive post ever reached a trend. Every
+ * assertion below is on the returned MEASUREMENT, computed from rows.
+ *
+ * Terms are namespaced per run: sibling suites share one database and one
+ * `posts` table, so a bare term like `news` is a claim about every other file in
+ * the run. `mine()` narrows every assertion to this file's own terms.
  */
 
-const mocks = vi.hoisted(() => ({
-  postAggregate: vi.fn(),
-  trendingAggregate: vi.fn(),
-  redisGet: vi.fn(),
-  redisSetEx: vi.fn(),
-}));
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { and, inArray } from 'drizzle-orm';
+import { MtnConfig } from '@mention/shared-types';
 
-vi.mock('../../models/Post', () => ({ Post: { aggregate: mocks.postAggregate } }));
-
-// Trending pulls in a handful of side-effecting collaborators we don't exercise
-// here; stub them so the singleton imports cleanly and the methods stay pure.
-vi.mock('../../models/Trending', () => ({
-  __esModule: true,
-  default: { collection: {}, insertMany: vi.fn(), find: vi.fn(), findOne: vi.fn(), aggregate: mocks.trendingAggregate, deleteMany: vi.fn() },
-  TrendingType: { HASHTAG: 'hashtag', TOPIC: 'topic', ENTITY: 'entity' },
-  TRENDING_TTL_SECONDS: 90 * 24 * 60 * 60,
-}));
-
-// Override the global setup's Redis stub with a ready client whose get/setEx we
-// can drive, so the history cache read/write path is exercised directly.
-vi.mock('../../utils/redis', () => ({
-  getRedisClient: () => ({
-    isReady: true,
-    get: mocks.redisGet,
-    setEx: mocks.redisSetEx,
-    set: vi.fn(),
-    del: vi.fn(),
-    keys: vi.fn().mockResolvedValue([]),
-  }),
-}));
-vi.mock('../../models/TrendBatch', () => ({ __esModule: true, default: { create: vi.fn(), findOne: vi.fn(), deleteMany: vi.fn() } }));
+// Trending pulls in side-effecting collaborators the aggregation never touches.
 vi.mock('../../utils/socket', () => ({ emitTrendsUpdated: vi.fn() }));
-vi.mock('../../utils/alia', () => ({ aliaChat: vi.fn(), aliaJSON: vi.fn(), isAliaEnabled: () => false }));
-vi.mock('../../services/TopicService', () => ({
-  topicService: { resolveNames: vi.fn().mockResolvedValue(new Map()), updatePopularityFromTrending: vi.fn() },
-}));
+vi.mock('../../utils/alia', () => ({ aliaChat: vi.fn(), isAliaEnabled: () => false }));
 
+import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
+import { posts } from '../../db/schema/posts';
 import { trendingService } from '../../services/TrendingService';
-import { trendTermMatch } from '../../services/trending/termSpace';
+import { trendTermMatchSql, TREND_CANDIDATE_COLUMNS, TREND_TERM_COLUMNS } from '../../services/trending/termSpace';
 
-// `aggregateTermCandidates` is private; reach it through a typed index signature
-// rather than `as any` so the tests stay type-safe.
+/**
+ * `aggregateTermCandidates` is private; reach it through a typed structural view
+ * rather than `as any`, so the tests stay type-checked.
+ */
+interface TermCandidateView {
+  measurement: {
+    term: string;
+    volume: number;
+    recentVolume: number;
+    authorCount: number;
+    documentFrequency?: number;
+  };
+  actorIds: string[];
+  hashtagVolume: number;
+  topicVolume: number;
+  languages: string[];
+  regions: string[];
+  members: string[];
+}
 type PrivateTrending = {
+  /**
+   * Returns the candidates AND the co-occurrence graph behind them. The graph is
+   * `null` when clustering is off — the only thing these cases read is
+   * `candidates`, but destructuring it here keeps the shape honest.
+   */
   aggregateTermCandidates(
     now: Date,
-  ): Promise<{ candidates: Array<{ measurement: { term: string; volume: number } }> }>;
+  ): Promise<{ candidates: TermCandidateView[]; graph: unknown }>;
 };
 const svc = trendingService as unknown as PrivateTrending;
 
-/** A row shaped exactly as the pipeline's final `$project` emits one. */
-function row(term: string, volume: number) {
-  return {
-    _id: term,
-    volume,
-    recentVolume: volume,
-    hashtagVolume: 0,
-    topicVolume: 0,
-    authorCount: 5,
-    actorIds: ['a', 'b'],
-    languages: ['en'],
-  };
+/** The floor the aggregation applies before a candidate is returned at all. */
+const MIN_VOLUME = MtnConfig.trending.detection.minVolume;
+
+let db: Database;
+const createdPostIds: string[] = [];
+const RUN = randomUUID().slice(0, 8);
+
+/** A term unique to this run. Lowercase — the aggregation groups on the stored value. */
+function term(name: string): string {
+  return `${name}${RUN}`;
 }
 
-
-/**
- * `Post.aggregate` now serves TWO pipelines: the per-language corpus counts and
- * the term candidates. They are told apart by SHAPE rather than by call order,
- * so inserting a query on either side cannot silently hand a test the wrong
- * result — the failure that would produce (a corpus made of term rows) is
- * exactly the kind that still passes an assertion.
- */
-function isCorpusPipeline(pipeline: Array<Record<string, unknown>>): boolean {
-  return pipeline.some(
-    (entry) => '$group' in entry && (entry.$group as { _id?: unknown })._id === '$language',
-  );
+/** Inside the 24-hour window and inside the six-hour recent one. */
+function recently(minutesAgo = 30): Date {
+  return new Date(Date.now() - minutesAgo * 60 * 1000);
 }
 
-/** The pipeline the term candidates were gathered with. */
-function termPipeline(): Array<Record<string, unknown>> {
-  const call = mocks.postAggregate.mock.calls.find(
-    ([pipeline]) => !isCorpusPipeline(pipeline as Array<Record<string, unknown>>),
-  );
-  if (!call) throw new Error('the term aggregation never ran');
-  return call[0] as Array<Record<string, unknown>>;
+interface SeedOptions {
+  trendTerms?: string[];
+  hashtags?: string[];
+  classificationTopics?: string[];
+  oxyUserId?: string | null;
+  language?: string;
+  createdAt?: Date;
+  status?: 'published' | 'draft';
+  visibility?: 'public' | 'private';
+  classificationSensitive?: boolean;
+  metadataIsSensitive?: boolean;
+  federationSensitive?: boolean;
+  spamScore?: number;
+  isBoost?: boolean;
 }
 
-const stage = (pipeline: Array<Record<string, unknown>>, key: string) =>
-  pipeline.find((entry) => key in entry) as Record<string, Record<string, unknown>>;
+async function seedPost(options: SeedOptions = {}): Promise<string> {
+  const [row] = await db
+    .insert(posts)
+    .values({
+      status: options.status ?? 'published',
+      visibility: options.visibility ?? 'public',
+      createdAt: options.createdAt ?? recently(),
+      oxyUserId: options.oxyUserId === undefined ? `author-${RUN}-${createdPostIds.length}` : options.oxyUserId,
+      language: options.language ?? 'en',
+      classificationTrendTerms: options.trendTerms,
+      hashtags: options.hashtags,
+      classificationTopics: options.classificationTopics,
+      classificationSensitive: options.classificationSensitive,
+      metadataIsSensitive: options.metadataIsSensitive ?? false,
+      federationSensitive: options.federationSensitive,
+      ...(options.spamScore === undefined ? {} : { classificationScoreSpam: options.spamScore }),
+    })
+    .returning({ id: posts.id });
+  createdPostIds.push(row.id);
 
-/** Drive the term pipeline while the corpus pipeline answers its own counts. */
-/** Every `$group` body, in pipeline order: [0] per author+term, [1] per term. */
-const groups = (pipeline: Array<Record<string, unknown>>) =>
-  pipeline
-    .filter((entry) => '$group' in entry)
-    .map((entry) => entry.$group as Record<string, unknown>);
-
-function stageTerms(rows: unknown[]): void {
-  mocks.postAggregate.mockImplementation((pipeline: Array<Record<string, unknown>>) =>
-    Promise.resolve(isCorpusPipeline(pipeline) ? [{ _id: 'en', count: 1_000 }] : rows),
-  );
+  if (options.isBoost) {
+    // A boost points at an original; the aggregation excludes anything that does.
+    await db.update(posts).set({ boostOf: row.id }).where(inArray(posts.id, [row.id]));
+  }
+  return row.id;
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  stageTerms([]);
-  // The per-language corpus sizes behind the vocabulary ceiling. The candidate
-  // aggregation and this one share a mock, so the first call answers the
-  // language counts and the pipeline result is set per test.
-  mocks.postAggregate.mockResolvedValue([]);
+/** Seed `count` posts, each by a DIFFERENT author, all carrying `options`. */
+async function seedMany(count: number, options: SeedOptions = {}): Promise<void> {
+  for (let i = 0; i < count; i += 1) {
+    await seedPost(options);
+  }
+}
+
+/** This run's candidates only — a sibling suite's rows can never match. */
+function mine(candidates: TermCandidateView[], terms: string[]): TermCandidateView[] {
+  return candidates.filter((candidate) => terms.includes(candidate.measurement.term));
+}
+
+async function candidatesFor(terms: string[]): Promise<TermCandidateView[]> {
+  const { candidates } = await svc.aggregateTermCandidates(new Date());
+  return mine(candidates, terms);
+}
+
+beforeAll(async () => {
+  db = await connectPostgres();
+});
+
+afterEach(async () => {
+  if (createdPostIds.length > 0) {
+    await db.delete(posts).where(inArray(posts.id, createdPostIds));
+    createdPostIds.length = 0;
+  }
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 describe('aggregateTermCandidates — what is allowed to count', () => {
-  it('excludes sensitive posts at the aggregation $match (all three flags)', async () => {
-    stageTerms([]);
+  it('excludes every sensitive flag independently, and each is nullable', async () => {
+    /**
+     * The three flags are INDEPENDENTLY sufficient and each is nullable, so a
+     * predicate written as `= false` would silently drop every post that has
+     * never been classified — the overwhelming majority. Seeding one post per
+     * flag beside a clean cohort is what tells "excluded the sensitive ones"
+     * apart from "excluded everything".
+     */
+    const clean = term('clean');
+    await seedMany(MIN_VOLUME, { trendTerms: [clean] });
+    await seedPost({ trendTerms: [clean], classificationSensitive: true });
+    await seedPost({ trendTerms: [clean], metadataIsSensitive: true });
+    await seedPost({ trendTerms: [clean], federationSensitive: true });
 
-    await svc.aggregateTermCandidates(new Date());
+    const [candidate] = await candidatesFor([clean]);
 
-    const match = stage(termPipeline(), '$match').$match;
-    expect(match.status).toBe('published');
-    expect(match.visibility).toBe('public');
-    expect(match.boostOf).toEqual({ $exists: false });
-    expect(match['postClassification.sensitive']).toEqual({ $ne: true });
-    expect(match['metadata.isSensitive']).toEqual({ $ne: true });
-    expect(match['federation.sensitive']).toEqual({ $ne: true });
-    expect(match.createdAt).toHaveProperty('$gte');
+    expect(candidate).toBeDefined();
+    expect(candidate.measurement.volume).toBe(MIN_VOLUME);
   });
 
-  it('drops blocklisted NSFW terms but keeps ordinary ones', async () => {
-    // The aggregation already filtered out sensitive POSTS; these counts come
-    // from non-sensitive ones. The blocklisted slugs must still be dropped.
-    stageTerms([
-      row('technology', 50),
-      row('nsfw', 999),
-      row('sexy', 800),
-      row('onlyfans', 700),
-      row('orioles', 30),
-    ]);
+  it('excludes drafts, non-public posts and boosts', async () => {
+    const gated = term('gated');
+    await seedMany(MIN_VOLUME, { trendTerms: [gated] });
+    await seedPost({ trendTerms: [gated], status: 'draft' });
+    await seedPost({ trendTerms: [gated], visibility: 'private' });
+    await seedPost({ trendTerms: [gated], isBoost: true });
 
-    const terms = (await svc.aggregateTermCandidates(new Date())).candidates.map(
-      (c) => c.measurement.term,
-    );
+    const [candidate] = await candidatesFor([gated]);
 
-    expect(terms).toContain('technology');
-    // `orioles` rather than `art` as the innocuous control: `art` is a category
-    // name in the taxonomy and is now refused as a shelf label, which would
-    // make this fixture pass for the wrong reason.
-    expect(terms).toContain('orioles');
-    expect(terms).not.toContain('nsfw');
-    expect(terms).not.toContain('sexy');
-    expect(terms).not.toContain('onlyfans');
-    expect(terms).toHaveLength(2);
+    expect(candidate.measurement.volume).toBe(MIN_VOLUME);
+  });
+
+  it('excludes a post the deterministic classifier already scored as spam', async () => {
+    /**
+     * The clause has to be TOTAL. Mongo's `{ $not: { $gte: n } }` matched a post
+     * with no spam score at all; SQL's `< n` would DROP those, shrinking every
+     * count. The unclassified post below is the one that proves `is not true`
+     * was written rather than `<`.
+     */
+    const scored = term('scored');
+    const reject = MtnConfig.feed.discoveryGate.spamRejectThreshold;
+    await seedMany(MIN_VOLUME - 1, { trendTerms: [scored], spamScore: 0 });
+    await seedPost({ trendTerms: [scored] }); // never classified — must still count
+    await seedPost({ trendTerms: [scored], spamScore: reject });
+
+    const [candidate] = await candidatesFor([scored]);
+
+    expect(candidate.measurement.volume).toBe(MIN_VOLUME);
+  });
+
+  it('drops blocklisted NSFW terms but keeps ordinary ones from the same posts', async () => {
+    const ordinary = term('ordinary');
+    // `porn` is on the NSFW blocklist and is NOT namespaced — that is the point:
+    // the blocklist matches the bare term, so it must be seeded bare.
+    await seedMany(MIN_VOLUME, { trendTerms: [ordinary, 'porn'] });
+
+    const { candidates } = await svc.aggregateTermCandidates(new Date());
+
+    expect(candidates.map((c) => c.measurement.term)).toContain(ordinary);
+    expect(candidates.map((c) => c.measurement.term)).not.toContain('porn');
+  });
+
+  it('applies the volume floor, so a term below it never becomes a candidate', async () => {
+    const thin = term('thin');
+    await seedMany(MIN_VOLUME - 1, { trendTerms: [thin] });
+
+    expect(await candidatesFor([thin])).toEqual([]);
   });
 });
 
 describe('aggregateTermCandidates — ONE term space', () => {
-  it('unions extracted terms and hashtags — what the AUTHOR asserted', async () => {
-    stageTerms([]);
+  it('groups a hashtag and the bare word into a SINGLE candidate', async () => {
+    /**
+     * The whole reason the three columns are unioned: the previous design ranked
+     * hashtags and topics in separate lanes, so the lane that was cheapest to
+     * fill decided the output and trending read as a hashtag ranking.
+     */
+    const unified = term('unified');
+    await seedMany(3, { trendTerms: [unified] });
+    await seedMany(3, { hashtags: [unified] });
 
-    await svc.aggregateTermCandidates(new Date());
+    const candidates = await candidatesFor([unified]);
 
-    const addFields = stage(termPipeline(), '$addFields').$addFields;
-    expect(addFields._terms).toEqual({
-      $setUnion: [
-        { $ifNull: ['$postClassification.trendTerms', []] },
-        { $ifNull: ['$hashtags', []] },
-      ],
-    });
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].measurement.volume).toBe(6);
+  });
+
+  it('counts a post once even when it carries the term in two columns', async () => {
+    const doubled = term('doubled');
+    await seedMany(MIN_VOLUME, { trendTerms: [doubled], hashtags: [doubled] });
+
+    const [candidate] = await candidatesFor([doubled]);
+
+    expect(candidate.measurement.volume).toBe(MIN_VOLUME);
+  });
+
+  it('reaches a post that predates term extraction through its hashtags alone', async () => {
+    // A post written before the classifier emitted `trendTerms` has a NULL
+    // column; the union must not turn that into "no terms at all".
+    const legacy = term('legacy');
+    await seedMany(MIN_VOLUME, { hashtags: [legacy] });
+
+    const [candidate] = await candidatesFor([legacy]);
+
+    expect(candidate.measurement.volume).toBe(MIN_VOLUME);
+  });
+});
+
+describe('aggregateTermCandidates — authors are people, not posts', () => {
+  it('DISCOUNTS one loud author instead of counting their posts', async () => {
+    /**
+     * The floor is applied to volume, and posts are the thing one account can
+     * manufacture: fifty posts from one author is not a trend, and counting
+     * posts alone made that indistinguishable from fifty people agreeing.
+     *
+     * Every author now counts at most `authorPostCap` times, so this term's
+     * volume is 2 however many times the one account said it — below the floor,
+     * so it never becomes a candidate at all. Nothing has to be identified as a
+     * bot for that to work, which is the whole point of discounting rather than
+     * refusing.
+     */
+    const shouty = term('shouty');
+    for (let i = 0; i < MIN_VOLUME + 2; i += 1) {
+      await seedPost({ trendTerms: [shouty], oxyUserId: `one-author-${RUN}` });
+    }
+
+    expect(await candidatesFor([shouty])).toEqual([]);
+  });
+
+  it('CONTROL: the same post count spread across authors DOES clear the floor', async () => {
+    // The discriminating pair. Same number of posts as the case above, the only
+    // difference being how many people said it — which is exactly what volume is
+    // now measuring.
+    const widely = term('widely');
+    for (let i = 0; i < MIN_VOLUME + 2; i += 1) {
+      await seedPost({ trendTerms: [widely], oxyUserId: `spread-${RUN}-${i}` });
+    }
+
+    const [candidate] = await candidatesFor([widely]);
+
+    expect(candidate.measurement.volume).toBe(MIN_VOLUME + 2);
+    expect(candidate.measurement.authorCount).toBe(MIN_VOLUME + 2);
+  });
+
+  it('counts an author TWICE, not once — saying something twice is ordinary', async () => {
+    // The cap is 2 rather than 1 deliberately: at 1 the volume floor would be a
+    // second copy of `minAuthors`, and a person repeating themselves carries
+    // real signal about what they are engaged with.
+    const twice = term('twice');
+    for (let i = 0; i < 2; i += 1) {
+      await seedPost({ trendTerms: [twice], oxyUserId: `pair-a-${RUN}` });
+      await seedPost({ trendTerms: [twice], oxyUserId: `pair-b-${RUN}` });
+    }
+
+    const [candidate] = await candidatesFor([twice]);
+
+    expect(candidate.measurement.volume).toBe(4);
+    expect(candidate.measurement.authorCount).toBe(2);
+  });
+
+  it('does not let orphan posts with no author inflate the author count', async () => {
+    // A legacy orphan federated post is a real post and counts toward volume,
+    // but it cannot testify to WHO is posting — which would be the one way to
+    // walk straight past the author floor.
+    const orphaned = term('orphaned');
+    await seedMany(2, { trendTerms: [orphaned] });
+    for (let i = 0; i < MIN_VOLUME; i += 1) {
+      await seedPost({ trendTerms: [orphaned], oxyUserId: null });
+    }
+
+    const [candidate] = await candidatesFor([orphaned]);
+
+    // Volume 4: one from each real author, plus the orphans capped at 2 — they
+    // share a single NULL author group, so a flood of authorless posts cannot
+    // walk past the floor either.
+    expect(candidate.measurement.volume).toBe(MIN_VOLUME);
+    expect(candidate.measurement.authorCount).toBe(2);
+    expect(candidate.actorIds).toHaveLength(2);
+  });
+
+  it('caps the stored actor sample at maxActors', async () => {
+    const crowded = term('crowded');
+    const authors = MtnConfig.trending.detection.maxActors + 3;
+    await seedMany(authors, { trendTerms: [crowded] });
+
+    const [candidate] = await candidatesFor([crowded]);
+
+    expect(candidate.measurement.authorCount).toBe(authors);
+    expect(candidate.actorIds).toHaveLength(MtnConfig.trending.detection.maxActors);
+  });
+});
+
+describe('aggregateTermCandidates — provenance is carried, not scored', () => {
+  it('counts how often the term arrived as a hashtag and as a topic slug', async () => {
+    // Provenance decides the row's `type` and gates the topic-registry lookup.
+    // Nothing about the score depends on it, which is why it travels separately.
+    //
+    // Note the shape of the fixture: the topic-slug posts ALSO carry the term as
+    // an extracted one. A post carrying it only as a slug we assigned is not a
+    // candidate at all — see the two cases below — so seeding one here would
+    // measure the candidate rule rather than the provenance counters.
+    const mixed = term('mixed');
+    await seedMany(2, { hashtags: [mixed] });
+    await seedMany(2, { trendTerms: [mixed], classificationTopics: [mixed] });
+    await seedMany(2, { trendTerms: [mixed] });
+
+    const [candidate] = await candidatesFor([mixed]);
+
+    expect(candidate.measurement.volume).toBe(6);
+    expect(candidate.hashtagVolume).toBe(2);
+    expect(candidate.topicVolume).toBe(2);
   });
 
   it('does NOT let our own topic slugs propose a trend', async () => {
     // A topic slug is a drawer WE file a post into, so its count answers "how
     // many posts did we shelve here" rather than "how many people are talking
     // about this". Counted as a candidate it put `News` and `Politics` on the
-    // list with five posts and no burst — a bookshop announcing that its
-    // bestseller is "Fiction". The category still labels a trend; it is not one.
-    stageTerms([]);
+    // live list with five posts and no burst — a bookshop announcing that its
+    // bestseller is "Fiction". The category still LABELS a trend; it is not one.
+    const shelved = term('shelved');
+    await seedMany(MIN_VOLUME + 2, { classificationTopics: [shelved] });
 
-    await svc.aggregateTermCandidates(new Date());
-
-    const addFields = stage(termPipeline(), '$addFields').$addFields;
-    expect(JSON.stringify(addFields._terms)).not.toContain('postClassification.topics');
+    expect(await candidatesFor([shelved])).toEqual([]);
+    expect(TREND_CANDIDATE_COLUMNS).not.toContain(posts.classificationTopics);
   });
 
-  it('still MATCHES a topic slug when serving a trend it did not propose', () => {
+  it('still MATCHES a topic slug when serving a trend it did not propose', async () => {
     // The asymmetry is the point, and only in this direction: a feed matching
     // less than detection counted would open a trend onto a screen missing the
     // posts that made it trend. Matching more can only add posts that are about
     // it — one we filed under `ukraine` belongs in Ukraine's feed whether or not
     // its author ever typed the word.
-    const fields = trendTermMatch('ukraine').$or.flatMap((clause) => Object.keys(clause));
-    expect(fields).toContain('postClassification.topics');
-    expect(fields).toContain('hashtags');
-    expect(fields).toContain('postClassification.trendTerms');
+    const served = term('served');
+    await seedPost({ classificationTopics: [served] });
+
+    const rows = await db
+      .select({ id: posts.id })
+      .from(posts)
+      .where(and(inArray(posts.id, createdPostIds), trendTermMatchSql(served)));
+    expect(rows).toHaveLength(1);
+    expect(TREND_TERM_COLUMNS).toContain(posts.classificationTopics);
   });
 
-  it('groups on the unified term, so a hashtag and the bare word are ONE candidate', async () => {
-    stageTerms([]);
+  it('carries the primary languages of the posts behind the term, ignoring the unset ones', async () => {
+    const bilingual = term('bilingual');
+    await seedMany(3, { trendTerms: [bilingual], language: 'es' });
+    await seedMany(2, { trendTerms: [bilingual], language: 'en' });
 
-    await svc.aggregateTermCandidates(new Date());
+    const [candidate] = await candidatesFor([bilingual]);
 
-    const pipeline = termPipeline();
-    expect(stage(pipeline, '$unwind').$unwind).toBe('$_terms');
-    // Two grouping stages now: per author, then per term. The first keys on the
-    // pair because volume is assembled from what each author contributed.
-    expect(groups(pipeline)[0]._id).toEqual({ term: '$_terms', author: '$oxyUserId' });
-    expect(groups(pipeline)[1]._id).toBe('$_id.term');
+    expect([...candidate.languages].sort()).toEqual(['en', 'es']);
   });
 
-  it('counts each author at most `authorPostCap` times', async () => {
-    // The load-bearing line of the whole detector: without it a bot posting
-    // twenty is indistinguishable from twenty people posting once, and with it
-    // `volume` means how WIDELY a term is said rather than how much.
-    stageTerms([]);
-
-    await svc.aggregateTermCandidates(new Date());
-
-    const perTerm = groups(termPipeline())[1];
-    const cap = MtnConfig.trending.detection.authorPostCap;
-    expect(perTerm.volume).toEqual({ $sum: { $min: ['$posts', cap] } });
-    expect(perTerm.recentVolume).toEqual({ $sum: { $min: ['$recentPosts', cap] } });
-  });
-});
-
-describe('aggregateTermCandidates — authors are people, not posts', () => {
-  it('collects DISTINCT authors rather than counting posts', async () => {
-    stageTerms([]);
-
-    await svc.aggregateTermCandidates(new Date());
-
-    // Distinct authors fall out of the per-author grouping itself.
-    expect(groups(termPipeline())[1].authors).toEqual({ $addToSet: '$_id.author' });
-  });
-
-  it('filters null authors out before the count, so orphan posts cannot inflate it', async () => {
-    stageTerms([]);
-
-    await svc.aggregateTermCandidates(new Date());
-
-    const pipeline = termPipeline() as Array<Record<string, unknown>>;
-    const filterStage = pipeline.find(
-      (entry) => '$addFields' in entry && 'authors' in (entry.$addFields as Record<string, unknown>),
-    ) as { $addFields: { authors: unknown } };
-    expect(filterStage.$addFields.authors).toEqual({
-      $filter: { input: '$authors', cond: { $ne: ['$$this', null] } },
+  it('separates the recent window from the trailing one', async () => {
+    // `recentVolume` is the numerator of the burst statistic; counting the whole
+    // window into it would make every term look like it is breaking now.
+    const bursty = term('bursty');
+    await seedMany(3, { trendTerms: [bursty], createdAt: recently(10) });
+    await seedMany(2, {
+      trendTerms: [bursty],
+      // Inside the 24-hour window, outside the six-hour one.
+      createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000),
     });
 
-    // …and the count is taken from the FILTERED array, not the raw one.
-    const project = pipeline.filter((entry) => '$project' in entry).at(-1) as {
-      $project: Record<string, unknown>;
-    };
-    expect(project.$project.authorCount).toEqual({ $size: '$authors' });
-  });
-});
+    const [candidate] = await candidatesFor([bursty]);
 
-describe('aggregateTermCandidates — provenance is carried, not scored', () => {
-  it('counts how often the term arrived as a hashtag and as a topic slug', async () => {
-    stageTerms([]);
-
-    await svc.aggregateTermCandidates(new Date());
-
-    const perAuthor = groups(termPipeline())[0];
-    expect(perAuthor.hashtagPosts).toEqual({
-      $sum: { $cond: [{ $in: ['$_terms', { $ifNull: ['$hashtags', []] }] }, 1, 0] },
-    });
-    expect(perAuthor.topicPosts).toEqual({
-      $sum: {
-        $cond: [{ $in: ['$_terms', { $ifNull: ['$postClassification.topics', []] }] }, 1, 0],
-      },
-    });
-    // Provenance is NOT capped — it decides the row's `type`, and that question
-    // is how the term was written, not by how many people.
-    const perTerm = groups(termPipeline())[1];
-    expect(perTerm.hashtagVolume).toEqual({ $sum: '$hashtagPosts' });
-    expect(perTerm.topicVolume).toEqual({ $sum: '$topicPosts' });
+    expect(candidate.measurement.volume).toBe(5);
+    expect(candidate.measurement.recentVolume).toBe(3);
   });
 });

@@ -24,12 +24,11 @@ const OTHER_USER_ID = 'oxy-someone-else';
 const POST_ID = '650000000000000000000010';
 const SCHEDULED_FOR = new Date('2026-08-02T09:30:00.000Z');
 
-const { getUsersByIds, cacheStore, postFind, postFindOne, userSettingsFind } = vi.hoisted(() => ({
+const { getUsersByIds, cacheStore, postFind, postFindOne } = vi.hoisted(() => ({
   getUsersByIds: vi.fn(),
   cacheStore: new Map<string, CachedUserSummary>(),
   postFind: vi.fn(),
   postFindOne: vi.fn(),
-  userSettingsFind: vi.fn(),
 }));
 
 vi.mock('../../runtime/oxyClient', () => ({
@@ -75,12 +74,6 @@ vi.mock('../../models/Post', () => ({
 vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/UserSettings', () => ({
-  UserSettings: {
-    find: (...args: unknown[]) => chainable(userSettingsFind(...args)),
-    findOne: () => chainable(null),
-  },
-}));
 vi.mock('../../models/StarterPack', () => ({
   StarterPack: { aggregate: async () => [] },
   default: { aggregate: async () => [] },
@@ -146,7 +139,6 @@ describe('scheduled-post ACL — only the owner can obtain a scheduled post', ()
     getUsersByIds.mockReset();
     postFind.mockReset();
     postFindOne.mockReset();
-    userSettingsFind.mockReset();
 
     service = new PostHydrationService();
     getUsersByIds.mockResolvedValue([
@@ -154,7 +146,6 @@ describe('scheduled-post ACL — only the owner can obtain a scheduled post', ()
     ]);
     postFind.mockReturnValue([]);
     postFindOne.mockReturnValue(null);
-    userSettingsFind.mockReturnValue([{ oxyUserId: AUTHOR_ID, privacy: { profileVisibility: 'public' } }]);
   });
 
   it('RETURNS the scheduled post to its OWNER, so the composer can preview it', async () => {

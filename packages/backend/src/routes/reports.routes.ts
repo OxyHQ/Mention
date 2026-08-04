@@ -1,13 +1,16 @@
 import { Router, Response } from 'express';
-import mongoose from 'mongoose';
 import type { ModerationReportReceipt } from '@mention/shared-types';
-import Report, {
-  ReportedType,
-  ReportCategory,
-  ReportStatus,
-  type LeanReport,
-  type ReportFields,
-} from '../models/Report.model';
+import {
+  REPORTED_TYPES,
+  REPORT_CATEGORIES,
+  REPORT_STATUSES,
+} from '../db/schema/moderation';
+import {
+  findReporterReports,
+  type ReportRecord,
+  type ReportStatus,
+  type ReportedType,
+} from '../db/moderation/reportRepository';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import {
   DuplicateReportError,
@@ -33,9 +36,9 @@ const MAX_REPORTS_PAGE_SIZE = 100;
  * the value that makes one addressable. `decisionOutcome` is safe, and is the only
  * part of the answer the reporter actually asked for.
  */
-function toReceipt(report: ReportFields & { _id: unknown }): ModerationReportReceipt {
+function toReceipt(report: ReportRecord): ModerationReportReceipt {
   return {
-    id: String(report._id),
+    id: report.id,
     reportedType: report.reportedType,
     reportedId: report.reportedId,
     categories: report.categories,
@@ -92,9 +95,9 @@ router.post('/', async (req: AuthRequest, res: Response) => {
      * at a time. Whether a report went for review is answered by `localStatus` on the
      * receipt below, not by a refusal.
      */
-    if (!Object.values(ReportedType).includes(reportedType)) {
+    if (!(REPORTED_TYPES as readonly string[]).includes(reportedType)) {
       return res.status(400).json({
-        message: `Invalid reportedType. Must be one of: ${Object.values(ReportedType).join(', ')}`
+        message: `Invalid reportedType. Must be one of: ${REPORTED_TYPES.join(', ')}`
       });
     }
 
@@ -106,11 +109,11 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     }
 
     const invalidCategories = categories.filter(
-      cat => !Object.values(ReportCategory).includes(cat)
+      (cat: unknown) => !(REPORT_CATEGORIES as readonly unknown[]).includes(cat)
     );
     if (invalidCategories.length > 0) {
       return res.status(400).json({
-        message: `Invalid categories: ${invalidCategories.join(', ')}. Must be one of: ${Object.values(ReportCategory).join(', ')}`
+        message: `Invalid categories: ${invalidCategories.join(', ')}. Must be one of: ${REPORT_CATEGORIES.join(', ')}`
       });
     }
 
@@ -146,7 +149,10 @@ router.post('/', async (req: AuthRequest, res: Response) => {
      * accounts, and the analogous rule for a POST is a different question with a
      * different answer already (`postManagementAccess`).
      */
-    if (reportedType === ReportedType.USER) {
+    // The literal, because `ReportedType` is a union of `REPORTED_TYPES`, not an
+    // enum — there is no `.USER` member to reach for, and the union is what makes
+    // a typo here a compile error rather than a branch that never runs.
+    if (reportedType === 'user') {
       const operatesTarget = await viewerOperatesAccount({
         targetOxyUserId: reportedId,
         callerId: reporter,
@@ -210,45 +216,45 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 
     const { status, reportedType, cursor } = req.query;
 
-    const query: mongoose.FilterQuery<LeanReport> = { reporter: userId };
-
-    // Filter by status
-    if (status && typeof status === 'string') {
-      if (Object.values(ReportStatus).includes(status as ReportStatus)) {
-        query.status = status;
-      }
-    }
-
-    // Filter by reportedType
-    if (reportedType && typeof reportedType === 'string') {
-      if (Object.values(ReportedType).includes(reportedType as ReportedType)) {
-        query.reportedType = reportedType;
-      }
-    }
-
-    // Cursor-based pagination. Guard against a non-ObjectId cursor: casting a raw
-    // client string that isn't a valid ObjectId throws a Mongoose CastError → 500.
-    // An invalid cursor is ignored (returns the first page) rather than erroring.
-    if (cursor && typeof cursor === 'string' && mongoose.Types.ObjectId.isValid(cursor)) {
-      query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
-    }
+    /**
+     * The two filters are ignored when the value is not one this deployment
+     * knows — the same tolerance the previous implementation had, and the right
+     * one for a query string.
+     */
+    const statusFilter =
+      typeof status === 'string' && (REPORT_STATUSES as readonly string[]).includes(status)
+        ? (status as ReportStatus)
+        : undefined;
+    const typeFilter =
+      typeof reportedType === 'string'
+        && (REPORTED_TYPES as readonly string[]).includes(reportedType)
+        ? (reportedType as ReportedType)
+        : undefined;
 
     const limitNum = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_REPORTS_PAGE_SIZE, 1), MAX_REPORTS_PAGE_SIZE);
 
-    const reports = await Report.find(query)
-      .sort({ createdAt: -1 })
-      .limit(limitNum + 1)
-      .lean<LeanReport[]>();
+    /**
+     * The cursor is opaque and the keyset names the SAME pair the sort does.
+     *
+     * What this replaces was two different axes — sort by `createdAt`, page on
+     * `_id` — gated on `mongoose.Types.ObjectId.isValid`, whose FALSE branch
+     * means "no cursor", i.e. serve page one. Every id minted after the cutover
+     * is a uuid v7, so that guard answered false for all of them and the list
+     * would have handed back the first page forever with no error. A cursor
+     * naming no row now simply matches nothing.
+     */
+    const page = await findReporterReports({
+      reporter: userId,
+      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(typeFilter ? { reportedType: typeFilter } : {}),
+      ...(typeof cursor === 'string' && cursor.length > 0 ? { cursor } : {}),
+      limit: limitNum,
+    });
 
-    // Check if there are more results
-    const hasMore = reports.length > limitNum;
-    const reportsToReturn = hasMore ? reports.slice(0, limitNum) : reports;
-    const nextCursor = hasMore && reportsToReturn.length > 0
-      ? String(reportsToReturn[reportsToReturn.length - 1]._id)
-      : undefined;
+    const { hasMore, nextCursor } = page;
 
     res.json({
-      reports: reportsToReturn.map(toReceipt),
+      reports: page.reports.map(toReceipt),
       hasMore,
       nextCursor
     });

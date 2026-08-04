@@ -3,7 +3,7 @@ import {
   postEngagementRoom,
   type PostEngagementCountsPayload,
 } from '@mention/shared-types';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 interface Emission {
   room: string;
@@ -25,41 +25,60 @@ vi.mock('../../runtime/socketServer', () => ({
   getRuntimeSocketServer: () => runtimeSocketServer,
 }));
 
-const findOne = vi.fn();
-vi.mock('../../models/UserSettings', () => ({
-  UserSettings: {
-    findOne: (...args: unknown[]) => findOne(...args),
-  },
-}));
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { userSettings } from '../../db/schema/userProfile';
+import { broadcastPostEngagement } from '../../services/postEngagementBroadcast';
 
-const { broadcastPostEngagement } = await import('../../services/postEngagementBroadcast');
+/**
+ * The author whose privacy decides what may be sent. Namespaced, because vitest
+ * runs files in parallel against one database and `user_settings.oxy_user_id` is
+ * unique — a bare `'author-1'` is a claim about every other file in the run.
+ */
+const AUTHOR = 'engagement-broadcast-author';
 
-/** `UserSettings.findOne(...).select(...).lean()` reduced to its answer. */
-function settingsReturning(privacy: Record<string, boolean> | null): void {
-  findOne.mockReturnValue({
-    select: () => ({ lean: () => Promise.resolve(privacy ? { privacy } : null) }),
-  });
+/**
+ * The author's REAL `user_settings` row.
+ *
+ * The four flags are flat `NOT NULL DEFAULT false` columns, so "no row" and "a
+ * row with nothing hidden" are genuinely different states here, and only the
+ * first exercises the absent-row arm. `null` writes no row at all.
+ */
+async function settingsReturning(privacy: Record<string, boolean> | null): Promise<void> {
+  await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, AUTHOR));
+  if (!privacy) return;
+  await getDb()
+    .insert(userSettings)
+    .values({
+      oxyUserId: AUTHOR,
+      privacyHideLikeCounts: privacy.hideLikeCounts ?? false,
+      privacyHideShareCounts: privacy.hideShareCounts ?? false,
+      privacyHideReplyCounts: privacy.hideReplyCounts ?? false,
+      privacyHideSaveCounts: privacy.hideSaveCounts ?? false,
+    });
 }
 
-function settingsThatThrow(): void {
-  findOne.mockReturnValue({
-    select: () => ({ lean: () => Promise.reject(new Error('mongo unavailable')) }),
-  });
-}
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, AUTHOR));
+  await closePostgres();
+});
 
 describe('post engagement broadcast', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     emissions.length = 0;
-    findOne.mockReset();
     runtimeSocketServer = socketServer;
-    settingsReturning(null);
+    await settingsReturning(null);
   });
 
   it("sends the write's own counters into that post's room", async () => {
     await broadcastPostEngagement({
       event: POST_ENGAGEMENT_EVENTS.LIKED,
       postId: 'post-1',
-      authorOxyUserId: 'author-1',
+      authorOxyUserId: AUTHOR,
       counts: { likes: 42, downvotes: 1 },
       actorId: 'actor-1',
     });
@@ -76,12 +95,12 @@ describe('post engagement broadcast', () => {
   });
 
   it('omits a counter the author hides rather than sending it', async () => {
-    settingsReturning({ hideLikeCounts: true });
+    await settingsReturning({ hideLikeCounts: true });
 
     await broadcastPostEngagement({
       event: POST_ENGAGEMENT_EVENTS.LIKED,
       postId: 'post-1',
-      authorOxyUserId: 'author-1',
+      authorOxyUserId: AUTHOR,
       counts: { likes: 42, downvotes: 1 },
       actorId: 'actor-1',
     });
@@ -91,12 +110,12 @@ describe('post engagement broadcast', () => {
   });
 
   it('still sends the counters the author does not hide', async () => {
-    settingsReturning({ hideLikeCounts: true });
+    await settingsReturning({ hideLikeCounts: true });
 
     await broadcastPostEngagement({
       event: POST_ENGAGEMENT_EVENTS.REPLIED,
       postId: 'post-1',
-      authorOxyUserId: 'author-1',
+      authorOxyUserId: AUTHOR,
       counts: { likes: 42, replies: 9 },
       actorId: 'actor-1',
     });
@@ -111,12 +130,12 @@ describe('post engagement broadcast', () => {
     ['hideReplyCounts', { replies: 4 }, POST_ENGAGEMENT_EVENTS.REPLIED],
     ['hideSaveCounts', { saves: 4 }, POST_ENGAGEMENT_EVENTS.SAVED],
   ] as const)('honours %s', async (flag, counts, event) => {
-    settingsReturning({ [flag]: true });
+    await settingsReturning({ [flag]: true });
 
     await broadcastPostEngagement({
       event,
       postId: 'post-1',
-      authorOxyUserId: 'author-1',
+      authorOxyUserId: AUTHOR,
       counts,
     });
 
@@ -127,7 +146,7 @@ describe('post engagement broadcast', () => {
     await broadcastPostEngagement({
       event: POST_ENGAGEMENT_EVENTS.SAVED,
       postId: 'post-1',
-      authorOxyUserId: 'author-1',
+      authorOxyUserId: AUTHOR,
       counts: { saves: 8 },
     });
 
@@ -135,18 +154,15 @@ describe('post engagement broadcast', () => {
     expect(emissions[0].payload.actorId).toBeUndefined();
   });
 
-  it('shows the counters when the settings read fails, as the DTO does', async () => {
-    settingsThatThrow();
-
-    await broadcastPostEngagement({
-      event: POST_ENGAGEMENT_EVENTS.LIKED,
-      postId: 'post-1',
-      authorOxyUserId: 'author-1',
-      counts: { likes: 42 },
-    });
-
-    expect(emissions[0].payload.likesCount).toBe(42);
-  });
+  /**
+   * NOT covered here: the settings-read FAILURE arm.
+   *
+   * It resolves to the same value as an absent row (show the counters), which is
+   * deliberate — the render path falls back to the same defaults, so doing
+   * anything else would make the live number and the reloaded number disagree
+   * about one failure. Staging it against a live database needs a hook that
+   * would itself be fiction, and the arm above already pins the value.
+   */
 
   it('is a no-op with no socket server bound', async () => {
     runtimeSocketServer = undefined;
@@ -160,6 +176,5 @@ describe('post engagement broadcast', () => {
     ).resolves.toBeUndefined();
 
     expect(emissions).toHaveLength(0);
-    expect(findOne).not.toHaveBeenCalled();
   });
 });

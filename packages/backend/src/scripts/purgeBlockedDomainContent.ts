@@ -109,11 +109,25 @@
  *   - A mutating run requires `CONFIRM_ADMIN_MUTATION=purgeBlockedDomainContent`.
  *   - Bounded batches throughout; never one unbounded `deleteMany` over the
  *     corpus.
- *   - Resumable + idempotent: progress is recorded in Mongo after every page
- *     (a Fargate one-shot's filesystem dies with the task), and a completed run
- *     re-run matches nothing.
+ *   - Resumable + idempotent: progress is recorded in the database after every
+ *     page (a Fargate one-shot's filesystem dies with the task), and a completed
+ *     run re-run matches nothing.
  *   - `assertPostsSafeToDelete` runs before every post deletion; a blocked batch
  *     is skipped and counted, never forced.
+ *
+ * WHICH STORE THIS DELETES FROM
+ *   Postgres, for everything except `feed_interactions`. That is not a detail:
+ *   this script used to delete the MONGO collection for fourteen entities whose
+ *   rows had already moved, so every one of those deletes matched nothing, and
+ *   `renderDomainTable` reported the zeros as "this domain held no such content"
+ *   to the person who had just authorised a deletion. Worse, the preflight in
+ *   front of it WAIVES exactly those reference probes on the strength of this
+ *   cascade (`CASCADED_POST_REFERENCES`), so the gate did not block and the
+ *   cascade did not clean.
+ *
+ *   `feed_interactions` is the single exception and it deletes from BOTH, because
+ *   both hold rows that are real — see {@link purgeFeedInteractions}. It is the
+ *   one entity in the cascade whose live writer is still Mongo.
  *
  * ENV
  *   DRY_RUN=1                 report only, write nothing (default: mutating,
@@ -134,32 +148,63 @@
 
 import { createHash } from 'node:crypto';
 import mongoose from 'mongoose';
-import type { FilterQuery, Model } from 'mongoose';
+import {
+  and,
+  asc,
+  count,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  notInArray,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
+import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { PostType } from '@mention/shared-types';
 import { config } from '../config';
 import { connectToDatabase } from '../utils/database';
-import { Post } from '../models/Post';
-import Like from '../models/Like';
-import Bookmark from '../models/Bookmark';
-import Notification from '../models/Notification';
-import Poll from '../models/Poll';
-import Article from '../models/Article';
-import PostRecentReplier from '../models/PostRecentReplier';
-import FederatedActor from '../models/FederatedActor';
-import FederatedFollow from '../models/FederatedFollow';
-import { EntityFollow } from '../models/EntityFollow';
-import FederatedMediaCache from '../models/FederatedMediaCache';
-import BlockedDomainPurge, { toLedgerCounts } from '../models/BlockedDomainPurge';
-import BlockedDomainPurgeRun from '../models/BlockedDomainPurgeRun';
+import { connectPostgres, getDb } from '../db/postgres';
+import { bookmarks, entityFollows, likes, postSubscriptions } from '../db/schema/engagement';
+import { notifications } from '../db/schema/discovery';
+import { posts } from '../db/schema/posts';
+import {
+  postAuthorships,
+  postMedia,
+  postMentions,
+  postRecentRepliers,
+} from '../db/schema/postContent';
+import { polls } from '../db/schema/polls';
+import { articles } from '../db/schema/articles';
+import { postgates, threadgates } from '../db/schema/gates';
+import { feedInteractions } from '../db/schema/feeds';
+import { engagementOutbox } from '../db/schema/outbox';
+import { contentLabels, reports } from '../db/schema/moderation';
+import { authoredBy } from '../db/posts/postRepository';
+import {
+  countActors,
+  deleteActorsByUris,
+  scanActors,
+} from '../db/federation/actorRepository';
+import { countFollows, deleteFollowsFor } from '../db/federation/followRepository';
+import {
+  countMediaCacheRowsByUrls,
+  deleteMediaCacheRowsByUrls,
+  findMediaCacheRowsByUrls,
+  pageMediaCacheRows,
+} from '../db/federation/mediaCacheRepository';
+import {
+  countDeliveriesReferencingObjects,
+  deleteDeliveriesReferencingObjects,
+} from '../db/federation/deliveryQueueRepository';
+import {
+  recordPurgeOutcomes,
+  recordPurgeRun,
+  toLedgerCounts,
+} from '../db/blocklist/blockedDomainPurgeRepository';
 import { canonicalFederationHost } from '@oxyhq/federation';
 import { getBlockedDomainPolicy } from '../connectors/activitypub/federationBlockPolicy';
-import { Postgate } from '../models/Postgate';
-import { Threadgate } from '../models/Threadgate';
-import { FeedInteraction } from '../models/FeedInteraction';
-import EngagementOutbox from '../models/EngagementOutbox';
-import FederationDeliveryQueue from '../models/FederationDeliveryQueue';
-import ContentLabel from '../models/ContentLabel';
-import Report, { ReportedType } from '../models/Report.model';
 import { OWN_DOMAINS } from '../connectors/activitypub/ownDomain';
 import {
   materializeEngagementTombstone,
@@ -208,19 +253,19 @@ const ENGAGEMENT_PAGE_SIZE = 200;
  * about it — which is the correct failure.
  */
 export const CASCADED_POST_REFERENCES: readonly PostReferenceProbeName[] = [
-  'Notification.entityId',
-  'Poll.postId',
-  'Article.postId',
-  'Postgate.postId/postUri',
-  'Threadgate.postId/postUri',
-  'PostRecentReplier.postId',
-  'EngagementOutbox.payload.postId',
-  'Report.reportedId(post)',
-  'ContentLabel.targetId(post)',
-  'FeedInteraction.postUri',
-  'FederationDeliveryQueue.activityJson',
-  'Like.postId',
-  'Bookmark.postId',
+  'notifications.entity_id',
+  'polls.post_id',
+  'articles.post_id',
+  'postgates.post_id/post_uri',
+  'threadgates.post_id/post_uri',
+  'post_recent_repliers.post_id',
+  'engagement_outbox.payload_post_id',
+  'reports.reported_id(post)',
+  'content_labels.target_id(post)',
+  'feed_interactions.post_uri',
+  'federation_delivery_queue.activity_json',
+  'likes.post_id',
+  'bookmarks.post_id',
 ];
 
 /** Cursor scope names — one resumable territory per phase. */
@@ -372,6 +417,7 @@ export interface PurgeCounts {
   threadRootsKept: number;
   likesOnRemovedPosts: number;
   bookmarksOnRemovedPosts: number;
+  postSubscriptions: number;
   polls: number;
   articles: number;
   postgates: number;
@@ -426,6 +472,7 @@ const COUNT_KEYS: readonly (keyof PurgeCounts)[] = [
   'threadRootsKept',
   'likesOnRemovedPosts',
   'bookmarksOnRemovedPosts',
+  'postSubscriptions',
   'polls',
   'articles',
   'postgates',
@@ -516,66 +563,159 @@ function record(report: PurgeReport, domain: string, key: keyof PurgeCounts, del
 // --- the one destructive chokepoint -----------------------------------------
 
 /**
- * Count (under `DRY_RUN`) or delete (live) the documents matching `filter`,
- * returning the affected count either way.
+ * Count (under `DRY_RUN`) or delete (live) the rows matching `where`, returning
+ * the affected count either way.
  *
- * This is the SINGLE place a document is removed, which is what makes the
- * dry-run guarantee checkable rather than a claim: no other code path in this
- * module calls `deleteMany`/`deleteOne`.
+ * This is the SINGLE place a row is removed, which is what makes the dry-run
+ * guarantee checkable rather than a claim: no other code path in this module
+ * calls `db.delete`, except the three repository functions that ARE one
+ * (`deleteActorsByUris`, `deleteFollowsFor`, `deleteMediaCacheRowsByUrls`) and
+ * the one collection this script still deletes from Mongo (see
+ * {@link purgeFeedInteractions}).
+ *
+ * `returning` is what makes the live count real — a delete without it hands back
+ * a driver result whose shape is the driver's business, and a wrong read of it
+ * would silently report 0 removed rows on a successful purge.
  */
-async function countOrDelete<T>(
-  model: Model<T>,
-  filter: FilterQuery<T>,
+async function countOrDelete(
+  table: PgTable,
+  idColumn: PgColumn,
+  where: SQL,
   dryRun: boolean,
 ): Promise<number> {
-  if (dryRun) return model.countDocuments(filter).exec();
-  const result = await model.deleteMany(filter).exec();
-  return result.deletedCount ?? 0;
+  const db = getDb();
+  if (dryRun) {
+    const [row] = await db.select({ total: count() }).from(table).where(where);
+    return row?.total ?? 0;
+  }
+  return (await db.delete(table).where(where).returning({ id: idColumn })).length;
+}
+
+/**
+ * {@link countOrDelete} for a table whose Mongo original was one DOCUMENT PER
+ * POST holding an array, and whose counter therefore means posts rather than
+ * rows.
+ *
+ * Counting distinct posts on both sides is what keeps the reported number
+ * comparable to the one the Mongo version produced — and, more usefully, keeps it
+ * from changing meaning with the data: rows would report a post with three
+ * repliers as three projections.
+ */
+async function countOrDeleteDistinctPosts(
+  table: PgTable,
+  postIdColumn: PgColumn,
+  where: SQL,
+  dryRun: boolean,
+): Promise<number> {
+  const db = getDb();
+  if (dryRun) {
+    const [row] = await db
+      .select({ total: sql<number>`count(distinct ${postIdColumn})::int` })
+      .from(table)
+      .where(where);
+    return row?.total ?? 0;
+  }
+  const removed = await db.delete(table).where(where).returning({ postId: postIdColumn });
+  return new Set(removed.map((row) => row.postId)).size;
+}
+
+/**
+ * `feed_interactions` — the ONE lane that deletes from BOTH stores, because both
+ * hold rows that are real.
+ *
+ * This used to delete from BOTH stores and sum the counts, because the table was
+ * half-ported in the unusual direction: everything around it was Postgres — the
+ * table, its indexes, the expiry sweep, the deletion preflight's
+ * `feed_interactions.post_uri` probe, the backfill that populates it — while the
+ * only writer in the running application still wrote Mongo.
+ *
+ * `trackFeedInteraction` now writes Postgres, so the Mongo half is a delete that
+ * matches nothing new, and it is gone as that docblock said it should be.
+ *
+ * One consequence worth stating rather than discovering: rows written to the
+ * Mongo collection BEFORE the writer ported are no longer purged by this script.
+ * They are not reachable by anything — no reader remains, the collection is not
+ * copied by a second backfill, and its 90-day TTL expires them on its own — but
+ * "the purge no longer touches them" is a true sentence about a blocked domain's
+ * residue, so it belongs here rather than in a commit message.
+ */
+async function purgeFeedInteractions(
+  postKeys: readonly string[],
+  dryRun: boolean,
+): Promise<number> {
+  return countOrDelete(
+    feedInteractions,
+    feedInteractions.id,
+    inArray(feedInteractions.postUri, [...postKeys]),
+    dryRun,
+  );
 }
 
 // --- post cascade ------------------------------------------------------------
 
-/** The lean `Post` shape every cascade decision reads. */
+/** The `posts` columns every cascade decision reads. */
 interface PostRow {
-  _id: mongoose.Types.ObjectId;
-  type?: string;
-  oxyUserId?: string;
-  boostOf?: string;
-  parentPostId?: string;
-  quoteOf?: string;
-  federation?: { activityId?: string; url?: string; actorUri?: string };
-  media?: unknown[];
-  content?: { pollId?: string; article?: { articleId?: string } };
+  id: string;
+  type: string;
+  oxyUserId: string | null;
+  boostOf: string | null;
+  federationActivityId: string | null;
+  federationUrl: string | null;
+  federationActorUri: string | null;
+  contentPollId: string | null;
+  contentArticleId: string | null;
 }
 
-const POST_CASCADE_PROJECTION = {
-  _id: 1,
-  type: 1,
-  oxyUserId: 1,
-  boostOf: 1,
-  parentPostId: 1,
-  quoteOf: 1,
-  federation: 1,
-  media: 1,
-  'content.pollId': 1,
-  'content.article.articleId': 1,
+/**
+ * The projection, as a drizzle select shape.
+ *
+ * `media` is NOT on it, unlike the Mongo document it replaces: media is a child
+ * TABLE (`post_media`) rather than an embedded array, so the remote URLs are a
+ * query — see {@link remoteMediaUrlsFor}. Nothing is lost by that; the origin URL
+ * is actually better preserved, since `post_media.remote_url` keeps it after the
+ * media cache has rewritten `media_id` to an Oxy file id, which the Mongo shape
+ * overwrote.
+ */
+const POST_CASCADE_COLUMNS = {
+  id: posts.id,
+  type: posts.type,
+  oxyUserId: posts.oxyUserId,
+  boostOf: posts.boostOf,
+  federationActivityId: posts.federationActivityId,
+  federationUrl: posts.federationUrl,
+  federationActorUri: posts.federationActorUri,
+  contentPollId: posts.contentPollId,
+  contentArticleId: posts.contentArticleId,
 } as const;
 
-/** Remote media URLs a post references, from the `media[]` items' `id` field. */
-function mediaUrlsOf(post: PostRow): string[] {
-  if (!Array.isArray(post.media)) return [];
-  const urls: string[] = [];
-  for (const item of post.media) {
-    if (typeof item !== 'object' || item === null) continue;
-    const id = (item as { id?: unknown }).id;
-    if (typeof id === 'string' && /^https?:\/\//i.test(id)) urls.push(id);
+/**
+ * Every remote media URL a batch of posts references.
+ *
+ * BOTH columns, because they hold the same URL at different points in the media
+ * cache's life: `media_id` carries a raw remote URL until the cache rewrites it
+ * to an Oxy file id, at which point the origin moves to `remote_url`. Reading
+ * only the first — the literal translation of the Mongo `media[].id` read — would
+ * find the bytes of posts the cache never got to and miss exactly the ones it
+ * DID cache, which are the ones with bytes in our S3.
+ */
+async function remoteMediaUrlsFor(postIds: readonly string[]): Promise<string[]> {
+  if (postIds.length === 0) return [];
+  const rows = await getDb()
+    .select({ mediaId: postMedia.mediaId, remoteUrl: postMedia.remoteUrl })
+    .from(postMedia)
+    .where(inArray(postMedia.postId, [...postIds]));
+
+  const urls = new Set<string>();
+  for (const row of rows) {
+    if (/^https?:\/\//i.test(row.mediaId)) urls.add(row.mediaId);
+    if (row.remoteUrl && /^https?:\/\//i.test(row.remoteUrl)) urls.add(row.remoteUrl);
   }
-  return urls;
+  return [...urls];
 }
 
 /** The AP uris a post is addressable by, for the deletion preflight. */
 function postUris(post: PostRow): string[] {
-  return [post.federation?.activityId, post.federation?.url].filter(
+  return [post.federationActivityId, post.federationUrl].filter(
     (value): value is string => typeof value === 'string' && value.length > 0,
   );
 }
@@ -605,10 +745,7 @@ async function purgeMediaForUrls(
   if (urls.length === 0) return;
 
   for (const batch of chunk([...new Set(urls)], POST_BATCH_SIZE)) {
-    const rows = await FederatedMediaCache.find(
-      { remoteUrl: { $in: batch } },
-      { remoteUrl: 1, oxyFileId: 1, posterFileId: 1 },
-    ).lean<Array<{ remoteUrl: string; oxyFileId?: string; posterFileId?: string }>>();
+    const rows = await findMediaCacheRowsByUrls(batch);
     if (rows.length === 0) continue;
 
     const removable: string[] = [];
@@ -674,7 +811,9 @@ async function purgeMediaForUrls(
       report,
       domain,
       'mediaCacheRows',
-      await countOrDelete(FederatedMediaCache, { remoteUrl: { $in: removable } }, options.dryRun),
+      options.dryRun
+        ? await countMediaCacheRowsByUrls(removable)
+        : await deleteMediaCacheRowsByUrls(removable),
     );
   }
 }
@@ -695,34 +834,46 @@ async function repairBoostCounters(
   report: PurgeReport,
   domain: string,
 ): Promise<void> {
+  // There is no id-shape guard here, and its removal is the POINT rather than a
+  // simplification. It used to skip a `boostOf` that was not a Mongo ObjectId
+  // and count it as `boostTargetUncastable`, because a uuid v7 could not be cast
+  // into a Mongo query — a counter written for exactly this moment, whose
+  // docblock said it would otherwise skip EVERY boost counter repair while the
+  // run still reported success. `posts.id` is `text` and holds either id space,
+  // so nothing is uncastable and there is no longer a state to count.
   const survivingTargets = removed
-    .filter((post) => typeof post.boostOf === 'string' && !removedIds.has(post.boostOf))
-    .map((post) => ({ boostOf: String(post.boostOf), federated: Boolean(post.federation) }));
+    .filter((post) => post.boostOf !== null && !removedIds.has(post.boostOf))
+    .map((post) => ({
+      boostOf: String(post.boostOf),
+      federated: post.federationActorUri !== null || post.federationActivityId !== null,
+    }));
   if (survivingTargets.length === 0) return;
 
+  const db = getDb();
   for (const target of survivingTargets) {
-    if (!mongoose.isValidObjectId(target.boostOf)) continue;
     if (options.dryRun) {
       // The post must still exist for a decrement to be meaningful; counting the
       // same predicate the live write uses keeps the dry-run figure honest.
-      const exists = await Post.countDocuments({
-        _id: target.boostOf,
-        'stats.boostsCount': { $gt: 0 },
-      }).exec();
-      record(report, domain, 'boostCountersRepaired', exists > 0 ? 1 : 0);
+      const [row] = await db
+        .select({ id: posts.id })
+        .from(posts)
+        .where(and(eq(posts.id, target.boostOf), gt(posts.statsBoostsCount, 0)))
+        .limit(1);
+      record(report, domain, 'boostCountersRepaired', row ? 1 : 0);
       continue;
     }
 
-    const updated = await Post.updateOne(
-      { _id: target.boostOf, 'stats.boostsCount': { $gt: 0 } },
-      { $inc: { 'stats.boostsCount': -1 } },
-    );
-    record(report, domain, 'boostCountersRepaired', updated.modifiedCount);
+    const updated = await db
+      .update(posts)
+      .set({ statsBoostsCount: sql`${posts.statsBoostsCount} - 1` })
+      .where(and(eq(posts.id, target.boostOf), gt(posts.statsBoostsCount, 0)))
+      .returning({ id: posts.id });
+    record(report, domain, 'boostCountersRepaired', updated.length);
     if (target.federated) {
-      await Post.updateOne(
-        { _id: target.boostOf, 'stats.federatedBoostsCount': { $gt: 0 } },
-        { $inc: { 'stats.federatedBoostsCount': -1 } },
-      );
+      await db
+        .update(posts)
+        .set({ statsFederatedBoostsCount: sql`${posts.statsFederatedBoostsCount} - 1` })
+        .where(and(eq(posts.id, target.boostOf), gt(posts.statsFederatedBoostsCount, 0)));
     }
   }
 }
@@ -741,25 +892,32 @@ async function measureSurvivingDependents(
   report: PurgeReport,
   domain: string,
 ): Promise<void> {
-  const dependents = await Post.find(
-    {
-      _id: { $nin: [...removedIds].map((id) => new mongoose.Types.ObjectId(id)) },
-      $or: [
-        { parentPostId: { $in: removedIdStrings } },
-        { quoteOf: { $in: removedIdStrings } },
-        { threadId: { $in: removedIdStrings } },
-      ],
-    },
-    { _id: 1, parentPostId: 1, quoteOf: 1, threadId: 1 },
-  ).lean<Array<{ parentPostId?: string; quoteOf?: string; threadId?: string }>>();
+  const ids = [...removedIdStrings];
+  const dependents = await getDb()
+    .select({
+      parentPostId: posts.parentPostId,
+      quoteOf: posts.quoteOf,
+      threadId: posts.threadId,
+    })
+    .from(posts)
+    .where(
+      and(
+        notInArray(posts.id, ids),
+        or(
+          inArray(posts.parentPostId, ids),
+          inArray(posts.quoteOf, ids),
+          inArray(posts.threadId, ids),
+        ),
+      ),
+    );
 
   let replies = 0;
   let quotes = 0;
   let threadRoots = 0;
   for (const dependent of dependents) {
-    if (dependent.parentPostId && removedIds.has(String(dependent.parentPostId))) replies += 1;
-    if (dependent.quoteOf && removedIds.has(String(dependent.quoteOf))) quotes += 1;
-    if (dependent.threadId && removedIds.has(String(dependent.threadId))) threadRoots += 1;
+    if (dependent.parentPostId && removedIds.has(dependent.parentPostId)) replies += 1;
+    if (dependent.quoteOf && removedIds.has(dependent.quoteOf)) quotes += 1;
+    if (dependent.threadId && removedIds.has(dependent.threadId)) threadRoots += 1;
   }
   record(report, domain, 'repliesByOthersKept', replies);
   record(report, domain, 'quotesByOthersKept', quotes);
@@ -780,23 +938,22 @@ async function measureSurvivingDependents(
  * one and already-seen ids are never re-queried, so it terminates even on a cycle.
  */
 async function collectBoostClosure(seeds: readonly PostRow[]): Promise<PostRow[]> {
-  const seen = new Set(seeds.map((post) => post._id.toString()));
+  const seen = new Set(seeds.map((post) => post.id));
   const found: PostRow[] = [];
-  let frontier = seeds.map((post) => post._id.toString());
+  let frontier = seeds.map((post) => post.id);
 
   while (frontier.length > 0) {
-    const next = await Post.find(
-      { type: PostType.BOOST, boostOf: { $in: frontier } },
-      POST_CASCADE_PROJECTION,
-    ).lean<PostRow[]>();
+    const next = await getDb()
+      .select(POST_CASCADE_COLUMNS)
+      .from(posts)
+      .where(and(eq(posts.type, PostType.BOOST), inArray(posts.boostOf, frontier)));
 
     frontier = [];
     for (const boost of next) {
-      const id = boost._id.toString();
-      if (seen.has(id)) continue;
-      seen.add(id);
+      if (seen.has(boost.id)) continue;
+      seen.add(boost.id);
       found.push(boost);
-      frontier.push(id);
+      frontier.push(boost.id);
     }
   }
 
@@ -827,12 +984,11 @@ async function purgePostBatch(
 
   const boosts = await collectBoostClosure(seeds);
   const removed = [...seeds, ...boosts];
-  const removedIds = removed.map((post) => post._id);
-  const removedIdStrings = removed.map((post) => post._id.toString());
+  const removedIdStrings = removed.map((post) => post.id);
   const removedIdSet = new Set(removedIdStrings);
 
   const targets: PostDeletionTarget[] = removed.map((post) => ({
-    id: post._id,
+    id: post.id,
     uris: postUris(post),
   }));
   // Both keys a post can be named by — its id and its AP uris — because the
@@ -861,64 +1017,83 @@ async function purgePostBatch(
   await measureSurvivingDependents(removedIdStrings, removedIdSet, report, domain);
   await repairBoostCounters(removed, removedIdSet, options, report, domain);
 
-  // Engagement and side tables FIRST, so nothing can be left pointing at a post
-  // id that no longer resolves if the run dies mid-batch.
+  /**
+   * Engagement and side tables FIRST, so nothing can be left pointing at a post
+   * id that no longer resolves if the run dies mid-batch.
+   *
+   * Most of these columns now carry a real `ON DELETE CASCADE` to `posts.id`, so
+   * the post delete at the bottom would remove them anyway. Removing them here
+   * ANYWAY is not belt-and-braces: a cascade the database performs is invisible
+   * to this script, so the report would say zero likes were removed while the
+   * likes went. The count is the product, and it is only true if the delete is
+   * the one that ran.
+   */
   record(
     report, domain, 'likesOnRemovedPosts',
-    await countOrDelete(Like, { postId: { $in: removedIds } }, options.dryRun),
+    await countOrDelete(likes, likes.id, inArray(likes.postId, removedIdStrings), options.dryRun),
   );
   record(
     report, domain, 'bookmarksOnRemovedPosts',
-    await countOrDelete(Bookmark, { postId: { $in: removedIds } }, options.dryRun),
+    await countOrDelete(
+      bookmarks, bookmarks.id, inArray(bookmarks.postId, removedIdStrings), options.dryRun,
+    ),
   );
-  // There is deliberately no `PostSubscription` step here. That collection is
-  // `{ subscriberId, authorId }` — a subscription to an AUTHOR's future posts,
-  // with no post reference of any kind. The filter this used to run,
-  // `{ postId: … }`, matched nothing and reported its guaranteed zero as work
-  // done; with `strictQuery` enabled it would instead have been STRIPPED to
-  // `{}` and deleted every subscription in the instance. Author subscriptions
-  // belong to the ACTOR cascade, where `assertActorSafeToDelete` already probes
-  // both of their real fields.
+  /**
+   * The notification probe's OWN predicate, `entity_type` included.
+   *
+   * `entity_id` is polymorphic by `entity_type`, so an id-only match can name a
+   * follow or a mention notification whose entity id happens to collide. The
+   * preflight waives this probe on the strength of this delete, so the two must
+   * ask the same question or the gate clears rows this never removes.
+   */
   record(
     report, domain, 'notificationsByEntity',
-    await countOrDelete(Notification, { entityId: { $in: removedIds } }, options.dryRun),
+    await countOrDelete(
+      notifications,
+      notifications.id,
+      and(
+        inArray(notifications.entityType, ['post', 'reply']),
+        inArray(notifications.entityId, removedIdStrings),
+      ) as SQL,
+      options.dryRun,
+    ),
   );
+  /**
+   * `post_recent_repliers` is FLAT here — one row per (post, replier) — where
+   * Mongo held one document per post with a `repliers[]` array. The counter still
+   * means "projections removed", so it counts DISTINCT POSTS rather than rows;
+   * otherwise a post with three repliers would report as three projections and
+   * the number would silently change meaning with the shape of the data.
+   */
   record(
     report, domain, 'recentReplierProjections',
-    await countOrDelete(PostRecentReplier, { postId: { $in: removedIdStrings } }, options.dryRun),
-  );
-
-  const pollIds = removed
-    .map((post) => post.content?.pollId)
-    .filter((id): id is string => typeof id === 'string' && id.length > 0);
-  record(
-    report, domain, 'polls',
-    await countOrDelete(
-      Poll,
-      {
-        $or: [
-          { postId: { $in: [...removedIds, ...removedIdStrings] } },
-          ...(pollIds.length > 0 ? [{ _id: { $in: pollIds } }] : []),
-        ],
-      },
+    await countOrDeleteDistinctPosts(
+      postRecentRepliers,
+      postRecentRepliers.postId,
+      inArray(postRecentRepliers.postId, removedIdStrings),
       options.dryRun,
     ),
   );
 
-  const articleIds = removed
-    .map((post) => post.content?.article?.articleId)
-    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  /**
+   * `polls` and `articles` are reached through their own `post_id` only.
+   *
+   * The Mongo version needed a second `$or` branch on the id the POST carried
+   * (`content.pollId` / `content.article.articleId`), because those were two
+   * mirrors of one relationship that could disagree. The schema collapsed that:
+   * `polls.post_id` is the owning side and carries the constraint, so a poll a
+   * post names but which does not name the post back is not a state the database
+   * admits. The columns are still read into {@link PostRow} because the ORPHAN
+   * direction is a different question, answered below.
+   */
+  record(
+    report, domain, 'polls',
+    await countOrDelete(polls, polls.id, inArray(polls.postId, removedIdStrings), options.dryRun),
+  );
   record(
     report, domain, 'articles',
     await countOrDelete(
-      Article,
-      {
-        $or: [
-          { postId: { $in: removedIdStrings } },
-          ...(articleIds.length > 0 ? [{ _id: { $in: articleIds } }] : []),
-        ],
-      },
-      options.dryRun,
+      articles, articles.id, inArray(articles.postId, removedIdStrings), options.dryRun,
     ),
   );
 
@@ -931,76 +1106,94 @@ async function purgePostBatch(
   record(
     report, domain, 'postgates',
     await countOrDelete(
-      Postgate,
-      { $or: [{ postId: { $in: removedIdStrings } }, { postUri: { $in: removedPostKeys } }] },
+      postgates,
+      postgates.id,
+      or(
+        inArray(postgates.postId, removedIdStrings),
+        inArray(postgates.postUri, removedPostKeys),
+      ) as SQL,
       options.dryRun,
     ),
   );
   record(
     report, domain, 'threadgates',
     await countOrDelete(
-      Threadgate,
-      { $or: [{ postId: { $in: removedIdStrings } }, { postUri: { $in: removedPostKeys } }] },
+      threadgates,
+      threadgates.id,
+      or(
+        inArray(threadgates.postId, removedIdStrings),
+        inArray(threadgates.postUri, removedPostKeys),
+      ) as SQL,
       options.dryRun,
     ),
   );
   record(
     report, domain, 'feedInteractions',
-    await countOrDelete(FeedInteraction, { postUri: { $in: removedPostKeys } }, options.dryRun),
+    await purgeFeedInteractions(removedPostKeys, options.dryRun),
   );
   record(
     report, domain, 'engagementOutbox',
     await countOrDelete(
-      EngagementOutbox,
-      { 'payload.postId': { $in: removedIdStrings } },
+      engagementOutbox,
+      engagementOutbox.id,
+      inArray(engagementOutbox.payloadPostId, removedIdStrings),
       options.dryRun,
     ),
   );
   record(
     report, domain, 'reports',
     await countOrDelete(
-      Report,
-      { reportedType: ReportedType.POST, reportedId: { $in: removedIdStrings } },
+      reports,
+      reports.id,
+      and(
+        eq(reports.reportedType, 'post'),
+        inArray(reports.reportedId, removedIdStrings),
+      ) as SQL,
       options.dryRun,
     ),
   );
   record(
     report, domain, 'contentLabels',
     await countOrDelete(
-      ContentLabel,
-      { targetType: 'post', targetId: { $in: removedIdStrings } },
+      contentLabels,
+      contentLabels.id,
+      and(
+        eq(contentLabels.targetType, 'post'),
+        inArray(contentLabels.targetId, removedIdStrings),
+      ) as SQL,
       options.dryRun,
     ),
   );
   record(
     report, domain, 'federationDeliveries',
-    await countOrDelete(
-      FederationDeliveryQueue,
-      {
-        $or: [
-          { 'activityJson.id': { $in: removedPostKeys } },
-          { 'activityJson.object.id': { $in: removedPostKeys } },
-          { 'activityJson.object': { $in: removedPostKeys } },
-        ],
-      },
-      options.dryRun,
-    ),
+    options.dryRun
+      ? await countDeliveriesReferencingObjects(removedPostKeys)
+      : await deleteDeliveriesReferencingObjects(removedPostKeys),
   );
 
-  await purgeMediaForUrls(removed.flatMap(mediaUrlsOf), options, report, domain, issues);
+  // Read the media URLs BEFORE the posts go: `post_media` cascades from
+  // `posts.id`, so after the delete there is nothing left to read them from and
+  // the bytes in our S3 would be unnameable.
+  await purgeMediaForUrls(
+    await remoteMediaUrlsFor(removedIdStrings), options, report, domain, issues,
+  );
 
   // Boosts before their originals: a boost outliving its target for even part of
-  // a run is the one shape that renders as a dead placeholder.
-  const boostIds = boosts.map((post) => post._id);
+  // a run is the one shape that renders as a dead placeholder. (`posts.boost_of`
+  // is `ON DELETE CASCADE`, so the database would take them either way — but
+  // then the run could not report how many, which is the same reason the side
+  // tables above are deleted explicitly.)
+  const boostIds = boosts.map((post) => post.id);
   if (boostIds.length > 0) {
     record(
       report, domain, 'boostsByOthers',
-      await countOrDelete(Post, { _id: { $in: boostIds } }, options.dryRun),
+      await countOrDelete(posts, posts.id, inArray(posts.id, boostIds), options.dryRun),
     );
   }
   const removedSeeds = await countOrDelete(
-    Post,
-    { _id: { $in: seeds.map((post) => post._id) } },
+    posts,
+    posts.id,
+    inArray(posts.id, seeds.map((post) => post.id)),
     options.dryRun,
   );
   record(report, domain, seedCountKey, removedSeeds);
@@ -1025,16 +1218,12 @@ async function purgePostBatch(
 // --- per-actor cascade -------------------------------------------------------
 
 interface ActorRow {
-  _id: mongoose.Types.ObjectId;
+  /** `federated_actors.id` — a text primary key, not an ObjectId. */
+  id: string;
   uri: string;
   acct: string;
   domain: string;
   oxyUserId?: string;
-}
-
-/** The only field the engagement teardown reads off a `Like`/`Bookmark` row. */
-interface EngagementRow {
-  postId: mongoose.Types.ObjectId | string;
 }
 
 /**
@@ -1046,6 +1235,29 @@ interface EngagementRow {
  * own post, with no record left to explain it. `materializeEngagementTombstone`
  * removes the row and moves the counter in one transaction, exactly as an
  * `Undo(Like)` from that instance would have.
+ *
+ * ## The read and the write must name the SAME store
+ *
+ * This lane used to page the MONGO `Like`/`Bookmark` collections and hand each
+ * row to a tombstone that operates on the POSTGRES `likes`/`bookmarks` tables.
+ * The delete matched nothing, `changed` came back false for every row, and the
+ * loop recorded the whole page as `engagementResidue` — so a blocked instance's
+ * like survived on a local author's post and their like count stayed inflated,
+ * which is the exact outcome the counter-preserving teardown exists to prevent.
+ *
+ * It reads Postgres now, because that is where the rows ARE: no code path
+ * creates a Mongo `Like` or `Bookmark` any more (checked — the only writer of
+ * either relationship is `PostEngagementCommandService`, and it writes
+ * Postgres), so the Mongo collections hold pre-cutover rows that the backfill
+ * carries across and nothing adds to.
+ *
+ * The paragraph that used to close this docblock explained how the lane worked
+ * across the dual-run — the script read a post from Mongo and reached its likes
+ * in Postgres under the same string, because `posts.id` is `text` holding the
+ * ObjectId hex for every pre-cutover row. That bridge is no longer load-bearing
+ * anywhere in this file: the post scan reads Postgres too, so the id never
+ * crosses stores. It is worth knowing that it HOLDS, because it is what lets a
+ * resume cursor written before this port still name a row afterwards.
  */
 async function purgeActorEngagement(
   oxyUserId: string,
@@ -1054,25 +1266,42 @@ async function purgeActorEngagement(
   domain: string,
   issues: RunIssues,
 ): Promise<void> {
-  // Each lane closes over its own concrete model: a `Like | Bookmark` union is
-  // not callable as one query builder, and narrowing per call site keeps both
-  // lanes honest about which collection they read.
+  const db = getDb();
+  // Each lane closes over its own concrete table: `likes` and `bookmarks` are
+  // separate drizzle tables rather than one union, and narrowing per call site
+  // keeps both lanes honest about which one they read.
   const lanes = [
     {
       kind: 'like' as const,
       countKey: 'likesByBlockedActors' as const,
-      count: () => Like.countDocuments({ userId: oxyUserId }).exec(),
-      page: () => Like.find({ userId: oxyUserId }, { postId: 1 })
-        .limit(ENGAGEMENT_PAGE_SIZE)
-        .lean<EngagementRow[]>(),
+      count: async () => {
+        const [row] = await db
+          .select({ total: count() })
+          .from(likes)
+          .where(eq(likes.userId, oxyUserId));
+        return row?.total ?? 0;
+      },
+      page: () => db
+        .select({ postId: likes.postId })
+        .from(likes)
+        .where(eq(likes.userId, oxyUserId))
+        .limit(ENGAGEMENT_PAGE_SIZE),
     },
     {
       kind: 'bookmark' as const,
       countKey: 'bookmarksByBlockedActors' as const,
-      count: () => Bookmark.countDocuments({ userId: oxyUserId }).exec(),
-      page: () => Bookmark.find({ userId: oxyUserId }, { postId: 1 })
-        .limit(ENGAGEMENT_PAGE_SIZE)
-        .lean<EngagementRow[]>(),
+      count: async () => {
+        const [row] = await db
+          .select({ total: count() })
+          .from(bookmarks)
+          .where(eq(bookmarks.userId, oxyUserId));
+        return row?.total ?? 0;
+      },
+      page: () => db
+        .select({ postId: bookmarks.postId })
+        .from(bookmarks)
+        .where(eq(bookmarks.userId, oxyUserId))
+        .limit(ENGAGEMENT_PAGE_SIZE),
     },
   ];
 
@@ -1090,7 +1319,7 @@ async function purgeActorEngagement(
       for (const row of page) {
         const { changed } = await materializeEngagementTombstone({
           kind,
-          postId: String(row.postId),
+          postId: row.postId,
           userId: oxyUserId,
         });
         if (changed) removedInPage += 1;
@@ -1120,30 +1349,40 @@ async function purgeActorPosts(
   domain: string,
   issues: RunIssues,
 ): Promise<void> {
-  const authored: FilterQuery<unknown> = {
-    $or: [
-      { oxyUserId },
-      { authorship: { $elemMatch: { oxyUserId, role: 'owner' } } },
-    ],
-  };
+  /**
+   * BOTH the denormalized owner and the authorship join, exactly as the Mongo
+   * `$or` did — and as the ported `purgeGoneFederatedActors` still does.
+   *
+   * Narrowing this to `authoredBy` alone is the mistake to avoid, and it is an
+   * easy one: that helper is the ONE spelling of the authorship predicate and the
+   * feed matchers use it alone on purpose. But `post_authorships` is a child
+   * table the raw federated `insertMany` path can omit, and `posts.oxy_user_id`
+   * is the projection that survives when it does. A destructive sweep that found
+   * only one of the two would leave a blocked actor's posts in place while
+   * reporting a clean run — and then refuse the actor's anchor forever, because
+   * the anchor preflight can still see them.
+   */
+  const authored = or(eq(posts.oxyUserId, oxyUserId), authoredBy(oxyUserId)) as SQL;
 
-  let lastId: mongoose.Types.ObjectId | null = null;
+  let lastId: string | null = null;
   for (;;) {
-    const filter: Record<string, unknown> = { ...authored };
-    if (lastId) filter._id = { $gt: lastId };
-
-    const page = await Post.find(filter, POST_CASCADE_PROJECTION)
-      .sort({ _id: 1 })
-      .limit(POST_BATCH_SIZE)
-      .lean<PostRow[]>();
+    const page = await getDb()
+      .select(POST_CASCADE_COLUMNS)
+      .from(posts)
+      .where(lastId === null ? authored : and(authored, gt(posts.id, lastId)))
+      .orderBy(asc(posts.id))
+      .limit(POST_BATCH_SIZE);
     if (page.length === 0) break;
 
     await purgePostBatch(page, options, report, domain, issues, 'posts');
 
-    // A live run DELETES the page, so `{ _id: { $gt: lastId } }` is what stops it
-    // re-reading the same rows forever when a batch was refused; a dry run never
-    // deletes anything and relies on it for all paging.
-    lastId = page[page.length - 1]._id;
+    // A live run DELETES the page, so `id > lastId` is what stops it re-reading
+    // the same rows forever when a batch was refused; a dry run never deletes
+    // anything and relies on it for all paging. `posts.id` is `text` holding an
+    // ObjectId hex OR a uuid v7, so this order is NOT chronological — a keyset
+    // scan of the whole set only needs a total order that `>` and `ORDER BY`
+    // agree on, which it is.
+    lastId = page[page.length - 1].id;
   }
 }
 
@@ -1172,38 +1411,85 @@ async function purgeActorContent(
     await purgeActorPosts(oxyUserId, options, report, domain, issues);
     await purgeActorEngagement(oxyUserId, options, report, domain, issues);
 
-    if (options.dryRun) {
-      record(report, domain, 'mentionsDelinked', await Post.countDocuments({ mentions: oxyUserId }).exec());
-      record(
-        report, domain, 'recentReplierEntriesPulled',
-        await PostRecentReplier.countDocuments({ 'repliers.oxyUserId': oxyUserId }).exec(),
-      );
-    } else {
-      const delinked = await Post.updateMany(
-        { mentions: oxyUserId },
-        { $pull: { mentions: oxyUserId } },
-      );
-      record(report, domain, 'mentionsDelinked', delinked.modifiedCount);
-      // `$pull` rather than the transactional projection repair: this read model
-      // is fail-soft and bounded to three entries, so a shorter list until the
-      // next reply repopulates it is a cosmetic cost, and a transaction per post
-      // across the whole corpus is not.
-      const pulled = await PostRecentReplier.updateMany(
-        { 'repliers.oxyUserId': oxyUserId },
-        { $pull: { repliers: { oxyUserId } } },
-      );
-      record(report, domain, 'recentReplierEntriesPulled', pulled.modifiedCount);
-    }
+    /**
+     * `mentions[]` and `repliers[]` were embedded ARRAYS and are child TABLES
+     * now, so de-linking is a DELETE of the rows naming this user rather than a
+     * `$pull`. Both counters still mean POSTS — the number of posts a mention was
+     * pulled out of, the number of projections an entry was pulled out of — so
+     * both count distinct posts rather than rows.
+     *
+     * Deleting the rows, never replacing the set: writing back the whole child
+     * set for a post is what destroys rows other tables reference by id, and the
+     * `$set` those arrays used to take is exactly the shape that reads as
+     * equivalent and is not.
+     */
+    record(
+      report, domain, 'mentionsDelinked',
+      await countOrDeleteDistinctPosts(
+        postMentions,
+        postMentions.postId,
+        eq(postMentions.oxyUserId, oxyUserId),
+        options.dryRun,
+      ),
+    );
+    // A plain delete rather than the transactional projection repair: this read
+    // model is fail-soft and bounded to three entries, so a shorter list until
+    // the next reply repopulates it is a cosmetic cost, and a transaction per
+    // post across the whole corpus is not.
+    record(
+      report, domain, 'recentReplierEntriesPulled',
+      await countOrDeleteDistinctPosts(
+        postRecentRepliers,
+        postRecentRepliers.postId,
+        eq(postRecentRepliers.oxyUserId, oxyUserId),
+        options.dryRun,
+      ),
+    );
 
     record(
       report, domain, 'entityFollows',
-      await countOrDelete(EntityFollow, { userId: oxyUserId }, options.dryRun),
+      await countOrDelete(
+        entityFollows, entityFollows.id, eq(entityFollows.userId, oxyUserId), options.dryRun,
+      ),
+    );
+    /**
+     * Post subscriptions are AUTHOR-scoped, in BOTH directions.
+     *
+     * This is the one delete in the script whose Mongo filter could never have
+     * matched: it read `{ postId: { $in: … } }` inside the post cascade, and
+     * `PostSubscription` has no `postId` — it is `(subscriberId, authorId)`, a
+     * standing request to be told about an author's new posts. Mongoose passes an
+     * unknown path straight through, so the query was well-formed, matched
+     * nothing, and reported a truthful-looking `postSubscriptions: 0` on every
+     * run since the script was written.
+     *
+     * The subscription belongs to the ACTOR, so it is removed here instead, and
+     * in both directions for the same reason `notificationsByActor` is: a local
+     * user's standing request for a blocked account's posts can never be
+     * satisfied again, and the blocked account's request for a local author's
+     * posts is engagement from an instance we no longer accept.
+     */
+    record(
+      report, domain, 'postSubscriptions',
+      await countOrDelete(
+        postSubscriptions,
+        postSubscriptions.id,
+        or(
+          eq(postSubscriptions.subscriberId, oxyUserId),
+          eq(postSubscriptions.authorId, oxyUserId),
+        ) as SQL,
+        options.dryRun,
+      ),
     );
     record(
       report, domain, 'notificationsByActor',
       await countOrDelete(
-        Notification,
-        { $or: [{ recipientId: oxyUserId }, { actorId: oxyUserId }] },
+        notifications,
+        notifications.id,
+        or(
+          eq(notifications.recipientId, oxyUserId),
+          eq(notifications.actorId, oxyUserId),
+        ) as SQL,
         options.dryRun,
       ),
     );
@@ -1213,15 +1499,17 @@ async function purgeActorContent(
   // and this is the number the automatic path's circuit breaker refuses on.
   record(
     report, domain, 'localFollowsRemoved',
-    await FederatedFollow.countDocuments({
+    await countFollows({
       remoteActorUri: actor.uri,
       direction: 'outbound',
-      status: 'accepted',
-    }).exec(),
+      statuses: ['accepted'],
+    }),
   );
   record(
     report, domain, 'federatedFollows',
-    await countOrDelete(FederatedFollow, { remoteActorUri: actor.uri }, options.dryRun),
+    options.dryRun
+      ? await countFollows({ remoteActorUri: actor.uri })
+      : await deleteFollowsFor({ remoteActorUri: actor.uri }),
   );
 }
 
@@ -1255,15 +1543,37 @@ function cursorScope(phase: string, domains: ReadonlySet<string>): string {
 async function resumePoint(
   scope: string,
   options: PurgeOptions,
-): Promise<{ lastId: mongoose.Types.ObjectId | null; scanned: number }> {
+): Promise<{ lastId: string | null; scanned: number }> {
   if (options.resetCursor) {
     await clearAdminScriptCursor(SCRIPT_NAME, scope);
     return { lastId: null, scanned: 0 };
   }
   const stored = await readAdminScriptCursor(SCRIPT_NAME, scope);
-  if (!stored || !mongoose.isValidObjectId(stored.cursor)) return { lastId: null, scanned: 0 };
-  return { lastId: new mongoose.Types.ObjectId(stored.cursor), scanned: stored.scanned };
+  // NO SHAPE GUARD. This used to be `mongoose.isValidObjectId(stored.cursor)`,
+  // which returns FALSE for a uuid v7 — the id every row created after the
+  // cutover carries. Its false answer means "start from the beginning", so the
+  // cursor would silently stop resuming, permanently, with no error: a
+  // destructive sweep re-walking the corpus from the top on every attempt. The
+  // primary key is now an opaque text id and the only thing worth asking of a
+  // stored cursor is whether there IS one.
+  if (!stored || stored.cursor.length === 0) return { lastId: null, scanned: 0 };
+  return { lastId: stored.cursor, scanned: stored.scanned };
 }
+
+/*
+ * `toMongoCursor` used to live here, and its removal IS this port's receipt.
+ *
+ * It existed because `orphan-posts` and `media` paged Mongo collections whose
+ * ids really were ObjectIds, and it THREW rather than answering `null` for
+ * anything else — because `null` means "start from the beginning", and a
+ * destructive sweep silently re-walking the corpus on every attempt is the worst
+ * shape a bug in this script can take. Its docblock said the guard could not fire
+ * yet, and that the moment those two phases ported, every cursor would become a
+ * uuid v7 and this helper had to go WITH them rather than be relaxed. Both phases
+ * page Postgres now, both cursors are opaque `text` ids, and there is nothing
+ * left to cast — so it is gone, exactly as instructed, rather than loosened into
+ * something that would answer `null`.
+ */
 
 /**
  * A dry run must not write, and a cursor row IS a write — so progress is only
@@ -1273,14 +1583,14 @@ async function resumePoint(
 async function saveProgress(
   scope: string,
   options: PurgeOptions,
-  cursor: mongoose.Types.ObjectId,
+  cursor: string,
   scanned: number,
   issues: RunIssues,
   completed?: boolean,
 ): Promise<void> {
   if (options.dryRun) return;
   const persisted = await recordAdminScriptCursor(SCRIPT_NAME, scope, {
-    cursor: cursor.toHexString(),
+    cursor,
     scanned,
     completed,
   });
@@ -1310,15 +1620,10 @@ async function forEachBlockedActor(
   for (;;) {
     if (options.limit !== undefined && processed >= options.limit) break;
 
-    const filter: Record<string, unknown> = {};
-    if (lastId) filter._id = { $gt: lastId };
-
-    const page = await FederatedActor.find(filter, {
-      _id: 1, uri: 1, acct: 1, domain: 1, oxyUserId: 1,
-    })
-      .sort({ _id: 1 })
-      .limit(PAGE_SIZE)
-      .lean<ActorRow[]>();
+    const page = await scanActors(
+      {},
+      { afterId: lastId ?? undefined, limit: PAGE_SIZE },
+    );
     if (page.length === 0) {
       if (lastId) await saveProgress(scope, options, lastId, scanned, issues, true);
       break;
@@ -1335,7 +1640,7 @@ async function forEachBlockedActor(
       processed += 1;
     }
 
-    lastId = page[page.length - 1]._id;
+    lastId = page[page.length - 1].id;
     await saveProgress(scope, options, lastId, scanned, issues);
     logger.info(`[${SCRIPT_NAME}] phase progress`, { scope, scanned, processed });
   }
@@ -1347,16 +1652,10 @@ async function forEachBlockedActor(
  */
 async function loadBlockedOwnerIds(domains: ReadonlySet<string>): Promise<ReadonlySet<string>> {
   const owners = new Set<string>();
-  let lastId: mongoose.Types.ObjectId | null = null;
+  let lastId: string | null = null;
 
   for (;;) {
-    const filter: Record<string, unknown> = {};
-    if (lastId) filter._id = { $gt: lastId };
-
-    const page = await FederatedActor.find(filter, { _id: 1, uri: 1, domain: 1, oxyUserId: 1 })
-      .sort({ _id: 1 })
-      .limit(PAGE_SIZE)
-      .lean<Array<{ _id: mongoose.Types.ObjectId; uri: string; domain: string; oxyUserId?: string }>>();
+    const page = await scanActors({}, { afterId: lastId ?? undefined, limit: PAGE_SIZE });
     if (page.length === 0) break;
 
     for (const actor of page) {
@@ -1369,7 +1668,7 @@ async function loadBlockedOwnerIds(domains: ReadonlySet<string>): Promise<Readon
       owners.add(owner);
     }
 
-    lastId = page[page.length - 1]._id;
+    lastId = page[page.length - 1].id;
   }
 
   return owners;
@@ -1428,10 +1727,9 @@ async function dropBlockedActorAnchors(
       issues.preflightBlocked += 1;
       return;
     }
-    record(
-      report, domain, 'actors',
-      await countOrDelete(FederatedActor, { _id: actor._id }, options.dryRun),
-    );
+    // Reached only on a live run — the dry-run branch above returned already —
+    // so this is unconditionally a delete rather than a count-or-delete.
+    record(report, domain, 'actors', await deleteActorsByUris([actor.uri]));
   });
 }
 
@@ -1450,35 +1748,62 @@ async function purgeOrphanBlockedPosts(
   issues: RunIssues,
 ): Promise<void> {
   const { lastId: resumeId, scanned: alreadyScanned } = await resumePoint(cursorScope(SCOPE_ORPHAN_POSTS, domains), options);
-  let lastId = resumeId;
+  let lastId: string | null = resumeId;
   let scanned = alreadyScanned;
 
   for (;;) {
-    const filter: Record<string, unknown> = { 'federation.actorUri': { $exists: true } };
-    if (lastId) filter._id = { $gt: lastId };
-
-    const page = await Post.find(filter, POST_CASCADE_PROJECTION)
-      .sort({ _id: 1 })
-      .limit(PAGE_SIZE)
-      .lean<PostRow[]>();
+    const federated = isNotNull(posts.federationActorUri);
+    const page = await getDb()
+      .select(POST_CASCADE_COLUMNS)
+      .from(posts)
+      .where(lastId === null ? federated : and(federated, gt(posts.id, lastId)))
+      .orderBy(asc(posts.id))
+      .limit(PAGE_SIZE);
     if (page.length === 0) {
       if (lastId) await saveProgress(cursorScope(SCOPE_ORPHAN_POSTS, domains), options, lastId, scanned, issues, true);
       break;
     }
 
     scanned += page.length;
+    /**
+     * The page's OWNERS, resolved the same way phase 1 resolves them.
+     *
+     * `posts.oxy_user_id` is a projection the raw federated insert path can omit,
+     * so the skip below cannot read ownership off it alone: a post owned by a
+     * blocked actor through `post_authorships` and nothing else would fail the
+     * skip, and a DRY RUN — which deletes nothing, so phase 1 leaves it in place
+     * — would count it under BOTH phases and report a blast radius larger than
+     * the real one to the person authorising the deletion.
+     */
+    const ownerByPost = new Map<string, string>();
+    for (const post of page) {
+      if (post.oxyUserId !== null) ownerByPost.set(post.id, post.oxyUserId);
+    }
+    const missingOwner = page.filter((post) => post.oxyUserId === null).map((post) => post.id);
+    if (missingOwner.length > 0) {
+      const owners = await getDb()
+        .select({ postId: postAuthorships.postId, oxyUserId: postAuthorships.oxyUserId })
+        .from(postAuthorships)
+        .where(
+          and(
+            inArray(postAuthorships.postId, missingOwner),
+            eq(postAuthorships.role, 'owner'),
+          ),
+        );
+      for (const owner of owners) ownerByPost.set(owner.postId, owner.oxyUserId);
+    }
+
     const byDomain = new Map<string, PostRow[]>();
     for (const post of page) {
-      const actorUri = post.federation?.actorUri;
-      if (typeof actorUri !== 'string') continue;
+      const actorUri = post.federationActorUri;
+      if (actorUri === null) continue;
       const host = hostOf(actorUri);
       if (host === null || !domains.has(host)) continue;
       // Phase 1 owns every post whose author is a blocked actor we hold a row
       // for. Skipping them here is what keeps `orphanPosts` meaning exactly "what
-      // the actor-anchored count misses" — without it a DRY RUN, which deletes
-      // nothing, would count the same post under both phases and report a blast
-      // radius several times the real one to the person authorising the deletion.
-      if (post.oxyUserId && blockedOwnerIds.has(post.oxyUserId)) continue;
+      // the actor-anchored count misses".
+      const owner = ownerByPost.get(post.id);
+      if (owner !== undefined && blockedOwnerIds.has(owner)) continue;
       const bucket = byDomain.get(host);
       if (bucket) bucket.push(post);
       else byDomain.set(host, [post]);
@@ -1490,7 +1815,7 @@ async function purgeOrphanBlockedPosts(
       }
     }
 
-    lastId = page[page.length - 1]._id;
+    lastId = page[page.length - 1].id;
     await saveProgress(cursorScope(SCOPE_ORPHAN_POSTS, domains), options, lastId, scanned, issues);
     logger.info(`[${SCRIPT_NAME}] phase orphan-posts progress`, { scanned });
   }
@@ -1504,17 +1829,11 @@ async function purgeBlockedMediaCache(
   issues: RunIssues,
 ): Promise<void> {
   const { lastId: resumeId, scanned: alreadyScanned } = await resumePoint(cursorScope(SCOPE_MEDIA, domains), options);
-  let lastId = resumeId;
+  let lastId: string | null = resumeId;
   let scanned = alreadyScanned;
 
   for (;;) {
-    const filter: Record<string, unknown> = {};
-    if (lastId) filter._id = { $gt: lastId };
-
-    const page = await FederatedMediaCache.find(filter, { _id: 1, remoteUrl: 1 })
-      .sort({ _id: 1 })
-      .limit(PAGE_SIZE)
-      .lean<Array<{ _id: mongoose.Types.ObjectId; remoteUrl: string }>>();
+    const page = await pageMediaCacheRows(lastId, PAGE_SIZE);
     if (page.length === 0) {
       if (lastId) await saveProgress(cursorScope(SCOPE_MEDIA, domains), options, lastId, scanned, issues, true);
       break;
@@ -1533,7 +1852,7 @@ async function purgeBlockedMediaCache(
       await purgeMediaForUrls(urls, options, report, domain, issues);
     }
 
-    lastId = page[page.length - 1]._id;
+    lastId = page[page.length - 1].id;
     await saveProgress(cursorScope(SCOPE_MEDIA, domains), options, lastId, scanned, issues);
   }
 }
@@ -1575,9 +1894,13 @@ export async function purgeBlockedDomainContent(
   // before anything is removed. Counted directly rather than accumulated during
   // the paged scans: a RESUMED run only pages the remainder of its range, which
   // would report a corpus smaller than reality and quietly move every ceiling.
+  const [federatedPostCount] = await getDb()
+    .select({ total: count() })
+    .from(posts)
+    .where(isNotNull(posts.federationActorUri));
   report.corpus = {
-    federatedPosts: await Post.countDocuments({ 'federation.actorUri': { $exists: true } }),
-    federatedActors: await FederatedActor.countDocuments({}),
+    federatedPosts: federatedPostCount?.total ?? 0,
+    federatedActors: await countActors({}),
   };
 
   await purgeBlockedActorContent(domains, options, report, issues);
@@ -1614,38 +1937,25 @@ async function recordManualRunInLedger(
   // the same as an automatic one's rather than being an unexplained deletion.
   const entryByDomain = new Map(getBlockedDomainPolicy().map((entry) => [entry.domain, entry]));
   try {
-    for (const [domain, counts] of report.byDomain) {
-      const removed = toLedgerCounts(counts);
-      await BlockedDomainPurge.updateOne(
-        { domain },
-        {
-          $set: {
-            inPolicy: true,
-            state: 'purged',
-            purgedAt: now,
-            runId,
-            lastObservedAt: now,
-          },
-          $setOnInsert: { firstObservedAt: now },
-        },
-        { upsert: true },
-      );
-      const entry = entryByDomain.get(domain);
-      await BlockedDomainPurgeRun.updateOne(
-        { domain, runId },
-        {
-          $set: {
-            runAt: now,
-            trigger: 'manual',
-            removed,
-            reason: entry?.reason,
-            category: entry?.category,
-            corroboratingSources: entry ? [...entry.corroboratingSources] : undefined,
-          },
-        },
-        { upsert: true },
-      );
-    }
+    // Batched, matching the automatic path: both write the SAME ledger, and one
+    // action must leave one record whoever started it.
+    await recordPurgeOutcomes(
+      [...report.byDomain.keys()].map((domain) => ({ domain })),
+      { state: 'purged', runId, now },
+    );
+    await recordPurgeRun(
+      [...report.byDomain].map(([domain, counts]) => {
+        const entry = entryByDomain.get(domain);
+        return {
+          domain,
+          removed: toLedgerCounts(counts),
+          reason: entry?.reason,
+          category: entry?.category,
+          corroboratingSources: entry ? [...entry.corroboratingSources] : undefined,
+        };
+      }),
+      { runId, runAt: now, trigger: 'manual' },
+    );
   } catch (error) {
     logger.error(
       `[${SCRIPT_NAME}] the purge completed but its ledger record could not be written`,
@@ -1723,7 +2033,14 @@ async function main(): Promise<void> {
       options.domain,
     );
 
-    await connectToDatabase();
+    /**
+     * BOTH stores, and now for exactly ONE reason rather than because the script
+     * was half-ported: `feed_interactions` still has a live Mongo writer, so the
+     * cascade deletes that collection as well as its Postgres table (see
+     * {@link purgeFeedInteractions}). Everything else this run touches is
+     * Postgres. When that writer ports, the Mongo connection goes with it.
+     */
+    await Promise.all([connectToDatabase(), connectPostgres()]);
     logger.info(`[${SCRIPT_NAME}] connected`, {
       dryRun: options.dryRun,
       domains: domains.size,

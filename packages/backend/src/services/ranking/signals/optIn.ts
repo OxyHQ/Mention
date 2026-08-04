@@ -111,7 +111,7 @@ export function penalizeSeen(post: RankablePost, seenPostIds: Set<string> | unde
   if (!seenPostIds || seenPostIds.size === 0) {
     return 1.0;
   }
-  const id = post?._id != null ? String(post._id) : '';
+  const id = post?.id ?? '';
   return id && seenPostIds.has(id) ? R.optInSignals.penalizeSeen.penalty : 1.0;
 }
 
@@ -140,7 +140,7 @@ export function dwellTimeBoost(post: RankablePost, dwellAverages: Map<string, nu
   if (!dwellAverages) {
     return 1.0;
   }
-  const id = post?._id != null ? String(post._id) : '';
+  const id = post?.id ?? '';
   const avg = id ? dwellAverages.get(id) : undefined;
   const { thresholdMs, boost, maxBoost } = R.optInSignals.dwellTime;
   if (typeof avg !== 'number' || !Number.isFinite(avg) || avg < thresholdMs) {
@@ -165,7 +165,7 @@ export function socialProofBoost(
   if (!networkEngagerCounts) {
     return 1.0;
   }
-  const id = post?._id != null ? String(post._id) : '';
+  const id = post?.id ?? '';
   const count = id ? networkEngagerCounts.get(id) : undefined;
   if (typeof count !== 'number' || !Number.isFinite(count) || count <= 0) {
     return 1.0;

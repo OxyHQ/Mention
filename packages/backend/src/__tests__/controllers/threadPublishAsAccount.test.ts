@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AccountMember } from '@oxyhq/core';
 import type { OxyAuthRequest } from '@oxyhq/core/server';
 
@@ -20,6 +20,22 @@ import type { OxyAuthRequest } from '@oxyhq/core/server';
  *  3. **One membership call per distinct account, not one per post.** The real
  *     gate runs here (only `PostCreationService.create` is stubbed), so the count
  *     of `listAccountMembers` calls is a real measurement rather than a proxy.
+ *
+ * ## What the Postgres port changed
+ *
+ * The LANE is a real row. The suite this replaces mocked `Lane.exists` and then
+ * asserted that it had been CALLED with `{ ownerId: ORGANIZATION }` — which
+ * measures the argument, not the answer. A lane now lives in the `lanes` table
+ * and `assertLaneAssignable` looks it up scoped by publisher, so the two lane
+ * cases below seed ONE lane owned by the caller and read the outcome: published
+ * as the organization it is a 404, published as the caller it is a 201. That
+ * pair is the discriminator the spy was standing in for, and it cannot pass with
+ * the lookup pointed at the wrong publisher. (`lanes.ownerType` is gone with it —
+ * a lane is keyed on `ownerId` alone now that a channel is an Oxy account.)
+ *
+ * `create` is still stubbed, because every other assertion here is about the
+ * PARAMS the controller composes. Its stand-in returns a `PostRecord`-shaped
+ * value with an `id`, not a Mongoose document with an `_id`.
  */
 
 const listAccountMembers = vi.hoisted(() => vi.fn());
@@ -49,16 +65,15 @@ vi.mock('../../utils/notificationUtils', async (importOriginal) => ({
   createMentionNotifications,
 }));
 
-vi.mock('../../utils/logger', () => ({
-  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+// Outbound federation for the batch is its own wiring, covered by
+// `createThreadFederation.test.ts` — here it would only reach the network.
+vi.mock('../../connectors/threadFederation', () => ({
+  federatePostBatchDetached: vi.fn(),
 }));
 
-const laneExists = vi.hoisted(() => vi.fn());
-vi.mock('../../models/Lane', () => ({
-  Lane: {
-    exists: laneExists,
-    findById: vi.fn(() => ({ select: () => ({ lean: async () => null }) })),
-  },
+vi.mock('../../utils/linkPreviewWarm', () => ({
+  warmLinkPreviewForText: vi.fn().mockResolvedValue(undefined),
+  warmLinkPreviewForTextDetached: vi.fn(),
 }));
 
 const create = vi.hoisted(() => vi.fn());
@@ -66,15 +81,20 @@ vi.mock('../../services/PostCreationService', () => ({
   postCreationService: { create },
 }));
 
-import mongoose from 'mongoose';
+import { getDb } from '../../db/postgres';
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { lanes } from '../../db/schema/channels';
+import { eq } from 'drizzle-orm';
 import { createThread } from '../../controllers/posts.controller';
 
-const CALLER = 'caller-1';
-const CHANNEL = 'channel-account-1';
-const ORGANIZATION = 'org-account-1';
-const FORBIDDEN_ORG = 'org-account-2';
-const SECOND_ORG = 'org-account-3';
-const CALLER_LANE = new mongoose.Types.ObjectId().toString();
+const CALLER = 'tpaa-caller-1';
+const CHANNEL = 'tpaa-channel-account-1';
+const ORGANIZATION = 'tpaa-org-account-1';
+const FORBIDDEN_ORG = 'tpaa-org-account-2';
+const SECOND_ORG = 'tpaa-org-account-3';
+
+/** The one real lane this file owns — created in `beforeAll`, owned by CALLER. */
+let CALLER_LANE = '';
 
 const EDITOR_PERMISSIONS = ['account:read', 'account:act_as', 'members:read'];
 const VIEWER_PERMISSIONS = ['account:read', 'members:read'];
@@ -131,23 +151,39 @@ function requestedAccounts(): Array<string | null> {
   );
 }
 
+let createdSeq = 0;
+
+beforeAll(async () => {
+  await connectPostgres();
+  const name = 'tpaa-caller-lane';
+  const [row] = await getDb()
+    .insert(lanes)
+    .values({ ownerId: CALLER, name, nameLower: name })
+    .returning({ id: lanes.id });
+  CALLER_LANE = row.id;
+});
+
+afterAll(async () => {
+  if (CALLER_LANE) await getDb().delete(lanes).where(eq(lanes.id, CALLER_LANE));
+  await closePostgres();
+});
+
 beforeEach(() => {
   create.mockReset();
+  createdSeq = 0;
   // Stands in for the real service, which resolves the author itself through the
   // gate. Mirroring that here (the named account when there is one) is what makes
   // the DOWNSTREAM assertions — the notification actor, the socket author —
-  // measure the controller rather than the stub.
+  // measure the controller rather than the stub. The value is a `PostRecord`
+  // shape: a plain immutable row with `id`, no `save`, no `toObject`.
   create.mockImplementation(async (params: Record<string, unknown>) => {
     const oxyUserId = (params.publishAsOxyUserId as string | null) ?? (params.oxyUserId as string);
-    const _id = new mongoose.Types.ObjectId();
     return {
-      _id,
+      id: `tpaa-created-${createdSeq++}`,
       oxyUserId,
       mentions: (params.mentions as string[]) ?? [],
       content: params.content,
       threadId: null,
-      save: vi.fn(async () => undefined),
-      toObject: () => ({ _id, oxyUserId, content: params.content }),
     };
   });
 
@@ -175,13 +211,6 @@ beforeEach(() => {
     }
     return map;
   });
-
-  // A lane owned by the CALLER and by nobody else — which is the discriminator
-  // for the pre-flight's author (see the lane suite below).
-  laneExists.mockReset();
-  laneExists.mockImplementation(async (filter: { ownerId?: string }) =>
-    filter?.ownerId === CALLER ? { _id: CALLER_LANE } : null,
-  );
 
   createMentionNotifications.mockClear();
   emit.mockClear();
@@ -456,8 +485,8 @@ describe('thread mode — one account for the whole thread', () => {
     );
 
     const calls = create.mock.calls.map(([params]: [Record<string, unknown>]) => params);
-    const rootId = String((await create.mock.results[0].value)._id);
-    const secondId = String((await create.mock.results[1].value)._id);
+    const rootId = String((await create.mock.results[0].value).id);
+    const secondId = String((await create.mock.results[1].value).id);
     expect(calls[1]).toMatchObject({ parentPostId: rootId, threadId: rootId });
     expect(calls[2]).toMatchObject({ parentPostId: secondId, threadId: rootId });
   });
@@ -537,6 +566,12 @@ describe('thread mode — one account for the whole thread', () => {
  * sails through the pre-flight and is then refused mid-loop by the service — with
  * the earlier entries already written. That is precisely the half-batch the
  * pre-flight exists to prevent, so it is the one shape worth pinning.
+ *
+ * ONE real lane, owned by the caller, drives both cases: the publisher the
+ * lookup is scoped to is the only difference between them, so the 404/201 pair
+ * IS the assertion. A lookup pointed at the caller would find the row in both
+ * and answer 201 twice; one pointed at the organization would find it in
+ * neither. Only the correct scoping produces this pair.
  */
 describe('the lane pre-flight follows the ENTRY\'s author', () => {
   it('404s a lane the CALLER owns on an entry published as an organization, before writing anything', async () => {
@@ -554,10 +589,6 @@ describe('the lane pre-flight follows the ENTRY\'s author', () => {
 
     expect(res.statusCode).toBe(404);
     expect(create).not.toHaveBeenCalled();
-    // The lane was looked up under the ORGANIZATION, never the caller.
-    expect(laneExists).toHaveBeenCalledWith(
-      expect.objectContaining({ _id: CALLER_LANE, ownerId: ORGANIZATION }),
-    );
   });
 
   it('CONTROL: the same lane on an entry the caller publishes as themselves is accepted', async () => {
@@ -568,9 +599,7 @@ describe('the lane pre-flight follows the ENTRY\'s author', () => {
     );
 
     expect(res.statusCode).toBe(201);
-    expect(laneExists).toHaveBeenCalledWith(
-      expect.objectContaining({ _id: CALLER_LANE, ownerId: CALLER }),
-    );
+    expect(create).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -587,7 +616,7 @@ describe('the lane pre-flight follows the ENTRY\'s author', () => {
  *
  * The controller decides WHICH of the two verified exceptions each link is
  * created under; the exceptions themselves are unit-tested in
- * `utils/threadContinuation.test.ts` against a real database shape.
+ * `utils/threadContinuation.test.ts` against real rows.
  */
 describe('thread mode — several accounts, and the channel boundary', () => {
   /** Which exception each `create` call asked for, in order. */
@@ -824,4 +853,3 @@ describe('thread mode — several accounts, and the channel boundary', () => {
     expect(create).not.toHaveBeenCalled();
   });
 });
-

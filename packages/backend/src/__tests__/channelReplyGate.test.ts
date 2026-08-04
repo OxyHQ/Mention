@@ -1,5 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import mongoose from 'mongoose';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * A channel's post takes NO replies — the predicates themselves, and the shape of
@@ -7,23 +6,36 @@ import mongoose from 'mongoose';
  *
  * The rule is keyed on the post's AUTHOR: a channel is an Oxy account and authors
  * its own posts, so "is this a channel post" is "is this author a channel
- * account". Each case is paired with a control that a plain post still accepts
- * replies exactly as before, because a gate that cannot distinguish success from
- * failure is worse than no gate.
+ * account". Each answer is paired with its opposite, because a gate that cannot
+ * distinguish success from failure is worse than no gate: every "refuses a
+ * channel parent" case sits beside a control that a plain post still accepts
+ * replies exactly as before.
+ *
+ * ## Why the id lookup reads a database instead of mocking `findById`
+ *
+ * The gate's whole history is a guard that LOOKED present and was inert. It read
+ * `ObjectId.isValid(parentPostId)` before its lookup, and on this branch
+ * `posts.id` is `text` holding uuid v7 — so for every post minted since the
+ * cutover it answered `false`, which the callers read as "not a channel post"
+ * and let the reply THROUGH. A mocked `findById` cannot see that: the mock
+ * answers whatever it was told, and the id-shape check that decided whether the
+ * lookup happened at all never runs against a real id. So the fixtures here are
+ * rows, and the ids are the ones the database actually mints.
+ *
+ * The one thing that is NOT a row is the account KIND, because Oxy owns it and
+ * Postgres cannot see it. `resolveUserSummaries` — the identity batch
+ * `publishAsAccount` resolves kinds through — is the seam, mocked rather than
+ * `isChannelAccount` itself, so the fail-soft direction the gate depends on (an
+ * unresolvable author is NOT a channel) is exercised through the real code.
  */
-
-const postFindById = vi.fn();
-vi.mock('../models/Post', () => ({
-  Post: {
-    findById: (...args: unknown[]) => postFindById(...args),
-  },
-}));
 
 const resolveUserSummaries = vi.fn();
 vi.mock('../services/PostHydrationService', () => ({
   resolveUserSummaries: (...args: unknown[]) => resolveUserSummaries(...args),
 }));
 
+import { closePostgres, connectPostgres } from '../db/postgres';
+import { clearPostScope, postScope, seedPost } from './helpers/postFixtures';
 import {
   ChannelReplyError,
   assertParentAcceptsReplies,
@@ -31,19 +43,15 @@ import {
   postIsAuthoredByChannel,
 } from '../utils/channelReplyGate';
 
-const PARENT_ID = new mongoose.Types.ObjectId().toString();
-const CHANNEL_ACCOUNT = 'oxy-channel-account';
-const PERSON = 'oxy-person';
+const scope = postScope('channel-reply-gate');
+const CHANNEL_ACCOUNT = scope.user('channel');
+const PERSON = scope.user('person');
 
-/** A chainable stand-in for `Post.findById(...).select(...).lean()`. */
-function projection<T>(value: T) {
-  const link = { select: () => link, lean: () => Promise.resolve(value) };
-  return link;
-}
+beforeAll(async () => {
+  await connectPostgres();
+});
 
 beforeEach(() => {
-  postFindById.mockReset();
-  postFindById.mockReturnValue(projection(null));
   resolveUserSummaries.mockReset();
   resolveUserSummaries.mockImplementation(async (ids: string[]) => {
     const map = new Map<string, { user: { id: string; kind?: string } }>();
@@ -52,6 +60,14 @@ beforeEach(() => {
     }
     return map;
   });
+});
+
+afterEach(async () => {
+  await clearPostScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 describe('postIsAuthoredByChannel', () => {
@@ -88,44 +104,45 @@ describe('postIsAuthoredByChannel', () => {
 });
 
 describe('parentIsChannelPost', () => {
-  it('answers false without a query when the id is missing or malformed', async () => {
+  it('answers false for no id at all', async () => {
     expect(await parentIsChannelPost(undefined)).toBe(false);
     expect(await parentIsChannelPost('')).toBe(false);
-    expect(await parentIsChannelPost('not-an-object-id')).toBe(false);
-    expect(postFindById).not.toHaveBeenCalled();
   });
 
   it('answers true for a parent a channel account wrote', async () => {
-    postFindById.mockReturnValue(projection({ oxyUserId: CHANNEL_ACCOUNT }));
-    expect(await parentIsChannelPost(PARENT_ID)).toBe(true);
+    const parent = await seedPost(scope, { oxyUserId: CHANNEL_ACCOUNT });
+    expect(await parentIsChannelPost(parent.id)).toBe(true);
   });
 
   it('answers false for a parent a person wrote, and for one that is gone', async () => {
-    postFindById.mockReturnValue(projection({ oxyUserId: PERSON }));
-    expect(await parentIsChannelPost(PARENT_ID)).toBe(false);
-    postFindById.mockReturnValue(projection(null));
-    expect(await parentIsChannelPost(PARENT_ID)).toBe(false);
+    const plain = await seedPost(scope, { oxyUserId: PERSON });
+    expect(await parentIsChannelPost(plain.id)).toBe(false);
+    // An id that names no row. This is also the case that used to be answered by
+    // an id-SHAPE guard: a `text` id matching nothing already returns nothing,
+    // which is why the guard was removed rather than widened.
+    expect(await parentIsChannelPost('channel-reply-gate-no-such-post')).toBe(false);
   });
 
-  it('lets a database error propagate rather than answering "not a channel"', async () => {
-    // Fail LOUD: on the HTTP paths this becomes a 500 and on the BullMQ path it
-    // retries. Swallowing it into `false` would open the gate during an outage.
-    postFindById.mockImplementation(() => {
-      throw new Error('mongo down');
-    });
-    await expect(parentIsChannelPost(PARENT_ID)).rejects.toThrow('mongo down');
+  it('answers TRUE for a real uuid v7 id — the shape the removed guard rejected', async () => {
+    // The regression case, stated as its own. `insertPostRecord` mints uuid v7,
+    // and `ObjectId.isValid` answers `false` for one — so this exact fixture is
+    // what the old gate returned `false` for while looking correct, and `false`
+    // here means the reply is allowed through.
+    const parent = await seedPost(scope, { oxyUserId: CHANNEL_ACCOUNT });
+    expect(parent.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-/);
+    expect(await parentIsChannelPost(parent.id)).toBe(true);
   });
 });
 
 describe('assertParentAcceptsReplies', () => {
   it('throws a 403 ChannelReplyError for a channel-authored parent', async () => {
-    postFindById.mockReturnValue(projection({ oxyUserId: CHANNEL_ACCOUNT }));
-    await expect(assertParentAcceptsReplies(PARENT_ID)).rejects.toBeInstanceOf(ChannelReplyError);
-    await expect(assertParentAcceptsReplies(PARENT_ID)).rejects.toMatchObject({ status: 403 });
+    const parent = await seedPost(scope, { oxyUserId: CHANNEL_ACCOUNT });
+    await expect(assertParentAcceptsReplies(parent.id)).rejects.toBeInstanceOf(ChannelReplyError);
+    await expect(assertParentAcceptsReplies(parent.id)).rejects.toMatchObject({ status: 403 });
   });
 
   it('resolves for an ordinary parent', async () => {
-    postFindById.mockReturnValue(projection({ oxyUserId: PERSON }));
-    await expect(assertParentAcceptsReplies(PARENT_ID)).resolves.toBeUndefined();
+    const plain = await seedPost(scope, { oxyUserId: PERSON });
+    await expect(assertParentAcceptsReplies(plain.id)).resolves.toBeUndefined();
   });
 });

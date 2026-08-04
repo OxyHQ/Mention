@@ -1,18 +1,17 @@
 import type { Response } from 'express';
-import mongoose from 'mongoose';
+import { eq } from 'drizzle-orm';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import type {
-  PostAuthorshipEntry,
   PostContent,
   PostEditSource,
   PostUser,
-  StoredPostContent,
 } from '@mention/shared-types/post';
 import {
   mentionTextsFromContent,
 } from '@mention/shared-types/mentions';
 import { reconcileMentionIdsForPost } from '../utils/textProcessing';
-import { Post } from '../models/Post';
+import { posts } from '../db/schema/posts';
+import { findPostRecords, CHRONO_DESC } from '../db/posts/postRepository';
 import { authorVariants } from '../services/postVariants';
 import {
   isFallbackUserSummary,
@@ -29,6 +28,20 @@ import { postManagementRefusal } from '../services/postManagementAccess';
  * Markdown links and may select a reader-language rendition. Reversing that DTO
  * would have to guess both ids and the primary body. This owner-only endpoint
  * instead returns the persisted author variants and an exact mention allowlist.
+ *
+ * ## Two things the Postgres port removed
+ *
+ * **The `ObjectId.isValid` guard is gone.** It existed only to dodge a Mongoose
+ * `CastError`, and the id column is `text` now: a uuid v7 matches its row, a
+ * pre-cutover ObjectId hex matches its row, and an id that is neither matches
+ * nothing — which is already the 404 the guard was standing in for. Keeping it
+ * would 404 every post created after the cutover.
+ *
+ * **The legacy top-level `content.text` fallback is gone.** It read a field the
+ * stored shape has not had since renditions became the only home of the body;
+ * `StoredPostContent` does not declare it, and the column does not exist. A post
+ * with no author variant now correctly reports an empty body rather than reading
+ * a field that cannot be there.
  */
 export const getPostEditSource = async (
   req: AuthRequest,
@@ -40,18 +53,20 @@ export const getPostEditSource = async (
   }
 
   const postId = String(req.params.id);
-  if (!mongoose.Types.ObjectId.isValid(postId)) {
-    return res.status(404).json({ message: 'Post not found' });
-  }
 
   try {
-    // By id then authorized, matching `updatePost` — this endpoint loads the
-    // post INTO the composer, so scoping it to `{ oxyUserId: userId }` while the
-    // edit route accepts a channel's writer would let the edit succeed against a
-    // post the composer could never open.
-    const post = await Post.findOne({ _id: postId })
-      .select('_id content mentions authorship parentPostId status scheduledFor oxyUserId writtenByOxyUserId')
-      .lean();
+    // By id then authorized, matching `updatePost` — this endpoint loads the post
+    // INTO the composer, so narrowing the read by `oxy_user_id = userId` while
+    // the edit route accepts a channel's writer would let the edit succeed
+    // against a post the composer could never open.
+    //
+    // The endpoint does not become an existence oracle by losing the narrowing:
+    // `postManagementRefusal` below answers 404 for a post the caller may not
+    // touch, so "not yours" and "does not exist" stay the same reply.
+    const [post] = await findPostRecords(eq(posts.id, postId), {
+      orderBy: CHRONO_DESC,
+      limit: 1,
+    });
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
     }
@@ -64,17 +79,11 @@ export const getPostEditSource = async (
       return res.status(refusal.status).json({ message: refusal.message });
     }
 
-    const storedContent = (post.content ?? {}) as StoredPostContent;
-    const variants = authorVariants(storedContent);
-    const legacyText =
-      typeof (storedContent as StoredPostContent & { text?: unknown }).text === 'string'
-        ? String((storedContent as StoredPostContent & { text?: string }).text)
-        : '';
-
+    const variants = authorVariants(post.content);
     const content: PostContent = {
-      text: variants[0]?.text ?? legacyText,
+      text: variants[0]?.text ?? '',
       ...(variants.length > 0 ? { variants } : {}),
-      ...(Array.isArray(storedContent.media) ? { media: storedContent.media } : {}),
+      ...(post.content.media ? { media: post.content.media } : {}),
     };
     const mentions = reconcileMentionIdsForPost(
       mentionTextsFromContent(content),
@@ -101,19 +110,18 @@ export const getPostEditSource = async (
     }
 
     const response: PostEditSource = {
-      id: String(post._id),
+      id: post.id,
       content,
       mentions,
       mentionUsers,
-      ...(Array.isArray(post.authorship)
-        ? { authorship: post.authorship as PostAuthorshipEntry[] }
-        : {}),
-      ...(post.parentPostId ? { parentPostId: String(post.parentPostId) } : {}),
+      ...(post.authorship.length > 0 ? { authorship: post.authorship } : {}),
+      ...(post.parentPostId ? { parentPostId: post.parentPostId } : {}),
       // The composer needs the publication state to know whether the 30-minute
       // edit window applies at all, and the time so it can restore the schedule
-      // instead of silently dropping it when the author saves.
-      ...(post.status ? { status: post.status } : {}),
-      ...(post.scheduledFor ? { scheduledFor: new Date(post.scheduledFor).toISOString() } : {}),
+      // instead of silently dropping it when the author saves. `status` is
+      // `NOT NULL` here, so it is always sent rather than conditionally.
+      status: post.status,
+      ...(post.scheduledFor ? { scheduledFor: post.scheduledFor.toISOString() } : {}),
     };
     return res.json(response);
   } catch (error) {

@@ -61,11 +61,12 @@
  */
 
 import { Router, type Response } from 'express';
-import type { PipelineStage } from 'mongoose';
+import { and, desc, eq, isNotNull, sql } from 'drizzle-orm';
 import { PostVisibility, type ChannelWriter, type ChannelWritersResponse } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import { Post } from '../models/Post';
-import { UserSettings } from '../models/UserSettings';
+import { getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
+import { userSettings } from '../db/schema/userProfile';
 import { resolveUserSummaries } from '../services/PostHydrationService';
 import { degradedActorSummary } from '../utils/degradedActorSummary';
 import type { CachedUserSummary } from '../services/userSummaryCache';
@@ -146,10 +147,12 @@ function parseWritersCursor(raw: string | undefined): WritersCursor | undefined 
  *    This is what keeps the list one stable answer for every reader, and it is
  *    the fail-closed direction: a non-public post still names its writer to
  *    whoever may read THAT post, but it does not put a name in a directory.
- *  - `writtenByOxyUserId: { $type: 'string' }` — a post published by a person
- *    signed in as themselves has no writer to disclose. The `$type` term is also
- *    what makes the partial index eligible; `$exists: true` would not, and a
- *    stored `null` satisfies `$exists` while satisfying nothing else.
+ *  - `written_by_oxy_user_id is not null` — a post published by a person signed
+ *    in as themselves has no writer to disclose. Mongo needed `$type: 'string'`
+ *    here rather than `$exists`, because a stored `null` satisfies `$exists`
+ *    while satisfying nothing else and only the typed form made the partial index
+ *    eligible. Postgres has one spelling of absent, so the distinction disappears
+ *    with the store that created it.
  *
  * There is deliberately no post-TYPE filter and no lane filter, so a boost the
  * channel published counts its publisher, a thread continuation counts its
@@ -171,47 +174,80 @@ function parseWritersCursor(raw: string | undefined): WritersCursor | undefined 
  * pages honestly — a keyset on `(lastPostAt, writerId)` is stable, while a count
  * ordering drifts under the reader between pages.
  *
- * COST: one aggregation, served by `post_channel_writer_v1` — the channel's
- * signed posts are a contiguous, tiny slice of that partial index, and both
- * values the `$group` reads live in the index, so no post document is fetched.
- * The `$sort` that follows runs over DISTINCT WRITERS, a number bounded by how
- * many humans have ever published as this channel.
+ * COST: one `GROUP BY`, served by `post_channel_writer_v1` — the channel's signed
+ * posts are a contiguous, tiny slice of that partial index, and both values the
+ * grouping reads live in the index, so no post row is fetched. The `ORDER BY`
+ * that follows runs over DISTINCT WRITERS, a number bounded by how many humans
+ * have ever published as this channel.
+ *
+ * THE KEYSET IS IN A `HAVING`, not a `WHERE`, and that is not interchangeable.
+ * The cursor compares against `max(created_at)` — an AGGREGATE of the group, not
+ * a column of any one row — so a `WHERE` would drop individual POSTS older than
+ * the cursor before grouping and then report each writer's most recent SURVIVING
+ * post as their `lastPostAt`. A writer would reappear on page after page with a
+ * receding timestamp, and the page that was supposed to end would never end.
  */
 async function loadWriterIds(
   channelOxyUserId: string,
   limit: number,
   cursor: WritersCursor | undefined,
 ): Promise<Array<{ writerOxyUserId: string; lastPostAt: Date }>> {
-  const pipeline: PipelineStage[] = [
-    {
-      $match: {
-        oxyUserId: channelOxyUserId,
-        visibility: PostVisibility.PUBLIC,
-        status: 'published',
-        writtenByOxyUserId: { $type: 'string' },
-      },
-    },
-    { $group: { _id: '$writtenByOxyUserId', lastPostAt: { $max: '$createdAt' } } },
-  ];
+  // `.mapWith(posts.createdAt)` is what makes this a `Date` — it is NOT
+  // decoration. `drizzle-orm/postgres-js` installs a TRANSPARENT parser for
+  // every timestamp/date OID (`1184`, `1114`, `1082`, …) so that drizzle, not
+  // postgres.js, owns the conversion; drizzle then applies it per DECLARED
+  // COLUMN. A raw `sql` expression has no column behind it, so it comes back as
+  // the driver's string — `'2026-01-01 00:00:00+00'` — and a bare `sql<Date>`
+  // would be an assertion the compiler accepts and the runtime contradicts, one
+  // `.toISOString()` later, as a 500 on every page that has a writer.
+  //
+  // Borrowing the COLUMN's own decoder rather than naming a converter here is
+  // deliberate: the type is then DERIVED from what actually runs, so the
+  // annotation cannot drift from the decoding, and a change to how `created_at`
+  // is represented reaches this expression for free.
+  const lastPostAt = sql`max(${posts.createdAt})`.mapWith(posts.createdAt);
+  const grouped = getDb()
+    .select({ writerOxyUserId: posts.writtenByOxyUserId, lastPostAt })
+    .from(posts)
+    .where(
+      and(
+        eq(posts.oxyUserId, channelOxyUserId),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+        isNotNull(posts.writtenByOxyUserId),
+      ),
+    )
+    .groupBy(posts.writtenByOxyUserId);
 
-  if (cursor) {
-    pipeline.push({
-      $match: {
-        $or: [
-          { lastPostAt: { $lt: cursor.lastPostAt } },
-          { lastPostAt: cursor.lastPostAt, _id: { $lt: cursor.writerOxyUserId } },
-        ],
-      },
-    });
-  }
+  // `.having()` is applied CONDITIONALLY rather than handed `undefined`: drizzle
+  // renders the clause it is given, and an absent cursor must produce a query
+  // with no HAVING at all — not one with an empty predicate.
+  //
+  // The cursor instant is encoded with the COLUMN's own serializer for the same
+  // reason the aggregate above is decoded with it: the driver setup disables
+  // postgres.js's timestamp codecs in BOTH directions, so a bare `Date`
+  // interpolated here is handed to the socket writer unconverted and the whole
+  // query dies with `ERR_INVALID_ARG_TYPE` — a paging failure that never reaches
+  // the first page, which is why only the SECOND page of a keyset test can see
+  // it. Postgres resolves the parameter's type from the timestamptz on the other
+  // side of the row comparison.
+  const paged = cursor
+    ? grouped.having(
+        sql`(${lastPostAt}, ${posts.writtenByOxyUserId}) < (${posts.createdAt.mapToDriverValue(cursor.lastPostAt)}, ${cursor.writerOxyUserId})`,
+      )
+    : grouped;
 
-  pipeline.push({ $sort: { lastPostAt: -1, _id: -1 } }, { $limit: limit });
+  const rows = await paged
+    .orderBy(desc(lastPostAt), desc(posts.writtenByOxyUserId))
+    .limit(limit);
 
-  const rows = await Post.aggregate<{ _id: string; lastPostAt: Date }>(pipeline)
-    .option({ maxTimeMS: 5000 })
-    .exec();
-
-  return rows.map((row) => ({ writerOxyUserId: String(row._id), lastPostAt: row.lastPostAt }));
+  // `isNotNull` narrows the ROWS, never the column's TypeScript type, so the
+  // filter is what makes the non-null claim real rather than asserted.
+  return rows.flatMap((row) =>
+    row.writerOxyUserId === null
+      ? []
+      : [{ writerOxyUserId: row.writerOxyUserId, lastPostAt: row.lastPostAt }],
+  );
 }
 
 /**
@@ -244,13 +280,16 @@ router.get(
       // depends on another's answer, and the account resolve is the same batched
       // path a post author goes through — so a channel whose page was just
       // rendered is already in the identity cache.
-      const [summaries, signingChannelIds, settings] = await Promise.all([
+      const [summaries, signingChannelIds, visibilityRows] = await Promise.all([
         resolveUserSummaries([channelOxyUserId]),
         loadSigningChannelIds([channelOxyUserId]),
-        UserSettings.findOne(
-          { oxyUserId: channelOxyUserId },
-          { 'privacy.profileVisibility': 1 },
-        ).lean<{ privacy?: { profileVisibility?: string } } | null>(),
+        // ONE column, not the row: `select()` with no projection returns every
+        // column, and `user_settings` is the widest table in the schema.
+        getDb()
+          .select({ profileVisibility: userSettings.privacyProfileVisibility })
+          .from(userSettings)
+          .where(eq(userSettings.oxyUserId, channelOxyUserId))
+          .limit(1),
       ]);
 
       const account = summaries.get(channelOxyUserId)?.user;
@@ -261,7 +300,7 @@ router.get(
       // Only a restricted profile costs the follow check, which is an Oxy round
       // trip. The caller's OWN client is used, the same one the profile-design
       // gate uses, so the answer is scoped to who is asking.
-      if (requiresAccessCheck(settings?.privacy?.profileVisibility)) {
+      if (requiresAccessCheck(visibilityRows[0]?.profileVisibility ?? undefined)) {
         const viewerId = req.user?.id;
         // An anonymous reader can never satisfy a restricted profile, so the
         // upstream call is not even made for one.

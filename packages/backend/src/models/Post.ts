@@ -54,7 +54,8 @@ export interface IPost extends Document {
   boostOf?: string; // original post id
   quoteOf?: string; // quoted post id
   /**
-   * The author's own lane for this post, when it has one — see `models/Lane`.
+   * The author's own lane for this post, when it has one — see `lanes` in
+   * `db/schema/channels.ts`.
    * Purely local curation: it never federates, never enters an MTN record, and
    * never changes who the post reaches. Only ORIGINAL local posts carry one
    * (replies and boosts are refused at the write boundary).
@@ -907,8 +908,13 @@ PostSchema.index(
 // of the collection. The query in `routes/channelWriters.routes.ts` carries the
 // SAME `{ $type: 'string' }` term so the planner can prove eligibility.
 //
-// NOTE: `autoIndex`/`autoCreate` are OFF in production — created by migration
-// `0027-post-channel-writer-index`, not on model load.
+// NOTE: `autoIndex`/`autoCreate` are OFF in production, and there is NO
+// migration that creates this index — `0027-post-channel-writer-index` was
+// dropped during the Postgres absorb rather than ported. It indexed the Mongo
+// `posts` collection to serve a tab that reads Postgres after the cutover, so
+// building it would have spent an index build on a store nothing writes to any
+// more. The declaration stays because it describes the access pattern; it is
+// not a claim that the index exists anywhere.
 PostSchema.index(
   { oxyUserId: 1, visibility: 1, status: 1, writtenByOxyUserId: 1, createdAt: -1 },
   {

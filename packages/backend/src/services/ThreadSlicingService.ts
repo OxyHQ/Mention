@@ -15,9 +15,11 @@ import {
   MtnConfig,
   PostVisibility,
 } from '@mention/shared-types';
-import { Post } from '../models/Post';
+import { and, asc, eq, inArray, isNotNull, or, type SQL } from 'drizzle-orm';
+import { posts as postsTable } from '../db/schema/posts';
+import { CHRONO_DESC, findPostRecords } from '../db/posts/postRepository';
+import type { PostRecord } from '../db/posts/postRecord';
 import { logger } from '../utils/logger';
-import { isReplyPost } from '../utils/postReply';
 
 export interface ThreadSlicingOptions {
   enableThreadGrouping: boolean;
@@ -27,14 +29,35 @@ export interface ThreadSlicingOptions {
 }
 
 interface RawPost {
-  // Feed candidates come from several ranked sources with differently-typed ids
-  // (ObjectId, string, or an opaque `{ toString() }`); only `getPostId` reads it.
-  _id: unknown;
-  id?: string;
-  oxyUserId?: string;
-  parentPostId?: string;
-  threadId?: string;
+  id: string;
+  /** Nullable column, not merely optional — see `PostRecord`. */
+  oxyUserId?: string | null;
+  /** Written as a reply. STORED, never inferred from `parentPostId`. */
+  isReply: boolean;
+  parentPostId?: string | null;
+  threadId?: string | null;
   createdAt?: string | Date;
+}
+
+/**
+ * A lean document from THIS service's own two Mongo queries, as a {@link RawPost}.
+ *
+ * `models/Post` is still Mongoose, so it yields `_id` and has no stored
+ * `is_reply`; `RawPost` speaks the ported vocabulary. Bridging them with a bare
+ * cast produced objects whose `id` was `undefined`, and the damage was silent:
+ * `_sliceKey` became `"undefined+…"`, `additionalPostIds` handed hydration an
+ * `undefined` id, and the `seenPostIds` guard deduped every fetched parent
+ * against the single key `undefined` — so on a page with two replies to two
+ * DIFFERENT parents, only the first reply got its parent prepended.
+ *
+ * Deriving `isReply` is correct only because these documents predate the stored
+ * column; it goes through the shared {@link derivesReplyIntent} so the two
+ * encodings of "has a parent" cannot drift from the writer's definition.
+ */
+function toRawPost(record: PostRecord): RawPost {
+  // `isReply` is READ, no longer re-derived: it is a stored column now, and it is
+  // the only answer that survives `ON DELETE SET NULL` clearing a parent link.
+  return record as unknown as RawPost;
 }
 
 const DEFAULT_OPTIONS: ThreadSlicingOptions = {
@@ -42,24 +65,6 @@ const DEFAULT_OPTIONS: ThreadSlicingOptions = {
   enableReplyContext: true,
   maxSliceSize: MtnConfig.feed.maxSliceSize,
 };
-
-/**
- * The projection for the posts the slicer pulls in itself — self-thread children
- * and reply-context parents. Both queries share it because they feed the same
- * consumer.
- *
- * `status` is part of it deliberately. These lean docs go straight to
- * `PostHydrationService`, whose unpublished guard reads `post.status ?? 'published'`:
- * leave the field unprojected and that guard reads `undefined`, defaults to
- * `'published'`, and never fires — an inert ACL rather than an enforced one.
- *
- * `writtenByOxyUserId` is here for the same reason it is in the three other
- * hydration projections (see `mtn/feed/FeedAPI.ts`): without it a disclosed
- * channel writer is named on the feed row and silently dropped on the SAME post
- * rendered as a thread parent.
- */
-const SLICE_POST_PROJECTION =
-  '_id oxyUserId writtenByOxyUserId authorship federation createdAt parentPostId threadId content status stats metadata hashtags mentions language visibility type boostOf quoteOf laneId';
 
 class ThreadSlicingService {
   /**
@@ -132,7 +137,7 @@ class ThreadSlicingService {
       seenPostIds.add(postId);
 
       // Try self-thread grouping: root post with thread children by the same author
-      if (opts.enableThreadGrouping && post.threadId && !isReplyPost(post)) {
+      if (opts.enableThreadGrouping && post.threadId && !post.isReply) {
         const children = threadChildrenMap.get(post.threadId);
         if (children && children.length > 0) {
           const sliceItems: RawPost[] = [post];
@@ -158,9 +163,9 @@ class ThreadSlicingService {
       // Reply context: a reply is ALWAYS tagged `replyContext`, and its parent is
       // prepended when we actually hold it.
       //
-      // The reply test is `isReplyPost`, NOT `post.parentPostId` — a federated
-      // reply whose `inReplyTo` never resolved carries no local parent link and
-      // would otherwise be classified as a thread root (see `utils/postReply`).
+      // The reply test is the STORED `isReply`, NOT `post.parentPostId` — a
+      // federated reply whose `inReplyTo` never resolved carries no local parent
+      // link and would otherwise be classified as a thread root.
       //
       // The parent is unattachable in three cases: it is already rendered higher
       // in this page, it failed the published/visibility bar, or it was never
@@ -168,7 +173,7 @@ class ThreadSlicingService {
       // which the `hideReplies` tuner filters on. The "Replying to @…" header does
       // NOT depend on this tag — it reads the reply's own `replyContext` on the
       // post DTO, so a reply renders its context on feeds that never slice at all.
-      if (opts.enableReplyContext && isReplyPost(post)) {
+      if (opts.enableReplyContext && post.isReply) {
         const parentId = post.parentPostId;
         const parent = parentId ? parentPostMap.get(parentId) ?? postById.get(parentId) : undefined;
         const attachableParent =
@@ -213,34 +218,43 @@ class ThreadSlicingService {
 
     if (threadRoots.size === 0) return result;
 
-    // Build $or conditions for each thread
-    const orConditions = Array.from(threadRoots.entries()).map(([threadId, oxyUserId]) => ({
-      threadId,
-      oxyUserId,
-      parentPostId: { $ne: null, $exists: true },
-    }));
+    // One (thread, author) pair per root, OR-ed together.
+    const threadConditions = Array.from(threadRoots.entries()).map(([threadId, oxyUserId]) =>
+      and(
+        eq(postsTable.threadId, threadId),
+        eq(postsTable.oxyUserId, oxyUserId),
+        // `is not null`, NOT `<> null`: Mongo's `$ne: null` also matched a missing
+        // field, while SQL's `<>` against NULL is NULL and matches nothing — the
+        // literal translation would return no continuations at all and silently
+        // un-thread every self-thread in the feed.
+        isNotNull(postsTable.parentPostId),
+      ) as SQL,
+    );
 
     try {
-      const children = await Post.find({
-        visibility: PostVisibility.PUBLIC,
-        status: 'published',
-        $or: orConditions,
-      })
-        .select(SLICE_POST_PROJECTION)
-        .sort({ createdAt: 1 })
-        .limit(threadRoots.size * (maxSliceSize - 1))
-        .maxTimeMS(3000)
-        .lean();
+      const children = await findPostRecords(
+        and(
+          eq(postsTable.visibility, PostVisibility.PUBLIC),
+          eq(postsTable.status, 'published'),
+          or(...threadConditions),
+        ),
+        {
+          orderBy: [asc(postsTable.createdAt), asc(postsTable.id)],
+          limit: threadRoots.size * (maxSliceSize - 1),
+        },
+      );
 
       // Group children by threadId
       for (const child of children) {
-        const tid = child.threadId as string;
-        if (!result.has(tid)) {
-          result.set(tid, []);
+        const tid = child.threadId;
+        if (!tid) continue;
+        let arr = result.get(tid);
+        if (!arr) {
+          arr = [];
+          result.set(tid, arr);
         }
-        const arr = result.get(tid)!;
         if (arr.length < maxSliceSize - 1) {
-          arr.push(child as unknown as RawPost);
+          arr.push(toRawPost(child));
         }
       }
     } catch (err) {
@@ -275,23 +289,25 @@ class ThreadSlicingService {
     const uniqueParentIds = [...new Set(missingParentIds)];
 
     try {
-      const parents = await Post.find({
-        _id: { $in: uniqueParentIds },
-        // A reply-context parent is injected into whatever feed the reply landed
-        // in, so it must clear the same publication bar as every feed candidate:
-        // a draft or scheduled parent must never be rendered as reply context.
-        // `visibility` is deliberately NOT filtered here — hydration re-checks
-        // post ACL per viewer, and a followers-only parent that a follower IS
-        // entitled to see must still reach them.
-        status: 'published',
-      })
-        .select(SLICE_POST_PROJECTION)
-        .maxTimeMS(3000)
-        .lean();
+      const parents = await findPostRecords(
+        and(
+          inArray(postsTable.id, uniqueParentIds),
+          // A reply-context parent is injected into whatever feed the reply landed
+          // in, so it must clear the same publication bar as every feed candidate:
+          // a draft or scheduled parent must never be rendered as reply context.
+          // `visibility` is deliberately NOT filtered here — hydration re-checks
+          // post ACL per viewer, and a followers-only parent that a follower IS
+          // entitled to see must still reach them.
+          eq(postsTable.status, 'published'),
+        ),
+        // Re-keyed by id below, so the order is required by the signature rather
+        // than observed by anything.
+        { orderBy: CHRONO_DESC },
+      );
 
       for (const parent of parents) {
-        const parentId = parent._id.toString();
-        result.set(parentId, parent as unknown as RawPost);
+        const raw = toRawPost(parent);
+        result.set(raw.id, raw);
       }
     } catch (err) {
       logger.error('[ThreadSlicing] Error fetching parent posts', err);
@@ -303,7 +319,7 @@ class ThreadSlicingService {
 }
 
 function getPostId(post: RawPost): string {
-  return post.id || (post._id != null ? String(post._id) : '');
+  return post.id;
 }
 
 /**

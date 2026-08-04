@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * AN EDIT IS A WRITE BOUNDARY TOO.
@@ -9,127 +9,107 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * second save, and the two paths would drift the moment either is touched.
  *
  * These pin the edit half at the real controller: the resolved id lands in the
- * post's stored `mentions`, the body it saves carries the placeholder, and the
- * `content` subtree is marked modified — without which Mongoose writes the
- * mention allowlist and silently drops the body rewrite it depends on, leaving a
- * stored id with no placeholder behind it (which hydration renders as nothing).
+ * post's stored `mentions`, and the body it saves carries the placeholder.
  *
- * Harness mirrors `controllers/updatePostScheduledWindow.test.ts`.
+ * ## Real rows, and the `markModified` assertion is GONE on purpose
+ *
+ * This suite mocked `models/Post` and handed `updatePost` a document double with
+ * `save()` and `markModified()` spies. Both are inert now: `updatePost` reads
+ * through `loadPostRecord` and writes through `replacePostContent`, so the
+ * mocked model intercepted nothing and every case died on the 500 that came back
+ * from a controller talking to a database the suite never connected — not on the
+ * mention conversion it is about.
+ *
+ * `markModified('content')` is not a property that survived the port, and
+ * asserting it would now be asserting a Mongoose mechanism rather than a rule.
+ * The reason it mattered is preserved and is STRONGER here: Mongoose could write
+ * the mention allowlist while silently dropping the body rewrite it depends on,
+ * leaving a stored id with no placeholder behind it. Reading the row back asserts
+ * exactly that pairing landed — `mentions` lives in `post_mentions` and the body
+ * in `post_contents`, so a fold that reached one table and not the other fails
+ * here. `posts.controller` writes the whole `content` column back rather than a
+ * tracked subtree, which is why no `markModified` equivalent exists to call.
+ *
+ * Same seams as the sibling `controllers/profileLinkMentionReply.test.ts`: the
+ * local-handle lookup (`resolveOxyUser`) and the stored-actor repository are
+ * stubbed, since profile-link resolution has to be answerable without network or
+ * Oxy I/O — everything else about the fold is the real code.
  */
+
+const hoisted = vi.hoisted(() => ({
+  isBlockedDomain: vi.fn((_host: string) => false),
+  resolveOxyUser: vi.fn(),
+  findActorByUri: vi.fn(),
+  findActorByAcct: vi.fn(),
+}));
+
 vi.mock('../../runtime/socketServer', () => ({
   getRuntimeSocketServer: () => undefined,
 }));
 
-const hoisted = vi.hoisted(() => ({
-  findOne: vi.fn(),
-  exists: vi.fn(),
-  updateMany: vi.fn(),
-  hydratePosts: vi.fn(),
-  createScopedOxyClient: vi.fn(),
-  resolveUserSummaries: vi.fn(),
-  resolveCollaboratorRefs: vi.fn(),
-  attachCollaborators: vi.fn(),
-  autoAcceptInvites: vi.fn(),
-  notifyPendingInvites: vi.fn(),
-  emitPostCreated: vi.fn(),
-  isBlockedDomain: vi.fn((_host: string) => false),
-  resolveOxyUser: vi.fn(),
-  findExistingActor: vi.fn(),
-}));
-
-vi.mock('../../models/Post', async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  Post: {
-    findOne: hoisted.findOne,
-    exists: hoisted.exists,
-    updateMany: hoisted.updateMany,
-    findById: () => ({ select: () => ({ lean: async () => null }) }),
-    find: () => ({ select: () => ({ sort: () => ({ lean: async () => [] }) }) }),
-  },
-}));
-
-vi.mock('../../utils/oxyHelpers', () => ({
-  createScopedOxyClient: hoisted.createScopedOxyClient,
-  createUserScopedOxyServices: vi.fn(() => undefined),
-}));
-
 vi.mock('../../services/PostHydrationService', () => ({
-  postHydrationService: { hydratePosts: hoisted.hydratePosts },
-  resolveUserSummaries: hoisted.resolveUserSummaries,
+  postHydrationService: { hydratePosts: vi.fn(async (rows: unknown[]) => rows) },
+  resolveUserSummaries: vi.fn(async () => new Map()),
   degradedActorSummary: (id: string) => ({ id, username: '', name: { displayName: 'Unknown user' } }),
 }));
 
-vi.mock('../../services/postCollaborationService', () => ({
-  postCollaborationService: {
-    resolveCollaboratorRefs: hoisted.resolveCollaboratorRefs,
-    attachCollaborators: hoisted.attachCollaborators,
-    autoAcceptInvites: hoisted.autoAcceptInvites,
-    notifyPendingInvites: hoisted.notifyPendingInvites,
-  },
+vi.mock('../../utils/oxyHelpers', () => ({
+  createScopedOxyClient: vi.fn(() => ({})),
+  createUserScopedOxyServices: vi.fn(() => undefined),
+  getServiceOxyClient: vi.fn(() => ({})),
 }));
 
-vi.mock('../../services/mtn/postRecords', () => ({
-  emitPostCreated: hoisted.emitPostCreated,
+vi.mock('../../utils/notificationUtils', () => ({
+  createNotification: vi.fn().mockResolvedValue(undefined),
+  createMentionNotifications: vi.fn().mockResolvedValue(undefined),
+  createBatchNotifications: vi.fn().mockResolvedValue(undefined),
+  createPostAuthorNotifications: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
+  emitPostCreated: vi.fn().mockResolvedValue(undefined),
+  emitRepostCreated: vi.fn().mockResolvedValue(undefined),
   emitTombstone: vi.fn(),
   postRecordUri: () => 'at://test',
+  repostRecordUri: () => 'at://test',
 }));
 
-// PARTIAL: `posts.controller` pulls the whole connector graph in, and
-// `actor.service` reads `FEDERATION_ENABLED` from this module at import time — a
-// bare object mock drops it and the suite fails to load rather than to assert.
+vi.mock('../../connectors/outboundFederation', () => ({
+  federateAsResolvedActor: vi.fn(),
+}));
+
+// PARTIAL: the controller pulls the whole connector graph in, and `actor.service`
+// reads `FEDERATION_ENABLED` off this module at import time — a bare object mock
+// drops it and the suite fails to LOAD rather than to assert.
 vi.mock('../../connectors/activitypub/constants', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   isBlockedDomain: hoisted.isBlockedDomain,
   resolveOxyUser: hoisted.resolveOxyUser,
 }));
 
-vi.mock('../../models/FederatedActor', () => ({
-  default: { findOne: hoisted.findExistingActor },
+// PARTIAL, and only the two point lookups `resolveProfileLinkIdentity` spends on
+// a foreign profile link (uri first, then acct). Everything else the connector
+// graph reads from this repository stays real, against the same database the
+// posts are written to.
+vi.mock('../../db/federation/actorRepository', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../db/federation/actorRepository')>()),
+  findActorByUri: hoisted.findActorByUri,
+  findActorByAcct: hoisted.findActorByAcct,
 }));
 
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { updatePost } from '../../controllers/posts.controller';
 
+const scope = serviceScope('profile-link-mention-edit');
+
 const OWN_HOST = 'mention.earth';
-const USER_ID = 'oxy-author';
-const POST_ID = '650000000000000000000010';
-const ALICE_OXY_ID = 'oxy_alice_local';
+const USER_ID = scope.user('author');
+const ALICE_OXY_ID = scope.user('alice-local');
 
-interface PostStub {
-  _id: string;
-  oxyUserId: string;
-  createdAt: Date;
-  status: 'published';
-  content: { variants: Array<{ tag: string; source: string; text: string }> };
-  hashtags: string[];
-  mentions: string[];
-  visibility: string;
-  federation: null;
-  save: ReturnType<typeof vi.fn>;
-  markModified: ReturnType<typeof vi.fn>;
-  toObject: () => Record<string, unknown>;
-}
-
-/** A freshly published post, well inside the 30-minute edit window. */
-function postStub(text: string, mentions: string[] = []): PostStub {
+function buildRequest(postId: string, body: Record<string, unknown>) {
   return {
-    _id: POST_ID,
-    oxyUserId: USER_ID,
-    createdAt: new Date(Date.now() - 60_000),
-    status: 'published',
-    content: { variants: [{ tag: 'en', source: 'author', text }] },
-    hashtags: [],
-    mentions,
-    visibility: 'public',
-    federation: null,
-    save: vi.fn(async () => undefined),
-    markModified: vi.fn(),
-    toObject: () => ({ _id: POST_ID }),
-  };
-}
-
-function buildRequest(body: Record<string, unknown>) {
-  return {
-    params: { id: POST_ID },
+    params: { id: postId },
     query: {},
     headers: {},
     acceptsLanguages: () => [] as string[],
@@ -153,65 +133,95 @@ function buildResponse() {
   return { res, captured };
 }
 
+/** The stored body and allowlist, which is what the handler is judged on. */
+async function stored(postId: string): Promise<{ mentions: string[]; text: string }> {
+  const row = await readPost(postId);
+  return {
+    mentions: row?.mentions ?? [],
+    text: row?.content.variants?.[0]?.text ?? '',
+  };
+}
+
+/** A freshly published post, well inside the 30-minute edit window. */
+async function publishedPost(text: string, mentions: string[] = []) {
+  return seedPost(scope, {
+    oxyUserId: USER_ID,
+    content: { variants: [{ source: 'author', text, tag: 'en' }] },
+    mentions,
+  });
+}
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterEach(async () => {
+  await clearServiceScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
-  hoisted.createScopedOxyClient.mockReturnValue(undefined);
-  hoisted.hydratePosts.mockResolvedValue([{ id: POST_ID }]);
-  hoisted.resolveCollaboratorRefs.mockResolvedValue(undefined);
-  hoisted.exists.mockResolvedValue({ _id: POST_ID });
-  hoisted.updateMany.mockResolvedValue({ modifiedCount: 0 });
   hoisted.isBlockedDomain.mockImplementation(
     (host: string) => host.toLowerCase().replace(/^www\./, '') === OWN_HOST,
   );
   hoisted.resolveOxyUser.mockImplementation(async (username: string) =>
     username === 'alice' ? { _id: ALICE_OXY_ID } : null,
   );
-  hoisted.findExistingActor.mockReturnValue({ lean: async () => null });
+  hoisted.findActorByUri.mockResolvedValue(null);
+  hoisted.findActorByAcct.mockResolvedValue(null);
 });
 
 describe('updatePost — a profile link pasted while editing becomes a mention', () => {
-  it('stores the id, rewrites the saved body, and marks `content` modified', async () => {
-    const post = postStub('nothing here yet');
-    hoisted.findOne.mockResolvedValue(post);
+  it('stores the id and rewrites the saved body to the placeholder', async () => {
+    const post = await publishedPost('nothing here yet');
     const { res, captured } = buildResponse();
 
     await updatePost(
-      buildRequest({ content: { text: `now ask https://${OWN_HOST}/@alice` } }) as never,
+      buildRequest(post.id, { content: { text: `now ask https://${OWN_HOST}/@alice` } }) as never,
       res as never,
     );
 
     expect(captured.status).toBeUndefined();
-    expect(post.content.variants[0].text).toBe(`now ask [mention:${ALICE_OXY_ID}]`);
-    expect(post.mentions).toEqual([ALICE_OXY_ID]);
-    expect(post.markModified).toHaveBeenCalledWith('content');
-    expect(post.save).toHaveBeenCalled();
+    // BOTH halves, from the two tables they live in: an id stored without the
+    // placeholder behind it is what the old `markModified` assertion existed to
+    // prevent, and hydration renders it as nothing.
+    expect(await stored(post.id)).toEqual({
+      text: `now ask [mention:${ALICE_OXY_ID}]`,
+      mentions: [ALICE_OXY_ID],
+    });
   });
 
   it('leaves a link it cannot resolve alone, and mentions nobody', async () => {
-    const post = postStub('nothing here yet');
-    hoisted.findOne.mockResolvedValue(post);
+    const post = await publishedPost('nothing here yet');
     const { res } = buildResponse();
 
     await updatePost(
-      buildRequest({ content: { text: 'see https://mastodon.social/@a-stranger' } }) as never,
+      buildRequest(post.id, { content: { text: 'see https://mastodon.social/@a-stranger' } }) as never,
       res as never,
     );
 
-    expect(post.content.variants[0].text).toBe('see https://mastodon.social/@a-stranger');
-    expect(post.mentions).toEqual([]);
-    expect(post.markModified).not.toHaveBeenCalledWith('content');
+    expect(await stored(post.id)).toEqual({
+      text: 'see https://mastodon.social/@a-stranger',
+      mentions: [],
+    });
   });
 
   it('drops a mention whose link the author REMOVED in the same edit', async () => {
     // The id was authorized by the previous save; the body no longer names her,
     // so reconciliation — which intersects the allowlist with the placeholders
     // actually present — must not carry it forward.
-    const post = postStub(`bye [mention:${ALICE_OXY_ID}]`, [ALICE_OXY_ID]);
-    hoisted.findOne.mockResolvedValue(post);
+    const post = await publishedPost(`bye [mention:${ALICE_OXY_ID}]`, [ALICE_OXY_ID]);
     const { res } = buildResponse();
 
-    await updatePost(buildRequest({ content: { text: 'never mind' } }) as never, res as never);
+    await updatePost(
+      buildRequest(post.id, { content: { text: 'never mind' } }) as never,
+      res as never,
+    );
 
-    expect(post.mentions).toEqual([]);
+    expect(await stored(post.id)).toEqual({ text: 'never mind', mentions: [] });
   });
 });

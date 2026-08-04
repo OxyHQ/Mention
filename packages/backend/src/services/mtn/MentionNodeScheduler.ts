@@ -18,10 +18,10 @@
  * NOTHING here ever runs on a request path. Every tick is background, bounded,
  * and self-isolating: a single node failing its probe/ingest/export is caught and
  * recorded as `lastError`, never thrown. The feed/hydration hot path never queries
- * {@link MentionUserNode} or a node endpoint.
+ * `mention_user_nodes` or a node endpoint.
  */
 
-import MentionUserNode from '../../models/MentionUserNode';
+import { findNodesToSync } from '../../db/mtn/nodeRepository';
 import { logger } from '../../utils/logger';
 import { sweepNodeLiveness } from './MentionNodeRegistryService';
 import { ingestFromNode, exportToNode } from './MentionNodeSyncService';
@@ -135,11 +135,7 @@ export class MentionNodeScheduler {
     }
     this.isSyncSweeping = true;
     try {
-      const nodes = await MentionUserNode.find({ status: { $in: ['active', 'unreachable'] } })
-        .sort({ lastSyncedAt: 1 })
-        .limit(MENTION_NODE_INGEST_SWEEP_BATCH)
-        .select('oxyUserId mode')
-        .lean<Array<{ oxyUserId: string; mode: 'pull' | 'push' }>>();
+      const nodes = await findNodesToSync(MENTION_NODE_INGEST_SWEEP_BATCH);
 
       for (const node of nodes) {
         if (node.mode === 'push') {

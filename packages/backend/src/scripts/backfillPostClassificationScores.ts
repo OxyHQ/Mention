@@ -35,10 +35,13 @@
  */
 
 import mongoose from 'mongoose';
-import type { PostContent } from '@mention/shared-types';
+import { and, asc, gt, isNull, lt, ne, or, type SQL } from 'drizzle-orm';
 import { resolveVariant } from '../services/postVariants';
-import { Post } from '../models/Post';
-import { FederatedActor } from '../models/FederatedActor';
+import { connectPostgres } from '../db/postgres';
+import { posts } from '../db/schema/posts';
+import { findPostRecords, updatePostRecord } from '../db/posts/postRepository';
+import type { PostRecord } from '../db/posts/postRecord';
+import { findActorsByUris } from '../db/federation/actorRepository';
 import { BASELINE_CLASSIFIER_VERSION } from '../services/BaselineContentClassifier';
 import {
   computeDeterministicScores,
@@ -51,25 +54,13 @@ import {
 } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 
-/** Posts scanned per page (stable ascending `_id` cursor pagination). */
+/** Posts scanned per page (stable ascending `id` cursor pagination). */
 const DEFAULT_PAGE_SIZE = 500;
-
-/** Update writes flushed per bulkWrite chunk. */
-const BULK_CHUNK_SIZE = 500;
 
 export interface BackfillPostClassificationScoresResult {
   scanned: number;
   updated: number;
   failed: number;
-}
-
-/** Minimal projected shape the score recompute needs. */
-interface PostScoreRow {
-  _id: mongoose.Types.ObjectId;
-  content: PostContent;
-  hashtags?: string[];
-  federation?: { actorUri?: string } | null;
-  postClassification?: { hashtagsNorm?: string[] };
 }
 
 /** Resolved federated-origin context for a page of posts, keyed by actor URI. */
@@ -83,7 +74,7 @@ interface ActorContext {
  * page, in ONE query. Posts whose actor can't be resolved simply get no entry and
  * fall back to text-only bot detection.
  */
-async function resolveActorContexts(rows: PostScoreRow[]): Promise<Map<string, ActorContext>> {
+async function resolveActorContexts(rows: PostRecord[]): Promise<Map<string, ActorContext>> {
   const actorUris = Array.from(
     new Set(
       rows
@@ -96,10 +87,7 @@ async function resolveActorContexts(rows: PostScoreRow[]): Promise<Map<string, A
     return contexts;
   }
 
-  const actors = await FederatedActor.find(
-    { uri: { $in: actorUris } },
-    { uri: 1, type: 1, domain: 1 },
-  ).lean<Array<{ uri: string; type?: string; domain?: string }>>();
+  const actors = await findActorsByUris(actorUris);
 
   for (const actor of actors) {
     contexts.set(actor.uri, { type: actor.type, domain: actor.domain });
@@ -109,8 +97,8 @@ async function resolveActorContexts(rows: PostScoreRow[]): Promise<Map<string, A
 
 /**
  * Recompute + backfill deterministic scores over the qualifying corpus. Operates
- * on the `Post` / `FederatedActor` models only — the caller owns the Mongo
- * connection lifecycle — so it is unit-testable with mocked models and reusable
+ * on `Post` plus the `federated_actors` table only — the caller owns the
+ * connection lifecycles — so it stays reusable
  * from an in-process caller.
  */
 export async function backfillPostClassificationScores(
@@ -123,45 +111,27 @@ export async function backfillPostClassificationScores(
   // the current ruleset version. Re-stamping `version` removes a post from this
   // filter, so the ascending `_id` cursor never revisits a completed post and a
   // re-run only fills remaining gaps.
-  const baseFilter: Record<string, unknown> = {
-    'postClassification.status': { $ne: 'classified' },
-    $or: [
-      { 'postClassification.version': { $lt: BASELINE_CLASSIFIER_VERSION } },
-      { 'postClassification.version': { $exists: false } },
-    ],
-  };
+  // The NULL arm is spelled out: `version < N` is NULL for an unstamped row and a
+  // NULL predicate excludes the row, so without it the literal translation would
+  // skip exactly the posts that were never stamped at all.
+  const baseFilter = and(
+    ne(posts.classificationStatus, 'classified'),
+    or(
+      lt(posts.classificationVersion, BASELINE_CLASSIFIER_VERSION),
+      isNull(posts.classificationVersion),
+    ),
+  ) as SQL;
 
   let scanned = 0;
   let updated = 0;
   let failed = 0;
-  let lastId: mongoose.Types.ObjectId | null = null;
-  let pendingOps: mongoose.AnyBulkWriteOperation<typeof Post>[] = [];
-
-  const flush = async (): Promise<void> => {
-    if (pendingOps.length === 0 || dryRun) {
-      pendingOps = [];
-      return;
-    }
-    await Post.bulkWrite(pendingOps, { ordered: false });
-    pendingOps = [];
-  };
+  let lastId: string | null = null;
 
   for (;;) {
-    const pageFilter: Record<string, unknown> = { ...baseFilter };
-    if (lastId) {
-      pageFilter._id = { $gt: lastId };
-    }
-
-    const page = await Post.find(pageFilter, {
-      _id: 1,
-      'content.variants': 1,
-      hashtags: 1,
-      'federation.actorUri': 1,
-      'postClassification.hashtagsNorm': 1,
-    })
-      .sort({ _id: 1 })
-      .limit(pageSize)
-      .lean<PostScoreRow[]>();
+    const page = await findPostRecords(
+      lastId ? and(baseFilter, gt(posts.id, lastId)) : baseFilter,
+      { orderBy: [asc(posts.id)], limit: pageSize },
+    );
 
     if (page.length === 0) break;
 
@@ -177,7 +147,7 @@ export async function backfillPostClassificationScores(
         // Canonical hashtag count = the stored normalized hashtags (falling back
         // to the raw hashtags array), so the recomputed spam heuristic agrees with
         // the classifier on what counts as a hashtag.
-        const hashtagCount = post.postClassification?.hashtagsNorm?.length ?? post.hashtags?.length ?? 0;
+        const hashtagCount = post.postClassification.hashtagsNorm?.length ?? post.hashtags.length;
 
         const scores = toClassificationScores(
           computeDeterministicScores(resolveVariant(post.content).text, hashtagCount, {
@@ -190,37 +160,26 @@ export async function backfillPostClassificationScores(
         updated += 1;
         if (dryRun) continue;
 
-        pendingOps.push({
-          updateOne: {
-            filter: { _id: post._id },
-            update: {
-              $set: {
-                'postClassification.scores': scores,
-                'postClassification.version': BASELINE_CLASSIFIER_VERSION,
-              },
-            },
-          },
+        // A PARTIAL patch: the two fields MERGE onto the existing classification,
+        // leaving the Stage-A languages/region/hashtagsNorm the caller did not
+        // recompute exactly as they were.
+        await updatePostRecord(post.id, {
+          postClassification: { scores, version: BASELINE_CLASSIFIER_VERSION },
         });
-
-        if (pendingOps.length >= BULK_CHUNK_SIZE) {
-          await flush();
-        }
       } catch (error) {
         failed += 1;
         logger.warn('[backfillPostClassificationScores] recompute failed for post; skipping', {
-          id: String(post._id),
+          id: post.id,
           reason: error instanceof Error ? error.message : 'unknown',
         });
       }
     }
 
-    lastId = page[page.length - 1]._id;
+    lastId = page[page.length - 1].id;
     logger.info(
       `[backfillPostClassificationScores] progress: scanned ${scanned}, updated ${updated}, failed ${failed}`,
     );
   }
-
-  await flush();
 
   return { scanned, updated, failed };
 }
@@ -236,8 +195,12 @@ async function main(): Promise<void> {
       scriptName: 'backfillPostClassificationScores',
       dryRun,
     });
+    // BOTH stores, and that is not a leftover: the posts are Postgres, while the
+    // federated-actor context this recompute reads (`FederatedActor.type` /
+    // `.domain`) is still a Mongo model owned by the federation batch.
+    await connectPostgres();
     await mongoose.connect(mongoUri, { dbName });
-    logger.info('[backfillPostClassificationScores] connected to MongoDB', { dryRun });
+    logger.info('[backfillPostClassificationScores] connected to PostgreSQL + MongoDB', { dryRun });
 
     const result = await backfillPostClassificationScores({ dryRun });
 

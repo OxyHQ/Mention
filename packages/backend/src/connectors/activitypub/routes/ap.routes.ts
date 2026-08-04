@@ -1,9 +1,11 @@
 import { Router, Request, Response } from 'express';
-import { isValidObjectId } from 'mongoose';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { logger } from '../../../utils/logger';
 import { activityPubConnector } from '../ActivityPubConnector';
 import { AP_CONTEXT } from '@oxyhq/federation';
-import { Post } from '../../../models/Post';
+import { getDb } from '../../../db/postgres';
+import { posts } from '../../../db/schema/posts';
+import { findPostRecords, loadPostRecord } from '../../../db/posts/postRepository';
 import {
   FEDERATION_DOMAIN,
   FEDERATION_ENABLED,
@@ -13,7 +15,7 @@ import {
   featuredUrl,
   resolveOxyUser,
 } from '../constants';
-import { ChronoCursor } from '../../../mtn/feed/CursorBuilder';
+import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../../mtn/feed/CursorBuilder';
 import { isFediverseSharingEnabledFromUser } from '../../../services/fediverseSharing';
 
 /**
@@ -38,6 +40,39 @@ function getUsername(req: Request): string {
 }
 
 /**
+ * What a user's outbox and `featured` collection publish: their own public,
+ * published, ROOT posts.
+ *
+ * `is_reply = false`, NOT `parent_post_id IS NULL`, and the difference is
+ * user-visible. `parent_post_id` is `ON DELETE SET NULL`, so a reply whose parent
+ * was deleted has a null parent while remaining a reply — under the old predicate
+ * it would be published to the fediverse as a top-level Note, stripped of the
+ * conversation it was written into. `is_reply` is the stored discriminator and
+ * says what the post WAS WRITTEN AS, which is the question this predicate is
+ * asking.
+ */
+function outboxScope(oxyUserId: string) {
+  return and(
+    eq(posts.oxyUserId, oxyUserId),
+    eq(posts.visibility, 'public'),
+    eq(posts.status, 'published'),
+    eq(posts.isReply, false),
+    // There is NO channel exclusion here, and adding one back would be wrong.
+    // The outbox and the featured collection are AUTHOR surfaces, and a channel
+    // is an Oxy account that AUTHORS its own posts — so this actor's outbox IS
+    // the channel's own outbox when the actor is a channel, and a channel post
+    // federates under the channel's identity like any other post. The
+    // `channel_id is null` term that used to stand here existed only because a
+    // channel post was authored by a PERSON and would otherwise have gone out
+    // under the writer's actor.
+    //
+    // The scope stays shared across the three call sites so the count, the page
+    // window and the featured collection cannot drift: a `totalItems` computed
+    // under a different filter would promise items no page ever yields.
+  );
+}
+
+/**
  * GET /ap/users/:username/outbox — User's public posts as OrderedCollection
  */
 router.get('/users/:username/outbox', async (req: Request, res: Response) => {
@@ -56,18 +91,12 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const userId = user._id || user.id;
-    // The outbox is an AUTHOR surface, and a channel is an Oxy account that
-    // AUTHORS its own posts — so this actor's outbox is the channel's own outbox
-    // when the actor is a channel, and there is nothing to exclude. The count and
-    // the page window use the SAME filter, or `totalItems` would promise items no
-    // page ever yields.
-    const totalPosts = await Post.countDocuments({
-      oxyUserId: userId,
-      visibility: 'public',
-      status: 'published',
-      parentPostId: null,
-    });
+    const userId = String(user._id || user.id);
+    const [totals] = await getDb()
+      .select({ count: sql<number>`count(*)::int` })
+      .from(posts)
+      .where(outboxScope(userId));
+    const totalPosts = totals?.count ?? 0;
 
     if (!page) {
       // Return collection summary
@@ -91,18 +120,18 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
     const PAGE_SIZE = 20;
     const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
 
-    const pageMatch: Record<string, unknown> = {
-      oxyUserId: userId,
-      visibility: 'public',
-      status: 'published',
-      parentPostId: null,
-    };
-    ChronoCursor.applyToQuery(pageMatch, cursor);
-
-    const overfetched = await Post.find(pageMatch)
-      .sort({ createdAt: -1, _id: -1 })
-      .limit(PAGE_SIZE + 1)
-      .lean();
+    // The cursor DECODER and the query widened together. A cursor names an
+    // arbitrary `posts.id` — an ObjectId hex before the cutover, a uuid v7 after
+    // — so a decoder that still validated ObjectIds would discard every
+    // post-cutover cursor and re-serve page one forever, while a widened decoder
+    // feeding a Mongo `ObjectId` constructor would turn a clean 400 into a
+    // CastError 500. `chronoCursorSql` is both halves at once.
+    const keyset = await chronoCursorSql(cursor);
+    const scope = outboxScope(userId);
+    const overfetched = await findPostRecords(
+      keyset ? and(scope, keyset) : scope,
+      { orderBy: chronoOrderBy(), limit: PAGE_SIZE + 1 },
+    );
 
     const hasNext = overfetched.length > PAGE_SIZE;
     const pagePosts = hasNext ? overfetched.slice(0, PAGE_SIZE) : overfetched;
@@ -125,9 +154,9 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
         post,
         username,
         undefined,
-        mentionContexts.get(String(post._id)),
-        pollContexts.get(String(post._id)),
-        quoteContexts.get(String(post._id)),
+        mentionContexts.get(post.id),
+        pollContexts.get(post.id),
+        quoteContexts.get(post.id),
       ),
     );
 
@@ -146,7 +175,7 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
 
     if (hasNext) {
       const lastPost = pagePosts[pagePosts.length - 1];
-      const nextCursor = ChronoCursor.build(String(lastPost._id), lastPost.createdAt);
+      const nextCursor = ChronoCursor.build(lastPost.id, lastPost.createdAt);
       pageResponse.next = `${outboxUrl(username)}?page=true&cursor=${encodeURIComponent(nextCursor)}`;
     }
 
@@ -189,25 +218,17 @@ router.get('/users/:username/collections/featured', async (req: Request, res: Re
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const userId = user._id || user.id;
+    const userId = String(user._id || user.id);
 
     // Only PUBLIC + PUBLISHED top-level pinned posts are exposed — identical
     // ownership/visibility filter to the outbox, narrowed to pinned. Mastodon
     // caps featured display at ~5, but we serve all pinned posts newest-first;
     // FEATURED_LIMIT is a defensive upper bound.
     const FEATURED_LIMIT = 20;
-    const pinnedPosts = await Post.find({
-      oxyUserId: userId,
-      'metadata.isPinned': true,
-      visibility: 'public',
-      status: 'published',
-      // Identical to the outbox filter — this is the collection a
-      // freshly-discovered profile actually renders.
-      parentPostId: null,
-    })
-      .sort({ createdAt: -1, _id: -1 })
-      .limit(FEATURED_LIMIT)
-      .lean();
+    const pinnedPosts = await findPostRecords(
+      and(outboxScope(userId), eq(posts.metadataIsPinned, true)),
+      { orderBy: [desc(posts.createdAt), desc(posts.id)], limit: FEATURED_LIMIT },
+    );
 
     // Build via the shared Note path (batch-resolving @mentions for the whole
     // collection so no pinned Note leaks a `[mention:<id>]` placeholder), then
@@ -223,9 +244,9 @@ router.get('/users/:username/collections/featured', async (req: Request, res: Re
           post,
           username,
           undefined,
-          mentionContexts.get(String(post._id)),
-          pollContexts.get(String(post._id)),
-          quoteContexts.get(String(post._id)),
+          mentionContexts.get(post.id),
+          pollContexts.get(post.id),
+          quoteContexts.get(post.id),
         ).object as Record<string, unknown>,
     );
 
@@ -268,10 +289,6 @@ router.get('/users/:username/posts/:id', async (req: Request, res: Response) => 
     return res.redirect(`https://${FEDERATION_DOMAIN}/@${username}/posts/${postId}`);
   }
 
-  // A malformed id can never match a real post — 404 without touching Mongo
-  // (an invalid ObjectId would otherwise throw a CastError → 500).
-  if (!isValidObjectId(postId)) return res.status(404).json({ error: 'Post not found' });
-
   try {
     const user = await resolveOxyUser(username);
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -284,15 +301,23 @@ router.get('/users/:username/posts/:id', async (req: Request, res: Response) => 
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const userId = user._id || user.id;
+    const userId = String(user._id || user.id);
 
-    const post = await Post.findOne({
-      _id: postId,
-      oxyUserId: userId,
-      visibility: 'public',
-      status: 'published',
-    }).lean();
-    if (!post) return res.status(404).json({ error: 'Post not found' });
+    // No id-shape guard: `posts.id` is `text`, so an arbitrary path segment is a
+    // parameter that matches no row rather than a cast that throws — the 404 the
+    // ObjectId check used to produce, without rejecting every post created since
+    // the cutover. A REPLY is dereferenceable here (unlike in the outbox): the
+    // remote server asked for this exact Note by id, and the reply carries its own
+    // `inReplyTo` below.
+    const post = await loadPostRecord(postId);
+    if (
+      !post
+      || post.oxyUserId !== userId
+      || post.visibility !== 'public'
+      || post.status !== 'published'
+    ) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
 
     // When the dereferenced post is a REPLY, carry `inReplyTo` + the parent-author
     // `Mention` so a remote server that pulls this Note by URL threads it. Resolved

@@ -354,7 +354,7 @@ export class FeedEngine {
       const applyGate = !isTrusted && discoveryKeeps.length > 0;
       for (const post of sourceResults[i]) {
         if (maxPool !== undefined && merged.size >= maxPool) break;
-        const id = post?._id?.toString();
+        const id = post?.id;
         if (!id || merged.has(id)) continue;
         if (poolKeeps.some((keep) => !keep(post))) continue;
 
@@ -681,7 +681,7 @@ export class FeedEngine {
       const at = new Date(a.createdAt ?? 0).getTime();
       const bt = new Date(b.createdAt ?? 0).getTime();
       if (bt !== at) return bt - at;
-      return String(b._id).localeCompare(String(a._id));
+      return b.id.localeCompare(a.id);
     });
 
     const fetchLimit = Math.ceil(limit * (exec.overfetchMultiplier ?? 1));
@@ -706,7 +706,7 @@ export class FeedEngine {
     let nextCursor: string | undefined;
     if (postsToProcess.length > 0 && hasMore) {
       const last = postsToProcess[postsToProcess.length - 1];
-      nextCursor = ChronoCursor.build(String(last._id), last.createdAt);
+      nextCursor = ChronoCursor.build(last.id, last.createdAt);
       if (!didCursorAdvance(nextCursor, cursor)) {
         logger.warn('[FeedEngine] Chronological cursor did not advance', { cursor, nextCursor });
         nextCursor = undefined;

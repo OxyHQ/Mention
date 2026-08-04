@@ -13,10 +13,10 @@ export type { IngestedPost, PostEnrichmentStep } from './types';
  * routes. Native creates and the single-post federated imports (the ActivityPub
  * inbox `Create`, the atproto author-feed import) go through
  * `PostCreationService`. The ActivityPub outbox backfill deliberately does NOT:
- * it assembles raw documents and writes them with `Post.collection.insertMany`
- * to bypass Mongoose defaults and middleware on purpose, seeding
- * `postClassification` / `mentions` / `status` by hand for exactly that reason.
- * That split is intentional and stays.
+ * it assembles whole `PostRecordInput`s and writes them straight through the
+ * repository, seeding `postClassification` / `mentions` / `status` by hand so an
+ * imported note keeps the remote's own values rather than this service's
+ * defaults. That split is intentional and stays.
  *
  * What was NOT intentional is that each enrichment had to be remembered
  * separately on each route. Media metadata was added to the native route and

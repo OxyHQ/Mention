@@ -30,7 +30,9 @@ const {
   enqueueDelivery: vi.fn(),
   isFediverseSharingEnabled: vi.fn(),
   getUserById: vi.fn(),
+  /** `distinctRemoteActorUris` — BOTH callers, distinguished by their filter. */
   followFind: vi.fn(),
+  /** `findActorInboxesByUris` — the projection the delivery path reads. */
   actorFind: vi.fn(),
   actorFindOneLean: vi.fn(),
   postFindByIdLean: vi.fn(),
@@ -45,20 +47,22 @@ vi.mock('../../../connectors/activitypub/constants', async () => {
 vi.mock('../../../connectors/activitypub/actor.service', () => ({ actorService: {} }));
 vi.mock('../../../connectors/activitypub/crypto', () => ({ getPublicKey: vi.fn(), signRequest: vi.fn() }));
 vi.mock('../../../queue/producers', () => ({ enqueueDelivery, enqueueInboxActivity: vi.fn() }));
-vi.mock('../../../models/FederatedActor', () => ({
-  default: {
-    find: (query: Record<string, unknown>) => ({ lean: () => actorFind(query) }),
-    findOne: () => ({ lean: () => actorFindOneLean() }),
-  },
+vi.mock('../../../db/federation/actorRepository', () => ({
+  findActorInboxesByUris: (uris: readonly string[]) => actorFind(uris),
+  findActorByUri: () => actorFindOneLean(),
+  findActorsByOxyUserIds: async () => [],
 }));
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: { find: (query: Record<string, unknown>) => ({ lean: () => followFind(query) }) },
+vi.mock('../../../db/federation/followRepository', () => ({
+  distinctRemoteActorUris: (filter: Record<string, unknown>) => followFind(filter),
+  findFollow: async () => null,
+  upsertOutboundPending: async () => undefined,
+  deleteFollowById: async () => undefined,
 }));
-vi.mock('../../../models/FederationDeliveryQueue', () => ({
-  default: { insertMany: vi.fn(), create: vi.fn() },
+vi.mock('../../../db/federation/deliveryQueueRepository', () => ({
+  insertDeliveries: vi.fn(), insertDelivery: vi.fn(),
 }));
-vi.mock('../../../models/Post', () => ({
-  Post: { findById: () => ({ select: () => ({ lean: () => postFindByIdLean() }) }) },
+vi.mock('../../../db/posts/postRepository', () => ({
+  loadPostRecord: () => postFindByIdLean(),
 }));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
@@ -100,24 +104,23 @@ beforeEach(() => {
   postFindByIdLean.mockResolvedValue(null);
   getUserById.mockResolvedValue({ id: 'u', username: 'alice' });
 
-  // The follow store answers per ACCOUNT: the sender is looked up by a bare id
-  // (the delivery engine's own query) and the extra audiences by `$in` (the
-  // resolver added for a cross-account thread). Keeping the two sets on
-  // different instances is what makes a wrong lookup visible.
-  followFind.mockImplementation(async (query: Record<string, unknown>) => {
-    const requested = query.localUserId;
-    const ids =
-      typeof requested === 'string'
-        ? [requested]
-        : ((requested as { $in?: string[] })?.$in ?? []);
-    const rows: Array<{ remoteActorUri: string }> = [];
-    if (ids.includes('alice-oxy')) rows.push({ remoteActorUri: ALICE_FOLLOWER });
-    if (ids.includes('org-oxy')) rows.push({ remoteActorUri: ORG_FOLLOWER });
+  // The follow store answers per ACCOUNT: the sender is looked up by
+  // `localUserId` (the delivery engine's own read) and the extra audiences by
+  // `localUserIds` (the multi-account form added for a cross-account thread).
+  // Keeping the two sets on different instances is what makes a wrong lookup
+  // visible — a resolver that asked the sender's question would return the
+  // sender's followers and the assertions would not notice.
+  followFind.mockImplementation(async (filter: Record<string, unknown>) => {
+    const one = filter.localUserId;
+    const many = filter.localUserIds as string[] | undefined;
+    const ids = typeof one === 'string' ? [one] : (many ?? []);
+    const rows: string[] = [];
+    if (ids.includes('alice-oxy')) rows.push(ALICE_FOLLOWER);
+    if (ids.includes('org-oxy')) rows.push(ORG_FOLLOWER);
     return rows;
   });
 
-  actorFind.mockImplementation(async (query: Record<string, unknown>) => {
-    const uris = (query.uri as { $in?: string[] })?.$in ?? [];
+  actorFind.mockImplementation(async (uris: readonly string[]) => {
     return uris.map((uri) =>
       uri === ALICE_FOLLOWER ? { sharedInboxUrl: ALICE_INBOX } : { sharedInboxUrl: ORG_INBOX },
     );
@@ -165,9 +168,9 @@ describe('federateNewPost — extra audiences', () => {
   it('still delivers to the author\'s own followers when the audience lookup fails', async () => {
     // Fail-soft: the acting account's fan-out is the part that matters, so a
     // broken read of somebody else's followers must not take it down.
-    followFind.mockImplementation(async (query: Record<string, unknown>) => {
-      if (typeof query.localUserId !== 'string') throw new Error('follow store unavailable');
-      return [{ remoteActorUri: ALICE_FOLLOWER }];
+    followFind.mockImplementation(async (filter: Record<string, unknown>) => {
+      if (typeof filter.localUserId !== 'string') throw new Error('follow store unavailable');
+      return [ALICE_FOLLOWER];
     });
 
     await followService.federateNewPost(ENTRY, 'alice-oxy', 'alice', {

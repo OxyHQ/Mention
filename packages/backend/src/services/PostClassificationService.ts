@@ -1,7 +1,11 @@
 import { z } from 'zod';
-import type { AnyBulkWriteOperation, Types } from 'mongoose';
-import { Post, type IPost } from '../models/Post';
-import type { PostClassificationScores, PostContent } from '@mention/shared-types';
+import { and, asc, eq, exists, isNull, sql, type SQL } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
+import { postContentVariants } from '../db/schema/postContent';
+import { findPostRecords, updatePostRecord } from '../db/posts/postRepository';
+import type { PostRecord } from '../db/posts/postRecord';
+import type { PostClassificationScores } from '@mention/shared-types';
 import { aliaJSON, isAliaEnabled } from '../utils/alia';
 import { logger } from '../utils/logger';
 import { config } from '../config';
@@ -89,23 +93,28 @@ const ClassificationResponseSchema = z.array(PostClassificationResultSchema);
 type ClassificationResult = z.infer<typeof PostClassificationResultSchema>;
 
 /** Minimal projection of a post pulled into the classification queue. */
-interface QueueDoc {
-  _id: Types.ObjectId;
-  content: PostContent;
-  postClassification?: { attempts?: number };
-}
+type QueueDoc = PostRecord;
 
 /**
- * Filter for posts that have not been successfully classified yet — either the
- * subdoc is missing entirely (legacy/raw-inserted docs) or it is still `pending`
- * or `failed`-but-under-budget. The retry cap is enforced via `attempts`.
+ * Posts that have not been successfully classified yet.
+ *
+ * ONE arm now, not two. Mongo needed `{ postClassification: { $exists: false } }`
+ * alongside `status: 'pending'` because a raw-inserted document could be missing
+ * the subdocument entirely; `classification_status` is `NOT NULL DEFAULT
+ * 'pending'`, so "absent" is not a state a row can be in and the extra arm would
+ * match nothing.
  */
-const UNCLASSIFIED_FILTER: Record<string, unknown> = {
-  $or: [
-    { postClassification: { $exists: false } },
-    { 'postClassification.status': 'pending' },
-  ],
-};
+const UNCLASSIFIED: SQL = eq(posts.classificationStatus, 'pending');
+
+/** Whether the post has a stored rendition — i.e. any body to classify at all. */
+function hasVariantSql(): SQL {
+  return exists(
+    getDb()
+      .select({ one: sql`1` })
+      .from(postContentVariants)
+      .where(eq(postContentVariants.postId, posts.id)),
+  ) as SQL;
+}
 
 class PostClassificationService {
   private classificationInterval: NodeJS.Timeout | null = null;
@@ -184,21 +193,16 @@ class PostClassificationService {
    */
   private async markEmptyPosts(): Promise<void> {
     const now = new Date();
-    await Post.updateMany(
-      {
-        'postClassification.status': 'pending',
+    await getDb()
+      .update(posts)
+      .set({ classificationStatus: 'classified', classificationClassifiedAt: now })
+      .where(and(
+        UNCLASSIFIED,
         // No rendition at all = nothing to infer from (a boost, a media-only
         // post). The body lives only in the variants, so "no text" is "no
         // variant".
-        'content.variants.0': { $exists: false },
-      },
-      {
-        $set: {
-          'postClassification.status': 'classified',
-          'postClassification.classifiedAt': now,
-        },
-      },
-    );
+        sql`not ${hasVariantSql()}`,
+      ));
   }
 
   /**
@@ -207,25 +211,26 @@ class PostClassificationService {
    * `failed` once the retry budget is exhausted) — never thrown out of the loop.
    */
   private async classifyBatch(): Promise<void> {
-    const posts = await Post.find({
-      ...UNCLASSIFIED_FILTER,
-      'content.variants.0': { $exists: true },
-      status: 'published',
-      boostOf: { $exists: false },
-    })
-      .select({ 'content.variants': 1, createdAt: 1, 'postClassification.attempts': 1 })
-      .sort({ createdAt: 1 })
-      .limit(this.BATCH_SIZE)
-      .lean<QueueDoc[]>();
+    const queue = await findPostRecords(
+      and(
+        UNCLASSIFIED,
+        hasVariantSql(),
+        eq(posts.status, 'published'),
+        // `is null`, never `<> null`: a boost is a row whose `boost_of` is NULL,
+        // and SQL's `<>` against NULL matches nothing at all.
+        isNull(posts.boostOf),
+      ),
+      { orderBy: [asc(posts.createdAt), asc(posts.id)], limit: this.BATCH_SIZE },
+    );
 
-    if (posts.length === 0) return;
+    if (queue.length === 0) return;
 
-    logger.info(`[PostClassification] Classifying batch of ${posts.length} posts`);
+    logger.info(`[PostClassification] Classifying batch of ${queue.length} posts`);
 
     // Classify the PRIMARY rendition — what the author actually wrote. A machine
     // translation is derived from it and would only feed the classifier its own
     // output back; a second author language says the same thing twice.
-    const payload = posts.map((post, index) => ({
+    const payload = queue.map((post, index) => ({
       postIndex: index,
       text: resolveVariant(post.content).text.slice(0, this.MAX_TEXT_LENGTH),
     }));
@@ -243,13 +248,13 @@ class PostClassificationService {
       const parseResult = ClassificationResponseSchema.safeParse(rawResult);
       if (!parseResult.success) {
         logger.warn('[PostClassification] AI response failed validation:', parseResult.error.message);
-        await this.recordFailures(posts);
+        await this.recordFailures(queue);
         return;
       }
       results = parseResult.data;
     } catch (error) {
       logger.warn('[PostClassification] AI classification failed, will retry:', error);
-      await this.recordFailures(posts);
+      await this.recordFailures(queue);
       return;
     }
 
@@ -262,44 +267,38 @@ class PostClassificationService {
     // (TopicStats) working off the canonical `postClassification` list.
     const topicRefsByIndex = await this.resolveBatchTopicRefs(results);
 
-    const bulkOps: AnyBulkWriteOperation<IPost>[] = posts.map((post, index) => {
+    // A PARTIAL patch of ONLY the AI-owned (Stage-B) fields.
+    // `updatePostRecord` merges key by key, so the Stage-A deterministic fields
+    // (languages, region, hashtagsNorm, version, sensitive) populated at ingest
+    // survive — the same guarantee the dotted `$set` gave, now enforced by the
+    // patch type rather than by remembering to spell every path. `topics` is
+    // shared and intentionally refined here by the AI; `topicRefs` is its
+    // registry-resolved form (the canonical list readers consume).
+    await Promise.all(queue.map((post, index) => {
       const result = resultByIndex.get(index);
 
       if (!result) {
         // Missing entry for this post — count an attempt and retry/expire it.
-        return this.failureUpdateOp(post, now);
+        return this.recordFailure(post, now);
       }
 
-      // Dotted $set of ONLY the AI-owned (Stage-B) fields. A whole-subdoc
-      // overwrite (`$set: { postClassification }`) would wipe the Stage-A
-      // deterministic fields (language, region, hashtagsNorm, version, sensitive)
-      // populated at ingest, so the two stages must merge, not replace. `topics`
-      // is shared and intentionally refined here by the AI; `topicRefs` is its
-      // registry-resolved form (the canonical list readers consume).
-      return {
-        updateOne: {
-          filter: { _id: post._id },
-          update: {
-            $set: {
-              'postClassification.topics': result.topics,
-              'postClassification.topicRefs': topicRefsByIndex.get(index) ?? [],
-              'postClassification.sentiment': result.sentiment,
-              'postClassification.intent': result.intent,
-              'postClassification.scores': this.normalizeScores(result.scores),
-              'postClassification.confidence': result.confidence,
-              'postClassification.status': 'classified',
-              'postClassification.attempts': this.attemptsOf(post),
-              'postClassification.classifiedAt': now,
-            },
-          },
+      return updatePostRecord(post.id, {
+        postClassification: {
+          topics: result.topics,
+          topicRefs: topicRefsByIndex.get(index) ?? [],
+          sentiment: result.sentiment,
+          intent: result.intent,
+          scores: this.normalizeScores(result.scores),
+          confidence: result.confidence,
+          status: 'classified',
+          attempts: this.attemptsOf(post),
+          classifiedAt: now,
         },
-      };
-    });
+      });
+    }));
 
-    await Post.bulkWrite(bulkOps, { ordered: false });
-
-    const classifiedCount = posts.filter((_, i) => resultByIndex.has(i)).length;
-    logger.info(`[PostClassification] Classified ${classifiedCount}/${posts.length} posts`);
+    const classifiedCount = queue.filter((_, i) => resultByIndex.has(i)).length;
+    logger.info(`[PostClassification] Classified ${classifiedCount}/${queue.length} posts`);
   }
 
   /**
@@ -342,12 +341,9 @@ class PostClassificationService {
   }
 
   /** Persist a retry/expire update for every post in a wholesale-failed batch. */
-  private async recordFailures(posts: QueueDoc[]): Promise<void> {
+  private async recordFailures(batch: QueueDoc[]): Promise<void> {
     const now = new Date();
-    const bulkOps: AnyBulkWriteOperation<IPost>[] = posts.map(post => this.failureUpdateOp(post, now));
-    if (bulkOps.length > 0) {
-      await Post.bulkWrite(bulkOps, { ordered: false });
-    }
+    await Promise.all(batch.map(post => this.recordFailure(post, now)));
   }
 
   /**
@@ -355,25 +351,20 @@ class PostClassificationService {
    * `failed` once the retry budget is exhausted, otherwise leave it `pending` so
    * the next cycle retries it.
    */
-  private failureUpdateOp(post: QueueDoc, now: Date): AnyBulkWriteOperation<IPost> {
+  private recordFailure(post: QueueDoc, now: Date): Promise<void> {
     const nextAttempts = this.attemptsOf(post) + 1;
     const exhausted = nextAttempts >= this.MAX_ATTEMPTS;
-    return {
-      updateOne: {
-        filter: { _id: post._id },
-        update: {
-          $set: {
-            'postClassification.attempts': nextAttempts,
-            'postClassification.status': exhausted ? 'failed' : 'pending',
-            ...(exhausted ? { 'postClassification.classifiedAt': now } : {}),
-          },
-        },
+    return updatePostRecord(post.id, {
+      postClassification: {
+        attempts: nextAttempts,
+        status: exhausted ? 'failed' : 'pending',
+        ...(exhausted ? { classifiedAt: now } : {}),
       },
-    };
+    });
   }
 
   private attemptsOf(post: QueueDoc): number {
-    return post.postClassification?.attempts ?? 0;
+    return post.postClassification.attempts;
   }
 
   /** Clamp every score into the 0..1 range as a defensive guard post-validation. */

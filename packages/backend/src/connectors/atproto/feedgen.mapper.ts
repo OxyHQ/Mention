@@ -1,6 +1,6 @@
 import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
 import { logger } from '../../utils/logger';
-import { FeedGenerator } from '../../models/FeedGenerator';
+import { upsertAtprotoFeedGenerator } from '../../db/feeds/feedGeneratorRepository';
 import { xrpcGet } from './xrpcClient';
 import { FEED_GENERATOR_COLLECTION, PUBLIC_APPVIEW } from './constants';
 
@@ -23,10 +23,10 @@ import { FEED_GENERATOR_COLLECTION, PUBLIC_APPVIEW } from './constants';
 /** Max feed generators mirrored per actor in one sync (a single AppView page). */
 const MAX_FEEDS_PER_ACTOR = 50;
 
-/** `FeedGenerator.name` schema cap — clamp a long remote name so validation never fails. */
+/** `feed_generators.name` display cap — clamp a long remote name. */
 const MAX_NAME_LENGTH = 64;
 
-/** `FeedGenerator.description` schema cap. */
+/** `feed_generators.description` display cap. */
 const MAX_DESCRIPTION_LENGTH = 300;
 
 /** A `generatorView` from `app.bsky.feed.getActorFeeds` (only the read fields). */
@@ -69,7 +69,7 @@ function parseAtUri(uri: string): { authority: string; collection: string; rkey:
  * Map a `getActorFeeds` generator view to the normalized FeedGenerator fields.
  * Returns null for anything that is not a feed-generator AT-URI or is missing the
  * service DID / a display name. The name + description are clamped to the schema
- * caps so an over-long remote value can never fail persistence validation. Pure.
+ * caps so an over-long remote value can never reach the row. Pure.
  */
 export function mapGeneratorView(view: AtprotoGeneratorView | undefined): NormalizedAtprotoFeedGenerator | null {
   if (!view) return null;
@@ -131,26 +131,11 @@ export async function syncActorFeeds(did: string, ownerOxyUserId: string): Promi
     const generator = mapGeneratorView(view);
     if (!generator) continue;
     try {
-      await FeedGenerator.findOneAndUpdate(
-        { uri: generator.uri },
-        {
-          $set: {
-            name: generator.name,
-            description: generator.description,
-            avatar: generator.avatar,
-            // `algorithm` is a required human-readable marker; `source.network`
-            // is the authoritative "atproto-backed" flag the feed engine reads.
-            algorithm: 'atproto',
-            createdBy: ownerOxyUserId,
-            likeCount: generator.likeCount,
-            source: { network: 'atproto', serviceDid: generator.serviceDid, syncedAt: new Date() },
-          },
-        },
-        { upsert: true },
-      );
+      await upsertAtprotoFeedGenerator({ ...generator, ownerOxyUserId });
       upserted += 1;
     } catch (err) {
-      // A concurrent sync racing the same generator to an E11000 is benign; log + skip.
+      // A concurrent sync racing the same generator to a unique violation is
+      // benign; log + skip.
       logger.warn('[atproto] failed to upsert feed generator', err);
     }
   }

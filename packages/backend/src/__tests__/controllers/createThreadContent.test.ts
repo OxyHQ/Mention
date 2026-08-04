@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Two pieces of an entry's content that `createThread` used to discard, and the
@@ -18,7 +18,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  *  - **articles.** `content.article` was read from `posts[0]` only, in BOTH
  *    modes, so an article attached to any other box was dropped. The fixtures
  *    therefore put an article on a NON-root entry.
+ *
+ * ## What the Postgres port changed
+ *
+ * Nothing about the subject. What is measured is the content the CONTROLLER
+ * composes and hands to `PostCreationService.create` — that is upstream of any
+ * store, so the stub still captures it. It answers with a `PostRecord`-shaped
+ * value (`id`, not a Mongoose `_id`) because that is what the controller now
+ * chains and hydrates on, and the article write is `insertArticle` against the
+ * `articles` table rather than a Mongoose save.
  */
+
+import type { PostContent } from '@mention/shared-types';
+
+const { createdContents, createdHashtags, ids } = vi.hoisted(() => ({
+  createdContents: [] as PostContent[],
+  createdHashtags: [] as string[][],
+  /** A per-request id sequence, so an entry's identity is its own. */
+  ids: { next: 0 },
+}));
 
 vi.mock('../../runtime/socketServer', () => ({
   getRuntimeSocketServer: () => undefined,
@@ -38,32 +56,46 @@ vi.mock('../../utils/oxyHelpers', () => ({
   createUserScopedOxyServices: vi.fn(() => undefined),
 }));
 
-import { Post } from '../../models/Post';
-import ArticleModel from '../../models/Article';
-import type { PostContent } from '@mention/shared-types';
+vi.mock('../../utils/linkPreviewWarm', () => ({
+  warmLinkPreviewForText: vi.fn().mockResolvedValue(undefined),
+  warmLinkPreviewForTextDetached: vi.fn(),
+}));
 
-const createdContents: PostContent[] = [];
-const createdHashtags: string[][] = [];
+// `newArticleId` stays REAL — the assertions below are about the id the
+// controller mints landing on the right entry's content. Only the write is
+// stubbed: `articles.post_id` is a foreign key and the posts here are a stub's
+// invention, so a real insert would fail (harmlessly, in a `catch`) and say
+// nothing about the subject.
+vi.mock('../../db/posts/articleRepository', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  insertArticle: vi.fn(async () => undefined),
+}));
 
 vi.mock('../../services/PostCreationService', () => ({
   postCreationService: {
     create: vi.fn(async (params: Record<string, unknown>) => {
       createdContents.push(params.content as PostContent);
       createdHashtags.push((params.hashtags as string[]) ?? []);
-      return new Post({
+      return {
+        id: `ctc-created-${ids.next++}`,
         oxyUserId: params.oxyUserId,
+        mentions: [],
         content: params.content,
         visibility: params.visibility,
-      });
+        status: params.status ?? 'published',
+        parentPostId: params.parentPostId ?? null,
+        threadId: params.threadId ?? null,
+      };
     }),
   },
 }));
 
+import { closePostgres, connectPostgres } from '../../db/postgres';
 import { createThread } from '../../controllers/posts.controller';
 
 function buildRequest(body: Record<string, unknown>) {
   return {
-    user: { id: 'author_1' },
+    user: { id: 'ctc-author-1' },
     query: {},
     acceptsLanguages: () => [] as string[],
     headers: {},
@@ -86,15 +118,20 @@ function buildResponse() {
   return { res, payload };
 }
 
+beforeAll(async () => {
+  // The controller anchors a thread's root with a real `updatePostRecord`, so
+  // the pool has to exist even though the ids here name no row.
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 beforeEach(() => {
   createdContents.length = 0;
   createdHashtags.length = 0;
-  vi.spyOn(Post.prototype, 'save').mockResolvedValue(undefined as never);
-  vi.spyOn(ArticleModel.prototype, 'save').mockResolvedValue(undefined as never);
-});
-
-afterEach(() => {
-  vi.restoreAllMocks();
+  ids.next = 0;
 });
 
 describe('createThread — author language renditions', () => {

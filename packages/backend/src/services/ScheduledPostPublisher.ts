@@ -1,4 +1,7 @@
-import { Post, type IPost } from '../models/Post';
+import { and, asc, eq, lte } from 'drizzle-orm';
+import { findPostRecords } from '../db/posts/postRepository';
+import type { PostRecord } from '../db/posts/postRecord';
+import { posts } from '../db/schema/posts';
 import { logger } from '../utils/logger';
 import { postCreationService } from './PostCreationService';
 import { orderScheduledChains } from './scheduledChain';
@@ -51,12 +54,13 @@ class ScheduledPostPublisher {
     }
     this.running = true;
     try {
-      const duePosts = await Post.find({
-        status: 'scheduled',
-        scheduledFor: { $lte: now },
-      })
-        .sort({ scheduledFor: 1 })
-        .limit(this.BATCH_SIZE);
+      // `scheduled_for` is NOT NULL for every row this predicate can match (the
+      // partial index `posts_scheduled_idx` is built on exactly this status), so
+      // the ascending sort has no NULL ordering to disagree with Mongo about.
+      const duePosts = await findPostRecords(
+        and(eq(posts.status, 'scheduled'), lte(posts.scheduledFor, now)),
+        { orderBy: [asc(posts.scheduledFor)], limit: this.BATCH_SIZE },
+      );
 
       if (duePosts.length === 0) {
         return 0;
@@ -108,10 +112,10 @@ class ScheduledPostPublisher {
    * in which case the tail would be publishable — but re-deriving that costs a
    * read per post to buy at most 60 seconds, so the chain just waits.)
    */
-  private async publishChain(chain: IPost[]): Promise<number> {
+  private async publishChain(chain: PostRecord[]): Promise<number> {
     let published = 0;
     for (const post of chain) {
-      const postId = String(post._id);
+      const postId = post.id;
       try {
         const result = await postCreationService.claimAndPublishScheduledPost({ postId });
         if (result === null) {

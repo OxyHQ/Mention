@@ -1,88 +1,80 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 /**
  * The ordering primitives a scheduled THREAD publishes by.
  *
  * `orderScheduledChains` is pure and answers "what must publish before what" for
- * one sweep's worth of due posts. `loadScheduledChain` answers the same question
- * against the database for one post, and is what makes cancelling, rescheduling
- * and publishing-early act on the whole thread instead of one row of it.
+ * one sweep's worth of due posts. `loadScheduledChain` and `parentHasPublished`
+ * answer the same question against the DATABASE, and are what make cancelling,
+ * rescheduling and publishing-early act on the whole thread instead of one row
+ * of it.
+ *
+ * The two database functions run on real rows. Their previous form stubbed
+ * `Post.findById().select().lean()` and answered from an in-memory array, which
+ * cannot distinguish a correct query from one that matches nothing — and
+ * "matches nothing" is precisely how this breaks: a chain that comes back empty
+ * looks like a lone scheduled post, so a thread publishes one row at a time with
+ * no error anywhere. The down-walk in particular carries three ANDed predicates
+ * (parent, owner, still-scheduled); dropping any one of them is invisible to a
+ * filter-shape assertion.
  */
 
-const hoisted = vi.hoisted(() => ({
-  docs: [] as Record<string, unknown>[],
-}));
-
-/** The `findById().select().lean()` / `find().select().sort().lean()` subset used here. */
-vi.mock('../../models/Post', () => {
-  const find = (filter: Record<string, unknown>) =>
-    hoisted.docs.filter((doc) => Object.entries(filter).every(([k, v]) => doc[k] === v));
-  const chainable = (rows: Record<string, unknown>[]) => ({
-    select: () => chainable(rows),
-    sort: () => chainable(rows),
-    lean: async () => rows,
-  });
-  return {
-    Post: {
-      findById: (id: unknown) => {
-        const row = hoisted.docs.find((doc) => String(doc._id) === String(id));
-        return {
-          select: () => ({ lean: async () => row ?? null }),
-        };
-      },
-      find: (filter: Record<string, unknown>) => chainable(find(filter)),
-    },
-  };
-});
-
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import {
   loadScheduledChain,
   orderScheduledChains,
   parentHasPublished,
 } from '../../services/scheduledChain';
 
-const AUTHOR = 'author_1';
+const scope = serviceScope('scheduled-chain');
+const AUTHOR = scope.user('author');
+const OTHER = scope.user('other-author');
 
-function seed(docs: Record<string, unknown>[]) {
-  hoisted.docs = docs;
+/** A future instant, so a seeded scheduled post is never swept as due. */
+function later(minutes = 60): Date {
+  return new Date(Date.now() + minutes * 60 * 1000);
 }
 
-/** A scheduled self-thread: root -> c1 -> c2, all the same author. */
-function seedThread() {
-  seed([
-    { _id: 'root', status: 'scheduled', oxyUserId: AUTHOR, parentPostId: null, createdAt: 1 },
-    { _id: 'c1', status: 'scheduled', oxyUserId: AUTHOR, parentPostId: 'root', createdAt: 2 },
-    { _id: 'c2', status: 'scheduled', oxyUserId: AUTHOR, parentPostId: 'c1', createdAt: 3 },
-  ]);
-}
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterEach(async () => {
+  await clearServiceScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
 
 describe('orderScheduledChains', () => {
   it('orders a thread parent before child', () => {
     const chains = orderScheduledChains([
-      { _id: 'c2', parentPostId: 'c1' },
-      { _id: 'root', parentPostId: null },
-      { _id: 'c1', parentPostId: 'root' },
+      { id: 'c2', parentPostId: 'c1' },
+      { id: 'root', parentPostId: null },
+      { id: 'c1', parentPostId: 'root' },
     ]);
 
     expect(chains).toHaveLength(1);
-    expect(chains[0].map((p) => p._id)).toEqual(['root', 'c1', 'c2']);
+    expect(chains[0].map((p) => p.id)).toEqual(['root', 'c1', 'c2']);
   });
 
   it('leaves independent posts as chains of one, so a beast batch keeps its concurrency', () => {
-    const chains = orderScheduledChains([{ _id: 'a' }, { _id: 'b' }, { _id: 'c' }]);
+    const chains = orderScheduledChains([{ id: 'a' }, { id: 'b' }, { id: 'c' }]);
 
-    expect(chains.map((chain) => chain.map((p) => p._id))).toEqual([['a'], ['b'], ['c']]);
+    expect(chains.map((chain) => chain.map((p) => p.id))).toEqual([['a'], ['b'], ['c']]);
   });
 
   it('separates two threads so one cannot hold up the other', () => {
     const chains = orderScheduledChains([
-      { _id: 'a-root', parentPostId: null },
-      { _id: 'b-root', parentPostId: null },
-      { _id: 'b-1', parentPostId: 'b-root' },
-      { _id: 'a-1', parentPostId: 'a-root' },
+      { id: 'a-root', parentPostId: null },
+      { id: 'b-root', parentPostId: null },
+      { id: 'b-1', parentPostId: 'b-root' },
+      { id: 'a-1', parentPostId: 'a-root' },
     ]);
 
-    expect(chains.map((chain) => chain.map((p) => p._id))).toEqual([
+    expect(chains.map((chain) => chain.map((p) => p.id))).toEqual([
       ['a-root', 'a-1'],
       ['b-root', 'b-1'],
     ]);
@@ -96,93 +88,144 @@ describe('orderScheduledChains', () => {
    */
   it('treats a tail whose parent is outside the batch as its own chain', () => {
     const chains = orderScheduledChains([
-      { _id: 'c2', parentPostId: 'c1' },
-      { _id: 'c3', parentPostId: 'c2' },
+      { id: 'c2', parentPostId: 'c1' },
+      { id: 'c3', parentPostId: 'c2' },
     ]);
 
-    expect(chains.map((chain) => chain.map((p) => p._id))).toEqual([['c2', 'c3']]);
+    expect(chains.map((chain) => chain.map((p) => p.id))).toEqual([['c2', 'c3']]);
   });
 });
 
 describe('loadScheduledChain', () => {
-  beforeEach(() => {
-    hoisted.docs = [];
-  });
+  /** A scheduled self-thread: root -> c1 -> c2, all the same author. */
+  async function seedThread(): Promise<{ root: string; c1: string; c2: string }> {
+    const root = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      status: 'scheduled',
+      scheduledFor: later(),
+    });
+    const c1 = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      status: 'scheduled',
+      scheduledFor: later(),
+      parentPostId: root.id,
+    });
+    const c2 = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      status: 'scheduled',
+      scheduledFor: later(),
+      parentPostId: c1.id,
+    });
+    return { root: root.id, c1: c1.id, c2: c2.id };
+  }
 
   it('returns the whole thread from a MIDDLE post, root first', async () => {
-    seedThread();
+    const { root, c1, c2 } = await seedThread();
 
-    const chain = await loadScheduledChain('c1', AUTHOR);
-
-    expect(chain).toEqual({ ok: true, postIds: ['root', 'c1', 'c2'] });
+    expect(await loadScheduledChain(c1, AUTHOR)).toEqual({ ok: true, postIds: [root, c1, c2] });
   });
 
   it('stops climbing at an ancestor that already published', async () => {
-    seed([
-      { _id: 'published-parent', status: 'published', oxyUserId: AUTHOR, parentPostId: null },
-      { _id: 'reply', status: 'scheduled', oxyUserId: AUTHOR, parentPostId: 'published-parent' },
-    ]);
+    const parent = await seedPost(scope, { oxyUserId: AUTHOR });
+    const reply = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      status: 'scheduled',
+      scheduledFor: later(),
+      parentPostId: parent.id,
+    });
 
     // A scheduled reply to a post already on screen is its own chain: nothing it
     // depends on is still to come.
-    expect(await loadScheduledChain('reply', AUTHOR)).toEqual({ ok: true, postIds: ['reply'] });
+    expect(await loadScheduledChain(reply.id, AUTHOR)).toEqual({ ok: true, postIds: [reply.id] });
   });
 
   it('stops climbing when the parent is gone', async () => {
-    seed([{ _id: 'orphan', status: 'scheduled', oxyUserId: AUTHOR, parentPostId: 'deleted' }]);
+    // `parent_post_id` is `ON DELETE SET NULL`, so a deleted parent leaves the
+    // reply with no link at all — the same state a post written with none has.
+    const orphan = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      status: 'scheduled',
+      scheduledFor: later(),
+    });
 
-    expect(await loadScheduledChain('orphan', AUTHOR)).toEqual({ ok: true, postIds: ['orphan'] });
+    expect(await loadScheduledChain(orphan.id, AUTHOR)).toEqual({ ok: true, postIds: [orphan.id] });
   });
 
   it('refuses when a still-scheduled ancestor belongs to somebody else', async () => {
-    seed([
-      { _id: 'theirs', status: 'scheduled', oxyUserId: 'other_author', parentPostId: null },
-      { _id: 'mine', status: 'scheduled', oxyUserId: AUTHOR, parentPostId: 'theirs' },
-    ]);
+    const theirs = await seedPost(scope, {
+      oxyUserId: OTHER,
+      status: 'scheduled',
+      scheduledFor: later(),
+    });
+    const mine = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      status: 'scheduled',
+      scheduledFor: later(),
+      parentPostId: theirs.id,
+    });
 
     // Publishing `mine` would put a reply on screen ahead of the post it
     // answers, and this caller cannot publish that post.
-    expect(await loadScheduledChain('mine', AUTHOR)).toEqual({
+    expect(await loadScheduledChain(mine.id, AUTHOR)).toEqual({
       ok: false,
       reason: 'foreign_scheduled_ancestor',
     });
   });
 
-  it('excludes another author\'s scheduled reply from the chain it walks down', async () => {
-    seed([
-      { _id: 'root', status: 'scheduled', oxyUserId: AUTHOR, parentPostId: null },
-      { _id: 'theirs', status: 'scheduled', oxyUserId: 'other_author', parentPostId: 'root' },
-    ]);
+  it("excludes another author's scheduled reply from the chain it walks down", async () => {
+    const root = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      status: 'scheduled',
+      scheduledFor: later(),
+    });
+    await seedPost(scope, {
+      oxyUserId: OTHER,
+      status: 'scheduled',
+      scheduledFor: later(),
+      parentPostId: root.id,
+    });
 
-    expect(await loadScheduledChain('root', AUTHOR)).toEqual({ ok: true, postIds: ['root'] });
+    expect(await loadScheduledChain(root.id, AUTHOR)).toEqual({ ok: true, postIds: [root.id] });
+  });
+
+  it('excludes an already-published reply from the chain it walks down', async () => {
+    const root = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      status: 'scheduled',
+      scheduledFor: later(),
+    });
+    await seedPost(scope, { oxyUserId: AUTHOR, parentPostId: root.id });
+
+    expect(await loadScheduledChain(root.id, AUTHOR)).toEqual({ ok: true, postIds: [root.id] });
   });
 
   it('is empty for a post that no longer exists', async () => {
-    seed([]);
-
-    expect(await loadScheduledChain('gone', AUTHOR)).toEqual({ ok: true, postIds: [] });
+    expect(await loadScheduledChain('019fffff-ffff-7fff-bfff-ffffffffffff', AUTHOR)).toEqual({
+      ok: true,
+      postIds: [],
+    });
   });
 });
 
 describe('parentHasPublished', () => {
-  beforeEach(() => {
-    hoisted.docs = [];
-  });
-
   it('passes a post with no parent', async () => {
     expect(await parentHasPublished({})).toBe(true);
   });
 
   it('refuses while the parent is still scheduled', async () => {
-    seed([{ _id: 'root', status: 'scheduled' }]);
+    const root = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      status: 'scheduled',
+      scheduledFor: later(),
+    });
 
-    expect(await parentHasPublished({ parentPostId: 'root' })).toBe(false);
+    expect(await parentHasPublished({ parentPostId: root.id })).toBe(false);
   });
 
   it('passes once the parent has published', async () => {
-    seed([{ _id: 'root', status: 'published' }]);
+    const root = await seedPost(scope, { oxyUserId: AUTHOR });
 
-    expect(await parentHasPublished({ parentPostId: 'root' })).toBe(true);
+    expect(await parentHasPublished({ parentPostId: root.id })).toBe(true);
   });
 
   /**
@@ -191,8 +234,8 @@ describe('parentHasPublished', () => {
    * was scheduled must still go out rather than wedge in the queue forever.
    */
   it('passes when the parent has been deleted', async () => {
-    seed([]);
-
-    expect(await parentHasPublished({ parentPostId: 'deleted' })).toBe(true);
+    expect(
+      await parentHasPublished({ parentPostId: '019fffff-ffff-7fff-bfff-ffffffffffff' }),
+    ).toBe(true);
   });
 });

@@ -32,11 +32,21 @@ const PERSON_ID = 'oxy-person';
 const QUIET_CHANNEL_ID = 'oxy-channel-quiet';
 const QUIET_WRITER_ID = 'oxy-writer-quiet';
 
-const { getUserById, getUsersByIds, cacheStore, userSettingsFind } = vi.hoisted(() => ({
+const { getUserById, getUsersByIds, cacheStore, userSettingsSelect } = vi.hoisted(() => ({
   getUserById: vi.fn(),
   getUsersByIds: vi.fn(),
   cacheStore: new Map<string, CachedUserSummary>(),
-  userSettingsFind: vi.fn(),
+  /**
+   * Stages the rows a `select … from user_settings` resolves to, and counts them.
+   *
+   * The rows are in the SELECT'S ALIAS shape (`signPosts`), not the column's
+   * (`channel_account_sign_posts`), because that is what the query hands the
+   * code under test. This fake therefore says nothing about which COLUMN the
+   * alias reads — that is round-tripped against a real database in
+   * `__tests__/channelAccountSchema.test.ts`, and the division is deliberate:
+   * this file is about the disclosure DECISION, that one about the storage.
+   */
+  userSettingsSelect: vi.fn(),
 }));
 
 vi.mock('../../runtime/oxyClient', () => ({
@@ -62,43 +72,57 @@ vi.mock('../../utils/privacyHelpers', () => ({
   extractFollowersIds: vi.fn(() => []),
 }));
 
-/** Chainable Mongoose query stub — builder methods return `this`, `.lean()` resolves the rows. */
-function chainable(rows: unknown) {
-  const q: Record<string, unknown> = {};
-  for (const m of ['select', 'sort', 'limit', 'maxTimeMS']) {
-    q[m] = () => q;
-  }
-  q.lean = async () => rows;
-  q.then = undefined;
-  return q;
-}
+/**
+ * The whole Postgres surface hydration touches, faked at ONE seam.
+ *
+ * `getDb()` returns a thenable query builder whose every chaining method returns
+ * itself, so any `select(...).from(X).where(...)` awaits to `[]` — except a read
+ * `from(userSettings)`, which resolves whatever the case under test staged.
+ * Routing on the TABLE rather than on the query shape is what keeps the two
+ * `user_settings` readers (the viewer-context privacy read and the
+ * channel-signing read) distinguishable from every other table without the fake
+ * having to model any of them.
+ *
+ * `userSettingsSelect` therefore counts exactly the `user_settings` reads, which
+ * is what the batching cases below assert on.
+ */
+vi.mock('../../db/postgres', async () => {
+  const { getTableName } = await import('drizzle-orm');
+  const builder = () => {
+    const q: Record<string, unknown> = {};
+    let rows: unknown[] = [];
+    for (const m of ['from', 'where', 'innerJoin', 'leftJoin', 'orderBy', 'limit', 'offset', 'groupBy']) {
+      q[m] = (arg?: unknown) => {
+        // Routed on the TABLE, read through drizzle's own `getTableName` rather
+        // than a hand-rolled symbol lookup, so the fake cannot drift from what
+        // the query builder actually sees.
+        if (m === 'from' && arg && getTableName(arg as never) === 'user_settings') {
+          rows = userSettingsSelect() as unknown[];
+        }
+        return q;
+      };
+    }
+    q.then = (resolve: (value: unknown[]) => unknown) => Promise.resolve(rows).then(resolve);
+    return q;
+  };
+  const db = {
+    select: () => builder(),
+    selectDistinct: () => builder(),
+  };
+  return { getDb: () => db, connectPostgres: async () => db, closePostgres: async () => {} };
+});
 
-vi.mock('../../models/Post', () => ({
-  Post: {
-    find: () => chainable([]),
-    findOne: () => chainable(null),
-    aggregate: async () => [],
-  },
+vi.mock('../../db/posts/postRepository', () => ({
+  loadPostRecords: async () => [],
+  findPostRecords: async () => [],
+  findBoostedPostIds: async () => new Map(),
+  countQuotesOf: async () => new Map(),
+  CHRONO_DESC: [],
 }));
-vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Lane', () => ({ Lane: { find: () => chainable([]) } }));
-// ONE stub serves both `UserSettings.find` callers — the viewer-context privacy
-// read and the channel-signing read. Neither cares about the other's fields.
-vi.mock('../../models/UserSettings', () => ({
-  UserSettings: {
-    find: () => chainable(userSettingsFind()),
-    findOne: () => chainable(null),
-  },
-}));
-vi.mock('../../models/StarterPack', () => ({
-  StarterPack: { aggregate: async () => [] },
-  default: { aggregate: async () => [] },
-}));
-vi.mock('../../models/FederatedActor', () => ({
-  FederatedActor: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
-  default: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
+
+vi.mock('../../db/federation/actorRepository', () => ({
+  findActorsByOxyUserIds: async () => [],
+  findActorsByUris: async () => [],
 }));
 
 vi.mock('../../services/userSummaryCache', () => ({
@@ -183,9 +207,9 @@ describe('PostHydrationService — the channel writer byline', () => {
     cacheStore.clear();
     getUserById.mockReset();
     getUsersByIds.mockReset();
-    userSettingsFind.mockReset();
+    userSettingsSelect.mockReset();
 
-    userSettingsFind.mockReturnValue([]);
+    userSettingsSelect.mockReturnValue([]);
     getUserById.mockResolvedValue(null);
     getUsersByIds.mockImplementation(async (ids: string[]) =>
       [
@@ -201,7 +225,7 @@ describe('PostHydrationService — the channel writer byline', () => {
   });
 
   it('names the writer as a SECOND author when the channel signs its posts', async () => {
-    userSettingsFind.mockReturnValue([{ oxyUserId: CHANNEL_ID, channel: { signPosts: true } }]);
+    userSettingsSelect.mockReturnValue([{ oxyUserId: CHANNEL_ID, signPosts: true }]);
 
     const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], { maxDepth: 0 });
 
@@ -221,7 +245,7 @@ describe('PostHydrationService — the channel writer byline', () => {
   });
 
   it('discloses NOBODY when the channel has not opted in', async () => {
-    userSettingsFind.mockReturnValue([{ oxyUserId: CHANNEL_ID, channel: { signPosts: false } }]);
+    userSettingsSelect.mockReturnValue([{ oxyUserId: CHANNEL_ID, signPosts: false }]);
 
     const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], { maxDepth: 0 });
 
@@ -232,7 +256,7 @@ describe('PostHydrationService — the channel writer byline', () => {
   });
 
   it('discloses NOBODY when the channel has no settings row at all', async () => {
-    userSettingsFind.mockReturnValue([]);
+    userSettingsSelect.mockReturnValue([]);
 
     const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], { maxDepth: 0 });
 
@@ -249,7 +273,7 @@ describe('PostHydrationService — the channel writer byline', () => {
    * write or a hand-edited document produces, and it must NOT disclose.
    */
   it('refuses a truthy non-boolean signPosts', async () => {
-    userSettingsFind.mockReturnValue([{ oxyUserId: CHANNEL_ID, channel: { signPosts: 'false' } }]);
+    userSettingsSelect.mockReturnValue([{ oxyUserId: CHANNEL_ID, signPosts: 'false' }]);
 
     const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], { maxDepth: 0 });
 
@@ -258,8 +282,8 @@ describe('PostHydrationService — the channel writer byline', () => {
   });
 
   it('discloses NOBODY when the settings lookup fails — it fails CLOSED', async () => {
-    userSettingsFind.mockImplementation(() => {
-      throw new Error('mongo is down');
+    userSettingsSelect.mockImplementation(() => {
+      throw new Error('postgres is down');
     });
 
     const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], { maxDepth: 0 });
@@ -275,7 +299,7 @@ describe('PostHydrationService — the channel writer byline', () => {
    * somebody on a person's own post.
    */
   it('discloses nobody when the author is not a channel account', async () => {
-    userSettingsFind.mockReturnValue([{ oxyUserId: PERSON_ID, channel: { signPosts: true } }]);
+    userSettingsSelect.mockReturnValue([{ oxyUserId: PERSON_ID, signPosts: true }]);
 
     const [hydrated] = await service.hydratePosts([postRow(PERSON_ID, WRITER_ID)], { maxDepth: 0 });
 
@@ -294,9 +318,9 @@ describe('PostHydrationService — the channel writer byline', () => {
    * apart, and it is also the ordinary shape of a real feed.
    */
   it('discloses only the signing channel when a page holds both', async () => {
-    userSettingsFind.mockReturnValue([
-      { oxyUserId: CHANNEL_ID, channel: { signPosts: true } },
-      { oxyUserId: QUIET_CHANNEL_ID, channel: { signPosts: false } },
+    userSettingsSelect.mockReturnValue([
+      { oxyUserId: CHANNEL_ID, signPosts: true },
+      { oxyUserId: QUIET_CHANNEL_ID, signPosts: false },
     ]);
 
     const hydrated = await service.hydratePosts(
@@ -330,7 +354,7 @@ describe('PostHydrationService — the channel writer byline', () => {
    * that did not opt in and the name of the person who writes for it.
    */
   it('does not name a non-signing channel\'s writer even when they are already resolved', async () => {
-    userSettingsFind.mockReturnValue([{ oxyUserId: QUIET_CHANNEL_ID, channel: { signPosts: false } }]);
+    userSettingsSelect.mockReturnValue([{ oxyUserId: QUIET_CHANNEL_ID, signPosts: false }]);
 
     const hydrated = await service.hydratePosts(
       [
@@ -353,7 +377,7 @@ describe('PostHydrationService — the channel writer byline', () => {
   });
 
   it('leaves an ordinary channel post with no writer alone', async () => {
-    userSettingsFind.mockReturnValue([{ oxyUserId: CHANNEL_ID, channel: { signPosts: true } }]);
+    userSettingsSelect.mockReturnValue([{ oxyUserId: CHANNEL_ID, signPosts: true }]);
 
     const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID)], { maxDepth: 0 });
 
@@ -369,7 +393,7 @@ describe('PostHydrationService — the channel writer byline', () => {
    * be missed on its way out.
    */
   it('never puts writtenByOxyUserId on the DTO', async () => {
-    userSettingsFind.mockReturnValue([{ oxyUserId: CHANNEL_ID, channel: { signPosts: true } }]);
+    userSettingsSelect.mockReturnValue([{ oxyUserId: CHANNEL_ID, signPosts: true }]);
 
     const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], { maxDepth: 0 });
 
@@ -379,7 +403,7 @@ describe('PostHydrationService — the channel writer byline', () => {
   });
 
   it('reads the whole page of channels in ONE settings query', async () => {
-    userSettingsFind.mockReturnValue([{ oxyUserId: CHANNEL_ID, channel: { signPosts: true } }]);
+    userSettingsSelect.mockReturnValue([{ oxyUserId: CHANNEL_ID, signPosts: true }]);
 
     const rows = [
       { ...postRow(CHANNEL_ID, WRITER_ID), _id: '650000000000000000000041' },
@@ -395,7 +419,7 @@ describe('PostHydrationService — the channel writer byline', () => {
     // Two `UserSettings.find` calls per hydration, both batched over the page:
     // the viewer-context privacy read and the channel-signing read. Never one
     // per post.
-    expect(userSettingsFind).toHaveBeenCalledTimes(2);
+    expect(userSettingsSelect).toHaveBeenCalledTimes(2);
   });
 
   it('asks the settings collection nothing when no post carries a writer', async () => {
@@ -403,44 +427,39 @@ describe('PostHydrationService — the channel writer byline', () => {
 
     // Only the viewer-context privacy read — the signing lookup short-circuits
     // on an empty candidate set, so an ordinary page pays nothing for this.
-    expect(userSettingsFind).toHaveBeenCalledTimes(1);
+    expect(userSettingsSelect).toHaveBeenCalledTimes(1);
   });
 });
 
 /**
- * All FOUR projections, not two.
+ * THE FOUR-PROJECTION HAZARD DOES NOT EXIST ON THIS BRANCH, and that is worth
+ * stating rather than silently dropping.
  *
- * A field missing from one hydrates as `undefined` with no error, and the worst
- * spelling of that here is forgetting the SLICER's: the writer is named on the
- * feed row and unnamed on the SAME post rendered as a thread parent, which reads
- * like a caching bug.
+ * On Mongo, `writtenByOxyUserId` had to be named in FOUR separate `select`
+ * strings (`mtn/feed/FeedAPI`, `controllers/feed.controller`,
+ * `services/ThreadSlicingService`, `routes/search`); missing from one, the
+ * writer hydrated `undefined` with no error, so the same post named its writer
+ * on a feed row and dropped the name as a thread parent. `main` carried a test
+ * asserting all four strings contained the field.
+ *
+ * Every one of those projections is GONE: each of those readers now assembles a
+ * whole `PostRecord` through `db/posts/postRepository`, so there is no field list
+ * that can omit a column and no fifth one a future reader could forget. The old
+ * test is therefore not ported — it would assert against four string constants
+ * that no longer exist, which is a test that can only ever pass or fail for
+ * reasons unrelated to its subject.
+ *
+ * What replaces it is structural: the column is on `PostRecord`, so a reader
+ * that failed to carry it would not typecheck.
+ *
+ * Measured rather than assumed, because "there is only one reader" is the entire
+ * argument for dropping the gate: `loadPostRecords` is
+ * `db.select().from(posts)` — every column, no field list — and
+ * `assemblePostRecords` maps `writtenByOxyUserId` onto the record, which declares
+ * it as `string | null`. A reader cannot select a subset without saying so in a
+ * type. If that ever stops being true, the replacement is a gate on the LOADER,
+ * not four string constants; do not resurrect the old shape.
  */
-describe('writtenByOxyUserId is projected on every path that hydrates a post', () => {
-  it('is in FEED_FIELDS (the MTN engine)', async () => {
-    const { FEED_FIELDS } = await import('../../mtn/feed/FeedAPI');
-    expect(FEED_FIELDS.split(' ')).toContain('writtenByOxyUserId');
-  });
-
-  it('is in the three other projections', async () => {
-    const [{ readFile }, path] = await Promise.all([
-      import('node:fs/promises'),
-      import('node:path'),
-    ]);
-    const root = path.resolve(__dirname, '../..');
-    const sources = await Promise.all([
-      readFile(path.join(root, 'controllers/feed.controller.ts'), 'utf8'),
-      readFile(path.join(root, 'services/ThreadSlicingService.ts'), 'utf8'),
-      readFile(path.join(root, 'routes/search.ts'), 'utf8'),
-    ]);
-
-    // Vacuity floor: the files were really read.
-    for (const source of sources) expect(source.length).toBeGreaterThan(1000);
-
-    expect(sources[0]).toMatch(/FEED_FIELDS = '[^']*\bwrittenByOxyUserId\b/);
-    expect(sources[1]).toMatch(/SLICE_POST_PROJECTION =\s*'[^']*\bwrittenByOxyUserId\b/);
-    expect(sources[2]).toMatch(/'writtenByOxyUserId',/);
-  });
-});
 
 /**
  * Who the post MENU is drawn for.
@@ -462,8 +481,8 @@ describe('PostHydrationService — who may manage a channel post', () => {
     cacheStore.clear();
     getUserById.mockReset();
     getUsersByIds.mockReset();
-    userSettingsFind.mockReset();
-    userSettingsFind.mockReturnValue([]);
+    userSettingsSelect.mockReset();
+    userSettingsSelect.mockReturnValue([]);
     getUserById.mockResolvedValue(null);
     getUsersByIds.mockImplementation(async (ids: string[]) =>
       [CHANNEL_ACCOUNT, WRITER_ACCOUNT, PERSON_ACCOUNT].filter((u) => ids.includes(u.id)),
@@ -488,7 +507,7 @@ describe('PostHydrationService — who may manage a channel post', () => {
   it('does so even when the channel signs NOTHING', async () => {
     // Disclosure and management are different questions. A channel that keeps
     // its writers anonymous still lets them manage what they wrote.
-    userSettingsFind.mockReturnValue([{ oxyUserId: CHANNEL_ID, channel: { signPosts: false } }]);
+    userSettingsSelect.mockReturnValue([{ oxyUserId: CHANNEL_ID, signPosts: false }]);
 
     const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], {
       maxDepth: 0,

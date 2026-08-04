@@ -112,10 +112,10 @@
  */
 
 import { createHash } from 'node:crypto';
-import mongoose from 'mongoose';
-import { Post } from '../models/Post';
-import { FederatedActor } from '../models/FederatedActor';
-import { FederatedFollow } from '../models/FederatedFollow';
+import { and, asc, count, eq, gt, inArray } from 'drizzle-orm';
+import { connectPostgres, getDb } from '../db/postgres';
+import { federatedActors, federatedFollows } from '../db/schema/federation';
+import { posts } from '../db/schema/posts';
 import { signedFetch, runWithTimeout } from '../connectors/activitypub/helpers';
 import { isBlockedDomain } from '../connectors/activitypub/constants';
 import { BLOCKLIST_SOURCE_INSTANCES } from '../connectors/activitypub/blocklistSourceRegistry';
@@ -581,15 +581,17 @@ export function corroboratingSourceCount(corroboration: DomainCorroboration): nu
 
 /** Every domain we hold actors from, with how many. One aggregation. */
 async function loadCorpusDomains(): Promise<Map<string, number>> {
-  const rows = await FederatedActor.aggregate<{ _id: string; actors: number }>([
-    { $group: { _id: '$domain', actors: { $sum: 1 } } },
-  ]);
+  const rows = await getDb()
+    .select({ domain: federatedActors.domain, actors: count() })
+    .from(federatedActors)
+    .groupBy(federatedActors.domain);
 
   const byDomain = new Map<string, number>();
   for (const row of rows) {
-    if (typeof row._id !== 'string') continue;
-    const domain = row._id.trim().toLowerCase();
+    const domain = row.domain.trim().toLowerCase();
     if (domain.length === 0) continue;
+    // Still accumulated rather than assigned: `domain` is grouped RAW, so two
+    // rows differing only by case or padding collapse here and not in SQL.
     byDomain.set(domain, (byDomain.get(domain) ?? 0) + row.actors);
   }
   return byDomain;
@@ -639,13 +641,6 @@ interface FollowFootprints {
   localUsersFollowed: Map<string, Set<string>>;
 }
 
-interface FollowRow {
-  _id: mongoose.Types.ObjectId;
-  localUserId?: string;
-  remoteActorUri?: string;
-  direction?: string;
-}
-
 function addToBucket(buckets: Map<string, Set<string>>, domain: string, value: string): void {
   const bucket = buckets.get(domain);
   if (bucket) bucket.add(value);
@@ -669,20 +664,23 @@ async function loadFollowFootprints(): Promise<FollowFootprints> {
     localUsersFollowed: new Map(),
   };
 
-  let lastId: mongoose.Types.ObjectId | null = null;
+  let lastId: string | null = null;
   for (;;) {
-    const filter: Record<string, unknown> = { status: 'accepted' };
-    if (lastId) filter._id = { $gt: lastId };
-
-    const page = await FederatedFollow.find(filter, {
-      _id: 1,
-      localUserId: 1,
-      remoteActorUri: 1,
-      direction: 1,
-    })
-      .sort({ _id: 1 })
-      .limit(FOLLOW_PAGE_SIZE)
-      .lean<FollowRow[]>();
+    const page = await getDb()
+      .select({
+        id: federatedFollows.id,
+        localUserId: federatedFollows.localUserId,
+        remoteActorUri: federatedFollows.remoteActorUri,
+        direction: federatedFollows.direction,
+      })
+      .from(federatedFollows)
+      .where(
+        lastId === null
+          ? eq(federatedFollows.status, 'accepted')
+          : and(eq(federatedFollows.status, 'accepted'), gt(federatedFollows.id, lastId))
+      )
+      .orderBy(asc(federatedFollows.id))
+      .limit(FOLLOW_PAGE_SIZE);
 
     if (page.length === 0) break;
 
@@ -699,15 +697,10 @@ async function loadFollowFootprints(): Promise<FollowFootprints> {
       }
     }
 
-    lastId = page[page.length - 1]._id;
+    lastId = page[page.length - 1].id;
   }
 
   return footprints;
-}
-
-interface ActorRow {
-  _id: mongoose.Types.ObjectId;
-  oxyUserId?: string | null;
 }
 
 /**
@@ -724,18 +717,21 @@ interface ActorRow {
 async function measurePostFootprint(
   domain: string,
 ): Promise<{ posts: number; actorsWithoutLocalUser: number }> {
-  let posts = 0;
+  let postCount = 0;
   let actorsWithoutLocalUser = 0;
-  let lastId: mongoose.Types.ObjectId | null = null;
+  let lastId: string | null = null;
 
   for (;;) {
-    const filter: Record<string, unknown> = { domain };
-    if (lastId) filter._id = { $gt: lastId };
-
-    const page = await FederatedActor.find(filter, { _id: 1, oxyUserId: 1 })
-      .sort({ _id: 1 })
-      .limit(ACTOR_PAGE_SIZE)
-      .lean<ActorRow[]>();
+    const page = await getDb()
+      .select({ id: federatedActors.id, oxyUserId: federatedActors.oxyUserId })
+      .from(federatedActors)
+      .where(
+        lastId === null
+          ? eq(federatedActors.domain, domain)
+          : and(eq(federatedActors.domain, domain), gt(federatedActors.id, lastId))
+      )
+      .orderBy(asc(federatedActors.id))
+      .limit(ACTOR_PAGE_SIZE);
 
     if (page.length === 0) break;
 
@@ -748,15 +744,18 @@ async function measurePostFootprint(
     // Author ids are disjoint across chunks (one actor, one Oxy user), so the
     // per-chunk counts sum exactly.
     for (let i = 0; i < authorIds.length; i += POST_COUNT_CHUNK_SIZE) {
-      posts += await Post.countDocuments({
-        oxyUserId: { $in: authorIds.slice(i, i + POST_COUNT_CHUNK_SIZE) },
-      });
+      const chunk = authorIds.slice(i, i + POST_COUNT_CHUNK_SIZE);
+      const [row] = await getDb()
+        .select({ count: count() })
+        .from(posts)
+        .where(inArray(posts.oxyUserId, chunk));
+      postCount += row?.count ?? 0;
     }
 
-    lastId = page[page.length - 1]._id;
+    lastId = page[page.length - 1].id;
   }
 
-  return { posts, actorsWithoutLocalUser };
+  return { posts: postCount, actorsWithoutLocalUser };
 }
 
 /** Rank by what a block would cost US, and only then by how many others agree. */
@@ -1018,8 +1017,6 @@ function parseSources(value: string | undefined): string[] | undefined {
 
 async function main(): Promise<void> {
   const startedAt = Date.now();
-  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
-  const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
 
   try {
     // This script has NO mutating mode: it is read-only by construction, which
@@ -1031,8 +1028,12 @@ async function main(): Promise<void> {
       scriptName: 'reportFederationBlocklistCandidates',
       dryRun: true,
     });
-    await mongoose.connect(mongoUri, { dbName });
-    logger.info('[reportFederationBlocklistCandidates] connected to MongoDB');
+    // Postgres only. Every input to the footprint — actors, follow edges and
+    // posts — moved with the write path, so the Mongo connection is REMOVED
+    // rather than left open: a live connection to a store nothing reads is how
+    // the next reader concludes reading from it would still be valid.
+    await connectPostgres();
+    logger.info('[reportFederationBlocklistCandidates] connected to PostgreSQL');
 
     const minSources = parsePositiveInt(process.env.BLOCKLIST_MIN_SOURCES, DEFAULT_MIN_SOURCES);
     const report = await reportFederationBlocklistCandidates({
@@ -1101,12 +1102,6 @@ async function main(): Promise<void> {
     throw error;
   } finally {
     await closeAdminScriptResources();
-    await mongoose.disconnect().catch((disconnectError) => {
-      logger.warn(
-        '[reportFederationBlocklistCandidates] error during mongoose.disconnect()',
-        disconnectError,
-      );
-    });
   }
 }
 

@@ -1,4 +1,5 @@
-import { RepairFetchFailure } from '../../models/RepairFetchFailure';
+import { recordRepairFetchFailures as persistRepairFetchFailures } from '../../db/adminScripts/adminScriptStateRepository';
+import { describeDriverError } from '../../db/pgErrors';
 import { logger } from '../../utils/logger';
 
 /** One failed re-fetch, reduced to what a targeted retry actually needs. */
@@ -33,27 +34,29 @@ export async function recordRepairFetchFailures(
   if (failures.length === 0) return true;
   const failedAt = new Date();
   try {
-    await RepairFetchFailure.bulkWrite(
+    // Explicit field list — never a spread of a caller's object. `status` is
+    // passed through as-is, including when it is absent: a defaulted value would
+    // move a row from "do not come back" (403/410) into "retry politely"
+    // (429/5xx), and a targeted retry would then hammer an origin that refused.
+    await persistRepairFetchFailures(
+      script,
       failures.map((failure) => ({
-        updateOne: {
-          filter: { script, postId: failure.postId },
-          // Explicit field whitelist — never a spread of a caller's object.
-          update: {
-            $set: { reason: failure.reason, status: failure.status, failedAt },
-          },
-          upsert: true,
-        },
+        postId: failure.postId,
+        reason: failure.reason,
+        status: failure.status,
+        failedAt,
       })),
-      { ordered: false },
     );
     return true;
   } catch (error) {
-    // Post ids cannot go in this record — the logger redacts a 24-hex ObjectId
-    // under every key. The count is enough to see that something is wrong.
+    // Only the driver error's STRUCTURE. The raw error carries the statement and
+    // every bound parameter, post ids included, and the logger's 24-hex
+    // redaction does not cover a uuid v7. The count is enough to see that
+    // something is wrong.
     logger.warn('[adminScript] could not record re-fetch failures', {
       script,
       count: failures.length,
-      error,
+      ...describeDriverError(error),
     });
     return false;
   }

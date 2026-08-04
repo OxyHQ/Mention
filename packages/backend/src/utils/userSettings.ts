@@ -1,4 +1,4 @@
-import UserSettings, { type UserSettingsData } from '../models/UserSettings';
+import type { UserSettingsRecord } from '../db/userProfile/userSettingsRecord';
 import { resolveBannerUrl } from './mediaResolver';
 
 function nonEmptyString(value: unknown): string | undefined {
@@ -21,25 +21,9 @@ function resolveProfileHeaderImage(value: unknown): string | undefined {
 }
 
 /**
- * Ensures a UserSettings document exists for a user.
- *
- * It no longer seeds `profileCustomization`: the subdoc's only remaining field
- * is `profileMedia`, which is absent until the user pins something and whose
- * schema default covers it. Seeding it existed to give older documents the two
- * layout booleans, and those are gone.
- */
-export async function ensureUserSettings(oxyUserId: string) {
-  const doc = await UserSettings.findOne({ oxyUserId }).lean<UserSettingsData>().exec();
-  if (doc) return doc;
-
-  const created = await UserSettings.create({ oxyUserId });
-  return created.toObject<UserSettingsData>();
-}
-
-/**
  * Extracts public profile design data from UserSettings document
  */
-export function extractPublicProfileData(doc: Partial<UserSettingsData> | null | undefined, userId: string) {
+export function extractPublicProfileData(doc: Partial<UserSettingsRecord> | null | undefined, userId: string) {
   const customization = doc?.profileCustomization || {};
 
   return {
@@ -86,7 +70,7 @@ export function redactedProfileDesign(userId: string) {
  * rule `GET /profile/design/:userId` applies.
  */
 export function buildSettingsResponseForViewer(
-  doc: Partial<UserSettingsData> | null | undefined,
+  doc: Partial<UserSettingsRecord> | null | undefined,
   targetUserId: string,
   viewerUserId: string,
   options: { canViewProfileDesign: boolean },

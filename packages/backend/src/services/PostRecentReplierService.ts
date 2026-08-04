@@ -1,19 +1,57 @@
-import mongoose, { type ClientSession, type PipelineStage } from 'mongoose';
+/**
+ * The recent-replier read model: the ≤3 newest DISTINCT public repliers per post,
+ * newest first, used to render reply avatars on a feed card.
+ *
+ * ## `buildRecentReplierUpdatePipeline` is gone, and nothing replaces it
+ *
+ * Mongo kept one document per post holding an ORDERED array with a `≤3`
+ * validator, and maintaining it needed a hand-written aggregation update
+ * pipeline — a `$let` over `$filter`/`$concatArrays`/`$slice` that spliced the
+ * candidate into the array in place while preserving a NEWER existing entry from
+ * the same user. That pipeline existed only because an array cannot be updated
+ * any other way; with one ROW per (post, replier) there is nothing to splice.
+ * `mergeRecentRepliers`, the pure reference implementation that existed to make
+ * the pipeline testable in isolation, is gone with it — the behaviour it modelled
+ * is now asserted against real rows.
+ *
+ * The three rules it encoded all survive, as SQL:
+ *
+ * - **Newest wins per user** — `greatest(excluded.replied_at, …)` in the upsert,
+ *   so historical federation/backfill arriving out of order cannot demote a
+ *   newer reply.
+ * - **Distinct per user** — the `(post_id, oxy_user_id)` unique constraint.
+ * - **Capped at three** — a bounded delete after the upsert. A CHECK cannot
+ *   count sibling rows, so the cap stays the writer's job.
+ *
+ * ## Fail-soft, everywhere
+ *
+ * This is a projection. A write failure must never turn a successful reply (or a
+ * successful post deletion) into an API failure, so every entry point here logs
+ * and resolves rather than throwing.
+ */
+
+import { and, desc, eq, inArray, isNotNull, ne, notInArray, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { PostVisibility } from '@mention/shared-types';
-import Post from '../models/Post';
+import { getDb, type Transaction } from '../db/postgres';
 import {
-  PostRecentReplier,
-  POST_RECENT_REPLIER_LIMIT,
-  type RecentReplierEntry,
-} from '../models/PostRecentReplier';
+  DEADLOCK_DETECTED,
+  SERIALIZATION_FAILURE,
+  isUniqueViolation,
+  sqlStateOf,
+} from '../db/pgErrors';
+import { POST_RECENT_REPLIER_LIMIT, postRecentRepliers } from '../db/schema/postContent';
+import { posts } from '../db/schema/posts';
 import { logger } from '../utils/logger';
 
-const PROJECTION_REPAIR_TRANSACTION_OPTIONS = {
-  readPreference: 'primary' as const,
-  readConcern: { level: 'snapshot' as const },
-  writeConcern: { w: 'majority' as const },
-};
+/** Attempts before a projection repair gives up and logs. */
 const MAX_PROJECTION_REPAIR_ATTEMPTS = 3;
+
+/** One row of the projection, in the order the read model returns it. */
+export interface RecentReplierEntry {
+  oxyUserId: string;
+  repliedAt: Date;
+}
 
 export interface RecentReplyLike {
   parentPostId?: unknown;
@@ -33,21 +71,6 @@ export interface DeletedPostProjectionContext {
   parentPostId?: unknown;
 }
 
-/**
- * A direct reply removed alongside its parent, in the shape
- * {@link import('./PostDeletionCascade').CascadedPostRow} consumes — the two are
- * checked against each other by the compiler at the call site in
- * `posts.controller`.
- */
-export interface DeletedReplyRow {
-  _id: mongoose.Types.ObjectId;
-  oxyUserId?: string;
-  boostOf?: string;
-  parentPostId?: string;
-  federation?: { activityId?: string; url?: string } | null;
-  content?: { pollId?: string; article?: { articleId?: string } } | null;
-}
-
 function validDate(value: unknown): Date | null {
   const date = value instanceof Date ? value : new Date(String(value ?? ''));
   return Number.isFinite(date.getTime()) ? date : null;
@@ -58,335 +81,130 @@ function normalizedId(value: unknown): string {
 }
 
 /**
- * Pure reference implementation of the projection contract. It is also useful
- * to verify the atomic Mongo update pipeline in isolation.
+ * Only publicly renderable, published replies by a known author can contribute
+ * an avatar to a public feed DTO. Exported so the reconciliation sweep selects
+ * exactly the same candidates this projection is built from — two copies of this
+ * predicate is how a repair starts disagreeing with the thing it repairs.
+ *
+ * The two literals are checked against the column's own value tuples
+ * (`POST_VISIBILITIES` / `POST_STATUSES`), so a typo fails `tsc` rather than
+ * silently matching nothing.
  */
-export function mergeRecentRepliers(
-  existing: readonly RecentReplierEntry[],
-  candidate: RecentReplierEntry,
-): RecentReplierEntry[] {
-  const newestByUser = new Map<string, Date>();
-  for (const entry of [...existing, candidate]) {
-    const userId = String(entry.oxyUserId ?? '');
-    const repliedAt = validDate(entry.repliedAt);
-    if (!userId || !repliedAt) continue;
-    const previous = newestByUser.get(userId);
-    if (!previous || repliedAt > previous) {
-      newestByUser.set(userId, repliedAt);
-    }
-  }
-
-  return [...newestByUser]
-    .map(([oxyUserId, repliedAt]) => ({ oxyUserId, repliedAt }))
-    .sort((left, right) => right.repliedAt.getTime() - left.repliedAt.getTime())
-    .slice(0, POST_RECENT_REPLIER_LIMIT);
-}
+export const ELIGIBLE_REPLY_MATCH = and(
+  eq(posts.visibility, 'public'),
+  eq(posts.status, 'published'),
+  isNotNull(posts.oxyUserId),
+  ne(posts.oxyUserId, ''),
+);
 
 /**
- * Atomic, concurrency-safe insertion into a newest-first, unique and bounded
- * array. The pipeline preserves a newer existing reply from the same user, so
- * historical federation/backfill can arrive out of order safely.
+ * The authoritative ≤3, recomputed from the replies themselves.
+ *
+ * Two stages rather than one: `DISTINCT ON (oxy_user_id)` collapses each author
+ * to their newest eligible reply, and the outer query then ranks those winners
+ * and takes three. Doing it in one pass would rank replies rather than authors
+ * and could return the same person three times.
  */
-export function buildRecentReplierUpdatePipeline(
-  postId: string,
-  oxyUserId: string,
-  repliedAt: Date,
-): PipelineStage[] {
-  const existingEntries = { $ifNull: ['$repliers', []] };
-  const sameUserEntries = {
-    $filter: {
-      input: existingEntries,
-      as: 'entry',
-      cond: { $eq: ['$$entry.oxyUserId', oxyUserId] },
-    },
-  };
-  const otherUserEntries = {
-    $filter: {
-      input: existingEntries,
-      as: 'entry',
-      cond: { $ne: ['$$entry.oxyUserId', oxyUserId] },
-    },
-  };
-
-  return [
-    {
-      $set: {
-        postId,
-        repliers: {
-          $let: {
-            vars: {
-              previous: { $arrayElemAt: [sameUserEntries, 0] },
-              others: otherUserEntries,
-            },
-            in: {
-              $let: {
-                vars: {
-                  effectiveDate: {
-                    $cond: [
-                      {
-                        $gt: [
-                          { $ifNull: ['$$previous.repliedAt', new Date(0)] },
-                          repliedAt,
-                        ],
-                      },
-                      '$$previous.repliedAt',
-                      repliedAt,
-                    ],
-                  },
-                },
-                in: {
-                  $slice: [
-                    {
-                      $concatArrays: [
-                        {
-                          $filter: {
-                            input: '$$others',
-                            as: 'entry',
-                            cond: { $gt: ['$$entry.repliedAt', '$$effectiveDate'] },
-                          },
-                        },
-                        [{ oxyUserId, repliedAt: '$$effectiveDate' }],
-                        {
-                          $filter: {
-                            input: '$$others',
-                            as: 'entry',
-                            cond: { $lte: ['$$entry.repliedAt', '$$effectiveDate'] },
-                          },
-                        },
-                      ],
-                    },
-                    POST_RECENT_REPLIER_LIMIT,
-                  ],
-                },
-              },
-            },
-          },
-        },
-        createdAt: { $ifNull: ['$createdAt', repliedAt] },
-        updatedAt: new Date(),
-      },
-    },
-  ];
-}
-
-function isDuplicateKeyError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    Number((error as { code?: unknown }).code) === 11000
-  );
-}
-
-function isRetryableTransactionError(error: unknown): boolean {
-  if (isDuplicateKeyError(error)) return true;
-  if (typeof error !== 'object' || error === null) return false;
-
-  const candidate = error as {
-    code?: unknown;
-    hasErrorLabel?: (label: string) => boolean;
-  };
-  if (
-    typeof candidate.hasErrorLabel === 'function' &&
-    candidate.hasErrorLabel('TransientTransactionError')
-  ) {
-    return true;
-  }
-
-  // WriteConflict, SnapshotUnavailable and NoSuchTransaction can surface
-  // without a retry label depending on the server/driver version.
-  return [112, 246, 251].includes(Number(candidate.code));
-}
-
 async function authoritativeRecentRepliers(
   postId: string,
-  session: ClientSession,
+  tx: Transaction,
 ): Promise<RecentReplierEntry[]> {
-  const rows = await Post.aggregate<{
-    oxyUserId?: unknown;
-    repliedAt?: unknown;
-  }>([
-    {
-      $match: {
-        parentPostId: postId,
-        visibility: PostVisibility.PUBLIC,
-        status: 'published',
-        oxyUserId: { $type: 'string', $ne: '' },
-      },
-    },
-    { $sort: { createdAt: -1, _id: -1 } },
-    {
-      $group: {
-        _id: '$oxyUserId',
-        repliedAt: { $first: '$createdAt' },
-        replyId: { $first: '$_id' },
-      },
-    },
-    { $sort: { repliedAt: -1, replyId: -1 } },
-    { $limit: POST_RECENT_REPLIER_LIMIT },
-    {
-      $project: {
-        _id: 0,
-        oxyUserId: '$_id',
-        repliedAt: 1,
-      },
-    },
-  ]).session(session);
+  const newestPerAuthor = tx
+    .selectDistinctOn([posts.oxyUserId], {
+      oxyUserId: posts.oxyUserId,
+      repliedAt: posts.createdAt,
+      replyId: posts.id,
+    })
+    .from(posts)
+    .where(and(eq(posts.parentPostId, postId), ELIGIBLE_REPLY_MATCH))
+    .orderBy(posts.oxyUserId, desc(posts.createdAt), desc(posts.id))
+    .as('newest_per_author');
+
+  const rows = await tx
+    .select({
+      oxyUserId: newestPerAuthor.oxyUserId,
+      repliedAt: newestPerAuthor.repliedAt,
+    })
+    .from(newestPerAuthor)
+    .orderBy(desc(newestPerAuthor.repliedAt), desc(newestPerAuthor.replyId))
+    .limit(POST_RECENT_REPLIER_LIMIT);
 
   return rows.flatMap((row) => {
     const oxyUserId = normalizedId(row.oxyUserId);
-    const repliedAt = validDate(row.repliedAt);
-    return oxyUserId && repliedAt ? [{ oxyUserId, repliedAt }] : [];
+    return oxyUserId ? [{ oxyUserId, repliedAt: row.repliedAt }] : [];
   });
 }
 
-async function recomputeProjection(
-  postId: string,
-  session: ClientSession,
-): Promise<void> {
-  const repliers = await authoritativeRecentRepliers(postId, session);
-  if (repliers.length === 0) {
-    await PostRecentReplier.deleteOne({ postId }, { session });
-    return;
-  }
-
-  const now = new Date();
-  await PostRecentReplier.updateOne(
-    { postId },
-    {
-      $set: { repliers, updatedAt: now },
-      $setOnInsert: { postId, createdAt: now },
-    },
-    { upsert: true, session },
-  );
-}
-
 /**
- * The direct replies this transaction deletes, projected onto the fields the
- * deletion cascade needs. Read BEFORE the delete, because afterwards nothing
- * but the ids would be recoverable and half of a post's side tables name it by
- * its ActivityPub identifiers rather than its id.
+ * Replace one post's projection with the authoritative answer.
+ *
+ * Exported for `EngagementProjectionReconciliationService`, which repairs posts
+ * whose legacy writers never maintained this table. Both callers run it inside a
+ * transaction they own, so the read and the replacement share one snapshot and a
+ * concurrent reply writer either serializes after it or forces a retry.
  */
-const DELETED_CHILD_PROJECTION = {
-  _id: 1,
-  oxyUserId: 1,
-  boostOf: 1,
-  parentPostId: 1,
-  federation: 1,
-  'content.pollId': 1,
-  'content.article.articleId': 1,
-} as const;
-
-async function repairDeletedPostProjectionInTransaction(
-  input: { postId: string; parentPostId: string },
-  session: ClientSession,
-): Promise<DeletedReplyRow[]> {
-  if (input.parentPostId) {
-    // The authoritative Post query and projection replacement share one
-    // snapshot transaction. A concurrent reply writer touches this same
-    // projection document, causing Mongo to order the writes or abort/retry
-    // this transaction instead of letting a stale snapshot clobber it.
-    await recomputeProjection(input.parentPostId, session);
-  }
-
-  const deletedChildren = await Post.find({ parentPostId: input.postId })
-    .select(DELETED_CHILD_PROJECTION)
-    .session(session)
-    .lean<DeletedReplyRow[]>();
-  const deletedChildIds = deletedChildren
-    .map((child) => normalizedId(child._id))
-    .filter(Boolean);
-
-  if (deletedChildIds.length > 0) {
-    await Post.deleteMany(
-      { _id: { $in: deletedChildIds } },
-      { session },
+export async function recomputeRecentRepliers(
+  postId: string,
+  tx: Transaction,
+): Promise<RecentReplierEntry[]> {
+  const repliers = await authoritativeRecentRepliers(postId, tx);
+  await tx.delete(postRecentRepliers).where(eq(postRecentRepliers.postId, postId));
+  if (repliers.length > 0) {
+    await tx.insert(postRecentRepliers).values(
+      repliers.map((entry) => ({
+        postId,
+        oxyUserId: entry.oxyUserId,
+        repliedAt: entry.repliedAt,
+      })),
     );
   }
-
-  // A deleted parent can have its own replier projection, and each deleted
-  // direct child can also have one if it had replies. Remove every projection
-  // belonging to rows deleted by this transaction so hydration cannot expose
-  // orphaned avatars.
-  await PostRecentReplier.deleteMany(
-    { postId: { $in: [input.postId, ...deletedChildIds] } },
-    { session },
-  );
-
-  return deletedChildren;
+  return repliers;
 }
 
 /**
- * Repair the recent-replier read model after a Post row has already been
- * deleted. Fail-soft by design: projection maintenance must never turn a
- * successful authoritative delete into an API failure.
+ * Trim a post's projection down to the newest `POST_RECENT_REPLIER_LIMIT` rows.
  *
- * Returns the direct replies this call DELETED, which is not something a
- * projection repair would normally have to say — but it deletes them, and their
- * own likes, bookmarks, notifications and gates are then nobody's to clean
- * unless it reports which rows went. Empty when nothing was deleted, and empty
- * when the repair failed outright: an unreported row is a missed cleanup, while
- * a falsely reported one would send the cascade after a post that still exists.
+ * The subquery is ALIASED rather than naming the same table twice bare. Both
+ * spellings are valid SQL, but the aliased one states which range table each
+ * `post_id` belongs to — and a self-referencing predicate whose column
+ * resolution is left implicit is exactly the shape that silently returned an
+ * empty set in the sibling oxy-api port.
  */
-export async function repairRecentRepliersAfterPostDelete(
-  input: DeletedPostProjectionContext,
-): Promise<DeletedReplyRow[]> {
-  const postId = normalizedId(input.postId);
-  const parentPostId = normalizedId(input.parentPostId);
-  if (!postId) return [];
+async function trimToLimit(postId: string, tx: Transaction): Promise<void> {
+  const survivor = alias(postRecentRepliers, 'survivor');
+  const newest = tx
+    .select({ id: survivor.id })
+    .from(survivor)
+    .where(eq(survivor.postId, postId))
+    .orderBy(desc(survivor.repliedAt), desc(survivor.id))
+    .limit(POST_RECENT_REPLIER_LIMIT);
 
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= MAX_PROJECTION_REPAIR_ATTEMPTS; attempt += 1) {
-    const session = await mongoose.startSession().catch((error) => {
-      lastError = error;
-      return null;
-    });
-    if (!session) break;
-
-    try {
-      let deletedReplies: DeletedReplyRow[] = [];
-      await session.withTransaction(
-        async () => {
-          // Reassigned per attempt: a retried transaction re-reads the
-          // children, and the previous attempt's rows were rolled back.
-          deletedReplies = await repairDeletedPostProjectionInTransaction(
-            { postId, parentPostId },
-            session,
-          );
-        },
-        PROJECTION_REPAIR_TRANSACTION_OPTIONS,
-      );
-      return deletedReplies;
-    } catch (error) {
-      lastError = error;
-      if (
-        attempt === MAX_PROJECTION_REPAIR_ATTEMPTS ||
-        !isRetryableTransactionError(error)
-      ) {
-        break;
-      }
-    } finally {
-      await session.endSession().catch(() => undefined);
-    }
-  }
-
-  logger.warn('[PostRecentReplier] Failed to repair projection after post deletion', {
-    postId,
-    parentPostId: parentPostId || undefined,
-    reason: lastError instanceof Error ? lastError.message : String(lastError),
-  });
-  return [];
+  await tx
+    .delete(postRecentRepliers)
+    .where(
+      and(
+        eq(postRecentRepliers.postId, postId),
+        notInArray(postRecentRepliers.id, newest),
+      ),
+    );
 }
 
+/**
+ * Record one reply against its parent's projection.
+ *
+ * The hot path: called from every reply-creation site (native, federated, MTN
+ * materialization), fire-and-forget. Two statements in one transaction, because
+ * the array splice that used to make this atomic no longer exists — an upsert
+ * that keeps the newer timestamp, then the cap.
+ */
 export async function recordRecentReplierForPost(reply: RecentReplyLike): Promise<void> {
-  const postId = String(reply.parentPostId ?? '').trim();
-  const oxyUserId = String(reply.oxyUserId ?? '').trim();
+  const postId = normalizedId(reply.parentPostId);
+  const oxyUserId = normalizedId(reply.oxyUserId);
   const status = String(reply.status ?? 'published');
   const visibility = String(reply.visibility ?? PostVisibility.PUBLIC);
   const repliedAt = validDate(reply.createdAt) ?? new Date();
 
-  // Only publicly renderable, published replies can contribute an avatar to a
-  // public feed DTO. Draft/private replies must never leak through this index.
+  // Draft/private replies must never leak an avatar through this index.
   if (
     !postId ||
     !oxyUserId ||
@@ -396,18 +214,23 @@ export async function recordRecentReplierForPost(reply: RecentReplyLike): Promis
     return;
   }
 
-  const pipeline = buildRecentReplierUpdatePipeline(postId, oxyUserId, repliedAt);
   try {
-    await PostRecentReplier.updateOne({ postId }, pipeline, { upsert: true });
+    await getDb().transaction(async (tx) => {
+      await tx
+        .insert(postRecentRepliers)
+        .values({ postId, oxyUserId, repliedAt })
+        .onConflictDoUpdate({
+          target: [postRecentRepliers.postId, postRecentRepliers.oxyUserId],
+          // Backfill and federation import replies out of order, so an older
+          // arrival must never demote this author's newest known reply.
+          set: {
+            repliedAt: sql`greatest(${postRecentRepliers.repliedAt}, excluded.replied_at)`,
+            updatedAt: new Date(),
+          },
+        });
+      await trimToLimit(postId, tx);
+    });
   } catch (error) {
-    if (isDuplicateKeyError(error)) {
-      try {
-        await PostRecentReplier.updateOne({ postId }, pipeline);
-        return;
-      } catch (retryError) {
-        error = retryError;
-      }
-    }
     logger.warn('[PostRecentReplier] Failed to update projection', {
       postId,
       reason: error instanceof Error ? error.message : String(error),
@@ -415,6 +238,104 @@ export async function recordRecentReplierForPost(reply: RecentReplyLike): Promis
   }
 }
 
+/**
+ * Repair the read model after a Post row has already been deleted.
+ *
+ * ONE job, and it is about the PARENT rather than about the deleted post: the
+ * deleted row was one of its repliers, so its avatar row has to go and the next
+ * replier behind it has to take the slot. Nothing else here is reachable.
+ *
+ * **THIS FUNCTION USED TO DO TWO MORE THINGS, AND BOTH WERE DEAD — for the same
+ * structural reason, one layer apart.** It ran AFTER a committed deletion, so
+ * every row it went looking for was already gone:
+ *
+ *  - It DELETED THE DIRECT REPLIES by `parent_post_id`. Its own comment
+ *    predicted the failure: `posts.parent_post_id` is `ON DELETE SET NULL`, so
+ *    the parent's DELETE nulls those links first. Zero rows on `deletePost`
+ *    (whose transaction deletes the replies itself and commits before this
+ *    runs), zero on the MTN tombstone path — where nothing else deleted them
+ *    either, so replies were PROMOTED to root posts. That was bug #126, live on
+ *    a second path. `deletePostSubtree` owns the subtree now.
+ *  - It DELETED THE PROJECTIONS of the deleted post and its replies.
+ *    `post_recent_repliers.post_id` is `ON DELETE CASCADE` on `posts.id`
+ *    (MEASURED, not assumed: one projection row before the post's DELETE, zero
+ *    after), so the database had already removed every row that statement named.
+ *    Its absence is asserted after the fact anyway — `post_recent_repliers.post_id`
+ *    is a `database`-disposition probe in `adminDeletionPreflight`, so
+ *    `reportResidue` fails if one ever survives.
+ *
+ * Dead and redundant look identical from outside and mean opposite things: the
+ * first was hiding a data-loss bug, the second was merely re-doing the
+ * database's work. Neither was reachable, and the only cases that exercised
+ * either were tests calling this WITHOUT deleting the post first — a state no
+ * production caller can produce.
+ */
+async function repairDeletedPostProjection(
+  input: { parentPostId: string },
+  tx: Transaction,
+): Promise<void> {
+  if (!input.parentPostId) return;
+  await recomputeRecentRepliers(input.parentPostId, tx);
+}
+
+/**
+ * The failures a concurrent writer on this same projection can produce, and
+ * which a fresh transaction resolves.
+ *
+ * `sqlStateOf` walks drizzle's wrapper to the driver error underneath; reading
+ * `error.code` directly matches nothing, because drizzle re-wraps and the
+ * SQLSTATE lives on `cause`.
+ */
+function isRetryableProjectionConflict(error: unknown): boolean {
+  if (isUniqueViolation(error)) return true;
+  const sqlState = sqlStateOf(error);
+  return sqlState === SERIALIZATION_FAILURE || sqlState === DEADLOCK_DETECTED;
+}
+
+/**
+ * Repair the recent-replier read model after a post deletion. Fail-soft by
+ * design: projection maintenance must never turn a successful authoritative
+ * delete into an API failure.
+ */
+export async function repairRecentRepliersAfterPostDelete(
+  input: DeletedPostProjectionContext,
+): Promise<void> {
+  const postId = normalizedId(input.postId);
+  const parentPostId = normalizedId(input.parentPostId);
+  if (!postId) return;
+
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= MAX_PROJECTION_REPAIR_ATTEMPTS; attempt += 1) {
+    try {
+      await getDb().transaction(async (tx) => {
+        await repairDeletedPostProjection({ parentPostId }, tx);
+      });
+      return;
+    } catch (error) {
+      lastError = error;
+      if (
+        attempt === MAX_PROJECTION_REPAIR_ATTEMPTS ||
+        !isRetryableProjectionConflict(error)
+      ) {
+        break;
+      }
+    }
+  }
+
+  logger.warn('[PostRecentReplier] Failed to repair projection after post deletion', {
+    postId,
+    parentPostId: parentPostId || undefined,
+    reason: lastError instanceof Error ? lastError.message : String(lastError),
+  });
+}
+
+/**
+ * Read the projection for a page of posts.
+ *
+ * The ORDER is load-bearing — the caller renders these as avatars, newest first —
+ * so it is stated in SQL rather than inherited from the storage order an array
+ * used to provide.
+ */
 export async function loadRecentReplierIds(
   postIds: string[],
 ): Promise<RecentReplierProjection> {
@@ -426,16 +347,32 @@ export async function loadRecentReplierIds(
   }
 
   try {
-    const rows = await PostRecentReplier.find({ postId: { $in: uniquePostIds } })
-      .select({ postId: 1, repliers: 1, _id: 0 })
-      .lean<Array<{ postId: string; repliers?: RecentReplierEntry[] }>>();
+    const rows = await getDb()
+      .select({
+        postId: postRecentRepliers.postId,
+        oxyUserId: postRecentRepliers.oxyUserId,
+      })
+      .from(postRecentRepliers)
+      // `inArray`, never `= any(${jsArray})`: a raw JS array interpolated into a
+      // `sql` template binds as a ROW constructor and Postgres rejects it.
+      .where(inArray(postRecentRepliers.postId, uniquePostIds))
+      .orderBy(
+        postRecentRepliers.postId,
+        desc(postRecentRepliers.repliedAt),
+        desc(postRecentRepliers.id),
+      );
 
     for (const row of rows) {
-      const ids = [...new Set((row.repliers ?? []).map((entry) => String(entry.oxyUserId)))]
-        .filter(Boolean)
-        .slice(0, POST_RECENT_REPLIER_LIMIT);
-      perPostRepliers.set(String(row.postId), ids);
-      for (const id of ids) allReplierIds.add(id);
+      const existing = perPostRepliers.get(row.postId) ?? [];
+      // The writer caps at the limit, but a row written before this projection
+      // existed — or by a concurrent trim — must not widen the page's avatar row.
+      if (existing.length >= POST_RECENT_REPLIER_LIMIT) continue;
+      // No de-duplication pass: `post_recent_repliers_post_id_oxy_user_id_key`
+      // makes a repeated author for one post unrepresentable, where the Mongo
+      // array could hold one.
+      existing.push(row.oxyUserId);
+      perPostRepliers.set(row.postId, existing);
+      allReplierIds.add(row.oxyUserId);
     }
   } catch (error) {
     logger.warn('[PostRecentReplier] Failed to read projection', {

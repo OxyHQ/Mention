@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { inArray } from 'drizzle-orm';
 
 /**
  * Outbound POLL federation: a post that carries a poll federates as an
@@ -33,19 +35,13 @@ vi.mock('../../../utils/mediaResolver', () => ({
   resolveMediaRef: (ref: string) => ({ url: `https://cloud.oxy.so/${ref}` }),
 }));
 
-const { pollFindByIdLean, pollFindLean } = vi.hoisted(() => ({
-  pollFindByIdLean: vi.fn(),
-  pollFindLean: vi.fn(),
+const { pollFindLean } = vi.hoisted(() => ({
 }));
 
-vi.mock('../../../models/Poll', () => ({
-  default: {
-    findById: () => ({ select: () => ({ lean: () => pollFindByIdLean() }) }),
-    find: () => ({ select: () => ({ lean: () => pollFindLean() }) }),
-  },
-}));
 
 import type { PostContent } from '@mention/shared-types';
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { pollOptions, pollVotes, polls } from '../../../db/schema/polls';
 import { followService, type NotePollContext } from '../../../connectors/activitypub/follow.service';
 
 const ISO = '2024-01-02T03:04:05.000Z';
@@ -59,7 +55,7 @@ function body(text: string): PostContent {
 /** Build the Question `object` for a post carrying the given resolved poll context. */
 function questionFor(poll: NotePollContext, content: PostContent = body('vote now')) {
   const activity = followService.buildCreateNoteActivity(
-    { _id: 'poll1', content, createdAt: ISO },
+    { id: 'poll1', content, createdAt: ISO },
     'alice',
     undefined,
     undefined,
@@ -68,8 +64,62 @@ function questionFor(poll: NotePollContext, content: PostContent = body('vote no
   return activity.object as Record<string, unknown>;
 }
 
+/**
+ * A REAL poll: one `polls` row, its options as ordered `poll_options` rows, and
+ * each ballot as a `poll_votes` row.
+ *
+ * The resolver used to read the Mongoose `Poll` model, which nothing has written
+ * since polls moved to Postgres — so it resolved null for every poll and every
+ * poll post federated as a plain Note. That is invisible from the outside: null
+ * is also how "this post has no poll" is spelled.
+ */
+async function seedPoll(options: {
+  choices: Array<{ text: string; voters: string[] }>;
+  endsAt: Date;
+  multiple?: boolean;
+}): Promise<string> {
+  const db = getDb();
+  const [poll] = await db
+    .insert(polls)
+    .values({
+      question: 'q',
+      createdBy: `oxy-poll-fed-${randomUUID()}`,
+      endsAt: options.endsAt,
+      isMultipleChoice: options.multiple ?? false,
+    })
+    .returning({ id: polls.id });
+  createdPollIds.push(poll.id);
+
+  for (const [position, choice] of options.choices.entries()) {
+    const [option] = await db
+      .insert(pollOptions)
+      .values({ pollId: poll.id, position, text: choice.text })
+      .returning({ id: pollOptions.id });
+    for (const voter of choice.voters) {
+      await db.insert(pollVotes).values({ pollId: poll.id, optionId: option.id, userId: voter });
+    }
+  }
+  return poll.id;
+}
+
+const createdPollIds: string[] = [];
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+afterEach(async () => {
+  const ids = createdPollIds.splice(0);
+  // `poll_options` / `poll_votes` cascade from the poll row.
+  if (ids.length > 0) await getDb().delete(polls).where(inArray(polls.id, ids));
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 describe('buildCreateNoteActivity — poll → Question', () => {
@@ -138,7 +188,7 @@ describe('buildCreateNoteActivity — poll → Question', () => {
 
   it('a non-poll post still emits a plain Note (no poll fields)', () => {
     const activity = followService.buildCreateNoteActivity(
-      { _id: 'p1', content: body('just a post'), createdAt: ISO },
+      { id: 'p1', content: body('just a post'), createdAt: ISO },
       'alice',
     );
     const object = activity.object as Record<string, unknown>;
@@ -152,23 +202,22 @@ describe('buildCreateNoteActivity — poll → Question', () => {
   });
 });
 
-describe('resolvePollContext — reads the linked Poll document', () => {
+describe('resolvePollContext — reads the linked poll rows', () => {
   it('derives the Question fields and counts UNIQUE voters across options', async () => {
-    pollFindByIdLean.mockResolvedValue({
-      _id: 'poll1',
-      // u2 voted on both options — counted ONCE in votersCount, but each option's
-      // own tally still reflects its full vote list.
-      options: [
-        { text: 'Red', votes: ['u1', 'u2'] },
-        { text: 'Blue', votes: ['u2', 'u3', 'u4'] },
+    // u2 voted on both options — counted ONCE in votersCount, while each
+    // option's own tally still reflects its full ballot list.
+    const pollId = await seedPoll({
+      choices: [
+        { text: 'Red', voters: ['u1', 'u2'] },
+        { text: 'Blue', voters: ['u2', 'u3', 'u4'] },
       ],
       endsAt: FUTURE,
-      isMultipleChoice: true,
+      multiple: true,
     });
 
     const context = await followService.resolvePollContext({
-      _id: 'p1',
-      content: { ...body('vote'), pollId: 'poll1' },
+      id: 'p1',
+      content: { ...body('vote'), pollId },
       createdAt: ISO,
     });
 
@@ -185,16 +234,14 @@ describe('resolvePollContext — reads the linked Poll document', () => {
   });
 
   it('marks a poll whose deadline has passed as closed', async () => {
-    pollFindByIdLean.mockResolvedValue({
-      _id: 'poll1',
-      options: [{ text: 'Yes', votes: [] }],
+    const pollId = await seedPoll({
+      choices: [{ text: 'Yes', voters: [] }],
       endsAt: PAST,
-      isMultipleChoice: false,
     });
 
     const context = await followService.resolvePollContext({
-      _id: 'p1',
-      content: { ...body('vote'), pollId: 'poll1' },
+      id: 'p1',
+      content: { ...body('vote'), pollId },
       createdAt: ISO,
     });
 
@@ -202,32 +249,37 @@ describe('resolvePollContext — reads the linked Poll document', () => {
     expect(context?.votersCount).toBe(0);
   });
 
-  it('returns null (no DB read) when the post carries no poll', async () => {
+  it('returns null when the post carries no poll', async () => {
     const context = await followService.resolvePollContext({
-      _id: 'p1',
+      id: 'p1',
       content: body('no poll here'),
       createdAt: ISO,
     });
 
     expect(context).toBeNull();
-    expect(pollFindByIdLean).not.toHaveBeenCalled();
+  });
+
+  it('returns null when the linked poll is gone (fail-soft)', async () => {
+    const context = await followService.resolvePollContext({
+      id: 'p1',
+      content: { ...body('vote'), pollId: '019fffff-ffff-7fff-bfff-ffffffffffff' },
+      createdAt: ISO,
+    });
+
+    expect(context).toBeNull();
   });
 });
 
-describe('resolvePollContextByPost — one batched Poll read for many posts', () => {
+describe('resolvePollContextByPost — one batched read for many posts', () => {
   it('keys each poll context by post id and leaves non-poll posts absent', async () => {
-    pollFindLean.mockResolvedValue([
-      {
-        _id: 'pollA',
-        options: [{ text: 'A1', votes: ['x'] }],
-        endsAt: FUTURE,
-        isMultipleChoice: false,
-      },
-    ]);
+    const pollId = await seedPoll({
+      choices: [{ text: 'A1', voters: ['x'] }],
+      endsAt: FUTURE,
+    });
 
     const map = await followService.resolvePollContextByPost([
-      { _id: 'p1', content: { ...body('poll post'), pollId: 'pollA' }, createdAt: ISO },
-      { _id: 'p2', content: body('plain post'), createdAt: ISO },
+      { id: 'p1', content: { ...body('poll post'), pollId }, createdAt: ISO },
+      { id: 'p2', content: body('plain post'), createdAt: ISO },
     ]);
 
     expect(map.get('p1')).toEqual({

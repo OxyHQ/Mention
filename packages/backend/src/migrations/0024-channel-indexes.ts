@@ -66,21 +66,33 @@ import { MIGRATION_CHANNEL_INDEXES } from './constants';
 import { Post } from '../models/Post';
 import type { Migration } from './runner';
 
+/**
+ * Named here rather than read off a Mongoose model, because channels now live
+ * in Postgres (`channels`, `channel_members`, `channel_follows`) and the models
+ * are gone. A landed migration is frozen history: it repairs the indexes of a
+ * PRE-CUTOVER Mongo collection, so it must keep naming what that collection was
+ * called at the time and must not follow a live constant that could be renamed
+ * underneath it. `Post` is still a Mongoose model and is still read off it.
+ */
+const CHANNEL_COLLECTION = 'channels';
+const CHANNEL_MEMBER_COLLECTION = 'channelmembers';
+const CHANNEL_FOLLOW_COLLECTION = 'channelfollows';
+
 export const migrationChannelIndexes: Migration = {
   id: MIGRATION_CHANNEL_INDEXES,
 
   async run(db: mongoose.mongo.Db): Promise<void> {
-    const channels = db.collection('channels');
+    const channels = db.collection(CHANNEL_COLLECTION);
     await channels.createIndex({ handleLower: 1 }, { unique: true });
     await channels.createIndex({ ownerOxyUserId: 1, createdAt: -1 });
     await channels.createIndex({ visibility: 1, followerCount: -1, _id: -1 });
 
-    const members = db.collection('channelmembers');
+    const members = db.collection(CHANNEL_MEMBER_COLLECTION);
     await members.createIndex({ channelId: 1, oxyUserId: 1 }, { unique: true });
     await members.createIndex({ channelId: 1, status: 1 });
     await members.createIndex({ oxyUserId: 1, status: 1 });
 
-    const follows = db.collection('channelfollows');
+    const follows = db.collection(CHANNEL_FOLLOW_COLLECTION);
     await follows.createIndex({ oxyUserId: 1, channelId: 1 }, { unique: true });
     await follows.createIndex({ channelId: 1, notify: 1, _id: 1 });
 

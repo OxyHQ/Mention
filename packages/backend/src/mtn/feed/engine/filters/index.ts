@@ -8,19 +8,25 @@
 import { PostType, MtnConfig } from '@mention/shared-types';
 import type { ForYouFeedTuning, PostContent } from '@mention/shared-types';
 import { scanTextEntities } from '@mention/shared-types/textEntities';
-import { isSensitivePost, DISCOVERY_SAFE_MATCH } from '../../feedSafety';
+import { isSensitivePost } from '../../feedSafety';
 import { detectLowEffort } from '../../../../services/contentClassification/lowEffort';
 import { detectBotShape } from '../../../../services/contentClassification/botSignals';
 import { readTrustedScores } from '../../../../services/contentClassification/trustedScores';
 import { SPAM_QUALITY_CONFIG, visibleText } from '../../../../services/contentClassification/spamQuality';
 import { resolveVariant } from '../../../../services/postVariants';
-import { isReplyClause, isReplyPost, notAReplyClause } from '../../../../utils/postReply';
 import { feedModuleRegistry, FeedModuleRegistry } from '../FeedModuleRegistry';
 import type { CandidatePost, FeedEngineContext, FilterModule } from '../types';
 
-/** Read a nested field off a lean candidate without widening to `any`. */
+/**
+ * Read a field off a candidate without widening to `any`.
+ *
+ * `CandidatePost` is now a `PostRecord` — a declared shape rather than the
+ * `Record<string, unknown>` bag the Mongo lean document was — so most callers
+ * should reach for the property directly and let `tsc` check it. This survives
+ * only for the genuinely dynamic reads (a filter parameterized by field name).
+ */
 function field<T = unknown>(post: CandidatePost, key: string): T | undefined {
-  return (post as Record<string, unknown>)[key] as T | undefined;
+  return (post as unknown as Record<string, unknown>)[key] as T | undefined;
 }
 
 /** Whether the candidate carries any media attachment (mirrors the Media feed predicate). */
@@ -209,13 +215,11 @@ function authorFollowerCount(post: CandidatePost): number | undefined {
 
 /**
  * `safety`: the single sensitive/NSFW gate (wraps {@link feedSafety}). Always
- * drops sensitive posts — no viewer opt-in bypass. A Mongo clause is available
- * for query pushdown on discovery feeds.
+ * drops sensitive posts — no viewer opt-in bypass.
  */
 export const safetyFilter: FilterModule = {
   id: 'safety',
   kind: 'filter',
-  clause: () => ({ ...DISCOVERY_SAFE_MATCH }),
   keep: (post) => !isSensitivePost(post),
 };
 
@@ -263,7 +267,6 @@ export const noBoostsFilter: FilterModule = {
   id: 'noBoosts',
   kind: 'filter',
   userComposable: true,
-  clause: () => ({ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }),
   keep: (post) => {
     const boostOf = field(post, 'boostOf');
     return boostOf === undefined || boostOf === null;
@@ -272,14 +275,13 @@ export const noBoostsFilter: FilterModule = {
 
 /**
  * `noReplies`: excludes replies (posts with a parent) — locally linked or known
- * only by their federated `inReplyTo` IRI. See `utils/postReply`.
+ * only by their federated `inReplyTo` IRI — both are the stored `isReply`.
  */
 export const noRepliesFilter: FilterModule = {
   id: 'noReplies',
   kind: 'filter',
   userComposable: true,
-  clause: () => notAReplyClause(),
-  keep: (post) => !isReplyPost(post),
+  keep: (post) => !post.isReply,
 };
 
 /** `mediaOnly`: keeps only posts carrying media. */
@@ -312,11 +314,6 @@ export const recencyWindowFilter: FilterModule = {
   id: 'recencyWindow',
   kind: 'filter',
   userComposable: true,
-  clause: (_ctx, params) => {
-    const windowMs = typeof params.windowMs === 'number' ? params.windowMs : undefined;
-    if (windowMs === undefined) return undefined;
-    return { createdAt: { $gte: new Date(Date.now() - windowMs) } };
-  },
   keep: (post, _ctx, params) => {
     const windowMs = typeof params.windowMs === 'number' ? params.windowMs : undefined;
     if (windowMs === undefined) return true;
@@ -394,7 +391,6 @@ export const excludeQuotesFilter: FilterModule = {
   id: 'excludeQuotes',
   kind: 'filter',
   userComposable: true,
-  clause: () => ({ $or: [{ quoteOf: null }, { quoteOf: { $exists: false } }] }),
   keep: (post) => {
     const quoteOf = field(post, 'quoteOf');
     return quoteOf === undefined || quoteOf === null;
@@ -419,14 +415,13 @@ export const originalOnlyFilter: FilterModule = {
 
 /**
  * `onlyReplies`: keep only replies (posts with a parent) — locally linked or
- * known only by their federated `inReplyTo` IRI. See `utils/postReply`.
+ * known only by their federated `inReplyTo` IRI — both are the stored `isReply`.
  */
 export const onlyRepliesFilter: FilterModule = {
   id: 'onlyReplies',
   kind: 'filter',
   userComposable: true,
-  clause: () => isReplyClause(),
-  keep: (post) => isReplyPost(post),
+  keep: (post) => post.isReply,
 };
 
 /** `minEngagement`: keep posts meeting every provided engagement threshold. */
@@ -543,7 +538,6 @@ export const localOnlyFilter: FilterModule = {
   id: 'localOnly',
   kind: 'filter',
   userComposable: true,
-  clause: () => ({ $or: [{ federation: null }, { federation: { $exists: false } }] }),
   keep: (post) => !isFederated(post),
 };
 
@@ -552,7 +546,6 @@ export const federatedOnlyFilter: FilterModule = {
   id: 'federatedOnly',
   kind: 'filter',
   userComposable: true,
-  clause: () => ({ federation: { $exists: true, $ne: null } }),
   keep: (post) => isFederated(post),
 };
 

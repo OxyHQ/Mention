@@ -1,143 +1,175 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import mongoose from 'mongoose';
-
 /**
- * Offline, model-level test for the federated-boost-count backfill.
+ * The federated-boost-count backfill, against REAL ROWS.
  *
- * `Post.find` (the ascending `_id` page cursor), `Post.countDocuments` (the
- * per-post federated-boost count) and `Post.bulkWrite` are mocked over a small
- * in-memory store, so the REAL paging, idempotency skip, and write shape run
- * WITHOUT MongoDB — mirroring the convention from `backfillPostLanguages.test.ts`
- * (the repo has no `mongodb-memory-server` and globally mocks mongoose).
+ * The previous version of this file mocked `Post.find` / `Post.countDocuments` /
+ * `Post.bulkWrite` over an in-memory array. Two of its four cases could not fail
+ * for the right reason: the count case asserted the MOCK's filter predicate
+ * rather than the script's query, and the "reports count failures" case staged
+ * the failure with `mockRejectedValueOnce` — a rejection nothing in the script
+ * could have caused, so it proved only that a `try` exists.
+ *
+ * What a real database is needed for here is one thing above all: the script
+ * distinguishes a FEDERATED Announce from a native repost by the presence of
+ * `federation_activity_id` on the boost row. Against a mock that predicate is
+ * whatever the mock says it is. Against real rows it is the query.
+ *
+ * On the failure case, deliberately NOT reinstated: the per-post `try` now wraps
+ * a single-row UPDATE by primary key with a computed non-negative integer, so
+ * against a real database there is no honest way to make exactly one of them
+ * fail — every mechanism (a temporary trigger, a lock timeout) is a fiction
+ * bolted onto a shared table, and would assert the fiction rather than the
+ * guarantee. The half of that guarantee that IS real and reachable — a run that
+ * ends with `failed > 0` must exit non-zero rather than report success — belongs
+ * to `assertAdminRunComplete` and is covered in `adminDeletionPreflight.test.ts`.
  */
 
-interface StoredPost {
-  _id: mongoose.Types.ObjectId;
-  stats?: { federatedBoostsCount?: number };
-}
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
+import { PostType, PostVisibility } from '@mention/shared-types';
 
-/** A boost `Post` row that references an original via `boostOf`. */
-interface StoredBoost {
-  boostOf: string;
-  type: string;
-  federation?: { activityId?: string };
-}
-
-interface CapturedOp {
-  updateOne: { filter: { _id: mongoose.Types.ObjectId }; update: { $set: Record<string, unknown> } };
-}
-
-const h = vi.hoisted(() => {
-  const state: { posts: StoredPost[]; boosts: StoredBoost[] } = { posts: [], boosts: [] };
-  return { state, find: vi.fn(), countDocuments: vi.fn(), bulkWrite: vi.fn() };
-});
-
-vi.mock('../models/Post', () => ({
-  Post: { find: h.find, countDocuments: h.countDocuments, bulkWrite: h.bulkWrite },
-}));
-
+import { closePostgres, connectPostgres, getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
+import { deletePostRecord, insertPostRecord } from '../db/posts/postRepository';
+import type { PostRecordInput } from '../db/posts/postRecord';
 import { backfillFederatedBoostCounts } from '../scripts/backfillFederatedBoostCounts';
 
-beforeEach(() => {
-  h.state.posts = [];
-  h.state.boosts = [];
-  h.find.mockReset();
-  h.countDocuments.mockReset();
-  h.bulkWrite.mockReset();
-
-  h.find.mockImplementation((query: { _id?: { $gt?: mongoose.Types.ObjectId } }) => ({
-    sort: () => ({
-      limit: (n: number) => ({
-        lean: async () => {
-          const gt = query._id?.$gt;
-          return h.state.posts
-            .filter((p) => !gt || p._id.toString() > gt.toString())
-            .sort((a, b) => a._id.toString().localeCompare(b._id.toString()))
-            .slice(0, n);
-        },
-      }),
-    }),
-  }));
-
-  // Mirror the script's query: a federated boost references the original via
-  // `boostOf`, is `type: 'boost'`, and carries a `federation.activityId`.
-  h.countDocuments.mockImplementation(async (query: { boostOf: string }) =>
-    h.state.boosts.filter(
-      (b) => b.boostOf === query.boostOf && b.type === 'boost' && b.federation?.activityId != null,
-    ).length,
-  );
-
-  h.bulkWrite.mockImplementation(async (ops: CapturedOp[]) => {
-    for (const op of ops) {
-      const target = h.state.posts.find((p) => p._id.toString() === op.updateOne.filter._id.toString());
-      if (!target) continue;
-      const set = op.updateOne.update.$set;
-      target.stats = {
-        ...target.stats,
-        federatedBoostsCount: set['stats.federatedBoostsCount'] as number,
-      };
-    }
-    return { modifiedCount: ops.length };
-  });
-});
+const OWNER = 'oxy-boost-backfill-owner';
+const BOOSTER = 'oxy-boost-backfill-booster';
 
 describe('backfillFederatedBoostCounts', () => {
-  it('counts only federated Announces (not native reposts) and is idempotent', async () => {
-    const id = new mongoose.Types.ObjectId();
-    const boostOf = id.toString();
-    h.state.posts = [{ _id: id }]; // pre-field doc: no federatedBoostsCount
-    h.state.boosts = [
-      { boostOf, type: 'boost', federation: { activityId: 'https://remote/a1' } },
-      { boostOf, type: 'boost', federation: { activityId: 'https://remote/a2' } },
-      // Native repost — no federation.activityId → must NOT be counted.
-      { boostOf, type: 'boost' },
-    ];
+  const created: string[] = [];
 
-    const first = await backfillFederatedBoostCounts({ batchSize: 100 });
-    expect(first.scanned).toBe(1);
-    expect(first.updated).toBe(1);
+  async function seed(overrides: Partial<PostRecordInput> = {}): Promise<string> {
+    const owner = (overrides.oxyUserId ?? OWNER) as string;
+    const record = await insertPostRecord({
+      oxyUserId: owner,
+      authorship: [{ oxyUserId: owner, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: { variants: [{ source: 'author', text: 'original', tag: 'en' }] },
+      ...overrides,
+    });
+    created.push(record.id);
+    return record.id;
+  }
 
-    const after = h.state.posts.find((p) => p._id.equals(id));
-    expect(after?.stats?.federatedBoostsCount).toBe(2);
+  /** A boost row. Federated when `activityId` is supplied, native otherwise. */
+  async function seedBoost(boostOf: string, activityId?: string): Promise<string> {
+    return seed({
+      oxyUserId: BOOSTER,
+      type: PostType.BOOST,
+      content: {},
+      boostOf,
+      ...(activityId
+        ? { federation: { activityId, actorUri: 'https://remote.example/users/booster' } }
+        : {}),
+    });
+  }
 
-    // Second run finds the count already correct (idempotent — no writes).
-    h.bulkWrite.mockClear();
-    const second = await backfillFederatedBoostCounts({ batchSize: 100 });
-    expect(second.updated).toBe(0);
-    expect(h.bulkWrite).not.toHaveBeenCalled();
+  async function readRow(id: string): Promise<{ count: number; updatedAt: Date }> {
+    const [row] = await getDb()
+      .select({ count: posts.statsFederatedBoostsCount, updatedAt: posts.updatedAt })
+      .from(posts)
+      .where(eq(posts.id, id));
+    return row;
+  }
+
+  beforeAll(async () => {
+    await connectPostgres();
   });
 
-  it('leaves posts with no federated boosts untouched (no write)', async () => {
-    const id = new mongoose.Types.ObjectId();
-    h.state.posts = [{ _id: id, stats: { federatedBoostsCount: 0 } }];
-    h.state.boosts = [{ boostOf: id.toString(), type: 'boost' }]; // native only
-
-    const result = await backfillFederatedBoostCounts({ batchSize: 100 });
-
-    expect(result.scanned).toBe(1);
-    expect(result.updated).toBe(0);
-    expect(h.bulkWrite).not.toHaveBeenCalled();
+  afterEach(async () => {
+    // Newest first: a boost references the original it must be deleted before.
+    for (const id of created.splice(0).reverse()) {
+      await deletePostRecord(id, undefined);
+    }
   });
 
-  it('does not write when dryRun is set, but still reports what it would update', async () => {
-    const id = new mongoose.Types.ObjectId();
-    h.state.posts = [{ _id: id }];
-    h.state.boosts = [{ boostOf: id.toString(), type: 'boost', federation: { activityId: 'https://remote/a1' } }];
-
-    const result = await backfillFederatedBoostCounts({ dryRun: true });
-
-    expect(result.updated).toBe(1);
-    expect(h.bulkWrite).not.toHaveBeenCalled();
-    expect(h.state.posts[0].stats?.federatedBoostsCount).toBeUndefined();
+  afterAll(async () => {
+    await closePostgres();
   });
 
-  it('reports count failures instead of silently completing a partial scan', async () => {
-    h.state.posts = [{ _id: new mongoose.Types.ObjectId() }];
-    h.countDocuments.mockRejectedValueOnce(new Error('count unavailable'));
+  it('counts federated Announces only, never native reposts, and is idempotent', async () => {
+    const original = await seed();
+    await seedBoost(original, `https://remote.example/a/${randomUUID()}`);
+    await seedBoost(original, `https://remote.example/a/${randomUUID()}`);
+    // A native repost: `boost_of` + `type = 'boost'` but no federation activity
+    // id. It must NOT be counted — that distinction is the whole script.
+    await seedBoost(original);
 
-    const result = await backfillFederatedBoostCounts({ batchSize: 100 });
+    const first = await backfillFederatedBoostCounts({ postIds: [original] });
+    expect(first).toEqual({ scanned: 1, updated: 1, failed: 0 });
+    expect((await readRow(original)).count).toBe(2);
 
-    expect(result).toEqual({ scanned: 1, updated: 0, failed: 1 });
-    expect(h.bulkWrite).not.toHaveBeenCalled();
+    // Idempotency asserted on the ROW, not on a call count: a second run that
+    // wrote would move `updated_at`, since the column carries `$onUpdate`.
+    const before = await readRow(original);
+    const second = await backfillFederatedBoostCounts({ postIds: [original] });
+    expect(second).toEqual({ scanned: 1, updated: 0, failed: 0 });
+    expect(await readRow(original)).toEqual(before);
+  });
+
+  it('corrects a stored count DOWNWARD when federated boosts were undone', async () => {
+    // The direction that matters operationally: an Undo(Announce) deletes the
+    // boost row, so a stale stored count is too HIGH. A backfill that only ever
+    // raised the number would leave it wrong and report success.
+    const original = await seed();
+    const boost = await seedBoost(original, `https://remote.example/a/${randomUUID()}`);
+    await backfillFederatedBoostCounts({ postIds: [original] });
+    expect((await readRow(original)).count).toBe(1);
+
+    await deletePostRecord(boost, undefined);
+    created.splice(created.indexOf(boost), 1);
+
+    const result = await backfillFederatedBoostCounts({ postIds: [original] });
+    expect(result).toEqual({ scanned: 1, updated: 1, failed: 0 });
+    expect((await readRow(original)).count).toBe(0);
+  });
+
+  it('leaves an already-correct post untouched — no write at all', async () => {
+    const original = await seed();
+    await seedBoost(original); // native only, so the correct count is the stored 0
+
+    const before = await readRow(original);
+    const result = await backfillFederatedBoostCounts({ postIds: [original] });
+
+    expect(result).toEqual({ scanned: 1, updated: 0, failed: 0 });
+    expect(await readRow(original)).toEqual(before);
+  });
+
+  it('reports what it would update under dryRun, and writes nothing', async () => {
+    const original = await seed();
+    await seedBoost(original, `https://remote.example/a/${randomUUID()}`);
+
+    const before = await readRow(original);
+    const result = await backfillFederatedBoostCounts({ postIds: [original], dryRun: true });
+
+    expect(result).toEqual({ scanned: 1, updated: 1, failed: 0 });
+    // Both halves are load-bearing: the count is still 0 AND the row was never
+    // rewritten with the same value, which `updated_at` is what proves.
+    expect(await readRow(original)).toEqual(before);
+    expect(before.count).toBe(0);
+  });
+
+  it('pages with a stable ascending cursor rather than revisiting or skipping', async () => {
+    // Three originals with distinct true counts, swept at a page size of TWO —
+    // deliberately not one. With a page of one, `page[0]` and
+    // `page[page.length - 1]` are the same row, so a cursor taking the FIRST id
+    // of the page instead of the last is indistinguishable from a correct one;
+    // mutating the script that way passed this test until the page size grew.
+    // At two, a first-id cursor re-reads the overlap and `scanned` climbs.
+    const originals = [await seed(), await seed(), await seed()];
+    await seedBoost(originals[0], `https://remote.example/a/${randomUUID()}`);
+    await seedBoost(originals[2], `https://remote.example/a/${randomUUID()}`);
+    await seedBoost(originals[2], `https://remote.example/a/${randomUUID()}`);
+
+    const result = await backfillFederatedBoostCounts({ postIds: originals, batchSize: 2 });
+
+    expect(result).toEqual({ scanned: 3, updated: 2, failed: 0 });
+    expect(
+      await Promise.all(originals.map(async (id) => (await readRow(id)).count)),
+    ).toEqual([1, 0, 2]);
   });
 });

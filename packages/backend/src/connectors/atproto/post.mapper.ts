@@ -1,8 +1,10 @@
 import { PostVisibility } from '@mention/shared-types';
 import { normalizeMultilineText } from '@oxyhq/core';
 import { logger } from '../../utils/logger';
-import { Post } from '../../models/Post';
-import FederatedActor from '../../models/FederatedActor';
+import { inArray } from 'drizzle-orm';
+import { getDb } from '../../db/postgres';
+import { posts } from '../../db/schema/posts';
+import { findActorByUri } from '../../db/federation/actorRepository';
 import { normalizeAlt } from '../../services/MediaMetadataService';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { mapWithConcurrency } from '../../utils/concurrency';
@@ -16,8 +18,8 @@ import { clampFutureDate } from '../../utils/ingestTimestamp';
 
 /**
  * Maps Bluesky `app.bsky.feed.post` records (from `app.bsky.feed.getAuthorFeed`)
- * into native `Post` rows via the SAME `getPostCreator().create({...})` path the
- * ActivityPub ingest uses, deduped on `Post.federation.activityId` (the AT-URI),
+ * into native `posts` rows via the SAME `getPostCreator().create({...})` path the
+ * ActivityPub ingest uses, deduped on `posts.federation_activity_id` (the AT-URI),
  * with remote media mirrored to Oxy S3 by the shared `materializeFederatedMedia`.
  */
 
@@ -400,7 +402,7 @@ function isDuplicateKeyError(err: unknown): boolean {
 
 /**
  * Resolve a mentioned atproto DID to its Oxy user id. Prefers an already-synced
- * `FederatedActor` (no network round trip); otherwise resolves + mints the actor
+ * `federated_actors` row (no network round trip); otherwise resolves + mints the actor
  * through the shared atproto profile path (`fetchAndUpsertAtprotoProfile`). Returns
  * undefined (fail-soft) when the DID cannot be resolved to an Oxy user — the caller
  * then leaves the bare `@handle` display text rather than minting a broken link.
@@ -410,10 +412,8 @@ async function resolveAtprotoMentionOxyId(
   allowIdentityMutation = true,
 ): Promise<string | undefined> {
   try {
-    const existing = await FederatedActor.findOne({ uri: did })
-      .select('oxyUserId')
-      .lean<{ oxyUserId?: string } | null>();
-    if (existing?.oxyUserId) return String(existing.oxyUserId);
+    const existing = await findActorByUri(did);
+    if (existing?.oxyUserId) return existing.oxyUserId;
   } catch (err) {
       logger.warn('[atproto] mention actor lookup failed', err);
   }
@@ -457,26 +457,29 @@ async function resolveThreadAndQuoteLinks(
   const uris = [inReplyTo, quotedUri].filter((uri): uri is string => typeof uri === 'string' && uri.length > 0);
   if (uris.length === 0) return {};
 
-  const docs = await Post.find({ 'federation.activityId': { $in: uris } })
-    .select('_id threadId federation.activityId')
-    .lean<Array<{ _id: unknown; threadId?: string; federation?: { activityId?: string } }>>();
-  const byUri = new Map<string, { _id: unknown; threadId?: string }>();
-  for (const doc of docs) {
-    const uri = doc.federation?.activityId;
-    if (uri) byUri.set(uri, doc);
-  }
+  const docs = await getDb()
+    .select({
+      id: posts.id,
+      threadId: posts.threadId,
+      activityId: posts.federationActivityId,
+    })
+    .from(posts)
+    .where(inArray(posts.federationActivityId, uris));
+  const byUri = new Map(
+    docs.flatMap((doc) => (doc.activityId ? [[doc.activityId, doc] as const] : [])),
+  );
 
   const links: { parentPostId?: string; threadId?: string; quoteOf?: string } = {};
   if (inReplyTo) {
     const parent = byUri.get(inReplyTo);
     if (parent) {
-      links.parentPostId = String(parent._id);
-      links.threadId = parent.threadId ? String(parent.threadId) : String(parent._id);
+      links.parentPostId = parent.id;
+      links.threadId = parent.threadId ?? parent.id;
     }
   }
   if (quotedUri) {
     const quoted = byUri.get(quotedUri);
-    if (quoted) links.quoteOf = String(quoted._id);
+    if (quoted) links.quoteOf = quoted.id;
   }
   return links;
 }
@@ -577,7 +580,7 @@ export async function importAuthorFeed(
     return { posts: [] };
   }
   // Stamp the actor's instance domain (e.g. `bsky.social`) on imported posts —
-  // matching the AP convention (`Post.instanceDomain` = the actor's host), not
+  // matching the AP convention (the post's instance domain = the actor's host), not
   // the bare full handle.
   const instanceDomain = actor.instanceDomain;
 
@@ -617,13 +620,13 @@ export async function importAuthorFeed(
   // Dedup against AT-URIs already imported (the unique sparse
   // `federation.activityId` index is the backstop for concurrent races).
   const atUris = normalized.map((post) => post.activityId);
-  const existingDocs = await Post.find({ 'federation.activityId': { $in: atUris } })
-    .select('federation.activityId')
-    .lean();
+  const existingDocs = await getDb()
+    .select({ activityId: posts.federationActivityId })
+    .from(posts)
+    .where(inArray(posts.federationActivityId, atUris));
   const seen = new Set<string>();
   for (const doc of existingDocs) {
-    const id = (doc as { federation?: { activityId?: string } }).federation?.activityId;
-    if (id) seen.add(id);
+    if (doc.activityId) seen.add(doc.activityId);
   }
 
   const imported: NormalizedExternalPost[] = [];
@@ -847,13 +850,13 @@ export async function importPostViews(postViews: ReadonlyArray<AtprotoPostView |
   // post all have a local `Post`; only a genuine creation failure has none, and the
   // caller's load naturally drops it.
   const atUris = mapped.map((entry) => entry.uri);
-  const existingDocs = await Post.find({ 'federation.activityId': { $in: atUris } })
-    .select('federation.activityId')
-    .lean();
+  const existingDocs = await getDb()
+    .select({ activityId: posts.federationActivityId })
+    .from(posts)
+    .where(inArray(posts.federationActivityId, atUris));
   const seen = new Set<string>();
   for (const doc of existingDocs) {
-    const id = (doc as { federation?: { activityId?: string } }).federation?.activityId;
-    if (id) seen.add(id);
+    if (doc.activityId) seen.add(doc.activityId);
   }
 
   for (const entry of mapped) {

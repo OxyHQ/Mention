@@ -10,7 +10,14 @@ import {
   type WebFingerJrd,
 } from '@oxyhq/federation/node';
 import { logger } from '../../utils/logger';
-import FederatedActor, { type IFederatedActor } from '../../models/FederatedActor';
+import { withEngineId, type EngineFederatedActorRecord } from '../../db/federation/actorRecord';
+import {
+  findActorByPublicKeyId,
+  findActorByUri,
+  setActorOxyUserId,
+  tombstoneActor,
+  upsertActor,
+} from '../../db/federation/actorRepository';
 import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
 import { federationBridges } from './federationBridgePolicy';
 import { qualifyBareHandles } from '@mention/shared-types/textEntities';
@@ -41,36 +48,32 @@ const WEBFINGER_TIMEOUT_MS = 10000;
 const WEBFINGER_MAX_BYTES = 256 * 1024;
 
 /**
- * Mention's actor CACHE store: the AP-specific `FederatedActor` rows stay in
- * Mention's Mongo, reached through this adapter. The exact Mongoose calls are
- * unchanged from the previous `ActorService`.
+ * Mention's actor CACHE store: the AP-specific `federated_actors` rows stay in
+ * Mention's Postgres, reached through this adapter. Every query lives in
+ * `db/federation/actorRepository.ts`; this only adapts the shapes the engine's
+ * interface names.
  */
-const store: FederatedActorStore<IFederatedActor> = {
-  findActorByUri: (uri) => FederatedActor.findOne({ uri }).lean<IFederatedActor>(),
-  upsertActor: (uri, update: FederatedActorUpsert) =>
-    FederatedActor.findOneAndUpdate(
-      { uri },
-      // `networkAcct` is absent for an ordinary actor, and an absent key in a
-      // `$set` simply leaves the column alone — which would strand a stale value
-      // on a row that STOPPED being bridged (a bridge removed from the policy, or
-      // an actor that no longer satisfies its rule). Unset it explicitly so the
-      // row can never keep claiming an identity it no longer derives.
-      update.networkAcct === undefined
-        ? { $set: update, $unset: { networkAcct: 1 } }
-        : { $set: update },
-      { upsert: true, returnDocument: 'after', lean: true },
-    ) as Promise<IFederatedActor | null>,
-  findActorByPublicKeyId: (keyId) =>
-    FederatedActor.findOne({ publicKeyId: keyId }).lean<IFederatedActor>(),
-  setActorOxyUserId: async (actorId, oxyUserId) => {
-    await FederatedActor.updateOne({ _id: actorId }, { $set: { oxyUserId } });
+const store: FederatedActorStore<EngineFederatedActorRecord> = {
+  findActorByUri: async (uri) => withEngineId(await findActorByUri(uri)),
+  upsertActor: async (uri, update: FederatedActorUpsert) => {
+    // `fields` is the one part of the write that is a second TABLE rather than a
+    // column, so it is split out here and the repository replaces the whole list
+    // inside the same transaction as the row.
+    //
+    // An absent `networkAcct` CLEARS the column rather than leaving it alone —
+    // `upsertActor` writes every optional column as `?? null` — which is what a
+    // row that STOPPED being bridged needs (a bridge removed from the policy, or
+    // an actor that no longer satisfies its rule): it must not keep claiming an
+    // identity it no longer derives. Mongo needed an explicit `$unset` for the
+    // same behaviour, because an absent key in a `$set` is a no-op there.
+    const { fields, uri: _uri, ...columns } = update;
+    return withEngineId(await upsertActor(uri, columns, fields));
   },
-  tombstoneActor: (uri) =>
-    FederatedActor.findOneAndUpdate(
-      { uri },
-      { $set: { suspended: true } },
-      { returnDocument: 'after', projection: { oxyUserId: 1 } },
-    ).lean<Pick<IFederatedActor, 'oxyUserId'>>(),
+  findActorByPublicKeyId: async (keyId) => withEngineId(await findActorByPublicKeyId(keyId)),
+  setActorOxyUserId: async (actorId, oxyUserId) => {
+    await setActorOxyUserId(String(actorId), oxyUserId);
+  },
+  tombstoneActor: (uri) => tombstoneActor(uri),
 };
 
 /**
@@ -108,7 +111,7 @@ const fetchWebFinger: WebFingerFetch = async (url) => {
  * no error anywhere. Both sides of that hook were green while Mention's bios
  * stayed unqualified. Naming the object is what lets a test look.
  */
-export const activityPubActorResolverConfig: ActorResolverConfig<IFederatedActor> = {
+export const activityPubActorResolverConfig: ActorResolverConfig<EngineFederatedActorRecord> = {
   federationEnabled: FEDERATION_ENABLED,
   signedFetch,
   fetchWebFinger,
@@ -165,6 +168,6 @@ export const activityPubActorResolverConfig: ActorResolverConfig<IFederatedActor
   },
 };
 
-export const actorService = createActorResolver<IFederatedActor>(activityPubActorResolverConfig);
+export const actorService = createActorResolver<EngineFederatedActorRecord>(activityPubActorResolverConfig);
 
 export default actorService;

@@ -1,13 +1,13 @@
 import { logger } from '../utils/logger';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
-import UserSettings from '../models/UserSettings';
+import { updateUserSettings } from '../db/userProfile/userSettingsRepository';
 import { invalidate as invalidateUserSummaryCache } from '../services/userSummaryCache';
 import { persistRemoteMediaForFederatedOwnerDetailed } from '../services/mediaCache/cacheWorker';
 import { FEDERATED_BANNER_DOWNLOAD_POLICY } from '../services/mediaCache/policy';
 import { isAbsoluteHttpUrl, getRemoteHost } from './shared/url';
 import type { NormalizedExternalActor } from '@oxyhq/federation';
 import { createIdentityBridge, type ServiceRequest, type ServiceRequestMethod } from '@oxyhq/federation/node';
-import FederatedActor, { type IFederatedActor } from '../models/FederatedActor';
+import { findIdentityOwnerActor } from '../db/federation/actorRepository';
 
 /**
  * The network-neutral identity bridge: resolve a normalized external actor to its
@@ -68,34 +68,6 @@ export const reportFederatedActorGone = identityBridge.reportActorGone;
 export const deleteFederatedActorIdentity = identityBridge.deleteActorIdentity;
 
 /**
- * The `<local>@<domain>` identity a stored actor row is held under.
- *
- * A BRIDGED row carries it explicitly in `networkAcct`, because its identity is
- * not derivable from the host it arrived through. Every other row's identity IS
- * `username@domain` — which is how the atproto connector stores a Bluesky
- * account (`georgemonbiot` + `bsky.social`) without ever writing `networkAcct`.
- *
- * Both shapes have to be searchable or the merge below cannot see across them,
- * and the pair it most needs to see across is exactly that one: a Bluesky account
- * we hold NATIVELY over atproto and AGAIN over ActivityPub through Bridgy Fed.
- * Matching only `networkAcct` would miss all 10,066 native rows — and the
- * alternative, backfilling `networkAcct` onto every one of them, buys nothing a
- * second query branch does not.
- */
-function identityQueryShapes(federatedUsername: string): Record<string, unknown>[] {
-  const atIndex = federatedUsername.indexOf('@');
-  const shapes: Record<string, unknown>[] = [{ networkAcct: federatedUsername }];
-  if (atIndex > 0 && atIndex < federatedUsername.length - 1) {
-    shapes.push({
-      networkAcct: { $exists: false },
-      username: federatedUsername.slice(0, atIndex),
-      domain: federatedUsername.slice(atIndex + 1),
-    });
-  }
-  return shapes;
-}
-
-/**
  * Resolve a normalized actor to its Oxy user, MERGING separate copies of the same
  * upstream person into one identity.
  *
@@ -139,14 +111,10 @@ export async function resolveFederatedActorIdentity(
   }
 
   try {
-    const owner = await FederatedActor.findOne(
-      {
-        $or: identityQueryShapes(actor.federatedUsername),
-        uri: { $ne: actor.externalId },
-        oxyUserId: { $exists: true, $ne: null },
-      },
-      { uri: 1, domain: 1, oxyUserId: 1 },
-    ).lean<Pick<IFederatedActor, 'uri' | 'domain' | 'oxyUserId'>>();
+    const owner = await findIdentityOwnerActor({
+      federatedUsername: actor.federatedUsername,
+      excludeUri: actor.externalId,
+    });
 
     // A valid collision has EXACTLY ONE actor per source domain. A bridge holds
     // one actor per upstream handle, so two actors on the SAME domain resolving
@@ -261,11 +229,9 @@ export async function mirrorFederatedBanner(
     );
 
     if (result.ok) {
-      await UserSettings.updateOne(
-        { oxyUserId },
-        { $set: { profileHeaderImage: result.media.oxyFileId } },
-        { upsert: true },
-      );
+      await updateUserSettings(oxyUserId, {
+        set: { profileHeaderImage: result.media.oxyFileId },
+      });
       return { ok: true, permanent: false };
     }
 

@@ -4,11 +4,12 @@ import type {
   NetworkId,
   NormalizedExternalActor,
   LocalNetworkEvent,
+  LocalPostEventPayload,
   ReceiveContext,
   FetchPostsOptions,
   FetchPostsResult,
 } from '@oxyhq/federation';
-import type { IFederatedActor } from '../../models/FederatedActor';
+import { withEngineId, type FederatedActorRecord } from '../../db/federation/actorRecord';
 import { resolveFederatedActorIdentity } from '../identity';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorService } from './actor.service';
@@ -38,6 +39,23 @@ export {
 };
 
 /**
+ * The app↔SDK id translation, in the ONE place the seam is crossed inbound.
+ *
+ * `@oxyhq/federation`'s event payloads still spell a post's id `_id` (they were
+ * written against Mongo documents and the package is shared with apps that have
+ * not been ported). Mention's post id is `posts.id`, a uuid v7 string, so every
+ * Mention-owned shape below this line — `NoteSourcePost` included — says `id`.
+ * Translating here rather than at each `followService` call keeps the foreign
+ * spelling from leaking into the Note builders, and leaves exactly one line to
+ * delete when the federation package renames the field.
+ */
+function toNoteSource(
+  post: LocalPostEventPayload<PostContent>,
+): NoteSourcePost & { visibility: string } {
+  return { ...post, id: String(post._id) };
+}
+
+/**
  * The `<local>@<domain>` identity a BRIDGED actor row is held under, or
  * `undefined` for the ordinary actor whose identity is its own protocol acct.
  *
@@ -49,9 +67,13 @@ export {
  * user, which is exactly the state a first-ever ingest leaves it in, and
  * `PUT /users/resolve` keys on the actor URI — so the fallback would rename the
  * user the ingest just re-labelled straight back to its bridge handle.
+ *
+ * Typed against `FederatedActorRecord` rather than the deleted `IFederatedActor`:
+ * `network_acct` is a column on `federated_actors` and the record carries it, so
+ * the feature ports across unchanged.
  */
 function bridgedIdentity(
-  actor: IFederatedActor,
+  actor: FederatedActorRecord,
 ): { federatedUsername: string; instanceDomain: string } | undefined {
   const networkAcct = actor.networkAcct;
   if (!networkAcct) return undefined;
@@ -146,7 +168,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
   async deliver(event: LocalNetworkEvent<PostContent>): Promise<void> {
     switch (event.kind) {
       case 'post.create':
-        await followService.federateNewPost(event.post, event.actorOxyUserId, event.actorUsername);
+        await followService.federateNewPost(toNoteSource(event.post), event.actorOxyUserId, event.actorUsername);
         break;
       case 'post.boost':
         // A boost federates as an Announce of the original's canonical AP id,
@@ -159,12 +181,12 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
       case 'post.update':
         // An edit re-federates the Note as an Update (with an `updated` stamp),
         // preserving the reply enrichment via the shared Note builder.
-        await followService.federateUpdate(event.post, event.actorOxyUserId, event.actorUsername);
+        await followService.federateUpdate(toNoteSource(event.post), event.actorOxyUserId, event.actorUsername);
         break;
       case 'post.delete':
         // A deletion broadcasts a Delete(Tombstone) of the post's canonical AP id
         // to the deleter's followers.
-        await followService.federateDelete(event.post, event.actorOxyUserId, event.actorUsername);
+        await followService.federateDelete({ id: String(event.post._id) }, event.actorOxyUserId, event.actorUsername);
         break;
       case 'post.like':
         // A like of a FEDERATED post sends a Like to the origin author's inbox
@@ -221,9 +243,15 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
       await this.deliver(event);
       return;
     }
-    await followService.federateNewPost(event.post, event.actorOxyUserId, event.actorUsername, {
-      extraAudienceOxyUserIds: audienceOxyUserIds,
-    });
+    await followService.federateNewPost(
+      // The SDK→app half of the id translation, through the SAME `toNoteSource`
+      // {@link deliver} uses — a `LocalPostEventPayload` says `_id`, and every
+      // Note builder below this line reads `id`.
+      toNoteSource(event.post),
+      event.actorOxyUserId,
+      event.actorUsername,
+      { extraAudienceOxyUserIds: audienceOxyUserIds },
+    );
   }
 
   /**
@@ -273,8 +301,8 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     return resolveFederatedActorIdentity(actor);
   }
 
-  /** Map a stored {@link IFederatedActor} to the network-neutral shape. */
-  private normalizeActor(actor: IFederatedActor): NormalizedExternalActor {
+  /** Map a stored {@link FederatedActorRecord} to the network-neutral shape. */
+  private normalizeActor(actor: FederatedActorRecord): NormalizedExternalActor {
     const bridged = bridgedIdentity(actor);
     return {
       network: 'activitypub',
@@ -307,16 +335,21 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     return actorService.resolveWebFinger(acct);
   }
 
-  fetchRemoteActor(actorUri: string, forceAvatarRefresh = false, acctHint?: string): Promise<IFederatedActor | null> {
+  fetchRemoteActor(actorUri: string, forceAvatarRefresh = false, acctHint?: string): Promise<FederatedActorRecord | null> {
     return actorService.fetchRemoteActor(actorUri, forceAvatarRefresh, acctHint);
   }
 
-  getOrFetchActor(actorUri: string): Promise<IFederatedActor | null> {
+  getOrFetchActor(actorUri: string): Promise<FederatedActorRecord | null> {
     return actorService.getOrFetchActor(actorUri);
   }
 
-  refreshActorInBackground(actorUri: string, existing?: IFederatedActor): void {
-    actorService.refreshActorInBackground(actorUri, existing);
+  refreshActorInBackground(actorUri: string, existing?: FederatedActorRecord): void {
+    // `withEngineId` because the resolver is generic over the record shape it
+    // stores, and that shape carries the engine's `_id` alias. Nothing on THIS
+    // path reads it — the recency/incompleteness skip only looks at
+    // `lastFetchedAt` and the profile fields — so the alias is here purely to
+    // satisfy the generic, and callers keep passing plain records.
+    actorService.refreshActorInBackground(actorUri, existing && withEngineId(existing));
   }
 
   fetchPublicKey(keyId: string): Promise<{ publicKeyPem: string; actorUri: string } | null> {
@@ -329,21 +362,21 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
   // ============================================================
 
   syncOutboxPosts(
-    actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string },
+    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string },
     limit = 20,
   ): Promise<number> {
     return outboxSyncService.syncOutboxPosts(actor, limit);
   }
 
   syncOutboxPostsDetailed(
-    actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string },
+    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string },
     limitOrOptions: number | OutboxSyncOptions = 20,
   ): Promise<OutboxSyncResult> {
     return outboxSyncService.syncOutboxPostsDetailed(actor, limitOrOptions);
   }
 
   markOutboxBackfillUnavailable(
-    actor: Pick<IFederatedActor, 'outboxUrl' | 'acct'> & { _id: unknown },
+    actor: Pick<FederatedActorRecord, 'id' | 'outboxUrl'>,
     reason?: string,
   ): Promise<void> {
     return outboxSyncService.markOutboxBackfillUnavailable(actor, reason);

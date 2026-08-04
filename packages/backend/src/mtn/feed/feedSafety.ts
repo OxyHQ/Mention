@@ -9,11 +9,10 @@
  * term — updates every feed at once, and no surface can silently diverge.
  *
  * Two equivalent forms are exported so callers use whichever fits their data path:
- *   - Mongo `$match` clauses ({@link SENSITIVE_EXCLUDE_MATCH},
- *     {@link NSFW_HASHTAG_EXCLUDE_MATCH}, {@link DISCOVERY_SAFE_MATCH}) for
- *     query/aggregation-level exclusion, and
+ *   - SQL predicates ({@link sensitiveExcludeSql}, {@link nsfwHashtagExcludeSql},
+ *     {@link discoverySafeSql}) for query-level exclusion, and
  *   - the in-memory predicate ({@link isSfw} / {@link isDiscoverable}) +
- *     {@link filterDiscoverable} for filtering already-fetched lean documents.
+ *     {@link filterDiscoverable} for filtering already-fetched rows.
  *
  * A third export, {@link requiresContentWarning}, widens the gate for surfaces that
  * cannot render a warning at all (OpenGraph unfurls, plain-text notification
@@ -22,21 +21,33 @@
  *
  * Both forms encode the SAME definition of "sensitive": a post is sensitive when
  * ANY of the three independent flags is set — the unified classifier verdict
- * (`postClassification.sensitive`), the legacy content-warning flag
- * (`metadata.isSensitive`), or the federated actor's own sensitivity flag
- * (`federation.sensitive`) — OR it carries an NSFW/adult hashtag
- * ({@link isNsfwHashtag}). The Mongo NSFW-hashtag clause keys off the stored
- * canonical `hashtags` array; the predicate additionally covers any caller-shaped
- * post the same way.
+ * (`classification_sensitive`), the legacy content-warning flag
+ * (`metadata_is_sensitive`), or the federated actor's own sensitivity flag
+ * (`federation_sensitive`) — OR it carries an NSFW/adult hashtag
+ * ({@link isNsfwHashtag}). The SQL NSFW-hashtag predicate keys off the stored
+ * canonical `hashtags` array; the in-memory predicate additionally covers any
+ * caller-shaped post the same way.
  */
 
+import { sql, type SQL } from 'drizzle-orm';
+import { qualified } from '../../db/casing';
+import { inList } from '../../db/schema/columns';
+import { posts } from '../../db/schema/posts';
 import { NSFW_HASHTAGS, isNsfwHashtag } from '../../services/contentClassification/nsfw';
 
 /**
- * Canonical Mongo `$match` clause excluding classifier/metadata/federation-flagged
- * sensitive posts. Spread into a query or `$match` stage:
- * `{ visibility: 'public', ...SENSITIVE_EXCLUDE_MATCH }`. Frozen so a consumer
- * cannot mutate the shared object.
+ * Mongo `$match` clauses — RETAINED ONLY for the consumers that are still on
+ * Mongoose, and deleted by the batch that ports them.
+ *
+ * `routes/search.ts` and `services/TrendingService.ts` still issue Mongo
+ * queries. A helper that spans an unfinished, deliberately BATCHED cutover has
+ * to speak both stores for exactly as long as that is true, and the alternative
+ * — each of those files inlining its own copy of the sensitive-flag rule — is
+ * how this module came to exist in the first place (`ForYouFeed.fetchPopular`
+ * shipped without the filter and leaked NSFW into For You).
+ *
+ * The three flags are stated ONCE per store, immediately adjacent, so a reviewer
+ * comparing them sees both in one screen.
  */
 export const SENSITIVE_EXCLUDE_MATCH: Readonly<Record<string, unknown>> = Object.freeze({
   'postClassification.sensitive': { $ne: true },
@@ -44,26 +55,83 @@ export const SENSITIVE_EXCLUDE_MATCH: Readonly<Record<string, unknown>> = Object
   'federation.sensitive': { $ne: true },
 });
 
-/**
- * Canonical Mongo `$match` clause excluding posts whose stored `hashtags` array
- * contains an NSFW/adult-blocklisted tag. Hashtags are stored canonically
- * (lowercase, `#`-stripped), matching the blocklist slugs, so a `$nin` over the
- * blocklist is exact. Frozen so the embedded array can't be mutated.
- */
+/** Mongo counterpart of {@link nsfwHashtagExcludeSql}. See above for its lifetime. */
 export const NSFW_HASHTAG_EXCLUDE_MATCH: Readonly<Record<string, unknown>> = Object.freeze({
   hashtags: { $nin: Array.from(NSFW_HASHTAGS) },
 });
 
-/**
- * The combined discovery-safety Mongo `$match` clause: excludes BOTH
- * classifier/metadata/federation-flagged sensitive content AND NSFW-hashtag
- * posts. Spread into any discovery query/aggregation `$match`:
- * `{ visibility: 'public', ...DISCOVERY_SAFE_MATCH }`.
- */
+/** Mongo counterpart of {@link discoverySafeSql}. See above for its lifetime. */
 export const DISCOVERY_SAFE_MATCH: Readonly<Record<string, unknown>> = Object.freeze({
   ...SENSITIVE_EXCLUDE_MATCH,
   ...NSFW_HASHTAG_EXCLUDE_MATCH,
 });
+
+/**
+ * The Postgres form of {@link SENSITIVE_EXCLUDE_MATCH}, for `posts`.
+ * Compose at the call site: `and(eq(posts.visibility, 'public'), sensitiveExcludeSql())`.
+ *
+ * Two ports of this predicate were written independently and merged here; where
+ * they differed, both reasons are kept because each covers something the other
+ * does not.
+ *
+ * `is not true` — equivalently `is distinct from true` — rather than `<> true`
+ * or `= false`, is the whole translation of Mongo's `$ne: true`: two of the three
+ * columns are NULLABLE (a post that was never classified, a local post with no
+ * federation subdocument), and `<>` against NULL yields NULL, so a `where` built
+ * that way would silently DROP every unclassified post from every discovery
+ * surface. `is not true` is TRUE for both `false` and NULL, which is exactly the
+ * set `$ne: true` matched.
+ *
+ * Every column reference is `qualified()`, and these are the clauses where that
+ * matters most: they are SHARED, so unlike a predicate written inline they have
+ * no idea what statement they will end up in. Measured against drizzle 0.45.2,
+ * an interpolated column loses its table prefix in exactly one position — the
+ * SELECT LIST of a single-table select — and whether a query is single-table is
+ * a property that flips the moment someone adds or removes a join. Qualifying
+ * makes the rendering independent of all that. The cost is that these clauses
+ * only work against `posts` UNALIASED, which is how every caller uses it.
+ *
+ * These are functions rather than exported `SQL` constants so that every call
+ * site gets its own instance; a shared frozen predicate is fine today but makes
+ * any future per-caller parameterisation a breaking change across 20-odd sites.
+ */
+export function sensitiveExcludeSql(): SQL {
+  return sql`(
+    ${qualified(posts.classificationSensitive)} is not true
+    and ${qualified(posts.metadataIsSensitive)} is not true
+    and ${qualified(posts.federationSensitive)} is not true
+  )`;
+}
+
+/**
+ * The Postgres form of {@link NSFW_HASHTAG_EXCLUDE_MATCH}, for `posts`.
+ *
+ * `&&` is array OVERLAP, so `not (hashtags && blocklist)` is "no stored hashtag is
+ * on the blocklist" — Mongo's `$nin` over a multikey field. Hashtags are stored
+ * canonically (lowercase, `#`-stripped), matching the blocklist slugs, so the
+ * overlap is exact.
+ *
+ * The `coalesce(…, false)` is load-bearing, not defensive noise: `posts.hashtags`
+ * is NULLABLE (`default: undefined` in Mongo meant "absent", which the schema
+ * preserves as a column with no default), `NULL && ARRAY[…]` is NULL, and a bare
+ * `NOT NULL` is NULL — so without it every post that never got a hashtag, the
+ * overwhelming majority, silently vanishes from every discovery feed with no
+ * error. Mongo's `$nin` INCLUDED exactly those documents.
+ *
+ * The blocklist is rendered as SQL literals from the same `NSFW_HASHTAGS` set the
+ * in-memory predicate reads, so the two cannot drift. `inList` is safe here for
+ * the same reason it is safe in the schema's CHECK constraints: the values are a
+ * locally-declared set of identifier-shaped literals, never a runtime value.
+ */
+export function nsfwHashtagExcludeSql(): SQL {
+  return sql`not coalesce(${qualified(posts.hashtags)}
+    && array[${sql.raw(inList([...NSFW_HASHTAGS]))}]::text[], false)`;
+}
+
+/** The Postgres form of {@link DISCOVERY_SAFE_MATCH}, for `posts`. */
+export function discoverySafeSql(): SQL {
+  return sql`(${sensitiveExcludeSql()} and ${nsfwHashtagExcludeSql()})`;
+}
 
 /**
  * The minimal post shape the in-memory predicate reads. A lean Mongo document

@@ -1,6 +1,7 @@
-import mongoose from 'mongoose';
-import Like from '../models/Like';
-import { Post } from '../models/Post';
+import { and, eq, inArray } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { likes } from '../db/schema/engagement';
+import { posts } from '../db/schema/posts';
 import { logger } from '../utils/logger';
 
 /**
@@ -31,9 +32,6 @@ export async function getNetworkEngagerCounts(
 
   const boundedPostIds = postIds.slice(0, MAX_POSTS);
   const boundedEngagers = engagerIds.slice(0, MAX_ENGAGERS);
-  const objectIds = boundedPostIds
-    .filter((id) => mongoose.isValidObjectId(id))
-    .map((id) => new mongoose.Types.ObjectId(id));
 
   // Distinct engagers per post — a Set collapses a like + boost by the same
   // person into a single engager.
@@ -49,29 +47,40 @@ export async function getNetworkEngagerCounts(
   };
 
   try {
-    if (objectIds.length > 0) {
-      const likes = await Like.find({
-        postId: { $in: objectIds },
-        userId: { $in: boundedEngagers },
-      })
-        .select('postId userId')
-        .lean();
-      for (const like of likes) {
-        add(String(like.postId), String(like.userId));
-      }
+    // Postgres, not the Mongo `Like` collection. Nothing has written a Mongo
+    // like since the engagement command service moved to Postgres, so this read
+    // answered from a store that had stopped moving — plausibly, and never
+    // erroring, which is why it could sit here unnoticed while the boost half
+    // below already queried Postgres.
+    //
+    // The `isValidObjectId` filter that used to narrow these ids went with it,
+    // and was a second, independent way to lose the same rows: `posts.id` is
+    // `text` holding pre-cutover ObjectId hex AND post-cutover uuid v7, so it
+    // discarded every post this instance has minted since the cutover before the
+    // query even ran. Ids are bound parameters here, so no shape check is owed.
+    const likeRows = await getDb()
+      .select({ postId: likes.postId, userId: likes.userId })
+      .from(likes)
+      .where(and(
+        inArray(likes.postId, boundedPostIds),
+        inArray(likes.userId, boundedEngagers),
+      ));
+    for (const like of likeRows) {
+      add(like.postId, like.userId);
     }
 
     // Boosts are native `type:'boost'` posts referencing the original via `boostOf`.
-    const boosts = await Post.find({
-      type: 'boost',
-      boostOf: { $in: boundedPostIds },
-      oxyUserId: { $in: boundedEngagers },
-    })
-      .select('boostOf oxyUserId')
-      .lean();
+    const boosts = await getDb()
+      .select({ boostOf: posts.boostOf, oxyUserId: posts.oxyUserId })
+      .from(posts)
+      .where(and(
+        eq(posts.type, 'boost'),
+        inArray(posts.boostOf, boundedPostIds),
+        inArray(posts.oxyUserId, boundedEngagers),
+      ));
     for (const boost of boosts) {
       if (boost.boostOf && boost.oxyUserId) {
-        add(String(boost.boostOf), String(boost.oxyUserId));
+        add(boost.boostOf, boost.oxyUserId);
       }
     }
   } catch (error) {

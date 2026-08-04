@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Outbound @mention federation: a Mention post stores mentions inline as internal
@@ -27,10 +27,6 @@ const {
   isFediverseSharingEnabled,
   getUsersByIds,
   getUserById,
-  followFindLean,
-  actorFindLean,
-  actorFindSelectLean,
-  actorFindOneLean,
   postFindByIdLean,
   insertMany,
 } = vi.hoisted(() => ({
@@ -38,10 +34,6 @@ const {
   isFediverseSharingEnabled: vi.fn(),
   getUsersByIds: vi.fn(),
   getUserById: vi.fn(),
-  followFindLean: vi.fn(),
-  actorFindLean: vi.fn(),
-  actorFindSelectLean: vi.fn(),
-  actorFindOneLean: vi.fn(),
   postFindByIdLean: vi.fn(),
   insertMany: vi.fn(),
 }));
@@ -55,20 +47,6 @@ vi.mock('../../../connectors/activitypub/constants', async () => {
 vi.mock('../../../connectors/activitypub/actor.service', () => ({ actorService: {} }));
 vi.mock('../../../connectors/activitypub/crypto', () => ({ getPublicKey: vi.fn(), signRequest: vi.fn() }));
 vi.mock('../../../queue/producers', () => ({ enqueueDelivery, enqueueInboxActivity: vi.fn() }));
-vi.mock('../../../models/FederatedActor', () => ({
-  default: {
-    // `resolveMentionEntries` reads `find({ oxyUserId }).select(...).lean()`;
-    // `deliverToFollowers` reads `find({ uri }).lean()`; both chains are stubbed.
-    find: () => ({
-      select: () => ({ lean: () => actorFindSelectLean() }),
-      lean: () => actorFindLean(),
-    }),
-    findOne: () => ({ lean: () => actorFindOneLean() }),
-  },
-}));
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: { find: () => ({ lean: () => followFindLean() }) },
-}));
 vi.mock('../../../models/FederationDeliveryQueue', () => ({
   default: { insertMany, create: vi.fn() },
 }));
@@ -86,7 +64,23 @@ vi.mock('../../../utils/mediaResolver', () => ({
 vi.mock('../../../services/fediverseSharing', () => ({ isFediverseSharingEnabled }));
 vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ getUsersByIds, getUserById }) }));
 
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedFollowerWithInbox,
+} from '../../helpers/federationFixtures';
 import { followService, type NoteMentionContext } from '../../../connectors/activitypub/follow.service';
+
+const scope = federationScope('mention-federation');
+const AUTHOR = scope.user('author');
+const MENTIONED_ACTOR = `${scope.origin}/users/bob`;
+const MENTIONED_INBOX = `${scope.origin}/mentioned-inbox`;
+const MENTIONED_ACCT = `bob@${scope.domain}`;
+
+/** The author's own follower inbox for the test currently running. */
+let followerInbox: string;
 
 const ISO = '2024-05-06T07:08:09.000Z';
 const ALICE_ACTOR = 'https://mention.earth/ap/users/alice';
@@ -120,79 +114,85 @@ function deliveredNote(): Record<string, unknown> {
   return activity.object as Record<string, unknown>;
 }
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
+  await clearFederationScope(scope);
   enqueueDelivery.mockResolvedValue(true);
   isFediverseSharingEnabled.mockResolvedValue(true);
-  followFindLean.mockResolvedValue([{ remoteActorUri: 'https://foo.example/users/x' }]);
-  actorFindLean.mockResolvedValue([{ sharedInboxUrl: 'https://foo.example/inbox' }]);
-  actorFindSelectLean.mockResolvedValue([]);
-  actorFindOneLean.mockResolvedValue(null);
+  followerInbox = await seedFollowerWithInbox(scope, AUTHOR, { username: 'x' });
   postFindByIdLean.mockResolvedValue(null);
   getUsersByIds.mockResolvedValue([]);
 });
 
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 describe('federateNewPost — mentions a REMOTE user', () => {
-  beforeEach(() => {
-    // The mentioned user resolves to a FederatedActor row (href + acct + inbox).
-    actorFindSelectLean.mockResolvedValue([
-      {
-        oxyUserId: 'remote-oxy-id',
-        uri: 'https://remote.social/users/bob',
-        acct: 'bob@remote.social',
-        sharedInboxUrl: 'https://remote.social/inbox',
-      },
-    ]);
+  beforeEach(async () => {
+    // The mentioned user resolves to a real actor row (href + acct + inbox).
+    await seedActor(scope, {
+      username: 'bob',
+      uri: MENTIONED_ACTOR,
+      oxyUserId: 'remote-oxy-id',
+      sharedInboxUrl: MENTIONED_INBOX,
+      inboxUrl: MENTIONED_INBOX,
+    });
   });
 
   it('emits a mention anchor + Mention tag + remote cc, and never leaks the placeholder', async () => {
     await followService.federateNewPost(
       mentionPost('hey [mention:remote-oxy-id] look', ['remote-oxy-id']),
-      'author-oxy',
+      AUTHOR,
       'alice',
     );
 
     const note = deliveredNote();
     // The body carries a resolved Mastodon mention anchor — NOT the raw placeholder.
     expect(note.content).toBe(
-      '<p>hey <a href="https://remote.social/users/bob" class="u-url mention">@bob@remote.social</a> look</p>',
+      `<p>hey <a href="${MENTIONED_ACTOR}" class="u-url mention">@${MENTIONED_ACCT}</a> look</p>`,
     );
     expect(String(note.content)).not.toContain('[mention:');
 
     // A Mention tag threads + notifies the remote author.
     expect(note.tag).toContainEqual({
       type: 'Mention',
-      href: 'https://remote.social/users/bob',
-      name: '@bob@remote.social',
+      href: MENTIONED_ACTOR,
+      name: `@${MENTIONED_ACCT}`,
     });
 
     // The remote mentioned actor joins cc (public collection stays in `to`).
-    expect(note.cc).toEqual([ALICE_FOLLOWERS, 'https://remote.social/users/bob']);
+    expect(note.cc).toEqual([ALICE_FOLLOWERS, MENTIONED_ACTOR]);
     expect(note.to).toEqual([AP_PUBLIC]);
   });
 
   it('unions the mentioned remote user inbox into delivery (deduped with followers)', async () => {
     await followService.federateNewPost(
       mentionPost('yo [mention:remote-oxy-id]', ['remote-oxy-id']),
-      'author-oxy',
+      AUTHOR,
       'alice',
     );
 
-    expect(deliveredInboxes().sort()).toEqual(
-      ['https://foo.example/inbox', 'https://remote.social/inbox'].sort(),
-    );
+    expect(deliveredInboxes().sort()).toEqual([followerInbox, MENTIONED_INBOX].sort());
   });
 });
 
 describe('federateNewPost — mentions a LOCAL user', () => {
   it('emits a local mention anchor/tag, adds NO cc and NO extra inbox', async () => {
     // No federated actor row → resolved as a local Oxy user via the bulk lookup.
-    actorFindSelectLean.mockResolvedValue([]);
     getUsersByIds.mockResolvedValue([{ id: 'local-oxy-id', username: 'carol', name: { displayName: 'Carol' } }]);
 
     await followService.federateNewPost(
       mentionPost('hi [mention:local-oxy-id]', ['local-oxy-id']),
-      'author-oxy',
+      AUTHOR,
       'alice',
     );
 
@@ -208,7 +208,7 @@ describe('federateNewPost — mentions a LOCAL user', () => {
     // A local mention is reached through the author's own followers — never cc'd
     // to a remote collection, never an extra remote inbox.
     expect(note.cc).toEqual([ALICE_FOLLOWERS]);
-    expect(deliveredInboxes()).toEqual(['https://foo.example/inbox']);
+    expect(deliveredInboxes()).toEqual([followerInbox]);
   });
 });
 
@@ -218,7 +218,7 @@ describe('federateNewPost — hashtag alongside a mention', () => {
 
     await followService.federateNewPost(
       mentionPost('hi [mention:local-oxy-id] #news', ['local-oxy-id'], ['news']),
-      'author-oxy',
+      AUTHOR,
       'alice',
     );
 
@@ -235,11 +235,11 @@ describe('federateNewPost — hashtag alongside a mention', () => {
 describe('buildCreateNoteActivity — mention/reply Mention dedup', () => {
   it('does not duplicate the reply-parent Mention when the parent author is also @mentioned', () => {
     // The reply parent AND the @mention resolve to the SAME actor href.
-    const sharedHref = 'https://remote.social/users/bob';
-    const reply = { inReplyTo: 'https://remote.social/users/bob/statuses/9', mention: { href: sharedHref, name: '@bob@remote.social' } };
+    const sharedHref = MENTIONED_ACTOR;
+    const reply = { inReplyTo: 'https://remote.social/users/bob/statuses/9', mention: { href: sharedHref, name: `@${MENTIONED_ACCT}` } };
     const mentions: NoteMentionContext = {
       links: new Map([['remote-oxy-id', { href: sharedHref, handle: 'bob@remote.social' }]]),
-      tags: [{ type: 'Mention', href: sharedHref, name: '@bob@remote.social' }],
+      tags: [{ type: 'Mention', href: sharedHref, name: `@${MENTIONED_ACCT}` }],
       cc: [sharedHref],
       inboxes: ['https://remote.social/inbox'],
     };
@@ -253,7 +253,7 @@ describe('buildCreateNoteActivity — mention/reply Mention dedup', () => {
     const note = activity.object as Record<string, unknown>;
 
     const mentionTags = (note.tag as Array<Record<string, string>>).filter((t) => t.type === 'Mention');
-    expect(mentionTags).toEqual([{ type: 'Mention', href: sharedHref, name: '@bob@remote.social' }]);
+    expect(mentionTags).toEqual([{ type: 'Mention', href: sharedHref, name: `@${MENTIONED_ACCT}` }]);
     // cc carries the shared href exactly once.
     expect(note.cc).toEqual([ALICE_FOLLOWERS, sharedHref]);
   });

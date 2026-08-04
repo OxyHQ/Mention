@@ -2,7 +2,29 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # `drizzle/channels-plans` is the Mongo->Postgres migration trunk, and it is
+    # here because on `pull_request` alone its CI is hostage to a branch it does
+    # not control.
+    #
+    # A `pull_request` run builds `refs/pull/N/merge`, which GitHub cannot create
+    # while the PR conflicts — so the MOMENT `main` lands a commit that touches
+    # anything the trunk also touched, every push to the trunk dispatches NOTHING.
+    # Not a failure, not a queued run: no run at all. Measured 2026-08-04, four
+    # consecutive trunk pushes carrying five merged fixes produced zero runs over
+    # an hour, and the silence was read as "CI is running" four times before
+    # anybody checked. A gate whose absence is indistinguishable from its success
+    # is the failure mode this repo has already paid for once, in the deploy
+    # workflows above.
+    #
+    # Safe on both counts that matter, checked rather than assumed:
+    #  - the three deploy workflows trigger on `workflow_run` with
+    #    `branches: [main]`, so a green run here CANNOT deploy this branch; and
+    #  - `concurrency.group` keys on `github.ref`, so trunk runs share no lane
+    #    with main's and hold at most one running plus one pending, same bound.
+    #
+    # REMOVE THIS ENTRY when the migration trunk merges and the branch is deleted.
+    # It is the only branch-specific line in this file and it should stay that way.
+    branches: [main, drizzle/channels-plans]
   pull_request:
     branches: [main]
 
@@ -59,12 +81,18 @@ jobs:
         run: bun install --frozen-lockfile --ignore-scripts
       - name: Verify workspace, build, lint and typecheck
         run: bun run check
+      # After `check`, which builds shared-types: the Drizzle schema imports it,
+      # so a run before that would fail to load and — without the table-count
+      # floor in the script — would have reported "no changes" as success.
+      - name: Verify schema and migrations agree
+        run: bash .github/scripts/check-schema-migration-parity.sh
       - name: Verify CI and deployment safeguards
         run: |
           bash -n .github/scripts/*.sh
           bash .github/scripts/test-ci-scope.sh
           bash .github/scripts/test-deploy-ecs-image.sh
           bash .github/scripts/test-smoke-mention.sh
+          bash .github/scripts/test-check-schema-migration-parity.sh
           bun .github/scripts/test-runtime-image-audit.mjs
 
   # Ported from bluesky-social/social-app 513a188a2 ("Add a GitHub Action
@@ -122,6 +150,41 @@ jobs:
     name: Test ${{ matrix.package }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
+
+    # PostgreSQL for the Mongo->Postgres migration. The backend suite creates ONE
+    # throwaway, fully-migrated database per run against this server
+    # (packages/backend/src/db/testDatabase.ts) and drops it afterwards.
+    #
+    # PostGIS, not plain Postgres: posts.geo and posts.content_geo are generated
+    # `geography` columns, so `CREATE EXTENSION postgis` has to succeed before the
+    # migration that names the type. Pinned on BOTH versions and identical to
+    # docker-compose.postgres.yml, so a developer's database and CI's cannot
+    # disagree about what is installed.
+    #
+    # Declared for every matrix entry rather than only the backend: a `services:`
+    # block cannot be made conditional on a matrix value, and an empty `image` is
+    # a hard error. The cost is one container start on three jobs that never
+    # connect to it.
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_USER: mention
+          POSTGRES_PASSWORD: mention
+          POSTGRES_DB: mention_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mention -d mention_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # The harness creates its own throwaway database on this SERVER; it never
+      # writes to `mention_ci` itself.
+      TEST_DATABASE_URL: postgres://mention:mention@127.0.0.1:5432/mention_ci
+
     strategy:
       fail-fast: false
       matrix:
@@ -132,10 +195,10 @@ jobs:
           - package: shared-types
             command: bun run --cwd packages/shared-types test
             coverage: false
-          - package: backend
           # `--reporter=default` is restated because naming any reporter REPLACES
           # the default set, and a CI log with only machine JSON in it is a log
           # nobody can read. The JSON is what the collection gate below consumes.
+          - package: backend
             command: bun run --cwd packages/backend test:coverage -- --coverage.reportsDirectory="$RUNNER_TEMP/backend-coverage" --reporter=default --reporter=json --outputFile="$RUNNER_TEMP/backend-report.json"
             coverage: true
           - package: frontend
@@ -145,7 +208,18 @@ jobs:
             command: bun run --cwd packages/mcp test
             coverage: false
     steps:
-      # fetch-depth: 0 so the scope diff below has both ends of the comparison.
+      # fetch-depth: 0 for TWO independent reasons, arrived at separately. Either
+      # one alone justifies it, so do not remove it on the strength of retiring
+      # just one of them:
+      #
+      #  1. The backend suite resolves DELETED Mongoose models out of git
+      #     history. The Mongo->Postgres port removes each model as its
+      #     collection lands, so on a shallow checkout the closed-value-set gate
+      #     (packages/backend/src/__tests__/db/closedValueSets.test.ts) would
+      #     find no deletions — indistinguishable from a port that has deleted
+      #     none — and would silently stop comparing those vocabularies. It
+      #     refuses on a shallow clone rather than pass vacuously.
+      #  2. The scope diff below needs both ends of the comparison.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
@@ -179,8 +253,9 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         run: ${{ matrix.command }}
       # A test file that dies before its first `it()` contributes ZERO tests. It
-      # has no assertions to fail, so the pass RATIO improves — a suite reporting
-      # 99.9% passing can be hiding hundreds of tests that never ran. Nothing
+      # has no assertions to fail, so the pass RATIO improves: measured on this
+      # repository, 502 files / 5610 collected / 6 failed read as 99.9% passing
+      # while 32 files were dead at load and 296 declared tests never ran. Nothing
       # about pass/fail can see that, and the number moves the reassuring way.
       #
       # `always()` so the gate still reports when the suite step failed — a load

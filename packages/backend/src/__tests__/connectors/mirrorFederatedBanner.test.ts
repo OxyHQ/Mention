@@ -6,12 +6,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * one-shot `backfillFederatedBanners` script. Asserts it goes through the SAME
  * service-token public-upload path as federated post media
  * (`persistRemoteMediaForFederatedOwnerDetailed`) and writes
- * `UserSettings.profileHeaderImage` only on success.
+ * `user_settings.profile_header_image` only on success.
  */
 
 const mocks = vi.hoisted(() => ({
   persistRemoteMedia: vi.fn(),
-  userSettingsUpdateOne: vi.fn(),
+  updateUserSettings: vi.fn(),
   loggerWarn: vi.fn(),
 }));
 
@@ -19,10 +19,18 @@ vi.mock('../../services/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMedia,
 }));
 
-vi.mock('../../models/UserSettings', () => ({
-  default: {
-    updateOne: mocks.userSettingsUpdateOne,
-  },
+/**
+ * The settings WRITE is stubbed here on purpose, and only here.
+ *
+ * This suite's subject is `identity.ts`'s handling AROUND the write — that a
+ * mirror failure stores nothing, and that a write that throws is swallowed
+ * rather than propagated. A rejected write cannot be staged against a real
+ * database without inventing a constraint violation that means something else.
+ * The write actually LANDING is proven on real rows in `identity.test.ts`, so
+ * neither property rests on a double.
+ */
+vi.mock('../../db/userProfile/userSettingsRepository', () => ({
+  updateUserSettings: mocks.updateUserSettings,
 }));
 
 vi.mock('../../utils/logger', () => ({
@@ -33,7 +41,7 @@ import { mirrorFederatedBanner } from '../../connectors/identity';
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.userSettingsUpdateOne.mockResolvedValue({ acknowledged: true });
+  mocks.updateUserSettings.mockResolvedValue(undefined);
 });
 
 describe('mirrorFederatedBanner', () => {
@@ -64,10 +72,9 @@ describe('mirrorFederatedBanner', () => {
       // rather than inheriting the generic federated-media video/audio allowance.
       expect.objectContaining({ allowedContentTypePrefixes: ['image/'] }),
     );
-    expect(mocks.userSettingsUpdateOne).toHaveBeenCalledWith(
-      { oxyUserId: 'oxy-user-1' },
-      { $set: { profileHeaderImage: 'banner_file_1' } },
-      { upsert: true },
+    expect(mocks.updateUserSettings).toHaveBeenCalledWith(
+      'oxy-user-1',
+      { set: { profileHeaderImage: 'banner_file_1' } },
     );
   });
 
@@ -82,7 +89,7 @@ describe('mirrorFederatedBanner', () => {
 
     // `permanent: false` tells the backfill caller this is worth a retry.
     expect(result).toEqual({ ok: false, permanent: false });
-    expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
+    expect(mocks.updateUserSettings).not.toHaveBeenCalled();
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
       'Failed to mirror federated actor banner',
       expect.objectContaining({ reason: 'upstream-error', remoteHost: 'files.mastodon.social' }),
@@ -103,7 +110,7 @@ describe('mirrorFederatedBanner', () => {
 
     // `permanent: true` tells the backfill caller NOT to retry.
     expect(result).toEqual({ ok: false, permanent: true });
-    expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
+    expect(mocks.updateUserSettings).not.toHaveBeenCalled();
     expect(mocks.loggerWarn).not.toHaveBeenCalled();
   });
 
@@ -121,19 +128,19 @@ describe('mirrorFederatedBanner', () => {
 
     // A throw is treated as transient so the backfill still retries.
     expect(result).toEqual({ ok: false, permanent: false });
-    expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
+    expect(mocks.updateUserSettings).not.toHaveBeenCalled();
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
       'Failed to mirror federated actor banner',
       expect.objectContaining({ error: expect.any(Error), remoteHost: 'files.mastodon.social' }),
     );
   });
 
-  it('swallows a throw from the UserSettings write after a successful upload', async () => {
+  it('swallows a throw from the settings write after a successful upload', async () => {
     mocks.persistRemoteMedia.mockResolvedValue({
       ok: true,
       media: { oxyFileId: 'banner_file_6', contentType: 'image/png', sizeBytes: 1234 },
     });
-    mocks.userSettingsUpdateOne.mockRejectedValue(new Error('Mongo write conflict'));
+    mocks.updateUserSettings.mockRejectedValue(new Error('settings write conflict'));
 
     const result = await mirrorFederatedBanner(
       'https://files.mastodon.social/banner.png',
@@ -158,7 +165,7 @@ describe('mirrorFederatedBanner', () => {
     // A non-http url will never become valid → permanent, no retry.
     expect(result).toEqual({ ok: false, permanent: true });
     expect(mocks.persistRemoteMedia).not.toHaveBeenCalled();
-    expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
+    expect(mocks.updateUserSettings).not.toHaveBeenCalled();
     expect(mocks.loggerWarn).not.toHaveBeenCalled();
   });
 });

@@ -1,11 +1,15 @@
-import ModerationOutbox from '../../models/ModerationOutbox';
-import Report from '../../models/Report.model';
-import { logger } from '../../utils/logger';
+import { getDb } from '../../db/postgres';
 import {
   enqueueModerationOutboxEvent,
-  reportSubmitEventId,
-} from './ModerationOutboxService';
-import mongoose from 'mongoose';
+  readModerationOutboxStatus,
+} from '../../db/moderation/moderationOutboxRepository';
+import {
+  countLocalOnlyReports,
+  countReportsAwaitingDecision,
+  findReportsAwaitingDelivery,
+} from '../../db/moderation/reportRepository';
+import { logger } from '../../utils/logger';
+import { reportSubmitEventId } from './ModerationOutboxService';
 
 /**
  * Finding the reports the pipeline lost sight of (§14.4's `ModerationReconciliation`).
@@ -40,12 +44,6 @@ import mongoose from 'mongoose';
 const DEFAULT_BATCH_SIZE = 200;
 /** How long a `submitted` report may wait for a decision before it is worth counting. */
 const STALE_SUBMITTED_HOURS = 72;
-
-const TRANSACTION_OPTIONS = {
-  readPreference: 'primary' as const,
-  readConcern: { level: 'snapshot' as const },
-  writeConcern: { w: 'majority' as const },
-};
 
 export interface ModerationReconciliationResult {
   /** Reports that had no delivery event and now have one. */
@@ -84,59 +82,50 @@ export async function reconcileModerationReports(
    * `ModerationSubjectUnsupportedError` on its first attempt and dead-letter. They are
    * counted below instead.
    */
-  const pending = await Report.find({ localStatus: { $in: ['queued', 'delivery_failed'] } })
-    .select('_id localStatus')
-    .sort({ createdAt: 1 })
-    .limit(batchSize)
-    .lean<{ _id: mongoose.Types.ObjectId }[]>();
+  const pending = await findReportsAwaitingDelivery(batchSize);
 
   for (const report of pending) {
-    const reportId = String(report._id);
-    const eventId = reportSubmitEventId(reportId);
-    const event = await ModerationOutbox.findById(eventId)
-      .select('status')
-      .lean<{ status: string } | null>();
+    const eventId = reportSubmitEventId(report.id);
+    const status = await readModerationOutboxStatus(eventId);
 
-    if (event?.status === 'dead_letter') {
+    if (status === 'dead_letter') {
       result.deadLettered += 1;
       continue;
     }
-    if (event) continue;
+    // `undefined` means NO delivery event exists, which is the one state this
+    // sweep acts on. Every other status means one is already there.
+    if (status !== undefined) continue;
 
     /**
-     * A transaction for a single upsert, for consistency with intake rather than for
-     * atomicity: `enqueueModerationOutboxEvent` requires a session precisely so that
-     * no path in this codebase can write an outbox event outside one. A signature that
-     * made the session optional would be the crack the next caller slips through.
+     * A transaction for a single upsert, for consistency with intake rather than
+     * for atomicity: `enqueueModerationOutboxEvent` requires a transaction handle
+     * precisely so that no path in this codebase can write an outbox event outside
+     * one — and it CHECKS, because the root connection satisfies the parameter
+     * type. A signature that made it optional would be the crack the next caller
+     * slips through.
      */
-    const session = await mongoose.startSession();
-    try {
-      await session.withTransaction(async () => {
-        /**
-         * No `urgency`, and re-measuring one here would be a mistake rather than a
-         * completeness fix. A sweep re-derives work from the report, and the
-         * distribution facts it could read now are the ones at RECONCILIATION time
-         * — a different envelope from the one the lost event would have composed,
-         * which is exactly what the ingress fingerprint treats as §10.5's payload
-         * conflict. A report re-derived here therefore triages at the bottom of the
-         * reach band, which is the price of having lost its event.
-         */
-        await enqueueModerationOutboxEvent(
-          { eventId, kind: 'report.submit', payload: { reportId } },
-          session,
-        );
-      }, TRANSACTION_OPTIONS);
-      result.requeued += 1;
-    } finally {
-      await session.endSession();
-    }
+    await getDb().transaction(async (tx) => {
+      /**
+       * No `urgency`, and re-measuring one here would be a mistake rather than a
+       * completeness fix. A sweep re-derives work from the report, and the
+       * distribution facts it could read now are the ones at RECONCILIATION time
+       * — a different envelope from the one the lost event would have composed,
+       * which is exactly what the ingress fingerprint treats as §10.5's payload
+       * conflict. A report re-derived here therefore triages at the bottom of the
+       * reach band, which is the price of having lost its event.
+       */
+      await enqueueModerationOutboxEvent(
+        { eventId, kind: 'report.submit', payload: { reportId: report.id } },
+        tx,
+      );
+    });
+    result.requeued += 1;
   }
 
-  result.awaitingDecision = await Report.countDocuments({
-    localStatus: 'submitted',
-    submittedAt: { $lt: new Date(now.getTime() - STALE_SUBMITTED_HOURS * 60 * 60 * 1_000) },
-  });
-  result.localOnly = await Report.countDocuments({ localStatus: 'received' });
+  result.awaitingDecision = await countReportsAwaitingDecision(
+    new Date(now.getTime() - STALE_SUBMITTED_HOURS * 60 * 60 * 1_000),
+  );
+  result.localOnly = await countLocalOnlyReports();
 
   if (result.requeued > 0 || result.deadLettered > 0) {
     logger.warn('[CrowdSource] reconciliation found divergence', result);

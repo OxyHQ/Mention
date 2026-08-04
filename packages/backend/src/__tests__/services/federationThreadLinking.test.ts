@@ -1,282 +1,57 @@
 import { PassThrough } from 'node:stream';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { and, eq, like, ne } from 'drizzle-orm';
 
 /**
- * Thread-linking tests for federated reply import.
+ * Thread-linking for federated reply import.
  *
  * Root cause being verified: federated replies stored `federation.inReplyTo`
- * (the raw remote parent URI) but never set the local `parentPostId` / `threadId`
- * the thread machinery reads — so replies imported as orphans, the outbox path
- * DROPPED replies entirely, and ancestors were never fetched.
+ * (the raw remote parent URI) but never set the local `parentPostId` /
+ * `threadId` the thread machinery reads — so replies imported as orphans, the
+ * outbox path DROPPED replies entirely, and ancestors were never fetched.
  *
- * Unlike `federationService.test.ts` (which uses flat per-call mocks), these
- * tests back the `Post` model with a small STATEFUL in-memory store so the
- * recursive parent-chain resolution / ancestor backfill exercises real behavior:
- * inserted/created posts become resolvable to later resolution steps, exactly as
- * they would against MongoDB.
+ * ## What changed with the Postgres port
+ *
+ * The old suite backed `models/Post` with a hand-written in-memory store: about
+ * 150 lines re-implementing `findOne`, `find`, `updateOne`, `bulkWrite`,
+ * `insertMany` and `countDocuments` well enough to interpret the specific
+ * queries this code path builds. The thing it could not do is fail the way the
+ * real database fails — it answered whatever the re-implementation decided a
+ * filter meant, so a query that matched nothing in Postgres and a query that
+ * matched correctly were indistinguishable.
+ *
+ * That is not a hypothetical here. `resolveThreadLink` walks UP a chain by
+ * repeatedly reading `federation.in_reply_to` off a row it just wrote, and the
+ * outbox path resolves the whole batch AFTER inserting it — so the links exist
+ * only if each write is visible to the next read. A stubbed store makes that
+ * true by construction. Real rows are the only place it is a claim.
+ *
+ * Both link columns are also real FOREIGN KEYS with `ON DELETE SET NULL`, so a
+ * `parentPostId` pointing at a row that does not exist is not stored wrong — it
+ * is not stored at all. Reading the columns back is the only way to see that.
+ *
+ * The REAL `PostCreationService` runs (registered through the service registry
+ * exactly as it is in production), so the inbox path writes real rows too.
+ * Network, crypto, media and Oxy stay mocked — they are the boundaries.
  */
 
-interface StoredPost {
-  _id: string;
-  federation?: { activityId?: string; inReplyTo?: string };
-  threadId?: string | null;
-  parentPostId?: string | null;
-  status?: string;
-  visibility?: string;
-  content?: { text?: string };
-}
-
-/**
- * Shape of a `records.find({...})` query, narrowed from the two real call
- * sites: the bulk-dedup `$in` lookup and the reconciliation script's
- * cursor-paginated orphan scan.
- */
-interface PostFindQuery {
-  'federation.activityId'?: { $in?: string[] };
-  'federation.inReplyTo'?: unknown;
-  _id?: { $gt?: string };
-}
-
-/** The `$set` shape every `Post.updateOne` call in this suite writes. */
-interface PostUpdateBody {
-  $set?: { parentPostId?: string | null; threadId?: string | null };
-}
-
-/** A raw Mongo document as `Post.collection.insertMany` receives it. */
-interface InsertManyDoc {
-  federation?: { activityId?: string; inReplyTo?: string };
-  threadId?: string | null;
-  parentPostId?: string | null;
-  status?: string;
-  visibility?: string;
-  content?: { text?: string };
-}
-
-/** One `Post.bulkWrite` operation, narrowed to the fields this store applies. */
-interface BulkWriteOp {
-  updateOne?: {
-    filter: { _id?: unknown };
-    update: { $set?: { parentPostId?: string | null; threadId?: string | null } };
-  };
-}
-
-/** Params the `PostCreationService.create` stand-in below is called with. */
-interface PostCreatorParams {
-  federation?: { activityId?: string; inReplyTo?: string };
-  threadId?: string | null;
-  parentPostId?: string | null;
-  visibility?: string;
-  content?: { text?: string };
-}
-
-const h = vi.hoisted(() => {
-  const store: StoredPost[] = [];
-  const state = { counter: 0 };
-
-  const findByActivityId = (uri: unknown): StoredPost | undefined =>
-    store.find((p) => p.federation?.activityId !== undefined && p.federation.activityId === uri);
-  const findById = (id: unknown): StoredPost | undefined => store.find((p) => p._id === id);
-  const nextId = (prefix: string): string => `${prefix}_${++state.counter}`;
-  const reset = (): void => {
-    store.length = 0;
-    state.counter = 0;
-  };
-
-  // --- Post model (stateful) ---
-  const postFindOne = vi.fn((query: Record<string, unknown>) => ({
-    lean: async () => {
-      if (query?.['federation.activityId'] !== undefined) {
-        const found = findByActivityId(query['federation.activityId']);
-        return found ? { _id: found._id } : null;
-      }
-      if (query?._id !== undefined) {
-        const found = findById(query._id);
-        if (!found) return null;
-        if (query.status !== undefined && found.status !== query.status) return null;
-        if (query.visibility !== undefined && found.visibility !== query.visibility) return null;
-        return { _id: found._id };
-      }
-      return null;
-    },
-  }));
-
-  const postFindById = vi.fn((id: unknown) => ({
-    lean: async () => {
-      const found = findById(id);
-      if (!found) return null;
-      return {
-        _id: found._id,
-        threadId: found.threadId,
-        status: found.status,
-        visibility: found.visibility,
-        federation: { inReplyTo: found.federation?.inReplyTo },
-      };
-    },
-  }));
-
-  // Supports BOTH the bulk-dedup call (`.lean()` directly) and the
-  // reconciliation script's paginated call (`.sort().limit().lean()`).
-  const postFind = vi.fn((query: PostFindQuery) => {
-    const run = async () => {
-      const inClause = query['federation.activityId']?.$in;
-      if (Array.isArray(inClause)) {
-        return store
-          .filter((p) => p.federation?.activityId !== undefined && inClause.includes(p.federation.activityId))
-          .map((p) => ({ federation: { activityId: p.federation?.activityId } }));
-      }
-      // Reconciliation orphan query: federation.inReplyTo set, parentPostId null.
-      const wantsOrphans = query['federation.inReplyTo'] !== undefined;
-      if (wantsOrphans) {
-        const gt = query._id?.$gt;
-        return store
-          .filter(
-            (p) =>
-              p.federation?.inReplyTo != null &&
-              (p.parentPostId === null || p.parentPostId === undefined) &&
-              (gt === undefined || p._id > gt),
-          )
-          .sort((a, b) => (a._id < b._id ? -1 : a._id > b._id ? 1 : 0))
-          .map((p) => ({ _id: p._id, federation: { inReplyTo: p.federation?.inReplyTo } }));
-      }
-      return [];
-    };
-    const chain = {
-      sort: () => chain,
-      limit: () => chain,
-      lean: run,
-    };
-    return chain;
-  });
-
-  const postUpdateOne = vi.fn(async (query: Record<string, unknown>, update: PostUpdateBody) => {
-    let target: StoredPost | undefined;
-    if (query?.['federation.activityId'] !== undefined) target = findByActivityId(query['federation.activityId']);
-    else if (query?._id !== undefined) target = findById(query._id);
-    if (target && update?.$set) {
-      if (update.$set.parentPostId !== undefined) target.parentPostId = update.$set.parentPostId;
-      if (update.$set.threadId !== undefined) target.threadId = update.$set.threadId;
-    }
-    return { modifiedCount: target ? 1 : 0 };
-  });
-
-  const postExists = vi.fn(async (query: Record<string, unknown>) => {
-    const found = findByActivityId(query?.['federation.activityId']);
-    return found ? { _id: found._id } : null;
-  });
-
-  const postInsertMany = vi.fn(async (docs: InsertManyDoc[]) => {
-    for (const doc of docs) {
-      store.push({
-        _id: nextId('inserted'),
-        federation: {
-          activityId: doc.federation?.activityId,
-          inReplyTo: doc.federation?.inReplyTo,
-        },
-        threadId: doc.threadId ?? null,
-        parentPostId: doc.parentPostId ?? null,
-        status: doc.status,
-        visibility: doc.visibility,
-        content: doc.content,
-      });
-    }
-    return { insertedCount: docs.length };
-  });
-
-  const postCountDocuments = vi.fn(async (query: Record<string, unknown>) => {
-    if (query?.['federation.inReplyTo'] !== undefined) {
-      return store.filter(
-        (p) => p.federation?.inReplyTo != null && (p.parentPostId === null || p.parentPostId === undefined),
-      ).length;
-    }
-    return store.length;
-  });
-
-  const postBulkWrite = vi.fn(async (ops: BulkWriteOp[]) => {
-    let modified = 0;
-    for (const op of ops) {
-      const u = op.updateOne;
-      if (!u) continue;
-      const target = u.filter._id !== undefined ? findById(u.filter._id) : undefined;
-      if (target && u.update?.$set) {
-        if (u.update.$set.parentPostId !== undefined) target.parentPostId = u.update.$set.parentPostId;
-        if (u.update.$set.threadId !== undefined) target.threadId = u.update.$set.threadId;
-        modified += 1;
-      }
-    }
-    return { modifiedCount: modified };
-  });
-
-  // --- post creator (PostCreationService stand-in) ---
-  const postCreatorCreate = vi.fn(async (params: PostCreatorParams) => {
-    const created: StoredPost = {
-      _id: nextId('created'),
-      federation: {
-        activityId: params.federation?.activityId,
-        inReplyTo: params.federation?.inReplyTo,
-      },
-      threadId: params.threadId ?? null,
-      parentPostId: params.parentPostId ?? null,
-      status: 'published',
-      visibility: params.visibility ?? 'public',
-      content: params.content,
-    };
-    store.push(created);
-    return created;
-  });
-
-  // --- other dependency mocks ---
-  const getPublicKey = vi.fn();
-  const signRequest = vi.fn();
-  const signViaOxy = vi.fn();
-  const actorFindOne = vi.fn();
-  const actorFind = vi.fn();
-  const actorFindOneAndUpdate = vi.fn();
-  const actorUpdateOne = vi.fn();
-  const followExists = vi.fn();
-  const assertSafePublicUrl = vi.fn();
-  const fetchUpstreamSingleHop = vi.fn();
-  const fetchUpstreamFollowingRedirects = vi.fn();
-  const persistRemoteMedia = vi.fn();
-  const recordAccess = vi.fn();
-  const userSettingsUpdateOne = vi.fn();
-  const likeCreate = vi.fn();
-  const likeFindOneAndDelete = vi.fn();
-  const getServiceOxyClient = vi.fn();
-
-  return {
-    store,
-    findByActivityId,
-    findById,
-    nextId,
-    reset,
-    postFindOne,
-    postFindById,
-    postFind,
-    postUpdateOne,
-    postExists,
-    postInsertMany,
-    postCountDocuments,
-    postBulkWrite,
-    postCreatorCreate,
-    getPublicKey,
-    signRequest,
-    signViaOxy,
-    actorFindOne,
-    actorFind,
-    actorFindOneAndUpdate,
-    actorUpdateOne,
-    followExists,
-    assertSafePublicUrl,
-    fetchUpstreamSingleHop,
-    fetchUpstreamFollowingRedirects,
-    persistRemoteMedia,
-    recordAccess,
-    userSettingsUpdateOne,
-    likeCreate,
-    likeFindOneAndDelete,
-    getServiceOxyClient,
-  };
-});
+const h = vi.hoisted(() => ({
+  /** The real `PostCreationService`, captured when it registers itself. */
+  creator: null as null | { create: (params: Record<string, unknown>) => Promise<unknown> },
+  federateNewPost: vi.fn(async () => undefined),
+  getPublicKey: vi.fn(),
+  signRequest: vi.fn(),
+  signViaOxy: vi.fn(),
+  assertSafePublicUrl: vi.fn(),
+  fetchUpstreamSingleHop: vi.fn(),
+  fetchUpstreamFollowingRedirects: vi.fn(),
+  persistRemoteMedia: vi.fn(),
+  recordAccess: vi.fn(),
+  likeCreate: vi.fn(),
+  likeFindOneAndDelete: vi.fn(),
+  getServiceOxyClient: vi.fn(),
+  followExists: vi.fn(),
+}));
 
 vi.mock('../../connectors/activitypub/crypto', () => ({
   getPublicKey: h.getPublicKey,
@@ -284,18 +59,7 @@ vi.mock('../../connectors/activitypub/crypto', () => ({
   signRequest: h.signRequest,
 }));
 
-vi.mock('../../models/FederatedActor', () => ({
-  default: {
-    findOne: h.actorFindOne,
-    find: h.actorFind,
-    findOneAndUpdate: h.actorFindOneAndUpdate,
-    updateOne: h.actorUpdateOne,
-  },
-}));
-
-vi.mock('../../models/FederatedFollow', () => ({
-  default: { exists: h.followExists },
-}));
+vi.mock('../../models/FederatedFollow', () => ({ default: { exists: h.followExists } }));
 
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
@@ -307,31 +71,11 @@ vi.mock('../../models/FederationDeliveryQueue', () => ({
   getNextRetryTime: vi.fn(),
 }));
 
-vi.mock('../../models/Post', () => ({
-  POST_CLASSIFICATION_PENDING: 'pending',
-  Post: {
-    find: h.postFind,
-    findOne: h.postFindOne,
-    findById: h.postFindById,
-    updateOne: h.postUpdateOne,
-    exists: h.postExists,
-    countDocuments: h.postCountDocuments,
-    bulkWrite: h.postBulkWrite,
-    collection: { insertMany: h.postInsertMany },
-  },
-}));
-
 vi.mock('../../models/Like', () => ({
   default: { create: h.likeCreate, findOneAndDelete: h.likeFindOneAndDelete },
 }));
 
-vi.mock('../../models/UserSettings', () => ({
-  default: { updateOne: h.userSettingsUpdateOne },
-}));
-
-vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: h.getServiceOxyClient,
-}));
+vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: h.getServiceOxyClient }));
 
 vi.mock('../../utils/safeUpstreamFetch', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../utils/safeUpstreamFetch')>();
@@ -350,16 +94,106 @@ vi.mock('../../services/mediaCache/cacheStore', () => ({
   recordAccessAndMaybeEnqueue: h.recordAccess,
 }));
 
+// The registry is the seam the connectors reach post creation through. Keeping
+// the REAL creator behind it is the whole point: `getPostCreator().create` has
+// to write a row the next resolution step can read back.
 vi.mock('../../services/serviceRegistry', () => ({
-  getPostCreator: () => ({ create: h.postCreatorCreate }),
+  getPostCreator: () => {
+    if (!h.creator) throw new Error('PostCreator not registered');
+    return h.creator;
+  },
+  getPostFederator: () => ({ federateNewPost: h.federateNewPost }),
+  registerPostCreator: (instance: { create: (params: Record<string, unknown>) => Promise<unknown> }) => {
+    h.creator = instance;
+  },
   registerPostFederator: vi.fn(),
-  registerPostCreator: vi.fn(),
-  getPostFederator: vi.fn(),
 }));
 
+vi.mock('../../utils/notificationUtils', () => ({
+  createNotification: vi.fn().mockResolvedValue(undefined),
+  createMentionNotifications: vi.fn().mockResolvedValue(undefined),
+  createBatchNotifications: vi.fn().mockResolvedValue(undefined),
+  createPostAuthorNotifications: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../models/PostSubscription', () => ({
+  default: { find: () => ({ lean: () => Promise.resolve([]) }) },
+}));
+
+vi.mock('../../services/PostHydrationService', () => ({
+  postHydrationService: { hydratePosts: vi.fn().mockResolvedValue([]) },
+  resolveUserSummaries: vi.fn(async () => new Map()),
+}));
+
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { posts } from '../../db/schema/posts';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedFollow,
+} from '../helpers/federationFixtures';
+// Importing the service is what registers it with the (mocked) registry above.
+import '../../services/PostCreationService';
 import { activityPubConnector as federationService } from '../../connectors/activitypub/ActivityPubConnector';
-import { outboxSyncService } from '../../connectors/activitypub/outbox.service';
 import backfillFederatedThreadLinks from '../../scripts/backfillFederatedThreadLinks';
+import { insertPostRecord } from '../../db/posts/postRepository';
+import { withDeadlockRetry } from '../helpers/serviceFixtures';
+import { PostType, PostVisibility } from '@mention/shared-types';
+
+const scope = federationScope('federation-thread-linking');
+const ACTOR_URI = `${scope.origin}/users/alice`;
+const AUTHOR_OXY = scope.user('alice');
+
+/** The stored row for a federated post, looked up the way the code does. */
+async function rowByActivityId(activityId: string) {
+  const [row] = await getDb()
+    .select({
+      id: posts.id,
+      parentPostId: posts.parentPostId,
+      threadId: posts.threadId,
+      isReply: posts.isReply,
+      inReplyTo: posts.federationInReplyTo,
+    })
+    .from(posts)
+    .where(eq(posts.federationActivityId, activityId));
+  return row;
+}
+
+/**
+ * Delete every post this suite's origin produced.
+ *
+ * Scoped by `federation_activity_id`, not by owner: the rows the code under test
+ * writes are attributed to whatever `oxyUserId` the actor resolved to, and some
+ * of them (backfilled ancestors) are created by production code that never saw
+ * this scope. The activity id is the one handle every one of them carries.
+ *
+ * Two passes because these rows point at each other: the first clears every
+ * link, so the second can delete them in any order without tripping a foreign
+ * key or being silently set-null'd out from under itself.
+ *
+ * Both passes go through {@link withDeadlockRetry}, and that is not belt-and-
+ * braces. `posts` self-references itself four times — `parent_post_id`,
+ * `thread_id` and `quote_of` are `ON DELETE SET NULL`, `boost_of` cascades — so
+ * a bulk delete takes locks well beyond the rows it names, and ten suites write
+ * and delete `posts` concurrently against one database. Measured here: a plain
+ * delete lost a `40P01` on roughly one full run in three, and it surfaced as
+ * THIS suite failing in a test that had nothing to do with cleanup. The shared
+ * `serviceFixtures` helpers have carried this retry from the start; this file
+ * predates them and had its own cleanup, which is how it missed it.
+ */
+async function clearScopePosts(): Promise<void> {
+  const db = getDb();
+  await withDeadlockRetry(() =>
+    db
+      .update(posts)
+      .set({ parentPostId: null, threadId: null, boostOf: null, quoteOf: null })
+      .where(like(posts.federationActivityId, `${scope.origin}%`)),
+  );
+  await withDeadlockRetry(() =>
+    db.delete(posts).where(like(posts.federationActivityId, `${scope.origin}%`)),
+  );
+}
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -368,8 +202,6 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
     ...init,
   });
 }
-
-const ACTOR_URI = 'https://mastodon.social/users/alice';
 
 /** A Create activity wrapping a Note (optionally a reply). */
 function replyCreateActivity(id: string, inReplyTo?: string) {
@@ -391,9 +223,29 @@ function replyCreateActivity(id: string, inReplyTo?: string) {
   };
 }
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+// Cleanup runs in `beforeEach` as well as `afterEach`, and that is load-bearing:
+// the reconciliation test drives the REAL script, whose
+// `closeAdminScriptResources()` closes the Postgres pool on purpose (a Fargate
+// one-shot has to exit). Its own hooks reconnect, but a stale row from a
+// previous test would otherwise be swept up by the script's global query.
+afterAll(async () => {
+  await connectPostgres();
+  await clearScopePosts();
+  await clearFederationScope(scope);
+  await closePostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
-  h.reset();
+  // The script under test in the last describe closes the pool; reopen so the
+  // ordering of the describes cannot decide whether the suite runs.
+  await connectPostgres();
+  await clearScopePosts();
+  await clearFederationScope(scope);
 
   h.getPublicKey.mockResolvedValue({
     keyId: 'https://mention.earth/ap/users/instance#main-key',
@@ -402,29 +254,28 @@ beforeEach(() => {
   h.signViaOxy.mockResolvedValue('signature');
   h.signRequest.mockResolvedValue({ Signature: 'signature' });
 
-  // Default: the outbox owner is a known, fresh federated actor.
-  h.actorFindOne.mockReturnValue({
-    lean: vi.fn().mockResolvedValue({
-      uri: ACTOR_URI,
-      oxyUserId: 'oxy_alice',
-      lastFetchedAt: new Date(),
-    }),
+  // Default: the outbox owner is a known, fresh federated actor followed by a
+  // local user, so both the resolution and the follower gate pass.
+  await seedActor(scope, {
+    username: 'alice',
+    uri: ACTOR_URI,
+    oxyUserId: AUTHOR_OXY,
+    lastFetchedAt: new Date(),
   });
-  h.actorFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
-  h.actorFindOneAndUpdate.mockResolvedValue({ _id: 'actor_1' });
-  h.actorUpdateOne.mockResolvedValue({ modifiedCount: 1 });
-
-  h.followExists.mockResolvedValue({ _id: 'follow_1' });
+  await seedFollow(scope, { remoteActorUri: ACTOR_URI, direction: 'outbound', status: 'accepted' });
   h.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   h.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   h.recordAccess.mockResolvedValue(undefined);
-  h.userSettingsUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   h.likeCreate.mockResolvedValue({ _id: 'like_1' });
   h.likeFindOneAndDelete.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
-  h.getServiceOxyClient.mockReturnValue({ makeServiceRequest: vi.fn() });
+  h.getServiceOxyClient.mockReturnValue({
+    makeServiceRequest: vi.fn(),
+    getUserById: vi.fn(async () => ({ id: AUTHOR_OXY, username: 'alice' })),
+    getUsersByIds: vi.fn(async () => []),
+  });
 
   // signedFetch is built on fetchUpstreamSingleHop; adapt it to the per-test
-  // stubbed global fetch (same bridge as federationService.test.ts).
+  // stubbed global fetch.
   h.fetchUpstreamSingleHop.mockImplementation(
     async (url: string, options: { headers: Record<string, string>; method?: string; body?: BodyInit }) => {
       const res: Response = await (globalThis.fetch as typeof fetch)(url, {
@@ -444,42 +295,50 @@ beforeEach(() => {
   );
 });
 
-afterEach(() => {
+afterEach(async () => {
   vi.unstubAllEnvs();
+  await connectPostgres();
+  await clearScopePosts();
+  await clearFederationScope(scope);
 });
 
 describe('inbox handleCreate — reply linking', () => {
   it('links parentPostId + threadId when the parent is already local', async () => {
-    // Pre-existing local (imported federated) parent, a thread root (threadId unset).
+    // Pre-existing imported federated parent, a thread root (threadId unset).
     const parentUri = `${ACTOR_URI}/statuses/100`;
-    h.store.push({
-      _id: 'parent_local',
-      federation: { activityId: parentUri },
-      threadId: null,
-      parentPostId: null,
+    const parent = await insertPostRecord({
+      oxyUserId: AUTHOR_OXY,
+      authorship: [{ oxyUserId: AUTHOR_OXY, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
       status: 'published',
-      visibility: 'public',
+      content: { variants: [{ source: 'author', text: 'the parent', tag: 'en' }] },
+      federation: { activityId: parentUri, actorUri: ACTOR_URI },
     });
+    expect(parent.threadId).toBeNull();
 
-    await federationService.processInboxActivity(
-      replyCreateActivity('101', parentUri),
-      ACTOR_URI,
-    );
+    await federationService.processInboxActivity(replyCreateActivity('101', parentUri), ACTOR_URI);
 
-    expect(h.postCreatorCreate).toHaveBeenCalledTimes(1);
-    const params = h.postCreatorCreate.mock.calls[0][0] as Record<string, unknown>;
-    expect(params.parentPostId).toBe('parent_local');
-    // threadId = parent.threadId ?? parent._id → root id (native rule).
-    expect(params.threadId).toBe('parent_local');
-    expect((params.federation as { inReplyTo?: string }).inReplyTo).toBe(parentUri);
+    const reply = await rowByActivityId(`${ACTOR_URI}/statuses/101`);
+    expect(reply).toBeDefined();
+    expect(reply?.parentPostId).toBe(parent.id);
+    // threadId = parent.threadId ?? parent.id → the root id (the native rule).
+    expect(reply?.threadId).toBe(parent.id);
+    expect(reply?.inReplyTo).toBe(parentUri);
+    // The stored discriminator, which is what every feed query reads — a link
+    // that landed while `is_reply` stayed false would promote the reply into For
+    // You / Following / Explore.
+    expect(reply?.isReply).toBe(true);
   });
 
   it('stores a non-reply post with null parentPostId/threadId', async () => {
     await federationService.processInboxActivity(replyCreateActivity('200'), ACTOR_URI);
 
-    const params = h.postCreatorCreate.mock.calls[0][0] as Record<string, unknown>;
-    expect(params.parentPostId).toBeNull();
-    expect(params.threadId).toBeNull();
+    const row = await rowByActivityId(`${ACTOR_URI}/statuses/200`);
+    expect(row).toBeDefined();
+    expect(row?.parentPostId).toBeNull();
+    expect(row?.threadId).toBeNull();
+    expect(row?.isReply).toBe(false);
   });
 });
 
@@ -515,34 +374,36 @@ describe('outbox backfill — self-thread linking (the path that used to DROP re
     stubSelfThreadOutbox();
 
     const result = await federationService.syncOutboxPostsDetailed(
-      { uri: ACTOR_URI, acct: 'alice@mastodon.social', outboxUrl, oxyUserId: 'oxy_alice' },
+      { uri: ACTOR_URI, acct: 'alice@mastodon.social', outboxUrl, oxyUserId: AUTHOR_OXY },
       { limit: 10, maxPages: 1 },
     );
 
     // All four notes imported (replies are no longer dropped).
     expect(result.newPostCount).toBe(4);
 
-    const byActivity = (n: string) => h.findByActivityId(`${ACTOR_URI}/statuses/${n}`);
-    const root = byActivity('1');
-    const r2 = byActivity('2');
-    const r3 = byActivity('3');
-    const r4 = byActivity('4');
-    expect(root && r2 && r3 && r4).toBeTruthy();
+    const root = await rowByActivityId(`${ACTOR_URI}/statuses/1`);
+    const r2 = await rowByActivityId(`${ACTOR_URI}/statuses/2`);
+    const r3 = await rowByActivityId(`${ACTOR_URI}/statuses/3`);
+    const r4 = await rowByActivityId(`${ACTOR_URI}/statuses/4`);
+    expect([root, r2, r3, r4].every(Boolean)).toBe(true);
 
     // Root: no parent, no threadId (native top-level post semantics).
-    expect(root?.parentPostId ?? null).toBeNull();
-    expect(root?.threadId ?? null).toBeNull();
+    expect(root?.parentPostId).toBeNull();
+    expect(root?.threadId).toBeNull();
+    expect(root?.isReply).toBe(false);
 
-    // Each reply points at its immediate parent...
-    expect(r2?.parentPostId).toBe(root?._id);
-    expect(r3?.parentPostId).toBe(r2?._id);
-    expect(r4?.parentPostId).toBe(r3?._id);
+    // Each reply points at its immediate parent…
+    expect(r2?.parentPostId).toBe(root?.id);
+    expect(r3?.parentPostId).toBe(r2?.id);
+    expect(r4?.parentPostId).toBe(r3?.id);
 
-    // ...and EVERY reply shares the SAME thread root id, regardless of the
-    // newest-first import order.
-    expect(r2?.threadId).toBe(root?._id);
-    expect(r3?.threadId).toBe(root?._id);
-    expect(r4?.threadId).toBe(root?._id);
+    // …and EVERY reply shares the SAME thread root id, regardless of the
+    // newest-first import order. These are real foreign keys, so a link naming a
+    // row that was never written would not be stored at all.
+    expect(r2?.threadId).toBe(root?.id);
+    expect(r3?.threadId).toBe(root?.id);
+    expect(r4?.threadId).toBe(root?.id);
+    for (const reply of [r2, r3, r4]) expect(reply?.isReply).toBe(true);
   });
 });
 
@@ -559,9 +420,13 @@ describe('outbox backfill — bounded ancestor backfill', () => {
         return jsonResponse({ type: 'OrderedCollection', totalItems: 1, first: firstPageUrl });
       }
       if (url === firstPageUrl) {
-        return jsonResponse({ type: 'OrderedCollectionPage', id: firstPageUrl, orderedItems: [replyActivity] });
+        return jsonResponse({
+          type: 'OrderedCollectionPage',
+          id: firstPageUrl,
+          orderedItems: [replyActivity],
+        });
       }
-      // The parent Note is NOT in the outbox/store — it is fetched on demand.
+      // The parent Note is NOT stored — it is fetched on demand.
       if (url === parentUri) {
         return jsonResponse({
           id: parentUri,
@@ -576,19 +441,19 @@ describe('outbox backfill — bounded ancestor backfill', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     await federationService.syncOutboxPostsDetailed(
-      { uri: ACTOR_URI, acct: 'alice@mastodon.social', outboxUrl, oxyUserId: 'oxy_alice' },
+      { uri: ACTOR_URI, acct: 'alice@mastodon.social', outboxUrl, oxyUserId: AUTHOR_OXY },
       { limit: 10, maxPages: 1 },
     );
 
-    // Parent was fetched on demand and imported via the post creator.
+    // Parent was fetched on demand and stored.
     expect(fetchMock).toHaveBeenCalledWith(parentUri, expect.anything());
-    const parent = h.findByActivityId(parentUri);
-    expect(parent).toBeTruthy();
+    const parent = await rowByActivityId(parentUri);
+    expect(parent).toBeDefined();
 
     // The reply is linked to the backfilled parent, which is the thread root.
-    const reply = h.findByActivityId(`${ACTOR_URI}/statuses/501`);
-    expect(reply?.parentPostId).toBe(parent?._id);
-    expect(reply?.threadId).toBe(parent?._id);
+    const reply = await rowByActivityId(`${ACTOR_URI}/statuses/501`);
+    expect(reply?.parentPostId).toBe(parent?.id);
+    expect(reply?.threadId).toBe(parent?.id);
   });
 
   it('respects the depth cap on an infinite ancestor chain (no runaway, reply still linked)', async () => {
@@ -617,19 +482,17 @@ describe('outbox backfill — bounded ancestor backfill', () => {
       ACTOR_URI,
     );
 
-    // Terminated (test did not hang) and bounded: the on-demand parent fetches
-    // never exceed the depth cap (30) by more than a small constant.
+    // Terminated (the test did not hang) and bounded: the on-demand parent
+    // fetches never exceed the depth cap (30) by more than a small constant.
     expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(32);
 
-    // The original reply is still created (best-effort) and linked to its
-    // immediate parent.
-    expect(h.postCreatorCreate).toHaveBeenCalled();
-    const reply = h.postCreatorCreate.mock.calls.find(
-      (c) => (c[0].federation as { activityId?: string })?.activityId === `${ACTOR_URI}/statuses/1000`,
-    );
-    expect(reply).toBeTruthy();
-    const replyParams = reply?.[0] as Record<string, unknown>;
-    expect(replyParams.parentPostId).toBe(h.findByActivityId(`${ACTOR_URI}/statuses/1001`)?._id);
+    // The original reply is still stored (best-effort) and linked to its
+    // immediate parent, which was itself imported by the backfill.
+    const reply = await rowByActivityId(`${ACTOR_URI}/statuses/1000`);
+    const immediateParent = await rowByActivityId(`${ACTOR_URI}/statuses/1001`);
+    expect(reply).toBeDefined();
+    expect(immediateParent).toBeDefined();
+    expect(reply?.parentPostId).toBe(immediateParent?.id);
   });
 
   /**
@@ -673,11 +536,25 @@ describe('outbox backfill — bounded ancestor backfill', () => {
       return fetchMock;
     };
 
-    /** Ancestor posts written to the store by this pass (excludes the reply itself). */
-    const materialisedAncestors = (replyActivityId: string): number =>
-      h.postCreatorCreate.mock.calls.filter(
-        (c) => (c[0].federation as { activityId?: string })?.activityId !== replyActivityId,
-      ).length;
+    /**
+     * Ancestor posts this pass actually WROTE, counted from the rows (excludes
+     * the inbound reply itself).
+     *
+     * Counted from `posts` rather than from a creator spy, because the spy
+     * answers "how many creates were attempted" and the boundary is about how
+     * many ancestors EXIST afterwards — a create that lost a unique race on
+     * `federation_activity_id` attempted and stored nothing.
+     */
+    const materialisedAncestors = async (replyActivityId: string): Promise<number> => {
+      const rows = await getDb()
+        .select({ activityId: posts.federationActivityId })
+        .from(posts)
+        .where(and(
+          like(posts.federationActivityId, `${ACTOR_URI}/statuses/%`),
+          ne(posts.federationActivityId, replyActivityId),
+        ));
+      return rows.length;
+    };
 
     it('pulls a whole 30-ancestor chain — AT the depth cap nothing is left behind', async () => {
       const fetchMock = finiteChain(30);
@@ -687,13 +564,13 @@ describe('outbox backfill — bounded ancestor backfill', () => {
         ACTOR_URI,
       );
 
-      expect(materialisedAncestors(`${ACTOR_URI}/statuses/31`)).toBe(30);
+      expect(await materialisedAncestors(`${ACTOR_URI}/statuses/31`)).toBe(30);
       expect(fetchMock).toHaveBeenCalledTimes(30);
       // Reached the real root, so the reply carries the true thread id.
-      const root = h.findByActivityId(`${ACTOR_URI}/statuses/1`);
-      expect(root).toBeTruthy();
-      const reply = h.findByActivityId(`${ACTOR_URI}/statuses/31`);
-      expect(reply?.threadId).toBe(root?._id);
+      const root = await rowByActivityId(`${ACTOR_URI}/statuses/1`);
+      expect(root).toBeDefined();
+      const reply = await rowByActivityId(`${ACTOR_URI}/statuses/31`);
+      expect(reply?.threadId).toBe(root?.id);
     });
 
     it('stops at 30 on a 31-ancestor chain — the reply still lands, unlinked above', async () => {
@@ -706,16 +583,16 @@ describe('outbox backfill — bounded ancestor backfill', () => {
 
       // One over the chain length the cap allows: the 31st ancestor (the real root,
       // statuses/1) is never fetched and never written.
-      expect(materialisedAncestors(`${ACTOR_URI}/statuses/32`)).toBe(30);
+      expect(await materialisedAncestors(`${ACTOR_URI}/statuses/32`)).toBe(30);
       expect(fetchMock).toHaveBeenCalledTimes(30);
       expect(fetchMock).not.toHaveBeenCalledWith(`${ACTOR_URI}/statuses/1`, expect.anything());
-      expect(h.findByActivityId(`${ACTOR_URI}/statuses/1`)).toBeUndefined();
+      expect(await rowByActivityId(`${ACTOR_URI}/statuses/1`)).toBeUndefined();
 
       // Best-effort, never a dropped post: the reply exists and is linked to its
       // immediate parent, rooted at the deepest ancestor the pass did reach.
-      const reply = h.findByActivityId(`${ACTOR_URI}/statuses/32`);
-      expect(reply?.parentPostId).toBe(h.findByActivityId(`${ACTOR_URI}/statuses/31`)?._id);
-      expect(reply?.threadId).toBe(h.findByActivityId(`${ACTOR_URI}/statuses/2`)?._id);
+      const reply = await rowByActivityId(`${ACTOR_URI}/statuses/32`);
+      expect(reply?.parentPostId).toBe((await rowByActivityId(`${ACTOR_URI}/statuses/31`))?.id);
+      expect(reply?.threadId).toBe((await rowByActivityId(`${ACTOR_URI}/statuses/2`))?.id);
     });
   });
 });
@@ -725,41 +602,62 @@ describe('reconciliation script — backfillFederatedThreadLinks', () => {
     vi.stubEnv('CONFIRM_ADMIN_MUTATION', 'backfillFederatedThreadLinks');
 
     const parentUri = `${ACTOR_URI}/statuses/700`;
+    const base = {
+      oxyUserId: AUTHOR_OXY,
+      authorship: [{ oxyUserId: AUTHOR_OXY, role: 'owner' as const, status: 'accepted' as const }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published' as const,
+    };
     // Local parent (thread root) + an orphaned reply pointing at it.
-    h.store.push({
-      _id: 'aaa_parent',
-      federation: { activityId: parentUri },
-      threadId: null,
-      parentPostId: null,
-      status: 'published',
-      visibility: 'public',
+    const parent = await insertPostRecord({
+      ...base,
+      content: { variants: [{ source: 'author', text: 'the parent', tag: 'en' }] },
+      federation: { activityId: parentUri, actorUri: ACTOR_URI },
     });
-    h.store.push({
-      _id: 'bbb_orphan',
-      federation: { activityId: `${ACTOR_URI}/statuses/701`, inReplyTo: parentUri },
-      threadId: null,
-      parentPostId: null,
-      status: 'published',
-      visibility: 'public',
+    const orphan = await insertPostRecord({
+      ...base,
+      content: { variants: [{ source: 'author', text: 'the orphan', tag: 'en' }] },
+      federation: {
+        activityId: `${ACTOR_URI}/statuses/701`,
+        actorUri: ACTOR_URI,
+        inReplyTo: parentUri,
+      },
     });
-    // A non-orphan (already linked) — must be left untouched / not matched.
-    h.store.push({
-      _id: 'ccc_linked',
-      federation: { activityId: `${ACTOR_URI}/statuses/702`, inReplyTo: parentUri },
-      threadId: 'aaa_parent',
-      parentPostId: 'aaa_parent',
-      status: 'published',
-      visibility: 'public',
+    // The orphan state the script exists to repair is LEGITIMATE and storable:
+    // `is_reply` true with no parent link.
+    expect(orphan.isReply).toBe(true);
+    expect(orphan.parentPostId).toBeNull();
+
+    // A non-orphan (already linked) — must be left untouched.
+    const linked = await insertPostRecord({
+      ...base,
+      content: { variants: [{ source: 'author', text: 'already linked', tag: 'en' }] },
+      parentPostId: parent.id,
+      threadId: parent.id,
+      federation: {
+        activityId: `${ACTOR_URI}/statuses/702`,
+        actorUri: ACTOR_URI,
+        inReplyTo: parentUri,
+      },
     });
 
     await backfillFederatedThreadLinks();
 
-    const orphan = h.findById('bbb_orphan');
-    expect(orphan?.parentPostId).toBe('aaa_parent');
-    expect(orphan?.threadId).toBe('aaa_parent');
+    // The script closes the pool on purpose (it is a Fargate one-shot).
+    await connectPostgres();
 
-    // Unrelated already-linked reply is unchanged.
-    const linked = h.findById('ccc_linked');
-    expect(linked?.parentPostId).toBe('aaa_parent');
+    const repaired = await rowByActivityId(`${ACTOR_URI}/statuses/701`);
+    expect(repaired?.parentPostId).toBe(parent.id);
+    expect(repaired?.threadId).toBe(parent.id);
+
+    // The already-linked reply is unchanged, and the parent was not turned into
+    // a reply of itself.
+    const untouched = await rowByActivityId(`${ACTOR_URI}/statuses/702`);
+    expect(untouched?.id).toBe(linked.id);
+    expect(untouched?.parentPostId).toBe(parent.id);
+    expect(untouched?.threadId).toBe(parent.id);
+    const parentRow = await rowByActivityId(parentUri);
+    expect(parentRow?.parentPostId).toBeNull();
   });
 });

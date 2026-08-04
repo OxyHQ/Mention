@@ -1,5 +1,6 @@
 import { PassThrough } from 'node:stream';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * The federated ingest routes run the converged post-ingest enrichment.
@@ -35,12 +36,6 @@ const mocks = vi.hoisted(() => ({
   actorFindOne: vi.fn(),
   findOneAndUpdate: vi.fn(),
   updateOne: vi.fn(),
-  postFind: vi.fn(),
-  postFindOne: vi.fn(),
-  postFindById: vi.fn(),
-  postUpdateOne: vi.fn(),
-  postInsertMany: vi.fn(),
-  postExists: vi.fn(),
   getServiceOxyClient: vi.fn(),
   makeServiceRequest: vi.fn(),
   getLinkPreviews: vi.fn(),
@@ -91,24 +86,15 @@ vi.mock('../../../models/FederatedActor', () => ({
   },
 }));
 
-vi.mock('../../../models/Post', () => ({
-  // Mirror the real module's `pending` constant so the Stage-A baseline seed
-  // resolves it (vitest throws on undefined mock exports).
-  POST_CLASSIFICATION_PENDING: 'pending',
-  Post: {
-    find: mocks.postFind,
-    findOne: mocks.postFindOne,
-    findById: mocks.postFindById,
-    updateOne: mocks.postUpdateOne,
-    exists: mocks.postExists,
-    collection: {
-      insertMany: mocks.postInsertMany,
-    },
-  },
-}));
+/**
+ * The posts are REAL. The backfill writes them through the repository now, so
+ * `Post.collection.insertMany` intercepts nothing — and the whole subject here
+ * is that the raw-insert route runs the SAME enrichment the shared creation
+ * path does, which needs the insert to have actually happened.
+ */
 
-vi.mock('../../../models/UserSettings', () => ({
-  default: { updateOne: vi.fn() },
+vi.mock('../../../db/userProfile/userSettingsRepository', () => ({
+  updateUserSettings: vi.fn(),
 }));
 
 vi.mock('../../../utils/oxyHelpers', () => ({
@@ -130,14 +116,24 @@ vi.mock('../../../services/serviceRegistry', () => ({
   getPostFederator: vi.fn(),
 }));
 
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: { exists: vi.fn().mockResolvedValue({ _id: 'follow_1' }) },
+vi.mock('../../../db/federation/followRepository', () => ({
+  existsFollow: vi.fn().mockResolvedValue(true),
+  findFollows: vi.fn().mockResolvedValue([]),
 }));
 
+import { like } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { posts } from '../../../db/schema/posts';
 import { outboxSyncService } from '../../../connectors/activitypub/outbox.service';
 import { activityPubConnector } from '../../../connectors/activitypub/ActivityPubConnector';
 
-const ACTOR_URI = 'https://mastodon.social/users/alice';
+/**
+ * Namespaced per run: `posts.federation_activity_id` is unique and vitest runs
+ * files in parallel against one database, so a fixed actor path would make one
+ * file's notes collide with another's.
+ */
+const RUN = randomUUID().slice(0, 8);
+const ACTOR_URI = `https://mastodon.social/users/alice-${RUN}`;
 const OUTBOX_URL = 'https://mastodon.social/users/alice/outbox';
 const ALICE_OXY_ID = 'oxy_alice';
 
@@ -190,6 +186,18 @@ function stubOutbox(orderedItems: unknown[]): void {
   );
 }
 
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+afterEach(async () => {
+  await getDb().delete(posts).where(like(posts.federationActivityId, `${ACTOR_URI}%`));
+});
+
 function runOutboxSync() {
   return outboxSyncService.syncOutboxPostsDetailed(
     { uri: ACTOR_URI, acct: 'alice@mastodon.social', outboxUrl: OUTBOX_URL, oxyUserId: ALICE_OXY_ID },
@@ -220,6 +228,15 @@ function warmedSingleUrls(): string[] {
   return mocks.getLinkPreview.mock.calls.map(([url]) => url as string);
 }
 
+/** Posts this run's actor has, straight from the table. */
+async function storedPostCount(): Promise<number> {
+  const rows = await getDb()
+    .select({ id: posts.id })
+    .from(posts)
+    .where(like(posts.federationActivityId, `${ACTOR_URI}%`));
+  return rows.length;
+}
+
 /** Let the detached (un-awaited) warm settle before asserting on it. */
 async function settle(): Promise<void> {
   await new Promise((resolve) => setImmediate(resolve));
@@ -238,15 +255,9 @@ beforeEach(() => {
   mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.actorFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
   mocks.actorFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
-  mocks.postFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
-  mocks.postFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
-  mocks.postFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
-  mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
-  mocks.postInsertMany.mockResolvedValue({ insertedCount: 1 });
-  mocks.postExists.mockResolvedValue(null);
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   mocks.recordAccess.mockResolvedValue(undefined);
-  mocks.postCreatorCreate.mockResolvedValue({ _id: 'created_post_1' });
+  mocks.postCreatorCreate.mockResolvedValue({ id: 'created_post_1' });
   mocks.makeServiceRequest.mockResolvedValue({ id: 'oxy_user_1' });
   mocks.getLinkPreviews.mockResolvedValue({});
   mocks.getLinkPreview.mockResolvedValue({ url: ARTICLE_URL, status: 'pending' });
@@ -282,9 +293,11 @@ describe('Federated ingest — outbox backfill runs post-ingest enrichment', () 
     const result = await runOutboxSync();
     await settle();
 
-    // The posts really were inserted on the raw path this fix targets.
+    // The posts really were inserted on the raw path this fix targets — counted
+    // from the rows, because the enrichment is downstream of the write actually
+    // landing.
     expect(result.newPostCount).toBe(2);
-    expect(mocks.postInsertMany).toHaveBeenCalledTimes(1);
+    expect(await storedPostCount()).toBe(2);
 
     // Both links were handed to Oxy, in one batch call rather than per post.
     expect(mocks.getLinkPreviews).toHaveBeenCalledTimes(1);
@@ -322,7 +335,7 @@ describe('Federated ingest — outbox backfill runs post-ingest enrichment', () 
     await settle();
 
     expect(result.newPostCount).toBe(1);
-    expect(mocks.postInsertMany).toHaveBeenCalledTimes(1);
+    expect(await storedPostCount()).toBe(1);
   });
 
   it('does not wait for the warm before finishing the import', async () => {

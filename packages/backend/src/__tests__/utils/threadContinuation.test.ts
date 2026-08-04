@@ -1,5 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import mongoose from 'mongoose';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * `assertContinuesOwnThread` — the ONE exception to "a post published as another
@@ -18,26 +17,63 @@ import mongoose from 'mongoose';
  *   3. that thread's ROOT is authored by that same account.
  *
  * Each has its own failing fixture below, because a check nothing can fail is a
- * check that is not there.
+ * check that is not there. Every refusal fixture is built so it fails on EXACTLY
+ * the condition it names and satisfies the others — an earlier version of this
+ * suite was green with a condition deleted, because every fixture happened to
+ * fail a second one too.
+ *
+ * ## What the Postgres port changed
+ *
+ * The rows are REAL. The suite this replaces mocked `Post.find` and handed back
+ * whatever array the test had just written down, so it could not tell a correct
+ * query from one that silently matches nothing — and the module's whole job is
+ * reading three facts back out of storage. Both functions now issue one
+ * `inArray(posts.id, [parent, root])` read, so the fixtures are rows in the
+ * `posts` table and the assertions are about what that query finds.
+ *
+ * The rows are seeded ONCE and shared, which is safe precisely because the read
+ * names exactly two ids: a row no case names cannot influence its answer. Each
+ * case therefore names the pair that isolates its own condition, rather than
+ * rewriting a whole collection.
+ *
+ * Two behaviours genuinely changed with the port, and both are marked at their
+ * own cases below: `ObjectId.isValid` is gone (see `db/ids.ts`), so a malformed
+ * id is no longer refused one branch EARLY — it names no row and is refused by
+ * the same condition an unknown id always was.
  */
 
-const find = vi.hoisted(() => vi.fn());
-const resolveUserSummaries = vi.hoisted(() => vi.fn(async () => new Map()));
+import { PostType, PostVisibility } from '@mention/shared-types';
 
-vi.mock('../../models/Post', () => ({
-  Post: { find },
-  POST_CLASSIFICATION_PENDING: 'pending',
-}));
+/**
+ * `getDb`, counted.
+ *
+ * The real connection, wrapped — several cases assert the assertion refuses
+ * WITHOUT asking the database anything, which is a property of the guard order
+ * and is worth keeping now that the query is real. A stub would answer the
+ * question "was a query built"; this answers "was the database reached", which
+ * is what those cases have always been about.
+ */
+const dbReads = vi.hoisted(() => vi.fn());
+vi.mock('../../db/postgres', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../db/postgres')>();
+  return {
+    ...actual,
+    getDb: () => {
+      dbReads();
+      return actual.getDb();
+    },
+  };
+});
+
+const resolveUserSummaries = vi.hoisted(() => vi.fn(async () => new Map()));
 
 // The identity path behind account KINDS. The real `publishAsAccount` is used
 // throughout — the second case's condition 4 delegates to its authorization gate,
 // and stubbing that would leave the delegation untested.
 vi.mock('../../services/PostHydrationService', () => ({ resolveUserSummaries }));
 
-vi.mock('../../utils/logger', () => ({
-  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
-
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import {
   assertAnswersOperatedAccount,
   assertContinuesOwnThread,
@@ -45,40 +81,108 @@ import {
 import { PublishAsAccessError } from '../../services/publishAsAccount';
 import type { AccountMember } from '@oxyhq/core';
 
-const CHANNEL = 'channel-account-1';
-const OPERATOR = 'human-1';
-const OTHER_ACCOUNT = 'org-account-1';
+const scope = serviceScope('thread-continuation');
 
-const ROOT = new mongoose.Types.ObjectId().toString();
-const CONTINUATION_1 = new mongoose.Types.ObjectId().toString();
-const FOREIGN_POST = new mongoose.Types.ObjectId().toString();
-const FOREIGN_ROOT = new mongoose.Types.ObjectId().toString();
+const CHANNEL = scope.user('channel');
+const OPERATOR = scope.user('operator');
+const OTHER_ACCOUNT = scope.user('org');
+const STRANGER = scope.user('stranger');
+const ORG_A = scope.user('org-a');
+const ORG_B = scope.user('org-b');
+/** An account Oxy answers nothing about — never present in a `kindsAre` map. */
+const UNRESOLVABLE = scope.user('unresolvable');
 
-interface Row {
-  _id: string;
-  oxyUserId?: string;
-  threadId?: string;
-}
+/**
+ * Post ids, spelled out rather than minted.
+ *
+ * They were `new mongoose.Types.ObjectId().toString()` and there is nothing left
+ * that cares: `posts.id` is `text` holding a 24-char ObjectId hex for a
+ * pre-cutover row and a uuid v7 for a new one, and no shape check survives
+ * anywhere (`db/ids.ts`). What DOES still matter is that they are unique across
+ * the whole run — one database serves every file in parallel and this is a
+ * primary key — hence the per-suite prefix.
+ */
+const ROOT = 'threadcont-root';
+const CONTINUATION_1 = 'threadcont-continuation-1';
+const FOREIGN_POST = 'threadcont-foreign-post';
+const FOREIGN_ROOT = 'threadcont-foreign-root';
+const OTHER_ROOT = 'threadcont-other-root';
+const STRANGERS_REPLY = 'threadcont-strangers-reply';
+const GRAFTED = 'threadcont-grafted';
+const NO_SUCH_POST = 'threadcont-no-such-post';
 
-/** Seed the collection the assertion reads. */
-function rowsAre(rows: Row[]): void {
-  find.mockImplementation((filter: { _id: { $in: Array<string | null | undefined> } }) => {
-    const wanted = new Set((filter._id.$in ?? []).map((id) => String(id)));
-    const matched = rows.filter((row) => wanted.has(row._id));
-    return { select: () => ({ lean: async () => matched }) };
+const A_ROOT = 'threadans-a-root';
+const A_SECOND = 'threadans-a-second';
+const B_SECOND = 'threadans-b-second';
+const CALLER_ROOT = 'threadans-caller-root';
+const CHANNEL_ROOT = 'threadans-channel-root';
+const IN_CHANNEL_THREAD = 'threadans-in-channel-thread';
+const ELSEWHERE = 'threadans-elsewhere';
+const UNKNOWN_ROOT = 'threadans-unknown-root';
+const IN_UNKNOWN_THREAD = 'threadans-in-unknown-thread';
+
+/**
+ * One stored post: an id, an author and the thread it belongs to.
+ *
+ * Nothing else is read by either function under test, so nothing else is stated.
+ * A ROOT anchors the thread on its own id — the same self-anchor `createThread`
+ * writes — and `thread_id` is a real foreign key, so a row must be seeded after
+ * the root it names.
+ */
+async function seedRow(id: string, oxyUserId: string, threadId: string): Promise<void> {
+  await seedPost(scope, {
+    id,
+    oxyUserId,
+    authorship: [{ oxyUserId, role: 'owner', status: 'accepted' }],
+    threadId,
+    type: PostType.TEXT,
+    visibility: PostVisibility.PUBLIC,
+    status: 'published',
+    content: { variants: [{ source: 'author', text: id, tag: 'en' }] },
   });
 }
 
+beforeAll(async () => {
+  await connectPostgres();
+  await clearServiceScope(scope);
+
+  // --- assertContinuesOwnThread ---
+  // The channel's own thread: a root and one continuation anchored on it.
+  await seedRow(ROOT, CHANNEL, ROOT);
+  await seedRow(CONTINUATION_1, CHANNEL, ROOT);
+  // Somebody else's thread, its root and a post of theirs inside it.
+  await seedRow(FOREIGN_ROOT, OTHER_ACCOUNT, FOREIGN_ROOT);
+  await seedRow(FOREIGN_POST, OTHER_ACCOUNT, FOREIGN_ROOT);
+  // A THIRD PARTY's reply sitting inside that same thread — the fixture that
+  // isolates condition 1, since conditions 2 and 3 both pass for it.
+  await seedRow(STRANGERS_REPLY, STRANGER, FOREIGN_ROOT);
+  // The channel's own post, grafted onto somebody else's thread — isolates
+  // condition 3, since 1 and 2 both pass.
+  await seedRow(GRAFTED, CHANNEL, FOREIGN_ROOT);
+  // A second thread of the channel's, so a real parent and a real thread of the
+  // same account can still fail to belong together — isolates condition 2.
+  await seedRow(OTHER_ROOT, CHANNEL, OTHER_ROOT);
+
+  // --- assertAnswersOperatedAccount ---
+  await seedRow(A_ROOT, ORG_A, A_ROOT);
+  await seedRow(A_SECOND, ORG_A, A_ROOT);
+  await seedRow(B_SECOND, ORG_B, A_ROOT);
+  await seedRow(CALLER_ROOT, OPERATOR, CALLER_ROOT);
+  await seedRow(CHANNEL_ROOT, CHANNEL, CHANNEL_ROOT);
+  await seedRow(IN_CHANNEL_THREAD, ORG_A, CHANNEL_ROOT);
+  await seedRow(ELSEWHERE, ORG_A, ELSEWHERE);
+  await seedRow(UNKNOWN_ROOT, UNRESOLVABLE, UNKNOWN_ROOT);
+  await seedRow(IN_UNKNOWN_THREAD, ORG_A, UNKNOWN_ROOT);
+});
+
+afterAll(async () => {
+  await clearServiceScope(scope);
+  await closePostgres();
+});
+
 beforeEach(() => {
-  find.mockReset();
-  rowsAre([
-    // The channel's own thread: a root and one continuation anchored on it.
-    { _id: ROOT, oxyUserId: CHANNEL, threadId: ROOT },
-    { _id: CONTINUATION_1, oxyUserId: CHANNEL, threadId: ROOT },
-    // Somebody else's post, and somebody else's thread root.
-    { _id: FOREIGN_POST, oxyUserId: OTHER_ACCOUNT, threadId: FOREIGN_ROOT },
-    { _id: FOREIGN_ROOT, oxyUserId: OTHER_ACCOUNT, threadId: FOREIGN_ROOT },
-  ]);
+  // The seed above reached the database; the counter belongs to the case.
+  dbReads.mockClear();
 });
 
 describe('assertContinuesOwnThread — what it ADMITS', () => {
@@ -86,6 +190,10 @@ describe('assertContinuesOwnThread — what it ADMITS', () => {
     await expect(
       assertContinuesOwnThread({ parentPostId: ROOT, threadId: ROOT, authorId: CHANNEL }),
     ).resolves.toBeUndefined();
+    // The vacuity floor for every `expect(dbReads).not.toHaveBeenCalled()` below:
+    // a counter that never increments would let all of them pass while measuring
+    // nothing, which is exactly the shape those assertions exist to rule out.
+    expect(dbReads).toHaveBeenCalled();
   });
 
   it('admits a later link, whose parent is anchored on the root', async () => {
@@ -125,19 +233,10 @@ describe('assertContinuesOwnThread — what it REFUSES', () => {
    * the account's name — exactly what the exception must not become.
    */
   it('refuses a THIRD PARTY\'s post that sits inside the account\'s own thread', async () => {
-    const OWN_ROOT = new mongoose.Types.ObjectId().toString();
-    const STRANGERS_REPLY = new mongoose.Types.ObjectId().toString();
-    rowsAre([
-      { _id: OWN_ROOT, oxyUserId: OTHER_ACCOUNT, threadId: OWN_ROOT },
-      // A stranger replied into that thread — so it carries the account's own
-      // threadId while belonging to somebody else.
-      { _id: STRANGERS_REPLY, oxyUserId: 'a-stranger', threadId: OWN_ROOT },
-    ]);
-
     await expect(
       assertContinuesOwnThread({
         parentPostId: STRANGERS_REPLY,
-        threadId: OWN_ROOT,
+        threadId: FOREIGN_ROOT,
         authorId: OTHER_ACCOUNT,
       }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
@@ -149,12 +248,6 @@ describe('assertContinuesOwnThread — what it REFUSES', () => {
    * a real thread of the account, hoping the pair is not checked.
    */
   it('refuses a parent that is not in the declared thread', async () => {
-    const OTHER_ROOT = new mongoose.Types.ObjectId().toString();
-    rowsAre([
-      { _id: ROOT, oxyUserId: CHANNEL, threadId: ROOT },
-      { _id: OTHER_ROOT, oxyUserId: CHANNEL, threadId: OTHER_ROOT },
-    ]);
-
     await expect(
       assertContinuesOwnThread({ parentPostId: ROOT, threadId: OTHER_ROOT, authorId: CHANNEL }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
@@ -167,12 +260,6 @@ describe('assertContinuesOwnThread — what it REFUSES', () => {
    * somewhere could keep answering in that conversation forever.
    */
   it('refuses a thread the account did not start, even with its own parent in it', async () => {
-    const GRAFTED = new mongoose.Types.ObjectId().toString();
-    rowsAre([
-      { _id: FOREIGN_ROOT, oxyUserId: OTHER_ACCOUNT, threadId: FOREIGN_ROOT },
-      { _id: GRAFTED, oxyUserId: CHANNEL, threadId: FOREIGN_ROOT },
-    ]);
-
     await expect(
       assertContinuesOwnThread({ parentPostId: GRAFTED, threadId: FOREIGN_ROOT, authorId: CHANNEL }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
@@ -193,16 +280,14 @@ describe('assertContinuesOwnThread — what it REFUSES', () => {
   });
 
   it('refuses a parent that does not exist', async () => {
-    const MISSING = new mongoose.Types.ObjectId().toString();
     await expect(
-      assertContinuesOwnThread({ parentPostId: MISSING, threadId: ROOT, authorId: CHANNEL }),
+      assertContinuesOwnThread({ parentPostId: NO_SUCH_POST, threadId: ROOT, authorId: CHANNEL }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
   });
 
   it('refuses a thread root that does not exist', async () => {
-    const MISSING = new mongoose.Types.ObjectId().toString();
     await expect(
-      assertContinuesOwnThread({ parentPostId: ROOT, threadId: MISSING, authorId: CHANNEL }),
+      assertContinuesOwnThread({ parentPostId: ROOT, threadId: NO_SUCH_POST, authorId: CHANNEL }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
   });
 
@@ -210,11 +295,28 @@ describe('assertContinuesOwnThread — what it REFUSES', () => {
     ['no threadId', { parentPostId: ROOT, threadId: null, authorId: CHANNEL }],
     ['no parentPostId', { parentPostId: null, threadId: ROOT, authorId: CHANNEL }],
     ['no author', { parentPostId: ROOT, threadId: ROOT, authorId: null }],
-    ['a malformed parent id', { parentPostId: 'not-an-objectid', threadId: ROOT, authorId: CHANNEL }],
-    ['a malformed thread id', { parentPostId: ROOT, threadId: 'not-an-objectid', authorId: CHANNEL }],
   ])('refuses with %s, and asks the database nothing', async (_label, args) => {
     await expect(assertContinuesOwnThread(args)).rejects.toBeInstanceOf(PublishAsAccessError);
-    expect(find).not.toHaveBeenCalled();
+    expect(dbReads).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A MALFORMED ID IS STILL REFUSED — one branch later than it used to be.
+   *
+   * `ObjectId.isValid` guards stood in front of this read and are deleted per
+   * `db/ids.ts`: `posts.id` is `text`, so an id of any shape simply names no row
+   * and is refused by conditions 1 and 3 with an absent parent and root. That is
+   * the same answer the guard produced, so this case keeps its subject and loses
+   * only the "asks the database nothing" half — which was a property of the
+   * guard, not of the rule. Worth pinning explicitly, because the guard's other
+   * legacy was worse: kept, it would have answered "not valid" for every uuid v7
+   * this instance now mints.
+   */
+  it.each([
+    ['a malformed parent id', { parentPostId: 'not-an-objectid', threadId: ROOT, authorId: CHANNEL }],
+    ['a malformed thread id', { parentPostId: ROOT, threadId: 'not-an-objectid', authorId: CHANNEL }],
+  ])('refuses %s, which now names no row rather than failing a shape check', async (_label, args) => {
+    await expect(assertContinuesOwnThread(args)).rejects.toBeInstanceOf(PublishAsAccessError);
   });
 
   it('answers 400, the same refusal a plain reply gets — the two are not worth distinguishing', async () => {
@@ -240,13 +342,6 @@ describe('assertContinuesOwnThread — what it REFUSES', () => {
  *   4. the caller may act for the parent's account too.
  */
 describe('assertAnswersOperatedAccount — two operated accounts talking', () => {
-  const ORG_A = 'org-a';
-  const ORG_B = 'org-b';
-  const A_ROOT = new mongoose.Types.ObjectId().toString();
-  const A_SECOND = new mongoose.Types.ObjectId().toString();
-  const CHANNEL_ROOT = new mongoose.Types.ObjectId().toString();
-  const ELSEWHERE = new mongoose.Types.ObjectId().toString();
-
   const ACT_AS = ['account:read', 'account:act_as', 'members:read'];
   const NO_ACT_AS = ['account:read', 'members:read'];
 
@@ -279,13 +374,12 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
   }
 
   beforeEach(() => {
-    kindsAre({ [ORG_A]: 'organization', [ORG_B]: 'organization', [CHANNEL]: 'channel', [OPERATOR]: 'personal' });
-    rowsAre([
-      { _id: A_ROOT, oxyUserId: ORG_A, threadId: A_ROOT },
-      { _id: A_SECOND, oxyUserId: ORG_A, threadId: A_ROOT },
-      { _id: CHANNEL_ROOT, oxyUserId: CHANNEL, threadId: CHANNEL_ROOT },
-      { _id: ELSEWHERE, oxyUserId: ORG_A, threadId: ELSEWHERE },
-    ]);
+    kindsAre({
+      [ORG_A]: 'organization',
+      [ORG_B]: 'organization',
+      [CHANNEL]: 'channel',
+      [OPERATOR]: 'personal',
+    });
   });
 
   const base = {
@@ -306,23 +400,23 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
     // [A, B, B] — the shape the own-thread exception cannot express, because its
     // third condition is about the root. Both ends are still B and A, both
     // operated, neither a channel.
-    rowsAre([
-      { _id: A_ROOT, oxyUserId: ORG_A, threadId: A_ROOT },
-      { _id: A_SECOND, oxyUserId: ORG_B, threadId: A_ROOT },
-    ]);
     await expect(
       assertAnswersOperatedAccount({
         ...base,
-        parentPostId: A_SECOND,
+        parentPostId: B_SECOND,
         memberReader: readerFor(ALL_OPERATED),
       }),
     ).resolves.toBeUndefined();
   });
 
   it('admits an organization answering the CALLER\'s own post', async () => {
-    rowsAre([{ _id: A_ROOT, oxyUserId: OPERATOR, threadId: A_ROOT }]);
     await expect(
-      assertAnswersOperatedAccount({ ...base, memberReader: readerFor(ALL_OPERATED) }),
+      assertAnswersOperatedAccount({
+        ...base,
+        parentPostId: CALLER_ROOT,
+        threadId: CALLER_ROOT,
+        memberReader: readerFor(ALL_OPERATED),
+      }),
     ).resolves.toBeUndefined();
   });
 
@@ -379,14 +473,10 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
    * chaining onto a non-channel predecessor.
    */
   it('refuses when the thread ROOT is a channel, whoever the immediate parent is', async () => {
-    rowsAre([
-      { _id: CHANNEL_ROOT, oxyUserId: CHANNEL, threadId: CHANNEL_ROOT },
-      { _id: A_SECOND, oxyUserId: ORG_A, threadId: CHANNEL_ROOT },
-    ]);
     await expect(
       assertAnswersOperatedAccount({
         ...base,
-        parentPostId: A_SECOND,
+        parentPostId: IN_CHANNEL_THREAD,
         threadId: CHANNEL_ROOT,
         memberReader: readerFor(ALL_OPERATED),
       }),
@@ -439,17 +529,11 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
    * only the root's kind missing.
    */
   it('refuses when the thread ROOT\'s kind will not resolve, though the parent\'s does', async () => {
-    const UNKNOWN_ROOT = new mongoose.Types.ObjectId().toString();
     kindsAre({ [ORG_A]: 'organization', [ORG_B]: 'organization' });
-    rowsAre([
-      { _id: UNKNOWN_ROOT, oxyUserId: 'an-account-oxy-cannot-resolve', threadId: UNKNOWN_ROOT },
-      { _id: A_SECOND, oxyUserId: ORG_A, threadId: UNKNOWN_ROOT },
-    ]);
-
     await expect(
       assertAnswersOperatedAccount({
         ...base,
-        parentPostId: A_SECOND,
+        parentPostId: IN_UNKNOWN_THREAD,
         threadId: UNKNOWN_ROOT,
         memberReader: readerFor(ALL_OPERATED),
       }),
@@ -457,11 +541,10 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
   });
 
   it('refuses a parent that does not exist', async () => {
-    rowsAre([{ _id: A_ROOT, oxyUserId: ORG_A, threadId: A_ROOT }]);
     await expect(
       assertAnswersOperatedAccount({
         ...base,
-        parentPostId: new mongoose.Types.ObjectId().toString(),
+        parentPostId: NO_SUCH_POST,
         memberReader: readerFor(ALL_OPERATED),
       }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
@@ -471,12 +554,22 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
     ['no parentPostId', { parentPostId: null }],
     ['no threadId', { threadId: null }],
     ['no author', { authorId: null }],
-    ['a malformed parent id', { parentPostId: 'not-an-objectid' }],
   ])('refuses with %s, and asks the database nothing', async (_label, override) => {
     await expect(
       assertAnswersOperatedAccount({ ...base, ...override, memberReader: readerFor(ALL_OPERATED) }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
-    expect(find).not.toHaveBeenCalled();
+    expect(dbReads).not.toHaveBeenCalled();
+  });
+
+  /** See the matching case above: the id-shape guard is gone, the refusal is not. */
+  it('refuses a malformed parent id, which now names no row rather than failing a shape check', async () => {
+    await expect(
+      assertAnswersOperatedAccount({
+        ...base,
+        parentPostId: 'not-an-objectid',
+        memberReader: readerFor(ALL_OPERATED),
+      }),
+    ).rejects.toBeInstanceOf(PublishAsAccessError);
   });
 
   it('refuses with no member reader at all — an MCP caller cannot compose one', async () => {

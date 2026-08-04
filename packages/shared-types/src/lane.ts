@@ -35,7 +35,11 @@ import type { PostUser } from './post';
 export type LaneDisplayMode = 'mixed' | 'tab' | 'hidden';
 
 /** {@link LaneDisplayMode} as a runtime list, for validation and pickers. */
-export const LANE_DISPLAY_MODES: readonly LaneDisplayMode[] = ['mixed', 'tab', 'hidden'];
+export const LANE_DISPLAY_MODES = [
+  'mixed',
+  'tab',
+  'hidden',
+] as const satisfies readonly LaneDisplayMode[];
 
 /** Narrow an arbitrary string to a {@link LaneDisplayMode}. */
 export function isLaneDisplayMode(value: string | undefined): value is LaneDisplayMode {

@@ -27,12 +27,12 @@ import {
   provisionManagedVault,
 } from '../services/mtn/MentionNodeRegistryService';
 import { ingestFromNode } from '../services/mtn/MentionNodeSyncService';
-import MentionUserNode, { type IMentionUserNode } from '../models/MentionUserNode';
+import { hasLiveNode, type MentionUserNodeRecord } from '../db/mtn/nodeRepository';
 
 const router = Router();
 
-/** Public projection of a node row (drops Mongo internals). */
-function serializeNode(node: IMentionUserNode): Record<string, unknown> {
+/** Public projection of a node row (drops storage internals). */
+function serializeNode(node: MentionUserNodeRecord): Record<string, unknown> {
   return {
     nodeDid: node.nodeDid,
     endpoint: node.endpoint,
@@ -140,7 +140,7 @@ router.post('/ingest/notify/:userId', async (req: Request, res: Response) => {
   // Bound the param so a junk id never reaches the DB; an Oxy account id is a
   // short, opaque, alphanumeric string.
   if (typeof userId === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(userId)) {
-    void MentionUserNode.exists({ oxyUserId: userId, status: { $ne: 'revoked' } })
+    void hasLiveNode(userId)
       .then((hasNode) => {
         if (hasNode) {
           // Detached background ingest — NEVER awaited on the request path.

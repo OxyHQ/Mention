@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * Two separate questions, and the whole point of this file is that they have separate
  * answers:
  *
- * 1. **May a client report this?** The stored `ReportedType` enum decides, and it is
+ * 1. **May a client report this?** The stored `REPORTED_TYPES` set decides, and it is
  *    the API contract every existing report surface was written against.
  * 2. **Does the report leave this application?** `subjects/registry.ts` decides, by
  *    having a provider or not having one.
@@ -51,7 +51,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 }));
 
 import reportsRoutes from '../../routes/reports.routes';
-import { ReportedType } from '../../models/Report.model';
+import { REPORTED_TYPES } from '../../db/schema/moderation';
 import { deliverableTypes } from '../../services/moderation/subjects/registry';
 
 function buildApp(): express.Express {
@@ -147,7 +147,7 @@ describe('POST /reports — accepted types vs delivered types', () => {
   });
 
   it('accepts every type the stored enum carries', async () => {
-    for (const reportedType of Object.values(ReportedType)) {
+    for (const reportedType of REPORTED_TYPES) {
       localOnlyIntake(reportedType);
       const response = await request(buildApp())
         .post('/reports')
@@ -155,7 +155,7 @@ describe('POST /reports — accepted types vs delivered types', () => {
 
       expect(response.status).toBe(201);
     }
-    expect(createReport).toHaveBeenCalledTimes(Object.values(ReportedType).length);
+    expect(createReport).toHaveBeenCalledTimes(REPORTED_TYPES.length);
   });
 
   it('delivers exactly three of them, and no more', async () => {
@@ -168,6 +168,6 @@ describe('POST /reports — accepted types vs delivered types', () => {
      */
     expect(deliverableTypes().sort()).toEqual(['comment', 'post', 'user']);
     // And the accepted surface is strictly wider, which is the whole design.
-    expect(Object.values(ReportedType).length).toBeGreaterThan(deliverableTypes().length);
+    expect(REPORTED_TYPES.length).toBeGreaterThan(deliverableTypes().length);
   });
 });

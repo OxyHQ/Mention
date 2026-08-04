@@ -1,221 +1,208 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import mongoose from 'mongoose';
-
 /**
- * Offline, model-level tests for the self-thread root `threadId` backfill.
+ * The self-thread root `threadId` repair, against REAL ROWS.
  *
- * `Post.aggregate` (candidate single-author thread groups) and `Post.find` (root
- * existence/state/ownership lookup) are mocked with canned shapes, and
- * `Post.bulkWrite` is captured. This exercises the REAL qualification guards
- * (existence, native, top-level, not-already-stamped, ownership) and the per-root
- * stamp WITHOUT depending on MongoDB's `$group` semantics (which the aggregation,
- * not this script, owns). Mirrors `scripts/migrateThreadFanToChain.test.ts`.
+ * The previous version mocked `Post.aggregate` and fed the script a canned list
+ * of "candidate thread groups" — so the half of the script that decides WHICH
+ * threads are candidates (a `GROUP BY thread_id` with
+ * `HAVING count(distinct oxy_user_id) = 1`, over native posts only) was never
+ * executed. That grouping is the safety gate: it is what separates a self-thread
+ * from a reply tree, and stamping the root of a reply tree folds an unrelated
+ * author's posts into one connected slice.
+ *
+ * Both halves run for real here. Every case seeds the thread it is about and
+ * asserts the stored `thread_id` of the root afterwards.
+ *
+ * ## Two things the port changed, stated rather than silently dropped
+ *
+ * `array_agg(distinct …)` DROPS NULLs, so an author-less group aggregates to an
+ * EMPTY array — which is why the `HAVING` is `= 1` and not `<= 1`. And the
+ * "root missing" guard is no longer reachable: `thread_id` is a real foreign key
+ * with `ON DELETE SET NULL`, so a continuation cannot point at a root that does
+ * not exist. The guard stays correct and is simply unreachable, which is a
+ * better state than the Mongo one it replaces.
  */
 
-interface CapturedOp {
-  updateOne: { filter: { _id: mongoose.Types.ObjectId }; update: { $set: { threadId: string } } };
-}
-
-interface CandidateGroup {
-  _id: string;
-  count: number;
-  authors: string[];
-}
-
-interface RootRow {
-  _id: mongoose.Types.ObjectId;
-  oxyUserId?: string;
-  parentPostId?: string | null;
-  threadId?: string | null;
-  federation?: { activityId?: string };
-}
-
-const h = vi.hoisted(() => {
-  const state: {
-    candidates: CandidateGroup[];
-    roots: RootRow[];
-    capturedOps: CapturedOp[];
-  } = { candidates: [], roots: [], capturedOps: [] };
-
-  const aggregate = vi.fn(async () => state.candidates);
-
-  const find = vi.fn((query: { _id?: { $in?: mongoose.Types.ObjectId[] } }) => ({
-    lean: async () => {
-      const inClause = query?._id?.$in;
-      if (!Array.isArray(inClause)) return [];
-      const wanted = new Set(inClause.map((id) => id.toString()));
-      return state.roots.filter((r) => wanted.has(r._id.toString()));
-    },
-  }));
-
-  const bulkWrite = vi.fn(async (ops: CapturedOp[]) => {
-    state.capturedOps.push(...ops);
-    return { modifiedCount: ops.length };
-  });
-
-  return { state, aggregate, find, bulkWrite };
-});
-
-vi.mock('../../models/Post', () => ({
-  Post: { aggregate: h.aggregate, find: h.find, bulkWrite: h.bulkWrite },
-}));
-
-vi.mock('../../utils/database', () => ({
-  connectToDatabase: vi.fn(async () => undefined),
-}));
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
 
 vi.mock('../../utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-vi.spyOn(mongoose, 'disconnect').mockResolvedValue(undefined as never);
-
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { posts } from '../../db/schema/posts';
+import type { PostRecord, PostRecordInput } from '../../db/posts/postRecord';
+import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import backfillThreadRootThreadId from '../../scripts/backfillThreadRootThreadId';
 
-/**
- * Build a candidate thread group plus its (optional) root row. `author` is the
- * single continuation author the aggregation collected; the root defaults to the
- * same author, native, top-level, with a null threadId (the broken-root shape).
- */
-function makeThread(opts: {
-  author: string;
-  rootAuthor?: string;
-  rootThreadId?: string | null;
-  rootParentPostId?: string | null;
-  rootFederation?: { activityId?: string };
-  rootMissing?: boolean;
-  count?: number;
-}): { rootId: string; group: CandidateGroup; rootRow?: RootRow } {
-  const root = new mongoose.Types.ObjectId();
-  const rootId = root.toString();
-  const group: CandidateGroup = {
-    _id: rootId,
-    count: opts.count ?? 2,
-    authors: [opts.author],
-  };
-  const rootRow = opts.rootMissing
-    ? undefined
-    : {
-        _id: root,
-        oxyUserId: opts.rootAuthor ?? opts.author,
-        parentPostId: opts.rootParentPostId ?? null,
-        threadId: opts.rootThreadId ?? null,
-        federation: opts.rootFederation,
-      };
-  return { rootId, group, rootRow };
+const scope = postScope('backfill-thread-root');
+const AUTHOR = scope.user('author');
+const OTHER = scope.user('other');
+
+async function seedThreadPost(
+  author: string,
+  overrides: Partial<PostRecordInput> = {},
+): Promise<PostRecord> {
+  return seedPost(scope, {
+    oxyUserId: author,
+    authorship: [{ oxyUserId: author, role: 'owner', status: 'accepted' }],
+    ...overrides,
+  });
 }
+
+/**
+ * A root plus `continuations` posts that already carry `threadId = root.id`.
+ *
+ * The root's own `threadId` is left NULL — the broken shape the repair exists
+ * for, and the reason the group's author set describes the continuations only.
+ */
+async function seedBrokenThread(options: {
+  rootAuthor?: string;
+  continuationAuthor?: string;
+  root?: Partial<PostRecordInput>;
+  continuations?: number;
+} = {}): Promise<string> {
+  const root = await seedThreadPost(options.rootAuthor ?? AUTHOR, options.root);
+  for (let i = 0; i < (options.continuations ?? 2); i += 1) {
+    await seedThreadPost(options.continuationAuthor ?? AUTHOR, {
+      parentPostId: root.id,
+      threadId: root.id,
+    });
+  }
+  return root.id;
+}
+
+/** The root's stored `thread_id` and `updated_at`. */
+async function rootState(id: string) {
+  const [row] = await getDb()
+    .select({ threadId: posts.threadId, updatedAt: posts.updatedAt })
+    .from(posts)
+    .where(eq(posts.id, id));
+  return row;
+}
+
+beforeAll(async () => {
+  await connectPostgres();
+});
 
 beforeEach(() => {
   vi.stubEnv('CONFIRM_ADMIN_MUTATION', 'backfillThreadRootThreadId');
-  h.state.candidates = [];
-  h.state.roots = [];
-  h.state.capturedOps = [];
-  h.aggregate.mockClear();
-  h.find.mockClear();
-  h.bulkWrite.mockClear();
 });
 
-afterEach(() => {
+afterEach(async () => {
   vi.unstubAllEnvs();
+  await clearPostScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 describe('backfillThreadRootThreadId', () => {
-  it('stamps threadId = root._id on a native single-author self-thread root with null threadId', async () => {
-    const { rootId, group, rootRow } = makeThread({ author: 'user-A' });
-    h.state.candidates = [group];
-    h.state.roots = rootRow ? [rootRow] : [];
+  it('stamps threadId = its own id on a native single-author self-thread root', async () => {
+    const rootId = await seedBrokenThread();
+    expect((await rootState(rootId))?.threadId).toBeNull();
 
     await backfillThreadRootThreadId();
 
-    expect(h.state.capturedOps).toHaveLength(1);
-    const op = h.state.capturedOps[0];
-    expect(op.updateOne.filter._id.toString()).toBe(rootId);
-    expect(op.updateOne.update.$set.threadId).toBe(rootId);
+    expect((await rootState(rootId))?.threadId).toBe(rootId);
   });
 
-  it('is idempotent: a root that already carries a threadId is not re-stamped', async () => {
-    // Second-run state: the root was stamped on a prior run, so its threadId is set.
-    const { rootId, group, rootRow } = makeThread({ author: 'user-A' });
-    if (rootRow) rootRow.threadId = rootId;
-    h.state.candidates = [group];
-    h.state.roots = rootRow ? [rootRow] : [];
+  it('is idempotent: a root that already carries a threadId is not re-written', async () => {
+    const rootId = await seedBrokenThread();
+    await backfillThreadRootThreadId();
+    const first = await rootState(rootId);
+
+    await backfillThreadRootThreadId();
+    const second = await rootState(rootId);
+
+    // `updated_at` is maintained on every `db.update()`, so an unchanged stamp is
+    // the evidence that the second run issued no write at all.
+    expect(second?.updatedAt).toEqual(first?.updatedAt);
+    expect(second?.threadId).toBe(rootId);
+  });
+
+  it('skips a REPLY TREE — continuations by an author other than the root’s', async () => {
+    // The single continuation author is OTHER while the root belongs to AUTHOR:
+    // "someone replied under my post N times", not a self-thread. Stamping this
+    // root would fold two people's posts into one connected slice.
+    const rootId = await seedBrokenThread({ continuationAuthor: OTHER });
 
     await backfillThreadRootThreadId();
 
-    expect(h.state.capturedOps).toHaveLength(0);
+    expect((await rootState(rootId))?.threadId).toBeNull();
   });
 
-  it('skips a thread whose continuations are by a different author than the root (reply tree)', async () => {
-    // The single continuation author is user-B, but the root belongs to user-A:
-    // a reply tree under someone else's post, NOT a self-thread.
-    const { group, rootRow } = makeThread({ author: 'user-B', rootAuthor: 'user-A' });
-    h.state.candidates = [group];
-    h.state.roots = rootRow ? [rootRow] : [];
+  it('skips a thread whose continuations have TWO distinct authors', async () => {
+    // The `HAVING count(distinct …) = 1` gate. A group this mixed is a
+    // conversation, and the aggregation is the only thing that can see it.
+    const root = await seedThreadPost(AUTHOR);
+    await seedThreadPost(AUTHOR, { parentPostId: root.id, threadId: root.id });
+    await seedThreadPost(OTHER, { parentPostId: root.id, threadId: root.id });
 
     await backfillThreadRootThreadId();
 
-    expect(h.state.capturedOps).toHaveLength(0);
-    expect(h.bulkWrite).not.toHaveBeenCalled();
+    expect((await rootState(root.id))?.threadId).toBeNull();
   });
 
-  it('skips a thread whose root is missing (cannot verify ownership)', async () => {
-    const { group } = makeThread({ author: 'user-A', rootMissing: true });
-    h.state.candidates = [group];
-    h.state.roots = [];
-
-    await backfillThreadRootThreadId();
-
-    expect(h.state.capturedOps).toHaveLength(0);
-  });
-
-  it('skips a federated root (federation.activityId present)', async () => {
-    const { group, rootRow } = makeThread({
-      author: 'user-A',
-      rootFederation: { activityId: 'https://remote.example/activities/1' },
+  it('skips a FEDERATED root', async () => {
+    // Federated threads are structured by `inReplyTo`, not `threadId`; the bug
+    // and its forward fix are native-`createThread` only.
+    const rootId = await seedBrokenThread({
+      root: { federation: { activityId: `https://${scope.name}.test/activities/1` } },
     });
-    h.state.candidates = [group];
-    h.state.roots = rootRow ? [rootRow] : [];
 
     await backfillThreadRootThreadId();
 
-    expect(h.state.capturedOps).toHaveLength(0);
+    expect((await rootState(rootId))?.threadId).toBeNull();
   });
 
-  it('skips a root that is itself a reply (has a parentPostId)', async () => {
-    const { group, rootRow } = makeThread({ author: 'user-A', rootParentPostId: 'some-parent-id' });
-    h.state.candidates = [group];
-    h.state.roots = rootRow ? [rootRow] : [];
+  it('skips a thread whose CONTINUATIONS are federated', async () => {
+    // The candidate query is restricted to native members. A federated
+    // continuation must not put its root in the candidate set at all.
+    const root = await seedThreadPost(AUTHOR);
+    await seedThreadPost(AUTHOR, {
+      parentPostId: root.id,
+      threadId: root.id,
+      federation: { activityId: `https://${scope.name}.test/activities/2` },
+    });
 
     await backfillThreadRootThreadId();
 
-    expect(h.state.capturedOps).toHaveLength(0);
+    expect((await rootState(root.id))?.threadId).toBeNull();
   });
 
-  it('does nothing when there are no candidate threads', async () => {
-    h.state.candidates = [];
+  it('skips a root that is itself a REPLY', async () => {
+    const parent = await seedThreadPost(AUTHOR);
+    const rootId = await seedBrokenThread({ root: { parentPostId: parent.id } });
 
     await backfillThreadRootThreadId();
 
-    expect(h.find).not.toHaveBeenCalled();
-    expect(h.bulkWrite).not.toHaveBeenCalled();
+    expect((await rootState(rootId))?.threadId).toBeNull();
   });
 
   it('writes nothing in DRY_RUN mode', async () => {
-    // DRY_RUN is read once at module load, so re-import the script with the env set.
+    // `DRY_RUN` is read once at module load, so the script is re-imported with
+    // the env set — reading it per call would be a different script.
+    const rootId = await seedBrokenThread();
+
     vi.stubEnv('DRY_RUN', 'true');
     vi.resetModules();
     const { default: dryRunBackfill } = await import('../../scripts/backfillThreadRootThreadId');
+    // The reset gives the re-imported script a FRESH `db/postgres`, so its
+    // `connectPostgres()` opens a second pool that this file's `afterAll` — bound
+    // to the original module instance — cannot reach. `PG_MAX_POOL_SIZE` is 8 per
+    // file against one server, so a leaked pool is a `CONNECT_TIMEOUT` in some
+    // other file, which is the worst possible place for it to surface.
+    const freshPostgres = await import('../../db/postgres');
+    try {
+      await dryRunBackfill();
+    } finally {
+      await freshPostgres.closePostgres();
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
 
-    const { group, rootRow } = makeThread({ author: 'user-A' });
-    h.state.candidates = [group];
-    h.state.roots = rootRow ? [rootRow] : [];
-
-    await dryRunBackfill();
-
-    expect(h.state.capturedOps).toHaveLength(0);
-    expect(h.bulkWrite).not.toHaveBeenCalled();
-
-    vi.unstubAllEnvs();
-    vi.resetModules();
+    expect((await rootState(rootId))?.threadId).toBeNull();
   });
 });

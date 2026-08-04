@@ -30,9 +30,8 @@
  * Mastodon's strict redirector refuses.
  */
 import { Router, Request, Response } from 'express';
-import mongoose from 'mongoose';
 import { config } from '../config';
-import { Post } from '../models/Post';
+import { loadPostRecord } from '../db/posts/postRepository';
 import { postHydrationService } from '../services/PostHydrationService';
 import { logger } from '../utils/logger';
 import {
@@ -221,7 +220,7 @@ async function resolvePostOgSafety(post: PostSafetyRow): Promise<PostOgSafety> {
   const rows: Array<PostSafetyRow | null> = [post];
 
   if (post.boostOf) {
-    rows.push(await Post.findById(String(post.boostOf)).maxTimeMS(OG_FETCH_TIMEOUT_MS).lean());
+    rows.push(await loadPostRecord(String(post.boostOf)));
   }
 
   const gated = rows.find((row) => requiresContentWarning(row));
@@ -237,8 +236,11 @@ async function resolvePostOgSafety(post: PostSafetyRow): Promise<PostOgSafety> {
 /** Hydrate + map a post's OG data in-process (same path as `GET /feed/item/:id`). Returns null on any failure. */
 async function fetchPostOg(id: string): Promise<OgData | null> {
   try {
-    if (!mongoose.isValidObjectId(id)) return null;
-    const post = await Post.findById(id).maxTimeMS(OG_FETCH_TIMEOUT_MS).lean();
+    // No id-shape guard: `posts.id` is `text`, so an arbitrary path segment
+    // matches no row and yields the same `null` the ObjectId test used to — while
+    // an ObjectId test would have refused to render an OG card for any post
+    // created since the cutover.
+    const post = await loadPostRecord(id);
     if (!post) return null;
     // maxDepth:1 so boosts hydrate their original and link previews are included;
     // the OG mapping itself only reads the post's own top-level fields.

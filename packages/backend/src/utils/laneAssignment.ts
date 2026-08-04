@@ -28,8 +28,9 @@
  * the overwhelming majority of posts.
  */
 
-import mongoose from 'mongoose';
-import { Lane } from '../models/Lane';
+import { and, eq } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { lanes } from '../db/schema/channels';
 
 /** A refusal carrying the status the HTTP layer should answer with. */
 export class LaneAssignmentError extends Error {
@@ -78,15 +79,18 @@ export async function assertLaneAssignable(params: LaneAssignmentParams): Promis
     throw new LaneAssignmentError(400, 'A post with no publisher cannot be assigned to a lane');
   }
 
-  // An id that is not even an ObjectId answers the same 404 as a real lane
-  // belonging to somebody else, rather than reaching Mongo and raising a
-  // CastError the caller would have to translate into the same answer anyway.
-  if (!mongoose.Types.ObjectId.isValid(laneId)) {
-    throw new LaneAssignmentError(404, 'Lane not found');
-  }
-
-  const exists = await Lane.exists({ _id: laneId, ownerId });
-  if (!exists) {
+  // The `ObjectId.isValid` short-circuit that stood here is GONE. Its stated
+  // purpose was avoiding a Mongo CastError for a malformed id, which Postgres
+  // does not raise — a `text` comparison against a nonsense id simply matches
+  // nothing and yields the same 404. What it actually did after the cutover was
+  // refuse EVERY real lane: `lanes.id` is uuid v7, so every assignment answered
+  // "Lane not found" and no post could be laned at all.
+  const [existing] = await getDb()
+    .select({ id: lanes.id })
+    .from(lanes)
+    .where(and(eq(lanes.id, laneId), eq(lanes.ownerId, ownerId)))
+    .limit(1);
+  if (!existing) {
     throw new LaneAssignmentError(404, 'Lane not found');
   }
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
 
 /**
@@ -19,17 +19,31 @@ import type { CachedUserSummary } from '../../services/userSummaryCache';
  * These tests therefore all go through `hydratePosts`, the flat path.
  */
 
-const PARENT_ID = '650000000000000000000031';
-const REPLY_ID = '650000000000000000000032';
-const ROOT_ID = '650000000000000000000033';
-const FEDERATED_REPLY_ID = '650000000000000000000034';
-const PARENT_AUTHOR_ID = 'oxy-parent-author';
-const REPLY_AUTHOR_ID = 'oxy-reply-author';
-const VIEWER_ID = 'oxy-viewer';
+/**
+ * Scoped, because vitest runs files in parallel against one database: a
+ * hardcoded id is a claim about every other file in the run, and the PARENT here
+ * is a real row the lookup has to find.
+ */
+const scope = serviceScope('hydration-reply-context');
+const PARENT_AUTHOR_ID = scope.user('parent-author');
+const REPLY_AUTHOR_ID = scope.user('reply-author');
+const VIEWER_ID = scope.user('viewer');
 
-const { getUsersByIds, postFind } = vi.hoisted(() => ({
+/** Ids only the page carries — never fetched, so they need no row. */
+const REPLY_ID = `${scope.name}-reply`;
+const ROOT_ID = `${scope.name}-root`;
+const FEDERATED_REPLY_ID = `${scope.name}-federated-reply`;
+
+/** Seeded parent ids. Assigned in `beforeAll`, before any test builds a row. */
+let PARENT_ID = '';
+/** A parent by the REPLY author — the self-thread case, fetched not paged. */
+let SELF_PARENT_ID = '';
+/** A federated parent by the reply author, for the linked-self-thread case. */
+let FEDERATED_SELF_PARENT_ID = '';
+
+const { getUsersByIds, loadPostRecordsSpy } = vi.hoisted(() => ({
   getUsersByIds: vi.fn(),
-  postFind: vi.fn(),
+  loadPostRecordsSpy: vi.fn(),
 }));
 
 vi.mock('../../runtime/oxyClient', () => ({
@@ -61,35 +75,25 @@ vi.mock('../../utils/privacyHelpers', () => ({
       : [],
 }));
 
-function chainable(rows: unknown[] | null) {
-  const q: Record<string, unknown> = {};
-  for (const m of ['select', 'sort', 'limit', 'maxTimeMS']) {
-    q[m] = () => q;
-  }
-  q.lean = async () => rows;
-  return q;
-}
-
-vi.mock('../../models/Post', () => ({
-  Post: {
-    find: (...args: unknown[]) => chainable(postFind(...args)),
-    findOne: () => chainable(null),
-  },
-}));
-vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/UserSettings', () => ({
-  UserSettings: { find: () => chainable([]), findOne: () => chainable(null) },
-}));
-vi.mock('../../models/FederatedActor', () => ({
-  FederatedActor: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
-  default: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
-}));
-vi.mock('../../models/StarterPack', () => ({
-  StarterPack: { aggregate: async () => [] },
-  default: { aggregate: async () => [] },
-}));
+/**
+ * The parent LOOKUP is the real repository call, wrapped in a spy.
+ *
+ * Two of the cases below assert that no lookup happens at all — the cost guard
+ * for pages of roots and for a parent already in hand — and that needs an
+ * observable on the query itself, not on its result. Wrapping rather than
+ * replacing keeps the query real: a stub would answer from the test's own map
+ * and could not tell a working fetch from one that silently matches nothing.
+ */
+vi.mock('../../db/posts/postRepository', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../db/posts/postRepository')>();
+  return {
+    ...actual,
+    loadPostRecords: (ids: string[], ...rest: unknown[]) => {
+      loadPostRecordsSpy(ids);
+      return (actual.loadPostRecords as (...a: unknown[]) => unknown)(ids, ...rest);
+    },
+  };
+});
 
 const cacheStore = new Map<string, CachedUserSummary>();
 vi.mock('../../services/userSummaryCache', () => ({
@@ -106,6 +110,8 @@ vi.mock('../../services/userSummaryCache', () => ({
   }),
 }));
 
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { PostHydrationService } from '../../services/PostHydrationService';
 
 function makePostRow(id: string, authorId: string, extra: Record<string, unknown> = {}) {
@@ -122,31 +128,52 @@ function makePostRow(id: string, authorId: string, extra: Record<string, unknown
     status: 'published',
     hashtags: [],
     mentions: [],
+    // The STORED discriminator both reply-context carriers read. `extra` may
+    // override it — a fixture that sets `parentPostId` or a federated
+    // `inReplyTo` is a reply, and stating it here is what the row would carry
+    // after `derivesReplyIntent` ran at insert.
+    isReply: Boolean(
+      (extra as { parentPostId?: unknown }).parentPostId
+      || (extra as { federation?: { inReplyTo?: string } }).federation?.inReplyTo,
+    ),
     ...extra,
   };
 }
 
-/** The parent lives ONLY in the database — it is not part of the hydrated page. */
-const PARENT_ROW = makePostRow(PARENT_ID, PARENT_AUTHOR_ID);
-
-/**
- * The `Post.find` calls that are PARENT lookups, i.e. `{_id: {$in: [...]}}`.
- *
- * Hydration queries `Post` for other reasons on every call — notably the
- * viewer's own boosts, keyed `{oxyUserId, boostOf}`. A bare
- * `expect(postFind).not.toHaveBeenCalled()` therefore fails even when no parent
- * was ever looked up, and, worse, would have PASSED for the wrong reason had the
- * unrelated query been the one to disappear. Match the shape instead.
- */
+/** The ids each parent lookup asked for, in order. */
 function parentLookupIds(): string[][] {
-  return postFind.mock.calls
-    .map(([query]) => query as { _id?: { $in?: string[] } } | undefined)
-    .filter((query): query is { _id: { $in: string[] } } => Array.isArray(query?._id?.$in))
-    .map((query) => query._id.$in);
+  return loadPostRecordsSpy.mock.calls.map(([ids]) => ids as string[]);
 }
 
 describe('PostHydrationService — reply context on the flat (slice-free) path', () => {
   let service: PostHydrationService;
+
+  beforeAll(async () => {
+    await connectPostgres();
+    // The parent lives ONLY in the database — it is never part of the hydrated
+    // page, which is the whole point of the lookup these cases measure.
+    const parent = await seedPost(scope, {
+      oxyUserId: PARENT_AUTHOR_ID,
+      content: { variants: [{ source: 'author', text: 'the parent', tag: 'en' }] },
+    });
+    PARENT_ID = parent.id;
+
+    SELF_PARENT_ID = (await seedPost(scope, {
+      oxyUserId: REPLY_AUTHOR_ID,
+      content: { variants: [{ source: 'author', text: 'my own earlier post', tag: 'en' }] },
+    })).id;
+
+    FEDERATED_SELF_PARENT_ID = (await seedPost(scope, {
+      oxyUserId: REPLY_AUTHOR_ID,
+      content: { variants: [{ source: 'author', text: 'my own earlier note', tag: 'en' }] },
+      federation: { activityId: 'https://remote.example/users/self/statuses/1' },
+    })).id;
+  });
+
+  afterAll(async () => {
+    await clearServiceScope(scope);
+    await closePostgres();
+  });
 
   beforeEach(() => {
     cacheStore.clear();
@@ -155,8 +182,7 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
       { id: PARENT_AUTHOR_ID, username: 'parenthandle', name: { displayName: 'Parent Author' }, badges: [], verified: false },
       { id: REPLY_AUTHOR_ID, username: 'replyhandle', name: { displayName: 'Reply Author' }, badges: [], verified: false },
     ]);
-    postFind.mockReset();
-    postFind.mockImplementation(() => [PARENT_ROW]);
+    loadPostRecordsSpy.mockReset();
     service = new PostHydrationService();
   });
 
@@ -220,10 +246,7 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
   it('omits reply context entirely for a self-thread continuation', async () => {
     // Replying to one's OWN post is a thread, not reply context. Emitting it
     // would put "Replying to @themselves" on every post of every self-thread.
-    const ownParent = makePostRow(PARENT_ID, REPLY_AUTHOR_ID);
-    postFind.mockImplementation(() => [ownParent]);
-
-    const continuation = makePostRow(REPLY_ID, REPLY_AUTHOR_ID, { parentPostId: PARENT_ID });
+    const continuation = makePostRow(REPLY_ID, REPLY_AUTHOR_ID, { parentPostId: SELF_PARENT_ID });
 
     const [hydrated] = await service.hydratePosts([continuation], { viewerId: VIEWER_ID });
 
@@ -233,14 +256,16 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
   it('keeps reply context when the SAME page holds both a self-thread and a real reply', async () => {
     // The suppression is per-post, not per-page: one self-continuation must not
     // silence a genuine reply hydrated alongside it.
-    const ownParent = makePostRow('650000000000000000000041', REPLY_AUTHOR_ID);
-    const continuation = makePostRow('650000000000000000000042', REPLY_AUTHOR_ID, {
-      parentPostId: '650000000000000000000041',
+    const ownParentId = `${scope.name}-own-parent`;
+    const continuationId = `${scope.name}-continuation`;
+    const realReplyId = `${scope.name}-real-reply`;
+    // The self-parent is ON the page, so it needs no row; the real reply's
+    // parent is the seeded one, which is fetched.
+    const ownParent = makePostRow(ownParentId, REPLY_AUTHOR_ID);
+    const continuation = makePostRow(continuationId, REPLY_AUTHOR_ID, {
+      parentPostId: ownParentId,
     });
-    const realReply = makePostRow('650000000000000000000043', REPLY_AUTHOR_ID, {
-      parentPostId: PARENT_ID,
-    });
-    postFind.mockImplementation(() => [PARENT_ROW]);
+    const realReply = makePostRow(realReplyId, REPLY_AUTHOR_ID, { parentPostId: PARENT_ID });
 
     const hydrated = await service.hydratePosts(
       [ownParent, continuation, realReply],
@@ -248,9 +273,8 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
     );
 
     const byId = new Map(hydrated.map((post) => [post.id, post]));
-    expect(byId.get('650000000000000000000042')?.replyContext).toBeUndefined();
-    expect(byId.get('650000000000000000000043')?.replyContext?.parentAuthor?.username)
-      .toBe('parenthandle');
+    expect(byId.get(continuationId)?.replyContext).toBeUndefined();
+    expect(byId.get(realReplyId)?.replyContext?.parentAuthor?.username).toBe('parenthandle');
   });
 
   it('cannot detect a self-thread when the federated parent was never linked', async () => {
@@ -273,7 +297,7 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
     // brought in its root too (`resolveThreadLink` walks and backfills). The
     // unlinked case is far more common for CROSS-author replies, where the parent
     // lives on an instance we never fetched — and those SHOULD show the row.
-    const unlinkedSelfContinuation = makePostRow('650000000000000000000044', REPLY_AUTHOR_ID, {
+    const unlinkedSelfContinuation = makePostRow(`${scope.name}-unlinked-self`, REPLY_AUTHOR_ID, {
       parentPostId: null,
       federation: {
         activityId: 'https://remote.example/users/self/statuses/2',
@@ -291,13 +315,8 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
     // The counterpart to the limit above: the moment `parentPostId` resolves,
     // the comparison has both ids and federated self-threads behave exactly like
     // native ones. This is the common case.
-    const federatedOwnParent = makePostRow('650000000000000000000045', REPLY_AUTHOR_ID, {
-      federation: { activityId: 'https://remote.example/users/self/statuses/1' },
-    });
-    postFind.mockImplementation(() => [federatedOwnParent]);
-
-    const continuation = makePostRow('650000000000000000000046', REPLY_AUTHOR_ID, {
-      parentPostId: '650000000000000000000045',
+    const continuation = makePostRow(`${scope.name}-fed-continuation`, REPLY_AUTHOR_ID, {
+      parentPostId: FEDERATED_SELF_PARENT_ID,
       federation: {
         activityId: 'https://remote.example/users/self/statuses/2',
         inReplyTo: 'https://remote.example/users/self/statuses/1',

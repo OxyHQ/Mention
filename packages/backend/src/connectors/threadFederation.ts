@@ -79,7 +79,7 @@
  * setting says. The full reasoning is at the refusal itself.
  */
 
-import type { IPost } from '../models/Post';
+import type { PostRecord } from '../db/posts/postRecord';
 import { logger } from '../utils/logger';
 import { isFediverseSharingEnabled } from '../services/fediverseSharing';
 import { postCreationService } from '../services/PostCreationService';
@@ -111,13 +111,13 @@ export type BatchFederationShape =
  * committed and the user has already been told the thread was published.
  */
 export async function federatePostBatch(params: {
-  entries: IPost[];
+  entries: PostRecord[];
   shape: BatchFederationShape;
 }): Promise<void> {
   const { entries, shape } = params;
   if (entries.length === 0) return;
 
-  const authorOf = (entry: IPost): string => String(entry.oxyUserId ?? '');
+  const authorOf = (entry: PostRecord): string => String(entry.oxyUserId ?? '');
 
   // One consent read per DISTINCT account for the whole batch, resolved up
   // front. A single-voice thread therefore asks once however long it is, and
@@ -205,7 +205,7 @@ export async function federatePostBatch(params: {
  * keeps a failure from surfacing as an unhandled rejection.
  */
 export function federatePostBatchDetached(params: {
-  entries: IPost[];
+  entries: PostRecord[];
   shape: BatchFederationShape;
 }): void {
   void federatePostBatch(params).catch((err) => {

@@ -15,13 +15,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 vi.mock('../runtime/oxyClient', () => ({ getRuntimeOxyClient: () => ({}) }));
 vi.mock('../models/FederatedFollow', () => ({ default: { distinct: vi.fn(async () => []) } }));
 vi.mock('../models/FederatedActor', () => ({ default: { find: vi.fn(() => ({ lean: vi.fn(async () => []) })) } }));
-vi.mock('../models/UserSettings', () => ({ default: { findOne: vi.fn(() => ({ lean: vi.fn(async () => null) })) } }));
-// The reader's muted lanes are one more branch of the context's `Promise.all`.
-vi.mock('../models/LaneMute', () => ({
-  LaneMute: {
-    find: vi.fn(() => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) })),
-  },
-}));
 vi.mock('../services/ListSubscriptionService', () => ({
   listSubscriptionService: { getSubscribedListMemberIds: vi.fn(async () => []) },
 }));

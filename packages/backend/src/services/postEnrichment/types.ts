@@ -4,14 +4,12 @@ import type { StoredPostContent } from '@mention/shared-types';
  * The post shape enrichment needs, and the only thing a creator must be able to
  * supply.
  *
- * Deliberately narrower than `IPost`: the ActivityPub outbox backfill's raw
- * insert documents are not Mongoose documents and never will be (it writes
- * through `Post.collection.insertMany` on purpose), so the contract is the
- * intersection both storage routes genuinely have — the stored id and the
- * stored content.
+ * Deliberately narrower than `PostRecord`: the contract is the intersection
+ * both storage routes genuinely have — the stored id and the stored content —
+ * so a step can never come to depend on a field only one of them assembles.
  */
 export interface IngestedPost {
-  _id: unknown;
+  id: string;
   content?: StoredPostContent | null;
 }
 

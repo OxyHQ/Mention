@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import mongoose from 'mongoose';
+import { isLiveEntityId } from '../db/ids';
 import { sendError, ErrorCodes } from '../utils/apiResponse';
 
 /**
@@ -41,8 +41,13 @@ export function validateQuery<T extends z.ZodType>(schema: T) {
 }
 
 /**
- * Express middleware to validate MongoDB ObjectId in route params.
- * Validates req.params[paramName] is a valid ObjectId format.
+ * Express middleware rejecting a route param that could not name any row.
+ *
+ * This is one of the few id-shape checks the Postgres port KEEPS, because the
+ * 400 is a documented contract a client reads rather than an internal guard: the
+ * rest were `CastError` shims whose `false` branch silently meant "allowed" or
+ * "not found". It accepts BOTH live id shapes — see `db/ids.ts` — since a
+ * 24-hex-only test would 400 every entity created after the cutover.
  *
  * @param paramName - The name of the param to validate (default: 'id')
  */
@@ -55,7 +60,7 @@ export function validateObjectId(paramName: string = 'id') {
     }
     // Handle both string and string[] (Express params can be arrays with duplicate path segments)
     const idString = Array.isArray(id) ? id[0] : id;
-    if (!idString || !mongoose.Types.ObjectId.isValid(idString)) {
+    if (!isLiveEntityId(idString)) {
       sendError(res, ErrorCodes.VALIDATION_ERROR, `Invalid ${paramName} format`, 400);
       return;
     }

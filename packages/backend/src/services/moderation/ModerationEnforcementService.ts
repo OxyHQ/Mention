@@ -1,14 +1,13 @@
-import mongoose from 'mongoose';
+import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import type { Decision } from '@oxyhq/crowdsource-contracts';
 import type {
   ModerationEnforcementAction,
   ModerationEnforcementMode,
 } from '@mention/shared-types';
-import ModerationEnforcement, {
-  type IModerationEnforcement,
-} from '../../models/ModerationEnforcement';
-import Post from '../../models/Post';
-import { ReportedType } from '../../models/Report.model';
+import { getDb } from '../../db/postgres';
+import { isUniqueViolation } from '../../db/pgErrors';
+import { moderationEnforcements } from '../../db/schema/moderation';
+import { POST_STATUSES, posts } from '../../db/schema/posts';
 import { config } from '../../config';
 import { logger } from '../../utils/logger';
 import { metrics } from '../../utils/metrics';
@@ -53,31 +52,49 @@ export interface EnforcementOutcome {
   result: 'applied' | 'recorded' | 'duplicate';
 }
 
-function isDuplicateKeyError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    Number((error as { code?: unknown }).code) === 11000
-  );
+/** Post-backed subjects. A comment is a post with a parent. */
+const POST_SUBJECT_TYPES: ReadonlySet<string> = new Set(['post', 'comment']);
+
+/**
+ * What a reversal has to put back, as the two columns that hold it.
+ *
+ * Mongo stored this as a `previousState` subdocument; flattened, an action that
+ * changed nothing simply writes neither column. Both stay optional for that
+ * reason — `undefined` means "this action did not touch that field", which is
+ * not the same as `null`.
+ */
+interface EnforcementPreviousState {
+  previousStatePostStatus?: string;
+  previousStateMetadataIsSensitive?: boolean;
 }
 
-/** Post-backed subjects. A comment is a post with a parent. */
-const POST_SUBJECT_TYPES: ReadonlySet<string> = new Set([
-  ReportedType.POST,
-  ReportedType.COMMENT,
-]);
+/** Derived from the column, so it cannot drift from what the CHECK accepts. */
+type PostStatus = (typeof posts.$inferSelect)['status'];
 
 interface PostState {
-  status?: string;
-  metadata?: { isSensitive?: boolean };
+  status: PostStatus;
+  metadataIsSensitive: boolean;
 }
 
+/**
+ * The post's enforceable state, or `null` when there is no such post.
+ *
+ * There is deliberately NO id-shape guard here. The Mongoose version tested
+ * `isValidObjectId` first, purely to dodge a `CastError` — but the caller reads
+ * `null` as "the reported post no longer exists", so any subject id that was not
+ * 24-char hex turned EVERY enforcement action into a silent no-op that recorded
+ * a plausible reason in the audit trail. Post ids are `text` now: a
+ * uuid v7 matches its row, a pre-cutover ObjectId hex matches its row, and an id
+ * that is neither matches nothing — which is the honest answer the caller was
+ * already written for.
+ */
 async function loadPostState(postId: string): Promise<PostState | null> {
-  if (!mongoose.isValidObjectId(postId)) return null;
-  return await Post.findById(postId)
-    .select('status metadata.isSensitive')
-    .lean<PostState | null>();
+  const [row] = await getDb()
+    .select({ status: posts.status, metadataIsSensitive: posts.metadataIsSensitive })
+    .from(posts)
+    .where(eq(posts.id, postId))
+    .limit(1);
+  return row ?? null;
 }
 
 /**
@@ -92,7 +109,7 @@ async function applyEffect(
   action: ModerationEnforcementAction,
   subject: EnforcementSubject,
 ): Promise<
-  | { changed: true; previousState: IModerationEnforcement['previousState'] }
+  | { changed: true; previousState: EnforcementPreviousState }
   | { changed: false; reason: string }
 > {
   if (action === 'none' || action === 'manual_review') {
@@ -119,8 +136,11 @@ async function applyEffect(
       if (current.status === 'restricted') {
         return { changed: false, reason: 'The post was already restricted' };
       }
-      await Post.updateOne({ _id: subject.id }, { $set: { status: 'restricted' } });
-      return { changed: true, previousState: { postStatus: current.status ?? 'published' } };
+      await getDb()
+        .update(posts)
+        .set({ status: 'restricted' })
+        .where(eq(posts.id, subject.id));
+      return { changed: true, previousState: { previousStatePostStatus: current.status } };
     }
 
     case 'restore': {
@@ -132,25 +152,26 @@ async function applyEffect(
        * not to a hardcoded `published`. A draft that was somehow restricted must not
        * be published by a correction.
        */
-      const restriction = await ModerationEnforcement.findOne({
-        subjectType: subject.type,
-        subjectId: subject.id,
-        action: 'restrict',
-        applied: true,
-      })
-        .sort({ createdAt: -1 })
-        .lean<Pick<IModerationEnforcement, 'previousState'> | null>();
-      const restoreTo = restriction?.previousState?.postStatus ?? 'published';
-      await Post.updateOne({ _id: subject.id }, { $set: { status: restoreTo } });
-      return { changed: true, previousState: { postStatus: 'restricted' } };
+      const [restriction] = await getDb()
+        .select({ postStatus: moderationEnforcements.previousStatePostStatus })
+        .from(moderationEnforcements)
+        .where(appliedActionFilter(subject, 'restrict'))
+        .orderBy(...RESTRICTION_IN_FORCE_ORDER)
+        .limit(1);
+      const restoreTo = asPostStatus(restriction?.postStatus);
+      await getDb().update(posts).set({ status: restoreTo }).where(eq(posts.id, subject.id));
+      return { changed: true, previousState: { previousStatePostStatus: 'restricted' } };
     }
 
     case 'label_sensitive': {
-      if (current.metadata?.isSensitive === true) {
+      if (current.metadataIsSensitive) {
         return { changed: false, reason: 'The post already carried a content warning' };
       }
-      await Post.updateOne({ _id: subject.id }, { $set: { 'metadata.isSensitive': true } });
-      return { changed: true, previousState: { metadataIsSensitive: false } };
+      await getDb()
+        .update(posts)
+        .set({ metadataIsSensitive: true })
+        .where(eq(posts.id, subject.id));
+      return { changed: true, previousState: { previousStateMetadataIsSensitive: false } };
     }
 
     case 'unlabel_sensitive': {
@@ -158,25 +179,104 @@ async function applyEffect(
        * Only lifted if MODERATION set it. An author's own content warning is theirs,
        * and a correction that removed it would be a moderation action nobody asked
        * for — visible to no-one until the post appeared in discovery again.
+       *
+       * An EXISTENCE question, so it deliberately carries no ORDER BY: unlike the
+       * restore above there is no state to read back off the winning row, every
+       * matching row answers it identically, and a sort that decides nothing
+       * reads in this file as though it decides something.
        */
-      const label = await ModerationEnforcement.findOne({
-        subjectType: subject.type,
-        subjectId: subject.id,
-        action: 'label_sensitive',
-        applied: true,
-      })
-        .sort({ createdAt: -1 })
-        .lean<Pick<IModerationEnforcement, '_id'> | null>();
+      const [label] = await getDb()
+        .select({ id: moderationEnforcements.id })
+        .from(moderationEnforcements)
+        .where(appliedActionFilter(subject, 'label_sensitive'))
+        .limit(1);
       if (!label) {
         return { changed: false, reason: 'The content warning was not set by moderation' };
       }
-      if (current.metadata?.isSensitive !== true) {
+      if (!current.metadataIsSensitive) {
         return { changed: false, reason: 'The post carried no content warning' };
       }
-      await Post.updateOne({ _id: subject.id }, { $set: { 'metadata.isSensitive': false } });
-      return { changed: true, previousState: { metadataIsSensitive: true } };
+      await getDb()
+        .update(posts)
+        .set({ metadataIsSensitive: false })
+        .where(eq(posts.id, subject.id));
+      return { changed: true, previousState: { previousStateMetadataIsSensitive: true } };
     }
   }
+}
+
+/**
+ * Rows that actually CARRIED OUT `action` against this subject.
+ *
+ * `applied: true` is the load-bearing half: an `observe`-mode row records a plan
+ * that never happened, so treating one as the thing to reverse would restore a
+ * post nothing removed. Written once because both reversal branches need exactly
+ * this predicate and a copy could lose that clause in only one of them.
+ */
+function appliedActionFilter(
+  subject: EnforcementSubject,
+  action: ModerationEnforcementAction,
+): SQL | undefined {
+  return and(
+    eq(moderationEnforcements.subjectType, subject.type),
+    eq(moderationEnforcements.subjectId, subject.id),
+    eq(moderationEnforcements.action, action),
+    eq(moderationEnforcements.applied, true),
+  );
+}
+
+/**
+ * Which of a subject's applied restrictions is the one still IN FORCE — i.e. the
+ * one a restore is reversing, and therefore the one whose recorded
+ * `previousStatePostStatus` is the status to put back.
+ *
+ * **`applied_at`, because it is the only column that records when the effect
+ * happened.** `created_at` records when the ROW was written, and it defaults to
+ * `now()` — `transaction_timestamp()` — so every row written inside ONE
+ * transaction shares it to the microsecond. `order by created_at desc limit 1`
+ * over a batch imported that way is a TIE, resolved by whatever the scan reached
+ * first: the restore then reads a `previousStatePostStatus` recorded by some
+ * OTHER restriction and puts the post back into a status it has not had for
+ * months — or, where that column was never written, into the `published`
+ * default, publishing something the author had left as a draft. `applied_at` is
+ * a value this service writes at the moment it changes the post, so a batched
+ * import preserves it and it cannot collapse the way a database default does.
+ *
+ * Falling back to `id` would be worse than the tie it is meant to settle: `id`
+ * is `text` holding a 24-char ObjectId hex for every pre-cutover row and a uuid
+ * v7 after, and `'0' < '6'` under the database's collation — so `order by id
+ * desc` sorts every post-cutover enforcement LAST and hands the restore the
+ * OLDEST restriction on record, every single time.
+ *
+ * The last two keys make the order TOTAL rather than merely better: `action` is
+ * pinned by the filter, so `(decision_id, decision_revision)` is unique among
+ * the candidates by Appendix D's own constraint, and a higher revision is by
+ * definition the one that supersedes. Nothing here can alternate between two
+ * requests.
+ *
+ * `nulls last` on `applied_at` because DESC defaults to NULLS FIRST: a row that
+ * claims `applied` while recording no `applied_at` must not outrank one that
+ * says exactly when it happened.
+ */
+const RESTRICTION_IN_FORCE_ORDER: SQL[] = [
+  sql`${moderationEnforcements.appliedAt} desc nulls last`,
+  desc(moderationEnforcements.createdAt),
+  desc(moderationEnforcements.decisionRevision),
+  desc(moderationEnforcements.decisionId),
+];
+
+/**
+ * The recorded pre-restriction status, or `published` when there is none.
+ *
+ * The column is a bare `text` (it holds whatever `posts.status` held), while
+ * `posts.status` is a narrow union, so the value has to be re-checked rather
+ * than asserted: a row written before a status was renamed would otherwise fail
+ * the CHECK constraint at restore time, turning a correction into a 500.
+ */
+function asPostStatus(value: string | null | undefined): PostStatus {
+  return value !== null && value !== undefined && (POST_STATUSES as readonly string[]).includes(value)
+    ? (value as PostStatus)
+    : 'published';
 }
 
 /**
@@ -241,25 +341,32 @@ async function applyOne(
    * `decisionId + revision + action`, so losing this insert is the answer "another
    * delivery already handled it" and not an error.
    */
-  let record: IModerationEnforcement;
+  let recordId: string;
   try {
-    record = await ModerationEnforcement.create({
-      decisionId: decision.id,
-      decisionRevision: decision.revision,
-      action: planned.action,
-      caseId,
-      subjectType: subject.type,
-      subjectId: subject.id,
-      outcome: decision.outcome,
-      ...(planned.recommendedAction === undefined
-        ? {}
-        : { recommendedAction: planned.recommendedAction }),
-      reason: planned.reason,
-      mode,
-      applied: false,
-    });
+    const [inserted] = await getDb()
+      .insert(moderationEnforcements)
+      .values({
+        decisionId: decision.id,
+        decisionRevision: decision.revision,
+        action: planned.action,
+        caseId,
+        subjectType: subject.type,
+        subjectId: subject.id,
+        outcome: decision.outcome,
+        ...(planned.recommendedAction === undefined
+          ? {}
+          : { recommendedAction: planned.recommendedAction }),
+        reason: planned.reason,
+        mode,
+        applied: false,
+      })
+      .returning({ id: moderationEnforcements.id });
+    recordId = inserted.id;
   } catch (error: unknown) {
-    if (isDuplicateKeyError(error)) {
+    // NAMED, not a bare `23505`: this branch answers for Appendix D's key and
+    // nothing else. A future unique index on this table must not be silently
+    // reported as "another delivery already handled it".
+    if (isUniqueViolation(error, 'moderation_enforcements_idempotency_key')) {
       metrics.incrementCounter('crowdsource_enforcement_total', 1, {
         action: planned.action,
         mode,
@@ -271,17 +378,15 @@ async function applyOne(
   }
 
   if (!modeAllows(mode, planned.action)) {
-    await ModerationEnforcement.updateOne(
-      { _id: record._id },
-      {
-        $set: {
-          skippedReason:
-            mode === 'observe'
-              ? 'observe mode: recorded, not applied'
-              : `${mode} mode does not apply '${planned.action}' automatically`,
-        },
-      },
-    );
+    await getDb()
+      .update(moderationEnforcements)
+      .set({
+        skippedReason:
+          mode === 'observe'
+            ? 'observe mode: recorded, not applied'
+            : `${mode} mode does not apply '${planned.action}' automatically`,
+      })
+      .where(eq(moderationEnforcements.id, recordId));
     metrics.incrementCounter('crowdsource_enforcement_total', 1, {
       action: planned.action,
       mode,
@@ -293,10 +398,10 @@ async function applyOne(
   try {
     const effect = await applyEffect(planned.action, subject);
     if (!effect.changed) {
-      await ModerationEnforcement.updateOne(
-        { _id: record._id },
-        { $set: { skippedReason: effect.reason } },
-      );
+      await getDb()
+        .update(moderationEnforcements)
+        .set({ skippedReason: effect.reason })
+        .where(eq(moderationEnforcements.id, recordId));
       metrics.incrementCounter('crowdsource_enforcement_total', 1, {
         action: planned.action,
         mode,
@@ -305,18 +410,14 @@ async function applyOne(
       return { action: planned.action, result: 'recorded' };
     }
 
-    await ModerationEnforcement.updateOne(
-      { _id: record._id },
-      {
-        $set: {
-          applied: true,
-          appliedAt: new Date(),
-          ...(effect.previousState === undefined
-            ? {}
-            : { previousState: effect.previousState }),
-        },
-      },
-    );
+    await getDb()
+      .update(moderationEnforcements)
+      .set({
+        applied: true,
+        appliedAt: new Date(),
+        ...effect.previousState,
+      })
+      .where(eq(moderationEnforcements.id, recordId));
     metrics.incrementCounter('crowdsource_enforcement_total', 1, {
       action: planned.action,
       mode,
@@ -329,7 +430,9 @@ async function applyOne(
      * transient failure permanent: the action would be deduplicated away forever and
      * the decision would silently never be carried out.
      */
-    await ModerationEnforcement.deleteOne({ _id: record._id });
+    await getDb()
+      .delete(moderationEnforcements)
+      .where(eq(moderationEnforcements.id, recordId));
     logger.error('[CrowdSource] enforcement effect failed, claim released', {
       decisionId: decision.id,
       revision: decision.revision,

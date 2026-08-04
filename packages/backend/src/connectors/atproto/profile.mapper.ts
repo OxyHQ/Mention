@@ -1,18 +1,32 @@
 import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
 import { logger } from '../../utils/logger';
-import FederatedActor, { IFederatedActor } from '../../models/FederatedActor';
+import type { FederatedActorRecord } from '../../db/federation/actorRecord';
+import { setActorOxyUserId, upsertActor } from '../../db/federation/actorRepository';
 import { resolveFederatedActorIdentity } from '../identity';
 import {
   BSKY_NETWORK_DOMAIN,
   blueskyUsernameFromHandle,
   type NormalizedExternalActor,
 } from '@oxyhq/federation';
+import { describeDriverError, isUniqueViolation } from '../../db/pgErrors';
+import { metrics } from '../../utils/metrics';
 import { xrpcGet } from './xrpcClient';
 import { PUBLIC_APPVIEW } from './constants';
+import { isUnresolvedAtprotoHandle } from './unresolvedHandle';
+
+/**
+ * Counter a run can fail on when an actor row could not be written.
+ *
+ * The upsert is best-effort by design — a failure must not abort a feed import —
+ * so the only thing standing between "one actor was dropped" and "every actor
+ * from this instance is being dropped" is a number somebody can read. A `warn`
+ * in a detached ingest path is not that.
+ */
+export const ACTOR_UPSERT_FAILED_METRIC = 'federated_actor_upsert_failed_total';
 
 /**
  * Maps an `app.bsky.actor.getProfile` response into a network-neutral actor,
- * upserts the backing `FederatedActor` row (`protocol:'atproto'`), and mints /
+ * upserts the backing `federated_actors` row (`protocol:'atproto'`), and mints /
  * stamps the Oxy user it maps to through the shared identity bridge.
  */
 
@@ -67,6 +81,35 @@ export interface AtprotoProfileView {
  * `domain` (`bsky.social`) but its `username` changes, so the scripts must compare
  * the full `local@domain`, not the domain alone.
  */
+/**
+ * The handle an actor is IDENTIFIED by, which is its real handle unless the
+ * AppView could not verify one — in which case it is the DID.
+ *
+ * `handle.invalid` is Bluesky's error string for a failed handle↔DID
+ * verification, so it is the same value for every affected account and is the
+ * one thing in the atproto namespace guaranteed not to identify anybody. Every
+ * key this connector writes is derived from the handle — `acct`, `username`,
+ * and the `<local>@<domain>` username oxy-api binds — and all three carry a
+ * uniqueness constraint, so the sentinel is refused for every account after the
+ * first: no actor row, no Oxy user, and the account's posts dropped as orphans
+ * by the no-orphan rule.
+ *
+ * The DID is the identifier atproto actually guarantees stable and unique, and
+ * it is already this row's `uri`. It contains a `:`, which no DNS handle may, so
+ * the substituted identity can never collide with a real one — and oxy-api's
+ * `normalizeFederatedResolveUsername` splits on the FIRST `@`, so
+ * `did:plc:…@bsky.social` binds to `bsky.social` exactly like any other handle.
+ *
+ * SELF-HEALING: nothing is stored under the sentinel, so the next refresh after
+ * the remote fixes its DNS re-derives the real handle and rewrites the row
+ * through the ordinary path. A DID-shaped handle in the UI is the honest
+ * rendering of an account whose handle does not verify — it is what bsky.app
+ * shows too — and it is strictly better than the account not existing.
+ */
+export function atprotoIdentityHandle(handle: string, did: string): string {
+  return isUnresolvedAtprotoHandle(handle) ? did : handle;
+}
+
 export function splitHandle(handle: string): { username: string; domain: string; federatedUsername: string } {
   // The suffix rule itself lives in `@oxyhq/federation`'s bridge policy, beside
   // the Bluesky network record this connector's instance domain now comes from.
@@ -88,7 +131,11 @@ export function mapProfileToNormalizedActor(profile: AtprotoProfileView): Normal
   const handle = typeof profile.handle === 'string' ? profile.handle : '';
   if (!did || !handle) return null;
 
-  const { domain, federatedUsername } = splitHandle(handle);
+  // Substituted HERE, at the one boundary the remote value enters, so the
+  // sentinel reaches no derivation downstream — `handle` on this DTO is what
+  // becomes the `acct` column and what the identity bridge binds.
+  const identityHandle = atprotoIdentityHandle(handle, did);
+  const { domain, federatedUsername } = splitHandle(identityHandle);
   // Bluesky text is third-party text: it carries whatever whitespace the author
   // (or their client) typed, and our clients render it faithfully
   // (`white-space: pre-wrap`). The display name is ONE LINE — a newline in it is
@@ -98,7 +145,7 @@ export function mapProfileToNormalizedActor(profile: AtprotoProfileView): Normal
   return {
     network: 'atproto',
     externalId: did,
-    handle,
+    handle: identityHandle,
     // A DID carries no host and a handle is a whole DNS name, so an atproto actor's
     // Oxy identity is keyed on the Bluesky network domain (`bsky.social`). These are
     // what the shared identity bridge sends to oxy-api.
@@ -121,7 +168,7 @@ export function mapProfileToNormalizedActor(profile: AtprotoProfileView): Normal
 }
 
 /**
- * Upsert the `FederatedActor` row for a normalized atproto actor and resolve its
+ * Upsert the `federated_actors` row for a normalized atproto actor and resolve its
  * Oxy user. Returns the actor with `oxyUserId` populated when Oxy resolved it.
  *
  * Fails soft: if `resolveOxyExternalUser` returns null (e.g. oxy-api does not yet
@@ -131,40 +178,78 @@ export function mapProfileToNormalizedActor(profile: AtprotoProfileView): Normal
  */
 export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promise<NormalizedExternalActor> {
   const did = actor.externalId;
-  const { username, domain } = splitHandle(actor.handle);
+  // Substituted again (idempotent) rather than trusted, for the same reason the
+  // bio is re-normalized below: this function is exported and does not require
+  // its caller to have gone through `mapProfileToNormalizedActor`. A caller that
+  // built the actor itself must not be able to write the sentinel into the three
+  // uniquely-constrained columns derived here.
+  const identityHandle = atprotoIdentityHandle(actor.handle, did);
+  const { username, domain } = splitHandle(identityHandle);
 
-  let fedActor: IFederatedActor | null = null;
+  let fedActor: FederatedActorRecord | null = null;
   try {
-    fedActor = await FederatedActor.findOneAndUpdate(
-      { uri: did },
+    // The AP-shaped columns this profile has no analogue for are written at their
+    // schema defaults rather than left alone. That is safe precisely because this
+    // is the ONLY writer of an `atproto` actor row: a Bluesky account has no AP
+    // inbox, no locked-followers flag and no verified-links table, so there is no
+    // other writer whose values could be clobbered — and an empty `fields` list
+    // therefore clears nothing that was ever populated.
+    fedActor = await upsertActor(
+      did,
       {
-        $set: {
-          protocol: 'atproto',
-          uri: did,
-          username,
-          domain,
-          acct: actor.handle,
-          // Normalized again (idempotent) rather than trusted: this function is
-          // exported and does not require its caller to have gone through
-          // `mapProfileToNormalizedActor`.
-          summary: normalizeMultilineText(actor.bio ?? ''),
-          avatarUrl: actor.avatarUrl,
-          headerUrl: actor.bannerUrl,
-          type: 'Person',
-          followersCount: actor.followersCount ?? 0,
-          followingCount: actor.followingCount ?? 0,
-          postsCount: actor.postsCount ?? 0,
-          lastFetchedAt: new Date(),
-        },
+        protocol: 'atproto',
+        username,
+        domain,
+        acct: identityHandle,
+        // Normalized again (idempotent) rather than trusted: this function is
+        // exported and does not require its caller to have gone through
+        // `mapProfileToNormalizedActor`.
+        summary: normalizeMultilineText(actor.bio ?? ''),
+        avatarUrl: actor.avatarUrl,
+        headerUrl: actor.bannerUrl,
+        type: 'Person',
+        manuallyApprovesFollowers: false,
+        discoverable: true,
+        memorial: false,
+        suspended: false,
+        followersCount: actor.followersCount ?? 0,
+        followingCount: actor.followingCount ?? 0,
+        postsCount: actor.postsCount ?? 0,
+        lastFetchedAt: new Date(),
       },
-      { upsert: true, returnDocument: 'after', lean: true },
-    ) as IFederatedActor | null;
+      [],
+    );
   } catch (err) {
-    // A unique-key collision can mean that this mutable handle was reassigned to
-    // a different DID. Without a row bound to this DID, identity merging could
-    // adopt the previous holder's Oxy user and attribute the new actor's posts to
-    // them. Fail closed until a later refresh can persist this DID safely.
-    logger.warn('[atproto] failed to upsert federated actor', err);
+    // Continuing with no row must not abort discovery — but it is NOT a benign
+    // outcome, and this catch used to make it look like one. An unwritten row
+    // means no `oxyUserId`, which the no-orphan rule turns into every one of
+    // that account's posts being dropped, silently, from a detached path nobody
+    // is reading. So the failure is COUNTED, and a unique violation — the shape
+    // that says two DIDs are claiming one identity — is separated out and raised
+    // to `error`, because it is a derivation bug in this file rather than the
+    // handle genuinely having moved between accounts.
+    //
+    // `describeDriverError` rather than the error itself: postgres.js attaches
+    // the failing statement AND its bound parameters, so logging the object
+    // publishes every value the row carried.
+    const failure = describeDriverError(err);
+    const reason = isUniqueViolation(err) ? failure.constraint ?? 'unique_violation' : 'other';
+    metrics.incrementCounter(ACTOR_UPSERT_FAILED_METRIC, 1, { protocol: 'atproto', reason });
+    if (isUniqueViolation(err)) {
+      logger.error('[atproto] federated actor upsert refused by a unique constraint', {
+        did,
+        ...failure,
+      });
+    } else {
+      logger.warn('[atproto] failed to upsert federated actor', { did, ...failure });
+    }
+
+    // FAIL CLOSED. Continuing with the actor as-is is what makes this dangerous:
+    // no row bound to this DID means identity merging can adopt whatever Oxy user
+    // the PREVIOUS holder of this mutable handle was resolved to, and attribute
+    // this actor's posts to them. Returning without an `oxyUserId` costs this
+    // account's posts until a later refresh persists the DID safely — the
+    // no-orphan rule drops them — which is the recoverable direction.
     return { ...actor, oxyUserId: undefined };
   }
 
@@ -184,14 +269,14 @@ export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promis
   }
 
   if (fedActor && fedActor.oxyUserId !== oxyId) {
-    await FederatedActor.updateOne({ _id: fedActor._id }, { $set: { oxyUserId: oxyId } });
+    await setActorOxyUserId(fedActor.id, oxyId);
   }
   return { ...actor, oxyUserId: oxyId };
 }
 
 /**
  * Fetch a Bluesky profile (`app.bsky.actor.getProfile`), normalize it, upsert the
- * `FederatedActor`, and resolve its Oxy user. `actor` may be a handle or a DID.
+ * `federated_actors` row, and resolve its Oxy user. `actor` may be a handle or a DID.
  * Returns null when the profile cannot be fetched / mapped.
  */
 export async function fetchAndUpsertAtprotoProfile(actor: string): Promise<NormalizedExternalActor | null> {

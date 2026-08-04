@@ -32,8 +32,10 @@
  *   BACKFILL_ANCESTORS=true bun packages/backend/dist/src/scripts/backfillFederatedThreadLinks.js
  */
 
-import mongoose from 'mongoose';
-import { Post } from '../models/Post';
+import { and, asc, count, eq, gt, isNotNull, isNull, type SQL } from 'drizzle-orm';
+import { connectPostgres, getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
+import { findPostRecords } from '../db/posts/postRepository';
 import { outboxSyncService } from '../connectors/activitypub/outbox.service';
 import { extractInReplyToUri } from '../connectors/activitypub/helpers';
 import { logger } from '../utils/logger';
@@ -43,43 +45,28 @@ import {
   closeAdminScriptResources,
 } from './lib/adminScriptLifecycle';
 import {
-  PostRecentReplier,
-  type IPostRecentReplier,
-} from '../models/PostRecentReplier';
-import { buildRecentReplierUpdatePipeline } from '../services/PostRecentReplierService';
+  recordRecentReplierForPost,
+  type RecentReplyLike,
+} from '../services/PostRecentReplierService';
 
-/** Posts scanned per page (stable `_id` cursor pagination). */
+/** Posts scanned per page (stable `id` cursor pagination). */
 const PAGE_SIZE = 500;
-
-/** Link writes flushed per bulkWrite chunk. */
-const BULK_CHUNK_SIZE = 500;
 
 const DRY_RUN = process.env.DRY_RUN === 'true';
 // Opt-in: fetch + import missing ancestor Notes before linking (network I/O,
 // mutates the DB). Never active under DRY_RUN.
 const BACKFILL_ANCESTORS = !DRY_RUN && process.env.BACKFILL_ANCESTORS === 'true';
 
-interface OrphanReplyRow {
-  _id: mongoose.Types.ObjectId;
-  oxyUserId?: string;
-  createdAt?: Date;
-  visibility?: string;
-  status?: string;
-  federation?: { inReplyTo?: string };
-}
-
 async function backfillFederatedThreadLinks(): Promise<void> {
   const startedAt = Date.now();
-  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
-  const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
 
   try {
     assertAdminMutationAllowed({
       scriptName: 'backfillFederatedThreadLinks',
       dryRun: DRY_RUN,
     });
-    await mongoose.connect(mongoUri, { dbName });
-    logger.info('[backfillFederatedThreadLinks] connected to MongoDB', {
+    await connectPostgres();
+    logger.info('[backfillFederatedThreadLinks] connected to PostgreSQL', {
       dryRun: DRY_RUN,
       backfillAncestors: BACKFILL_ANCESTORS,
     });
@@ -87,12 +74,19 @@ async function backfillFederatedThreadLinks(): Promise<void> {
     // Orphans: a federated reply (has federation.inReplyTo) that was never linked
     // (no parentPostId). The filter set only ever SHRINKS as we set parentPostId,
     // so the ascending `_id` cursor never revisits a linked post.
-    const baseFilter: Record<string, unknown> = {
-      'federation.inReplyTo': { $exists: true, $ne: null },
-      parentPostId: null,
-    };
+    // `is not null` / `is null`, never `<> null`: Mongo's `$ne: null` also matched
+    // an ABSENT field while SQL's `<>` against NULL matches nothing, so the
+    // literal translation would report zero orphans on a corpus full of them.
+    const baseFilter = and(
+      isNotNull(posts.federationInReplyTo),
+      isNull(posts.parentPostId),
+    ) as SQL;
 
-    const totalCount = await Post.countDocuments(baseFilter);
+    const [totals] = await getDb()
+      .select({ count: count() })
+      .from(posts)
+      .where(baseFilter);
+    const totalCount = totals?.count ?? 0;
     logger.info(`[backfillFederatedThreadLinks] ${totalCount} orphan federated replies to scan`);
 
     if (totalCount === 0) {
@@ -104,41 +98,21 @@ async function backfillFederatedThreadLinks(): Promise<void> {
     let linked = 0;
     let unresolved = 0;
     let malformed = 0;
-    let lastId: mongoose.Types.ObjectId | null = null;
-    let pendingOps: mongoose.AnyBulkWriteOperation<typeof Post>[] = [];
-    let pendingProjectionOps: mongoose.AnyBulkWriteOperation<IPostRecentReplier>[] = [];
-
-    const flush = async (): Promise<void> => {
-      if (pendingOps.length === 0 || DRY_RUN) {
-        pendingOps = [];
-        pendingProjectionOps = [];
-        return;
-      }
-      await Post.bulkWrite(pendingOps, { ordered: false });
-      if (pendingProjectionOps.length > 0) {
-        await PostRecentReplier.bulkWrite(pendingProjectionOps, { ordered: false });
-      }
-      pendingOps = [];
-      pendingProjectionOps = [];
-    };
+    let lastId: string | null = null;
+    const db = getDb();
+    /**
+     * Newly-linked replies whose parent's avatar projection has to learn about
+     * them. `post_recent_repliers` has exactly one writer,
+     * `recordRecentReplierForPost`, and this script must not become a second
+     * one. Fail-soft, per reply, exactly as the live reply paths are.
+     */
+    const projectionReplies: RecentReplyLike[] = [];
 
     for (;;) {
-      const pageFilter: Record<string, unknown> = { ...baseFilter };
-      if (lastId) {
-        pageFilter._id = { $gt: lastId };
-      }
-
-      const page = await Post.find(pageFilter, {
-        _id: 1,
-        oxyUserId: 1,
-        createdAt: 1,
-        visibility: 1,
-        status: 1,
-        'federation.inReplyTo': 1,
-      })
-        .sort({ _id: 1 })
-        .limit(PAGE_SIZE)
-        .lean<OrphanReplyRow[]>();
+      const page = await findPostRecords(
+        lastId ? and(baseFilter, gt(posts.id, lastId)) : baseFilter,
+        { orderBy: [asc(posts.id)], limit: PAGE_SIZE },
+      );
 
       if (page.length === 0) break;
 
@@ -158,48 +132,45 @@ async function backfillFederatedThreadLinks(): Promise<void> {
         }
 
         linked += 1;
-        pendingOps.push({
-          updateOne: {
-            filter: { _id: post._id },
-            update: {
-              $set: {
-                parentPostId: link.parentPostId,
-                threadId: link.threadId,
-              },
-            },
-          },
-        });
+        if (!DRY_RUN) {
+          // `is_reply` is deliberately NOT written: the row already carries
+          // `federation.inReplyTo`, so `derivesReplyIntent` stamped the
+          // discriminator at insert. This pass only attaches the LINKS.
+          await db
+            .update(posts)
+            .set({ parentPostId: link.parentPostId, threadId: link.threadId })
+            .where(eq(posts.id, post.id));
+        }
         if (
           post.oxyUserId &&
-          (post.visibility ?? 'public') === 'public' &&
-          (post.status ?? 'published') === 'published'
+          post.visibility === 'public' &&
+          post.status === 'published'
         ) {
-          pendingProjectionOps.push({
-            updateOne: {
-              filter: { postId: link.parentPostId },
-              update: buildRecentReplierUpdatePipeline(
-                link.parentPostId,
-                post.oxyUserId,
-                post.createdAt ?? new Date(),
-              ),
-              upsert: true,
-            },
+          projectionReplies.push({
+            parentPostId: link.parentPostId,
+            oxyUserId: post.oxyUserId,
+            createdAt: post.createdAt,
+            visibility: post.visibility,
+            status: post.status,
           });
-        }
-
-        if (pendingOps.length >= BULK_CHUNK_SIZE) {
-          await flush();
         }
       }
 
       scanned += page.length;
-      lastId = page[page.length - 1]._id;
+      lastId = page[page.length - 1].id;
       logger.info(
         `[backfillFederatedThreadLinks] progress: scanned ${scanned}/${totalCount}, linked ${linked}, unresolved ${unresolved}, malformed ${malformed}`,
       );
     }
 
-    await flush();
+    // The projection is repaired ONCE, after every link has landed: a reply whose
+    // parent was itself linked in a later page would otherwise be recorded
+    // against a parent that had no children yet.
+    if (!DRY_RUN) {
+      for (const reply of projectionReplies) {
+        await recordRecentReplierForPost(reply);
+      }
+    }
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
     logger.info(
@@ -215,9 +186,6 @@ async function backfillFederatedThreadLinks(): Promise<void> {
     throw error;
   } finally {
     await closeAdminScriptResources();
-    await mongoose.disconnect().catch((disconnectError) => {
-      logger.warn('[backfillFederatedThreadLinks] error during mongoose.disconnect()', disconnectError);
-    });
   }
 }
 

@@ -1,29 +1,36 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import mongoose from 'mongoose';
-
 /**
- * Unit coverage for {@link FeedController.getRepliesFeed}'s self-thread spine
- * expansion (Bluesky-style replies).
+ * {@link FeedController.getRepliesFeed}'s self-thread spine expansion
+ * (Bluesky-style replies), against REAL ROWS.
  *
  * When the parent post is a self-thread ROOT (`threadId === <its own id>`), the
- * replies feed must surface external replies to ANY node of the OP's continuation
- * spine (root … cN), not just the root's direct children — while EXCLUDING the OP's
- * own continuations (those are rendered as the connected spine on the client). For
- * any other parent the query is the single-parent match, unchanged.
+ * replies feed must surface external replies to ANY node of the OP's
+ * continuation spine (root … cN), not just the root's direct children — while
+ * EXCLUDING the OP's own continuations, which the client renders as the
+ * connected spine. For any other parent the query is the single-parent match.
  *
- * The controller pulls in hydration/Oxy layers; stub those so the test stays
- * pure and never touches a DB or the network. `Post.findById`/
- * `Post.find` are spied so we can assert on the EXACT Mongo query the controller
- * builds.
+ * The previous version spied on `Post.find` and asserted the FILTER OBJECT the
+ * controller built. That is exactly the check that cannot fail for the right
+ * reason: it passed whether or not the filter selected anything, and it pinned
+ * the Mongo spelling of a query that has since become SQL, so it would have gone
+ * red on a correct port and green on a broken one. The rows are real now and the
+ * assertions are about which replies come back.
+ *
+ * Hydration stays stubbed to a passthrough: it resolves authors through Oxy,
+ * which is a remote service, and the spine selection happens entirely before it.
  */
+
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+
 vi.mock('../../runtime/socketServer', () => ({
   getRuntimeSocketServer: () => undefined,
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({
-  // Passthrough hydration — the query shape we assert on is built before hydration,
-  // so return the documents unchanged (they already carry `id` + `user.id`).
-  postHydrationService: { hydratePosts: vi.fn(async (objs: object[]) => objs) },
+  postHydrationService: {
+    hydratePosts: vi.fn(async (records: Array<{ id: string; oxyUserId: string }>) =>
+      records.map((record) => ({ ...record, user: { id: record.oxyUserId } })),
+    ),
+  },
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
 
@@ -43,144 +50,179 @@ vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: oxyMocks.createScopedOxyClient,
 }));
 
-import { Post } from '../../models/Post';
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { posts } from '../../db/schema/posts';
+import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import { feedController } from '../../controllers/feed.controller';
+import type { PostRecord } from '../../db/posts/postRecord';
 
-const ROOT_ID = 'aaaaaaaaaaaaaaaaaaaaaaaa';
-const C1_ID = 'bbbbbbbbbbbbbbbbbbbbbbbb';
-const C2_ID = 'cccccccccccccccccccccccc';
-const PLAIN_ID = 'dddddddddddddddddddddddd';
-const OP_USER = 'op_user_1';
+const scope = postScope('replies-spine');
+const OP = scope.user('op');
+const OTHER = scope.user('other');
 
-type AnyQuery = Record<string, unknown>;
-
-/**
- * A minimal chainable Mongoose-query stub: every chain method returns itself and
- * `.lean()` resolves to the supplied result, matching the
- * `.select().sort().limit().maxTimeMS().lean()` call shape the controller uses.
- */
-function chain(result: unknown) {
-  const q: Record<string, unknown> = {};
-  for (const method of ['select', 'sort', 'limit', 'maxTimeMS']) {
-    q[method] = vi.fn(() => q);
-  }
-  q.lean = vi.fn(() => Promise.resolve(result));
-  return q;
+interface FeedPayload {
+  items: Array<{ id: string }>;
+  hasMore?: boolean;
+  nextCursor?: string | null;
 }
 
 function buildResponse() {
-  const payload: { value?: unknown; status?: number } = {};
+  const payload: { value?: FeedPayload; status?: number } = {};
   const res = {
     status(code: number) {
       payload.status = code;
       return this;
     },
     json(body: unknown) {
-      payload.value = body;
+      payload.value = body as FeedPayload;
       return this;
     },
   };
   return { res, payload };
 }
 
+async function fetchReplies(
+  parentId: string,
+  query: Record<string, string> = {},
+): Promise<FeedPayload> {
+  const { res, payload } = buildResponse();
+  await feedController.getRepliesFeed(
+    {
+      query,
+      params: { parentId },
+      user: { id: 'viewer' },
+      headers: { authorization: 'Bearer viewer-token' },
+    } as never,
+    res as never,
+  );
+  if (!payload.value) throw new Error('handler produced no response body');
+  return payload.value;
+}
+
 /**
- * Wire `Post.findById` to return `parent` and route the two distinct `Post.find`
- * calls (spine query vs. replies query) by inspecting the filter: the spine query is
- * the only one carrying a `threadId` clause. Returns the captured find filters.
+ * A self-thread: `root` anchors its own id as `threadId`, and each continuation
+ * hangs off the previous node. That chain is what spine expansion walks.
  */
-function stubModel(parent: AnyQuery | null) {
-  const replyDocs = [{ _id: 'r1', id: 'r1', user: { id: 'other_user' } }];
-  const continuationDocs = [{ _id: C1_ID }, { _id: C2_ID }];
-  const findFilters: AnyQuery[] = [];
-
-  vi.spyOn(Post, 'findById').mockImplementation(((): unknown => chain(parent)) as never);
-  vi.spyOn(Post, 'find').mockImplementation(((filter: AnyQuery): unknown => {
-    findFilters.push(filter);
-    if (filter && 'threadId' in filter) return chain(continuationDocs);
-    return chain(replyDocs);
-  }) as never);
-
-  return { findFilters, replyDocs };
+async function seedSelfThread(): Promise<{ root: PostRecord; c1: PostRecord; c2: PostRecord }> {
+  const seeded = await seedPost(scope, { oxyUserId: OP });
+  // The root anchors its OWN id, which `createThread` can only do after the
+  // insert has minted one. Leaving it null is what makes a root look like an
+  // ordinary post, so the update is the fixture's whole point rather than a
+  // detail: without it `isSelfThreadRoot` is false and nothing expands.
+  await getDb().update(posts).set({ threadId: seeded.id }).where(eq(posts.id, seeded.id));
+  const root = { ...seeded, threadId: seeded.id };
+  const c1 = await seedPost(scope, {
+    oxyUserId: OP,
+    threadId: root.id,
+    parentPostId: root.id,
+    isReply: true,
+  });
+  const c2 = await seedPost(scope, {
+    oxyUserId: OP,
+    threadId: root.id,
+    parentPostId: c1.id,
+    isReply: true,
+  });
+  return { root, c1, c2 };
 }
 
 describe('getRepliesFeed — self-thread spine expansion', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
+  beforeAll(async () => {
+    await connectPostgres();
   });
 
-  it('expands a self-thread root into its whole spine and excludes the OP continuations', async () => {
-    const { findFilters } = stubModel({ _id: ROOT_ID, threadId: ROOT_ID, oxyUserId: OP_USER });
+  afterEach(async () => {
+    await clearPostScope(scope);
+    vi.clearAllMocks();
+    oxyMocks.createScopedOxyClient.mockReturnValue(oxyMocks.scopedClient);
+  });
 
-    const req = {
-      query: {},
-      params: { parentId: ROOT_ID },
-      user: { id: 'viewer' },
-      headers: { authorization: 'Bearer viewer-token' },
-    };
-    const { res, payload } = buildResponse();
-    await feedController.getRepliesFeed(req as never, res as never);
+  afterAll(async () => {
+    await closePostgres();
+  });
 
-    // The spine query was issued (single source of truth, keyed by threadId).
-    const spineFilter = findFilters.find((f) => 'threadId' in f);
-    expect(spineFilter).toBeDefined();
-    expect(spineFilter?.threadId).toBe(ROOT_ID);
-    expect(spineFilter?.oxyUserId).toBe(OP_USER);
+  it('surfaces external replies to ANY spine node and never the OP continuations', async () => {
+    const { root, c1, c2 } = await seedSelfThread();
+    const toRoot = await seedPost(scope, {
+      oxyUserId: OTHER,
+      parentPostId: root.id,
+      isReply: true,
+    });
+    const toC1 = await seedPost(scope, { oxyUserId: OTHER, parentPostId: c1.id, isReply: true });
+    const toC2 = await seedPost(scope, { oxyUserId: OTHER, parentPostId: c2.id, isReply: true });
 
-    // The replies query matches replies to the ROOT and every continuation …
-    const repliesFilter = findFilters.find((f) => !('threadId' in f));
-    expect(repliesFilter?.parentPostId).toEqual({ $in: [ROOT_ID, C1_ID, C2_ID] });
+    const ids = (await fetchReplies(root.id)).items.map((item) => item.id);
 
-    // … while excluding the OP's own continuations by id (they render as the spine).
-    const idClause = repliesFilter?._id as { $nin?: mongoose.Types.ObjectId[] };
-    expect(idClause?.$nin?.map(String)).toEqual([C1_ID, C2_ID]);
-
-    // Response shape unchanged.
-    expect((payload.value as { items: unknown[] }).items).toHaveLength(1);
+    expect(new Set(ids)).toEqual(new Set([toRoot.id, toC1.id, toC2.id]));
+    // The continuations match the expanded parent filter and must be excluded by
+    // id — that exclusion is the only thing keeping the spine out of the replies.
+    expect(ids).not.toContain(c1.id);
+    expect(ids).not.toContain(c2.id);
     expect(privacyMocks.loadPrivacyState).toHaveBeenCalledWith('viewer', {
       oxyClient: oxyMocks.scopedClient,
     });
   });
 
-  it('merges the pagination cursor with the continuation exclusion on _id', async () => {
-    const { findFilters } = stubModel({ _id: ROOT_ID, threadId: ROOT_ID, oxyUserId: OP_USER });
+  it('pages the expanded spine without skipping or repeating a reply', async () => {
+    const { root, c1 } = await seedSelfThread();
+    const replies: string[] = [];
+    for (let index = 0; index < 4; index += 1) {
+      const reply = await seedPost(scope, {
+        oxyUserId: OTHER,
+        parentPostId: index % 2 === 0 ? root.id : c1.id,
+        isReply: true,
+      });
+      replies.push(reply.id);
+    }
 
-    const cursorId = new mongoose.Types.ObjectId();
-    const req = { query: { cursor: String(cursorId) }, params: { parentId: ROOT_ID } };
-    const { res } = buildResponse();
-    await feedController.getRepliesFeed(req as never, res as never);
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    let guard = 0;
+    for (;;) {
+      const body = await fetchReplies(root.id, { limit: '2', ...(cursor ? { cursor } : {}) });
+      seen.push(...body.items.map((item) => item.id));
+      if (!body.hasMore || !body.nextCursor) break;
+      cursor = body.nextCursor;
+      if ((guard += 1) > 6) throw new Error('pagination did not terminate');
+    }
 
-    const repliesFilter = findFilters.find((f) => !('threadId' in f));
-    const idClause = repliesFilter?._id as { $nin?: mongoose.Types.ObjectId[]; $lt?: mongoose.Types.ObjectId };
-    expect(idClause?.$nin?.map(String)).toEqual([C1_ID, C2_ID]);
-    expect(String(idClause?.$lt)).toBe(String(cursorId));
+    expect(new Set(seen)).toEqual(new Set(replies));
+    expect(seen).toHaveLength(replies.length);
   });
 
-  it('leaves a non-root parent as a single-parent query (no spine, no _id exclusion)', async () => {
-    // A reply / mid-thread continuation: threadId points at the ROOT, not itself.
-    const { findFilters } = stubModel({ _id: PLAIN_ID, threadId: ROOT_ID, oxyUserId: OP_USER });
+  it('leaves a mid-thread continuation as a single-parent query (no spine)', async () => {
+    const { root, c1, c2 } = await seedSelfThread();
+    const toC1 = await seedPost(scope, { oxyUserId: OTHER, parentPostId: c1.id, isReply: true });
+    await seedPost(scope, { oxyUserId: OTHER, parentPostId: root.id, isReply: true });
 
-    const req = { query: {}, params: { parentId: PLAIN_ID } };
-    const { res } = buildResponse();
-    await feedController.getRepliesFeed(req as never, res as never);
+    // `c1.threadId` points at the ROOT, not at itself, so it is not a root: no
+    // spine expansion, and the OP's own next continuation is therefore an
+    // ORDINARY reply to `c1` rather than something to exclude. The reply to the
+    // root does not appear, which is what "single-parent" means here.
+    const ids = (await fetchReplies(c1.id)).items.map((item) => item.id);
 
-    // No spine query was issued.
-    expect(findFilters.some((f) => 'threadId' in f)).toBe(false);
-
-    const repliesFilter = findFilters.find((f) => !('threadId' in f));
-    expect(repliesFilter?.parentPostId).toBe(PLAIN_ID);
-    expect(repliesFilter?._id).toBeUndefined();
+    expect(new Set(ids)).toEqual(new Set([toC1.id, c2.id]));
   });
 
-  it('treats a parent with no threadId as a plain post (single-parent query)', async () => {
-    const { findFilters } = stubModel({ _id: PLAIN_ID, oxyUserId: OP_USER });
+  it('treats a post with no threadId as a plain post (single-parent query)', async () => {
+    const plain = await seedPost(scope, { oxyUserId: OP });
+    const reply = await seedPost(scope, {
+      oxyUserId: OTHER,
+      parentPostId: plain.id,
+      isReply: true,
+    });
+    // A reply to the reply must NOT surface: there is no spine to expand.
+    await seedPost(scope, { oxyUserId: OTHER, parentPostId: reply.id, isReply: true });
 
-    const req = { query: {}, params: { parentId: PLAIN_ID } };
-    const { res } = buildResponse();
-    await feedController.getRepliesFeed(req as never, res as never);
+    const ids = (await fetchReplies(plain.id)).items.map((item) => item.id);
 
-    expect(findFilters.some((f) => 'threadId' in f)).toBe(false);
-    const repliesFilter = findFilters.find((f) => !('threadId' in f));
-    expect(repliesFilter?.parentPostId).toBe(PLAIN_ID);
-    expect(repliesFilter?._id).toBeUndefined();
+    expect(ids).toEqual([reply.id]);
+  });
+
+  it('returns an empty page for an unknown parent instead of failing', async () => {
+    const body = await fetchReplies('019fffff-ffff-7fff-bfff-ffffffffffff');
+
+    expect(body.items).toEqual([]);
   });
 });

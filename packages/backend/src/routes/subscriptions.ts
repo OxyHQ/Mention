@@ -1,11 +1,12 @@
 import { Router, Response } from 'express';
-import { Types, type FilterQuery } from 'mongoose';
+import { and, desc, eq, lt, or } from 'drizzle-orm';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import type {
   PostSubscriptionItem,
   PostSubscriptionListResponse,
 } from '@mention/shared-types';
-import PostSubscription, { type IPostSubscription } from '../models/PostSubscription';
+import { getDb } from '../db/postgres';
+import { postSubscriptions } from '../db/schema/engagement';
 import { resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
 import type { CachedUserSummary } from '../services/userSummaryCache';
 import { queryInt, queryString } from '../utils/queryParams';
@@ -22,24 +23,30 @@ const MAX_SUBSCRIPTION_PAGE_SIZE = 100;
  *
  * `createdAt` alone is NOT unique — two subscriptions made in the same
  * millisecond would straddle a page boundary and be skipped or repeated — so the
- * cursor carries the document id as the tie-break, matching the
- * `{ createdAt: -1, _id: -1 }` sort exactly.
+ * cursor carries the row id as the tie-break, matching the
+ * `{ createdAt desc, id desc }` sort exactly.
  */
 interface SubscriptionCursor {
   createdAt: Date;
-  id: Types.ObjectId;
+  id: string;
 }
 
-/** `<epochMillis>_<objectId>` — opaque to the client, cheap to parse here. */
+/** `<epochMillis>_<id>` — opaque to the client, cheap to parse here. */
 function encodeSubscriptionCursor(createdAt: Date, id: string): string {
   return `${createdAt.getTime()}_${id}`;
 }
 
 /**
  * Parse a client-supplied cursor. A malformed token yields `undefined` (⇒ the
- * first page) rather than an error: a tampered cursor must never turn into a
- * Mongoose CastError and a 500, which is why the id half is validated as an
- * ObjectId here and not left for the query to cast.
+ * first page) rather than an error, exactly as before.
+ *
+ * The id half is taken VERBATIM. It used to be run through
+ * `Types.ObjectId.isValid`, which only ever existed to keep a tampered cursor
+ * from becoming a Mongoose CastError — and whose `false` branch silently means
+ * "start from page one". Kept, that guard would have quietly restarted every
+ * paginated scroll the moment ids became uuid v7: a legitimate cursor for a row
+ * created after the cutover would fail the 24-hex test and the client would
+ * loop over page one forever. An id that names no row simply matches nothing.
  */
 function parseSubscriptionCursor(raw: string | undefined): SubscriptionCursor | undefined {
   if (!raw) return undefined;
@@ -52,21 +59,33 @@ function parseSubscriptionCursor(raw: string | undefined): SubscriptionCursor | 
   if (Number.isNaN(createdAt.getTime())) return undefined;
 
   const id = raw.slice(separator + 1);
-  if (!Types.ObjectId.isValid(id)) return undefined;
+  if (!id) return undefined;
 
-  return { createdAt, id: new Types.ObjectId(id) };
+  return { createdAt, id };
 }
 
 // Get subscription status for the current user to an author
 router.get('/:authorId/status', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { authorId } = req.params;
+    // Express 5 types every path param `string | string[]`; a non-string is
+    // treated as ABSENT (the 400 below) rather than coerced, because `String([x])`
+    // would silently manufacture a plausible id for a `text` column to match.
+    const authorId = typeof req.params.authorId === 'string' ? req.params.authorId : undefined;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
     if (!authorId) return res.status(400).json({ message: 'authorId is required' });
 
-    const exists = await PostSubscription.exists({ subscriberId: userId, authorId });
-    return res.json({ subscribed: !!exists });
+    const [existing] = await getDb()
+      .select({ id: postSubscriptions.id })
+      .from(postSubscriptions)
+      .where(
+        and(
+          eq(postSubscriptions.subscriberId, userId),
+          eq(postSubscriptions.authorId, authorId),
+        ),
+      )
+      .limit(1);
+    return res.json({ subscribed: !!existing });
   } catch (error) {
     logger.error('[Subscriptions] Error checking subscription status:', { userId: req.user?.id, authorId: req.params.authorId, error });
     return res.status(500).json({ message: 'Error checking subscription status' });
@@ -77,21 +96,25 @@ router.get('/:authorId/status', async (req: AuthRequest, res: Response) => {
 router.post('/:authorId', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { authorId } = req.params;
+    // Express 5 types every path param `string | string[]`; a non-string is
+    // treated as ABSENT (the 400 below) rather than coerced, because `String([x])`
+    // would silently manufacture a plausible id for a `text` column to match.
+    const authorId = typeof req.params.authorId === 'string' ? req.params.authorId : undefined;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
     if (!authorId) return res.status(400).json({ message: 'authorId is required' });
     if (authorId === userId) return res.status(400).json({ message: 'Cannot subscribe to yourself' });
 
-    await PostSubscription.updateOne(
-      { subscriberId: userId, authorId },
-      { $setOnInsert: { subscriberId: userId, authorId } },
-      { upsert: true }
-    );
+    // `post_subscriptions_subscriber_id_author_id_key` makes the repeat a no-op
+    // inside the statement, which is what the Mongo `$setOnInsert` upsert plus
+    // its duplicate-key rescue were between them doing.
+    await getDb()
+      .insert(postSubscriptions)
+      .values({ subscriberId: userId, authorId })
+      .onConflictDoNothing({
+        target: [postSubscriptions.subscriberId, postSubscriptions.authorId],
+      });
     return res.json({ subscribed: true });
   } catch (error: unknown) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 11000) {
-      return res.json({ subscribed: true });
-    }
     logger.error('[Subscriptions] Error subscribing to author:', { userId: req.user?.id, authorId: req.params.authorId, error });
     return res.status(500).json({ message: 'Error subscribing to author' });
   }
@@ -101,11 +124,21 @@ router.post('/:authorId', async (req: AuthRequest, res: Response) => {
 router.delete('/:authorId', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { authorId } = req.params;
+    // Express 5 types every path param `string | string[]`; a non-string is
+    // treated as ABSENT (the 400 below) rather than coerced, because `String([x])`
+    // would silently manufacture a plausible id for a `text` column to match.
+    const authorId = typeof req.params.authorId === 'string' ? req.params.authorId : undefined;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
     if (!authorId) return res.status(400).json({ message: 'authorId is required' });
 
-    await PostSubscription.deleteOne({ subscriberId: userId, authorId });
+    await getDb()
+      .delete(postSubscriptions)
+      .where(
+        and(
+          eq(postSubscriptions.subscriberId, userId),
+          eq(postSubscriptions.authorId, authorId),
+        ),
+      );
     return res.json({ subscribed: false });
   } catch (error) {
     logger.error('[Subscriptions] Error unsubscribing from author:', { userId: req.user?.id, authorId: req.params.authorId, error });
@@ -137,26 +170,38 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     );
     const cursor = parseSubscriptionCursor(queryString(req.query.cursor));
 
-    const query: FilterQuery<IPostSubscription> = { subscriberId: userId };
-    if (cursor) {
-      query.$or = [
-        { createdAt: { $lt: cursor.createdAt } },
-        { createdAt: cursor.createdAt, _id: { $lt: cursor.id } },
-      ];
-    }
+    const subscriberMatch = eq(postSubscriptions.subscriberId, userId);
+    // The compound keyset, spelled the same way the sort is: strictly older, OR
+    // the same instant and a strictly smaller id. Dropping the second disjunct
+    // (or the `id` tiebreak on the ORDER BY) loses every row that shares the
+    // boundary row's millisecond.
+    const pageWhere = cursor
+      ? and(
+          subscriberMatch,
+          or(
+            lt(postSubscriptions.createdAt, cursor.createdAt),
+            and(
+              eq(postSubscriptions.createdAt, cursor.createdAt),
+              lt(postSubscriptions.id, cursor.id),
+            ),
+          ),
+        )
+      : subscriberMatch;
 
-    const docs = await PostSubscription.find(query)
-      .sort({ createdAt: -1, _id: -1 })
-      .limit(limit + 1)
-      .lean();
+    const rows = await getDb()
+      .select()
+      .from(postSubscriptions)
+      .where(pageWhere)
+      .orderBy(desc(postSubscriptions.createdAt), desc(postSubscriptions.id))
+      .limit(limit + 1);
 
-    const hasMore = docs.length > limit;
-    const page = hasMore ? docs.slice(0, limit) : docs;
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
 
     // One batched identity pass for the whole page. A whole-batch failure is not
     // fatal: every author falls back to its degraded summary so the list still
     // renders (and self-heals on the next fetch once Oxy recovers).
-    const authorIds = Array.from(new Set(page.map((doc) => doc.authorId)));
+    const authorIds = Array.from(new Set(page.map((row) => row.authorId)));
     let summaries = new Map<string, CachedUserSummary>();
     if (authorIds.length > 0) {
       try {
@@ -170,15 +215,15 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const subscriptions: PostSubscriptionItem[] = page.map((doc) => ({
-      author: summaries.get(doc.authorId)?.user ?? degradedActorSummary(doc.authorId),
-      createdAt: doc.createdAt.toISOString(),
+    const subscriptions: PostSubscriptionItem[] = page.map((row) => ({
+      author: summaries.get(row.authorId)?.user ?? degradedActorSummary(row.authorId),
+      createdAt: row.createdAt.toISOString(),
     }));
 
     const last = page[page.length - 1];
     const body: PostSubscriptionListResponse = { subscriptions };
     if (hasMore && last) {
-      body.nextCursor = encodeSubscriptionCursor(last.createdAt, String(last._id));
+      body.nextCursor = encodeSubscriptionCursor(last.createdAt, last.id);
     }
 
     return res.json(body);

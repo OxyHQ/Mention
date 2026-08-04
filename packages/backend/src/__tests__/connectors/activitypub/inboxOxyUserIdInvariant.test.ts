@@ -1,4 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedFollow,
+} from '../../../__tests__/helpers/federationFixtures';
+
+const scope = federationScope('inbox-oxy-user-id');
 
 /**
  * Mandatory-Oxy-link invariant (Workstream B, B1).
@@ -21,8 +31,6 @@ const mocks = vi.hoisted(() => ({
   getPublicKey: vi.fn(),
   signViaOxy: vi.fn(),
   signRequest: vi.fn(),
-  actorFind: vi.fn(),
-  actorFindOne: vi.fn(),
   findOneAndUpdate: vi.fn(),
   updateOne: vi.fn(),
   postFind: vi.fn(),
@@ -40,9 +48,6 @@ const mocks = vi.hoisted(() => ({
   persistRemoteMedia: vi.fn(),
   recordAccess: vi.fn(),
   postCreatorCreate: vi.fn(),
-  followExists: vi.fn(),
-  followFindOneAndUpdate: vi.fn(),
-  followDeleteOne: vi.fn(),
   loggerWarn: vi.fn(),
   loggerInfo: vi.fn(),
   loggerError: vi.fn(),
@@ -66,29 +71,6 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   signRequest: mocks.signRequest,
 }));
 
-vi.mock('../../../models/FederatedActor', () => ({
-  default: {
-    findOne: mocks.actorFindOne,
-    find: mocks.actorFind,
-    findOneAndUpdate: mocks.findOneAndUpdate,
-    updateOne: mocks.updateOne,
-  },
-}));
-
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: {
-    exists: mocks.followExists,
-    findOneAndUpdate: mocks.followFindOneAndUpdate,
-    deleteOne: mocks.followDeleteOne,
-    updateOne: mocks.updateOne,
-  },
-}));
-
-vi.mock('../../../models/FederationDeliveryQueue', () => ({
-  default: {},
-  getNextRetryTime: vi.fn(),
-}));
-
 vi.mock('../../../models/Post', () => ({
   POST_CLASSIFICATION_PENDING: 'pending',
   Post: {
@@ -108,12 +90,6 @@ vi.mock('../../../models/Like', () => ({
   default: {
     create: mocks.likeCreate,
     findOneAndDelete: mocks.likeFindOneAndDelete,
-  },
-}));
-
-vi.mock('../../../models/UserSettings', () => ({
-  default: {
-    updateOne: vi.fn(),
   },
 }));
 
@@ -142,7 +118,7 @@ vi.mock('../../../services/serviceRegistry', () => ({
 import { activityPubConnector as federationService } from '../../../connectors/activitypub/ActivityPubConnector';
 import { ActorResolutionPendingError } from '../../../connectors/shared/ActorResolutionPendingError';
 
-const actorUri = 'https://mastodon.social/users/bob';
+const actorUri = `${scope.origin}/users/bob`;
 const noteId = `${actorUri}/statuses/900`;
 const activityId = `${actorUri}/statuses/900/activity`;
 
@@ -152,14 +128,17 @@ const activityId = `${actorUri}/statuses/900/activity`;
  * cached actor that exists but has NOT yet resolved to an Oxy user (the orphan
  * scenario). `lastFetchedAt` is fresh so no background refresh fires.
  */
-function stubCachedActor(oxyUserId: string | null) {
-  mocks.actorFindOne.mockReturnValue({
-    lean: vi.fn().mockResolvedValue(
-      oxyUserId
-        ? { uri: actorUri, oxyUserId, lastFetchedAt: new Date() }
-        : { uri: actorUri, lastFetchedAt: new Date() },
-    ),
+async function seedCachedActor(oxyUserId: string | null): Promise<void> {
+  await clearFederationScope(scope);
+  // A row with NO oxyUserId is "resolution still pending"; the Create path must
+  // DEFER rather than insert an orphan post.
+  await seedActor(scope, {
+    username: 'bob',
+    uri: actorUri,
+    oxyUserId,
+    lastFetchedAt: new Date(),
   });
+  await seedFollow(scope, { remoteActorUri: actorUri, direction: 'outbound', status: 'accepted' });
 }
 
 function createNoteActivity() {
@@ -177,12 +156,20 @@ function createNoteActivity() {
   };
 }
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
+  await clearFederationScope(scope);
+  // Default fixture: a resolved, followed remote actor. Suites that need the
+  // unresolved or absent variants re-seed with `seedResolvedActor`.
+  await seedActor(scope, { username: 'bob', uri: actorUri, oxyUserId: 'oxy_user_1', lastFetchedAt: new Date() });
+  await seedFollow(scope, { remoteActorUri: actorUri, direction: 'outbound', status: 'accepted' });
 
   mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({ _id: 'actor_1', ...update?.$set }));
   mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
-  mocks.actorFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
   mocks.postFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
   mocks.postFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
   mocks.postFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
@@ -191,7 +178,6 @@ beforeEach(() => {
   // Not a duplicate — `handleCreate` proceeds past the dedup check.
   mocks.postExists.mockResolvedValue(null);
   // The actor is followed by at least one local user (required by handleCreate).
-  mocks.followExists.mockResolvedValue({ _id: 'follow_1' });
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   mocks.recordAccess.mockResolvedValue(undefined);
   mocks.postCreatorCreate.mockResolvedValue({ _id: 'created_post_1' });
@@ -201,7 +187,7 @@ beforeEach(() => {
 
 describe('handleCreate — mandatory Oxy link invariant', () => {
   it('THROWS ActorResolutionPendingError and inserts NO post when the actor has no oxyUserId', async () => {
-    stubCachedActor(null); // actor exists but is not resolved to an Oxy user
+    await seedCachedActor(null); // actor exists but is not resolved to an Oxy user
 
     await expect(
       federationService.processInboxActivity(createNoteActivity(), actorUri),
@@ -213,7 +199,7 @@ describe('handleCreate — mandatory Oxy link invariant', () => {
   });
 
   it('inserts the post with the resolved Oxy author when the actor has an oxyUserId', async () => {
-    stubCachedActor('oxy_bob');
+    await seedCachedActor('oxy_bob');
 
     await federationService.processInboxActivity(createNoteActivity(), actorUri);
 
@@ -223,4 +209,12 @@ describe('handleCreate — mandatory Oxy link invariant', () => {
     // The author is a real string id — never null.
     expect(params.oxyUserId).not.toBeNull();
   });
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });

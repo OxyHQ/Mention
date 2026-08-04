@@ -1,5 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, it, expect, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { inArray } from 'drizzle-orm';
 import { MtnConfig } from '@mention/shared-types';
+
+import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
+import { starterPackMembers, starterPacks } from '../../db/schema/lists';
 
 /**
  * STARTER-PACK CURATION POLICY — the anti-gaming rules are the whole point of this
@@ -18,10 +23,10 @@ import { MtnConfig } from '@mention/shared-types';
  */
 
 import {
-  buildCurationPipeline,
   computeStarterPackScores,
   curatorAuthority,
   packWeight,
+  starterPackCurationDeps,
   type CurationEdge,
   type StarterPackCurationDeps,
 } from '../../services/starterPackCuration';
@@ -290,43 +295,189 @@ describe('computeStarterPackScores — batching + fail-softness', () => {
   });
 });
 
-describe('buildCurationPipeline', () => {
-  const pipeline = buildCurationPipeline(['author-1', 'author-2']);
+/**
+ * The ACCESSOR, against real rows.
+ *
+ * The suite this replaces asserted that a Mongo pipeline was BUILT — six
+ * `toContainEqual` checks over stage objects, none of which could tell a correct
+ * query from one that returns nothing. What actually has to hold is a property of
+ * the ROWS: the statement is a WORK BOUND, so it may never hand the policy more
+ * than `maxCuratorsPerAuthor` curators per author, and WHICH ones it keeps has to
+ * be the same on every run — the `$topN` it replaces sorted
+ * `{ useCount: -1, '_id.curatorId': 1 }`, and dropping the second key leaves the
+ * bounded set at the mercy of the plan.
+ *
+ * Every expectation below enumerates the curators exactly and is NON-EMPTY: a
+ * correlated predicate that silently matches nothing is the failure mode this
+ * migration keeps hitting, and `toEqual([])` passes straight through it.
+ */
+describe('starterPackCurationDeps.loadCurationEdges — against real rows', () => {
+  let db: Database;
+  const createdPackIds: string[] = [];
 
-  it('pre-filters on the indexed member array AND the crowd-validation floor', () => {
-    expect(pipeline[0]).toEqual({
-      $match: {
-        memberOxyUserIds: { $in: ['author-1', 'author-2'] },
-        useCount: { $gte: CURATION.minUseCount },
-      },
-    });
+  /** Author/curator ids unique per run, so two suites cannot collide. */
+  const run = randomUUID();
+  const author = (name: string): string => `author-${name}-${run}`;
+  const curator = (name: string): string => `curator-${name}-${run}`;
+
+  /** A pack owned by `ownerOxyUserId`, used `useCount` times, containing `members`. */
+  async function seedPack(
+    ownerOxyUserId: string,
+    useCount: number,
+    members: string[],
+  ): Promise<string> {
+    const [pack] = await db
+      .insert(starterPacks)
+      .values({ ownerOxyUserId, name: `Pack ${randomUUID()}`, useCount })
+      .returning({ id: starterPacks.id });
+    createdPackIds.push(pack.id);
+    if (members.length > 0) {
+      await db.insert(starterPackMembers).values(
+        members.map((oxyUserId, position) => ({ packId: pack.id, oxyUserId, position })),
+      );
+    }
+    return pack.id;
+  }
+
+  beforeAll(async () => {
+    db = await connectPostgres();
   });
 
-  it('drops self-owned packs in the database, not just in the policy', () => {
-    expect(pipeline).toContainEqual({ $match: { $expr: { $ne: ['$authorId', '$curatorId'] } } });
+  afterEach(async () => {
+    if (createdPackIds.length > 0) {
+      // Members cascade with the pack.
+      await db.delete(starterPacks).where(inArray(starterPacks.id, createdPackIds));
+      createdPackIds.length = 0;
+    }
   });
 
-  it('dedupes by CURATOR in the database, keeping their best (max-useCount) pack', () => {
-    expect(pipeline).toContainEqual({
-      $group: {
-        _id: { authorId: '$authorId', curatorId: '$curatorId' },
-        useCount: { $max: '$useCount' },
-      },
-    });
+  afterAll(async () => {
+    await closePostgres();
   });
 
-  it('bounds its own output at `maxCuratorsPerAuthor` curators per author', () => {
-    expect(pipeline).toContainEqual({
-      $group: {
-        _id: '$_id.authorId',
-        curators: {
-          $topN: {
-            n: CURATION.maxCuratorsPerAuthor,
-            sortBy: { useCount: -1, '_id.curatorId': 1 },
-            output: { curatorId: '$_id.curatorId', useCount: '$useCount' },
-          },
-        },
-      },
+  it('returns one edge per (author, curator) with the curator BEST pack', async () => {
+    const target = author('best');
+    const owner = curator('best');
+    await seedPack(owner, 3, [target]);
+    await seedPack(owner, 11, [target]);
+    await seedPack(owner, 7, [target]);
+
+    const edges = await starterPackCurationDeps.loadCurationEdges([target]);
+
+    // Exactly one edge, at the MAX useCount — not three edges, and not the last
+    // one inserted.
+    expect(edges).toEqual([{ authorId: target, curatorId: owner, useCount: 11 }]);
+  });
+
+  it('drops a SELF-OWNED pack but keeps a genuine curator in the same batch', async () => {
+    const target = author('self');
+    const owner = curator('self');
+    await seedPack(target, 999, [target]);
+    await seedPack(owner, 4, [target]);
+
+    const edges = await starterPackCurationDeps.loadCurationEdges([target]);
+
+    expect(edges).toEqual([{ authorId: target, curatorId: owner, useCount: 4 }]);
+  });
+
+  it('drops a pack below `minUseCount` but keeps one at the floor', async () => {
+    const target = author('floor');
+    const unused = curator('unused');
+    const atFloor = curator('atfloor');
+    await seedPack(unused, CURATION.minUseCount - 1, [target]);
+    await seedPack(atFloor, CURATION.minUseCount, [target]);
+
+    const edges = await starterPackCurationDeps.loadCurationEdges([target]);
+
+    expect(edges).toEqual([
+      { authorId: target, curatorId: atFloor, useCount: CURATION.minUseCount },
+    ]);
+  });
+
+  it('returns edges only for the authors that were asked about', async () => {
+    const asked = author('asked');
+    const other = author('other');
+    const owner = curator('shared');
+    await seedPack(owner, 5, [asked, other]);
+
+    const edges = await starterPackCurationDeps.loadCurationEdges([asked]);
+
+    expect(edges).toEqual([{ authorId: asked, curatorId: owner, useCount: 5 }]);
+  });
+
+  it('bounds each author at `maxCuratorsPerAuthor`, keeping the HIGHEST useCounts', async () => {
+    const target = author('bounded');
+    const extra = 5;
+    const total = CURATION.maxCuratorsPerAuthor + extra;
+    // Curator `i` has useCount `i + 1`, so the survivors are the LAST
+    // `maxCuratorsPerAuthor` of them.
+    for (let index = 0; index < total; index += 1) {
+      await seedPack(curator(`bounded-${String(index).padStart(2, '0')}`), index + 1, [target]);
+    }
+
+    const edges = await starterPackCurationDeps.loadCurationEdges([target]);
+
+    expect(edges).toHaveLength(CURATION.maxCuratorsPerAuthor);
+    expect(edges.map((edge) => edge.useCount)).toEqual(
+      Array.from({ length: CURATION.maxCuratorsPerAuthor }, (_, i) => total - i),
+    );
+    expect(edges.map((edge) => edge.curatorId)).toEqual(
+      Array.from({ length: CURATION.maxCuratorsPerAuthor }, (_, i) =>
+        curator(`bounded-${String(total - 1 - i).padStart(2, '0')}`),
+      ),
+    );
+  });
+
+  it('breaks a useCount TIE at the bound by curator id, ascending', async () => {
+    /**
+     * Every curator here has the SAME `use_count`, so the only thing SPECIFYING
+     * which `maxCuratorsPerAuthor` of them survive is the window's secondary sort
+     * key — and this assertion names the exact subset the Mongo `$topN`'s
+     * `'_id.curatorId': 1` produced.
+     *
+     * Be clear about what it can and cannot catch: it is a PIN, not a mutation
+     * gate. Removing `curator_id asc` from the window was measured and the test
+     * still passed, at 13 curators and again at 200 — the `eligible` CTE's
+     * `GROUP BY` is planned as a GroupAggregate whose sort already emits
+     * `(author_id, curator_id)` ascending, so the secondary key is redundant for
+     * THAT plan. It is not redundant in general (a HashAggregate, a parallel
+     * plan, or a different major version reorders freely), which is why it stays
+     * — and this assertion is what would go red the day the plan changes.
+     */
+    const target = author('tied');
+    const total = CURATION.maxCuratorsPerAuthor + 3;
+    const curatorIds = Array.from({ length: total }, (_, i) =>
+      curator(`tied-${String(i).padStart(2, '0')}`),
+    );
+    // Inserted in DESCENDING id order, so the answer can never coincide with the
+    // order the rows happen to arrive in — seeding them ascending made this test
+    // pass with the tiebreak REMOVED, which is a check that cannot fail.
+    for (const owner of [...curatorIds].reverse()) {
+      await seedPack(owner, 6, [target]);
+    }
+
+    const edges = await starterPackCurationDeps.loadCurationEdges([target]);
+
+    expect(edges.map((edge) => edge.curatorId)).toEqual(
+      [...curatorIds].sort().slice(0, CURATION.maxCuratorsPerAuthor),
+    );
+  });
+
+  it('is empty for an author nobody curated — the vacuity floor for the cases above', async () => {
+    await seedPack(curator('elsewhere'), 5, [author('elsewhere')]);
+
+    expect(await starterPackCurationDeps.loadCurationEdges([author('uncurated')])).toEqual([]);
+  });
+
+  it('feeds the policy end to end, producing a score above neutral', async () => {
+    const target = author('scored');
+    await seedPack(curator('scored'), 9, [target]);
+
+    const scores = await computeStarterPackScores([target], {
+      loadCurationEdges: starterPackCurationDeps.loadCurationEdges,
+      loadCuratorFollowerCounts: async () => new Map(),
     });
+
+    expect(scores.get(target)).toBeCloseTo(packWeight(9, undefined), 10);
   });
 });

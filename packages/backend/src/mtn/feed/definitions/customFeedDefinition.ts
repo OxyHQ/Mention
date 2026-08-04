@@ -12,9 +12,9 @@
  * paths stay identical and no feed breaks before the backfill runs.
  */
 
-import mongoose from 'mongoose';
 import { MtnConfig } from '@mention/shared-types';
-import CustomFeed, { type ICustomFeed, type StoredFeedDefinition } from '../../../models/CustomFeed';
+import { type ICustomFeed, type StoredFeedDefinition } from '../../../models/CustomFeed';
+import { loadCustomFeedSource } from '../../../db/feeds/customFeedRepository';
 import type { FeedDefinition, FeedExecution, ModuleRef } from '../engine/types';
 import { legacyCustomFeedToDefinition, type LegacyCustomFeedShape } from './legacyCustomFeed';
 
@@ -32,7 +32,7 @@ function ensureSafetyFilters(filters?: ModuleRef[] | null): ModuleRef[] {
 }
 
 /** The loaded-feed fields this resolver reads. */
-type CustomFeedSource = Pick<ICustomFeed, 'title' | 'isPublic'> &
+export type CustomFeedSource = Pick<ICustomFeed, 'title' | 'isPublic'> &
   LegacyCustomFeedShape & {
     _id: unknown;
     definition?: StoredFeedDefinition;
@@ -84,9 +84,15 @@ export async function loadCustomFeedDefinition(
   feedId: string | undefined,
   viewerId: string | undefined,
 ): Promise<FeedDefinition | null> {
-  if (!feedId || !mongoose.Types.ObjectId.isValid(feedId)) return null;
+  // Emptiness only. The `ObjectId.isValid` guard that stood here rejected every
+  // feed created since the cutover — `custom_feeds.id` is `text` holding uuid v7
+  // — and the symptom was a feed the user built loading as "not found".
+  if (!feedId) return null;
 
-  const feed = await CustomFeed.findById(feedId).lean<CustomFeedSource | null>();
+  // Postgres, through the shared reassembly. This read the Mongo `CustomFeed`
+  // model, which nothing writes any more: every write goes through
+  // `routes/customFeeds.routes.ts` into `custom_feeds`.
+  const feed = await loadCustomFeedSource(feedId);
   if (!feed) return null;
   if (!feed.isPublic && feed.ownerOxyUserId !== viewerId) return null;
 

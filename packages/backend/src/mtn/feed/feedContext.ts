@@ -15,13 +15,13 @@
 import type { FeedTuning } from '@mention/shared-types';
 import type { OxyClient } from '../../utils/privacyHelpers';
 import { extractFollowingIds, extractFollowersIds } from '../../utils/privacyHelpers';
-import UserSettings from '../../models/UserSettings';
+import { loadUserSettings } from '../../db/userProfile/userSettingsRepository';
 import { listSubscriptionService } from '../../services/ListSubscriptionService';
 import { userPreferenceService } from '../../services/UserPreferenceService';
 import { resolveUserSummaries } from '../../services/PostHydrationService';
 import { mergeFederatedFollowIds } from '../../services/viewerFollowGraph';
 import { loadMutedLaneIds, loadShowSensitiveContent } from '../../services/safety/viewerSafety';
-import type { IUserBehavior } from '../../models/UserBehavior';
+import type { UserBehaviorRecord } from '../../db/userProfile/userBehaviorRecord';
 import { logger } from '../../utils/logger';
 import type { FeedEngineContext } from './engine/types';
 
@@ -61,7 +61,7 @@ export async function loadViewerLanguages(userId: string | undefined): Promise<s
 export async function loadFeedTuning(userId: string | undefined): Promise<FeedTuning | undefined> {
   if (!userId) return undefined;
   try {
-    const doc = await UserSettings.findOne({ oxyUserId: userId }, { feedTuning: 1 }).lean();
+    const doc = await loadUserSettings(userId);
     return doc?.feedTuning ?? undefined;
   } catch (error) {
     logger.warn('[feedContext] Failed to load feed tuning', error);
@@ -80,7 +80,7 @@ export async function loadViewerFeedContext(
   let followingIds: string[] = [];
   let followerIds: string[] = [];
   let subscribedListMemberIds: string[] = [];
-  let userBehavior: IUserBehavior | undefined;
+  let userBehavior: UserBehaviorRecord | undefined;
   let showSensitiveContent = false;
   let feedTuning: FeedTuning | undefined;
   let viewerLanguages: string[] = [];
@@ -133,8 +133,8 @@ export async function loadViewerFeedContext(
 
     const behaviorPromise = userPreferenceService
       .getUserBehavior(currentUserId)
-      .then((behavior): IUserBehavior | undefined => behavior ?? undefined)
-      .catch((error): IUserBehavior | undefined => {
+      .then((behavior): UserBehaviorRecord | undefined => behavior ?? undefined)
+      .catch((error): UserBehaviorRecord | undefined => {
         logger.warn('[feedContext] Failed to load user behavior', error);
         return undefined;
       });

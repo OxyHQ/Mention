@@ -1,4 +1,3 @@
-import mongoose from 'mongoose';
 import type { MediaItem } from '@mention/shared-types';
 import { normalizeInlineText, type ServiceAssetMetadata } from '@oxyhq/core';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
@@ -7,8 +6,27 @@ import type { ApAttachment } from '../connectors/activitypub/apMedia';
 
 const OXY_ID_RE = /^[a-f0-9]{24}$/i;
 
+/**
+ * Whether `id` is an **Oxy file id** rather than a raw remote URL.
+ *
+ * This is a DISCRIMINATOR, not one of the `CastError` guards the Postgres port
+ * deletes, and the distinction matters: `MediaItem.id` legitimately holds either
+ * an Oxy file id (native uploads, and federated media once the cache rewrote it)
+ * or the origin URL of a federated item the cache never mirrored. `false` sends
+ * the item down the "cannot ask Oxy about this" path, which is correct — not a
+ * check being skipped.
+ *
+ * The shape belongs to **oxy-api**, a separate service whose ids are still
+ * Mongo ObjectIds, so it does NOT widen to uuid v7 with Mention's own ids. It
+ * widens if and when Oxy's file ids change, and never before.
+ *
+ * `mongoose.Types.ObjectId.isValid` used to be `&&`-ed in front of the regex; it
+ * accepts strictly MORE than 24-char hex (12-byte strings, numbers), so the
+ * conjunction was exactly the regex and the call bought nothing but a mongoose
+ * import in a service that no longer needs one.
+ */
 export function isOxyFileId(id: string): boolean {
-  return mongoose.Types.ObjectId.isValid(id) && OXY_ID_RE.test(id);
+  return OXY_ID_RE.test(id);
 }
 
 function positiveInt(value: unknown): number | undefined {

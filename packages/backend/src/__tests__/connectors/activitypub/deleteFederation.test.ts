@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Outbound delete federation (PART 3): a deleted local post broadcasts a
@@ -11,28 +11,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  *     deleter's followers, delivered to the follower inboxes;
  *   - the sharing gate short-circuit.
  *
- * The delivery/queue layer, the models, and the Oxy client are mocked so the real
+ * The delivery/queue layer and the Oxy client are mocked so the real
  * `FollowService` runs in isolation; assertions read the captured
- * `enqueueDelivery` calls.
+ * `enqueueDelivery` calls. Nothing stubs the POST store, because a
+ * `Delete(Tombstone)` mints its object id from the deleter's username and the
+ * post id alone — the row is already gone by the time this fires, which is the
+ * whole reason the id is captured BEFORE deletion.
  */
 
 const {
   enqueueDelivery,
   isFediverseSharingEnabled,
   getUserById,
-  followFindLean,
-  actorFindLean,
-  actorFindOneLean,
-  postFindByIdLean,
   insertMany,
 } = vi.hoisted(() => ({
   enqueueDelivery: vi.fn(),
   isFediverseSharingEnabled: vi.fn(),
   getUserById: vi.fn(),
-  followFindLean: vi.fn(),
-  actorFindLean: vi.fn(),
-  actorFindOneLean: vi.fn(),
-  postFindByIdLean: vi.fn(),
   insertMany: vi.fn(),
 }));
 
@@ -45,22 +40,9 @@ vi.mock('../../../connectors/activitypub/constants', async () => {
 vi.mock('../../../connectors/activitypub/actor.service', () => ({ actorService: {} }));
 vi.mock('../../../connectors/activitypub/crypto', () => ({ getPublicKey: vi.fn(), signRequest: vi.fn() }));
 vi.mock('../../../queue/producers', () => ({ enqueueDelivery, enqueueInboxActivity: vi.fn() }));
-vi.mock('../../../models/FederatedActor', () => ({
-  default: {
-    find: () => ({ lean: () => actorFindLean() }),
-    findOne: () => ({ lean: () => actorFindOneLean() }),
-  },
-}));
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: { find: () => ({ lean: () => followFindLean() }) },
-}));
 vi.mock('../../../models/FederationDeliveryQueue', () => ({
   default: { insertMany, create: vi.fn() },
 }));
-vi.mock('../../../models/Post', () => ({
-  Post: { findById: () => ({ select: () => ({ lean: () => postFindByIdLean() }) }) },
-}));
-vi.mock('../../../models/UserSettings', () => ({ default: {} }));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
@@ -73,6 +55,13 @@ vi.mock('../../../utils/mediaResolver', () => ({
 vi.mock('../../../services/fediverseSharing', () => ({ isFediverseSharingEnabled }));
 vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ getUserById }) }));
 
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedFollowerWithInbox,
+} from '../../helpers/federationFixtures';
 import { followService } from '../../../connectors/activitypub/follow.service';
 
 const ALICE_ACTOR = 'https://mention.earth/ap/users/alice';
@@ -89,23 +78,35 @@ function deliveredActivity(): Record<string, unknown> {
   return (enqueueDelivery.mock.calls[0]?.[0] as { activityJson: Record<string, unknown> }).activityJson;
 }
 
-beforeEach(() => {
+const scope = federationScope('delete-federation');
+
+const USER_AUTHOR_OXY = scope.user('author-oxy');
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
+  await clearFederationScope(scope);
   enqueueDelivery.mockResolvedValue(true);
   isFediverseSharingEnabled.mockResolvedValue(true);
-  followFindLean.mockResolvedValue([]);
-  actorFindLean.mockResolvedValue([]);
-  actorFindOneLean.mockResolvedValue(null);
-  postFindByIdLean.mockResolvedValue(null);
   getUserById.mockResolvedValue({ id: 'u', username: 'alice' });
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 describe('federateDelete — Delete(Tombstone)', () => {
   it('broadcasts a Delete of the post canonical id to the deleter followers', async () => {
-    followFindLean.mockResolvedValue([{ remoteActorUri: 'https://foo.example/users/x' }]);
-    actorFindLean.mockResolvedValue([{ sharedInboxUrl: 'https://foo.example/inbox' }]);
+    const followerInbox = await seedFollowerWithInbox(scope, USER_AUTHOR_OXY, { username: 'x' });
 
-    await followService.federateDelete({ _id: 'post1' }, 'author-oxy', 'alice');
+    await followService.federateDelete({ id: 'post1' }, USER_AUTHOR_OXY, 'alice');
 
     const activity = deliveredActivity();
     expect(activity.type).toBe('Delete');
@@ -118,13 +119,13 @@ describe('federateDelete — Delete(Tombstone)', () => {
     expect(object.type).toBe('Tombstone');
     expect(object.id).toBe(`${ALICE_ACTOR}/posts/post1`);
 
-    expect(deliveredInboxes()).toEqual(['https://foo.example/inbox']);
+    expect(deliveredInboxes()).toEqual([followerInbox]);
   });
 
   it('skips federation entirely when the deleter has sharing disabled', async () => {
     isFediverseSharingEnabled.mockResolvedValue(false);
 
-    await followService.federateDelete({ _id: 'post1' }, 'author-oxy', 'alice');
+    await followService.federateDelete({ id: 'post1' }, USER_AUTHOR_OXY, 'alice');
 
     expect(enqueueDelivery).not.toHaveBeenCalled();
   });

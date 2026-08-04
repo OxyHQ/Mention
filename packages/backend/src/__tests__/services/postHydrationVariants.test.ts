@@ -28,7 +28,6 @@ vi.mock('../../models/Post', () => ({ Post: {} }));
 vi.mock('../../models/Poll', () => ({ default: {} }));
 vi.mock('../../models/Like', () => ({ default: {} }));
 vi.mock('../../models/Bookmark', () => ({ default: {} }));
-vi.mock('../../models/UserSettings', () => ({ UserSettings: {} }));
 vi.mock('../../services/userSummaryCache', () => ({
   mget: vi.fn(async () => new Map()),
   mset: vi.fn(async () => undefined),

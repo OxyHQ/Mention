@@ -1,70 +1,102 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import mongoose from 'mongoose';
-import { MtnConfig, PostVisibility } from '@mention/shared-types';
-
 /**
- * Unit tests for For You multi-source candidate generation
- * (`gatherForYouCandidates`).
+ * For You multi-source candidate generation, against a real database.
  *
- * The DB layer is mocked: `Post.find` is routed by inspecting the query's match
- * so each named source returns its own fixture, and `Post.aggregate` serves the
- * trending source. `ContentAffinityService` is injected as a stub. This lets us
- * assert the UNION semantics, dedup, discovery sensitive/NSFW exclusion, caps,
- * and source priority without a live MongoDB.
+ * The suite this replaces mocked `Post.find` and CLASSIFIED each captured match
+ * by which key it contained, so "the language source fired" meant "a query
+ * object had a `postClassification.languages` key". Every lane is exported, so
+ * the same questions can now be asked of rows instead.
+ *
+ * What the cases guard:
+ *
+ *  - **Language match is ANY-OVERLAP, over the multi-language array.** A post
+ *    classified `['en','es']` must reach a viewer whose preferred language is
+ *    `es`. Matching a single scalar language lost every bilingual post, silently
+ *    — the fixture is deliberately a post whose PRIMARY language is not the
+ *    viewer's.
+ *  - **For You is uniformly SFW, and the two halves of that live in two
+ *    places.** The three sensitive FLAGS are excluded in SQL, on DISCOVERY lanes
+ *    only; the NSFW-HASHTAG rule and the flags again are applied in code to the
+ *    MERGED pool, covering following and affinity too. Asserting only the merged
+ *    result cannot tell those apart, so the lanes are also called directly.
+ *  - **A trusted lane is NOT query-gated, on purpose.** The viewer chose those
+ *    authors. `gatherFollowingLane` returning a flagged post while
+ *    `gatherForYouCandidates` drops it is the observable difference, and it is
+ *    asserted as such — otherwise a future change that gates the following lane
+ *    at the query level would look identical from the outside while quietly
+ *    hiding a followed author's content from the chronological feed too.
+ *  - **The merged pool is BOUNDED and the bound favours trusted lanes.** The cap
+ *    case builds 150 real candidate rows across four lanes and asserts the pool
+ *    is exactly `maxPool` and contains only trusted-lane content.
+ *
+ * The run shares ONE throwaway database and vitest runs files in parallel, so
+ * fixtures are stamped fractionally in the FUTURE and pool-level reads are
+ * compared through {@link suiteIdsOf}. Lane-level reads name this suite's own
+ * authors, topics or languages, so they are compared with {@link idsOf} and also
+ * prove nothing extra came back.
  */
 
-// Capture every Post.find match so each test can route fixtures by source.
-const findCalls: Array<Record<string, unknown>> = [];
-let findRouter: (match: Record<string, unknown>) => unknown[] = () => [];
-let aggregateRouter: () => unknown[] = () => [];
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { inArray } from 'drizzle-orm';
+import { MtnConfig, PostType, PostVisibility } from '@mention/shared-types';
 
-function chainableFind(result: unknown[]) {
-  const chain = {
-    select: () => chain,
-    sort: () => chain,
-    limit: () => chain,
-    maxTimeMS: () => chain,
-    lean: () => Promise.resolve(result),
-  };
-  return chain;
+import { closePostgres, connectPostgres, type Database } from '../db/postgres';
+import { postAuthorships } from '../db/schema/postContent';
+import { posts } from '../db/schema';
+import { insertPostRecord } from '../db/posts/postRepository';
+import type { PostRecord, PostRecordInput } from '../db/posts/postRecord';
+import {
+  gatherAffinityLane,
+  gatherFollowingLane,
+  gatherForYouCandidates,
+  gatherGlobalLane,
+  gatherLanguageLane,
+  gatherRegionLane,
+  gatherSubscribedListsLane,
+  gatherTopicsLane,
+  gatherTrendingLane,
+} from '../mtn/feed/feeds/forYouCandidateSources';
+import type { CandidatePost } from '../mtn/feed/engine/types';
+
+let db: Database;
+const created: string[] = [];
+
+const VIEWER = 'fyc-viewer';
+const FOLLOW = 'fyc-follow';
+const AFFINITY = 'fyc-affinity';
+const LIST_ONLY = 'fyc-list-only';
+const STRANGER = 'fyc-stranger';
+
+/** See the module docblock — every fixture leads the corpus in `created_at`. */
+const HORIZON = Date.now() + 60_000;
+
+function at(offsetMs: number): Date {
+  return new Date(HORIZON + offsetMs);
 }
 
-vi.mock('../models/Post', () => ({
-  Post: {
-    find: vi.fn((match: Record<string, unknown>) => {
-      findCalls.push(match);
-      return chainableFind(findRouter(match));
-    }),
-    aggregate: vi.fn(() => ({
-      option: () => Promise.resolve(aggregateRouter()),
-    })),
-  },
-}));
-
-import { gatherForYouCandidates, CandidateUserBehavior } from '../mtn/feed/feeds/forYouCandidateSources';
-import { toRankedCandidate } from '../mtn/feed/rankedCandidate';
-
-function candidateId(post: { _id: unknown }): string {
-  return toRankedCandidate(post)?._id.toString() ?? '';
-}
-
-/** Build a lean candidate post fixture. */
-function makePost(
-  id: string,
-  oxyUserId: string,
-  extra: Record<string, unknown> = {},
-): Record<string, unknown> {
-  return {
-    _id: new mongoose.Types.ObjectId(id),
-    oxyUserId,
+async function create(overrides: Partial<PostRecordInput> = {}): Promise<PostRecord> {
+  const owner = overrides.oxyUserId === undefined ? STRANGER : overrides.oxyUserId;
+  const record = await insertPostRecord({
+    oxyUserId: owner,
+    authorship: owner ? [{ oxyUserId: owner, role: 'owner', status: 'accepted' }] : [],
+    type: PostType.TEXT,
     visibility: PostVisibility.PUBLIC,
     status: 'published',
-    createdAt: new Date(),
-    ...extra,
-  };
+    content: { variants: [{ source: 'author', text: 'body' }] },
+    createdAt: at(0),
+    ...overrides,
+  });
+  created.push(record.id);
+  return record;
 }
 
-/** A stub ContentAffinityService returning the configured candidate authors. */
+/**
+ * A `ContentAffinityService` stand-in returning a fixed candidate set.
+ *
+ * The real one reads engagement history through an Oxy client; the affinity
+ * lane's own contract — which ids it asks for, and that it soft-fails — is what
+ * these cases are about, so the service is the one thing injected rather than
+ * built.
+ */
 function affinityStub(userIds: string[]) {
   return {
     getContentCandidates: vi.fn(async () =>
@@ -73,538 +105,407 @@ function affinityStub(userIds: string[]) {
   };
 }
 
-/** Extract author ids from a following/affinity/subscribed-list match. */
-function authorIdsInMatch(match: Record<string, unknown>): string[] | undefined {
-  const authorship = match.authorship as
-    | { $elemMatch?: { oxyUserId?: { $in?: string[] } } }
-    | undefined;
-  return authorship?.$elemMatch?.oxyUserId?.$in;
+/** Every id a lane returned, in order — for a read the lane's own ids scope. */
+function idsOf(records: readonly CandidatePost[]): string[] {
+  return records.map((record) => record.id);
 }
 
-/** Classify a Post.find match by which source built it. */
-function sourceOf(match: Record<string, unknown>): string {
-  if (match['postClassification.topics']) return 'topics';
-  // The LANGUAGE source is an ANY-overlap `$in` over the multikey
-  // `postClassification.languages` array (the single canonical language field).
-  if (match['postClassification.languages']) return 'language';
-  if (match['postClassification.region']) return 'region';
-  if (authorIdsInMatch(match)) return 'authors'; // following OR affinity (disambiguated by ids)
-  return 'global';
+/** The ids THIS suite created, in order — for the pool, which sweeps the corpus. */
+function suiteIdsOf(records: readonly CandidatePost[]): string[] {
+  const mine = new Set(created);
+  return records.map((record) => record.id).filter((id) => mine.has(id));
 }
 
-const oid = (n: number) => `5f${n.toString().padStart(22, '0')}`;
-
-beforeEach(() => {
-  findCalls.length = 0;
-  findRouter = () => [];
-  aggregateRouter = () => [];
-  vi.clearAllMocks();
+beforeAll(async () => {
+  db = await connectPostgres();
 });
 
-describe('gatherForYouCandidates — union semantics', () => {
-  it('includes subscribed-list authors through a public-only source', async () => {
-    findRouter = (match) => {
-      const ids = authorIdsInMatch(match);
-      if (ids?.includes('list-only')) return [makePost(oid(11), 'list-only')];
-      return [];
-    };
+afterEach(async () => {
+  const ids = created.splice(0);
+  if (ids.length > 0) await db.delete(posts).where(inArray(posts.id, ids));
+});
 
-    const pool = await gatherForYouCandidates({
-      viewerId: 'viewer',
-      followingIds: ['real-follow'],
-      subscribedListMemberIds: ['viewer', 'real-follow', 'list-only'],
-      userBehavior: {},
-      seenPostIds: [],
-      contentAffinityService: affinityStub([]),
+afterAll(async () => {
+  await closePostgres();
+});
+
+describe('the union of lanes', () => {
+  it('contributes from following, affinity, topics, language and region at once', async () => {
+    const followed = await create({ oxyUserId: FOLLOW, createdAt: at(0) });
+    const affine = await create({ oxyUserId: AFFINITY, createdAt: at(-1_000) });
+    const onTopic = await create({
+      createdAt: at(-2_000),
+      postClassification: { topics: ['fyc-tech'] },
+    });
+    const inLanguage = await create({
+      createdAt: at(-3_000),
+      postClassification: { languages: ['fyc-es'] },
+    });
+    const inRegion = await create({
+      createdAt: at(-4_000),
+      postClassification: { region: 'fyc-ES' },
     });
 
-    expect(pool.map((p) => p.oxyUserId)).toContain('list-only');
-    const listSource = findCalls.find((match) => authorIdsInMatch(match)?.includes('list-only'));
-    expect(listSource).toMatchObject({
-      authorship: { $elemMatch: { oxyUserId: { $in: ['list-only'] }, status: 'accepted' } },
-    });
-  });
-
-  it('includes following + affinity + topic/language matches, not just global', async () => {
-    const followingIds = ['follow-1'];
-    const affinity = affinityStub(['affinity-1']);
-    const scopedOxyClient = { request: 'client' };
-    const behavior: CandidateUserBehavior = {
-      preferredTopics: [{ topic: 'tech', weight: 5 }],
-      preferredLanguages: ['es'],
-    };
-
-    findRouter = (match) => {
-      const src = sourceOf(match);
-      if (src === 'authors') {
-        const ids = authorIdsInMatch(match);
-        if (ids?.includes('follow-1')) return [makePost(oid(1), 'follow-1')];
-        if (ids?.includes('affinity-1')) return [makePost(oid(2), 'affinity-1')];
-        return [];
-      }
-      if (src === 'topics') return [makePost(oid(3), 'topic-author', { postClassification: { topics: ['tech'] } })];
-      if (src === 'language') return [makePost(oid(4), 'lang-author', { postClassification: { languages: ['es'] } })];
-      if (src === 'global') return [makePost(oid(5), 'global-author')];
-      return [];
-    };
-
+    const affinity = affinityStub([AFFINITY]);
     const pool = await gatherForYouCandidates({
-      viewerId: 'viewer',
-      followingIds,
-      userBehavior: behavior,
+      viewerId: VIEWER,
+      followingIds: [FOLLOW],
+      userBehavior: {
+        preferredTopics: [{ topic: 'fyc-tech', weight: 5 }],
+        preferredLanguages: ['fyc-es'],
+      },
+      viewerRegion: 'fyc-ES',
       seenPostIds: [],
-      oxyClient: scopedOxyClient as never,
       contentAffinityService: affinity,
     });
 
-    const authors = pool.map((p) => p.oxyUserId);
-    expect(authors).toContain('follow-1');
-    expect(authors).toContain('affinity-1');
-    expect(authors).toContain('topic-author');
-    expect(authors).toContain('lang-author');
-    expect(authors).toContain('global-author');
-    expect(affinity.getContentCandidates).toHaveBeenCalledWith('viewer', {
+    const ids = new Set(suiteIdsOf(pool));
+    expect(ids).toContain(followed.id);
+    expect(ids).toContain(affine.id);
+    expect(ids).toContain(onTopic.id);
+    expect(ids).toContain(inLanguage.id);
+    expect(ids).toContain(inRegion.id);
+    // The affinity service is asked for a BOUNDED set and handed the viewer's
+    // own request-scoped client, never a service one — the affinity read
+    // resolves blocks and restrictions.
+    expect(affinity.getContentCandidates).toHaveBeenCalledWith(VIEWER, {
       limit: MtnConfig.feed.candidateSources.maxAffinityCandidates,
-      oxyClient: scopedOxyClient,
+      oxyClient: undefined,
     });
   });
 
-  it('queries the LANGUAGE source as an ANY-overlap $in over the multikey languages[]', async () => {
-    findRouter = () => [];
-    await gatherForYouCandidates({
-      viewerId: 'viewer',
+  it('yields one entry for a post that several lanes returned', async () => {
+    // A followed author's post also matches the viewer's preferred topic. The
+    // merge keys on the post id, so it must appear exactly once — the trusted
+    // copy, since trusted lanes merge first.
+    const shared = await create({
+      oxyUserId: FOLLOW,
+      createdAt: at(0),
+      postClassification: { topics: ['fyc-tech'] },
+    });
+
+    const pool = await gatherForYouCandidates({
+      viewerId: VIEWER,
+      followingIds: [FOLLOW],
+      userBehavior: { preferredTopics: [{ topic: 'fyc-tech', weight: 5 }] },
+      seenPostIds: [],
+      contentAffinityService: affinityStub([]),
+    });
+
+    expect(suiteIdsOf(pool).filter((id) => id === shared.id)).toEqual([shared.id]);
+  });
+
+  it('admits a subscribed-list author\'s PUBLIC posts and nothing more private', async () => {
+    // Subscribing to a list is feed-inclusion, never a follow relationship, so
+    // it grants no access a stranger does not already have.
+    const listPublic = await create({ oxyUserId: LIST_ONLY, createdAt: at(0) });
+    await create({ oxyUserId: LIST_ONLY, visibility: PostVisibility.FOLLOWERS_ONLY });
+
+    const gathered = await gatherSubscribedListsLane({
+      viewerId: VIEWER,
+      followingIds: [FOLLOW],
+      subscribedListMemberIds: [VIEWER, FOLLOW, LIST_ONLY],
+      seenPostIds: [],
+    });
+    expect(idsOf(gathered)).toEqual([listPublic.id]);
+  });
+});
+
+describe('the language lane', () => {
+  /**
+   * Regression: a bilingual post never reached the viewer.
+   *
+   * `postClassification.languages` holds EVERY detected/declared code, primary
+   * first, and the match is ANY-overlap. The fixture's primary language is
+   * deliberately NOT the viewer's, so a match against the scalar primary — or
+   * against `languages[0]` — returns nothing and this goes red.
+   */
+  it('matches when ANY of a post\'s languages is one the viewer prefers', async () => {
+    const bilingual = await create({
+      createdAt: at(0),
+      language: 'fyc-en',
+      postClassification: { languages: ['fyc-en', 'fyc-es'] },
+    });
+    const monolingual = await create({
+      createdAt: at(-1_000),
+      language: 'fyc-es',
+      postClassification: { languages: ['fyc-es'] },
+    });
+    await create({ postClassification: { languages: ['fyc-fr'] } });
+    await create();
+
+    const gathered = await gatherLanguageLane({
+      viewerId: VIEWER,
       followingIds: [],
-      userBehavior: { preferredLanguages: ['es'] },
+      userBehavior: { preferredLanguages: ['fyc-es'] },
       seenPostIds: [],
-      contentAffinityService: affinityStub([]),
     });
-
-    const languageMatch = findCalls.find((m) => sourceOf(m) === 'language') as Record<string, unknown>;
-    expect(languageMatch).toBeDefined();
-    // Single canonical clause: a post matches when ANY of its languages is the
-    // viewer's preferred language (a bilingual ['en','es'] post matches 'es').
-    // No legacy scalar $or branch — the single `postClassification.language` is gone.
-    expect(languageMatch['postClassification.languages']).toEqual({ $in: ['es'] });
-    expect(languageMatch.$or).toBeUndefined();
-    expect(languageMatch['postClassification.language']).toBeUndefined();
-  });
-
-  it('deduplicates a post that appears in multiple sources by _id', async () => {
-    const dupId = oid(10);
-    findRouter = (match) => {
-      const src = sourceOf(match);
-      if (src === 'authors') return [makePost(dupId, 'follow-1')];
-      if (src === 'global') return [makePost(dupId, 'follow-1')]; // same _id from a different source
-      return [];
-    };
-
-    const pool = await gatherForYouCandidates({
-      viewerId: 'viewer',
-      followingIds: ['follow-1'],
-      userBehavior: {},
-      seenPostIds: [],
-      contentAffinityService: affinityStub([]),
-    });
-
-    const ids = pool.map(candidateId);
-    expect(ids.filter((id) => id === new mongoose.Types.ObjectId(dupId).toString())).toHaveLength(1);
+    expect(idsOf(gathered)).toEqual([bilingual.id, monolingual.id]);
   });
 });
 
-describe('gatherForYouCandidates — discovery safety', () => {
-  it('adds sensitive exclusion to discovery sources but NOT to following/affinity', async () => {
-    findRouter = (match) => {
-      const src = sourceOf(match);
-      if (src === 'authors') return [makePost(oid(20), 'follow-1')];
-      return [];
-    };
+describe('safety — For You is uniformly SFW', () => {
+  /**
+   * The TRUSTED half of the split, asserted where it is observable.
+   *
+   * A trusted lane has no query-level safety filter, deliberately: the viewer
+   * chose those authors, and the same lane query backs the chronological
+   * Following feed. Gating it in SQL would hide a followed author's flagged post
+   * everywhere, not just in For You — so this asserts the lane RETURNS it, and
+   * the case below asserts the merged pool then drops it.
+   */
+  it('leaves a followed author\'s flagged post in the trusted lane', async () => {
+    const flagged = await create({
+      oxyUserId: FOLLOW,
+      createdAt: at(0),
+      postClassification: { sensitive: true },
+    });
+    const clean = await create({ oxyUserId: FOLLOW, createdAt: at(-1_000) });
 
-    await gatherForYouCandidates({
-      viewerId: 'viewer',
-      followingIds: ['follow-1'],
-      userBehavior: { preferredTopics: [{ topic: 'tech', weight: 1 }] },
+    const gathered = await gatherFollowingLane({
+      viewerId: VIEWER,
+      followingIds: [FOLLOW],
       seenPostIds: [],
-      contentAffinityService: affinityStub(['affinity-1']),
     });
-
-    const hasSensitiveExclusion = (match: Record<string, unknown>): boolean => {
-      const and = match.$and as Array<Record<string, unknown>> | undefined;
-      return Array.isArray(and) && and.some((c) => 'postClassification.sensitive' in c);
-    };
-
-    // The author sources (following + affinity) must NOT carry the discovery
-    // sensitive filter (the viewer chose those authors).
-    const authorMatches = findCalls.filter((m) => sourceOf(m) === 'authors');
-    expect(authorMatches.length).toBeGreaterThan(0);
-    for (const m of authorMatches) expect(hasSensitiveExclusion(m)).toBe(false);
-
-    // The discovery sources (topics, global, ...) MUST carry it.
-    const discoveryMatches = findCalls.filter((m) => {
-      const s = sourceOf(m);
-      return s === 'topics' || s === 'global';
-    });
-    expect(discoveryMatches.length).toBeGreaterThan(0);
-    for (const m of discoveryMatches) expect(hasSensitiveExclusion(m)).toBe(true);
+    expect(idsOf(gathered)).toEqual([flagged.id, clean.id]);
   });
 
-  it('drops NSFW-hashtag posts from EVERY source — including following (For You is uniformly SFW)', async () => {
-    findRouter = (match) => {
-      const src = sourceOf(match);
-      if (src === 'authors') {
-        const ids = authorIdsInMatch(match);
-        if (ids?.includes('follow-1')) {
-          // Even a FOLLOWED author's NSFW-tagged post is dropped from For You.
-          return [
-            makePost(oid(30), 'follow-1', { hashtags: ['nsfw'] }),
-            makePost(oid(32), 'follow-1', { hashtags: ['tech'] }), // clean — kept
-          ];
-        }
-        return [];
-      }
-      if (src === 'global') {
-        // A discovery NSFW-tagged post is dropped too.
-        return [makePost(oid(31), 'global-author', { hashtags: ['NSFW'] })];
-      }
-      return [];
-    };
+  it('excludes flagged posts from a discovery lane at the query level', async () => {
+    const clean = await create({ createdAt: at(0), postClassification: { topics: ['fyc-tech'] } });
+    await create({ postClassification: { topics: ['fyc-tech'], sensitive: true } });
+    await create({ metadata: { isSensitive: true }, postClassification: { topics: ['fyc-tech'] } });
+    await create({
+      postClassification: { topics: ['fyc-tech'] },
+      federation: { activityId: `https://remote.example/notes/fyc-${Date.now()}`, sensitive: true },
+    });
+    // The NSFW-HASHTAG half is NOT a query-level rule — it is applied to the
+    // merged pool, so this one survives the lane and is dropped below.
+    const nsfwTagged = await create({
+      createdAt: at(-1_000),
+      hashtags: ['nsfw'],
+      postClassification: { topics: ['fyc-tech'] },
+    });
+
+    const gathered = await gatherTopicsLane({
+      viewerId: VIEWER,
+      followingIds: [],
+      userBehavior: { preferredTopics: [{ topic: 'fyc-tech', weight: 1 }] },
+      seenPostIds: [],
+    });
+    expect(idsOf(gathered)).toEqual([clean.id, nsfwTagged.id]);
+  });
+
+  it('drops every flavour of sensitive from the MERGED pool, following included', async () => {
+    const clean = await create({ oxyUserId: FOLLOW, createdAt: at(0) });
+    const flaggedByClassifier = await create({
+      oxyUserId: FOLLOW,
+      postClassification: { sensitive: true },
+    });
+    const flaggedByMetadata = await create({ oxyUserId: FOLLOW, metadata: { isSensitive: true } });
+    const flaggedByFederation = await create({
+      oxyUserId: FOLLOW,
+      federation: { activityId: `https://remote.example/notes/fyc-${Date.now()}`, sensitive: true },
+    });
+    // Mixed case, because the NSFW check normalizes the tag before comparing.
+    const nsfwTagged = await create({ oxyUserId: FOLLOW, hashtags: ['NSFW'] });
 
     const pool = await gatherForYouCandidates({
-      viewerId: 'viewer',
-      followingIds: ['follow-1'],
-      userBehavior: {},
+      viewerId: VIEWER,
+      followingIds: [FOLLOW],
       seenPostIds: [],
       contentAffinityService: affinityStub([]),
     });
 
-    const ids = pool.map(candidateId);
-    expect(ids).toContain(new mongoose.Types.ObjectId(oid(32)).toString()); // clean followed post kept
-    expect(ids).not.toContain(new mongoose.Types.ObjectId(oid(30)).toString()); // followed NSFW dropped
-    expect(ids).not.toContain(new mongoose.Types.ObjectId(oid(31)).toString()); // discovery NSFW dropped
-  });
-
-  it('drops classifier/metadata/federation-flagged sensitive posts from EVERY source', async () => {
-    findRouter = (match) => {
-      const src = sourceOf(match);
-      if (src === 'authors') {
-        const ids = authorIdsInMatch(match);
-        if (ids?.includes('follow-1')) {
-          return [
-            makePost(oid(40), 'follow-1', { postClassification: { sensitive: true } }),
-            makePost(oid(41), 'follow-1', { metadata: { isSensitive: true } }),
-            makePost(oid(42), 'follow-1', { federation: { sensitive: true } }),
-            makePost(oid(43), 'follow-1', {}), // clean — kept
-          ];
-        }
-      }
-      return [];
-    };
-
-    const pool = await gatherForYouCandidates({
-      viewerId: 'viewer',
-      followingIds: ['follow-1'],
-      userBehavior: {},
-      seenPostIds: [],
-      contentAffinityService: affinityStub([]),
-    });
-
-    const ids = pool.map(candidateId);
-    expect(ids).toEqual([new mongoose.Types.ObjectId(oid(43)).toString()]);
+    const ids = suiteIdsOf(pool);
+    expect(ids).toContain(clean.id);
+    expect(ids).not.toContain(flaggedByClassifier.id);
+    expect(ids).not.toContain(flaggedByMetadata.id);
+    expect(ids).not.toContain(flaggedByFederation.id);
+    expect(ids).not.toContain(nsfwTagged.id);
   });
 });
 
-describe('gatherForYouCandidates — hard SFW (ignores showSensitiveContent)', () => {
-  it('adds the discovery sensitive exclusion to discovery sources even when opted in', async () => {
-    findRouter = (match) => {
-      const src = sourceOf(match);
-      if (src === 'authors') return [makePost(oid(20), 'follow-1')];
-      return [];
-    };
-
-    await gatherForYouCandidates({
-      viewerId: 'viewer',
-      followingIds: ['follow-1'],
-      userBehavior: { preferredTopics: [{ topic: 'tech', weight: 1 }] },
-      seenPostIds: [],
-      contentAffinityService: affinityStub(['affinity-1']),
+describe('bounds and exclusions', () => {
+  it('excludes seen posts and anything outside the recency window', async () => {
+    const fresh = await create({ oxyUserId: FOLLOW, createdAt: at(0) });
+    const seen = await create({ oxyUserId: FOLLOW, createdAt: at(-1_000) });
+    const stale = await create({
+      oxyUserId: FOLLOW,
+      createdAt: new Date(HORIZON - MtnConfig.feed.candidateSources.recencyWindowMs - 60_000),
+    });
+    // A boost mirrors a post that is already a candidate in its own right.
+    const boost = await create({
+      oxyUserId: FOLLOW,
+      type: PostType.BOOST,
+      boostOf: fresh.id,
+      content: { variants: [] },
     });
 
-    const hasSensitiveExclusion = (match: Record<string, unknown>): boolean => {
-      const and = match.$and as Array<Record<string, unknown>> | undefined;
-      return Array.isArray(and) && and.some((c) => 'postClassification.sensitive' in c);
-    };
-
-    const discoveryCalls = findCalls.filter((m) => sourceOf(m) !== 'authors');
-    expect(discoveryCalls.length).toBeGreaterThan(0);
-    for (const m of discoveryCalls) expect(hasSensitiveExclusion(m)).toBe(true);
+    const gathered = await gatherFollowingLane({
+      viewerId: VIEWER,
+      followingIds: [FOLLOW],
+      seenPostIds: [seen.id],
+    });
+    expect(idsOf(gathered)).toEqual([fresh.id]);
+    expect(idsOf(gathered)).not.toContain(stale.id);
+    expect(idsOf(gathered)).not.toContain(boost.id);
   });
 
-  it('drops NSFW-hashtag + flagged-sensitive posts from the merged pool even when opted in', async () => {
-    findRouter = (match) => {
-      const src = sourceOf(match);
-      if (src === 'authors') {
-        const ids = authorIdsInMatch(match);
-        if (ids?.includes('follow-1')) {
-          return [
-            makePost(oid(30), 'follow-1', { hashtags: ['nsfw'] }),
-            makePost(oid(40), 'follow-1', { postClassification: { sensitive: true } }),
-            makePost(oid(43), 'follow-1', {}), // clean
-          ];
-        }
-        return [];
-      }
-      if (src === 'global') {
-        return [makePost(oid(31), 'global-author', { hashtags: ['NSFW'] })];
-      }
-      return [];
+  it('drops an affinity author the viewer already follows, so FOLLOWING owns them', async () => {
+    // Observable in the LANE, not in the pool: a post the following lane also
+    // returns is deduped on merge, so the pool cannot tell the two apart.
+    const affineOnly = await create({ oxyUserId: AFFINITY, createdAt: at(0) });
+    const followedToo = await create({ oxyUserId: FOLLOW, createdAt: at(-1_000) });
+
+    const gathered = await gatherAffinityLane({
+      viewerId: VIEWER,
+      followingIds: [FOLLOW],
+      userBehavior: {
+        preferredAuthors: [
+          { authorId: FOLLOW, weight: 9 },
+          { authorId: AFFINITY, weight: 5 },
+        ],
+      },
+      seenPostIds: [],
+      contentAffinityService: affinityStub([FOLLOW, AFFINITY]),
+    });
+
+    expect(idsOf(gathered)).toEqual([affineOnly.id]);
+    expect(idsOf(gathered)).not.toContain(followedToo.id);
+  });
+
+  it('no-ops every signal-driven lane for a viewer with no signals', async () => {
+    // Each lane must return NOTHING rather than degenerate into an unbounded
+    // scan — an empty id set is not "match everything".
+    await create({ oxyUserId: FOLLOW, postClassification: { topics: ['fyc-tech'], languages: ['fyc-es'], region: 'fyc-ES' } });
+    const noSignals = { viewerId: VIEWER, followingIds: [], seenPostIds: [] };
+
+    expect(await gatherFollowingLane(noSignals)).toEqual([]);
+    expect(await gatherSubscribedListsLane(noSignals)).toEqual([]);
+    expect(await gatherTopicsLane(noSignals)).toEqual([]);
+    expect(await gatherLanguageLane(noSignals)).toEqual([]);
+    expect(await gatherRegionLane(noSignals)).toEqual([]);
+    expect(await gatherAffinityLane({ ...noSignals, contentAffinityService: affinityStub([]) })).toEqual([]);
+  });
+
+  it('fires the region lane only for a non-empty region', async () => {
+    const inRegion = await create({ createdAt: at(0), postClassification: { region: 'fyc-ES' } });
+    await create({ postClassification: { region: 'fyc-DE' } });
+
+    expect(
+      idsOf(await gatherRegionLane({
+        viewerId: VIEWER,
+        followingIds: [],
+        viewerRegion: 'fyc-ES',
+        seenPostIds: [],
+      })),
+    ).toEqual([inRegion.id]);
+    // Region is SPARSE and usually absent; an empty string is absent too, and
+    // neither may become a `region = ''` scan.
+    expect(
+      await gatherRegionLane({ viewerId: VIEWER, followingIds: [], viewerRegion: '', seenPostIds: [] }),
+    ).toEqual([]);
+    expect(
+      await gatherRegionLane({ viewerId: VIEWER, followingIds: [], seenPostIds: [] }),
+    ).toEqual([]);
+  });
+
+  it('orders the trending lane by engagement, and leaves replies out of it', async () => {
+    const hot = await create({ createdAt: at(-2_000) });
+    const warm = await create({ createdAt: at(-1_000) });
+    const root = await create({ createdAt: at(-3_000) });
+    const reply = await create({ parentPostId: root.id, createdAt: at(0) });
+    await db
+      .update(posts)
+      .set({ statsLikesCount: 9_000 })
+      .where(inArray(posts.id, [hot.id, reply.id]));
+    await db.update(posts).set({ statsLikesCount: 500 }).where(inArray(posts.id, [warm.id]));
+
+    const gathered = await gatherTrendingLane({ viewerId: VIEWER, followingIds: [], seenPostIds: [] });
+    const mine = suiteIdsOf(gathered);
+    // `warm` is NEWER than `hot`, so a chronological fallback would invert this.
+    expect(mine.indexOf(hot.id)).toBeLessThan(mine.indexOf(warm.id));
+    expect(mine).not.toContain(reply.id);
+  });
+
+  it('survives an affinity service that throws, keeping every other lane', async () => {
+    const followed = await create({ oxyUserId: FOLLOW, createdAt: at(0) });
+    const failing = {
+      getContentCandidates: vi.fn(async () => {
+        throw new Error('affinity backend unavailable');
+      }),
     };
 
     const pool = await gatherForYouCandidates({
-      viewerId: 'viewer',
-      followingIds: ['follow-1'],
-      userBehavior: {},
+      viewerId: VIEWER,
+      followingIds: [FOLLOW],
       seenPostIds: [],
-      contentAffinityService: affinityStub([]),
+      contentAffinityService: failing,
     });
 
-    const ids = pool.map(candidateId);
-    expect(ids).not.toContain(new mongoose.Types.ObjectId(oid(30)).toString());
-    expect(ids).not.toContain(new mongoose.Types.ObjectId(oid(40)).toString());
-    expect(ids).toContain(new mongoose.Types.ObjectId(oid(43)).toString());
-    expect(ids).not.toContain(new mongoose.Types.ObjectId(oid(31)).toString());
+    expect(suiteIdsOf(pool)).toContain(followed.id);
+    expect(failing.getContentCandidates).toHaveBeenCalled();
   });
 
-  it('excludes sensitive content when showSensitiveContent is false (explicit SFW)', async () => {
-    findRouter = (match) => {
-      const src = sourceOf(match);
-      if (src === 'authors') {
-        const ids = authorIdsInMatch(match);
-        if (ids?.includes('follow-1')) {
-          return [
-            makePost(oid(30), 'follow-1', { hashtags: ['nsfw'] }),
-            makePost(oid(43), 'follow-1', {}), // clean — kept
-          ];
-        }
-      }
-      return [];
-    };
-
-    const pool = await gatherForYouCandidates({
-      viewerId: 'viewer',
-      followingIds: ['follow-1'],
-      userBehavior: {},
-      seenPostIds: [],
-      contentAffinityService: affinityStub([]),
-    });
-
-    const ids = pool.map(candidateId);
-    expect(ids).not.toContain(new mongoose.Types.ObjectId(oid(30)).toString());
-    expect(ids).toContain(new mongoose.Types.ObjectId(oid(43)).toString());
-  });
-});
-
-describe('gatherForYouCandidates — caps and exclusions', () => {
-  it('clamps the merged pool to maxPool', async () => {
-    const cap = MtnConfig.feed.candidateSources.maxPool;
-    // Following alone returns far more than maxPool unique posts.
-    findRouter = (match) => {
-      if (sourceOf(match) === 'authors') {
-        const ids = authorIdsInMatch(match);
-        if (ids?.includes('follow-1')) {
-          return Array.from({ length: cap + 50 }, (_, i) => makePost(oid(100 + i), 'follow-1'));
-        }
-      }
-      return [];
-    };
-
-    const pool = await gatherForYouCandidates({
-      viewerId: 'viewer',
-      followingIds: ['follow-1'],
-      userBehavior: {},
-      seenPostIds: [],
-      contentAffinityService: affinityStub([]),
-    });
-
-    expect(pool.length).toBeLessThanOrEqual(cap);
-  });
-
-  it('excludes seen posts via $nin on every source and within the recency window', async () => {
-    const seen = [oid(200)];
-    findRouter = () => [];
-
-    await gatherForYouCandidates({
-      viewerId: 'viewer',
-      followingIds: ['follow-1'],
-      userBehavior: { preferredTopics: [{ topic: 'tech', weight: 1 }] },
-      seenPostIds: seen,
-      contentAffinityService: affinityStub([]),
-    });
-
-    expect(findCalls.length).toBeGreaterThan(0);
-    for (const match of findCalls) {
-      const and = match.$and as Array<Record<string, unknown>>;
-      const nin = and.find((c) => {
-        const id = c._id as { $nin?: unknown[] } | undefined;
-        return Array.isArray(id?.$nin);
-      });
-      expect(nin).toBeDefined();
-
-      const createdAt = match.createdAt as { $gte?: Date } | undefined;
-      expect(createdAt?.$gte).toBeInstanceOf(Date);
+  /**
+   * The pool bound, on real rows.
+   *
+   * 150 candidates are spread across FOUR lanes because no single lane can
+   * reach `maxPool` on its own — each carries its own per-source cap, and the
+   * bound being tested is the one on their UNION. Merge order is trusted-first,
+   * so a full pool is trusted content: the assertion is both that the size is
+   * exactly `maxPool` and that discovery never displaced a followed author.
+   */
+  it('clamps the merged pool to maxPool, keeping trusted lanes over discovery', async () => {
+    const cfg = MtnConfig.feed.candidateSources;
+    const lanes: Array<{ author: string; count: number; classification: Record<string, string[]> }> = [
+      { author: FOLLOW, count: cfg.perSource.following, classification: {} },
+      { author: AFFINITY, count: cfg.perSource.affinity, classification: {} },
+      { author: 'fyc-topic-author', count: cfg.perSource.topics, classification: { classificationTopics: ['fyc-tech'] } },
+      { author: 'fyc-lang-author', count: cfg.perSource.language, classification: { classificationLanguages: ['fyc-es'] } },
+    ];
+    // Written straight to `posts` + `post_authorships`: 150 full records would
+    // buy 150 extra transactions and no extra coverage — the lanes read the
+    // authorship join and the classification columns, nothing else.
+    for (const lane of lanes) {
+      const rows = await db
+        .insert(posts)
+        .values(
+          Array.from({ length: lane.count }, (_unused, index) => ({
+            oxyUserId: lane.author,
+            createdAt: at(-index * 10),
+            ...lane.classification,
+          })),
+        )
+        .returning({ id: posts.id });
+      created.push(...rows.map((row) => row.id));
+      await db.insert(postAuthorships).values(
+        rows.map((row) => ({
+          postId: row.id,
+          oxyUserId: lane.author,
+          role: 'owner' as const,
+          status: 'accepted' as const,
+        })),
+      );
     }
-  });
-
-  it('drops affinity authors that the viewer already follows (FOLLOWING covers them)', async () => {
-    let affinityQueriedIds: string[] = [];
-    findRouter = (match) => {
-      if (sourceOf(match) === 'authors') {
-        const ids = authorIdsInMatch(match);
-        // The affinity query is the one that does NOT include 'follow-1' only.
-        if (ids && !ids.includes('follow-1')) affinityQueriedIds = ids;
-      }
-      return [];
-    };
-
-    await gatherForYouCandidates({
-      viewerId: 'viewer',
-      followingIds: ['follow-1'],
-      userBehavior: { preferredAuthors: [{ authorId: 'follow-1', weight: 9 }, { authorId: 'aff-2', weight: 5 }] },
-      seenPostIds: [],
-      contentAffinityService: affinityStub(['follow-1', 'aff-3']),
-    });
-
-    // follow-1 is removed from affinity (deduped against following); aff-2/aff-3 remain.
-    expect(affinityQueriedIds).not.toContain('follow-1');
-    expect(affinityQueriedIds).toEqual(expect.arrayContaining(['aff-2', 'aff-3']));
-  });
-
-  it('queries no author/topic/language sources for a brand-new viewer with no signals', async () => {
-    findRouter = () => [];
-
-    await gatherForYouCandidates({
-      viewerId: 'viewer',
-      followingIds: [],
-      userBehavior: {},
-      seenPostIds: [],
-      contentAffinityService: affinityStub([]),
-    });
-
-    // Only the global discovery source should fire (no following, no affinity,
-    // no preferred topics/language/region). Trending uses aggregate, not find.
-    const sources = findCalls.map(sourceOf);
-    expect(sources).toContain('global');
-    expect(sources).not.toContain('authors');
-    expect(sources).not.toContain('topics');
-    expect(sources).not.toContain('language');
-    expect(sources).not.toContain('region');
-  });
-
-  it('returns an empty pool (never throws) when every source is empty', async () => {
-    findRouter = () => [];
-    aggregateRouter = () => [];
 
     const pool = await gatherForYouCandidates({
-      viewerId: 'viewer',
-      followingIds: [],
-      userBehavior: {},
+      viewerId: VIEWER,
+      followingIds: [FOLLOW],
+      userBehavior: {
+        preferredTopics: [{ topic: 'fyc-tech', weight: 5 }],
+        preferredLanguages: ['fyc-es'],
+      },
       seenPostIds: [],
-      contentAffinityService: affinityStub([]),
+      contentAffinityService: affinityStub([AFFINITY]),
     });
 
-    expect(pool).toEqual([]);
-  });
-
-  it('soft-fails a throwing source to empty without sinking the whole pool', async () => {
-    findRouter = (match) => {
-      if (sourceOf(match) === 'global') throw new Error('mongo blew up');
-      if (sourceOf(match) === 'authors') return [makePost(oid(40), 'follow-1')];
-      return [];
-    };
-
-    const pool = await gatherForYouCandidates({
-      viewerId: 'viewer',
-      followingIds: ['follow-1'],
-      userBehavior: {},
-      seenPostIds: [],
-      contentAffinityService: affinityStub([]),
-    });
-
-    // The throwing global source is skipped; the healthy following source survives.
-    expect(pool.map((p) => p.oxyUserId)).toContain('follow-1');
-  });
-});
-
-describe('gatherForYouCandidates — region source (viewerRegion)', () => {
-  it('fires the region discovery source ONLY when viewerRegion is provided', async () => {
-    findRouter = (match) => {
-      if (sourceOf(match) === 'region') {
-        return [makePost(oid(60), 'region-author', { postClassification: { region: 'ES' } })];
-      }
-      return [];
-    };
-
-    const pool = await gatherForYouCandidates({
-      viewerId: 'viewer',
-      followingIds: [],
-      userBehavior: {},
-      viewerRegion: 'ES',
-      seenPostIds: [],
-      contentAffinityService: affinityStub([]),
-    });
-
-    // The region source fired and contributed its post.
-    const sources = findCalls.map(sourceOf);
-    expect(sources).toContain('region');
-    expect(pool.map((p) => p.oxyUserId)).toContain('region-author');
-
-    // The region query keyed off the exact viewer region.
-    const regionMatch = findCalls.find((m) => sourceOf(m) === 'region');
-    expect(regionMatch?.['postClassification.region']).toBe('ES');
-  });
-
-  it('does NOT fire the region source when viewerRegion is absent (best-effort no-op)', async () => {
-    findRouter = () => [];
-
-    await gatherForYouCandidates({
-      viewerId: 'viewer',
-      followingIds: ['follow-1'],
-      userBehavior: { preferredTopics: [{ topic: 'tech', weight: 1 }] },
-      // viewerRegion intentionally omitted — the common case (region is sparse).
-      seenPostIds: [],
-      contentAffinityService: affinityStub([]),
-    });
-
-    expect(findCalls.map(sourceOf)).not.toContain('region');
-  });
-
-  it('does NOT fire the region source for an empty-string viewerRegion', async () => {
-    findRouter = () => [];
-
-    await gatherForYouCandidates({
-      viewerId: 'viewer',
-      followingIds: [],
-      userBehavior: {},
-      viewerRegion: '',
-      seenPostIds: [],
-      contentAffinityService: affinityStub([]),
-    });
-
-    expect(findCalls.map(sourceOf)).not.toContain('region');
-  });
-});
-
-describe('gatherForYouCandidates — trending source', () => {
-  it('contributes trending posts and excludes discovery-sensitive via aggregate match', async () => {
-    aggregateRouter = () => [makePost(oid(50), 'trending-author')];
-    findRouter = () => [];
-
-    const pool = await gatherForYouCandidates({
-      viewerId: 'viewer',
-      followingIds: [],
-      userBehavior: {},
-      seenPostIds: [],
-      contentAffinityService: affinityStub([]),
-    });
-
-    expect(pool.map((p) => p.oxyUserId)).toContain('trending-author');
+    expect(pool).toHaveLength(cfg.maxPool);
+    // Exactly the four lanes above filled it, so nothing a sibling suite wrote
+    // could have reached the pool through the global lane.
+    expect(suiteIdsOf(pool)).toHaveLength(cfg.maxPool);
+    expect(new Set(pool.map((post) => post.oxyUserId))).toEqual(
+      new Set(lanes.map((lane) => lane.author)),
+    );
   });
 });

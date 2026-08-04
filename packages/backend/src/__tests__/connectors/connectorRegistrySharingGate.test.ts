@@ -33,6 +33,7 @@ vi.mock('../../services/fediverseSharing', () => ({
 import { ConnectorRegistry } from '../../connectors/ConnectorRegistry';
 import type { PostContent } from '@mention/shared-types';
 import type { NetworkConnector, NetworkId, LocalPostEventPayload } from '@oxyhq/federation';
+import type { FederatablePost } from '../../services/serviceRegistry';
 
 /** A minimal fake connector with an overridable, spy-able `deliver`. */
 function makeConnector(id: NetworkId, deliver: NetworkConnector<PostContent>['deliver'], enabled = true): NetworkConnector<PostContent> {
@@ -49,8 +50,10 @@ function makeConnector(id: NetworkId, deliver: NetworkConnector<PostContent>['de
   };
 }
 
-const POST: LocalPostEventPayload<PostContent> = {
-  _id: 'p1',
+// A `FederatablePost` (keyed on `id`) is what the registry takes; it translates
+// to the SDK's `_id`-keyed `LocalPostEventPayload` on the way out.
+const POST: FederatablePost = {
+  id: 'p1',
   content: { text: 'hello' },
   visibility: 'public',
   createdAt: '2024-01-01T00:00:00.000Z',
@@ -86,7 +89,7 @@ describe('ConnectorRegistry.federateNewPost (post.create) — sharing gate', () 
     expect(mocks.isFediverseSharingEnabled).toHaveBeenCalledWith('u1');
     expect(deliver).toHaveBeenCalledWith({
       kind: 'post.create',
-      post: POST,
+      post: { ...POST, _id: 'p1' },
       actorOxyUserId: 'u1',
       actorUsername: 'nate',
     });

@@ -22,7 +22,7 @@
  * in the background scheduler. NOTHING in a request's read path ever calls this.
  * A down/slow/malicious node leaves Mention's mirror STALE — never wrong and
  * never slow. `ingestFromNode` / `exportToNode` NEVER throw into a caller; they
- * log and record `lastError` on the {@link MentionUserNode} row. Ingest batches
+ * log and record `lastError` on the `mention_user_nodes` row. Ingest batches
  * are bounded so a backfill never contends with the hot path.
  *
  * ## Trust model — verify everything, trust nothing the node says
@@ -51,7 +51,7 @@
  * ## Anti-rewrite counter-signature
  *
  * Every recordId Mention ingests is COUNTER-SIGNED with the Mention custodial key
- * into an append-only {@link MentionNodeIngestWitness}. When the custodial key is
+ * into an append-only `mention_node_ingest_witnesses` row. When the custodial key is
  * unconfigured (dev/pre-prod) witnessing is skipped (logged once) but ingest
  * still proceeds.
  *
@@ -82,12 +82,21 @@ import {
   MENTION_POST_COLLECTION,
   mentionPostRecordSchema,
 } from '@mention/shared-types';
-import MentionUserNode from '../../models/MentionUserNode';
-import MentionSignedRecord, {
-  MTN_CHAIN_STATUS,
-} from '../../models/MentionSignedRecord';
-import MentionNodeIngestWitness from '../../models/MentionNodeIngestWitness';
+import {
+  findIngestTarget,
+  findNodeEndpoint,
+  markNodeSynced,
+  markNodeSyncStopped,
+  recordNodeSyncError,
+  witnessIngestedRecord,
+  type IngestNodeTarget,
+} from '../../db/mtn/nodeRepository';
+import { and, eq } from 'drizzle-orm';
+import { getDb } from '../../db/postgres';
+import { isUniqueViolation } from '../../db/pgErrors';
+import { mentionSignedRecords } from '../../db/schema/mtn';
 import { logger } from '../../utils/logger';
+import { LWW_CURRENT_ORDER, MTN_CHAIN_STATUS } from './MentionRecordStore';
 import { getHead, getPublicLogSince } from './MentionRepoLogService';
 import { verifyAndStoreRecord } from './MentionRecordService';
 import { projectRecord } from './PostMaterializer';
@@ -109,12 +118,6 @@ import {
 
 /** True only once the missing-custodial-key warning has been logged (avoid spam). */
 let warnedMissingCustodialKey = false;
-
-/** The cached node fields the ingest worker needs. */
-interface IngestNode {
-  endpoint: string;
-  cursor?: number;
-}
 
 /** Per-record ingest outcome, used to drive cursor advance + loop control. */
 type IngestOutcome =
@@ -179,13 +182,11 @@ async function witnessRecord(oxyUserId: string, recordId: string, ingestedAt: nu
       canonicalize({ recordId, oxyUserId, ingestedAt }),
       privateKey,
     );
-    await MentionNodeIngestWitness.create({ oxyUserId, recordId, witnessSignature, ingestedAt });
+    // Idempotent: a record re-pulled on a later sweep leaves the FIRST
+    // attestation exactly as it was, which is the whole point of the table.
+    // `ON CONFLICT DO NOTHING` replaces a caught duplicate-key error.
+    await witnessIngestedRecord({ oxyUserId, recordId, witnessSignature, ingestedAt });
   } catch (err) {
-    // A duplicate recordId (E11000) means we already witnessed it — expected on a
-    // re-pull. Anything else is logged, never thrown (background-safe).
-    if (typeof err === 'object' && err !== null && (err as { code?: number }).code === 11000) {
-      return;
-    }
     logger.warn('MentionNodeSync: ingest counter-signature failed (non-fatal)', {
       oxyUserId,
       error: err instanceof Error ? err.message : String(err),
@@ -241,21 +242,35 @@ async function materialize(envelope: SignedRecordEnvelope, getBlob: NodeBlobFetc
 /**
  * The current materialized record for an AtProto-style `(nsid, rkey)` key, as the
  * minimal `{ issuedAt, recordId }` LWW needs. Reads Mention's own copy only.
+ *
+ * Ordered by {@link LWW_CURRENT_ORDER} — the SAME two comparisons
+ * {@link incomingWinsLww} makes below, which is the point: this read supplies
+ * the `existing` side of that comparison, so if it answers with a different
+ * branch than the rule names, the rule is applied against the wrong value and
+ * an older revision of a post can be adopted as the winner and materialized
+ * over the current one.
  */
 async function currentKeyValue(
   oxyUserId: string,
   nsid: string,
   rkey: string,
 ): Promise<{ issuedAt: number; recordId: string } | null> {
-  const row = await MentionSignedRecord.findOne({
-    oxyUserId,
-    nsid,
-    rkey,
-    verified: true,
-  })
-    .read('primary')
-    .sort({ createdAt: -1 })
-    .lean<{ recordId?: string; envelope?: { issuedAt?: number } } | null>();
+  const [row] = await getDb()
+    .select({
+      recordId: mentionSignedRecords.recordId,
+      envelope: mentionSignedRecords.envelope,
+    })
+    .from(mentionSignedRecords)
+    .where(
+      and(
+        eq(mentionSignedRecords.oxyUserId, oxyUserId),
+        eq(mentionSignedRecords.nsid, nsid),
+        eq(mentionSignedRecords.rkey, rkey),
+        eq(mentionSignedRecords.verified, true),
+      ),
+    )
+    .orderBy(...LWW_CURRENT_ORDER)
+    .limit(1);
   if (!row || typeof row.envelope?.issuedAt !== 'number' || typeof row.recordId !== 'string') {
     return null;
   }
@@ -278,15 +293,19 @@ function incomingWinsLww(
 
 /**
  * Persist a forked / tie-breaking envelope as a NON-chained mirror row. It keeps
- * the AtProto `(nsid, rkey)` materialization fields and `recordId` (so it becomes
- * the current value for its key by `createdAt`) but deliberately carries NO `seq`
- * — the authentic linear chain (and its unique `(oxyUserId, seq)` index) is left
+ * the AtProto `(nsid, rkey)` materialization fields and `recordId` (which is what
+ * makes it the current value for its key under {@link LWW_CURRENT_ORDER} — it
+ * reaches here only having won on `issuedAt`, or having tied on it with the
+ * higher `recordId`) but deliberately carries NO `seq`
+ * — the authentic linear chain (and its unique `(oxy_user_id, seq)` index) is left
  * untouched, so both the existing chain row AND this fork branch persist. The
- * unique `recordId` index makes a re-ingested fork idempotent.
+ * unique `record_id` index makes a re-ingested fork idempotent, and it is named
+ * on the duplicate check so an unrelated future index cannot be mistaken for
+ * "already stored".
  */
 async function storeForkMirror(env: SignedRecordEnvelope, oxyUserId: string, recordId: string): Promise<boolean> {
   try {
-    await MentionSignedRecord.create({
+    await getDb().insert(mentionSignedRecords).values({
       subjectDid: env.subject,
       oxyUserId,
       type: env.type,
@@ -296,12 +315,12 @@ async function storeForkMirror(env: SignedRecordEnvelope, oxyUserId: string, rec
       chainStatus: MTN_CHAIN_STATUS.CONFLICT,
       // No `seq`/`prev` — intentionally off the linear chain (fork archive).
       recordId,
-      nsid: env.version === 2 ? env.collection : undefined,
-      rkey: env.version === 2 ? env.rkey : undefined,
+      nsid: env.version === 2 ? env.collection : null,
+      rkey: env.version === 2 ? env.rkey : null,
     });
     return true;
   } catch (err) {
-    if (typeof err === 'object' && err !== null && (err as { code?: number }).code === 11000) {
+    if (isUniqueViolation(err, 'mention_signed_records_record_id_key')) {
       return false; // already stored (idempotent re-pull)
     }
     throw err;
@@ -397,15 +416,13 @@ async function ingestEnvelope(
  *
  * Background-safe: NEVER throws. A missing/revoked/unreachable node is a no-op
  * (or records `lastError`) — the mirror simply stays as-is. On success the
- * {@link MentionUserNode} cursor (= Mention's local head seq) and `lastSyncedAt`
+ * `mention_user_nodes` cursor (= Mention's local head seq) and `lastSyncedAt`
  * advance. Bounded iterations cap how much a single run ingests so a long backlog
  * is caught up across several scheduled runs (the hot path is never contended).
  */
 export async function ingestFromNode(oxyUserId: string): Promise<void> {
   try {
-    const node = await MentionUserNode.findOne({ oxyUserId, status: { $ne: 'revoked' } })
-      .select('endpoint cursor')
-      .lean<IngestNode | null>();
+    const node: IngestNodeTarget | undefined = await findIngestTarget(oxyUserId);
     if (!node) {
       return; // no registered node — nothing to ingest
     }
@@ -497,9 +514,10 @@ export async function ingestFromNode(oxyUserId: string): Promise<void> {
     }
 
     if (stopReason && stopReason !== 'lww_tiebreak') {
-      await MentionUserNode.updateOne(
-        { oxyUserId, status: { $ne: 'revoked' } },
-        { $set: { cursor, lastSyncedAt: new Date(), lastError: stopReason.slice(0, MENTION_NODE_LAST_ERROR_MAX_LEN) } },
+      await markNodeSyncStopped(
+        oxyUserId,
+        cursor,
+        stopReason.slice(0, MENTION_NODE_LAST_ERROR_MAX_LEN),
       );
     } else {
       await markSynced(oxyUserId, cursor, true);
@@ -533,14 +551,12 @@ export async function ingestFromNode(oxyUserId: string): Promise<void> {
  */
 export async function exportToNode(oxyUserId: string): Promise<void> {
   try {
-    const node = await MentionUserNode.findOne({ oxyUserId, status: { $ne: 'revoked' } })
-      .select('endpoint')
-      .lean<{ endpoint: string } | null>();
-    if (!node) {
+    const endpoint = await findNodeEndpoint(oxyUserId);
+    if (!endpoint) {
       return;
     }
 
-    const client = makeNodeClient(node.endpoint);
+    const client = makeNodeClient(endpoint);
 
     // The node's head seq is the high-water mark of what it already has.
     let remoteHeadSeq: number;
@@ -621,21 +637,12 @@ export async function exportToNode(oxyUserId: string): Promise<void> {
 
 /** Advance the cursor + stamp `lastSyncedAt`; clear `lastError` when requested. */
 async function markSynced(oxyUserId: string, cursor: number, clearError: boolean): Promise<void> {
-  await MentionUserNode.updateOne(
-    { oxyUserId, status: { $ne: 'revoked' } },
-    {
-      $set: { cursor, lastSyncedAt: new Date() },
-      ...(clearError ? { $unset: { lastError: '' } } : {}),
-    },
-  );
+  await markNodeSynced(oxyUserId, cursor, clearError);
 }
 
 /** Record a non-throwing sync failure as `lastError` on the node row. */
 async function recordIngestError(oxyUserId: string, err: unknown): Promise<void> {
   const message = err instanceof Error ? err.message : String(err);
   logger.debug('MentionNodeSync: node fetch failed', { oxyUserId, error: message });
-  await MentionUserNode.updateOne(
-    { oxyUserId, status: { $ne: 'revoked' } },
-    { $set: { lastError: message.slice(0, MENTION_NODE_LAST_ERROR_MAX_LEN), lastSyncedAt: new Date() } },
-  );
+  await recordNodeSyncError(oxyUserId, message.slice(0, MENTION_NODE_LAST_ERROR_MAX_LEN));
 }

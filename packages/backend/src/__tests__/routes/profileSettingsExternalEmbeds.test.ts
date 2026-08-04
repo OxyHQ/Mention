@@ -68,19 +68,32 @@ vi.mock('@oxyhq/core/server', () => ({
 }));
 
 // UserSettings model: only findOneAndUpdate is exercised by the PUT path.
-vi.mock('../../models/UserSettings', () => ({
-  default: {
-    findOneAndUpdate: vi.fn((filter: { oxyUserId: string }, operation: Record<string, Record<string, unknown>>) => {
-      const doc = getDoc(filter.oxyUserId);
-      if (operation.$set) {
-        for (const [path, value] of Object.entries(operation.$set)) setDot(doc, path, value);
-      }
-      if (operation.$unset) {
-        for (const path of Object.keys(operation.$unset)) unsetDot(doc, path);
-      }
-      return { lean: () => Promise.resolve(JSON.parse(JSON.stringify(doc))) };
-    }),
+/**
+ * The REPOSITORY is the seam, not the model.
+ *
+ * This suite's subject is the route's whitelist and its dot-path construction —
+ * which keys it accepts, which it refuses, and whether it `$set`s or `$unset`s.
+ * The dotted-path TRANSLATION and its persistence are the repository's own
+ * subject and are covered against real rows in
+ * `__tests__/db/userSettingsRepository.test.ts`, so stubbing it here keeps this
+ * file about the route while the storage guarantee stays on real rows
+ * elsewhere.
+ */
+vi.mock('../../db/userProfile/userSettingsRepository', () => ({
+  ensureUserSettings: (oxyUserId: string) =>
+    Promise.resolve(JSON.parse(JSON.stringify(getDoc(oxyUserId)))),
+  loadUserSettings: (oxyUserId: string) =>
+    Promise.resolve(JSON.parse(JSON.stringify(getDoc(oxyUserId)))),
+  updateUserSettings: (
+    oxyUserId: string,
+    update: { set?: Record<string, unknown>; unset?: Record<string, unknown> },
+  ) => {
+    const doc = getDoc(oxyUserId);
+    for (const [path, value] of Object.entries(update.set ?? {})) setDot(doc, path, value);
+    for (const path of Object.keys(update.unset ?? {})) unsetDot(doc, path);
+    return Promise.resolve(JSON.parse(JSON.stringify(doc)));
   },
+  UnknownSettingsPathError: class UnknownSettingsPathError extends Error {},
 }));
 
 // ensureUserSettings / buildSettingsResponseForViewer are reproduced faithfully
@@ -106,7 +119,6 @@ vi.mock('../../utils/syraPodcast', () => ({
 }));
 
 // Models only used by unrelated routes in this file (export / behavior reset).
-vi.mock('../../models/UserBehavior', () => ({ default: {} }));
 vi.mock('../../models/Post', () => ({ default: {} }));
 vi.mock('../../models/Bookmark', () => ({ default: {} }));
 vi.mock('../../models/Like', () => ({ default: {} }));

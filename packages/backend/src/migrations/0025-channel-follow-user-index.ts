@@ -39,11 +39,19 @@ import { logger } from '../utils/logger';
 import { MIGRATION_CHANNEL_FOLLOW_USER_INDEX } from './constants';
 import type { Migration } from './runner';
 
+/**
+ * Named here rather than read off a Mongoose model, because channel follows now
+ * live in Postgres (`channel_follows`) and the model is gone. A landed migration
+ * is frozen history: it repairs the indexes of a PRE-CUTOVER Mongo collection,
+ * so it must keep naming what that collection was called at the time.
+ */
+const CHANNEL_FOLLOW_COLLECTION = 'channelfollows';
+
 export const migrationChannelFollowUserIndex: Migration = {
   id: MIGRATION_CHANNEL_FOLLOW_USER_INDEX,
 
   async run(db: mongoose.mongo.Db): Promise<void> {
-    const follows = db.collection('channelfollows');
+    const follows = db.collection(CHANNEL_FOLLOW_COLLECTION);
     await follows.createIndex(
       { oxyUserId: 1, createdAt: -1, _id: -1 },
       { name: 'channel_follow_by_user_v1' },

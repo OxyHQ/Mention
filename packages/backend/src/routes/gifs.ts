@@ -3,6 +3,7 @@ import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { searchGifs, getTrendingGifs, GifResponse } from '../services/gifService';
 import {
   GifImportCandidate,
+  type GifRecord,
   ensureImported,
   getImportedByKlipyIds,
   getLocalTrending,
@@ -18,7 +19,6 @@ import {
 } from '../services/gifLibrary/constants';
 import { signGifMediaUrl, unwrapGifMediaUrl } from '../services/gifLibrary/gifMediaProxy';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
-import type { IGif } from '../models/Gif';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
 
@@ -79,10 +79,10 @@ function asDimension(value: unknown): number {
 }
 
 /** Map an owned library row to the client DTO (served from our own CDN). */
-function toImportedGifItem(gif: IGif): GifItem {
+function toImportedGifItem(gif: GifRecord): GifItem {
   const client = getServiceOxyClient();
   return {
-    id: String(gif._id),
+    id: gif.id,
     klipyId: gif.klipyId,
     slug: gif.slug,
     title: gif.title,
@@ -124,7 +124,7 @@ function toKlipyGifItem(candidate: GifImportCandidate): GifItem | null {
  * the response NEVER waits on (or fails because of) an import.
  */
 async function buildMergedPayload(
-  localHits: IGif[],
+  localHits: GifRecord[],
   klipy: GifResponse | null,
   pageNum: number,
   queryTerm: string | undefined,
@@ -287,11 +287,11 @@ router.post("/use", async (req: AuthRequest, res: Response) => {
       return res.json({ gifId: '', fileId: '', mp4Url: signGifMediaUrl(candidate.mp4Url) ?? '' });
     }
 
-    await recordUse(String(gif._id));
+    await recordUse(gif.id);
 
     const fileId = gif.mp4FileId;
     res.json({
-      gifId: String(gif._id),
+      gifId: gif.id,
       fileId,
       mp4Url: getServiceOxyClient().getFileDownloadUrl(fileId),
     });

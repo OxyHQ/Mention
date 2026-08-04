@@ -3,7 +3,7 @@
  *
  * WHY
  *   `pruneGoneFederatedActors` TOMBSTONES a remote actor whose profile fetch
- *   returns 410 Gone (`FederatedActor.suspended = true` + oxy-api ARCHIVE via
+ *   returns 410 Gone (`federated_actors.suspended = true` + oxy-api ARCHIVE via
  *   `/federation/actor-gone`). Archiving is reversible and leaves every reference
  *   in place: the row, the linked Oxy identity, its posts, follow edges, likes,
  *   notifications, MTN records. After an archive pass confirmed a set of actors are
@@ -18,7 +18,7 @@
  *   it is left fully intact.
  *
  * SCOPE GATE (safety)
- *   Operates ONLY on `FederatedActor { suspended: true }` — the archive pass's
+ *   Operates ONLY on `federated_actors` rows with `suspended = true` — the archive pass's
  *   confirmed-410 set. A non-suspended (live) actor is NEVER touched, even when
  *   targeted by `--actor` (the gate is part of the base filter, not an option).
  *   atproto actors are excluded (`protocol != 'atproto'`): 410-on-actor-fetch is an
@@ -35,7 +35,7 @@
  *
  * DELETE ORDER (per confirmed-gone actor with owner id X and actor uri U)
  *   Mention references are removed FIRST, the Oxy identity is removed SECOND, and
- *   the `FederatedActor` row (the retry anchor) is dropped LAST — see "ORDERING
+ *   the `federated_actors` row (the retry anchor) is dropped LAST — see "ORDERING
  *   GUARANTEE" for why this exact order is the one that can never orphan an Oxy
  *   user:
  *     1. Posts owned by X and their
@@ -47,31 +47,31 @@
  *        their now-dangling `parentPostId`, which hydration already tolerates.)
  *     2. `$pull` X from every other post's `mentions[]`.
  *     3. `Like` docs X authored (`userId:X`).
- *     4. `FederatedFollow` edges referencing U (`remoteActorUri:U`) — both
+ *     4. `federated_follows` edges referencing U (`remote_actor_uri = U`) — both
  *        directions (inbound + outbound) key the remote side by uri.
  *     5. `EntityFollow` (`userId:X`).
  *     6. `Notification` (`recipientId:X` OR `actorId:X`).
  *     7. Defensive local-only rows a federated actor should never have but is
  *        purged if present, each keyed on `oxyUserId:X`: `UserSettings`,
  *        `UserBehavior`, `UserFeedPreference`, `AuthorFollowerSnapshot`,
- *        `ActorKeyPair`, `MentionUserNode`, `MentionRepoHead`,
+ *        `actor_key_pairs`, `MentionUserNode`, `MentionRepoHead`,
  *        `MentionSignedRecord`, `MentionNodeIngestWitness`.
  *     8. Oxy identity: `deleteFederatedActorIdentity(X)` → oxy-api hard-deletes the
  *        Oxy `User` + its follow edges (both directions, counts repaired) + blocks
  *        + caches. Only when this returns `deleted`/`absent` (identity CONFIRMED
  *        gone) do we continue.
- *     9. `FederatedActor.deleteOne({ _id })` — the anchor, dropped LAST.
+ *     9. delete the `federated_actors` row — the anchor, dropped LAST.
  *
  * ORDERING GUARANTEE (why no Oxy user is ever orphaned on partial failure)
  *   Two invariants, in tension, resolved by the exact order above:
  *     (a) Mention refs BEFORE the Oxy identity — a mid-cascade failure leaves the
- *         Oxy `User` still LIVE and the `FederatedActor` anchor intact, so a re-run
+ *         Oxy `User` still LIVE and the `federated_actors` anchor intact, so a re-run
  *         reconciles it and no surviving Mention content ever points at a deleted
  *         Oxy user.
- *     (b) The `FederatedActor` anchor is dropped ONLY AFTER the Oxy delete returns
+ *     (b) The `federated_actors` anchor is dropped ONLY AFTER the Oxy delete returns
  *         `deleted`/`absent`. If the Oxy delete returns `failed` (transient) or
  *         `skipped` (permanent 4xx), the anchor is KEPT and the actor is reported
- *         `partial` — so a LIVE Oxy user always has a surviving `FederatedActor`
+ *         `partial` — so a LIVE Oxy user always has a surviving `federated_actors`
  *         row a re-run will re-process. The candidate set is `{ suspended:true }`;
  *         a dropped anchor is invisible to any future run, so dropping it before
  *         the Oxy identity is confirmed gone would strand a live Oxy user with no
@@ -85,11 +85,11 @@
  *                      tombstone clear, no oxy-api actor-delete. The re-verify still
  *                      runs so the summary reflects reality.
  *   --limit N          cap the number of actors processed (a canary budget).
- *   --actor <uri>      restrict to one actor by its stored `FederatedActor.uri`
+ *   --actor <uri>      restrict to one actor by its stored `federated_actors.uri`
  *                      (still gated to the suspended, non-atproto set).
  *   --concurrency N    actors probed/purged in parallel (default 8, clamped to 32).
  *
- * Idempotent + forward-only: batched by a stable ASCENDING `_id` cursor. Re-running
+ * Idempotent + forward-only: batched by a stable ASCENDING actor `id` cursor. Re-running
  * is safe — a purged actor is gone from the candidate set; a `partial` actor
  * re-verifies 410, re-runs the (now no-op) deletes, and retries the Oxy delete.
  *
@@ -107,25 +107,35 @@
  */
 
 import mongoose from 'mongoose';
-import type { FilterQuery, Model } from 'mongoose';
+import { and, count, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
+import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { PostType } from '@mention/shared-types';
 import { connectToDatabase } from '../utils/database';
-import FederatedActor from '../models/FederatedActor';
-import { Post } from '../models/Post';
-import Like from '../models/Like';
-import Bookmark from '../models/Bookmark';
-import FederatedFollow from '../models/FederatedFollow';
-import { EntityFollow } from '../models/EntityFollow';
-import Notification from '../models/Notification';
-import UserSettings from '../models/UserSettings';
-import UserBehavior from '../models/UserBehavior';
-import UserFeedPreference from '../models/UserFeedPreference';
-import { AuthorFollowerSnapshot } from '../models/AuthorFollowerSnapshot';
-import ActorKeyPair from '../models/ActorKeyPair';
-import MentionUserNode from '../models/MentionUserNode';
-import MentionRepoHead from '../models/MentionRepoHead';
-import MentionSignedRecord from '../models/MentionSignedRecord';
-import MentionNodeIngestWitness from '../models/MentionNodeIngestWitness';
+import { connectPostgres, getDb } from '../db/postgres';
+import {
+  countActors,
+  deleteActorsByUris,
+  scanActors,
+  updateActorSuspended,
+  type ActorScanFilter,
+} from '../db/federation/actorRepository';
+import { posts } from '../db/schema/posts';
+import { postAuthorships, postMentions } from '../db/schema/postContent';
+import { bookmarks, entityFollows, likes } from '../db/schema/engagement';
+import { authorFollowerSnapshots, notifications } from '../db/schema/discovery';
+import { userBehaviors, userSettings } from '../db/schema/userProfile';
+import { userFeedPreferences } from '../db/schema/feeds';
+import { deleteFollowsFor, findFollows } from '../db/federation/followRepository';
+import {
+  deleteActorKeyPair,
+  hasActorKeyPair,
+} from '../db/federation/actorKeyPairRepository';
+import {
+  mentionNodeIngestWitnesses,
+  mentionRepoHeads,
+  mentionSignedRecords,
+  mentionUserNodes,
+} from '../db/schema/mtn';
 import { deleteFederatedActorIdentity } from '../connectors/identity';
 import type { DeleteActorIdentityOutcome } from '@oxyhq/federation/node';
 import { signedFetch } from '../connectors/activitypub/helpers';
@@ -144,7 +154,7 @@ import {
   closeAdminScriptResources,
 } from './lib/adminScriptLifecycle';
 
-/** Actors scanned per page (stable `_id` cursor pagination). */
+/** Actors scanned per page (stable actor `id` cursor pagination). */
 const PAGE_SIZE = 500;
 
 /**
@@ -154,9 +164,9 @@ const PAGE_SIZE = 500;
  */
 const ACTOR_PURGE_TIMEOUT_MS = 60_000;
 
-/** The lean `FederatedActor` fields the purge reads. */
+/** The `federated_actors` fields the purge reads. */
 interface ActorRow {
-  _id: mongoose.Types.ObjectId;
+  id: string;
   uri: string;
   acct: string;
   oxyUserId?: string;
@@ -331,14 +341,39 @@ function withActorTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
 // --- Mongo count-or-delete helpers -------------------------------------------
 
 /**
- * Count (under `--dry-run`) or delete (live) documents matching `filter`, returning
- * the affected-document count either way. The single chokepoint that keeps dry-run
+ * Count (under `--dry-run`) or delete (live) the rows matching `where`, returning
+ * the affected-row count either way. The single chokepoint that keeps dry-run
  * strictly read-only: NOTHING destructive runs when `dryRun` is set.
+ *
+ * ## Why this replaced a Mongoose `countOrDelete`
+ *
+ * Every table below moved to Postgres in an earlier batch, and this cascade kept
+ * deleting from the Mongo collection of the same name — a `deleteMany` against a
+ * collection nothing writes any more, which reports success having removed
+ * nothing. That is worse than an unfinished port, because
+ * `assertActorSafeToDelete` WAIVES the matching reference probes for this caller
+ * (`allowGoneActorCascade`) precisely ON THE STRENGTH of this cascade. The gate
+ * therefore did not block and the cascade did not clean: a purge completed,
+ * reported real counts, and left the actor's likes, entity follows,
+ * notifications, settings and follower snapshots behind, pointing at an identity
+ * that no longer exists. Confirmed against a real row before the fix.
+ *
+ * `returning` is what makes the live count real — a delete without it hands back
+ * a driver result whose shape is the driver's business, and a wrong read of it
+ * would silently report 0 purged rows on a successful purge.
  */
-async function countOrDelete<T>(model: Model<T>, filter: FilterQuery<T>, dryRun: boolean): Promise<number> {
-  if (dryRun) return model.countDocuments(filter).exec();
-  const res = await model.deleteMany(filter).exec();
-  return res.deletedCount;
+async function countOrDelete(
+  table: PgTable,
+  idColumn: PgColumn,
+  where: SQL,
+  dryRun: boolean,
+): Promise<number> {
+  const db = getDb();
+  if (dryRun) {
+    const [row] = await db.select({ total: count() }).from(table).where(where);
+    return row?.total ?? 0;
+  }
+  return (await db.delete(table).where(where).returning({ id: idColumn })).length;
 }
 
 /**
@@ -346,9 +381,24 @@ async function countOrDelete<T>(model: Model<T>, filter: FilterQuery<T>, dryRun:
  * posts that WOULD be modified; live it `$pull`s and returns the modified count.
  */
 async function delinkMentions(oxyUserId: string, dryRun: boolean): Promise<number> {
-  if (dryRun) return Post.countDocuments({ mentions: oxyUserId }).exec();
-  const res = await Post.updateMany({ mentions: oxyUserId }, { $pull: { mentions: oxyUserId } }).exec();
-  return res.modifiedCount;
+  // `post_mentions` is a child TABLE, so de-linking is a delete of the rows
+  // naming this user rather than a `$pull` on an embedded array. The dry-run
+  // count is of POSTS, not rows, matching what the live branch reports — the
+  // unique `(post_id, oxy_user_id)` index makes the two equal, and counting
+  // distinct posts says so rather than relying on it.
+  const db = getDb();
+  if (dryRun) {
+    const [row] = await db
+      .select({ count: sql<number>`count(distinct ${postMentions.postId})::int` })
+      .from(postMentions)
+      .where(eq(postMentions.oxyUserId, oxyUserId));
+    return row?.count ?? 0;
+  }
+  const deleted = await db
+    .delete(postMentions)
+    .where(eq(postMentions.oxyUserId, oxyUserId))
+    .returning({ postId: postMentions.postId });
+  return new Set(deleted.map((row) => row.postId)).size;
 }
 
 // --- per-actor re-verify + cascade -------------------------------------------
@@ -385,53 +435,73 @@ async function verifyStillGone(uri: string): Promise<Verdict> {
  * for step 1 of {@link purgeActor}.
  */
 async function purgeAuthoredPosts(oxyUserId: string, dryRun: boolean, counts: CollectionCounts): Promise<void> {
-  const authored = await Post.find(
-    {
-      $or: [
-        { oxyUserId },
-        { authorship: { $elemMatch: { oxyUserId, role: 'owner' } } },
-      ],
-    },
-    { _id: 1, federation: 1 },
-  ).lean<Array<{
-    _id: mongoose.Types.ObjectId;
-    federation?: { activityId?: string; url?: string };
-  }>>();
+  const db = getDb();
+  const postSummary = {
+    id: posts.id,
+    activityId: posts.federationActivityId,
+    url: posts.federationUrl,
+  } as const;
+
+  const authored = await db
+    .select(postSummary)
+    .from(posts)
+    .where(or(
+      eq(posts.oxyUserId, oxyUserId),
+      // The OWNER entry in the authorship table — the authority the denormalized
+      // `oxy_user_id` merely projects, so a post whose projection was never
+      // written is still found.
+      sql`exists (
+        select 1 from ${postAuthorships}
+        where ${postAuthorships.postId} = ${posts.id}
+          and ${postAuthorships.oxyUserId} = ${oxyUserId}
+          and ${postAuthorships.role} = 'owner'
+      )`,
+    ));
   if (authored.length === 0) return;
 
-  const authoredIds = authored.map((p) => p._id);
-  const authoredIdStrings = authoredIds.map((id) => id.toString());
+  const authoredIds = authored.map((p) => p.id);
 
-  // Boosts (by ANYONE) of X's posts — `boostOf` stores the original id as a string.
-  const boosts = await Post.find(
-    { type: PostType.BOOST, boostOf: { $in: authoredIdStrings } },
-    { _id: 1, federation: 1 },
-  ).lean<Array<{
-    _id: mongoose.Types.ObjectId;
-    federation?: { activityId?: string; url?: string };
-  }>>();
-  const boostIds = boosts.map((p) => p._id);
+  // Boosts (by ANYONE) of X's posts.
+  const boosts = await db
+    .select(postSummary)
+    .from(posts)
+    .where(and(eq(posts.type, PostType.BOOST), inArray(posts.boostOf, authoredIds)));
+  const boostIds = boosts.map((p) => p.id);
   const allDeletedIds = [...authoredIds, ...boostIds];
 
   const deletionTargets: PostDeletionTarget[] = [...authored, ...boosts].map((post) => ({
-    id: post._id,
-    uris: [post.federation?.activityId, post.federation?.url].filter(
+    id: post.id,
+    uris: [post.activityId, post.url].filter(
       (value): value is string => typeof value === 'string' && value.length > 0,
     ),
   }));
   await assertPostsSafeToDelete(
     `purgeGoneFederatedActors:${oxyUserId}:posts`,
     deletionTargets,
-    { removedByCascade: ['Like.postId', 'Bookmark.postId'] },
+    { removedByCascade: ['likes.post_id', 'bookmarks.post_id'] },
   );
 
   // Cascade engagement on every post about to be deleted (X's posts + their boosts)
   // FIRST, so no Like/Bookmark is left pointing at a deleted post.
-  counts.likesOnAuthored = await countOrDelete(Like, { postId: { $in: allDeletedIds } }, dryRun);
-  counts.bookmarksOnAuthored = await countOrDelete(Bookmark, { postId: { $in: allDeletedIds } }, dryRun);
-  // Then the posts themselves: the boosts, then X's authored posts.
-  counts.boostsOfAuthored = dryRun ? boostIds.length : await countOrDelete(Post, { _id: { $in: boostIds } }, false);
-  counts.authoredPosts = dryRun ? authoredIds.length : await countOrDelete(Post, { _id: { $in: authoredIds } }, false);
+  // Both tables carry `ON DELETE CASCADE` to `posts.id`, so the rows would go
+  // with the posts anyway. Removing them FIRST is still what the step is for: it
+  // is the difference between a cascade nobody chose and one this script states,
+  // and the reported count is a count of rows that actually existed.
+  counts.likesOnAuthored = await countOrDelete(
+    likes, likes.id, inArray(likes.postId, allDeletedIds), dryRun,
+  );
+  counts.bookmarksOnAuthored = await countOrDelete(
+    bookmarks, bookmarks.id, inArray(bookmarks.postId, allDeletedIds), dryRun,
+  );
+  // Then the posts themselves: the boosts, then X's authored posts. Every child
+  // row goes with them by `ON DELETE CASCADE`, so there is no per-table cleanup
+  // to keep in step here.
+  counts.boostsOfAuthored = dryRun
+    ? boostIds.length
+    : (await db.delete(posts).where(inArray(posts.id, boostIds)).returning({ id: posts.id })).length;
+  counts.authoredPosts = dryRun
+    ? authoredIds.length
+    : (await db.delete(posts).where(inArray(posts.id, authoredIds)).returning({ id: posts.id })).length;
 }
 
 /**
@@ -457,34 +527,102 @@ async function purgeConfirmedGone(actor: ActorRow, flags: Flags): Promise<ActorP
   if (oxyUserId) {
     await purgeAuthoredPosts(oxyUserId, flags.dryRun, counts); // 1
     counts.mentionsDelinked = await delinkMentions(oxyUserId, flags.dryRun); // 2
-    counts.likesByActor = await countOrDelete(Like, { userId: oxyUserId }, flags.dryRun); // 3
+    counts.likesByActor = await countOrDelete(
+      likes, likes.id, eq(likes.userId, oxyUserId), flags.dryRun,
+    ); // 3
   }
 
   // 4. Federated follow edges — uri-keyed, so this runs even without an owner id.
-  counts.federatedFollows = await countOrDelete(
-    FederatedFollow,
-    { remoteActorUri: actor.uri },
-    flags.dryRun,
-  );
+  //     Same dry-run contract as `countOrDelete`: a dry run counts and writes
+  //     nothing, a live run deletes and reports how many rows went.
+  counts.federatedFollows = flags.dryRun
+    ? (await findFollows({ remoteActorUri: actor.uri })).length
+    : await deleteFollowsFor({ remoteActorUri: actor.uri });
 
   if (oxyUserId) {
-    counts.entityFollows = await countOrDelete(EntityFollow, { userId: oxyUserId }, flags.dryRun); // 5
+    counts.entityFollows = await countOrDelete(
+      entityFollows, entityFollows.id, eq(entityFollows.userId, oxyUserId), flags.dryRun,
+    ); // 5
     counts.notifications = await countOrDelete(
-      Notification,
-      { $or: [{ recipientId: oxyUserId }, { actorId: oxyUserId }] },
+      notifications,
+      notifications.id,
+      or(
+        eq(notifications.recipientId, oxyUserId),
+        eq(notifications.actorId, oxyUserId),
+      ) as SQL,
       flags.dryRun,
     ); // 6
     // 7. Defensive local-only rows, each keyed on oxyUserId. Blocks are not
     // duplicated here: Oxy owns them and deletes them with the identity below.
-    counts.userSettings = await countOrDelete(UserSettings, { oxyUserId }, flags.dryRun);
-    counts.userBehavior = await countOrDelete(UserBehavior, { oxyUserId }, flags.dryRun);
-    counts.userFeedPreference = await countOrDelete(UserFeedPreference, { oxyUserId }, flags.dryRun);
-    counts.authorFollowerSnapshots = await countOrDelete(AuthorFollowerSnapshot, { oxyUserId }, flags.dryRun);
-    counts.actorKeyPairs = await countOrDelete(ActorKeyPair, { oxyUserId }, flags.dryRun);
-    counts.mentionUserNodes = await countOrDelete(MentionUserNode, { oxyUserId }, flags.dryRun);
-    counts.mentionRepoHeads = await countOrDelete(MentionRepoHead, { oxyUserId }, flags.dryRun);
-    counts.mentionSignedRecords = await countOrDelete(MentionSignedRecord, { oxyUserId }, flags.dryRun);
-    counts.mentionNodeIngestWitnesses = await countOrDelete(MentionNodeIngestWitness, { oxyUserId }, flags.dryRun);
+    //
+    // FOUR of these tables have no Postgres WRITER yet — `user_behaviors`,
+    // `user_feed_preferences`, `mention_user_nodes` and
+    // `mention_node_ingest_witnesses` — so each of these steps removes nothing
+    // today. They are ported anyway rather than skipped: an inert step that is
+    // correct costs one query, while a skipped one becomes the same silent gap
+    // the day their writers land, and nothing would flag it. Read their
+    // emptiness as "not yet written", never as coverage.
+    counts.userSettings = await countOrDelete(
+      userSettings, userSettings.id, eq(userSettings.oxyUserId, oxyUserId), flags.dryRun,
+    );
+    counts.userBehavior = await countOrDelete(
+      userBehaviors, userBehaviors.id, eq(userBehaviors.oxyUserId, oxyUserId), flags.dryRun,
+    );
+    counts.userFeedPreference = await countOrDelete(
+      userFeedPreferences,
+      userFeedPreferences.id,
+      eq(userFeedPreferences.oxyUserId, oxyUserId),
+      flags.dryRun,
+    );
+    counts.authorFollowerSnapshots = await countOrDelete(
+      authorFollowerSnapshots,
+      authorFollowerSnapshots.id,
+      eq(authorFollowerSnapshots.oxyUserId, oxyUserId),
+      flags.dryRun,
+    );
+    counts.actorKeyPairs = flags.dryRun
+      ? ((await hasActorKeyPair(oxyUserId)) ? 1 : 0)
+      : await deleteActorKeyPair(oxyUserId);
+    counts.mentionUserNodes = await countOrDelete(
+      mentionUserNodes, mentionUserNodes.id, eq(mentionUserNodes.oxyUserId, oxyUserId), flags.dryRun,
+    );
+    // The MTN chain lives in Postgres. Same contract as `countOrDelete`: a dry run
+    // COUNTS and writes nothing; a live run deletes and reports how many rows went.
+    // `returning` is what makes the live count real — a delete with no `returning`
+    // hands back a driver result whose shape is the driver's business, and a wrong
+    // read of it would silently report 0 purged rows on a successful purge.
+    counts.mentionRepoHeads = flags.dryRun
+      ? (
+          await getDb()
+            .select({ total: count() })
+            .from(mentionRepoHeads)
+            .where(eq(mentionRepoHeads.oxyUserId, oxyUserId))
+        )[0].total
+      : (
+          await getDb()
+            .delete(mentionRepoHeads)
+            .where(eq(mentionRepoHeads.oxyUserId, oxyUserId))
+            .returning({ id: mentionRepoHeads.id })
+        ).length;
+    counts.mentionSignedRecords = flags.dryRun
+      ? (
+          await getDb()
+            .select({ total: count() })
+            .from(mentionSignedRecords)
+            .where(eq(mentionSignedRecords.oxyUserId, oxyUserId))
+        )[0].total
+      : (
+          await getDb()
+            .delete(mentionSignedRecords)
+            .where(eq(mentionSignedRecords.oxyUserId, oxyUserId))
+            .returning({ id: mentionSignedRecords.id })
+        ).length;
+    counts.mentionNodeIngestWitnesses = await countOrDelete(
+      mentionNodeIngestWitnesses,
+      mentionNodeIngestWitnesses.id,
+      eq(mentionNodeIngestWitnesses.oxyUserId, oxyUserId),
+      flags.dryRun,
+    );
   }
 
   // Dry-run never touches the Oxy identity or the anchor — report what WOULD happen.
@@ -499,7 +637,7 @@ async function purgeConfirmedGone(actor: ActorRow, flags: Flags): Promise<ActorP
   const oxyConfirmedGone = oxy === 'deleted' || oxy === 'absent' || oxy === 'no-user';
 
   if (!oxyConfirmedGone) {
-    // `skipped` (permanent 4xx) or `failed` (transient): KEEP the FederatedActor
+    // `skipped` (permanent 4xx) or `failed` (transient): KEEP the actor
     // anchor so a live Oxy user is never stranded without a record to reconcile it.
     logger.warn(
       '[purgeGoneFederatedActors] Oxy identity deletion was not confirmed; retaining actor anchor',
@@ -509,8 +647,7 @@ async function purgeConfirmedGone(actor: ActorRow, flags: Flags): Promise<ActorP
   }
 
   // 9. Drop the anchor LAST — only now that the Oxy identity is confirmed gone.
-  const anchor = await FederatedActor.deleteOne({ _id: actor._id });
-  counts.federatedActor = anchor.deletedCount;
+  counts.federatedActor = await deleteActorsByUris([actor.uri]);
   return { outcome: 'purged', oxy, counts };
 }
 
@@ -528,7 +665,7 @@ async function processActor(actor: ActorRow, flags: Flags): Promise<ActorPurgeRe
     if (flags.dryRun) {
       logger.info('[purgeGoneFederatedActors] resurrected actor tombstone would be cleared');
     } else {
-      await FederatedActor.updateOne({ _id: actor._id }, { $set: { suspended: false } });
+      await updateActorSuspended(actor.id, false);
       logger.info('[purgeGoneFederatedActors] cleared resurrected actor tombstone');
     }
     return { outcome: 'resurrected', oxy: 'not-reached', counts: emptyCounts() };
@@ -551,10 +688,12 @@ async function processActor(actor: ActorRow, flags: Flags): Promise<ActorPurgeRe
  * `--actor <uri>` narrows to one actor WITHOUT loosening the gate (a non-suspended
  * or atproto uri simply matches nothing).
  */
-function buildFilter(flags: Flags): Record<string, unknown> {
-  const filter: Record<string, unknown> = { suspended: true, protocol: { $ne: 'atproto' } };
-  if (flags.actor) filter.uri = flags.actor;
-  return filter;
+function buildFilter(flags: Flags): ActorScanFilter {
+  return {
+    suspended: true,
+    protocolNot: 'atproto',
+    ...(flags.actor ? { uri: flags.actor } : {}),
+  };
 }
 
 function recordOxy(counters: RunCounters, oxy: OxyDisposition): void {
@@ -602,6 +741,9 @@ async function purgeGoneFederatedActors(): Promise<void> {
       dryRun: flags.dryRun,
     });
     await connectToDatabase();
+    // The MTN chain rows this purge removes live in Postgres, so the cascade
+    // needs BOTH connections open before the first actor is processed.
+    await connectPostgres();
     logger.info('[purgeGoneFederatedActors] connected', {
       dryRun: flags.dryRun,
       narrowedScope: Boolean(flags.actor),
@@ -610,22 +752,16 @@ async function purgeGoneFederatedActors(): Promise<void> {
     });
 
     const baseFilter = buildFilter(flags);
-    const total = await FederatedActor.countDocuments(baseFilter);
+    const total = await countActors(baseFilter);
     logger.info(`[purgeGoneFederatedActors] ${total} suspended candidate actor(s) to re-verify`);
 
-    let lastId: mongoose.Types.ObjectId | null = null;
+    let lastId: string | undefined;
 
     for (;;) {
       if (remaining !== undefined && remaining <= 0) break;
 
-      const pageFilter: Record<string, unknown> = { ...baseFilter };
-      if (lastId) pageFilter._id = { $gt: lastId };
-
       const pageLimit = remaining !== undefined ? Math.min(PAGE_SIZE, remaining) : PAGE_SIZE;
-      const page = await FederatedActor.find(pageFilter, { _id: 1, uri: 1, acct: 1, oxyUserId: 1 })
-        .sort({ _id: 1 })
-        .limit(pageLimit)
-        .lean<ActorRow[]>();
+      const page: ActorRow[] = await scanActors(baseFilter, { afterId: lastId, limit: pageLimit });
       if (page.length === 0) break;
 
       // The page is already sliced to the remaining budget, so processing the WHOLE
@@ -684,7 +820,7 @@ async function purgeGoneFederatedActors(): Promise<void> {
         }
       }
 
-      lastId = page[page.length - 1]._id;
+      lastId = page[page.length - 1].id;
       logger.info(
         `[purgeGoneFederatedActors] progress: scanned ${counters.scanned}, purged ${counters.purged}, ` +
           `partial ${counters.partial}, blocked ${counters.blocked}, resurrected ${counters.resurrected}, ` +

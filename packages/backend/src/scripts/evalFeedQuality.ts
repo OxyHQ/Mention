@@ -25,14 +25,15 @@
  *   - federated share.
  *
  * The core is the exported PURE {@link runFeedQualityEval}: models + services are
- * injected so it is unit-testable with mocks. `main()` does the Mongo/Oxy wiring.
+ * injected so it is unit-testable with mocks. `main()` does the Postgres/Oxy wiring.
  *
  * Runnable as a Fargate one-shot (do NOT run it as part of normal deploys):
  *   bun packages/backend/dist/src/scripts/evalFeedQuality.js --viewer <oxyId> --top-k 20
  *   bun packages/backend/dist/src/scripts/evalFeedQuality.js --languages en,es --sample 300
  */
 
-import type { FeedInteractionEventName, PostClassification, PostContent } from '@mention/shared-types';
+import type { FeedInteractionEventName, PostContent } from '@mention/shared-types';
+import type { PostRecordClassification } from '../db/posts/postRecord';
 import { resolveVariant } from '../services/postVariants';
 import type { FeedTuning } from '@mention/shared-types';
 import { getBaseLanguage } from '@oxyhq/core';
@@ -161,7 +162,7 @@ export interface EvalReport {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function field<T = unknown>(post: CandidatePost, key: string): T | undefined {
-  return (post as Record<string, unknown>)[key] as T | undefined;
+  return (post as unknown as Record<string, unknown>)[key] as T | undefined;
 }
 
 function readString(value: unknown): string | undefined {
@@ -226,8 +227,8 @@ export function withClassification(
   post: CandidatePost,
   signals: ReturnType<BaselineContentClassifier['classify']>,
 ): CandidatePost {
-  const existing = post.postClassification ?? {};
-  const classification: Partial<PostClassification> & { topics?: string[] } = {
+  const existing = post.postClassification;
+  const classification: PostRecordClassification = {
     ...existing,
     status: 'baseline',
     version: signals.version,
@@ -319,7 +320,7 @@ export async function runFeedQualityEval(deps: FeedQualityEvalDeps): Promise<Eva
 
     const trusted = readTrustedScores(evaluated);
     rows.push({
-      id: String(candidate.post._id),
+      id: String(candidate.post.id),
       source: candidate.source,
       label: candidate.label,
       acct: candidate.acct,
@@ -412,9 +413,9 @@ function buildReport(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Online mode — engagement-per-impression + report-rate from FeedInteraction.
+// Online mode — engagement-per-impression + report-rate from `feed_interactions`.
 //
-// The `FeedInteraction` collection (90-day TTL) already records every impression /
+// The `feed_interactions` table (90-day retention, swept by `db/expiry.ts`) already records every impression /
 // click / like / reply / boost / save / report, so engagement-per-impression and
 // report-per-impression are derivable at query time — no background aggregator is
 // needed. Split by the deterministic A/B bucket (recomputed from `userId`), this is
@@ -495,7 +496,7 @@ export function assembleCandidates(
   const byId = new Map<string, EvalCandidate>();
 
   for (const labeled of labeledPosts) {
-    const id = String(labeled.post._id);
+    const id = String(labeled.post.id);
     if (!id) continue;
     byId.set(id, {
       post: labeled.post,
@@ -508,7 +509,7 @@ export function assembleCandidates(
   }
 
   const addUnlabeled = (post: CandidatePost, source: EvalCandidateSource): void => {
-    const id = String(post._id);
+    const id = String(post.id);
     if (!id || byId.has(id)) return; // labeled (or an earlier source) wins
     const actorUri = federationActorUri(post);
     byId.set(id, { post, source, actor: actorUri ? actorByUri.get(actorUri) : undefined });
@@ -578,7 +579,7 @@ export function formatOnlineLines(
   const row = (label: string, r: OnlineEngagementReport): string =>
     `    ${label.padEnd(9)} impressions=${r.impressions}  eng/imp=${fmt(r.engagementPerImpression, 4)}  report/imp=${fmt(r.reportPerImpression, 5)}`;
   lines.push('');
-  lines.push(`  ONLINE (FeedInteraction, last ${Math.round(windowMs / (24 * 60 * 60 * 1000))}d):`);
+  lines.push(`  ONLINE (feed_interactions, last ${Math.round(windowMs / (24 * 60 * 60 * 1000))}d):`);
   lines.push(row('overall', online.overall));
   for (const [bucket, report] of Object.entries(online.byBucket).sort()) {
     lines.push(row(bucket, report));
@@ -635,12 +636,14 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
 
   // Imports local to main() keep the pure core free of heavy runtime coupling.
-  const mongoose = (await import('mongoose')).default;
   const { logger } = await import('../utils/logger');
   const { MtnConfig } = await import('@mention/shared-types');
-  const { Post } = await import('../models/Post');
-  const FederatedActor = (await import('../models/FederatedActor')).default;
-  const { FEED_FIELDS } = await import('../mtn/feed/FeedAPI');
+  const { findActorByAcct, findActorByUri, findActorsByUris } = await import('../db/federation/actorRepository');
+  const { connectPostgres, closePostgres, getDb } = await import('../db/postgres');
+  const { and, eq, gte, isNotNull, or, sql } = await import('drizzle-orm');
+  const { posts } = await import('../db/schema/posts');
+  const { feedInteractions } = await import('../db/schema/feeds');
+  const { CHRONO_DESC, findPostRecords, loadPostRecord } = await import('../db/posts/postRepository');
   const { baselineContentClassifier } = await import('../services/BaselineContentClassifier');
   const { feedRankingService } = await import('../services/FeedRankingService');
   const { registerAllModules } = await import('../mtn/feed/engine');
@@ -651,12 +654,14 @@ async function main(): Promise<void> {
   const { getServiceOxyClient } = await import('../utils/oxyHelpers');
   const { FEED_QUALITY_LABELS, resolveLabeledPosts } = await import('./fixtures/feedQualityLabels');
 
-  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
-  const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
-
   try {
-    await mongoose.connect(mongoUri, { dbName });
-    logger.info('[evalFeedQuality] connected to MongoDB');
+    // Postgres only. This script connected to Mongo as well until
+    // `trackFeedInteraction` ported: its online mode read the `FeedInteraction`
+    // collection, and the comment here still said "posts are still Mongo" long
+    // after they stopped being. Every read it now makes -- posts, federated
+    // actors, labels, interactions -- is Postgres.
+    await connectPostgres();
+    logger.info('[evalFeedQuality] connected');
 
     registerAllModules();
 
@@ -675,31 +680,37 @@ async function main(): Promise<void> {
       uri: doc.uri, acct: doc.acct, domain: doc.domain, type: doc.type, oxyUserId: doc.oxyUserId,
     });
 
-    // ---- Labeled set (acct → FederatedActor → recent posts) ----
+    // ---- Labeled set (acct → federated actor → recent posts) ----
     const labelDeps: LabelResolverDeps<CandidatePost> = {
       async findActorByAcct(acct) {
-        const doc = await FederatedActor.findOne({ acct }).lean();
+        const doc = await findActorByAcct(acct);
         return doc ? toActor(doc) : null;
       },
       async findActorByUri(uri) {
-        const doc = await FederatedActor.findOne({ uri }).lean();
+        const doc = await findActorByUri(uri);
         return doc ? toActor(doc) : null;
       },
       async findRecentPostsForActor(actor, limit) {
-        const or: Record<string, unknown>[] = [{ 'federation.actorUri': actor.uri }];
-        if (actor.oxyUserId) or.push({ oxyUserId: actor.oxyUserId });
-        return Post.find({ $or: or, visibility: 'public', status: 'published' })
-          .select(FEED_FIELDS)
-          .sort({ createdAt: -1 })
-          .limit(limit)
-          .lean<CandidatePost[]>();
+        const byActor = actor.oxyUserId
+          ? or(eq(posts.federationActorUri, actor.uri), eq(posts.oxyUserId, actor.oxyUserId))
+          : eq(posts.federationActorUri, actor.uri);
+        return findPostRecords(
+          and(byActor, eq(posts.visibility, 'public'), eq(posts.status, 'published')),
+          { orderBy: CHRONO_DESC, limit },
+        );
       },
       async findPostById(postId) {
-        if (!mongoose.isValidObjectId(postId)) return null;
-        return Post.findOne({ _id: postId }).select(FEED_FIELDS).lean<CandidatePost | null>();
+        // No id-shape guard: `posts.id` is `text`, so an id of any shape simply
+        // matches no row — and an ObjectId test would have refused every post
+        // created since the cutover.
+        return loadPostRecord(postId);
       },
       async findPostByActivityId(activityId) {
-        return Post.findOne({ 'federation.activityId': activityId }).select(FEED_FIELDS).lean<CandidatePost | null>();
+        const [row] = await findPostRecords(eq(posts.federationActivityId, activityId), {
+          orderBy: CHRONO_DESC,
+          limit: 1,
+        });
+        return row ?? null;
       },
       actorUriOf: (post) => federationActorUri(post),
     };
@@ -707,10 +718,17 @@ async function main(): Promise<void> {
     logger.info(`[evalFeedQuality] resolved ${labeledPosts.length} labeled posts`);
 
     // ---- Bounded random federated sample ----
-    const randomSample = await Post.aggregate<CandidatePost>([
-      { $match: { federation: { $ne: null }, visibility: 'public', status: 'published' } },
-      { $sample: { size: args.sampleSize } },
-    ]);
+    // `is not null`, never `<> null`: Mongo's `$ne: null` also matched a MISSING
+    // subdocument, while SQL's `<>` against NULL matches nothing — the literal
+    // translation would draw an empty sample and silently evaluate nothing.
+    const randomSample = await findPostRecords(
+      and(
+        isNotNull(posts.federationActivityId),
+        eq(posts.visibility, 'public'),
+        eq(posts.status, 'published'),
+      ),
+      { orderBy: [sql`random()`], limit: args.sampleSize },
+    );
     logger.info(`[evalFeedQuality] drew ${randomSample.length} random federated posts`);
 
     // ---- Optional real For You pool for --viewer ----
@@ -740,9 +758,7 @@ async function main(): Promise<void> {
     );
     const actorByUri = new Map<string, LabeledActor>();
     if (actorUris.length > 0) {
-      const actors = await FederatedActor.find({ uri: { $in: actorUris } })
-        .select({ uri: 1, acct: 1, domain: 1, type: 1, oxyUserId: 1 })
-        .lean();
+      const actors = await findActorsByUris(actorUris);
       for (const a of actors) actorByUri.set(a.uri, toActor(a));
     }
 
@@ -780,16 +796,24 @@ async function main(): Promise<void> {
     });
     for (const line of formatReportLines(report)) logger.info(line);
 
-    // ---- Online mode: engagement-per-impression + report-rate from FeedInteraction ----
+    // ---- Online mode: engagement-per-impression + report-rate from `feed_interactions` ----
     if (args.online) {
-      const { FeedInteraction } = await import('../models/FeedInteraction');
       const { resolveDiscoveryGateBucket } = await import('../mtn/feed/discoveryGateExperiment');
       const since = new Date(Date.now() - args.onlineWindowMs);
-      const grouped = await FeedInteraction.aggregate<OnlineInteractionRow>([
-        { $match: { createdAt: { $gte: since } } },
-        { $group: { _id: { userId: '$userId', event: '$event' }, count: { $sum: 1 } } },
-        { $project: { _id: 0, userId: '$_id.userId', event: '$_id.event', count: 1 } },
-      ]);
+      // Reads POSTGRES, because `trackFeedInteraction` writes Postgres. This
+      // moved with the writer rather than after it: a reader left on Mongo would
+      // have gone on returning rows — the pre-cutover backfill's — and reported
+      // a shrinking engagement rate as its window slid past the last Mongo
+      // write, with nothing anywhere saying the store had changed underneath it.
+      const grouped = await getDb()
+        .select({
+          userId: feedInteractions.userId,
+          event: feedInteractions.event,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(feedInteractions)
+        .where(gte(feedInteractions.createdAt, since))
+        .groupBy(feedInteractions.userId, feedInteractions.event);
       const online = aggregateOnlineByBucket(grouped, (userId) => resolveDiscoveryGateBucket(userId) ?? 'none');
       for (const line of formatOnlineLines(online, args.onlineWindowMs)) logger.info(line);
     }
@@ -797,12 +821,12 @@ async function main(): Promise<void> {
     const elapsed = Math.round((Date.now() - startedAt) / 1000);
     logger.info(`[evalFeedQuality] done in ${elapsed}s`);
 
-    await mongoose.disconnect();
+    await closePostgres();
     process.exit(0);
   } catch (error) {
     const { logger } = await import('../utils/logger');
     logger.error('[evalFeedQuality] failed', error);
-    await mongoose.disconnect();
+    await closePostgres();
     process.exit(1);
   }
 }

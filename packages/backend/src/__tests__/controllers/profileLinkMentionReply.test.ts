@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * THE REPLY AND THE BOOST COMMENT ARE WRITE BOUNDARIES TOO.
@@ -12,58 +12,31 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * These pin both, driven through the real handlers: the stored document's
  * `mentions` carries the id a pasted profile link named, and its body carries the
  * placeholder — plus the must-stay-a-link case on the reply path.
+ *
+ * The rows are REAL rows, read back out of Postgres after the handler answered.
+ * Both handlers write through `db/posts/postRepository` now, so the `new Post(...)`
+ * double this replaces intercepted nothing — every case here would have died on
+ * an absent connection rather than on the mention conversion it is about. Reading
+ * the row back also makes the assertion about what the database HOLDS rather than
+ * about the object the handler assembled: the body lives in `post_contents` and
+ * the allowlist in `post_mentions`, so a fold that never reached either table
+ * fails here instead of passing on the argument it was handed.
+ *
+ * Same seams as the sibling `services/profileLinkMentionWrites.test.ts`: the
+ * local-handle lookup (`resolveOxyUser`) and the stored-actor repository are
+ * stubbed, since profile-link resolution has to be answerable without network or
+ * Oxy I/O — everything else about the fold is the real code.
  */
-const hoisted = vi.hoisted(() => {
-  class HoistedMockPost {
-    [key: string]: unknown;
-    constructor(data: Record<string, unknown>) {
-      Object.assign(this, data);
-    }
-    save = vi.fn().mockResolvedValue(undefined);
-    markModified = vi.fn();
-    toObject(): Record<string, unknown> {
-      return { ...this };
-    }
-    _id = 'mock_written_post';
-  }
-  return {
-    MockPost: HoistedMockPost,
-    written: [] as Array<Record<string, unknown>>,
-    parentPost: null as Record<string, unknown> | null,
-    isBlockedDomain: vi.fn((_host: string) => false),
-    resolveOxyUser: vi.fn(),
-    findExistingActor: vi.fn(),
-  };
-});
 
-vi.mock('../../models/Post', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  // Every constructed document is captured, so the assertions read the row the
-  // handler actually built rather than the request it was handed.
-  class CapturingPost extends hoisted.MockPost {
-    constructor(data: Record<string, unknown>) {
-      super(data);
-      hoisted.written.push(this as unknown as Record<string, unknown>);
-    }
-  }
-  return {
-    ...actual,
-    Post: Object.assign(CapturingPost, {
-      findById: () => ({
-        maxTimeMS: () => ({ lean: async () => hoisted.parentPost }),
-        select: () => ({ lean: async () => hoisted.parentPost }),
-        lean: async () => hoisted.parentPost,
-      }),
-      findByIdAndUpdate: vi.fn(async () => null),
-      findOne: () => ({ maxTimeMS: async () => null }),
-      find: () => ({ select: () => ({ lean: async () => [] }) }),
-      updateOne: vi.fn(async () => ({ modifiedCount: 0 })),
-    }),
-  };
-});
+const hoisted = vi.hoisted(() => ({
+  isBlockedDomain: vi.fn((_host: string) => false),
+  resolveOxyUser: vi.fn(),
+  findActorByUri: vi.fn(),
+  findActorByAcct: vi.fn(),
+}));
 
 vi.mock('../../services/PostHydrationService', () => ({
-  postHydrationService: { hydratePosts: vi.fn(async (objs: object[]) => objs) },
+  postHydrationService: { hydratePosts: vi.fn(async (rows: unknown[]) => rows) },
   resolveUserSummaries: vi.fn(async () => new Map()),
   degradedActorSummary: (id: string) => ({ id, username: '', name: { displayName: 'Unknown user' } }),
 }));
@@ -98,8 +71,6 @@ vi.mock('../../services/AffinityEventService', () => ({
   affinityEventService: { record: vi.fn().mockResolvedValue(undefined) },
 }));
 
-// Reaches Mongo directly; with no connection Mongoose buffers the query forever,
-// which reads as the handler hanging rather than as a missing stub.
 vi.mock('../../services/UserPreferenceService', () => ({
   userPreferenceService: { recordInteraction: vi.fn().mockResolvedValue(undefined) },
   readInteractionSurface: vi.fn(() => undefined),
@@ -130,16 +101,26 @@ vi.mock('../../connectors/activitypub/constants', async (importOriginal) => ({
   resolveOxyUser: hoisted.resolveOxyUser,
 }));
 
-vi.mock('../../models/FederatedActor', () => ({
-  default: { findOne: hoisted.findExistingActor },
+// PARTIAL, and only the two point lookups `resolveProfileLinkIdentity` spends on
+// a foreign profile link (uri first, then acct). Everything else the connector
+// graph reads from this repository stays real, against the same database the
+// posts are written to.
+vi.mock('../../db/federation/actorRepository', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../db/federation/actorRepository')>()),
+  findActorByUri: hoisted.findActorByUri,
+  findActorByAcct: hoisted.findActorByAcct,
 }));
 
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { clearServiceScope, readPost, readScopePosts, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { feedController } from '../../controllers/feed.controller';
 
+const scope = serviceScope('profile-link-mention-reply');
+
 const OWN_HOST = 'mention.earth';
-const USER_ID = 'oxy-replier';
-const PARENT_ID = '650000000000000000000010';
-const ALICE_OXY_ID = 'oxy_alice_local';
+const USER_ID = scope.user('replier');
+const PARENT_AUTHOR_ID = scope.user('parent-author');
+const ALICE_OXY_ID = scope.user('alice-local');
 
 function buildResponse() {
   const captured: { status?: number; body?: unknown } = {};
@@ -156,65 +137,77 @@ function buildResponse() {
   return { res, captured };
 }
 
-/** The one document the handler built, as `mentions` + primary body text. */
-function writtenPost(): { mentions: string[]; text: string } {
-  expect(hoisted.written).toHaveLength(1);
-  const post = hoisted.written[0] as { mentions?: string[]; content?: { text?: string } };
-  return { mentions: post.mentions ?? [], text: post.content?.text ?? '' };
+/** The one row this scope's accounts own that answers `match`, as stored. */
+async function writtenPost(
+  match: (row: { parentPostId: string | null; boostOf: string | null }) => boolean,
+): Promise<{ mentions: string[]; text: string }> {
+  const rows = (await readScopePosts(scope)).filter(match);
+  expect(rows).toHaveLength(1);
+  const stored = await readPost(rows[0].id);
+  return {
+    mentions: stored?.mentions ?? [],
+    text: stored?.content.variants?.[0]?.text ?? '',
+  };
 }
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterEach(async () => {
+  await clearServiceScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
-  hoisted.written = [];
-  hoisted.parentPost = {
-    _id: PARENT_ID,
-    oxyUserId: 'oxy-parent-author',
-    threadId: null,
-    replyPermission: ['anyone'],
-    reviewReplies: false,
-    visibility: 'public',
-    status: 'published',
-    quotesDisabled: false,
-  };
   hoisted.isBlockedDomain.mockImplementation(
     (host: string) => host.toLowerCase().replace(/^www\./, '') === OWN_HOST,
   );
   hoisted.resolveOxyUser.mockImplementation(async (username: string) =>
     username === 'alice' ? { _id: ALICE_OXY_ID } : null,
   );
-  hoisted.findExistingActor.mockReturnValue({ lean: async () => null });
+  hoisted.findActorByUri.mockResolvedValue(null);
+  hoisted.findActorByAcct.mockResolvedValue(null);
 });
 
 describe('createReply — a pasted profile link becomes a real mention', () => {
   it('stores the id and rewrites the reply body to the placeholder', async () => {
-    const { res } = buildResponse();
+    const parent = await seedPost(scope, { oxyUserId: PARENT_AUTHOR_ID });
+    const { res, captured } = buildResponse();
 
     await feedController.createReply(
       {
-        body: { postId: PARENT_ID, content: { text: `agreed, https://${OWN_HOST}/@alice` } },
+        body: { postId: parent.id, content: { text: `agreed, https://${OWN_HOST}/@alice` } },
         user: { id: USER_ID },
       } as never,
       res as never,
     );
 
-    expect(writtenPost()).toEqual({
+    expect(captured.status).toBe(201);
+    expect(await writtenPost((row) => row.parentPostId === parent.id)).toEqual({
       mentions: [ALICE_OXY_ID],
       text: `agreed, [mention:${ALICE_OXY_ID}]`,
     });
   });
 
   it('leaves a link it cannot resolve as a link, and mentions nobody', async () => {
-    const { res } = buildResponse();
+    const parent = await seedPost(scope, { oxyUserId: PARENT_AUTHOR_ID });
+    const { res, captured } = buildResponse();
 
     await feedController.createReply(
       {
-        body: { postId: PARENT_ID, content: { text: 'see https://mastodon.social/@a-stranger' } },
+        body: { postId: parent.id, content: { text: 'see https://mastodon.social/@a-stranger' } },
         user: { id: USER_ID },
       } as never,
       res as never,
     );
 
-    expect(writtenPost()).toEqual({
+    expect(captured.status).toBe(201);
+    expect(await writtenPost((row) => row.parentPostId === parent.id)).toEqual({
       mentions: [],
       text: 'see https://mastodon.social/@a-stranger',
     });
@@ -223,17 +216,19 @@ describe('createReply — a pasted profile link becomes a real mention', () => {
 
 describe('createBoost — the comment on a boost is a body like any other', () => {
   it('stores the id and rewrites the comment to the placeholder', async () => {
-    const { res } = buildResponse();
+    const original = await seedPost(scope, { oxyUserId: PARENT_AUTHOR_ID });
+    const { res, captured } = buildResponse();
 
     await feedController.createBoost(
       {
-        body: { originalPostId: PARENT_ID, content: { text: `look, https://${OWN_HOST}/@alice` } },
+        body: { originalPostId: original.id, content: { text: `look, https://${OWN_HOST}/@alice` } },
         user: { id: USER_ID },
       } as never,
       res as never,
     );
 
-    expect(writtenPost()).toEqual({
+    expect(captured.status).toBe(201);
+    expect(await writtenPost((row) => row.boostOf === original.id)).toEqual({
       mentions: [ALICE_OXY_ID],
       text: `look, [mention:${ALICE_OXY_ID}]`,
     });

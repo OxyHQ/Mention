@@ -1,7 +1,9 @@
-import FederatedMediaCache, {
-  type FederatedMediaCacheState,
-  type IFederatedMediaCache,
-} from '../../models/FederatedMediaCache';
+import {
+  lookupMediaCacheRow,
+  recordMediaCacheAccess,
+  touchMediaCacheAccess,
+  type MediaCacheServeRow,
+} from '../../db/federation/mediaCacheRepository';
 import { logger } from '../../utils/logger';
 
 /**
@@ -12,35 +14,16 @@ import { logger } from '../../utils/logger';
  */
 
 /** Minimal projection returned to the proxy for its serve decision. */
-export interface CacheRow {
-  state: FederatedMediaCacheState;
-  oxyFileId?: string;
-  posterFileId?: string;
-  contentType?: string;
-}
+export type CacheRow = MediaCacheServeRow;
 
-/** Look up the current cache row for a remote URL (lean, projected). */
+/** Look up the current cache row for a remote URL. */
 export async function lookupCacheRow(remoteUrl: string): Promise<CacheRow | undefined> {
-  const row = await FederatedMediaCache.findOne(
-    { remoteUrl },
-    { state: 1, oxyFileId: 1, posterFileId: 1, contentType: 1 },
-  ).lean<Pick<IFederatedMediaCache, 'state' | 'oxyFileId' | 'posterFileId' | 'contentType'>>();
-
-  if (!row) return undefined;
-  return {
-    state: row.state,
-    oxyFileId: row.oxyFileId ?? undefined,
-    posterFileId: row.posterFileId ?? undefined,
-    contentType: row.contentType ?? undefined,
-  };
+  return lookupMediaCacheRow(remoteUrl);
 }
 
 /** Bump `lastAccessedAt` for a cached URL without blocking the response. */
 export async function bumpAccess(remoteUrl: string): Promise<void> {
-  await FederatedMediaCache.updateOne(
-    { remoteUrl },
-    { $set: { lastAccessedAt: new Date() } },
-  ).catch((error: unknown) => {
+  await touchMediaCacheAccess(remoteUrl).catch((error: unknown) => {
     logger.warn('[MediaCache] Failed to bump lastAccessedAt', {
       reason: error instanceof Error ? error.message : 'unknown',
     });
@@ -50,60 +33,16 @@ export async function bumpAccess(remoteUrl: string): Promise<void> {
 /**
  * Record activity on a remote URL and ensure a cache attempt is scheduled.
  *
- * Idempotent and safe under concurrency:
- *  - No row → insert a `pending` row (the worker will pick it up).
- *  - `evicted`/`failed` row → flip back to `pending` so it re-caches on access.
- *  - `pending`/`cached` row → only bump `lastAccessedAt` (no state churn, no
- *    double-enqueue of an in-flight job).
- *
- * Returns whether a fresh attempt was (re)scheduled, for logging/metrics.
+ * Returns whether a fresh attempt was (re)scheduled, for logging/metrics. A
+ * failure answers `false` and logs — this is the request path, and the cost of
+ * being wrong is one missed enqueue that the next access re-attempts, not a
+ * failed response.
  */
 export async function recordAccessAndMaybeEnqueue(remoteUrl: string): Promise<boolean> {
-  const now = new Date();
-
-  // Common case first: bump access on an existing pending/cached row (no enqueue).
-  // The three state filters below are mutually exclusive (a row is in exactly one
-  // state), so trying the hot path first only reorders disjoint branches — it does
-  // not change which branch a given row state takes.
-  const bumped = await FederatedMediaCache.updateOne(
-    { remoteUrl, state: { $in: ['pending', 'cached'] } },
-    { $set: { lastAccessedAt: now } },
-  );
-  if (bumped.matchedCount > 0) return false;
-
-  // Rarer: re-arm terminal/idle states to pending; clears any backoff so the
-  // worker re-attempts promptly on renewed activity.
-  const reArm = await FederatedMediaCache.updateOne(
-    { remoteUrl, state: { $in: ['evicted', 'failed'] } },
-    {
-      $set: { state: 'pending', lastAccessedAt: now, failCount: 0 },
-      $unset: { nextAttemptAt: '' },
-    },
-  );
-  if (reArm.modifiedCount > 0) return true;
-
-  // No row at all → create a pending one. `upsert` + the unique index make this
-  // race-safe: a concurrent insert collides on the unique key and is swallowed
-  // (we re-read is unnecessary — either way the URL is now pending).
   try {
-    await FederatedMediaCache.updateOne(
-      { remoteUrl },
-      {
-        $setOnInsert: {
-          remoteUrl,
-          state: 'pending',
-          failCount: 0,
-        },
-        $set: { lastAccessedAt: now },
-      },
-      { upsert: true },
-    );
-    return true;
+    return await recordMediaCacheAccess(remoteUrl);
   } catch (error: unknown) {
-    // Duplicate-key from a concurrent insert is benign; anything else is logged.
-    const code = (error as { code?: number } | null)?.code;
-    if (code === 11000) return true;
-    logger.warn('[MediaCache] Failed to upsert pending cache entry', {
+    logger.warn('[MediaCache] Failed to record access on cache entry', {
       reason: error instanceof Error ? error.message : 'unknown',
     });
     return false;

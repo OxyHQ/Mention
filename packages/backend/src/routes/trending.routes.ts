@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { trendingService } from '../services/TrendingService';
-import { TrendingType } from '../models/Trending';
+import { TrendingType } from '../db/schema/discovery';
 import { logger } from '../utils/logger';
 import { config } from '../config';
 import { cachePublicMedium } from '../middleware/cacheControl';

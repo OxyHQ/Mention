@@ -16,7 +16,7 @@ import {
   toOpenableUrl,
   trimUrlTrailingPunctuation,
 } from '@mention/shared-types/textEntities';
-import FederatedActor from '../models/FederatedActor';
+import { findActorByAcct, findActorByUri } from '../db/federation/actorRepository';
 import { isBlockedDomain, resolveOxyUser } from '../connectors/activitypub/constants';
 import { OWN_DOMAINS } from '../connectors/activitypub/ownDomain';
 import { normalizeFederatedAcct } from '../connectors/activitypub/helpers';
@@ -209,11 +209,11 @@ function profileHrefKeys(href: string): ProfileHrefKeys | undefined {
 const lookupExistingActorByProfileHref: RemoteMentionResolver = async (href) => {
   const keys = profileHrefKeys(href);
   if (!keys) return null;
-  const actor = await FederatedActor.findOne(
-    { $or: [{ uri: keys.uri }, { acct: keys.acct }] },
-    { oxyUserId: 1 },
-  ).lean<{ oxyUserId?: string } | null>();
-  return actor?.oxyUserId ? String(actor.oxyUserId) : null;
+  // Two indexed point lookups rather than one `OR`: both `uri` and `acct` are
+  // UNIQUE, so the second only runs when the first missed, and neither can widen
+  // into a scan the way a disjunction over two unique keys can.
+  const actor = (await findActorByUri(keys.uri)) ?? (await findActorByAcct(keys.acct));
+  return actor?.oxyUserId ? actor.oxyUserId : null;
 };
 
 /**

@@ -3,7 +3,6 @@
  * Centralized utilities for deduplication, limit validation, filter parsing, and cursor handling
  */
 
-import mongoose from 'mongoose';
 import { logger } from './logger';
 
 /**
@@ -90,37 +89,21 @@ export function validateAndNormalizeLimit(
 }
 
 /**
- * Validate and parse cursor for pagination
- * Returns ObjectId if valid, undefined otherwise
+ * Build cursor from post ID.
+ *
+ * `String(...)` rather than an `instanceof mongoose.Types.ObjectId` branch: the
+ * two were always equivalent — `String(obj)` invokes `obj.toString()`, which for
+ * an ObjectId is the same 24-hex — so the branch cost a runtime Mongoose import
+ * to express what the coercion already did. Post ids are `posts.id`, a `text`
+ * column holding ObjectId hex before the cutover and uuid v7 after; neither is
+ * an ObjectId instance by the time it reaches here.
  */
-export function parseFeedCursor(cursor: string | undefined): mongoose.Types.ObjectId | undefined {
-  if (!cursor) return undefined;
-  
-  try {
-    if (mongoose.Types.ObjectId.isValid(cursor)) {
-      return new mongoose.Types.ObjectId(cursor);
-    } else {
-      logger.warn('Invalid cursor format', cursor);
-      return undefined;
-    }
-  } catch (error) {
-    logger.warn('Error parsing cursor', { cursor, error });
-    return undefined;
-  }
-}
-
-/**
- * Build cursor from post ID
- * Returns string representation of ObjectId for cursor-based pagination
- */
-export function buildFeedCursor(post: { _id?: mongoose.Types.ObjectId | string; id?: string }): string | undefined {
+export function buildFeedCursor(post: { _id?: string; id?: string }): string | undefined {
   const rawId = post._id || post.id;
   if (!rawId) return undefined;
 
   try {
-    return rawId instanceof mongoose.Types.ObjectId
-      ? rawId.toString()
-      : String(rawId);
+    return String(rawId);
   } catch (error) {
     logger.warn('Error building cursor', { postId: rawId, error });
     return undefined;
@@ -143,7 +126,7 @@ export function validateCursorAdvanced(
  * Deduplicate posts by ID
  * Uses Map for O(1) lookups, handles both _id and id fields
  */
-export function deduplicatePosts<T extends { _id?: mongoose.Types.ObjectId | string; id?: string }>(
+export function deduplicatePosts<T extends { _id?: string; id?: string }>(
   posts: T[]
 ): T[] {
   if (posts.length === 0) return [];
@@ -155,9 +138,7 @@ export function deduplicatePosts<T extends { _id?: mongoose.Types.ObjectId | str
     
     // Try _id first (MongoDB format)
     if (post._id) {
-      id = post._id instanceof mongoose.Types.ObjectId
-        ? post._id.toString()
-        : String(post._id);
+      id = String(post._id);
     }
     // Fallback to id field
     else if (post.id) {

@@ -1,9 +1,11 @@
 import express, { Request, Response } from "express";
+import { and, asc, desc, eq, gte, lt, max, sql, type SQL } from 'drizzle-orm';
 import { HASHTAG_TOKEN_SOURCE } from "@mention/shared-types/hashtags";
-import Post from "../models/Post";
+import { getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
+import { CHRONO_DESC, findPostRecords } from '../db/posts/postRepository';
 import { resolveVariant } from "../services/postVariants";
 import { logger } from "../utils/logger";
-import { escapeRegex } from "../utils/textProcessing";
 import { queryInt, queryString } from "../utils/queryParams";
 
 const router = express.Router();
@@ -42,35 +44,70 @@ interface HashtagSearchPage {
   hasMore: boolean;
 }
 
+/** The public posts a hashtag aggregation ranges over: public, with tags. */
+function taggedPublicPosts(extra?: SQL): SQL {
+  return and(
+    eq(posts.visibility, 'public'),
+    // `cardinality > 0` covers BOTH shapes Mongo needed two clauses for
+    // (`$exists: true` and `$ne: []`); a NULL array is excluded by the
+    // comparison being NULL, which is the same answer.
+    sql`coalesce(cardinality(${posts.hashtags}), 0) > 0`,
+    ...(extra ? [extra] : []),
+  ) as SQL;
+}
+
+/**
+ * `unnest(hashtags)` — the analogue of Mongo's `$unwind`, as a lateral join so
+ * every tag of every matching post becomes its own row before grouping.
+ */
+const UNNESTED_TAG = sql<string>`lower(tag.value)`;
+
 /**
  * One page of matching public hashtags with the number of posts carrying each.
  *
- * The query is regex-ESCAPED before it reaches Mongo — a raw user string would
- * otherwise be interpreted as a pattern (regex injection / catastrophic
- * backtracking).
+ * The needle is a bound PARAMETER inside a `LIKE` pattern with the pattern's own
+ * metacharacters escaped, not a regex: a raw user string interpreted as a pattern
+ * was the injection / catastrophic-backtracking risk the Mongo version escaped
+ * for, and `LIKE` has only three of them.
  *
  * Paging is a stable keyset: the `{ count desc, tag asc }` sort is fully
- * deterministic (the grouped `_id` — the tag — breaks count ties), so `$skip`
- * offsets never shuffle rows between pages. One extra row is over-fetched
- * (`$limit: limit + 1`) purely to detect `hasMore` without a second count query.
+ * deterministic (the tag breaks count ties), so `OFFSET` never shuffles rows
+ * between pages. One extra row is over-fetched purely to detect `hasMore`
+ * without a second count query.
  */
 async function searchHashtagsWithCounts(rawQuery: string, offset: number, limit: number): Promise<HashtagSearchPage> {
-  const needle = escapeRegex(rawQuery.trim().toLowerCase().slice(0, HASHTAG_QUERY_MAX_LENGTH));
+  const needle = rawQuery
+    .trim()
+    .toLowerCase()
+    .slice(0, HASHTAG_QUERY_MAX_LENGTH)
+    .replace(/[\\%_]/g, (char) => `\\${char}`);
 
-  const rows = await Post.aggregate<HashtagSearchResult>([
-    { $match: { visibility: 'public', hashtags: { $exists: true, $ne: [] } } },
-    { $unwind: '$hashtags' },
-    { $project: { tag: { $toLower: '$hashtags' } } },
-    { $match: { tag: { $regex: needle, $options: 'i' } } },
-    { $group: { _id: '$tag', count: { $sum: 1 } } },
-    { $sort: { count: -1, _id: 1 } },
-    { $skip: offset },
-    { $limit: limit + 1 },
-    { $project: { _id: 0, tag: '$_id', count: 1 } }
-  ]);
+  const rows = await getDb()
+    .select({ tag: UNNESTED_TAG, count: sql<number>`count(*)::int` })
+    .from(posts)
+    .innerJoin(sql`lateral unnest(${posts.hashtags}) as tag(value)`, sql`true`)
+    .where(and(taggedPublicPosts(), sql`lower(tag.value) like ${`%${needle}%`}`))
+    .groupBy(UNNESTED_TAG)
+    .orderBy(desc(sql`count(*)`), asc(UNNESTED_TAG))
+    .offset(offset)
+    .limit(limit + 1);
 
   const hasMore = rows.length > limit;
   return { results: hasMore ? rows.slice(0, limit) : rows, hasMore };
+}
+
+/** Per-tag post counts within one time window, keyed by lowercase tag. */
+async function countTagsInWindow(from: Date, until?: Date): Promise<Map<string, number>> {
+  const bounds = until
+    ? and(gte(posts.createdAt, from), lt(posts.createdAt, until)) as SQL
+    : gte(posts.createdAt, from);
+  const rows = await getDb()
+    .select({ tag: UNNESTED_TAG, count: sql<number>`count(*)::int` })
+    .from(posts)
+    .innerJoin(sql`lateral unnest(${posts.hashtags}) as tag(value)`, sql`true`)
+    .where(taggedPublicPosts(bounds))
+    .groupBy(UNNESTED_TAG);
+  return new Map(rows.map((row) => [row.tag, row.count]));
 }
 
 function parseSearchQuery(value: unknown): string | null {
@@ -91,56 +128,44 @@ router.get("/", async (req: Request, res: Response) => {
     const days = Number.parseInt(rawDays, 10);
     const since = Number.isNaN(days) ? undefined : new Date(Date.now() - days * MS_PER_DAY);
 
-    const match: Record<string, unknown> = {
-      visibility: 'public',
-      hashtags: { $exists: true, $ne: [] }
-    };
-    if (since) {
-      match.createdAt = { $gte: since };
-    }
-
     // Primary window aggregation (overall within optional `days`)
-    let agg = await Post.aggregate<{ id: string; text: string; hashtag: string; count: number; created_at: Date; direction?: 'up' | 'down' | 'flat' }>([
-      { $match: match },
-      { $unwind: '$hashtags' },
-      {
-        $group: {
-          _id: { $toLower: '$hashtags' },
-          count: { $sum: 1 },
-          latest: { $max: '$createdAt' }
-        }
-      },
-      { $sort: { count: -1, latest: -1 } },
-      { $limit: limit },
-      {
-        $project: {
-          _id: 0,
-          id: '$_id',
-          text: '$_id',
-          hashtag: { $concat: ['#', '$_id'] },
-          count: 1,
-          created_at: '$latest'
-        }
-      }
-    ]);
+    const windowRows = await getDb()
+      .select({
+        tag: UNNESTED_TAG,
+        count: sql<number>`count(*)::int`,
+        latest: max(posts.createdAt),
+      })
+      .from(posts)
+      .innerJoin(sql`lateral unnest(${posts.hashtags}) as tag(value)`, sql`true`)
+      .where(taggedPublicPosts(since ? gte(posts.createdAt, since) : undefined))
+      .groupBy(UNNESTED_TAG)
+      .orderBy(desc(sql`count(*)`), desc(max(posts.createdAt)))
+      .limit(limit);
+
+    let agg: Array<{
+      id: string;
+      text: string;
+      hashtag: string;
+      count: number;
+      created_at: Date;
+      direction?: 'up' | 'down' | 'flat';
+    }> = windowRows.map((row) => ({
+      id: row.tag,
+      text: row.tag,
+      hashtag: `#${row.tag}`,
+      count: row.count,
+      created_at: row.latest ?? new Date(0),
+    }));
 
     // Trend direction (recent vs previous 24h windows)
     const now = new Date();
     const recentStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const prevStart = new Date(now.getTime() - 48 * 60 * 60 * 1000);
 
-    const recentAgg = await Post.aggregate<{ _id: string; c: number }>([
-      { $match: { visibility: 'public', hashtags: { $exists: true, $ne: [] }, createdAt: { $gte: recentStart } } },
-      { $unwind: '$hashtags' },
-      { $group: { _id: { $toLower: '$hashtags' }, c: { $sum: 1 } } }
+    const [recentMap, prevMap] = await Promise.all([
+      countTagsInWindow(recentStart),
+      countTagsInWindow(prevStart, recentStart),
     ]);
-    const prevAgg = await Post.aggregate<{ _id: string; c: number }>([
-      { $match: { visibility: 'public', hashtags: { $exists: true, $ne: [] }, createdAt: { $gte: prevStart, $lt: recentStart } } },
-      { $unwind: '$hashtags' },
-      { $group: { _id: { $toLower: '$hashtags' }, c: { $sum: 1 } } }
-    ]);
-    const recentMap = new Map<string, number>(recentAgg.map((x) => [x._id, x.c]));
-    const prevMap = new Map<string, number>(prevAgg.map((x) => [x._id, x.c]));
     agg = agg.map((x) => {
       const id = (x.id || '').toLowerCase();
       const r = recentMap.get(id) || 0;
@@ -162,27 +187,22 @@ router.get("/", async (req: Request, res: Response) => {
       const fallbackFloor = new Date(Date.now() - FALLBACK_WINDOW_MS);
       // Honor a caller-supplied window but never let it exceed the floor.
       const fallbackSince = since && since > fallbackFloor ? since : fallbackFloor;
-      const textMatch: Record<string, unknown> = {
-        visibility: 'public',
-        // A post with at least one rendition. The body lives only in the
-        // variants, so "has text" is "has a variant".
-        'content.variants.0': { $exists: true },
-        createdAt: { $gte: fallbackSince },
-      };
-      const posts = await Post.find(textMatch)
-        .select({ 'content.variants': 1, createdAt: 1 })
-        .sort({ createdAt: -1 })
-        .limit(FALLBACK_SCAN_LIMIT)
-        .lean();
+      const scanned = await findPostRecords(
+        and(
+          eq(posts.visibility, 'public'),
+          gte(posts.createdAt, fallbackSince),
+        ),
+        { orderBy: CHRONO_DESC, limit: FALLBACK_SCAN_LIMIT },
+      );
       const counts: Record<string, { c: number; latest: Date }> = {};
-      for (const p of posts) {
+      for (const p of scanned) {
         // Scan the PRIMARY rendition: an author writing the same post in two
         // languages uses the same hashtags in both, so counting every variant
-        // would double-count the tag for a bilingual post.
+        // would double-count the tag for a bilingual post. A post with no
+        // rendition resolves to an empty body and contributes nothing, which is
+        // what the `content.variants.0` existence probe used to express.
         const text: string = resolveVariant(p.content).text;
-        // `IPost.createdAt` is declared as a string but mongoose stores a Date;
-        // normalize to a Date for comparison/sorting.
-        const createdAt = new Date(p.createdAt);
+        const createdAt = p.createdAt;
         // Same shared hashtag definition the extractor and the linkifiers use,
         // so this fallback cannot count a different set of tags than the stored
         // one. Occurrences are NOT deduplicated here — a tag repeated within a

@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { and, eq } from 'drizzle-orm';
 
 /**
  * The resume-cursor store shared by every long-running administrative sweep.
@@ -7,24 +8,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * container filesystem dies with the task, and CloudWatch cannot hold one either
  * — the backend logger rewrites every 24-hex ObjectId to `[REDACTED]` and
  * redacts any key ending in `id` (covered by
- * `__tests__/utils/loggerSanitization.test.ts`). MongoDB is the only durable
- * place a sweep already has, so what is pinned here is the read/write/clear
- * contract every sweep depends on to be resumable at all.
+ * `__tests__/utils/loggerSanitization.test.ts`). The database is the only
+ * durable place a sweep already has, so what is pinned here is the
+ * read/write/clear contract every sweep depends on to be resumable at all.
+ *
+ * Against REAL `admin_script_cursors` rows. The mocked model that used to stand
+ * in for them asserted the SHAPE of a Mongo update document, which after the
+ * port describes nothing that runs — and could not have caught the one property
+ * that actually matters here (a completion stamp being CLEARED when the scope
+ * gains work) because a mock cannot forget a value it was never storing.
  */
-const mocks = vi.hoisted(() => ({
-  findOne: vi.fn(),
-  updateOne: vi.fn(),
-  deleteOne: vi.fn(),
-}));
 
-vi.mock('../../models/AdminScriptCursor', () => ({
-  AdminScriptCursor: {
-    findOne: mocks.findOne,
-    updateOne: mocks.updateOne,
-    deleteOne: mocks.deleteOne,
-  },
-}));
-
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { adminScriptCursors } from '../../db/schema/adminScripts';
 import {
   clearAdminScriptCursor,
   readAdminScriptCursor,
@@ -32,58 +28,75 @@ import {
 } from '../../scripts/lib/adminScriptCursor';
 import { logger } from '../../utils/logger';
 
-const SCRIPT = 'repairFederatedMentions';
+/** Per-file namespace — vitest runs files in parallel against one database. */
+const SCRIPT = 'adminScriptCursorTest:repairFederatedMentions';
 const SCOPE = 'after:|before:|actor:';
 const CURSOR = '65fdc8c8c8c8c8c8c8c8c8c8';
 
-/** `findOne(...).lean()` resolving to `row`. */
-function leanResult(row: unknown): { lean: () => Promise<unknown> } {
-  return { lean: async () => row };
-}
+beforeAll(async () => {
+  await connectPostgres();
+}, 60_000);
 
-beforeEach(() => {
-  mocks.findOne.mockReset();
-  mocks.updateOne.mockReset().mockResolvedValue({ acknowledged: true });
-  mocks.deleteOne.mockReset().mockResolvedValue({ deletedCount: 1 });
+afterEach(async () => {
+  await getDb().delete(adminScriptCursors).where(eq(adminScriptCursors.script, SCRIPT));
   vi.mocked(logger.warn).mockClear();
 });
 
+afterAll(async () => {
+  await closePostgres();
+});
+
+/** The stored row for this file's scope, or `undefined`. */
+async function storedRow() {
+  const [row] = await getDb()
+    .select()
+    .from(adminScriptCursors)
+    .where(and(eq(adminScriptCursors.script, SCRIPT), eq(adminScriptCursors.scope, SCOPE)));
+  return row;
+}
+
 describe('readAdminScriptCursor', () => {
   it('returns null for a scope that has never run', async () => {
-    mocks.findOne.mockReturnValue(leanResult(null));
-
     await expect(readAdminScriptCursor(SCRIPT, SCOPE)).resolves.toBeNull();
-    expect(mocks.findOne).toHaveBeenCalledWith(
-      { script: SCRIPT, scope: SCOPE },
-      { cursor: 1, scanned: 1, completedAt: 1 },
-    );
   });
 
   it('reports where the scope got to, and whether it finished', async () => {
-    const completedAt = new Date('2026-08-01T15:46:38Z');
-    mocks.findOne.mockReturnValue(leanResult({ cursor: CURSOR, scanned: 30_000, completedAt }));
-
-    await expect(readAdminScriptCursor(SCRIPT, SCOPE)).resolves.toEqual({
+    await recordAdminScriptCursor(SCRIPT, SCOPE, {
       cursor: CURSOR,
       scanned: 30_000,
-      completedAt,
+      completed: true,
     });
+
+    const state = await readAdminScriptCursor(SCRIPT, SCOPE);
+    expect(state?.cursor).toBe(CURSOR);
+    expect(state?.scanned).toBe(30_000);
+    expect(state?.completedAt).toBeInstanceOf(Date);
   });
 
-  it('normalizes a legacy row with no completion stamp to "not finished"', async () => {
-    mocks.findOne.mockReturnValue(leanResult({ cursor: CURSOR, scanned: 1 }));
+  it('reports an unfinished scope as "not known to have finished"', async () => {
+    await recordAdminScriptCursor(SCRIPT, SCOPE, { cursor: CURSOR, scanned: 1 });
 
+    // NULL, and it must stay NULL. An invented value fails toward SILENCE — a
+    // destructive purge quietly never re-run — while a missing one fails toward
+    // WORK. Only the second is recoverable.
     await expect(readAdminScriptCursor(SCRIPT, SCOPE)).resolves.toMatchObject({
       completedAt: null,
     });
   });
 
-  it('propagates a read failure instead of degrading to "never ran"', async () => {
-    // Swallowing this would silently restart the sweep from the beginning —
-    // the exact failure the cursor exists to prevent.
-    mocks.findOne.mockReturnValue({ lean: async () => { throw new Error('no primary'); } });
+  it('accepts a cursor that is not an ObjectId', async () => {
+    // Every row written after the cutover has a uuid v7 primary key, and a sweep
+    // resuming through this store has to be able to hold one. A shape guard
+    // anywhere on this path answers "never ran" for all of them — silently,
+    // forever — which is exactly what `purgeBlockedDomainContent`'s
+    // `isValidObjectId` check would have started doing.
+    const uuid = '01924f3c-0000-7000-8000-0123456789ab';
+    await recordAdminScriptCursor(SCRIPT, SCOPE, { cursor: uuid, scanned: 7 });
 
-    await expect(readAdminScriptCursor(SCRIPT, SCOPE)).rejects.toThrow('no primary');
+    await expect(readAdminScriptCursor(SCRIPT, SCOPE)).resolves.toMatchObject({
+      cursor: uuid,
+      scanned: 7,
+    });
   });
 });
 
@@ -93,11 +106,10 @@ describe('recordAdminScriptCursor', () => {
       recordAdminScriptCursor(SCRIPT, SCOPE, { cursor: CURSOR, scanned: 500 }),
     ).resolves.toBe(true);
 
-    expect(mocks.updateOne).toHaveBeenCalledWith(
-      { script: SCRIPT, scope: SCOPE },
-      { $set: { cursor: CURSOR, scanned: 500, completedAt: null } },
-      { upsert: true },
-    );
+    const row = await storedRow();
+    expect(row?.cursor).toBe(CURSOR);
+    expect(row?.scanned).toBe(500);
+    expect(row?.completedAt).toBeNull();
   });
 
   it('stamps a completion time only when the range was exhausted', async () => {
@@ -107,32 +119,48 @@ describe('recordAdminScriptCursor', () => {
       completed: true,
     });
 
-    const [, update] = mocks.updateOne.mock.calls[0] as [
-      unknown,
-      { $set: { completedAt: Date | null } },
-    ];
-    expect(update.$set.completedAt).toBeInstanceOf(Date);
+    expect((await storedRow())?.completedAt).toBeInstanceOf(Date);
   });
 
   it('clears an earlier completion stamp when the scope has more work', async () => {
     // A scope that gained new candidates after finishing must not keep reading
     // as finished, or the next operator sees "nothing to do" and believes it.
+    // This is the case the mocked version could not observe: it asserted the
+    // update document SAID `completedAt: null`, never that a real stamp went.
+    await recordAdminScriptCursor(SCRIPT, SCOPE, {
+      cursor: CURSOR,
+      scanned: 500,
+      completed: true,
+    });
+    expect((await storedRow())?.completedAt).toBeInstanceOf(Date);
+
     await recordAdminScriptCursor(SCRIPT, SCOPE, { cursor: CURSOR, scanned: 900 });
 
-    const [, update] = mocks.updateOne.mock.calls[0] as [
-      unknown,
-      { $set: { completedAt: Date | null } },
-    ];
-    expect(update.$set.completedAt).toBeNull();
+    const row = await storedRow();
+    expect(row?.completedAt).toBeNull();
+    expect(row?.scanned).toBe(900);
+  });
+
+  it('keeps one row per (script, scope) however often it is written', async () => {
+    await recordAdminScriptCursor(SCRIPT, SCOPE, { cursor: CURSOR, scanned: 1 });
+    await recordAdminScriptCursor(SCRIPT, SCOPE, { cursor: CURSOR, scanned: 2 });
+    await recordAdminScriptCursor(SCRIPT, `${SCOPE}|other`, { cursor: CURSOR, scanned: 3 });
+
+    const rows = await getDb()
+      .select()
+      .from(adminScriptCursors)
+      .where(eq(adminScriptCursors.script, SCRIPT));
+    expect(rows).toHaveLength(2);
+    expect(rows.find((row) => row.scope === SCOPE)?.scanned).toBe(2);
   });
 
   it('reports a failed write instead of throwing, and never logs the cursor', async () => {
-    mocks.updateOne.mockRejectedValue(new Error('connection reset by peer'));
-
     // A transient blip must not kill a sweep that is otherwise doing its work
-    // correctly; the caller counts the miss and fails the run at the end.
+    // correctly; the caller counts the miss and fails the run at the end. The
+    // refusal comes from the database's own CHECK on `scanned`, so the failure
+    // path is exercised by a real rejection rather than by a stub told to throw.
     await expect(
-      recordAdminScriptCursor(SCRIPT, SCOPE, { cursor: CURSOR, scanned: 500 }),
+      recordAdminScriptCursor(SCRIPT, SCOPE, { cursor: CURSOR, scanned: -1 }),
     ).resolves.toBe(false);
 
     const [message, context] = vi.mocked(logger.warn).mock.calls[0] as [
@@ -146,16 +174,21 @@ describe('recordAdminScriptCursor', () => {
 
 describe('clearAdminScriptCursor', () => {
   it('forgets the scope\'s progress', async () => {
+    await recordAdminScriptCursor(SCRIPT, SCOPE, { cursor: CURSOR, scanned: 5 });
+
     await clearAdminScriptCursor(SCRIPT, SCOPE);
 
-    expect(mocks.deleteOne).toHaveBeenCalledWith({ script: SCRIPT, scope: SCOPE });
+    await expect(readAdminScriptCursor(SCRIPT, SCOPE)).resolves.toBeNull();
   });
 
-  it('propagates a failed clear rather than resuming anyway', async () => {
-    // This only ever runs because an operator asked for a fresh start. Resuming
-    // after failing to honour that would be a silent lie about what ran.
-    mocks.deleteOne.mockRejectedValue(new Error('not authorized'));
+  it('leaves another scope of the same script alone', async () => {
+    await recordAdminScriptCursor(SCRIPT, SCOPE, { cursor: CURSOR, scanned: 5 });
+    await recordAdminScriptCursor(SCRIPT, `${SCOPE}|other`, { cursor: CURSOR, scanned: 6 });
 
-    await expect(clearAdminScriptCursor(SCRIPT, SCOPE)).rejects.toThrow('not authorized');
+    await clearAdminScriptCursor(SCRIPT, SCOPE);
+
+    await expect(readAdminScriptCursor(SCRIPT, `${SCOPE}|other`)).resolves.toMatchObject({
+      scanned: 6,
+    });
   });
 });

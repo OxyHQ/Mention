@@ -47,7 +47,6 @@
 import mongoose from 'mongoose';
 import { logger } from '../utils/logger';
 import { MIGRATION_CHANNEL_ACCOUNTS } from './constants';
-import { Lane } from '../models/Lane';
 import { Post } from '../models/Post';
 import type { Migration } from './runner';
 
@@ -60,6 +59,19 @@ const LEGACY_LANE_INDEXES = [
 
 /** Collections that existed only to hold the Mention-local channel. */
 const RETIRED_COLLECTIONS = ['channels', 'channelmembers', 'channelfollows'] as const;
+
+/**
+ * A literal, because the `Lane` MODEL is gone.
+ *
+ * The Postgres port deleted `models/Lane.ts` — `lanes` is a Drizzle table now
+ * (`db/schema/channels.ts`) and `db/channels/laneRepository.ts` writes it — so
+ * there is no Mongoose model left to derive `collection.collectionName` from.
+ * This is the same name Mongoose derived from `Lane`, and it is the same
+ * treatment `0024`/`0025` already give the retired channel collections above:
+ * an already-applied migration must keep doing exactly what it did, so it names
+ * the collection rather than a model that no longer exists.
+ */
+const LANE_COLLECTION = 'lanes';
 
 /**
  * Drop an index only if it is actually there.
@@ -96,7 +108,7 @@ export const migrationChannelAccounts: Migration = {
       );
     }
 
-    const lanes = db.collection(Lane.collection.collectionName);
+    const lanes = db.collection(LANE_COLLECTION);
 
     // New first, old second — see the docstring: the unique constraint must never
     // be absent, not even for the duration of this migration.

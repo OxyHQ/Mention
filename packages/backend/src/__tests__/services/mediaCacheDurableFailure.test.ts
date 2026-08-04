@@ -5,7 +5,6 @@ const mocks = vi.hoisted(() => ({
   uploadFederatedMedia: vi.fn(),
   uploadCachedMedia: vi.fn(),
   deleteCachedMedia: vi.fn(),
-  updateOne: vi.fn(),
 }));
 
 vi.mock('../../utils/safeUpstreamFetch', async () => {
@@ -31,11 +30,12 @@ vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
   deleteCachedMedia: mocks.deleteCachedMedia,
 }));
 
-vi.mock('../../models/FederatedMediaCache', () => ({
-  default: {
-    updateOne: mocks.updateOne,
-  },
-}));
+// No cache-table stub. `persistRemoteMediaForFederatedOwnerDetailed` never
+// touches `federated_media_cache` — it classifies an upstream response and
+// uploads, nothing more — so the `updateOne` stub that used to sit here was
+// keeping a store out of the way that this path does not reach. It was never
+// asserted against, and once the cache moved to Postgres it named a module the
+// file under test no longer imports.
 
 function upstreamResponse(statusCode: number, headers: Record<string, unknown>) {
   return {

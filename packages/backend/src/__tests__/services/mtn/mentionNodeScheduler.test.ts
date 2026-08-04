@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'fs';
+import { createRequire } from 'node:module';
 import path from 'path';
+import type * as TypeScript from 'typescript';
 
 /**
  * MTN Protocol — B3 node scheduler (MentionNodeScheduler) + read-path invariant.
@@ -10,14 +12,14 @@ import path from 'path';
  *    pending first-ticks.
  *  - The sync sweep routes `pull` nodes to ingest and `push` nodes to export.
  *  - READ INVARIANT (static guard): NO feed / hydration / controller code on the
- *    hot read path references `MentionUserNode`, the node endpoints, or the node
+ *    hot read path references the node table/repository, the node endpoints, or the node
  *    sync/registry services. All node I/O is background-only.
  */
 
 const mockSweepLiveness = vi.fn();
 const mockIngest = vi.fn();
 const mockExport = vi.fn();
-const mockNodeFind = vi.fn();
+const mockFindNodesToSync = vi.fn();
 
 vi.mock('../../../services/mtn/MentionNodeRegistryService', () => ({
   sweepNodeLiveness: (...a: unknown[]) => mockSweepLiveness(...a),
@@ -26,9 +28,14 @@ vi.mock('../../../services/mtn/MentionNodeSyncService', () => ({
   ingestFromNode: (...a: unknown[]) => mockIngest(...a),
   exportToNode: (...a: unknown[]) => mockExport(...a),
 }));
-vi.mock('../../../models/MentionUserNode', () => ({
-  __esModule: true,
-  default: { find: (...a: unknown[]) => mockNodeFind(...a) },
+// The SEAM, not the store. What this file tests is the scheduler's timer and
+// routing behaviour; which rows the sweep query returns — and the `NULLS FIRST`
+// ordering that decides whether a new node is ever serviced at all — is pinned
+// against real rows in `__tests__/db/mtnNodeRepository.test.ts`. Stubbing a
+// named repository function keeps those two questions apart; stubbing the old
+// Mongoose model conflated them and left the ordering covered by nothing.
+vi.mock('../../../db/mtn/nodeRepository', () => ({
+  findNodesToSync: (...a: unknown[]) => mockFindNodesToSync(...a),
 }));
 
 import { MentionNodeScheduler } from '../../../services/mtn/MentionNodeScheduler';
@@ -37,10 +44,6 @@ import {
   MENTION_NODE_INGEST_SWEEP_INTERVAL_MS,
 } from '../../../services/mtn/mentionNodes.constants';
 
-function findLean(rows: unknown) {
-  return { sort: () => ({ limit: () => ({ select: () => ({ lean: () => Promise.resolve(rows) }) }) }) };
-}
-
 describe('MentionNodeScheduler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -48,7 +51,7 @@ describe('MentionNodeScheduler', () => {
     mockSweepLiveness.mockResolvedValue(undefined);
     mockIngest.mockResolvedValue(undefined);
     mockExport.mockResolvedValue(undefined);
-    mockNodeFind.mockReturnValue(findLean([]));
+    mockFindNodesToSync.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -60,17 +63,15 @@ describe('MentionNodeScheduler', () => {
     scheduler.start();
     // Nothing fired yet — both sweeps are deferred behind a startup timer.
     expect(mockSweepLiveness).not.toHaveBeenCalled();
-    expect(mockNodeFind).not.toHaveBeenCalled();
+    expect(mockFindNodesToSync).not.toHaveBeenCalled();
     scheduler.stop();
   });
 
   it('runs the liveness + sync sweeps after their startup delay', async () => {
-    mockNodeFind.mockReturnValue(
-      findLean([
-        { oxyUserId: 'u-pull', mode: 'pull' },
-        { oxyUserId: 'u-push', mode: 'push' },
-      ]),
-    );
+    mockFindNodesToSync.mockResolvedValue([
+      { oxyUserId: 'u-pull', mode: 'pull' },
+      { oxyUserId: 'u-push', mode: 'push' },
+    ]);
     const scheduler = new MentionNodeScheduler();
     scheduler.start();
 
@@ -140,7 +141,7 @@ describe('MentionNodeScheduler', () => {
   it('does NOT overlap sync sweeps when one outlasts its interval', async () => {
     // A sync sweep blocks in ingest: hold it open and assert no second sweep
     // starts (the node query is not re-run) on the following ticks.
-    mockNodeFind.mockReturnValue(findLean([{ oxyUserId: 'u-pull', mode: 'pull' }]));
+    mockFindNodesToSync.mockResolvedValue([{ oxyUserId: 'u-pull', mode: 'pull' }]);
     let releaseIngest: (() => void) | undefined;
     mockIngest.mockImplementation(
       () => new Promise<void>((resolve) => { releaseIngest = resolve; }),
@@ -151,25 +152,30 @@ describe('MentionNodeScheduler', () => {
 
     // First sync tick (after its 90s startup delay) begins and blocks in ingest.
     await vi.advanceTimersByTimeAsync(91_000);
-    expect(mockNodeFind).toHaveBeenCalledTimes(1);
+    expect(mockFindNodesToSync).toHaveBeenCalledTimes(1);
     expect(mockIngest).toHaveBeenCalledTimes(1);
 
     // Interval boundaries pass while ingest is blocked — the guard skips them, so
     // the node query is not re-run and ingest is not re-invoked.
     await vi.advanceTimersByTimeAsync(MENTION_NODE_INGEST_SWEEP_INTERVAL_MS * 3);
-    expect(mockNodeFind).toHaveBeenCalledTimes(1);
+    expect(mockFindNodesToSync).toHaveBeenCalledTimes(1);
     expect(mockIngest).toHaveBeenCalledTimes(1);
 
     // Unblock the sweep; the next tick is then free to run a fresh sweep.
     releaseIngest?.();
     await vi.advanceTimersByTimeAsync(MENTION_NODE_INGEST_SWEEP_INTERVAL_MS);
-    expect(mockNodeFind).toHaveBeenCalledTimes(2);
+    expect(mockFindNodesToSync).toHaveBeenCalledTimes(2);
 
     scheduler.stop();
   });
 });
 
+const ts = createRequire(path.join(__dirname, 'mentionNodeScheduler.test.ts'))(
+  'typescript',
+) as typeof TypeScript;
+
 describe('Read-path invariant — feeds/hydration never touch a node', () => {
+  const BACKEND_ROOT = path.resolve(__dirname, '../../../../');
   // Hot read-path modules: anything a feed/hydration request executes. None may
   // reference the node model, node endpoints, or the node services.
   const HOT_PATH_DIRS = ['src/mtn/feed', 'src/controllers', 'src/services'];
@@ -186,13 +192,26 @@ describe('Read-path invariant — feeds/hydration never touch a node', () => {
    *
    * Neither exemption widens what a hot path may do; both name a directory that is
    * not one.
+   *
+   * Applied when the HOT-PATH set is selected, deliberately NOT inside the walk:
+   * these files must still be SCANNED so their tokens reach the `reachable`
+   * vacuity floor below. Skipping them during the walk hides the node layer from
+   * that floor, and a forbidden token whose only remaining definition site lives
+   * there would then read as "deleted symbol" and fail — or, worse, be deleted.
    */
   const NOT_A_READ_PATH = [
     path.normalize('src/services/mtn'),
     path.normalize('src/services/channelDeletion'),
   ];
   const FORBIDDEN = [
-    'MentionUserNode',
+    // Re-expressed when the Mongoose `MentionUserNode` model gave way to
+    // Postgres. The invariant is unchanged — no hot-path module may reach the
+    // node table — but the symbol that names it is now the drizzle table, so
+    // the token had to move with it or it would match nothing and enforce
+    // nothing. The floor below is what forced this rather than letting the
+    // check quietly retire.
+    'mentionUserNodes',
+    'nodeRepository',
     'MentionNodeSyncService',
     'MentionNodeRegistryService',
     'MentionNodeScheduler',
@@ -200,41 +219,127 @@ describe('Read-path invariant — feeds/hydration never touch a node', () => {
     'exportToNode',
     'oxy-node.json',
   ];
+  /**
+   * One file per hot-path directory that the walk MUST reach, each of them
+   * nested rather than top-level.
+   *
+   * The old walk swallowed a `readdirSync` failure and returned `[]`, so a
+   * renamed or relocated directory scanned nothing and the invariant passed for
+   * every violation — indistinguishable, from the outside, from a clean tree. A
+   * file count would not fix that on its own: a directory can exist and still
+   * not be recursed into. Naming a nested file each directory must yield is what
+   * separates "the scan ran and found nothing" from "the scan never ran".
+   */
+  const ANCHOR_FILES = [
+    'src/mtn/feed/engine/sources/discoverySources.ts',
+    'src/controllers/feed.controller.ts',
+    'src/services/safety/viewerSafety.ts',
+  ];
 
-  function walk(dir: string): string[] {
-    const abs = path.resolve(__dirname, '../../../../', dir);
-    let entries: string[];
-    try {
-      entries = readdirSync(abs);
-    } catch {
-      return [];
-    }
+  function productionFiles(directory: string): string[] {
     const files: string[] = [];
-    for (const entry of entries) {
-      const full = path.join(abs, entry);
-      const rel = path.relative(path.resolve(__dirname, '../../../../'), full);
-      if (NOT_A_READ_PATH.some((excluded) => path.normalize(rel).startsWith(excluded))) continue;
-      if (statSync(full).isDirectory()) {
-        files.push(...walk(rel));
-      } else if (full.endsWith('.ts') && !full.endsWith('.test.ts')) {
-        files.push(full);
+    for (const entry of readdirSync(directory)) {
+      if (entry === '__tests__' || entry === 'dist' || entry === 'node_modules') continue;
+      const absolute = path.join(directory, entry);
+      if (statSync(absolute).isDirectory()) {
+        files.push(...productionFiles(absolute));
+      } else if (absolute.endsWith('.ts') && !absolute.endsWith('.test.ts')) {
+        files.push(absolute);
       }
     }
     return files;
   }
 
-  it('no hot-path module references a node model / endpoint / sync service', () => {
-    const offenders: string[] = [];
-    for (const dir of HOT_PATH_DIRS) {
-      for (const file of walk(dir)) {
-        const content = readFileSync(file, 'utf8');
+  /**
+   * Which forbidden tokens a file actually REFERENCES, off the AST.
+   *
+   * A substring search over raw text counts a docblock, and this branch
+   * documents replaced behaviour everywhere — so the check that fires is as
+   * likely to be describing the node layer as calling it. Identifiers match
+   * exactly; string literals match on substring, because that is how an import
+   * specifier (`'../../db/mtn/nodeRepository'`) and an endpoint path
+   * (`'/oxy-node.json'`) carry the reference.
+   */
+  function referencedTokens(sourceFile: TypeScript.SourceFile): string[] {
+    const found = new Set<string>();
+    const visit = (node: TypeScript.Node): void => {
+      if (ts.isIdentifier(node)) {
+        if (FORBIDDEN.includes(node.text)) found.add(node.text);
+      } else if (
+        ts.isStringLiteralLike(node)
+        || ts.isTemplateHead(node)
+        || ts.isTemplateMiddle(node)
+        || ts.isTemplateTail(node)
+      ) {
         for (const token of FORBIDDEN) {
-          if (content.includes(token)) {
-            offenders.push(`${path.basename(file)} references "${token}"`);
-          }
+          if (node.text.includes(token)) found.add(token);
         }
       }
-    }
-    expect(offenders).toEqual([]);
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+    return [...found].sort();
+  }
+
+  function parse(file: string, source: string): TypeScript.SourceFile {
+    return ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  }
+
+  it('detects a node reference and ignores one that is only described', () => {
+    // The positive control for the scan below, driving the SAME function it
+    // does. Without it, "no offenders" is equally consistent with a detector
+    // that can no longer detect anything.
+    const detected = referencedTokens(
+      parse(
+        path.join(__dirname, 'referencedTokens.control.ts'),
+        [
+          "import { findUserNode } from '../db/mtn/nodeRepository';",
+          'const table = mentionUserNodes;',
+          "const endpoint = '/oxy-node.json';",
+          '// A comment naming MentionNodeSyncService must NOT count.',
+          '/** Nor a docblock naming MentionNodeScheduler and exportToNode. */',
+          'export const model = table;',
+          'export const url = `${endpoint}?x=1`;',
+        ].join('\n'),
+      ),
+    );
+
+    expect(detected).toEqual(['mentionUserNodes', 'nodeRepository', 'oxy-node.json']);
   });
+
+  it('no hot-path module references a node model / endpoint / sync service', () => {
+    const scanned = productionFiles(path.join(BACKEND_ROOT, 'src')).map((file) => ({
+      relative: path.relative(BACKEND_ROOT, file),
+      tokens: referencedTokens(parse(file, readFileSync(file, 'utf8'))),
+    }));
+    const hotPath = scanned.filter(
+      (entry) =>
+        HOT_PATH_DIRS.some(
+          (dir) => entry.relative === dir || entry.relative.startsWith(`${dir}${path.sep}`),
+        )
+        && !NOT_A_READ_PATH.some(
+          (dir) => entry.relative === dir || entry.relative.startsWith(`${dir}${path.sep}`),
+        ),
+    );
+
+    // FLOOR — the walk reached every hot-path directory, and recursed into it.
+    expect(
+      ANCHOR_FILES.filter(
+        (anchor) => !hotPath.some((entry) => entry.relative === path.normalize(anchor)),
+      ),
+    ).toEqual([]);
+
+    // FLOOR — every forbidden token still NAMES something. A token whose symbol
+    // has been deleted (as `MentionUserNode` was, the moment the Mongoose model
+    // gave way to `db/schema/mtn`'s `mentionUserNodes`) can never match again, and
+    // the invariant it stood for quietly stops being enforced. When this fails,
+    // re-express the token against the replacement symbol — do not delete it.
+    const reachable = new Set(scanned.flatMap((entry) => entry.tokens));
+    expect(FORBIDDEN.filter((token) => !reachable.has(token))).toEqual([]);
+
+    const offenders = hotPath.flatMap((entry) =>
+      entry.tokens.map((token) => `${entry.relative} references "${token}"`),
+    );
+    expect(offenders).toEqual([]);
+  }, 60_000);
 });

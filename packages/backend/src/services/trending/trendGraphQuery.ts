@@ -9,8 +9,9 @@
 
 import type { TrendGraphEdgeDTO, TrendGraphNodeDTO, TrendGraphResponse } from '@mention/shared-types';
 import { getBaseLanguage } from '@oxyhq/core';
-import TrendGraph from '../../models/TrendGraph';
-import Trending from '../../models/Trending';
+import { desc, eq } from 'drizzle-orm';
+import { getDb } from '../../db/postgres';
+import { trendGraphs, trending } from '../../db/schema/discovery';
 import { logger } from '../../utils/logger';
 
 export interface TrendGraphFilters {
@@ -82,15 +83,16 @@ function axisValues(
 export async function loadTrendGraph(
   filters: TrendGraphFilters,
 ): Promise<TrendGraphResponse | null> {
-  const graph = await TrendGraph.findOne()
-    .sort({ calculatedAt: -1 })
-    .maxTimeMS(2000)
-    .lean<{
-      calculatedAt: Date;
-      nodes: TrendGraphNodeDTO[];
-      edges: TrendGraphEdgeDTO[];
-      droppedEdges?: number;
-    } | null>();
+  const [graph] = await getDb()
+    .select({
+      calculatedAt: trendGraphs.calculatedAt,
+      nodes: trendGraphs.nodes,
+      edges: trendGraphs.edges,
+      droppedEdges: trendGraphs.droppedEdges,
+    })
+    .from(trendGraphs)
+    .orderBy(desc(trendGraphs.calculatedAt))
+    .limit(1);
 
   if (!graph) return null;
 
@@ -130,10 +132,10 @@ export async function loadTrendGraph(
  */
 async function loadLabels(calculatedAt: Date): Promise<Map<string, string>> {
   try {
-    const rows = await Trending.find({ calculatedAt })
-      .select({ name: 1, displayName: 1 })
-      .maxTimeMS(1000)
-      .lean<{ name: string; displayName?: string }[]>();
+    const rows = await getDb()
+      .select({ name: trending.name, displayName: trending.displayName })
+      .from(trending)
+      .where(eq(trending.calculatedAt, calculatedAt));
 
     const labels = new Map<string, string>();
     for (const row of rows) if (row.displayName) labels.set(row.name, row.displayName);

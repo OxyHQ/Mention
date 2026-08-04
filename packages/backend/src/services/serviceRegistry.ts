@@ -1,5 +1,5 @@
 import type { MediaItem } from '@mention/shared-types';
-import type { IPost } from '../models/Post';
+import type { PostRecord } from '../db/posts/postRecord';
 import type { CreatePostParams } from './PostCreationService';
 
 /**
@@ -21,27 +21,68 @@ import type { CreatePostParams } from './PostCreationService';
 
 /** The subset of `PostCreationService` a connector depends on. */
 export interface PostCreator {
-  create(params: CreatePostParams): Promise<IPost>;
+  create(params: CreatePostParams): Promise<PostRecord>;
+}
+
+/**
+ * The post fields outbound federation reads. A {@link PostRecord} satisfies it.
+ *
+ * It says `id`, not `_id`, because that is what a Mention post row's primary key
+ * is called. `@oxyhq/federation`'s `LocalPostEventPayload` still says `_id` — it
+ * is a shared package written against Mongo documents — so `ConnectorRegistry`
+ * translates once when it builds the event, and `ActivityPubConnector` translates
+ * back once when it hands the payload to the Note builders. Two lines, both at
+ * the app↔SDK boundary, and nothing above or below them carries the foreign
+ * spelling.
+ */
+export interface FederatablePost {
+  id: string;
+  content: { text?: string; media?: MediaItem[] };
+  hashtags?: string[];
+  mentions?: string[];
+  visibility: string;
+  createdAt: string | Date;
+  // A boost carries an empty body; the connector re-routes it to an Announce
+  // rather than a blank Create(Note). Threaded through so the seam preserves it.
+  boostOf?: string | null;
+  // A reply carries the parent's Post id; the connector emits `inReplyTo` + a
+  // parent-author Mention and delivers to the parent author's inbox. Threaded
+  // through so the seam preserves it (the `POST /posts` reply path).
+  parentPostId?: string | null;
+}
+
+/**
+ * The app→SDK half of the id translation described on {@link FederatablePost} —
+ * the ONE place a `post.create` / `post.update` event's payload is built.
+ *
+ * THE SPREAD IS THE POINT, and it is why this is a function rather than an
+ * object literal at each call site. `LocalPostEventPayload` names FEWER fields
+ * than the Note builder reads: `metadata.isSensitive` becomes the Note's
+ * `sensitive` flag and `quoteOf` becomes its quote fields, and neither is on the
+ * type. A hand-picked literal type-checks identically and silently drops them —
+ * a sensitive reply federating UNMARKED, a quote reply with no quote — which is
+ * what `__tests__/connectors/outboundPostPayloadShape.test.ts` exists to refuse.
+ * Passing the whole record and renaming two keys keeps every field the builder
+ * might read, including ones it learns to read later.
+ *
+ * `createdAt` is widened for the same reason `_id` is renamed: a `PostRecord`
+ * carries an instant, while the event carries the ISO string every connector
+ * puts on the wire as `published`.
+ */
+export function toFederationPostPayload<T extends FederatablePost>(
+  post: T,
+): T & { _id: string; createdAt: string } {
+  return {
+    ...post,
+    _id: post.id,
+    createdAt: post.createdAt instanceof Date ? post.createdAt.toISOString() : post.createdAt,
+  };
 }
 
 /** The subset of the connector registry that `PostCreationService` depends on. */
 export interface PostFederator {
   federateNewPost(
-    post: {
-      _id: unknown;
-      content: { text?: string; media?: MediaItem[] };
-      hashtags?: string[];
-      mentions?: string[];
-      visibility: string;
-      createdAt: string;
-      // A boost carries an empty body; the connector re-routes it to an Announce
-      // rather than a blank Create(Note). Threaded through so the seam preserves it.
-      boostOf?: string | null;
-      // A reply carries the parent's Post id; the connector emits `inReplyTo` + a
-      // parent-author Mention and delivers to the parent author's inbox. Threaded
-      // through so the seam preserves it (the `POST /posts` reply path).
-      parentPostId?: string | null;
-    },
+    post: FederatablePost,
     senderOxyUserId: string,
     senderUsername: string,
     /**

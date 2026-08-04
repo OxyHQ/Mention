@@ -1,9 +1,31 @@
 /**
  * Centralized cursor handling for all feed types.
  * Replaces ad-hoc cursor parsing duplicated across strategies.
+ *
+ * ## Why `isLiveEntityId` and not an ObjectId check
+ *
+ * Every id validation here used to be `mongoose.Types.ObjectId.isValid`. That is
+ * now actively WRONG rather than merely obsolete: primary keys are `text`
+ * holding a 24-char ObjectId hex for pre-cutover rows and a **uuid v7** for
+ * everything created after (`db/schema/CONVENTIONS.md`). An ObjectId check
+ * rejects every uuid v7, so the moment the first post-cutover post anchors a
+ * page, the cursor is silently discarded and the client is handed page ONE —
+ * forever, with `hasMore: true`. An infinite-scroll loop that never advances.
+ *
+ * `isLiveEntityId` is reached for deliberately, and it is worth saying why this
+ * is not the misuse its own doc warns about. That warning is against using it as
+ * a PRECONDITION ON A QUERY, where a `false` branch silently means "allowed" or
+ * "not found" and a text id that matches no row already gives the right answer.
+ * Here the value is not a lookup key at all: it is an opaque token the server
+ * minted, and the question is whether it is well-formed enough to become a
+ * KEYSET BOUND. A malformed one must reset to page one, which is exactly what
+ * rejecting it does.
  */
 
-import mongoose from 'mongoose';
+import { isLiveEntityId } from '../../db/ids';
+import { getDb } from '../../db/postgres';
+import { posts } from '../../db/schema';
+import { and, eq, gt, lt, or, sql, type SQL } from 'drizzle-orm';
 
 // --- Score-based cursor (for ranked feeds: for_you, explore) ---
 
@@ -103,11 +125,11 @@ function isValidScoreCursorAsOf(value: unknown): value is number {
 
 function normalizeExcludedIds(id: string, ids?: Iterable<string>): string[] {
   const unique = new Set<string>();
-  if (mongoose.Types.ObjectId.isValid(id)) unique.add(id);
+  if (isLiveEntityId(id)) unique.add(id);
   if (ids) {
     for (const candidate of ids) {
       if (unique.size >= MAX_SCORE_CURSOR_EXCLUDE_IDS) break;
-      if (mongoose.Types.ObjectId.isValid(candidate)) unique.add(candidate);
+      if (isLiveEntityId(candidate)) unique.add(candidate);
     }
   }
   return Array.from(unique);
@@ -118,7 +140,7 @@ export const ScoreCursor = {
     const rawAsOf = options?.asOf instanceof Date ? options.asOf.getTime() : options?.asOf;
     if (
       Number.isFinite(score)
-      && mongoose.Types.ObjectId.isValid(id)
+      && isLiveEntityId(id)
       && isValidScoreCursorAsOf(rawAsOf)
     ) {
       const rawTiebreakAt = options?.tiebreakAt instanceof Date
@@ -154,7 +176,7 @@ export const ScoreCursor = {
       const markerIdx = scoreStr.indexOf(SCORE_CURSOR_V1_MARKER);
       const numericScore = markerIdx >= 0 ? scoreStr.slice(0, markerIdx) : scoreStr;
       const score = Number(numericScore);
-      if (Number.isFinite(score) && id && mongoose.Types.ObjectId.isValid(id)) {
+      if (Number.isFinite(score) && id && isLiveEntityId(id)) {
         if (markerIdx >= 0) {
           const encoded = scoreStr.slice(markerIdx + SCORE_CURSOR_V1_MARKER.length);
           if (!encoded || encoded.length > MAX_ENCODED_SCORE_CURSOR_LENGTH) return undefined;
@@ -185,7 +207,7 @@ export const ScoreCursor = {
     }
 
     // Fallback: plain ObjectId
-    if (mongoose.Types.ObjectId.isValid(cursor)) {
+    if (isLiveEntityId(cursor)) {
       return { score: Infinity, id: cursor, excludeIds: [cursor] };
     }
 
@@ -203,39 +225,142 @@ export const ChronoCursor = {
     return id;
   },
 
-  parse(cursor?: string): { id: mongoose.Types.ObjectId; ts?: number } | undefined {
+  parse(cursor?: string): { id: string; ts?: number } | undefined {
     if (!cursor) return undefined;
 
     const parts = cursor.split(':');
-    if (parts.length === 2 && mongoose.Types.ObjectId.isValid(parts[1])) {
+    if (parts.length === 2 && isLiveEntityId(parts[1])) {
       const ts = Number(parts[0]);
       if (!Number.isNaN(ts)) {
-        return { id: new mongoose.Types.ObjectId(parts[1]), ts };
+        return { id: parts[1], ts };
       }
     }
 
-    if (mongoose.Types.ObjectId.isValid(cursor)) {
-      return { id: new mongoose.Types.ObjectId(cursor) };
+    if (isLiveEntityId(cursor)) {
+      return { id: cursor };
     }
     return undefined;
   },
-
-  /** Apply cursor filter to a Mongoose match object */
-  applyToQuery(match: Record<string, unknown>, cursor?: string): void {
-    const parsed = this.parse(cursor);
-    if (parsed?.id) {
-      const createdAtFilter = parsed.ts ? new Date(parsed.ts) : undefined;
-      if (createdAtFilter) {
-        match.$or = [
-          { createdAt: { $lt: createdAtFilter } },
-          { createdAt: createdAtFilter, _id: { $lt: parsed.id } },
-        ];
-      } else {
-        match._id = { $lt: parsed.id };
-      }
-    }
-  },
 };
+
+/**
+ * The keyset predicate continuing a chronological page, matching the
+ * `(created_at DESC, id DESC)` order every chronological source uses.
+ *
+ * ## Why this is async, and why the timestamp is not optional
+ *
+ * Mongo's `applyToQuery` had a second branch: given a cursor carrying only an
+ * id, it filtered `_id < cursorId` and let the `{_id: -1}` sort agree with it.
+ * That worked because an ObjectId ENCODES its creation time, so id order was
+ * time order.
+ *
+ * Neither half of that survives. `posts.id` is `text` holding an ObjectId hex OR
+ * a uuid v7, and those spaces interleave under text collation, so `id < X` is
+ * not a time bound and `ORDER BY id DESC` is not a time order. Translating that
+ * branch literally would page a feed in arbitrary order and skip rows on every
+ * boundary — silently, looking like a ranking change.
+ *
+ * Two honest options remained for a timestamp-less cursor: ignore it (resetting
+ * an old client to page one forever) or RECOVER the missing key. This does the
+ * latter — one primary-key lookup fetches the anchor's `created_at` and the full
+ * two-key keyset is then expressible. Legacy cursors keep paginating correctly
+ * instead of silently restarting, at the cost of one indexed lookup on the rare
+ * path that has no timestamp. Every cursor `FeedEngine` mints carries one, so
+ * the lookup is the exception, not the hot path.
+ *
+ * Returns `undefined` when there is no cursor, or when the cursor names a row
+ * that no longer exists — a deleted anchor cannot bound anything, and page one
+ * is the correct answer rather than an empty page forever.
+ */
+export async function chronoCursorSql(
+  cursor?: string,
+  direction: ChronoDirection = 'desc',
+): Promise<SQL | undefined> {
+  const parsed = ChronoCursor.parse(cursor);
+  if (!parsed) return undefined;
+
+  let boundaryAt: Date;
+  if (parsed.ts !== undefined) {
+    boundaryAt = new Date(parsed.ts);
+  } else {
+    const [anchor] = await getDb()
+      .select({ createdAt: posts.createdAt })
+      .from(posts)
+      .where(eq(posts.id, parsed.id))
+      .limit(1);
+    if (!anchor) return undefined;
+    boundaryAt = anchor.createdAt;
+  }
+
+  const beyond = direction === 'asc' ? gt : lt;
+  return or(
+    beyond(posts.createdAt, boundaryAt),
+    and(eq(posts.createdAt, boundaryAt), beyond(posts.id, parsed.id)),
+  ) as SQL;
+}
+
+/**
+ * Which way a chronological page runs. Every feed reads newest-first; the
+ * replies list is the one surface a reader can flip to oldest-first, and the
+ * keyset has to flip WITH it — a descending bound behind an ascending sort
+ * re-serves page one forever.
+ */
+export type ChronoDirection = 'asc' | 'desc';
+
+/**
+ * The chronological order every keyset above is paired with.
+ *
+ * Exported so a source cannot order by one axis and page on another — the
+ * defect that made federated posts vanish at page boundaries when an `_id` sort
+ * sat behind a `createdAt` cursor.
+ *
+ * ## The NULLS placement is load-bearing on BOTH branches
+ *
+ * Both columns are NOT NULL, so none of this changes a row or an order — it
+ * changes whether an index can serve the sort at all. Postgres matches an index
+ * to an ORDER BY on the NULLS placement as well as the direction, and it will
+ * use an index either in its declared order or in its EXACT REVERSE. Every
+ * chronological index on `posts` is declared `created_at DESC NULLS LAST, id
+ * DESC NULLS LAST` (that is what drizzle emits for `.desc()`), so the two
+ * spellings an index can serve are:
+ *
+ *   forward   `desc nulls last`   — a plain `desc()` means `DESC NULLS FIRST`
+ *   backward  `asc nulls first`   — a plain `asc()` means `ASC NULLS LAST`
+ *
+ * and drizzle's defaults are neither. Both were measured, both were wrong: the
+ * ascending branch was assumed correct on the grounds that `asc()` already means
+ * NULLS LAST, which is true and irrelevant — the index's reverse is NULLS FIRST.
+ * An EXPLAIN test caught it, which is why there is one.
+ *
+ * Measured on this schema, 20,000 posts, page of 31:
+ *
+ *  - Following timeline (200 followed authors): plain `desc()` planned a Hash
+ *    Semi Join over a SEQ SCAN of all 20,000 posts plus all 20,000 authorships,
+ *    then a Sort — cost 2788.92, 40,000 rows touched. With `nulls last`: an
+ *    Index Scan on `posts_created_at_idx` feeding a Nested Loop Semi Join that
+ *    touched 32 rows — cost 474.33, and the LIMIT stops it early.
+ *  - A chronological scan with no authorship join (discovery, global root feed):
+ *    Seq Scan + Sort at cost 1636.42 / 16.536 ms, against an Index Scan at cost
+ *    4.16 / 0.110 ms.
+ *
+ * and, for the ascending branch (the replies list flipped to oldest-first),
+ * plain `asc()` planned a Sort of all 20,000 rows at cost 2139.83 against an
+ * Index Only Scan Backward at cost 0.41 with `asc nulls first`.
+ *
+ * The cost grows with the MATCH SET, not the page, so it scales with how much
+ * the viewer can see.
+ *
+ * NOT every caller benefits, and the difference is worth knowing before reading
+ * a flat profile: the author/profile feed matches through a correlated EXISTS on
+ * `post_authorships`, so its plan is a Nested Loop from the authorship index
+ * into `posts_pkey` with no chronological index involved — measured identical
+ * (cost 903.53) either way. This is neutral there, not an improvement.
+ */
+export function chronoOrderBy(direction: ChronoDirection = 'desc'): SQL[] {
+  return direction === 'asc'
+    ? [sql`${posts.createdAt} asc nulls first`, sql`${posts.id} asc nulls first`]
+    : [sql`${posts.createdAt} desc nulls last`, sql`${posts.id} desc nulls last`];
+}
 
 /**
  * Validate that cursor advanced (prevent infinite pagination loops).

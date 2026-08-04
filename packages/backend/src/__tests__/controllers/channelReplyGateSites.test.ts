@@ -1,5 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import mongoose from 'mongoose';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * The two NATIVE reply paths, which are the ones that answer HTTP directly.
@@ -12,7 +11,7 @@ import mongoose from 'mongoose';
  *    skipped entirely for an ordinary `['anyone']` post and which contains an
  *    unconditional escape letting an author answer their own post under
  *    `['nobody']`. Both of those are asserted here, not assumed.
- *  - `POST /posts` performs NO parent lookup at all — it validates
+ *  - `POST /posts` performs NO parent lookup of its own — it validates
  *    `quoted_post_id` and `boost_of` and nothing else — so its gate had to be
  *    added from scratch, and the assertion is that it exists at all.
  *
@@ -21,30 +20,15 @@ import mongoose from 'mongoose';
  *
  * The gate keys on the parent AUTHOR's Oxy account kind, so `isChannelAccount` is
  * the seam these tests drive — mocked at `services/publishAsAccount`, the one
- * module that knows what a channel account is.
+ * module that knows what a channel account is. Everything ELSE is a real row: the
+ * gate resolves the author by reading `posts` with a `text` id, and the guard it
+ * replaced (`ObjectId.isValid`) answered `false` for every uuid v7 — which reads
+ * as "not a channel post" and lets the reply through. A mocked `findById` cannot
+ * see that, because the id never reaches the predicate that was wrong.
  */
 
-const postFindById = vi.fn();
-const postFindOne = vi.fn();
-const postCreate = vi.fn();
-vi.mock('../../models/Post', () => {
-  class MockPost {
-    constructor(data: Record<string, unknown>) {
-      Object.assign(this, data);
-      postCreate(data);
-    }
-    _id = new mongoose.Types.ObjectId();
-    save = vi.fn(async () => this);
-    toObject = () => ({ ...this });
-  }
-  return {
-    Post: Object.assign(MockPost, {
-      findById: (...args: unknown[]) => postFindById(...args),
-      findOne: (...args: unknown[]) => postFindOne(...args),
-    }),
-    POST_CLASSIFICATION_PENDING: 'pending',
-  };
-});
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { clearPostScope, postScope, seedLane, seedPost } from '../helpers/postFixtures';
 
 const postCreationCreate = vi.fn();
 vi.mock('../../services/PostCreationService', () => ({
@@ -73,8 +57,12 @@ vi.mock('../../utils/logger', () => ({
 const isChannelAccount = vi.fn();
 vi.mock('../../services/publishAsAccount', () => ({
   isChannelAccount: (...args: unknown[]) => isChannelAccount(...args),
+  cacheAccountMemberReads: (reader: unknown) => reader,
   assertCanPublishAsAccount: vi.fn(
-    async (params: { callerId: string | null }) => params.callerId,
+    async (params: { callerId: string | null }) => ({
+      authorId: params.callerId,
+      authorKind: null,
+    }),
   ),
   PublishAsAccessError: class PublishAsAccessError extends Error {
     readonly status: number;
@@ -88,11 +76,12 @@ vi.mock('../../services/publishAsAccount', () => ({
 import { feedController } from '../../controllers/feed.controller';
 import { createPost } from '../../controllers/posts.controller';
 import type { OxyAuthRequest } from '@oxyhq/core/server';
+import type { ReplyPermission } from '@mention/shared-types';
 
-const USER_ID = 'author-1';
-const PARENT_ID = new mongoose.Types.ObjectId().toString();
-const CHANNEL_ACCOUNT = 'oxy-channel-account';
-const LANE_ID = new mongoose.Types.ObjectId().toString();
+const scope = postScope('channel-reply-gate-sites');
+const USER_ID = scope.user('author');
+/** The Oxy account the mocked `isChannelAccount` answers `true` for. */
+const CHANNEL_ACCOUNT = scope.user('channel');
 
 interface MockRes {
   statusCode: number;
@@ -111,86 +100,104 @@ function makeRes(): MockRes {
   return res;
 }
 
-/** A chainable stand-in for `Post.findById(...).select(...).lean()`. */
-function projection<T>(value: T) {
-  const link = { select: () => link, lean: () => Promise.resolve(value) };
-  return link;
+/**
+ * One parent post, owned by `USER_ID` unless a channel is named.
+ *
+ * The channel IS the author now, so "a channel post" is a row whose
+ * `oxy_user_id` is the channel account — there is no marker on the row to set.
+ */
+async function parent(
+  extra: { oxyUserId?: string; laneId?: string; replyPermission?: ReplyPermission[] } = {},
+): Promise<string> {
+  const post = await seedPost(scope, {
+    oxyUserId: extra.oxyUserId ?? USER_ID,
+    replyPermission: extra.replyPermission ?? ['anyone'],
+    ...(extra.laneId ? { laneId: extra.laneId } : {}),
+  });
+  return post.id;
 }
 
-/** What `createReply` reads: `findById(...).maxTimeMS(...).lean()`. */
-function parentDoc(extra: Record<string, unknown>) {
-  const link = {
-    maxTimeMS: () => link,
-    select: () => link,
-    lean: () => Promise.resolve({
-      _id: new mongoose.Types.ObjectId(PARENT_ID),
-      oxyUserId: USER_ID,
-      threadId: PARENT_ID,
-      ...extra,
-    }),
-  };
-  return link;
-}
+beforeAll(async () => {
+  await connectPostgres();
+});
 
 beforeEach(() => {
-  postFindById.mockReset();
-  postFindOne.mockReset();
-  postCreate.mockReset();
   isChannelAccount.mockReset();
   isChannelAccount.mockImplementation(async (id: string) => id === CHANNEL_ACCOUNT);
   postCreationCreate.mockReset();
   postCreationCreate.mockResolvedValue({
-    _id: new mongoose.Types.ObjectId(),
+    id: 'p1',
     content: { text: 'x' },
-    toObject: () => ({ _id: 'p1', content: { text: 'x' } }),
+    toObject: () => ({ id: 'p1', content: { text: 'x' } }),
   });
 });
 
+afterEach(async () => {
+  await clearPostScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 describe('site 1 — feed.controller.createReply', () => {
-  function replyReq(): OxyAuthRequest {
+  function replyReq(postId: string, callerId: string = USER_ID): OxyAuthRequest {
     return {
-      user: { id: USER_ID },
-      body: { postId: PARENT_ID, content: 'a reply' },
+      user: { id: callerId },
+      body: { postId, content: 'a reply' },
     } as unknown as OxyAuthRequest;
   }
 
-  it('refuses a reply to a channel post with 403, even for the channel\'s own member', async () => {
-    // The author-replying-to-themselves escape inside the reply-permission block
-    // is exactly what this gate has to sit above.
-    postFindById.mockReturnValue(parentDoc({ oxyUserId: CHANNEL_ACCOUNT }));
+  it('refuses even when the caller would clear the author escape', async () => {
+    // The permission block contains an unconditional escape — `parentAuthorId ===
+    // currentUserId` allows the reply even under `['nobody']` — so the gate has to
+    // sit above the block, not inside it.
+    //
+    // The only fixture that ISOLATES that escape is a caller whose id IS the
+    // author's, which for a channel post means asking as the channel. No real
+    // session can be one (`isActAsEligibleKind` refuses `channel`), so this shape
+    // is synthetic on purpose: without it the case is answered by the `['nobody']`
+    // permission itself and cannot tell the gate from the block. Mutation-tested —
+    // stubbing `isChannelAccount` to `false` turns it red.
+    const parentId = await parent({
+      oxyUserId: CHANNEL_ACCOUNT,
+      replyPermission: ['nobody'],
+    });
+
     const res = makeRes();
-    await feedController.createReply(replyReq(), res as never);
+    await feedController.createReply(replyReq(parentId, CHANNEL_ACCOUNT), res as never);
+
     expect(res.statusCode).toBe(403);
-    expect(postCreate).not.toHaveBeenCalled();
   });
 
   it('refuses even when the parent says replyPermission: ["anyone"]', async () => {
-    // The permission block is SKIPPED for `['anyone']`, so a gate placed inside it
-    // would never run on an ordinary post. This asserts it is placed above.
-    postFindById.mockReturnValue(
-      parentDoc({ oxyUserId: CHANNEL_ACCOUNT, replyPermission: ['anyone'] }),
-    );
+    // The discriminating case. The permission block is SKIPPED for `['anyone']`,
+    // so a gate placed inside it would never run — this one passes only if the
+    // gate sits above the whole block, escape included.
+    const parentId = await parent({
+      oxyUserId: CHANNEL_ACCOUNT,
+      replyPermission: ['anyone'],
+    });
+
     const res = makeRes();
-    await feedController.createReply(replyReq(), res as never);
+    await feedController.createReply(replyReq(parentId), res as never);
+
     expect(res.statusCode).toBe(403);
   });
 
   it('CONTROL: an ordinary post still accepts a reply', async () => {
-    postFindById.mockReturnValue(parentDoc({ replyPermission: ['anyone'] }));
+    const parentId = await parent({ replyPermission: ['anyone'] });
     const res = makeRes();
-    await feedController.createReply(replyReq(), res as never);
+    await feedController.createReply(replyReq(parentId), res as never);
     expect(res.statusCode).not.toBe(403);
-    expect(postCreate).toHaveBeenCalled();
   });
 
   it('CONTROL: a post carrying a laneId still accepts a reply', async () => {
-    postFindById.mockReturnValue(
-      parentDoc({ laneId: LANE_ID, replyPermission: ['anyone'] }),
-    );
+    const laneId = await seedLane(scope, { ownerId: USER_ID });
+    const parentId = await parent({ laneId, replyPermission: ['anyone'] });
     const res = makeRes();
-    await feedController.createReply(replyReq(), res as never);
+    await feedController.createReply(replyReq(parentId), res as never);
     expect(res.statusCode).not.toBe(403);
-    expect(postCreate).toHaveBeenCalled();
   });
 });
 
@@ -203,9 +210,11 @@ describe('site 2 — POST /posts carrying a parent id', () => {
   }
 
   it('refuses a reply to a channel post with 403 via parentPostId', async () => {
-    postFindById.mockReturnValue(projection({ oxyUserId: CHANNEL_ACCOUNT }));
+    const parentId = await parent({ oxyUserId: CHANNEL_ACCOUNT });
+
     const res = makeRes();
-    await createPost(postReq({ parentPostId: PARENT_ID }), res as never);
+    await createPost(postReq({ parentPostId: parentId }), res as never);
+
     expect(res.statusCode).toBe(403);
     expect(postCreationCreate).not.toHaveBeenCalled();
   });
@@ -214,33 +223,37 @@ describe('site 2 — POST /posts carrying a parent id', () => {
     // The controller accepts BOTH spellings and hands whichever it got to
     // `PostCreationService` as `parentPostId`; a gate reading only one of them
     // would leave the other as the back door.
-    postFindById.mockReturnValue(projection({ oxyUserId: CHANNEL_ACCOUNT }));
+    const parentId = await parent({ oxyUserId: CHANNEL_ACCOUNT });
+
     const res = makeRes();
-    await createPost(postReq({ in_reply_to_status_id: PARENT_ID }), res as never);
+    await createPost(postReq({ in_reply_to_status_id: parentId }), res as never);
+
     expect(res.statusCode).toBe(403);
     expect(postCreationCreate).not.toHaveBeenCalled();
   });
 
   it('CONTROL: an ordinary parent still accepts a reply', async () => {
-    postFindById.mockReturnValue(projection({ oxyUserId: USER_ID }));
+    const parentId = await parent();
     const res = makeRes();
-    await createPost(postReq({ parentPostId: PARENT_ID }), res as never);
+    await createPost(postReq({ parentPostId: parentId }), res as never);
     expect(res.statusCode).not.toBe(403);
     expect(postCreationCreate).toHaveBeenCalled();
   });
 
   it('CONTROL: a parent carrying a laneId still accepts a reply', async () => {
-    postFindById.mockReturnValue(projection({ oxyUserId: USER_ID, laneId: LANE_ID }));
+    const laneId = await seedLane(scope, { ownerId: USER_ID });
+    const parentId = await parent({ laneId });
     const res = makeRes();
-    await createPost(postReq({ parentPostId: PARENT_ID }), res as never);
+    await createPost(postReq({ parentPostId: parentId }), res as never);
     expect(res.statusCode).not.toBe(403);
     expect(postCreationCreate).toHaveBeenCalled();
   });
 
-  it('CONTROL: a top-level post performs no parent lookup at all', async () => {
+  it('CONTROL: a top-level post is created with no parent gate to clear', async () => {
     const res = makeRes();
     await createPost(postReq({}), res as never);
-    expect(postFindById).not.toHaveBeenCalled();
+    expect(res.statusCode).not.toBe(403);
     expect(postCreationCreate).toHaveBeenCalled();
+    expect(isChannelAccount).not.toHaveBeenCalled();
   });
 });

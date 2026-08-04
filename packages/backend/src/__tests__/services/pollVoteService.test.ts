@@ -1,141 +1,225 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 /**
- * `PollVoteService` is the SINGLE authority for recording a poll vote, shared by
- * the local HTTP vote route and the inbound ActivityPub poll-vote handler. These
- * pin its contract: the ATOMIC dedup guard it issues (so a duplicate never
- * double-counts), closed-poll rejection, unknown-option/poll handling, and the
- * single-vs-multiple-choice branch — the same guarantees both callers rely on.
+ * `PollVoteService` against REAL Postgres rows.
  *
- * The `Poll` model is stubbed with controllable output; assertions read the
- * `findOneAndUpdate` filter to prove the dedup guard is present (MongoDB provides
- * the atomicity).
+ * The previous version stubbed the `Poll` model and asserted the SHAPE of the
+ * `findOneAndUpdate` filter — it proved a dedup guard was written, never that a
+ * duplicate vote failed to land. Mongo supplied the atomicity; Postgres has to
+ * be shown supplying it, so the assertions here are on `poll_votes` rows.
+ *
+ * What is load-bearing:
+ *
+ *  - **A duplicate never double-counts.** Single-choice means "no vote on ANY
+ *    option of this poll", multiple-choice means "no vote on THIS option". Only
+ *    the second has a unique constraint behind it (`poll_votes_option_id_user_id_key`);
+ *    the first is held by the `select … for update` on the poll row, which the
+ *    concurrency test below exercises directly.
+ *  - **The wire array survives.** Mongo published `options[].votes` as an array
+ *    of voter ids in vote order; the rows have to come back the same way.
  */
 
-const { pollFindById, pollFindOneAndUpdate } = vi.hoisted(() => ({
-  pollFindById: vi.fn(),
-  pollFindOneAndUpdate: vi.fn(),
-}));
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { eq, inArray } from 'drizzle-orm';
 
-vi.mock('../../models/Poll', () => ({
-  default: { findById: pollFindById, findOneAndUpdate: pollFindOneAndUpdate },
-  Poll: { findById: pollFindById, findOneAndUpdate: pollFindOneAndUpdate },
-}));
+import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
+import { uuidv7 } from '../../db/schema/columns';
+import { pollOptions, pollVotes, polls } from '../../db/schema/polls';
+import { loadPollRecord, pollVoteService } from '../../services/PollVoteService';
 
-import { pollVoteService } from '../../services/PollVoteService';
+let db: Database;
+const createdPollIds: string[] = [];
 
 const FUTURE = new Date('2099-01-01T00:00:00.000Z');
 const PAST = new Date('2000-01-01T00:00:00.000Z');
 
-/** A lean-ish poll doc; `_id`/option `_id` expose `.toString()` the service uses. */
-function poll(overrides: {
+interface SeedPollOptions {
   isMultipleChoice?: boolean;
+  isAnonymous?: boolean;
   endsAt?: Date;
-  options?: Array<{ id: string; text: string; votes: string[] }>;
-}) {
-  const options = (overrides.options ?? [
-    { id: 'opt-red', text: 'Red', votes: [] },
-    { id: 'opt-blue', text: 'Blue', votes: [] },
-  ]).map((o) => ({ _id: { toString: () => o.id }, text: o.text, votes: o.votes }));
-  return {
-    _id: { toString: () => 'poll1' },
-    isMultipleChoice: overrides.isMultipleChoice ?? false,
-    endsAt: overrides.endsAt ?? FUTURE,
-    options,
-  };
+  options?: string[];
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
+async function seedPoll(overrides: SeedPollOptions = {}) {
+  const [poll] = await db
+    .insert(polls)
+    .values({
+      question: 'Favourite colour?',
+      createdBy: `oxy-poll-author-${randomUUID()}`,
+      endsAt: overrides.endsAt ?? FUTURE,
+      isMultipleChoice: overrides.isMultipleChoice ?? false,
+      isAnonymous: overrides.isAnonymous ?? false,
+    })
+    .returning();
+  createdPollIds.push(poll.id);
+
+  const texts = overrides.options ?? ['Red', 'Blue'];
+  const options = await db
+    .insert(pollOptions)
+    .values(texts.map((text, position) => ({ pollId: poll.id, position, text })))
+    .returning();
+  return { poll, options };
+}
+
+async function voteRows(pollId: string) {
+  return db.select().from(pollVotes).where(eq(pollVotes.pollId, pollId));
+}
+
+beforeAll(async () => {
+  db = await connectPostgres();
 });
 
-describe('recordVoteByOptionText — resolve option by name', () => {
-  it('records a single-choice vote with a dedup guard on the voter, and returns the updated poll', async () => {
-    pollFindById.mockResolvedValue(poll({}));
-    const updated = { _id: 'poll1' };
-    pollFindOneAndUpdate.mockResolvedValue(updated);
-
-    const result = await pollVoteService.recordVoteByOptionText('poll1', 'Blue', 'voter-1');
-
-    expect(result).toEqual({ ok: true, poll: updated });
-    // The atomic filter carries the one-per-voter dedup guard (voted on NO option yet).
-    expect(pollFindOneAndUpdate).toHaveBeenCalledWith(
-      { _id: 'poll1', 'options._id': 'opt-blue', 'options.votes': { $ne: 'voter-1' } },
-      { $push: { 'options.$.votes': 'voter-1' } },
-      { new: true },
-    );
-  });
-
-  it('is a no-op (already_voted) when the voter already voted — no double count', async () => {
-    // The snapshot shows the voter already on an option; the atomic update matches
-    // nothing (returns null) → the service reports already_voted, never re-pushing.
-    pollFindById.mockResolvedValue(poll({ options: [
-      { id: 'opt-red', text: 'Red', votes: ['voter-1'] },
-      { id: 'opt-blue', text: 'Blue', votes: [] },
-    ] }));
-    pollFindOneAndUpdate.mockResolvedValue(null);
-
-    const result = await pollVoteService.recordVoteByOptionText('poll1', 'Blue', 'voter-1');
-
-    expect(result).toEqual({ ok: false, reason: 'already_voted' });
-  });
-
-  it('rejects a vote after the poll has ended (no update issued)', async () => {
-    pollFindById.mockResolvedValue(poll({ endsAt: PAST }));
-
-    const result = await pollVoteService.recordVoteByOptionText('poll1', 'Blue', 'voter-1');
-
-    expect(result).toEqual({ ok: false, reason: 'poll_ended' });
-    expect(pollFindOneAndUpdate).not.toHaveBeenCalled();
-  });
-
-  it('reports option_not_found when no option matches the name', async () => {
-    pollFindById.mockResolvedValue(poll({}));
-
-    const result = await pollVoteService.recordVoteByOptionText('poll1', 'Green', 'voter-1');
-
-    expect(result).toEqual({ ok: false, reason: 'option_not_found' });
-    expect(pollFindOneAndUpdate).not.toHaveBeenCalled();
-  });
-
-  it('reports poll_not_found when the poll is gone', async () => {
-    pollFindById.mockResolvedValue(null);
-
-    const result = await pollVoteService.recordVoteByOptionText('poll1', 'Blue', 'voter-1');
-
-    expect(result).toEqual({ ok: false, reason: 'poll_not_found' });
-  });
-
-  it('uses the per-option $elemMatch dedup guard for a multiple-choice poll', async () => {
-    pollFindById.mockResolvedValue(poll({ isMultipleChoice: true }));
-    pollFindOneAndUpdate.mockResolvedValue({ _id: 'poll1' });
-
-    await pollVoteService.recordVoteByOptionText('poll1', 'Blue', 'voter-1');
-
-    expect(pollFindOneAndUpdate).toHaveBeenCalledWith(
-      {
-        _id: 'poll1',
-        'options._id': 'opt-blue',
-        options: { $not: { $elemMatch: { _id: 'opt-blue', votes: 'voter-1' } } },
-      },
-      { $push: { 'options.$.votes': 'voter-1' } },
-      { new: true },
-    );
-  });
+afterEach(async () => {
+  if (createdPollIds.length > 0) {
+    // Options and votes cascade from the poll.
+    await db.delete(polls).where(inArray(polls.id, createdPollIds.splice(0)));
+  }
 });
 
-describe('recordVoteByOptionId — resolve option by id (HTTP route)', () => {
-  it('records a vote resolved by the option id', async () => {
-    pollFindById.mockResolvedValue(poll({}));
-    pollFindOneAndUpdate.mockResolvedValue({ _id: 'poll1' });
+afterAll(async () => {
+  await closePostgres();
+});
 
-    const result = await pollVoteService.recordVoteByOptionId('poll1', 'opt-red', 'voter-9');
+describe('recordVoteByOptionId — the local HTTP vote route', () => {
+  it('records the vote and returns the poll with the voter on that option', async () => {
+    const { poll, options } = await seedPoll();
+    const voter = `voter-${randomUUID()}`;
+
+    const result = await pollVoteService.recordVoteByOptionId(poll.id, options[1].id, voter);
 
     expect(result.ok).toBe(true);
-    expect(pollFindOneAndUpdate).toHaveBeenCalledWith(
-      { _id: 'poll1', 'options._id': 'opt-red', 'options.votes': { $ne: 'voter-9' } },
-      { $push: { 'options.$.votes': 'voter-9' } },
-      { new: true },
+    if (!result.ok) return;
+    expect(result.poll.options.map((option) => option.text)).toEqual(['Red', 'Blue']);
+    expect(result.poll.options[0].votes).toEqual([]);
+    expect(result.poll.options[1].votes).toEqual([voter]);
+
+    const rows = await voteRows(poll.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ optionId: options[1].id, pollId: poll.id, userId: voter });
+  });
+
+  it('refuses a second vote on a SINGLE-choice poll and writes no row', async () => {
+    const { poll, options } = await seedPoll();
+    const voter = `voter-${randomUUID()}`;
+
+    await pollVoteService.recordVoteByOptionId(poll.id, options[0].id, voter);
+    const second = await pollVoteService.recordVoteByOptionId(poll.id, options[1].id, voter);
+
+    expect(second).toEqual({ ok: false, reason: 'already_voted' });
+    expect(await voteRows(poll.id)).toHaveLength(1);
+  });
+
+  it('lets a MULTIPLE-choice voter pick two options but not the same one twice', async () => {
+    const { poll, options } = await seedPoll({ isMultipleChoice: true });
+    const voter = `voter-${randomUUID()}`;
+
+    expect((await pollVoteService.recordVoteByOptionId(poll.id, options[0].id, voter)).ok).toBe(true);
+    expect((await pollVoteService.recordVoteByOptionId(poll.id, options[1].id, voter)).ok).toBe(true);
+    expect(await pollVoteService.recordVoteByOptionId(poll.id, options[1].id, voter)).toEqual({
+      ok: false,
+      reason: 'already_voted',
+    });
+
+    expect(await voteRows(poll.id)).toHaveLength(2);
+  });
+
+  it('two CONCURRENT votes by one voter produce exactly one row', async () => {
+    /**
+     * The reason the vote runs inside a transaction that takes
+     * `select … for update` on the poll: single-choice dedup has no constraint
+     * behind it, so a plain read-then-insert would let both of these observe an
+     * empty `poll_votes` and both insert. See the module docblock in
+     * `PollVoteService.ts` and the schema gap noted in the migration report.
+     */
+    const { poll, options } = await seedPoll();
+    const voter = `voter-${randomUUID()}`;
+
+    const results = await Promise.all([
+      pollVoteService.recordVoteByOptionId(poll.id, options[0].id, voter),
+      pollVoteService.recordVoteByOptionId(poll.id, options[1].id, voter),
+    ]);
+
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(results.filter((result) => !result.ok)).toEqual([
+      { ok: false, reason: 'already_voted' },
+    ]);
+    expect(await voteRows(poll.id)).toHaveLength(1);
+  });
+
+  it('rejects a vote after the poll has ended, writing nothing', async () => {
+    const { poll, options } = await seedPoll({ endsAt: PAST });
+    const result = await pollVoteService.recordVoteByOptionId(poll.id, options[0].id, 'voter-1');
+
+    expect(result).toEqual({ ok: false, reason: 'poll_ended' });
+    expect(await voteRows(poll.id)).toEqual([]);
+  });
+
+  it('reports option_not_found for an option id that belongs to another poll', async () => {
+    const mine = await seedPoll();
+    const theirs = await seedPoll();
+
+    const result = await pollVoteService.recordVoteByOptionId(
+      mine.poll.id,
+      theirs.options[0].id,
+      'voter-1',
     );
+    expect(result).toEqual({ ok: false, reason: 'option_not_found' });
+    expect(await voteRows(mine.poll.id)).toEqual([]);
+    expect(await voteRows(theirs.poll.id)).toEqual([]);
+  });
+
+  it('reports poll_not_found for an id that names nothing, whatever its shape', async () => {
+    // No `isValidObjectId` guard survives here: a `text` id that matches no row
+    // already answers "no such poll", and a uuid v7 is a perfectly real id.
+    for (const id of [uuidv7(), 'not-an-id-at-all']) {
+      expect(await pollVoteService.recordVoteByOptionId(id, 'whatever', 'voter-1')).toEqual({
+        ok: false,
+        reason: 'poll_not_found',
+      });
+    }
+  });
+});
+
+describe('recordVoteByOptionText — the inbound ActivityPub path', () => {
+  it('resolves the option by its name, the way a Mastodon vote references it', async () => {
+    const { poll, options } = await seedPoll();
+    const voter = `voter-${randomUUID()}`;
+
+    const result = await pollVoteService.recordVoteByOptionText(poll.id, 'Blue', voter);
+
+    expect(result.ok).toBe(true);
+    const rows = await voteRows(poll.id);
+    expect(rows.map((row) => row.optionId)).toEqual([options[1].id]);
+  });
+
+  it('reports option_not_found for a name no option carries', async () => {
+    const { poll } = await seedPoll();
+    expect(await pollVoteService.recordVoteByOptionText(poll.id, 'Green', 'voter-1')).toEqual({
+      ok: false,
+      reason: 'option_not_found',
+    });
+    expect(await voteRows(poll.id)).toEqual([]);
+  });
+});
+
+describe('loadPollRecord', () => {
+  it('keeps options in author order and voters in vote order', async () => {
+    const { poll, options } = await seedPoll({ options: ['A', 'B', 'C'] });
+    const first = `voter-a-${randomUUID()}`;
+    const second = `voter-b-${randomUUID()}`;
+    const third = `voter-c-${randomUUID()}`;
+
+    await pollVoteService.recordVoteByOptionId(poll.id, options[1].id, first);
+    await pollVoteService.recordVoteByOptionId(poll.id, options[1].id, second);
+    await pollVoteService.recordVoteByOptionId(poll.id, options[2].id, third);
+
+    const record = await loadPollRecord(db, poll.id);
+    expect(record?.options.map((option) => option.text)).toEqual(['A', 'B', 'C']);
+    expect(record?.options[0].votes).toEqual([]);
+    expect(record?.options[1].votes).toEqual([first, second]);
+    expect(record?.options[2].votes).toEqual([third]);
+  });
+
+  it('returns null for a poll that does not exist', async () => {
+    expect(await loadPollRecord(db, uuidv7())).toBeNull();
   });
 });

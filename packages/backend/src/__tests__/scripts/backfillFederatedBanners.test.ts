@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import mongoose from 'mongoose';
 
 /**
@@ -16,7 +17,8 @@ import mongoose from 'mongoose';
  */
 
 interface ActorRow {
-  _id: mongoose.Types.ObjectId;
+  /** The cursor the paging loop advances on — without it the sweep never ends. */
+  id: string;
   uri: string;
   headerUrl: string;
   oxyUserId: string;
@@ -31,22 +33,8 @@ const h = vi.hoisted(() => {
     mirrorResults: Map<string, Array<{ ok: boolean; permanent: boolean } | Error>>;
   } = { actors: [], alreadySet: new Set(), mirrorResults: new Map() };
 
-  // FederatedActor.find — first cursor read returns the candidate page, a query
-  // carrying a `$gt` cursor clause returns empty so the paging loop terminates.
-  const actorFind = vi.fn((query: { _id?: { $gt?: unknown } }) => ({
-    sort: () => ({
-      limit: () => ({
-        lean: async () => (query._id?.$gt ? [] : state.actors),
-      }),
-    }),
-  }));
-
-  const actorCount = vi.fn(async () => state.actors.length);
-
-  const settingsFindOne = vi.fn((query: { oxyUserId: string }) => ({
-    lean: async () =>
-      state.alreadySet.has(query.oxyUserId) ? { profileHeaderImage: 'existing_file' } : null,
-  }));
+  const settingsFindOne = vi.fn(async (oxyUserId: string) =>
+    (state.alreadySet.has(oxyUserId) ? { profileHeaderImage: 'existing_file' } : null));
 
   const mirror = vi.fn(async (_url: string, oxyUserId: string) => {
     const queue = state.mirrorResults.get(oxyUserId);
@@ -55,24 +43,45 @@ const h = vi.hoisted(() => {
     return next ?? { ok: true, permanent: false };
   });
 
-  return { state, actorFind, actorCount, settingsFindOne, mirror };
+  // The actor SCAN is a double here, and deliberately, against this batch's
+  // otherwise-uniform "real rows" rule. This suite's subject is the RATE GATE and
+  // the retry ladder, which need `vi.useFakeTimers()` — and a frozen clock stalls
+  // postgres.js forever, because the driver arms its own timers for connection
+  // handling (every test in this file timed out at 5s when the scan was real, and
+  // `shouldAdvanceTime` fixed that only by letting the rate-gate's real intervals
+  // actually elapse, which is the thing being measured). Nothing here asserts
+  // anything ABOUT the query, so the doubles are pure input rather than the
+  // "assert a query was built" shape the migration contract rejects.
+  const countActors = vi.fn(async () => state.actors.length);
+  const scanActors = vi.fn(async (_filter: unknown, page: { afterId?: string }) =>
+    (page.afterId ? [] : state.actors),
+  );
+
+  return { state, settingsFindOne, mirror, countActors, scanActors };
 });
 
 vi.mock('../../utils/database', () => ({
   connectToDatabase: vi.fn(async () => undefined),
 }));
 
-vi.mock('../../models/FederatedActor', () => ({
-  FederatedActor: {
-    find: h.actorFind,
-    countDocuments: h.actorCount,
-  },
+vi.mock('../../db/postgres', () => ({
+  connectPostgres: vi.fn(async () => undefined),
+  closePostgres: vi.fn(async () => undefined),
 }));
 
-vi.mock('../../models/UserSettings', () => ({
-  default: {
-    findOne: h.settingsFindOne,
-  },
+vi.mock('../../db/federation/actorRepository', () => ({
+  countActors: h.countActors,
+  scanActors: h.scanActors,
+}));
+
+/**
+ * The repository is the seam. This suite is about the SWEEP — which actors it
+ * visits, the idempotent skip, the retry/backoff and the dry run — not about
+ * how a banner is stored; that round trip is on real rows in
+ * `__tests__/connectors/identity.test.ts`.
+ */
+vi.mock('../../db/userProfile/userSettingsRepository', () => ({
+  loadUserSettings: h.settingsFindOne,
 }));
 
 vi.mock('../../connectors/identity', () => ({
@@ -95,12 +104,14 @@ import backfillFederatedBanners from '../../scripts/backfillFederatedBanners';
 
 function actor(oxyUserId: string): ActorRow {
   return {
-    _id: new mongoose.Types.ObjectId(),
+    id: `actor-${oxyUserId}`,
     uri: `https://mastodon.social/users/${oxyUserId}`,
     headerUrl: `https://files.mastodon.social/${oxyUserId}.png`,
     oxyUserId,
   };
 }
+
+
 
 /**
  * Run the backfill under fake timers, draining every pending timer (the rate-gate
@@ -177,10 +188,15 @@ describe('backfillFederatedBanners', () => {
 
     vi.resetModules();
     vi.doMock('../../utils/database', () => ({ connectToDatabase: vi.fn(async () => undefined) }));
-    vi.doMock('../../models/FederatedActor', () => ({
-      FederatedActor: { find: h.actorFind, countDocuments: h.actorCount },
+    vi.doMock('../../db/postgres', () => ({
+      connectPostgres: vi.fn(async () => undefined),
+      closePostgres: vi.fn(async () => undefined),
     }));
-    vi.doMock('../../models/UserSettings', () => ({ default: { findOne: h.settingsFindOne } }));
+    vi.doMock('../../db/federation/actorRepository', () => ({
+      countActors: h.countActors,
+      scanActors: h.scanActors,
+    }));
+    vi.doMock('../../db/userProfile/userSettingsRepository', () => ({ loadUserSettings: h.settingsFindOne }));
     vi.doMock('../../connectors/identity', () => ({ mirrorFederatedBanner: h.mirror }));
     vi.doMock('../../utils/logger', () => ({
       logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },

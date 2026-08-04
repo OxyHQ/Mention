@@ -1,29 +1,33 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
-
 /**
  * Anonymous-viewer ACL proof for `GET /posts/:id` (getPostById).
  *
- * The route is now public (anonymous discovery / SEO / fediverse), so the ONLY
- * thing preventing a private post from leaking to a logged-out viewer is the
+ * The route is public (anonymous discovery / SEO / fediverse), so the ONLY thing
+ * preventing a private post from leaking to a logged-out viewer is the
  * `PostHydrationService` ACL running with `viewerId === undefined`. getPostById
- * returns 404 whenever hydration drops the post (empty result). This test drives
- * the REAL `hydratePosts` path (same `maxDepth: 2`, same options getPostById
- * uses) for each visibility case and asserts that ONLY a public+published post
- * from a public-profile author survives for an anonymous viewer.
+ * returns 404 whenever hydration drops the post (empty result). Each visibility
+ * case drives the REAL `hydratePosts` path with the same options getPostById
+ * uses, and asserts that ONLY a public+published post from a public-profile
+ * author survives.
+ *
+ * The posts and the author's profile-visibility setting are REAL ROWS. They used
+ * to be a `postRow()` literal and a `userSettingsFind.mockReturnValue`, which
+ * made the profile-visibility half of this gate a test of the mock: the ACL asks
+ * `user_settings` a question, and the mock answered it regardless of whether the
+ * query would have found anything. That is the failure mode a security gate
+ * cannot afford — a lookup that silently returns nothing reads as "public".
  */
 
-const AUTHOR_ID = 'oxy-author';
-const POST_ID = '650000000000000000000010';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PostVisibility } from '@mention/shared-types';
+import type { CachedUserSummary } from '../../services/userSummaryCache';
 
-const { getUsersByIds, cacheStore, postFind, postFindOne, userSettingsFind } = vi.hoisted(() => ({
+const { getUsersByIds, cacheStore } = vi.hoisted(() => ({
   getUsersByIds: vi.fn(),
   cacheStore: new Map<string, CachedUserSummary>(),
-  postFind: vi.fn(),
-  postFindOne: vi.fn(),
-  userSettingsFind: vi.fn(),
 }));
 
+// Oxy owns identity and is a remote service, so it stays mocked. Everything
+// Mention stores is real.
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({
     getUserById: vi.fn(),
@@ -47,41 +51,6 @@ vi.mock('../../utils/privacyHelpers', () => ({
   extractFollowersIds: vi.fn(() => []),
 }));
 
-function chainable(rows: unknown[] | null) {
-  const q: Record<string, unknown> = {};
-  for (const m of ['select', 'sort', 'limit', 'maxTimeMS']) {
-    q[m] = () => q;
-  }
-  q.lean = async () => rows;
-  q.then = undefined;
-  return q;
-}
-
-vi.mock('../../models/Post', () => ({
-  Post: {
-    find: (...args: unknown[]) => chainable(postFind(...args)),
-    findOne: (...args: unknown[]) => chainable(postFindOne(...args)),
-    aggregate: async () => [],
-  },
-}));
-vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/UserSettings', () => ({
-  UserSettings: {
-    find: (...args: unknown[]) => chainable(userSettingsFind(...args)),
-    findOne: () => chainable(null),
-  },
-}));
-vi.mock('../../models/StarterPack', () => ({
-  StarterPack: { aggregate: async () => [] },
-  default: { aggregate: async () => [] },
-}));
-vi.mock('../../models/FederatedActor', () => ({
-  FederatedActor: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
-  default: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
-}));
-
 vi.mock('../../services/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
@@ -96,117 +65,153 @@ vi.mock('../../services/userSummaryCache', () => ({
   }),
 }));
 
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { userSettings } from '../../db/schema/userProfile';
+import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import { PostHydrationService } from '../../services/PostHydrationService';
+import type { PostRecord } from '../../db/posts/postRecord';
 
-interface PostRowOverrides {
-  visibility?: string;
-  status?: string;
-  federation?: Record<string, unknown>;
-}
-
-function postRow({ visibility = 'public', status = 'published', federation }: PostRowOverrides) {
-  return {
-    _id: POST_ID,
-    oxyUserId: AUTHOR_ID,
-    authorship: [{ oxyUserId: AUTHOR_ID, role: 'owner', status: 'accepted' }],
-    type: 'post',
-    content: { variants: [{ tag: 'en', source: 'author', text: 'secret body' }] },
-    stats: { likesCount: 0, boostsCount: 0, commentsCount: 0, downvotesCount: 0, viewsCount: 0 },
-    metadata: { createdAt: new Date('2024-01-01T00:00:00Z') },
-    createdAt: new Date('2024-01-01T00:00:00Z'),
-    visibility,
-    status,
-    hashtags: [],
-    mentions: [],
-    ...(federation ? { federation } : {}),
-  };
-}
-
-/** Mirror getPostById: hydrate a single row as an anonymous viewer. */
-async function hydrateAsAnon(
-  service: PostHydrationService,
-  row: ReturnType<typeof postRow>,
-) {
-  return service.hydratePosts([row], {
-    viewerId: undefined,
-    oxyClient: {
-      getUsersByIds,
-      getLinkPreviews: vi.fn(async () => ({})),
-      getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
-    } as never,
-    maxDepth: 2,
-    includeLinkMetadata: true,
-  });
-}
+const scope = postScope('anon-acl');
+const AUTHOR_ID = scope.user('author');
 
 describe('getPostById ACL — anonymous viewer cannot see non-public posts', () => {
   let service: PostHydrationService;
 
-  beforeEach(() => {
+  /** Mirror getPostById: hydrate a single row as an anonymous viewer. */
+  async function hydrateAsAnon(post: PostRecord) {
+    return service.hydratePosts([post], {
+      viewerId: undefined,
+      oxyClient: {
+        getUsersByIds,
+        getLinkPreviews: vi.fn(async () => ({})),
+        getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
+      } as never,
+      maxDepth: 2,
+      includeLinkMetadata: true,
+    });
+  }
+
+  async function setProfileVisibility(visibility: string): Promise<void> {
+    await getDb()
+      .insert(userSettings)
+      .values({ oxyUserId: AUTHOR_ID, privacyProfileVisibility: visibility })
+      .onConflictDoUpdate({
+        target: userSettings.oxyUserId,
+        set: { privacyProfileVisibility: visibility },
+      });
+  }
+
+  beforeAll(async () => {
+    await connectPostgres();
+  });
+
+  beforeEach(async () => {
     cacheStore.clear();
     getUsersByIds.mockReset();
-    postFind.mockReset();
-    postFindOne.mockReset();
-    userSettingsFind.mockReset();
-
-    service = new PostHydrationService();
     getUsersByIds.mockResolvedValue([
-      { id: AUTHOR_ID, username: 'author', name: { displayName: 'Author' }, badges: [], verified: false, isVerified: false },
+      {
+        id: AUTHOR_ID,
+        username: 'author',
+        name: { displayName: 'Author' },
+        badges: [],
+        verified: false,
+        isVerified: false,
+      },
     ]);
-    // No nested references, no viewer-interaction rows.
-    postFind.mockReturnValue([]);
-    postFindOne.mockReturnValue(null);
-    // Default: author has a PUBLIC profile.
-    userSettingsFind.mockReturnValue([{ oxyUserId: AUTHOR_ID, privacy: { profileVisibility: 'public' } }]);
+    service = new PostHydrationService();
+    await setProfileVisibility('public');
+  });
+
+  afterEach(async () => {
+    await clearPostScope(scope);
+    await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, AUTHOR_ID));
+  });
+
+  afterAll(async () => {
+    await closePostgres();
   });
 
   it('RETURNS a public+published post (public-profile author)', async () => {
-    const result = await hydrateAsAnon(service, postRow({ visibility: 'public', status: 'published' }));
+    const post = await seedPost(scope, { oxyUserId: AUTHOR_ID });
+
+    const result = await hydrateAsAnon(post);
+
     expect(result).toHaveLength(1);
-    expect(result[0]?.id).toBe(POST_ID);
+    expect(result[0]?.id).toBe(post.id);
   });
 
   it('DROPS a private post (→ getPostById 404)', async () => {
-    const result = await hydrateAsAnon(service, postRow({ visibility: 'private', status: 'published' }));
-    expect(result).toHaveLength(0);
+    const post = await seedPost(scope, {
+      oxyUserId: AUTHOR_ID,
+      visibility: PostVisibility.PRIVATE,
+    });
+
+    expect(await hydrateAsAnon(post)).toHaveLength(0);
   });
 
   it('DROPS a followers-only post (→ getPostById 404)', async () => {
-    const result = await hydrateAsAnon(service, postRow({ visibility: 'followers_only', status: 'published' }));
-    expect(result).toHaveLength(0);
+    const post = await seedPost(scope, {
+      oxyUserId: AUTHOR_ID,
+      visibility: PostVisibility.FOLLOWERS_ONLY,
+    });
+
+    expect(await hydrateAsAnon(post)).toHaveLength(0);
   });
 
   it('DROPS a federated followers-only post (→ getPostById 404)', async () => {
-    const result = await hydrateAsAnon(
-      service,
-      postRow({
-        visibility: 'followers_only',
-        status: 'published',
-        federation: { activityId: 'https://remote.test/posts/private', actorUri: 'https://remote.test/users/author' },
-      }),
-    );
-    expect(result).toHaveLength(0);
+    // `mapApVisibility` turns a Note that is not publicly addressed into
+    // `followers_only`, so "federated" does NOT imply public. The ACL used to
+    // bypass every federated post, which served a remote author's private post
+    // to anyone who asked for it by id.
+    const post = await seedPost(scope, {
+      oxyUserId: AUTHOR_ID,
+      visibility: PostVisibility.FOLLOWERS_ONLY,
+      federation: {
+        activityId: 'https://remote.test/posts/private',
+        actorUri: 'https://remote.test/users/author',
+      },
+    });
+
+    expect(await hydrateAsAnon(post)).toHaveLength(0);
   });
 
   it('DROPS an unpublished (draft) post (→ getPostById 404)', async () => {
-    const result = await hydrateAsAnon(service, postRow({ visibility: 'public', status: 'draft' }));
-    expect(result).toHaveLength(0);
+    const post = await seedPost(scope, { oxyUserId: AUTHOR_ID, status: 'draft' });
+
+    expect(await hydrateAsAnon(post)).toHaveLength(0);
   });
 
   it('DROPS a scheduled post (→ getPostById 404)', async () => {
-    const result = await hydrateAsAnon(service, postRow({ visibility: 'public', status: 'scheduled' }));
-    expect(result).toHaveLength(0);
+    const post = await seedPost(scope, { oxyUserId: AUTHOR_ID, status: 'scheduled' });
+
+    expect(await hydrateAsAnon(post)).toHaveLength(0);
   });
 
   it('DROPS a public post whose author has a PRIVATE profile (→ getPostById 404)', async () => {
-    userSettingsFind.mockReturnValue([{ oxyUserId: AUTHOR_ID, privacy: { profileVisibility: 'private' } }]);
-    const result = await hydrateAsAnon(service, postRow({ visibility: 'public', status: 'published' }));
-    expect(result).toHaveLength(0);
+    // Post-level visibility is NOT sufficient: profile visibility is a separate
+    // setting and this is the only place it is enforced for an anonymous read.
+    await setProfileVisibility('private');
+    const post = await seedPost(scope, { oxyUserId: AUTHOR_ID });
+
+    expect(await hydrateAsAnon(post)).toHaveLength(0);
   });
 
   it('DROPS a public post whose author has a FOLLOWERS-ONLY profile (→ getPostById 404)', async () => {
-    userSettingsFind.mockReturnValue([{ oxyUserId: AUTHOR_ID, privacy: { profileVisibility: 'followers_only' } }]);
-    const result = await hydrateAsAnon(service, postRow({ visibility: 'public', status: 'published' }));
-    expect(result).toHaveLength(0);
+    await setProfileVisibility('followers_only');
+    const post = await seedPost(scope, { oxyUserId: AUTHOR_ID });
+
+    expect(await hydrateAsAnon(post)).toHaveLength(0);
+  });
+
+  it('RETURNS a public post from an author with NO settings row at all', async () => {
+    // The absence of a row means "never configured", which must read as public.
+    // Worth its own case because the ported query returns no row rather than a
+    // document with empty `privacy`, and defaulting the wrong way here would
+    // hide every post by every author who never opened settings.
+    await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, AUTHOR_ID));
+    const post = await seedPost(scope, { oxyUserId: AUTHOR_ID });
+
+    expect(await hydrateAsAnon(post)).toHaveLength(1);
   });
 });

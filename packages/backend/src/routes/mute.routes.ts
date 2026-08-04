@@ -1,11 +1,36 @@
 import { Router, Response } from 'express';
-import Mute from '../models/Mute';
+import { and, desc, eq } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { mutes } from '../db/schema/engagement';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { viewerOperatesAccount } from '../services/operatedAccountAccess';
 import { createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 
 const router = Router();
+
+/**
+ * A mute exactly as it goes on the wire.
+ *
+ * `_id` is what a Mongoose document serialized to and what any client holding an
+ * old response still keys on, so the port keeps it. Mongoose's `__v` is dropped:
+ * nothing reads it and `CONVENTIONS.md` forbids the column.
+ */
+interface SerializedMute {
+  _id: string;
+  userId: string;
+  mutedId: string;
+  createdAt: Date;
+}
+
+function serializeMute(row: typeof mutes.$inferSelect): SerializedMute {
+  return {
+    _id: row.id,
+    userId: row.userId,
+    mutedId: row.mutedId,
+    createdAt: row.createdAt,
+  };
+}
 
 /**
  * Mute a user
@@ -20,7 +45,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    if (!mutedId) {
+    if (!mutedId || typeof mutedId !== 'string') {
       return res.status(400).json({ message: 'mutedId is required' });
     }
 
@@ -49,29 +74,34 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'You cannot mute an account you operate' });
     }
 
-    // Check if already muted
-    const existingMute = await Mute.findOne({ userId, mutedId });
-    if (existingMute) {
+    // `mutes_user_id_muted_id_key` decides "already muted", instead of a read
+    // followed by a write that two concurrent taps could both pass — that race
+    // used to surface as a duplicate-key 500 on the loser. An empty
+    // `returning()` means the row was already there, which is the 200 branch.
+    const db = getDb();
+    const [created] = await db
+      .insert(mutes)
+      .values({ userId, mutedId })
+      .onConflictDoNothing({ target: [mutes.userId, mutes.mutedId] })
+      .returning();
+
+    if (!created) {
+      const [existing] = await db
+        .select()
+        .from(mutes)
+        .where(and(eq(mutes.userId, userId), eq(mutes.mutedId, mutedId)))
+        .limit(1);
       return res.status(200).json({
         message: 'User already muted',
-        mute: existingMute
+        mute: existing ? serializeMute(existing) : undefined
       });
     }
-
-    // Create mute record
-    const mute = new Mute({
-      userId,
-      mutedId,
-      createdAt: new Date()
-    });
-
-    await mute.save();
 
     logger.debug('User mute created');
 
     res.status(201).json({
       message: 'User muted successfully',
-      mute
+      mute: serializeMute(created)
     });
   } catch (error) {
     logger.error('Error muting user:', { userId: req.user?.id, mutedId: req.body.mutedId, error });
@@ -89,7 +119,9 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 router.delete('/:mutedId', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { mutedId } = req.params;
+    // Express 5 types every path param `string | string[]`; a non-string is
+    // treated as ABSENT (the 400 below) rather than coerced.
+    const mutedId = typeof req.params.mutedId === 'string' ? req.params.mutedId : undefined;
 
     if (!userId) {
       return res.status(401).json({ message: 'Unauthorized' });
@@ -100,7 +132,10 @@ router.delete('/:mutedId', async (req: AuthRequest, res: Response) => {
     }
 
     // Delete mute record
-    const result = await Mute.findOneAndDelete({ userId, mutedId });
+    const [result] = await getDb()
+      .delete(mutes)
+      .where(and(eq(mutes.userId, userId), eq(mutes.mutedId, mutedId)))
+      .returning({ id: mutes.id });
 
     if (!result) {
       return res.status(404).json({ message: 'Mute not found' });
@@ -132,13 +167,19 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const mutes = await Mute.find({ userId })
-      .sort({ createdAt: -1 })
-      .lean();
+    // Newest first, with the primary key as the tiebreak. `created_at` is not
+    // unique, and this list has no cursor to lose a tied row across — the
+    // tiebreak is here so two mutes made in the same millisecond come back in a
+    // stable order rather than whichever the planner happened to emit.
+    const rows = await getDb()
+      .select()
+      .from(mutes)
+      .where(eq(mutes.userId, userId))
+      .orderBy(desc(mutes.createdAt), desc(mutes.id));
 
     res.json({
-      mutes,
-      count: mutes.length
+      mutes: rows.map(serializeMute),
+      count: rows.length
     });
   } catch (error) {
     logger.error('Error fetching muted users:', { userId: req.user?.id, error });
@@ -156,7 +197,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 router.get('/check/:userId', async (req: AuthRequest, res: Response) => {
   try {
     const currentUserId = req.user?.id;
-    const { userId } = req.params;
+    const userId = typeof req.params.userId === 'string' ? req.params.userId : undefined;
 
     if (!currentUserId) {
       return res.status(401).json({ message: 'Unauthorized' });
@@ -166,10 +207,11 @@ router.get('/check/:userId', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'userId is required' });
     }
 
-    const mute = await Mute.findOne({
-      userId: currentUserId,
-      mutedId: userId
-    });
+    const [mute] = await getDb()
+      .select({ id: mutes.id })
+      .from(mutes)
+      .where(and(eq(mutes.userId, currentUserId), eq(mutes.mutedId, userId)))
+      .limit(1);
 
     res.json({
       isMuted: !!mute

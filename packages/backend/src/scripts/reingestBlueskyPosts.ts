@@ -42,7 +42,7 @@
  * HOW EACH PATH RE-FETCHES + RE-MAPS + DIFFS
  *   Both paths re-derive the SAME storable fields fresh ingest would produce, then
  *   compare them against what is stored and WRITE ONLY the fields that actually
- *   changed (`Post.updateOne` with a minimal `$set`/`$unset`). A post whose fresh
+ *   changed (targeted column writes plus one content replace). A post whose fresh
  *   mapping equals its stored state is left untouched — no `updatedAt` churn, no
  *   spurious "edited" state. The repair is deliberately non-destructive: it never
  *   blanks a body, never drops media, and never deletes a content-bearing post
@@ -90,12 +90,23 @@
  */
 
 import mongoose from 'mongoose';
-import { PostType, type MediaItem, type PostContentVariant } from '@mention/shared-types';
-import { Post } from '../models/Post';
-import FederatedActor from '../models/FederatedActor';
+import {
+  PostType,
+  type MediaItem,
+  type StoredPostContent,
+} from '@mention/shared-types';
+import { and, asc, count, eq, gt, ilike, ne, or, type SQL } from 'drizzle-orm';
+import { connectPostgres, getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
+import {
+  findPostRecords,
+  replacePostContent,
+  updatePostRecord,
+} from '../db/posts/postRepository';
+import type { PostRecord } from '../db/posts/postRecord';
+import { findActorByUri } from '../db/federation/actorRepository';
 import { logger } from '../utils/logger';
 import { normalizePostHashtags } from '../utils/textProcessing';
-import type { ExtractedMediaAttachment } from '../connectors/shared/federatedMedia';
 import { buildFederatedNoteContentForEdit } from '../connectors/activitypub/apPostContent';
 import { applyMentionPlaceholders, resolveInboundMentionsExisting } from '../connectors/activitypub/apMentions';
 import { signedFetch } from '../connectors/activitypub/helpers';
@@ -110,7 +121,7 @@ import {
   closeAdminScriptResources,
 } from './lib/adminScriptLifecycle';
 
-/** Posts scanned per page (stable `_id` cursor pagination). */
+/** Posts scanned per page (stable ascending `id` cursor pagination). */
 const PAGE_SIZE = 500;
 
 /**
@@ -124,10 +135,10 @@ const REPAIR_TIMEOUT_MS = 45_000;
 const GONE_STATUS_CODES = new Set([404, 410]);
 
 /** A brid.gy-hosted federation URL (the AP object / actor lives on `bsky.brid.gy`). */
-const BRIDGY_HOST_RE = /bsky\.brid\.gy/i;
+const BRIDGY_HOST = 'bsky.brid.gy';
 
-/** A bare atproto AT-URI (`at://<authority>/<collection>/<rkey>`) `federation.activityId`. */
-const AT_URI_PREFIX_RE = /^at:\/\//i;
+/** A bare atproto AT-URI (`at://<authority>/<collection>/<rkey>`) activity id. */
+const AT_URI_PREFIX = 'at://';
 
 /** Which ingest path(s) a run repairs. */
 type RepairPath = 'atproto' | 'bridgy' | 'all';
@@ -144,35 +155,7 @@ interface Flags {
 }
 
 /** The lean Post fields the repair reads for both paths. */
-interface StoredPostRow {
-  _id: mongoose.Types.ObjectId;
-  oxyUserId?: string | null;
-  type?: string;
-  hashtags?: string[];
-  mentions?: string[];
-  parentPostId?: string | null;
-  threadId?: string | null;
-  quoteOf?: string | null;
-  content?: {
-    variants?: PostContentVariant[];
-    media?: MediaItem[];
-    attachments?: ExtractedMediaAttachment[];
-  } | null;
-  federation?: {
-    activityId?: string;
-    actorUri?: string;
-    url?: string;
-    sensitive?: boolean;
-    spoilerText?: string;
-  } | null;
-}
-
-/** The lean `FederatedActor` fields the handle repair reads. */
-interface FederatedActorRow {
-  acct: string;
-  username: string;
-  domain: string;
-}
+type StoredPostRow = PostRecord;
 
 interface Counters {
   scanned: number;
@@ -190,22 +173,6 @@ interface ActorCounters {
   missing: number;
   failed: number;
 }
-
-/** The projection shared by both path scans. */
-const POST_PROJECTION: Record<string, 1> = {
-  _id: 1,
-  oxyUserId: 1,
-  type: 1,
-  hashtags: 1,
-  mentions: 1,
-  parentPostId: 1,
-  threadId: 1,
-  quoteOf: 1,
-  'content.variants': 1,
-  'content.media': 1,
-  'content.attachments': 1,
-  federation: 1,
-};
 
 // --- argv parsing (plain, mirrors reingestEmptyFederatedPosts) ---------------
 
@@ -354,38 +321,41 @@ async function repairBridgyPost(post: StoredPostRow, flags: Flags): Promise<Repa
     materializeMedia: !flags.dryRun,
   });
 
-  const setOps: Record<string, unknown> = {};
   const changedFields: string[] = [];
+  const content: StoredPostContent = { ...post.content };
+  let nextType = post.type;
+  let nextHashtags = post.hashtags;
+  let nextMentions = post.mentions;
 
   // Body: repair the variant text only (tags/source preserved).
-  const repairedVariants = repairVariantText(built.variants.map((v) => v.text), post.content?.variants);
+  const repairedVariants = repairVariantText(built.variants.map((v) => v.text), post.content.variants);
   if (repairedVariants) {
-    setOps['content.variants'] = repairedVariants;
+    content.variants = repairedVariants;
     changedFields.push('content.variants');
   }
 
   // Media: additive/reclassify only. Recover images the old check dropped, or a
   // reclassified item — but never DROP media in a repair (a fresh empty set on a
   // post that has media is treated as an upstream edit, out of scope here).
-  if (built.media.length > 0 && mediaSignature(built.media) !== mediaSignature(post.content?.media)) {
-    setOps['content.media'] = built.media;
-    setOps['content.attachments'] = built.attachments;
+  if (built.media.length > 0 && mediaSignature(built.media) !== mediaSignature(post.content.media)) {
+    content.media = built.media;
+    content.attachments = built.attachments;
     changedFields.push('content.media');
     const derivedType = postTypeFromMedia(built.media);
     if (post.type !== derivedType) {
-      setOps.type = derivedType;
+      nextType = derivedType;
       changedFields.push('type');
     }
   }
 
   // Hashtags + mentions: the fresh extraction is authoritative (a fixed anchor now
   // yields a real `#tag` / a resolved `[mention:<id>]`).
-  if (!sortedStringArrayEqual(built.hashtags, post.hashtags ?? [])) {
-    setOps.hashtags = built.hashtags;
+  if (!sortedStringArrayEqual(built.hashtags, post.hashtags)) {
+    nextHashtags = built.hashtags;
     changedFields.push('hashtags');
   }
-  if (!sortedStringArrayEqual(mentionResult.ids, post.mentions ?? [])) {
-    setOps.mentions = mentionResult.ids;
+  if (!sortedStringArrayEqual(mentionResult.ids, post.mentions)) {
+    nextMentions = mentionResult.ids;
     changedFields.push('mentions');
   }
 
@@ -396,7 +366,12 @@ async function repairBridgyPost(post: StoredPostRow, flags: Flags): Promise<Repa
     changedFieldCount: changedFields.length,
   });
   if (!flags.dryRun) {
-    await Post.updateOne({ _id: post._id }, { $set: setOps });
+    await applyPostRepair(post, {
+      content,
+      type: nextType,
+      hashtags: nextHashtags,
+      mentions: nextMentions,
+    });
   }
   return 'repaired';
 }
@@ -430,20 +405,23 @@ async function repairAtprotoPost(post: StoredPostRow, flags: Flags): Promise<Rep
   );
   const freshMentions = result.post.mentions ?? [];
 
-  const setOps: Record<string, unknown> = {};
   const changedFields: string[] = [];
+  const content: StoredPostContent = { ...post.content };
+  let nextHashtags = post.hashtags;
+  let nextMentions = post.mentions;
+  const links: { parentPostId?: string; threadId?: string; quoteOf?: string } = {};
 
-  const repairedVariants = repairVariantText([targetText], post.content?.variants);
+  const repairedVariants = repairVariantText([targetText], post.content.variants);
   if (repairedVariants) {
-    setOps['content.variants'] = repairedVariants;
+    content.variants = repairedVariants;
     changedFields.push('content.variants');
   }
-  if (!sortedStringArrayEqual(targetHashtags, post.hashtags ?? [])) {
-    setOps.hashtags = targetHashtags;
+  if (!sortedStringArrayEqual(targetHashtags, post.hashtags)) {
+    nextHashtags = targetHashtags;
     changedFields.push('hashtags');
   }
-  if (!sortedStringArrayEqual(freshMentions, post.mentions ?? [])) {
-    setOps.mentions = freshMentions;
+  if (!sortedStringArrayEqual(freshMentions, post.mentions)) {
+    nextMentions = freshMentions;
     changedFields.push('mentions');
   }
 
@@ -452,15 +430,15 @@ async function repairAtprotoPost(post: StoredPostRow, flags: Flags): Promise<Rep
   // Never null-out an existing link on a transient miss.
   const { parentPostId, threadId, quoteOf } = result.links;
   if (parentPostId && parentPostId !== (post.parentPostId ?? undefined)) {
-    setOps.parentPostId = parentPostId;
+    links.parentPostId = parentPostId;
     changedFields.push('parentPostId');
     if (threadId && threadId !== (post.threadId ?? undefined)) {
-      setOps.threadId = threadId;
+      links.threadId = threadId;
       changedFields.push('threadId');
     }
   }
   if (quoteOf && quoteOf !== (post.quoteOf ?? undefined)) {
-    setOps.quoteOf = quoteOf;
+    links.quoteOf = quoteOf;
     changedFields.push('quoteOf');
   }
 
@@ -471,7 +449,12 @@ async function repairAtprotoPost(post: StoredPostRow, flags: Flags): Promise<Rep
     changedFieldCount: changedFields.length,
   });
   if (!flags.dryRun) {
-    await Post.updateOne({ _id: post._id }, { $set: setOps });
+    await applyPostRepair(post, {
+      content,
+      hashtags: nextHashtags,
+      mentions: nextMentions,
+      links,
+    });
   }
   return 'repaired';
 }
@@ -496,9 +479,7 @@ async function repairActorHandles(
 ): Promise<void> {
   for (const did of dids) {
     counters.scanned += 1;
-    const actor = await FederatedActor.findOne({ uri: did }, { acct: 1, username: 1, domain: 1 }).lean<
-      FederatedActorRow | null
-    >();
+    const actor = await findActorByUri(did);
     if (!actor || !actor.acct) {
       counters.missing += 1;
       continue;
@@ -527,23 +508,60 @@ async function repairActorHandles(
 // --- scan driver -------------------------------------------------------------
 
 /** Build the base Mongo filter for one path (plus the optional single-actor scope). */
-function buildFilter(path: 'bridgy' | 'atproto', actor: string | undefined): Record<string, unknown> {
-  const filter: Record<string, unknown> =
-    path === 'bridgy'
-      ? {
-          type: { $ne: PostType.BOOST },
-          $or: [
-            { 'federation.actorUri': { $regex: BRIDGY_HOST_RE } },
-            { 'federation.activityId': { $regex: BRIDGY_HOST_RE } },
-            { 'federation.url': { $regex: BRIDGY_HOST_RE } },
-          ],
-        }
-      : {
-          type: { $ne: PostType.BOOST },
-          'federation.activityId': { $regex: AT_URI_PREFIX_RE },
-        };
-  if (actor) filter['federation.actorUri'] = actor;
-  return filter;
+function buildFilter(path: 'bridgy' | 'atproto', actor: string | undefined): SQL {
+  // `ILIKE` with the same literals the regexes match, which is exact here because
+  // both patterns are plain substrings — no metacharacter but the escaped `.`,
+  // which `ILIKE` treats literally anyway. `AT_URI_PREFIX_RE` is anchored, so its
+  // `ILIKE` has no leading `%`.
+  const conditions: SQL[] = [ne(posts.type, PostType.BOOST)];
+  if (path === 'bridgy') {
+    conditions.push(
+      or(
+        ilike(posts.federationActorUri, `%${BRIDGY_HOST}%`),
+        ilike(posts.federationActivityId, `%${BRIDGY_HOST}%`),
+        ilike(posts.federationUrl, `%${BRIDGY_HOST}%`),
+      ) as SQL,
+    );
+  } else {
+    conditions.push(ilike(posts.federationActivityId, `${AT_URI_PREFIX}%`));
+  }
+  if (actor) conditions.push(eq(posts.federationActorUri, actor));
+  return and(...conditions) as SQL;
+}
+
+/**
+ * Persist one repair.
+ *
+ * Content goes through `replacePostContent` — the child tables carry a dense
+ * `UNIQUE (post_id, position)`, so a reordering repair collides with itself
+ * mid-update unless the old rows are gone first. The scalar columns are a
+ * separate, ordinary update.
+ *
+ * `is_reply` is deliberately NOT touched when a `parentPostId` link is attached:
+ * the row already carried `federation.inReplyTo` at insert, so the discriminator
+ * was stamped then. This pass attaches the LOCAL link the original ingest could
+ * not resolve; it does not change what the post was written as.
+ */
+async function applyPostRepair(
+  post: StoredPostRow,
+  patch: {
+    content: StoredPostContent;
+    type?: PostType;
+    hashtags: string[];
+    mentions: string[];
+    links?: { parentPostId?: string; threadId?: string; quoteOf?: string };
+  },
+): Promise<void> {
+  await updatePostRecord(post.id, { hashtags: patch.hashtags });
+  const scalars: Record<string, unknown> = {};
+  if (patch.type !== undefined && patch.type !== post.type) scalars.type = patch.type;
+  if (patch.links?.parentPostId) scalars.parentPostId = patch.links.parentPostId;
+  if (patch.links?.threadId) scalars.threadId = patch.links.threadId;
+  if (patch.links?.quoteOf) scalars.quoteOf = patch.links.quoteOf;
+  if (Object.keys(scalars).length > 0) {
+    await getDb().update(posts).set(scalars).where(eq(posts.id, post.id));
+  }
+  await replacePostContent(post.id, patch.content, patch.mentions);
 }
 
 /** A mutable budget shared across both path scans (the `--limit` canary cap). */
@@ -587,7 +605,8 @@ async function scanPath(
   atprotoDids: Set<string>,
 ): Promise<void> {
   const baseFilter = buildFilter(path, flags.actor);
-  const total = await Post.countDocuments(baseFilter);
+  const [totals] = await getDb().select({ count: count() }).from(posts).where(baseFilter);
+  const total = totals?.count ?? 0;
   logger.info('[reingestBlueskyPosts] candidate posts selected', {
     sourceKind: path,
     count: total,
@@ -596,20 +615,17 @@ async function scanPath(
   if (total === 0) return;
 
   const repair = path === 'bridgy' ? repairBridgyPost : repairAtprotoPost;
-  let lastId: mongoose.Types.ObjectId | null = null;
+  let lastId: string | null = null;
 
   for (;;) {
     if (budget.remaining !== undefined && budget.remaining <= 0) break;
 
-    const pageFilter: Record<string, unknown> = { ...baseFilter };
-    if (lastId) pageFilter._id = { $gt: lastId };
-
     const pageLimit =
       budget.remaining !== undefined ? Math.min(PAGE_SIZE, budget.remaining) : PAGE_SIZE;
-    const page = await Post.find(pageFilter, POST_PROJECTION)
-      .sort({ _id: 1 })
-      .limit(pageLimit)
-      .lean<StoredPostRow[]>();
+    const page: StoredPostRow[] = await findPostRecords(
+      lastId ? and(baseFilter, gt(posts.id, lastId)) : baseFilter,
+      { orderBy: [asc(posts.id)], limit: pageLimit },
+    );
     if (page.length === 0) break;
 
     // The page is already sliced to at most the remaining budget (`pageLimit`), so
@@ -676,7 +692,7 @@ async function scanPath(
       }
     }
 
-    lastId = page[page.length - 1]._id;
+    lastId = page[page.length - 1].id;
     logger.info(
       `[reingestBlueskyPosts] ${path} progress: scanned ${counters.scanned}, repaired ${counters.repaired}, ` +
         `unchanged ${counters.unchanged}, gone ${counters.gone}, fetchFailed ${counters.fetchFailed}, skipped ${counters.skipped}`,
@@ -703,7 +719,10 @@ async function reingestBlueskyPosts(): Promise<void> {
       scriptName: 'reingestBlueskyPosts',
       dryRun: flags.dryRun,
     });
-    await mongoose.connect(mongoUri, { dbName });
+    // BOTH stores. This script reads and writes `posts` directly through
+    // `getDb()`, and `closeAdminScriptResources` was already closing a pool it
+    // never opened — so every page died on "PostgreSQL is not connected".
+    await Promise.all([mongoose.connect(mongoUri, { dbName }), connectPostgres()]);
     logger.info('[reingestBlueskyPosts] connected to MongoDB', {
       dryRun: flags.dryRun,
       sourceKind: flags.path,

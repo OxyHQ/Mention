@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { MtnConfig } from '@mention/shared-types';
-import mongoose from 'mongoose';
+import type { PostStats } from '@mention/shared-types';
 import {
   runFeedQualityEval,
   buildClassifyInput,
@@ -28,6 +28,7 @@ import {
 import type { CandidatePost, FeedEngineContext } from '../mtn/feed/engine/types';
 import type { RankablePost } from '../services/ranking/signalContext';
 import type { FilterModule } from '../mtn/feed/engine/types';
+import { feedCandidate, postStats } from './fixtures/feedCandidate';
 
 /**
  * PHASE 7 — offline feed-quality eval harness.
@@ -43,16 +44,12 @@ const GATE = MtnConfig.feed.discoveryGate;
 const OLD = new Date(Date.now() - GATE.freshnessGraceMs - 60 * 60 * 1000); // outside the freshness grace
 const NOW = new Date();
 
-const oid = (n: number): mongoose.Types.ObjectId =>
-  new mongoose.Types.ObjectId(`5e${n.toString().padStart(22, '0')}`);
+/** A pre-cutover ObjectId-hex id; ids are plain `text` now, never an ObjectId. */
+const postId = (n: number): string => `5e${n.toString().padStart(22, '0')}`;
 
-/**
- * Build a lean candidate post typed as `CandidatePost`. Extras are funneled
- * through `Record<string, unknown>` (as the engine's own test `makePost` does), so
- * fields like `federation` are index-typed and assign cleanly to `CandidatePost`.
- */
-function leanPost(n: number, extra: Record<string, unknown> = {}): CandidatePost {
-  return { _id: oid(n), ...extra };
+/** A candidate post — a WHOLE `PostRecord`, with the case's own fields on top. */
+function leanPost(n: number, overrides: Partial<CandidatePost> = {}): CandidatePost {
+  return feedCandidate({ id: postId(n), ...overrides });
 }
 
 /** Build the exact For You gate modules from the real filter modules (no registry needed). */
@@ -87,7 +84,7 @@ interface FixtureSpec {
   acct?: string;
   actorType?: string;
   domain?: string;
-  stats?: Record<string, number>;
+  stats?: Partial<PostStats>;
   createdAt: Date;
   federated: boolean;
   hasImage?: boolean;
@@ -103,7 +100,7 @@ function makeCandidate(spec: FixtureSpec): EvalCandidate {
           media: [{ type: 'image', id: 'img-1' }],
         }
       : { variants: [{ source: 'author', text: spec.text }] },
-    stats: spec.stats ?? { likesCount: 0, commentsCount: 0, boostsCount: 0, federatedBoostsCount: 0 },
+    stats: postStats(spec.stats),
     hashtags: [],
     ...(spec.federated ? { federation: { actorUri: `https://${spec.domain}/users/u${spec.n}` } } : {}),
   });
@@ -210,13 +207,13 @@ describe('runFeedQualityEval', () => {
 
     const rowsById = new Map(report.rows.map((r) => [r.id, r]));
     for (const n of [1, 2, 3, 4, 5]) {
-      const row = rowsById.get(oid(n).toString());
+      const row = rowsById.get(postId(n));
       expect(row?.label).toBe('junk');
       expect(row?.gated).toBe(true);
       expect(row?.gateReason).toBeDefined();
     }
 
-    const good = rowsById.get(oid(9).toString());
+    const good = rowsById.get(postId(9));
     expect(good?.label).toBe('good');
     expect(good?.gated).toBe(false);
   });
@@ -246,10 +243,10 @@ describe('runFeedQualityEval', () => {
     const report = await runFixtureEval();
     const rowsById = new Map(report.rows.map((r) => [r.id, r]));
 
-    expect(rowsById.get(oid(1).toString())?.gateReason).toBe('lowEffortGate');
+    expect(rowsById.get(postId(1))?.gateReason).toBe('lowEffortGate');
     // German / French off-language posts fail the native-engagement floor.
     for (const n of [3, 4, 5]) {
-      expect(rowsById.get(oid(n).toString())?.gateReason).toBe('nativeEngagement');
+      expect(rowsById.get(postId(n))?.gateReason).toBe('nativeEngagement');
     }
   });
 
@@ -306,7 +303,7 @@ describe('assembleCandidates', () => {
   const post = (n: number, federation?: { actorUri: string }): CandidatePost =>
     leanPost(n, { oxyUserId: `a${n}`, ...(federation ? { federation } : {}) });
 
-  it('dedupes by _id with the labeled copy winning over random/forYou', () => {
+  it('dedupes by id with the labeled copy winning over random/forYou', () => {
     const labeled = [{ label: 'junk' as const, reason: 'r', acct: 'x@y', post: post(1), actor: undefined }];
     const merged = assembleCandidates(
       labeled,
@@ -314,11 +311,11 @@ describe('assembleCandidates', () => {
       [post(3)],
       new Map([['https://y/users/2', { uri: 'https://y/users/2', acct: 'two@y', domain: 'y', type: 'Person' }]]),
     );
-    const byId = new Map(merged.map((c) => [String(c.post._id), c]));
-    expect(byId.get(oid(1).toString())?.source).toBe('labeled');
-    expect(byId.get(oid(2).toString())?.source).toBe('random');
-    expect(byId.get(oid(2).toString())?.actor?.acct).toBe('two@y');
-    expect(byId.get(oid(3).toString())?.source).toBe('forYou');
+    const byId = new Map(merged.map((c) => [c.post.id, c]));
+    expect(byId.get(postId(1))?.source).toBe('labeled');
+    expect(byId.get(postId(2))?.source).toBe('random');
+    expect(byId.get(postId(2))?.actor?.acct).toBe('two@y');
+    expect(byId.get(postId(3))?.source).toBe('forYou');
     expect(merged).toHaveLength(3);
   });
 });
@@ -400,7 +397,7 @@ describe('resolveLabeledPosts', () => {
 
   it('resolves a postId entry directly and attaches its actor', async () => {
     const resolved = await resolveLabeledPosts(
-      [{ label: 'good', reason: 'quality', postId: oid(7).toString() }],
+      [{ label: 'good', reason: 'quality', postId: postId(7) }],
       deps({
         findPostById: async () => leanPost(7, { federation: { actorUri: actor.uri } }),
       }),

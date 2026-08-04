@@ -10,6 +10,8 @@ import { config, validateEnvironment } from './src/config';
 import { isAllowedOrigin } from "./src/utils/allowedOrigins";
 import { assertMigrationsApplied, runMigrations } from "./src/migrations/runner";
 import { assertMongoTransactionalTopology } from "./src/utils/mongoTopology";
+import { closePostgres, connectPostgres, getPostgresClient } from "./src/db/postgres";
+import { assertPostgresMigrationsCurrent } from "./src/db/migrationLedger";
 import { leaderElection } from "./src/services/LeaderElection";
 import {
   markMigrationsComplete,
@@ -40,7 +42,10 @@ import { resolveNotificationInboxIds } from './src/services/notificationInbox';
 import { createUserScopedOxyServices } from './src/utils/oxyHelpers';
 
 // Models
-import Notification from "./src/models/Notification";
+import {
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "./src/services/notificationReadState";
 import {
   clearRuntimeSocketServer,
   setRuntimeSocketServer,
@@ -345,11 +350,15 @@ notificationsNamespace.on("connection", (socket: AuthenticatedSocket) => {
   socket.on("markNotificationRead", socketRateLimiter.wrap(socket, 'markNotificationRead', async ({ notificationId }: { notificationId?: string }) => {
     try {
       if (!socket.user?.id) return;
-      const notification = await Notification.findOneAndUpdate(
-        { _id: notificationId, recipientId: userId },
-        { read: true },
-        { new: true }
-      ).populate("actorId", "username name avatar");
+      if (!notificationId) return;
+      // Postgres, through the SAME helper the REST route uses. This used to
+      // write the Mongoose model, which nothing has read since notifications
+      // moved — so a notification marked read over the socket came back unread
+      // on the next load, for every user, with nothing in any log.
+      // `[userId]` — the narrowing the block comment above argues for, spelled
+      // out. The signature takes the recipient SCOPE so this stays a decision
+      // somebody made rather than a default nobody noticed.
+      const notification = await markNotificationRead([userId], notificationId);
       if (notification) {
         notificationsNamespace
           .to(userRoom)
@@ -363,7 +372,7 @@ notificationsNamespace.on("connection", (socket: AuthenticatedSocket) => {
   socket.on("markAllNotificationsRead", socketRateLimiter.wrap(socket, 'markAllNotificationsRead', async () => {
     try {
       if (!socket.user?.id) return;
-      await Notification.updateMany({ recipientId: userId }, { read: true });
+      await markAllNotificationsRead([userId]);
       notificationsNamespace.to(userRoom).emit("allNotificationsRead");
     } catch (error) {
       logger.error("Error marking all notifications as read", error);
@@ -554,7 +563,6 @@ db.once("open", () => {
 
   // Load models
   require("./src/models/Post");
-  require("./src/models/UserBehavior"); // Load UserBehavior model
 });
 
 /**
@@ -729,6 +737,11 @@ const bootServer = async () => {
   validateEnvironment();
   markRuntimeNotReady('booting');
   await connectToDatabase();
+  // Both stores open before anything can be asked to serve. `getDb()` throws
+  // until this resolves, and the port has moved most reads onto Postgres — a
+  // task that skipped this would answer the health check and then fail every
+  // query that is no longer Mongo's.
+  await connectPostgres();
 
   // Production migrations run as a deployment one-shot with the exact image
   // that will be rolled out. Web tasks never mutate schema during a scale-out;
@@ -736,9 +749,18 @@ const bootServer = async () => {
   // is the primary topology barrier; this startup check is defense in depth if
   // a task is launched outside the normal deployment workflow. It is not run in
   // the readiness endpoint, avoiding a Mongo command on every health probe.
+  //
+  // The Postgres half is the same posture against the same failure, and it is
+  // load-bearing during the cutover rather than defence in depth: the drizzle
+  // migrations are applied by the deploy's one-shot, and a task that boots
+  // against a database that one-shot never reached becomes ready and then
+  // fails every Postgres query — after traffic has been routed to it. Outside
+  // production the migrator is a developer command (`bun run db:migrate`), so
+  // there is nothing here to assert against.
   if (config.runtime.isProduction) {
     await assertMongoTransactionalTopology();
     await assertMigrationsApplied();
+    await assertPostgresMigrationsCurrent(getPostgresClient());
   } else {
     await runMigrations();
   }
@@ -884,10 +906,11 @@ const gracefulShutdown = (signal: string): void => {
       pubSubShutdown(),
       closeRedisConnection(),
       mongoose.disconnect(),
+      closePostgres(),
     ]);
 
     clearTimeout(hardTimeout);
-    logger.info('HTTP, sockets, queues, Redis, and MongoDB closed');
+    logger.info('HTTP, sockets, queues, Redis, MongoDB and PostgreSQL closed');
     process.exit(0);
   })();
 };

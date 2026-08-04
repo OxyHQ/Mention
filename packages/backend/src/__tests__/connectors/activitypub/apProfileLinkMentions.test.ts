@@ -30,7 +30,8 @@ const mocks = vi.hoisted(() => ({
   getOrFetchActor: vi.fn(),
   isBlockedDomain: vi.fn((_host: string) => false),
   resolveOxyUser: vi.fn(),
-  findExistingActor: vi.fn(),
+  findActorByUri: vi.fn(),
+  findActorByAcct: vi.fn(),
 }));
 
 vi.mock('../../../connectors/activitypub/actor.service', () => ({
@@ -40,8 +41,15 @@ vi.mock('../../../connectors/activitypub/constants', () => ({
   isBlockedDomain: mocks.isBlockedDomain,
   resolveOxyUser: mocks.resolveOxyUser,
 }));
-vi.mock('../../../models/FederatedActor', () => ({
-  default: { findOne: mocks.findExistingActor },
+/**
+ * The stored-actor lookup is TWO indexed point reads now — `uri` first, `acct`
+ * only if that missed — rather than one `$or` over two unique keys. That shape
+ * is what the counting assertion below keys on: one URI read per profile link,
+ * which is the bound the ceiling exists to enforce.
+ */
+vi.mock('../../../db/federation/actorRepository', () => ({
+  findActorByUri: mocks.findActorByUri,
+  findActorByAcct: mocks.findActorByAcct,
 }));
 vi.mock('../../../utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -85,29 +93,25 @@ const SHARKEY_NOTE = {
  * by actor `uri` (the `/users/<id>` shape) and by `acct` (the `/@<user>` shape).
  */
 function stubStoredActors(rows: { uri?: Record<string, string>; acct?: Record<string, string> }): void {
-  mocks.findExistingActor.mockImplementation(
-    (filter: { uri?: string; $or?: Array<{ uri?: string; acct?: string }> }) => ({
-      lean: async () => {
-        const clauses = filter.$or ?? [filter];
-        for (const clause of clauses) {
-          const byUri = clause.uri ? rows.uri?.[clause.uri] : undefined;
-          if (byUri) return { oxyUserId: byUri };
-          const byAcct = clause.acct ? rows.acct?.[clause.acct] : undefined;
-          if (byAcct) return { oxyUserId: byAcct };
-        }
-        return null;
-      },
-    }),
-  );
+  mocks.findActorByUri.mockImplementation(async (uri: string) => {
+    const oxyUserId = rows.uri?.[uri];
+    return oxyUserId ? { oxyUserId } : null;
+  });
+  mocks.findActorByAcct.mockImplementation(async (acct: string) => {
+    const oxyUserId = rows.acct?.[acct];
+    return oxyUserId ? { oxyUserId } : null;
+  });
 }
 
 beforeEach(() => {
   mocks.getOrFetchActor.mockReset();
-  mocks.findExistingActor.mockReset();
+  mocks.findActorByUri.mockReset();
+  mocks.findActorByAcct.mockReset();
   mocks.resolveOxyUser.mockReset();
   mocks.isBlockedDomain.mockReset();
   mocks.isBlockedDomain.mockReturnValue(false);
-  mocks.findExistingActor.mockReturnValue({ lean: async () => null });
+  mocks.findActorByUri.mockResolvedValue(null);
+  mocks.findActorByAcct.mockResolvedValue(null);
   mocks.getOrFetchActor.mockResolvedValue(null);
 });
 
@@ -236,7 +240,7 @@ describe('a bare profile link with no Mention tag', () => {
     const resolved = await resolveInboundMentions(object);
     expect(resolved.ids).toEqual([]);
     // Neither href has a profile shape, so nothing is even looked up.
-    expect(mocks.findExistingActor).not.toHaveBeenCalled();
+    expect(mocks.findActorByUri).not.toHaveBeenCalled();
     expect(applyMentionPlaceholders(object, resolved.anchorMap).content).toBe(object.content);
   });
 
@@ -266,7 +270,9 @@ describe('a bare profile link with no Mention tag', () => {
 
     await resolveInboundMentions({ type: 'Note', content: `<p>${links}</p>` });
 
-    expect(mocks.findExistingActor).toHaveBeenCalledTimes(8);
+    // ONE uri read per resolved link, capped at the ceiling — the acct read is a
+    // fallback for the links the first missed and is not the bound.
+    expect(mocks.findActorByUri).toHaveBeenCalledTimes(8);
   });
 
   it('does not re-resolve a link a Mention tag already claimed', async () => {
@@ -276,7 +282,7 @@ describe('a bare profile link with no Mention tag', () => {
     await resolveInboundMentions(SHARKEY_NOTE);
 
     // Both anchors are claimed by their (resolved) tags — no profile-link lookups.
-    expect(mocks.findExistingActor).not.toHaveBeenCalled();
+    expect(mocks.findActorByUri).not.toHaveBeenCalled();
   });
 
   it('resolves on the lookup-only repair path too', async () => {

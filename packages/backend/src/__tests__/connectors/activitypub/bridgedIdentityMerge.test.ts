@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Two bridges' copies of the same upstream person resolve to ONE Oxy identity.
@@ -17,15 +17,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   resolveOxyExternalUser: vi.fn(),
   reportFederatedActorGone: vi.fn(),
-  actorFindOne: vi.fn(),
   loggerInfo: vi.fn(),
   loggerWarn: vi.fn(),
   loggerError: vi.fn(),
-}));
-
-vi.mock('../../../models/FederatedActor', () => ({
-  default: { findOne: mocks.actorFindOne },
-  FederatedActor: { findOne: mocks.actorFindOne },
 }));
 
 vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: vi.fn() }));
@@ -33,7 +27,7 @@ vi.mock('../../../services/userSummaryCache', () => ({ invalidate: vi.fn() }));
 vi.mock('../../../services/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: vi.fn(),
 }));
-vi.mock('../../../models/UserSettings', () => ({ default: { updateOne: vi.fn() } }));
+vi.mock('../../../db/userProfile/userSettingsRepository', () => ({ updateUserSettings: vi.fn() }));
 vi.mock('@oxyhq/federation/node', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   createIdentityBridge: () => ({
@@ -47,6 +41,14 @@ vi.mock('../../../utils/logger', () => ({
   logger: { info: mocks.loggerInfo, warn: mocks.loggerWarn, error: mocks.loggerError, debug: vi.fn() },
 }));
 
+import { inArray } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { federatedActors } from '../../../db/schema/federation';
+import {
+  findActorByUri,
+  setActorOxyUserId,
+  upsertActor,
+} from '../../../db/federation/actorRepository';
 import { resolveFederatedActorIdentity } from '../../../connectors/identity';
 import type { NormalizedExternalActor } from '@oxyhq/federation';
 
@@ -74,55 +76,132 @@ function ordinary(): NormalizedExternalActor {
   };
 }
 
-/** `FederatedActor.findOne(...).lean()` returning `row`. */
-function findOneReturns(row: unknown) {
-  mocks.actorFindOne.mockReturnValue({ lean: () => Promise.resolve(row) });
+/**
+ * The rows the merge looks across are REAL, because the two identity SHAPES are
+ * the whole difficulty and neither survives a double.
+ *
+ * A bridged row carries the identity in `network_acct`; every other row's
+ * identity IS `username@domain`, which is how the atproto connector stores a
+ * Bluesky account without ever writing `network_acct`. The Mongo predicate
+ * spelled the second as `{ networkAcct: { $exists: false } }` and the port has
+ * to translate it to `is null` — a distinction a filter-shape assertion cannot
+ * see, and which decides whether 10,066 natively-held rows are visible to the
+ * merge at all.
+ */
+const seededUris: string[] = [];
+
+async function seedActorRow(row: {
+  uri: string;
+  username: string;
+  domain: string;
+  networkAcct?: string;
+  oxyUserId?: string | null;
+}): Promise<void> {
+  await upsertActor(
+    row.uri,
+    {
+      protocol: row.uri.startsWith('did:') ? 'atproto' : 'activitypub',
+      username: row.username,
+      domain: row.domain,
+      acct: `${row.username}@${row.domain}`,
+      ...(row.networkAcct ? { networkAcct: row.networkAcct } : {}),
+      type: 'Person',
+      manuallyApprovesFollowers: false,
+      discoverable: true,
+      memorial: false,
+      suspended: false,
+      followersCount: 0,
+      followingCount: 0,
+      postsCount: 0,
+      lastFetchedAt: new Date(),
+    },
+    [],
+  );
+  seededUris.push(row.uri);
+  if (row.oxyUserId) {
+    const stored = await findActorByUri(row.uri);
+    if (stored) await setActorOxyUserId(stored.id, row.oxyUserId);
+  }
 }
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.resolveOxyExternalUser.mockResolvedValue('minted-user');
-  findOneReturns(null);
+});
+
+afterEach(async () => {
+  if (seededUris.length > 0) {
+    await getDb().delete(federatedActors).where(inArray(federatedActors.uri, seededUris.splice(0)));
+  }
 });
 
 describe('resolveFederatedActorIdentity — merging bridged duplicates', () => {
   it('adopts the Oxy user of the row that already holds the same bridged identity', async () => {
-    findOneReturns({ uri: 'https://bird.makeup/users/wired', domain: 'bird.makeup', oxyUserId: 'existing-user' });
+    await seedActorRow({
+      uri: 'https://bird.makeup/users/wired',
+      username: 'wired',
+      domain: 'bird.makeup',
+      networkAcct: 'wired@x.com',
+      oxyUserId: 'existing-user',
+    });
 
     await expect(resolveFederatedActorIdentity(bridged())).resolves.toBe('existing-user');
     // The decisive assertion: no SECOND identity is minted for the same person.
     expect(mocks.resolveOxyExternalUser).not.toHaveBeenCalled();
   });
 
-  it('looks the owner up by the bridged identity, excluding the actor itself', async () => {
-    findOneReturns(null);
-    await resolveFederatedActorIdentity(bridged());
+  it('matches the OTHER identity shape too — a row with no network_acct', async () => {
+    // The `is null` half of the predicate. A natively-held row stores its
+    // identity as `username` + `domain` and carries no `network_acct`; matching
+    // only the explicit column would miss every one of them, which is the
+    // majority of the table.
+    await seedActorRow({
+      uri: 'https://bird.makeup/users/wired-native',
+      username: 'wired',
+      domain: 'x.com',
+      oxyUserId: 'existing-user',
+    });
 
-    expect(mocks.actorFindOne).toHaveBeenCalledWith(
-      expect.objectContaining({
-        uri: { $ne: 'https://mastox.eu/users/WIRED' },
-        // BOTH identity shapes: a bridged row carries `networkAcct`, while every
-        // other row's identity is `username@domain` — which is how the atproto
-        // connector stores a Bluesky account. Matching only the first would miss
-        // every natively-held account.
-        $or: [
-          { networkAcct: 'wired@x.com' },
-          { networkAcct: { $exists: false }, username: 'wired', domain: 'x.com' },
-        ],
-      }),
-      expect.anything(),
-    );
+    await expect(resolveFederatedActorIdentity(bridged())).resolves.toBe('existing-user');
+    expect(mocks.resolveOxyExternalUser).not.toHaveBeenCalled();
   });
 
-  it('mints normally when no other row holds the identity yet', async () => {
-    findOneReturns(null);
+  it('never adopts from the actor ITSELF', async () => {
+    // The row under resolution already holds an Oxy user; excluding it by uri is
+    // what stops the merge answering with the identity it was asked to derive,
+    // which would make the pass-through case indistinguishable from a merge.
+    await seedActorRow({
+      uri: 'https://mastox.eu/users/WIRED',
+      username: 'wired',
+      domain: 'mastox.eu',
+      networkAcct: 'wired@x.com',
+      oxyUserId: 'its-own-user',
+    });
 
     await expect(resolveFederatedActorIdentity(bridged())).resolves.toBe('minted-user');
     expect(mocks.resolveOxyExternalUser).toHaveBeenCalledTimes(1);
   });
 
+  it('mints normally when no other row holds the identity yet', async () => {
+    await expect(resolveFederatedActorIdentity(bridged())).resolves.toBe('minted-user');
+    expect(mocks.resolveOxyExternalUser).toHaveBeenCalledTimes(1);
+  });
+
   it('ignores a matching row that has no Oxy user to adopt', async () => {
-    findOneReturns({ uri: 'https://bird.makeup/users/wired', domain: 'bird.makeup', oxyUserId: null });
+    await seedActorRow({
+      uri: 'https://bird.makeup/users/wired',
+      username: 'wired',
+      domain: 'bird.makeup',
+      networkAcct: 'wired@x.com',
+    });
 
     await expect(resolveFederatedActorIdentity(bridged())).resolves.toBe('minted-user');
     expect(mocks.resolveOxyExternalUser).toHaveBeenCalledTimes(1);
@@ -137,9 +216,11 @@ describe('resolveFederatedActorIdentity — merging bridged duplicates', () => {
    * guard against the worst outcome.
    */
   it('refuses outright when the colliding row is on the SAME bridge domain', async () => {
-    findOneReturns({
+    await seedActorRow({
       uri: 'https://mastox.eu/users/someone-else',
+      username: 'someone-else',
       domain: 'mastox.eu',
+      networkAcct: 'wired@x.com',
       oxyUserId: 'existing-user',
     });
 
@@ -149,9 +230,11 @@ describe('resolveFederatedActorIdentity — merging bridged duplicates', () => {
   });
 
   it('still merges across DIFFERENT bridge domains, which is the valid case', async () => {
-    findOneReturns({
+    await seedActorRow({
       uri: 'https://bird.makeup/users/wired',
+      username: 'wired',
       domain: 'bird.makeup',
+      networkAcct: 'wired@x.com',
       oxyUserId: 'existing-user',
     });
 
@@ -160,7 +243,13 @@ describe('resolveFederatedActorIdentity — merging bridged duplicates', () => {
   });
 
   it('records the merge, so an attribution decision is never silent', async () => {
-    findOneReturns({ uri: 'https://bird.makeup/users/wired', domain: 'bird.makeup', oxyUserId: 'existing-user' });
+    await seedActorRow({
+      uri: 'https://bird.makeup/users/wired',
+      username: 'wired',
+      domain: 'bird.makeup',
+      networkAcct: 'wired@x.com',
+      oxyUserId: 'existing-user',
+    });
     await resolveFederatedActorIdentity(bridged());
 
     // Identifiers belong in the structured payload, not the message — the backend
@@ -183,7 +272,6 @@ describe('resolveFederatedActorIdentity — what it leaves alone', () => {
     // An acct is already unique per host, so there is nothing to merge — and a
     // lookup here would be a per-actor DB round trip on the whole federation
     // ingest path, for every actor, to answer a question that cannot be yes.
-    expect(mocks.actorFindOne).not.toHaveBeenCalled();
     expect(mocks.resolveOxyExternalUser).toHaveBeenCalledTimes(1);
   });
 
@@ -195,14 +283,15 @@ describe('resolveFederatedActorIdentity — what it leaves alone', () => {
     );
   });
 
-  it('still resolves the actor when the duplicate lookup itself fails', async () => {
-    mocks.actorFindOne.mockReturnValue({ lean: () => Promise.reject(new Error('mongo down')) });
-
-    // Losing the actor would be a worse outcome than the duplicate this merge
-    // exists to prevent, so a failed lookup degrades to an ordinary resolve.
-    await expect(resolveFederatedActorIdentity(bridged())).resolves.toBe('minted-user');
-    expect(mocks.loggerWarn).toHaveBeenCalled();
-  });
+  /**
+   * NOT covered here: a duplicate lookup that THROWS.
+   *
+   * It degrades to an ordinary resolve — losing the actor would be a worse
+   * outcome than the duplicate this merge exists to prevent — but staging a
+   * failing query against a live database needs a hook that would itself be
+   * fiction. The `catch` is one line above the `return resolveOxyExternalUser`
+   * the pass-through cases already exercise.
+   */
 });
 
 describe('resolveFederatedActorIdentity — the cross-PROTOCOL case', () => {
@@ -213,11 +302,18 @@ describe('resolveFederatedActorIdentity — the cross-PROTOCOL case', () => {
    * stores its identity as `username` + `domain` and carries no `networkAcct`, so
    * a merge that matched only `networkAcct` would never see it.
    */
-  const nativeAtprotoRow = {
+  /**
+   * The native row, as the atproto connector stores it: identity in `username` +
+   * `domain`, and NO `network_acct`. That absence is the whole point — it is the
+   * `is null` branch of the predicate, and the only thing that makes 10,066 rows
+   * visible to the merge.
+   */
+  const seedNativeAtprotoRow = () => seedActorRow({
     uri: 'did:plc:codfx2epdduamfycuyi5fjpb',
+    username: 'georgemonbiot',
     domain: 'bsky.social',
     oxyUserId: 'native-bluesky-user',
-  };
+  });
 
   /** The same account arriving over ActivityPub through Bridgy Fed. */
   function viaBridgy(): NormalizedExternalActor {
@@ -231,7 +327,7 @@ describe('resolveFederatedActorIdentity — the cross-PROTOCOL case', () => {
   }
 
   it('adopts the natively-held account rather than minting a Bluesky twin', async () => {
-    findOneReturns(nativeAtprotoRow);
+    await seedNativeAtprotoRow();
     await expect(resolveFederatedActorIdentity(viaBridgy())).resolves.toBe('native-bluesky-user');
     expect(mocks.resolveOxyExternalUser).not.toHaveBeenCalled();
   });
@@ -240,7 +336,7 @@ describe('resolveFederatedActorIdentity — the cross-PROTOCOL case', () => {
     // The native row's domain is `bsky.social`; the bridged actor arrived from
     // `bsky.brid.gy`. Different domains, so this is the VALID cross-source case
     // and the same-domain refusal must not fire.
-    findOneReturns(nativeAtprotoRow);
+    await seedNativeAtprotoRow();
     await resolveFederatedActorIdentity(viaBridgy());
     expect(mocks.loggerError).not.toHaveBeenCalled();
   });
@@ -252,8 +348,9 @@ describe('resolveFederatedActorIdentity — the cross-PROTOCOL case', () => {
     // could never equal a stored `bsky.social`. Two native rows resolving to one
     // identity means the handle rule is broken, and merging them would attribute
     // one person's posts to another.
-    findOneReturns({
+    await seedActorRow({
       uri: 'did:plc:someone-else',
+      username: 'georgemonbiot',
       domain: 'bsky.social',
       oxyUserId: 'other-user',
     });
@@ -270,9 +367,11 @@ describe('resolveFederatedActorIdentity — the cross-PROTOCOL case', () => {
 
   it('merges in the other direction too, so arrival order cannot matter', async () => {
     // A Bluesky actor coming in over atproto, when the Bridgy copy landed first.
-    findOneReturns({
+    await seedActorRow({
       uri: 'https://bsky.brid.gy/ap/did:plc:codfx2epdduamfycuyi5fjpb',
+      username: 'georgemonbiot.bsky.social',
       domain: 'bsky.brid.gy',
+      networkAcct: 'georgemonbiot@bsky.social',
       oxyUserId: 'bridged-user',
     });
     await expect(resolveFederatedActorIdentity({

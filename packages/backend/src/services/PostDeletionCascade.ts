@@ -1,19 +1,75 @@
-import mongoose from 'mongoose';
+/**
+ * Everything that has to happen when a `Post` row is deleted, for the LIVE
+ * delete path — the route every user hits, not an administrative sweep.
+ *
+ * ## SEVEN references, not thirteen, and the boundary is the database's
+ *
+ * {@link PostReferenceProbeName} enumerates thirteen ways a row can name a
+ * post. **Six of them are `ON DELETE CASCADE` on `posts.id`** — `polls`,
+ * `articles`, `likes`, `bookmarks`, `post_recent_repliers` and
+ * `engagement_outbox` (plus seven more child tables nothing probes) — so
+ * Postgres removes them inside the same `DELETE` statement that removes the
+ * post. Writing a leg for those would re-implement work the database has
+ * already done, and it would be **permanently untestable**: the residue check
+ * runs after the delete, when the rows are gone either way, so it cannot tell
+ * "my leg ran" from "the FK ran". A leg nothing can ever prove ran is
+ * indistinguishable from a leg that never worked.
+ *
+ * The seven that need explicit handling are exactly the shapes a foreign key
+ * cannot express: polymorphic (`notifications.entity_id`,
+ * `reports.reported_id`, `content_labels.target_id`), URI-keyed rather than
+ * id-keyed (`feed_interactions.post_uri`), a JSON blob
+ * (`federation_delivery_queue.activity_json`), and the two gate tables whose
+ * `post_id` is plain `text()` because a gate is upserted on `post_uri` without
+ * proving the post exists. **Do not "complete" this module by adding the six
+ * back.**
+ *
+ * They are not claimed to the residue check either. Claiming them would make it
+ * re-run six probes on a user-facing route to verify something the schema
+ * guarantees structurally — and an FK that went missing is caught by the
+ * schema/migration parity gate, which is where a schema regression belongs.
+ * They are exported as {@link POST_REFERENCES_REMOVED_BY_DATABASE} so an
+ * administrative caller can acknowledge them under a name that says who did it.
+ *
+ * ## `posts.boost_of` is a SELF-cascade, which is why the CAPTURE comes first
+ *
+ * Deleting a post deletes every boost of it, transitively, because a boost of a
+ * boost cascades from the boost. That is main's whole `collectBoostClosure` /
+ * `MAX_BOOST_CLOSURE` / "boost rows last" machinery performed by one statement,
+ * so none of it is ported. But it means **the boost rows and their `boost_of`
+ * links are gone before any leg here could run**, and those boosts carry
+ * polymorphic references of their own with nothing left to find them by. The
+ * caller therefore captures the closure BEFORE the delete; see
+ * {@link collectDeletionTargets}.
+ *
+ * ## Two tiers: throw for the seven, COUNT for best-effort
+ *
+ * The seven legs run inside the caller's transaction, alongside the `DELETE`
+ * itself, and they THROW. A leg that fails means a row survives that names a
+ * post nobody can load — so the whole transaction rolls back, the post is NOT
+ * deleted, and the 500 the caller answers with is honest and retryable. The
+ * shape this replaces (swallow everything, log the residue) reported a
+ * COMPLETED deletion whose leftovers no retry could ever reach.
+ *
+ * Best-effort work — the replier projection, the surviving-row counters, the
+ * federation tombstone — runs OUTSIDE the transaction, still swallowed, but
+ * every failure increments {@link POST_DELETION_SIDE_EFFECT_FAILED_METRIC}.
+ * **Fail-soft is fine, silent is not.**
+ */
+
+import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { PostType } from '@mention/shared-types';
-import { Post } from '../models/Post';
-import Like from '../models/Like';
-import Bookmark from '../models/Bookmark';
-import Notification from '../models/Notification';
-import Poll from '../models/Poll';
-import Article from '../models/Article';
-import { Postgate } from '../models/Postgate';
-import { Threadgate } from '../models/Threadgate';
-import EngagementOutbox from '../models/EngagementOutbox';
-import ContentLabel from '../models/ContentLabel';
-import { FeedInteraction } from '../models/FeedInteraction';
-import FederationDeliveryQueue from '../models/FederationDeliveryQueue';
-import { PostRecentReplier } from '../models/PostRecentReplier';
+import { getDb, type DatabaseOrTransaction } from '../db/postgres';
+import { posts } from '../db/schema/posts';
+import { deletePostRecord } from '../db/posts/postRepository';
+import type { PostRecord } from '../db/posts/postRecord';
+import { notifications } from '../db/schema/discovery';
+import { contentLabels } from '../db/schema/moderation';
+import { postgates, threadgates } from '../db/schema/gates';
+import { feedInteractions } from '../db/schema/feeds';
+import { deletePendingDeliveriesReferencingObjects } from '../db/federation/deliveryQueueRepository';
 import { logger } from '../utils/logger';
+import { metrics } from '../utils/metrics';
 import {
   collectPostCascadeResidue,
   type PostDeletionTarget,
@@ -21,69 +77,79 @@ import {
 } from '../scripts/lib/adminDeletionPreflight';
 
 /**
- * Everything that has to happen once a `Post` row is gone, for the LIVE delete
- * path — the route every user hits, not an administrative sweep.
+ * Best-effort work after a COMMITTED deletion that did not complete.
  *
- * The reference list this works from is the one
- * {@link PostReferenceProbeName} already enumerates, and the disposition table
- * below is a `Record` over it ON PURPOSE: adding a reference type to the probe
- * list breaks THIS file's build until somebody decides what the delete route
- * should do about it. That is the property a plain array of claimed names does
- * not have, and it is what makes the cascade fail closed on a reference nobody
- * has thought about yet rather than silently leaving it behind.
+ * A counter rather than a log line alone, for the reason
+ * `ACTOR_UPSERT_FAILED_METRIC` exists: a `warn` says one deletion had a rough
+ * edge, and the thing anybody actually needs to know is whether this is
+ * happening to EVERY deletion. The `step` label turns "something after the
+ * delete is failing" into a name.
  */
+export const POST_DELETION_SIDE_EFFECT_FAILED_METRIC = 'post_deletion_side_effect_failed_total';
 
 /** What the live delete path does about one known kind of post reference. */
 type ReferenceDisposition =
-  /** Deleted in this cascade — the row describes a post and cannot outlive it. */
+  /** An explicit leg in this module, inside the caller's transaction. */
   | 'cascade'
   /**
-   * A queue whose PENDING rows are cancelled and whose completed rows are kept.
-   * Deliberately NOT claimed to the residue check: the claim would be false,
-   * and a false claim reported as satisfied is the exact failure this module
-   * exists to remove.
+   * Removed by `ON DELETE CASCADE` on `posts.id`, in the same statement as the
+   * post. No leg, and deliberately NOT claimed — see the module comment.
+   */
+  | 'database'
+  /**
+   * A durable queue whose PENDING rows are cancelled and whose completed rows
+   * are kept. Not claimed to the residue check: the claim would be false, and a
+   * false claim reported as satisfied is the exact failure this module exists to
+   * remove.
    */
   | 'cancel-pending'
   /** Deliberately kept. Every entry carries its reason in the table below. */
   | 'retain';
 
+/**
+ * A `Record` over the probe list ON PURPOSE: adding a reference type upstream
+ * breaks THIS file's build until somebody decides what the delete route should
+ * do about it. That is the property a plain array of claimed names does not
+ * have, and it is what makes the cascade fail closed on a reference nobody has
+ * thought about yet rather than silently leaving it behind.
+ */
 const POST_REFERENCE_DISPOSITION: Record<PostReferenceProbeName, ReferenceDisposition> = {
-  // Pure derivations of the post: nothing else keys on them, and left behind
-  // they name an id no surface can resolve.
-  'Notification.entityId': 'cascade',
-  'Poll.postId': 'cascade',
-  'Article.postId': 'cascade',
-  'Postgate.postId/postUri': 'cascade',
-  'Threadgate.postId/postUri': 'cascade',
-  'PostRecentReplier.postId': 'cascade',
-  'ContentLabel.targetId(post)': 'cascade',
-  'FeedInteraction.postUri': 'cascade',
-  'Like.postId': 'cascade',
-  'Bookmark.postId': 'cascade',
+  // Polymorphic by a type column, so no foreign key can carry them.
+  'notifications.entity_id': 'cascade',
+  'content_labels.target_id(post)': 'cascade',
+  // `post_id` is plain `text()` — a gate is upserted on `post_uri` without
+  // proving the post exists, so the column cannot be constrained.
+  'postgates.post_id/post_uri': 'cascade',
+  'threadgates.post_id/post_uri': 'cascade',
+  // Keyed by the post's AP URI, which is not `posts.id`.
+  'feed_interactions.post_uri': 'cascade',
 
   /**
-   * Two durable queues, cancelled but not erased, for the same two reasons.
-   *
-   * Only a PENDING row can still act — apply an engagement transition to a post
-   * that is gone, or deliver an activity about it. A processed or delivered row
-   * is a log entry, not a pointer anything dereferences.
-   *
-   * And the queries that would find the rest do not belong on a user-facing
-   * route. Neither collection is indexed on the field the reference is named
-   * by (`payload.postId`; the three `activityJson` paths), so an unscoped
-   * delete is a collection scan — over 30 days of engagement in one case, and
-   * in the other over a queue nothing prunes at all: rows are flipped to
-   * `delivered`/`failed` in place and kept forever. Filtering on `status`
-   * reaches both through an existing index prefix and touches only the live
-   * backlog. The administrative purge still removes them wholesale, which is
-   * the right trade for a batch job and the wrong one here.
+   * `ON DELETE CASCADE` on `posts.id`. Read off `pg_constraint` on a fully
+   * migrated database, not inferred from the schema source.
    */
-  'EngagementOutbox.payload.postId': 'cancel-pending',
-  'FederationDeliveryQueue.activityJson': 'cancel-pending',
+  'polls.post_id': 'database',
+  'articles.post_id': 'database',
+  'likes.post_id': 'database',
+  'bookmarks.post_id': 'database',
+  'post_recent_repliers.post_id': 'database',
+  'engagement_outbox.payload_post_id': 'database',
 
   /**
-   * RETAINED, and this is the one entry where deleting would break something
-   * rather than merely lose an audit trail.
+   * The one queue that is cancelled rather than erased.
+   *
+   * Only a PENDING row can still act — deliver an activity about a post that is
+   * gone. A `delivered` or `failed` row is a log entry, and a user erasing their
+   * own post does not get to erase the record that it was once sent. Cancelling
+   * is also right on its own terms: the `Delete(Tombstone)` this route sends is
+   * what remote instances should receive, not a queued `Create(Note)` for a
+   * post that no longer exists.
+   */
+  'federation_delivery_queue.activity_json': 'cancel-pending',
+
+  /**
+   * RETAINED, and the one entry where deleting would BREAK something rather
+   * than merely lose an audit trail.
    *
    * An inbound CrowdSource decision is matched to local rows by
    * `Report.crowdSourceCaseId` — `ModerationDecisionWorker` throws a RETRYABLE
@@ -95,470 +161,430 @@ const POST_REFERENCE_DISPOSITION: Record<PostReferenceProbeName, ReferenceDispos
    * kept — only by being removed.
    *
    * `purgeBlockedDomainContent` deletes these, which is a different call for a
-   * different reason: it removes a blocked instance's content wholesale, and
-   * its cascade owns that decision. A user deleting their own post does not get
-   * to erase reports filed about it.
+   * different reason: it removes a blocked instance's content wholesale. A user
+   * deleting their own post does not get to erase reports filed about it.
    */
-  'Report.reportedId(post)': 'retain',
+  'reports.reported_id(post)': 'retain',
 };
 
-/** The claim this cascade makes, in the shape the residue check verifies. */
-export const CASCADED_POST_REFERENCES: readonly PostReferenceProbeName[] = (
-  Object.keys(POST_REFERENCE_DISPOSITION) as PostReferenceProbeName[]
-).filter((name) => POST_REFERENCE_DISPOSITION[name] === 'cascade');
-
-/**
- * The references this module deliberately does NOT remove — the `retain` and
- * `cancel-pending` halves of the table above.
- *
- * Derived from the same `Record` rather than written out a second time, so a
- * disposition that changes moves both lists at once. Exported for a caller that
- * has to declare its position to `assertPostsSafeToDelete`
- * (`keptByPolicy`): a reference this module keeps on purpose must not read to
- * that gate as one nobody thought about, and the only honest way to say so is
- * to name the decision's owner rather than to claim the rows are gone.
- */
-export const POST_REFERENCES_KEPT_BY_POLICY: readonly PostReferenceProbeName[] = (
-  Object.keys(POST_REFERENCE_DISPOSITION) as PostReferenceProbeName[]
-).filter((name) => POST_REFERENCE_DISPOSITION[name] !== 'cascade');
-
-/**
- * The fields the cascade reads off a post. Deliberately the same set the
- * administrative purge projects, so the two cannot drift into needing different
- * reads of the same row.
- */
-export interface CascadedPostRow {
-  _id: mongoose.Types.ObjectId | string;
-  oxyUserId?: string;
-  boostOf?: string;
-  parentPostId?: string;
-  federation?: { activityId?: string; url?: string } | null;
-  content?: { pollId?: string; article?: { articleId?: string } } | null;
+function referencesWithDisposition(
+  disposition: ReferenceDisposition,
+): readonly PostReferenceProbeName[] {
+  return (Object.keys(POST_REFERENCE_DISPOSITION) as PostReferenceProbeName[]).filter(
+    (name) => POST_REFERENCE_DISPOSITION[name] === disposition,
+  );
 }
 
-const BOOST_CLOSURE_PROJECTION = {
-  _id: 1,
-  oxyUserId: 1,
-  boostOf: 1,
-  parentPostId: 1,
-  federation: 1,
-  'content.pollId': 1,
-  'content.article.articleId': 1,
+/** The claim this cascade makes, in the shape the residue check verifies. */
+export const CASCADED_POST_REFERENCES = referencesWithDisposition('cascade');
+
+/**
+ * The references `ON DELETE CASCADE` removes with the post row.
+ *
+ * Named separately from everything else so an administrative caller can
+ * acknowledge them to `assertPostsSafeToDelete` while stating WHO removes them.
+ * Folding them into the cascade's own claim would say this module deleted rows
+ * it never touched; folding them into the kept list would say they survive.
+ */
+export const POST_REFERENCES_REMOVED_BY_DATABASE = referencesWithDisposition('database');
+
+/**
+ * The references this module deliberately does NOT remove — `retain` plus the
+ * completed half of `cancel-pending`.
+ *
+ * Derived from the same `Record` rather than written out a second time, so a
+ * disposition that changes moves both lists at once. Kept SEPARATE from the
+ * cascade's claim because {@link collectPostCascadeResidue} re-runs exactly the
+ * claimed probes to check them, and would report a deliberately retained
+ * reference as a failure — the one confusion this module exists to remove.
+ */
+export const POST_REFERENCES_KEPT_BY_POLICY: readonly PostReferenceProbeName[] = [
+  ...referencesWithDisposition('cancel-pending'),
+  ...referencesWithDisposition('retain'),
+];
+
+/**
+ * The fields the cascade reads off a post — every key it can be named BY.
+ *
+ * `boost_of`, a poll id and an article id are deliberately absent, where main's
+ * Mongo shape carried all three: each is `ON DELETE CASCADE` on `posts.id`
+ * here, so the row goes with the post, and a field carried for a leg that does
+ * not exist is a field somebody will later write a leg for.
+ */
+export interface CascadedPostRow {
+  id: string;
+  oxyUserId?: string | null;
+  parentPostId?: string | null;
+  federationActivityId?: string | null;
+  federationUrl?: string | null;
+}
+
+/** The columns {@link collectDeletionTargets} reads, as one reusable projection. */
+const CASCADE_ROW_COLUMNS = {
+  id: posts.id,
+  oxyUserId: posts.oxyUserId,
+  parentPostId: posts.parentPostId,
+  federationActivityId: posts.federationActivityId,
+  federationUrl: posts.federationUrl,
 } as const;
 
 /**
- * A hard cap on how many boosts one delete may take with it.
+ * A hard cap on how many rows one delete may drag in.
  *
  * The closure is unbounded in principle — a widely boosted post has as many
  * boosts as it has boosters — and a live HTTP request is the wrong place to
- * discover that. Past the cap the cascade REFUSES to expand rather than
- * deleting an arbitrary prefix: a partially deboosted post leaves exactly the
- * blank cards the expansion exists to prevent, and the operator needs to know
- * it happened. Reported through the residue log, which is the signal an
- * administrative reconciliation reads.
+ * discover that. It means something narrower here than it did on Mongo, and the
+ * difference matters: Postgres deletes every boost whatever this says, because
+ * the FK cascades. What the cap bounds is how many rows this module can CLEAN
+ * UP AFTER. Past it the deletion is refused outright rather than committed
+ * half-cleaned, and the operator is told.
  */
-const MAX_BOOST_CLOSURE = 500;
-
-function idString(value: mongoose.Types.ObjectId | string): string {
-  return String(value);
-}
+export const MAX_DELETION_TARGETS = 500;
 
 /** The AP identifiers a post can additionally be named by. */
 function postUris(post: CascadedPostRow): string[] {
-  return [post.federation?.activityId, post.federation?.url].filter(
+  return [post.federationActivityId, post.federationUrl].filter(
     (value): value is string => typeof value === 'string' && value.length > 0,
   );
 }
 
+/** Raised when one deletion would drag in more rows than {@link MAX_DELETION_TARGETS}. */
+export class PostDeletionTooLargeError extends Error {
+  constructor(readonly found: number) {
+    super(`Post deletion touches more than ${MAX_DELETION_TARGETS} rows`);
+    this.name = 'PostDeletionTooLargeError';
+  }
+}
+
+export interface PostDeletionTargets {
+  /** The post itself, as it stands before the delete. */
+  post: CascadedPostRow;
+  /** Its direct replies — deleted with it, and NOT by any foreign key. */
+  replies: CascadedPostRow[];
+  /** Every boost of the post or of one of those replies, transitively. */
+  boosts: CascadedPostRow[];
+}
+
+/** Every row one deletion removes, in one list. */
+export function allDeletionTargets(targets: PostDeletionTargets): CascadedPostRow[] {
+  return [targets.post, ...targets.replies, ...targets.boosts];
+}
+
 /**
- * Every boost of `seedIds`, transitively.
+ * Read everything one deletion will remove, WHILE THE LINKS ARE STILL LIVE.
  *
- * Transitive because `boostOf` can name a boost: one level would leave a boost
- * of a boost pointing at a row this cascade removed, which is the same blank
- * card the expansion exists to prevent.
+ * This must run before the `DELETE`, inside the same transaction, and both
+ * halves of that are load-bearing:
  *
- * Returns `null` when the closure exceeds {@link MAX_BOOST_CLOSURE} — see the
- * constant for why that is a refusal rather than a truncation.
+ * - `posts.parent_post_id` is `ON DELETE SET NULL`, so the moment the post is
+ *   deleted its replies stop being findable and are silently PROMOTED to root
+ *   posts. That is not hypothetical — it is what the live route did before this
+ *   function existed.
+ * - `posts.boost_of` is `ON DELETE CASCADE`, so the boosts are deleted with the
+ *   post and their polymorphic references become unreachable.
+ *
+ * Same transaction, because a capture on one snapshot and a delete on another
+ * lets a reply created in between survive its parent.
  */
-export async function collectBoostClosure(
-  seedIds: readonly string[],
-): Promise<CascadedPostRow[] | null> {
-  const seen = new Set(seedIds);
-  const found: CascadedPostRow[] = [];
-  let frontier = [...seedIds];
+export async function collectDeletionTargets(
+  postId: string,
+  tx: DatabaseOrTransaction,
+): Promise<PostDeletionTargets | null> {
+  const [post] = await tx.select(CASCADE_ROW_COLUMNS).from(posts).where(eq(posts.id, postId));
+  if (!post) return null;
+
+  const replies = await tx
+    .select(CASCADE_ROW_COLUMNS)
+    .from(posts)
+    .where(eq(posts.parentPostId, postId))
+    .limit(MAX_DELETION_TARGETS + 1);
+
+  // Transitive, because `boost_of` can name a boost. One level would leave a
+  // boost of a boost pointing at a row the FK removed — the same blank card the
+  // expansion exists to prevent.
+  const seeds = [post.id, ...replies.map((reply) => reply.id)];
+  const seen = new Set(seeds);
+  const boosts: CascadedPostRow[] = [];
+  let frontier = seeds;
 
   while (frontier.length > 0) {
-    const next = await Post.find(
-      { type: PostType.BOOST, boostOf: { $in: frontier } },
-      BOOST_CLOSURE_PROJECTION,
-    ).lean<CascadedPostRow[]>();
+    if (seen.size > MAX_DELETION_TARGETS) throw new PostDeletionTooLargeError(seen.size);
+    const next = await tx
+      .select(CASCADE_ROW_COLUMNS)
+      .from(posts)
+      .where(and(eq(posts.type, PostType.BOOST), inArray(posts.boostOf, frontier)))
+      .limit(MAX_DELETION_TARGETS + 1);
 
     frontier = [];
     for (const boost of next) {
-      const id = idString(boost._id);
-      if (seen.has(id)) continue;
-      seen.add(id);
-      found.push(boost);
-      if (found.length > MAX_BOOST_CLOSURE) return null;
-      frontier.push(id);
+      if (seen.has(boost.id)) continue;
+      seen.add(boost.id);
+      boosts.push(boost);
+      frontier.push(boost.id);
     }
   }
 
-  return found;
+  if (seen.size > MAX_DELETION_TARGETS) throw new PostDeletionTooLargeError(seen.size);
+  return { post, replies, boosts };
 }
 
 /** One reference deletion, named so a failure says which leg failed. */
 interface CascadeLeg {
-  reference: string;
+  reference: PostReferenceProbeName;
   run: () => Promise<unknown>;
 }
 
 /**
- * Delete every reference this cascade claims, over the full target set.
+ * The reference-deleting legs, over the whole target set.
  *
- * Runs the legs concurrently but reports each rejection with the leg's name.
- * The previous shape — `Promise.allSettled` whose result was discarded inside a
- * `try` that logged only if the wrapper itself threw — could not fail visibly:
- * `allSettled` never rejects, so a leg that threw was indistinguishable from one
- * that deleted nothing, which is how a cascade step that had never worked at all
- * survived unnoticed.
+ * Every predicate here is the one the matching probe in
+ * `adminDeletionPreflight` asks — `entity_type` on notifications,
+ * `target_type` on content labels, both keys on the gate tables. Two copies of
+ * a predicate is how a gate starts clearing rows its cascade does not remove.
  */
-async function runLegs(legs: readonly CascadeLeg[]): Promise<string[]> {
-  const outcomes = await Promise.allSettled(legs.map((leg) => leg.run()));
-  const failed: string[] = [];
-  outcomes.forEach((outcome, index) => {
-    if (outcome.status !== 'rejected') return;
-    const { reference } = legs[index];
-    failed.push(reference);
-    logger.error('Post deletion cascade leg failed', {
-      reference,
-      error: outcome.reason,
-    });
-  });
-  return failed;
-}
-
-/**
- * Restore the counters a deleted post contributed to on rows that SURVIVE it.
- *
- * Only two of a post's counters live somewhere else:
- *
- *  - a reply contributed 1 to its parent's `stats.commentsCount`. The canonical
- *    definition of that counter is `Post.countDocuments({ parentPostId })` —
- *    `recomputeFederatedEngagement`'s `computeRealCounts` is the reference — so a
- *    decrement is exactly its inverse.
- *  - a boost contributed 1 to its target's `stats.boostsCount` (and, when the
- *    boost arrived over ActivityPub, to `stats.federatedBoostsCount`).
- *
- * Both writes are guarded on `$gt: 0`, the same guard the unboost path and the
- * administrative purge use, so a counter that is already behind can never be
- * driven negative. It CAN still be driven low: `POST /posts` creates a reply
- * without incrementing the parent (only `POST /feed/reply` increments), so a
- * population of replies created through both routes decrements more often than
- * it incremented. That asymmetry is a creation-path bug and is deliberately not
- * papered over here — the decrement matches the canonical definition, and a
- * counter reconciliation is the thing that repairs drift in both directions.
- */
-async function repairSurvivingCounters(
-  post: CascadedPostRow,
-  boosts: readonly CascadedPostRow[],
-  removedIds: ReadonlySet<string>,
-): Promise<CascadeLeg[]> {
-  const legs: CascadeLeg[] = [];
-
-  if (post.parentPostId && mongoose.isValidObjectId(post.parentPostId)) {
-    const parentPostId = post.parentPostId;
-    legs.push({
-      reference: 'stats.commentsCount',
-      run: () =>
-        Post.updateOne(
-          { _id: parentPostId, 'stats.commentsCount': { $gt: 0 } },
-          { $inc: { 'stats.commentsCount': -1 } },
-        ).exec(),
-    });
-  }
-
-  // Only boosts whose TARGET survives this delete need a repair; a boost of the
-  // deleted post is repairing a counter on a row that is already gone.
-  const boostsToRepair = [post, ...boosts].filter(
-    (row): row is CascadedPostRow & { boostOf: string } =>
-      typeof row.boostOf === 'string' &&
-      !removedIds.has(row.boostOf) &&
-      mongoose.isValidObjectId(row.boostOf),
-  );
-  for (const boost of boostsToRepair) {
-    const targetId = boost.boostOf;
-    const federated = Boolean(boost.federation);
-    legs.push({
-      reference: 'stats.boostsCount',
-      run: async () => {
-        await Post.updateOne(
-          { _id: targetId, 'stats.boostsCount': { $gt: 0 } },
-          { $inc: { 'stats.boostsCount': -1 } },
-        ).exec();
-        if (federated) {
-          await Post.updateOne(
-            { _id: targetId, 'stats.federatedBoostsCount': { $gt: 0 } },
-            { $inc: { 'stats.federatedBoostsCount': -1 } },
-          ).exec();
-        }
-      },
-    });
-  }
-
-  return legs;
-}
-
-/** The reference-deleting legs, over the whole target set. */
-function referenceLegs(targets: readonly CascadedPostRow[]): CascadeLeg[] {
-  const idStrings = [...new Set(targets.map((post) => idString(post._id)))];
-  // `Like.postId`, `Bookmark.postId` and `Notification.entityId` are ObjectId
-  // columns, so they are matched with real ObjectIds rather than left to
-  // per-query casting.
-  const objectIds = idStrings
-    .filter((id) => mongoose.isValidObjectId(id))
-    .map((id) => new mongoose.Types.ObjectId(id));
+function referenceLegs(
+  targets: readonly CascadedPostRow[],
+  tx: DatabaseOrTransaction,
+): CascadeLeg[] {
+  const ids = [...new Set(targets.map((row) => row.id))];
   // Both keys a post can be named by: its id, and the AP identifiers a
-  // federated post also travels under. The side tables are split between the
-  // two exactly as the preflight's probes are.
-  const postKeys = [...new Set([...idStrings, ...targets.flatMap(postUris)])];
-  const pollIds = targets.flatMap((post) => (post.content?.pollId ? [post.content.pollId] : []));
-  const articleIds = targets.flatMap((post) =>
-    post.content?.article?.articleId ? [post.content.article.articleId] : [],
-  );
+  // federated post also travels under. Split between the two exactly as the
+  // preflight's probes are.
+  const postKeys = [...new Set([...ids, ...targets.flatMap(postUris)])];
 
   return [
     {
       // Both entity types the enum can hold for a post row. `'post'` alone
       // missed every reply notification — `PostCreationService` and the
       // ActivityPub inbox both write `entityType: 'reply'`.
-      reference: 'Notification.entityId',
+      reference: 'notifications.entity_id',
       run: () =>
-        Notification.deleteMany({
-          entityType: { $in: ['post', 'reply'] },
-          entityId: { $in: objectIds },
-        }).exec(),
+        tx
+          .delete(notifications)
+          .where(
+            and(
+              inArray(notifications.entityType, ['post', 'reply']),
+              inArray(notifications.entityId, ids),
+            ),
+          ),
     },
     {
-      reference: 'Poll.postId',
+      reference: 'content_labels.target_id(post)',
       run: () =>
-        Poll.deleteMany({
-          $or: [
-            { postId: { $in: [...objectIds, ...idStrings] } },
-            ...(pollIds.length > 0 ? [{ _id: { $in: pollIds } }] : []),
-          ],
-        }).exec(),
+        tx
+          .delete(contentLabels)
+          .where(and(eq(contentLabels.targetType, 'post'), inArray(contentLabels.targetId, ids))),
     },
     {
-      reference: 'Article.postId',
+      reference: 'postgates.post_id/post_uri',
       run: () =>
-        Article.deleteMany({
-          $or: [
-            { postId: { $in: idStrings } },
-            ...(articleIds.length > 0 ? [{ _id: { $in: articleIds } }] : []),
-          ],
-        }).exec(),
+        tx
+          .delete(postgates)
+          .where(or(inArray(postgates.postId, ids), inArray(postgates.postUri, postKeys))),
     },
     {
-      reference: 'Postgate.postId/postUri',
+      reference: 'threadgates.post_id/post_uri',
       run: () =>
-        Postgate.deleteMany({
-          $or: [{ postId: { $in: idStrings } }, { postUri: { $in: postKeys } }],
-        }).exec(),
+        tx
+          .delete(threadgates)
+          .where(or(inArray(threadgates.postId, ids), inArray(threadgates.postUri, postKeys))),
     },
     {
-      reference: 'Threadgate.postId/postUri',
-      run: () =>
-        Threadgate.deleteMany({
-          $or: [{ postId: { $in: idStrings } }, { postUri: { $in: postKeys } }],
-        }).exec(),
+      reference: 'feed_interactions.post_uri',
+      run: () => tx.delete(feedInteractions).where(inArray(feedInteractions.postUri, postKeys)),
     },
     {
-      // `repairRecentRepliersAfterPostDelete` already removes the projections
-      // for the seed post and the replies it deletes. This covers the rest of
-      // the target set — a boost can be replied to, and so can carry one.
-      reference: 'PostRecentReplier.postId',
-      run: () => PostRecentReplier.deleteMany({ postId: { $in: idStrings } }).exec(),
-    },
-    {
-      // `pending` only, never `processing`: a claimed row is being applied by a
-      // worker right now, and pulling it out from under an open lease trades a
-      // harmless no-op update for a real race.
-      reference: 'EngagementOutbox.payload.postId(pending)',
-      run: () =>
-        EngagementOutbox.deleteMany({
-          status: 'pending',
-          'payload.postId': { $in: idStrings },
-        }).exec(),
-    },
-    {
-      reference: 'ContentLabel.targetId(post)',
-      run: () =>
-        ContentLabel.deleteMany({ targetType: 'post', targetId: { $in: idStrings } }).exec(),
-    },
-    {
-      reference: 'FeedInteraction.postUri',
-      run: () => FeedInteraction.deleteMany({ postUri: { $in: postKeys } }).exec(),
-    },
-    {
-      // Cancels outbound work for a post we have just deleted — the
-      // `Delete(Tombstone)` this route sends is what remote instances should
-      // receive, not a queued `Create(Note)` for a post that no longer exists.
-      reference: 'FederationDeliveryQueue.activityJson(pending)',
-      run: () =>
-        FederationDeliveryQueue.deleteMany({
-          status: 'pending',
-          $or: [
-            { 'activityJson.id': { $in: postKeys } },
-            { 'activityJson.object.id': { $in: postKeys } },
-            { 'activityJson.object': { $in: postKeys } },
-          ],
-        }).exec(),
-    },
-    {
-      reference: 'Like.postId',
-      run: () => Like.deleteMany({ postId: { $in: objectIds } }).exec(),
-    },
-    {
-      reference: 'Bookmark.postId',
-      run: () => Bookmark.deleteMany({ postId: { $in: objectIds } }).exec(),
+      reference: 'federation_delivery_queue.activity_json',
+      run: () => deletePendingDeliveriesReferencingObjects(postKeys, tx),
     },
   ];
 }
 
 /**
- * The reference legs alone, over MANY posts, for an ADMINISTRATIVE caller.
+ * Delete every reference this cascade handles, inside the caller's transaction.
  *
- * WHY A SECOND ENTRY POINT EXISTS, RATHER THAN A FLAG ON THE FIRST.
+ * THROWS on the first leg that fails, naming it. That is the whole difference
+ * from the shape this replaces: a `Promise.allSettled` whose result was
+ * discarded could not fail visibly — it never rejects, so a leg that threw was
+ * indistinguishable from one that deleted nothing, which is how a cascade step
+ * that had never worked at all survived unnoticed.
  *
- * {@link cascadeDeletedPost} serves the LIVE delete route: one post, already
- * removed by the request that authorized it, and the user has been told the
- * delete succeeded. It must therefore never throw — a derived row that could not
- * be removed is not a reason to report a completed deletion as a failure — so it
- * swallows everything and states the residue in a log.
- *
- * An administrative cascade is the opposite case in both respects. It deletes
- * MANY posts, and it runs inside a job that can be re-run, so a leg that failed
- * MUST reach the caller: a BullMQ retry re-running the whole cascade is exactly
- * the recovery the live path does not have. Returning the failed leg NAMES is
- * what makes that possible without either caller inheriting the other's error
- * posture — a shared flag would put both postures in one function and let the
- * wrong one be selected by a default.
- *
- * Scope is deliberately narrow: the reference legs and nothing else. It does not
- * delete the `Post` rows (the caller owns which posts die and in what order), it
- * does not expand the boost closure (use {@link collectBoostClosure}), and it
- * does not repair counters (the surviving-row set depends on which posts the
- * caller is destroying, which only the caller knows). Duplicating any of those
- * here would put a second implementation beside the caller's.
+ * Sequential rather than concurrent: they share one transaction and therefore
+ * one connection, so they serialise anyway, and running them in order means the
+ * error names the FIRST leg that failed rather than an arbitrary one.
  */
 export async function cascadePostReferences(
   targets: readonly CascadedPostRow[],
-): Promise<{ failedLegs: string[] }> {
-  if (targets.length === 0) return { failedLegs: [] };
-  return { failedLegs: await runLegs(referenceLegs(targets)) };
-}
-
-export interface PostDeletionCascadeInput {
-  /** The post row, as returned by the delete that removed it. */
-  post: CascadedPostRow;
-  /**
-   * Rows this request's caller has ALREADY deleted and whose references are
-   * therefore this cascade's to clean — today the direct replies that
-   * `repairRecentRepliersAfterPostDelete` removes inside its own transaction.
-   * Captured BEFORE that delete, so a federated reply still carries the AP
-   * identifiers half the side tables name it by.
-   */
-  alsoDeleted?: readonly CascadedPostRow[];
-}
-
-/**
- * Clean up after a post row that has already been removed.
- *
- * Ordering is deliberate. The seed post is gone before this runs — the route's
- * `findOneAndDelete` is what AUTHORIZES the delete and claims it against a
- * concurrent second request — so this cannot pretend to remove side tables
- * first. What it can do is remove the boost rows LAST, after their own
- * references are gone, so a run that dies midway leaves boosts pointing at
- * nothing rather than boost references pointing at nothing.
- *
- * Never throws: a delete the user asked for and the database performed must not
- * be reported as a failure because a derived row could not be removed. Every
- * failure is logged with the leg that produced it, and the residue check at the
- * end states what is actually still there.
- *
- * ## Dependents
- *
- * - **Boosts are deleted.** A `type:'boost'` post has an intentionally empty
- *   body and renders entirely from `boostOf`, so a boost outliving its original
- *   is not degraded content — it is a blank card. `adminDeletionPreflight`
- *   refuses to let any caller acknowledge `boostOf` away for this reason.
- * - **Quotes are NOT deleted.** A quote carries the quoter's own writing.
- *   `PostHydrationService` resolves `quotedPost` to null and drops the quote
- *   card, leaving the text its author wrote intact. Deleting it would destroy
- *   one person's content to remove another's.
- * - **Replies are not this function's decision.** Direct replies are already
- *   removed by `repairRecentRepliersAfterPostDelete`, inside the transaction
- *   that repairs the replier projection; the rows arrive here as
- *   `alsoDeleted` so that whatever that policy removes gets cleaned up. Deeper
- *   descendants are left standing and hydration tolerates the dangling
- *   `parentPostId`.
- */
-export async function cascadeDeletedPost(input: PostDeletionCascadeInput): Promise<void> {
-  const { post } = input;
-  const seedId = idString(post._id);
-
-  try {
-    const seeds = [post, ...(input.alsoDeleted ?? [])];
-    const boosts = await collectBoostClosure(seeds.map((row) => idString(row._id)));
-    if (boosts === null) {
-      logger.error('Post deletion cascade refused to expand an oversized boost closure', {
-        postId: seedId,
-        limit: MAX_BOOST_CLOSURE,
-      });
-      return;
+  tx: DatabaseOrTransaction,
+): Promise<void> {
+  if (targets.length === 0) return;
+  for (const leg of referenceLegs(targets, tx)) {
+    try {
+      await leg.run();
+    } catch (error) {
+      logger.error('Post deletion cascade leg failed', { reference: leg.reference, error });
+      throw error;
     }
-
-    const targets = [...seeds, ...boosts];
-    const removedIds = new Set(targets.map((row) => idString(row._id)));
-
-    const failed = await runLegs([
-      ...(await repairSurvivingCounters(post, boosts, removedIds)),
-      ...referenceLegs(targets),
-    ]);
-
-    // Boost ROWS last — see the ordering note above.
-    if (boosts.length > 0) {
-      await Post.deleteMany({
-        _id: { $in: boosts.map((boost) => boost._id) },
-      }).exec();
-    }
-
-    await reportResidue(targets, failed, seedId);
-  } catch (error) {
-    logger.error('Post deletion cascade failed', { postId: seedId, error });
   }
 }
 
 /**
- * Verify the claim rather than trusting it, using the same probes the
- * administrative purge is checked with — the end state, after the deletes, with
- * nothing acknowledged.
+ * A post deletion that COMMITTED, and everything the best-effort stage needs.
+ *
+ * `removedIds` is every row this transaction took — the post plus its boost
+ * closure plus its replies — so a counter repair can tell "this author lost a
+ * reply" from "this author's row is one of the ones that went".
  */
-async function reportResidue(
+export interface DeletedPostSubtree {
+  post: PostRecord;
+  targets: PostDeletionTargets;
+  removedIds: ReadonlySet<string>;
+}
+
+/**
+ * DELETE A POST AND THE SUBTREE IT OWNS, IN ONE TRANSACTION — the single
+ * implementation, because there are two callers and only one of them used to
+ * have it.
+ *
+ * `deletePost` grew this ordering as the fix for a defect that shipped (#126);
+ * `PostMaterializer.materializeTombstone` reached `deletePostRecord` directly
+ * and therefore kept the defect, on a path the fix did not cover. The failure is
+ * specific and silent: `posts.parent_post_id` is `ON DELETE SET NULL`, so
+ * deleting the parent row alone leaves every direct reply alive with a null
+ * parent and `is_reply: true` — a ROOT POST in every feed, written by somebody
+ * who never posted it. Mongo deleted them, so the MIGRATION introduces this
+ * rather than inheriting it.
+ *
+ * The ORDER inside the transaction is the fix and is not a preference:
+ *
+ *   1. CAPTURE the closure first. `posts.boost_of` is `ON DELETE CASCADE`, so
+ *      the instant the post row goes, every boost of it is removed by the
+ *      database along with the only link that could have found the boosts' own
+ *      polymorphic references.
+ *   2. The reference legs, which THROW — coherent only because they are in here
+ *      with the `DELETE`. A leg that fails rolls the whole thing back, the post
+ *      is NOT deleted, and the caller's 500 is honest and retryable.
+ *   3. The replies, explicitly. No foreign key removes them, and after the post
+ *      row goes there is nothing left to find them by.
+ *   4. The post itself, claimed by `ownership` in the DELETE's own `WHERE`, so
+ *      this is one statement that authorizes and removes rather than a read
+ *      followed by a write.
+ *
+ * Returns `null` for BOTH "no such post" and "the ownership claim matched
+ * nothing", which is what every caller wants: they answer 404 to each. The
+ * second case ROLLS BACK — a plain return would commit the reference and reply
+ * deletions for a post the caller was never allowed to delete, which is the
+ * security-relevant half of the claim.
+ *
+ * Throws {@link PostDeletionTooLargeError} unchanged, so a caller can answer 409.
+ *
+ * Best-effort work — the replier projection, the surviving-row counters, the
+ * federation tombstone — is deliberately NOT here: it runs after the commit, in
+ * the caller, so a failure cannot turn a completed deletion into an error.
+ */
+export async function deletePostSubtree(
+  postId: string,
+  ownership: SQL | undefined,
+): Promise<DeletedPostSubtree | null> {
+  let result: DeletedPostSubtree | null = null;
+  try {
+    await getDb().transaction(async (tx) => {
+      const collected = await collectDeletionTargets(postId, tx);
+      if (!collected) return;
+
+      const all = allDeletionTargets(collected);
+      await cascadePostReferences(all, tx);
+
+      if (collected.replies.length > 0) {
+        await tx.delete(posts).where(inArray(posts.id, collected.replies.map((reply) => reply.id)));
+      }
+
+      const claimed = await deletePostRecord(postId, ownership, tx);
+      if (!claimed) throw new PostDeletionClaimFailedError();
+
+      result = { post: claimed, targets: collected, removedIds: new Set(all.map((row) => row.id)) };
+    });
+  } catch (error) {
+    if (error instanceof PostDeletionClaimFailedError) return null;
+    throw error;
+  }
+  return result;
+}
+
+/**
+ * Internal only — the signal that rolls the transaction back when the ownership
+ * claim matches no row. It never escapes {@link deletePostSubtree}, because a
+ * caller cannot act on it differently from "no such post": both are 404, and
+ * distinguishing them in a response would disclose that the post exists.
+ */
+class PostDeletionClaimFailedError extends Error {
+  constructor() {
+    super('Post deletion claim matched no row');
+    this.name = 'PostDeletionClaimFailedError';
+  }
+}
+
+/**
+ * Record that a best-effort step after a COMMITTED deletion did not complete.
+ *
+ * The step keeps failing softly — the post is gone and the user was told so, and
+ * a projection that could not be repaired is not a reason to report a completed
+ * deletion as a failure. What changes is that it is now COUNTED.
+ */
+export function recordDeletionSideEffectFailure(step: string, error: unknown): void {
+  metrics.incrementCounter(POST_DELETION_SIDE_EFFECT_FAILED_METRIC, 1, { step });
+  logger.error('Post deletion side effect failed', { step, error });
+}
+
+/**
+ * Restore the counters a deleted post contributed to on a row that SURVIVES it.
+ *
+ * Best-effort by nature: it runs after the commit, so a failure cannot undo
+ * anything, and a counter is repairable by reconciliation where a lost deletion
+ * is not.
+ *
+ * Only ONE counter can need repairing here, and the reason the boost counter
+ * does not is structural rather than an omission. Every boost this deletion
+ * removes boosted something inside the removed set BY CONSTRUCTION — the
+ * closure is seeded from that set and expanded along `boost_of` — so its
+ * target's `stats_boosts_count` is a counter on a row that is already gone.
+ * What remains is the reply's contribution to its parent's
+ * `stats_comments_count`, when that parent is not itself being deleted.
+ *
+ * Guarded on `> 0`, the same guard the unboost path and the administrative
+ * purge use, so a counter already behind can never be driven negative.
+ */
+export async function repairSurvivingCounters(
+  targets: PostDeletionTargets,
+  removedIds: ReadonlySet<string>,
+): Promise<void> {
+  const parentPostId = targets.post.parentPostId;
+  if (!parentPostId || removedIds.has(parentPostId)) return;
+
+  await getDb()
+    .update(posts)
+    .set({ statsCommentsCount: sql`${posts.statsCommentsCount} - 1` })
+    .where(and(eq(posts.id, parentPostId), sql`${posts.statsCommentsCount} > 0`));
+}
+
+/**
+ * Verify the claim rather than trusting it, using the same probes the
+ * administrative purge is checked with — the end state, with nothing
+ * acknowledged.
+ *
+ * Runs OUTSIDE the transaction on purpose. Inside it, the probes would read the
+ * transaction's own uncommitted deletes and pass by construction, which is a
+ * check that cannot fail.
+ */
+export async function reportResidue(
   targets: readonly CascadedPostRow[],
-  failedLegs: readonly string[],
   postId: string,
 ): Promise<void> {
   const probeTargets: PostDeletionTarget[] = targets.map((row) => ({
-    id: row._id,
+    id: row.id,
     uris: postUris(row),
   }));
   const residue = await collectPostCascadeResidue(probeTargets, CASCADED_POST_REFERENCES);
-  if (residue.length === 0 && failedLegs.length === 0) return;
-  logger.error('Post deletion cascade left references behind', {
-    postId,
-    residue,
-    failedLegs,
-  });
+  if (residue.length === 0) return;
+  logger.error('Post deletion cascade left references behind', { postId, residue });
 }

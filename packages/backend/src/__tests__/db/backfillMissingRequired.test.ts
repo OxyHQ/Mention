@@ -1,0 +1,310 @@
+/**
+ * The missing-required probe — and the difference between a field of the
+ * DOCUMENT and a field of an array ELEMENT.
+ *
+ * `auditMissingRequired` asks "which documents would `buildRow` refuse for a
+ * `NOT NULL` column with no default", and a dotted path is not a safe way to ask
+ * it. Mongo resolves `content.media.type` against EVERY element at once, so
+ * `{$exists:false}` is true for a post with no media at all — a post that emits
+ * no `post_media` row and cannot violate anything.
+ *
+ * Measured against production before this was fixed: SIX findings covering
+ * 1,591,772 documents, and zero rows Postgres would have refused. That is not a
+ * cosmetic overcount. Every finding BLOCKS the copy, and the defaulted-column
+ * and referential-integrity passes run only once nothing blocks, so an inflated
+ * count here stops the audit before it produces the report it exists for.
+ *
+ * The same predicate fails in the other direction too, which is the half that is
+ * easy to forget: `$exists:false` is FALSE the moment one element carries the
+ * field, so a mixed array — `[{type:'image'}, {}]` — read as clean while its
+ * second element was exactly the row that would fail.
+ *
+ * So the fixtures below are built as a DISCRIMINATING set. Four shapes that
+ * emit no row must not be reported; two that would emit a bad row must be. A
+ * test that only asserted the true positive would pass against the old code and
+ * rebuild the same blind spot.
+ *
+ * Fixtures are `bmr-` prefixed and every id is scoped to this file — vitest runs
+ * files in parallel against one database.
+ */
+
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoClient, ObjectId, type Db } from 'mongodb';
+import { auditEnums } from '../../db/backfill/audit';
+import { mongoSourceFromDb, type MongoSource } from '../../db/backfill/mongoSource';
+import { COLLECTION_PLANS } from '../../db/backfill/collectionMap';
+import { tableName, type CollectionPlan } from '../../db/backfill/plan';
+import { posts as postsTable } from '../../db/schema/posts';
+import { reports } from '../../db/schema/moderation';
+
+let mongod: MongoMemoryServer;
+let client: MongoClient;
+let mongo: Db;
+let source: MongoSource;
+
+const planFor = (collection: string) => {
+  const plan = COLLECTION_PLANS.find((entry) => entry.collection === collection);
+  if (!plan) throw new Error(`no plan for ${collection}`);
+  return plan;
+};
+
+/** The finding naming one audited path, or `undefined` when it was not raised. */
+const findingFor = (findings: readonly { detail: string }[], path: string) =>
+  findings.find((finding) => finding.detail.startsWith(`posts.${path} is MISSING`));
+
+/**
+ * A stable, file-scoped id. An `ObjectId` takes 24 HEX characters, so the `bmr-`
+ * prefix this file uses for string fixtures cannot appear in one; the `b`
+ * padding is the closest hex equivalent and is what keeps these ids from
+ * colliding with another file's.
+ */
+const id = (suffix: string) => new ObjectId(`bbbbbbbbbbbbbbbbbbbbbb${suffix}`.slice(-24));
+
+/** Every document below carries one, so it is never the thing under test. */
+const REPLY_PERMISSION = ['anyone'];
+
+beforeAll(async () => {
+  mongod = await MongoMemoryServer.create();
+  client = await MongoClient.connect(mongod.getUri());
+  mongo = client.db('backfill_missing_required_test');
+  source = mongoSourceFromDb(mongo, async () => {
+    await client.close();
+  });
+}, 120_000);
+
+afterEach(async () => {
+  await mongo.collection('posts').deleteMany({});
+  await mongo.collection('reports').deleteMany({});
+});
+
+afterAll(async () => {
+  await client.close();
+  await mongod.stop();
+});
+
+describe('the two questions this probe has to tell apart', () => {
+  it('is asking about a CHILD table for the paths that were over-reported', () => {
+    // The discriminator is not a guess about the path string — it is which
+    // table the value lands in, which the plan states. If a future change moved
+    // `post_media.type` onto `posts`, the audit would (correctly) go back to
+    // asking about the document, and this assertion is what says so out loud.
+    const plan = planFor('posts');
+    const media = plan.enumAudits?.find((audit) => audit.path === 'content.media.type');
+    const reply = plan.enumAudits?.find((audit) => audit.path === 'replyPermission');
+    expect(media).toBeDefined();
+    expect(reply).toBeDefined();
+    expect(tableName(media?.column.table ?? postsTable)).toBe('post_media');
+    expect(tableName(reply?.column.table ?? postsTable)).toBe(tableName(plan.table));
+  });
+});
+
+describe('auditMissingRequired, through auditEnums, on an array-nested path', () => {
+  it('reports an element that lacks the field and NOTHING that emits no row', async () => {
+    await mongo.collection('posts').insertMany([
+      // --- the four shapes that emit no `post_media` row ------------------
+      // no media key at all — the shape 465,302 production posts have
+      { _id: id('a1'), replyPermission: REPLY_PERMISSION, content: { text: 'no media key' } },
+      // an empty array — 213,798 in production
+      { _id: id('a2'), replyPermission: REPLY_PERMISSION, content: { media: [] } },
+      // a NULL where the array should be — ~251,470 in production, and the one
+      // shape that is not "an element missing a field" in any reading
+      { _id: id('a3'), replyPermission: REPLY_PERMISSION, content: { media: null } },
+      // media present and complete
+      {
+        _id: id('a4'),
+        replyPermission: REPLY_PERMISSION,
+        content: { media: [{ id: 'bmr-m1', type: 'image' }] },
+      },
+      // --- the two that WOULD produce a row Postgres refuses --------------
+      {
+        _id: id('b1'),
+        replyPermission: REPLY_PERMISSION,
+        content: { media: [{ id: 'bmr-m2' }] },
+      },
+      // MIXED: the old `$exists:false` was FALSE here, because the first
+      // element carries `type`. The second element is still a 23502.
+      {
+        _id: id('b2'),
+        replyPermission: REPLY_PERMISSION,
+        content: { media: [{ id: 'bmr-m3', type: 'video' }, { id: 'bmr-m4' }] },
+      },
+    ]);
+
+    const finding = findingFor(await auditEnums(source, planFor('posts')), 'content.media.type');
+
+    expect(finding).toBeDefined();
+    // TWO of six. Not "some document somewhere": the count is what an operator
+    // acts on, and it is the number that was wrong by five orders of magnitude.
+    expect(finding?.documents).toBe(2);
+    expect(finding?.sampleIds.sort()).toEqual([String(id('b1')), String(id('b2'))].sort());
+  });
+
+  it('counts only ELEMENTS carrying an explicit null, never a null parent', async () => {
+    // The null-VALUE branch, and the half the `$exists` fix left behind. It is
+    // the same blind spot one function over: `distinct` reports `null` for a
+    // path whose PARENT is null, so `content.media: null` puts `null` in the
+    // observed set even though no element exists — and a document with no media
+    // emits no `post_media` row, so it cannot violate a NOT NULL.
+    //
+    // ## What this case can and cannot see — stated, not implied
+    //
+    // **This harness cannot reproduce the production shape.** Measured: against
+    // `mention-production` (Mongo 8) `distinct('content.media.type')` returns
+    // `["NULL","gif","image","video"]`, where the NULL comes from traversing a
+    // null parent — `{'content.media.type': {$type:'null'}}` matches ZERO
+    // documents and no array holds a null element. `mongodb-memory-server` does
+    // NOT emit that null, so the branch is unreachable from a fixture and a
+    // test asserting "no finding" here passes whether the guard is present or
+    // absent. That was verified by mutation before writing this comment: with
+    // `if (nullValued === 0) continue;` deleted, such a case stayed GREEN.
+    //
+    // So this asserts the half that IS observable — the counter the guard reads
+    // returns 1 for an element that genuinely carries a null and 0 for a null
+    // parent — and the branch's real verification is the production audit,
+    // where the finding covered 252,948 documents and 0 refused rows.
+    await mongo.collection('posts').insertMany([
+      { _id: id('c1'), replyPermission: REPLY_PERMISSION, content: { media: null } },
+      {
+        _id: id('c2'),
+        replyPermission: REPLY_PERMISSION,
+        content: { media: [{ id: 'bmr-m5', type: 'image' }] },
+      },
+      {
+        _id: id('c3'),
+        replyPermission: REPLY_PERMISSION,
+        content: { media: [{ id: 'bmr-m6', type: null }] },
+      },
+    ]);
+
+    const posts = mongo.collection('posts');
+    // What the guard asks: an element that EXISTS and holds an explicit null.
+    const genuinelyNull = await posts.countDocuments({
+      'content.media': { $elemMatch: { type: { $type: 'null' } } },
+    });
+    // What the finding's own count asks — `{path: null}` matches null OR
+    // MISSING, which is why production reported 252,948 for zero refused rows.
+    const nullOrMissing = await posts.countDocuments({ 'content.media.type': null });
+
+    expect(genuinelyNull).toBe(1);
+    expect(nullOrMissing).toBe(2);
+  });
+
+  it('raises NOTHING when every element carries the field', async () => {
+    // The false-positive direction on its own, because a gate that cries wolf
+    // gets disabled by whoever hits it next — and this one refused a copy of
+    // 583,665 correct posts.
+    await mongo.collection('posts').insertMany([
+      { _id: id('c1'), replyPermission: REPLY_PERMISSION, content: { text: 'plain' } },
+      { _id: id('c2'), replyPermission: REPLY_PERMISSION, content: { media: [] } },
+      { _id: id('c3'), replyPermission: REPLY_PERMISSION, content: { media: null } },
+      {
+        _id: id('c4'),
+        replyPermission: REPLY_PERMISSION,
+        content: { media: [{ id: 'bmr-m5', type: 'gif' }] },
+      },
+    ]);
+
+    expect(findingFor(await auditEnums(source, planFor('posts')), 'content.media.type')).toBeUndefined();
+  });
+
+  it('descends TWO array levels, and stops at the subdocument that is absent', async () => {
+    // `content.variants[].media[].type` — the path that reported every post in
+    // production, because no document has ever had it. A variant with no media
+    // emits no `post_variant_media` row; one whose media lacks a type does.
+    await mongo.collection('posts').insertMany([
+      {
+        _id: id('d1'),
+        replyPermission: REPLY_PERMISSION,
+        content: { variants: [{ source: 'author' }] },
+      },
+      {
+        _id: id('d2'),
+        replyPermission: REPLY_PERMISSION,
+        content: { variants: [{ source: 'author', media: [] }] },
+      },
+      {
+        _id: id('d3'),
+        replyPermission: REPLY_PERMISSION,
+        content: { variants: [{ source: 'machine', media: [{ id: 'bmr-v1' }] }] },
+      },
+    ]);
+
+    const finding = findingFor(
+      await auditEnums(source, planFor('posts')),
+      'content.variants.media.type'
+    );
+
+    expect(finding?.documents).toBe(1);
+    expect(finding?.sampleIds).toEqual([String(id('d3'))]);
+  });
+
+  it('raises nothing for a path no document has ever held', async () => {
+    // Production's actual state for `content.variants[].media`: `distinct`
+    // returns `[]`. Zero rows can be emitted, so zero rows can be refused.
+    await mongo.collection('posts').insertMany([
+      {
+        _id: id('e1'),
+        replyPermission: REPLY_PERMISSION,
+        content: { variants: [{ source: 'author' }] },
+      },
+    ]);
+
+    expect(
+      findingFor(await auditEnums(source, planFor('posts')), 'content.variants.media.type')
+    ).toBeUndefined();
+  });
+});
+
+describe('auditMissingRequired on a field of the DOCUMENT', () => {
+  /**
+   * An array-VALUED column on the plan's OWN table, `NOT NULL` with no default.
+   *
+   * `posts.replyPermission` was the obvious fixture and stopped being usable:
+   * it carries a database default, and the probe now skips a defaulted column
+   * entirely — correctly, since Postgres would supply the value rather than
+   * raise a `23502`. That exclusion happens BEFORE the branch this file is
+   * about, so a fix that widened the array branch to swallow array-valued
+   * columns would go unnoticed against it.
+   *
+   * `reports.categories` is the same shape without the default, so the guard
+   * survives on a column where the probe genuinely has a question to answer.
+   */
+  const arrayValuedOnItsOwnTable: CollectionPlan = {
+    ...planFor('reports'),
+    enumAudits: [{ path: 'categories', column: reports.categories }],
+  };
+
+  it('still reports an absent top-level field that happens to be array-VALUED', async () => {
+    // The field holds an array and lands on the plan's own table, so one row is
+    // emitted per document whatever it contains — `{$exists:false}` is the
+    // right question. What makes a path ambiguous is an array BETWEEN the
+    // document and the leaf, never an array AT the leaf.
+    await mongo.collection('reports').insertMany([
+      { _id: id('f1'), reportedType: 'post', status: 'pending' },
+      { _id: id('f2'), reportedType: 'post', status: 'pending', categories: ['spam'] },
+    ]);
+
+    const findings = await auditEnums(source, arrayValuedOnItsOwnTable);
+    const finding = findings.find((entry) => entry.detail.startsWith('reports.categories is MISSING'));
+
+    expect(finding?.documents).toBe(1);
+    expect(finding?.sampleIds).toEqual([String(id('f1'))]);
+  });
+
+  it('is silenced for a DEFAULTED column, which is a different question', async () => {
+    // `posts.replyPermission` is `NOT NULL` WITH a default, so no row is ever
+    // refused for lacking it — `auditDefaultedColumns` owns that case, and the
+    // real plan additionally declares `absentAs: 'anyone'` because the transform
+    // supplies the value itself. Two independent reasons, and the finding is
+    // absent under either.
+    await mongo.collection('posts').insertMany([
+      { _id: id('f3'), content: { text: 'no replyPermission' } },
+    ]);
+
+    expect(postsTable.replyPermission.hasDefault).toBe(true);
+    const audit = planFor('posts').enumAudits?.find((entry) => entry.path === 'replyPermission');
+    expect(audit?.absentAs).toBe('anyone');
+    expect(findingFor(await auditEnums(source, planFor('posts')), 'replyPermission')).toBeUndefined();
+  });
+});

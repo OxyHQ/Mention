@@ -25,14 +25,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const mocks = vi.hoisted(() => ({
-  findOne: vi.fn(),
-  findOneAndUpdate: vi.fn(),
+  findActorByUri: vi.fn(),
+  /** The actor-row write itself — `(uri, columns, fields)`. */
+  upsertActor: vi.fn(),
+  setActorOxyUserId: vi.fn(),
   resolveFederatedActorIdentity: vi.fn(),
   signedFetch: vi.fn(),
 }));
 
-vi.mock('../../../models/FederatedActor', () => ({
-  default: { findOne: mocks.findOne, findOneAndUpdate: mocks.findOneAndUpdate },
+// The actor cache is `federated_actors` in Postgres, reached through this
+// repository — the store adapter in `actor.service` is the only thing between the
+// resolver and it, so stubbing the repository is stubbing the write.
+vi.mock('../../../db/federation/actorRepository', () => ({
+  findActorByUri: mocks.findActorByUri,
+  findActorByPublicKeyId: vi.fn(async () => null),
+  upsertActor: mocks.upsertActor,
+  setActorOxyUserId: mocks.setActorOxyUserId,
+  tombstoneActor: vi.fn(async () => null),
 }));
 
 vi.mock('../../../connectors/identity', () => ({
@@ -84,17 +93,24 @@ const LIVE_ACTOR = {
   ],
 };
 
-/** The `$set` payload the ingest wrote for the actor row. */
+/**
+ * The columns the ingest wrote for the actor row, keyed by the `uri` the upsert
+ * is addressed to (`upsertActor` takes it positionally and strips it from the
+ * column set, so it is put back here — it is the same row either way).
+ */
 let storedRow: Record<string, unknown>;
 
 beforeEach(() => {
   vi.clearAllMocks();
   storedRow = {};
   mocks.resolveFederatedActorIdentity.mockResolvedValue('oxy-user-1');
-  mocks.findOneAndUpdate.mockImplementation((_filter: unknown, update: Record<string, unknown>) => {
-    storedRow = (update.$set ?? {}) as Record<string, unknown>;
-    return Promise.resolve({ ...storedRow, _id: 'row-1' });
-  });
+  mocks.findActorByUri.mockResolvedValue(null);
+  mocks.upsertActor.mockImplementation(
+    (uri: string, columns: Record<string, unknown>) => {
+      storedRow = { uri, ...columns };
+      return Promise.resolve({ ...storedRow, id: 'row-1' });
+    },
+  );
   mocks.signedFetch.mockImplementation(async (url: string) =>
     url === ACTOR_URI
       ? {

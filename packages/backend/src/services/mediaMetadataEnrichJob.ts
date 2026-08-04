@@ -1,5 +1,4 @@
-import { Post } from '../models/Post';
-import type { MediaItem } from '@mention/shared-types';
+import { loadPostRecord, replacePostContent } from '../db/posts/postRepository';
 import { mediaMetadataService } from './MediaMetadataService';
 import { logger } from '../utils/logger';
 import { enqueueMediaMetadataEnrich as enqueueJob } from '../queue/producers';
@@ -12,12 +11,12 @@ import { enqueueMediaMetadataEnrich as enqueueJob } from '../queue/producers';
 export async function patchPostMediaMetadata(postId: string): Promise<boolean> {
   if (!postId) return false;
 
-  const post = await Post.findById(postId).select({ 'content.media': 1 }).lean();
-  if (!post?.content?.media || !Array.isArray(post.content.media) || post.content.media.length === 0) {
+  const post = await loadPostRecord(postId);
+  if (!post?.content.media || post.content.media.length === 0) {
     return false;
   }
 
-  const current = post.content.media as MediaItem[];
+  const current = post.content.media;
   const enriched = await mediaMetadataService.enrichFromOxy(current);
 
   const changed = enriched.some((item, index) => {
@@ -33,7 +32,12 @@ export async function patchPostMediaMetadata(postId: string): Promise<boolean> {
   });
 
   if (changed) {
-    await Post.updateOne({ _id: postId }, { $set: { 'content.media': enriched } });
+    // The whole content graph, because `post_media` is a child table with a
+    // dense `position`: enrichment rewrites every row's dimensions, so a
+    // per-row update would have to renumber nothing but would still have to
+    // touch each row, and `replacePostContent` already does that atomically.
+    // `mentions` are re-supplied unchanged — this pass never touches them.
+    await replacePostContent(postId, { ...post.content, media: enriched }, post.mentions);
   }
 
   return mediaMetadataService.needsOxyRetry(enriched);

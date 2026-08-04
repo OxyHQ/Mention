@@ -67,7 +67,7 @@ export interface ScoringService {
 /** Base post skeleton; overrides win. Mirrors the shape the ranking code reads. */
 function makePost(overrides: Post = {}): Post {
   return {
-    _id: 'post',
+    id: 'post',
     oxyUserId: 'author-1',
     createdAt: aged(2),
     type: 'text',
@@ -471,7 +471,7 @@ export const GOLDEN_CASES: GoldenCase[] = [
   {
     name: 'optin-penalizeSeen-on',
     userId: undefined,
-    post: makePost({ _id: 'seen-post' }),
+    post: makePost({ id: 'seen-post' }),
     context: {
       enabledSignals: new Set(['penalizeSeen']),
       seenPostIdsSet: new Set(['seen-post']),
@@ -491,7 +491,7 @@ export const GOLDEN_CASES: GoldenCase[] = [
   {
     name: 'optin-socialProof-on',
     userId: undefined,
-    post: makePost({ _id: 'sp-post' }),
+    post: makePost({ id: 'sp-post' }),
     context: {
       enabledSignals: new Set(['socialProof']),
       networkEngagerCounts: new Map([['sp-post', 3]]),
@@ -501,7 +501,7 @@ export const GOLDEN_CASES: GoldenCase[] = [
   {
     name: 'optin-dwell-on',
     userId: undefined,
-    post: makePost({ _id: 'dw-post' }),
+    post: makePost({ id: 'dw-post' }),
     context: {
       enabledSignals: new Set(['dwellTime']),
       dwellAverages: new Map([['dw-post', 8000]]),
@@ -549,7 +549,7 @@ export const GOLDEN_CASES: GoldenCase[] = [
     name: 'optin-many-combined',
     userId: 'viewer-1',
     post: makePost({
-      _id: 'combo-post',
+      id: 'combo-post',
       oxyUserId: 'combo-author',
       createdAt: aged(0.25),
       content: { media: [{ id: 'm1' }] },

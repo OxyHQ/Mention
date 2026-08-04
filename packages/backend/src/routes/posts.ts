@@ -35,8 +35,16 @@ import {
   stopCollabSharing,
 } from '../controllers/posts.controller';
 import { getPostEditSource } from '../controllers/postEditSource.controller';
-import { Threadgate } from '../models/Threadgate';
-import { Postgate } from '../models/Postgate';
+import {
+  deletePostgate,
+  deleteThreadgate,
+  loadPostgateByPostId,
+  loadThreadgateByPostId,
+  parseDetachedQuoteUris,
+  parseThreadgateAllowRules,
+  upsertPostgate,
+  upsertThreadgate,
+} from '../db/gates/gateRepository';
 import { createPostUri } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { config } from '../config';
@@ -177,13 +185,16 @@ router.put('/:id/threadgate', async (req: AuthRequest, res: Response) => {
 
     const postId = String(req.params.id);
     const postUri = createPostUri(userId, postId);
-    const { allow } = req.body;
 
-    const threadgate = await Threadgate.findOneAndUpdate(
-      { postUri },
-      { postUri, postId, allow: allow || [], createdBy: userId },
-      { upsert: true, new: true, runValidators: true }
-    );
+    // Mongo stored `allow[]` unvalidated; the rules table refuses a `listOnly`
+    // rule with no list and a list on any other rule. Rejecting the payload here
+    // answers 400 instead of letting a CHECK violation surface as a 500.
+    const allow = parseThreadgateAllowRules(req.body?.allow);
+    if (!allow) {
+      return res.status(400).json({ message: 'Invalid threadgate allow rules' });
+    }
+
+    const threadgate = await upsertThreadgate({ postUri, postId, createdBy: userId, allow });
 
     return res.status(200).json(threadgate);
   } catch (error) {
@@ -193,8 +204,8 @@ router.put('/:id/threadgate', async (req: AuthRequest, res: Response) => {
 
 router.get('/:id/threadgate', async (req: AuthRequest, res: Response) => {
   try {
-    const postId = req.params.id;
-    const threadgate = await Threadgate.findOne({ postId });
+    const postId = String(req.params.id);
+    const threadgate = await loadThreadgateByPostId(postId);
 
     if (!threadgate) {
       return res.status(404).json({ message: 'Threadgate not found' });
@@ -213,8 +224,8 @@ router.delete('/:id/threadgate', async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const postId = req.params.id;
-    const threadgate = await Threadgate.findOne({ postId });
+    const postId = String(req.params.id);
+    const threadgate = await loadThreadgateByPostId(postId);
 
     if (!threadgate) {
       return res.status(404).json({ message: 'Threadgate not found' });
@@ -224,7 +235,7 @@ router.delete('/:id/threadgate', async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ message: 'Forbidden' });
     }
 
-    await Threadgate.deleteOne({ _id: threadgate._id });
+    await deleteThreadgate(threadgate.id);
     return res.status(200).json({ message: 'Threadgate removed' });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to delete threadgate', error: String(error) });
@@ -241,19 +252,23 @@ router.put('/:id/postgate', async (req: AuthRequest, res: Response) => {
 
     const postId = String(req.params.id);
     const postUri = createPostUri(userId, postId);
-    const { disableQuotes, detachedQuoteUris } = req.body;
+    const { disableQuotes, detachedQuoteUris } = req.body ?? {};
 
-    const postgate = await Postgate.findOneAndUpdate(
-      { postUri },
-      {
-        postUri,
-        postId,
-        disableQuotes: disableQuotes ?? false,
-        detachedQuoteUris: detachedQuoteUris ?? [],
-        createdBy: userId,
-      },
-      { upsert: true, new: true, runValidators: true }
-    );
+    if (disableQuotes !== undefined && disableQuotes !== null && typeof disableQuotes !== 'boolean') {
+      return res.status(400).json({ message: 'disableQuotes must be a boolean' });
+    }
+    const uris = parseDetachedQuoteUris(detachedQuoteUris);
+    if (!uris) {
+      return res.status(400).json({ message: 'detachedQuoteUris must be an array of strings' });
+    }
+
+    const postgate = await upsertPostgate({
+      postUri,
+      postId,
+      createdBy: userId,
+      disableQuotes: disableQuotes ?? false,
+      detachedQuoteUris: uris,
+    });
 
     return res.status(200).json(postgate);
   } catch (error) {
@@ -263,8 +278,8 @@ router.put('/:id/postgate', async (req: AuthRequest, res: Response) => {
 
 router.get('/:id/postgate', async (req: AuthRequest, res: Response) => {
   try {
-    const postId = req.params.id;
-    const postgate = await Postgate.findOne({ postId });
+    const postId = String(req.params.id);
+    const postgate = await loadPostgateByPostId(postId);
 
     if (!postgate) {
       return res.status(404).json({ message: 'Postgate not found' });
@@ -283,8 +298,8 @@ router.delete('/:id/postgate', async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const postId = req.params.id;
-    const postgate = await Postgate.findOne({ postId });
+    const postId = String(req.params.id);
+    const postgate = await loadPostgateByPostId(postId);
 
     if (!postgate) {
       return res.status(404).json({ message: 'Postgate not found' });
@@ -294,7 +309,7 @@ router.delete('/:id/postgate', async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ message: 'Forbidden' });
     }
 
-    await Postgate.deleteOne({ _id: postgate._id });
+    await deletePostgate(postgate.id);
     return res.status(200).json({ message: 'Postgate removed' });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to delete postgate', error: String(error) });

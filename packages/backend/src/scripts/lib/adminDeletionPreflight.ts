@@ -1,46 +1,65 @@
-import type { Types } from 'mongoose';
-import { Post } from '../../models/Post';
-import Like from '../../models/Like';
-import Bookmark from '../../models/Bookmark';
-import Notification from '../../models/Notification';
-import Poll from '../../models/Poll';
-import Article from '../../models/Article';
-import { Postgate } from '../../models/Postgate';
-import { Threadgate } from '../../models/Threadgate';
-import PostRecentReplier from '../../models/PostRecentReplier';
-import EngagementOutbox from '../../models/EngagementOutbox';
-import Report, { ReportedType } from '../../models/Report.model';
-import ContentLabel from '../../models/ContentLabel';
-import { FeedInteraction } from '../../models/FeedInteraction';
-import FederationDeliveryQueue from '../../models/FederationDeliveryQueue';
-import Mute from '../../models/Mute';
-import { MuteWord } from '../../models/MuteWord';
-import FeedLike from '../../models/FeedLike';
-import FeedReview from '../../models/FeedReview';
-import PostSubscription from '../../models/PostSubscription';
-import PushToken from '../../models/PushToken';
-import Poke from '../../models/Poke';
-import AccountList from '../../models/AccountList';
-import CustomFeed from '../../models/CustomFeed';
-import StarterPack from '../../models/StarterPack';
-import { FeedGenerator } from '../../models/FeedGenerator';
-import Labeler from '../../models/Labeler';
-import EndorsementOutbox from '../../models/EndorsementOutbox';
-import UserBehavior from '../../models/UserBehavior';
-import FederatedFollow from '../../models/FederatedFollow';
-import { EntityFollow } from '../../models/EntityFollow';
-import UserSettings from '../../models/UserSettings';
-import UserFeedPreference from '../../models/UserFeedPreference';
-import { AuthorFollowerSnapshot } from '../../models/AuthorFollowerSnapshot';
-import ActorKeyPair from '../../models/ActorKeyPair';
-import MentionUserNode from '../../models/MentionUserNode';
-import MentionRepoHead from '../../models/MentionRepoHead';
-import MentionSignedRecord from '../../models/MentionSignedRecord';
-import MentionNodeIngestWitness from '../../models/MentionNodeIngestWitness';
-import { Lane } from '../../models/Lane';
-import { LaneMute } from '../../models/LaneMute';
-import ModerationEnforcement from '../../models/ModerationEnforcement';
-import McpConnection from '../../mcp/models/McpConnection';
+import {
+  and,
+  arrayContains,
+  eq,
+  exists,
+  inArray,
+  ne,
+  notInArray,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
+import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
+import { articles } from '../../db/schema/articles';
+import { authorFollowerSnapshots, notifications, pushTokens } from '../../db/schema/discovery';
+import {
+  bookmarks,
+  entityFollows,
+  likes,
+  muteWords,
+  mutes,
+  pokes,
+  postSubscriptions,
+} from '../../db/schema/engagement';
+import {
+  customFeedMembers,
+  customFeeds,
+  feedGenerators,
+  feedInteractions,
+  feedLikes,
+  feedReviews,
+  userFeedPreferences,
+} from '../../db/schema/feeds';
+import { postgates, threadgates } from '../../db/schema/gates';
+import {
+  accountListMembers,
+  accountLists,
+  starterPackMembers,
+  starterPackUses,
+  starterPacks,
+} from '../../db/schema/lists';
+import {
+  mentionNodeIngestWitnesses,
+  mentionRepoHeads,
+  mentionSignedRecords,
+  mentionUserNodes,
+} from '../../db/schema/mtn';
+import { contentLabels, labelers, moderationEnforcements, reports } from '../../db/schema/moderation';
+import { endorsementOutbox, engagementOutbox } from '../../db/schema/outbox';
+import { pollVotes, polls } from '../../db/schema/polls';
+import { postAuthorships, postMentions, postRecentRepliers } from '../../db/schema/postContent';
+import { posts } from '../../db/schema/posts';
+import { laneMutes, lanes } from '../../db/schema/channels';
+import { mcpConnections } from '../../db/schema/mcp';
+import { userBehaviorAuthors, userBehaviors, userSettings } from '../../db/schema/userProfile';
+import {
+  hasDeliveriesFromSender,
+  hasDeliveriesReferencingObjects,
+} from '../../db/federation/deliveryQueueRepository';
+import { existsFollow } from '../../db/federation/followRepository';
+import { hasActorKeyPair } from '../../db/federation/actorKeyPairRepository';
+import { getDb } from '../../db/postgres';
 
 export interface ReferenceProbe {
   name: string;
@@ -48,8 +67,37 @@ export interface ReferenceProbe {
 }
 
 export interface PostDeletionTarget {
-  id: Types.ObjectId | string;
+  id: string;
   uris?: readonly string[];
+}
+
+/**
+ * Whether ANY row of `table` matches `where` — the Postgres analogue of
+ * `Model.exists`, and the only shape a reference probe needs.
+ *
+ * EVERY probe in this file goes through this or `postExists`. That is the whole
+ * repair: each probe used to ask a Mongoose model whose collection moved to
+ * Postgres in an earlier batch and which nothing has written since, so it
+ * answered "no reference" for every input — the preflight cleared EVERY
+ * deletion, silently, in the permissive direction. A gate that fails open is
+ * worse than an absent one, because the operator believes it ran.
+ *
+ * It surfaced only because post ids became uuid v7 and several Mongoose paths
+ * are typed `ObjectId`, which turned the silence into a CastError. The columns
+ * here are all `text`, so they hold either id space.
+ */
+async function anyRow(
+  table: PgTable,
+  idColumn: PgColumn,
+  where: SQL | undefined,
+): Promise<boolean> {
+  const [row] = await getDb().select({ id: idColumn }).from(table).where(where).limit(1);
+  return row !== undefined;
+}
+
+/** `anyRow` for the posts table itself, which every actor probe also needs. */
+async function postExists(where: SQL | undefined): Promise<boolean> {
+  return anyRow(posts, posts.id, where);
 }
 
 export interface ActorDeletionTarget {
@@ -96,10 +144,6 @@ export function assertNoDeletionBlockers(
   }
 }
 
-async function exists(query: PromiseLike<unknown>): Promise<boolean> {
-  return Boolean(await query);
-}
-
 function unique(values: readonly string[]): string[] {
   return [...new Set(values.filter((value) => value.length > 0))];
 }
@@ -114,24 +158,28 @@ function unique(values: readonly string[]): string[] {
  * caller. A purge that has not been taught about a new reference type fails
  * closed on it, which is the whole point of a preflight.
  *
- * `Post.dependents` is deliberately absent: it is the reply/boost graph, and
+ * The post GRAPH probe is deliberately absent: it is the reply/boost graph, and
  * whether a dangling one is acceptable is a POLICY question with its own
  * narrower option rather than something a cascade can claim to have cleaned.
+ *
+ * Every name is the TABLE and COLUMN, not a model: the name is what a blocker
+ * message prints, and an operator has to be able to go and look at the thing it
+ * names.
  */
 export const POST_REFERENCE_PROBE_NAMES = [
-  'Notification.entityId',
-  'Poll.postId',
-  'Article.postId',
-  'Postgate.postId/postUri',
-  'Threadgate.postId/postUri',
-  'PostRecentReplier.postId',
-  'EngagementOutbox.payload.postId',
-  'Report.reportedId(post)',
-  'ContentLabel.targetId(post)',
-  'FeedInteraction.postUri',
-  'FederationDeliveryQueue.activityJson',
-  'Like.postId',
-  'Bookmark.postId',
+  'notifications.entity_id',
+  'polls.post_id',
+  'articles.post_id',
+  'postgates.post_id/post_uri',
+  'threadgates.post_id/post_uri',
+  'post_recent_repliers.post_id',
+  'engagement_outbox.payload_post_id',
+  'reports.reported_id(post)',
+  'content_labels.target_id(post)',
+  'feed_interactions.post_uri',
+  'federation_delivery_queue.activity_json',
+  'likes.post_id',
+  'bookmarks.post_id',
 ] as const;
 
 export type PostReferenceProbeName = (typeof POST_REFERENCE_PROBE_NAMES)[number];
@@ -166,7 +214,7 @@ export interface PostDeletionAcknowledgements {
    */
   keptByPolicy?: readonly PostReferenceProbeName[];
   /**
-   * The caller deliberately LEAVES `parentPostId` / `quoteOf` / `threadId`
+   * The caller deliberately LEAVES `parent_post_id` / `quote_of` / `thread_id`
    * pointing at a removed post, because the referencing posts belong to OTHER
    * users and deleting them would destroy their content to remove someone
    * else's. `PostHydrationService` already tolerates all three: a reply whose
@@ -174,10 +222,15 @@ export interface PostDeletionAcknowledgements {
    * handle, a quote resolves `quotedPost` to null and drops the quote card, and
    * a thread context resolves to a root that no longer exists.
    *
-   * `boostOf` is NEVER covered by this. A boost has a deliberately empty body
+   * `boost_of` is NEVER covered by this. A boost has a deliberately empty body
    * and renders entirely from its original, so a dangling one is not degraded
    * content — it is a placeholder card with nothing behind it. A caller that
    * wants this allowance must still delete the boosts.
+   *
+   * All four columns are `ON DELETE SET NULL` rather than `RESTRICT`, so nothing
+   * DANGLES in the referential sense — which is exactly why the probe matters:
+   * the reference is silently erased instead of visibly broken, and this option
+   * is the only place that trade is stated.
    */
   allowDanglingReplyReferences?: boolean;
 }
@@ -190,63 +243,73 @@ export interface PostDeletionAcknowledgements {
 function buildPostReferenceProbes(
   targets: readonly PostDeletionTarget[],
 ): Record<PostReferenceProbeName, () => Promise<boolean>> {
-  const ids = targets.map((target) => target.id);
-  const idStrings = unique(ids.map(String));
+  const idStrings = unique(targets.map((target) => target.id));
   const postKeys = unique([
     ...idStrings,
     ...targets.flatMap((target) => target.uris ?? []),
   ]);
 
   return {
-    'Notification.entityId': () =>
-      exists(
-        Notification.exists({
-          entityType: { $in: ['post', 'reply'] },
-          entityId: { $in: ids },
-        }),
+    'notifications.entity_id': () =>
+      anyRow(
+        notifications,
+        notifications.id,
+        and(
+          inArray(notifications.entityType, ['post', 'reply']),
+          inArray(notifications.entityId, idStrings),
+        ),
       ),
-    'Poll.postId': () =>
-      exists(Poll.exists({ postId: { $in: [...ids, ...idStrings] } })),
-    'Article.postId': () => exists(Article.exists({ postId: { $in: idStrings } })),
-    'Postgate.postId/postUri': () =>
-      exists(
-        Postgate.exists({
-          $or: [{ postId: { $in: idStrings } }, { postUri: { $in: postKeys } }],
-        }),
+    'polls.post_id': () => anyRow(polls, polls.id, inArray(polls.postId, idStrings)),
+    'articles.post_id': () => anyRow(articles, articles.id, inArray(articles.postId, idStrings)),
+    'postgates.post_id/post_uri': () =>
+      anyRow(
+        postgates,
+        postgates.id,
+        or(inArray(postgates.postId, idStrings), inArray(postgates.postUri, postKeys)),
       ),
-    'Threadgate.postId/postUri': () =>
-      exists(
-        Threadgate.exists({
-          $or: [{ postId: { $in: idStrings } }, { postUri: { $in: postKeys } }],
-        }),
+    'threadgates.post_id/post_uri': () =>
+      anyRow(
+        threadgates,
+        threadgates.id,
+        or(inArray(threadgates.postId, idStrings), inArray(threadgates.postUri, postKeys)),
       ),
-    'PostRecentReplier.postId': () =>
-      exists(PostRecentReplier.exists({ postId: { $in: idStrings } })),
-    'EngagementOutbox.payload.postId': () =>
-      exists(EngagementOutbox.exists({ 'payload.postId': { $in: idStrings } })),
-    'Report.reportedId(post)': () =>
-      exists(
-        Report.exists({
-          reportedType: ReportedType.POST,
-          reportedId: { $in: idStrings },
-        }),
+    'post_recent_repliers.post_id': () =>
+      anyRow(
+        postRecentRepliers,
+        postRecentRepliers.id,
+        inArray(postRecentRepliers.postId, idStrings),
       ),
-    'ContentLabel.targetId(post)': () =>
-      exists(ContentLabel.exists({ targetType: 'post', targetId: { $in: idStrings } })),
-    'FeedInteraction.postUri': () =>
-      exists(FeedInteraction.exists({ postUri: { $in: postKeys } })),
-    'FederationDeliveryQueue.activityJson': () =>
-      exists(
-        FederationDeliveryQueue.exists({
-          $or: [
-            { 'activityJson.id': { $in: postKeys } },
-            { 'activityJson.object.id': { $in: postKeys } },
-            { 'activityJson.object': { $in: postKeys } },
-          ],
-        }),
+    'engagement_outbox.payload_post_id': () =>
+      anyRow(
+        engagementOutbox,
+        engagementOutbox.id,
+        inArray(engagementOutbox.payloadPostId, idStrings),
       ),
-    'Like.postId': () => exists(Like.exists({ postId: { $in: ids } })),
-    'Bookmark.postId': () => exists(Bookmark.exists({ postId: { $in: ids } })),
+    'reports.reported_id(post)': () =>
+      anyRow(
+        reports,
+        reports.id,
+        and(eq(reports.reportedType, 'post'), inArray(reports.reportedId, idStrings)),
+      ),
+    'content_labels.target_id(post)': () =>
+      anyRow(
+        contentLabels,
+        contentLabels.id,
+        and(eq(contentLabels.targetType, 'post'), inArray(contentLabels.targetId, idStrings)),
+      ),
+    'feed_interactions.post_uri': () =>
+      anyRow(feedInteractions, feedInteractions.id, inArray(feedInteractions.postUri, postKeys)),
+    // The probe NAME follows the storage: a blocker message has to name
+    // something an operator can go and look at.
+    'federation_delivery_queue.activity_json': () => hasDeliveriesReferencingObjects(postKeys),
+    // These two now carry a real `ON DELETE CASCADE` to `posts.id`, so the
+    // reference cannot be left DANGLING — which makes the probe MORE
+    // load-bearing, not less. Under Mongo an unblocked delete left a visible
+    // orphan; under Postgres it destroys the engagement row silently. A caller's
+    // `removedByCascade` acknowledgement stays the only way past it.
+    'likes.post_id': () => anyRow(likes, likes.id, inArray(likes.postId, idStrings)),
+    'bookmarks.post_id': () =>
+      anyRow(bookmarks, bookmarks.id, inArray(bookmarks.postId, idStrings)),
   };
 }
 
@@ -262,38 +325,32 @@ export async function assertPostsSafeToDelete(
 ): Promise<void> {
   if (targets.length === 0) return;
 
-  const ids = targets.map((target) => target.id);
-  const idStrings = unique(ids.map(String));
+  const idStrings = unique(targets.map((target) => target.id));
   const acknowledged = new Set<PostReferenceProbeName>([
     ...(options.removedByCascade ?? []),
     ...(options.keptByPolicy ?? []),
   ]);
   const referenceProbes = buildPostReferenceProbes(targets);
 
-  const danglingReferenceFields = options.allowDanglingReplyReferences
-    ? [{ boostOf: { $in: idStrings } }]
+  const danglingReferences = options.allowDanglingReplyReferences
+    ? [inArray(posts.boostOf, idStrings)]
     : [
-        { boostOf: { $in: idStrings } },
-        { quoteOf: { $in: idStrings } },
-        { parentPostId: { $in: idStrings } },
-        { threadId: { $in: idStrings } },
+        inArray(posts.boostOf, idStrings),
+        inArray(posts.quoteOf, idStrings),
+        inArray(posts.parentPostId, idStrings),
+        inArray(posts.threadId, idStrings),
       ];
 
   // The post graph is checked ALWAYS, and is the one probe no cascade may
   // acknowledge away — only `allowDanglingReplyReferences` narrows it, and only
-  // ever to leave `boostOf` covered.
+  // ever to leave `boost_of` covered.
   const probes: ReferenceProbe[] = [
     {
       name: options.allowDanglingReplyReferences
-        ? 'Post.dependents(boostOf)'
-        : 'Post.dependents(boostOf/quoteOf/parentPostId/threadId)',
+        ? 'posts.boost_of'
+        : 'posts.boost_of/quote_of/parent_post_id/thread_id',
       hasReference: () =>
-        exists(
-          Post.exists({
-            _id: { $nin: ids },
-            $or: danglingReferenceFields,
-          }),
-        ),
+        postExists(and(notInArray(posts.id, idStrings), or(...danglingReferences))),
     },
   ];
 
@@ -336,290 +393,421 @@ export async function collectPostCascadeResidue(
  * `includeReferencesRemovedByGoneActorCascade` returns ONLY the probes that
  * cascade does not remove; everything appended afterwards is what it does.
  */
+/**
+ * Every ACTOR reference this module probes, as a closed union.
+ *
+ * The sibling {@link POST_REFERENCE_PROBE_NAMES} has always been one; this one
+ * was not, and the asymmetry was invisible from any diff. Deleting a POST probe
+ * breaks the build, while deleting an ACTOR probe compiled clean and left only a
+ * test to notice — a test that can be resolved away at the same moment as the
+ * probe when both sides of a merge conflict are taken together. Typing the probe
+ * list against this union is what makes a removed actor probe a COMPILER error
+ * rather than something a hand-written list has to remember.
+ */
+export const ACTOR_REFERENCE_PROBE_NAMES = [
+  'bookmarks.user_id',
+  'mutes.user_id/muted_id',
+  'mute_words.user_id',
+  'feed_interactions.user_id',
+  'feed_likes.user_id',
+  'feed_reviews.reviewer_id',
+  'post_subscriptions.subscriber_id/author_id',
+  'push_tokens.user_id',
+  'pokes.poker_id/poked_id',
+  'reports.reporter/reported_id(user)',
+  'polls.created_by/poll_votes.user_id',
+  'articles.created_by',
+  'postgates.created_by',
+  'threadgates.created_by',
+  'post_recent_repliers.oxy_user_id',
+  'engagement_outbox.payload actor/owner',
+  'account_lists owner/member',
+  'custom_feeds owner/member',
+  'starter_packs owner/member/used_by',
+  'feed_generators.created_by',
+  'labelers.creator_id',
+  'content_labels created_by/target_id(user)',
+  'federation_delivery_queue.sender_oxy_user_id',
+  'endorsement_outbox pending owner/member',
+  'user_behaviors references from another viewer',
+  'posts non-owner authorship/federation.actor_uri',
+  'federated_follows.local_user_id',
+  'posts.written_by_oxy_user_id',
+  'lanes.owner_id',
+  'lane_mutes.viewer/lane_owner',
+  'mcp_connections.oxy_user_id/active_oxy_user_id',
+  'moderation_enforcements.subject_id',
+  'user_settings privacy references from another viewer',
+  'posts.federation_actor_uri without linked Oxy identity',
+  'federated_follows.remote_actor_uri',
+  'posts owner/authorship/mentions',
+  'likes.user_id',
+  'entity_follows.user_id',
+  'notifications recipient/actor',
+  'user_settings.oxy_user_id',
+  'user_behaviors.oxy_user_id',
+  'user_feed_preferences.oxy_user_id',
+  'author_follower_snapshots.oxy_user_id',
+  'actor_key_pairs.oxy_user_id',
+  'mention_user_nodes.oxy_user_id',
+  'mention_repo_heads.oxy_user_id',
+  'mention_signed_records.oxy_user_id',
+  'mention_node_ingest_witnesses.oxy_user_id',
+] as const;
+
+export type ActorReferenceProbeName = (typeof ACTOR_REFERENCE_PROBE_NAMES)[number];
+
+/** A {@link ReferenceProbe} whose name is a declared actor reference. */
+export type ActorReferenceProbe = ReferenceProbe & { name: ActorReferenceProbeName };
+
 export function actorReferenceProbes(
   target: ActorDeletionTarget,
   includeReferencesRemovedByGoneActorCascade: boolean,
-): ReferenceProbe[] {
+): ActorReferenceProbe[] {
   const oxyUserId = target.oxyUserId?.trim();
   const actorUri = target.actorUri;
-  const probes: ReferenceProbe[] = [];
+  const probes: ActorReferenceProbe[] = [];
 
   if (oxyUserId) {
     probes.push(
       {
-        name: 'Bookmark.userId',
-        hasReference: () => exists(Bookmark.exists({ userId: oxyUserId })),
+        name: 'bookmarks.user_id',
+        hasReference: () => anyRow(bookmarks, bookmarks.id, eq(bookmarks.userId, oxyUserId)),
       },
       {
-        name: 'Mute.userId/mutedId',
+        name: 'mutes.user_id/muted_id',
         hasReference: () =>
-          exists(Mute.exists({ $or: [{ userId: oxyUserId }, { mutedId: oxyUserId }] })),
+          anyRow(mutes, mutes.id, or(eq(mutes.userId, oxyUserId), eq(mutes.mutedId, oxyUserId))),
       },
       {
-        name: 'MuteWord.userId',
-        hasReference: () => exists(MuteWord.exists({ userId: oxyUserId })),
+        name: 'mute_words.user_id',
+        hasReference: () => anyRow(muteWords, muteWords.id, eq(muteWords.userId, oxyUserId)),
       },
       {
-        name: 'FeedInteraction.userId',
-        hasReference: () => exists(FeedInteraction.exists({ userId: oxyUserId })),
-      },
-      {
-        name: 'FeedLike.userId',
-        hasReference: () => exists(FeedLike.exists({ userId: oxyUserId })),
-      },
-      {
-        name: 'FeedReview.reviewerId',
-        hasReference: () => exists(FeedReview.exists({ reviewerId: oxyUserId })),
-      },
-      {
-        name: 'PostSubscription.subscriberId/authorId',
+        name: 'feed_interactions.user_id',
         hasReference: () =>
-          exists(
-            PostSubscription.exists({
-              $or: [{ subscriberId: oxyUserId }, { authorId: oxyUserId }],
-            }),
+          anyRow(feedInteractions, feedInteractions.id, eq(feedInteractions.userId, oxyUserId)),
+      },
+      {
+        name: 'feed_likes.user_id',
+        hasReference: () => anyRow(feedLikes, feedLikes.id, eq(feedLikes.userId, oxyUserId)),
+      },
+      {
+        name: 'feed_reviews.reviewer_id',
+        hasReference: () =>
+          anyRow(feedReviews, feedReviews.id, eq(feedReviews.reviewerId, oxyUserId)),
+      },
+      {
+        name: 'post_subscriptions.subscriber_id/author_id',
+        hasReference: () =>
+          anyRow(
+            postSubscriptions,
+            postSubscriptions.id,
+            or(
+              eq(postSubscriptions.subscriberId, oxyUserId),
+              eq(postSubscriptions.authorId, oxyUserId),
+            ),
           ),
       },
       {
-        name: 'PushToken.userId',
-        hasReference: () => exists(PushToken.exists({ userId: oxyUserId })),
+        name: 'push_tokens.user_id',
+        hasReference: () => anyRow(pushTokens, pushTokens.id, eq(pushTokens.userId, oxyUserId)),
       },
       {
-        name: 'Poke.pokerId/pokedId',
+        name: 'pokes.poker_id/poked_id',
         hasReference: () =>
-          exists(Poke.exists({ $or: [{ pokerId: oxyUserId }, { pokedId: oxyUserId }] })),
+          anyRow(pokes, pokes.id, or(eq(pokes.pokerId, oxyUserId), eq(pokes.pokedId, oxyUserId))),
       },
       {
-        name: 'Report.reporter/reportedId(user)',
+        name: 'reports.reporter/reported_id(user)',
         hasReference: () =>
-          exists(
-            Report.exists({
-              $or: [
-                { reporter: oxyUserId },
-                { reportedType: ReportedType.USER, reportedId: oxyUserId },
-              ],
-            }),
+          anyRow(
+            reports,
+            reports.id,
+            or(
+              eq(reports.reporter, oxyUserId),
+              and(
+                eq(reports.reportedType, 'user'),
+                eq(reports.reportedId, oxyUserId),
+              ),
+            ),
           ),
       },
       {
-        name: 'Poll.createdBy/options.votes',
+        // Mongo embedded the ballots in `options.votes`; they are their own
+        // table now, so the second arm is an EXISTS rather than a dotted path.
+        name: 'polls.created_by/poll_votes.user_id',
         hasReference: () =>
-          exists(
-            Poll.exists({
-              $or: [{ createdBy: oxyUserId }, { 'options.votes': oxyUserId }],
-            }),
+          anyRow(
+            polls,
+            polls.id,
+            or(
+              eq(polls.createdBy, oxyUserId),
+              exists(
+                getDb()
+                  .select({ one: sql`1` })
+                  .from(pollVotes)
+                  .where(and(eq(pollVotes.pollId, polls.id), eq(pollVotes.userId, oxyUserId))),
+              ),
+            ),
           ),
       },
       {
-        name: 'Article.createdBy',
-        hasReference: () => exists(Article.exists({ createdBy: oxyUserId })),
+        name: 'articles.created_by',
+        hasReference: () => anyRow(articles, articles.id, eq(articles.createdBy, oxyUserId)),
       },
       {
-        name: 'Postgate.createdBy',
-        hasReference: () => exists(Postgate.exists({ createdBy: oxyUserId })),
+        name: 'postgates.created_by',
+        hasReference: () => anyRow(postgates, postgates.id, eq(postgates.createdBy, oxyUserId)),
       },
       {
-        name: 'Threadgate.createdBy',
-        hasReference: () => exists(Threadgate.exists({ createdBy: oxyUserId })),
-      },
-      {
-        name: 'PostRecentReplier.repliers.oxyUserId',
+        name: 'threadgates.created_by',
         hasReference: () =>
-          exists(PostRecentReplier.exists({ 'repliers.oxyUserId': oxyUserId })),
+          anyRow(threadgates, threadgates.id, eq(threadgates.createdBy, oxyUserId)),
       },
       {
-        name: 'EngagementOutbox.payload actor/owner/authorship',
+        name: 'post_recent_repliers.oxy_user_id',
         hasReference: () =>
-          exists(
-            EngagementOutbox.exists({
-              $or: [
-                { 'payload.actorOxyUserId': oxyUserId },
-                { 'payload.postOwnerOxyUserId': oxyUserId },
-                { 'payload.postAuthorship.oxyUserId': oxyUserId },
-              ],
-            }),
+          anyRow(
+            postRecentRepliers,
+            postRecentRepliers.id,
+            eq(postRecentRepliers.oxyUserId, oxyUserId),
           ),
       },
       {
-        name: 'AccountList owner/member',
+        // Mongo's third arm, `payload.postAuthorship.oxyUserId`, has NO column:
+        // that snapshot was dropped as reconstructible from `post_authorships`,
+        // which the `posts non-owner authorship` probe below already covers.
+        name: 'engagement_outbox.payload actor/owner',
         hasReference: () =>
-          exists(
-            AccountList.exists({
-              $or: [
-                { ownerOxyUserId: oxyUserId },
-                { memberOxyUserIds: oxyUserId },
-              ],
-            }),
+          anyRow(
+            engagementOutbox,
+            engagementOutbox.id,
+            or(
+              eq(engagementOutbox.payloadActorOxyUserId, oxyUserId),
+              eq(engagementOutbox.payloadPostOwnerOxyUserId, oxyUserId),
+            ),
           ),
       },
       {
-        name: 'CustomFeed owner/member',
-        hasReference: () =>
-          exists(
-            CustomFeed.exists({
-              $or: [
-                { ownerOxyUserId: oxyUserId },
-                { memberOxyUserIds: oxyUserId },
-              ],
-            }),
+        // The member arrays became junction tables, so "owner or member" is a
+        // union of two probes rather than one `$or` on a document.
+        name: 'account_lists owner/member',
+        hasReference: async () =>
+          (await anyRow(
+            accountLists,
+            accountLists.id,
+            eq(accountLists.ownerOxyUserId, oxyUserId),
+          )) ||
+          anyRow(
+            accountListMembers,
+            accountListMembers.id,
+            eq(accountListMembers.oxyUserId, oxyUserId),
           ),
       },
       {
-        name: 'StarterPack owner/member/usedBy',
-        hasReference: () =>
-          exists(
-            StarterPack.exists({
-              $or: [
-                { ownerOxyUserId: oxyUserId },
-                { memberOxyUserIds: oxyUserId },
-                { usedByOxyUserIds: oxyUserId },
-              ],
-            }),
+        name: 'custom_feeds owner/member',
+        hasReference: async () =>
+          (await anyRow(customFeeds, customFeeds.id, eq(customFeeds.ownerOxyUserId, oxyUserId))) ||
+          anyRow(
+            customFeedMembers,
+            customFeedMembers.id,
+            eq(customFeedMembers.oxyUserId, oxyUserId),
           ),
       },
       {
-        name: 'FeedGenerator.createdBy',
-        hasReference: () => exists(FeedGenerator.exists({ createdBy: oxyUserId })),
+        name: 'starter_packs owner/member/used_by',
+        hasReference: async () =>
+          (await anyRow(
+            starterPacks,
+            starterPacks.id,
+            eq(starterPacks.ownerOxyUserId, oxyUserId),
+          )) ||
+          (await anyRow(
+            starterPackMembers,
+            starterPackMembers.id,
+            eq(starterPackMembers.oxyUserId, oxyUserId),
+          )) ||
+          anyRow(starterPackUses, starterPackUses.id, eq(starterPackUses.oxyUserId, oxyUserId)),
       },
       {
-        name: 'Labeler.creatorId',
-        hasReference: () => exists(Labeler.exists({ creatorId: oxyUserId })),
-      },
-      {
-        name: 'ContentLabel user/createdBy',
+        name: 'feed_generators.created_by',
         hasReference: () =>
-          exists(
-            ContentLabel.exists({
-              $or: [
-                { createdBy: oxyUserId },
-                { targetType: 'user', targetId: oxyUserId },
-              ],
-            }),
+          anyRow(feedGenerators, feedGenerators.id, eq(feedGenerators.createdBy, oxyUserId)),
+      },
+      {
+        name: 'labelers.creator_id',
+        hasReference: () => anyRow(labelers, labelers.id, eq(labelers.creatorId, oxyUserId)),
+      },
+      {
+        name: 'content_labels created_by/target_id(user)',
+        hasReference: () =>
+          anyRow(
+            contentLabels,
+            contentLabels.id,
+            or(
+              eq(contentLabels.createdBy, oxyUserId),
+              and(
+                eq(contentLabels.targetType, 'user'),
+                eq(contentLabels.targetId, oxyUserId),
+              ),
+            ),
           ),
       },
       {
-        name: 'FederationDeliveryQueue.senderOxyUserId',
-        hasReference: () =>
-          exists(FederationDeliveryQueue.exists({ senderOxyUserId: oxyUserId })),
+        name: 'federation_delivery_queue.sender_oxy_user_id',
+        hasReference: () => hasDeliveriesFromSender(oxyUserId),
       },
       {
-        name: 'EndorsementOutbox pending owner/member',
+        name: 'endorsement_outbox pending owner/member',
         hasReference: () =>
-          exists(
-            EndorsementOutbox.exists({
-              $or: [
-                { pendingRemoveOwnerId: oxyUserId },
-                { pendingRemoveMemberIds: oxyUserId },
-              ],
-            }),
+          anyRow(
+            endorsementOutbox,
+            endorsementOutbox.id,
+            or(
+              eq(endorsementOutbox.pendingRemoveOwnerId, oxyUserId),
+              arrayContains(endorsementOutbox.pendingRemoveMemberIds, [oxyUserId]),
+            ),
           ),
       },
       {
-        name: 'UserBehavior references from another viewer',
+        // `preferredAuthors` became a child table; the three negative-signal
+        // arrays stayed `text[]`, so they are containment tests (`@>`), not
+        // equality — an `eq` against an array column matches nothing at all.
+        name: 'user_behaviors references from another viewer',
         hasReference: () =>
-          exists(
-            UserBehavior.exists({
-              oxyUserId: { $ne: oxyUserId },
-              $or: [
-                { 'preferredAuthors.authorId': oxyUserId },
-                { hiddenAuthors: oxyUserId },
-                { mutedAuthors: oxyUserId },
-                { blockedAuthors: oxyUserId },
-              ],
-            }),
+          anyRow(
+            userBehaviors,
+            userBehaviors.id,
+            and(
+              ne(userBehaviors.oxyUserId, oxyUserId),
+              or(
+                exists(
+                  getDb()
+                    .select({ one: sql`1` })
+                    .from(userBehaviorAuthors)
+                    .where(
+                      and(
+                        eq(userBehaviorAuthors.behaviorId, userBehaviors.id),
+                        eq(userBehaviorAuthors.authorId, oxyUserId),
+                      ),
+                    ),
+                ),
+                arrayContains(userBehaviors.hiddenAuthors, [oxyUserId]),
+                arrayContains(userBehaviors.mutedAuthors, [oxyUserId]),
+                arrayContains(userBehaviors.blockedAuthors, [oxyUserId]),
+              ),
+            ),
           ),
       },
       {
-        name: 'Post non-owner authorship/federation.actorUri',
+        name: 'posts non-owner authorship/federation.actor_uri',
         hasReference: () =>
-          exists(
-            Post.exists({
-              oxyUserId: { $ne: oxyUserId },
-              $or: [
-                { 'authorship.oxyUserId': oxyUserId },
-                { 'federation.actorUri': actorUri },
-              ],
-            }),
+          postExists(
+            and(
+              ne(posts.oxyUserId, oxyUserId),
+              or(
+                // The authorship AUTHORITY is a child table, so "someone else's
+                // post lists this user as a collaborator" is an EXISTS over it —
+                // not a dotted path on the post row.
+                sql`exists (
+                  select 1 from ${postAuthorships}
+                  where ${postAuthorships.postId} = ${posts.id}
+                    and ${postAuthorships.oxyUserId} = ${oxyUserId}
+                )`,
+                eq(posts.federationActorUri, actorUri),
+              ),
+            ),
           ),
+      },
+      {
+        name: 'federated_follows.local_user_id',
+        hasReference: () => existsFollow({ localUserId: oxyUserId }),
       },
       {
         /**
          * The writer behind a channel post, which is the ONE reference to a
-         * person that is deliberately outside `authorship[]` — putting them in
-         * it would both end the channel's anonymity and put the post back on
-         * their own profile. That same choice puts the column outside every
-         * authorship matcher and, until this probe, outside every guard: the
-         * gone-actor cascade removes posts by owner and by authorship, so a
-         * channel post written by this actor survives it holding their id.
+         * person deliberately outside `authorship[]` — putting them in it would
+         * both end the channel's anonymity and put the post back on their own
+         * profile. That same choice puts the column outside every authorship
+         * matcher and, until this probe, outside every guard: the gone-actor
+         * cascade removes posts by owner and by authorship, so a channel post
+         * written by this actor survives it holding their id.
          */
-        name: 'Post.writtenByOxyUserId',
-        hasReference: () => exists(Post.exists({ writtenByOxyUserId: oxyUserId })),
+        name: 'posts.written_by_oxy_user_id',
+        hasReference: () => anyRow(posts, posts.id, eq(posts.writtenByOxyUserId, oxyUserId)),
       },
       {
-        name: 'Lane.ownerId',
-        hasReference: () => exists(Lane.exists({ ownerId: oxyUserId })),
+        name: 'lanes.owner_id',
+        hasReference: () => anyRow(lanes, lanes.id, eq(lanes.ownerId, oxyUserId)),
       },
       {
-        name: 'LaneMute.viewer/laneOwner',
+        name: 'lane_mutes.viewer/lane_owner',
         hasReference: () =>
-          exists(
-            LaneMute.exists({
-              $or: [
-                { viewerOxyUserId: oxyUserId },
-                { laneOwnerOxyUserId: oxyUserId },
-              ],
-            }),
+          anyRow(
+            laneMutes,
+            laneMutes.id,
+            or(
+              eq(laneMutes.viewerOxyUserId, oxyUserId),
+              eq(laneMutes.laneOwnerOxyUserId, oxyUserId),
+            ),
           ),
       },
       {
-        name: 'McpConnection.oxyUserId/activeOxyUserId',
+        name: 'mcp_connections.oxy_user_id/active_oxy_user_id',
         hasReference: () =>
-          exists(
-            McpConnection.exists({
-              $or: [{ oxyUserId }, { activeOxyUserId: oxyUserId }],
-            }),
+          anyRow(
+            mcpConnections,
+            mcpConnections.id,
+            or(
+              eq(mcpConnections.oxyUserId, oxyUserId),
+              eq(mcpConnections.activeOxyUserId, oxyUserId),
+            ),
           ),
       },
       {
         /**
-         * `subjectId` holds whichever id the case was about, so it names this
-         * actor for an `identity.profile` subject. Kept as a BLOCKER rather
-         * than something a cascade may remove: it is the record that an
-         * enforcement action was carried out, and its `decisionId + revision +
-         * action` uniqueness is what makes a later correction idempotent.
+         * `subject_id` holds whichever id the case was about, so it names this
+         * actor for an `identity.profile` subject. Kept as a BLOCKER rather than
+         * something a cascade may remove: it is the record that an enforcement
+         * action was carried out, and its `decisionId + revision + action`
+         * uniqueness is what makes a later correction idempotent.
          */
-        name: 'ModerationEnforcement.subjectId',
-        hasReference: () => exists(ModerationEnforcement.exists({ subjectId: oxyUserId })),
+        name: 'moderation_enforcements.subject_id',
+        hasReference: () =>
+          anyRow(
+            moderationEnforcements,
+            moderationEnforcements.id,
+            eq(moderationEnforcements.subjectId, oxyUserId),
+          ),
       },
       {
         /**
          * Another viewer's settings naming this actor. Scoped to OTHER rows for
          * the same reason `UserBehavior references from another viewer` is: the
-         * actor's own settings row is covered by `UserSettings.oxyUserId`
+         * actor's own settings row is covered by `user_settings.oxy_user_id`
          * below, which the gone-actor cascade removes, while a stranger's row
          * survives it holding the id.
          */
-        name: 'UserSettings privacy references from another viewer',
+        name: 'user_settings privacy references from another viewer',
         hasReference: () =>
-          exists(
-            UserSettings.exists({
-              oxyUserId: { $ne: oxyUserId },
-              $or: [
-                { 'privacy.restrictedUsers': oxyUserId },
-                { 'privacy.labelPreferences.subscribedLabelers': oxyUserId },
-              ],
-            }),
+          anyRow(
+            userSettings,
+            userSettings.id,
+            and(
+              ne(userSettings.oxyUserId, oxyUserId),
+              or(
+                arrayContains(userSettings.privacyRestrictedUsers, [oxyUserId]),
+                arrayContains(userSettings.privacySubscribedLabelers, [oxyUserId]),
+              ),
+            ),
           ),
-      },
-      {
-        name: 'FederatedFollow.localUserId',
-        hasReference: () => exists(FederatedFollow.exists({ localUserId: oxyUserId })),
       },
     );
   } else {
     probes.push({
-      name: 'Post.federation.actorUri without linked Oxy identity',
-      hasReference: () => exists(Post.exists({ 'federation.actorUri': actorUri })),
+      name: 'posts.federation_actor_uri without linked Oxy identity',
+      hasReference: () => postExists(eq(posts.federationActorUri, actorUri)),
     });
   }
 
@@ -628,77 +816,112 @@ export function actorReferenceProbes(
   }
 
   probes.push({
-    name: 'FederatedFollow.remoteActorUri',
-    hasReference: () => exists(FederatedFollow.exists({ remoteActorUri: actorUri })),
+    name: 'federated_follows.remote_actor_uri',
+    hasReference: () => existsFollow({ remoteActorUri: actorUri }),
   });
 
   if (oxyUserId) {
     probes.push(
       {
-        name: 'Post owner/authorship/mentions',
+        name: 'posts owner/authorship/mentions',
         hasReference: () =>
-          exists(
-            Post.exists({
-              $or: [
-                { oxyUserId },
-                { 'authorship.oxyUserId': oxyUserId },
-                { mentions: oxyUserId },
-              ],
-            }),
+          postExists(
+            or(
+              eq(posts.oxyUserId, oxyUserId),
+              sql`exists (
+                select 1 from ${postAuthorships}
+                where ${postAuthorships.postId} = ${posts.id}
+                  and ${postAuthorships.oxyUserId} = ${oxyUserId}
+              )`,
+              sql`exists (
+                select 1 from ${postMentions}
+                where ${postMentions.postId} = ${posts.id}
+                  and ${postMentions.oxyUserId} = ${oxyUserId}
+              )`,
+            ),
           ),
       },
       {
-        name: 'Like.userId',
-        hasReference: () => exists(Like.exists({ userId: oxyUserId })),
+        name: 'likes.user_id',
+        hasReference: () => anyRow(likes, likes.id, eq(likes.userId, oxyUserId)),
       },
       {
-        name: 'EntityFollow.userId',
-        hasReference: () => exists(EntityFollow.exists({ userId: oxyUserId })),
-      },
-      {
-        name: 'Notification recipient/actor',
+        name: 'entity_follows.user_id',
         hasReference: () =>
-          exists(
-            Notification.exists({
-              $or: [{ recipientId: oxyUserId }, { actorId: oxyUserId }],
-            }),
+          anyRow(entityFollows, entityFollows.id, eq(entityFollows.userId, oxyUserId)),
+      },
+      {
+        name: 'notifications recipient/actor',
+        hasReference: () =>
+          anyRow(
+            notifications,
+            notifications.id,
+            or(
+              eq(notifications.recipientId, oxyUserId),
+              eq(notifications.actorId, oxyUserId),
+            ),
           ),
       },
       {
-        name: 'UserSettings.oxyUserId',
-        hasReference: () => exists(UserSettings.exists({ oxyUserId })),
+        name: 'user_settings.oxy_user_id',
+        hasReference: () => anyRow(userSettings, userSettings.id, eq(userSettings.oxyUserId, oxyUserId)),
       },
       {
-        name: 'UserBehavior.oxyUserId',
-        hasReference: () => exists(UserBehavior.exists({ oxyUserId })),
+        name: 'user_behaviors.oxy_user_id',
+        hasReference: () =>
+          anyRow(userBehaviors, userBehaviors.id, eq(userBehaviors.oxyUserId, oxyUserId)),
       },
       {
-        name: 'UserFeedPreference.oxyUserId',
-        hasReference: () => exists(UserFeedPreference.exists({ oxyUserId })),
+        name: 'user_feed_preferences.oxy_user_id',
+        hasReference: () =>
+          anyRow(
+            userFeedPreferences,
+            userFeedPreferences.id,
+            eq(userFeedPreferences.oxyUserId, oxyUserId),
+          ),
       },
       {
-        name: 'AuthorFollowerSnapshot.oxyUserId',
-        hasReference: () => exists(AuthorFollowerSnapshot.exists({ oxyUserId })),
+        name: 'author_follower_snapshots.oxy_user_id',
+        hasReference: () =>
+          anyRow(
+            authorFollowerSnapshots,
+            authorFollowerSnapshots.id,
+            eq(authorFollowerSnapshots.oxyUserId, oxyUserId),
+          ),
       },
       {
-        name: 'ActorKeyPair.oxyUserId',
-        hasReference: () => exists(ActorKeyPair.exists({ oxyUserId })),
+        name: 'actor_key_pairs.oxy_user_id',
+        hasReference: () => hasActorKeyPair(oxyUserId),
+      },
+      // The probe NAME follows the storage throughout: a blocker message has to
+      // name something an operator can go and look at.
+      {
+        name: 'mention_user_nodes.oxy_user_id',
+        hasReference: () =>
+          anyRow(mentionUserNodes, mentionUserNodes.id, eq(mentionUserNodes.oxyUserId, oxyUserId)),
       },
       {
-        name: 'MentionUserNode.oxyUserId',
-        hasReference: () => exists(MentionUserNode.exists({ oxyUserId })),
+        name: 'mention_repo_heads.oxy_user_id',
+        hasReference: () =>
+          anyRow(mentionRepoHeads, mentionRepoHeads.id, eq(mentionRepoHeads.oxyUserId, oxyUserId)),
       },
       {
-        name: 'MentionRepoHead.oxyUserId',
-        hasReference: () => exists(MentionRepoHead.exists({ oxyUserId })),
+        name: 'mention_signed_records.oxy_user_id',
+        hasReference: () =>
+          anyRow(
+            mentionSignedRecords,
+            mentionSignedRecords.id,
+            eq(mentionSignedRecords.oxyUserId, oxyUserId),
+          ),
       },
       {
-        name: 'MentionSignedRecord.oxyUserId',
-        hasReference: () => exists(MentionSignedRecord.exists({ oxyUserId })),
-      },
-      {
-        name: 'MentionNodeIngestWitness.oxyUserId',
-        hasReference: () => exists(MentionNodeIngestWitness.exists({ oxyUserId })),
+        name: 'mention_node_ingest_witnesses.oxy_user_id',
+        hasReference: () =>
+          anyRow(
+            mentionNodeIngestWitnesses,
+            mentionNodeIngestWitnesses.id,
+            eq(mentionNodeIngestWitnesses.oxyUserId, oxyUserId),
+          ),
       },
     );
   }
@@ -723,16 +946,84 @@ export async function assertActorSafeToDelete(
 }
 
 /**
+ * Every reference the ANCHOR check probes — the third of the three unions in
+ * this file, and the last to get one.
+ *
+ * `POST_REFERENCE_PROBE_NAMES` and `ACTOR_REFERENCE_PROBE_NAMES` have had this
+ * protection for a while; the anchor path built its two probes inline, untyped,
+ * so a deleted probe compiled cleanly and nothing enumerated what it claimed.
+ * Two probes is small, and the exposure is the same class one function over: a
+ * gate that silently stops checking something is worse than an absent one,
+ * because the operator believes it ran.
+ *
+ * **The two unions OVERLAP, and the overlap is correct — measured, because the
+ * obvious guess is wrong.** A first version of this pinned them as disjoint and
+ * the assertion failed immediately: `federated_follows.remote_actor_uri` is
+ * declared and BUILT in both, which is right, because a uri-keyed reference
+ * dangles whether the identity survives or not, so both checks must prove it
+ * absent. What is anchor-ONLY is `posts.federation_actor_uri`.
+ *
+ * That asymmetry is the reason this union exists rather than being folded into
+ * `ACTOR_REFERENCE_PROBE_NAMES`: a first version of THAT union declared
+ * `posts.federation_actor_uri`, and its set-equality test rejected it within a
+ * minute as a declared name nothing builds. Widening it to cover the anchor path
+ * would type the wrong thing. No test pins the disjointness, deliberately —
+ * there is none to pin, and the equality tests on each union already catch a
+ * name declared in the wrong one.
+ */
+export const ACTOR_ANCHOR_PROBE_NAMES = [
+  'posts.federation_actor_uri',
+  'federated_follows.remote_actor_uri',
+] as const;
+
+export type ActorAnchorProbeName = (typeof ACTOR_ANCHOR_PROBE_NAMES)[number];
+
+/** A {@link ReferenceProbe} whose name is a declared anchor reference. */
+export type ActorAnchorProbe = ReferenceProbe & { name: ActorAnchorProbeName };
+
+/**
+ * What the anchor check is deleting: the row, identified by its uri.
+ *
+ * Deliberately NOT `ActorDeletionTarget` — that carries an optional
+ * `oxyUserId`, and accepting one here would invite a caller to pass the identity
+ * to a check that by construction says nothing about it.
+ */
+export interface ActorAnchorDeletionTarget {
+  actorUri: string;
+}
+
+/**
+ * The anchor probes, extracted so they can be ENUMERATED rather than only run.
+ *
+ * ONE call shape, unlike `actorReferenceProbes`, and that is a property of the
+ * target rather than an omission: there is no optional field to vary, so every
+ * probe is built on every call and a single shape cannot under-report.
+ */
+export function actorAnchorProbes(target: ActorAnchorDeletionTarget): ActorAnchorProbe[] {
+  const { actorUri } = target;
+  return [
+    {
+      name: 'posts.federation_actor_uri',
+      hasReference: () => postExists(eq(posts.federationActorUri, actorUri)),
+    },
+    {
+      name: 'federated_follows.remote_actor_uri',
+      hasReference: () => existsFollow({ remoteActorUri: actorUri }),
+    },
+  ];
+}
+
+/**
  * Prove that deleting a `FederatedActor` ANCHOR ROW alone cannot strand a
  * reference, for a caller that deliberately RETAINS the actor's Oxy identity.
  *
  * This is a strictly narrower claim than {@link assertActorSafeToDelete}, and the
  * difference is which side of the actor the reference names. Every probe in the
  * full check is keyed on one of two things:
- *  - the actor's Oxy USER id — `Bookmark.userId`, `Mute.mutedId`, `Report`,
- *    `ContentLabel`, `UserSettings`, and the rest. Those only dangle if the Oxy
- *    `User` is DELETED; while it lives they are ordinary, valid references and
- *    demanding their absence would block a purge that never touches it.
+ *  - the actor's Oxy USER id — `bookmarks.user_id`, `mutes.muted_id`, `reports`,
+ *    `content_labels`, `user_settings`, and the rest. Those only dangle if the
+ *    Oxy `User` is DELETED; while it lives they are ordinary, valid references
+ *    and demanding their absence would block a purge that never touches it.
  *  - the actor URI / the anchor row itself. Those dangle the moment the row goes,
  *    whatever happens to the identity — so they are exactly what a
  *    identity-retaining caller must still prove absent.
@@ -744,18 +1035,8 @@ export async function assertActorSafeToDelete(
  */
 export async function assertActorAnchorSafeToDelete(
   context: string,
-  target: { actorUri: string },
+  target: ActorAnchorDeletionTarget,
 ): Promise<void> {
-  const { actorUri } = target;
-  const blockers = await collectReferenceBlockers([
-    {
-      name: 'Post.federation.actorUri',
-      hasReference: () => exists(Post.exists({ 'federation.actorUri': actorUri })),
-    },
-    {
-      name: 'FederatedFollow.remoteActorUri',
-      hasReference: () => exists(FederatedFollow.exists({ remoteActorUri: actorUri })),
-    },
-  ]);
+  const blockers = await collectReferenceBlockers(actorAnchorProbes(target));
   assertNoDeletionBlockers(context, blockers);
 }

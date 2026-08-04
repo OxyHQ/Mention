@@ -1,4 +1,6 @@
-import { Post } from '../models/Post';
+import { and, asc, eq } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
 
 /**
  * Scheduled posts that depend on one another — the ordering rules for a thread
@@ -43,18 +45,18 @@ import { Post } from '../models/Post';
  * `parentPostId` is resolved server-side — but a `seen` set bounds the walk
  * anyway, because the alternative to a cheap bound here is a hung sweep.
  */
-export function orderScheduledChains<T extends { _id: unknown; parentPostId?: string | null }>(
-  posts: T[],
+export function orderScheduledChains<T extends { id: string; parentPostId?: string | null }>(
+  duePosts: T[],
 ): T[][] {
   const byId = new Map<string, T>();
-  for (const post of posts) {
-    byId.set(String(post._id), post);
+  for (const post of duePosts) {
+    byId.set(post.id, post);
   }
 
   const childrenByParent = new Map<string, T[]>();
   const roots: T[] = [];
-  for (const post of posts) {
-    const parentId = post.parentPostId ? String(post.parentPostId) : null;
+  for (const post of duePosts) {
+    const parentId = post.parentPostId ?? null;
     if (parentId !== null && byId.has(parentId)) {
       const siblings = childrenByParent.get(parentId);
       if (siblings) {
@@ -75,25 +77,49 @@ export function orderScheduledChains<T extends { _id: unknown; parentPostId?: st
     const pending: T[] = [root];
     while (pending.length > 0) {
       const post = pending.shift() as T;
-      const id = String(post._id);
-      if (seen.has(id)) continue;
-      seen.add(id);
+      if (seen.has(post.id)) continue;
+      seen.add(post.id);
       chain.push(post);
-      pending.push(...(childrenByParent.get(id) ?? []));
+      pending.push(...(childrenByParent.get(post.id) ?? []));
     }
     return chain;
   });
 }
 
-/** The minimal projection the chain walk reads. */
+/**
+ * The minimal projection the chain walk reads.
+ *
+ * A narrow select rather than a whole `PostRecord`: assembling a record joins
+ * nine tables, and the walk is several round trips deep by construction. None of
+ * these four columns is nullable except the two the schema declares nullable, so
+ * there is no absent-field branch to carry across from the Mongo shape —
+ * `status` in particular is `NOT NULL DEFAULT 'published'`, which is why the
+ * `?? 'published'` fallbacks the Mongo version needed are gone rather than
+ * translated.
+ */
 interface ChainNode {
-  _id: unknown;
-  status?: string;
-  oxyUserId?: string;
-  parentPostId?: string | null;
+  id: string;
+  status: string;
+  oxyUserId: string | null;
+  parentPostId: string | null;
 }
 
-const CHAIN_PROJECTION = '_id status oxyUserId parentPostId createdAt';
+const CHAIN_COLUMNS = {
+  id: posts.id,
+  status: posts.status,
+  oxyUserId: posts.oxyUserId,
+  parentPostId: posts.parentPostId,
+} as const;
+
+/** One chain node by id, or null when the post is gone. */
+async function loadChainNode(postId: string): Promise<ChainNode | null> {
+  const [row] = await getDb()
+    .select(CHAIN_COLUMNS)
+    .from(posts)
+    .where(eq(posts.id, postId))
+    .limit(1);
+  return row ?? null;
+}
 
 export type ScheduledChainResolution =
   | { ok: true; postIds: string[] }
@@ -122,25 +148,24 @@ export async function loadScheduledChain(
   postId: string,
   ownerId: string,
 ): Promise<ScheduledChainResolution> {
-  const start = await Post.findById(postId).select(CHAIN_PROJECTION).lean<ChainNode>();
+  const start = await loadChainNode(postId);
   if (!start) {
     return { ok: true, postIds: [] };
   }
 
   // Up to the root.
   let root = start;
-  const climbed = new Set<string>([String(start._id)]);
+  const climbed = new Set<string>([start.id]);
   while (root.parentPostId) {
-    const parent = await Post.findById(root.parentPostId).select(CHAIN_PROJECTION).lean<ChainNode>();
+    const parent = await loadChainNode(root.parentPostId);
     // A parent that has published, or that is gone, is not something this chain
     // has to wait for.
-    if (!parent || (parent.status ?? 'published') !== 'scheduled') break;
+    if (!parent || parent.status !== 'scheduled') break;
     if (parent.oxyUserId !== ownerId) {
       return { ok: false, reason: 'foreign_scheduled_ancestor' };
     }
-    const parentId = String(parent._id);
-    if (climbed.has(parentId)) break;
-    climbed.add(parentId);
+    if (climbed.has(parent.id)) break;
+    climbed.add(parent.id);
     root = parent;
   }
 
@@ -151,19 +176,25 @@ export async function loadScheduledChain(
   const pending: ChainNode[] = [root];
   while (pending.length > 0) {
     const post = pending.shift() as ChainNode;
-    const id = String(post._id);
-    if (visited.has(id)) continue;
-    visited.add(id);
-    postIds.push(id);
+    if (visited.has(post.id)) continue;
+    visited.add(post.id);
+    postIds.push(post.id);
 
-    const children = await Post.find({
-      parentPostId: id,
-      oxyUserId: ownerId,
-      status: 'scheduled',
-    })
-      .select(CHAIN_PROJECTION)
-      .sort({ createdAt: 1 })
-      .lean<ChainNode[]>();
+    // Ordered by `created_at` alone, with no id tie-break: `posts.id` holds both
+    // pre-cutover ObjectId hex and post-cutover uuid v7, so it is not a
+    // chronological axis and adding it would order a mixed sibling set WORSE
+    // than leaving the tie arbitrary. A composed thread is linear anyway — every
+    // post has one child — so siblings only arise from independent replies,
+    // which have no composed order to preserve.
+    const children = await getDb()
+      .select(CHAIN_COLUMNS)
+      .from(posts)
+      .where(and(
+        eq(posts.parentPostId, post.id),
+        eq(posts.oxyUserId, ownerId),
+        eq(posts.status, 'scheduled'),
+      ))
+      .orderBy(asc(posts.createdAt));
     pending.push(...children);
   }
 
@@ -181,7 +212,11 @@ export async function loadScheduledChain(
  */
 export async function parentHasPublished(post: { parentPostId?: string | null }): Promise<boolean> {
   if (!post.parentPostId) return true;
-  const parent = await Post.findById(post.parentPostId).select('status').lean<{ status?: string }>();
+  const [parent] = await getDb()
+    .select({ status: posts.status })
+    .from(posts)
+    .where(eq(posts.id, post.parentPostId))
+    .limit(1);
   if (!parent) return true;
-  return (parent.status ?? 'published') === 'published';
+  return parent.status === 'published';
 }

@@ -15,8 +15,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * So this one runs the whole lane against the actor document `bird.makeup`
  * actually serves: URL → derived bridge acct → WebFinger → actor fetch → re-label
  * → the identity Oxy is asked to store → the response the client renders. Only
- * the network, Mongo and the Oxy service client are stubbed; the bridge policy,
- * the connector registry and the resolver are the real ones.
+ * the network, the actor-row store and the Oxy service client are stubbed; the
+ * bridge policy, the connector registry and the resolver are the real ones.
  *
  * Captured live from `https://bird.makeup/users/elonmusk` on 2026-08-03 with
  * `Accept: application/activity+json`; only the fields the ingest reads are kept.
@@ -31,8 +31,11 @@ const { WEBFINGER_JRD } = vi.hoisted(() => ({
 
 const mocks = vi.hoisted(() => ({
   signedFetch: vi.fn(),
-  actorFindOne: vi.fn(),
-  actorFindOneAndUpdate: vi.fn(),
+  findActorByUri: vi.fn(),
+  /** The actor-row write itself — `(uri, columns, fields)`. */
+  upsertActor: vi.fn(),
+  setActorOxyUserId: vi.fn(),
+  findIdentityOwnerActor: vi.fn(),
   makeServiceRequest: vi.fn(),
 }));
 
@@ -59,14 +62,22 @@ vi.mock('../../utils/safeUpstreamFetch', async () => {
   };
 });
 
-vi.mock('../../models/FederatedActor', () => ({
-  default: { findOne: mocks.actorFindOne, findOneAndUpdate: mocks.actorFindOneAndUpdate },
+// The actor cache is `federated_actors` in Postgres. PARTIAL, and deliberately
+// narrow: only the functions this lane reaches are replaced, so anything else
+// the route or the resolver were to query fails loudly on an absent connection
+// instead of quietly answering from a stub nobody wrote.
+//
+// `findIdentityOwnerActor` is the duplicate-identity merge's lookup and it IS on
+// this path — a bridged actor's identity differs from its protocol acct, which
+// is exactly the case `resolveFederatedActorIdentity` looks for an owner in.
+// Answering "nobody else holds it" is what lets the resolve run to Oxy.
+vi.mock('../../db/federation/actorRepository', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../db/federation/actorRepository')>()),
+  findActorByUri: mocks.findActorByUri,
+  upsertActor: mocks.upsertActor,
+  setActorOxyUserId: mocks.setActorOxyUserId,
+  findIdentityOwnerActor: mocks.findIdentityOwnerActor,
 }));
-vi.mock('../../models/FederatedFollow', () => ({
-  default: { find: vi.fn(() => ({ lean: async () => [] })), findOne: vi.fn(() => ({ lean: async () => null })) },
-}));
-vi.mock('../../models/Post', () => ({ Post: { find: vi.fn() } }));
-vi.mock('../../models/UserSettings', () => ({ default: { updateOne: vi.fn() } }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(),
@@ -125,7 +136,11 @@ const app = express();
 app.use(express.json());
 app.use('/federation', connectorsRoutes);
 
-/** The `$set` payload the ingest wrote for the actor row. */
+/**
+ * The columns the ingest wrote for the actor row, keyed by the `uri` the upsert
+ * is addressed to (`upsertActor` takes it positionally and strips it from the
+ * column set, so it is put back here — it is the same row either way).
+ */
 let storedRow: Record<string, unknown>;
 
 /** The body sent to `PUT /users/resolve`, or undefined when it was never called. */
@@ -137,10 +152,11 @@ function usersResolveBody(): Record<string, unknown> | undefined {
 beforeEach(() => {
   vi.clearAllMocks();
   storedRow = {};
-  mocks.actorFindOne.mockReturnValue({ lean: async () => null, select: () => ({ lean: async () => null }) });
-  mocks.actorFindOneAndUpdate.mockImplementation((_filter: unknown, update: Record<string, unknown>) => {
-    storedRow = (update.$set ?? {}) as Record<string, unknown>;
-    return Promise.resolve({ ...storedRow, _id: 'row-1' });
+  mocks.findActorByUri.mockResolvedValue(null);
+  mocks.findIdentityOwnerActor.mockResolvedValue(null);
+  mocks.upsertActor.mockImplementation((uri: string, columns: Record<string, unknown>) => {
+    storedRow = { uri, ...columns };
+    return Promise.resolve({ ...storedRow, id: 'row-1' });
   });
   mocks.makeServiceRequest.mockResolvedValue({ _id: 'oxy-elon' });
   mocks.signedFetch.mockImplementation(async (url: string) =>

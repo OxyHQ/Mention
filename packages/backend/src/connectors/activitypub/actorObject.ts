@@ -1,3 +1,6 @@
+import { eq } from 'drizzle-orm';
+import { getDb } from '../../db/postgres';
+import { userSettings } from '../../db/schema/userProfile';
 import { createLocalActorBuilder, type ActorMediaResolver } from '@oxyhq/federation';
 import { logger } from '../../utils/logger';
 import { resolveAvatarUrl, resolveMediaRef } from '../../utils/mediaResolver';
@@ -50,3 +53,22 @@ export const buildLocalActorObject = createLocalActorBuilder({
   media: actorMedia,
   onWarn: (message) => logger.warn(message),
 });
+
+/**
+ * The profile banner Mention owns, from `user_settings`.
+ *
+ * ONE reader for the two call sites that need it — the actor GET
+ * (`engine.routes.ts`) and the `Update(Person)` broadcast
+ * (`delivery.service.ts`). Both used to query the Mongoose `UserSettings`
+ * model, which nothing has written since settings moved to Postgres, so every
+ * actor JSON omitted `image` and no banner change ever federated. Nothing
+ * errored: the read returned no document and `?? null` read that as "no banner".
+ */
+export async function loadProfileBanner(oxyUserId: string): Promise<string | null> {
+  const [row] = await getDb()
+    .select({ profileHeaderImage: userSettings.profileHeaderImage })
+    .from(userSettings)
+    .where(eq(userSettings.oxyUserId, oxyUserId))
+    .limit(1);
+  return row?.profileHeaderImage ?? null;
+}

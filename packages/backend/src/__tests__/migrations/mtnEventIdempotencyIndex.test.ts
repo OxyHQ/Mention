@@ -8,12 +8,12 @@ import {
   MTN_REPO_HEAD_OWNER_INDEX,
   MTN_SEQUENCE_INDEX,
 } from '../../indexes/manifest';
-import { migrationMtnEventIdempotencyIndex } from '../../migrations/0012-mtn-event-idempotency-index';
 import {
+  MENTION_REPO_HEAD_COLLECTION,
   MENTION_SIGNED_RECORD_COLLECTION,
   MTN_CHAIN_STATUS,
-} from '../../models/MentionSignedRecord';
-import { MENTION_REPO_HEAD_COLLECTION } from '../../models/MentionRepoHead';
+  migrationMtnEventIdempotencyIndex,
+} from '../../migrations/0012-mtn-event-idempotency-index';
 
 type TestDocument = Record<string, unknown>;
 

@@ -38,8 +38,16 @@ vi.mock('../../../connectors/activitypub/constants', () => ({
   isBlockedDomain: mocks.isBlockedDomain,
   resolveOxyUser: mocks.resolveOxyUser,
 }));
-vi.mock('../../../models/FederatedActor', () => ({
-  default: { findOne: mocks.findExistingActor },
+/**
+ * The profile-link resolver reaches ALREADY-STORED actor rows through the
+ * repository. Doubled here rather than seeded: this suite's subject is the
+ * per-note ceiling arithmetic, and its fixtures are up to 34 synthetic actors
+ * per note — seeding them would be fixture cost with nothing riding on it, and
+ * the repository's own behaviour is covered where it is written.
+ */
+vi.mock('../../../db/federation/actorRepository', () => ({
+  findActorByUri: mocks.findExistingActor,
+  findActorByAcct: mocks.findExistingActor,
 }));
 vi.mock('../../../utils/logger', () => ({
   logger: { info: vi.fn(), warn: mocks.loggerWarn, error: vi.fn(), debug: vi.fn() },
@@ -79,7 +87,7 @@ const pileUpNote = (count: number): Record<string, unknown> => ({
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.isBlockedDomain.mockReturnValue(false);
-  mocks.findExistingActor.mockReturnValue({ lean: async () => null });
+  mocks.findExistingActor.mockResolvedValue(null);
   // Every mentioned actor resolves — the ceiling, not resolution failure, is what
   // has to bound the result.
   mocks.getOrFetchActor.mockImplementation(async (uri: string) => {
@@ -185,9 +193,7 @@ describe('inbound mention ceiling — shared across tags and profile links', () 
   });
 
   it('still resolves a profile link when the tags left headroom', async () => {
-    mocks.findExistingActor.mockReturnValue({
-      lean: async () => ({ oxyUserId: 'oxy_stranger' }),
-    });
+    mocks.findExistingActor.mockResolvedValue({ oxyUserId: 'oxy_stranger' });
     const note = pileUpNote(CEILING - 1);
     note.content = `${String(note.content)} <a href="${REMOTE}/@stranger">@stranger</a>`;
 

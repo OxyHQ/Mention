@@ -67,10 +67,6 @@ vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }))
 vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/FederatedActor', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/UserSettings', () => ({
-  UserSettings: { find: () => chainable([]), findOne: () => chainable(null) },
-}));
-
 vi.mock('../../services/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();

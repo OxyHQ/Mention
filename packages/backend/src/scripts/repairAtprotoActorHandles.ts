@@ -69,7 +69,8 @@
  */
 
 import mongoose from 'mongoose';
-import FederatedActor from '../models/FederatedActor';
+import { scanActors } from '../db/federation/actorRepository';
+import { connectPostgres, closePostgres } from '../db/postgres';
 import { connectToDatabase } from '../utils/database';
 import { fetchAndUpsertAtprotoProfile, splitHandle } from '../connectors/atproto/profile.mapper';
 import { logger } from '../utils/logger';
@@ -84,9 +85,8 @@ interface Flags {
   limit?: number;
 }
 
-/** The lean `FederatedActor` fields the repair reads. */
+/** The `federated_actors` fields the repair reads. */
 interface ActorRow {
-  _id: mongoose.Types.ObjectId;
   uri: string;
   acct: string;
   username: string;
@@ -180,19 +180,22 @@ async function repairAtprotoActorHandles(): Promise<void> {
       dryRun: flags.dryRun,
     });
     await connectToDatabase();
+    // The actor rows are in Postgres; the shared profile upsert this repair calls
+    // also reaches Oxy, and the Mongo connection stays open for the rest of the
+    // process's imported singletons.
+    await connectPostgres();
     logger.info(
       `[repairAtprotoActorHandles] connected — mode: ${flags.dryRun ? 'DRY-RUN' : 'LIVE'}` +
         `${flags.limit !== undefined ? `, limit: ${flags.limit}` : ''}`,
     );
 
     // There are only ~18 atproto actors, so a single ordered pass is enough. The
-    // stable ascending `_id` sort keeps a `--limit` run deterministic.
-    const query = FederatedActor.find(
+    // stable ascending `id` sort keeps a `--limit` run deterministic — `id` is not
+    // chronological across the cutover, but a scan wants a total order, not time.
+    const actors: ActorRow[] = await scanActors(
       { protocol: 'atproto' },
-      { _id: 1, uri: 1, acct: 1, username: 1, domain: 1 },
-    ).sort({ _id: 1 });
-    if (flags.limit !== undefined) query.limit(flags.limit);
-    const actors = await query.lean<ActorRow[]>();
+      { limit: flags.limit ?? Number.MAX_SAFE_INTEGER },
+    );
 
     logger.info(`[repairAtprotoActorHandles] ${actors.length} atproto actor(s) to scan`);
 
@@ -236,6 +239,7 @@ async function repairAtprotoActorHandles(): Promise<void> {
     throw error;
   } finally {
     await mongoose.disconnect();
+    await closePostgres();
   }
 }
 

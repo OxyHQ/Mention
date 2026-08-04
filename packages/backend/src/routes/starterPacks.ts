@@ -1,12 +1,18 @@
 import express, { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import StarterPack, { dedupeMemberIds, IStarterPack } from '../models/StarterPack';
-import { escapeRegex } from '../utils/textProcessing';
+import { and, asc, desc, eq, ilike, inArray, ne, notExists, or, sql, type SQL } from 'drizzle-orm';
+import { getDb, type DatabaseOrTransaction, type Transaction } from '../db/postgres';
+import {
+  STARTER_PACK_MAX_MEMBERS,
+  starterPackMembers,
+  starterPackUses,
+  starterPacks,
+} from '../db/schema/lists';
 import { resolveUserSummaries, isFallbackUserSummary } from '../services/PostHydrationService';
 import { invalidate as invalidateUserSummaries } from '../services/userSummaryCache';
 import type { PostUser } from '@mention/shared-types';
 import { logger } from '../utils/logger';
-import { queryInt } from '../utils/queryParams';
+import { queryInt, queryString } from '../utils/queryParams';
 import { endorsementSignalService } from '../services/EndorsementSignalService';
 
 /**
@@ -63,8 +69,6 @@ function syncPackMembershipChange(
 
 const router = express.Router();
 
-const MAX_MEMBERS = 150;
-
 /**
  * Page size for the paginated starter-pack listing. The default is the window
  * this route already returned before it paginated, so the callers that pass no
@@ -76,34 +80,65 @@ const DEFAULT_PACK_PAGE_SIZE = 50;
 const MAX_PACK_PAGE_SIZE = 100;
 
 /**
- * A pack MIRRORED from an external network (`source` set) is owned UPSTREAM and
- * read-only through Mention's write API: its name + membership are re-synced in
- * place on every profile view, so a local edit would be silently overwritten on
- * the next sync. Every mutation route rejects it BEFORE the ownership check — a
- * federated pack is never editable regardless of who asks (its owner is a
- * federated Oxy user with no session, so the ownership check already blocks local
- * users; this is defence-in-depth and a clearer 403 that states the real reason).
- * Following the pack's members (`POST /:id/use`) stays allowed — that is a viewer
- * action that never mutates the pack.
+ * A pack MIRRORED from an external network (`source_network` set) is owned
+ * UPSTREAM and read-only through Mention's write API: its name + membership are
+ * re-synced in place on every profile view, so a local edit would be silently
+ * overwritten on the next sync. Every mutation route rejects it BEFORE the
+ * ownership check — a federated pack is never editable regardless of who asks
+ * (its owner is a federated Oxy user with no session, so the ownership check
+ * already blocks local users; this is defence-in-depth and a clearer 403 that
+ * states the real reason). Following the pack's members (`POST /:id/use`) stays
+ * allowed — that is a viewer action that never mutates the pack.
  */
 const FEDERATED_PACK_READONLY_MESSAGE =
   'This starter pack is mirrored from an external network and is read-only';
 
-function isFederatedPack(pack: Pick<IStarterPack, 'source'>): boolean {
-  return Boolean(pack.source);
+/**
+ * `starter_packs_source_complete_check` makes the three source columns
+ * all-or-nothing, so any one of them answers the question.
+ */
+function isFederatedPack(pack: Pick<typeof starterPacks.$inferSelect, 'sourceNetwork'>): boolean {
+  return pack.sourceNetwork !== null;
 }
 
 /** Number of member avatars surfaced per pack in the list response. */
 const LIST_AVATAR_LIMIT = 8;
 
-/** A starter pack as returned by `.lean()` — a plain object with `_id`. */
-type LeanStarterPack = Pick<
-  IStarterPack,
-  'ownerOxyUserId' | 'name' | 'description' | 'memberOxyUserIds' | 'usedByOxyUserIds' | 'useCount' | 'createdAt' | 'updatedAt'
-> & { _id: unknown };
+/**
+ * Escape the characters `LIKE` treats as wildcards.
+ *
+ * The Mongo version escaped REGEX metacharacters, which is the wrong alphabet
+ * here: `%` and `_` are what `ILIKE` reads as patterns, and leaving them live
+ * turns the search box into a way to match every pack in the table.
+ */
+function likeContains(term: string): string {
+  return `%${term.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+}
+
+/** Provenance for a pack mirrored from an external network. */
+interface SerializedPackSource {
+  network: string;
+  uri: string;
+  syncedAt: Date;
+}
+
+/** A starter pack exactly as it goes on the wire. */
+interface SerializedStarterPack {
+  _id: string;
+  id: string;
+  ownerOxyUserId: string;
+  name: string;
+  description?: string;
+  /** The membership junction, flattened back into the array the client reads. */
+  memberOxyUserIds: string[];
+  useCount: number;
+  source?: SerializedPackSource;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 /** Shape of each item in the `GET /starter-packs` list response. */
-interface StarterPackListItem extends LeanStarterPack {
+interface StarterPackListItem extends SerializedStarterPack {
   memberAvatars: string[];
   memberCount: number;
 }
@@ -117,8 +152,106 @@ interface StarterPackListItem extends LeanStarterPack {
 type StarterPackMember = PostUser;
 
 /**
+ * Re-assemble the response body a Mongoose document produced.
+ *
+ * `_id` alongside `id`, because the client reads `pack._id || pack.id`
+ * (`services/starterPacksService.ts`). An absent `description` is OMITTED rather
+ * than sent as `null` — Mongoose's `undefined` disappeared from the JSON and
+ * drizzle's `null` would not — and the three flattened source columns are folded
+ * back into the `source` subdocument the guard above is named after.
+ *
+ * ONE field of the Mongo document does NOT come back: `usedByOxyUserIds`. It is
+ * now `starter_pack_uses`, a junction whose whole point is that it never has to
+ * be read in full, and shipping it would mean loading every user who has ever
+ * used every pack on the page. Nothing consumes it — `StarterPackSummary` in
+ * `packages/frontend/services/starterPacksService.ts` does not declare it and no
+ * call site in this repo reads it off a response; `useCount` carries the same
+ * cardinality it was ever read for.
+ */
+function serializePack(
+  row: typeof starterPacks.$inferSelect,
+  memberOxyUserIds: string[],
+): SerializedStarterPack {
+  return {
+    _id: row.id,
+    id: row.id,
+    ownerOxyUserId: row.ownerOxyUserId,
+    name: row.name,
+    ...(row.description === null ? {} : { description: row.description }),
+    memberOxyUserIds,
+    useCount: row.useCount,
+    ...(row.sourceNetwork !== null && row.sourceUri !== null && row.sourceSyncedAt !== null
+      ? { source: { network: row.sourceNetwork, uri: row.sourceUri, syncedAt: row.sourceSyncedAt } }
+      : {}),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+/**
+ * The member ids a client sent, in the order they sent them: non-empty strings
+ * only, deduplicated.
+ *
+ * Mongo stored the raw array, so a repeated id simply sat there twice. The
+ * junction's `(pack_id, oxy_user_id)` unique constraint refuses that outright,
+ * so the duplicate is collapsed HERE — keeping the first occurrence, which is
+ * what preserves the arrangement the owner chose.
+ */
+function normalizeMemberIds(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  for (const value of input) {
+    if (typeof value === 'string' && value.length > 0) seen.add(value);
+  }
+  return Array.from(seen);
+}
+
+/** Members of the given packs, keyed by pack id, each in the owner's order. */
+async function loadMembersByPack(
+  db: DatabaseOrTransaction,
+  packIds: string[],
+): Promise<Map<string, string[]>> {
+  const grouped = new Map<string, string[]>();
+  if (packIds.length === 0) return grouped;
+
+  // `inArray`, never a hand-built `= any(${ids})`: a raw JS array interpolated
+  // into `sql` binds as a ROW constructor, and Postgres rejects it at runtime.
+  const rows = await db
+    .select({ packId: starterPackMembers.packId, oxyUserId: starterPackMembers.oxyUserId })
+    .from(starterPackMembers)
+    .where(inArray(starterPackMembers.packId, packIds))
+    .orderBy(asc(starterPackMembers.packId), asc(starterPackMembers.position));
+
+  for (const row of rows) {
+    const bucket = grouped.get(row.packId);
+    if (bucket) bucket.push(row.oxyUserId);
+    else grouped.set(row.packId, [row.oxyUserId]);
+  }
+  return grouped;
+}
+
+/**
+ * Rewrite a pack's membership so it is exactly `memberIds`, in that order.
+ *
+ * DELETE-then-INSERT, two statements inside the caller's transaction.
+ * `(pack_id, position)` is UNIQUE, so REORDERING in place (`update … set
+ * position = …`) collides with whichever row still holds the target position —
+ * Postgres checks a unique constraint per statement, not at commit, so even one
+ * multi-row `UPDATE` fails. The delete runs first, in its own statement, so the
+ * insert sees no old rows and `position` runs 0…n-1 with nothing to collide
+ * with.
+ */
+async function replaceMembers(tx: Transaction, packId: string, memberIds: string[]): Promise<void> {
+  await tx.delete(starterPackMembers).where(eq(starterPackMembers.packId, packId));
+  if (memberIds.length === 0) return;
+  await tx.insert(starterPackMembers).values(
+    memberIds.map((oxyUserId, position) => ({ packId, oxyUserId, position })),
+  );
+}
+
+/**
  * Resolve a starter pack's members to ready-to-render summaries server-side, in
- * the SAME order as `memberOxyUserIds`.
+ * the SAME order the owner arranged them.
  *
  * Member identity MUST be resolved on the backend: {@link resolveUserSummaries}
  * goes through the Oxy bulk `/users/by-ids` endpoint, which requires a SERVICE
@@ -157,18 +290,20 @@ async function hydratePackMembers(memberIds: string[]): Promise<StarterPackMembe
  * `memberCount`.
  *
  * Avatar resolution is delegated to {@link resolveUserSummaries} — the SAME
- * batched, Redis-backed (`usersummary:v1:`) author-summary resolver the feed
- * hydration path uses. This collapses what was a per-unique-member
- * `oxy.getUserById` HTTP fan-out (the classic N+1, served only by the SDK's
- * separate 5-minute in-process cache) into a single bulk service call for the
- * cache misses, and unifies the avatar staleness window with the feed (one
- * 10-minute cache instead of two divergent ones). The resolved summary already
- * carries the final, ready-to-render avatar URL, so the output is identical.
+ * batched, Redis-backed author-summary resolver the feed hydration path uses.
+ * This collapses what was a per-unique-member `oxy.getUserById` HTTP fan-out
+ * (the classic N+1, served only by the SDK's separate 5-minute in-process cache)
+ * into a single bulk service call for the cache misses, and unifies the avatar
+ * staleness window with the feed (one 10-minute cache instead of two divergent
+ * ones). The resolved summary already carries the final, ready-to-render avatar
+ * URL, so the output is identical.
  */
-async function enrichWithMemberAvatars(packs: LeanStarterPack[]): Promise<StarterPackListItem[]> {
+async function enrichWithMemberAvatars(
+  packs: SerializedStarterPack[],
+): Promise<StarterPackListItem[]> {
   const uniqueMemberIds = new Set<string>();
   for (const pack of packs) {
-    for (const id of (pack.memberOxyUserIds ?? []).slice(0, LIST_AVATAR_LIMIT)) {
+    for (const id of pack.memberOxyUserIds.slice(0, LIST_AVATAR_LIMIT)) {
       uniqueMemberIds.add(id);
     }
   }
@@ -195,13 +330,62 @@ async function enrichWithMemberAvatars(packs: LeanStarterPack[]): Promise<Starte
   }
 
   return packs.map((pack) => {
-    const members = pack.memberOxyUserIds ?? [];
-    const memberAvatars = members
+    const memberAvatars = pack.memberOxyUserIds
       .slice(0, LIST_AVATAR_LIMIT)
       .map((id) => avatarById.get(id))
       .filter((url): url is string => typeof url === 'string');
-    return { ...pack, memberAvatars, memberCount: members.length };
+    return { ...pack, memberAvatars, memberCount: pack.memberOxyUserIds.length };
   });
+}
+
+/**
+ * The outcome of a write that first has to find the pack, refuse a mirrored one
+ * and check its owner.
+ *
+ * Returned rather than thrown so the transaction is not used for control flow:
+ * a `throw` here would roll back a transaction that had done nothing wrong and
+ * arrive at the catch block as an indistinguishable 500.
+ */
+type PackWriteOutcome =
+  | { kind: 'notFound' }
+  | { kind: 'readOnly' }
+  | { kind: 'forbidden' }
+  | { kind: 'tooManyMembers' }
+  | {
+      kind: 'ok';
+      pack: typeof starterPacks.$inferSelect;
+      previousMemberIds: string[];
+      memberIds: string[];
+    };
+
+/**
+ * Answer every refusal outcome; `false` when the write went through.
+ *
+ * A type predicate rather than a plain boolean, so the caller's `if (…) return`
+ * narrows `outcome` to the success variant — otherwise every call site needs a
+ * second, unreachable `kind !== 'ok'` guard purely to satisfy the compiler.
+ */
+function respondToRefusal(
+  res: Response,
+  outcome: PackWriteOutcome,
+): outcome is Exclude<PackWriteOutcome, { kind: 'ok' }> {
+  if (outcome.kind === 'notFound') {
+    res.status(404).json({ error: 'Starter pack not found' });
+    return true;
+  }
+  if (outcome.kind === 'readOnly') {
+    res.status(403).json({ error: FEDERATED_PACK_READONLY_MESSAGE });
+    return true;
+  }
+  if (outcome.kind === 'forbidden') {
+    res.status(403).json({ error: 'Not allowed' });
+    return true;
+  }
+  if (outcome.kind === 'tooManyMembers') {
+    res.status(400).json({ error: `Maximum ${STARTER_PACK_MAX_MEMBERS} members allowed` });
+    return true;
+  }
+  return false;
 }
 
 // Create starter pack
@@ -210,27 +394,39 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const { name, description, memberOxyUserIds = [] } = req.body || {};
+    const { name, description, memberOxyUserIds } = req.body || {};
     if (!name) return res.status(400).json({ error: 'Name is required' });
 
-    // Deduped BEFORE the cap so repeats cannot consume it — the limit is on how
-    // many accounts a pack curates, and a client that sends one twice has not
-    // curated two. The model dedupes on write regardless; doing it here too is
-    // what makes the 400 honest rather than counting entries nobody will see.
-    const members = dedupeMemberIds(memberOxyUserIds);
-    if (members.length > MAX_MEMBERS) return res.status(400).json({ error: `Maximum ${MAX_MEMBERS} members allowed` });
+    const members = normalizeMemberIds(memberOxyUserIds);
+    if (members.length > STARTER_PACK_MAX_MEMBERS) {
+      return res.status(400).json({ error: `Maximum ${STARTER_PACK_MAX_MEMBERS} members allowed` });
+    }
 
-    const pack = await StarterPack.create({
-      ownerOxyUserId: userId,
-      name: String(name),
-      description: description ? String(description) : undefined,
-      memberOxyUserIds: members,
+    const pack = await getDb().transaction(async (tx) => {
+      const [row] = await tx
+        .insert(starterPacks)
+        .values({
+          ownerOxyUserId: userId,
+          name: String(name),
+          // NULL, never `''` — an empty string is a VALUE, and the client's
+          // `if (pack.description)` would render an empty field instead of none.
+          description: description ? String(description) : null,
+          // The three `source_*` columns are deliberately NOT written here and
+          // stay NULL. `starter_packs_source_uri_key` is a PARTIAL unique index
+          // over non-null `source_uri`, so writing `''` would make every locally
+          // created pack collide with every other one. Mention's write API
+          // cannot mint a mirrored pack at all — only the atproto connector does.
+        })
+        .returning();
+      await replaceMembers(tx, row.id, members);
+      return row;
     });
 
-    syncPackEndorsements(String(pack._id));
+    syncPackEndorsements(pack.id);
     invalidateCurationScores(members);
-    res.status(201).json(pack);
+    res.status(201).json(serializePack(pack, members));
   } catch (error) {
+    logger.error('[StarterPacks] Failed to create starter pack', { userId: req.user?.id, error });
     res.status(500).json({ error: 'Failed to create starter pack' });
   }
 });
@@ -246,57 +442,83 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const viewerId = req.user?.id;
-    const mine = typeof req.query.mine === 'string' ? req.query.mine : undefined;
-    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
-    const ownerId = typeof req.query.userId === 'string' ? req.query.userId.trim() : '';
+    const mine = queryString(req.query.mine);
+    const search = queryString(req.query.search);
+    const ownerId = queryString(req.query.userId)?.trim() ?? '';
 
     const page = Math.max(1, queryInt(req.query.page) || 1);
     const limit = Math.min(Math.max(1, queryInt(req.query.limit) || DEFAULT_PACK_PAGE_SIZE), MAX_PACK_PAGE_SIZE);
-    const skip = (page - 1) * limit;
+    const offset = (page - 1) * limit;
 
-    const q: Record<string, unknown> = {};
+    const conditions: Array<SQL | undefined> = [];
     let ownerScoped = false;
     if (mine === 'true') {
       // "My packs" requires identity; an anonymous viewer owns nothing.
       if (!viewerId) return res.json({ items: [], total: 0, page, totalPages: 0 });
-      q.ownerOxyUserId = viewerId;
+      conditions.push(eq(starterPacks.ownerOxyUserId, viewerId));
       ownerScoped = true;
     } else if (ownerId.length > 0) {
       // A specific profile's packs (foreign-profile tab passes `userId`).
-      q.ownerOxyUserId = ownerId;
+      conditions.push(eq(starterPacks.ownerOxyUserId, ownerId));
       ownerScoped = true;
-    } else if (viewerId && String(req.query.excludeUsed) === 'true') {
+    } else if (viewerId && queryString(req.query.excludeUsed) === 'true') {
       // Discovery for a recommendation surface (the feed interstitial): never
-      // suggest a pack the viewer already owns or has already used. Both filters
-      // are equality-negations on fields the discovery sort index
-      // (`useCount:-1, createdAt:-1`) doesn't cover, so the index still serves
-      // the ordering and these only reject rows. Anonymous viewers have used
-      // nothing, so the param is ignored for them.
-      q.ownerOxyUserId = { $ne: viewerId };
-      q.usedByOxyUserIds = { $ne: viewerId };
+      // suggest a pack the viewer already owns or has already used. Anonymous
+      // viewers have used nothing, so the param is ignored for them.
+      //
+      // `notExists` over the junction is the port of Mongo's
+      // `usedByOxyUserIds: { $ne: viewerId }` on the member ARRAY. The subquery
+      // correlates on `starter_packs.id`, which is the shape that returns an
+      // empty result with NO error when the outer column renders unqualified —
+      // drizzle's query builder qualifies every column it emits, and the suite
+      // asserts a NON-EMPTY, exactly-enumerated result rather than "no rows".
+      conditions.push(ne(starterPacks.ownerOxyUserId, viewerId));
+      conditions.push(
+        notExists(
+          getDb()
+            .select({ one: sql`1` })
+            .from(starterPackUses)
+            .where(
+              and(
+                eq(starterPackUses.packId, starterPacks.id),
+                eq(starterPackUses.oxyUserId, viewerId),
+              ),
+            ),
+        ),
+      );
     }
     if (search) {
-      const escaped = escapeRegex(search);
-      q.$or = [
-        { name: { $regex: escaped, $options: 'i' } },
-        { description: { $regex: escaped, $options: 'i' } },
-      ];
+      const pattern = likeContains(search);
+      conditions.push(
+        or(ilike(starterPacks.name, pattern), ilike(starterPacks.description, pattern)),
+      );
     }
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Owner-scoped views read best most-recent-first; discovery ranks by usage.
-    // `_id` breaks ties so the sort is TOTAL — without it two packs sharing a
+    // `id` breaks ties so the sort is TOTAL — without it two packs sharing a
     // timestamp (or a `useCount`, which most packs do) could swap places between
     // requests and make an offset page repeat or skip a row.
-    const sort: Record<string, 1 | -1> = ownerScoped
-      ? { updatedAt: -1, _id: -1 }
-      : { useCount: -1, createdAt: -1, _id: -1 };
-    const [items, total] = await Promise.all([
-      StarterPack.find(q).sort(sort).skip(skip).limit(limit).lean<LeanStarterPack[]>(),
-      StarterPack.countDocuments(q),
+    const orderBy = ownerScoped
+      ? [desc(starterPacks.updatedAt), desc(starterPacks.id)]
+      : [desc(starterPacks.useCount), desc(starterPacks.createdAt), desc(starterPacks.id)];
+
+    const db = getDb();
+    const [rows, [counted]] = await Promise.all([
+      db.select().from(starterPacks).where(where).orderBy(...orderBy).limit(limit).offset(offset),
+      // `::int` so postgres.js hands back a NUMBER: a bare `count(*)` is a
+      // bigint, which the driver returns as a STRING, and `total` would silently
+      // change type on the wire.
+      db.select({ total: sql<number>`count(*)::int` }).from(starterPacks).where(where),
     ]);
-    const enriched = await enrichWithMemberAvatars(items);
-    res.json({ items: enriched, total, page, totalPages: Math.ceil(total / limit) });
+
+    const membersByPack = await loadMembersByPack(db, rows.map((row) => row.id));
+    const enriched = await enrichWithMemberAvatars(
+      rows.map((row) => serializePack(row, membersByPack.get(row.id) ?? [])),
+    );
+    res.json({ items: enriched, total: counted.total, page, totalPages: Math.ceil(counted.total / limit) });
   } catch (error) {
+    logger.error('[StarterPacks] Failed to list starter packs', { userId: req.user?.id, error });
     res.status(500).json({ error: 'Failed to list starter packs' });
   }
 });
@@ -305,15 +527,22 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 // the session is still restoring). No owner-only fields are exposed.
 router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const pack = await StarterPack.findById(req.params.id).lean();
+    const db = getDb();
+    const [pack] = await db
+      .select()
+      .from(starterPacks)
+      .where(eq(starterPacks.id, String(req.params.id)))
+      .limit(1);
     if (!pack) return res.status(404).json({ error: 'Starter pack not found' });
     // Hydrate members server-side (the browser has no service credential for the
     // bulk user lookup). `members` is ordered to match `memberOxyUserIds`;
     // `memberCount` mirrors the list response for label parity.
-    const memberIds = pack.memberOxyUserIds ?? [];
+    const membersByPack = await loadMembersByPack(db, [pack.id]);
+    const memberIds = membersByPack.get(pack.id) ?? [];
     const members = await hydratePackMembers(memberIds);
-    res.json({ ...pack, members, memberCount: memberIds.length });
+    res.json({ ...serializePack(pack, memberIds), members, memberCount: memberIds.length });
   } catch (error) {
+    logger.error('[StarterPacks] Failed to get starter pack', { packId: String(req.params.id), error });
     res.status(500).json({ error: 'Failed to get starter pack' });
   }
 });
@@ -323,29 +552,68 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
-    const pack = await StarterPack.findById(req.params.id);
-    if (!pack) return res.status(404).json({ error: 'Starter pack not found' });
-    if (isFederatedPack(pack)) return res.status(403).json({ error: FEDERATED_PACK_READONLY_MESSAGE });
-    if (pack.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
-
     const { name, description, memberOxyUserIds } = req.body || {};
-    if (name !== undefined) pack.name = String(name);
-    if (description !== undefined) pack.description = String(description);
-    const previousMemberIds = [...(pack.memberOxyUserIds || [])];
-    if (Array.isArray(memberOxyUserIds)) {
-      const nextMemberIds = dedupeMemberIds(memberOxyUserIds);
-      if (nextMemberIds.length > MAX_MEMBERS) return res.status(400).json({ error: `Maximum ${MAX_MEMBERS} members allowed` });
-      pack.memberOxyUserIds = nextMemberIds;
-    }
-    await pack.save();
-    if (Array.isArray(memberOxyUserIds)) {
-      syncPackMembershipChange(String(pack._id), pack.ownerOxyUserId, previousMemberIds, pack.memberOxyUserIds || []);
-      invalidateCurationScores(previousMemberIds, pack.memberOxyUserIds);
+    const replacesMembers = Array.isArray(memberOxyUserIds);
+
+    const outcome = await getDb().transaction<PackWriteOutcome>(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(starterPacks)
+        .where(eq(starterPacks.id, String(req.params.id)))
+        .limit(1);
+      if (!existing) return { kind: 'notFound' };
+      if (isFederatedPack(existing)) return { kind: 'readOnly' };
+      if (existing.ownerOxyUserId !== userId) return { kind: 'forbidden' };
+
+      const membersByPack = await loadMembersByPack(tx, [existing.id]);
+      const previousMemberIds = membersByPack.get(existing.id) ?? [];
+      const memberIds = replacesMembers ? normalizeMemberIds(memberOxyUserIds) : previousMemberIds;
+      if (memberIds.length > STARTER_PACK_MAX_MEMBERS) return { kind: 'tooManyMembers' };
+
+      // Built from LITERAL keys only. Drizzle keys `set()` by column PROPERTY
+      // name and silently ignores an unknown one — writing nothing and throwing
+      // nothing — so an update object assembled from request keys would be a
+      // dropped write nobody notices.
+      await tx
+        .update(starterPacks)
+        .set({
+          ...(name === undefined ? {} : { name: String(name) }),
+          ...(description === undefined ? {} : { description: description ? String(description) : null }),
+          // Always stamped, matching Mongoose's `save()`: the previous route
+          // bumped `updatedAt` on every PUT whether or not a field changed, and
+          // `updated_at` is the sort key the owner-scoped listing pages on.
+          updatedAt: new Date(),
+        })
+        .where(eq(starterPacks.id, existing.id));
+
+      if (replacesMembers) {
+        await replaceMembers(tx, existing.id, memberIds);
+      }
+
+      const [pack] = await tx
+        .select()
+        .from(starterPacks)
+        .where(eq(starterPacks.id, existing.id))
+        .limit(1);
+      return { kind: 'ok', pack, previousMemberIds, memberIds };
+    });
+
+    if (respondToRefusal(res, outcome)) return;
+
+    if (replacesMembers) {
+      syncPackMembershipChange(
+        outcome.pack.id,
+        outcome.pack.ownerOxyUserId,
+        outcome.previousMemberIds,
+        outcome.memberIds,
+      );
+      invalidateCurationScores(outcome.previousMemberIds, outcome.memberIds);
     } else {
-      syncPackEndorsements(String(pack._id));
+      syncPackEndorsements(outcome.pack.id);
     }
-    res.json(pack);
+    res.json(serializePack(outcome.pack, outcome.memberIds));
   } catch (error) {
+    logger.error('[StarterPacks] Failed to update starter pack', { userId: req.user?.id, packId: String(req.params.id), error });
     res.status(500).json({ error: 'Failed to update starter pack' });
   }
 });
@@ -355,21 +623,34 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
-    const pack = await StarterPack.findById(req.params.id);
-    if (!pack) return res.status(404).json({ error: 'Starter pack not found' });
-    if (isFederatedPack(pack)) return res.status(403).json({ error: FEDERATED_PACK_READONLY_MESSAGE });
-    if (pack.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
-    // Capture members BEFORE delete so we can retract their endorsements.
-    const ownerId = pack.ownerOxyUserId;
-    const memberIds = [...(pack.memberOxyUserIds || [])];
-    const packId = String(pack._id);
-    await pack.deleteOne();
+
+    const outcome = await getDb().transaction<PackWriteOutcome>(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(starterPacks)
+        .where(eq(starterPacks.id, String(req.params.id)))
+        .limit(1);
+      if (!existing) return { kind: 'notFound' };
+      if (isFederatedPack(existing)) return { kind: 'readOnly' };
+      if (existing.ownerOxyUserId !== userId) return { kind: 'forbidden' };
+
+      // Capture members BEFORE the delete so their endorsements can be retracted;
+      // `starter_pack_members` cascades with the pack and is gone afterwards.
+      const membersByPack = await loadMembersByPack(tx, [existing.id]);
+      await tx.delete(starterPacks).where(eq(starterPacks.id, existing.id));
+      const memberIds = membersByPack.get(existing.id) ?? [];
+      return { kind: 'ok', pack: existing, previousMemberIds: memberIds, memberIds };
+    });
+
+    if (respondToRefusal(res, outcome)) return;
+
     void endorsementSignalService
-      .syncScopeRemoval('starterPack', packId, ownerId, memberIds)
-    .catch((error) => logger.warn('[StarterPacks] endorsement retraction failed', error));
-    invalidateCurationScores(memberIds);
+      .syncScopeRemoval('starterPack', outcome.pack.id, outcome.pack.ownerOxyUserId, outcome.memberIds)
+      .catch((error) => logger.warn('[StarterPacks] endorsement retraction failed', error));
+    invalidateCurationScores(outcome.memberIds);
     res.json({ success: true });
   } catch (error) {
+    logger.error('[StarterPacks] Failed to delete starter pack', { userId: req.user?.id, packId: String(req.params.id), error });
     res.status(500).json({ error: 'Failed to delete starter pack' });
   }
 });
@@ -380,20 +661,34 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
     const { userIds } = req.body || {};
-    const pack = await StarterPack.findById(req.params.id);
-    if (!pack) return res.status(404).json({ error: 'Starter pack not found' });
-    if (isFederatedPack(pack)) return res.status(403).json({ error: FEDERATED_PACK_READONLY_MESSAGE });
-    if (pack.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
 
-    const previousMemberIds = [...(pack.memberOxyUserIds || [])];
-    const set = new Set([...(pack.memberOxyUserIds || []), ...(Array.isArray(userIds) ? userIds : [])]);
-    if (set.size > MAX_MEMBERS) return res.status(400).json({ error: `Maximum ${MAX_MEMBERS} members allowed` });
-    pack.memberOxyUserIds = Array.from(set);
-    await pack.save();
-    syncPackEndorsements(String(pack._id));
-    invalidateCurationScores(previousMemberIds, pack.memberOxyUserIds);
-    res.json(pack);
+    const outcome = await getDb().transaction<PackWriteOutcome>(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(starterPacks)
+        .where(eq(starterPacks.id, String(req.params.id)))
+        .limit(1);
+      if (!existing) return { kind: 'notFound' };
+      if (isFederatedPack(existing)) return { kind: 'readOnly' };
+      if (existing.ownerOxyUserId !== userId) return { kind: 'forbidden' };
+
+      const membersByPack = await loadMembersByPack(tx, [existing.id]);
+      const previousMemberIds = membersByPack.get(existing.id) ?? [];
+      // Existing members keep their positions and the new ones are APPENDED —
+      // the same result `new Set([...existing, ...incoming])` produced.
+      const memberIds = Array.from(new Set([...previousMemberIds, ...normalizeMemberIds(userIds)]));
+      if (memberIds.length > STARTER_PACK_MAX_MEMBERS) return { kind: 'tooManyMembers' };
+      await replaceMembers(tx, existing.id, memberIds);
+      return { kind: 'ok', pack: existing, previousMemberIds, memberIds };
+    });
+
+    if (respondToRefusal(res, outcome)) return;
+
+    syncPackEndorsements(outcome.pack.id);
+    invalidateCurationScores(outcome.previousMemberIds, outcome.memberIds);
+    res.json(serializePack(outcome.pack, outcome.memberIds));
   } catch (error) {
+    logger.error('[StarterPacks] Failed to add members', { userId: req.user?.id, packId: String(req.params.id), error });
     res.status(500).json({ error: 'Failed to add members' });
   }
 });
@@ -404,48 +699,96 @@ router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
     const { userIds } = req.body || {};
-    const pack = await StarterPack.findById(req.params.id);
-    if (!pack) return res.status(404).json({ error: 'Starter pack not found' });
-    if (isFederatedPack(pack)) return res.status(403).json({ error: FEDERATED_PACK_READONLY_MESSAGE });
-    if (pack.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
 
-    const previousMemberIds = [...(pack.memberOxyUserIds || [])];
-    const toRemove = new Set(Array.isArray(userIds) ? userIds : []);
-    pack.memberOxyUserIds = (pack.memberOxyUserIds || []).filter(id => !toRemove.has(id));
-    await pack.save();
-    syncPackMembershipChange(String(pack._id), pack.ownerOxyUserId, previousMemberIds, pack.memberOxyUserIds || []);
-    invalidateCurationScores(previousMemberIds, pack.memberOxyUserIds);
-    res.json(pack);
+    const outcome = await getDb().transaction<PackWriteOutcome>(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(starterPacks)
+        .where(eq(starterPacks.id, String(req.params.id)))
+        .limit(1);
+      if (!existing) return { kind: 'notFound' };
+      if (isFederatedPack(existing)) return { kind: 'readOnly' };
+      if (existing.ownerOxyUserId !== userId) return { kind: 'forbidden' };
+
+      const membersByPack = await loadMembersByPack(tx, [existing.id]);
+      const previousMemberIds = membersByPack.get(existing.id) ?? [];
+      const toRemove = new Set(normalizeMemberIds(userIds));
+      const memberIds = previousMemberIds.filter((id) => !toRemove.has(id));
+      await replaceMembers(tx, existing.id, memberIds);
+      return { kind: 'ok', pack: existing, previousMemberIds, memberIds };
+    });
+
+    if (respondToRefusal(res, outcome)) return;
+
+    syncPackMembershipChange(
+      outcome.pack.id,
+      outcome.pack.ownerOxyUserId,
+      outcome.previousMemberIds,
+      outcome.memberIds,
+    );
+    invalidateCurationScores(outcome.previousMemberIds, outcome.memberIds);
+    res.json(serializePack(outcome.pack, outcome.memberIds));
   } catch (error) {
+    logger.error('[StarterPacks] Failed to remove members', { userId: req.user?.id, packId: String(req.params.id), error });
     res.status(500).json({ error: 'Failed to remove members' });
   }
 });
 
-// Use starter pack (increment count once per user, return member IDs for client-side following)
+// Use starter pack (record the use once per user, return member IDs for
+// client-side following)
 router.post('/:id/use', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    // Atomically add user to usedByOxyUserIds and increment count only if not already used
-    const pack = await StarterPack.findOneAndUpdate(
-      { _id: req.params.id, usedByOxyUserIds: { $ne: userId } },
-      { $inc: { useCount: 1 }, $addToSet: { usedByOxyUserIds: userId } },
-      { new: true }
-    ).lean();
+    const outcome = await getDb().transaction(async (tx) => {
+      const [pack] = await tx
+        .select()
+        .from(starterPacks)
+        .where(eq(starterPacks.id, String(req.params.id)))
+        .limit(1);
+      if (!pack) return null;
 
-    if (!pack) {
-      // Either not found or already used — check which
-      const existing = await StarterPack.findById(req.params.id).lean();
-      if (!existing) return res.status(404).json({ error: 'Starter pack not found' });
-      // Already used — return data without re-incrementing
-      return res.json({ memberOxyUserIds: existing.memberOxyUserIds, useCount: existing.useCount, alreadyUsed: true });
+      // The junction row IS the idempotency key: `starter_pack_uses_pack_id_oxy_user_id_key`
+      // rejects a second use by the same viewer, so `onConflictDoNothing` returning
+      // nothing is exactly Mongo's `usedByOxyUserIds: { $ne: userId }` filter failing
+      // to match — and the counter moves only when a row was really inserted.
+      const inserted = await tx
+        .insert(starterPackUses)
+        .values({ packId: pack.id, oxyUserId: userId })
+        .onConflictDoNothing()
+        .returning({ id: starterPackUses.id });
+
+      const membersByPack = await loadMembersByPack(tx, [pack.id]);
+      const memberOxyUserIds = membersByPack.get(pack.id) ?? [];
+      if (inserted.length === 0) {
+        return { alreadyUsed: true, memberOxyUserIds, useCount: pack.useCount };
+      }
+
+      const [updated] = await tx
+        .update(starterPacks)
+        .set({ useCount: sql`${starterPacks.useCount} + 1` })
+        .where(eq(starterPacks.id, pack.id))
+        .returning({ useCount: starterPacks.useCount });
+      return { alreadyUsed: false, memberOxyUserIds, useCount: updated.useCount };
+    });
+
+    if (!outcome) return res.status(404).json({ error: 'Starter pack not found' });
+
+    if (outcome.alreadyUsed) {
+      // Already used — report the same data without re-incrementing.
+      return res.json({
+        memberOxyUserIds: outcome.memberOxyUserIds,
+        useCount: outcome.useCount,
+        alreadyUsed: true,
+      });
     }
 
     // `useCount` actually moved, so every member's curation score changed.
-    invalidateCurationScores(pack.memberOxyUserIds);
-    res.json({ memberOxyUserIds: pack.memberOxyUserIds, useCount: pack.useCount });
+    invalidateCurationScores(outcome.memberOxyUserIds);
+    res.json({ memberOxyUserIds: outcome.memberOxyUserIds, useCount: outcome.useCount });
   } catch (error) {
+    logger.error('[StarterPacks] Failed to use starter pack', { userId: req.user?.id, packId: String(req.params.id), error });
     res.status(500).json({ error: 'Failed to use starter pack' });
   }
 });

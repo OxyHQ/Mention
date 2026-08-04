@@ -1,7 +1,7 @@
 /**
  * Mention Node Registry Service (MTN Protocol — B3 user nodes)
  *
- * Materializes and maintains the operational {@link MentionUserNode} cache from
+ * Materializes and maintains the operational `mention_user_nodes` cache from
  * the AUTHORITATIVE source — a user's signed `app.mention.node` record on their
  * MTN hash chain (`collection: 'app.mention.node'`, `rkey: 'self'`). The signed
  * record is verified + stored by the chain engine (`verifyAndStoreRecord`); this
@@ -21,16 +21,22 @@
  * `sweepNodeLiveness` NEVER throw into a caller.
  */
 
-import type { UpdateQuery } from 'mongoose';
 import { z } from 'zod';
 import { signEnvelope, type SignedRecordSigningFields } from '@oxyhq/protocol';
 import { safeFetch } from '@oxyhq/core/server';
 import { getMentionNodeConfig } from '../../config';
-import MentionUserNode, {
-  type IMentionUserNode,
-  type MentionUserNodeMode,
+import {
+  findNodeEndpoint,
+  findNodesToProbe,
+  findUserNode,
+  recordNodeLiveness,
+  revokeNode,
+  upsertNodeRegistration,
   type MentionUserNodeController,
-} from '../../models/MentionUserNode';
+  type MentionUserNodeMode,
+  type MentionUserNodeRecord,
+  type NodeLivenessUpdate,
+} from '../../db/mtn/nodeRepository';
 import { logger } from '../../utils/logger';
 import { buildUserDid } from './mentionDid';
 import { getHead } from './MentionRepoLogService';
@@ -110,7 +116,7 @@ function wellKnownUrl(endpoint: string): string {
 
 /**
  * Project a verified `app.mention.node` signed record into the
- * {@link MentionUserNode} cache.
+ * `mention_user_nodes` cache.
  *
  * Best-effort and non-throwing: the signed record is the source of truth and is
  * already persisted on the chain by the caller; a malformed `record` payload
@@ -127,7 +133,7 @@ export async function materializeNodeFromRecord(
   oxyUserId: string,
   record: Record<string, unknown>,
   options: MaterializeNodeOptions = {},
-): Promise<IMentionUserNode | null> {
+): Promise<MentionUserNodeRecord | null> {
   const parsed = nodeRecordSchema.safeParse(record);
   if (!parsed.success) {
     logger.warn('MentionNodeRegistry: node record payload failed validation; skipping materialization', {
@@ -149,23 +155,14 @@ export async function materializeNodeFromRecord(
   const controller: MentionUserNodeController = options.controller ?? 'self';
 
   try {
-    const node = await MentionUserNode.findOneAndUpdate(
-      { oxyUserId },
-      {
-        $set: {
-          endpoint,
-          nodePublicKey: parsed.data.nodePublicKey,
-          mode,
-          managed,
-          controller,
-          status: 'active',
-          ...(parsed.data.nodeDid ? { nodeDid: parsed.data.nodeDid } : {}),
-        },
-        $unset: { lastError: '' },
-        $setOnInsert: { oxyUserId },
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    );
+    const node = await upsertNodeRegistration(oxyUserId, {
+      endpoint,
+      nodePublicKey: parsed.data.nodePublicKey,
+      mode,
+      managed,
+      controller,
+      ...(parsed.data.nodeDid ? { nodeDid: parsed.data.nodeDid } : {}),
+    });
 
     // Fire-and-forget liveness probe — NEVER awaited in the request path.
     probeLiveness(oxyUserId).catch((err) =>
@@ -175,7 +172,7 @@ export async function materializeNodeFromRecord(
       }),
     );
 
-    return node;
+    return node ?? null;
   } catch (err) {
     logger.error('MentionNodeRegistry: failed to materialize node from signed record', {
       oxyUserId,
@@ -195,18 +192,16 @@ export async function materializeNodeFromRecord(
  */
 export async function probeLiveness(oxyUserId: string): Promise<void> {
   try {
-    const node = await MentionUserNode.findOne({ oxyUserId, status: { $ne: 'revoked' } })
-      .select('endpoint')
-      .lean<{ endpoint: string } | null>();
-    if (!node) {
+    const endpoint = await findNodeEndpoint(oxyUserId);
+    if (!endpoint) {
       return;
     }
 
     const probeAt = new Date();
-    let update: UpdateQuery<IMentionUserNode>;
+    let outcome: NodeLivenessUpdate;
 
     try {
-      const result = await safeFetch(wellKnownUrl(node.endpoint), {
+      const result = await safeFetch(wellKnownUrl(endpoint), {
         headersTimeoutMs: MENTION_NODE_PROBE_TIMEOUT_MS,
         maxRedirects: 1,
       });
@@ -214,32 +209,25 @@ export async function probeLiveness(oxyUserId: string): Promise<void> {
       result.response.destroy();
 
       if (result.status >= 200 && result.status < 300) {
-        update = {
-          $set: { status: 'active', lastSeenAt: probeAt, lastProbeAt: probeAt },
-          $unset: { lastError: '' },
-        };
+        outcome = { reachable: true, probedAt: probeAt };
       } else {
-        update = {
-          $set: {
-            status: 'unreachable',
-            lastProbeAt: probeAt,
-            lastError: `node responded with HTTP ${result.status}`.slice(0, MENTION_NODE_LAST_ERROR_MAX_LEN),
-          },
+        outcome = {
+          reachable: false,
+          probedAt: probeAt,
+          error: `node responded with HTTP ${result.status}`.slice(0, MENTION_NODE_LAST_ERROR_MAX_LEN),
         };
       }
     } catch (fetchErr) {
       const message = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-      update = {
-        $set: {
-          status: 'unreachable',
-          lastProbeAt: probeAt,
-          lastError: message.slice(0, MENTION_NODE_LAST_ERROR_MAX_LEN),
-        },
+      outcome = {
+        reachable: false,
+        probedAt: probeAt,
+        error: message.slice(0, MENTION_NODE_LAST_ERROR_MAX_LEN),
       };
       logger.debug('MentionNodeRegistry: node liveness probe failed', { oxyUserId, error: message });
     }
 
-    await MentionUserNode.updateOne({ oxyUserId, status: { $ne: 'revoked' } }, update);
+    await recordNodeLiveness(oxyUserId, outcome);
   } catch (err) {
     // A DB error during a background probe must never escape — log and move on.
     logger.error('MentionNodeRegistry: node liveness probe encountered an error', {
@@ -261,11 +249,7 @@ export async function probeLiveness(oxyUserId: string): Promise<void> {
  * by the leader-gated background scheduler.
  */
 export async function sweepNodeLiveness(): Promise<void> {
-  const nodes = await MentionUserNode.find({ status: { $in: ['active', 'unreachable'] } })
-    .sort({ lastProbeAt: 1 })
-    .limit(MENTION_NODE_LIVENESS_SWEEP_BATCH)
-    .select('oxyUserId')
-    .lean<Array<{ oxyUserId: string }>>();
+  const nodes = await findNodesToProbe(MENTION_NODE_LIVENESS_SWEEP_BATCH);
 
   if (nodes.length === 0) {
     return;
@@ -278,9 +262,9 @@ export async function sweepNodeLiveness(): Promise<void> {
   let nextIndex = 0;
   const worker = async (): Promise<void> => {
     while (nextIndex < nodes.length) {
-      const node = nodes[nextIndex];
+      const oxyUserId = nodes[nextIndex];
       nextIndex += 1;
-      await probeLiveness(node.oxyUserId);
+      await probeLiveness(oxyUserId);
     }
   };
 
@@ -288,9 +272,9 @@ export async function sweepNodeLiveness(): Promise<void> {
   await Promise.allSettled(Array.from({ length: poolSize }, () => worker()));
 }
 
-/** The cached node row for a user (any status), or `null`. */
-export async function getUserNode(oxyUserId: string): Promise<IMentionUserNode | null> {
-  return MentionUserNode.findOne({ oxyUserId }).lean<IMentionUserNode | null>();
+/** The cached node row for a user (any status), or `undefined`. */
+export async function getUserNode(oxyUserId: string): Promise<MentionUserNodeRecord | undefined> {
+  return findUserNode(oxyUserId);
 }
 
 /**
@@ -306,16 +290,12 @@ export async function getUserNode(oxyUserId: string): Promise<IMentionUserNode |
  * + on-disk storage are an INFRASTRUCTURE concern, not an API concern. Revoking
  * here is the durable, idempotent signal: a node-fleet reconciler tears down (or
  * archives) the per-user volume by reconciling against
- * `MentionUserNode.find({ managed: true, controller: 'oxy', status: 'revoked' })`.
+ * `mention_user_nodes` where `managed`, `controller = 'oxy'` and `status = 'revoked'`.
  * The API never reaches the node inline (the read-path invariant), so this stays
  * a pure local DB write; the heavy teardown happens asynchronously in the fleet.
  */
 export async function removeNode(oxyUserId: string): Promise<boolean> {
-  const result = await MentionUserNode.updateOne(
-    { oxyUserId, status: { $ne: 'revoked' } },
-    { $set: { status: 'revoked' }, $unset: { lastError: '' } },
-  );
-  return result.modifiedCount > 0;
+  return revokeNode(oxyUserId);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -330,7 +310,7 @@ export type ManagedVaultFailureReason =
 
 /** Result of {@link provisionManagedVault} — the active row, or a clear reason. */
 export type ProvisionManagedVaultResult =
-  | { ok: true; node: IMentionUserNode }
+  | { ok: true; node: MentionUserNodeRecord }
   | { ok: false; reason: ManagedVaultFailureReason };
 
 /** The managed node's signing public key: a dedicated fleet key, else the custodial key. */
@@ -361,7 +341,7 @@ function resolveManagedEndpoint(oxyUserId: string): string | null {
  * (issuer = `MENTION_DID`, signed by the Mention custodial key — the SAME
  * mechanism as the dual-write provenance record), runs it through the shared
  * {@link verifyAndStoreRecord} so it lands on the chain exactly like a self-signed
- * node record, then materializes the {@link MentionUserNode} cache as
+ * node record, then materializes the `mention_user_nodes` cache as
  * `managed:true, controller:'oxy', status:'active'` and fires the async liveness
  * probe.
  *
@@ -373,7 +353,7 @@ function resolveManagedEndpoint(oxyUserId: string): string | null {
  * same endpoint is a no-op refresh (re-probe) — it does NOT append another chain
  * record. The container/storage orchestration itself is INFRA (a node-fleet
  * reconciler stands up the per-user volume off the active managed
- * {@link MentionUserNode} row — DEFERRED, exactly like Oxy F5c); this layer only
+ * `mention_user_nodes` row — DEFERRED, exactly like Oxy F5c); this layer only
  * writes the cryptographic registration + the cache flag.
  */
 export async function provisionManagedVault(oxyUserId: string): Promise<ProvisionManagedVaultResult> {

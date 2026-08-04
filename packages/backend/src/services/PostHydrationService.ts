@@ -1,13 +1,25 @@
 import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostUser, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostReplyContext, PostViewerState, PostVisibility, PostAuthorshipEntry, MEDIA_VARIANT_THUMB } from '@mention/shared-types';
 import type { LaneDisplayMode, LaneSummary } from '@mention/shared-types';
-import { isValidObjectId } from 'mongoose';
-import { Post, type PostFederationData } from '../models/Post';
-import { Lane } from '../models/Lane';
-import Poll from '../models/Poll';
-import Like from '../models/Like';
-import Bookmark from '../models/Bookmark';
-import { FederatedActor } from '../models/FederatedActor';
-import { UserSettings } from '../models/UserSettings';
+import { and, asc, eq, inArray, type SQL } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { bookmarks as bookmarksTable, likes as likesTable } from '../db/schema/engagement';
+import { pollOptions, pollVotes, polls as pollsTable } from '../db/schema/polls';
+import { lanes as lanesTable } from '../db/schema/channels';
+import { posts } from '../db/schema/posts';
+import { userSettings } from '../db/schema/userProfile';
+import {
+  CHRONO_DESC,
+  countQuotesOf,
+  findBoostedPostIds,
+  findPostRecords,
+  loadPostRecords,
+} from '../db/posts/postRepository';
+import type { PostRecordFederation } from '../db/posts/postRecord';
+import type { FederatedActorRecord } from '../db/federation/actorRecord';
+import {
+  findActorsByOxyUserIds,
+  findActorsByUris,
+} from '../db/federation/actorRepository';
 import { disclosesWriters, loadSigningChannelIds } from './channelWriterDisclosure';
 import { actorService } from '../connectors/activitypub/actor.service';
 import { ACTOR_DOMAIN, FEDERATION_DOMAIN, FEDERATION_ENABLED } from '../connectors/activitypub/constants';
@@ -34,7 +46,7 @@ import { getNormalizedUserHandle, getUserLanguages } from '@oxyhq/core';
 import type { LinkPreview } from '@oxyhq/contracts';
 import { assignThreadState } from './ThreadSlicingService';
 import { mget as mgetUserSummaries, mset as msetUserSummaries, CachedUserSummary } from './userSummaryCache';
-import { computeStarterPackScores, mongoStarterPackCurationDeps } from './starterPackCuration';
+import { computeStarterPackScores, starterPackCurationDeps } from './starterPackCuration';
 import {
   collectAuthorshipUserIds,
   getHeaderAuthorshipEntries,
@@ -43,7 +55,6 @@ import {
 } from '../utils/postAuthorship';
 import { canManagePostWithoutLookup } from './postManagementAccess';
 import { normalizeMentionIds } from '../utils/textProcessing';
-import { isReplyPost } from '../utils/postReply';
 import { degradedActorSummary } from '../utils/degradedActorSummary';
 import {
   readerVariants,
@@ -110,7 +121,7 @@ interface RawPost {
   content?: Partial<StoredPostContent>;
   metadata?: Partial<PostMetadata>;
   /** AP federation metadata (federated posts only); `spoilerText` is the CW label. */
-  federation?: PostFederationData;
+  federation?: PostRecordFederation;
   /**
    * Stage-A classification subdoc. Only the canonical multi-language array is
    * read during hydration (surfaced to the DTO as `metadata.languages`).
@@ -238,19 +249,23 @@ interface ExtendedViewerContext extends ViewerContext {
 }
 
 /**
- * The projection for a reply's PARENT, fetched only to answer "whom does this
- * reply answer" (see `buildReplyParentAuthorMap`). Deliberately minimal: the
- * parent's body is never rendered from here, so this carries the author link and
- * nothing beyond the fields the ACL itself reads.
+ * Loading a reply's PARENT, only to answer "whom does this reply answer" (see
+ * `buildReplyParentAuthorMap`) and to answer the same question by id (see
+ * `canViewerReadPostId`).
  *
- * Every field is load-bearing. `status` and `visibility` are what
- * `canViewerReadPost` gates on — leave either unprojected and it reads
- * `undefined`, defaults to published/public, and the gate silently stops
- * gating. `authorship` carries the collaborator entries that let a viewer
- * legitimately see their own unpublished post, and `federation` is what marks a
- * parent as federated (hence public by definition).
+ * A WHOLE record rather than a projection, deliberately. Two of the four fields
+ * the ACL reads are not columns of `posts`: `authorship` is `post_authorships`,
+ * and `federation` is assembled from a family of `federation_*` columns. A
+ * hand-narrowed select would have to reproduce both assemblies, and the failure
+ * mode of getting one wrong is silent — `canViewerReadPost` reads a missing
+ * `status` as published and a missing `authorship` as "no collaborators", so the
+ * gate stops gating rather than erroring. The parent's body is never rendered
+ * from here; it is thrown away the moment its author id is taken.
  */
-const REPLY_PARENT_PROJECTION = '_id oxyUserId authorship federation status visibility';
+async function loadReplyParents(postIds: readonly string[]): Promise<RawPost[]> {
+  const records = await loadPostRecords([...postIds]);
+  return records as unknown as RawPost[];
+}
 
 /**
  * Build the cached identity ({@link CachedUserSummary}: raw Oxy user + the
@@ -323,7 +338,7 @@ export function isFallbackUserSummary(user: PostUser): boolean {
 
 /**
  * Enrich any author that degraded (Oxy resolution failed transiently) with its
- * canonical FEDERATED identity from Mention's own {@link FederatedActor} record.
+ * canonical FEDERATED identity from Mention's own {@link FederatedActorRecord}.
  *
  * Unlike a local author, a federated author's `username@domain` + remote avatar
  * are knowable WITHOUT Oxy. This fills the MISSING `username` / `federation.domain`
@@ -331,7 +346,7 @@ export function isFallbackUserSummary(user: PostUser): boolean {
  * instead of a neutral "Unknown user" whenever Oxy is momentarily unreachable (or
  * in the brief window right after the bridge mints the Oxy user).
  *
- * It NEVER invents `name.displayName` — the FederatedActor has no display-name
+ * It NEVER invents `name.displayName` — the actor row has no display-name
  * field, so an enriched author renders its handle. Enriched (still-incomplete)
  * users are NOT cached (see {@link resolveUserSummaries}), so they self-heal once
  * Oxy recovers. Mutates `resolved` in place; batched, best-effort.
@@ -345,11 +360,9 @@ async function enrichDegradedFederatedUsers(resolved: Map<string, CachedUserSumm
   }
   if (degradedIds.length === 0) return;
 
-  let actors: Array<{ oxyUserId?: string; acct?: string; username?: string; domain?: string; avatarUrl?: string }>;
+  let actors: FederatedActorRecord[];
   try {
-    actors = await FederatedActor.find({ oxyUserId: { $in: degradedIds } })
-      .select('oxyUserId acct username domain avatarUrl')
-      .lean();
+    actors = await findActorsByOxyUserIds(degradedIds);
   } catch (error) {
     logger.warn('[PostHydration] Federated author enrich lookup failed', {
       count: degradedIds.length,
@@ -398,7 +411,7 @@ async function applyStarterPackScores(freshlyResolved: Map<string, CachedUserSum
 
   const scores = await computeStarterPackScores(
     Array.from(freshlyResolved.keys()),
-    mongoStarterPackCurationDeps,
+    starterPackCurationDeps,
   );
   for (const [userId, score] of scores) {
     const summary = freshlyResolved.get(userId);
@@ -724,7 +737,7 @@ function federatedHost(...urls: Array<string | undefined>): string | undefined {
 const inFlightOrphanActorSyncs = new Set<string>();
 
 /**
- * Fire-and-forget: lazily resolve (fetch + create) the FederatedActor + Oxy
+ * Fire-and-forget: lazily resolve (fetch + create) the federated actor + Oxy
  * federated user for a set of actor URIs DERIVED from legacy brid.gy/Bluesky
  * orphan posts. This is the SAME on-demand sync the inbound Like/Announce/mention
  * paths use ({@link actorService.getOrFetchActor}), run DETACHED so it never
@@ -760,18 +773,18 @@ function scheduleOrphanActorSync(actorUris: Set<string>): void {
  * was enforced, so `oxyUserId` is null. Such a post is NOT dropped: its CONTENT
  * (text/media) must still render so a boost/quote referencing it — and the post
  * itself — is not blank. The author is derived ONLY from the post's own
- * federation data + Mention's own {@link FederatedActor} record, NEVER from a raw
+ * federation data + Mention's own {@link FederatedActorRecord}, NEVER from a raw
  * id (the ghost-handle rule):
  *
  *  1. Resolve each orphan's author actor URI: the stored `federation.actorUri`,
  *     or — for a brid.gy/Bluesky orphan that stored only the object URL — the
  *     actor URI deterministically {@link deriveBridgyActorUri | derived} from the
  *     atproto DID embedded in `federation.activityId`/`federation.url` (no network).
- *  2. If a {@link FederatedActor} exists for that URI, use its authoritative
+ *  2. If a {@link FederatedActorRecord} exists for that URI, use its authoritative
  *     `username@domain` + avatar — the SAME enrichment
  *     {@link enrichDegradedFederatedUsers} applies, keyed here by actor URI since
  *     there is no `oxyUserId`. It NEVER invents a `name.displayName`.
- *  3. If the URI was DERIVED and has no FederatedActor row yet (the common brid.gy
+ *  3. If the URI was DERIVED and has no actor row yet (the common brid.gy
  *     case — the actor was never synced), kick a fire-and-forget
  *     {@link scheduleOrphanActorSync} that mints the actor + Oxy user off the
  *     request path, and degrade WITH the bridge origin this pass so the DTO
@@ -781,13 +794,13 @@ function scheduleOrphanActorSync(actorUris: Set<string>): void {
  *     derivable. The empty handle suppresses the `@handle` line and the profile
  *     link, so no misleading handle is ever emitted.
  *
- * Batched (single FederatedActor query), best-effort, and never cached — the DTO
+ * Batched (single federated_actors query), best-effort, and never cached — the DTO
  * self-heals once the actor resolves or the post's `oxyUserId` is backfilled and
  * normal Oxy resolution takes over. Keyed by post id (orphans have no `oxyUserId`
  * to key on).
  */
 export async function resolveOrphanFederatedAuthors(
-  orphans: Array<{ postId: string; federation: PostFederationData }>,
+  orphans: Array<{ postId: string; federation: PostRecordFederation }>,
 ): Promise<Map<string, PostUser>> {
   const result = new Map<string, PostUser>();
   if (orphans.length === 0) return result;
@@ -810,18 +823,12 @@ export async function resolveOrphanFederatedAuthors(
     }
   }
 
-  const actorByUri = new Map<
-    string,
-    { username?: string; acct?: string; domain?: string; avatarUrl?: string; oxyUserId?: string }
-  >();
+  const actorByUri = new Map<string, FederatedActorRecord>();
   if (lookupUris.size > 0) {
     try {
-      const actors = await FederatedActor.find({ uri: { $in: Array.from(lookupUris) } })
-        .select('uri username acct domain avatarUrl oxyUserId')
-        .lean();
+      const actors = await findActorsByUris(Array.from(lookupUris));
       for (const actor of actors) {
-        const uri = (actor as { uri?: string }).uri;
-        if (uri) actorByUri.set(uri, actor);
+        actorByUri.set(actor.uri, actor);
       }
     } catch (error) {
       logger.warn('[PostHydration] Orphan federated author lookup failed', {
@@ -842,7 +849,7 @@ export async function resolveOrphanFederatedAuthors(
     const username = actor?.username || (actor?.acct ? actor.acct.split('@')[0] : '');
 
     if (actor && username) {
-      // Authoritative federated identity from Mention's own FederatedActor record
+      // Authoritative federated identity from Mention's own federated_actors row
       // (never invents a display name — the renderer falls back to the handle).
       result.set(postId, {
         id: actor.oxyUserId || actorUri || postId,
@@ -1184,23 +1191,24 @@ export class PostHydrationService {
     // This avoids a separate query in buildAuthorPrivacyMap
     if (authorIds.length > 0) {
       try {
-        const allAuthorSettings = await UserSettings.find({
-          oxyUserId: { $in: authorIds },
-        }).lean();
+        const allAuthorSettings = await this.loadPrivacySettings(authorIds);
 
         // Pre-populate author privacy map for reuse in buildAuthorPrivacyMap
         const authorPrivacyCache = new Map<string, typeof DEFAULT_PRIVACY>();
-        for (const s of allAuthorSettings) {
-          const authorId = String(s.oxyUserId);
+        for (const row of allAuthorSettings) {
+          const authorId = row.oxyUserId;
 
           // Track private profiles
-          const vis = s.privacy?.profileVisibility;
-          if (vis === 'private' || vis === 'followers_only') {
+          if (row.profileVisibility === 'private' || row.profileVisibility === 'followers_only') {
             context.privateProfileIds.add(authorId);
           }
 
           // Cache engagement privacy for buildAuthorPrivacyMap
-          authorPrivacyCache.set(authorId, readEngagementCountPrivacy(s.privacy));
+          // The columns are flat and `NOT NULL`, so the row IS a
+          // `CountPrivacySource`. Read through the shared helper anyway: the
+          // realtime broadcaster hides exactly what this DTO hides, and a fifth
+          // counter must not be able to land in one surface only.
+          authorPrivacyCache.set(authorId, readEngagementCountPrivacy(row));
         }
 
         // Set defaults for authors without settings
@@ -1231,9 +1239,9 @@ export class PostHydrationService {
     restrictedIds.forEach((id) => context.restrictedIds.add(String(id)));
 
     try {
-      const settings = await UserSettings.findOne({ oxyUserId: viewerId }).lean();
-      if (settings?.privacy) {
-        context.privacyPreferences = readEngagementCountPrivacy(settings.privacy);
+      const [settings] = await this.loadPrivacySettings([viewerId]);
+      if (settings) {
+        context.privacyPreferences = readEngagementCountPrivacy(settings);
       }
     } catch (error) {
       logger.warn('[PostHydration] Failed to load viewer privacy settings:', error);
@@ -1351,16 +1359,19 @@ export class PostHydrationService {
       }
 
       const nextIds = Array.from(nextIdMap.keys());
-      const referenceQuery: Record<string, unknown> = { _id: { $in: nextIds } };
+      const referenceScope: SQL[] = [inArray(posts.id, nextIds)];
       if (publicReferencesOnly) {
-        referenceQuery.status = 'published';
-        referenceQuery.visibility = PostVisibility.PUBLIC;
+        referenceScope.push(eq(posts.status, 'published'));
+        referenceScope.push(eq(posts.visibility, PostVisibility.PUBLIC));
       }
 
       try {
-        const fetched = await Post.find(referenceQuery)
-          .select('-metadata.likedBy -metadata.savedBy')
-          .lean();
+        // Ordered because `findPostRecords` requires it, not because the caller
+        // cares: the results are re-keyed by id into `nextIdMap` immediately
+        // below, so the query's own order never reaches a reader.
+        const fetched = await findPostRecords(and(...referenceScope), {
+          orderBy: CHRONO_DESC,
+        });
 
         currentLevel = fetched.map((post) => ({
           post: post as unknown as RawPost,
@@ -1426,6 +1437,39 @@ export class PostHydrationService {
     return '';
   }
 
+  /**
+   * The privacy columns of `user_settings` for a set of accounts.
+   *
+   * ONE reader for every site that needs them (author privacy, profile
+   * visibility, the viewer's own preference), because the Mongoose model these
+   * replaced was consulted from four places and each rebuilt the same defaults.
+   * A row's ABSENCE is meaningful — it means "never saved settings" — so the
+   * caller applies `DEFAULT_PRIVACY` rather than this returning a padded map.
+   */
+  private async loadPrivacySettings(oxyUserIds: string[]): Promise<
+    Array<{
+      oxyUserId: string;
+      profileVisibility: string | null;
+      hideLikeCounts: boolean;
+      hideShareCounts: boolean;
+      hideReplyCounts: boolean;
+      hideSaveCounts: boolean;
+    }>
+  > {
+    if (oxyUserIds.length === 0) return [];
+    return getDb()
+      .select({
+        oxyUserId: userSettings.oxyUserId,
+        profileVisibility: userSettings.privacyProfileVisibility,
+        hideLikeCounts: userSettings.privacyHideLikeCounts,
+        hideShareCounts: userSettings.privacyHideShareCounts,
+        hideReplyCounts: userSettings.privacyHideReplyCounts,
+        hideSaveCounts: userSettings.privacyHideSaveCounts,
+      })
+      .from(userSettings)
+      .where(inArray(userSettings.oxyUserId, oxyUserIds));
+  }
+
   private async populateViewerInteractions(postIds: string[], viewerContext: ViewerContext): Promise<void> {
     const viewerId = viewerContext.viewerId;
     if (!viewerId || postIds.length === 0) {
@@ -1433,32 +1477,33 @@ export class PostHydrationService {
     }
 
     try {
-      const [likes, bookmarks, boosts] = await Promise.all([
-        Like.find({ userId: viewerId, postId: { $in: postIds } }).select('postId value').lean(),
-        Bookmark.find({ userId: viewerId, postId: { $in: postIds } }).select('postId').lean(),
-        Post.find({ oxyUserId: viewerId, boostOf: { $in: postIds } }).select('boostOf').lean(),
+      const db = getDb();
+      const [likeRows, bookmarkRows, boosts] = await Promise.all([
+        db
+          .select({ postId: likesTable.postId, value: likesTable.value })
+          .from(likesTable)
+          .where(and(eq(likesTable.userId, viewerId), inArray(likesTable.postId, postIds))),
+        db
+          .select({ postId: bookmarksTable.postId })
+          .from(bookmarksTable)
+          .where(and(eq(bookmarksTable.userId, viewerId), inArray(bookmarksTable.postId, postIds))),
+        findBoostedPostIds(viewerId, postIds),
       ]);
 
-      likes.forEach((like) => {
-        const id = like?.postId ? String(like.postId) : undefined;
-        if (!id) return;
-        const value = like.value ?? 1;
-        if (value === 1) {
-          viewerContext.likedPosts.add(id);
-        } else {
-          viewerContext.downvotedPosts.add(id);
-        }
-      });
+      // `value` is `1` or `-1` and NOT NULL, so a downvote is the only way into
+      // the second bucket — the Mongo read defaulted a missing value to 1.
+      for (const like of likeRows) {
+        if (like.value === 1) viewerContext.likedPosts.add(like.postId);
+        else viewerContext.downvotedPosts.add(like.postId);
+      }
 
-      bookmarks.forEach((bookmark) => {
-        const id = bookmark?.postId ? String(bookmark.postId) : undefined;
-        if (id) viewerContext.savedPosts.add(id);
-      });
+      for (const bookmark of bookmarkRows) {
+        viewerContext.savedPosts.add(bookmark.postId);
+      }
 
-      boosts.forEach((boost) => {
-        const id = boost?.boostOf ? String(boost.boostOf) : undefined;
-        if (id) viewerContext.boostedPosts.add(id);
-      });
+      for (const boostedId of boosts) {
+        viewerContext.boostedPosts.add(boostedId);
+      }
     } catch (error) {
       logger.error('[PostHydration] Failed to populate viewer interactions:', error);
     }
@@ -1479,33 +1524,59 @@ export class PostHydrationService {
     }
 
     try {
-      const polls = await Poll.find({ _id: { $in: pollIds } }).lean();
+      // Three tables where Mongo had one document: the options are their own
+      // rows (ordered by `position`, which is what preserves the order the
+      // author wrote them in) and each ballot is a row rather than an id inside
+      // `options[].votes`. The wire shape is unchanged — `votes` is a count per
+      // option INDEX and `userVotes` maps a voter to the index they chose — so
+      // the index has to come from `position`, never from array arrival order.
+      const db = getDb();
+      const [pollRows, optionRows, voteRows] = await Promise.all([
+        db
+          .select({ id: pollsTable.id, question: pollsTable.question, endsAt: pollsTable.endsAt })
+          .from(pollsTable)
+          .where(inArray(pollsTable.id, pollIds)),
+        db
+          .select({ id: pollOptions.id, pollId: pollOptions.pollId, text: pollOptions.text })
+          .from(pollOptions)
+          .where(inArray(pollOptions.pollId, pollIds))
+          .orderBy(asc(pollOptions.pollId), asc(pollOptions.position)),
+        db
+          .select({ pollId: pollVotes.pollId, optionId: pollVotes.optionId, userId: pollVotes.userId })
+          .from(pollVotes)
+          .where(inArray(pollVotes.pollId, pollIds)),
+      ]);
+
+      const optionsByPoll = new Map<string, Array<{ id: string; text: string }>>();
+      for (const option of optionRows) {
+        const existing = optionsByPoll.get(option.pollId);
+        if (existing) existing.push({ id: option.id, text: option.text });
+        else optionsByPoll.set(option.pollId, [{ id: option.id, text: option.text }]);
+      }
+
       const map = new Map<string, Record<string, unknown>>();
+      for (const poll of pollRows) {
+        const options = optionsByPoll.get(poll.id) ?? [];
+        const indexByOptionId = new Map(options.map((option, index) => [option.id, index]));
 
-      polls.forEach((poll) => {
-        const id = poll?._id ? String(poll._id) : undefined;
-        if (!id) return;
+        const votes: Record<string, number> = {};
+        const userVotes: Record<string, string> = {};
+        for (let index = 0; index < options.length; index += 1) votes[String(index)] = 0;
+        for (const vote of voteRows) {
+          const index = vote.pollId === poll.id ? indexByOptionId.get(vote.optionId) : undefined;
+          if (index === undefined) continue;
+          votes[String(index)] = (votes[String(index)] ?? 0) + 1;
+          userVotes[vote.userId] = String(index);
+        }
 
-        map.set(id, {
+        map.set(poll.id, {
           question: poll.question,
-          options: poll.options.map((opt) => opt.text),
-          endTime: poll.endsAt?.toISOString?.() ?? poll.endsAt ?? new Date().toISOString(),
-          votes: poll.options.reduce((acc: Record<string, number>, opt, index) => {
-            acc[String(index)] = Array.isArray(opt.votes) ? opt.votes.length : 0;
-            return acc;
-          }, {}),
-          userVotes: poll.options.reduce((acc: Record<string, string>, opt, index) => {
-            if (Array.isArray(opt.votes)) {
-              opt.votes.forEach((userId) => {
-                if (userId) {
-                  acc[String(userId)] = String(index);
-                }
-              });
-            }
-            return acc;
-          }, {}),
+          options: options.map((option) => option.text),
+          endTime: poll.endsAt.toISOString(),
+          votes,
+          userVotes,
         });
-      });
+      }
 
       return map;
     } catch (error) {
@@ -1542,15 +1613,22 @@ export class PostHydrationService {
     }
 
     try {
-      const lanes = await Lane.find({ _id: { $in: laneIds } })
-        .select('name displayMode')
-        .lean<Array<{ _id: unknown; name: string; displayMode: LaneDisplayMode }>>();
+      const rows = await getDb()
+        .select({
+          id: lanesTable.id,
+          name: lanesTable.name,
+          displayMode: lanesTable.displayMode,
+        })
+        .from(lanesTable)
+        .where(inArray(lanesTable.id, laneIds));
 
       const map = new Map<string, LaneSummary>();
-      for (const lane of lanes) {
-        const id = lane?._id ? String(lane._id) : undefined;
-        if (!id) continue;
-        map.set(id, { id, name: lane.name, displayMode: lane.displayMode });
+      for (const lane of rows) {
+        map.set(lane.id, {
+          id: lane.id,
+          name: lane.name,
+          displayMode: lane.displayMode as LaneDisplayMode,
+        });
       }
       return map;
     } catch (error) {
@@ -1567,7 +1645,7 @@ export class PostHydrationService {
    * {@link loadSigningChannelIds} skips its query entirely.
    *
    * The decision itself — including the fail-closed reading of
-   * `channel.signPosts` — belongs to `services/channelWriterDisclosure`, which
+   * `channelAccount.signPosts` — belongs to `services/channelWriterDisclosure`, which
    * the channel's writers list reads too. Hydration collects the candidates; it
    * does not decide.
    */
@@ -1631,7 +1709,7 @@ export class PostHydrationService {
     }
 
     // `resolveUserSummaries` returns raw Oxy users (Oxy owns identity) and
-    // already enriches any degraded FEDERATED author from the FederatedActor
+    // already enriches any degraded FEDERATED author from the federated_actors
     // record — no separate repair step here.
     const resolved = await resolveUserSummaries([...userIds]);
 
@@ -1653,7 +1731,7 @@ export class PostHydrationService {
   private async buildOrphanFederatedAuthorMap(
     nodes: HydratedGraphNode[],
   ): Promise<Map<string, PostUser>> {
-    const orphans: Array<{ postId: string; federation: PostFederationData }> = [];
+    const orphans: Array<{ postId: string; federation: PostRecordFederation }> = [];
     for (const { post } of nodes) {
       if (post?.oxyUserId || !post?.federation) continue;
       const postId = this.resolveId(post);
@@ -1823,9 +1901,9 @@ export class PostHydrationService {
 
       // Fetch only missing authors
       try {
-        const settings = await UserSettings.find({ oxyUserId: { $in: missingIds } }).lean();
+        const settings = await this.loadPrivacySettings(missingIds);
         for (const setting of settings) {
-          cached.set(String(setting.oxyUserId), readEngagementCountPrivacy(setting.privacy));
+          cached.set(setting.oxyUserId, readEngagementCountPrivacy(setting));
         }
         for (const id of missingIds) {
           if (!cached.has(id)) cached.set(id, { ...DEFAULT_PRIVACY });
@@ -1848,9 +1926,9 @@ export class PostHydrationService {
     }
 
     try {
-      const settings = await UserSettings.find({ oxyUserId: { $in: authorIds } }).lean();
+      const settings = await this.loadPrivacySettings(authorIds);
       settings.forEach((setting) => {
-        privacyMap.set(String(setting.oxyUserId), readEngagementCountPrivacy(setting.privacy));
+        privacyMap.set(setting.oxyUserId, readEngagementCountPrivacy(setting));
       });
 
       authorIds.forEach((authorId) => {
@@ -1898,32 +1976,32 @@ export class PostHydrationService {
    * handler, deciding whether a client may subscribe to a post's live counters.
    *
    * It is a real read of the real gate, not a cheaper approximation: the post is
-   * fetched with the ACL's own projection, the viewer context is built by the
-   * same builder hydration uses, and the verdict comes from the same predicate.
-   * A "is it public?" shortcut written at the call site would be a second
-   * visibility rule, and the two would drift the first time either moved.
+   * loaded whole, the viewer context is built by the same builder hydration
+   * uses, and the verdict comes from the same predicate. A "is it public?"
+   * shortcut written at the call site would be a second visibility rule, and the
+   * two would drift the first time either moved.
    *
    * A blocked author fails here too, matching hydration — which drops a blocked
    * author's post while COLLECTING it, before the gate below ever sees it, so
    * asking the gate alone would let through the one case hydration never serves.
    *
-   * Costs one indexed `_id` lookup plus the viewer context (the viewer's
+   * Costs one indexed primary-key lookup plus the viewer context (the viewer's
    * blocks/restrictions/graph) — the same work one post-detail request already
    * does. Callers must therefore bound how often they can ask.
+   *
+   * There is NO id-shape guard. The id reaches this seam straight from a client,
+   * but `posts.id` is `text`, so a string that could never name a post is a bound
+   * parameter that matches no row — which is already the `false` a guard would
+   * have produced. An `isValidObjectId` test here would instead answer `false`
+   * for every post created since the cutover, silently refusing every live
+   * subscription.
    */
   async canViewerReadPostId(
     postId: string,
     viewerId: string,
     options?: Pick<HydrationOptions, 'oxyClient'>,
   ): Promise<boolean> {
-    // The id reaches this seam straight from a client. `findById` CASTS, so a
-    // non-id string would throw rather than answer, and "no such post" is the
-    // honest answer to a string that could never name one.
-    if (!isValidObjectId(postId)) return false;
-
-    const post = await Post.findById(postId)
-      .select(REPLY_PARENT_PROJECTION)
-      .lean<RawPost | null>();
+    const [post] = await loadReplyParents([postId]);
     if (!post) return false;
 
     const isFederatedPost = !!post.federation;
@@ -2051,14 +2129,15 @@ export class PostHydrationService {
     const parentAuthorIds = new Set<string>();
     const selfContinuationPostIds = new Set<string>();
 
-    // `isReplyPost` is the ONE definition of the concept (see utils/postReply):
-    // it counts a federated reply whose `inReplyTo` never resolved into a local
-    // `parentPostId`. Such a reply has no parent to name but is still a reply,
-    // and `buildPostSummary` emits its marker off the same predicate.
+    // The STORED `is_reply` column is the ONE definition of the concept (see
+    // `derivesReplyIntent` in db/posts/postRecord.ts): it counts a federated
+    // reply whose `inReplyTo` never resolved into a local `parentPostId`. Such a
+    // reply has no parent to name but is still a reply, and `buildPostSummary`
+    // emits its marker off the same column.
     const parentIdByPostId = new Map<string, string>();
     const replyAuthorIdByPostId = new Map<string, string>();
     for (const { post } of nodes) {
-      if (!post || !isReplyPost(post)) continue;
+      if (!post || post.isReply !== true) continue;
       const postId = this.resolveId(post);
       const parentId = post.parentPostId ? String(post.parentPostId) : '';
       if (postId && parentId) {
@@ -2084,13 +2163,10 @@ export class PostHydrationService {
     const missingIds = [...new Set(parentIdByPostId.values())].filter((id) => !knownById.has(id));
     if (missingIds.length > 0) {
       try {
-        const parents = await Post.find({ _id: { $in: missingIds } })
-          .select(REPLY_PARENT_PROJECTION)
-          .lean();
+        const parents = await loadReplyParents(missingIds);
         for (const parent of parents) {
-          const parentPost = parent as unknown as RawPost;
-          const id = this.resolveId(parentPost);
-          if (id) knownById.set(id, parentPost);
+          const id = this.resolveId(parent);
+          if (id) knownById.set(id, parent);
         }
       } catch (error) {
         // Soft-fail: replies still report themselves as replies, just unnamed.
@@ -2387,12 +2463,12 @@ export class PostHydrationService {
       ...(post.parentPostId ? { parentPostId: String(post.parentPostId) } : {}),
       // The reply marker rides on the POST, so every surface that renders one —
       // sliced feed, flat feed, search, saved, thread view — can say "Replying
-      // to @…" from the DTO alone. `isReplyPost` is the single definition, so a
-      // federated reply whose `inReplyTo` never resolved is still marked; it just
-      // names nobody. Self-thread continuations are the one exclusion — they are
-      // replies, but they are rendered as a THREAD, not as reply context. See
-      // `PostReplyContext`.
-      ...(isReplyPost(post) && !selfContinuationPostIds.has(postId) ? { replyContext } : {}),
+      // to @…" from the DTO alone. The stored `is_reply` column is the single
+      // definition, so a federated reply whose `inReplyTo` never resolved is
+      // still marked; it just names nobody. Self-thread continuations are the one
+      // exclusion — they are replies, but they are rendered as a THREAD, not as
+      // reply context. See `PostReplyContext`.
+      ...(post.isReply === true && !selfContinuationPostIds.has(postId) ? { replyContext } : {}),
     };
   }
 
@@ -2736,13 +2812,8 @@ export class PostHydrationService {
     const counts = new Map<string, number>();
     if (postIds.length === 0) return counts;
 
-    const rows = await Post.aggregate<{ _id: string; count: number }>([
-      { $match: { quoteOf: { $in: postIds } } },
-      { $group: { _id: '$quoteOf', count: { $sum: 1 } } },
-    ]);
-
-    for (const row of rows) {
-      if (row?._id) counts.set(String(row._id), row.count);
+    for (const [postId, count] of await countQuotesOf(postIds)) {
+      counts.set(postId, count);
     }
     return counts;
   }

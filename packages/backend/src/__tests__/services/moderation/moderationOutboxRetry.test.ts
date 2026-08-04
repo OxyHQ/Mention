@@ -1,167 +1,102 @@
-import mongoose from 'mongoose';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { and, asc, eq, like, lte, or } from 'drizzle-orm';
 
 /**
  * The report that survives CrowdSource being down.
  *
  * This is the test the whole durable-reception design exists to make passable: the
  * user is answered, CrowdSource is unreachable, and the report is delivered later
- * without anybody re-filing it. It is written as two dispatcher ticks against an
- * in-memory outbox rather than as assertions on mock calls, because the property is
- * about what SURVIVES between the two — an assertion that
- * `reports.create` was called twice would pass just as well if the second call had
- * come from a caller re-submitting by hand.
+ * without anybody re-filing it. It is written as two dispatcher ticks against the
+ * real queue rather than as assertions on mock calls, because the property is about
+ * what SURVIVES between the two — an assertion that `reports.create` was called
+ * twice would pass just as well if the second call had come from a caller
+ * re-submitting by hand.
  *
- * The fake below implements only the operators the outbox service actually issues.
- * That is deliberate: a general Mongo emulator would let a claim succeed that the
- * real owner-checked `updateOne` would refuse, and the lease semantics are the part
- * worth being sure about.
+ * ## What the Postgres port changed
+ *
+ * The outbox row and the report are REAL ROWS, so the in-memory Mongo emulator this
+ * file carried — `matches`, `applyUpdate`, and a hand-written `findOneAndUpdate`
+ * that had to reimplement `$or`/`$lte`/`$gt`/`$exists` — is gone, and with it the
+ * test that existed solely to keep it honest ("claims with an owner-checked lease
+ * and orders oldest-first"). That was a vacuity floor for the FAKE: it pinned the
+ * shape of the query because the fake could not answer whether the query was right.
+ * Postgres answers, and `__tests__/db/moderationOutboxRepository.test.ts` drives
+ * every row transition — the claim predicate, oldest-first ordering, owner-checked
+ * completion, reclaim after lease expiry — against real rows. Re-asserting the
+ * argument shape here would now be a weaker copy of a stronger check.
+ *
+ * What is left here, and is covered nowhere else, is the POLICY on top of those
+ * transitions: what a retryable failure costs, what a permanent one costs, and that
+ * the two halves — the outbox row and the report the reporter reads — always agree
+ * about which happened.
+ *
+ * ## Isolation: `moderation_outbox` is a SHARED, GLOBALLY-DRAINED queue
+ *
+ * `dispatchModerationOutbox` claims the oldest due row, whoever wrote it, and
+ * vitest runs test FILES in parallel — so a tick here could otherwise claim,
+ * lease, deliver and COMPLETE a row belonging to `reportIntakeDurability`,
+ * `crowdSourceWebhook`, `moderationReconciliation` or the repository suite, writing
+ * a delivery receipt onto another file's report through this file's mocked client.
+ *
+ * Two things together make that impossible rather than unlikely:
+ *
+ *  - every tick is `batchSize: 1`, so a tick claims exactly one row; and
+ *  - this file's event is backdated to {@link ANCIENT}, older than any row any
+ *    other suite writes (the oldest elsewhere is `2020-01-01`, in the repository
+ *    suite's ordering test), so oldest-first always reaches ours first.
+ *
+ * That is an assumption about other files, so {@link tick} CHECKS it before every
+ * dispatch instead of trusting it: it reads the next due row and refuses to
+ * dispatch if it is not ours. A future suite that backdates further gets a named
+ * failure here rather than a corrupted row over there.
  */
 
-type Doc = Record<string, unknown>;
-
-/** The comparison operators `ModerationOutboxService` builds. Nothing else. */
-function matches(doc: Doc, filter: Doc): boolean {
-  return Object.entries(filter).every(([key, condition]) => {
-    if (key === '$or') {
-      return (
-        Array.isArray(condition) &&
-        condition.some((sub) => matches(doc, sub as Doc))
-      );
-    }
-    const value = doc[key];
-    if (
-      typeof condition === 'object' &&
-      condition !== null &&
-      !(condition instanceof Date) &&
-      !Array.isArray(condition)
-    ) {
-      const operators = condition as Record<string, unknown>;
-      if ('$lte' in operators) {
-        return value instanceof Date && value.getTime() <= (operators.$lte as Date).getTime();
-      }
-      if ('$gt' in operators) {
-        return value instanceof Date && value.getTime() > (operators.$gt as Date).getTime();
-      }
-      if ('$exists' in operators) {
-        return operators.$exists === true ? value !== undefined : value === undefined;
-      }
-      if ('$in' in operators) {
-        return Array.isArray(operators.$in) && operators.$in.includes(value);
-      }
-    }
-    return value === condition;
-  });
-}
-
-function applyUpdate(doc: Doc, update: Doc): void {
-  const set = update.$set as Doc | undefined;
-  if (set) Object.assign(doc, set);
-  const inc = update.$inc as Record<string, number> | undefined;
-  if (inc) {
-    for (const [key, delta] of Object.entries(inc)) {
-      doc[key] = ((doc[key] as number | undefined) ?? 0) + delta;
-    }
-  }
-  const unset = update.$unset as Doc | undefined;
-  if (unset) {
-    for (const key of Object.keys(unset)) delete doc[key];
-  }
-}
-
-/** The in-memory outbox collection, shared by the model mock below. */
-const outbox: Doc[] = [];
-
-vi.mock('../../../models/ModerationOutbox', () => ({
-  MODERATION_OUTBOX_RETENTION_SECONDS: 90 * 24 * 60 * 60,
-  default: {
-    findOneAndUpdate: vi.fn((filter: Doc, update: Doc) => {
-      const target = outbox.find((doc) => matches(doc, filter));
-      if (target) applyUpdate(target, update);
-      const projection = {
-        select: () => projection,
-        lean: async () => (target ? { ...target } : null),
-      };
-      return projection;
-    }),
-    updateOne: vi.fn(async (filter: Doc, update: Doc) => {
-      const target = outbox.find((doc) => matches(doc, filter));
-      if (!target) return { matchedCount: 0, modifiedCount: 0 };
-      applyUpdate(target, update);
-      return { matchedCount: 1, modifiedCount: 1 };
-    }),
-    findById: vi.fn((id: string) => {
-      const target = outbox.find((doc) => doc._id === id);
-      const projection = {
-        select: () => projection,
-        lean: async () => (target ? { ...target } : null),
-      };
-      return projection;
-    }),
-  },
+const mocks = vi.hoisted(() => ({
+  reportsCreate: vi.fn(),
+  snapshot: vi.fn(),
 }));
-
-/** The report, and the updates the delivery worker writes to it. */
-const report: Doc = {};
-
-vi.mock('../../../models/Report.model', async () => {
-  const actual = await vi.importActual<typeof import('../../../models/Report.model')>(
-    '../../../models/Report.model',
-  );
-  return {
-    ...actual,
-    default: {
-      findById: vi.fn(() => ({
-        lean: async () => ({ ...report }),
-      })),
-      updateOne: vi.fn(async (_filter: Doc, update: Doc) => {
-        applyUpdate(report, update);
-        return { matchedCount: 1, modifiedCount: 1 };
-      }),
-    },
-  };
-});
 
 /** The subject snapshot. The seam is exercised elsewhere; here it just resolves. */
 vi.mock('../../../services/moderation/subjects/registry', async () => {
   const actual = await vi.importActual<
     typeof import('../../../services/moderation/subjects/registry')
   >('../../../services/moderation/subjects/registry');
-  return {
-    ...actual,
-    subjectProviderFor: vi.fn(() => ({
-      reportedType: 'post',
-      subjectType: 'social.post',
-      snapshot: async () => ({
-        subject: {
-          externalId: '507f1f77bcf86cd799439022',
-          type: 'social.post',
-          author: { oxyUserId: 'oxy-author' },
-        },
-        content: 'The exact reported text.',
-      }),
-    })),
-  };
+  return { ...actual, subjectProviderFor: vi.fn() };
 });
 
-const reportsCreate = vi.fn();
-
 vi.mock('../../../services/moderation/crowdSourceClient', () => ({
-  getCrowdSourceClient: vi.fn(() => ({ reports: { create: reportsCreate } })),
+  getCrowdSourceClient: vi.fn(() => ({ reports: { create: mocks.reportsCreate } })),
   resetCrowdSourceClient: vi.fn(),
 }));
 
-import ModerationOutbox from '../../../models/ModerationOutbox';
-import Report from '../../../models/Report.model';
-import { ReportCategory, ReportedType } from '../../../models/Report.model';
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { moderationOutbox, reports } from '../../../db/schema/moderation';
+import {
+  claimModerationOutboxEvent,
+  enqueueModerationOutboxEvent,
+} from '../../../db/moderation/moderationOutboxRepository';
+import { findReportById } from '../../../db/moderation/reportRepository';
+import { getCrowdSourceClient } from '../../../services/moderation/crowdSourceClient';
+import { subjectProviderFor } from '../../../services/moderation/subjects/registry';
 import {
   dispatchModerationOutbox,
   reportSubmitEventId,
 } from '../../../services/moderation/ModerationOutboxService';
 import { handleModerationOutboxEvent } from '../../../services/moderation/ModerationOutboxDispatcher';
 
-const REPORT_ID = '507f1f77bcf86cd799439011';
-const EVENT_ID = reportSubmitEventId(REPORT_ID);
+/** Namespaces every row this file writes, so a parallel file cannot collide. */
+const PREFIX = 'moderation:test-outbox-retry:';
+
+/**
+ * Older than any row any other suite writes — see the isolation note above.
+ * {@link tick} verifies the consequence rather than assuming it.
+ */
+const ANCIENT = new Date('1999-01-01T00:00:00.000Z');
+
+/** A distinct reporter per test: `(reporter, reported_id, reported_type)` is unique. */
+let reporterSeq = 0;
+let reportId: string;
+let eventId: string;
 
 /**
  * The error shape `@oxyhq/crowdsource` throws for "come back later": a 503 or a
@@ -186,56 +121,141 @@ class PayloadConflictError extends Error {
   }
 }
 
-function seed(): void {
-  outbox.length = 0;
-  outbox.push({
-    _id: EVENT_ID,
-    kind: 'report.submit',
-    payload: { reportId: REPORT_ID },
-    status: 'pending',
-    attempts: 0,
-    availableAt: new Date(Date.now() - 1_000),
-    expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1_000),
-    createdAt: new Date(),
-  });
+/** The report, and its delivery event, in the state a fresh intake leaves them. */
+async function seed(): Promise<void> {
+  reporterSeq += 1;
+  const [row] = await getDb()
+    .insert(reports)
+    .values({
+      reportedType: 'post',
+      reportedId: `${PREFIX}subject`,
+      reporter: `${PREFIX}reporter-${reporterSeq}`,
+      categories: ['harassment'],
+      localStatus: 'queued',
+    })
+    .returning({ id: reports.id });
+  reportId = row.id;
+  eventId = reportSubmitEventId(reportId);
 
-  for (const key of Object.keys(report)) delete report[key];
-  Object.assign(report, {
-    _id: new mongoose.Types.ObjectId(REPORT_ID),
-    reportedType: ReportedType.POST,
-    reportedId: '507f1f77bcf86cd799439022',
-    reporter: 'oxy-user-reporter',
-    categories: [ReportCategory.HARASSMENT],
-    localStatus: 'queued',
-    createdAt: new Date('2026-07-28T18:00:00.000Z'),
+  // Through the real, transaction-required writer, so the row under test is the
+  // one intake would have produced.
+  await getDb().transaction(async (tx) => {
+    await enqueueModerationOutboxEvent(
+      { eventId, kind: 'report.submit', payload: { reportId } },
+      tx,
+    );
   });
+  await getDb()
+    .update(moderationOutbox)
+    .set({ createdAt: ANCIENT })
+    .where(eq(moderationOutbox.id, eventId));
+}
+
+async function readEvent() {
+  const [row] = await getDb()
+    .select()
+    .from(moderationOutbox)
+    .where(eq(moderationOutbox.id, eventId))
+    .limit(1);
+  return row;
+}
+
+/**
+ * One dispatcher pass over exactly one due event — ours, checked first.
+ *
+ * The check is the isolation contract in executable form. Claiming another
+ * suite's row would not fail here; it would succeed, deliver through this file's
+ * mocked client, and fail over there.
+ */
+async function assertOursIsNext(): Promise<void> {
+  const now = new Date();
+  const [next] = await getDb()
+    .select({ id: moderationOutbox.id })
+    .from(moderationOutbox)
+    .where(
+      or(
+        and(eq(moderationOutbox.status, 'pending'), lte(moderationOutbox.availableAt, now)),
+        and(eq(moderationOutbox.status, 'processing'), lte(moderationOutbox.leaseUntil, now)),
+      ),
+    )
+    .orderBy(asc(moderationOutbox.createdAt))
+    .limit(1);
+  if (next?.id !== eventId) {
+    throw new Error(
+      `The next due moderation_outbox row is ${next?.id ?? '(none)'}, not this suite's ` +
+        `${eventId}. A dispatch would have claimed and delivered another suite's work. ` +
+        `Backdate this file's event further than every other suite's.`,
+    );
+  }
 }
 
 async function tick(): Promise<{ processed: number; failed: number; deadLettered: number }> {
-  return await dispatchModerationOutbox({
-    handler: handleModerationOutboxEvent,
-    batchSize: 10,
-  });
+  await assertOursIsNext();
+  return dispatchModerationOutbox({ handler: handleModerationOutboxEvent, batchSize: 1 });
 }
+
+/**
+ * One dispatcher pass with a handler of the test's choosing — same isolation
+ * contract as {@link tick}, which is why the guard is shared rather than copied.
+ *
+ * The lease tests below need a handler that is SLOW (so the heartbeat has time to
+ * fire) or HOSTILE (so it can steal the row mid-delivery); neither is expressible
+ * through `handleModerationOutboxEvent`, and neither may skip the guard.
+ */
+async function dispatchOurs(
+  handler: (event: Parameters<typeof handleModerationOutboxEvent>[0]) => Promise<void>,
+  options: { leaseMs?: number; signal?: AbortSignal } = {},
+): Promise<{ processed: number; failed: number; deadLettered: number }> {
+  await assertOursIsNext();
+  return dispatchModerationOutbox({ handler, batchSize: 1, ...options });
+}
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Make the event due again, as the passage of real time would. */
-function fastForwardPastBackoff(): void {
-  const event = outbox[0];
-  event.availableAt = new Date(Date.now() - 1_000);
+async function fastForwardPastBackoff(): Promise<void> {
+  await getDb()
+    .update(moderationOutbox)
+    .set({ availableAt: new Date(Date.now() - 1_000) })
+    .where(eq(moderationOutbox.id, eventId));
 }
 
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 describe('moderation outbox — delivery survives CrowdSource being unreachable', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    // The events cascade from their reports, so one delete clears both.
+    await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
     vi.clearAllMocks();
-    seed();
+    mocks.reportsCreate.mockReset();
+    mocks.snapshot.mockResolvedValue({
+      subject: {
+        externalId: `${PREFIX}subject`,
+        type: 'social.post',
+        author: { oxyUserId: 'oxy-author' },
+      },
+      content: 'The exact reported text.',
+    });
+    vi.mocked(subjectProviderFor).mockReturnValue({
+      reportedType: 'post',
+      subjectType: 'social.post',
+      snapshot: mocks.snapshot,
+    });
+    await seed();
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  afterEach(async () => {
+    await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
   });
 
   it('keeps the report and delivers it on a later tick', async () => {
-    reportsCreate
+    mocks.reportsCreate
       .mockRejectedValueOnce(new RetryableTransportError())
       .mockResolvedValueOnce({
         reportId: 'rpt_01',
@@ -245,50 +265,51 @@ describe('moderation outbox — delivery survives CrowdSource being unreachable'
       });
 
     // --- Tick 1: CrowdSource is unreachable.
-    const first = await tick();
-
-    expect(first.processed).toBe(0);
-    expect(first.failed).toBe(1);
-    expect(first.deadLettered).toBe(0);
+    expect(await tick()).toEqual({ processed: 0, failed: 1, deadLettered: 0 });
 
     // The event survived, is due in the future, and remembers the failure.
-    const afterFailure = outbox[0];
-    expect(afterFailure.status).toBe('pending');
-    expect(afterFailure.attempts).toBe(1);
-    expect((afterFailure.availableAt as Date).getTime()).toBeGreaterThan(Date.now());
-    expect(afterFailure.lastError).toContain('did not complete');
+    const afterFailure = await readEvent();
+    expect(afterFailure).toMatchObject({ status: 'pending', attempts: 1 });
+    expect(afterFailure?.availableAt.getTime()).toBeGreaterThan(Date.now());
+    expect(afterFailure?.lastError).toContain('did not complete');
     // No lease is held, so any task can pick it up next.
-    expect(afterFailure.leaseOwner).toBeUndefined();
+    expect(afterFailure?.leaseOwner).toBeNull();
 
     // The failure is visible on the report itself, not only in the outbox.
-    expect(report.localStatus).toBe('delivery_failed');
-    expect(report.crowdSourceCaseId).toBeUndefined();
+    const failed = await findReportById(reportId);
+    expect(failed?.localStatus).toBe('delivery_failed');
+    expect(failed?.crowdSourceCaseId).toBeUndefined();
 
     // --- Tick 2: CrowdSource is back.
-    fastForwardPastBackoff();
-    const second = await tick();
-
-    expect(second.processed).toBe(1);
-    expect(second.failed).toBe(0);
+    await fastForwardPastBackoff();
+    expect(await tick()).toEqual({ processed: 1, failed: 0, deadLettered: 0 });
 
     // The SAME event completed — no second event was ever created, so the
     // idempotency key CrowdSource sees is the same one it saw before.
-    expect(outbox).toHaveLength(1);
-    expect(outbox[0]._id).toBe(EVENT_ID);
-    expect(outbox[0].status).toBe('processed');
+    expect(
+      await getDb()
+        .select({ id: moderationOutbox.id })
+        .from(moderationOutbox)
+        .where(eq(moderationOutbox.payloadReportId, reportId)),
+    ).toEqual([{ id: eventId }]);
+    expect((await readEvent())?.status).toBe('processed');
 
-    expect(report.localStatus).toBe('submitted');
-    expect(report.crowdSourceReportId).toBe('rpt_01');
-    expect(report.crowdSourceCaseId).toBe('case_01');
-    expect(report.contentSnapshotHash).toMatch(/^sha256:[0-9a-f]{64}$/);
+    const delivered = await findReportById(reportId);
+    expect(delivered).toMatchObject({
+      localStatus: 'submitted',
+      crowdSourceReportId: 'rpt_01',
+      crowdSourceCaseId: 'case_01',
+      crowdSourceMerged: false,
+    });
+    expect(delivered?.contentSnapshotHash).toMatch(/^sha256:[0-9a-f]{64}$/);
     // The failure note is cleared rather than left to be read as current.
-    expect(report.lastDeliveryError).toBeUndefined();
+    expect(delivered?.lastDeliveryError).toBeUndefined();
 
-    expect(reportsCreate).toHaveBeenCalledTimes(2);
+    expect(mocks.reportsCreate).toHaveBeenCalledTimes(2);
   });
 
   it('sends the same submittedAt on every attempt, so a retry is not a 409', async () => {
-    reportsCreate
+    mocks.reportsCreate
       .mockRejectedValueOnce(new RetryableTransportError())
       .mockResolvedValueOnce({
         reportId: 'rpt_01',
@@ -298,7 +319,7 @@ describe('moderation outbox — delivery survives CrowdSource being unreachable'
       });
 
     await tick();
-    fastForwardPastBackoff();
+    await fastForwardPastBackoff();
     await tick();
 
     /**
@@ -307,47 +328,52 @@ describe('moderation outbox — delivery survives CrowdSource being unreachable'
      * would therefore turn every legitimate retry into a permanent conflict — days
      * later, as moderation work stuck in a queue. Both attempts must be byte-equal.
      */
-    const [firstAttempt] = reportsCreate.mock.calls[0];
-    const [secondAttempt] = reportsCreate.mock.calls[1];
+    const [firstAttempt] = mocks.reportsCreate.mock.calls[0];
+    const [secondAttempt] = mocks.reportsCreate.mock.calls[1];
     expect(secondAttempt).toEqual(firstAttempt);
-    expect(firstAttempt.submittedAt).toEqual(report.createdAt);
-    expect(firstAttempt.externalReportId).toBe(REPORT_ID);
+    // The report's OWN timestamp, read back from the row — not the moment of either
+    // delivery, and not a value this test supplied.
+    expect(firstAttempt.submittedAt).toEqual((await findReportById(reportId))?.createdAt);
+    expect(firstAttempt.externalReportId).toBe(reportId);
   });
 
   it('stops trying when the failure says a retry can never succeed', async () => {
-    reportsCreate.mockRejectedValue(new PayloadConflictError());
+    mocks.reportsCreate.mockRejectedValue(new PayloadConflictError());
 
-    const result = await tick();
+    expect(await tick()).toEqual({ processed: 0, failed: 1, deadLettered: 1 });
 
-    expect(result.deadLettered).toBe(1);
     /**
      * Dead-lettered on the FIRST attempt, not after twenty-five. No number of
      * retries makes two different payloads one report, so the attempt count would
      * only bury the reason in a growing row nobody reads.
      */
-    expect(outbox[0].status).toBe('dead_letter');
-    expect(outbox[0].attempts).toBe(1);
-    expect(outbox[0].lastError).toContain('409');
+    const stopped = await readEvent();
+    expect(stopped).toMatchObject({ status: 'dead_letter', attempts: 1 });
+    expect(stopped?.lastError).toContain('409');
 
     // Still due immediately rather than backed off: the event is not waiting for
     // time to pass, it is waiting for a person.
-    expect((outbox[0].availableAt as Date).getTime()).toBeLessThanOrEqual(Date.now());
+    expect(stopped?.availableAt.getTime()).toBeLessThanOrEqual(Date.now());
+
+    // And it is genuinely out of the queue, not merely labelled — a dead letter a
+    // dispatcher can still claim spins forever on a payload nobody has fixed.
+    await expect(
+      claimModerationOutboxEvent({ leaseOwner: 'a-later-dispatcher', eventId }),
+    ).resolves.toBeNull();
   });
 
   it('leaves the event untouched when there is nowhere to deliver to', async () => {
-    const { getCrowdSourceClient } = await import(
-      '../../../services/moderation/crowdSourceClient'
-    );
     vi.mocked(getCrowdSourceClient).mockReturnValueOnce(undefined);
 
-    const result = await tick();
+    expect(await tick()).toEqual({ processed: 0, failed: 1, deadLettered: 0 });
 
-    expect(result.failed).toBe(1);
-    expect(result.deadLettered).toBe(0);
     // An unconfigured deployment is a DELAY. The report keeps its durable event and
     // delivers when the integration is switched on.
-    expect(outbox[0].status).toBe('pending');
-    expect(reportsCreate).not.toHaveBeenCalled();
+    expect((await readEvent())?.status).toBe('pending');
+    expect(mocks.reportsCreate).not.toHaveBeenCalled();
+    // The report is not marked as having failed delivery either: nothing about it
+    // changed, only the world's readiness.
+    expect((await findReportById(reportId))?.localStatus).toBe('queued');
   });
 
   it('never claims an event a second time while its lease is live', async () => {
@@ -356,68 +382,136 @@ describe('moderation outbox — delivery survives CrowdSource being unreachable'
      * held lease must be invisible to a second dispatcher — otherwise two tasks
      * deliver one report concurrently and only the SDK's idempotency key stands
      * between that and two cases.
+     *
+     * The second dispatcher is a NAMED claim on this file's own event rather than a
+     * nested `tick()`: a global drain running here would be claiming whatever
+     * parallel suites happen to have due, which is the corruption the isolation note
+     * above describes — and it would be answering a question about their rows, not
+     * about this lease.
      */
-    reportsCreate.mockImplementation(async () => {
-      // While this delivery is in flight, a second dispatcher finds nothing to do.
-      const concurrent = await tick();
-      expect(concurrent.processed).toBe(0);
-      expect(concurrent.failed).toBe(0);
+    let concurrent: Awaited<ReturnType<typeof claimModerationOutboxEvent>> = null;
+    mocks.reportsCreate.mockImplementation(async () => {
+      concurrent = await claimModerationOutboxEvent({
+        leaseOwner: 'a-second-dispatcher',
+        eventId,
+      });
       return { reportId: 'rpt_01', caseId: 'case_01', status: 'received', merged: false };
     });
 
-    const result = await tick();
+    expect(await tick()).toEqual({ processed: 1, failed: 0, deadLettered: 0 });
 
-    expect(result.processed).toBe(1);
-    expect(reportsCreate).toHaveBeenCalledTimes(1);
+    // While the delivery was in flight, the row was invisible to anyone else.
+    expect(concurrent).toBeNull();
+    expect(mocks.reportsCreate).toHaveBeenCalledTimes(1);
+    expect((await readEvent())?.status).toBe('processed');
   });
 });
 
-describe('moderation outbox — model contract the fake stands in for', () => {
-  it('claims with an owner-checked lease and orders oldest-first', async () => {
+/**
+ * The lease under contention — what keeps N ECS tasks from delivering one report.
+ *
+ * `moderationOutboxDispatcher` starts on EVERY task, so "two dispatchers, one row"
+ * is the normal case rather than an edge one, and the heartbeat is the whole of
+ * what makes a delivery longer than one lease safe. Every case here drives that
+ * with a REAL second owner — a row update by another `leaseOwner` — and never by
+ * stubbing `renewModerationOutboxEvent` to answer false. The distinction is not
+ * stylistic: a stub proves the code reacts to a `false`, while a genuine steal
+ * additionally proves the repository's own `ownedLease` predicate is what produces
+ * that `false`. Only the second is evidence about two tasks.
+ *
+ * This block exists because the Postgres port silently removed it. The Mongo
+ * suites forced these paths by making a mocked model answer however they liked;
+ * rewriting them onto real rows kept every assertion and lost every path that
+ * needs a second actor, so the four heartbeat closures and both lease-loss
+ * branches went unexecuted while the file stayed green. It surfaced as a coverage
+ * threshold, not as a failure — which is the only reason anybody looked.
+ */
+describe('moderation outbox — the lease under contention', () => {
+  beforeEach(async () => {
+    await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
+    vi.clearAllMocks();
+    mocks.reportsCreate.mockReset();
+    await seed();
+  });
+
+  it('renews its own lease, so a delivery may outlive the lease it started with', async () => {
     /**
-     * A vacuity floor. Every assertion above runs against the fake, so if the
-     * service stopped issuing owner-checked updates — or stopped sorting — the fake
-     * would happily keep passing. This pins the SHAPE of what the service asks Mongo
-     * for, which is the part the fake cannot verify for itself.
+     * The timings are the assertion. `leaseMs: 1000` renews every
+     * `max(250, floor(1000/3))` = 333ms, and the handler runs for 1400ms — longer
+     * than the ORIGINAL lease. Without the heartbeat the lease expires mid-flight
+     * and the owner-checked completion refuses, so this test reports `failed: 1`.
+     * A shorter handler would pass either way and prove nothing.
      */
-    seed();
-    reportsCreate.mockResolvedValue({
-      reportId: 'rpt_01',
-      caseId: 'case_01',
-      status: 'received',
-      merged: false,
+    const startedAt = Date.now();
+    const result = await dispatchOurs(async () => {
+      await sleep(1400);
+    }, { leaseMs: 1000 });
+
+    expect(Date.now() - startedAt).toBeGreaterThan(1000);
+    expect(result).toEqual({ processed: 1, failed: 0, deadLettered: 0 });
+    expect((await readEvent())?.status).toBe('processed');
+  });
+
+  it('gives up when a second worker steals the lease mid-delivery, and completes nothing', async () => {
+    /**
+     * The failure this prevents is the expensive one: two tasks both believing they
+     * own the row, both delivering, and only the SDK's idempotency key between that
+     * and two cases for one report. The dispatcher that LOST must not write a
+     * completion — its handler already ran, so `processed` would be a lie about a
+     * row somebody else now owns.
+     */
+    let stolen = false;
+    const result = await dispatchOurs(async () => {
+      await getDb()
+        .update(moderationOutbox)
+        .set({ leaseOwner: 'a-second-ecs-task', leaseUntil: new Date(Date.now() + 60_000) })
+        .where(eq(moderationOutbox.id, eventId));
+      stolen = true;
+      // Outlast one renewal interval (333ms), so the heartbeat observes the theft
+      // rather than the test asserting on a race it never gave the code time to see.
+      await sleep(900);
+    }, { leaseMs: 1000 });
+
+    expect(stolen).toBe(true);
+    expect(result).toEqual({ processed: 0, failed: 1, deadLettered: 0 });
+
+    // The thief still owns it. The loser wrote nothing.
+    const row = await readEvent();
+    expect(row?.leaseOwner).toBe('a-second-ecs-task');
+    expect(row?.status).not.toBe('processed');
+  });
+
+  it('stops claiming new work once the shutdown signal is aborted', async () => {
+    /**
+     * Shutdown must not strand a claimed row, so the check is at the TOP of the
+     * loop: an in-flight delivery reaches a durable state, and nothing new is
+     * claimed. Aborted before the first iteration, the queue is left untouched.
+     */
+    const controller = new AbortController();
+    controller.abort();
+    const handler = vi.fn();
+
+    const result = await dispatchOurs(handler, { signal: controller.signal });
+
+    expect(result).toEqual({ processed: 0, failed: 0, deadLettered: 0 });
+    expect(handler).not.toHaveBeenCalled();
+    expect((await readEvent())?.status).toBe('pending');
+  });
+
+  it('retries an error that does not say whether it is retryable', async () => {
+    /**
+     * `retryable` is read off the error, and anything that is not a boolean means
+     * the thrower did not answer. Dead-lettering on silence would discard a report
+     * because of an unfamiliar error shape — a bug and a transport failure would be
+     * indistinguishable — so the default is to keep it and try again.
+     */
+    const result = await dispatchOurs(async () => {
+      throw new Error('something nobody has classified');
     });
 
-    await tick();
-
-    expect(ModerationOutbox.findOneAndUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        $or: [
-          { status: 'pending', availableAt: { $lte: expect.any(Date) } },
-          { status: 'processing', leaseUntil: { $lte: expect.any(Date) } },
-        ],
-      }),
-      expect.objectContaining({
-        $set: expect.objectContaining({ status: 'processing', leaseOwner: expect.any(String) }),
-        $inc: { attempts: 1 },
-      }),
-      expect.objectContaining({ new: true, sort: { createdAt: 1 } }),
-    );
-
-    // Completion is owner-checked and lease-checked, so a dispatcher that lost its
-    // lease cannot mark somebody else's work processed.
-    expect(ModerationOutbox.updateOne).toHaveBeenCalledWith(
-      expect.objectContaining({
-        _id: EVENT_ID,
-        status: 'processing',
-        leaseOwner: expect.any(String),
-        leaseUntil: { $gt: expect.any(Date) },
-      }),
-      expect.objectContaining({
-        $set: expect.objectContaining({ status: 'processed' }),
-      }),
-    );
-
-    expect(Report.updateOne).toHaveBeenCalled();
+    expect(result).toEqual({ processed: 0, failed: 1, deadLettered: 0 });
+    const row = await readEvent();
+    expect(row?.status).toBe('pending');
+    expect(row?.attempts).toBe(1);
   });
 });

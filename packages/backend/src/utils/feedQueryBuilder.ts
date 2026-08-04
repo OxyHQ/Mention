@@ -1,23 +1,40 @@
 /**
- * Feed Query Builder
- * Centralized query building logic for feed endpoints
- * Separates query construction from business logic
+ * Feed Query Builder — the CONTENT predicates the discovery feeds share.
+ *
+ * ## What this file no longer contains, and why
+ *
+ * The Mongo original also carried `buildQuery` (plus `buildBaseQuery`,
+ * `applyFilters`, `buildSavedPostsQuery`) and four single-feed builders
+ * (`buildForYouQuery`, `buildFollowingQuery`, `buildExploreQuery`,
+ * `buildMediaQuery`). Every one of them had ZERO production callers at the time
+ * of the port — the feed engine's source modules build their own predicates —
+ * and the four single-feed builders had no callers at all, not even a test.
+ * They are DELETED rather than translated: the migration contract forbids
+ * carrying Mongo baggage across, and a dead query builder rewritten into SQL is
+ * the most expensive possible form of that.
+ *
+ * `feedQueryBodyPaths.test.ts` went with them, and it is worth saying why that
+ * is not a loss of coverage. It existed because Mongo query keys are STRINGS:
+ * a clause still keyed on the retired `content.text` compiled, ran, and matched
+ * zero documents, so "matched nothing" was indistinguishable from "nothing to
+ * match" unless the query object itself was asserted. In this schema the body is
+ * `post_content_variants.body`, reached through a typed drizzle column — a wrong
+ * name is a `tsc` error, not a silent empty result. The hazard the test guarded
+ * is unrepresentable, so the test has nothing left to guard.
+ *
+ * ## Predicates, not query objects
+ *
+ * Both survivors return a drizzle `SQL` condition rather than a mutable match
+ * object. Composition is `and(...)` at the call site, which is also why the
+ * Mongo-era `$and`-appending helpers are gone: there is no shared mutable map
+ * whose `$or` key a later writer can clobber, so the entire class of "the
+ * cursor silently dropped the content filter" bug has no analogue here.
  */
 
-import { FeedType, PostType, PostVisibility, MtnConfig } from '@mention/shared-types';
-import mongoose from 'mongoose';
-import { ContentLabel } from '../models/ContentLabel';
-import { parseFeedCursor } from './feedUtils';
-import { notAReplyClause, restrictToReplies, restrictToRoots } from './postReply';
-
-export interface FeedQueryOptions {
-  type: FeedType;
-  filters?: Record<string, unknown>;
-  currentUserId?: string;
-  cursor?: string;
-  limit?: number;
-  savedPostIds?: mongoose.Types.ObjectId[];
-}
+import { MtnConfig, PostType, PostVisibility } from '@mention/shared-types';
+import { and, eq, exists, gt, gte, inArray, isNull, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { postAttachments, postMedia, posts } from '../db/schema';
 
 export interface VideosQueryOptions {
   /** Minimum video duration in seconds (defaults to {@link MtnConfig.videosFeed.minDurationSec}). */
@@ -30,523 +47,182 @@ export interface VideosQueryOptions {
   orientation?: 'portrait' | 'landscape' | 'square' | 'all';
 }
 
-export class FeedQueryBuilder {
-  /**
-   * Build MongoDB query based on feed type and filters
-   */
-  static buildQuery(options: FeedQueryOptions): Record<string, unknown> {
-    const { type, filters, currentUserId, cursor, savedPostIds } = options;
-    
-    // Handle saved posts separately
-    if (type === 'saved' && savedPostIds && savedPostIds.length > 0) {
-      return this.buildSavedPostsQuery(savedPostIds, filters);
-    }
-    
-    // Build base query
-    const query = this.buildBaseQuery(type, filters, currentUserId);
-    
-    // Add cursor for pagination using utility
-    const cursorId = parseFeedCursor(cursor);
-    if (cursorId) {
-      query._id = { $lt: cursorId };
-    }
-    
-    return query;
-  }
-  
-  /**
-   * Build base query for feed type
-   */
-  private static buildBaseQuery(type: FeedType, filters?: Record<string, unknown>, currentUserId?: string): Record<string, unknown> {
-    const query: Record<string, unknown> = {
-      visibility: PostVisibility.PUBLIC,
-      status: 'published'
-    };
-
-    // Filter by post type
-    switch (type) {
-      case 'posts':
-        query.type = { $in: [PostType.TEXT, PostType.IMAGE, PostType.VIDEO, PostType.POLL] };
-        restrictToRoots(query);
-        query.boostOf = null;
-        break;
-      case 'media': {
-        query.$and = [
-          { $or: [
-            { type: { $in: [PostType.IMAGE, PostType.VIDEO] } },
-            { 'content.media.0': { $exists: true } },
-            { 'content.images.0': { $exists: true } },
-            { 'content.attachments.0': { $exists: true } },
-            { 'content.files.0': { $exists: true } },
-            { 'media.0': { $exists: true } }
-          ] },
-          notAReplyClause(),
-          { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }
-        ];
-        break;
-      }
-      case 'replies':
-        restrictToReplies(query);
-        break;
-      case 'boosts':
-        query.boostOf = { $ne: null };
-        break;
-      case 'mixed':
-      default:
-        // Show all types
-        break;
-    }
-
-    // Apply filters
-    if (filters) {
-      this.applyFilters(query, filters, currentUserId);
-    }
-
-    return query;
-  }
-  
-  /**
-   * Apply label filtering to exclude posts that match the caller's hidden label subscriptions.
-   * Returns sets of post IDs grouped by the action that should be taken on them.
-   */
-  /** Merge a $nin exclusion into the query's _id filter, creating $and if needed */
-  private static excludeIds(query: Record<string, unknown>, ids: string[]): void {
-    if (ids.length === 0) return;
-    const existing = query._id;
-    if (existing && typeof existing === 'object') {
-      if (!Array.isArray(query.$and)) {
-        query.$and = [];
-      }
-      (query.$and as unknown[]).push({ _id: { $nin: ids } });
-    } else {
-      query._id = { $nin: ids };
-    }
-  }
-
-  static async applyLabelFiltering(
-    query: Record<string, unknown>,
-    hiddenLabelFilters: Array<{ labelerId: string; labelSlug: string }>
-  ): Promise<{ hiddenPostIds: string[]; warnPostIds: string[]; blurPostIds: string[] }> {
-    const empty = { hiddenPostIds: [], warnPostIds: [], blurPostIds: [] };
-    if (!hiddenLabelFilters || hiddenLabelFilters.length === 0) return empty;
-
-    // Build $or conditions for each (labelerId, labelSlug) pair
-    const orConditions = hiddenLabelFilters
-      .filter(f => mongoose.Types.ObjectId.isValid(f.labelerId))
-      .map(f => ({
-        labelerId: new mongoose.Types.ObjectId(f.labelerId),
-        labelSlug: f.labelSlug,
-      }));
-
-    if (orConditions.length === 0) return empty;
-
-    const matchingLabels = await ContentLabel.find({
-      targetType: 'post',
-      $or: orConditions,
-    }, { targetId: 1, _id: 0 }).limit(200).lean();
-
-    const hiddenPostIds = matchingLabels.map((l) => String(l.targetId));
-
-    this.excludeIds(query, hiddenPostIds);
-
-    return { hiddenPostIds, warnPostIds: [], blurPostIds: [] };
-  }
-
-  /**
-   * Apply filters to query
-   */
-  private static applyFilters(
-    query: Record<string, unknown>,
-    filters: Record<string, unknown>,
-    currentUserId?: string
-  ): void {
-    // Author filter
-    if (filters.authors) {
-      let authors: string[] = [];
-      if (Array.isArray(filters.authors)) {
-        authors = filters.authors as string[];
-      } else if (typeof filters.authors === 'string') {
-        authors = String(filters.authors)
-          .split(',')
-          .map((s: string) => s.trim())
-          .filter(Boolean);
-      }
-      if (authors.length) {
-        query.oxyUserId = { $in: authors };
-      } else {
-        query.oxyUserId = { $in: [] };
-      }
-    }
-    
-    // Exclude owner from custom feeds if explicitly requested
-    if (filters.excludeOwner && currentUserId) {
-      const oxyUserIdFilter = query.oxyUserId;
-      if (oxyUserIdFilter && typeof oxyUserIdFilter === 'object' && '$in' in oxyUserIdFilter && Array.isArray(oxyUserIdFilter.$in)) {
-        query.oxyUserId = {
-          $in: (oxyUserIdFilter.$in as unknown[]).filter((id) => id !== currentUserId)
-        };
-      } else {
-        query.oxyUserId = { $ne: currentUserId };
-      }
-    }
-    
-    if (filters.includeReplies === false) {
-      restrictToRoots(query);
-    }
-    if (filters.includeBoosts === false) {
-      query.boostOf = { $exists: false };
-    }
-    if (filters.includeMedia === false) {
-      query.type = { $nin: [PostType.IMAGE, PostType.VIDEO] };
-    }
-    if (filters.includeSensitive === false) {
-      query['metadata.isSensitive'] = { $ne: true };
-    }
-    if (filters.language) {
-      // Match the canonical multi-language array (multikey index): Mongo matches an
-      // array field by element equality, so the scalar matches any post whose
-      // `postClassification.languages` contains it.
-      query['postClassification.languages'] = filters.language;
-    }
-    if (filters.dateFrom) {
-      const dateFrom = typeof filters.dateFrom === 'string' || filters.dateFrom instanceof Date 
-        ? new Date(filters.dateFrom as string | Date)
-        : new Date(String(filters.dateFrom));
-      query.createdAt = { $gte: dateFrom };
-    }
-    if (filters.dateTo) {
-      const dateTo = typeof filters.dateTo === 'string' || filters.dateTo instanceof Date
-        ? new Date(filters.dateTo as string | Date)
-        : new Date(String(filters.dateTo));
-      const existingCreatedAt = query.createdAt;
-      query.createdAt = existingCreatedAt && typeof existingCreatedAt === 'object'
-        ? { ...existingCreatedAt, $lte: dateTo }
-        : { $lte: dateTo };
-    }
-    
-    // Parent post filter (for fetching replies to a specific post)
-    if (filters.parentPostId) {
-      query.parentPostId = String(filters.parentPostId);
-    }
-
-    // Exclude specific post IDs (e.g. label-filtered posts)
-    if (filters.excludePostIds) {
-      const ids = Array.isArray(filters.excludePostIds)
-        ? (filters.excludePostIds as string[]).filter(id => mongoose.Types.ObjectId.isValid(id))
-        : [];
-      this.excludeIds(query, ids);
-    }
-
-    // Keywords filter
-    if (filters.keywords) {
-      const kws = Array.isArray(filters.keywords)
-        ? filters.keywords
-        : String(filters.keywords).split(',').map((s: string) => s.trim()).filter(Boolean);
-      if (kws.length) {
-        const regexes = kws.map((k: string) => new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
-        const keywordConditions = [
-          { 'content.variants.text': { $in: regexes } },
-          { hashtags: { $in: kws.map((k: string) => k.toLowerCase()) } }
-        ];
-        
-        if (query.$or) {
-          const existingOr = Array.isArray(query.$or) ? query.$or : [query.$or];
-          if (!Array.isArray(query.$and)) {
-            query.$and = [];
-          }
-          (query.$and as unknown[]).push({ $or: [...existingOr, ...keywordConditions] });
-          delete query.$or;
-        } else {
-          query.$or = keywordConditions;
-        }
-      }
-    }
-  }
-  
-  /**
-   * Build query for saved posts
-   */
-  private static buildSavedPostsQuery(
-    savedPostIds: mongoose.Types.ObjectId[],
-    filters?: Record<string, unknown>
-  ): Record<string, unknown> {
-    const query: Record<string, unknown> = {
-      _id: { $in: savedPostIds },
-      status: 'published',
-    };
-    
-    // Apply search query filter if provided
-    if (filters?.searchQuery) {
-      const searchQuery = String(filters.searchQuery).trim();
-      if (searchQuery) {
-        const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        query['content.variants.text'] = {
-          $regex: escapedQuery,
-          $options: 'i'
-        };
-      }
-    }
-    
-    return query;
-  }
-  
-  /**
-   * Build query for For You feed (with seen posts exclusion)
-   */
-  static buildForYouQuery(
-    seenPostIds: string[],
-    cursor?: string
-  ): Record<string, unknown> {
-    const match: Record<string, unknown> = {
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-      // No parentPostId filter — replies flow through for thread slicing
-      $and: [
-        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }
-      ]
-    };
-
-    // Exclude seen posts
-    if (seenPostIds.length > 0) {
-      const seenObjectIds = seenPostIds
-        .filter(id => mongoose.Types.ObjectId.isValid(id))
-        .map(id => new mongoose.Types.ObjectId(id));
-      
-      if (seenObjectIds.length > 0) {
-        if (!Array.isArray(match.$and)) {
-          match.$and = [];
-        }
-        (match.$and as unknown[]).push({ _id: { $nin: seenObjectIds } });
-      }
-    }
-
-    // Apply cursor filter using utility
-    const cursorId = parseFeedCursor(cursor);
-    if (cursorId) {
-      const existingIdFilter = match._id as Record<string, unknown> | undefined;
-      if (existingIdFilter && typeof existingIdFilter === 'object' && '$nin' in existingIdFilter) {
-        if (!Array.isArray(match.$and)) {
-          match.$and = [];
-        }
-        (match.$and as unknown[]).push({ _id: { $lt: cursorId } });
-      } else {
-        match._id = { $lt: cursorId };
-      }
-    }
-
-    return match;
-  }
-  
-  /**
-   * Build query for the Videos (Reels) feed.
-   *
-   * Matches public, published posts that contain at least one video — either a
-   * Matches public, published posts whose `content.media[]` contains a video
-   * item with persisted metadata: durationSec ≥ min (default 20), orientation,
-   * width, and height. Both native and federated posts are included (no
-   * federation exclusion). Boosts are excluded (the underlying original is
-   * surfaced instead). Replies flow through so multi-post threads can still
-   * be sliced.
-   *
-   * CONTENT PREDICATE + SEEN SET ONLY — deliberately NO cursor. Every consumer
-   * feeds a RANKED pipeline (`videosSource`, `popularVideosSource`) whose page
-   * order is a score, not `_id`, so a cursor bound here would drop candidates on
-   * an axis nothing sorts by. Each consumer applies its own keyset on the axis it
-   * actually orders by; see the note above {@link videosSource}.
-   */
-  static buildVideosQuery(
-    seenPostIds: string[],
-    options: VideosQueryOptions = {},
-  ): Record<string, unknown> {
-    const minDurationSec = options.minDurationSec ?? MtnConfig.videosFeed.minDurationSec;
-    const orientation = options.orientation ?? MtnConfig.videosFeed.defaultOrientation;
-    // UNKNOWN IS NOT A VALUE. Both of these used to treat a missing field as a
-    // failed match, which silently made the videos feed mean "the videos whose
-    // metadata we happen to have" rather than what it says.
-    //
-    // Measured against production (2026-07-30): of 9,465 posts carrying a video
-    // media item, `durationSec` is present on 5.9% — and on 0% of the last day's
-    // arrivals. Federated video is the ENTIRE video corpus (native video posts:
-    // 0), and Mastodon advertises width/height but essentially never duration.
-    // So a `$gte` on a mostly-absent field was not enforcing a 20-second policy
-    // on the corpus; it was discarding 94% of it and enforcing the policy on the
-    // remainder. The shipped default pool was 147 posts out of 9,465.
-    //
-    // NOT because the data is unobtainable: 7,489 of those posts (79%) are
-    // mirrored into Oxy and DO carry an Oxy file id, and Oxy already probed them
-    // — 96.4% of oxy-prod's video files hold `metadata.media.durationSec`.
-    // `enrichFromOxy` reads exactly that, so it is the fix, not a dead end; it
-    // simply was never reaching these posts (see `mediaMetadataEnrichJob`).
-    //
-    // Duration therefore applies WHEN KNOWN and abstains when absent. The
-    // editorial intent (prefer substantial videos) is preserved exactly for every
-    // post we can actually judge. The real fix is upstream — collect the
-    // metadata Oxy already has — and this does not substitute for it: 5,576
-    // posts have no dimensions either, and no filter relaxation reaches those.
-    const elemMatch: Record<string, unknown> = {
-      type: 'video',
-      $or: [
-        { durationSec: { $gte: minDurationSec } },
-        { durationSec: { $exists: false } },
-      ],
-      width: { $gt: 0 },
-      height: { $gt: 0 },
-    };
-
-    // `'all'` is the one setting whose NAME promises no filtering, so it must not
-    // compile to a filter. It costs ~0 posts today only because `width`/`height`
-    // already imply orientation was derivable, but it becomes load-bearing the
-    // moment that dimension gate is relaxed.
-    if (orientation !== 'all') {
-      elemMatch.orientation = orientation;
-    }
-
-    const strictMediaMatch = {
-      'content.media': { $elemMatch: elemMatch },
-    };
-
-    const match: Record<string, unknown> = {
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-      $and: [
-        strictMediaMatch,
-        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
-      ],
-    };
-
-    // Exclude already-seen posts (de-prioritize seen content for discovery)
-    const seenObjectIds = seenPostIds
-      .filter(id => mongoose.Types.ObjectId.isValid(id))
-      .map(id => new mongoose.Types.ObjectId(id));
-    if (seenObjectIds.length > 0) {
-      (match.$and as unknown[]).push({ _id: { $nin: seenObjectIds } });
-    }
-
-    return match;
-  }
-
-  /**
-   * Build query for the global Media feed.
-   *
-   * Mirrors buildVideosQuery but widens the content predicate to ANY media
-   * attachment (images, videos or gifs) rather than videos only. Matches
-   * public, published posts that are typed as IMAGE/VIDEO, carry at least one
-   * item in content.media, or carry a media attachment in content.attachments.
-   * Both native and federated posts are included (no federation exclusion).
-   * Boosts are excluded (the underlying original is surfaced instead). Replies
-   * flow through so multi-post threads can still be sliced.
-   *
-   * The content.media predicate is backed by the `{ 'content.media': 1,
-   * createdAt: -1 }` index; the type predicate is backed by the
-   * `{ type: 1, visibility: 1, status: 1, createdAt: -1 }` index.
-   *
-   * CONTENT PREDICATE + SEEN SET ONLY — deliberately NO cursor, for the reason
-   * given on {@link FeedQueryBuilder.buildVideosQuery}.
-   */
-  static buildMediaFeedQuery(seenPostIds: string[]): Record<string, unknown> {
-    const mediaMatch = {
-      $or: [
-        { type: { $in: [PostType.IMAGE, PostType.VIDEO] } },
-        { 'content.media.0': { $exists: true } },
-        { 'content.attachments': { $elemMatch: { type: 'media' } } },
-      ],
-    };
-
-    const match: Record<string, unknown> = {
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-      $and: [
-        mediaMatch,
-        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
-      ],
-    };
-
-    // Exclude already-seen posts (de-prioritize seen content for discovery)
-    const seenObjectIds = seenPostIds
-      .filter(id => mongoose.Types.ObjectId.isValid(id))
-      .map(id => new mongoose.Types.ObjectId(id));
-    if (seenObjectIds.length > 0) {
-      (match.$and as unknown[]).push({ _id: { $nin: seenObjectIds } });
-    }
-
-    return match;
-  }
-
-  /**
-   * Build query for Following feed
-   */
-  static buildFollowingQuery(
-    followingIds: string[],
-    cursor?: string,
-  ): Record<string, unknown> {
-    const query: Record<string, unknown> = {
-      oxyUserId: { $in: followingIds },
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-      // No parentPostId filter — replies flow through for thread slicing
-      // Exclude boosts (they are shown differently)
-      $and: [
-        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }
-      ],
-    };
-
-    const cursorId = parseFeedCursor(cursor);
-    if (cursorId) {
-      query._id = { $lt: cursorId };
-    }
-
-    return query;
-  }
-  
-  /**
-   * Build query for Explore feed
-   */
-  static buildExploreQuery(cursor?: string): Record<string, unknown> {
-    const match: Record<string, unknown> = {
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-      $and: [
-        notAReplyClause(),
-        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }
-      ]
-    };
-
-    const cursorId = parseFeedCursor(cursor);
-    if (cursorId) {
-      match._id = { $lt: cursorId };
-    }
-
-    return match;
-  }
-  
-  /**
-   * Build query for Media feed
-   */
-  static buildMediaQuery(cursor?: string): Record<string, unknown> {
-    const query: Record<string, unknown> = {
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-      $and: [
-        { $or: [
-          { type: { $in: [PostType.IMAGE, PostType.VIDEO] } },
-          { 'content.media.0': { $exists: true } },
-          { 'content.images.0': { $exists: true } },
-          { 'content.attachments.0': { $exists: true } },
-          { 'content.files.0': { $exists: true } },
-          { 'media.0': { $exists: true } }
-        ] },
-        notAReplyClause(),
-        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }
-      ]
-    };
-
-    const cursorId = parseFeedCursor(cursor);
-    if (cursorId) {
-      query._id = { $lt: cursorId };
-    }
-
-    return query;
-  }
-  
+/**
+ * "This post is not a boost."
+ *
+ * Mongo needed `{ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }`
+ * because a missing field and a null field were different states. A column is
+ * always present, so the disjunction collapses to one `IS NULL` — and unlike
+ * `<>`, `IS NULL` is total, so no row is dropped by three-valued logic.
+ */
+export function notABoostSql(): SQL {
+  return isNull(posts.boostOf);
 }
 
+/**
+ * Exclude post ids the viewer has already been shown.
+ *
+ * Returns `undefined` for an empty set so the caller can drop the term entirely
+ * rather than emit a degenerate `NOT IN ()`. The Mongo original also filtered
+ * the incoming ids through `ObjectId.isValid`; that guard is deleted per
+ * `db/ids.ts` — it existed only to dodge a `CastError`, and a text id that names
+ * no row already produces exactly the "no such post" answer the caller wanted.
+ */
+export function excludeSeenSql(seenPostIds: readonly string[]): SQL | undefined {
+  if (seenPostIds.length === 0) return undefined;
+  return notInArray(posts.id, [...seenPostIds]);
+}
+
+/**
+ * "This post's author is none of `ids`" — for a NULLABLE author column.
+ *
+ * `posts.oxy_user_id` is nullable (the raw federated `insertMany` path can omit
+ * it, per `db/schema/posts.ts`), and this is where Mongo and SQL disagree in a
+ * way that costs rows silently:
+ *
+ *   - Mongo `{ oxyUserId: { $nin: [a, b] } }` MATCHES a document whose field is
+ *     missing or null — absent is trivially "not one of these".
+ *   - SQL `oxy_user_id NOT IN (a, b)` evaluates to NULL when the column is NULL,
+ *     and a NULL predicate excludes the row.
+ *
+ * So the direct translation drops every author-less post from Explore and every
+ * other feed that excludes the viewer's own follows — with no error, looking
+ * exactly like a ranking change. The `IS NULL` arm restores Mongo's semantics.
+ */
+export function authorNotInSql(ids: readonly string[]): SQL | undefined {
+  if (ids.length === 0) return undefined;
+  return or(isNull(posts.oxyUserId), notInArray(posts.oxyUserId, [...ids])) as SQL;
+}
+
+/**
+ * Render a ranking weight as a SQL `double precision` LITERAL.
+ *
+ * Not a bound parameter, and this is not a style choice. Drizzle infers a bound
+ * parameter's type from the expression it sits next to, so
+ * `${posts.statsBoostsCount} * ${2.5}` declares `$n` as `int4` — from the
+ * COLUMN — and Postgres then rejects the value with
+ * `invalid input syntax for type integer: "2.5"`. Every ranking weight is
+ * fractional, so the whole composite fails at RUNTIME while compiling and
+ * type-checking perfectly.
+ *
+ * The cast has to be on the LITERAL rather than on the surrounding expression:
+ * a parameter's type is fixed at Parse time, before any outer `::double
+ * precision` is reached.
+ *
+ * `sql.raw` is safe here and only here because the input is a number from a
+ * compile-time config object, never user input — and the guard makes that a
+ * checked property rather than an assumption.
+ */
+export function rankingWeight(value: number): SQL {
+  if (!Number.isFinite(value)) {
+    throw new Error(`Ranking weight must be a finite number, received ${String(value)}`);
+  }
+  return sql.raw(`${value}::double precision`);
+}
+
+export class FeedQueryBuilder {
+  /**
+   * Content predicate for the Videos (Reels) feed.
+   *
+   * Matches public, published posts carrying at least one video item with
+   * persisted metadata: durationSec ≥ min (when known), orientation, width and
+   * height. Both native and federated posts are included. Boosts are excluded
+   * (the underlying original is surfaced instead). Replies flow through so
+   * multi-post threads can still be sliced.
+   *
+   * UNKNOWN IS NOT A VALUE. Duration applies WHEN KNOWN and abstains when
+   * absent. Measured against production (2026-07-30): of 9,465 posts carrying a
+   * video media item, `durationSec` is present on 5.9% — and on 0% of the last
+   * day's arrivals. A plain `>=` on a mostly-absent field was not enforcing a
+   * 20-second policy on the corpus; it was discarding 94% of it and enforcing
+   * the policy on the remainder (the shipped default pool was 147 of 9,465).
+   * The real fix is upstream — `enrichFromOxy` reads metadata Oxy already holds
+   * for 79% of them — and this does not substitute for it.
+   *
+   * Mongo's `$elemMatch` becomes a correlated `EXISTS`, which is the same
+   * semantics: the conditions must all hold on ONE media row, not be spread
+   * across several. Built through drizzle's query builder rather than a hand-
+   * written `sql` template so the correlated `post_media.post_id = posts.id`
+   * renders FULLY QUALIFIED — the failure mode documented in `db/casing.ts`
+   * (both names resolving against the subquery's own table, matching nothing,
+   * raising no error) is exactly what this shape would otherwise invite.
+   *
+   * CONTENT PREDICATE + SEEN SET ONLY — deliberately NO cursor. Every consumer
+   * feeds a RANKED pipeline whose page order is a score, not an id, so a cursor
+   * bound here would drop candidates on an axis nothing sorts by.
+   */
+  static buildVideosQuery(
+    seenPostIds: readonly string[],
+    options: VideosQueryOptions = {},
+  ): SQL {
+    const minDurationSec = options.minDurationSec ?? MtnConfig.videosFeed.minDurationSec;
+    const orientation = options.orientation ?? MtnConfig.videosFeed.defaultOrientation;
+
+    const mediaConditions: SQL[] = [
+      eq(postMedia.postId, posts.id),
+      eq(postMedia.type, 'video'),
+      // Duration when known, abstain when absent.
+      or(gte(postMedia.durationSec, minDurationSec), isNull(postMedia.durationSec)) as SQL,
+      gt(postMedia.width, 0),
+      gt(postMedia.height, 0),
+    ];
+
+    // `'all'` is the one setting whose NAME promises no filtering, so it must
+    // not compile to a filter.
+    if (orientation !== 'all') {
+      mediaConditions.push(eq(postMedia.orientation, orientation));
+    }
+
+    const conditions: SQL[] = [
+      eq(posts.visibility, PostVisibility.PUBLIC),
+      eq(posts.status, 'published'),
+      exists(
+        getDb()
+          .select({ one: sql`1` })
+          .from(postMedia)
+          .where(and(...mediaConditions)),
+      ),
+      notABoostSql(),
+    ];
+
+    const seen = excludeSeenSql(seenPostIds);
+    if (seen) conditions.push(seen);
+
+    return and(...conditions) as SQL;
+  }
+
+  /**
+   * Content predicate for the global Media feed.
+   *
+   * Mirrors {@link FeedQueryBuilder.buildVideosQuery} but widens the content
+   * predicate to ANY media attachment rather than videos only: posts typed
+   * IMAGE/VIDEO, posts carrying at least one shared media row, or posts carrying
+   * a `media` attachment descriptor. Boosts excluded; replies flow through.
+   *
+   * CONTENT PREDICATE + SEEN SET ONLY — no cursor, for the reason given above.
+   */
+  static buildMediaFeedQuery(seenPostIds: readonly string[]): SQL {
+    const db = getDb();
+
+    const conditions: SQL[] = [
+      eq(posts.visibility, PostVisibility.PUBLIC),
+      eq(posts.status, 'published'),
+      or(
+        inArray(posts.type, [PostType.IMAGE, PostType.VIDEO]),
+        exists(db.select({ one: sql`1` }).from(postMedia).where(eq(postMedia.postId, posts.id))),
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(postAttachments)
+            .where(and(eq(postAttachments.postId, posts.id), eq(postAttachments.type, 'media'))),
+        ),
+      ) as SQL,
+      notABoostSql(),
+    ];
+
+    const seen = excludeSeenSql(seenPostIds);
+    if (seen) conditions.push(seen);
+
+    return and(...conditions) as SQL;
+  }
+}

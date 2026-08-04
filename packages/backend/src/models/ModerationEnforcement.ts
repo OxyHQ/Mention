@@ -3,7 +3,30 @@ import type {
   ModerationEnforcementAction,
   ModerationEnforcementMode,
 } from '@mention/shared-types';
-import { REPORT_ENFORCEMENT_ACTIONS } from './Report.model';
+
+/**
+ * The actions this schema accepts, owned HERE rather than imported.
+ *
+ * It used to come from `Report.model`, which the port deleted once its last
+ * importer moved to Postgres — and a deleted file cannot be imported by a
+ * deleted file, which is what `closedValueSets.test.ts` reported: its recovery
+ * materialises a removed model out of git history and IMPORTS it, so this file
+ * became unloadable in both the tree and the past, taking
+ * `moderation_enforcements.action` and `.mode` out of the comparison entirely.
+ *
+ * This model has no runtime importer left; the reason it is still here is that
+ * it is the MONGOOSE REFERENT the closed-value-set gate compares the Postgres
+ * vocabulary against, and the backfill still reads that collection out of the
+ * live database. It goes when the collection does, not before.
+ */
+const REPORT_ENFORCEMENT_ACTIONS: readonly ModerationEnforcementAction[] = [
+  'none',
+  'restrict',
+  'restore',
+  'label_sensitive',
+  'unlabel_sensitive',
+  'manual_review',
+];
 
 /**
  * What Mention did about a decision — one row per action, and the reason it is

@@ -1,6 +1,10 @@
 import express, { Response } from "express";
-import mongoose from "mongoose";
-import Post from "../models/Post";
+import { and, arrayContains, desc, eq, exists, gte, lte, lt, or, sql, type SQL } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { QUERY_CANCELED, sqlStateOf } from '../db/pgErrors';
+import { posts } from '../db/schema/posts';
+import { postAuthorships, postContentVariants, postMedia, postMentions } from '../db/schema/postContent';
+import { findPostRecords } from '../db/posts/postRepository';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
@@ -9,10 +13,10 @@ import { config } from '../config';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { queryInt } from '../utils/queryParams';
 import { PostVisibility } from '@mention/shared-types';
-import { decodeSearchCursor, encodeSearchCursor } from '../utils/searchCursor';
+import { decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
 import { scanTextEntities } from '@mention/shared-types/textEntities';
 import { isAbsoluteHttpUrl } from '../connectors/shared/url';
-import { DISCOVERY_SAFE_MATCH } from '../mtn/feed/feedSafety';
+import { discoverySafeSql } from '../mtn/feed/feedSafety';
 import { loadMuteWords, loadShowSensitiveContent } from '../services/safety/viewerSafety';
 import {
   NO_FOLLOWED_AUTHORS,
@@ -22,6 +26,24 @@ import {
 import { loadFollowedAuthorIds } from '../services/viewerFollowGraph';
 
 const router = express.Router();
+
+/**
+ * "The post has at least one media row", optionally of one type.
+ *
+ * An EXISTS over `post_media`, which is what Mongo's `content.media.0` /
+ * `content.media.type` probes meant against the embedded array.
+ */
+function mediaExists(type?: 'image' | 'video' | 'gif'): SQL {
+  return exists(
+    getDb()
+      .select({ one: sql`1` })
+      .from(postMedia)
+      .where(and(
+        eq(postMedia.postId, posts.id),
+        ...(type ? [eq(postMedia.type, type)] : []),
+      )),
+  ) as SQL;
+}
 
 /** Search result page size. */
 const DEFAULT_SEARCH_LIMIT = 20;
@@ -44,43 +66,7 @@ function isHandleOnlyQuery(query: string): boolean {
     && entity.end === trimmed.length;
 }
 
-/** Mongo's MaxTimeMSExpired — a query that hit `maxTimeMS`, not a server fault. */
-const MONGO_MAX_TIME_MS_EXPIRED = 50;
-
 const MAX_SEARCH_LIMIT = 100;
-// One of the four projections that feed `PostHydrationService`; they must agree
-// on every field hydration reads. `writtenByOxyUserId` is what lets a channel
-// post name its writer here too — see `mtn/feed/FeedAPI.ts` `FEED_FIELDS`.
-const SEARCH_HYDRATION_PROJECTION = [
-  '_id',
-  'oxyUserId',
-  'writtenByOxyUserId',
-  'authorship',
-  'content',
-  'metadata',
-  'federation',
-  'postClassification.languages',
-  'stats',
-  'boostOf',
-  'quoteOf',
-  'laneId',
-  'originalPostId',
-  'parentPostId',
-  'threadId',
-  'replyPermission',
-  'reviewReplies',
-  'quotesDisabled',
-  'hashtags',
-  'mentions',
-  'tags',
-  'visibility',
-  'status',
-  'language',
-  'createdAt',
-  'updatedAt',
-  'date',
-].join(' ');
-
 /**
  * Parse search operators from query string.
  * Supported operators:
@@ -225,53 +211,85 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       const operators = parseSearchOperators(rawQuery);
 
       // Build query with filters
-      const filter: Record<string, unknown> = {
-        visibility: PostVisibility.PUBLIC,
-        status: 'published',
-        // Sensitive/NSFW exclusion happens in the QUERY (not post-hoc) so a safe-mode
-        // viewer's page is filled with results they can actually see. Same clause the
-        // ranked/discovery feeds use — `mtn/feed/feedSafety` is the one definition of
-        // "sensitive", never re-implemented here.
-        ...(showSensitiveContent ? {} : DISCOVERY_SAFE_MATCH),
-      };
+      const conditions: SQL[] = [
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+      ];
+      // Sensitive/NSFW exclusion happens in the QUERY (not post-hoc) so a safe-mode
+      // viewer's page is filled with results they can actually see. Same clause the
+      // ranked/discovery feeds use — `mtn/feed/feedSafety` is the one definition of
+      // "sensitive", never re-implemented here.
+      if (!showSensitiveContent) conditions.push(discoverySafeSql());
 
-      // A PASTED URL IS NOT A TEXT QUERY, AND FEEDING IT TO $text IS BOTH WRONG
-      // AND EXPENSIVE.
-      //
-      // Mongo's text index TOKENISES, and a multi-term $text search is an OR. So
-      // `https://x.com/thinkymachines` becomes roughly `https OR x.com OR
-      // thinkymachines` — and `https` alone appears in a large share of every
-      // post ever written. Two consequences, and the quiet one is worse:
-      //
-      //   - it times out. Sorting by createdAt (not by text score) means Mongo
-      //     must collect EVERY match before it can order them, so the query blew
-      //     through config.search.maxTimeMS and surfaced as a 500. Observed in
-      //     production at 3017/3036/3119/3078 ms against a 3_000 ms cap.
-      //   - when it does NOT time out, the results are noise: posts that merely
-      //     contain the word "https", ranked as if they matched what was pasted.
-      //
-      // Somebody pasting a profile URL is naming an ACCOUNT; the people lane
-      // answers that (see `federatedUsernameFromUpstreamUrl` and the bridge
-      // resolution lane). The posts lane has nothing to say about it, so it says
-      // so immediately instead of scanning the collection to say it slowly.
-      //
-      // A HANDLE TYPED ALONE is the same shape of mistake and had the same
-      // outcome: `@betomoedano@x.com` tokenises to roughly `betomoedano OR x OR
-      // com`, and `com` matches most of the collection, so the query spent its
-      // whole budget and returned 503. It also names an account rather than
-      // describing text, and the people lane is what answers it.
-      //
-      // ALONE is the condition, and it is doing real work: `@alice what did you
-      // think` is a sentence about somebody and stays an ordinary text search.
-      // Only a query that is nothing but a handle short-circuits, and posts
-      // MENTIONING an account already have their own operator, `to:`.
+      /**
+       * A PASTED URL IS NOT A TEXT QUERY — the BEHAVIOUR carries over from
+       * Mongo, the REASON does not, and the difference matters to whoever
+       * touches this next.
+       *
+       * On Mongo this was a performance defence. The text index tokenises and a
+       * multi-term `$text` search is an OR, so `https://x.com/thinkymachines`
+       * became roughly `https OR x.com OR thinkymachines`, `https` alone
+       * appeared in a large share of every post ever written, and sorting by
+       * `createdAt` rather than by text score forced Mongo to collect EVERY
+       * match before ordering — blowing through `config.search.maxTimeMS` at an
+       * observed 3017/3036/3119/3078 ms against a 3000 ms cap. A typed-alone
+       * handle failed the same way: `@betomoedano@x.com` tokenised to roughly
+       * `betomoedano OR x OR com`, and `com` matched most of the collection.
+       *
+       * NEITHER failure mode exists here, measured on this schema's own
+       * `english` configuration:
+       *
+       *   websearch_to_tsquery('https://x.com/thinkymachines')
+       *     => 'https' & '/x.com/thinkymachines'     -- AND, not OR
+       *   to_tsvector('see https://example.org/a and text')
+       *     => '/a' 'example.org' 'example.org/a' 'see' 'text'
+       *                                             -- no bare 'https' lexeme
+       *   websearch_to_tsquery('@betomoedano@x.com')
+       *     => 'betomoedano@x.com'                  -- ONE email token
+       *
+       * The parser folds the scheme into the url token, so a document carrying
+       * a URL does not carry `https` as a lexeme at all, and the AND makes the
+       * query demand one. Both examples match nothing, through the GIN index,
+       * in no time.
+       *
+       * What survives untouched is the half that was never about cost: somebody
+       * pasting a profile URL is naming an ACCOUNT, and the people lane answers
+       * that (`federatedUsernameFromUpstreamUrl`, the bridge resolution lane).
+       * The posts lane has nothing to say about it.
+       *
+       * So the branch stays, and its job here is to make the empty answer
+       * INTENTIONAL rather than incidental. Postgres happens to agree with it
+       * today only because `websearch_to_tsquery` ANDs; a later move to
+       * `plainto_tsquery`, an added `or`, or a different text-search
+       * configuration would turn that silent agreement back into noise with
+       * nothing to catch it.
+       *
+       * ALONE is the condition, and it is doing real work: `@alice what did you
+       * think` is a sentence about somebody and stays an ordinary text search.
+       * Only a query that is nothing but a handle short-circuits, and posts
+       * MENTIONING an account already have their own operator, `to:`.
+       */
       if (isAbsoluteHttpUrl(operators.textQuery) || isHandleOnlyQuery(operators.textQuery)) {
         res.json({ posts: [], hasMore: false });
         return;
       }
-      // Use the Post text index instead of scanning every variant with a regex.
+      // The GIN-indexed `search_vector` on the renditions — the port of the Mongo
+      // text index, and there for the same reason: never a regex scan over every
+      // variant. `websearch_to_tsquery` is the parser whose input language matches
+      // what a user types (quoted phrases, `or`, a leading `-`), and unlike
+      // `to_tsquery` it cannot raise a syntax error on arbitrary input.
       if (operators.textQuery) {
-        filter.$text = { $search: operators.textQuery };
+        conditions.push(
+          exists(
+            getDb()
+              .select({ one: sql`1` })
+              .from(postContentVariants)
+              .where(and(
+                eq(postContentVariants.postId, posts.id),
+                sql`${postContentVariants.searchVector} @@ websearch_to_tsquery('english', ${operators.textQuery})`,
+              )),
+          ) as SQL,
+        );
       }
 
       // --- Operator-based filters ---
@@ -284,12 +302,18 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           res.json({ posts: [], hasMore: false });
           return;
         }
-        filter.authorship = {
-          $elemMatch: {
-            oxyUserId: authorId,
-            status: 'accepted',
-          },
-        };
+        conditions.push(
+          exists(
+            getDb()
+              .select({ one: sql`1` })
+              .from(postAuthorships)
+              .where(and(
+                eq(postAuthorships.postId, posts.id),
+                eq(postAuthorships.oxyUserId, authorId),
+                eq(postAuthorships.status, 'accepted'),
+              )),
+          ) as SQL,
+        );
       }
 
       // to:username — posts MENTIONING that user (`to:me` = the viewer).
@@ -303,7 +327,17 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           res.json({ posts: [], hasMore: false });
           return;
         }
-        filter.mentions = mentionedId;
+        conditions.push(
+          exists(
+            getDb()
+              .select({ one: sql`1` })
+              .from(postMentions)
+              .where(and(
+                eq(postMentions.postId, posts.id),
+                eq(postMentions.oxyUserId, mentionedId),
+              )),
+          ) as SQL,
+        );
       }
 
       // since: / until: operators
@@ -311,7 +345,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       const effectiveDateTo = operators.until || (typeof dateTo === 'string' ? dateTo : undefined);
 
       if (effectiveDateFrom || effectiveDateTo) {
-        const createdAtFilter: { $gte?: Date; $lte?: Date } = {};
+        const dateBounds: SQL[] = [];
         let fromDate: Date | undefined;
         let toDate: Date | undefined;
 
@@ -320,14 +354,14 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           if (isNaN(fromDate.getTime())) {
             return res.status(400).json({ message: 'Invalid dateFrom format' });
           }
-          createdAtFilter.$gte = fromDate;
+          dateBounds.push(gte(posts.createdAt, fromDate));
         }
         if (effectiveDateTo) {
           toDate = new Date(effectiveDateTo);
           if (isNaN(toDate.getTime())) {
             return res.status(400).json({ message: 'Invalid dateTo format' });
           }
-          createdAtFilter.$lte = toDate;
+          dateBounds.push(lte(posts.createdAt, toDate));
         }
 
         // Validate date range span
@@ -344,90 +378,78 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         }
 
         // Only attach the date filter when at least one valid bound was parsed.
-        if (Object.keys(createdAtFilter).length > 0) {
-          filter.createdAt = createdAtFilter;
-        }
+        conditions.push(...dateBounds);
       }
 
       // Engagement filters - operators take precedence over query params
       const effectiveMinLikes = operators.minLikes ?? (typeof minLikes === 'string' ? parseInt(minLikes, 10) : undefined);
       if (effectiveMinLikes !== undefined && !isNaN(effectiveMinLikes) && effectiveMinLikes >= 0) {
-        filter['stats.likesCount'] = { $gte: effectiveMinLikes };
+        conditions.push(gte(posts.statsLikesCount, effectiveMinLikes));
       }
 
       const effectiveMinBoosts = operators.minBoosts ?? (typeof minBoosts === 'string' ? parseInt(minBoosts, 10) : undefined);
       if (effectiveMinBoosts !== undefined && !isNaN(effectiveMinBoosts) && effectiveMinBoosts >= 0) {
-        filter['stats.boostsCount'] = { $gte: effectiveMinBoosts };
+        conditions.push(gte(posts.statsBoostsCount, effectiveMinBoosts));
       }
 
       // Media filters - operators take precedence
       if (operators.hasMedia || hasMedia === 'true') {
-        filter['content.media.0'] = { $exists: true };
+        conditions.push(mediaExists());
       }
 
       // has:links operator - match URLs in post text
       if (operators.hasLinks) {
-        filter.hasLinks = true;
+        conditions.push(eq(posts.hasLinks, true));
       }
 
-      if (mediaType && typeof mediaType === 'string') {
-        const validMediaTypes = ['image', 'video', 'gif'];
-        if (validMediaTypes.includes(mediaType)) {
-          filter['content.media.type'] = mediaType;
-        }
+      if (mediaType === 'image' || mediaType === 'video' || mediaType === 'gif') {
+        conditions.push(mediaExists(mediaType));
       }
 
       // Language filter — match the canonical multi-language array (multikey
       // index). Mongo matches an array field by element equality, so the scalar
       // matches any post whose `postClassification.languages` contains it.
       if (language && typeof language === 'string') {
-        filter['postClassification.languages'] = language;
+        conditions.push(arrayContains(posts.classificationLanguages, [language]));
       }
 
       // Cursor-based pagination
       if (cursor !== undefined) {
         const decodedCursor = typeof cursor === 'string'
-          ? decodeSearchCursor(cursor)
+          ? decodeChronoCursor(cursor)
           : undefined;
         if (!decodedCursor) {
           return res.status(400).json({ message: 'Invalid search cursor' });
         }
 
-        const cursorClause = {
-          $or: [
-            { createdAt: { $lt: decodedCursor.createdAt } },
-            {
-              createdAt: decodedCursor.createdAt,
-              _id: { $lt: new mongoose.Types.ObjectId(decodedCursor.id) },
-            },
-          ],
-        };
-        const andClauses = Array.isArray(filter.$and) ? filter.$and : [];
-        filter.$and = [...andClauses, cursorClause];
+        // The keyset matches the `(created_at DESC, id DESC)` sort below exactly.
+        // The id bound is a plain `text` comparison and no longer has to parse as
+        // an ObjectId — which is what stopped it working the moment ids became
+        // uuid v7.
+        conditions.push(
+          or(
+            lt(posts.createdAt, decodedCursor.createdAt),
+            and(eq(posts.createdAt, decodedCursor.createdAt), lt(posts.id, decodedCursor.id)),
+          ) as SQL,
+        );
       }
 
       // Validate and normalize limit (max 100)
       const limitNum = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_SEARCH_LIMIT, 1), MAX_SEARCH_LIMIT);
 
       // Execute query with lean() for read-only performance
-      const posts = await Post.find(filter)
-        .select(SEARCH_HYDRATION_PROJECTION)
-        .sort({ createdAt: -1, _id: -1 })
-        .limit(limitNum + 1) // Fetch one extra to check if there are more
-        .maxTimeMS(config.search.maxTimeMS)
-        .lean();
+      const page = await findPostRecords(and(...conditions), {
+        orderBy: [desc(posts.createdAt), desc(posts.id)],
+        limit: limitNum + 1, // Fetch one extra to check if there are more
+      });
 
       // Check if there are more results
-      const hasMoreResults = posts.length > limitNum;
-      const postsToReturn = hasMoreResults ? posts.slice(0, limitNum) : posts;
+      const hasMoreResults = page.length > limitNum;
+      const postsToReturn = hasMoreResults ? page.slice(0, limitNum) : page;
 
       // Calculate next cursor
-      const nextCursor = hasMoreResults && postsToReturn.length > 0
-        ? encodeSearchCursor(
-          postsToReturn[postsToReturn.length - 1].createdAt,
-          postsToReturn[postsToReturn.length - 1]._id.toString(),
-        )
-        : undefined;
+      const anchor = hasMoreResults ? postsToReturn[postsToReturn.length - 1] : undefined;
+      const nextCursor = anchor ? encodeChronoCursor(anchor.createdAt, anchor.id) : undefined;
 
       // Hydrate posts with viewer-scoped state and embedded quoted/boost
       // originals. Pass the request's oxyClient so viewer-scoped fields
@@ -470,13 +492,19 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     // The log previously carried `errorName` ALONE — so the production incident
     // this branch was diagnosed from showed `MongoServerError` and nothing else:
     // no code, no message, nothing that named the query or the limit. Diagnosing
-    // it needed the source and a stopwatch against the 3_000 ms cap. Carry the
-    // code and message so the next one is readable from the logs.
-    const isTimeout = typeof error === 'object' && error !== null
-      && (error as { code?: unknown }).code === MONGO_MAX_TIME_MS_EXPIRED;
+    // it needed the source and a stopwatch against the cap. Carry the SQLSTATE
+    // and the message so the next one is readable from the logs.
+    //
+    // Read through `sqlStateOf`, never `error.code`: drizzle re-wraps the driver
+    // error and the SQLSTATE lives on `cause`, so the direct read this replaces
+    // matched nothing — it was still testing for Mongo's `MaxTimeMSExpired`,
+    // a code Postgres does not produce, which made the 503 branch unreachable
+    // and every timed-out search a 500.
+    const sqlState = sqlStateOf(error);
+    const isTimeout = sqlState === QUERY_CANCELED;
     logger.error('Search request failed', {
       errorName: error instanceof Error ? error.name : 'UnknownError',
-      errorCode: typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined,
+      sqlState,
       reason: error instanceof Error ? error.message : 'unknown',
       timedOut: isTimeout,
     });

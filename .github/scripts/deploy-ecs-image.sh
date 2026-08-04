@@ -21,6 +21,97 @@ AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
 AWS_PARTITION="${AWS_PARTITION:-aws}"
 POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
 POST_DEPLOY_TASK_COMMAND_JSON="${POST_DEPLOY_TASK_COMMAND_JSON:-}"
+# Deploy a service that is deliberately scaled to ZERO — and say which one.
+#
+# Every ordinary deploy must refuse a zero-count service: it means capacity was
+# lost, and rolling a new image onto nothing produces a green deploy and an
+# outage. That guard stays.
+#
+# The exception it exists for is the Mongo->Postgres cutover. Traffic is stopped
+# at desiredCount 0 for the whole window ON PURPOSE, because the running image
+# is Mongo-backed: bringing it up after the copy has finished would let real
+# user writes land in the store being abandoned, and the copy is not
+# incremental, so nothing recovers them. Downtime is acceptable there; losing
+# writes is not.
+#
+# It names the SERVICE rather than being a boolean, for the same reason
+# `--confirm-truncate` names the database instead of taking `true`: a bare
+# `true` left in a workflow file or pasted out of a runbook authorises a
+# zero-count deploy of ANYTHING, and the value that would be wrong is exactly
+# the value that is easiest to copy.
+ALLOW_ZERO_DESIRED_COUNT="${ALLOW_ZERO_DESIRED_COUNT:-}"
+
+# Whether this run may proceed against a zero-count service.
+#
+# The value is `<service>:<YYYY-MM-DD>` and BOTH halves must hold: the service
+# must be this one, and the date must not have passed. Every other shape refuses.
+#
+# The expiry is what keeps this from being a permanent reduction in protection.
+# Without it, a variable set for one window and never removed silently disarms
+# the zero-count guard forever, and the failure only shows up the day somebody
+# scales to zero for an unrelated reason and a deploy reports green onto no
+# capacity. With it, a forgotten variable disarms ITSELF the day after.
+#
+# It fails toward REFUSING, which is the direction that matters: if the window
+# slips past the expiry the deploy refuses loudly, mid-window, and is fixed in
+# thirty seconds by updating the variable. It can never fail toward permitting.
+zero_desired_count_allowed=false
+if [[ -n "$ALLOW_ZERO_DESIRED_COUNT" ]]; then
+  if [[ ! "$ALLOW_ZERO_DESIRED_COUNT" =~ ^[A-Za-z0-9_-]+:[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+    echo "::error::ALLOW_ZERO_DESIRED_COUNT is set but malformed: expected <service>:<YYYY-MM-DD>, e.g. $APP:$(date -u -d '+2 days' +%F). Refusing to treat an unparseable authorisation as permission."
+    exit 1
+  fi
+  zero_optin_service="${ALLOW_ZERO_DESIRED_COUNT%%:*}"
+  zero_optin_expiry="${ALLOW_ZERO_DESIRED_COUNT#*:}"
+  # A regex-valid but NONEXISTENT date (2026-13-45) would sort after every real
+  # date and therefore never expire — fail-open, the one direction this must not
+  # have. Round-tripping it through `date` rejects that.
+  if ! zero_optin_parsed="$(date -u -d "$zero_optin_expiry" +%F 2>/dev/null)" ||
+     [[ "$zero_optin_parsed" != "$zero_optin_expiry" ]]; then
+    echo "::error::ALLOW_ZERO_DESIRED_COUNT carries an invalid date: $zero_optin_expiry. Refusing."
+    exit 1
+  fi
+  zero_optin_today="$(date -u +%F)"
+  # ISO dates compare correctly as strings; the expiry day itself is still valid.
+  if [[ "$zero_optin_expiry" < "$zero_optin_today" ]]; then
+    echo "::error::ALLOW_ZERO_DESIRED_COUNT expired on $zero_optin_expiry (today is $zero_optin_today). If this window is still running, update the variable; do not delete the expiry."
+    exit 1
+  fi
+  if [[ "$zero_optin_service" == "$APP" ]]; then
+    zero_desired_count_allowed=true
+  fi
+fi
+# What `RUN_MIGRATIONS=true` runs, in order, each as its own one-shot task on the
+# image being rolled out. A non-zero exit from any of them stops the release
+# before `update-service`.
+#
+# ORDER IS LOAD-BEARING, AND POSTGRES IS FIRST.
+#
+# The two stores fail differently. The Mongo migrations are data migrations
+# against a schema that already exists, and skipping them leaves the previous
+# release's behaviour in place. The Postgres migrations are the SCHEMA: a task
+# that boots against a database they never reached connects, answers the health
+# check, is given traffic, and only then fails every query — the damage lands
+# after the point of no return rather than before it. So the store that can
+# invalidate the whole rollout is settled first, and a failure there costs
+# nothing because nothing has been routed yet.
+#
+# `assertPostgresMigrationsCurrent` in packages/backend/src/db/migrationLedger.ts
+# is the other half: it refuses to let a task become ready when this step did not
+# run. Neither replaces the other — this one applies the migrations, that one
+# survives the case where somebody bypassed this one.
+#
+# Both entries run during the dual-run. Postgres does not replace Mongo yet.
+MIGRATION_TASK_COMMANDS_JSON='[
+  {
+    "label": "Postgres migration",
+    "command": ["bun", "packages/backend/dist/src/db/migrate.js", "--target-database=mention"]
+  },
+  {
+    "label": "Mongo migration",
+    "command": ["bun", "packages/backend/dist/scripts/migrate.js"]
+  }
+]'
 # Exit code a smoke script uses to say "this failed, and rolling back cannot fix
 # it" — a check that crosses a boundary this deploy does not own (a CDN in front
 # of the origin, another service the route consults). Reverting the image for one
@@ -102,10 +193,16 @@ if [[ -z "$current_task_definition" ]]; then
 fi
 
 service_desired_count="$(jq -r '.services[0].desiredCount // empty' <<<"$service_json")"
-if ! [[ "$service_desired_count" =~ ^[0-9]+$ ]] ||
-   (( service_desired_count < 1 )); then
-  echo "::error::ECS service $APP must have a positive desiredCount before deployment (current: ${service_desired_count:-missing}). Scale the service up explicitly before retrying."
+if ! [[ "$service_desired_count" =~ ^[0-9]+$ ]]; then
+  echo "::error::ECS service $APP reported a non-numeric desiredCount (${service_desired_count:-missing}); refusing to deploy."
   exit 1
+fi
+if (( service_desired_count < 1 )) && [[ "$zero_desired_count_allowed" != true ]]; then
+  echo "::error::ECS service $APP must have a positive desiredCount before deployment (current: ${service_desired_count:-missing}). Scale the service up explicitly before retrying, or set ALLOW_ZERO_DESIRED_COUNT=$APP:<YYYY-MM-DD> if this is a deliberate zero-capacity deploy."
+  exit 1
+fi
+if (( service_desired_count < 1 )); then
+  echo "::warning::Deploying $APP at desiredCount=0, authorised by ALLOW_ZERO_DESIRED_COUNT=$ALLOW_ZERO_DESIRED_COUNT (expires $zero_optin_expiry). The rollout will complete with zero running tasks and the service will serve NOTHING until it is scaled up."
 fi
 
 task_definition_file="$(mktemp)"
@@ -197,13 +294,22 @@ wait_for_service_rollout() {
               "$desired" =~ ^[0-9]+$ &&
               "$service_desired" =~ ^[0-9]+$ ]]; then
         echo "::warning::ECS returned non-numeric task counts for the $label rollout; retrying."
-      elif (( service_desired < 1 )); then
+      elif (( service_desired < 1 )) && [[ "$zero_desired_count_allowed" != true ]]; then
         echo "::error::ECS service $APP reached desiredCount=0 during the $label rollout."
         return 1
       elif [[ "$rollout_state" == "COMPLETED" ]]; then
-        if (( desired < 1 )); then
+        # Both zero-checks need the same exemption. Under an authorised
+        # zero-count deploy the steady state genuinely IS zero tasks, so a
+        # bypass applied only to the pre-check would let the release start and
+        # then kill it mid-rollout — later, and harder to read, than refusing up
+        # front.
+        if (( desired < 1 )) && [[ "$zero_desired_count_allowed" != true ]]; then
           echo "::error::ECS $label rollout for $APP completed at desiredCount=0; refusing to accept a zero-task steady state."
           return 1
+        fi
+        if (( desired < 1 )); then
+          echo "$label rollout for $APP completed at desiredCount=0, as authorised."
+          return 0
         fi
         if [[ "$running" == "$desired" ]]; then
           return 0
@@ -481,11 +587,26 @@ if [[ "$RUN_MIGRATIONS" == "true" || -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]]; the
 fi
 
 if [[ "$RUN_MIGRATIONS" == "true" ]]; then
-  if ! run_one_shot_command \
-    "Migration" \
-    '["bun","packages/backend/dist/scripts/migrate.js"]'; then
-    exit 1
-  fi
+  # PROCESS SUBSTITUTION, NOT A PIPE, and the reason is not the obvious one.
+  #
+  # `set -e` catches the failing pipeline either way, so both forms do stop the
+  # release before `update-service` — measured, so do not "simplify" this on the
+  # theory that the pipe is equivalent. What a pipe loses is the loop body's
+  # WRITES: it runs in a subshell, so `run_one_shot_command`'s
+  # `active_one_shot_task_arn` / `_label` / `_stopped` never reach the parent,
+  # and the EXIT trap reads their initial values. The warning that a migration
+  # task may STILL BE RUNNING against the database after the deploy gave up —
+  # the one thing telling an operator the schema may be moving under them, and
+  # unrecoverable because the deploy role cannot call `ecs:StopTask` — silently
+  # stops being emitted. The `migration-task-never-stops` case in
+  # test-deploy-ecs-image.sh is what notices.
+  while IFS= read -r migration_entry; do
+    if ! run_one_shot_command \
+      "$(jq -r '.label' <<<"$migration_entry")" \
+      "$(jq -c '.command' <<<"$migration_entry")"; then
+      exit 1
+    fi
+  done < <(jq -c '.[]' <<<"$MIGRATION_TASK_COMMANDS_JSON")
 fi
 
 if [[ -n "${DEPLOY_SHA:-}" ]]; then

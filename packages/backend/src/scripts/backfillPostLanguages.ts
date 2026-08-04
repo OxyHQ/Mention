@@ -27,10 +27,11 @@
  *   bun packages/backend/dist/src/scripts/backfillPostLanguages.js --dry-run
  */
 
-import mongoose from 'mongoose';
-import type { PostContent } from '@mention/shared-types';
+import { and, asc, gt, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import { resolveVariant } from '../services/postVariants';
-import { Post } from '../models/Post';
+import { connectPostgres } from '../db/postgres';
+import { posts } from '../db/schema/posts';
+import { findPostRecords, updatePostRecord } from '../db/posts/postRepository';
 import { baselineContentClassifier, BASELINE_CLASSIFIER_VERSION } from '../services/BaselineContentClassifier';
 import { logger } from '../utils/logger';
 import {
@@ -39,11 +40,8 @@ import {
 } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 
-/** Posts scanned per page (stable ascending `_id` cursor pagination). */
+/** Posts scanned per page (stable ascending `id` cursor pagination). */
 const DEFAULT_PAGE_SIZE = 500;
-
-/** Update writes flushed per bulkWrite chunk. */
-const BULK_CHUNK_SIZE = 500;
 
 export interface BackfillPostLanguagesResult {
   scanned: number;
@@ -51,18 +49,9 @@ export interface BackfillPostLanguagesResult {
   failed: number;
 }
 
-/** Minimal projected shape the classifier needs. */
-interface PostLanguageRow {
-  _id: mongoose.Types.ObjectId;
-  content: PostContent;
-  hashtags?: string[];
-  federation?: { sensitive?: boolean } | null;
-}
-
 /**
- * Re-classify and backfill languages over the qualifying corpus. Operates on the
- * `Post` model only — the caller owns the Mongo connection lifecycle — so it is
- * unit-testable with a mocked model and reusable from an in-process caller.
+ * Re-classify and backfill languages over the qualifying corpus. The caller owns
+ * the connection lifecycle, so this is reusable from an in-process caller.
  */
 export async function backfillPostLanguages(
   opts: { batchSize?: number; dryRun?: boolean } = {},
@@ -74,44 +63,27 @@ export async function backfillPostLanguages(
   // classified before the current baseline version. Setting the array + version
   // removes a post from this filter, so the ascending `_id` cursor never revisits
   // a completed post and a re-run only fills remaining gaps.
-  const baseFilter: Record<string, unknown> = {
-    $or: [
-      { 'postClassification.languages': { $in: [null, []] } },
-      { 'postClassification.languages': { $exists: false } },
-      { 'postClassification.version': { $lt: BASELINE_CLASSIFIER_VERSION } },
-    ],
-  };
+  // A NULL `classification_version` is one of the qualifying states and must be
+  // spelled out: `version < N` is NULL for an unstamped row, and a NULL predicate
+  // excludes the row — so the literal translation would silently skip exactly the
+  // posts that were never classified at all.
+  const baseFilter = or(
+    isNull(posts.classificationLanguages),
+    sql`cardinality(${posts.classificationLanguages}) = 0`,
+    isNull(posts.classificationVersion),
+    lt(posts.classificationVersion, BASELINE_CLASSIFIER_VERSION),
+  ) as SQL;
 
   let scanned = 0;
   let updated = 0;
   let failed = 0;
-  let lastId: mongoose.Types.ObjectId | null = null;
-  let pendingOps: mongoose.AnyBulkWriteOperation<typeof Post>[] = [];
-
-  const flush = async (): Promise<void> => {
-    if (pendingOps.length === 0 || dryRun) {
-      pendingOps = [];
-      return;
-    }
-    await Post.bulkWrite(pendingOps, { ordered: false });
-    pendingOps = [];
-  };
+  let lastId: string | null = null;
 
   for (;;) {
-    const pageFilter: Record<string, unknown> = { ...baseFilter };
-    if (lastId) {
-      pageFilter._id = { $gt: lastId };
-    }
-
-    const page = await Post.find(pageFilter, {
-      _id: 1,
-      'content.variants': 1,
-      hashtags: 1,
-      federation: 1,
-    })
-      .sort({ _id: 1 })
-      .limit(pageSize)
-      .lean<PostLanguageRow[]>();
+    const page = await findPostRecords(
+      lastId ? and(baseFilter, gt(posts.id, lastId)) : baseFilter,
+      { orderBy: [asc(posts.id)], limit: pageSize },
+    );
 
     if (page.length === 0) break;
 
@@ -134,52 +106,43 @@ export async function backfillPostLanguages(
         updated += 1;
         if (dryRun) continue;
 
-        pendingOps.push({
-          updateOne: {
-            filter: { _id: post._id },
-            update: {
-              $set: {
-                'postClassification.languages': signals.languages,
-                // Written alongside the languages because this update also
-                // stamps `version`: a row claiming the current baseline version
-                // while missing a field that version defines is worse than an
-                // un-backfilled row, since the version is exactly what readers
-                // use to decide whether to trust the subdoc.
-                'postClassification.trendTerms': signals.trendTerms,
-                'postClassification.version': signals.version,
-                language: signals.languages[0],
-              },
-            },
+        // A per-post PARTIAL patch rather than a batched bulkWrite: the three
+        // classification fields are a MERGE onto the existing subdocument, which
+        // is what `updatePostRecord` expresses and what a whole-column write
+        // would destroy. The page size still bounds the work per round.
+        await updatePostRecord(post.id, {
+          postClassification: {
+            languages: signals.languages,
+            // Written alongside the languages because this update also stamps
+            // `version`: a row claiming the current baseline version while
+            // missing a field that version defines is worse than an
+            // un-backfilled row, since the version is exactly what readers use
+            // to decide whether to trust the classification.
+            trendTerms: signals.trendTerms,
+            version: signals.version,
           },
+          language: signals.languages[0],
         });
-
-        if (pendingOps.length >= BULK_CHUNK_SIZE) {
-          await flush();
-        }
       } catch (error) {
         failed += 1;
         logger.warn('[backfillPostLanguages] classify failed for post; skipping', {
-          id: String(post._id),
+          id: post.id,
           reason: error instanceof Error ? error.message : 'unknown',
         });
       }
     }
 
-    lastId = page[page.length - 1]._id;
+    lastId = page[page.length - 1].id;
     logger.info(
       `[backfillPostLanguages] progress: scanned ${scanned}, updated ${updated}, failed ${failed}`,
     );
   }
-
-  await flush();
 
   return { scanned, updated, failed };
 }
 
 async function main(): Promise<void> {
   const startedAt = Date.now();
-  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
-  const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
   const dryRun = process.argv.includes('--dry-run');
 
   try {
@@ -187,8 +150,8 @@ async function main(): Promise<void> {
       scriptName: 'backfillPostLanguages',
       dryRun,
     });
-    await mongoose.connect(mongoUri, { dbName });
-    logger.info('[backfillPostLanguages] connected to MongoDB', { dryRun });
+    await connectPostgres();
+    logger.info('[backfillPostLanguages] connected to PostgreSQL', { dryRun });
 
     const result = await backfillPostLanguages({ dryRun });
 
@@ -205,9 +168,6 @@ async function main(): Promise<void> {
     throw error;
   } finally {
     await closeAdminScriptResources();
-    await mongoose.disconnect().catch((disconnectError) => {
-      logger.warn('[backfillPostLanguages] error during mongoose.disconnect()', disconnectError);
-    });
   }
 }
 

@@ -4,7 +4,7 @@ import { CaseUrgencySchema, type CaseUrgency } from '@oxyhq/crowdsource-contract
 import { REPORT_TAXONOMY_VERSION, allegationsForCategories } from './reportTaxonomy';
 import { subjectProviderFor } from './subjects/registry';
 import type { ModerationSubjectSnapshot } from './subjects/types';
-import type { IReport } from '../../models/Report.model';
+import type { ReportRecord } from '../../db/moderation/reportRepository';
 import { logger } from '../../utils/logger';
 
 /**
@@ -135,9 +135,14 @@ export interface ModerationReportInput {
  */
 export async function buildModerationReportInput(
   report: Pick<
-    IReport,
-    'reportedType' | 'reportedId' | 'reporter' | 'categories' | 'details' | 'createdAt'
-  > & { id: string },
+    ReportRecord,
+    'id' | 'reportedType' | 'reportedId' | 'reporter' | 'categories' | 'details' | 'createdAt'
+  >,
+  /**
+   * The urgency FROZEN AT INTAKE, off the outbox row — never re-measured here.
+   * `unknown` because it is stored data whose schema belongs to CrowdSource;
+   * `contractUrgency` validates it on the way out.
+   */
   storedUrgency?: unknown,
 ): Promise<ModerationReportInput | null> {
   const provider = subjectProviderFor(report.reportedType);

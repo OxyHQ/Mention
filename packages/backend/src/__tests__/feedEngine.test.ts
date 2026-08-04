@@ -1,17 +1,29 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import mongoose from 'mongoose';
 
 /**
  * Unit tests for the generic FeedEngine with FAKE modules and mocked heavy
  * services (no DB / Redis / Oxy). Asserts the engine's orchestration:
  * cross-source dedupe, filter application, ranked-by-score ordering,
  * chronological ordering, and pagination + cursor.
+ *
+ * Every fixture is a WHOLE `CandidatePost` and every stand-in signal is a real
+ * field on it — the ranking stub scores by `stats.likesCount`, the filter keys
+ * off `hashtags`. The old fixtures hung private markers (`_testScore`) on a
+ * `Record<string, unknown>` bag, which is what let them keep saying `_id` after
+ * the engine had stopped reading it.
  */
 
 // --- Mock the heavy collaborators the engine calls. ---
-const rankPosts = vi.fn(async (posts: Array<Record<string, unknown>>, _userId?: unknown, _ctx?: unknown) => {
-  // Attach finalScore from the fixture `_testScore` (higher = ranked first).
-  for (const p of posts) p.finalScore = (p._testScore as number | undefined) ?? 0;
+const rankPosts = vi.fn(async (
+  posts: Array<Record<string, unknown>>,
+  _userId?: unknown,
+  _ctx?: unknown,
+) => {
+  // Deterministic stand-in for FeedRankingService: likes ARE the score.
+  for (const p of posts) {
+    const stats = p.stats as { likesCount?: number } | undefined;
+    p.finalScore = stats?.likesCount ?? 0;
+  }
   return posts;
 });
 vi.mock('../services/FeedRankingService', () => ({
@@ -23,7 +35,7 @@ vi.mock('../services/ThreadSlicingService', () => ({
   threadSlicingService: {
     sliceFeed: vi.fn(async (posts: Array<Record<string, unknown>>) => ({
       slices: posts.map((post) => ({
-        _sliceKey: String(post._id),
+        _sliceKey: String(post.id),
         items: [{ post, isThreadParent: false, isThreadChild: false, isThreadLastChild: false }],
         isIncompleteThread: false,
       })),
@@ -32,17 +44,12 @@ vi.mock('../services/ThreadSlicingService', () => ({
   },
 }));
 
-// hydrateSlices / hydratePosts → passthrough, stamping `id`.
+// hydrateSlices / hydratePosts → passthrough. A candidate already carries `id`
+// (that IS the record's id), so hydration has nothing to stamp here.
 vi.mock('../services/PostHydrationService', () => ({
   postHydrationService: {
-    hydrateSlices: vi.fn(async (slices: Array<{ items: Array<{ post: Record<string, unknown> }> }>) => {
-      for (const slice of slices) for (const item of slice.items) item.post.id = String(item.post._id);
-      return slices;
-    }),
-    hydratePosts: vi.fn(async (posts: Array<Record<string, unknown>>) => {
-      for (const p of posts) p.id = String(p._id);
-      return posts;
-    }),
+    hydrateSlices: vi.fn(async (slices: unknown[]) => slices),
+    hydratePosts: vi.fn(async (posts: unknown[]) => posts),
   },
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
@@ -59,16 +66,29 @@ import { FeedEngine } from '../mtn/feed/engine/FeedEngine';
 import { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
 import { ScoreCursor } from '../mtn/feed/CursorBuilder';
 import type { CandidatePost, FeedDefinition, SourceModule, FilterModule } from '../mtn/feed/engine/types';
+import { feedCandidate, postStats } from './fixtures/feedCandidate';
 
-const oid = (n: number) => new mongoose.Types.ObjectId(`5f${n.toString().padStart(22, '0')}`);
+/**
+ * A pre-cutover ObjectId-hex id. Ids are plain `text` now, but they are not
+ * arbitrary: `isLiveEntityId` accepts exactly the two shapes this database
+ * stores (24-char ObjectId hex, uuid v7), and `ScoreCursor` refuses to mint or
+ * parse a cursor around anything else. A fixture id like `post-1` silently
+ * produces NO cursor and every page becomes page one.
+ */
+const id = (n: number) => `5f${n.toString().padStart(22, '0')}`;
 
-function makePost(n: number, extra: Record<string, unknown> = {}): CandidatePost {
-  return {
-    _id: oid(n),
+function makePost(n: number, overrides: Partial<CandidatePost> = {}): CandidatePost {
+  return feedCandidate({
+    id: id(n),
     oxyUserId: `author-${n}`,
     createdAt: new Date(2020, 0, n),
-    ...extra,
-  };
+    ...overrides,
+  });
+}
+
+/** A candidate the ranking stub will score at `likes`. */
+function scored(n: number, likes: number, overrides: Partial<CandidatePost> = {}): CandidatePost {
+  return makePost(n, { stats: postStats({ likesCount: likes }), ...overrides });
 }
 
 function sourceReturning(id: string, posts: CandidatePost[]): SourceModule {
@@ -87,12 +107,12 @@ beforeEach(() => {
 describe('FeedEngine — ranked mode', () => {
   it('dedupes across sources, applies a filter, and orders by composed score', async () => {
     // Two sources with an overlapping post; a filter drops post #3.
-    registry.register(sourceReturning('a', [makePost(1, { _testScore: 1 }), makePost(2, { _testScore: 5 })]));
-    registry.register(sourceReturning('b', [makePost(2, { _testScore: 5 }), makePost(3, { _testScore: 9 })]));
+    registry.register(sourceReturning('a', [scored(1, 1), scored(2, 5)]));
+    registry.register(sourceReturning('b', [scored(2, 5), scored(3, 9, { hashtags: ['dropme'] })]));
     const dropThree: FilterModule = {
       id: 'dropThree',
       kind: 'filter',
-      keep: (post) => String(post._id) !== oid(3).toString(),
+      keep: (post) => !post.hashtags.includes('dropme'),
     };
     registry.register(dropThree);
 
@@ -109,12 +129,12 @@ describe('FeedEngine — ranked mode', () => {
     const ids = result.items.map((i) => i.id);
 
     // #3 filtered out; #2 deduped to one; ordered by score desc (#2=5 before #1=1).
-    expect(ids).toEqual([oid(2).toString(), oid(1).toString()]);
+    expect(ids).toEqual([id(2), id(1)]);
     expect(rankPosts).toHaveBeenCalledOnce();
   });
 
   it('paginates: respects limit and returns an advancing cursor', async () => {
-    registry.register(sourceReturning('a', [makePost(1, { _testScore: 9 }), makePost(2, { _testScore: 1 })]));
+    registry.register(sourceReturning('a', [scored(1, 9), scored(2, 1)]));
     const def: FeedDefinition = {
       id: 'test-page',
       title: 'Test',
@@ -125,7 +145,7 @@ describe('FeedEngine — ranked mode', () => {
     };
 
     const result = await engine.run(def, { currentUserId: 'viewer' }, { limit: 1 });
-    expect(result.items.map((i) => i.id)).toEqual([oid(1).toString()]);
+    expect(result.items.map((i) => i.id)).toEqual([id(1)]);
     expect(result.hasMore).toBe(true);
     expect(result.nextCursor).toBeTruthy();
   });
@@ -149,15 +169,14 @@ describe('FeedEngine — ranked mode', () => {
         const excluded = new Set(parsed?.excludeIds ?? []);
         return candidates
           .filter((post) => {
-            const id = String(post._id);
-            if (excluded.has(id)) return false;
+            if (excluded.has(post.id)) return false;
             if (!parsed || parsed.score === Infinity) return true;
             const score = post.finalScore ?? 0;
-            return score < parsed.score || (score === parsed.score && id < parsed.id);
+            return score < parsed.score || (score === parsed.score && post.id < parsed.id);
           })
           .sort((a, b) => {
             const scoreDiff = (b.finalScore ?? 0) - (a.finalScore ?? 0);
-            return scoreDiff || String(b._id).localeCompare(String(a._id));
+            return scoreDiff || b.id.localeCompare(a.id);
           });
       });
       registry.register({ id: 'pre-scored', kind: 'source', userComposable: false, gather });
@@ -173,13 +192,13 @@ describe('FeedEngine — ranked mode', () => {
 
       const first = await engine.run(def, {}, { limit: 2 });
       const parsedCursor = ScoreCursor.parse(first.nextCursor);
-      expect(first.items.map((item) => item.id)).toEqual([oid(1).toString(), oid(2).toString()]);
+      expect(first.items.map((item) => item.id)).toEqual([id(1), id(2)]);
       expect(parsedCursor).toMatchObject({
         score: 0.8765432109876543,
-        id: oid(2).toString(),
+        id: id(2),
         asOf: initialTime,
       });
-      expect(new Set(parsedCursor?.excludeIds)).toEqual(new Set([oid(1).toString(), oid(2).toString()]));
+      expect(new Set(parsedCursor?.excludeIds)).toEqual(new Set([id(1), id(2)]));
 
       // The top item loses engagement and would cross below the old watermark;
       // advancing the clock must not create a duplicate on page two.
@@ -187,7 +206,7 @@ describe('FeedEngine — ranked mode', () => {
       vi.setSystemTime(initialTime + 6 * 60 * 60 * 1000);
 
       const second = await engine.run(def, {}, { limit: 2, cursor: first.nextCursor });
-      expect(second.items.map((item) => item.id)).toEqual([oid(3).toString(), oid(4).toString()]);
+      expect(second.items.map((item) => item.id)).toEqual([id(3), id(4)]);
       const firstIds = new Set(first.items.map((item) => item.id));
       expect(second.items.some((item) => firstIds.has(item.id))).toBe(false);
       expect(observedAsOf).toEqual([initialTime, initialTime]);
@@ -206,11 +225,10 @@ describe('FeedEngine — ranked mode', () => {
       const parsed = ScoreCursor.parse(ctx.cursor);
       const excluded = new Set(parsed?.excludeIds ?? []);
       return candidates.filter((post) => {
-        const id = String(post._id);
-        if (excluded.has(id)) return false;
+        if (excluded.has(post.id)) return false;
         if (!parsed || parsed.score === Infinity) return true;
         const score = post.finalScore ?? 0;
-        return score < parsed.score || (score === parsed.score && id < parsed.id);
+        return score < parsed.score || (score === parsed.score && post.id < parsed.id);
       });
     };
     registry.register({ id: 'pre-scored-window', kind: 'source', userComposable: false, gather });
@@ -227,17 +245,27 @@ describe('FeedEngine — ranked mode', () => {
     const first = await engine.run(def, {}, { limit: 2 });
     const second = await engine.run(def, {}, { limit: 2, cursor: first.nextCursor });
 
-    expect(first.items.map((item) => item.id)).toEqual([oid(10).toString(), oid(9).toString()]);
-    expect(second.items.map((item) => item.id)).toEqual([oid(8).toString()]);
+    expect(first.items.map((item) => item.id)).toEqual([id(10), id(9)]);
+    expect(second.items.map((item) => item.id)).toEqual([id(8)]);
     expect(new Set([
       ...first.items.map((item) => item.id),
       ...second.items.map((item) => item.id),
-    ])).toEqual(new Set([oid(10).toString(), oid(9).toString(), oid(8).toString()]));
+    ])).toEqual(new Set([id(10), id(9), id(8)]));
   });
 });
 
 describe('FeedEngine — ranked pagination coverage', () => {
-  const PAGE_LIMIT = 6;
+  /**
+   * TEN, not six, and the pool shape is what fixes it. `thinGraphPool`
+   * interleaves 1:1, so a page window holds `ceil(PAGE_LIMIT / 2)` of the
+   * prolific author's posts — at six that is exactly `maxPerAuthorPerPage`, the
+   * cap never binds, nothing is ever deferred, and the case passes against an
+   * engine that drops deferred slices outright. (Measured: dropping the overflow
+   * tail in `diversifyByAuthor` left this file green at six.) The floor below
+   * asserts the binding rather than restating a number, so a change to either
+   * the page size or the cap re-derives it instead of quietly going vacuous.
+   */
+  const PAGE_LIMIT = 10;
   const PROLIFIC_POSTS = 12;
   const SOLO_AUTHORS = 12;
 
@@ -253,11 +281,11 @@ describe('FeedEngine — ranked pagination coverage', () => {
     let score = PROLIFIC_POSTS + SOLO_AUTHORS;
     for (let i = 0; i < Math.max(PROLIFIC_POSTS, SOLO_AUTHORS); i += 1) {
       if (i < PROLIFIC_POSTS) {
-        posts.push(makePost(posts.length + 1, { oxyUserId: 'prolific', _testScore: score }));
+        posts.push(scored(posts.length + 1, score, { oxyUserId: 'prolific' }));
         score -= 1;
       }
       if (i < SOLO_AUTHORS) {
-        posts.push(makePost(posts.length + 1, { oxyUserId: `solo-${i}`, _testScore: score }));
+        posts.push(scored(posts.length + 1, score, { oxyUserId: `solo-${i}` }));
         score -= 1;
       }
     }
@@ -305,16 +333,23 @@ describe('FeedEngine — ranked pagination coverage', () => {
   }
 
   it('serves every candidate across the session — per-author-cap overflow rolls forward, never strands', async () => {
-    // Vacuity floor: the fixture only exercises the cap if the prolific author
-    // brings more page-eligible posts than one page may admit from them.
-    expect(PROLIFIC_POSTS).toBeGreaterThan(MtnConfig.ranking.diversity.maxPerAuthorPerPage);
-
     const pool = thinGraphPool();
+
+    // Vacuity floor. The pool is already score-descending, so its first
+    // `PAGE_LIMIT` entries ARE the page-one window the reranker sees — and the
+    // cap only defers anything if that window holds more of one author than the
+    // cap admits. Asserting `PROLIFIC_POSTS > maxPerAuthorPerPage` instead (what
+    // this used to do) is a claim about the POOL, which stays true while the
+    // WINDOW stops binding: the fixture goes inert and the case still passes.
+    const prolificInWindow = pool
+      .slice(0, PAGE_LIMIT)
+      .filter((post) => post.oxyUserId === 'prolific').length;
+    expect(prolificInWindow).toBeGreaterThan(MtnConfig.ranking.diversity.maxPerAuthorPerPage);
     registry.register(sourceReturning('thin-graph', pool));
 
     const { served } = await drainRanked(rankedDef('thin-graph'), PAGE_LIMIT, pool.length);
 
-    const poolIds = pool.map((post) => String(post._id));
+    const poolIds = pool.map((post) => post.id);
     const servedSet = new Set(served);
     const stranded = poolIds.filter((id) => !servedSet.has(id));
 
@@ -333,13 +368,13 @@ describe('FeedEngine — ranked pagination coverage', () => {
 
   it('control: a pool with one post per author strands nothing (the cap never binds)', async () => {
     const pool = Array.from({ length: PROLIFIC_POSTS + SOLO_AUTHORS }, (_, i) =>
-      makePost(i + 1, { oxyUserId: `solo-${i}`, _testScore: PROLIFIC_POSTS + SOLO_AUTHORS - i }));
+      scored(i + 1, PROLIFIC_POSTS + SOLO_AUTHORS - i, { oxyUserId: `solo-${i}` }));
     registry.register(sourceReturning('one-each', pool));
 
     const { served } = await drainRanked(rankedDef('one-each'), PAGE_LIMIT, pool.length);
 
     const servedSet = new Set(served);
-    const stranded = pool.map((post) => String(post._id)).filter((id) => !servedSet.has(id));
+    const stranded = pool.map((post) => post.id).filter((id) => !servedSet.has(id));
 
     expect({ strandedCount: stranded.length, strandedIds: stranded }).toEqual({
       strandedCount: 0,
@@ -364,7 +399,7 @@ describe('FeedEngine — chronological mode', () => {
 
     const result = await engine.run(def, { currentUserId: 'viewer' }, { limit: 30 });
     // createdAt = 2020-01-n, so newest first: 3, 2, 1 (deduped).
-    expect(result.items.map((i) => i.id)).toEqual([oid(3).toString(), oid(2).toString(), oid(1).toString()]);
+    expect(result.items.map((i) => i.id)).toEqual([id(3), id(2), id(1)]);
     expect(rankPosts).not.toHaveBeenCalled();
   });
 });
@@ -387,7 +422,7 @@ describe('FeedEngine — soft-fail', () => {
     };
 
     const result = await engine.run(def, { currentUserId: 'viewer' }, { limit: 30 });
-    expect(result.items.map((i) => i.id)).toEqual([oid(1).toString()]);
+    expect(result.items.map((i) => i.id)).toEqual([id(1)]);
   });
 });
 
@@ -405,7 +440,7 @@ describe('FeedEngine — ranked fallbacks', () => {
   }
 
   it('serves the popular fallback for an anonymous viewer (never gathering the ranked lane)', async () => {
-    const laneGather = vi.fn(async () => [makePost(1, { _testScore: 5 })]);
+    const laneGather = vi.fn(async () => [scored(1, 5)]);
     const popularGather = vi.fn(async () => [makePost(9)]);
     registry.register({ id: 'lane', kind: 'source', userComposable: false, gather: laneGather });
     registry.register({ id: 'popular', kind: 'source', userComposable: false, gather: popularGather });
@@ -413,7 +448,7 @@ describe('FeedEngine — ranked fallbacks', () => {
     const result = await engine.run(rankedDef(), {}, { limit: 30 });
     expect(popularGather).toHaveBeenCalledOnce();
     expect(laneGather).not.toHaveBeenCalled();
-    expect(result.items.map((i) => i.id)).toEqual([oid(9).toString()]);
+    expect(result.items.map((i) => i.id)).toEqual([id(9)]);
   });
 
   it('falls back to popular when the authenticated ranked pool is empty (never-blank)', async () => {
@@ -423,11 +458,11 @@ describe('FeedEngine — ranked fallbacks', () => {
 
     const result = await engine.run(rankedDef(), { currentUserId: 'viewer' }, { limit: 30 });
     expect(popularGather).toHaveBeenCalledOnce();
-    expect(result.items.map((i) => i.id)).toEqual([oid(9).toString()]);
+    expect(result.items.map((i) => i.id)).toEqual([id(9)]);
   });
 
   it('does not pass showSensitiveContent into rankPosts', async () => {
-    registry.register({ id: 'lane', kind: 'source', userComposable: false, gather: async () => [makePost(1, { _testScore: 5 })] });
+    registry.register({ id: 'lane', kind: 'source', userComposable: false, gather: async () => [scored(1, 5)] });
     registry.register({ id: 'popular', kind: 'source', userComposable: false, gather: async () => [] });
 
     await engine.run(rankedDef(), { currentUserId: 'viewer', showSensitiveContent: true }, { limit: 30 });

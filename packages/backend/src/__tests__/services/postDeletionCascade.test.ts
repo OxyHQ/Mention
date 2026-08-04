@@ -1,350 +1,616 @@
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+/**
+ * `deletePost` and the cascade under it, against REAL rows.
+ *
+ * ## Why this file had to be re-pointed
+ *
+ * The suite this replaces mocked `models/Post`, `models/Like`, `models/Notification`
+ * and ten more Mongoose models, and asserted the FILTER OBJECTS handed to them.
+ * Nothing reads any of those models: the delete path is one Postgres transaction.
+ * So every one of those assertions described a store the code had stopped using —
+ * green forever, and blind to the two defects that actually shipped here (a reply
+ * silently PROMOTED to a root post, and a cascade leg whose failure was
+ * indistinguishable from a leg that deleted nothing).
+ *
+ * ## The four properties, and why each needs a ROW to be observable
+ *
+ *  1. **The ownership claim is still ONE statement that authorizes and deletes.**
+ *     `deletePostRecord` carries the `oxy_user_id` predicate in the `DELETE`'s own
+ *     `WHERE`, so there is no window between the check and the write. A caller who
+ *     may not manage the post is refused and the row survives — asserted on the
+ *     ROW, because a refusal that had also written would pass a status assertion.
+ *  2. **A deleted parent's replies are GONE, not orphaned.** `posts.parent_post_id`
+ *     is `ON DELETE SET NULL`, so deleting the post first and repairing after —
+ *     which is what this route did — leaves the reply alive with
+ *     `parent_post_id: null` and `is_reply: true`: a root post nobody wrote. Only
+ *     reading the reply row back can tell "deleted" from "promoted".
+ *  3. **A tier-1 leg failure leaves the post PRESENT.** The seven explicit
+ *     reference legs run inside the same transaction as the `DELETE` and THROW, so
+ *     a failure rolls the whole thing back and the 500 is honest and retryable.
+ *     The shape this replaces reported a COMPLETED deletion whose leftovers no
+ *     retry could reach.
+ *  4. **Best-effort work after the commit is swallowed but COUNTED.** Fail-soft is
+ *     fine, silent is not — so the metric is asserted, not just the 200.
+ *
+ * ## `ON DELETE CASCADE` does most of the work, and that is deliberate
+ *
+ * Six of the thirteen known references cascade from `posts.id`, and a leg for
+ * them would be permanently untestable (the residue check runs after the delete,
+ * when the rows are gone either way). What this file exercises is the seven that
+ * a foreign key CANNOT express — polymorphic, URI-keyed, and the gate tables —
+ * plus the boost closure, which has to be captured BEFORE the delete because
+ * `posts.boost_of` cascades and takes the only link that could have found the
+ * boosts' own references.
+ */
+
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { and, eq, inArray } from 'drizzle-orm';
+import { PostType } from '@mention/shared-types';
+import type { OxyAuthRequest } from '@oxyhq/core/server';
 
 const mocks = vi.hoisted(() => ({
-  postFind: vi.fn(),
-  postDeleteMany: vi.fn(),
-  postUpdateOne: vi.fn(),
-  deleteMany: {} as Record<string, ReturnType<typeof vi.fn>>,
-  residue: vi.fn(),
-  error: vi.fn(),
-  /** Successive `Post.find` results, one per boost-closure round. */
-  boostRounds: [] as Array<Array<Record<string, unknown>>>,
+  deletePendingDeliveries: vi.fn(),
+  repairRecentRepliers: vi.fn(),
 }));
 
-function deleteManyMock(name: string) {
-  const fn = vi.fn(() => ({ exec: async () => ({ deletedCount: 1 }) }));
-  mocks.deleteMany[name] = fn;
-  return fn;
-}
-
-vi.mock('../../models/Post', () => ({
-  Post: {
-    find: (...args: unknown[]) => mocks.postFind(...args),
-    deleteMany: (...args: unknown[]) => mocks.postDeleteMany(...args),
-    updateOne: (...args: unknown[]) => mocks.postUpdateOne(...args),
-  },
-}));
-vi.mock('../../models/Like', () => ({ default: { deleteMany: deleteManyMock('Like') } }));
-vi.mock('../../models/Bookmark', () => ({ default: { deleteMany: deleteManyMock('Bookmark') } }));
-vi.mock('../../models/Notification', () => ({
-  default: { deleteMany: deleteManyMock('Notification') },
-}));
-vi.mock('../../models/Poll', () => ({ default: { deleteMany: deleteManyMock('Poll') } }));
-vi.mock('../../models/Article', () => ({ default: { deleteMany: deleteManyMock('Article') } }));
-vi.mock('../../models/Postgate', () => ({ Postgate: { deleteMany: deleteManyMock('Postgate') } }));
-vi.mock('../../models/Threadgate', () => ({
-  Threadgate: { deleteMany: deleteManyMock('Threadgate') },
-}));
-vi.mock('../../models/PostRecentReplier', () => ({
-  PostRecentReplier: { deleteMany: deleteManyMock('PostRecentReplier') },
-}));
-vi.mock('../../models/EngagementOutbox', () => ({
-  default: { deleteMany: deleteManyMock('EngagementOutbox') },
-}));
-vi.mock('../../models/ContentLabel', () => ({
-  default: { deleteMany: deleteManyMock('ContentLabel') },
-}));
-vi.mock('../../models/FeedInteraction', () => ({
-  FeedInteraction: { deleteMany: deleteManyMock('FeedInteraction') },
-}));
-vi.mock('../../models/FederationDeliveryQueue', () => ({
-  default: { deleteMany: deleteManyMock('FederationDeliveryQueue') },
+vi.mock('../../services/PostHydrationService', () => ({
+  postHydrationService: { hydratePosts: vi.fn(async (objs: object[]) => objs) },
+  resolveUserSummaries: vi.fn(async () => new Map()),
+  degradedActorSummary: vi.fn(() => ({ id: 'unknown', username: '' })),
 }));
 
-vi.mock('../../scripts/lib/adminDeletionPreflight', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../scripts/lib/adminDeletionPreflight')>()),
-  collectPostCascadeResidue: (...args: unknown[]) => mocks.residue(...args),
+vi.mock('../../utils/oxyHelpers', () => ({
+  createScopedOxyClient: vi.fn(() => ({})),
+  createUserScopedOxyServices: vi.fn(() => undefined),
+  getServiceOxyClient: vi.fn(() => ({})),
 }));
 
-vi.mock('../../utils/logger', () => ({
-  logger: {
-    error: (...args: unknown[]) => mocks.error(...args),
-    warn: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn(),
-  },
+vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
+
+// The two side effects that leave the process: the MTN chain write and the
+// outbound `Delete(Tombstone)`. Both are fire-and-forget and neither decides
+// anything here. Spread from the original so no OTHER export of these modules
+// silently becomes `undefined` for a module that imports one.
+vi.mock('../../services/mtn/MentionRecordEmitter', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../services/mtn/MentionRecordEmitter')>()),
+  emitTombstone: vi.fn(async () => undefined),
 }));
 
-import mongoose from 'mongoose';
-import { cascadeDeletedPost, collectBoostClosure } from '../../services/PostDeletionCascade';
+vi.mock('../../connectors/outboundFederation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../connectors/outboundFederation')>()),
+  federateAsResolvedActor: vi.fn(),
+}));
+
+/**
+ * SPIES over the real implementations, not stubs.
+ *
+ * Each is the injection point for one failure the suite has to produce — a tier-1
+ * leg that throws, and a best-effort step that throws — and neither failure can be
+ * provoked through the public surface. Wrapping rather than replacing keeps every
+ * OTHER test in this file running the real code: a stub here would quietly make
+ * the delivery-queue leg and the replier repair untested while the file still
+ * reads as if it covered them.
+ */
+vi.mock('../../db/federation/deliveryQueueRepository', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../db/federation/deliveryQueueRepository')>();
+  mocks.deletePendingDeliveries.mockImplementation(actual.deletePendingDeliveriesReferencingObjects);
+  return { ...actual, deletePendingDeliveriesReferencingObjects: mocks.deletePendingDeliveries };
+});
+
+vi.mock('../../services/PostRecentReplierService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../services/PostRecentReplierService')>();
+  mocks.repairRecentRepliers.mockImplementation(actual.repairRecentRepliersAfterPostDelete);
+  return { ...actual, repairRecentRepliersAfterPostDelete: mocks.repairRecentRepliers };
+});
+
+import { closePostgres, connectPostgres, getDb, type Database } from '../../db/postgres';
+import { notifications } from '../../db/schema/discovery';
+import { feedInteractions } from '../../db/schema/feeds';
+import { postgates } from '../../db/schema/gates';
+import { reports } from '../../db/schema/moderation';
+import { posts } from '../../db/schema/posts';
+import { clearPostScope, postScope, readPostRow, seedPost } from '../helpers/postFixtures';
+import {
+  CASCADED_POST_REFERENCES,
+  POST_DELETION_SIDE_EFFECT_FAILED_METRIC,
+  POST_REFERENCES_KEPT_BY_POLICY,
+  POST_REFERENCES_REMOVED_BY_DATABASE,
+  MAX_DELETION_TARGETS,
+  deletePostSubtree,
+} from '../../services/PostDeletionCascade';
 import { POST_REFERENCE_PROBE_NAMES } from '../../scripts/lib/adminDeletionPreflight';
+import { deletePost } from '../../controllers/posts.controller';
+import { metrics } from '../../utils/metrics';
+import { logger } from '../../utils/logger';
 
-const CASCADE_SOURCE = readFileSync(
-  path.resolve(__dirname, '../../services/PostDeletionCascade.ts'),
-  'utf8',
-);
+const scope = postScope('post-deletion-cascade');
+const AUTHOR = scope.user('author');
+const STRANGER = scope.user('stranger');
+const BOOSTER = scope.user('booster');
+const CHANNEL = scope.user('channel');
+const WRITER = scope.user('writer');
+const ACTOR = scope.user('actor');
 
-const POST_ID = new mongoose.Types.ObjectId();
+let db: Database;
+/** Rows this file writes outside `postScope`, removed by id in teardown. */
+const bulkPostIds: string[] = [];
 
-function filterOf(name: string): Record<string, unknown> {
-  const call = mocks.deleteMany[name]?.mock.calls[0];
-  if (!call) throw new Error(`${name}.deleteMany was never called`);
-  return call[0] as Record<string, unknown>;
+interface MockRes {
+  statusCode: number;
+  body: unknown;
+  status: (code: number) => MockRes;
+  json: (body: unknown) => MockRes;
 }
 
-describe('post deletion cascade', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.boostRounds.length = 0;
-    mocks.postFind.mockImplementation(() => ({
-      lean: async () => mocks.boostRounds.shift() ?? [],
-    }));
-    mocks.postDeleteMany.mockReturnValue({ exec: async () => ({ deletedCount: 0 }) });
-    mocks.postUpdateOne.mockReturnValue({ exec: async () => ({ modifiedCount: 1 }) });
-    mocks.residue.mockResolvedValue([]);
-  });
+function makeRes(): MockRes {
+  const res: MockRes = {
+    statusCode: 200,
+    body: undefined,
+    status(code) { this.statusCode = code; return this; },
+    json(body) { this.body = body; return this; },
+  };
+  return res;
+}
 
-  it('decides a disposition for every reference the preflight knows about', () => {
-    // The compiler already enforces this (the table is a `Record` over the
-    // probe union), but a runtime check carries the vacuity floor: an empty or
-    // truncated probe list would satisfy the type and prove nothing.
+function makeReq(postId: string, callerId: string): OxyAuthRequest {
+  return { user: { id: callerId }, params: { id: postId }, body: {} } as unknown as OxyAuthRequest;
+}
+
+async function runDelete(postId: string, callerId: string): Promise<MockRes> {
+  const res = makeRes();
+  await deletePost(makeReq(postId, callerId), res as never);
+  return res;
+}
+
+/** A notification naming a post — the polymorphic reference no FK can carry. */
+async function notifyAbout(
+  entityId: string,
+  options: { type?: 'like' | 'reply'; entityType?: 'post' | 'reply' } = {},
+): Promise<string> {
+  const [row] = await db
+    .insert(notifications)
+    .values({
+      recipientId: AUTHOR,
+      actorId: ACTOR,
+      type: options.type ?? 'like',
+      entityType: options.entityType ?? 'post',
+      entityId,
+    })
+    .returning({ id: notifications.id });
+  return row.id;
+}
+
+async function notificationExists(id: string): Promise<boolean> {
+  const rows = await db.select({ id: notifications.id }).from(notifications).where(eq(notifications.id, id));
+  return rows.length > 0;
+}
+
+async function seedInteraction(postUri: string): Promise<string> {
+  const [row] = await db
+    .insert(feedInteractions)
+    .values({ userId: AUTHOR, feedDescriptor: 'for_you', postUri, event: 'impression' })
+    .returning({ id: feedInteractions.id });
+  return row.id;
+}
+
+async function interactionExists(id: string): Promise<boolean> {
+  const rows = await db.select({ id: feedInteractions.id }).from(feedInteractions).where(eq(feedInteractions.id, id));
+  return rows.length > 0;
+}
+
+async function seedPostgate(postId: string, postUri: string): Promise<string> {
+  const [row] = await db
+    .insert(postgates)
+    .values({ postId, postUri, createdBy: AUTHOR })
+    .returning({ id: postgates.id });
+  return row.id;
+}
+
+async function postgateExists(id: string): Promise<boolean> {
+  const rows = await db.select({ id: postgates.id }).from(postgates).where(eq(postgates.id, id));
+  return rows.length > 0;
+}
+
+async function seedReport(postId: string): Promise<string> {
+  const [row] = await db
+    .insert(reports)
+    .values({ reportedType: 'post', reportedId: postId, reporter: STRANGER, categories: ['spam'] })
+    .returning({ id: reports.id });
+  return row.id;
+}
+
+/** The metric writes this run recorded, as `{step}` labels. */
+function sideEffectFailureSteps(spy: ReturnType<typeof vi.spyOn>): string[] {
+  return spy.mock.calls
+    .filter((call) => call[0] === POST_DELETION_SIDE_EFFECT_FAILED_METRIC)
+    .map((call) => (call[2] as { step: string } | undefined)?.step ?? '');
+}
+
+let incrementCounter: ReturnType<typeof vi.spyOn>;
+let loggedError: ReturnType<typeof vi.spyOn>;
+
+beforeAll(async () => {
+  db = await connectPostgres();
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  incrementCounter = vi.spyOn(metrics, 'incrementCounter');
+  loggedError = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+});
+
+afterEach(async () => {
+  incrementCounter.mockRestore();
+  loggedError.mockRestore();
+  await db.delete(notifications).where(inArray(notifications.recipientId, [AUTHOR]));
+  await db.delete(feedInteractions).where(inArray(feedInteractions.userId, [AUTHOR]));
+  await db.delete(postgates).where(inArray(postgates.createdBy, [AUTHOR]));
+  await db.delete(reports).where(inArray(reports.reporter, [STRANGER]));
+  await clearPostScope(scope);
+  if (bulkPostIds.length > 0) {
+    await db.delete(posts).where(inArray(posts.id, bulkPostIds.splice(0)));
+  }
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+describe('the disposition table', () => {
+  it('decides something for every reference the preflight knows about, exactly once', () => {
+    // The compiler already enforces the `Record` is total, but a runtime check
+    // carries the vacuity floor: an empty or truncated probe list would satisfy
+    // the type and prove nothing. Each of the three lists must also be non-empty,
+    // or a disposition nobody uses would read as covered.
     expect(POST_REFERENCE_PROBE_NAMES.length).toBeGreaterThanOrEqual(13);
-    for (const name of POST_REFERENCE_PROBE_NAMES) {
-      expect(CASCADE_SOURCE).toContain(`'${name}':`);
-    }
+    expect(CASCADED_POST_REFERENCES.length).toBeGreaterThan(0);
+    expect(POST_REFERENCES_REMOVED_BY_DATABASE.length).toBeGreaterThan(0);
+    expect(POST_REFERENCES_KEPT_BY_POLICY.length).toBeGreaterThan(0);
+
+    const decided = [
+      ...CASCADED_POST_REFERENCES,
+      ...POST_REFERENCES_REMOVED_BY_DATABASE,
+      ...POST_REFERENCES_KEPT_BY_POLICY,
+    ];
+    // Disjoint AND total: a reference claimed by two lists would be verified as
+    // cascaded while being deliberately kept, which is the confusion the split
+    // exists to remove.
+    expect(new Set(decided).size).toBe(decided.length);
+    expect([...decided].sort()).toEqual([...POST_REFERENCE_PROBE_NAMES].sort());
   });
 
-  it('deletes reply notifications, not only post ones', async () => {
-    await cascadeDeletedPost({ post: { _id: POST_ID } });
+  it('never CLAIMS the references the database removes, or the ones it keeps', () => {
+    // `collectPostCascadeResidue` re-runs exactly the claimed probes. Claiming a
+    // reference this module does not remove would report the shortfall it finds
+    // as satisfied; claiming one the FK removes would verify the schema instead
+    // of the cascade.
+    expect(CASCADED_POST_REFERENCES).not.toContain('reports.reported_id(post)');
+    expect(CASCADED_POST_REFERENCES).not.toContain('federation_delivery_queue.activity_json');
+    expect(CASCADED_POST_REFERENCES).not.toContain('likes.post_id');
+    expect(POST_REFERENCES_KEPT_BY_POLICY).toContain('reports.reported_id(post)');
+  });
+});
 
-    // `entityType` has three values and two of them name a post row. Filtering
+describe('the ownership claim', () => {
+  it('deletes the author’s own post and answers success', async () => {
+    const post = await seedPost(scope, { oxyUserId: AUTHOR });
+
+    const res = await runDelete(post.id, AUTHOR);
+
+    expect(res.statusCode).toBe(200);
+    expect(await readPostRow(post.id)).toBeUndefined();
+  });
+
+  it('refuses a stranger and LEAVES THE ROW, without disclosing that it exists', async () => {
+    const post = await seedPost(scope, { oxyUserId: AUTHOR });
+
+    const res = await runDelete(post.id, STRANGER);
+
+    // 404 and not 403: these routes have always answered 404 for a post the
+    // caller may not touch, so the response cannot be used to discover one.
+    expect(res.statusCode).toBe(404);
+    // The ROW, not the status. A refusal that had also written would satisfy the
+    // status assertion on its own.
+    expect(await readPostRow(post.id)).toBeDefined();
+  });
+
+  it('ROLLS BACK the subtree when the claim matches nothing — asserted on the FUNCTION, not the route', async () => {
+    /**
+     * THE FIXTURE IN THE GAP, and it needed TWO corrections to become one.
+     *
+     * `deletePostSubtree` runs the reference legs and deletes the replies BEFORE
+     * it claims the post, so when the ownership predicate matches nothing a
+     * subtree has already been removed inside the open transaction. Only a THROW
+     * discards it; a plain `return` COMMITS that damage and still returns null,
+     * so the caller answers a correct-looking 404 over a conversation that is
+     * now gone.
+     *
+     * Measured: mutating the throw to `return` left the whole suite green.
+     *
+     * The first attempt at this fixture drove it through the ROUTE with a
+     * stranger — and stayed green under the same mutation, because
+     * `postManagementRefusal` refuses a stranger BEFORE the transaction opens,
+     * so the claim inside it is never reached. That makes the claim genuine
+     * defence-in-depth (its reachable trigger is a race, or the channel-writer
+     * path where the claim uses `authorId`), and defence in depth is only
+     * testable at the layer that holds it. Hence this calls the function
+     * directly with a predicate that matches no row.
+     */
+    const post = await seedPost(scope, { oxyUserId: AUTHOR });
+    const reply = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      parentPostId: post.id,
+      isReply: true,
+    });
+
+    const result = await deletePostSubtree(post.id, eq(posts.oxyUserId, 'nobody-owns-this'));
+
+    expect(result).toBeNull();
+    expect(await readPostRow(post.id)).toBeDefined();
+    expect(await readPostRow(reply.id)).toBeDefined();
+  });
+
+  it('404s an id that names no row', async () => {
+    const res = await runDelete('00000000-0000-7000-8000-000000000000', AUTHOR);
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('lets the WRITER of a channel post delete it, though the row belongs to the channel', async () => {
+    /**
+     * The one case that can observe which id the ownership claim uses.
+     *
+     * `postManagementRefusal` deliberately admits the human who wrote a channel
+     * post (`canManagePostWithoutLookup` returns true when
+     * `writtenByOxyUserId === callerId`) and any co-operator of the channel. A
+     * channel post's `oxy_user_id` is the CHANNEL, so a claim built from the
+     * CALLER's id matches nothing: the transaction rolls back and the writer is
+     * told their own post does not exist — after being told they were allowed.
+     * That is what this merge briefly reintroduced, and what this pins.
+     *
+     * Every other delete in this suite is an ordinary author deleting their own
+     * post, where caller and owner are the same string and the two spellings are
+     * indistinguishable. This is the only fixture where they differ, which is
+     * why it is the only one that goes red on the wrong one.
+     *
+     * The lane path two hundred lines above carries a comment naming the same
+     * trap ("it used to be `userId` … which made every channel post unmovable").
+     */
+    const post = await seedPost(scope, {
+      oxyUserId: CHANNEL,
+      authorship: [{ oxyUserId: CHANNEL, role: 'owner', status: 'accepted' }],
+      writtenByOxyUserId: WRITER,
+    });
+
+    const res = await runDelete(post.id, WRITER);
+
+    expect(res.statusCode).toBe(200);
+    expect(await readPostRow(post.id)).toBeUndefined();
+  });
+});
+
+describe('the subtree the transaction owns', () => {
+  it('deletes a reply with its parent — GONE, never orphaned as a root post', async () => {
+    const parent = await seedPost(scope, { oxyUserId: AUTHOR });
+    const reply = await seedPost(scope, { oxyUserId: STRANGER, parentPostId: parent.id });
+
+    const res = await runDelete(parent.id, AUTHOR);
+
+    expect(res.statusCode).toBe(200);
+    // The whole point. `parent_post_id` is `ON DELETE SET NULL`, so deleting the
+    // post first leaves this row ALIVE with `parent_post_id: null` and
+    // `is_reply: true` — a root post nobody wrote, in every feed that reads
+    // roots. "The reply is gone" and "the reply was promoted" are both a
+    // successful-looking 200; only the row tells them apart.
+    expect(await readPostRow(reply.id)).toBeUndefined();
+  });
+
+  it("removes a reply's own references, which nothing could find after the delete", async () => {
+    const parent = await seedPost(scope, { oxyUserId: AUTHOR });
+    const reply = await seedPost(scope, { oxyUserId: STRANGER, parentPostId: parent.id });
+    const onReply = await notifyAbout(reply.id, { type: 'reply', entityType: 'reply' });
+
+    await runDelete(parent.id, AUTHOR);
+
+    expect(await notificationExists(onReply)).toBe(false);
+  });
+
+  it('removes a boost of the post AND the boost’s own references', async () => {
+    // `posts.boost_of` is `ON DELETE CASCADE`, so the boost row goes with the
+    // post whatever this module does — but its polymorphic references have
+    // nothing left to find them by unless the closure was captured FIRST.
+    const post = await seedPost(scope, { oxyUserId: AUTHOR });
+    const boost = await seedPost(scope, {
+      oxyUserId: BOOSTER,
+      type: PostType.BOOST,
+      boostOf: post.id,
+    });
+    const onBoost = await notifyAbout(boost.id);
+
+    await runDelete(post.id, AUTHOR);
+
+    expect(await readPostRow(boost.id)).toBeUndefined();
+    expect(await notificationExists(onBoost)).toBe(false);
+  });
+
+  it('follows the boost graph transitively', async () => {
+    // A boost of a boost cascades from the boost, so the same argument applies
+    // one level down and the capture has to be transitive.
+    const post = await seedPost(scope, { oxyUserId: AUTHOR });
+    const boost = await seedPost(scope, { oxyUserId: BOOSTER, type: PostType.BOOST, boostOf: post.id });
+    const nested = await seedPost(scope, { oxyUserId: STRANGER, type: PostType.BOOST, boostOf: boost.id });
+    const onNested = await notifyAbout(nested.id);
+
+    await runDelete(post.id, AUTHOR);
+
+    expect(await readPostRow(nested.id)).toBeUndefined();
+    expect(await notificationExists(onNested)).toBe(false);
+  });
+
+  it('refuses an oversized deletion outright rather than committing it half-cleaned', async () => {
+    const post = await seedPost(scope, { oxyUserId: AUTHOR });
+    const rows = Array.from({ length: MAX_DELETION_TARGETS }, () => ({
+      oxyUserId: STRANGER,
+      parentPostId: post.id,
+      isReply: true,
+    }));
+    const inserted = await db.insert(posts).values(rows).returning({ id: posts.id });
+    bulkPostIds.push(...inserted.map((row) => row.id));
+
+    const res = await runDelete(post.id, AUTHOR);
+
+    expect(res.statusCode).toBe(409);
+    // Nothing was deleted: the cap is checked before any leg runs, and the
+    // transaction never reaches the `DELETE`.
+    expect(await readPostRow(post.id)).toBeDefined();
+    expect(await readPostRow(inserted[0].id)).toBeDefined();
+  });
+});
+
+describe('the reference legs', () => {
+  it('deletes notifications naming the post under BOTH entity types', async () => {
+    // `entity_type` has three values and two of them name a post row. Filtering
     // on `'post'` alone left every reply notification behind — the shape the
     // route shipped with.
-    expect(filterOf('Notification')).toEqual({
-      entityType: { $in: ['post', 'reply'] },
-      entityId: { $in: [POST_ID] },
+    const post = await seedPost(scope, { oxyUserId: AUTHOR });
+    const asPost = await notifyAbout(post.id, { type: 'like', entityType: 'post' });
+    const asReply = await notifyAbout(post.id, { type: 'reply', entityType: 'reply' });
+    const other = await seedPost(scope, { oxyUserId: AUTHOR });
+    const untouched = await notifyAbout(other.id);
+
+    await runDelete(post.id, AUTHOR);
+
+    expect(await notificationExists(asPost)).toBe(false);
+    expect(await notificationExists(asReply)).toBe(false);
+    // Scoped: a leg that deleted every notification of this recipient would pass
+    // the two assertions above.
+    expect(await notificationExists(untouched)).toBe(true);
+  });
+
+  it('matches the URI-keyed and two-key legs by the AP identifiers as well as the id', async () => {
+    // A federated post travels under identifiers that are not `posts.id`, and
+    // `feed_interactions.post_uri` / the gate tables are keyed by them. A leg that
+    // only ever passed ids matches nothing here and reports success.
+    const activityId = `https://remote.test/${scope.name}/notes/1`;
+    const post = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      federation: { activityId },
     });
+    const byId = await seedInteraction(post.id);
+    const byUri = await seedInteraction(activityId);
+    const elsewhere = await seedInteraction(`https://remote.test/${scope.name}/notes/other`);
+    const gateById = await seedPostgate(post.id, `urn:${scope.name}:gate-by-id`);
+    const gateByUri = await seedPostgate(`other-${scope.name}`, activityId);
+
+    await runDelete(post.id, AUTHOR);
+
+    expect(await interactionExists(byId)).toBe(false);
+    expect(await interactionExists(byUri)).toBe(false);
+    expect(await interactionExists(elsewhere)).toBe(true);
+    expect(await postgateExists(gateById)).toBe(false);
+    expect(await postgateExists(gateByUri)).toBe(false);
   });
 
-  it('matches side tables by post id AND by the ActivityPub identifiers', async () => {
-    await cascadeDeletedPost({
-      post: {
-        _id: POST_ID,
-        federation: { activityId: 'https://remote/notes/1', url: 'https://remote/@a/1' },
-      },
-    });
+  it('KEEPS the moderation report, which is not the deleting user’s to erase', async () => {
+    // Deleting it would strand an inbound CrowdSource decision:
+    // `ModerationDecisionWorker` resolves a case through `Report.crowdSourceCaseId`
+    // and treats "no local report" as RETRYABLE, so the decision would back off
+    // and retry until it expired.
+    const post = await seedPost(scope, { oxyUserId: AUTHOR });
+    const reportId = await seedReport(post.id);
 
-    expect(filterOf('FeedInteraction')).toEqual({
-      postUri: {
-        $in: [String(POST_ID), 'https://remote/notes/1', 'https://remote/@a/1'],
-      },
-    });
-    const keys = [String(POST_ID), 'https://remote/notes/1', 'https://remote/@a/1'];
-    expect(filterOf('FederationDeliveryQueue')).toEqual({
-      status: 'pending',
-      $or: [
-        { 'activityJson.id': { $in: keys } },
-        { 'activityJson.object.id': { $in: keys } },
-        { 'activityJson.object': { $in: keys } },
-      ],
-    });
+    await runDelete(post.id, AUTHOR);
+
+    const rows = await db.select({ id: reports.id }).from(reports).where(eq(reports.id, reportId));
+    expect(rows).toHaveLength(1);
   });
 
-  it('cancels only the queue rows that can still act, through an indexed prefix', async () => {
-    await cascadeDeletedPost({ post: { _id: POST_ID } });
+  it('rolls the WHOLE deletion back when a tier-1 leg fails, leaving the post present', async () => {
+    const post = await seedPost(scope, { oxyUserId: AUTHOR });
+    const reply = await seedPost(scope, { oxyUserId: STRANGER, parentPostId: post.id });
+    const notification = await notifyAbout(post.id);
+    mocks.deletePendingDeliveries.mockRejectedValueOnce(new Error('deadlock detected'));
 
-    // Neither collection is indexed on the field the post is named by, and one
-    // of them is never pruned at all — so an unscoped delete here is a
-    // collection scan on the route every user hits. `status` is an index prefix
-    // on both, and a completed row is a log entry rather than a live pointer.
-    expect(filterOf('EngagementOutbox')).toEqual({
-      status: 'pending',
-      'payload.postId': { $in: [String(POST_ID)] },
-    });
-    expect(filterOf('FederationDeliveryQueue')).toMatchObject({ status: 'pending' });
+    const res = await runDelete(post.id, AUTHOR);
+
+    // Honest and retryable. The shape this replaces swallowed the failure and
+    // reported a COMPLETED deletion whose leftovers no retry could ever reach.
+    expect(res.statusCode).toBe(500);
+    expect(await readPostRow(post.id)).toBeDefined();
+    expect(await readPostRow(reply.id)).toBeDefined();
+    // The legs that ran BEFORE the failing one are rolled back too — they are in
+    // the same transaction as the `DELETE`, which is the only thing that makes
+    // throwing coherent.
+    expect(await notificationExists(notification)).toBe(true);
   });
 
-  it('never claims the queues it only partly clears', async () => {
-    // Claiming them would make the residue check verify something the cascade
-    // does not do, and report the shortfall it finds as satisfied.
-    expect(CASCADE_SOURCE).toContain("'EngagementOutbox.payload.postId': 'cancel-pending'");
-    expect(CASCADE_SOURCE).toContain("'FederationDeliveryQueue.activityJson': 'cancel-pending'");
+  it('retries cleanly once the failing leg recovers', async () => {
+    // The vacuity floor for the case above: a 500 that could never become a 200
+    // would satisfy it just as well, and "retryable" is the claim being made.
+    const post = await seedPost(scope, { oxyUserId: AUTHOR });
+    mocks.deletePendingDeliveries.mockRejectedValueOnce(new Error('deadlock detected'));
 
-    await cascadeDeletedPost({ post: { _id: POST_ID } });
+    expect((await runDelete(post.id, AUTHOR)).statusCode).toBe(500);
+    expect((await runDelete(post.id, AUTHOR)).statusCode).toBe(200);
+    expect(await readPostRow(post.id)).toBeUndefined();
+  });
+});
 
-    const [, claimed] = mocks.residue.mock.calls.at(-1) ?? [];
-    expect(claimed).toEqual(
-      expect.not.arrayContaining([
-        'EngagementOutbox.payload.postId',
-        'FederationDeliveryQueue.activityJson',
-      ]),
-    );
-    expect(claimed).toEqual(expect.arrayContaining(['Like.postId', 'Bookmark.postId']));
+describe('best-effort work after the commit', () => {
+  it('swallows a failed projection repair but COUNTS it', async () => {
+    // The post is gone and the user is about to be told so — a projection that
+    // could not be repaired is not a reason to report a completed deletion as a
+    // failure. Fail-soft is fine, SILENT is not, so the metric is the assertion.
+    const parent = await seedPost(scope, { oxyUserId: STRANGER });
+    const post = await seedPost(scope, { oxyUserId: AUTHOR, parentPostId: parent.id });
+    mocks.repairRecentRepliers.mockRejectedValueOnce(new Error('projection unavailable'));
+
+    const res = await runDelete(post.id, AUTHOR);
+
+    expect(res.statusCode).toBe(200);
+    expect(await readPostRow(post.id)).toBeUndefined();
+    expect(sideEffectFailureSteps(incrementCounter)).toEqual(['recent_replier_projection']);
   });
 
-  it('cleans the references of replies the caller already deleted', async () => {
-    const replyId = new mongoose.Types.ObjectId();
+  it('repairs the surviving parent’s reply counter, guarded so it cannot go negative', async () => {
+    const parent = await seedPost(scope, { oxyUserId: STRANGER });
+    await db.update(posts).set({ statsCommentsCount: 1 }).where(eq(posts.id, parent.id));
+    const reply = await seedPost(scope, { oxyUserId: AUTHOR, parentPostId: parent.id });
 
-    await cascadeDeletedPost({
-      post: { _id: POST_ID },
-      alsoDeleted: [{ _id: replyId }],
-    });
+    await runDelete(reply.id, AUTHOR);
 
-    expect(filterOf('Like')).toEqual({ postId: { $in: [POST_ID, replyId] } });
-    expect(filterOf('Bookmark')).toEqual({ postId: { $in: [POST_ID, replyId] } });
+    const [row] = await db
+      .select({ count: posts.statsCommentsCount })
+      .from(posts)
+      .where(eq(posts.id, parent.id));
+    expect(row.count).toBe(0);
   });
 
-  it('decrements the parent reply counter, guarded so it cannot go negative', async () => {
-    const parentId = new mongoose.Types.ObjectId();
+  it('never drives an already-zero counter below zero', async () => {
+    // The guard is `> 0`, the same one the unboost path and the administrative
+    // purge use. A counter already behind is repairable; a negative one renders.
+    const parent = await seedPost(scope, { oxyUserId: STRANGER });
+    const reply = await seedPost(scope, { oxyUserId: AUTHOR, parentPostId: parent.id });
 
-    await cascadeDeletedPost({ post: { _id: POST_ID, parentPostId: String(parentId) } });
+    await runDelete(reply.id, AUTHOR);
 
-    expect(mocks.postUpdateOne).toHaveBeenCalledWith(
-      { _id: String(parentId), 'stats.commentsCount': { $gt: 0 } },
-      { $inc: { 'stats.commentsCount': -1 } },
-    );
+    const [row] = await db
+      .select({ count: posts.statsCommentsCount })
+      .from(posts)
+      .where(and(eq(posts.id, parent.id)));
+    expect(row.count).toBe(0);
   });
 
-  it('leaves the boost counter alone when the boosted post is being deleted too', async () => {
-    const boostId = new mongoose.Types.ObjectId();
-    mocks.boostRounds.push([{ _id: boostId, boostOf: String(POST_ID) }]);
+  it('records nothing at all when the deletion is clean', async () => {
+    // The vacuity floor for the counter: it must not fire on the happy path, or
+    // "it was counted" says nothing about the failure that supposedly caused it.
+    const post = await seedPost(scope, { oxyUserId: AUTHOR });
+    await notifyAbout(post.id);
 
-    await cascadeDeletedPost({ post: { _id: POST_ID } });
+    const res = await runDelete(post.id, AUTHOR);
 
-    // The boost's target IS the deleted post, so decrementing its counter would
-    // be writing to a row that no longer exists.
-    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
-  });
-
-  it('repairs the boost counters of a surviving original when a boost is deleted', async () => {
-    const originalId = new mongoose.Types.ObjectId();
-
-    await cascadeDeletedPost({
-      post: {
-        _id: POST_ID,
-        boostOf: String(originalId),
-        federation: { activityId: 'https://remote/announce/1' },
-      },
-    });
-
-    expect(mocks.postUpdateOne).toHaveBeenCalledWith(
-      { _id: String(originalId), 'stats.boostsCount': { $gt: 0 } },
-      { $inc: { 'stats.boostsCount': -1 } },
-    );
-    expect(mocks.postUpdateOne).toHaveBeenCalledWith(
-      { _id: String(originalId), 'stats.federatedBoostsCount': { $gt: 0 } },
-      { $inc: { 'stats.federatedBoostsCount': -1 } },
-    );
-  });
-
-  it('does not touch the federated boost counter for a native boost', async () => {
-    const originalId = new mongoose.Types.ObjectId();
-
-    await cascadeDeletedPost({ post: { _id: POST_ID, boostOf: String(originalId) } });
-
-    expect(mocks.postUpdateOne).toHaveBeenCalledTimes(1);
-    expect(mocks.postUpdateOne).toHaveBeenCalledWith(
-      { _id: String(originalId), 'stats.boostsCount': { $gt: 0 } },
-      { $inc: { 'stats.boostsCount': -1 } },
-    );
-  });
-
-  it('follows the boost graph transitively and deletes the rows last', async () => {
-    const boostId = new mongoose.Types.ObjectId();
-    const nestedId = new mongoose.Types.ObjectId();
-    mocks.boostRounds.push(
-      [{ _id: boostId, boostOf: String(POST_ID) }],
-      [{ _id: nestedId, boostOf: String(boostId) }],
-    );
-
-    await cascadeDeletedPost({ post: { _id: POST_ID } });
-
-    // A boost of a boost would otherwise be left rendering the same blank card
-    // the expansion exists to prevent.
-    expect(mocks.postDeleteMany).toHaveBeenCalledWith({ _id: { $in: [boostId, nestedId] } });
-    // Their own references go first, so a run that dies midway leaves boosts
-    // pointing at nothing rather than boost references pointing at nothing.
-    expect(filterOf('Like')).toEqual({ postId: { $in: [POST_ID, boostId, nestedId] } });
-  });
-
-  it('refuses to expand an oversized boost closure instead of deleting a prefix', async () => {
-    mocks.boostRounds.push(
-      Array.from({ length: 501 }, () => ({
-        _id: new mongoose.Types.ObjectId(),
-        boostOf: String(POST_ID),
-      })),
-    );
-
-    await expect(collectBoostClosure([String(POST_ID)])).resolves.toBeNull();
-  });
-
-  it('deletes nothing at all when the boost closure is refused', async () => {
-    mocks.boostRounds.push(
-      Array.from({ length: 501 }, () => ({
-        _id: new mongoose.Types.ObjectId(),
-        boostOf: String(POST_ID),
-      })),
-    );
-
-    await cascadeDeletedPost({ post: { _id: POST_ID } });
-
-    expect(mocks.deleteMany.Like).not.toHaveBeenCalled();
-    expect(mocks.postDeleteMany).not.toHaveBeenCalled();
-    expect(mocks.error).toHaveBeenCalledWith(
-      'Post deletion cascade refused to expand an oversized boost closure',
-      expect.objectContaining({ postId: String(POST_ID) }),
-    );
-  });
-
-  it('names the leg that failed instead of swallowing it', async () => {
-    mocks.deleteMany.Like.mockReturnValueOnce({
-      exec: async () => {
-        throw new Error('index build in progress');
-      },
-    });
-
-    await cascadeDeletedPost({ post: { _id: POST_ID } });
-
-    // `Promise.allSettled` never rejects, so the previous shape could not tell a
-    // leg that threw from one that deleted nothing.
-    expect(mocks.error).toHaveBeenCalledWith(
-      'Post deletion cascade leg failed',
-      expect.objectContaining({ reference: 'Like.postId' }),
-    );
-    expect(mocks.error).toHaveBeenCalledWith(
-      'Post deletion cascade left references behind',
-      expect.objectContaining({ failedLegs: ['Like.postId'] }),
-    );
-  });
-
-  it('reports residue found by re-running the probes it claimed', async () => {
-    mocks.residue.mockResolvedValue(['Bookmark.postId']);
-
-    await cascadeDeletedPost({ post: { _id: POST_ID } });
-
-    expect(mocks.error).toHaveBeenCalledWith(
-      'Post deletion cascade left references behind',
-      expect.objectContaining({ residue: ['Bookmark.postId'] }),
-    );
-  });
-
-  it('stays silent when the cascade is clean', async () => {
-    await cascadeDeletedPost({ post: { _id: POST_ID } });
-
-    expect(mocks.error).not.toHaveBeenCalled();
-  });
-
-  it('never reports a delete the user asked for as a failure', async () => {
-    mocks.postFind.mockImplementation(() => ({
-      lean: async () => {
-        throw new Error('Mongo unavailable');
-      },
-    }));
-
-    await expect(cascadeDeletedPost({ post: { _id: POST_ID } })).resolves.toBeUndefined();
-    expect(mocks.error).toHaveBeenCalledWith(
-      'Post deletion cascade failed',
-      expect.objectContaining({ postId: String(POST_ID) }),
-    );
-  });
-
-  it('keeps moderation reports, which are not the deleting user’s to erase', () => {
-    // Deleting the row would strand an inbound CrowdSource decision:
-    // `ModerationDecisionWorker` resolves a case through
-    // `Report.crowdSourceCaseId` and treats "no local report" as retryable.
-    expect(CASCADE_SOURCE).toContain("'Report.reportedId(post)': 'retain'");
-    expect(mocks.deleteMany.Report).toBeUndefined();
+    expect(res.statusCode).toBe(200);
+    expect(sideEffectFailureSteps(incrementCounter)).toEqual([]);
+    // Including the residue check, which re-runs every CLAIMED probe against the
+    // committed state — so a leg that silently matched nothing is reported here.
+    expect(loggedError).not.toHaveBeenCalled();
   });
 });

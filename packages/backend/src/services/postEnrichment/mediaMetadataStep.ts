@@ -22,11 +22,10 @@ export function enrichMediaMetadata(posts: ReadonlyArray<IngestedPost>): void {
     const media = post.content?.media as MediaItem[] | undefined;
     if (!Array.isArray(media) || !mediaMetadataService.needsOxyRetry(media)) continue;
 
-    const postId = String(post._id);
-    void enqueueMediaMetadataEnrich(postId).catch((error: unknown) => {
+    void enqueueMediaMetadataEnrich(post.id).catch((error: unknown) => {
       // An unavailable queue must never surface as an ingest failure.
       logger.debug('[PostEnrichment] Failed to enqueue media metadata enrich', {
-        postId,
+        postId: post.id,
         reason: error instanceof Error ? error.message : 'unknown',
       });
     });

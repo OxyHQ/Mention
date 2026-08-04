@@ -1,0 +1,320 @@
+/**
+ * After the copy: did every document arrive, and did every FIELD arrive?
+ *
+ * Two checks, because they fail differently and one cannot stand in for the
+ * other.
+ *
+ * - **Row counts** catch a document that never became a row. Cheap, total —
+ *   every collection, every table, no sampling.
+ * - **Field fidelity** catches a row that arrived with a column wrong. A count
+ *   cannot see that at all: a row with a NULL where the source had a value
+ *   counts exactly the same as a correct one.
+ *
+ * ## Fidelity re-runs the TRANSFORM, and must run it under the SAME resolutions
+ *
+ * The expectation is not a hand-written fixture — it is what the plan's own
+ * transform produces from the live source document, compared against what
+ * Postgres actually holds. That is the only formulation that scales to 73
+ * tables and stays correct as the plans change.
+ *
+ * It also means the resolutions are load-bearing here. A verifier running the
+ * transform with DIFFERENT documented decisions than the copy used would report
+ * every resolved row as a fidelity failure — so `ResolutionContext` is a
+ * required parameter, exactly as it is for the copy, and the caller is expected
+ * to pass the one the run built.
+ *
+ * ## What a mismatch means, and why NULL-vs-absent is not one
+ *
+ * A column the transform OMITTED is one the database default filled in, so the
+ * comparison skips it: the transform is not claiming a value there. A column
+ * the transform supplied as `null` IS a claim, and is compared.
+ */
+
+import { eq, getTableColumns, sql } from 'drizzle-orm';
+import type { PgTable } from 'drizzle-orm/pg-core';
+import type { Database } from '../postgres';
+import { streamCollection, type MongoSource } from './mongoSource';
+import { planTables, singlePrimaryKeyProperty, tableName, type CollectionPlan } from './plan';
+import { transformDocument, type ParentKeys, type ResolutionContext } from './resolutions';
+
+/** How many documents per collection to check field-by-field. */
+export const DEFAULT_FIDELITY_SAMPLE = 200;
+
+/** What one table's counts came out as. */
+export interface TableCount {
+  readonly table: string;
+  /** Rows the transforms produced for it across the whole collection. */
+  readonly expected: number;
+  /** Rows Postgres actually holds. */
+  readonly actual: number;
+}
+
+/** One column that does not match. */
+export interface FieldMismatch {
+  readonly table: string;
+  readonly rowId: string;
+  readonly column: string;
+  readonly expected: string;
+  readonly actual: string;
+}
+
+/** What verifying one collection found. */
+export interface CollectionVerification {
+  readonly collection: string;
+  readonly documents: number;
+  readonly counts: readonly TableCount[];
+  readonly documentsSampled: number;
+  readonly rowsCompared: number;
+  readonly columnsCompared: number;
+  readonly mismatches: readonly FieldMismatch[];
+  /** Rows the transform produced that Postgres does not hold at all. */
+  readonly missingRows: readonly string[];
+}
+
+/** The whole verification. */
+export interface VerificationReport {
+  readonly collections: readonly CollectionVerification[];
+  readonly countMismatches: readonly TableCount[];
+  readonly fieldMismatches: readonly FieldMismatch[];
+  readonly missingRows: number;
+  readonly documentsSampled: number;
+  readonly columnsCompared: number;
+}
+
+/** Raised when the verification inspected too little to mean anything. */
+export class VacuousVerificationError extends Error {
+  constructor(readonly report: VerificationReport, reason: string) {
+    super(
+      `The verification proves nothing: ${reason}. It sampled ` +
+        `${report.documentsSampled} document(s) and compared ` +
+        `${report.columnsCompared} column value(s). "No mismatches" from a check ` +
+        'that compared nothing is indistinguishable from a faithful copy, which ' +
+        'is the one thing a verifier must never be.'
+    );
+    this.name = 'VacuousVerificationError';
+  }
+}
+
+/** Did the verification pass? */
+export function verificationPassed(report: VerificationReport): boolean {
+  return (
+    report.countMismatches.length === 0 &&
+    report.fieldMismatches.length === 0 &&
+    report.missingRows === 0
+  );
+}
+
+/**
+ * Render a value the way both sides can be compared.
+ *
+ * Dates go to epoch milliseconds (a `timestamptz` round-trips as a `Date`, and
+ * two Dates for the same instant are not `===`), arrays and objects to sorted
+ * JSON, everything else to `String`. Deliberately NOT `toISOString`: Postgres
+ * returns microsecond precision on some platforms and Mongo stores
+ * milliseconds, so comparing strings would report a mismatch for two values
+ * that denote the same instant.
+ */
+export function comparable(value: unknown): string {
+  if (value === null || value === undefined) return '\u0000null';
+  if (value instanceof Date) return `date:${value.getTime()}`;
+  if (Array.isArray(value)) return `array:${JSON.stringify(value)}`;
+  if (typeof value === 'object') return `object:${stableJson(value as Record<string, unknown>)}`;
+  if (typeof value === 'number') return `number:${value}`;
+  if (typeof value === 'boolean') return `boolean:${value}`;
+  return `string:${String(value)}`;
+}
+
+/** JSON with object keys sorted at every level, so key order is not a diff. */
+function stableJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
+    a < b ? -1 : a > b ? 1 : 0
+  );
+  return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${stableJson(entry)}`).join(',')}}`;
+}
+
+/** Count the rows a table currently holds. */
+async function countRows(db: Database, table: string): Promise<number> {
+  const rows = await db.execute<{ n: string }>(
+    sql`select count(*)::text as n from ${sql.identifier(table)}`
+  );
+  return Number(rows[0]?.n ?? '0');
+}
+
+/**
+ * Verify one collection.
+ *
+ * Counts are TOTAL — every document is streamed and its transform run, so the
+ * expected row count per table is exact rather than extrapolated. Field
+ * fidelity samples, because comparing every column of every row would be a
+ * second full copy's worth of work for a check whose failures are systematic:
+ * a transform that drops a column drops it on every row, so the first sample
+ * finds it.
+ */
+export async function verifyCollection(
+  db: Database,
+  source: MongoSource,
+  plan: CollectionPlan,
+  resolutions: ResolutionContext,
+  parents: ParentKeys,
+  options: { readonly batchSize?: number; readonly sample?: number } = {}
+): Promise<CollectionVerification> {
+  const batchSize = options.batchSize ?? 1000;
+  const sampleLimit = options.sample ?? DEFAULT_FIDELITY_SAMPLE;
+  const tables = planTables(plan);
+
+  const expected = new Map<string, number>();
+  for (const table of tables) expected.set(tableName(table), 0);
+
+  const mismatches: FieldMismatch[] = [];
+  const missingRows: string[] = [];
+  let documents = 0;
+  let documentsSampled = 0;
+  let rowsCompared = 0;
+  let columnsCompared = 0;
+
+  for await (const batch of streamCollection(source, plan.collection, batchSize)) {
+    for (const doc of batch) {
+      documents += 1;
+      const sampleThis = documentsSampled < sampleLimit;
+      let sampledAnyRow = false;
+
+      const rowsToCheck: Array<{ table: PgTable; row: Record<string, unknown> }> = [];
+      transformDocument(plan, doc, resolutions, parents, (emitted) => {
+        // A row a documented rule removed is not expected in Postgres, and must
+        // not be counted as one — otherwise every resolved row reads as a
+        // count mismatch AND a missing row.
+        if (emitted.written === null) return;
+        const name = tableName(emitted.table);
+        expected.set(name, (expected.get(name) ?? 0) + 1);
+        if (sampleThis) rowsToCheck.push({ table: emitted.table, row: emitted.written });
+      });
+
+      for (const { table, row } of rowsToCheck) {
+        const key = singlePrimaryKeyProperty(table);
+        if (key === null) continue;
+        const rowId = row[key];
+        if (typeof rowId !== 'string') continue;
+
+        const name = tableName(table);
+        // A TYPED select, never a raw `db.execute`. Drizzle's type parsers are
+        // not applied to raw SQL: a `timestamptz` comes back as the STRING
+        // `2024-01-02 03:04:05.678+00` rather than a Date, so a comparator
+        // would report a mismatch on every timestamp column of every row —
+        // a verifier that cries wolf, which gets disabled by whoever hits it.
+        // Measured, not reasoned about. The typed path also returns rows keyed
+        // by PROPERTY name, which is what the transform's row is keyed by, so
+        // no column-name translation is needed on either side.
+        const stored = await db
+          .select()
+          .from(table)
+          .where(eq(idColumnOf(table, key), rowId))
+          .limit(1);
+        const actual = stored[0] as Record<string, unknown> | undefined;
+        if (actual === undefined) {
+          missingRows.push(`${name}:${rowId}`);
+          continue;
+        }
+
+        sampledAnyRow = true;
+        rowsCompared += 1;
+        for (const [property, value] of Object.entries(row)) {
+          // An OMITTED column is not a claim — the default filled it in. Only
+          // what the transform supplied is compared.
+          columnsCompared += 1;
+          const want = comparable(value);
+          const got = comparable(actual[property]);
+          if (want === got) continue;
+          mismatches.push({ table: name, rowId, column: property, expected: want, actual: got });
+        }
+      }
+
+      if (sampleThis && sampledAnyRow) documentsSampled += 1;
+    }
+  }
+
+  const counts: TableCount[] = [];
+  for (const table of tables) {
+    const name = tableName(table);
+    counts.push({
+      table: name,
+      expected: expected.get(name) ?? 0,
+      actual: await countRows(db, name),
+    });
+  }
+
+  return {
+    collection: plan.collection,
+    documents,
+    counts,
+    documentsSampled,
+    rowsCompared,
+    columnsCompared,
+    mismatches,
+    missingRows,
+  };
+}
+
+/**
+ * A table's column, by property name, for keying the lookup.
+ *
+ * Taken from `getTableColumns` at the package ROOT so it is assignable to `eq`,
+ * which also comes from the root — the `pg-core` subpath can declare a
+ * structurally incompatible `PgColumn`.
+ */
+function idColumnOf(table: PgTable, property: string): ReturnType<typeof getTableColumns>[string] {
+  const column = getTableColumns(table)[property];
+  if (!column) {
+    // `buildRow` refuses an unknown key, so a row reaching here with a property
+    // that is not a column was built some other way — and guessing would
+    // compare the wrong column.
+    throw new Error(
+      `${tableName(table)} has no column with property name ${JSON.stringify(property)}; ` +
+        'the verifier cannot decide which column to compare.'
+    );
+  }
+  return column;
+}
+
+/**
+ * Verify every mapped collection.
+ *
+ * @throws {VacuousVerificationError} When it compared nothing — a clean report
+ *   from a check that never ran is the failure this whole file exists to avoid.
+ */
+export async function verifyBackfill(
+  db: Database,
+  source: MongoSource,
+  plans: readonly CollectionPlan[],
+  resolutions: ResolutionContext,
+  parents: ParentKeys,
+  options: { readonly batchSize?: number; readonly sample?: number } = {}
+): Promise<VerificationReport> {
+  const collections: CollectionVerification[] = [];
+  for (const plan of plans) {
+    collections.push(await verifyCollection(db, source, plan, resolutions, parents, options));
+  }
+
+  const countMismatches = collections
+    .flatMap((entry) => entry.counts)
+    .filter((count) => count.expected !== count.actual);
+
+  const report: VerificationReport = {
+    collections,
+    countMismatches,
+    fieldMismatches: collections.flatMap((entry) => entry.mismatches),
+    missingRows: collections.reduce((total, entry) => total + entry.missingRows.length, 0),
+    documentsSampled: collections.reduce((total, entry) => total + entry.documentsSampled, 0),
+    columnsCompared: collections.reduce((total, entry) => total + entry.columnsCompared, 0),
+  };
+
+  // The floor. A collection set that is legitimately all-empty compares nothing
+  // and is not a failure, so the floor only fires when there WAS data to check.
+  const documents = collections.reduce((total, entry) => total + entry.documents, 0);
+  if (documents > 0 && report.columnsCompared === 0) {
+    throw new VacuousVerificationError(report, 'documents were read but no column was compared');
+  }
+
+  return report;
+}

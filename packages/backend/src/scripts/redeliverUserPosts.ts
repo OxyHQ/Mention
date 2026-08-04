@@ -30,9 +30,12 @@
  */
 
 import mongoose from 'mongoose';
-import { Post } from '../models/Post';
-import FederatedFollow from '../models/FederatedFollow';
-import FederatedActor from '../models/FederatedActor';
+import { and, asc, count, eq, isNull, ne } from 'drizzle-orm';
+import { connectPostgres, getDb } from '../db/postgres';
+import { posts as postsTable } from '../db/schema/posts';
+import { findPostRecords } from '../db/posts/postRepository';
+import { findActorsByUris } from '../db/federation/actorRepository';
+import { findFollows } from '../db/federation/followRepository';
 import { followService, type NoteSourcePost } from '../connectors/activitypub/follow.service';
 import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
 import { isFediverseSharingEnabled } from '../services/fediverseSharing';
@@ -66,7 +69,7 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
 /**
  * Resolve the target's remote follower inboxes for REPORTING only (the header and
  * dry-run output). This mirrors the exact ownership query `deliverToFollowers`
- * uses — accepted inbound `FederatedFollow`s → `FederatedActor` shared/personal
+ * uses — accepted inbound `federated_follows` → `federated_actors` shared/personal
  * inbox, deduped by shared inbox — but never sends anything itself. Actual
  * delivery goes through `federateNewPost` (which re-runs this resolution). Not a
  * second delivery/signing path; purely read-only enumeration for the operator.
@@ -74,19 +77,13 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
 async function resolveFollowerInboxes(
   oxyUserId: string,
 ): Promise<{ followerCount: number; inboxes: string[] }> {
-  const follows = await FederatedFollow.find(
-    { localUserId: oxyUserId, direction: 'inbound', status: 'accepted' },
-    { remoteActorUri: 1 },
-  ).lean<{ remoteActorUri: string }[]>();
+  const follows = await findFollows({
+    localUserId: oxyUserId,
+    direction: 'inbound',
+    statuses: ['accepted'],
+  });
 
-  const actorUris = follows.map((f) => f.remoteActorUri);
-  const actors =
-    actorUris.length > 0
-      ? await FederatedActor.find(
-          { uri: { $in: actorUris } },
-          { uri: 1, sharedInboxUrl: 1, inboxUrl: 1 },
-        ).lean<{ uri: string; sharedInboxUrl?: string; inboxUrl?: string }[]>()
-      : [];
+  const actors = await findActorsByUris(follows.map((f) => f.remoteActorUri));
 
   const seen = new Set<string>();
   const inboxes: string[] = [];
@@ -131,8 +128,11 @@ async function redeliverUserPosts(): Promise<void> {
     scriptName: 'redeliverUserPosts',
     dryRun,
   });
+  // BOTH stores: the posts are Postgres, the follower/actor rows this resolves
+  // inboxes from are still Mongo models the federation batch owns.
+  await connectPostgres();
   await mongoose.connect(mongoUri, { dbName });
-  logger.info('[redeliverUserPosts] connected to MongoDB');
+  logger.info('[redeliverUserPosts] connected to PostgreSQL + MongoDB');
 
   try {
     // 2. Resolve the owner username SERVER-SIDE from the authoritative oxyUserId
@@ -167,17 +167,23 @@ async function redeliverUserPosts(): Promise<void> {
     //    chronological. Mirrors the ownership/visibility filter the outbox route
     //    (`/ap/users/:username/outbox`) uses, plus the explicit local-origin +
     //    not-a-boost guards this backfill requires.
-    const postFilter = {
-      oxyUserId: targetUserId,
-      federation: null, // local origin (missing or null federation subdoc)
-      status: 'published',
-      visibility: PostVisibility.PUBLIC,
-      parentPostId: null, // top-level only — EXCLUDE replies
-      boostOf: null, // not a boost (mirrors native repost exclusion)
-      type: { $ne: 'boost' },
-    } as const;
+    //
+    //    `is_reply = false`, not `parent_post_id IS NULL`: `parent_post_id` is
+    //    `ON DELETE SET NULL`, so an orphaned reply has a null parent while
+    //    remaining a reply — re-delivering it as a top-level Note would push it to
+    //    every follower stripped of the conversation it was written into.
+    const postFilter = and(
+      eq(postsTable.oxyUserId, targetUserId),
+      isNull(postsTable.federationActivityId), // local origin
+      eq(postsTable.status, 'published'),
+      eq(postsTable.visibility, PostVisibility.PUBLIC),
+      eq(postsTable.isReply, false),
+      isNull(postsTable.boostOf),
+      ne(postsTable.type, 'boost'),
+    );
 
-    const totalMatched = await Post.countDocuments(postFilter);
+    const [totals] = await getDb().select({ count: count() }).from(postsTable).where(postFilter);
+    const totalMatched = totals?.count ?? 0;
 
     // 6. SAFETY CAP: never silently blast an unbounded set. Process the first
     //    `maxPosts` (oldest) and report the rest as skipped.
@@ -189,10 +195,10 @@ async function redeliverUserPosts(): Promise<void> {
       );
     }
 
-    const posts = await Post.find(postFilter)
-      .sort({ createdAt: 1, _id: 1 })
-      .limit(maxPosts)
-      .lean<RedeliverablePost[]>();
+    const posts: RedeliverablePost[] = await findPostRecords(postFilter, {
+      orderBy: [asc(postsTable.createdAt), asc(postsTable.id)],
+      limit: maxPosts,
+    });
 
     // 7. Header.
     logger.info('[redeliverUserPosts] ===== re-delivery plan =====');

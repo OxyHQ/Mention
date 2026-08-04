@@ -59,9 +59,12 @@
  *     node dist/scripts/backfillFederatedPostAuthors.js
  */
 
-import mongoose from 'mongoose';
-import { Post } from '../models/Post';
-import FederatedActor from '../models/FederatedActor';
+import { and, asc, count, eq, gt, isNotNull, isNull, type SQL } from 'drizzle-orm';
+import { connectPostgres, getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
+import { deletePostRecord, findPostRecords, replacePostAuthorship } from '../db/posts/postRepository';
+import type { PostRecord } from '../db/posts/postRecord';
+import { findActorByUri } from '../db/federation/actorRepository';
 import { actorService } from '../connectors/activitypub/actor.service';
 import { extractActorUri, signedFetch, asRecord } from '../connectors/activitypub/helpers';
 import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
@@ -90,10 +93,7 @@ const APPLY = process.env.BACKFILL_APPLY === 'true';
 /** Additionally allow deleting posts whose source is definitively gone (404/410). */
 const DELETE_GONE = process.env.BACKFILL_DELETE_GONE === 'true';
 
-interface OrphanRow {
-  _id: mongoose.Types.ObjectId;
-  federation?: { activityId?: string; actorUri?: string; url?: string };
-}
+type OrphanRow = PostRecord;
 
 /** The outcome of resolving one orphan's author actor URI. */
 type AuthorUriResult =
@@ -140,10 +140,7 @@ export async function resolveAuthorOxyUserId(
     let oxyUserId: string | null = null;
     try {
       if (!allowIdentityMutation) {
-        const actor = await FederatedActor.findOne(
-          { uri: actorUri },
-          { oxyUserId: 1 },
-        ).lean<{ oxyUserId?: string | null } | null>();
+        const actor = await findActorByUri(actorUri);
         oxyUserId = actor?.oxyUserId ?? null;
       } else {
         const actor = await actorService.getOrFetchActor(actorUri);
@@ -234,16 +231,16 @@ async function processOrphan(orphan: OrphanRow): Promise<keyof Omit<Counters, 's
     if (!DELETE_GONE) return 'gone';
     if (!APPLY) return 'deleteCandidates';
     await assertPostsSafeToDelete(
-      `backfillFederatedPostAuthors:${String(orphan._id)}`,
+      `backfillFederatedPostAuthors:${orphan.id}`,
       [{
-        id: orphan._id,
+        id: orphan.id,
         uris: [
           orphan.federation?.activityId,
           orphan.federation?.url,
         ].filter((value): value is string => typeof value === 'string' && value.length > 0),
       }],
     );
-    await Post.deleteOne({ _id: orphan._id });
+    await deletePostRecord(orphan.id, undefined);
     return 'deleted';
   }
 
@@ -253,42 +250,51 @@ async function processOrphan(orphan: OrphanRow): Promise<keyof Omit<Counters, 's
   if (!oxyUserId) return 'unresolvedAuthor';
 
   if (APPLY) {
-    const set: Record<string, unknown> = {
-      oxyUserId,
-      authorship: buildAuthorship(oxyUserId, []),
-    };
+    // `replacePostAuthorship` writes BOTH the authorship rows and the
+    // denormalized `posts.oxy_user_id` they project, in one transaction — the
+    // pre-save hook's job, now explicit. Writing `oxyUserId` alone would leave a
+    // post whose owner column names a user with no authorship row, which every
+    // author-feed query matches on.
+    await replacePostAuthorship(orphan.id, buildAuthorship(oxyUserId, []));
     // Backfill the actor URI when it was missing (brid.gy/Bluesky orphans) so the
     // Phase-1 degraded-render path can also enrich by URI next time.
     if (uriResult.actorUriWasMissing) {
-      set['federation.actorUri'] = uriResult.authorUri;
+      await getDb()
+        .update(posts)
+        .set({ federationActorUri: uriResult.authorUri })
+        .where(eq(posts.id, orphan.id));
     }
-    await Post.updateOne({ _id: orphan._id }, { $set: set });
   }
   return 'linked';
 }
 
 async function backfillFederatedPostAuthors(): Promise<void> {
   const startedAt = Date.now();
-  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
-  const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
 
-  const orphanFilter = {
-    'federation.activityId': { $exists: true, $ne: null },
-    oxyUserId: null,
-  } as const;
+  // `is not null` / `is null`, never `<> null`: Mongo's `$ne: null` also matched
+  // an ABSENT field, while SQL's `<>` against NULL matches nothing — so the
+  // literal translation would find zero orphans and report a clean run.
+  const orphanFilter = and(
+    isNotNull(posts.federationActivityId),
+    isNull(posts.oxyUserId),
+  ) as SQL;
 
   try {
     assertAdminMutationAllowed({
       scriptName: 'backfillFederatedPostAuthors',
       dryRun: !APPLY,
     });
-    await mongoose.connect(mongoUri, { dbName });
-    logger.info('[backfillFederatedPostAuthors] connected to MongoDB', {
+    await connectPostgres();
+    logger.info('[backfillFederatedPostAuthors] connected to PostgreSQL', {
       apply: APPLY,
       deleteGone: DELETE_GONE,
     });
 
-    const totalCount = await Post.countDocuments(orphanFilter);
+    const [totals] = await getDb()
+      .select({ count: count() })
+      .from(posts)
+      .where(orphanFilter);
+    const totalCount = totals?.count ?? 0;
     logger.info(`[backfillFederatedPostAuthors] ${totalCount} orphan federated posts to scan`);
     if (totalCount === 0) {
       return;
@@ -304,16 +310,13 @@ async function backfillFederatedPostAuthors(): Promise<void> {
       unresolvedAuthor: 0,
       transient: 0,
     };
-    let lastId: mongoose.Types.ObjectId | null = null;
+    let lastId: string | null = null;
 
     for (;;) {
-      const pageFilter: Record<string, unknown> = { ...orphanFilter };
-      if (lastId) pageFilter._id = { $gt: lastId };
-
-      const page = await Post.find(pageFilter, { _id: 1, federation: 1 })
-        .sort({ _id: 1 })
-        .limit(PAGE_SIZE)
-        .lean<OrphanRow[]>();
+      const page = await findPostRecords(
+        lastId ? and(orphanFilter, gt(posts.id, lastId)) : orphanFilter,
+        { orderBy: [asc(posts.id)], limit: PAGE_SIZE },
+      );
 
       if (page.length === 0) break;
 
@@ -326,7 +329,7 @@ async function backfillFederatedPostAuthors(): Promise<void> {
           chunk.map((orphan) =>
             processOrphan(orphan).catch((error) => {
               logger.warn('[backfillFederatedPostAuthors] orphan processing failed', {
-                postId: String(orphan._id),
+                postId: orphan.id,
                 reason: error instanceof Error ? error.message : 'unknown',
               });
               return error instanceof DeletionPreflightError
@@ -339,7 +342,7 @@ async function backfillFederatedPostAuthors(): Promise<void> {
       }
 
       counters.scanned += page.length;
-      lastId = page[page.length - 1]._id;
+      lastId = page[page.length - 1].id;
       logger.info(
         `[backfillFederatedPostAuthors] progress: scanned ${counters.scanned}/${totalCount}, ` +
           `linked ${counters.linked}, gone ${counters.gone}, ` +
@@ -370,7 +373,6 @@ async function backfillFederatedPostAuthors(): Promise<void> {
     throw error;
   } finally {
     await closeAdminScriptResources();
-    await mongoose.disconnect();
   }
 }
 

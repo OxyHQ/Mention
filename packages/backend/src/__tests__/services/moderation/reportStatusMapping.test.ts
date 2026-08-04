@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DECISION_OUTCOMES, DECISION_STATUSES } from '@oxyhq/crowdsource-contracts';
 
-import { ReportStatus } from '../../../models/Report.model';
+import { REPORT_STATUSES } from '../../../db/schema/moderation';
 import {
   legacyStatusForOutcome,
   reportStateForDecision,
@@ -17,8 +17,8 @@ import {
  */
 describe('report status mapping', () => {
   it('maps only the two verdict outcomes to a verdict', () => {
-    expect(legacyStatusForOutcome('violation')).toBe(ReportStatus.RESOLVED);
-    expect(legacyStatusForOutcome('no_violation')).toBe(ReportStatus.DISMISSED);
+    expect(legacyStatusForOutcome('violation')).toBe('resolved');
+    expect(legacyStatusForOutcome('no_violation')).toBe('dismissed');
   });
 
   it.each(['insufficient_context', 'inconclusive', 'content_unavailable', 'duplicate', 'escalated'])(
@@ -29,13 +29,13 @@ describe('report status mapping', () => {
        * wrong" — turning "we could not tell" into innocence, which is the collapse the
        * invariants forbid.
        */
-      expect(legacyStatusForOutcome(outcome)).toBe(ReportStatus.REVIEWED);
+      expect(legacyStatusForOutcome(outcome)).toBe('reviewed');
     },
   );
 
   it('maps an outcome this version has never seen to reviewed', () => {
     // §10.11: a newer CrowdSource must not be able to silently produce a verdict here.
-    expect(legacyStatusForOutcome('some_outcome_from_2027')).toBe(ReportStatus.REVIEWED);
+    expect(legacyStatusForOutcome('some_outcome_from_2027')).toBe('reviewed');
   });
 
   it('covers every outcome the contract currently defines', () => {
@@ -47,9 +47,9 @@ describe('report status mapping', () => {
      */
     for (const outcome of DECISION_OUTCOMES) {
       const mapped = legacyStatusForOutcome(outcome);
-      expect(Object.values(ReportStatus)).toContain(mapped);
+      expect(REPORT_STATUSES as readonly string[]).toContain(mapped);
       if (outcome !== 'violation' && outcome !== 'no_violation') {
-        expect(mapped).toBe(ReportStatus.REVIEWED);
+        expect(mapped).toBe('reviewed');
       }
     }
   });

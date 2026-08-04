@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { asc, eq } from 'drizzle-orm';
 
 /**
  * atproto starter-pack mirroring.
@@ -7,26 +8,33 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  *    AppView `getActorStarterPacks` / `getList` shapes (filtering + caps).
  *  - `syncActorStarterPacks`: getActorStarterPacks → getList members → resolve each
  *    member DID to an Oxy user (the shared profile path) → upsert a `StarterPack`
- *    deduped on `source.uri`. The XRPC fetch, the StarterPack model, and the member
- *    profile resolver are mocked; the real bounded-concurrency pool runs.
+ *    deduped on its source URI. The XRPC fetch and the member profile resolver
+ *    are mocked — both are network calls to another service — and the real
+ *    bounded-concurrency pool runs.
+ *
+ * The PACKS are real Postgres rows. They used to be a mocked
+ * `StarterPack.findOneAndUpdate` whose assertions were call shapes: that it was
+ * invoked twice, with `{'source.uri': …}` and `{upsert: true}`. That cannot
+ * distinguish a mirror that works from one writing to a store nothing reads,
+ * which is exactly what it was doing — every reader had moved to `starter_packs`
+ * while the mirror still upserted Mongo, so mirrored packs never appeared in the
+ * API and never curated anything. Asserting the ROWS is what makes the
+ * idempotence claim mean "one pack after two syncs" instead of "two calls".
  */
 
 const mocks = vi.hoisted(() => ({
   xrpcGet: vi.fn(),
-  findOneAndUpdate: vi.fn(),
   fetchProfile: vi.fn(),
 }));
 
 vi.mock('../../../connectors/atproto/xrpcClient', () => ({ xrpcGet: mocks.xrpcGet }));
 
-vi.mock('../../../models/StarterPack', () => ({
-  default: { findOneAndUpdate: mocks.findOneAndUpdate },
-}));
-
 vi.mock('../../../connectors/atproto/profile.mapper', () => ({
   fetchAndUpsertAtprotoProfile: mocks.fetchProfile,
 }));
 
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { starterPackMembers, starterPacks } from '../../../db/schema/lists';
 import {
   extractMemberDids,
   extractStarterPackRefs,
@@ -34,7 +42,25 @@ import {
 } from '../../../connectors/atproto/starterpack.mapper';
 
 const DID = 'did:plc:owner0000000000000000000';
-const OWNER = 'oxy-owner';
+// Scoped to this file: `starter_packs` is one table shared by every parallel suite.
+const OWNER = 'oxy-spm-owner';
+
+/** Every mirrored pack this file created, newest membership first. */
+async function packsOf(owner = OWNER) {
+  return getDb()
+    .select({ id: starterPacks.id, name: starterPacks.name, sourceUri: starterPacks.sourceUri })
+    .from(starterPacks)
+    .where(eq(starterPacks.ownerOxyUserId, owner))
+    .orderBy(asc(starterPacks.sourceUri));
+}
+
+async function membersOf(packId: string) {
+  return getDb()
+    .select({ oxyUserId: starterPackMembers.oxyUserId })
+    .from(starterPackMembers)
+    .where(eq(starterPackMembers.packId, packId))
+    .orderBy(asc(starterPackMembers.position));
+}
 
 function packUri(rkey: string): string {
   return `at://${DID}/app.bsky.graph.starterpack/${rkey}`;
@@ -57,9 +83,21 @@ function routeXrpc(
   });
 }
 
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterEach(async () => {
+  // `starter_pack_members` cascades from `starter_packs`.
+  await getDb().delete(starterPacks).where(eq(starterPacks.ownerOxyUserId, OWNER));
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.findOneAndUpdate.mockResolvedValue({ _id: 'pack-doc' });
   mocks.fetchProfile.mockImplementation((did: string) =>
     Promise.resolve({ network: 'atproto', externalId: did, handle: `${did}.h`, oxyUserId: `oxy-${did.slice(-2)}` }),
   );
@@ -119,17 +157,12 @@ describe('syncActorStarterPacks', () => {
     const count = await syncActorStarterPacks(DID, OWNER);
 
     expect(count).toBe(1);
-    expect(mocks.findOneAndUpdate).toHaveBeenCalledTimes(1);
-    const [filter, update, options] = mocks.findOneAndUpdate.mock.calls[0];
-    expect(filter).toEqual({ 'source.uri': packUri('p1') });
-    expect(options).toEqual({ upsert: true });
-    expect(update.$set).toMatchObject({
-      ownerOxyUserId: OWNER,
-      name: 'Great moots',
-      memberOxyUserIds: ['oxy-m1', 'oxy-m2'],
-    });
-    expect(update.$set.source).toMatchObject({ network: 'atproto', uri: packUri('p1') });
-    expect(update.$set.source.syncedAt).toBeInstanceOf(Date);
+    const [pack] = await packsOf();
+    expect(pack?.name).toBe('Great moots');
+    expect(pack?.sourceUri).toBe(packUri('p1'));
+    // Membership IN UPSTREAM ORDER: `position` is what preserves it, and a set
+    // comparison would pass against a mirror that scrambled the pack.
+    expect((await membersOf(pack.id)).map((m) => m.oxyUserId)).toEqual(['oxy-m1', 'oxy-m2']);
   });
 
   it('drops members that do not resolve to an Oxy user (no orphan members)', async () => {
@@ -149,7 +182,8 @@ describe('syncActorStarterPacks', () => {
 
     await syncActorStarterPacks(DID, OWNER);
 
-    expect(mocks.findOneAndUpdate.mock.calls[0][1].$set.memberOxyUserIds).toEqual(['oxy-ok']);
+    const [pack] = await packsOf();
+    expect((await membersOf(pack.id)).map((m) => m.oxyUserId)).toEqual(['oxy-ok']);
   });
 
   it('resolves each DISTINCT member DID once even when shared across packs', async () => {
@@ -169,40 +203,62 @@ describe('syncActorStarterPacks', () => {
 
     await syncActorStarterPacks(DID, OWNER);
 
-    // Two packs upserted, but the shared member resolved only once.
-    expect(mocks.findOneAndUpdate).toHaveBeenCalledTimes(2);
+    // Two packs stored, but the shared member resolved only once.
+    expect(await packsOf()).toHaveLength(2);
     expect(mocks.fetchProfile).toHaveBeenCalledTimes(1);
   });
 
-  it('is idempotent — a re-sync upserts on the same source.uri, never creating a duplicate', async () => {
-    routeXrpc({
-      starterPacks: { starterPacks: [{ uri: packUri('p1'), record: { name: 'Pack', list: listUri('l1') } }] },
-      list: { [listUri('l1')]: { items: [{ subject: { did: 'did:plc:m1' } }] } },
+  it('is idempotent — a re-sync updates the same pack and REPLACES its members', async () => {
+    // The membership CHANGES between the two syncs, and that is the whole point.
+    // Re-syncing identical members cannot detect a missing replacement: the
+    // second insert just collides on `(pack_id, oxy_user_id)`, the mapper's
+    // fail-soft catch swallows it, and the rows left behind are the correct ones
+    // from the first run. Measured — a version of this case that synced
+    // `['oxy-m1']` twice passed with the DELETE removed from the repository.
+    //
+    // Dropping a member is the case that discriminates: without the delete,
+    // `oxy-gone` survives a sync that no longer lists it.
+    const members = { first: ['did:plc:m1', 'did:plc:gone'], second: ['did:plc:m1'] };
+    let phase: 'first' | 'second' = 'first';
+    mocks.xrpcGet.mockImplementation((_host: string, nsid: string, params: Record<string, unknown>) => {
+      if (nsid === 'app.bsky.graph.getActorStarterPacks') {
+        return Promise.resolve({
+          starterPacks: [{ uri: packUri('p1'), record: { name: 'Pack', list: listUri('l1') } }],
+        });
+      }
+      if (nsid === 'app.bsky.graph.getList' && params.list === listUri('l1')) {
+        return Promise.resolve({ items: members[phase].map((did) => ({ subject: { did } })) });
+      }
+      return Promise.resolve({});
     });
-    mocks.fetchProfile.mockResolvedValue({ network: 'atproto', externalId: 'did:plc:m1', handle: 'h', oxyUserId: 'oxy-m1' });
+    mocks.fetchProfile.mockImplementation((did: string) =>
+      Promise.resolve({ network: 'atproto', externalId: did, handle: 'h', oxyUserId: `oxy-${did.split(':').pop()}` }),
+    );
 
     await syncActorStarterPacks(DID, OWNER);
+    expect((await membersOf((await packsOf())[0].id)).map((m) => m.oxyUserId))
+      .toEqual(['oxy-m1', 'oxy-gone']);
+
+    phase = 'second';
     await syncActorStarterPacks(DID, OWNER);
 
-    expect(mocks.findOneAndUpdate).toHaveBeenCalledTimes(2);
-    // Both runs target the same document via the source-uri dedup key + upsert.
-    for (const call of mocks.findOneAndUpdate.mock.calls) {
-      expect(call[0]).toEqual({ 'source.uri': packUri('p1') });
-      expect(call[2]).toEqual({ upsert: true });
-    }
+    // One pack, and the dropped member is GONE rather than left behind.
+    const packs = await packsOf();
+    expect(packs).toHaveLength(1);
+    expect((await membersOf(packs[0].id)).map((m) => m.oxyUserId)).toEqual(['oxy-m1']);
   });
 
   it('no-ops without a resolved Oxy owner (no orphan packs) and never fetches', async () => {
     const count = await syncActorStarterPacks(DID, '');
     expect(count).toBe(0);
     expect(mocks.xrpcGet).not.toHaveBeenCalled();
-    expect(mocks.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(await packsOf('')).toHaveLength(0);
   });
 
   it('fails soft when getActorStarterPacks throws', async () => {
     mocks.xrpcGet.mockRejectedValue(new Error('appview 502'));
     const count = await syncActorStarterPacks(DID, OWNER);
     expect(count).toBe(0);
-    expect(mocks.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(await packsOf()).toHaveLength(0);
   });
 });

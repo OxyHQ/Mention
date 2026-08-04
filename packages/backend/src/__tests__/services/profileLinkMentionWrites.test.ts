@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * A PASTED PROFILE LINK REACHES `post.mentions`, AND THAT IS THE POINT.
@@ -20,53 +20,33 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * identities on the way in.
  *
  * Harness copied from `services/postCreationEnrichment.test.ts` — the real
- * `create` over a stubbed `Post` model, with `FederatedActor` and the federation
- * `constants` added so profile-link resolution is answerable without a database.
+ * `create` writing REAL ROWS, with the stored-actor repository and the federation
+ * `constants` stubbed so profile-link resolution is answerable without network or
+ * Oxy I/O.
+ *
+ * The post is a real row on purpose. `create` writes through
+ * `db/posts/postRepository` now, so the `new Post(...)` double this replaces
+ * intercepted nothing — every case here would have died on an absent connection
+ * rather than on the mention conversion it is about.
  */
 
 const {
   getLinkPreviews,
   getUserById,
-  MockPost,
-  postFindLean,
   createMentionNotifications,
   isBlockedDomain,
   resolveOxyUser,
-  findExistingActor,
-} = vi.hoisted(() => {
-  class HoistedMockPost {
-    [key: string]: unknown;
-    constructor(data: Record<string, unknown>) {
-      Object.assign(this, data);
-    }
-    save = vi.fn().mockResolvedValue(undefined);
-    markModified = vi.fn();
-    toObject(): Record<string, unknown> {
-      return { ...this };
-    }
-    _id = 'mock_post_id';
-  }
-  return {
-    getLinkPreviews: vi.fn(),
-    getUserById: vi.fn(),
-    MockPost: HoistedMockPost,
-    postFindLean: vi.fn().mockResolvedValue([]),
-    createMentionNotifications: vi.fn().mockResolvedValue(undefined),
-    isBlockedDomain: vi.fn((_host: string) => false),
-    resolveOxyUser: vi.fn(),
-    findExistingActor: vi.fn(),
-  };
-});
-
-vi.mock('../../models/Post', async () => {
-  const actual = await vi.importActual<typeof import('../../models/Post')>('../../models/Post');
-  return {
-    POST_CLASSIFICATION_PENDING: actual.POST_CLASSIFICATION_PENDING,
-    Post: Object.assign(MockPost, {
-      find: () => ({ select: () => ({ lean: () => postFindLean() }) }),
-    }),
-  };
-});
+  findActorByUri,
+  findActorByAcct,
+} = vi.hoisted(() => ({
+  getLinkPreviews: vi.fn(),
+  getUserById: vi.fn(),
+  createMentionNotifications: vi.fn().mockResolvedValue(undefined),
+  isBlockedDomain: vi.fn((_host: string) => false),
+  resolveOxyUser: vi.fn(),
+  findActorByUri: vi.fn(),
+  findActorByAcct: vi.fn(),
+}));
 
 vi.mock('../../utils/notificationUtils', () => ({
   createNotification: vi.fn().mockResolvedValue(undefined),
@@ -97,15 +77,19 @@ vi.mock('../../utils/oxyHelpers', () => ({
 }));
 
 vi.mock('../../connectors/activitypub/constants', () => ({ isBlockedDomain, resolveOxyUser }));
-vi.mock('../../models/FederatedActor', () => ({ default: { findOne: findExistingActor } }));
+vi.mock('../../db/federation/actorRepository', () => ({ findActorByUri, findActorByAcct }));
 
 import { PostVisibility } from '@mention/shared-types';
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { clearServiceScope, serviceScope } from '../helpers/serviceFixtures';
 import { postCreationService } from '../../services/PostCreationService';
 
+const scope = serviceScope('profile-link-mention-writes');
+
 const OWN_HOST = 'mention.earth';
-const AUTHOR_ID = 'oxy_local_author';
-const ALICE_OXY_ID = 'oxy_alice_local';
-const BOB_OXY_ID = 'oxy_bob_federated';
+const AUTHOR_ID = scope.user('local-author');
+const ALICE_OXY_ID = scope.user('alice-local');
+const BOB_OXY_ID = scope.user('bob-federated');
 
 /** The primary author rendition of a post the service just built. */
 function primaryText(post: unknown): string {
@@ -118,18 +102,30 @@ async function settle(): Promise<void> {
   await new Promise((resolve) => setImmediate(resolve));
 }
 
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterEach(async () => {
+  await clearServiceScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   getUserById.mockResolvedValue({ id: AUTHOR_ID, username: 'author' });
   getLinkPreviews.mockResolvedValue({});
-  postFindLean.mockResolvedValue([]);
   isBlockedDomain.mockImplementation(
     (host: string) => host.toLowerCase().replace(/^www\./, '') === OWN_HOST,
   );
   resolveOxyUser.mockImplementation(async (username: string) =>
     username === 'alice' ? { _id: ALICE_OXY_ID } : null,
   );
-  findExistingActor.mockReturnValue({ lean: async () => null });
+  findActorByUri.mockResolvedValue(null);
+  findActorByAcct.mockResolvedValue(null);
 });
 
 describe('POST /posts — a pasted profile link becomes a real mention', () => {
@@ -156,14 +152,14 @@ describe('POST /posts — a pasted profile link becomes a real mention', () => {
 
     expect(createMentionNotifications).toHaveBeenCalledWith(
       [ALICE_OXY_ID],
-      String(post._id),
+      post.id,
       AUTHOR_ID,
       'post',
     );
   });
 
   it('resolves a FOREIGN profile link through the actor rows we already store', async () => {
-    findExistingActor.mockReturnValue({ lean: async () => ({ oxyUserId: BOB_OXY_ID }) });
+    findActorByAcct.mockResolvedValue({ oxyUserId: BOB_OXY_ID });
 
     const post = await postCreationService.create({
       oxyUserId: AUTHOR_ID,
@@ -199,19 +195,38 @@ describe('POST /posts — a pasted profile link becomes a real mention', () => {
       skipSocketEmit: true,
     });
 
-    expect(post.mentions).toEqual(['oxy_picked', ALICE_OXY_ID]);
+    // As a SET, because the stored order is not a property this can assert.
+    // `post.mentions` is read back from `post_mentions` ordered by `id`, and the
+    // whole allowlist is inserted in ONE batch — so every row's `uuidv7()` carries
+    // the same millisecond and the tie is broken by the RANDOM tail, there being
+    // no monotonic counter in `db/schema/columns.ts`. Asserting the array order
+    // was a ~50/50 coin flip, measured at 4 passes to 6 failures over ten runs of
+    // this file ALONE. Order carries no meaning here either: the column is an
+    // authorization allowlist with a UNIQUE `(post_id, oxy_user_id)`, and nothing
+    // renders it in sequence.
+    //
+    // That the FOLD preserves the picker's entry ahead of the pasted one is a
+    // real property and is still asserted, on the fold's own in-memory return,
+    // in `services/profileLinkMentions.test.ts`.
+    expect([...post.mentions].sort()).toEqual(['oxy_picked', ALICE_OXY_ID].sort());
   });
 });
 
 describe('a FEDERATED ingest is not folded a second time', () => {
   /** The params an AP inbox `Create` / atproto import hands the shared route. */
+  // `posts.federation_activity_id` carries a UNIQUE constraint — the import's own
+  // dedupe — so one literal reused across cases makes the second create a
+  // duplicate-key error rather than the fold-gate the case is about.
+  let federatedSeq = 0;
   function federatedParams(text: string) {
+    federatedSeq += 1;
+    const activityId = `https://mastodon.social/users/alice/statuses/${scope.name}-${federatedSeq}`;
     return {
-      oxyUserId: 'oxy_remote_author',
+      oxyUserId: scope.user('remote-author'),
       federation: {
-        activityId: 'https://mastodon.social/users/alice/statuses/1',
+        activityId,
         actorUri: 'https://mastodon.social/users/alice',
-        url: 'https://mastodon.social/users/alice/statuses/1',
+        url: activityId,
         sensitive: false,
       },
       content: { variants: [{ source: 'author' as const, text }] },
@@ -233,7 +248,8 @@ describe('a FEDERATED ingest is not folded a second time', () => {
     expect(primaryText(post)).toBe(`greetings from https://${OWN_HOST}/@alice`);
     expect(post.mentions).toEqual([]);
     expect(resolveOxyUser).not.toHaveBeenCalled();
-    expect(findExistingActor).not.toHaveBeenCalled();
+    expect(findActorByUri).not.toHaveBeenCalled();
+    expect(findActorByAcct).not.toHaveBeenCalled();
   });
 
   it('still stores the mentions the ingest itself resolved', async () => {

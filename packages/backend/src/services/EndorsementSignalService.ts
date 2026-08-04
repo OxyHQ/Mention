@@ -16,18 +16,24 @@
  *  - When the scope is deleted, the deletion path captures the final member set
  *    and passes it explicitly to {@link syncScopeRemoval}.
  *
- * Reliability: every sync writes/refreshes an {@link EndorsementOutbox} row
+ * Reliability: every sync writes/refreshes an `endorsement_outbox` row
  * FIRST, then attempts an immediate push. Success marks the row `sent`; failure
  * leaves it `pending` with backoff for the drain job ({@link flushOutbox}).
  */
 
-import StarterPack from '../models/StarterPack';
-import AccountList from '../models/AccountList';
-import EndorsementOutbox, {
-  getEndorsementNextAttempt,
+import { asc, eq } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { accountListMembers, accountLists, starterPackMembers, starterPacks } from '../db/schema/lists';
+import {
+  armEndorsementScope,
+  clearEndorsementScope,
+  findDueEndorsementScopes,
+  loadPendingRemoval,
+  markEndorsementFailed,
+  markEndorsementSent,
+  readEndorsementStatus,
   type EndorsementSource,
-  type IEndorsementOutbox,
-} from '../models/EndorsementOutbox';
+} from '../db/outbox/endorsementOutboxRepository';
 import { oxySignalsClient, type OxySignalsClient, type EndorsementEdge } from './OxySignalsClient';
 import { logger } from '../utils/logger';
 
@@ -49,17 +55,49 @@ export class EndorsementSignalService {
    */
   private async loadScopeState(source: EndorsementSource, sourceId: string): Promise<ScopeState | null> {
     if (source === 'starterPack') {
-      const pack = await StarterPack.findById(sourceId)
-        .select('ownerOxyUserId memberOxyUserIds')
-        .lean();
+      // Postgres, matching the account-list branch below and for the same
+      // reason: the Mongo `StarterPack` collection now has no writer at all —
+      // the atproto mirror was its last one and it writes `starter_packs`. A
+      // `null` here does not mean "unknown", it means DELETED, so the caller
+      // retracts the endorsements; a read that stopped moving would therefore
+      // have withdrawn signal for live packs rather than merely gone stale.
+      const [pack] = await getDb()
+        .select({ ownerOxyUserId: starterPacks.ownerOxyUserId })
+        .from(starterPacks)
+        .where(eq(starterPacks.id, sourceId))
+        .limit(1);
       if (!pack) return null;
-      return { ownerId: pack.ownerOxyUserId, memberIds: pack.memberOxyUserIds ?? [] };
+      const packMembers = await getDb()
+        .select({ oxyUserId: starterPackMembers.oxyUserId })
+        .from(starterPackMembers)
+        .where(eq(starterPackMembers.packId, sourceId))
+        .orderBy(asc(starterPackMembers.position));
+      return {
+        ownerId: pack.ownerOxyUserId,
+        memberIds: packMembers.map((member) => member.oxyUserId),
+      };
     }
-    const list = await AccountList.findById(sourceId)
-      .select('ownerOxyUserId memberOxyUserIds')
-      .lean();
+    // Postgres. The Mongo `AccountList` collection has no writer left, so this
+    // resolved every list created after the cutover as MISSING — and `null` here
+    // does not mean "unknown", it means "deleted", so the caller RETRACTS the
+    // endorsements instead of leaving them alone. A read that stopped moving
+    // therefore did not merely go stale: it actively withdrew signal for lists
+    // that were alive.
+    //
+    // Members come from the child table, ordered by `position` so the edge set
+    // is built in the list's own order rather than an arbitrary one.
+    const [list] = await getDb()
+      .select({ ownerOxyUserId: accountLists.ownerOxyUserId })
+      .from(accountLists)
+      .where(eq(accountLists.id, sourceId))
+      .limit(1);
     if (!list) return null;
-    return { ownerId: list.ownerOxyUserId, memberIds: list.memberOxyUserIds ?? [] };
+    const members = await getDb()
+      .select({ oxyUserId: accountListMembers.oxyUserId })
+      .from(accountListMembers)
+      .where(eq(accountListMembers.listId, sourceId))
+      .orderBy(asc(accountListMembers.position));
+    return { ownerId: list.ownerOxyUserId, memberIds: members.map((m) => m.oxyUserId) };
   }
 
   /**
@@ -97,48 +135,24 @@ export class EndorsementSignalService {
     sourceId: string,
     removal?: { ownerId: string; memberIds: string[] },
   ): Promise<void> {
-    const update: Record<string, unknown> = {
-      $set: { status: 'pending', nextAttemptAt: new Date() },
-      $setOnInsert: { attempts: 0 },
-    };
-    const removed = removal?.memberIds.filter((id) => id && id !== removal.ownerId) ?? [];
-    if (removal && removed.length > 0) {
-      update.$set = { ...(update.$set as Record<string, unknown>), pendingRemoveOwnerId: removal.ownerId };
-      update.$addToSet = { pendingRemoveMemberIds: { $each: removed } };
-    }
-    await EndorsementOutbox.updateOne(
-      { source, sourceId },
-      update,
-      { upsert: true },
-    );
+    await armEndorsementScope(source, sourceId, removal);
   }
 
   /** Mark a scope's outbox row as successfully sent. */
   private async markSent(source: EndorsementSource, sourceId: string): Promise<void> {
-    await EndorsementOutbox.updateOne(
-      { source, sourceId },
-      {
-        $set: { status: 'sent', attempts: 0, lastAttemptAt: new Date(), error: undefined },
-        $unset: { pendingRemoveOwnerId: '', pendingRemoveMemberIds: '' },
-      },
-    );
+    await markEndorsementSent(source, sourceId);
   }
 
   /** Record a failed attempt with backoff, leaving the row pending. */
   private async markFailed(source: EndorsementSource, sourceId: string, error: unknown): Promise<void> {
-    const row = await EndorsementOutbox.findOne({ source, sourceId }).select('attempts').lean();
-    const attempts = (row?.attempts ?? 0) + 1;
-    await EndorsementOutbox.updateOne(
-      { source, sourceId },
-      {
-        $set: {
-          status: 'pending',
-          attempts,
-          lastAttemptAt: new Date(),
-          nextAttemptAt: getEndorsementNextAttempt(attempts),
-          error: error instanceof Error ? error.message : String(error),
-        },
-      },
+    // The increment and the backoff it feeds are the repository's, in one
+    // transaction: reading `attempts` here and writing the sum back let two
+    // overlapping drains compute the same successor, which stopped the backoff
+    // growing for exactly the scopes that keep failing.
+    await markEndorsementFailed(
+      source,
+      sourceId,
+      error instanceof Error ? error.message : String(error),
     );
   }
 
@@ -154,14 +168,12 @@ export class EndorsementSignalService {
     await this.armOutbox(source, sourceId);
 
     try {
-      const [state, row] = await Promise.all([
+      const [state, pending] = await Promise.all([
         this.loadScopeState(source, sourceId),
-        EndorsementOutbox.findOne({ source, sourceId })
-          .select('pendingRemoveOwnerId pendingRemoveMemberIds')
-          .lean<Pick<IEndorsementOutbox, 'pendingRemoveOwnerId' | 'pendingRemoveMemberIds'> | null>(),
+        loadPendingRemoval(source, sourceId),
       ]);
       const edges = [
-        ...this.buildRemoveEdges(row?.pendingRemoveOwnerId, row?.pendingRemoveMemberIds, sourceId),
+        ...this.buildRemoveEdges(pending.ownerId, pending.memberIds, sourceId),
         ...(state ? this.buildAddEdges(state, sourceId) : []),
       ];
       await this.signalsClient.pushEndorsements(edges);
@@ -192,14 +204,12 @@ export class EndorsementSignalService {
     await this.armOutbox(source, sourceId, { ownerId, memberIds: removed });
 
     try {
-      const [state, row] = await Promise.all([
+      const [state, pending] = await Promise.all([
         this.loadScopeState(source, sourceId),
-        EndorsementOutbox.findOne({ source, sourceId })
-          .select('pendingRemoveOwnerId pendingRemoveMemberIds')
-          .lean<Pick<IEndorsementOutbox, 'pendingRemoveOwnerId' | 'pendingRemoveMemberIds'> | null>(),
+        loadPendingRemoval(source, sourceId),
       ]);
       const edges = [
-        ...this.buildRemoveEdges(row?.pendingRemoveOwnerId ?? ownerId, row?.pendingRemoveMemberIds ?? removed, sourceId),
+        ...this.buildRemoveEdges(pending.ownerId ?? ownerId, pending.memberIds ?? removed, sourceId),
         ...(state ? this.buildAddEdges(state, sourceId) : []),
       ];
       await this.signalsClient.pushEndorsements(edges);
@@ -246,7 +256,7 @@ export class EndorsementSignalService {
         error,
       });
     } finally {
-      await EndorsementOutbox.deleteOne({ source, sourceId }).catch((err) => {
+      await clearEndorsementScope(source, sourceId).catch((err) => {
         logger.warn('[EndorsementSignal] failed to clear outbox row', {
           type: source,
           error: err,
@@ -262,24 +272,14 @@ export class EndorsementSignalService {
    * call; the periodic job re-invokes until the backlog clears.
    */
   async flushOutbox(): Promise<{ processed: number; sent: number; failed: number }> {
-    const now = new Date();
-    const rows = await EndorsementOutbox.find({
-      status: 'pending',
-      nextAttemptAt: { $lte: now },
-    })
-      .sort({ nextAttemptAt: 1 })
-      .limit(FLUSH_PAGE_SIZE)
-      .select('source sourceId')
-      .lean();
+    const rows = await findDueEndorsementScopes(FLUSH_PAGE_SIZE);
 
     let sent = 0;
     let failed = 0;
     for (const row of rows) {
       await this.syncScope(row.source, row.sourceId);
-      const after = await EndorsementOutbox.findOne({ source: row.source, sourceId: row.sourceId })
-        .select('status')
-        .lean();
-      if (after?.status === 'sent') sent += 1;
+      const after = await readEndorsementStatus(row.source, row.sourceId);
+      if (after === 'sent') sent += 1;
       else failed += 1;
     }
 

@@ -9,7 +9,10 @@ import type {
   ReceiveContext,
 } from '@oxyhq/federation';
 import { logger } from '../../utils/logger';
-import FederatedFollow from '../../models/FederatedFollow';
+import {
+  deleteFollow,
+  upsertOutboundAcceptedSubscription,
+} from '../../db/federation/followRepository';
 import { resolveOxyExternalUser } from '../identity';
 import {
   ATPROTO_ENABLED,
@@ -134,11 +137,7 @@ class AtprotoConnector implements NetworkConnector<PostContent> {
     const actor = await this.resolve(targetDid);
     const canonicalDid = actor?.externalId ?? targetDid;
 
-    await FederatedFollow.findOneAndUpdate(
-      { localUserId: localOxyUserId, remoteActorUri: canonicalDid, direction: 'outbound' },
-      { $set: { status: 'accepted', network: 'atproto' } },
-      { upsert: true, returnDocument: 'after' },
-    );
+    await upsertOutboundAcceptedSubscription(localOxyUserId, canonicalDid, 'atproto');
 
     // Backfill the followed actor's recent posts in the background.
     if (actor?.oxyUserId) {
@@ -159,11 +158,7 @@ class AtprotoConnector implements NetworkConnector<PostContent> {
     const actor = await this.resolve(targetDid);
     const canonicalDid = actor?.externalId ?? targetDid;
 
-    await FederatedFollow.deleteOne({
-      localUserId: localOxyUserId,
-      remoteActorUri: canonicalDid,
-      direction: 'outbound',
-    });
+    await deleteFollow(localOxyUserId, canonicalDid, 'outbound');
   }
 
   /** Strip an `at://<authority>/...` to its authority so identity resolution works. */

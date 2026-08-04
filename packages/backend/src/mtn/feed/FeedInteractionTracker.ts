@@ -5,11 +5,30 @@
  * AT Protocol equivalent: app.bsky.feed.sendInteractions
  */
 
-import mongoose from 'mongoose';
 import { MtnConfig, PostVisibility } from '@mention/shared-types';
 import type { FeedInteractionEventName } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
-import { Post } from '../../models/Post';
+import { and, eq, sql } from 'drizzle-orm';
+import { getDb } from '../../db/postgres';
+import { posts } from '../../db/schema/posts';
+import { feedInteractions } from '../../db/schema/feeds';
+
+/**
+ * Whether the post came from another instance — the impression-origin label.
+ *
+ * Tests the SAME disjunction `assemblePostRecords` uses to decide whether a
+ * record carries a `federation` object at all, rather than any single column: a
+ * federated post that arrived without an `activity_id` would otherwise be
+ * labelled `local` and quietly skew the federated-vs-local denominator.
+ */
+const IS_FEDERATED = sql<boolean>`(
+  ${posts.federationActivityId} is not null
+  or ${posts.federationActorUri} is not null
+  or ${posts.federationInReplyTo} is not null
+  or ${posts.federationUrl} is not null
+  or ${posts.federationSensitive} is not null
+  or ${posts.federationSpoilerText} is not null
+)`;
 import { recordDedupedView } from '../../services/feedViewCounter';
 import { recordDwell } from '../../services/dwellAggregate';
 import { userPreferenceService } from '../../services/UserPreferenceService';
@@ -32,17 +51,31 @@ export interface FeedInteractionData {
 
 /**
  * Record feed interactions for analytics and ranking feedback.
- * Writes to the FeedInteraction model asynchronously.
  *
  * Returns the post's new `viewsCount` when this interaction counted a view, and
  * `null` otherwise — see {@link applyImpressionSignals}. Nothing else the server
  * does here is invisible to the caller, so nothing else needs returning.
+ *
+ * The raw row goes to `feed_interactions` in POSTGRES. It was the last live
+ * Mongo write in the request path, and the last one to find because it was a
+ * dynamic `import('../../models/FeedInteraction')` — invisible to a
+ * static-import scan. Everything else about this function already wrote
+ * Postgres: the view count, the dwell aggregate and the preference signal below.
+ *
+ * Leaving it on Mongo would not have failed, which is what made it dangerous:
+ * the Postgres table exists, is indexed, is swept by `db/expiry.ts` and is
+ * probed by the deletion preflight, and the backfill fills it — so after the
+ * cutover it would have sat frozen at the backfill snapshot while every new row
+ * accumulated in a Mongo collection nothing reads.
+ *
+ * `createdAt` is written EXPLICITLY from the caller's timestamp rather than
+ * left to the column default. The caller stamps the interaction when it
+ * happened; this write is awaited inside a request but the value it records is
+ * not "now", and a default would quietly re-date every row to insert time.
  */
 export async function trackFeedInteraction(interaction: FeedInteractionData): Promise<number | null> {
   try {
-    // Lazy import to avoid circular dependency at module load time
-    const { FeedInteraction } = await import('../../models/FeedInteraction');
-    await FeedInteraction.create({
+    await getDb().insert(feedInteractions).values({
       userId: interaction.userId,
       feedDescriptor: interaction.feedDescriptor,
       postUri: interaction.postUri,
@@ -51,7 +84,7 @@ export async function trackFeedInteraction(interaction: FeedInteractionData): Pr
       createdAt: interaction.timestamp,
     });
   } catch (error) {
-    // Non-critical — log and move on
+    // Non-critical — log and move on. Analytics must never fail a feed request.
     logger.warn('[FeedInteractionTracker] Failed to record interaction', error);
   }
 
@@ -86,7 +119,8 @@ export async function trackFeedInteraction(interaction: FeedInteractionData): Pr
 
 /**
  * Apply the deduped view-count increment and the UserBehavior learning signal
- * for a feed impression. `postUri` is the local post id (Mongo `_id` string);
+ * for a feed impression. `postUri` is the local post id (`posts.id`, a `text`
+ * column holding ObjectId hex before the cutover and uuid v7 after);
  * federated/non-local uris that are not valid ObjectIds are skipped.
  *
  * Impression telemetry is CLIENT-controlled, so its side effects are hardened
@@ -112,18 +146,31 @@ export async function applyImpressionSignals(
   interaction: FeedInteractionData,
 ): Promise<number | null> {
   const postId = interaction.postUri;
-  if (!postId || !mongoose.isValidObjectId(postId)) {
-    return null; // Not a local post id — nothing to count or learn from.
+  // Emptiness only. There is deliberately NO id-shape check: `posts.id` is
+  // `text` holding pre-cutover ObjectId hex AND post-cutover uuid v7, so an
+  // `isValidObjectId` guard would reject every post this instance has minted
+  // since the cutover — and the observable would be a view counter that quietly
+  // stopped moving. What replaces it is the bound-parameter read below.
+  if (!postId) {
+    return null; // Nothing to count or learn from.
   }
 
   // Client telemetry is untrusted: only derive view/preference side effects for
   // real public, published local posts. Resolving the post here also yields its
-  // author (self-pumping guard below) and its `federation` subdoc (the impression
-  // origin label). A single lean read.
-  const post = await Post.findOne(
-    { _id: postId, visibility: PostVisibility.PUBLIC, status: 'published' },
-    { oxyUserId: 1, federation: 1 },
-  ).lean();
+  // author (self-pumping guard below) and its federation columns (the impression
+  // origin label). The id is a bound parameter against a `text` column, so a
+  // `postUri` that is not a local post id — a federated URI, or anything else a
+  // client invents — simply matches no row; the ObjectId pre-check this replaces
+  // would have discarded every post created since the cutover instead.
+  const [post] = await getDb()
+    .select({ oxyUserId: posts.oxyUserId, isFederated: IS_FEDERATED })
+    .from(posts)
+    .where(and(
+      eq(posts.id, postId),
+      eq(posts.visibility, PostVisibility.PUBLIC),
+      eq(posts.status, 'published'),
+    ))
+    .limit(1);
   if (!post) {
     return null;
   }
@@ -139,7 +186,7 @@ export async function applyImpressionSignals(
 
   // Online metric: a genuine third-party impression, split by federated vs local
   // origin (the denominator for engagement- and report-per-impression).
-  recordImpression(interaction.feedDescriptor, originForFederation(post.federation));
+  recordImpression(interaction.feedDescriptor, originForFederation(post.isFederated || null));
 
   // 1. Deduped real view count. Returns the post's new total ONLY for the first
   //    view of this (post, viewer) pair within the window, and null otherwise
@@ -182,14 +229,15 @@ export async function applyImpressionSignals(
 export async function recordReportSignal(interaction: FeedInteractionData): Promise<void> {
   const postId = interaction.postUri;
   let federation: unknown;
-  if (postId && mongoose.Types.ObjectId.isValid(postId)) {
-    // `postUri` is client-supplied: query with a CONSTRUCTED ObjectId so no
-    // user-shaped value can reach the query as an operator.
-    const post = await Post.findOne(
-      { _id: new mongoose.Types.ObjectId(postId) },
-      { federation: 1 },
-    ).lean();
-    federation = post?.federation;
+  if (postId) {
+    // `postUri` is client-supplied and is bound as a PARAMETER, so no
+    // user-shaped value can alter the query's structure.
+    const [post] = await getDb()
+      .select({ isFederated: IS_FEDERATED })
+      .from(posts)
+      .where(eq(posts.id, postId))
+      .limit(1);
+    federation = post?.isFederated || null;
   }
   recordReport(interaction.feedDescriptor, originForFederation(federation));
 }

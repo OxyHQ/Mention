@@ -24,14 +24,23 @@
 import mongoose from 'mongoose';
 import { logger } from '../utils/logger';
 import { MIGRATION_ADMIN_SCRIPT_CURSOR_INDEX } from './constants';
-import { AdminScriptCursor } from '../models/AdminScriptCursor';
 import type { Migration } from './runner';
+
+/**
+ * Named literally rather than read off a Mongoose model, which the Postgres port
+ * deleted. A landed migration is FROZEN HISTORY: it repairs the indexes of a
+ * pre-cutover Mongo collection, so it must keep naming what that collection was
+ * called at the time and must not follow a live constant that could be renamed
+ * underneath it. Same treatment `0012` got when the MTN models went.
+ */
+const ADMIN_SCRIPT_CURSOR_COLLECTION = 'adminscriptcursors';
+
 
 export const migrationAdminScriptCursorIndex: Migration = {
   id: MIGRATION_ADMIN_SCRIPT_CURSOR_INDEX,
 
   async run(db: mongoose.mongo.Db): Promise<void> {
-    const cursors = db.collection(AdminScriptCursor.collection.collectionName);
+    const cursors = db.collection(ADMIN_SCRIPT_CURSOR_COLLECTION);
     await cursors.createIndex({ script: 1, scope: 1 }, { unique: true });
     logger.info(
       `[migration] ensured index on ${cursors.collectionName} ` +

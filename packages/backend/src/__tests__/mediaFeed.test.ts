@@ -1,46 +1,92 @@
-import { describe, it, expect } from 'vitest';
+/**
+ * The global Media feed's CONTENT predicate, against a real database.
+ *
+ * ## What this replaces
+ *
+ * The predecessor asserted the Mongo match object `buildMediaFeedQuery` returned
+ * (`$or` containing `{'content.media.0': {$exists: true}}`, and so on) and then
+ * separately tested a hand-written `matchesMediaFeed()` that RESTATED the same
+ * rule in TypeScript. Neither could observe a row. The restatement in particular
+ * could only ever agree with itself: it would have stayed green through the
+ * entire Mongo→Postgres port while the real query returned nothing.
+ *
+ * ## The property under test
+ *
+ * "Carries media" is a THREE-WAY disjunction, and each arm exists because a real
+ * corpus needs it:
+ *
+ *  1. `type` is IMAGE or VIDEO — a native post whose media rows may not have
+ *     landed yet, or whose media lives on a variant.
+ *  2. at least one `post_media` row — the federated majority, which arrives typed
+ *     TEXT and carries its attachments as media rows.
+ *  3. a `media` ATTACHMENT descriptor — a post whose media is described but not
+ *     enumerated.
+ *
+ * The disjunction is why the exact-set assertions below matter more than usual:
+ * losing ONE arm still leaves a feed that returns plenty of posts, so nothing
+ * looks broken — it looks like a ranking change. The suite pins each arm in
+ * isolation AND the whole set together.
+ */
+
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { and, eq } from 'drizzle-orm';
 import {
   isValidFeedDescriptor,
   parseFeedDescriptor,
   PostType,
   PostVisibility,
 } from '@mention/shared-types';
+
+import { closePostgres, connectPostgres, type Database } from '../db/postgres';
+import { posts } from '../db/schema/posts';
+import { CHRONO_DESC, findPostRecords, insertPostRecord } from '../db/posts/postRepository';
+import type { PostRecordInput } from '../db/posts/postRecord';
 import { FeedQueryBuilder } from '../utils/feedQueryBuilder';
+import { mediaSource } from '../mtn/feed/engine/sources/discoverySources';
+import type { FeedEngineContext } from '../mtn/feed/engine/types';
 
-/**
- * Minimal post shape used to exercise the media-feed match criteria.
- * Mirrors the relevant fields of a lean Post document.
- */
-interface SamplePost {
-  type: string;
-  visibility: string;
-  status: string;
-  content: {
-    text?: string;
-    media?: Array<{ id: string; type: string }>;
-    attachments?: Array<{ type: string; mediaType?: string }>;
+let db: Database;
+
+/** Unique to this file: the suite runs in parallel against ONE database. */
+const AUTHOR = 'media-feed-author';
+
+function baseInput(overrides: Partial<PostRecordInput> = {}): PostRecordInput {
+  return {
+    oxyUserId: AUTHOR,
+    authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
+    type: PostType.TEXT,
+    visibility: PostVisibility.PUBLIC,
+    status: 'published',
+    content: { variants: [{ source: 'author', text: 'body' }] },
+    ...overrides,
   };
-  federation?: { activityId: string };
-  boostOf?: string | null;
 }
 
-/**
- * Pure predicate that mirrors FeedQueryBuilder.buildMediaFeedQuery's semantics
- * so we can assert inclusion/exclusion without a live MongoDB. Kept in lockstep
- * with the query: public + published, not a boost, and carries at least one
- * media attachment — by post type (IMAGE/VIDEO), a non-empty content.media
- * array, or a media item in content.attachments.
- */
-function matchesMediaFeed(post: SamplePost): boolean {
-  if (post.visibility !== PostVisibility.PUBLIC) return false;
-  if (post.status !== 'published') return false;
-  if (post.boostOf) return false;
-  const isMediaType = post.type === PostType.IMAGE || post.type === PostType.VIDEO;
-  const hasMediaArray = Array.isArray(post.content.media) && post.content.media.length > 0;
-  const hasMediaAttachment = Array.isArray(post.content.attachments)
-    && post.content.attachments.some((a) => a.type === 'media');
-  return isMediaType || hasMediaArray || hasMediaAttachment;
+async function create(overrides: Partial<PostRecordInput> = {}): Promise<string> {
+  const record = await insertPostRecord(baseInput(overrides));
+  return record.id;
 }
+
+/** Ids the media predicate admits, scoped to this file's author. */
+async function admitted(seenPostIds: readonly string[] = []): Promise<string[]> {
+  const records = await findPostRecords(
+    and(FeedQueryBuilder.buildMediaFeedQuery(seenPostIds), eq(posts.oxyUserId, AUTHOR)),
+    { orderBy: CHRONO_DESC },
+  );
+  return records.map((record) => record.id).sort();
+}
+
+beforeAll(async () => {
+  db = await connectPostgres();
+});
+
+afterEach(async () => {
+  await db.delete(posts).where(eq(posts.oxyUserId, AUTHOR));
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
 
 describe('media feed descriptor', () => {
   it('recognizes "media" as a valid feed descriptor', () => {
@@ -54,121 +100,151 @@ describe('media feed descriptor', () => {
   });
 });
 
-describe('FeedQueryBuilder.buildMediaFeedQuery', () => {
-  it('matches media posts by type, content.media, or a media attachment', () => {
-    const query = FeedQueryBuilder.buildMediaFeedQuery([]);
-
-    expect(query.visibility).toBe(PostVisibility.PUBLIC);
-    expect(query.status).toBe('published');
-
-    const and = query.$and as Array<Record<string, unknown>>;
-    expect(Array.isArray(and)).toBe(true);
-
-    const mediaClause = and.find((c) => Array.isArray(c.$or)
-      && (c.$or as Array<Record<string, unknown>>).some((o) => 'content.media.0' in o));
-    expect(mediaClause).toBeDefined();
-
-    const orConditions = (mediaClause?.$or ?? []) as Array<Record<string, unknown>>;
-    expect(orConditions).toContainEqual({ type: { $in: [PostType.IMAGE, PostType.VIDEO] } });
-    expect(orConditions).toContainEqual({ 'content.media.0': { $exists: true } });
-    expect(orConditions).toContainEqual({ 'content.attachments': { $elemMatch: { type: 'media' } } });
+describe('each arm of the "carries media" disjunction', () => {
+  it('admits an IMAGE-typed post that has no media ROW yet', async () => {
+    // Arm 1 alone. If the type arm were dropped this is the only fixture that
+    // notices, and a feed missing it still looks perfectly healthy.
+    const typedOnly = await create({ type: PostType.IMAGE });
+    expect(await admitted()).toEqual([typedOnly]);
   });
 
-  it('excludes boosts and seen posts, and bounds _id no further', () => {
-    const seen = ['65aaaaaaaaaaaaaaaaaaaaaa'];
-    const query = FeedQueryBuilder.buildMediaFeedQuery(seen);
-    const and = query.$and as Array<Record<string, unknown>>;
+  it('admits a VIDEO-typed post that has no media ROW yet', async () => {
+    const typedOnly = await create({ type: PostType.VIDEO });
+    expect(await admitted()).toEqual([typedOnly]);
+  });
 
-    // Boost exclusion clause is present.
-    const boostClause = and.find((c) => Array.isArray(c.$or)
-      && (c.$or as Array<Record<string, unknown>>).some((o) => o.boostOf === null));
-    expect(boostClause).toBeDefined();
-
-    // Seen-post exclusion ($nin) is present.
-    const ninClause = and.find((c) => {
-      const id = c._id as { $nin?: unknown[] } | undefined;
-      return Array.isArray(id?.$nin);
+  it('admits a TEXT-typed post carrying a media row — the federated shape', async () => {
+    // Arm 2 alone. Remote instances type their posts however they like; keying
+    // this feed off `posts.type` would empty it of federated content.
+    const federated = await create({
+      content: {
+        variants: [{ source: 'author', text: 'remote photo' }],
+        media: [{ id: 'media-remote', type: 'image' }],
+      },
+      // `federation_activity_id` is globally UNIQUE, so a literal shared with
+      // another file is an insert that fails with 23505 in a parallel run — it
+      // did. Built from this file's own author, which is already its namespace.
+      federation: { activityId: `https://remote.example/${AUTHOR}/notes/1` },
     });
-    expect(ninClause).toBeDefined();
+    expect(await admitted()).toEqual([federated]);
+  });
 
-    // No `_id` RANGE, though: every consumer feeds a RANKED pipeline paginated by
-    // a score. See `rankedSourceCandidateWindow.test.ts`.
-    const ltClause = and.find((c) => {
-      const id = c._id as { $lt?: unknown } | undefined;
-      return id?.$lt !== undefined;
+  it('admits a post whose media is only DESCRIBED by an attachment', async () => {
+    // Arm 3 alone.
+    const described = await create({
+      content: {
+        variants: [{ source: 'author', text: 'with attachment' }],
+        // `attachment_id` and `media_type` are BOTH required on a `media`
+        // descriptor (`post_attachments_media_fields_check`) — Mongo's
+        // conditionally-`required` validator, now a constraint.
+        attachments: [{ type: 'media', id: 'media-described', mediaType: 'image' }],
+      },
     });
-    expect(ltClause).toBeUndefined();
+    expect(await admitted()).toEqual([described]);
+  });
+
+  it('does not treat a non-media attachment as media', async () => {
+    // The attachment arm matches on `type = 'media'` specifically. A `sources`
+    // or `poll` attachment is not media, and admitting it would fill the Media
+    // feed with text posts that render as a blank tile.
+    await create({
+      content: {
+        variants: [{ source: 'author', text: 'links' }],
+        attachments: [{ type: 'sources' }],
+      },
+      hasLinks: true,
+    });
+    await create({
+      content: { variants: [{ source: 'author', text: 'a poll' }], attachments: [{ type: 'poll' }] },
+    });
+
+    expect(await admitted()).toEqual([]);
   });
 });
 
-describe('media feed candidate selection', () => {
-  const imagePost: SamplePost = {
-    type: PostType.IMAGE,
-    visibility: PostVisibility.PUBLIC,
-    status: 'published',
-    content: { text: 'a photo', media: [{ id: 'm1', type: 'image' }] },
-  };
+describe('the media predicate as a whole', () => {
+  it('admits every media shape and nothing else, in one exact set', async () => {
+    const imageTyped = await create({ type: PostType.IMAGE });
+    const videoTyped = await create({ type: PostType.VIDEO });
+    const mediaRow = await create({
+      content: {
+        variants: [{ source: 'author', text: 'photo' }],
+        media: [{ id: 'media-1', type: 'image' }],
+      },
+    });
+    const attachmentOnly = await create({
+      content: {
+        variants: [{ source: 'author', text: 'attached' }],
+        attachments: [{ type: 'media', id: 'media-attached', mediaType: 'video' }],
+      },
+    });
 
-  const videoPost: SamplePost = {
-    type: PostType.VIDEO,
-    visibility: PostVisibility.PUBLIC,
-    status: 'published',
-    content: { text: 'a clip', media: [{ id: 'm2', type: 'video' }] },
-  };
+    const textOnly = await create();
+    const followersOnly = await create({ type: PostType.IMAGE, visibility: PostVisibility.FOLLOWERS_ONLY });
+    const draft = await create({ type: PostType.IMAGE, status: 'draft' });
+    const restricted = await create({ type: PostType.IMAGE, status: 'restricted' });
 
-  const federatedMedia: SamplePost = {
-    // Federated posts often arrive typed as TEXT but carry media in
-    // content.media — they must still be included.
-    type: PostType.TEXT,
-    visibility: PostVisibility.PUBLIC,
-    status: 'published',
-    content: { text: 'remote photo', media: [{ id: 'm3', type: 'image' }] },
-    federation: { activityId: 'https://remote.example/users/alice/statuses/1' },
-  };
+    const original = await create({ type: PostType.IMAGE });
+    const boost = await create({
+      type: PostType.BOOST,
+      boostOf: original,
+      content: { variants: [], media: [{ id: 'media-boosted', type: 'image' }] },
+    });
 
-  const attachmentMedia: SamplePost = {
-    type: PostType.TEXT,
-    visibility: PostVisibility.PUBLIC,
-    status: 'published',
-    content: { text: 'with attachment', attachments: [{ type: 'media', mediaType: 'image' }] },
-  };
-
-  const textOnly: SamplePost = {
-    type: PostType.TEXT,
-    visibility: PostVisibility.PUBLIC,
-    status: 'published',
-    content: { text: 'just text' },
-  };
-
-  const boostedMedia: SamplePost = {
-    type: PostType.IMAGE,
-    visibility: PostVisibility.PUBLIC,
-    status: 'published',
-    content: { text: 'boosted', media: [{ id: 'm4', type: 'image' }] },
-    boostOf: '65bbbbbbbbbbbbbbbbbbbbbb',
-  };
-
-  it('includes an image post', () => {
-    expect(matchesMediaFeed(imagePost)).toBe(true);
+    expect(await admitted()).toEqual(
+      [imageTyped, videoTyped, mediaRow, attachmentOnly, original].sort(),
+    );
+    const excluded = [textOnly, followersOnly, draft, restricted, boost];
+    expect((await admitted()).filter((id) => excluded.includes(id))).toEqual([]);
   });
 
-  it('includes a video post', () => {
-    expect(matchesMediaFeed(videoPost)).toBe(true);
+  it('excludes a boost even when it carries media of its own', async () => {
+    // Stated separately because it is the one exclusion with a REASON beyond
+    // "wrong shape": the boosted ORIGINAL is what the feed surfaces, so admitting
+    // the boost would double the original in the same page.
+    const original = await create({ type: PostType.IMAGE });
+    const boost = await create({
+      type: PostType.BOOST,
+      boostOf: original,
+      content: { variants: [], media: [{ id: 'media-boost', type: 'image' }] },
+    });
+
+    const ids = await admitted();
+    expect(ids).toEqual([original]);
+    expect(ids).not.toContain(boost);
   });
 
-  it('includes a federated-shaped media post (no federation exclusion)', () => {
-    expect(matchesMediaFeed(federatedMedia)).toBe(true);
+  it('admits a REPLY, so a multi-post thread can still be sliced', async () => {
+    const parent = await create({ type: PostType.IMAGE });
+    const reply = await create({ type: PostType.IMAGE, parentPostId: parent });
+    expect(await admitted()).toEqual([parent, reply].sort());
   });
 
-  it('includes a post with a media attachment', () => {
-    expect(matchesMediaFeed(attachmentMedia)).toBe(true);
-  });
+  it('drops exactly the seen ids and leaves the rest of the set intact', async () => {
+    const seen = await create({ type: PostType.IMAGE });
+    const kept = await create({ type: PostType.IMAGE });
 
-  it('excludes a text-only post', () => {
-    expect(matchesMediaFeed(textOnly)).toBe(false);
+    expect(await admitted()).toEqual([seen, kept].sort());
+    expect(await admitted([seen])).toEqual([kept]);
+    // An empty seen set must drop the term rather than emit a degenerate
+    // `NOT IN ()`, which matches nothing at all in SQL.
+    expect(await admitted([])).toEqual([seen, kept].sort());
   });
+});
 
-  it('excludes a boost even when it carries media', () => {
-    expect(matchesMediaFeed(boostedMedia)).toBe(false);
+describe('the media source composes the predicate with the discovery safety gate', () => {
+  it('withholds a sensitive media post from the ranked pool', async () => {
+    // The source ANDs `discoverySafeSql()` onto the content predicate. Asserted
+    // here rather than in the safety module's own suite because the question is
+    // whether THIS source wired the gate up.
+    const safe = await create({ type: PostType.IMAGE });
+    const sensitive = await create({ type: PostType.IMAGE, metadata: { isSensitive: true } });
+    const nsfwTagged = await create({ type: PostType.IMAGE, hashtags: ['nsfw'] });
+
+    const pool = await mediaSource.gather({} as FeedEngineContext, {}, 500);
+    const mine = pool
+      .map((candidate) => candidate.id)
+      .filter((id) => [safe, sensitive, nsfwTagged].includes(id));
+    expect(mine).toEqual([safe]);
   });
 });

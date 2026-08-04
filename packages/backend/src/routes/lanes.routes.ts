@@ -14,6 +14,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   LANE_DISPLAY_MODES,
@@ -29,9 +30,16 @@ import {
   getRequiredOxyUserId as getAuthenticatedUserId,
   type OxyAuthRequest as AuthRequest,
 } from '@oxyhq/core/server';
-import { Lane, normalizeLaneName } from '../models/Lane';
-import { LaneMute } from '../models/LaneMute';
-import { Post } from '../models/Post';
+import { getDb } from '../db/postgres';
+import { isUniqueViolation } from '../db/pgErrors';
+import { laneMutes, lanes } from '../db/schema/channels';
+import { posts } from '../db/schema/posts';
+import {
+  insertLane,
+  normalizeLaneName,
+  updateLane,
+  type LaneRow,
+} from '../db/channels/laneRepository';
 import { resolveUserSummaries } from '../services/PostHydrationService';
 import { validateBody, validateObjectId } from '../middleware/validate';
 import { laneReadRateLimiter, laneWriteRateLimiter, lanesRateLimiter } from '../middleware/security';
@@ -78,15 +86,13 @@ const updateLaneSchema = z.object({
   displayMode: laneDisplayModeSchema.optional(),
 });
 
-/** Shape of a `Lane` document as the routes below read it back. */
-interface LaneLean {
-  _id: unknown;
-  ownerId: string;
-  name: string;
-  displayMode: LaneDisplayMode;
-  createdAt: Date;
-  updatedAt: Date;
-}
+/**
+ * The unique constraint whose violation IS the 409 on create and rename: one
+ * lane name per publisher. Named so a future index on `lanes` cannot quietly
+ * start answering "you already have a lane with that name" — see
+ * `db/pgErrors.ts`.
+ */
+const LANE_NAME_UNIQUE = 'lanes_owner_name_lower_key';
 
 interface SerializedLane {
   id: string;
@@ -98,14 +104,14 @@ interface SerializedLane {
   postCount?: number;
 }
 
-function serialize(doc: LaneLean, postCount?: number): SerializedLane {
+function serialize(row: LaneRow, postCount?: number): SerializedLane {
   return {
-    id: String(doc._id),
-    ownerId: doc.ownerId,
-    name: doc.name,
-    displayMode: doc.displayMode,
-    createdAt: doc.createdAt,
-    updatedAt: doc.updatedAt,
+    id: row.id,
+    ownerId: row.ownerId,
+    name: row.name,
+    displayMode: row.displayMode,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
     ...(postCount === undefined ? {} : { postCount }),
   };
 }
@@ -139,12 +145,16 @@ async function countPostsByLane(laneIds: string[]): Promise<Map<string, number>>
   const counts = new Map<string, number>();
   if (laneIds.length === 0) return counts;
 
-  const rows = await Post.aggregate<{ _id: string; count: number }>([
-    { $match: { laneId: { $in: laneIds } } },
-    { $group: { _id: '$laneId', count: { $sum: 1 } } },
-  ]);
+  // `::int` so postgres.js hands back a NUMBER — a bare `count(*)` is a bigint,
+  // which the driver returns as a STRING, and the count would silently change
+  // type on the wire.
+  const rows = await getDb()
+    .select({ laneId: posts.laneId, total: sql<number>`count(*)::int` })
+    .from(posts)
+    .where(inArray(posts.laneId, laneIds))
+    .groupBy(posts.laneId);
   for (const row of rows) {
-    if (row?._id) counts.set(String(row._id), row.count);
+    if (row.laneId) counts.set(row.laneId, row.total);
   }
   return counts;
 }
@@ -182,11 +192,13 @@ publicLanesRouter.get('/', ...readLimiters, async (req: Request, res: Response) 
       return sendErrorResponse(res, 400, 'Bad Request', 'ownerId is required');
     }
 
-    const lanes = await Lane.find({ ownerId, displayMode: 'tab' })
-      .sort({ createdAt: -1 })
-      .lean<LaneLean[]>();
+    const tabs = await getDb()
+      .select()
+      .from(lanes)
+      .where(and(eq(lanes.ownerId, ownerId), eq(lanes.displayMode, 'tab')))
+      .orderBy(desc(lanes.createdAt));
 
-    return sendSuccessResponse(res, 200, lanes.map((lane) => serialize(lane)));
+    return sendSuccessResponse(res, 200, tabs.map((lane) => serialize(lane)));
   } catch (err) {
     logger.error('[Lanes] Error listing public lanes:', { error: err });
     return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to list lanes');
@@ -219,12 +231,14 @@ router.get(
   async (req: AuthRequest, res: Response) => {
     try {
       const userId = getAuthenticatedUserId(req);
-      const lanes = await Lane.find({ ownerId: userId })
-        .sort({ createdAt: -1 })
-        .lean<LaneLean[]>();
+      const owned = await getDb()
+        .select()
+        .from(lanes)
+        .where(eq(lanes.ownerId, userId))
+        .orderBy(desc(lanes.createdAt));
 
-      const counts = await countPostsByLane(lanes.map((lane) => String(lane._id)));
-      const items = lanes.map((lane) => serialize(lane, counts.get(String(lane._id)) ?? 0));
+      const counts = await countPostsByLane(owned.map((lane) => lane.id));
+      const items = owned.map((lane) => serialize(lane, counts.get(lane.id) ?? 0));
       return sendSuccessResponse(res, 200, items);
     } catch (err) {
       logger.error('[Lanes] Error listing own lanes:', { userId: req.user?.id, error: err });
@@ -244,34 +258,43 @@ router.get(
 router.get('/muted', ...readLimiters, async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
-    const mutes = await LaneMute.find({ viewerOxyUserId: userId })
-      .sort({ createdAt: -1 })
-      .limit(MAX_MUTED_LANES)
-      .lean<Array<{ laneId: string; laneOwnerOxyUserId: string; createdAt: Date }>>();
+    const db = getDb();
+    const mutes = await db
+      .select({
+        laneId: laneMutes.laneId,
+        laneOwnerOxyUserId: laneMutes.laneOwnerOxyUserId,
+        createdAt: laneMutes.createdAt,
+      })
+      .from(laneMutes)
+      .where(eq(laneMutes.viewerOxyUserId, userId))
+      .orderBy(desc(laneMutes.createdAt))
+      .limit(MAX_MUTED_LANES);
 
     if (mutes.length === 0) {
       return sendSuccessResponse(res, 200, []);
     }
 
-    const [lanes, owners] = await Promise.all([
-      Lane.find({ _id: { $in: mutes.map((mute) => mute.laneId) } })
-        .select('name displayMode')
-        .lean<Array<{ _id: unknown; name: string; displayMode: LaneDisplayMode }>>(),
+    const [muted, owners] = await Promise.all([
+      db
+        .select({ id: lanes.id, name: lanes.name, displayMode: lanes.displayMode })
+        .from(lanes)
+        .where(inArray(lanes.id, mutes.map((mute) => mute.laneId))),
       resolveUserSummaries(mutes.map((mute) => mute.laneOwnerOxyUserId)),
     ]);
 
-    const laneById = new Map(lanes.map((lane) => [String(lane._id), lane]));
+    const laneById = new Map(muted.map((lane) => [lane.id, lane]));
     const items: MutedLane[] = [];
     for (const mute of mutes) {
       const lane = laneById.get(mute.laneId);
-      // A mute whose lane is gone. The delete cascade removes these rows before
-      // the lane itself, so this is only reachable if that cascade was
-      // interrupted — drop the row from the list rather than render a blank one.
+      // A mute whose lane is gone. `lane_mutes.lane_id` is `ON DELETE CASCADE`,
+      // so an orphan cannot persist — but the mutes and the lanes are two
+      // statements, and a lane deleted between them lands exactly here. Drop the
+      // row rather than render a blank one.
       if (!lane) continue;
       const owner: PostUser | undefined = owners.get(mute.laneOwnerOxyUserId)?.user;
       if (!owner) continue;
       items.push({
-        lane: { id: String(lane._id), name: lane.name, displayMode: lane.displayMode },
+        lane: { id: lane.id, name: lane.name, displayMode: lane.displayMode },
         owner,
         createdAt: mute.createdAt.toISOString(),
       });
@@ -303,8 +326,11 @@ router.post('/', ...writeLimiters, validateBody(createLaneSchema), async (req: A
     }
 
     // The cap is PER PUBLISHER.
-    const count = await Lane.countDocuments({ ownerId: userId });
-    if (count >= MAX_LANES_PER_OWNER) {
+    const [owned] = await getDb()
+      .select({ total: sql<number>`count(*)::int` })
+      .from(lanes)
+      .where(eq(lanes.ownerId, userId));
+    if (owned.total >= MAX_LANES_PER_OWNER) {
       return sendErrorResponse(
         res,
         400,
@@ -314,14 +340,14 @@ router.post('/', ...writeLimiters, validateBody(createLaneSchema), async (req: A
     }
 
     try {
-      const created = await Lane.create({
+      const created = await insertLane({
         ownerId: userId,
         name,
         displayMode: displayMode ?? 'mixed',
       });
-      return sendSuccessResponse(res, 201, serialize(created.toObject() as LaneLean, 0), 'Lane created');
+      return sendSuccessResponse(res, 201, serialize(created, 0), 'Lane created');
     } catch (createErr) {
-      if ((createErr as { code?: number }).code === 11000) {
+      if (isUniqueViolation(createErr, LANE_NAME_UNIQUE)) {
         return sendErrorResponse(res, 409, 'Conflict', 'You already have a lane with that name');
       }
       throw createErr;
@@ -336,8 +362,12 @@ router.post('/', ...writeLimiters, validateBody(createLaneSchema), async (req: A
  * PATCH /lanes/:id
  * Body: `{ name?: string, displayMode?: 'mixed'|'tab'|'hidden' }`
  *
- * Renaming is free — nothing routes by name (see `models/Lane` on why there is no
- * slug). Changing `displayMode` changes which posts a profile tab CONTAINS, so
+ * Renaming is free, and a lane deliberately has NO slug: the tab routes by id, so
+ * a slug would be either immutable (stale the moment somebody renames) or
+ * regenerated (breaking the URL), and it would add a second uniqueness
+ * constraint and a whole class of collisions to carry forever. The only derived
+ * identity a lane has is `name_lower`, which `db/channels/laneRepository.ts`
+ * owns. Changing `displayMode` changes which posts a profile tab CONTAINS, so
  * the client has to invalidate both of its post-list caches afterwards.
  */
 router.patch(
@@ -356,33 +386,37 @@ router.patch(
 
       // Scoped by the lane's OWN publisher, read from the row rather than from
       // the request, so somebody else's lane stays a 404 and not an oracle.
-      const lane = await Lane.findById(req.params.id);
+      const laneId = String(req.params.id);
+      const [lane] = await getDb()
+        .select({ ownerId: lanes.ownerId })
+        .from(lanes)
+        .where(eq(lanes.id, laneId))
+        .limit(1);
       if (!lane || !callerManagesLane(lane, userId)) {
         return sendErrorResponse(res, 404, 'Not Found', 'Lane not found');
       }
 
-      if (name !== undefined) {
-        if (!normalizeLaneName(name)) {
-          return sendErrorResponse(res, 400, 'Bad Request', 'name must not be empty after normalization');
-        }
-        // `nameLower` follows from the model's own hook, so the normalization
-        // has exactly one definition.
-        lane.name = name;
-      }
-      if (displayMode !== undefined) {
-        lane.displayMode = displayMode;
+      if (name !== undefined && !normalizeLaneName(name)) {
+        return sendErrorResponse(res, 400, 'Bad Request', 'name must not be empty after normalization');
       }
 
+      let updated: LaneRow | null;
       try {
-        await lane.save();
+        // `name_lower` follows from the repository's own derivation, so the
+        // normalization has exactly one definition.
+        updated = await updateLane(laneId, { name, displayMode });
       } catch (saveErr) {
-        if ((saveErr as { code?: number }).code === 11000) {
+        if (isUniqueViolation(saveErr, LANE_NAME_UNIQUE)) {
           return sendErrorResponse(res, 409, 'Conflict', 'You already have a lane with that name');
         }
         throw saveErr;
       }
+      if (!updated) {
+        // Deleted between the authorization read and the write.
+        return sendErrorResponse(res, 404, 'Not Found', 'Lane not found');
+      }
 
-      return sendSuccessResponse(res, 200, serialize(lane.toObject() as LaneLean), 'Lane updated');
+      return sendSuccessResponse(res, 200, serialize(updated), 'Lane updated');
     } catch (err) {
       logger.error('[Lanes] Error updating lane:', {
         userId: req.user?.id,
@@ -397,40 +431,34 @@ router.patch(
 /**
  * DELETE /lanes/:id
  *
- * THE ORDER OF THE THREE WRITES IS LOAD-BEARING:
+ * ONE statement, because the three writes the Mongo handler had to sequence by
+ * hand are now the database's own: `posts.lane_id` is `ON DELETE SET NULL` and
+ * `lane_mutes.lane_id` is `ON DELETE CASCADE`, so deleting the row releases the
+ * posts and drops the readers' mutes atomically. There is no order left to get
+ * wrong, and no interruption that can leave a post pointing at a lane that no
+ * longer exists.
  *
- *  1. unset `laneId` on the lane's posts,
- *  2. delete the readers' mutes of it,
- *  3. delete the lane.
- *
- * Backwards, posts would be left pointing at a lane that no longer exists.
- * Hydration would emit no chip (harmless), but the profile exclusion query
- * matches on lane ids it can still find — so posts the owner had tucked away
- * would REAPPEAR on their profile. An interruption partway through this order
- * leaves an empty lane, which is harmless and re-deletable.
+ * The FK also covers a case the Mongo version did not: its `updateMany` was
+ * scoped to the lane's publisher, so a post carrying the lane but written under
+ * a different publisher kept a dangling `laneId`. `SET NULL` is unscoped, which
+ * is what the invariant actually says.
  */
 router.delete('/:id', ...writeLimiters, validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
     const laneId = String(req.params.id);
 
-    const lane = await Lane.findById(laneId)
-      .select('_id ownerId')
-      .lean<{ _id: unknown; ownerId: string } | null>();
+    const db = getDb();
+    const [lane] = await db
+      .select({ ownerId: lanes.ownerId })
+      .from(lanes)
+      .where(eq(lanes.id, laneId))
+      .limit(1);
     if (!lane || !callerManagesLane(lane, userId)) {
       return sendErrorResponse(res, 404, 'Not Found', 'Lane not found');
     }
 
-    // Scoped by the lane's PUBLISHER, not by the caller. They are the same person
-    // on this route, but the publisher is what the invariant is actually about:
-    // the lane's posts are the publisher's, and a post left pointing at a deleted
-    // lane REAPPEARS on the profile its owner had tucked it away from.
-    await Post.updateMany(
-      { oxyUserId: lane.ownerId, laneId },
-      { $unset: { laneId: '' } },
-    );
-    await LaneMute.deleteMany({ laneId });
-    await Lane.deleteOne({ _id: laneId });
+    await db.delete(lanes).where(eq(lanes.id, laneId));
 
     return sendSuccessResponse(res, 200, { success: true }, 'Lane deleted');
   } catch (err) {
@@ -456,9 +484,12 @@ router.post('/:id/mute', ...writeLimiters, validateObjectId('id'), async (req: A
     const userId = getAuthenticatedUserId(req);
     const laneId = String(req.params.id);
 
-    const lane = await Lane.findById(laneId)
-      .select('ownerId')
-      .lean<{ ownerId: string } | null>();
+    const db = getDb();
+    const [lane] = await db
+      .select({ ownerId: lanes.ownerId })
+      .from(lanes)
+      .where(eq(lanes.id, laneId))
+      .limit(1);
     if (!lane) {
       return sendErrorResponse(res, 404, 'Not Found', 'Lane not found');
     }
@@ -471,15 +502,20 @@ router.post('/:id/mute', ...writeLimiters, validateObjectId('id'), async (req: A
     // reach a follower's timeline — so there is something for the mute to
     // suppress.
 
-    const existing = await LaneMute.findOne({ viewerOxyUserId: userId, laneId })
-      .select('_id')
-      .lean<{ _id: unknown } | null>();
+    const [existing] = await db
+      .select({ id: laneMutes.id })
+      .from(laneMutes)
+      .where(and(eq(laneMutes.viewerOxyUserId, userId), eq(laneMutes.laneId, laneId)))
+      .limit(1);
     if (existing) {
       return sendSuccessResponse(res, 200, { success: true }, 'Lane already muted');
     }
 
-    const count = await LaneMute.countDocuments({ viewerOxyUserId: userId });
-    if (count >= MAX_MUTED_LANES) {
+    const [muted] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(laneMutes)
+      .where(eq(laneMutes.viewerOxyUserId, userId));
+    if (muted.total >= MAX_MUTED_LANES) {
       return sendErrorResponse(
         res,
         400,
@@ -488,17 +524,14 @@ router.post('/:id/mute', ...writeLimiters, validateObjectId('id'), async (req: A
       );
     }
 
-    try {
-      await LaneMute.create({
-        viewerOxyUserId: userId,
-        laneId,
-        laneOwnerOxyUserId: lane.ownerId,
-      });
-    } catch (createErr) {
-      // The unique index — a concurrent request won the race, which is the same
-      // outcome the caller asked for.
-      if ((createErr as { code?: number }).code !== 11000) throw createErr;
-    }
+    // `doNothing` on the row's own identity: a concurrent request that won the
+    // race produced exactly the state the caller asked for, so a duplicate is a
+    // no-op rather than an error. The pre-check above is not a lock and never
+    // was — this is what makes the mute idempotent.
+    await db
+      .insert(laneMutes)
+      .values({ viewerOxyUserId: userId, laneId, laneOwnerOxyUserId: lane.ownerId })
+      .onConflictDoNothing({ target: [laneMutes.viewerOxyUserId, laneMutes.laneId] });
 
     return sendSuccessResponse(res, 201, { success: true }, 'Lane muted');
   } catch (err) {
@@ -519,7 +552,14 @@ router.post('/:id/mute', ...writeLimiters, validateObjectId('id'), async (req: A
 router.delete('/:id/mute', ...writeLimiters, validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
-    await LaneMute.deleteOne({ viewerOxyUserId: userId, laneId: String(req.params.id) });
+    await getDb()
+      .delete(laneMutes)
+      .where(
+        and(
+          eq(laneMutes.viewerOxyUserId, userId),
+          eq(laneMutes.laneId, String(req.params.id)),
+        ),
+      );
     return sendSuccessResponse(res, 200, { success: true }, 'Lane unmuted');
   } catch (err) {
     logger.error('[Lanes] Error unmuting lane:', {

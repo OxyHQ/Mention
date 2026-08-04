@@ -1,0 +1,1337 @@
+/**
+ * Pre-flight audits — run against the LIVE source, before a single row is
+ * inserted.
+ *
+ * Everything here answers one question: which production documents would the
+ * Postgres schema refuse, and why? Finding out during the copy is far worse
+ * than finding out first — a `23514` three hours into a `posts` run names a
+ * constraint, not a row, and by then the operator has to choose between
+ * aborting a partial migration and hand-patching data under time pressure.
+ *
+ * ## Why an enum audit is necessary at all
+ *
+ * Mongoose validators only run on documents saved through a MODEL, and this
+ * package never sets `runValidators` on its update paths — so an `enum:` in
+ * `src/models/` is documentation, not a constraint. Live data can hold values
+ * the schema forbids. A Postgres CHECK **is** enforced. Every such value is a
+ * row the migration would reject, and every one is reported here with its
+ * count.
+ *
+ * The audit reads the allowed set from the drizzle COLUMN, never from a list
+ * repeated here, so it predicts the CHECK rather than a copy of it.
+ *
+ * ## Why a NUMERIC audit is necessary, and why one had to be built
+ *
+ * An `EnumAudit` can only read `column.enumValues`, which no numeric column
+ * carries — so for a while this file's coverage stopped at text and the ~40
+ * numeric CHECKs in this schema were unaudited, `likes.value in (1, -1)` among
+ * them. That was recorded as a hole rather than left silent, and the recorded
+ * reason ("closing it needs a numeric-range audit the framework does not have")
+ * was correct about the framework and wrong about the difficulty: `distinct()`
+ * is the same instrument, and it returns numbers as readily as strings.
+ *
+ * The class matters more than the one constraint that exposed it. Most of those
+ * CHECKs are `>= 0` on a DENORMALIZED COUNTER copied straight out of Mongo, and
+ * a counter driven below zero by a decrement race is the most ordinary way a
+ * Mongo integer lands outside a range nobody was enforcing. `auditNumerics`
+ * covers sets and bounds alike; see {@link NumericAudit} for why the accepted
+ * SET is read from the schema's own constant while a BOUND has to be declared.
+ *
+ * ## Why a uniqueness audit is necessary
+ *
+ * Postgres now enforces unique indexes Mongo lacked — case-insensitive ones
+ * especially, which Mongo has no collation for. Two rows differing only by case
+ * are legal in Mongo today and collide here. The audit reports the colliding
+ * GROUPS — both sides, with their ids — rather than letting the copy fail on
+ * the second one, because "which of these two is the real one" is a decision
+ * for a human and the report is what that decision needs.
+ *
+ * ## Why a referential-integrity audit is necessary
+ *
+ * It lives in `referentialIntegrity.ts` because it is the one audit that cannot
+ * be a query — it has to run the plans' own transforms — but it belongs to this
+ * phase and reports through the same {@link AuditFinding}. Its absence is what
+ * let the sibling migration report CLEAN here and then die on a foreign key
+ * partway through level 2 of 6: Mongo enforced no foreign key, so a document
+ * naming a deleted parent was legal there and is `23503` here.
+ *
+ * ## Findings are not warnings
+ *
+ * A finding blocks the copy unless a DOCUMENTED RESOLUTION RULE answers it. The
+ * runner refuses to copy a collection with a blocking finding, and there is
+ * still no override flag: the three ways forward are to fix the data, to widen
+ * the schema, or to teach the migration what to do — all decisions, none a
+ * switch. The third is `resolutions.ts`, and taking it does not silence
+ * anything: the finding is still computed, still counted and still printed, now
+ * carrying the rule that answers it.
+ */
+
+import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
+import type { CollectionPlan, EnumAudit, NumericAudit, UniquenessNormalization } from './plan';
+import { allowedValues, describeNumericBound, numericIsAccepted, tableName } from './plan';
+import type { MongoSource, ReadOnlyCollection } from './mongoSource';
+import { streamCollection } from './mongoSource';
+import type { ResolutionContext, ResolutionRule } from './resolutions';
+import { parentKeysNotConsulted, resolutionDocumentId, transformDocument } from './resolutions';
+import { tableShape } from './rowBuilder';
+import type { CoverageFinding, PopulatedCounts } from './columnCoverage';
+import { auditColumnCoverage, holdsValueAt, recordPopulated } from './columnCoverage';
+import { BackfillValueError } from './values';
+
+/** One thing the schema would refuse — or one thing wrong with a rule. */
+export interface AuditFinding {
+  readonly collection: string;
+  /**
+   * The last two kinds are not about the DATA. They say a transform is losing
+   * documents, or that a documented rule acted on a row it was not written for
+   * — and neither may ever be answered by a rule, for the same reason: the
+   * migration would be agreeing with itself.
+   */
+  readonly kind:
+    | 'enum'
+    | 'numeric'
+    | 'uniqueness'
+    | 'referential-integrity'
+    | 'undetected-relation'
+    | 'dropped-document'
+    | 'resolution-overreach'
+    | 'defaulted-column'
+    | 'stale-acknowledgement'
+    /**
+     * A column the source holds values for and the copy would not fill — or
+     * would fill for MORE rows than the source has values. Proven loss or
+     * proven invention, in a place Postgres accepts without complaint.
+     */
+    | 'column-coverage'
+    /**
+     * The check could not establish anything about a column — either nothing
+     * says where its value comes from, or the declared path matches no document
+     * so a typo and a genuinely absent field look identical from here.
+     *
+     * An admission, not a verdict, and the one kind here that does NOT block.
+     * Neither shape is evidence of loss: an undeclared empty column may be
+     * correct, and a path matching nothing has nothing to lose. Blocking the
+     * copy on either would be gating on paperwork rather than on evidence,
+     * which is how a gate gets switched off by whoever hits it next.
+     */
+    | 'unverified-column'
+    /**
+     * A document the transform REFUSED — `buildRow` would not build it.
+     *
+     * Its own kind because it arrives as an exception rather than a query
+     * result: the transform throws, so before this existed the first such
+     * document ABORTED the pass instead of joining the report. That made the
+     * audit a queue — one document per run, each costing a rebuild — and two
+     * production runs bought two instances of one class before it was clear
+     * there might be a third.
+     */
+    | 'refused-document';
+  /** Human-readable, and specific enough to act on without opening the code. */
+  readonly detail: string;
+  /** Documents affected, where the audit can count them. */
+  readonly documents: number;
+  /** A few offending `_id`s, so the operator can look at real rows. */
+  readonly sampleIds: readonly string[];
+  /**
+   * The documented rule that already answers this finding, when one does.
+   *
+   * Never something a caller supplies. It is set from a rule the PLAN declared
+   * on the audit that produced the finding — and only when that rule verifiably
+   * covers this particular finding: for a uniqueness collision, when it acts on
+   * all but one of the colliding rows. A finding carrying one is reported in
+   * full and does not block; see {@link auditWouldBlockCopy}.
+   */
+  readonly resolvedBy?: ResolutionRule;
+}
+
+/** How many colliding/offending ids to quote per finding. */
+const SAMPLE_LIMIT = 5;
+
+/**
+ * How many colliding GROUPS get a finding of their own.
+ *
+ * A report bound, not a check bound — every group is tested for resolution
+ * whatever this says, and the count beyond it is reported rather than dropped.
+ * Exported so a test can build one more group than the cap without restating
+ * the number, which is how the previous cap went unnoticed: nothing named it.
+ */
+export const COLLISION_GROUPS_REPORTED = 50;
+
+/**
+ * Documents a transform REFUSED, keyed by `collection` and the path that
+ * refused them.
+ *
+ * Aggregated rather than listed one per document, because
+ * `preferredPostTypes.text` holding a float is ONE defect however many rows
+ * carry it — and keyed by COLLECTION as well as path, because two collections
+ * can refuse at the same field name and reporting only one of them would leave
+ * the next round exactly where this one started.
+ */
+export type RefusedDocuments = Map<
+  string,
+  { collection: string; path: string; rows: number; ids: string[]; message: string }
+>;
+
+/** Add one refusal to the tally. */
+export function recordRefusedDocument(
+  refused: RefusedDocuments,
+  collection: string,
+  error: BackfillValueError,
+  documentId: string | undefined
+): void {
+  const key = `${collection}\u0000${error.path}`;
+  const entry = refused.get(key) ?? {
+    collection,
+    path: error.path,
+    rows: 0,
+    ids: [],
+    message: error.message,
+  };
+  entry.rows += 1;
+  if (entry.ids.length < SAMPLE_LIMIT && documentId !== undefined) entry.ids.push(documentId);
+  refused.set(key, entry);
+}
+
+/**
+ * One finding per refusing (collection, path).
+ *
+ * The prose names the COLLECTION and the PATH ahead of the value, because the
+ * value is the instance and those two are the defect. That ordering is not
+ * cosmetic: both production instances of this class were integer columns
+ * holding a fractional accumulator, and what hid them was the NAME —
+ * `preferredPostTypes.text` reads like a score, `interactionCount` reads like a
+ * tick, and both are `+=` a fractional weight. `preferredRegions.count` is the
+ * same kind of value and was already `double precision`, with a comment saying
+ * why. The convention existed; the outliers were named as if they were counters.
+ */
+export function refusedDocumentFindings(refused: RefusedDocuments): AuditFinding[] {
+  return [...refused.values()]
+    .sort((a, b) =>
+      a.collection === b.collection
+        ? a.path < b.path
+          ? -1
+          : a.path > b.path
+            ? 1
+            : 0
+        : a.collection < b.collection
+          ? -1
+          : 1
+    )
+    .map((entry) => ({
+      collection: entry.collection,
+      kind: 'refused-document' as const,
+      detail:
+        `${entry.collection}.${entry.path} REFUSED ${entry.rows} document(s): ` +
+        `${entry.message}. The transform will not build the row, so the copy cannot ` +
+        'write it. Fix the data, widen the column, or teach the transform what the ' +
+        'value means — the same three ways forward as any other finding. Check the ' +
+        "NAME against what the writer does: a field called a count that is `+=`'d a " +
+        'fractional weight is this defect, and reads like a counter.',
+      documents: entry.rows,
+      sampleIds: entry.ids,
+    }));
+}
+
+/**
+ * Which STRICT prefixes of a dotted path hold an ARRAY in this collection.
+ *
+ * Asked of the DATA rather than declared on the plan, because the plan already
+ * says the only thing it can know statically — which TABLE a value lands in —
+ * and the shape of the document underneath a path is a property of the
+ * documents. One indexed-or-not `find(...).limit(1)` per prefix answers it, and
+ * a prefix that is an array in no document at all is correctly reported as not
+ * an array: nothing below it can produce a row.
+ */
+async function arrayPrefixes(
+  collection: ReadOnlyCollection,
+  path: string
+): Promise<ReadonlySet<string>> {
+  const segments = path.split('.');
+  const arrays = new Set<string>();
+  for (let index = 1; index < segments.length; index += 1) {
+    const prefix = segments.slice(0, index).join('.');
+    const hit = await collection
+      .find({ [prefix]: { $type: 'array' } }, { projection: { _id: 1 }, limit: 1 })
+      .toArray();
+    if (hit.length > 0) arrays.add(prefix);
+  }
+  return arrays;
+}
+
+/**
+ * The filter for "a row WOULD be emitted here, and its required field is absent",
+ * for a path that runs through one or more arrays.
+ *
+ * `$elemMatch` at every array boundary is what makes this a question about
+ * ELEMENTS. The four shapes it deliberately does NOT match are the four that
+ * emit no child row at all, so none of them can violate a `NOT NULL`:
+ *
+ *  - the array is ABSENT (a post with no media);
+ *  - the array is EMPTY (`[]`);
+ *  - a NULL sits where the array should be (`content.media: null`, which 251,470
+ *    production posts do — a null SCALAR is not an element missing a field, and
+ *    the transform reads no elements out of it);
+ *  - a subdocument between two arrays is absent (`variants[].media` never set).
+ *
+ * It also catches the case the old plain `{path: {$exists:false}}` MISSED, in
+ * the opposite direction: an array whose elements DISAGREE. `$exists:false` on a
+ * dotted path is false as soon as ONE element carries the field, so a mixed
+ * array — `[{type:'image'}, {}]` — read as clean while its second element was
+ * exactly the row that would fail.
+ */
+function missingWithinStructure(
+  segments: readonly string[],
+  absolutePrefix: string,
+  arrays: ReadonlySet<string>,
+  leafPredicate: Record<string, unknown> = { $exists: false }
+): Record<string, unknown> {
+  for (let index = 1; index < segments.length; index += 1) {
+    const relative = segments.slice(0, index).join('.');
+    const absolute = absolutePrefix === '' ? relative : `${absolutePrefix}.${relative}`;
+    if (!arrays.has(absolute)) continue;
+    return {
+      [relative]: {
+        $elemMatch: missingWithinStructure(
+          segments.slice(index),
+          absolute,
+          arrays,
+          leafPredicate
+        ),
+      },
+    };
+  }
+  // No array boundary left. Inside an `$elemMatch` the element itself is the
+  // subject and exists by construction, so a single remaining segment is the
+  // leaf and `leafPredicate` is the whole question.
+  const leaf = segments.join('.');
+  if (segments.length === 1) return { [leaf]: leafPredicate };
+  // A plain subdocument between here and the leaf. It has to EXIST for a row to
+  // be emitted — two keys in one object, which is an implicit AND, rather than
+  // `$and`, so this composes inside an `$elemMatch` unchanged.
+  return {
+    [segments.slice(0, -1).join('.')]: { $exists: true },
+    [leaf]: leafPredicate,
+  };
+}
+
+/**
+ * A document where a REQUIRED field is missing entirely — which `distinct`
+ * cannot see.
+ *
+ * This is the hole that makes the null branches of the two audits below only
+ * half a check, and it is not obvious from either: **Mongo's `distinct` omits a
+ * missing field altogether**. `distinct('followerCount')` over a collection
+ * whose every document lacks the field returns `[]`, not `[null]` — measured
+ * against a real server, and it is what made a case asserting the opposite go
+ * red. An EXPLICIT `null` does appear in the set, so the two states that Mongo
+ * treats as interchangeable everywhere else are distinguishable here, and only
+ * one of them was being checked.
+ *
+ * The consequence without this probe: a `NOT NULL` column with no default and a
+ * source document that never had the field passes every audit, and then
+ * `buildRow` throws mid-copy — one document, no count, no sample, and a
+ * half-migrated database. Which is the precise outcome the audit phase exists
+ * to prevent.
+ *
+ * `$exists: false` is the right predicate rather than `$eq: null`, and the
+ * difference is the same trap in the other direction: `{field: null}` matches
+ * BOTH a missing field and an explicit null, so it would double-report every
+ * value `distinct` already found. Together the two are exact and disjoint.
+ *
+ * ## Which question `$exists: false` answers, and where it answers the wrong one
+ *
+ * The predicate above is right for a field OF THE DOCUMENT and wrong for a field
+ * of an array ELEMENT, because a dotted path through an array resolves against
+ * every element at once: `{'content.media.type': {$exists:false}}` matches a post
+ * with NO media just as readily as one whose media lacks a type. Measured
+ * against production before this was fixed — six findings, 1,591,772 documents,
+ * and **zero** rows Postgres would have refused. The tell was
+ * `content.variants.media.type` reported missing from exactly all 583,665 posts:
+ * a path that exists in no document at all cannot reject a row.
+ *
+ * That is fatal rather than untidy, because every finding blocks the copy and
+ * the defaulted-column and referential passes only run once nothing blocks — so
+ * an inflated count here does not merely mislead, it stops the audit finishing.
+ *
+ * The two questions are told apart by WHICH TABLE the value lands in, which the
+ * plan already knows:
+ *
+ *  - the plan's PRIMARY table gets one row per document unconditionally, so an
+ *    absent path is a violation whatever sits above it. Unchanged.
+ *  - a CHILD table is "filled from this collection's subdocument arrays"
+ *    ({@link CollectionPlan.childTables}), so a row exists only where an element
+ *    does — see {@link missingWithinStructure}.
+ *
+ * ## A column WITH a default is a different audit's question
+ *
+ * This probe predicts a `23502`, and a `NOT NULL` column carrying a DEFAULT
+ * cannot produce one: the transform omits the value and Postgres supplies it.
+ * Both callers therefore skip this entirely when `column.hasDefault`, and the
+ * omission is `auditDefaultedColumns`'s to report — which is the pass that asks
+ * the question a defaulted column actually raises. Not "would this row be
+ * rejected" (it would not) but "is a value nobody chose about to land with
+ * nothing left to notice it afterwards", answerable only by deriving the value
+ * or recording in the plan why the default is right.
+ *
+ * That is a HAND-OFF, not a silencing. It matters because the two passes are
+ * ordered: `auditDefaultedColumns` runs only once nothing blocks, so a false
+ * `23502` here was gating out the very audit that owns the case. Measured
+ * against production: `posts.replyPermission` (147,198 documents) was the whole
+ * live effect, and the only other column of that shape schema-wide is
+ * `mutewords.targets`, which holds none.
+ *
+ * **Do not widen the second branch to cover array-VALUED columns.** The two are
+ * easy to conflate and are not the same question: `posts.replyPermission` holds
+ * an array and lives on `posts` itself, so one row is emitted per document
+ * whatever the field contains and `{$exists:false}` is exactly right — 147,198
+ * production posts answer yes to it and every one is a real `23502` were the
+ * transform not substituting. What makes a path ambiguous is an array BETWEEN
+ * the document and the leaf, never an array AT the leaf.
+ */
+async function auditMissingRequired(
+  source: MongoSource,
+  plan: CollectionPlan,
+  path: string,
+  column: PgColumn,
+  kind: AuditFinding['kind'],
+  refusedBy: string,
+  resolvedBy: ResolutionRule | undefined,
+  resolutions: ResolutionContext | undefined
+): Promise<AuditFinding | null> {
+  const collection = source.collection(plan.collection);
+  const filter = await missingRequiredFilter(collection, plan, path, column);
+  // A child-table column whose path IS the array has no field below it to be
+  // missing: an absent or empty array emits no rows, and an element is a scalar
+  // whose null `distinct` already reports. There is nothing here to check.
+  if (filter === null) return null;
+  const documents = await collection.countDocuments(filter);
+  if (documents === 0) return null;
+  const samples = await collection
+    .find(filter, { projection: { _id: 1 }, limit: SAMPLE_LIMIT })
+    .toArray();
+  return {
+    collection: plan.collection,
+    kind,
+    detail:
+      `${plan.collection}.${path} is MISSING from ${documents} document(s), and ` +
+      `${column.name} is NOT NULL with no default and no declared substitute. ` +
+      `${refusedBy} would reject these rows with a 23502. Mongo's \`distinct\` ` +
+      'does not report a missing field at all, so this is checked separately.',
+    documents,
+    sampleIds: samples.map((doc) => String(doc._id)),
+    // VERIFIED, never declared. A rule named on the audit is attached only when
+    // it acts on EVERY document the probe found — the same fail-closed test
+    // `auditUniqueness` applies to a colliding group, for the same reason: a
+    // rule whose premise no longer holds acts on nothing, and an unconditional
+    // `resolvedBy` would mark the finding answered anyway and let the copy start
+    // against documents the transform then throws on, mid-run.
+    //
+    // With no context there is no way to check, so nothing is attached. A
+    // caller that cannot verify must not be able to claim.
+    ...((await resolutionCoversEveryDocument(collection, filter, documents, resolvedBy, resolutions))
+      ? { resolvedBy: resolvedBy as ResolutionRule }
+      : {}),
+  };
+}
+
+/**
+ * Does `rule` act on every document this filter matches?
+ *
+ * Streams ids and stops at the FIRST one the rule did not claim, so the common
+ * answers are cheap: a rule that stood down loses on its first document, and a
+ * rule that covers everything pays one id per document it already decided.
+ */
+async function resolutionCoversEveryDocument(
+  collection: ReadOnlyCollection,
+  filter: Record<string, unknown>,
+  documents: number,
+  rule: ResolutionRule | undefined,
+  resolutions: ResolutionContext | undefined
+): Promise<boolean> {
+  if (rule === undefined || resolutions === undefined) return false;
+  const actedOn = resolutions.actedOn.get(rule.id);
+  if (actedOn === undefined || actedOn.size < documents) return false;
+  const ids = await collection.find(filter, { projection: { _id: 1 } }).toArray();
+  return ids.every((doc) => actedOn.has(String(doc._id)));
+}
+
+/**
+ * Build the filter {@link auditMissingRequired} counts with, or `null` when the
+ * path cannot describe a missing required value at all.
+ *
+ * Separated from the audit so the DECISION — document field or array element —
+ * can be exercised on its own, and so a reader can see that the primary-table
+ * branch is byte-for-byte the predicate that was always there.
+ */
+async function missingRequiredFilter(
+  collection: ReadOnlyCollection,
+  plan: CollectionPlan,
+  path: string,
+  column: PgColumn
+): Promise<Record<string, unknown> | null> {
+  if (tableName(column.table) === tableName(plan.table)) {
+    return { [path]: { $exists: false } };
+  }
+  const segments = path.split('.');
+  if (segments.length === 1) return null;
+  return missingWithinStructure(segments, '', await arrayPrefixes(collection, path));
+}
+
+/**
+ * How many documents would actually emit a row carrying an explicit NULL at
+ * `path`, for a column on a CHILD table.
+ *
+ * `distinct` reports `null` for a path whose PARENT is null — `content.media:
+ * null` yields a `content.media.type` of `null` even though no element exists —
+ * and such a document emits no child row at all, so it cannot violate the NOT
+ * NULL. This is the same blind spot {@link missingRequiredFilter} fixes for the
+ * ABSENT case, thirty lines up, in the sibling branch that was left behind:
+ * measured against production, `posts.content.media.type = null` reported
+ * 252,948 documents and **zero** of them have an element carrying a null type.
+ *
+ * `$type: 'null'` rather than `: null`, because `{field: null}` in Mongo matches
+ * a MISSING field too — which is the other branch's question, not this one.
+ *
+ * Returns `null` when the path cannot describe an element value at all, in which
+ * case the caller keeps its existing behaviour rather than inventing one.
+ */
+async function nullValuedElementCount(
+  collection: ReadOnlyCollection,
+  plan: CollectionPlan,
+  path: string,
+  column: PgColumn
+): Promise<number | null> {
+  if (tableName(column.table) === tableName(plan.table)) return null;
+  const segments = path.split('.');
+  if (segments.length === 1) return null;
+  const filter = missingWithinStructure(segments, '', await arrayPrefixes(collection, path), {
+    $type: 'null',
+  });
+  return collection.countDocuments(filter);
+}
+
+/**
+ * Check every enum-backed column of a plan against `distinct()` on the source.
+ *
+ * `distinct` is the right instrument: it is a single index-assisted pass that
+ * returns the VALUE SET rather than the documents, so it costs about the same
+ * on a 300,000-document collection as on a 20-document one — which is what
+ * makes it affordable to run over everything before touching anything.
+ */
+export async function auditEnums(
+  source: MongoSource,
+  plan: CollectionPlan,
+  resolutions?: ResolutionContext
+): Promise<AuditFinding[]> {
+  const findings: AuditFinding[] = [];
+  for (const audit of plan.enumAudits ?? []) {
+    const allowed = new Set(allowedValues(audit.column));
+    const collection = source.collection(plan.collection);
+    const observed = await collection.distinct(audit.path, {});
+
+    // A field that is MISSING rather than null — see `auditMissingRequired`.
+    if (audit.column.notNull && !audit.column.hasDefault && audit.absentAs === undefined) {
+      const missing = await auditMissingRequired(
+        source,
+        plan,
+        audit.path,
+        audit.column,
+        'enum',
+        `${audit.column.name} is NOT NULL, so Postgres`,
+        audit.resolvedBy,
+        resolutions
+      );
+      if (missing !== null) findings.push(missing);
+    }
+
+    for (const value of observed) {
+      if (value === null || value === undefined) {
+        // A NULL in a NULLABLE column is not a finding at all, and reporting it
+        // would be a FALSE POSITIVE on every optional enum field in the schema.
+        //
+        // `NULL in ('a','b')` evaluates to NULL, and a CHECK is satisfied by
+        // anything that is not FALSE, so Postgres ACCEPTS the row:
+        //
+        //     create table _chk (r text, constraint c check (r in ('a','b')));
+        //     insert into _chk values (null);    -- INSERT 0 1   (accepted)
+        //     insert into _chk values ('bogus'); -- ERROR: violates check constraint
+        //
+        // An audit that cries wolf gets disabled by whoever hits it next, and
+        // this one is the gate on a production data migration.
+        if (!audit.column.notNull) continue;
+        // A NOT NULL column is a different question: nothing about a CHECK is
+        // involved, `23502` is, and `absentAs` is the plan declaring that the
+        // transform substitutes a default before the value ever gets there.
+        if (audit.absentAs !== undefined) continue;
+        // For a CHILD table, `distinct` reports null for a path whose PARENT is
+        // null, and such a document emits no row to violate anything. Ask the
+        // narrower question before reporting — see `nullValuedElementCount`.
+        const nullValued = await nullValuedElementCount(
+          collection,
+          plan,
+          audit.path,
+          audit.column
+        );
+        if (nullValued === 0) continue;
+        findings.push(
+          await describeEnumFinding(
+            source,
+            plan,
+            audit,
+            null,
+            'is absent/null and no default is declared',
+            `${audit.column.name} is NOT NULL, so Postgres`
+          )
+        );
+        continue;
+      }
+      if (typeof value !== 'string') {
+        findings.push(
+          await describeEnumFinding(
+            source,
+            plan,
+            audit,
+            value,
+            `is ${typeof value}, but the column is text`,
+            `The CHECK on ${audit.column.name}`
+          )
+        );
+        continue;
+      }
+      if (allowed.has(value)) continue;
+      findings.push(
+        await describeEnumFinding(
+          source,
+          plan,
+          audit,
+          value,
+          `is not one of ${[...allowed].join(' | ')}`,
+          `The CHECK on ${audit.column.name}`
+        )
+      );
+    }
+  }
+  return findings;
+}
+
+async function describeEnumFinding(
+  source: MongoSource,
+  plan: CollectionPlan,
+  audit: EnumAudit,
+  value: unknown,
+  why: string,
+  refusedBy: string
+): Promise<AuditFinding> {
+  const collection = source.collection(plan.collection);
+  const filter = { [audit.path]: value } as Record<string, unknown>;
+  const documents = await collection.countDocuments(filter);
+  const samples = await collection
+    .find(filter, { projection: { _id: 1 }, limit: SAMPLE_LIMIT })
+    .toArray();
+  return {
+    collection: plan.collection,
+    kind: 'enum',
+    detail:
+      `${plan.collection}.${audit.path} = ${JSON.stringify(value)} ${why}. ` +
+      `${refusedBy} would reject these rows.`,
+    documents,
+    sampleIds: samples.map((doc) => String(doc._id)),
+    ...(audit.resolvedBy === undefined ? {} : { resolvedBy: audit.resolvedBy }),
+  };
+}
+
+/**
+ * Check every numeric-CHECK column of a plan against `distinct()` on the source.
+ *
+ * Same instrument as {@link auditEnums} and the same cost profile — `distinct`
+ * returns the VALUE SET, so this is affordable over every collection before
+ * anything is written. The only real difference is what the accepted set is
+ * read from: a text enum has `column.enumValues`, a numeric CHECK has nothing
+ * structured at all, so the plan declares it (see {@link NumericAudit}).
+ *
+ * One caveat that is worth stating rather than discovering: `distinct` on a
+ * column holding thousands of distinct counter values returns thousands of
+ * numbers. That is still one index-assisted pass and the comparison is O(n) in
+ * the SET, not in the documents — but it is why the countDocuments/sample
+ * lookup below runs only for a value that actually violates, never per value.
+ */
+export async function auditNumerics(
+  source: MongoSource,
+  plan: CollectionPlan,
+  resolutions?: ResolutionContext
+): Promise<AuditFinding[]> {
+  const findings: AuditFinding[] = [];
+  for (const audit of plan.numericAudits ?? []) {
+    const collection = source.collection(plan.collection);
+    const observed = await collection.distinct(audit.path, {});
+
+    // A field that is MISSING rather than null — see `auditMissingRequired`.
+    if (audit.column.notNull && !audit.column.hasDefault && audit.absentAs === undefined) {
+      const missing = await auditMissingRequired(
+        source,
+        plan,
+        audit.path,
+        audit.column,
+        'numeric',
+        `${audit.column.name} is NOT NULL, so Postgres`,
+        audit.resolvedBy,
+        resolutions
+      );
+      if (missing !== null) findings.push(missing);
+    }
+
+    for (const value of observed) {
+      if (value === null || value === undefined) {
+        // Identical reasoning to the enum audit's null branch, and it holds for
+        // the same measured reason: `NULL >= 0` is NULL, a CHECK is satisfied by
+        // anything that is not FALSE, so Postgres ACCEPTS a NULL in a nullable
+        // column. Reporting it would be a false positive on every optional
+        // numeric field in the schema.
+        if (!audit.column.notNull) continue;
+        // A NOT NULL column raises `23502`, not `23514` — a different failure
+        // that a CHECK has nothing to do with. `absentAs` is the plan declaring
+        // the transform substitutes a default before the value gets there.
+        if (audit.absentAs !== undefined) continue;
+        findings.push(
+          await describeNumericFinding(
+            source,
+            plan,
+            audit,
+            null,
+            `is absent/null and no default is declared, but ${audit.column.name} is NOT NULL`
+          )
+        );
+        continue;
+      }
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        // A string where a number belongs is the shape that survives Mongo
+        // happily and dies on the INSERT: `integer` refuses it outright, and a
+        // NaN/Infinity has no Postgres representation at all.
+        findings.push(
+          await describeNumericFinding(
+            source,
+            plan,
+            audit,
+            value,
+            `is ${typeof value === 'number' ? String(value) : typeof value}, ` +
+              'which no Postgres numeric column accepts'
+          )
+        );
+        continue;
+      }
+      if (numericIsAccepted(audit, value)) continue;
+      findings.push(
+        await describeNumericFinding(
+          source,
+          plan,
+          audit,
+          value,
+          `is not ${describeNumericBound(audit)}`
+        )
+      );
+    }
+  }
+  return findings;
+}
+
+async function describeNumericFinding(
+  source: MongoSource,
+  plan: CollectionPlan,
+  audit: NumericAudit,
+  value: unknown,
+  why: string
+): Promise<AuditFinding> {
+  const collection = source.collection(plan.collection);
+  const filter = { [audit.path]: value } as Record<string, unknown>;
+  const documents = await collection.countDocuments(filter);
+  const samples = await collection
+    .find(filter, { projection: { _id: 1 }, limit: SAMPLE_LIMIT })
+    .toArray();
+  return {
+    collection: plan.collection,
+    kind: 'numeric',
+    detail:
+      `${plan.collection}.${audit.path} = ${JSON.stringify(value)} ${why}. ` +
+      `${audit.constraint} would reject these rows.`,
+    documents,
+    sampleIds: samples.map((doc) => String(doc._id)),
+    ...(audit.resolvedBy === undefined ? {} : { resolvedBy: audit.resolvedBy }),
+  };
+}
+
+/**
+ * Find groups of documents that collide under a uniqueness rule Postgres
+ * enforces and Mongo did not.
+ *
+ * Implemented as one `$group` over the normalized key. `$toLower` is applied to
+ * the case-insensitive paths, which is the same normalization the Postgres
+ * expression index applies: both are SIMPLE case mapping. (It is JavaScript's
+ * `String.toLowerCase()` that applies FULL case mapping and differs, and no
+ * part of this audit uses it.)
+ */
+/**
+ * Every `NOT NULL DEFAULT` column the transform leaves to the database, and how
+ * many documents it leaves it for.
+ *
+ * ## Why silence from the other audits is not evidence here
+ *
+ * The audits above ask what the DATA contains. This one asks what the TRANSFORM
+ * omits, which is a different question and the only one that can see this class.
+ * A `NOT NULL` column with no default raises `23502` when a value is missing, so
+ * `buildRow` catches it while the document is in hand. A `NOT NULL` column WITH
+ * a default raises nothing: the row inserts, Postgres supplies the value, and a
+ * source field that was absent silently becomes a value nobody chose.
+ *
+ * Measured, which is why this exists at all: six posts of 577,526 in production
+ * carry no `createdAt`, and `posts.created_at` is exactly this shape. Left
+ * alone, all six would take `now()` and sit at the top of every chronological
+ * feed on day one — no error, no finding, nothing to notice.
+ *
+ * ## It reports rather than decides
+ *
+ * Both answers are legitimate and they are not interchangeable. A counter with
+ * no source field genuinely should default to zero; a creation timestamp should
+ * not be invented. So the finding carries the COUNT and sample ids, and the plan
+ * records which answer it took — deriving the value (`posts` now does) or
+ * declaring the default correct (`defaultedColumns`).
+ *
+ * ## The acknowledgement list is re-measured, never trusted
+ *
+ * An acknowledgement for a column the transform ALWAYS supplies is reported as
+ * `stale-acknowledgement`. An exemption list nobody re-checks is how a gate
+ * becomes a formality, and this one describes transform behaviour that changes
+ * under it — the same reason the referential audit reconciles its derived
+ * relations against `pg_constraint` instead of believing its own derivation.
+ *
+ * Streaming, because the question is about emitted ROWS and only running the
+ * transform can answer it. Nothing is written and nothing is inserted.
+ */
+export async function auditDefaultedColumns(
+  source: MongoSource,
+  plan: CollectionPlan,
+  resolutions: ResolutionContext,
+  options: { readonly batchSize?: number } = {}
+): Promise<AuditFinding[]> {
+  const batchSize = options.batchSize ?? 1000;
+
+  // (table property name, column property name) -> how many rows omitted it.
+  const omissions = new Map<string, { table: PgTable; property: string; rows: number; ids: string[] }>();
+  const rowsPerTable = new Map<string, number>();
+
+  // This pass measures DEFAULTED COLUMNS; it decides no reference, so the
+  // orphan rules are not consulted. That is a third state, distinct from both
+  // "unloaded" (which refuses) and "loaded and empty" (which means the table is
+  // genuinely empty) — see `parentKeysNotConsulted`.
+  const noParents = parentKeysNotConsulted();
+
+  const refused: RefusedDocuments = new Map();
+
+  for await (const documents of streamCollection(source, plan.collection, batchSize)) {
+    for (const doc of documents) {
+      const documentId = describeDocumentId(doc);
+      try {
+      transformDocument(plan, doc, resolutions, noParents, (row) => {
+        // `source`, not `written`: a row a rule drops still says what the
+        // transform decided, and measuring only surviving rows would let a rule
+        // hide the omission rather than answer it.
+        const name = tableName(row.table);
+        rowsPerTable.set(name, (rowsPerTable.get(name) ?? 0) + 1);
+        for (const property of tableShape(row.table).defaulted) {
+          if (property in row.source) continue;
+          const key = `${name}.${property}`;
+          const entry = omissions.get(key) ?? {
+            table: row.table,
+            property,
+            rows: 0,
+            ids: [],
+          };
+          entry.rows += 1;
+          if (entry.ids.length < SAMPLE_LIMIT && documentId !== undefined) {
+            entry.ids.push(documentId);
+          }
+          omissions.set(key, entry);
+        }
+      });
+      } catch (error) {
+        // ONLY this class. A `BackfillValueError` names one document and one
+        // path — it is a fact about the data, which is what a finding is.
+        // Anything else is a defect in the migration itself and must still
+        // abort, because continuing past it would report on rows built by code
+        // that is already known to be wrong.
+        if (!(error instanceof BackfillValueError)) throw error;
+        recordRefusedDocument(refused, plan.collection, error, documentId);
+        // The document's rows are NOT counted, and none of them was: a refusal
+        // reaches no `emit` call, because `transformDocument` collects a
+        // document's rows before emitting any of them. So the omission
+        // denominator loses this document whole rather than in part.
+      }
+    }
+  }
+
+  const acknowledged = new Map(
+    (plan.defaultedColumns ?? []).map((entry) => [
+      `${entry.column.name}`,
+      entry,
+    ])
+  );
+
+  const findings: AuditFinding[] = [];
+  const seenProperties = new Set<string>();
+
+  findings.push(...refusedDocumentFindings(refused));
+
+  for (const [key, entry] of [...omissions].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+    seenProperties.add(entry.property);
+    if (acknowledged.has(entry.property)) continue;
+    const total = rowsPerTable.get(tableName(entry.table)) ?? 0;
+    findings.push({
+      collection: plan.collection,
+      kind: 'defaulted-column',
+      detail:
+        `${key} is NOT NULL with a DEFAULT and the transform omits it for ` +
+        `${entry.rows} of ${total} rows, so Postgres supplies the value. That is ` +
+        'silent by construction — no error, no rejected row. Decide which it is: ' +
+        'DERIVE the value (as `posts.created_at` now does from the ObjectId), or ' +
+        'declare the default correct for this column in the plan\'s ' +
+        '`defaultedColumns` with the reason it is right.',
+      documents: entry.rows,
+      sampleIds: entry.ids,
+    });
+  }
+
+  for (const [property, entry] of acknowledged) {
+    if (seenProperties.has(property)) continue;
+    findings.push({
+      collection: plan.collection,
+      kind: 'stale-acknowledgement',
+      detail:
+        `${tableName(plan.table)}.${property} carries a defaultedColumns ` +
+        `acknowledgement ("${entry.reason}") but the transform SUPPLIES it for ` +
+        'every row, so the acknowledgement describes behaviour that no longer ' +
+        'happens. Remove it — an exemption nobody re-measures is how this gate ' +
+        'turns into a formality.',
+      documents: 0,
+      sampleIds: [],
+    });
+  }
+
+  return findings;
+}
+
+/**
+ * How many values each column RECEIVES, against how many the source holds.
+ *
+ * ## Why this is a pass and not a query
+ *
+ * The question is what the TRANSFORM emits per column, and only running it can
+ * answer that. The database cannot: `copyRowsInto` builds its `INSERT` column
+ * list from the properties present in the rows, so a column no row carries is
+ * omitted from the statement and Postgres supplies its DEFAULT on every row.
+ * Asking the copied table "which columns are entirely NULL" therefore cannot
+ * see the worst member of this class at all — the value is there, it is just
+ * nobody's.
+ *
+ * ## Both counts come from ONE stream, deliberately
+ *
+ * The source counts are accumulated from the SAME documents the transform runs
+ * on, rather than from a `countDocuments` beside it. Two queries would be two
+ * instants over a live source, which is the defect that manufactured five
+ * phantom orphan findings out of nothing but elapsed time — and here it would
+ * manufacture them in both directions at once. One stream cannot disagree with
+ * itself.
+ *
+ * A document whose transform THROWS contributes to neither side, so a refusal
+ * cannot inflate one count against the other. That holds without buffering here
+ * because `transformDocument` collects a document's rows before emitting any of
+ * them — a refusal reaches no `emit` call at all — and the source paths are
+ * counted after the transform returns. `auditDefaultedColumns` already reports
+ * the refusal itself, so it is skipped rather than reported twice.
+ *
+ * It costs one more full read of every mapped collection, which is stated
+ * rather than hidden — the same trade `auditDefaultedColumns` makes, for the
+ * same reason: a separate function is the one that can be exercised on its own.
+ */
+export async function auditColumnCoverageForPlan(
+  source: MongoSource,
+  plan: CollectionPlan,
+  resolutions: ResolutionContext,
+  options: { readonly batchSize?: number } = {}
+): Promise<AuditFinding[]> {
+  const declarations = plan.columnCoverage ?? [];
+  const uncarried = plan.uncarriedFields ?? [];
+  const populated: PopulatedCounts = new Map();
+  const sourceCounts = new Map<string, number>();
+  for (const declaration of declarations) sourceCounts.set(declaration.sourcePath, 0);
+  // Counted in the SAME stream, so a field nothing carries costs one property
+  // read per document rather than a query of its own.
+  for (const field of uncarried) sourceCounts.set(field.sourcePath, 0);
+  const paths = [...sourceCounts.keys()];
+
+  // This pass decides no reference, so the orphan rules are not consulted —
+  // the third state, neither "unloaded" (which refuses) nor "loaded and empty".
+  const noParents = parentKeysNotConsulted();
+  let rowsEmitted = 0;
+
+  for await (const documents of streamCollection(source, plan.collection, options.batchSize ?? 1000)) {
+    for (const doc of documents) {
+      try {
+        transformDocument(plan, doc, resolutions, noParents, (row) => {
+          // `source`, not `written`: a row a rule drops still says what the
+          // transform mapped, and counting only survivors would let a drop rule
+          // answer a question about column coverage.
+          recordPopulated(populated, row.table, row.source);
+          rowsEmitted += 1;
+        });
+      } catch (error) {
+        if (!(error instanceof BackfillValueError)) throw error;
+        continue;
+      }
+      // A rule that removed the document WHOLE. It emits no row, so it can
+      // contribute nothing to `populated` — and counting it here would make the
+      // two sides describe different sets of documents, which is the one thing
+      // this pass depends on.
+      //
+      // "Accepted" below used to mean "did not throw", and a rule-drop is a
+      // `return`, not a throw. That gap is what refused the re-rehearsal: five
+      // BLOCKING `never-populated` findings on `federatedactors`, every one of
+      // them a duplicate actor `KEEP_FRESHEST_FEDERATED_ACTOR` had correctly
+      // removed. Proven rather than reasoned — `gap = drops − (accepted
+      // documents not holding the value)` predicted all four observed gaps
+      // across two runs, and 610 resolution-log rows reconciled as 589 drops
+      // plus 21 re-keys.
+      //
+      // Rule-dropped, NOT "emitted nothing". A transform that returns without
+      // emitting and without recording a drop is an UNDECIDED drop, and
+      // `dropped-document` blocks on it deliberately; widening this to every
+      // zero-row document would silence that. Row cardinality accounts for
+      // these separately through `documentsDroppedByRule`.
+      if (resolutions.wasDropped(plan.collection, resolutionDocumentId(doc))) continue;
+      // Only for a document the transform accepted, which is what keeps the two
+      // counts describing the same set of documents.
+      for (const path of paths) {
+        if (holdsValueAt(doc, path)) sourceCounts.set(path, (sourceCounts.get(path) ?? 0) + 1);
+      }
+    }
+  }
+
+  const findings = auditColumnCoverage({
+    collection: plan.collection,
+    primaryTable: plan.table,
+    tables: [plan.table, ...(plan.childTables ?? [])],
+    populated,
+    rowsEmitted,
+    ...(plan.unmappedColumns === undefined ? {} : { unmapped: plan.unmappedColumns }),
+    coverage: declarations,
+    sourceCounts,
+  }).map(coverageAuditFinding);
+
+  // THE OTHER HALF, and the one a schema-driven check structurally cannot
+  // reach: a source field with no column. Nothing is missing from the target,
+  // so nothing looks wrong — the only way to notice is to have written down
+  // that the field exists and is deliberately not carried.
+  //
+  // A count that has GROWN is the finding. If the field is genuinely dead the
+  // number is frozen, so growth means something started writing it again and
+  // this migration is now dropping live data under a reason that was true when
+  // it was written. Shrinkage is not reported: a retention sweep or a purge
+  // removing documents is not evidence about the field.
+  for (const field of uncarried) {
+    const seen = sourceCounts.get(field.sourcePath) ?? 0;
+    if (seen <= field.observed) continue;
+    findings.push({
+      collection: plan.collection,
+      kind: 'stale-acknowledgement',
+      detail:
+        `${plan.collection}.${field.sourcePath} is declared uncarried ` +
+        `("${field.reason}") on the basis that ${field.observed} document(s) ` +
+        `held it and nothing writes it any more. ${seen} hold it now. Something ` +
+        'started writing the field again, so the reason has stopped being true ' +
+        'and this migration is dropping live data — add a column and map it, or ' +
+        'establish why the new writes are also disposable and re-record the count.',
+      documents: seen,
+      sampleIds: [],
+    });
+  }
+
+  return findings;
+}
+
+/**
+ * A coverage finding as an audit finding — and whether it stops the copy.
+ *
+ * The split is between what the check DEMONSTRATED and what it could not tell.
+ * A column the source holds values for and the transform never fills is proven
+ * data loss and blocks, in the same family as `defaulted-column`: Postgres
+ * accepts the row, so an un-blocked finding is data disappearing with nothing
+ * left to notice it afterwards.
+ *
+ * The two shapes that block NOTHING are the two where there is nothing to lose.
+ * An empty column with no declaration is the check admitting it cannot say. A
+ * declared path matching no document is the same admission from the other side:
+ * a typo and a genuinely absent field are indistinguishable from here, and
+ * neither has values to drop. Refusing the copy over either would be gating on
+ * paperwork rather than on evidence — and it would refuse it permanently for
+ * every correctly mapped column whose source field simply holds nothing yet.
+ */
+function coverageAuditFinding(finding: CoverageFinding): AuditFinding {
+  const unverified =
+    finding.kind === 'declared-never-observed' ||
+    (finding.kind === 'never-populated' && finding.sourceValues === null);
+  return {
+    collection: finding.collection,
+    // A stale acknowledgement keeps the kind it already has, so the two lists
+    // of rotted exemptions — this one and `defaultedColumns`' — read as one
+    // class in the report rather than two that happen to mean the same thing.
+    kind:
+      finding.kind === 'stale-acknowledgement'
+        ? 'stale-acknowledgement'
+        : unverified
+          ? 'unverified-column'
+          : 'column-coverage',
+    detail: finding.detail,
+    documents: finding.sourceValues ?? finding.populated,
+    sampleIds: [],
+  };
+}
+
+/** The document `_id` as a string, for a sample list. */
+function describeDocumentId(doc: Record<string, unknown>): string | undefined {
+  const id = doc._id;
+  return id === null || id === undefined ? undefined : String(id);
+}
+
+export async function auditUniqueness(
+  source: MongoSource,
+  plan: CollectionPlan,
+  resolutions: ResolutionContext
+): Promise<AuditFinding[]> {
+  const findings: AuditFinding[] = [];
+  for (const audit of plan.uniquenessAudits ?? []) {
+    // Postgres unique indexes are NULLS DISTINCT: a row with a NULL in ANY
+    // indexed column never conflicts. Excluding those rows is not an
+    // optimisation — including them reports every sparse row as colliding with
+    // every other, which is a false positive on exactly the columns most likely
+    // to be sparse.
+    const present: Record<string, unknown> = {};
+    for (const part of audit.key) {
+      present[part.path] = { $nin: [null, undefined] };
+    }
+    // A PARTIAL index constrains only the rows its predicate selects, so the
+    // audit has to ask the same narrower question — see `UniquenessAudit.where`.
+    // Spread LAST so a predicate on an indexed column wins over the presence
+    // filter above rather than being silently dropped by key collision.
+    const scope: Record<string, unknown> = { ...present, ...(audit.where ?? {}) };
+
+    const groupKey: Record<string, unknown> = {};
+    for (const part of audit.key) {
+      groupKey[keyAlias(part.path)] = normalizedExpression(part.path, part.normalize);
+    }
+
+    const groups = await source
+      .collection(plan.collection)
+      .aggregate([
+        { $match: scope },
+        { $group: { _id: groupKey, count: { $sum: 1 }, ids: { $push: '$_id' } } },
+        { $match: { count: { $gt: 1 } } },
+        // `count` alone is a TIE among every group of the same size, and the
+        // truncation below then keeps an arbitrary 50 of them — so an operator
+        // fixes the reported collisions, re-runs, and is handed a DIFFERENT 50
+        // with no indication that the first report was a sample. `_id` is the
+        // group key and is unique per group, so appending it makes the order
+        // total and the truncation reproducible.
+        { $sort: { count: -1, _id: 1 } },
+      ])
+      .toArray();
+
+    // Every group is CHECKED; only the first {@link COLLISION_GROUPS_REPORTED}
+    // are described. The truncation used to live in the pipeline as a `$limit`,
+    // which made the VERDICT a sample too: 519 of production's 569 colliding
+    // `federatedactors` groups were never looked at, so the audit could have
+    // passed while an unexamined group collided at INSERT time — a `23505`
+    // hours into a run, which is the outcome this whole phase exists to
+    // prevent. What the cap is for is REPORT SIZE, and that is all it now does.
+    //
+    // The memory this costs is the ids of colliding rows only, and a collection
+    // where that is large is a collection this audit refuses anyway.
+    const truncated = groups.slice(COLLISION_GROUPS_REPORTED);
+    let unresolvedBeyondReport = 0;
+    let documentsBeyondReport = 0;
+    const unresolvedSampleIds: string[] = [];
+    for (const group of truncated) {
+      const ids = (Array.isArray(group.ids) ? group.ids : []).map((value: unknown) => String(value));
+      documentsBeyondReport += typeof group.count === 'number' ? group.count : ids.length;
+      const resolved =
+        audit.resolvedBy !== undefined &&
+        resolutions.resolvesUniquenessGroup(audit.resolvedBy, ids);
+      if (resolved) continue;
+      unresolvedBeyondReport += 1;
+      if (unresolvedSampleIds.length < SAMPLE_LIMIT) unresolvedSampleIds.push(...ids.slice(0, 2));
+    }
+
+    for (const group of groups.slice(0, COLLISION_GROUPS_REPORTED)) {
+      const ids = (Array.isArray(group.ids) ? group.ids : []).map((value: unknown) =>
+        String(value)
+      );
+      // A rule declared on this audit only COVERS the group when it actually
+      // acts on all but one of its rows. Asked of the resolution, so this file
+      // needs no knowledge of any particular rule — and it fails CLOSED, so a
+      // collision the rule was not written for still blocks.
+      const resolvedBy =
+        audit.resolvedBy !== undefined &&
+        resolutions.resolvesUniquenessGroup(audit.resolvedBy, ids)
+          ? audit.resolvedBy
+          : undefined;
+      findings.push({
+        collection: plan.collection,
+        kind: 'uniqueness',
+        detail:
+          `${audit.index} would reject ${group.count} documents sharing the key ` +
+          `${JSON.stringify(group._id)} (normalized as ` +
+          `${audit.key.map((part) => `${part.path}:${part.normalize}`).join(', ')}). ` +
+          'Mongo allowed them to coexist; Postgres will not. ' +
+          (resolvedBy === undefined
+            ? 'Decide which row survives — the migration must not choose.'
+            : 'Which row survives is DECIDED, not guessed — see the resolution rule.'),
+        documents: typeof group.count === 'number' ? group.count : ids.length,
+        sampleIds: ids.slice(0, SAMPLE_LIMIT),
+        ...(resolvedBy === undefined ? {} : { resolvedBy }),
+      });
+    }
+
+    // The report says how much of itself it is. A sample cap presented as a
+    // total is how a floor becomes a fact: production holds 569 colliding
+    // `federated_actors_uri_key` groups over 1,156 documents, and the report
+    // said fifty — an operator reading it would have sized a cutover blocker at
+    // a ninth of its real extent.
+    if (truncated.length > 0) {
+      const total = groups.length;
+      const shownDocuments = groups
+        .slice(0, COLLISION_GROUPS_REPORTED)
+        .reduce((sum, group) => sum + (typeof group.count === 'number' ? group.count : 0), 0);
+      findings.push({
+        collection: plan.collection,
+        kind: 'uniqueness',
+        detail:
+          `${audit.index}: ${COLLISION_GROUPS_REPORTED} of ${total} colliding group(s) ` +
+          `are described above (${shownDocuments} of ` +
+          `${shownDocuments + documentsBeyondReport} document(s)). The remaining ` +
+          `${truncated.length} were CHECKED but not listed` +
+          (unresolvedBeyondReport === 0
+            ? ' — every one of them is answered by a documented resolution rule, so ' +
+              'this is a report-length notice and nothing more.'
+            : `, and ${unresolvedBeyondReport} of them is NOT answered by any rule. ` +
+              'Those would collide at INSERT time — read this as the true size of ' +
+              'the problem, not as the fifty above.'),
+        documents: documentsBeyondReport,
+        sampleIds: unresolvedSampleIds.slice(0, SAMPLE_LIMIT),
+        // Carrying the rule is what makes this non-blocking, and it is attached
+        // ONLY when every unlisted group is genuinely answered — the same
+        // fail-closed test each listed group gets, applied to the remainder.
+        ...(unresolvedBeyondReport === 0 && audit.resolvedBy !== undefined
+          ? { resolvedBy: audit.resolvedBy }
+          : {}),
+      });
+    }
+  }
+  return findings;
+}
+
+/**
+ * The Mongo expression matching one column's index expression.
+ *
+ * `$toLower` and Postgres `lower()` both apply SIMPLE case mapping, so they
+ * agree. `$trim` with no `chars` strips whitespace, as `btrim` with no second
+ * argument does.
+ */
+function normalizedExpression(path: string, normalize: UniquenessNormalization): unknown {
+  const field = `$${path}`;
+  if (normalize === 'exact') return field;
+  if (normalize === 'lower') return { $toLower: field };
+  return { $toLower: { $trim: { input: field } } };
+}
+
+/** `$group` keys cannot contain a dot; `content.text` becomes `content__text`. */
+function keyAlias(path: string): string {
+  return path.replace(/\./g, '__');
+}
+
+/**
+ * Every finding blocks the copy — unless a documented rule already answers it.
+ *
+ * Written as a function rather than assumed, so a future finding class that is
+ * genuinely advisory has one place to say so — and so the runner's refusal
+ * reads as a decision rather than an accident.
+ *
+ * `resolvedBy` is NOT an override flag and cannot be used as one. Nothing a
+ * caller passes reaches it: it is set only when the PLAN declares a rule on the
+ * very audit that produced the finding, and — for a uniqueness collision — only
+ * when the rule verifiably acts on all but one of the colliding rows. The
+ * finding is still computed, still counted, and still printed. Silencing a
+ * check remains impossible; teaching the migration what to do is the move.
+ */
+export function auditWouldBlockCopy(finding: AuditFinding): boolean {
+  if (finding.resolvedBy !== undefined) return false;
+  return (
+    finding.kind === 'enum' ||
+    // A numeric CHECK is `23514`, exactly as an enum CHECK is, and blocks for
+    // the same reason: the row is refused by the server, so the alternative to
+    // stopping now is stopping at hour three with a partly-migrated database.
+    finding.kind === 'numeric' ||
+    finding.kind === 'uniqueness' ||
+    // A referential finding blocks whether or not the column is NULLABLE.
+    // Nullable means SQL NULL is accepted, not that a value naming no row is:
+    // both are `23503`. Nullability changes what the report RECOMMENDS, never
+    // whether the copy may start.
+    finding.kind === 'referential-integrity' ||
+    // A foreign key Postgres HAS and this audit never derived. Kept apart from
+    // every other class on purpose: it is a defect in the CHECKER, not in the
+    // data, so there is nothing an operator could fix in Mongo to clear it and
+    // no resolution rule may ever answer it — a rule clearing it would be the
+    // migration excusing its own blind spot.
+    finding.kind === 'undetected-relation' ||
+    // A transform that emitted fewer rows than it read documents is losing
+    // data, and it blocks even with no foreign key pointing at the lost rows.
+    // This is one of the two finding classes a resolution rule must never
+    // answer: the bug is in the transform, and `resolvedBy` clearing it would
+    // be the migration silently agreeing to lose documents.
+    finding.kind === 'dropped-document' ||
+    // The other one, and the mirror image: a documented rule that acted on a
+    // row whose parent EXISTS is removing or altering live data. Nothing may
+    // clear it — least of all another rule.
+    finding.kind === 'resolution-overreach' ||
+    // A `NOT NULL DEFAULT` column the transform omits. It blocks even though
+    // the row would insert cleanly, and BECAUSE it would: every other blocking
+    // class is something Postgres refuses, so stopping the run is the cheaper
+    // of two failures. This one Postgres accepts, which means an un-blocked
+    // finding is a value nobody chose landing in production with nothing left
+    // to notice it afterwards. The way past is a DECISION recorded in the plan
+    // (derive the value, or `defaultedColumns` with the reason the default is
+    // right), which is the same shape as the other two ways forward and not a
+    // switch. `resolvedBy` cannot clear it either — nothing sets one on this
+    // kind, because a resolution rule answering a question about the
+    // TRANSFORM's behaviour would be the migration agreeing with itself.
+    finding.kind === 'defaulted-column' ||
+    // An acknowledgement for a column the transform always supplies. A defect
+    // in the PLAN rather than in the data, same family as
+    // `undetected-relation`: there is nothing to fix in Mongo, and a stale
+    // exemption is exactly how this gate would decay into a formality.
+    finding.kind === 'stale-acknowledgement' ||
+    // A column the source holds values for that nothing writes, or one written
+    // for rows the source has nothing for. It blocks for the same reason
+    // `defaulted-column` does and no other class does: Postgres ACCEPTS it. A
+    // row that inserts cleanly while missing a value, or carrying a fabricated
+    // one, leaves nothing behind to notice — and this is the class that already
+    // shipped eleven times through a run that reported AUDIT CLEAN.
+    //
+    // `unverified-column` deliberately does NOT appear here: it says the check
+    // could not tell, and blocking on an admission would make the gate about
+    // paperwork rather than about evidence.
+    finding.kind === 'column-coverage' ||
+    // The transform refused to build the row, so the copy cannot write it.
+    // Reporting rather than aborting changes WHEN it is learned, never whether
+    // it stops the copy — and no rule may clear it, because a rule answering
+    // "this value is not the shape the column takes" would be the migration
+    // deciding it does not need to be.
+    finding.kind === 'refused-document'
+  );
+}

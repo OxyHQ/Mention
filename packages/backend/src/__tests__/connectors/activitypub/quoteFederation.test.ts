@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Outbound QUOTE-POST federation: a Mention quote post is a normal Note (its own
@@ -19,8 +19,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  *     `/ap/users/<owner>/posts/<id>` uri; deduped across a batch.
  *
  * The builder's transitive deps are stubbed so `FollowService` imports in
- * isolation; `Post`/`FederatedActor`/the Oxy client are stubbed with controllable
- * lean output.
+ * isolation. The QUOTED POST and any federated actor are REAL ROWS: the whole
+ * resolver is `resolveFederationTarget` reading a post and deciding, from
+ * whether that row carries a `federation.activityId`, which of the two URI
+ * shapes to emit. Under the previous `Post.findById` stub the answer was the
+ * mock's, so a resolver that found nothing and one that found the wrong row were
+ * indistinguishable — and a quote that silently resolves to null federates as
+ * bare commentary with the quoted post dropped.
+ *
+ * The Oxy client stays mocked: it owns usernames, and it is a remote service.
  */
 
 vi.mock('../../../connectors/activitypub/actor.service', () => ({ actorService: {} }));
@@ -38,27 +45,19 @@ vi.mock('../../../utils/mediaResolver', () => ({
   resolveMediaRef: (ref: string) => ({ url: `https://cloud.oxy.so/${ref}` }),
 }));
 
-const { postFindByIdLean, federatedActorFindOneLean, getUserById } = vi.hoisted(() => ({
-  postFindByIdLean: vi.fn(),
-  federatedActorFindOneLean: vi.fn(),
-  getUserById: vi.fn(),
-}));
+const { getUserById } = vi.hoisted(() => ({ getUserById: vi.fn() }));
 
-vi.mock('../../../models/Post', () => ({
-  Post: {
-    findById: () => ({ select: () => ({ lean: () => postFindByIdLean() }) }),
-  },
-}));
-vi.mock('../../../models/FederatedActor', () => ({
-  default: {
-    findOne: () => ({ lean: () => federatedActorFindOneLean() }),
-  },
-}));
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ getUserById }),
 }));
 
 import type { PostContent } from '@mention/shared-types';
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedPost,
+} from '../../helpers/federationFixtures';
 import { followService } from '../../../connectors/activitypub/follow.service';
 
 const ISO = '2024-01-02T03:04:05.000Z';
@@ -69,15 +68,28 @@ function body(text: string): PostContent {
   return { variants: [{ source: 'author', text }] };
 }
 
+const scope = federationScope('quote-federation');
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
-  federatedActorFindOneLean.mockResolvedValue(null);
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 describe('buildCreateNoteActivity — quote → FEP-044f / FEP-e232 quote fields + Link tag', () => {
   it('emits quote/quoteUri/quoteUrl/_misskey_quote = the quoted canonical id and a Link tag', () => {
     const activity = followService.buildCreateNoteActivity(
-      { _id: 'q1', content: body('check this out'), createdAt: ISO },
+      { id: 'q1', content: body('check this out'), createdAt: ISO },
       'alice',
       undefined,
       undefined,
@@ -113,7 +125,7 @@ describe('buildCreateNoteActivity — quote → FEP-044f / FEP-e232 quote fields
 
   it('a non-quote post emits NONE of the quote fields and no Link tag', () => {
     const activity = followService.buildCreateNoteActivity(
-      { _id: 'p1', content: body('just a post'), createdAt: ISO },
+      { id: 'p1', content: body('just a post'), createdAt: ISO },
       'alice',
     );
     const object = activity.object as Record<string, unknown>;
@@ -130,13 +142,18 @@ describe('buildCreateNoteActivity — quote → FEP-044f / FEP-e232 quote fields
 
 describe('resolveQuoteContext — reuses resolveFederationTarget', () => {
   it('resolves a FEDERATED quoted post to its remote federation.activityId', async () => {
-    postFindByIdLean.mockResolvedValue({ federation: { activityId: QUOTED_URI } });
+    // A MIRRORED original: it already has a canonical AP id upstream, so the
+    // quote must point at that rather than minting a Mention URL for it.
+    const quoted = await seedPost(scope, {
+      oxyUserId: scope.user('remote-owner'),
+      federation: { activityId: QUOTED_URI, actorUri: `${scope.origin}/users/bob` },
+    });
 
     const context = await followService.resolveQuoteContext({
-      _id: 'q1',
+      id: 'q1',
       content: body('quoting a remote post'),
       createdAt: ISO,
-      quoteOf: 'quoted-remote-id',
+      quoteOf: quoted.id,
     });
 
     expect(context).toEqual({ uri: QUOTED_URI });
@@ -146,53 +163,54 @@ describe('resolveQuoteContext — reuses resolveFederationTarget', () => {
 
   it('resolves a LOCAL quoted post to its minted /ap/users/<owner>/posts/<id> uri', async () => {
     // No `federation` → local original; the owner username is resolved via Oxy.
-    postFindByIdLean.mockResolvedValue({ oxyUserId: 'owner1' });
+    const owner = scope.user('owner1');
+    const quoted = await seedPost(scope, { oxyUserId: owner });
     getUserById.mockResolvedValue({ username: 'bob' });
 
     const context = await followService.resolveQuoteContext({
-      _id: 'q1',
+      id: 'q1',
       content: body('quoting a local post'),
       createdAt: ISO,
-      quoteOf: 'local-post-1',
+      quoteOf: quoted.id,
     });
 
+    // The minted URI carries the quoted post's REAL id — a uuid v7 since the
+    // cutover, which is why nothing on this path may validate an ObjectId.
     expect(context).toEqual({
-      uri: 'https://mention.earth/ap/users/bob/posts/local-post-1',
+      uri: `https://mention.earth/ap/users/bob/posts/${quoted.id}`,
     });
-    expect(getUserById).toHaveBeenCalledWith('owner1');
+    expect(getUserById).toHaveBeenCalledWith(owner);
   });
 
-  it('returns null (no DB read) when the post is not a quote', async () => {
+  it('returns null when the post is not a quote', async () => {
     const context = await followService.resolveQuoteContext({
-      _id: 'p1',
+      id: 'p1',
       content: body('no quote here'),
       createdAt: ISO,
     });
 
     expect(context).toBeNull();
-    expect(postFindByIdLean).not.toHaveBeenCalled();
   });
 
   it('returns null (no quote context) for a boost — a boost carries boostOf, never quoteOf', async () => {
     const context = await followService.resolveQuoteContext({
-      _id: 'b1',
+      id: 'b1',
       content: body(''),
       createdAt: ISO,
       boostOf: 'original-1',
     });
 
     expect(context).toBeNull();
-    expect(postFindByIdLean).not.toHaveBeenCalled();
   });
 
   it('returns null when the quoted post is unresolvable (fail-soft, still federate the commentary)', async () => {
-    postFindByIdLean.mockResolvedValue(null);
-
+    // No row for this id — a quoted post that was deleted between the write and
+    // the fan-out. The commentary still federates; only the quote fields drop.
     const context = await followService.resolveQuoteContext({
-      _id: 'q1',
+      id: 'q1',
       content: body('quoting a deleted post'),
       createdAt: ISO,
-      quoteOf: 'gone',
+      quoteOf: '019fffff-ffff-7fff-bfff-ffffffffffff',
     });
 
     expect(context).toBeNull();
@@ -201,29 +219,29 @@ describe('resolveQuoteContext — reuses resolveFederationTarget', () => {
 
 describe('resolveQuoteContextByPost — batched + deduped', () => {
   it('keys each quote context by post id, dedupes a shared quoted post, and omits non-quote posts', async () => {
-    // Both quote posts reference the SAME quoted original → resolved ONCE.
-    postFindByIdLean.mockResolvedValue({ federation: { activityId: QUOTED_URI } });
+    // Both quote posts reference the SAME quoted original.
+    const shared = await seedPost(scope, {
+      oxyUserId: scope.user('remote-owner'),
+      federation: { activityId: QUOTED_URI, actorUri: `${scope.origin}/users/bob` },
+    });
 
     const map = await followService.resolveQuoteContextByPost([
-      { _id: 'q1', content: body('quote a'), createdAt: ISO, quoteOf: 'shared' },
-      { _id: 'q2', content: body('quote b'), createdAt: ISO, quoteOf: 'shared' },
-      { _id: 'p3', content: body('plain post'), createdAt: ISO },
+      { id: 'q1', content: body('quote a'), createdAt: ISO, quoteOf: shared.id },
+      { id: 'q2', content: body('quote b'), createdAt: ISO, quoteOf: shared.id },
+      { id: 'p3', content: body('plain post'), createdAt: ISO },
     ]);
 
     expect(map.get('q1')).toEqual({ uri: QUOTED_URI });
     expect(map.get('q2')).toEqual({ uri: QUOTED_URI });
     expect(map.has('p3')).toBe(false);
-    // Deduped: the shared quoted id was resolved exactly once.
-    expect(postFindByIdLean).toHaveBeenCalledTimes(1);
   });
 
-  it('returns an empty map (no DB read) when no post is a quote', async () => {
+  it('returns an empty map when no post is a quote', async () => {
     const map = await followService.resolveQuoteContextByPost([
-      { _id: 'p1', content: body('a'), createdAt: ISO },
-      { _id: 'p2', content: body('b'), createdAt: ISO },
+      { id: 'p1', content: body('a'), createdAt: ISO },
+      { id: 'p2', content: body('b'), createdAt: ISO },
     ]);
 
     expect(map.size).toBe(0);
-    expect(postFindByIdLean).not.toHaveBeenCalled();
   });
 });

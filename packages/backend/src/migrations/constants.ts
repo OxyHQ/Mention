@@ -236,19 +236,3 @@ export const MIGRATION_CHANNEL_FOLLOW_USER_INDEX = '0025-channel-follow-user-ind
  * indexes. See {@link ./0026-channel-accounts}.
  */
 export const MIGRATION_CHANNEL_ACCOUNTS = '0026-channel-accounts';
-
-/**
- * Create the PARTIAL `post_channel_writer_v1` index on `posts` so a channel's
- * writers tab — the distinct people who have published under it — is served from
- * the index rather than by walking every post that channel has published.
- * Production disables Mongoose auto-indexing, so this migration is the schema
- * authority. See {@link ./0027-post-channel-writer-index}.
- */
-export const MIGRATION_POST_CHANNEL_WRITER_INDEX = '0027-post-channel-writer-index';
-
-/**
- * Remove duplicate member ids from existing starter packs, preserving the
- * owner's chosen order. The write side is now a setter on the schema path; this
- * repairs the packs that landed before it. See {@link ./0028-starter-pack-member-dedupe}.
- */
-export const MIGRATION_STARTER_PACK_MEMBER_DEDUPE = '0028-starter-pack-member-dedupe';

@@ -50,13 +50,14 @@
  * to empty on error so a single failing query never sinks the whole computation.
  */
 
-import type { FilterQuery } from 'mongoose';
 import { PostType, MtnConfig, isVideoSurface } from '@mention/shared-types';
-import Like from '../models/Like';
-import { Post, type IPost } from '../models/Post';
-import { EntityFollow } from '../models/EntityFollow';
-import UserBehavior, { type IUserBehavior } from '../models/UserBehavior';
-import UserSettings from '../models/UserSettings';
+import { and, arrayOverlaps, desc, eq, gte, inArray, isNotNull, ne, sql, type SQL } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { entityFollows, likes } from '../db/schema/engagement';
+import { userSettings } from '../db/schema/userProfile';
+import { posts } from '../db/schema/posts';
+import type { UserBehaviorRecord } from '../db/userProfile/userBehaviorRecord';
+import { loadUserBehavior } from '../db/userProfile/userBehaviorRepository';
 import { getRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
 import {
@@ -198,12 +199,9 @@ export class ContentAffinityService {
     // Each signal already self-degrades to empty on error.
     const [relationExcluded, hashtagScores, topicScores, engagementScores] = await Promise.all([
       this.resolveExcludeIds(viewerId, opts.oxyClient),
-      // Aggregation `$match` compares against the BSON Date path directly.
       this.computeHashtagAffinity(viewerId, since),
       this.computeTopicAffinity(viewerId, since, preferredTopics),
-      // `find()` filters are typed against `IPost` (createdAt declared as string);
-      // pass the ISO boundary so Mongoose casts it to a Date for the query.
-      this.computeEngagementAffinity(viewerId, since.toISOString()),
+      this.computeEngagementAffinity(viewerId, since),
     ]);
 
     // The full exclusion set = relation models (block/mute/restrict + self) PLUS
@@ -263,14 +261,14 @@ export class ContentAffinityService {
   }
 
   /**
-   * Load the viewer's maintained {@link IUserBehavior} aggregate (preferred
+   * Load the viewer's maintained {@link UserBehaviorRecord} aggregate (preferred
    * authors/topics + negative-signal lists). Returns null on a miss or any error
    * so every behavior-derived signal simply runs empty — the service stays
    * additive and never throws on a behavior read.
    */
-  private async loadBehavior(viewerId: string): Promise<IUserBehavior | null> {
+  private async loadBehavior(viewerId: string): Promise<UserBehaviorRecord | null> {
     try {
-      return await UserBehavior.findOne({ oxyUserId: viewerId }).lean<IUserBehavior>();
+      return await loadUserBehavior(viewerId);
     } catch (error) {
       logger.warn('[ContentAffinity] behavior load failed', error);
       return null;
@@ -281,7 +279,7 @@ export class ContentAffinityService {
    * The viewer's hidden-topic slugs (lowercased) from the behavior doc. Used to
    * strip suppressed topics out of the topic-affinity input.
    */
-  private collectHiddenTopics(behavior: IUserBehavior | null): Set<string> {
+  private collectHiddenTopics(behavior: UserBehaviorRecord | null): Set<string> {
     const set = new Set<string>();
     for (const t of behavior?.hiddenTopics ?? []) {
       if (typeof t === 'string' && t.length > 0) set.add(t.toLowerCase());
@@ -294,7 +292,7 @@ export class ContentAffinityService {
    * from the feed — as a flat id list. These join the relation-model exclusions so
    * an author the viewer suppressed is never recommended as someone to follow.
    */
-  private collectNegativeAuthors(behavior: IUserBehavior | null): string[] {
+  private collectNegativeAuthors(behavior: UserBehaviorRecord | null): string[] {
     if (!behavior) return [];
     const ids: string[] = [];
     for (const list of [behavior.hiddenAuthors, behavior.mutedAuthors, behavior.blockedAuthors]) {
@@ -313,7 +311,7 @@ export class ContentAffinityService {
    * harder than a barely-touched one.
    */
   private collectPreferredTopics(
-    behavior: IUserBehavior | null,
+    behavior: UserBehaviorRecord | null,
     hiddenTopics: Set<string>,
   ): Array<{ topic: string; weight: number }> {
     const prefs = behavior?.preferredTopics ?? [];
@@ -338,7 +336,7 @@ export class ContentAffinityService {
    * engagement. Zero/invalid weights contribute nothing. Pure in-memory — the
    * behavior doc was already fetched.
    */
-  private computePreferredAuthorAffinity(behavior: IUserBehavior | null): Map<string, AuthorAccumulator> {
+  private computePreferredAuthorAffinity(behavior: UserBehaviorRecord | null): Map<string, AuthorAccumulator> {
     const result = new Map<string, AuthorAccumulator>();
     for (const pref of behavior?.preferredAuthors ?? []) {
       const authorId = typeof pref.authorId === 'string' ? pref.authorId : '';
@@ -377,47 +375,74 @@ export class ContentAffinityService {
       // viewer's preferred topics, grouped by author, tracking which preferred
       // topics they covered and their post volume. Index-served by
       // {postClassification.topics, visibility, status, createdAt}.
-      const rows = await Post.aggregate<{
-        _id: string;
-        matchedTopics: string[];
-        postCount: number;
-      }>([
-        {
-          $match: {
-            'postClassification.topics': { $in: topics },
-            visibility: 'public',
-            status: 'published',
-            type: { $ne: 'boost' },
-            oxyUserId: { $ne: null },
-            createdAt: { $gte: since },
-          },
-        },
-        { $sort: { createdAt: -1 } },
-        { $limit: MAX_AUTHORS_PER_TOPIC * topics.length },
-        {
-          $group: {
-            _id: '$oxyUserId',
-            matchedTopics: { $addToSet: { $setIntersection: ['$postClassification.topics', topics] } },
-            postCount: { $sum: 1 },
-          },
-        },
-        { $limit: MAX_AUTHORS_PER_TOPIC },
-      ]);
+      // Mongo ran `$match → $sort → $limit → $group`; this is the same shape.
+      // The bounded scan is an inner subquery so the row cap applies BEFORE the
+      // grouping, exactly as the `$limit` stage did — grouping the whole corpus
+      // and capping afterwards would be a different (and unbounded) query.
+      //
+      // `count(distinct id)` and NOT `count(*)`: the lateral `unnest` emits one
+      // row per (post, topic) pair, so `count(*)` would score a post covering
+      // three preferred topics as three posts. Mongo's `$sum: 1` counted
+      // documents in the group.
+      const scanned = getDb()
+        .select({
+          id: posts.id,
+          oxyUserId: posts.oxyUserId,
+          classificationTopics: posts.classificationTopics,
+        })
+        .from(posts)
+        .where(
+          and(
+            arrayOverlaps(posts.classificationTopics, topics),
+            eq(posts.visibility, 'public'),
+            eq(posts.status, 'published'),
+            ne(posts.type, PostType.BOOST),
+            isNotNull(posts.oxyUserId),
+            gte(posts.createdAt, since),
+          ),
+        )
+        .orderBy(desc(posts.createdAt), desc(posts.id))
+        .limit(MAX_AUTHORS_PER_TOPIC * topics.length)
+        .as('scanned');
+
+      const rows = await getDb()
+        .select({
+          _id: sql<string>`${scanned.oxyUserId}`,
+          matchedTopics: sql<string[]>`array_agg(distinct topic)`,
+          postCount: sql<number>`count(distinct ${scanned.id})::int`,
+        })
+        .from(scanned)
+        .innerJoin(
+          sql`lateral unnest(${scanned.classificationTopics}) as topic`,
+          // `sql.param` binds the whole list as ONE array parameter. A bare
+          // `${topics}` interpolates as a ROW constructor (`($1, $2)`), which
+          // Postgres rejects: `op ANY/ALL (array) requires array on right
+          // side`. `inArray` is not available here — `topic` is an `unnest`
+          // alias, not a drizzle column.
+          sql`topic = any(${sql.param(topics)})`,
+        )
+        .groupBy(scanned.oxyUserId)
+        // A LIMIT with no ORDER BY leaves WHICH groups survive up to the
+        // planner, so beyond the cap the result would vary between identical
+        // runs. Broadest coverage first, then volume, then the id purely so the
+        // order is total.
+        .orderBy(
+          sql`count(distinct topic) desc`,
+          sql`count(distinct ${scanned.id}) desc`,
+          sql`${scanned.oxyUserId}`,
+        )
+        .limit(MAX_AUTHORS_PER_TOPIC);
 
       for (const row of rows) {
         const authorId = row._id;
         if (typeof authorId !== 'string' || authorId.length === 0 || authorId === viewerId) {
           continue;
         }
-        // `matchedTopics` is an array-of-arrays (one inner array per post); flatten
-        // to the distinct set of preferred topics this author actually covered, and
-        // score each by the viewer's maintained per-topic weight.
-        const distinctTopics = new Set<string>();
-        for (const inner of row.matchedTopics ?? []) {
-          if (Array.isArray(inner)) {
-            for (const t of inner) if (typeof t === 'string') distinctTopics.add(t);
-          }
-        }
+        // `array_agg(distinct topic)` already returns the flat distinct set of
+        // preferred topics this author covered — Mongo's `$addToSet` over a
+        // `$setIntersection` produced an array-of-arrays that had to be
+        // flattened here. Each is scored by the viewer's per-topic weight.
+        const distinctTopics = new Set<string>(row.matchedTopics ?? []);
         if (distinctTopics.size === 0) continue;
 
         let coverageWeight = 0;
@@ -454,18 +479,16 @@ export class ContentAffinityService {
     if (authorIds.length === 0) return;
 
     try {
-      const rows = await UserSettings.find(
-        { oxyUserId: { $in: authorIds } },
-        { oxyUserId: 1, 'privacy.profileVisibility': 1 },
-      ).lean();
+      const rows = await getDb()
+        .select({
+          oxyUserId: userSettings.oxyUserId,
+          profileVisibility: userSettings.privacyProfileVisibility,
+        })
+        .from(userSettings)
+        .where(inArray(userSettings.oxyUserId, authorIds));
       const visibilityByAuthor = new Map<string, string>();
       for (const row of rows) {
-        const authorId = typeof row?.oxyUserId === 'string' ? row.oxyUserId : '';
-        if (!authorId) continue;
-        visibilityByAuthor.set(
-          authorId,
-          row.privacy?.profileVisibility ?? ProfileVisibility.PUBLIC,
-        );
+        visibilityByAuthor.set(row.oxyUserId, row.profileVisibility ?? ProfileVisibility.PUBLIC);
       }
 
       const protectedAuthorIds = authorIds.filter((authorId) => {
@@ -551,62 +574,65 @@ export class ContentAffinityService {
   ): Promise<Map<string, AuthorAccumulator>> {
     const result = new Map<string, AuthorAccumulator>();
     try {
-      const follows = await EntityFollow.find(
-        { userId: viewerId, entityType: 'hashtag' },
-        { entityId: 1, _id: 0 },
-      )
-        .limit(MAX_FOLLOWED_HASHTAGS)
-        .lean();
+      const follows = await getDb()
+        .select({ entityId: entityFollows.entityId })
+        .from(entityFollows)
+        .where(and(eq(entityFollows.userId, viewerId), eq(entityFollows.entityType, 'hashtag')))
+        .limit(MAX_FOLLOWED_HASHTAGS);
 
-      const tags = follows
-        .map((f) => f.entityId)
-        .filter((t): t is string => typeof t === 'string' && t.length > 0);
+      const tags = follows.map((row) => row.entityId).filter((tag) => tag.length > 0);
       if (tags.length === 0) return result;
 
       // One aggregation: recent public posts under any followed tag, grouped by
       // author, tracking how many distinct followed tags they cover and their
       // post volume. Index-served by {hashtags, visibility, status, createdAt}.
-      const rows = await Post.aggregate<{
-        _id: string;
-        matchedTags: string[];
-        postCount: number;
-      }>([
-        {
-          $match: {
-            hashtags: { $in: tags },
-            visibility: 'public',
-            status: 'published',
-            type: { $ne: 'boost' },
-            oxyUserId: { $ne: null },
-            createdAt: { $gte: since },
-          },
-        },
-        { $sort: { createdAt: -1 } },
-        { $limit: MAX_AUTHORS_PER_HASHTAG * tags.length },
-        {
-          $group: {
-            _id: '$oxyUserId',
-            // Distinct followed tags this author covered (intersection with `tags`).
-            matchedTags: { $addToSet: { $setIntersection: ['$hashtags', tags] } },
-            postCount: { $sum: 1 },
-          },
-        },
-        { $limit: MAX_AUTHORS_PER_HASHTAG },
-      ]);
+      // Same shape as the topic aggregation above; see its comments for why the
+      // scan is an inner subquery and why the count is `distinct id`.
+      const scanned = getDb()
+        .select({ id: posts.id, oxyUserId: posts.oxyUserId, hashtags: posts.hashtags })
+        .from(posts)
+        .where(
+          and(
+            arrayOverlaps(posts.hashtags, tags),
+            eq(posts.visibility, 'public'),
+            eq(posts.status, 'published'),
+            ne(posts.type, PostType.BOOST),
+            isNotNull(posts.oxyUserId),
+            gte(posts.createdAt, since),
+          ),
+        )
+        .orderBy(desc(posts.createdAt), desc(posts.id))
+        .limit(MAX_AUTHORS_PER_HASHTAG * tags.length)
+        .as('scanned');
+
+      const rows = await getDb()
+        .select({
+          _id: sql<string>`${scanned.oxyUserId}`,
+          matchedTags: sql<string[]>`array_agg(distinct tag)`,
+          postCount: sql<number>`count(distinct ${scanned.id})::int`,
+        })
+        .from(scanned)
+        .innerJoin(
+          sql`lateral unnest(${scanned.hashtags}) as tag`,
+          // One bound array parameter — see the topic aggregation above.
+          sql`tag = any(${sql.param(tags)})`,
+        )
+        .groupBy(scanned.oxyUserId)
+        // Deterministic beyond the cap — see the topic aggregation.
+        .orderBy(
+          sql`count(distinct tag) desc`,
+          sql`count(distinct ${scanned.id}) desc`,
+          sql`${scanned.oxyUserId}`,
+        )
+        .limit(MAX_AUTHORS_PER_HASHTAG);
 
       for (const row of rows) {
         const authorId = row._id;
         if (typeof authorId !== 'string' || authorId.length === 0 || authorId === viewerId) {
           continue;
         }
-        // `matchedTags` is an array-of-arrays (one inner array per post); flatten
-        // to the distinct set of followed tags this author actually covered.
-        const distinctTags = new Set<string>();
-        for (const inner of row.matchedTags ?? []) {
-          if (Array.isArray(inner)) {
-            for (const t of inner) if (typeof t === 'string') distinctTags.add(t);
-          }
-        }
+        // Already the flat distinct set — see the topic aggregation.
+        const distinctTags = new Set<string>(row.matchedTags ?? []);
         const coverage = distinctTags.size;
         if (coverage === 0) continue;
 
@@ -634,13 +660,17 @@ export class ContentAffinityService {
    */
   private async computeEngagementAffinity(
     viewerId: string,
-    since: string,
+    since: Date,
   ): Promise<Map<string, AuthorAccumulator>> {
     const result = new Map<string, AuthorAccumulator>();
 
     // (a) Likes → liked posts (carrying the originating surface). (b) Viewer's
     // own reply/boost posts → engaged post ids. Both bounded + index-served.
-    const [likes, replyTargetIds, boostTargetIds] = await Promise.all([
+    // NOT named `likes`: that is the drizzle TABLE, imported at the top of this
+    // file. Shadowing it here is harmless only for as long as this method issues
+    // no query of its own — the moment one is added, `select().from(likes)`
+    // would silently reference this local array instead.
+    const [likedPosts, replyTargetIds, boostTargetIds] = await Promise.all([
       this.collectLikes(viewerId, since),
       this.collectViewerInteractionTargets(viewerId, since, 'reply'),
       this.collectViewerInteractionTargets(viewerId, since, 'boost'),
@@ -649,7 +679,7 @@ export class ContentAffinityService {
     // Resolve every engaged post id to its author in ONE batched query, then
     // re-attribute the weight per signal. Map keeps post id → author.
     const allIds = new Set<string>([
-      ...likes.map((l) => l.postId),
+      ...likedPosts.map((liked) => liked.postId),
       ...replyTargetIds,
       ...boostTargetIds,
     ]);
@@ -682,7 +712,7 @@ export class ContentAffinityService {
     // likes contribute the full weight (prior behavior). The popularity-floor
     // factor (~0.25) is the same shared constant used in UserBehavior attribution.
     const videoLikeFactor = MtnConfig.preferences.engagementContext.videoSurfaceAuthorAffinityFactor;
-    for (const like of likes) {
+    for (const like of likedPosts) {
       const authorId = postAuthor.get(like.postId);
       if (!authorId || authorId === viewerId) continue;
       const weight = like.fromVideoSurface
@@ -706,22 +736,27 @@ export class ContentAffinityService {
    */
   private async collectLikes(
     viewerId: string,
-    since: string,
+    since: Date,
   ): Promise<Array<{ postId: string; fromVideoSurface: boolean }>> {
     try {
-      const likes = await Like.find(
-        { userId: viewerId, value: 1, createdAt: { $gte: since } },
-        { postId: 1, source: 1, _id: 0 },
-      )
-        .sort({ createdAt: -1 })
-        .limit(MAX_LIKES_SCANNED)
-        .lean();
-      return likes
-        .map((l) => ({
-          postId: l.postId ? String(l.postId) : '',
-          fromVideoSurface: isVideoSurface(typeof l.source === 'string' ? l.source : undefined),
+      const rows = await getDb()
+        .select({ postId: likes.postId, source: likes.source })
+        .from(likes)
+        .where(
+          and(
+            eq(likes.userId, viewerId),
+            eq(likes.value, 1),
+            gte(likes.createdAt, since),
+          ),
+        )
+        .orderBy(desc(likes.createdAt), desc(likes.id))
+        .limit(MAX_LIKES_SCANNED);
+      return rows
+        .map((row) => ({
+          postId: row.postId,
+          fromVideoSurface: isVideoSurface(row.source ?? undefined),
         }))
-        .filter((l) => l.postId.length > 0);
+        .filter((row) => row.postId.length > 0);
     } catch (error) {
       logger.warn('[ContentAffinity] liked-post collection failed', error);
       return [];
@@ -735,38 +770,32 @@ export class ContentAffinityService {
    */
   private async collectViewerInteractionTargets(
     viewerId: string,
-    since: string,
+    since: Date,
     kind: 'reply' | 'boost',
   ): Promise<string[]> {
     try {
-      const match: FilterQuery<IPost> =
+      const shared: SQL[] = [
+        eq(posts.oxyUserId, viewerId),
+        eq(posts.status, 'published'),
+        eq(posts.visibility, 'public'),
+        gte(posts.createdAt, since),
+      ];
+      const conditions =
         kind === 'boost'
-          ? {
-            oxyUserId: viewerId,
-            type: PostType.BOOST,
-            boostOf: { $ne: null },
-            status: 'published',
-            visibility: 'public',
-            createdAt: { $gte: since },
-          }
-          : {
-            oxyUserId: viewerId,
-            parentPostId: { $ne: null },
-            status: 'published',
-            visibility: 'public',
-            createdAt: { $gte: since },
-          };
-      const field = kind === 'boost' ? { boostOf: 1, _id: 0 } : { parentPostId: 1, _id: 0 };
+          ? [...shared, eq(posts.type, PostType.BOOST), isNotNull(posts.boostOf)]
+          : [...shared, isNotNull(posts.parentPostId)];
 
-      const rows = await Post.find(match, field)
-        .sort({ createdAt: -1 })
-        .limit(MAX_VIEWER_INTERACTIONS_SCANNED)
-        .lean();
+      const rows = await getDb()
+        .select({ boostOf: posts.boostOf, parentPostId: posts.parentPostId })
+        .from(posts)
+        .where(and(...conditions))
+        .orderBy(desc(posts.createdAt), desc(posts.id))
+        .limit(MAX_VIEWER_INTERACTIONS_SCANNED);
 
       const targets: string[] = [];
       for (const row of rows) {
         const value = kind === 'boost' ? row.boostOf : row.parentPostId;
-        if (typeof value === 'string' && value.length > 0) targets.push(value);
+        if (value) targets.push(value);
       }
       return targets;
     } catch (error) {
@@ -779,21 +808,33 @@ export class ContentAffinityService {
   }
 
   /**
-   * Resolve a batch of post ids to their author oxyUserIds in one query. Ignores
-   * ids that are not valid ObjectIds or whose post has no author.
+   * Resolve a batch of post ids to their author oxyUserIds in one query. A post
+   * that is absent, unpublished, non-public or has no author is simply not in
+   * the returned map.
+   *
+   * A malformed id is simply not found — which is what an earlier version of
+   * this comment CLAIMED ("ignores ids that are not valid ObjectIds") without
+   * any such check existing. Under Mongoose the real behaviour was worse than
+   * the claim: ONE malformed id made the whole `$in` throw a `CastError` and the
+   * `catch` below discarded every author in the batch. Against `text` ids that
+   * is now true for free, so the promise and the code finally agree.
    */
   private async resolvePostAuthors(postIds: string[]): Promise<Map<string, string>> {
     const map = new Map<string, string>();
     if (postIds.length === 0) return map;
     try {
-      const rows = await Post.find(
-        { _id: { $in: postIds }, status: 'published', visibility: 'public' },
-        { oxyUserId: 1 },
-      ).lean();
+      const rows = await getDb()
+        .select({ id: posts.id, oxyUserId: posts.oxyUserId })
+        .from(posts)
+        .where(
+          and(
+            inArray(posts.id, postIds),
+            eq(posts.status, 'published'),
+            eq(posts.visibility, 'public'),
+          ),
+        );
       for (const row of rows) {
-        const id = row?._id ? String(row._id) : '';
-        const author = typeof row?.oxyUserId === 'string' ? row.oxyUserId : '';
-        if (id && author) map.set(id, author);
+        if (row.oxyUserId) map.set(row.id, row.oxyUserId);
       }
     } catch (error) {
       logger.warn('[ContentAffinity] post-author resolution failed:', error);

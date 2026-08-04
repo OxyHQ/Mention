@@ -18,14 +18,16 @@
 import mongoose from 'mongoose';
 import { logger } from '../utils/logger';
 import { MIGRATION_BLOCKLIST_PROPOSAL_RUN_INDEXES } from './constants';
-import BlocklistProposalRun from '../models/BlocklistProposalRun';
 import type { Migration } from './runner';
+
+/** See `0020`: frozen history names the pre-cutover collection literally. */
+const BLOCKLIST_PROPOSAL_RUN_COLLECTION = 'blocklistproposalruns';
 
 export const migrationBlocklistProposalRunIndexes: Migration = {
   id: MIGRATION_BLOCKLIST_PROPOSAL_RUN_INDEXES,
 
   async run(db: mongoose.mongo.Db): Promise<void> {
-    const runs = db.collection(BlocklistProposalRun.collection.collectionName);
+    const runs = db.collection(BLOCKLIST_PROPOSAL_RUN_COLLECTION);
     await runs.createIndex({ runId: 1 }, { unique: true });
     await runs.createIndex({ startedAt: -1 });
     logger.info(

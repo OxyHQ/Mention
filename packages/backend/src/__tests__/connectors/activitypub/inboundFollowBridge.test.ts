@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Inbound Follow → Oxy follow-graph bridge (Phase 2).
@@ -17,26 +17,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * absent), removes the Oxy edge (only when the actor resolved) BEFORE deleting the
  * local row.
  *
- * Mock conventions follow the sibling `inboxOxyUserIdInvariant.test.ts`: the real
- * `InboxProcessingService` runs against mocked models / crypto / oxy client, so the
- * production dispatch path is exercised. `resolveOxyUser` is overridden on the real
- * `constants` module (it otherwise `require()`s the whole server), and
- * `deliveryService.sendAccept` is spied so call order can be asserted.
+ * The actor and follow rows are REAL Postgres rows. They used to be mocked
+ * models, and that made two of these assertions vacuous: "no FederatedFollow row
+ * was written" was `expect(followFindOneAndUpdate).not.toHaveBeenCalled()`, which
+ * a handler could satisfy by writing the row through any other call, and
+ * "removes the Oxy edge BEFORE deleting the local row" compared invocation orders
+ * of two fakes without either the edge or the row existing. Here the row is
+ * seeded, the real handler runs, and the table is read back.
+ *
+ * Everything else keeps its double: crypto, the Oxy client and the notification
+ * fan-out are network, and `resolveOxyUser` is overridden on the real `constants`
+ * module (it otherwise `require()`s the whole server). `deliveryService.sendAccept`
+ * is spied so call order can be asserted.
  */
 
 const mocks = vi.hoisted(() => ({
   getPublicKey: vi.fn(),
   signViaOxy: vi.fn(),
   signRequest: vi.fn(),
-  actorFind: vi.fn(),
-  actorFindOne: vi.fn(),
-  actorFindOneAndUpdate: vi.fn(),
-  actorUpdateOne: vi.fn(),
-  followExists: vi.fn(),
-  followFindOne: vi.fn(),
-  followFindOneAndUpdate: vi.fn(),
-  followDeleteOne: vi.fn(),
-  followUpdateOne: vi.fn(),
   postFind: vi.fn(),
   postFindOne: vi.fn(),
   postFindById: vi.fn(),
@@ -77,30 +75,6 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   signRequest: mocks.signRequest,
 }));
 
-vi.mock('../../../models/FederatedActor', () => ({
-  default: {
-    findOne: mocks.actorFindOne,
-    find: mocks.actorFind,
-    findOneAndUpdate: mocks.actorFindOneAndUpdate,
-    updateOne: mocks.actorUpdateOne,
-  },
-}));
-
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: {
-    exists: mocks.followExists,
-    findOne: mocks.followFindOne,
-    findOneAndUpdate: mocks.followFindOneAndUpdate,
-    deleteOne: mocks.followDeleteOne,
-    updateOne: mocks.followUpdateOne,
-  },
-}));
-
-vi.mock('../../../models/FederationDeliveryQueue', () => ({
-  default: {},
-  getNextRetryTime: vi.fn(),
-}));
-
 vi.mock('../../../models/Post', () => ({
   POST_CLASSIFICATION_PENDING: 'pending',
   Post: {
@@ -120,12 +94,6 @@ vi.mock('../../../models/Like', () => ({
   default: {
     create: mocks.likeCreate,
     findOneAndDelete: mocks.likeFindOneAndDelete,
-  },
-}));
-
-vi.mock('../../../models/UserSettings', () => ({
-  default: {
-    updateOne: vi.fn(),
   },
 }));
 
@@ -168,26 +136,36 @@ vi.mock('../../../connectors/activitypub/constants', async (importOriginal) => {
   return { ...actual, resolveOxyUser: mocks.resolveOxyUser };
 });
 
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  readFollows,
+  seedActor,
+  seedFollow,
+} from '../../helpers/federationFixtures';
 import { deliveryService } from '../../../connectors/activitypub/delivery.service';
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
 // The follow-protocol dispatch (incl. the deferral throw) is owned by the engine,
 // so the follow path now throws the ENGINE's ActorResolutionPendingError.
 import { ActorResolutionPendingError } from '@oxyhq/federation/node';
 
-const actorUri = 'https://mastodon.social/users/bob';
+const scope = federationScope('inbound-follow-bridge');
+const actorUri = `${scope.origin}/users/bob`;
 const localActorUri = 'https://mention.earth/ap/users/alice';
 const followActivityId = `${actorUri}/follows/1`;
 
-// `handleIncomingFollow` reads the follower's oxyUserId from `getOrFetchActor`,
-// which (for a fresh cached actor) returns the mocked `FederatedActor.findOne`
-// row directly with no network I/O.
-function stubFollowerActor(oxyUserId: string | null): void {
-  mocks.actorFindOne.mockReturnValue({
-    lean: vi.fn().mockResolvedValue(
-      oxyUserId
-        ? { uri: actorUri, oxyUserId, lastFetchedAt: new Date() }
-        : { uri: actorUri, lastFetchedAt: new Date() },
-    ),
+/**
+ * `handleIncomingFollow` reads the follower's oxyUserId through
+ * `getOrFetchActor`, which returns a FRESH cached row without any network I/O —
+ * so a seeded row with a current `lastFetchedAt` is the whole fixture.
+ */
+function seedFollowerActor(oxyUserId: string | null): Promise<unknown> {
+  return seedActor(scope, {
+    username: 'bob',
+    uri: actorUri,
+    oxyUserId,
+    lastFetchedAt: new Date(),
   });
 }
 
@@ -216,40 +194,66 @@ function undoFollowActivity() {
 
 const sendAcceptSpy = vi.spyOn(deliveryService, 'sendAccept');
 
-beforeEach(() => {
+// The Follow targets local user `alice`; the scope's own local id keeps this
+// suite's rows separate from every other file's in the shared database.
+const localOxyUserId = scope.localUserId;
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
+  await clearFederationScope(scope);
 
   mocks.getServiceOxyClient.mockReturnValue({ makeServiceRequest: mocks.makeServiceRequest });
   mocks.makeServiceRequest.mockResolvedValue({ created: true, counts: { followers: 1, following: 0 } });
-  // The Follow targets local user `alice` → oxy id `oxy_alice`.
-  mocks.resolveOxyUser.mockResolvedValue({ _id: 'oxy_alice' });
-  mocks.followFindOneAndUpdate.mockResolvedValue({ _id: 'ff_1' });
-  mocks.followDeleteOne.mockResolvedValue({ deletedCount: 1 });
+  mocks.resolveOxyUser.mockResolvedValue({ _id: localOxyUserId });
   mocks.createNotification.mockResolvedValue(undefined);
   sendAcceptSpy.mockResolvedValue(undefined);
   mocks.isFediverseSharingEnabledFromUser.mockReturnValue(true);
 });
 
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 describe('handleIncomingFollow — Oxy follow-graph bridge', () => {
-  it('bridges the follow (correct payload) BEFORE sending Accept, then notifies', async () => {
-    stubFollowerActor('oxy_bob');
+  it('bridges the follow (correct payload) BEFORE sending Accept, records the row, then notifies', async () => {
+    await seedFollowerActor('oxy_bob');
 
     await inboxProcessingService.processInboxActivity(followActivity(), actorUri);
 
     expect(mocks.makeServiceRequest).toHaveBeenCalledWith('POST', '/federation/follow', {
       followerUserId: 'oxy_bob',
-      targetUserId: 'oxy_alice',
+      targetUserId: localOxyUserId,
       action: 'follow',
     });
-    expect(sendAcceptSpy).toHaveBeenCalledWith('oxy_alice', 'alice', followActivityId, actorUri);
+    expect(sendAcceptSpy).toHaveBeenCalledWith(localOxyUserId, 'alice', followActivityId, actorUri);
 
     // Bridge strictly precedes the Accept so a retry never re-delivers Accepts.
     const bridgeOrder = mocks.makeServiceRequest.mock.invocationCallOrder[0];
     const acceptOrder = sendAcceptSpy.mock.invocationCallOrder[0];
     expect(bridgeOrder).toBeLessThan(acceptOrder);
 
+    // The AP-side record actually landed — this is what the sharing-off cleanup
+    // later enumerates to unwind the Oxy edge.
+    const follows = await readFollows(scope);
+    expect(follows).toHaveLength(1);
+    expect(follows[0]).toMatchObject({
+      localUserId: localOxyUserId,
+      remoteActorUri: actorUri,
+      direction: 'inbound',
+      status: 'accepted',
+      activityId: followActivityId,
+    });
+
     expect(mocks.createNotification).toHaveBeenCalledWith({
-      recipientId: 'oxy_alice',
+      recipientId: localOxyUserId,
       actorId: 'oxy_bob',
       type: 'follow',
       entityId: 'oxy_bob',
@@ -257,8 +261,20 @@ describe('handleIncomingFollow — Oxy follow-graph bridge', () => {
     });
   });
 
+  it('is idempotent under redelivery — a second Follow leaves ONE row', async () => {
+    await seedFollowerActor('oxy_bob');
+
+    await inboxProcessingService.processInboxActivity(followActivity(), actorUri);
+    await inboxProcessingService.processInboxActivity(followActivity(), actorUri);
+
+    // The unique `(local_user_id, remote_actor_uri, direction)` constraint is
+    // what makes this true; without it a retried delivery is a second follower.
+    const follows = await readFollows(scope);
+    expect(follows).toHaveLength(1);
+  });
+
   it('throws ActorResolutionPendingError and does not bridge or Accept when the actor has no oxyUserId', async () => {
-    stubFollowerActor(null);
+    await seedFollowerActor(null);
 
     await expect(
       inboxProcessingService.processInboxActivity(followActivity(), actorUri),
@@ -266,22 +282,22 @@ describe('handleIncomingFollow — Oxy follow-graph bridge', () => {
 
     expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
     expect(sendAcceptSpy).not.toHaveBeenCalled();
+    expect(await readFollows(scope)).toHaveLength(0);
   });
 
   it('skips the bridge and Accept for a self-follow', async () => {
     // The follower resolves to the SAME Oxy user as the follow target.
-    mocks.resolveOxyUser.mockResolvedValue({ _id: 'oxy_alice' });
-    stubFollowerActor('oxy_alice');
+    await seedFollowerActor(localOxyUserId);
 
     await inboxProcessingService.processInboxActivity(followActivity(), actorUri);
 
     expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
     expect(sendAcceptSpy).not.toHaveBeenCalled();
-    expect(mocks.followFindOneAndUpdate).not.toHaveBeenCalled();
+    expect(await readFollows(scope)).toHaveLength(0);
   });
 
-  it('throws (job retry) and never Accepts when the bridge call fails', async () => {
-    stubFollowerActor('oxy_bob');
+  it('throws (job retry) and never Accepts or records the row when the bridge call fails', async () => {
+    await seedFollowerActor('oxy_bob');
     mocks.makeServiceRequest.mockRejectedValueOnce(new Error('oxy-api 503'));
 
     await expect(
@@ -289,11 +305,11 @@ describe('handleIncomingFollow — Oxy follow-graph bridge', () => {
     ).rejects.toThrow('oxy-api 503');
 
     expect(sendAcceptSpy).not.toHaveBeenCalled();
-    expect(mocks.followFindOneAndUpdate).not.toHaveBeenCalled();
+    expect(await readFollows(scope)).toHaveLength(0);
   });
 
   it('completes the follow even when the notification fails (fail-soft)', async () => {
-    stubFollowerActor('oxy_bob');
+    await seedFollowerActor('oxy_bob');
     mocks.createNotification.mockRejectedValueOnce(new Error('notif backend down'));
 
     await expect(
@@ -309,7 +325,7 @@ describe('handleIncomingFollow — Oxy follow-graph bridge', () => {
 describe('handleIncomingFollow — dropped when the target has fediverse sharing off', () => {
   it('drops the follow silently right after resolving the local user, before touching the actor/bridge/Accept chain', async () => {
     mocks.isFediverseSharingEnabledFromUser.mockReturnValue(false);
-    stubFollowerActor('oxy_bob');
+    await seedFollowerActor('oxy_bob');
 
     await expect(
       inboxProcessingService.processInboxActivity(followActivity(), actorUri),
@@ -317,15 +333,13 @@ describe('handleIncomingFollow — dropped when the target has fediverse sharing
 
     // Derived from the ALREADY-resolved local user (`resolveOxyUser`'s
     // result) — no second, separate Oxy lookup for the sharing flag.
-    expect(mocks.isFediverseSharingEnabledFromUser).toHaveBeenCalledWith({ _id: 'oxy_alice' });
-    // Gate runs BEFORE the follower actor fetch — no actor lookup, no bridge, no
-    // Accept, no FederatedFollow row, and (since a Reject would be unverifiable
-    // against a 404'd actor and would reveal the account exists) no Reject either.
-    expect(mocks.actorFindOne).not.toHaveBeenCalled();
+    expect(mocks.isFediverseSharingEnabledFromUser).toHaveBeenCalledWith({ _id: localOxyUserId });
+    // Gate runs BEFORE the follower actor fetch — no bridge, no Accept, no follow
+    // row, and (since a Reject would be unverifiable against a 404'd actor and
+    // would reveal the account exists) no Reject either.
     expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
     expect(sendAcceptSpy).not.toHaveBeenCalled();
-    expect(mocks.followFindOneAndUpdate).not.toHaveBeenCalled();
-    expect(mocks.followUpdateOne).not.toHaveBeenCalled();
+    expect(await readFollows(scope)).toHaveLength(0);
     expect(mocks.createNotification).not.toHaveBeenCalled();
     expect(mocks.loggerDebug).toHaveBeenCalledWith(expect.stringContaining('alice'));
   });
@@ -333,50 +347,47 @@ describe('handleIncomingFollow — dropped when the target has fediverse sharing
 
 describe('handleUndo(Follow) — Oxy follow-graph bridge', () => {
   it('removes the Oxy edge (unfollow) BEFORE deleting the local row', async () => {
-    mocks.followFindOne.mockReturnValue({
-      lean: vi.fn().mockResolvedValue({ _id: 'ff_1', localUserId: 'oxy_alice' }),
-    });
-    mocks.actorFindOne.mockReturnValue({
-      lean: vi.fn().mockResolvedValue({ oxyUserId: 'oxy_bob' }),
+    await seedFollowerActor('oxy_bob');
+    await seedFollow(scope, { remoteActorUri: actorUri, direction: 'inbound', status: 'accepted' });
+
+    // The ordering is asserted against the ROW, not against two invocation
+    // counters: the bridge reads the table at the moment it is called, so a
+    // delete-then-bridge implementation reports 0 here. Comparing
+    // `invocationCallOrder` of two doubles could not tell the two apart, because
+    // it never observes whether the delete reached the database at all.
+    let followsWhenBridged = -1;
+    mocks.makeServiceRequest.mockImplementation(async () => {
+      followsWhenBridged = (await readFollows(scope)).length;
+      return { created: false, counts: { followers: 0, following: 0 } };
     });
 
     await inboxProcessingService.processInboxActivity(undoFollowActivity(), actorUri);
 
     expect(mocks.makeServiceRequest).toHaveBeenCalledWith('POST', '/federation/follow', {
       followerUserId: 'oxy_bob',
-      targetUserId: 'oxy_alice',
+      targetUserId: localOxyUserId,
       action: 'unfollow',
     });
-    expect(mocks.followDeleteOne).toHaveBeenCalledWith({ _id: 'ff_1' });
-
-    const bridgeOrder = mocks.makeServiceRequest.mock.invocationCallOrder[0];
-    const deleteOrder = mocks.followDeleteOne.mock.invocationCallOrder[0];
-    expect(bridgeOrder).toBeLessThan(deleteOrder);
+    expect(followsWhenBridged).toBe(1);
+    expect(await readFollows(scope)).toHaveLength(0);
   });
 
   it('deletes the row without bridging when the actor never resolved to an Oxy user', async () => {
-    mocks.followFindOne.mockReturnValue({
-      lean: vi.fn().mockResolvedValue({ _id: 'ff_1', localUserId: 'oxy_alice' }),
-    });
-    mocks.actorFindOne.mockReturnValue({
-      lean: vi.fn().mockResolvedValue({ uri: actorUri }), // no oxyUserId
-    });
+    await seedFollowerActor(null);
+    await seedFollow(scope, { remoteActorUri: actorUri, direction: 'inbound', status: 'accepted' });
 
     await inboxProcessingService.processInboxActivity(undoFollowActivity(), actorUri);
 
     expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
-    expect(mocks.followDeleteOne).toHaveBeenCalledWith({ _id: 'ff_1' });
+    expect(await readFollows(scope)).toHaveLength(0);
   });
 
   it('is a no-op when no matching follow row exists (already processed)', async () => {
-    mocks.followFindOne.mockReturnValue({
-      lean: vi.fn().mockResolvedValue(null),
-    });
+    await seedFollowerActor('oxy_bob');
 
     await inboxProcessingService.processInboxActivity(undoFollowActivity(), actorUri);
 
     expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
-    expect(mocks.followDeleteOne).not.toHaveBeenCalled();
-    expect(mocks.actorFindOne).not.toHaveBeenCalled();
+    expect(await readFollows(scope)).toHaveLength(0);
   });
 });

@@ -108,25 +108,3 @@ export interface FeedAPI {
   fetch(options: FeedFetchOptions, context: FeedContext): Promise<FeedAPIResponse>;
 }
 
-/**
- * Standard fields to select from Post collection.
- *
- * Includes the minimal `postClassification` projection ranking needs to read the
- * quality/safety signals: `scores` + `status` + `version` (consumed by
- * FeedRankingService — `status`/`version` are the provenance markers that
- * distinguish real AI / deterministic-baseline scores from the schema-default
- * placeholder), plus `topics` and `postClassification.languages` (used by
- * topic/locale ranking & candidate generation; the top-level AP `language` is
- * projected separately above) and `topicRefs` (registry-linked canonical topics
- * for personalization / hidden-topic suppression). Ranking reads `topicRefs`
- * first and falls back to the slug-only `topics`; it treats an absent /
- * un-baselined classification as NEUTRAL.
- *
- * `writtenByOxyUserId` is here for the channel byline: hydration reads it to
- * append the writer to `authors[]` when the channel discloses them. It is one of
- * FOUR projections that feed `PostHydrationService` — leave it out of any single
- * one and the writer simply hydrates `undefined` there, with no error, so the
- * same post names its writer on a feed row and drops the name as a thread
- * parent.
- */
-export const FEED_FIELDS = '_id oxyUserId writtenByOxyUserId authorship federation createdAt visibility type parentPostId boostOf quoteOf laneId threadId content stats metadata hashtags mentions language postClassification.scores postClassification.status postClassification.version postClassification.sensitive postClassification.topics postClassification.topicRefs postClassification.languages postClassification.sentiment';

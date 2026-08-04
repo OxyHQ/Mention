@@ -1,5 +1,5 @@
-import mongoose from 'mongoose';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { eq, like } from 'drizzle-orm';
 
 /**
  * The sweep that finds the reports the pipeline lost sight of.
@@ -10,142 +10,137 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * invents any — the guarantee being tested is that it enqueues only what is missing,
  * with the same deterministic id, so a report that already has an event is untouched
  * rather than delivered twice.
+ *
+ * ## What the Postgres port changed
+ *
+ * Both stores are real rows. The mocks this replaces were unusually careful —
+ * `find` honoured the `localStatus` filter and `countDocuments` answered on the
+ * FILTER rather than on call order, both deliberately, so that a filter-blind
+ * double could not make "the sweep excludes it" indistinguishable from "the mock
+ * handed it over anyway". Those two properties are exactly what real rows give
+ * for free, and one they could not give at all: `moderation_outbox.
+ * payload_report_id` carries a FOREIGN KEY to `reports.id`, so an event naming a
+ * report that does not exist is now unwritable rather than merely undesirable.
+ *
+ * The transaction assertion changed subject with it. There is no session to spy
+ * on; what is asserted instead is the property the session existed to protect —
+ * `enqueueModerationOutboxEvent` REFUSES the root connection — and that refusal
+ * is owned by `__tests__/db/moderationOutboxRepository.test.ts`, which drives it
+ * directly. Re-asserting it here through the sweep would be a second, weaker copy.
  */
 
-type Doc = Record<string, unknown>;
-
-let reports: Doc[];
-let outbox: Doc[];
-let submittedLongAgo: number;
-let localOnly: number;
-
-vi.mock('../../../models/Report.model', async () => {
-  const actual = await vi.importActual<typeof import('../../../models/Report.model')>(
-    '../../../models/Report.model',
-  );
-  return {
-    ...actual,
-    default: {
-      /**
-       * Applies the `localStatus` filter, which a filter-blind mock would not.
-       *
-       * The sweep must never pick up a `received` report, and a mock that returned every
-       * report regardless of the query could not tell the difference between "the sweep
-       * excludes it" and "the mock handed it over anyway". With the filter honoured,
-       * adding `'received'` to the sweep's `$in` makes the local-only test fail.
-       */
-      find: vi.fn((filter: Doc) => {
-        const wanted = (filter.localStatus as { $in?: string[] } | undefined)?.$in;
-        if (wanted === undefined) {
-          throw new Error(`Unexpected reconciliation find filter: ${JSON.stringify(filter)}`);
-        }
-        const query = {
-          select: () => query,
-          sort: () => query,
-          limit: () => query,
-          lean: async () =>
-            reports
-              .filter((report) => wanted.includes(String(report.localStatus)))
-              .map((report) => ({ ...report })),
-        };
-        return query;
-      }),
-      /**
-       * Answers on the FILTER, not on call order. The sweep makes two counts and a mock
-       * that returned one number for both would let either assertion pass on the other's
-       * value — a check that cannot tell the two apart is worse than no check.
-       */
-      countDocuments: vi.fn(async (filter: Doc) => {
-        if (filter.localStatus === 'submitted') return submittedLongAgo;
-        if (filter.localStatus === 'received') return localOnly;
-        throw new Error(`Unexpected reconciliation count filter: ${JSON.stringify(filter)}`);
-      }),
-    },
-  };
-});
-
-vi.mock('../../../models/ModerationOutbox', () => ({
-  MODERATION_OUTBOX_RETENTION_SECONDS: 90 * 24 * 60 * 60,
-  default: {
-    findById: vi.fn((id: string) => {
-      const found = outbox.find((doc) => doc._id === id);
-      const query = {
-        select: () => query,
-        lean: async () => (found ? { ...found } : null),
-      };
-      return query;
-    }),
-    updateOne: vi.fn(async (filter: Doc, update: Doc) => {
-      if (!outbox.some((doc) => doc._id === filter._id)) {
-        outbox.push({ ...((update.$setOnInsert as Doc | undefined) ?? {}) });
-      }
-      return { matchedCount: 1, modifiedCount: 1, upsertedCount: 1 };
-    }),
-  },
-}));
-
-import ModerationOutbox from '../../../models/ModerationOutbox';
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { moderationOutbox, reports } from '../../../db/schema/moderation';
+import type { ReportLocalStatus } from '../../../db/moderation/reportRepository';
 import { reconcileModerationReports } from '../../../services/moderation/ModerationReconciliation';
 import { reportSubmitEventId } from '../../../services/moderation/ModerationOutboxService';
 
-const REPORT_A = '507f1f77bcf86cd799439011';
-const REPORT_B = '507f1f77bcf86cd799439022';
+/**
+ * Namespaces every row this file writes.
+ *
+ * The sweep reads the WHOLE `reports` table — that is its job — so a fixture from
+ * a parallel file would be picked up and counted. Every assertion below is
+ * therefore about rows this file can name, and the two aggregate counters
+ * (`awaitingDecision`, `localOnly`) are asserted as a DELTA against a baseline
+ * taken in the same test rather than as an absolute.
+ */
+const PREFIX = 'moderation:test-reconciliation:';
+
+let seq = 0;
+
+/** One report, in the state the sweep will find it. */
+async function seedReport(options: {
+  localStatus: ReportLocalStatus;
+  submittedAt?: Date;
+}): Promise<string> {
+  seq += 1;
+  const [row] = await getDb()
+    .insert(reports)
+    .values({
+      reportedType: 'post',
+      reportedId: `${PREFIX}subject-${seq}`,
+      reporter: `${PREFIX}reporter-${seq}`,
+      categories: ['spam'],
+      localStatus: options.localStatus,
+      ...(options.submittedAt ? { submittedAt: options.submittedAt } : {}),
+    })
+    .returning({ id: reports.id });
+  return row.id;
+}
+
+/** An existing delivery event for `reportId`, in the given state. */
+async function seedOutboxEvent(reportId: string, status: 'pending' | 'dead_letter'): Promise<void> {
+  const now = new Date();
+  await getDb().insert(moderationOutbox).values({
+    id: reportSubmitEventId(reportId),
+    kind: 'report.submit',
+    payloadReportId: reportId,
+    status,
+    attempts: 0,
+    availableAt: now,
+    expiresAt: new Date(now.getTime() + 86_400_000),
+  });
+}
+
+/** The delivery event for `reportId`, or `undefined`. */
+async function readEvent(reportId: string) {
+  const [row] = await getDb()
+    .select()
+    .from(moderationOutbox)
+    .where(eq(moderationOutbox.id, reportSubmitEventId(reportId)))
+    .limit(1);
+  return row;
+}
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterEach(async () => {
+  // The events cascade from their reports, so one delete clears both.
+  await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
 
 describe('moderation reconciliation', () => {
-  beforeEach(() => {
-    reports = [];
-    outbox = [];
-    submittedLongAgo = 0;
-    localOnly = 0;
-    vi.clearAllMocks();
-    vi.spyOn(mongoose, 'startSession').mockResolvedValue({
-      // `inTransaction()` is what `enqueueModerationOutboxEvent` checks. A stub
-      // without it would make the guard fire and hide the behaviour under test.
-      inTransaction: () => true,
-      withTransaction: vi.fn(async (operation: () => Promise<void>) => {
-        await operation();
-      }),
-      endSession: vi.fn().mockResolvedValue(undefined),
-    } as never);
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it('re-derives a missing delivery event with the same deterministic id', async () => {
-    reports = [{ _id: new mongoose.Types.ObjectId(REPORT_A), localStatus: 'queued' }];
+    const reportId = await seedReport({ localStatus: 'queued' });
 
     const result = await reconcileModerationReports();
 
-    expect(result.requeued).toBe(1);
-    expect(outbox).toHaveLength(1);
+    expect(result.requeued).toBeGreaterThanOrEqual(1);
     /**
      * The SAME id the intake would have used. A sweep that minted a new one would
      * deliver the report twice — and because the SDK's idempotency key is derived from
      * the report, the second delivery would arrive under a different key and open a
      * second case.
      */
-    expect(outbox[0]).toMatchObject({
-      _id: reportSubmitEventId(REPORT_A),
+    expect(await readEvent(reportId)).toMatchObject({
+      id: reportSubmitEventId(reportId),
       kind: 'report.submit',
-      payload: { reportId: REPORT_A },
+      payloadReportId: reportId,
+      status: 'pending',
     });
   });
 
   it('leaves a report that already has an event alone', async () => {
-    reports = [{ _id: new mongoose.Types.ObjectId(REPORT_A), localStatus: 'queued' }];
-    outbox = [{ _id: reportSubmitEventId(REPORT_A), status: 'pending' }];
+    const reportId = await seedReport({ localStatus: 'queued' });
+    await seedOutboxEvent(reportId, 'pending');
+    const before = await readEvent(reportId);
 
-    const result = await reconcileModerationReports();
+    await reconcileModerationReports();
 
-    expect(result.requeued).toBe(0);
-    expect(ModerationOutbox.updateOne).not.toHaveBeenCalled();
+    // Byte-identical: the sweep did not rewrite it, which is what "untouched"
+    // means for a row a dispatcher may be holding a lease on.
+    expect(await readEvent(reportId)).toEqual(before);
   });
 
   it('counts a dead-lettered event instead of spinning on it', async () => {
-    reports = [{ _id: new mongoose.Types.ObjectId(REPORT_A), localStatus: 'delivery_failed' }];
-    outbox = [{ _id: reportSubmitEventId(REPORT_A), status: 'dead_letter' }];
+    const reportId = await seedReport({ localStatus: 'delivery_failed' });
+    await seedOutboxEvent(reportId, 'dead_letter');
 
     const result = await reconcileModerationReports();
 
@@ -154,36 +149,28 @@ describe('moderation reconciliation', () => {
      * it would spin forever. The COUNT is the alert — the sweep's job here is to make
      * the report visible, not to retry it.
      */
-    expect(result.deadLettered).toBe(1);
-    expect(result.requeued).toBe(0);
-    expect(ModerationOutbox.updateOne).not.toHaveBeenCalled();
-  });
-
-  it('writes the re-derived event inside a transaction', async () => {
-    reports = [{ _id: new mongoose.Types.ObjectId(REPORT_B), localStatus: 'queued' }];
-
-    await reconcileModerationReports();
-
-    /**
-     * Not for atomicity — it is a single upsert. `enqueueModerationOutboxEvent`
-     * REQUIRES a session so that no path in the codebase can write an outbox event
-     * outside one; a signature that made it optional would be the crack the next caller
-     * slips through.
-     */
-    expect(mongoose.startSession).toHaveBeenCalled();
-    const options = vi.mocked(ModerationOutbox.updateOne).mock.calls[0][2];
-    expect(options?.session).toBeDefined();
+    expect(result.deadLettered).toBeGreaterThanOrEqual(1);
+    expect((await readEvent(reportId))?.status).toBe('dead_letter');
   });
 
   it('reports how many submitted cases have gone quiet', async () => {
-    submittedLongAgo = 7;
+    const baseline = (await reconcileModerationReports()).awaitingDecision;
+    // Well past the 72-hour threshold.
+    await seedReport({
+      localStatus: 'submitted',
+      submittedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1_000),
+    });
+    // Submitted just now — inside the window, so it must NOT be counted. Without
+    // this row the assertion could not tell a working threshold from one that
+    // counts every submitted report.
+    await seedReport({ localStatus: 'submitted', submittedAt: new Date() });
 
     const result = await reconcileModerationReports();
 
     // Nothing to do locally — publishing the decision is CrowdSource's job — but a
     // rising count is how a broken endpoint or a rotated secret becomes visible before
     // somebody notices a silent moderation queue.
-    expect(result.awaitingDecision).toBe(7);
+    expect(result.awaitingDecision).toBe(baseline + 1);
   });
 
   it('counts local-only reports and never re-queues one', async () => {
@@ -195,13 +182,14 @@ describe('moderation reconciliation', () => {
      * "something is wrong". Counting is the only correct action, and it is the one number
      * that makes reports no jury will ever see visible at all.
      */
-    localOnly = 3;
-    reports = [{ _id: new mongoose.Types.ObjectId(REPORT_A), localStatus: 'received' }];
+    const baseline = (await reconcileModerationReports()).localOnly;
+    const reportId = await seedReport({ localStatus: 'received' });
 
     const result = await reconcileModerationReports();
 
-    expect(result.localOnly).toBe(3);
-    expect(result.requeued).toBe(0);
-    expect(ModerationOutbox.updateOne).not.toHaveBeenCalled();
+    expect(result.localOnly).toBe(baseline + 1);
+    // The load-bearing half: adding `'received'` to the sweep's own status filter
+    // would produce an event here, and it would dead-letter on its first attempt.
+    expect(await readEvent(reportId)).toBeUndefined();
   });
 });

@@ -15,11 +15,11 @@
  */
 
 import type { PostClassification } from '@mention/shared-types';
-import type { IUserBehavior } from '../../models/UserBehavior';
+import type { UserBehaviorRecord } from '../../db/userProfile/userBehaviorRecord';
 
 /**
  * The lean user-behavior shape the ranking signals read. A relaxed view of
- * {@link IUserBehavior}: every field optional (the doc may be a partial
+ * {@link UserBehaviorRecord}: every field optional (the doc may be a partial
  * `.lean()` result, absent entirely for anonymous viewers, or supplied by the
  * caller) and each preference entry only declares the fields ranking reads, so
  * callers can pass minimal behavior objects. Every signal degrades to neutral
@@ -28,7 +28,7 @@ import type { IUserBehavior } from '../../models/UserBehavior';
 export interface RankingUserBehavior {
   preferredAuthors?: Array<{ authorId: string; weight: number }>;
   preferredTopics?: Array<{ topic: string; topicId?: unknown; weight: number }>;
-  preferredPostTypes?: Partial<IUserBehavior['preferredPostTypes']>;
+  preferredPostTypes?: Partial<UserBehaviorRecord['preferredPostTypes']>;
   preferredLanguages?: string[];
   activeHours?: number[];
   hiddenAuthors?: string[];
@@ -110,8 +110,16 @@ export interface OptInSignalContext {
  * than a hydrated document.
  */
 export interface RankablePost {
-  _id?: unknown;
-  oxyUserId?: string;
+  id?: string;
+  /** Written as a reply — the STORED discriminator (see `PostRecord`). */
+  isReply?: boolean;
+  /**
+   * NULLABLE, not merely optional. `posts.oxy_user_id` is a nullable column (the
+   * raw federated insert path can omit it), so a record genuinely carries
+   * `null` — narrowing it to `string | undefined` here made every ranking call
+   * site fail to accept a real `PostRecord`.
+   */
+  oxyUserId?: string | null;
   // Optional so lean candidate projections without a timestamp still satisfy the
   // type; a missing value yields an Invalid Date which every reader treats as a
   // very old post (recency 0 / no trending boost).
@@ -124,8 +132,8 @@ export interface RankablePost {
    */
   _discovery?: boolean;
   hashtags?: string[];
-  threadId?: string;
-  parentPostId?: string;
+  threadId?: string | null;
+  parentPostId?: string | null;
   language?: string;
   // Lean feed projections carry `content` for media-aware signals; only the
   // `media` array is read here (presence check), so it is intentionally opaque.

@@ -23,32 +23,33 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const CHANNEL_ID = 'oxy-channel';
 const OTHER_CHANNEL_ID = 'oxy-channel-2';
 
-const { userSettingsFind } = vi.hoisted(() => ({ userSettingsFind: vi.fn() }));
+const { loadChannelSignPostsByIds } = vi.hoisted(() => ({
+  loadChannelSignPostsByIds: vi.fn(),
+}));
 
-vi.mock('../../models/UserSettings', () => {
-  const model = {
-    find: (...args: unknown[]) => {
-      const rows = userSettingsFind(...args);
-      const chain = {
-        select: () => chain,
-        lean: async () => rows,
-      };
-      return chain;
-    },
-  };
-  return { UserSettings: model, default: model };
-});
+vi.mock('../../db/userProfile/userSettingsRepository', () => ({
+  loadChannelSignPostsByIds: (...args: unknown[]) => loadChannelSignPostsByIds(...args),
+}));
+
+/**
+ * The loader answers a Map, and the mock is typed loosely ON PURPOSE — see the
+ * truthy-non-boolean case below for why a fixture has to be able to hold a value
+ * the column's own type forbids.
+ */
+function signPostsRows(entries: Array<[string, unknown]>): Map<string, unknown> {
+  return new Map(entries);
+}
 
 import { disclosesWriters, loadSigningChannelIds } from '../../services/channelWriterDisclosure';
 
 describe('loadSigningChannelIds', () => {
   beforeEach(() => {
-    userSettingsFind.mockReset();
-    userSettingsFind.mockReturnValue([]);
+    loadChannelSignPostsByIds.mockReset();
+    loadChannelSignPostsByIds.mockResolvedValue(signPostsRows([]));
   });
 
   it('holds an account whose settings row says signPosts is true', async () => {
-    userSettingsFind.mockReturnValue([{ oxyUserId: CHANNEL_ID, channel: { signPosts: true } }]);
+    loadChannelSignPostsByIds.mockResolvedValue(signPostsRows([[CHANNEL_ID, true]]));
 
     const signing = await loadSigningChannelIds([CHANNEL_ID]);
 
@@ -56,19 +57,19 @@ describe('loadSigningChannelIds', () => {
   });
 
   it('omits an account that has not opted in', async () => {
-    userSettingsFind.mockReturnValue([{ oxyUserId: CHANNEL_ID, channel: { signPosts: false } }]);
+    loadChannelSignPostsByIds.mockResolvedValue(signPostsRows([[CHANNEL_ID, false]]));
 
     expect((await loadSigningChannelIds([CHANNEL_ID])).has(CHANNEL_ID)).toBe(false);
   });
 
   it('omits an account with no settings row at all', async () => {
-    userSettingsFind.mockReturnValue([]);
+    loadChannelSignPostsByIds.mockResolvedValue(signPostsRows([]));
 
     expect((await loadSigningChannelIds([CHANNEL_ID])).has(CHANNEL_ID)).toBe(false);
   });
 
-  it('omits an account whose settings row has no channel subdocument', async () => {
-    userSettingsFind.mockReturnValue([{ oxyUserId: CHANNEL_ID }]);
+  it('omits an account whose row is NULL — the shape that says "not a channel"', async () => {
+    loadChannelSignPostsByIds.mockResolvedValue(signPostsRows([[CHANNEL_ID, null]]));
 
     expect((await loadSigningChannelIds([CHANNEL_ID])).has(CHANNEL_ID)).toBe(false);
   });
@@ -78,53 +79,64 @@ describe('loadSigningChannelIds', () => {
    *
    * Every other case in this file is `true`, `false` or absent, and a loose read
    * agrees with a strict one on all three — so without a truthy NON-boolean,
-   * dropping the `=== true` leaves the whole suite green. `"false"` is the shape a
-   * form post, a hand-edited document or a migration that stringified a column
-   * produces, and it must NOT disclose. Mutation-verified: relaxing the read to
-   * `Boolean(...)` reddens exactly this case and nothing else.
+   * dropping the `=== true` leaves the whole suite green. Mutation-verified on
+   * the Postgres loader: relaxing the read to `Boolean(...)` reddens exactly
+   * these cases and nothing else.
+   *
+   * WHAT CHANGED WITH THE PORT, because the honest version is weaker than the
+   * one this comment used to make. On Mongo these were REACHABLE values — a form
+   * post or a hand-edited document really could store `"false"`. `user_settings.
+   * channel_account_sign_posts` is a typed `boolean` column, so Postgres cannot
+   * hand back any of them, and the values that ARE reachable (`true`, `false`,
+   * `null`, no row) are ones a strict and a loose read agree on. So this case no
+   * longer guards a live defect: it pins the LOADER'S CONTRACT, and it is the
+   * only thing standing between a future loader change — a raw-SQL read, a JSON
+   * column, a cache that rehydrates from a string — and a silent disclosure.
+   * That is worth keeping precisely because nothing else in the stack would
+   * notice; it is defence in depth, and it should not be described as more.
    */
   it.each([{ value: 'false' }, { value: 'true' }, { value: 1 }, { value: {} }])(
     'refuses a truthy non-boolean signPosts ($value)',
     async ({ value }: { value: unknown }) => {
-      userSettingsFind.mockReturnValue([{ oxyUserId: CHANNEL_ID, channel: { signPosts: value } }]);
+      loadChannelSignPostsByIds.mockResolvedValue(signPostsRows([[CHANNEL_ID, value]]));
 
       expect((await loadSigningChannelIds([CHANNEL_ID])).has(CHANNEL_ID)).toBe(false);
     },
   );
 
   it('fails CLOSED when the settings lookup throws', async () => {
-    userSettingsFind.mockImplementation(() => {
-      throw new Error('mongo is down');
-    });
+    loadChannelSignPostsByIds.mockRejectedValue(new Error('postgres is down'));
 
     expect([...(await loadSigningChannelIds([CHANNEL_ID]))]).toEqual([]);
   });
 
   it('asks nothing when there are no candidates', async () => {
     expect([...(await loadSigningChannelIds([]))]).toEqual([]);
-    expect(userSettingsFind).not.toHaveBeenCalled();
+    expect(loadChannelSignPostsByIds).not.toHaveBeenCalled();
   });
 
   it('drops empty and duplicate candidates before querying', async () => {
-    userSettingsFind.mockReturnValue([]);
+    loadChannelSignPostsByIds.mockResolvedValue(signPostsRows([]));
 
     await loadSigningChannelIds([CHANNEL_ID, CHANNEL_ID, '']);
 
-    expect(userSettingsFind).toHaveBeenCalledTimes(1);
-    expect(userSettingsFind).toHaveBeenCalledWith({ oxyUserId: { $in: [CHANNEL_ID] } });
+    expect(loadChannelSignPostsByIds).toHaveBeenCalledTimes(1);
+    expect(loadChannelSignPostsByIds).toHaveBeenCalledWith([CHANNEL_ID]);
   });
 
   it('answers a whole page of channels in ONE query, per channel', async () => {
-    userSettingsFind.mockReturnValue([
-      { oxyUserId: CHANNEL_ID, channel: { signPosts: true } },
-      { oxyUserId: OTHER_CHANNEL_ID, channel: { signPosts: false } },
-    ]);
+    loadChannelSignPostsByIds.mockResolvedValue(
+      signPostsRows([
+        [CHANNEL_ID, true],
+        [OTHER_CHANNEL_ID, false],
+      ]),
+    );
 
     const signing = await loadSigningChannelIds([CHANNEL_ID, OTHER_CHANNEL_ID]);
 
     expect(signing.has(CHANNEL_ID)).toBe(true);
     expect(signing.has(OTHER_CHANNEL_ID)).toBe(false);
-    expect(userSettingsFind).toHaveBeenCalledTimes(1);
+    expect(loadChannelSignPostsByIds).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -192,12 +204,18 @@ describe('signPosts has exactly one reader', () => {
    * `PostHydrationService`) does not count as reading it.
    */
   const ALLOWED = new Set([
-    // The declaration: the interface field and the schema path.
-    'models/UserSettings.ts',
+    // The declaration: the assembled record's field.
+    'db/userProfile/userSettingsRecord.ts',
+    // The STORE: the dotted-path→column map (the write) and the narrow batched
+    // read the decision below is built on. Both are the one path to the table.
+    'db/userProfile/userSettingsRepository.ts',
     // The write: `PUT /profile/settings/:userId`, the operator's toggle.
     'routes/profileSettings.ts',
     // The read: the one authority this file is about.
     'services/channelWriterDisclosure.ts',
+    // The one-time copy out of Mongo. Names the OLD path (`channel.signPosts`)
+    // on the source side, which is why it mentions the flag at all.
+    'db/backfill/plans/userProfile.ts',
   ]);
 
   /** Strip block and line comments so a docstring is not read as a usage. */

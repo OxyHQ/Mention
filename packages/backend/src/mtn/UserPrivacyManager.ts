@@ -8,7 +8,9 @@
  * stale duplicate Block/Restrict collections.
  */
 
-import Mute from '../models/Mute';
+import { eq } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { mutes } from '../db/schema/engagement';
 import {
   getBlockedUserIds,
   getRestrictedUserIds,
@@ -43,7 +45,7 @@ export class UserPrivacyManager {
   /**
    * Load privacy relations concurrently from their authoritative stores.
    *
-   * A Mongo mute read failure must not discard successfully resolved Oxy
+   * A mute read failure must not discard successfully resolved Oxy
    * blocks. Oxy privacy failures propagate because returning a partial set can
    * disclose an excluded author.
    */
@@ -51,12 +53,17 @@ export class UserPrivacyManager {
     userId: string,
     options: LoadPrivacyStateOptions = {},
   ): Promise<PrivacyState> {
-    const mutedUsersPromise = Mute.find(
-      { userId },
-      { mutedId: 1, _id: 0 },
-    )
-      .lean()
-      .catch((error): Array<{ mutedId?: string }> => {
+    // Postgres. This read the Mongo `Mute` collection until now, which nothing
+    // has written since mutes moved — so a mute created after the cutover was
+    // never applied, and the reader kept seeing an author they had explicitly
+    // silenced. The fail-soft below makes that especially worth naming: an empty
+    // result is indistinguishable from "no mutes", so the failure mode was a
+    // silently permissive privacy state rather than an error.
+    const mutedUsersPromise = getDb()
+      .select({ mutedId: mutes.mutedId })
+      .from(mutes)
+      .where(eq(mutes.userId, userId))
+      .catch((error): Array<{ mutedId: string }> => {
         logger.warn('[UserPrivacyManager] Failed to load Mention mutes', error);
         return [];
       });

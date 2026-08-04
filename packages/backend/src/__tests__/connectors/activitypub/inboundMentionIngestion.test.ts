@@ -1,4 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedFollow,
+  seedPost,
+} from '../../../__tests__/helpers/federationFixtures';
+
+const scope = federationScope('inbound-mention-ingestion');
 
 /**
  * Inbound federated @mention ingestion.
@@ -26,7 +37,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * `FederatedActor` model / Oxy client, and mock `outbox.service.ts` wholesale.
  */
 
-const REMOTE = 'https://remote.example';
+const REMOTE = scope.origin;
 const AUTHOR_URI = `${REMOTE}/users/carol`;
 const AUTHOR_OXY_ID = 'oxy_carol';
 
@@ -44,8 +55,6 @@ const LOCAL_MENTION_OXY_ID = 'oxy_alice_local';
 const CREATED_POST_ID = 'created_post_1';
 
 const mocks = vi.hoisted(() => ({
-  actorFindOne: vi.fn(),
-  followExists: vi.fn(),
   postFindOne: vi.fn(),
   postExists: vi.fn(),
   postUpdateOne: vi.fn(),
@@ -80,19 +89,6 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   signRequest: vi.fn(),
 }));
 
-vi.mock('../../../models/FederatedActor', () => ({
-  default: { findOne: mocks.actorFindOne },
-}));
-
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: { exists: mocks.followExists },
-}));
-
-vi.mock('../../../models/FederationDeliveryQueue', () => ({
-  default: {},
-  getNextRetryTime: vi.fn(),
-}));
-
 vi.mock('../../../models/Post', () => ({
   POST_CLASSIFICATION_PENDING: 'pending',
   Post: {
@@ -105,10 +101,6 @@ vi.mock('../../../models/Post', () => ({
 
 vi.mock('../../../models/Like', () => ({
   default: { create: vi.fn(), findOneAndDelete: vi.fn() },
-}));
-
-vi.mock('../../../models/UserSettings', () => ({
-  default: { updateOne: vi.fn() },
 }));
 
 vi.mock('../../../utils/oxyHelpers', () => ({
@@ -157,14 +149,18 @@ vi.mock('../../../connectors/activitypub/outbox.service', () => ({
 
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
 
-/** Map each actor URI (author + federated mentions) to its resolved Oxy id. */
-function stubActors(byUri: Record<string, string>): void {
-  mocks.actorFindOne.mockImplementation((filter: { uri?: string }) => ({
-    lean: async () => {
-      const oxyUserId = filter.uri ? byUri[filter.uri] : undefined;
-      return oxyUserId ? { uri: filter.uri, oxyUserId, lastFetchedAt: new Date() } : null;
-    },
-  }));
+/** Seed each actor URI (author + federated mentions) with its resolved Oxy id. */
+async function seedActors(byUri: Record<string, string>): Promise<void> {
+  let index = 0;
+  for (const [uri, oxyUserId] of Object.entries(byUri)) {
+    index += 1;
+    await seedActor(scope, {
+      username: `actor${index}`,
+      uri,
+      oxyUserId,
+      lastFetchedAt: new Date(),
+    });
+  }
 }
 
 /** The captured `create()` params of the single stored post. */
@@ -202,24 +198,30 @@ function createActivity(
   };
 }
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
-  mocks.followExists.mockResolvedValue({ _id: 'follow_1' });
+  await clearFederationScope(scope);
   mocks.postExists.mockResolvedValue(null);
   mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
-  mocks.postCreatorCreate.mockResolvedValue({ _id: CREATED_POST_ID });
+  mocks.postCreatorCreate.mockResolvedValue({ id: CREATED_POST_ID });
   mocks.ensureFederatedReplyLink.mockResolvedValue(null);
   mocks.isFediverseSharingEnabled.mockResolvedValue(true);
   mocks.postFindOne.mockReturnValue({ lean: async () => null });
-  stubActors({ [AUTHOR_URI]: AUTHOR_OXY_ID, [FED_MENTION_URI]: FED_MENTION_OXY_ID });
+  await seedActors({ [AUTHOR_URI]: AUTHOR_OXY_ID, [FED_MENTION_URI]: FED_MENTION_OXY_ID });
+  // A local user follows the author, so `handleCreate`'s follower gate passes.
+  await seedFollow(scope, { remoteActorUri: AUTHOR_URI, direction: 'outbound', status: 'accepted' });
 });
 
 describe('handleCreate — inbound @mention ingestion', () => {
   it('rewrites a FEDERATED mention anchor to a [mention:<oxyUserId>] placeholder and stores post.mentions', async () => {
     const content =
-      '<p>hey <span class="h-card"><a href="https://remote.example/@bob" class="u-url mention">@<span>bob</span></a></span> look</p>';
+      `<p>hey <span class="h-card"><a href="${REMOTE}/@bob" class="u-url mention">@<span>bob</span></a></span> look</p>`;
     const activity = createActivity(content, [
-      { type: 'Mention', href: FED_MENTION_URI, name: '@bob@remote.example' },
+      { type: 'Mention', href: FED_MENTION_URI, name: `@bob@${scope.domain}` },
     ]);
 
     await inboxProcessingService.processInboxActivity(activity, AUTHOR_URI);
@@ -273,7 +275,13 @@ describe('handleCreate — inbound @mention ingestion', () => {
 
   it('does NOT re-notify on a redelivered Create (activityId already stored)', async () => {
     mocks.getProfileByUsername.mockResolvedValue({ _id: LOCAL_MENTION_OXY_ID, username: 'alice' });
-    mocks.postExists.mockResolvedValue({ _id: 'already_here' });
+    // The dedupe is a REAL uniqueness check on `federation.activity_id`, so the
+    // premise is a stored row rather than a stubbed `exists` answer — otherwise
+    // "did not re-notify" passes just as well against a dedupe that never runs.
+    await seedPost(scope, {
+      oxyUserId: AUTHOR_OXY_ID,
+      federation: { activityId: `${AUTHOR_URI}/statuses/1`, actorUri: AUTHOR_URI },
+    });
     const content =
       '<p>cc <a href="https://mention.earth/@alice" class="u-url mention">@<span>alice</span></a></p>';
     const activity = createActivity(content, [
@@ -301,11 +309,14 @@ describe('handleCreate — inbound @mention ingestion', () => {
   it('does NOT rewrite an anchor whose href matches no resolved mention (degrades gracefully)', async () => {
     // An unresolvable mention actor (getOrFetchActor returns no oxyUserId): the
     // anchor stays, no placeholder, no stored mention — the prior bare-text behavior.
-    stubActors({ [AUTHOR_URI]: AUTHOR_OXY_ID });
+    // Only the author resolves; the mentioned actor has no row at all.
+    await clearFederationScope(scope);
+    await seedActors({ [AUTHOR_URI]: AUTHOR_OXY_ID });
+    await seedFollow(scope, { remoteActorUri: AUTHOR_URI, direction: 'outbound', status: 'accepted' });
     const content =
-      '<p>hi <a href="https://remote.example/@ghost" class="u-url mention">@<span>ghost</span></a></p>';
+      `<p>hi <a href="${REMOTE}/@ghost" class="u-url mention">@<span>ghost</span></a></p>`;
     const activity = createActivity(content, [
-      { type: 'Mention', href: `${REMOTE}/users/ghost`, name: '@ghost@remote.example' },
+      { type: 'Mention', href: `${REMOTE}/users/ghost`, name: `@ghost@${scope.domain}` },
     ]);
 
     await inboxProcessingService.processInboxActivity(activity, AUTHOR_URI);
@@ -314,6 +325,14 @@ describe('handleCreate — inbound @mention ingestion', () => {
     expect(primaryVariantText()).not.toContain('[mention:');
     expect(mocks.createMentionNotifications).not.toHaveBeenCalled();
   });
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 /**
@@ -331,19 +350,27 @@ describe('handleCreate — broadcast notes notify nobody', () => {
    * A note naming `remoteCount` remote users plus the one local user, alice.
    * `alicePosition` places her tag in the note's declaration order, which is what
    * the per-post ceiling keeps by.
+   *
+   * The scope is cleared and re-seeded rather than added to, because the outer
+   * `beforeEach` already seeded two actors under this scope and the actor rows
+   * carry unique `(domain, username)` and `acct` constraints — seeding on top of
+   * them would collide rather than accumulate.
    */
-  function broadcastActivity(
+  async function broadcastActivity(
     remoteCount: number,
     alicePosition: 'first' | 'last' = 'last',
-  ): Record<string, unknown> {
+  ): Promise<Record<string, unknown>> {
     const remotes = Array.from({ length: remoteCount }, (_, i) => ({
       uri: `${REMOTE}/users/r${i}`,
       oxyId: `oxy_r${i}`,
     }));
-    stubActors({
+    await clearFederationScope(scope);
+    await seedActors({
       [AUTHOR_URI]: AUTHOR_OXY_ID,
       ...Object.fromEntries(remotes.map((r) => [r.uri, r.oxyId])),
     });
+    // Re-seeded with the actors: `handleCreate`'s follower gate reads it.
+    await seedFollow(scope, { remoteActorUri: AUTHOR_URI, direction: 'outbound', status: 'accepted' });
 
     const aliceAnchor = `<a href="${LOCAL_MENTION_PROFILE}" class="u-url mention">@alice</a>`;
     const aliceTag = {
@@ -372,7 +399,7 @@ describe('handleCreate — broadcast notes notify nobody', () => {
   });
 
   it('notifies the one local user when the note is AT the notification cap (8 total)', async () => {
-    await inboxProcessingService.processInboxActivity(broadcastActivity(7), AUTHOR_URI);
+    await inboxProcessingService.processInboxActivity(await broadcastActivity(7), AUTHOR_URI);
 
     expect(createdPost().mentions).toHaveLength(8);
     expect(mocks.createMentionNotifications).toHaveBeenCalledWith(
@@ -384,7 +411,7 @@ describe('handleCreate — broadcast notes notify nobody', () => {
   });
 
   it('notifies NOBODY one over the cap (9 total), even though only ONE is local', async () => {
-    await inboxProcessingService.processInboxActivity(broadcastActivity(8), AUTHOR_URI);
+    await inboxProcessingService.processInboxActivity(await broadcastActivity(8), AUTHOR_URI);
 
     // Stored and rendered exactly as before — only the interrupt is withheld.
     expect(createdPost().mentions).toHaveLength(9);
@@ -400,7 +427,10 @@ describe('handleCreate — broadcast notes notify nobody', () => {
     // 29 mentions — the measured mean — with alice declared FIRST, so the per-post
     // ceiling keeps her. The note is still a broadcast, so nobody is notified: the
     // suppression is the mention COUNT's doing, not an artifact of her being cut.
-    await inboxProcessingService.processInboxActivity(broadcastActivity(28, 'first'), AUTHOR_URI);
+    await inboxProcessingService.processInboxActivity(
+      await broadcastActivity(28, 'first'),
+      AUTHOR_URI,
+    );
 
     expect(createdPost().mentions).toHaveLength(16);
     expect(createdPost().mentions).toContain(LOCAL_MENTION_OXY_ID);
@@ -416,7 +446,10 @@ describe('handleCreate — broadcast notes notify nobody', () => {
     // ceiling and is dropped wholesale — no stored id, so no rendered link and no
     // entry in her mentions feed either. That is the containment working as designed
     // on a broadcast, and it is logged with both counts rather than dropped quietly.
-    await inboxProcessingService.processInboxActivity(broadcastActivity(28, 'last'), AUTHOR_URI);
+    await inboxProcessingService.processInboxActivity(
+      await broadcastActivity(28, 'last'),
+      AUTHOR_URI,
+    );
 
     expect(createdPost().mentions).toHaveLength(16);
     expect(createdPost().mentions).not.toContain(LOCAL_MENTION_OXY_ID);

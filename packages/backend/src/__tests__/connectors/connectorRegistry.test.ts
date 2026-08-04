@@ -35,6 +35,7 @@ import type {
   LocalNetworkEvent,
   LocalPostEventPayload,
 } from '@oxyhq/federation';
+import type { FederatablePost } from '../../services/serviceRegistry';
 import { ConnectorRegistry } from '../../connectors/ConnectorRegistry';
 
 /** A minimal fake connector with overridable, spy-able `deliver`. */
@@ -56,12 +57,22 @@ function makeConnector(
   };
 }
 
-const POST: LocalPostEventPayload<PostContent> = {
-  _id: 'p1',
+/**
+ * What `PostCreationService` hands the registry: a `FederatablePost`, keyed on
+ * `id`. The registry translates it to the SDK's `LocalPostEventPayload`, which
+ * still says `_id` — see {@link FederatablePost}. That translation is asserted
+ * rather than assumed below, because it is the one place the two id spellings
+ * meet and a silent `undefined` there federates a Note with no object id.
+ */
+const POST: FederatablePost = {
+  id: 'p1',
   content: { text: 'hello' },
   visibility: 'public',
   createdAt: '2024-01-01T00:00:00.000Z',
 };
+
+/** The same post as the SDK sees it, after the registry's id translation. */
+const DELIVERED_POST = { ...POST, _id: 'p1' };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -92,7 +103,7 @@ describe('ConnectorRegistry.federateNewPost', () => {
     for (const deliver of [failDeliver, okDeliver, otherOkDeliver]) {
       expect(deliver).toHaveBeenCalledWith({
         kind: 'post.create',
-        post: POST,
+        post: DELIVERED_POST,
         actorOxyUserId: 'oxy-1',
         actorUsername: 'alice',
       });
@@ -201,8 +212,12 @@ describe('ConnectorRegistry extra audiences', () => {
     await registry.federateNewPost(POST, 'oxy-1', 'alice', ['oxy-2']);
 
     expect(widened).toHaveBeenCalledTimes(1);
+    // `DELIVERED_POST`, not `POST` — the widened path carries the SAME
+    // app→SDK id translation the ordinary one does. Asserting the untranslated
+    // shape here would let the two paths drift on the one field that decides
+    // whether the Note gets an object id at all.
     expect(widened).toHaveBeenCalledWith(
-      { kind: 'post.create', post: POST, actorOxyUserId: 'oxy-1', actorUsername: 'alice' },
+      { kind: 'post.create', post: DELIVERED_POST, actorOxyUserId: 'oxy-1', actorUsername: 'alice' },
       ['oxy-2'],
     );
     expect(plain).not.toHaveBeenCalled();

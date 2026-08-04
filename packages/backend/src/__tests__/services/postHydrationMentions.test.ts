@@ -41,7 +41,6 @@ vi.mock('../../models/Post', () => ({ Post: {} }));
 vi.mock('../../models/Poll', () => ({ default: {} }));
 vi.mock('../../models/Like', () => ({ default: {} }));
 vi.mock('../../models/Bookmark', () => ({ default: {} }));
-vi.mock('../../models/UserSettings', () => ({ UserSettings: {} }));
 // The starter-pack CURATION aggregation runs on the cache-fill path (it stamps the
 // ranking-side `starterPackScore`). No DB here → no packs → no scores.
 vi.mock('../../models/StarterPack', () => ({

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Outbound actor-update federation (PART 3): a Mention-owned profile change (the
@@ -24,9 +24,6 @@ const {
   getUserById,
   resolveOxyUser,
   getPublicKey,
-  userSettingsFindOneLean,
-  followFindLean,
-  actorFindLean,
   insertMany,
 } = vi.hoisted(() => ({
   enqueueDelivery: vi.fn(),
@@ -34,9 +31,6 @@ const {
   getUserById: vi.fn(),
   resolveOxyUser: vi.fn(),
   getPublicKey: vi.fn(),
-  userSettingsFindOneLean: vi.fn(),
-  followFindLean: vi.fn(),
-  actorFindLean: vi.fn(),
   insertMany: vi.fn(),
 }));
 
@@ -49,23 +43,11 @@ vi.mock('../../../connectors/activitypub/constants', async () => {
 vi.mock('../../../connectors/activitypub/actor.service', () => ({ actorService: {} }));
 vi.mock('../../../connectors/activitypub/crypto', () => ({ getPublicKey, signRequest: vi.fn() }));
 vi.mock('../../../queue/producers', () => ({ enqueueDelivery, enqueueInboxActivity: vi.fn() }));
-vi.mock('../../../models/FederatedActor', () => ({
-  default: {
-    find: () => ({ lean: () => actorFindLean() }),
-    findOne: () => ({ lean: () => null }),
-  },
-}));
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: { find: () => ({ lean: () => followFindLean() }) },
-}));
 vi.mock('../../../models/FederationDeliveryQueue', () => ({
   default: { insertMany, create: vi.fn() },
 }));
 vi.mock('../../../models/Post', () => ({
   Post: { findById: () => ({ select: () => ({ lean: () => null }) }) },
-}));
-vi.mock('../../../models/UserSettings', () => ({
-  default: { findOne: () => ({ lean: () => userSettingsFindOneLean() }) },
 }));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
@@ -79,6 +61,15 @@ vi.mock('../../../utils/mediaResolver', () => ({
 vi.mock('../../../services/fediverseSharing', () => ({ isFediverseSharingEnabled }));
 vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ getUserById }) }));
 
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { userSettings } from '../../../db/schema/userProfile';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedFollowerWithInbox,
+} from '../../helpers/federationFixtures';
 import { deliveryService } from '../../../connectors/activitypub/delivery.service';
 
 const ALICE_ACTOR = 'https://mention.earth/ap/users/alice';
@@ -95,30 +86,45 @@ function deliveredActivity(): Record<string, unknown> {
   return (enqueueDelivery.mock.calls[0]?.[0] as { activityJson: Record<string, unknown> }).activityJson;
 }
 
-beforeEach(() => {
+const scope = federationScope('actor-update-federation');
+
+const USER_OWNER = scope.user('owner');
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
+  await clearFederationScope(scope);
   enqueueDelivery.mockResolvedValue(true);
   isFediverseSharingEnabled.mockResolvedValue(true);
-  followFindLean.mockResolvedValue([]);
-  actorFindLean.mockResolvedValue([]);
-  getUserById.mockResolvedValue({ id: 'owner', username: 'alice' });
+  getUserById.mockResolvedValue({ id: USER_OWNER, username: 'alice' });
   resolveOxyUser.mockResolvedValue({
-    _id: 'owner',
+    _id: USER_OWNER,
     name: { displayName: 'Alice' },
     bio: 'hello world',
     avatar: null,
     createdAt: '2020-01-01T00:00:00.000Z',
   });
   getPublicKey.mockResolvedValue({ keyId: `${ALICE_ACTOR}#main-key`, publicKeyPem: 'PEM' });
-  userSettingsFindOneLean.mockResolvedValue({ profileHeaderImage: 'banner-file-id' });
+  // A REAL `user_settings` row. The banner used to come from a Mongoose model
+  // nothing writes since settings moved to Postgres, so the broadcast carried no
+  // `image` in production while this test asserted one.
+  await getDb()
+    .insert(userSettings)
+    .values({ oxyUserId: USER_OWNER, profileHeaderImage: 'banner-file-id' })
+    .onConflictDoUpdate({
+      target: userSettings.oxyUserId,
+      set: { profileHeaderImage: 'banner-file-id' },
+    });
 });
 
 describe('federateActorUpdate — Update(Person)', () => {
   it('broadcasts the full actor with the current banner to remote followers', async () => {
-    followFindLean.mockResolvedValue([{ remoteActorUri: 'https://foo.example/users/x' }]);
-    actorFindLean.mockResolvedValue([{ sharedInboxUrl: 'https://foo.example/inbox' }]);
+    const followerInbox = await seedFollowerWithInbox(scope, USER_OWNER, { username: 'x' });
 
-    await deliveryService.federateActorUpdate('owner', 'alice');
+    await deliveryService.federateActorUpdate(USER_OWNER, 'alice');
 
     const activity = deliveredActivity();
     expect(activity.type).toBe('Update');
@@ -138,13 +144,13 @@ describe('federateActorUpdate — Update(Person)', () => {
     // The banner is advertised as the AP `image`, resolved to an absolute URL.
     expect(object.image).toEqual({ type: 'Image', url: 'https://cloud.oxy.so/banner-file-id' });
 
-    expect(deliveredInboxes()).toEqual(['https://foo.example/inbox']);
+    expect(deliveredInboxes()).toEqual([followerInbox]);
   });
 
   it('skips entirely when sharing is disabled', async () => {
     isFediverseSharingEnabled.mockResolvedValue(false);
 
-    await deliveryService.federateActorUpdate('owner', 'alice');
+    await deliveryService.federateActorUpdate(USER_OWNER, 'alice');
 
     expect(resolveOxyUser).not.toHaveBeenCalled();
     expect(enqueueDelivery).not.toHaveBeenCalled();
@@ -152,11 +158,19 @@ describe('federateActorUpdate — Update(Person)', () => {
 
   it('is a no-op when the user cannot be resolved', async () => {
     resolveOxyUser.mockResolvedValue(null);
-    followFindLean.mockResolvedValue([{ remoteActorUri: 'https://foo.example/users/x' }]);
-    actorFindLean.mockResolvedValue([{ sharedInboxUrl: 'https://foo.example/inbox' }]);
+    await seedFollowerWithInbox(scope, USER_OWNER, { username: 'x' });
 
-    await deliveryService.federateActorUpdate('owner', 'alice');
+    await deliveryService.federateActorUpdate(USER_OWNER, 'alice');
 
     expect(enqueueDelivery).not.toHaveBeenCalled();
   });
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+  await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, USER_OWNER));
+});
+
+afterAll(async () => {
+  await closePostgres();
 });

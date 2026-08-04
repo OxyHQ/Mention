@@ -1,0 +1,60 @@
+##
+## Docker Compose — local PostgreSQL for the Mongo→Postgres migration.
+##
+## Separate from `docker-compose.yml`, which runs the application stack. This
+## file holds only the database a developer needs running next to
+## `bun run dev:backend` and `bun run --cwd packages/backend test`.
+##
+## Usage:
+##   docker compose -f docker-compose.postgres.yml up -d postgres
+##   docker compose -f docker-compose.postgres.yml logs -f postgres
+##   docker compose -f docker-compose.postgres.yml down -v   # wipe (data is disposable)
+##
+## Then in packages/backend/.env:
+##   DATABASE_URL=postgres://mention:mention@127.0.0.1:5433/mention_dev
+##
+
+services:
+  postgres:
+    # PostGIS, not plain Postgres: `posts.geo` and `posts.content_geo` are
+    # generated `geography` columns with GiST indexes (the port of the two Mongo
+    # `2dsphere` indexes that `$near`/`$geoWithin` queries use), so
+    # `CREATE EXTENSION postgis` has to succeed before the migration that names
+    # the type. `postgis/postgis` is the PostGIS project's own image and is
+    # pinned on BOTH versions — Postgres 17 (matching what RDS runs) and PostGIS
+    # 3.5 — because a floating PostGIS minor is a floating set of function
+    # volatilities, and this schema depends on `ST_MakePoint` and the
+    # `geometry → geography` cast being IMMUTABLE (a generated column requires
+    # it).
+    #
+    # `.github/workflows/ci.yml` pins the SAME image, so a developer's database
+    # and CI's cannot disagree about what is installed.
+    #
+    # Debian-based rather than alpine: PostGIS publishes no alpine variant, and
+    # the base image is a local dev dependency, not a shipped artefact.
+    image: postgis/postgis:17-3.5
+    container_name: mention-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mention
+      POSTGRES_PASSWORD: mention
+      # Matches the `mention-{env}` naming the Mongo side uses
+      # (src/utils/database.ts `databaseName()`), with `-` swapped for `_`
+      # because an unquoted Postgres identifier cannot hold a hyphen.
+      POSTGRES_DB: mention_dev
+    ports:
+      # 5433, not 5432: oxy-api's own `docker-compose.dev.yml` already binds
+      # 5432 on a developer's machine, and both repos are routinely open at
+      # once. Loopback-only — this database is never exposed off the host.
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mention -d mention_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - mention-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  mention-postgres-data:

@@ -1,4 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedFollow,
+  seedPost,
+} from '../../helpers/federationFixtures';
+
+const scope = federationScope('poll-vote-federation');
 
 /**
  * Inbound POLL VOTE federation: a remote Mastodon user voting on a LOCAL Mention
@@ -17,13 +28,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  *   - a NON-vote Note (has content, or `inReplyTo` is not a poll) falls THROUGH to
  *     the normal reply path (reaches the follower gate), unchanged.
  *
- * Drives the REAL `InboxProcessingService`; `pollVoteService`, the actor
- * resolver, and the models are stubbed (same convention as the sibling
- * `inboundSharingGates.test.ts`). `resolvePostIdFromObjectUri` (helpers) runs for
- * real against the stubbed `Post` model.
+ * Drives the REAL `InboxProcessingService`; only `pollVoteService` and the actor
+ * resolver are stubbed (same convention as the sibling `inboundSharingGates.test.ts`).
+ *
+ * The POST is real. Batch 7 moved `resolvePostIdFromObjectUri` and
+ * `loadPostRecord` to Postgres, so the `Post.find` mock this suite carried stopped
+ * intercepting anything: every vote resolved to no post, `handlePollVote` returned
+ * false at its first DB gate, and the three positive cases recorded nothing. The
+ * four "is not recorded" cases kept passing throughout — which is the tell, since
+ * a path that never runs satisfies every not-called assertion at once.
+ *
+ * A real row also makes the poll gate real: what separates "a vote" from "a named
+ * reply to an ordinary post" is now `posts.content_poll_id` on the target, not a
+ * projection branch in a mock.
+ *
+ * The FOLLOW rows are real too, so "a vote never reaches the follower gate" is
+ * observed through the gate's own effect: with no follow seeded the fall-through
+ * path drops the activity, and with one seeded it ingests — a vote does neither.
  */
 
-const ACTOR_URI = 'https://mastodon.social/users/bob';
+const ACTOR_URI = `${scope.origin}/users/bob`;
 const TARGET_POST_ID = '507f1f77bcf86cd799439011';
 const TARGET_POST_URI = `https://mention.earth/ap/users/alice/posts/${TARGET_POST_ID}`;
 const POLL_ID = 'poll-123';
@@ -35,9 +59,6 @@ const mocks = vi.hoisted(() => ({
   getOrFetchActor: vi.fn(),
   recordVoteByOptionText: vi.fn(),
   isFediverseSharingEnabled: vi.fn(),
-  followExists: vi.fn(),
-  postFindOne: vi.fn(),
-  postExists: vi.fn(),
   postCreatorCreate: vi.fn(),
   ensureFederatedReplyLink: vi.fn(),
   loggerWarn: vi.fn(),
@@ -76,22 +97,9 @@ vi.mock('../../../services/PollVoteService', () => ({
   pollVoteService: { recordVoteByOptionText: (...args: unknown[]) => mocks.recordVoteByOptionText(...args) },
 }));
 
-vi.mock('../../../models/FederatedActor', () => ({ default: { findOne: vi.fn() } }));
-vi.mock('../../../models/FederatedFollow', () => ({ default: { exists: mocks.followExists } }));
 vi.mock('../../../models/FederationDeliveryQueue', () => ({ default: {}, getNextRetryTime: vi.fn() }));
 
-vi.mock('../../../models/Post', () => ({
-  POST_CLASSIFICATION_PENDING: 'pending',
-  Post: {
-    findOne: mocks.postFindOne,
-    exists: mocks.postExists,
-    updateOne: vi.fn(),
-    deleteOne: vi.fn(),
-  },
-}));
-
 vi.mock('../../../models/Like', () => ({ default: { create: vi.fn(), findOneAndDelete: vi.fn() } }));
-vi.mock('../../../models/UserSettings', () => ({ default: { updateOne: vi.fn() } }));
 vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: vi.fn() }));
 vi.mock('../../../services/mediaCache/cacheWorker', () => ({ persistRemoteMediaForFederatedOwnerDetailed: vi.fn() }));
 vi.mock('../../../services/mediaCache/cacheStore', () => ({ recordAccessAndMaybeEnqueue: vi.fn() }));
@@ -136,57 +144,55 @@ function voteActivity(optionName = 'Blue') {
 }
 
 /**
- * Route every `Post.findOne` by (filter, projection):
- *  - `resolvePostIdFromObjectUri` local-exists check (filter has `status`);
- *  - `resolvePostIdFromObjectUri` imported-post check (filter has `federation.activityId`);
- *  - `handlePollVote` pollId lookup (projection has `content.pollId`);
- *  - `isLocalPostOwnerSharingEnabled` owner lookup (bare `_id`).
+ * Insert the LOCAL post the vote replies to.
+ *
+ * `id` is pinned because `TARGET_POST_URI` embeds it — `resolvePostIdFromObjectUri`
+ * parses the id straight out of the AP URI, so the row and the activity have to
+ * agree. `pollId: null` writes the same post WITHOUT a poll, which is the whole
+ * difference between a vote and a named reply.
  */
-function stubPostFindOne(options: {
-  localPostExists?: boolean;
-  pollId?: string | null;
-  owner?: { oxyUserId?: string | null; federation?: unknown } | null;
-} = {}): void {
-  const {
-    localPostExists = true,
-    pollId = POLL_ID,
-    owner = { oxyUserId: OWNER_OXY_ID, federation: null },
-  } = options;
-  mocks.postFindOne.mockImplementation((filter: Record<string, unknown>, projection?: Record<string, unknown>) => ({
-    lean: async () => {
-      if ('status' in filter) return localPostExists ? { _id: filter._id } : null;
-      if ('federation.activityId' in filter) return null;
-      if (projection && 'content.pollId' in projection) return { content: pollId ? { pollId } : {} };
-      return owner;
+async function seedTargetPost(overrides: { pollId?: string | null } = {}) {
+  const { pollId = POLL_ID } = overrides;
+  return seedPost(scope, {
+    id: TARGET_POST_ID,
+    oxyUserId: OWNER_OXY_ID,
+    authorship: [{ oxyUserId: OWNER_OXY_ID, role: 'owner', status: 'accepted' }],
+    content: {
+      variants: [{ source: 'author', text: 'Favourite colour?', tag: 'en' }],
+      ...(pollId ? { pollId } : {}),
     },
-  }));
+  });
 }
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
+  await clearFederationScope(scope);
   mocks.resolveActorOxyUserId.mockResolvedValue(VOTER_OXY_ID);
   mocks.recordVoteByOptionText.mockResolvedValue({ ok: true, poll: { _id: POLL_ID } });
   mocks.isFediverseSharingEnabled.mockResolvedValue(true);
-  mocks.followExists.mockResolvedValue(null);
-  mocks.postExists.mockResolvedValue(null);
   mocks.postCreatorCreate.mockResolvedValue({ _id: 'created_post_1' });
   mocks.ensureFederatedReplyLink.mockResolvedValue({ parentPostId: TARGET_POST_ID, threadId: TARGET_POST_ID });
-  stubPostFindOne();
 });
 
 describe('handlePollVote — recording a remote vote on a local poll', () => {
   it('resolves the voter and records the vote by option name; the Create is consumed (no reply post)', async () => {
+    await seedTargetPost();
+
     await inboxProcessingService.processInboxActivity(voteActivity('Blue'), ACTOR_URI);
 
     expect(mocks.isFediverseSharingEnabled).toHaveBeenCalledWith(OWNER_OXY_ID);
     expect(mocks.resolveActorOxyUserId).toHaveBeenCalledWith(ACTOR_URI);
     expect(mocks.recordVoteByOptionText).toHaveBeenCalledWith(POLL_ID, 'Blue', VOTER_OXY_ID);
-    // A vote is never materialized as a reply post, and never reaches the follower gate.
+    // A vote is never materialized as a reply post.
     expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
-    expect(mocks.followExists).not.toHaveBeenCalled();
   });
 
   it('consumes a duplicate vote without error and without creating a post', async () => {
+    await seedTargetPost();
     mocks.recordVoteByOptionText.mockResolvedValue({ ok: false, reason: 'already_voted' });
 
     await inboxProcessingService.processInboxActivity(voteActivity('Blue'), ACTOR_URI);
@@ -197,6 +203,7 @@ describe('handlePollVote — recording a remote vote on a local poll', () => {
   });
 
   it('consumes a vote after the poll has closed (service reports poll_ended)', async () => {
+    await seedTargetPost();
     mocks.recordVoteByOptionText.mockResolvedValue({ ok: false, reason: 'poll_ended' });
 
     await inboxProcessingService.processInboxActivity(voteActivity('Blue'), ACTOR_URI);
@@ -206,6 +213,7 @@ describe('handlePollVote — recording a remote vote on a local poll', () => {
   });
 
   it('drops the vote (no recording, no actor resolution) when the poll owner has sharing disabled', async () => {
+    await seedTargetPost();
     mocks.isFediverseSharingEnabled.mockResolvedValue(false);
 
     await inboxProcessingService.processInboxActivity(voteActivity('Blue'), ACTOR_URI);
@@ -216,6 +224,7 @@ describe('handlePollVote — recording a remote vote on a local poll', () => {
   });
 
   it('skips the vote when the remote voter cannot be resolved to an Oxy user', async () => {
+    await seedTargetPost();
     mocks.resolveActorOxyUserId.mockResolvedValue(null);
 
     await inboxProcessingService.processInboxActivity(voteActivity('Blue'), ACTOR_URI);
@@ -241,19 +250,41 @@ describe('handlePollVote — non-vote Creates fall through unchanged', () => {
       },
     };
 
+    // The actor IS followed AND resolved, so falling through to normal handling
+    // reaches the post-ingest path rather than being dropped by the follower gate
+    // or deferred by the mandatory-Oxy-link invariant. That is what makes "fell
+    // through" observable now that both are real queries.
+    await seedTargetPost();
+    await seedActor(scope, {
+      username: 'bob',
+      uri: ACTOR_URI,
+      oxyUserId: VOTER_OXY_ID,
+      lastFetchedAt: new Date(),
+    });
+    await seedFollow(scope, { remoteActorUri: ACTOR_URI, direction: 'outbound', status: 'accepted' });
+    // The actor RESOLVER is stubbed in this suite (it is not what is under test),
+    // so the ingest path's mandatory-Oxy-link lookup goes through it too.
+    mocks.getOrFetchActor.mockResolvedValue({ uri: ACTOR_URI, oxyUserId: VOTER_OXY_ID });
+
     await inboxProcessingService.processInboxActivity(reply, ACTOR_URI);
 
     expect(mocks.recordVoteByOptionText).not.toHaveBeenCalled();
-    // Fell through to normal handling: the follower gate was consulted.
-    expect(mocks.followExists).toHaveBeenCalledTimes(1);
+    expect(mocks.postCreatorCreate).toHaveBeenCalledTimes(1);
   });
 
   it('does not treat a named reply to a NON-poll post as a vote', async () => {
-    stubPostFindOne({ pollId: null }); // the referenced post carries no poll
+    await seedTargetPost({ pollId: null }); // the referenced post carries no poll
 
     await inboxProcessingService.processInboxActivity(voteActivity('Blue'), ACTOR_URI);
 
     expect(mocks.recordVoteByOptionText).not.toHaveBeenCalled();
-    expect(mocks.followExists).toHaveBeenCalledTimes(1);
   });
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });

@@ -20,79 +20,121 @@
  * comparable — refusing delays an administrative action, allowing may destroy the
  * wrong account's posts.
  *
- * THE MANIFEST IS THE PROGRAM
+ * ## THE CASCADE IS SMALLER THAN THE MANIFEST, AND THAT IS THE POINT
+ *
+ * Eighteen manifest entries are performed by POSTGRES: thirteen child tables of
+ * `posts` are `ON DELETE CASCADE`, `posts.boost_of` is a SELF-cascade, and
+ * `quote_of` / `parent_post_id` / `thread_id` / `lane_id` are
+ * `ON DELETE SET NULL`. **There is no leg here for any of them, deliberately.** A
+ * leg would re-implement work the `DELETE` statement has already done, and it
+ * would be PERMANENTLY UNTESTABLE: every residue check runs after the delete,
+ * when the rows are gone either way, so nothing could ever tell "my leg ran" from
+ * "the FK ran". A leg nobody can prove ran is indistinguishable from a leg that
+ * never worked. Do not "complete" this module by adding them back — the same
+ * boundary `services/PostDeletionCascade.ts` states for the live delete route.
+ *
+ * What is left is everything a foreign key cannot express, and that is almost
+ * entirely **rows keyed on an Oxy ACCOUNT id**: Oxy owns identity, so every
+ * `oxy_user_id` / `user_id` / `actor_id` / `owner_oxy_user_id` is a foreign
+ * service's primary key in a plain `text()` column with no constraint. Postgres
+ * cascades none of it, so every channel-account-scoped step is a real leg.
+ *
+ * ## `posts.boost_of` CASCADES, SO THE CAPTURE COMES FIRST
+ *
+ * Deleting a channel post deletes every boost of it, transitively, inside the
+ * same statement — which is main's whole `collectBoostClosure` / `MAX_BOOST_CLOSURE`
+ * / "boost rows last" machinery performed by one constraint. But it means the
+ * boost rows and their `boost_of` links are gone before any later step could run,
+ * and those boosts carry POLYMORPHIC references of their own (a notification, a
+ * content label, a postgate, a feed interaction) with nothing left to find them
+ * by. So each batch captures its boost closure BEFORE the delete, while the links
+ * are still live, and hands the whole set to the delegate.
+ *
+ * ## THE MANIFEST IS THE PROGRAM
  *
  * Every write below is driven by an entry in `CHANNEL_CASCADE`. Nothing is
  * deleted that the manifest does not name, and every manifest entry is accounted
  * for in the result — under `steps` with a count when this service performs the
- * write, under `delegated` when `services/PostDeletionCascade.ts` owns the
- * disposition, and under `retained` when the row is deliberately kept.
- * `__tests__/services/channelDeletionService.test.ts` asserts that the three key
- * sets are disjoint and that their union is EXACTLY the manifest's, so a step
- * that stops executing disappears from all three and fails the build rather than
- * silently leaving rows behind. Delegated and retained steps carry no count on
- * purpose: a fabricated `0` is indistinguishable from a step that never ran,
- * which is the failure this binding exists to catch. Do not pre-seed `steps` from
- * the manifest either — that satisfies the assertion while executing nothing.
+ * write, under `delegated` when `PostDeletionCascade` owns the disposition, under
+ * `performedByDatabase` when a constraint does it, and under `retained` when the
+ * row is deliberately kept. `__tests__/services/channelDeletionService.test.ts`
+ * asserts that the four key sets are disjoint and that their union is EXACTLY the
+ * manifest's, so a step that stops executing disappears from all four and fails
+ * the build rather than silently leaving rows behind. The three non-executing
+ * accounts carry no count on purpose: a fabricated `0` is indistinguishable from
+ * a step that never ran, which is the failure this binding exists to catch. Do
+ * not pre-seed `steps` from the manifest either — that satisfies the assertion
+ * while executing nothing.
  *
- * RETRY CONTRACT
+ * ## BATCHED, AND THEREFORE NEVER REFUSED FOR SIZE
+ *
+ * A channel is a publication and its archive is unbounded, so the posts are taken
+ * in keyset batches rather than materialised whole. The Mongo shape refused past
+ * a boost-closure cap; that refusal was correct there and would be a cascade
+ * nobody could run here, because the bound would have to cover a whole archive
+ * rather than one post's boosts. The keyset advances on `posts.id`, so a re-run
+ * after a partial failure simply re-walks from the start over what survived.
+ *
+ * ## RETRY CONTRACT
  *
  * Per-step failures are collected, every remaining step still runs, and the call
  * THROWS at the end — the `sharingCleanup.service.ts` throw-on-partial shape, so
- * a BullMQ worker retries against whatever survived. Every step is idempotent, so
- * a re-run converges: a second pass over an already-deleted channel returns
- * all-zero counts and does not throw.
+ * a BullMQ worker or an operator retries against whatever survived. Every step is
+ * idempotent, so a re-run converges: a second pass over an already-deleted channel
+ * returns all-zero counts and does not throw.
  */
 
-import type { Types } from 'mongoose';
+import { and, count, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
+import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import type { AccountKind } from '@oxyhq/contracts';
 import { PostVisibility } from '@mention/shared-types';
 import { CHANNEL_CASCADE, type CascadeStep } from './channelCascadeManifest';
 
-import { Post } from '../../models/Post';
-import Like from '../../models/Like';
-import Bookmark from '../../models/Bookmark';
-import PostRecentReplier from '../../models/PostRecentReplier';
-import Poll from '../../models/Poll';
-import Article from '../../models/Article';
-import { Postgate } from '../../models/Postgate';
-import { Threadgate } from '../../models/Threadgate';
-import Notification from '../../models/Notification';
-import EngagementOutbox from '../../models/EngagementOutbox';
-import { FeedInteraction } from '../../models/FeedInteraction';
-import { RepairFetchFailure } from '../../models/RepairFetchFailure';
-import ContentLabel from '../../models/ContentLabel';
-import ModerationEnforcement from '../../models/ModerationEnforcement';
-import Report from '../../models/Report.model';
-import FederationDeliveryQueue from '../../models/FederationDeliveryQueue';
-import Lane from '../../models/Lane';
-import LaneMute from '../../models/LaneMute';
-import UserSettings from '../../models/UserSettings';
-import ActorKeyPair from '../../models/ActorKeyPair';
-import FederatedFollow from '../../models/FederatedFollow';
-import { AuthorFollowerSnapshot } from '../../models/AuthorFollowerSnapshot';
-import MentionSignedRecord from '../../models/MentionSignedRecord';
-import MentionRepoHead from '../../models/MentionRepoHead';
-import MentionUserNode from '../../models/MentionUserNode';
-import MentionNodeIngestWitness from '../../models/MentionNodeIngestWitness';
-import UserBehavior from '../../models/UserBehavior';
-import UserFeedPreference from '../../models/UserFeedPreference';
-import Mute from '../../models/Mute';
-import { MuteWord } from '../../models/MuteWord';
-import PostSubscription from '../../models/PostSubscription';
-import { EntityFollow } from '../../models/EntityFollow';
-import FeedLike from '../../models/FeedLike';
-import FeedReview from '../../models/FeedReview';
-import { FeedGenerator } from '../../models/FeedGenerator';
-import Labeler from '../../models/Labeler';
-import Poke from '../../models/Poke';
-import PushToken from '../../models/PushToken';
-import AccountList from '../../models/AccountList';
-import CustomFeed from '../../models/CustomFeed';
-import StarterPack from '../../models/StarterPack';
-import EndorsementOutbox from '../../models/EndorsementOutbox';
-import Trending from '../../models/Trending';
-import FederatedActor from '../../models/FederatedActor';
+import { getDb } from '../../db/postgres';
+import { qualified } from '../../db/casing';
+import { posts } from '../../db/schema/posts';
+import { postAuthorships, postMentions, postRecentRepliers } from '../../db/schema/postContent';
+import { articles } from '../../db/schema/articles';
+import { polls, pollVotes } from '../../db/schema/polls';
+import { postgates, threadgates } from '../../db/schema/gates';
+import {
+  authorFollowerSnapshots,
+  notifications,
+  pushTokens,
+  trending,
+} from '../../db/schema/discovery';
+import {
+  bookmarks,
+  entityFollows,
+  likes,
+  muteWords,
+  mutes,
+  pokes,
+  postSubscriptions,
+} from '../../db/schema/engagement';
+import {
+  customFeedMembers,
+  customFeeds,
+  feedGenerators,
+  feedInteractions,
+  feedLikes,
+  feedReviews,
+  userFeedPreferences,
+} from '../../db/schema/feeds';
+import { accountListMembers, accountLists, starterPackMembers, starterPackUses, starterPacks } from '../../db/schema/lists';
+import { contentLabels, labelers, moderationEnforcements, reports } from '../../db/schema/moderation';
+import { endorsementOutbox, engagementOutbox } from '../../db/schema/outbox';
+import { repairFetchFailures } from '../../db/schema/adminScripts';
+import { lanes, laneMutes } from '../../db/schema/channels';
+import { actorKeyPairs, federatedActors, federatedFollows, federationDeliveryQueue } from '../../db/schema/federation';
+import { mcpAuthCodes, mcpConnections } from '../../db/schema/mcp';
+import {
+  mentionNodeIngestWitnesses,
+  mentionRepoHeads,
+  mentionSignedRecords,
+  mentionUserNodes,
+} from '../../db/schema/mtn';
+import { userBehaviorAuthors, userBehaviors, userSettings } from '../../db/schema/userProfile';
 
 import {
   assertPostsSafeToDelete,
@@ -103,8 +145,8 @@ import {
 import {
   CASCADED_POST_REFERENCES,
   POST_REFERENCES_KEPT_BY_POLICY,
+  POST_REFERENCES_REMOVED_BY_DATABASE,
   cascadePostReferences,
-  collectBoostClosure,
   type CascadedPostRow,
 } from '../PostDeletionCascade';
 import { resolveAccountKind } from '../publishAsAccount';
@@ -118,214 +160,275 @@ import { logger } from '../../utils/logger';
 const LOG_PREFIX = '[ChannelDeletion]';
 
 /**
- * What this cascade tells the preflight about the post references it does not
- * have to prove absent, in the two shapes the gate distinguishes.
+ * How many of the channel's own posts one batch takes.
  *
- * Both lists are DERIVED from `POST_REFERENCE_DISPOSITION` rather than restated,
+ * Bounds three things at once: the `IN` list every post-scoped leg builds, the
+ * size of one transaction, and the memory the boost closure can reach. It is not
+ * a limit on how much can be deleted — the loop runs until the channel has no
+ * posts left — so there is no size at which an operator has to intervene.
+ */
+const POST_BATCH_SIZE = 200;
+
+/**
+ * How far one batch's boost closure may expand before the run is REFUSED.
+ *
+ * The closure is unbounded in principle: a widely boosted post has as many boosts
+ * as it has boosters. Past this the batch is refused rather than committed
+ * half-captured, because a partially captured closure means boost rows the
+ * database deletes whose polymorphic references nothing was left to find — the
+ * exact orphan the capture exists to prevent. An operator hears about it; a
+ * silent truncation would not be a smaller version of this, it would be the bug.
+ */
+const MAX_BOOST_CLOSURE_PER_BATCH = 5_000;
+
+/**
+ * What this cascade tells the preflight about the post references it does not
+ * have to prove absent, in the three shapes the gate distinguishes.
+ *
+ * All three are DERIVED from `POST_REFERENCE_DISPOSITION` rather than restated,
  * because the disposition of a post reference is that table's decision and a copy
  * here would be free to disagree with the code that actually runs. They are typed
  * `PostReferenceProbeName[]`, so a probe renamed or added upstream breaks this
  * build instead of being silently acknowledged.
  *
- *  - {@link CASCADED_POST_REFERENCES} is a CLAIM that the rows are gone, and it is
- *    verified after the fact by `collectPostCascadeResidue`.
+ *  - {@link CASCADED_POST_REFERENCES} is a CLAIM that the delegate's legs removed
+ *    the rows.
+ *  - {@link POST_REFERENCES_REMOVED_BY_DATABASE} is the same claim made about the
+ *    `ON DELETE CASCADE` constraints, under a name that says who did it. Folding
+ *    it into the list above would say this module deleted rows it never touched.
  *  - {@link POST_REFERENCES_KEPT_BY_POLICY} is a decision that they STAY — the
- *    retained `Report.reportedId(post)` and the two durable queues whose live
- *    backlog is cancelled while their completed rows remain as a log. Declaring it
+ *    retained `reports.reported_id(post)` and the delivery queue whose live
+ *    backlog is cancelled while its completed rows remain as a log. Declaring it
  *    as a claim instead would make the residue check report every one of them as a
  *    cascade leg that had stopped working.
  */
-const REMOVED_BY_CASCADE: readonly PostReferenceProbeName[] = CASCADED_POST_REFERENCES;
+const REMOVED_BEFORE_THE_POSTS: readonly PostReferenceProbeName[] = CASCADED_POST_REFERENCES;
+const REMOVED_BY_DATABASE: readonly PostReferenceProbeName[] = POST_REFERENCES_REMOVED_BY_DATABASE;
 const KEPT_BY_POLICY: readonly PostReferenceProbeName[] = POST_REFERENCES_KEPT_BY_POLICY;
+
+/**
+ * What the residue check re-runs after a batch is gone.
+ *
+ * BOTH claims, not just the delegate's. `PostDeletionCascade` deliberately omits
+ * the database-removed half on the live delete route, because re-running six
+ * probes on every user-facing delete to verify something the schema guarantees
+ * structurally is a cost nobody is buying anything with. An administrative
+ * one-shot is the other case: the probes are cheap here, and they check the END
+ * STATE — "no row references these posts" — rather than crediting a leg with
+ * having run. That distinction is what keeps it from being the untestable-leg
+ * mistake in a different costume.
+ */
+const RESIDUE_CLAIM: readonly PostReferenceProbeName[] = [
+  ...REMOVED_BEFORE_THE_POSTS,
+  ...REMOVED_BY_DATABASE,
+];
 
 // ---------------------------------------------------------------------------
 // Target resolution
 // ---------------------------------------------------------------------------
 
+/** The columns the delegate reads off a post, plus the two only this cascade needs. */
+const CASCADE_ROW_COLUMNS = {
+  id: posts.id,
+  oxyUserId: posts.oxyUserId,
+  parentPostId: posts.parentPostId,
+  federationActivityId: posts.federationActivityId,
+  federationUrl: posts.federationUrl,
+} as const;
+
+/** A channel post, plus what decides whether a remote server was ever told about it. */
+const CHANNEL_ROW_COLUMNS = {
+  ...CASCADE_ROW_COLUMNS,
+  visibility: posts.visibility,
+  status: posts.status,
+  boostOf: posts.boostOf,
+  writtenByOxyUserId: posts.writtenByOxyUserId,
+} as const;
+
 /**
- * The channel's OWN posts, projected as {@link CascadedPostRow} — the shape the
- * delegate reads — plus the two fields only this cascade needs.
+ * A post belongs to the channel by the denormalized owner cache OR by its
+ * authorship owner entry.
  *
- * Reusing the delegate's row type is what lets the doomed set be handed over
- * whole; `visibility` and `status` are read here alone, to decide which posts a
- * remote server was ever told about and therefore needs a Tombstone for.
+ * The two are kept in sync by the write path, but a cascade is the wrong place to
+ * depend on that having held for every row — and unlike Mongo's `$elemMatch` this
+ * is a real join, so the authorship half costs an index lookup rather than a
+ * document scan.
  */
-interface ChannelPostRow extends CascadedPostRow {
-  visibility?: string;
-  status?: string;
+function ownedByChannel(channelOxyUserId: string): SQL {
+  const byAuthorship = sql`exists (select 1 from ${postAuthorships} where ${qualified(postAuthorships.postId)} = ${qualified(posts.id)} and ${qualified(postAuthorships.oxyUserId)} = ${channelOxyUserId} and ${qualified(postAuthorships.role)} = 'owner')`;
+  return sql`(${eq(posts.oxyUserId, channelOxyUserId)} or ${byAuthorship})`;
 }
 
-/** Either spelling of a post id: a `Mixed` column stores both and Mongo casts neither. */
-type PostIdValue = Types.ObjectId | string;
+/** The AP identifiers a post additionally travels under. */
+function postUris(row: Pick<CascadedPostRow, 'federationActivityId' | 'federationUrl'>): string[] {
+  return [row.federationActivityId, row.federationUrl].filter(
+    (value): value is string => typeof value === 'string' && value.length > 0,
+  );
+}
 
-/**
- * Everything the cascade needs, resolved ONCE before any row is touched.
- *
- * Resolving up front is what makes the ordering safe: every step below filters on
- * an id set captured here, so deleting the posts cannot destroy the ids the
- * dependent sweeps are enumerated from, and a crash mid-cascade leaves a set a
- * re-run can rebuild from the surviving rows.
- */
+/** Raised when one batch's boost closure exceeds {@link MAX_BOOST_CLOSURE_PER_BATCH}. */
+export class ChannelBoostClosureTooLargeError extends Error {
+  constructor(
+    readonly channelOxyUserId: string,
+    readonly found: number,
+  ) {
+    super(
+      `${LOG_PREFIX} refused to expand the boost closure for ${channelOxyUserId}: one batch reaches ` +
+        `more than ${MAX_BOOST_CLOSURE_PER_BATCH} boosts. Capturing a prefix of it would leave boost ` +
+        'rows the database deletes whose own references nothing could find, so this needs an operator ' +
+        'rather than a retry.',
+    );
+    this.name = 'ChannelBoostClosureTooLargeError';
+  }
+}
+
+/** One batch of the channel's posts, and every boost that dies with them. */
+interface PostBatch {
+  /** The channel's own posts in this batch, in keyset order. */
+  readonly channelPosts: readonly ChannelPostRow[];
+  /** Other people's boosts of them, transitively, captured while the links are live. */
+  readonly boosts: readonly CascadedPostRow[];
+  /** Both, in the shape the delegate and the preflight read. */
+  readonly rows: readonly CascadedPostRow[];
+  /** The keyset position to resume from. */
+  readonly lastId: string;
+}
+
+interface ChannelPostRow extends CascadedPostRow {
+  visibility: string;
+  status: string;
+  boostOf: string | null;
+  writtenByOxyUserId: string | null;
+}
+
+/** Everything the account-scoped steps filter on, resolved once, read-only. */
 interface DeletionTargets {
   readonly channelOxyUserId: string;
-  /** The channel's own posts. */
-  readonly channelPostIds: readonly PostIdValue[];
-  readonly channelPostIdStrings: readonly string[];
-  /** Public + published channel posts — the ones a `Delete(Tombstone)` is emitted for. */
-  readonly federatablePostIds: readonly string[];
-  /** Other people's boosts of them, transitively (see {@link collectBoostClosure}). */
-  readonly boostPostIds: readonly PostIdValue[];
-  /** The channel's posts UNION those boosts — every row this run destroys. */
-  readonly doomedPostIds: readonly PostIdValue[];
-  readonly doomedPostIdStrings: readonly string[];
-  /**
-   * The same rows, in the shape {@link cascadePostReferences} reads. Handed over
-   * WHOLE rather than as ids: the delegate also reaches a post's owned `Poll` and
-   * `Article` rows through `content.pollId` / `content.article.articleId`, which an
-   * id list cannot carry.
-   */
-  readonly doomedRows: readonly CascadedPostRow[];
-  /** The doomed ids PLUS the AP ids/urls those rows advertise (`channel-post-uris` scope). */
-  readonly postKeys: readonly string[];
-  /** The preflight's view of the same set. */
-  readonly deletionTargets: readonly PostDeletionTarget[];
-  readonly laneIds: readonly string[];
-  /**
-   * Originals that SURVIVE this run and lose a boost to it: one entry per channel
-   * post that boosted somebody else's post.
-   */
-  readonly boostedOriginalIds: readonly string[];
-  /** Surviving posts the channel liked: one entry per `Like` row being deleted. */
-  readonly likedPostIds: readonly string[];
   /** Remote inboxes a `Delete(actor)` would reach. */
   readonly federatedFollowers: number;
-  /** Other people's replies into the doomed set — expected to be 0. */
+  /** The channel's own posts. */
+  readonly posts: number;
+  /** Other people's boosts of them. */
+  readonly boostsByOthers: number;
+  /** Other people's replies into the set — expected to be 0. */
   readonly repliesByOthers: number;
-  /** Other people's quotes of a doomed post; kept, pointer cleared. */
+  /** Other people's quotes of a doomed post; kept, pointer cleared by the FK. */
   readonly quotesByOthersKept: number;
 }
 
 /**
- * Deliberately the same fields the delegate's own boost-closure projection reads,
- * so the two halves of the doomed set are the same shape and the whole of it can
- * be handed to `cascadePostReferences` — plus `visibility`/`status`, which decide
- * which posts were ever advertised to a remote server.
+ * Read the channel's next batch of posts and the boost closure that dies with
+ * them.
+ *
+ * The closure is expanded TRANSITIVELY, because `boost_of` can name a boost and a
+ * boost of a boost is still a card with nothing behind it — the database removes
+ * it either way, which is exactly why it must be captured.
  */
-const POST_PROJECTION = {
-  _id: 1,
-  oxyUserId: 1,
-  visibility: 1,
-  status: 1,
-  boostOf: 1,
-  parentPostId: 1,
-  federation: 1,
-  'content.pollId': 1,
-  'content.article.articleId': 1,
-} as const;
+async function readPostBatch(
+  channelOxyUserId: string,
+  after: string | null,
+): Promise<PostBatch | null> {
+  const db = getDb();
+  const channelPosts = await db
+    .select(CHANNEL_ROW_COLUMNS)
+    .from(posts)
+    .where(after === null ? ownedByChannel(channelOxyUserId) : and(ownedByChannel(channelOxyUserId), gt(posts.id, after)))
+    .orderBy(posts.id)
+    .limit(POST_BATCH_SIZE);
 
-function uriKeysOf(rows: readonly CascadedPostRow[]): string[] {
-  return rows.flatMap((row) =>
-    [row.federation?.activityId, row.federation?.url].filter(
-      (value): value is string => typeof value === 'string' && value.length > 0,
-    ),
-  );
+  if (channelPosts.length === 0) return null;
+
+  const seen = new Set(channelPosts.map((row) => row.id));
+  const boosts: CascadedPostRow[] = [];
+  let frontier = [...seen];
+
+  while (frontier.length > 0) {
+    const next = await db
+      .select(CASCADE_ROW_COLUMNS)
+      .from(posts)
+      .where(inArray(posts.boostOf, frontier))
+      .limit(MAX_BOOST_CLOSURE_PER_BATCH + 1);
+
+    frontier = [];
+    for (const boost of next) {
+      if (seen.has(boost.id)) continue;
+      seen.add(boost.id);
+      boosts.push(boost);
+      frontier.push(boost.id);
+    }
+    if (boosts.length > MAX_BOOST_CLOSURE_PER_BATCH) {
+      throw new ChannelBoostClosureTooLargeError(channelOxyUserId, boosts.length);
+    }
+  }
+
+  return {
+    channelPosts,
+    boosts,
+    rows: [...channelPosts, ...boosts],
+    lastId: channelPosts[channelPosts.length - 1].id,
+  };
+}
+
+/** The preflight's view of a captured batch. */
+function deletionTargetsOf(rows: readonly CascadedPostRow[]): PostDeletionTarget[] {
+  return rows.map((row) => ({ id: row.id, uris: postUris(row) }));
+}
+
+/** Every key a batch's posts can be named by: their ids plus their AP identifiers. */
+function postKeysOf(rows: readonly CascadedPostRow[]): string[] {
+  return [...new Set([...rows.map((row) => row.id), ...rows.flatMap(postUris)])];
 }
 
 /**
- * Read every id set the cascade filters on. Strictly read-only, so both
- * {@link previewChannelDeletion} and the dry run share it unchanged.
+ * Read the account-scoped id sets and the counts a preview states. Strictly
+ * read-only, so {@link previewChannelDeletion} and the dry run share it unchanged.
  */
 async function resolveDeletionTargets(channelOxyUserId: string): Promise<DeletionTargets> {
-  // A channel post is reachable by the denormalized owner cache OR by its
-  // authorship owner entry; the two are kept in sync by the `Post` pre-save hook,
-  // but a cascade is the wrong place to depend on that having held for every row.
-  const channelPosts = await Post.find(
-    {
-      $or: [
-        { oxyUserId: channelOxyUserId },
-        { authorship: { $elemMatch: { oxyUserId: channelOxyUserId, role: 'owner' } } },
-      ],
-    },
-    POST_PROJECTION,
-  ).lean<ChannelPostRow[]>();
+  const db = getDb();
+  const owned = ownedByChannel(channelOxyUserId);
+  const channelPostIds = db.select({ id: posts.id }).from(posts).where(owned);
 
-  const channelPostIds = channelPosts.map((post) => post._id);
-  const channelPostIdStrings = channelPostIds.map(String);
-
-  // The delegate's closure, not a second one. It is transitive (a boost of a boost
-  // is still a card with nothing behind it) and it REFUSES past its own cap rather
-  // than truncating — a partially deboosted post leaves exactly the blank cards the
-  // expansion prevents, and an operator needs to hear about it.
-  const boostRows = await collectBoostClosure(channelPostIdStrings);
-  if (boostRows === null) {
-    throw new Error(
-      `${LOG_PREFIX} refused to expand the boost closure for ${channelOxyUserId}: it exceeds the ` +
-        'bound in PostDeletionCascade. Deleting a prefix of it would leave blank boost cards behind, ' +
-        'so this needs an operator rather than a retry.',
-    );
-  }
-  const boostPostIds = boostRows.map((post) => post._id);
-
-  const doomedRows: CascadedPostRow[] = [...channelPosts, ...boostRows];
-  const doomedPostIds = [...channelPostIds, ...boostPostIds];
-  const doomedPostIdStrings = doomedPostIds.map(String);
-  const doomedIdSet = new Set(doomedPostIdStrings);
-
-  const [laneRows, likeRows, federatedFollowers, repliesByOthers, quotesByOthersKept] =
+  const [[postCount], [boostCount], [replyCount], [quoteCount], [followerCount]] =
     await Promise.all([
-      Lane.find({ ownerId: channelOxyUserId }, { _id: 1 }).lean<Array<{ _id: Types.ObjectId }>>(),
-      Like.find({ userId: channelOxyUserId }, { postId: 1 }).lean<
-        Array<{ postId: Types.ObjectId }>
-      >(),
-      FederatedFollow.countDocuments({
-        localUserId: channelOxyUserId,
-        direction: 'inbound',
-        status: 'accepted',
-      }),
-      Post.countDocuments({
-        parentPostId: { $in: channelPostIdStrings },
-        _id: { $nin: doomedPostIds },
-      }),
-      Post.countDocuments({
-        quoteOf: { $in: doomedPostIdStrings },
-        _id: { $nin: doomedPostIds },
-      }),
+      db.select({ n: count() }).from(posts).where(owned),
+      // Boosts of a channel post that are NOT themselves the channel's — the rows
+      // the FK destroys alongside, which is what a person confirming needs told.
+      db
+        .select({ n: count() })
+        .from(posts)
+        .where(and(inArray(posts.boostOf, channelPostIds), sql`not (${owned})`)),
+      db
+        .select({ n: count() })
+        .from(posts)
+        .where(and(inArray(posts.parentPostId, channelPostIds), sql`not (${owned})`)),
+      db
+        .select({ n: count() })
+        .from(posts)
+        .where(and(inArray(posts.quoteOf, channelPostIds), sql`not (${owned})`)),
+      db
+        .select({ n: count() })
+        .from(federatedFollows)
+        .where(
+          and(
+            eq(federatedFollows.localUserId, channelOxyUserId),
+            eq(federatedFollows.direction, 'inbound'),
+            eq(federatedFollows.status, 'accepted'),
+          ),
+        ),
     ]);
 
   return {
     channelOxyUserId,
-    channelPostIds,
-    channelPostIdStrings,
-    federatablePostIds: channelPosts
-      .filter((post) => post.visibility === PostVisibility.PUBLIC && post.status === 'published')
-      .map((post) => String(post._id)),
-    boostPostIds,
-    doomedPostIds,
-    doomedPostIdStrings,
-    doomedRows,
-    postKeys: [...new Set([...doomedPostIdStrings, ...uriKeysOf(doomedRows)])],
-    deletionTargets: doomedRows.map((post) => ({
-      id: post._id,
-      uris: uriKeysOf([post]),
-    })),
-    laneIds: laneRows.map((lane) => String(lane._id)),
-    // A channel post that boosted somebody else's post: the original survives and
-    // must lose the boost from its denormalized counter. A boost of another post
-    // in the doomed set needs no repair — that post is going away too.
-    boostedOriginalIds: channelPosts
-      .map((post) => post.boostOf)
-      .filter((id): id is string => typeof id === 'string' && id.length > 0 && !doomedIdSet.has(id)),
-    likedPostIds: likeRows
-      .map((like) => String(like.postId))
-      .filter((id) => !doomedIdSet.has(id)),
-    federatedFollowers,
-    repliesByOthers,
-    quotesByOthersKept,
+    federatedFollowers: followerCount.n,
+    posts: postCount.n,
+    boostsByOthers: boostCount.n,
+    repliesByOthers: replyCount.n,
+    quotesByOthersKept: quoteCount.n,
   };
 }
 
 // ---------------------------------------------------------------------------
-// The step → Mongo binding table
+// The step → Postgres binding table
 // ---------------------------------------------------------------------------
 
 /**
@@ -335,513 +438,663 @@ async function resolveDeletionTargets(channelOxyUserId: string): Promise<Deletio
 type CascadePhase =
   /** Undelivered outbound activities from the channel. */
   | 'federation-drain'
-  /** Rows that exist only as an attachment to a doomed post. */
-  | 'post-dependents'
-  /** Other people's posts that point INTO the doomed set. */
-  | 'scrub-foreign-posts'
-  /** The doomed `Post` rows themselves. */
-  | 'doomed-posts'
   /** Rows keyed on the channel's lanes. */
   | 'lanes'
   /** Rows keyed on the channel account. */
   | 'account';
 
-/** How a schema stores a post id, so a `$in` is built in the type it can match. */
-type PostIdForm = 'objectId' | 'string' | 'both';
-
-/**
- * The three operations the cascade performs, typed structurally so ONE table can
- * hold models of different document shapes without an `any` in sight.
- */
-interface CascadeCollection {
-  countDocuments(filter: Record<string, unknown>): PromiseLike<number>;
-  deleteMany(filter: Record<string, unknown>): PromiseLike<{ deletedCount: number }>;
-  updateMany(
-    filter: Record<string, unknown>,
-    update: Record<string, unknown>,
-  ): PromiseLike<{ modifiedCount: number }>;
-}
-
-/**
- * A manifest step whose disposition belongs to `services/PostDeletionCascade.ts`.
- *
- * `leg` names the reference the delegate covers, and it is typed
- * `PostReferenceProbeName` so the COMPILER holds the two files together: a probe
- * renamed upstream breaks this build rather than leaving a step delegated to a leg
- * that no longer exists. It is documentation with a gate on it, not a lookup key —
- * the delegate is handed the whole doomed set once and decides its own legs.
- */
+/** A manifest step whose disposition belongs to `services/PostDeletionCascade.ts`. */
 interface DelegatedBinding {
   readonly delegated: true;
+  /**
+   * The reference the delegate covers, typed `PostReferenceProbeName` so the
+   * COMPILER holds the two files together: a probe renamed upstream breaks this
+   * build rather than leaving a step delegated to a leg that no longer exists. It
+   * is documentation with a gate on it, not a lookup key — the delegate is handed
+   * the whole doomed set once and decides its own legs.
+   */
   readonly leg: PostReferenceProbeName;
 }
 
-interface LocalStepBinding {
-  readonly collection: CascadeCollection;
-  readonly phase: CascadePhase;
-  /**
-   * Tiebreaker WITHIN a phase; steps otherwise run in manifest order. Only one
-   * step needs it, and the reason is on that entry — a step whose count can only
-   * ever be zero is a step nobody can verify.
-   */
-  readonly order?: number;
-  /** The Mongo path carrying the reference, when it is not the manifest's `field`. */
-  readonly path?: string;
-  /** Extra terms ANDed into the scope-derived filter. */
-  readonly match?: Readonly<Record<string, unknown>>;
-  /** Only read for `channel-posts` scope. Defaults to `'string'`. */
-  readonly idForm?: PostIdForm;
-  /**
-   * `pull-from-array` over an array of SUBDOCUMENTS: the array to `$pull` from and
-   * the key inside each element that carries the reference. Without it the array
-   * is assumed to hold the referenced ids directly.
-   */
-  readonly pullSubdocument?: { readonly arrayPath: string; readonly elementKey: string };
-  /** Replaces the scope-derived filter for the references a plain `$in` cannot express. */
-  readonly filter?: (targets: DeletionTargets) => Record<string, unknown>;
+/** A manifest step the post-batch loop performs, because it is scoped to a batch. */
+interface InBatchBinding {
+  readonly inBatch: true;
+  /** Rows affected — counted in a dry run, written in a live one. */
+  readonly run: (batch: PostBatch, dryRun: boolean) => Promise<number>;
 }
 
-type StepBinding = LocalStepBinding | DelegatedBinding;
+/** An ordinary account- or lane-scoped step. */
+interface LocalStepBinding {
+  readonly phase: CascadePhase;
+  /**
+   * Tiebreaker WITHIN a phase; steps otherwise run in manifest order. Only the
+   * lane rows need it, and the reason is on that entry.
+   */
+  readonly order?: number;
+  readonly table: PgTable;
+  /** The rows this step affects. `undefined` means "no targets", so nothing runs. */
+  readonly where: (targets: DeletionTargets) => SQL | undefined;
+  /**
+   * The live write. Absent means a plain `DELETE` of the matched rows, which is
+   * every `delete-row` and `delete-entry` step; the array and pointer steps supply
+   * their own `UPDATE` because the column is not interchangeable between them.
+   */
+  readonly update?: (targets: DeletionTargets, where: SQL) => Promise<number>;
+}
+
+type StepBinding = DelegatedBinding | InBatchBinding | LocalStepBinding;
 
 function isDelegated(binding: StepBinding): binding is DelegatedBinding {
   return 'delegated' in binding;
 }
 
-/** A manifest entry's identity. `Notification.entityId` appears under two scopes. */
-function bindingKey(step: CascadeStep): string {
-  return `${step.model}.${step.field}|${step.scope}`;
+function isInBatch(binding: StepBinding): binding is InBatchBinding {
+  return 'inBatch' in binding;
 }
 
-/** The key a step reports its count under. The two `Notification.entityId` steps share one. */
+/** A manifest entry's identity. `notifications.entityId` appears under two scopes. */
+function bindingKey(step: CascadeStep): string {
+  return `${step.table}.${step.column}|${step.scope}`;
+}
+
+/** The key a step reports its count under. The two-scope columns share one. */
 function stepKey(step: CascadeStep): string {
-  return `${step.model}.${step.field}`;
+  return `${step.table}.${step.column}`;
+}
+
+/** `column = <the channel's own id>`. */
+function accountEq(column: PgColumn) {
+  return (targets: DeletionTargets): SQL => eq(column, targets.channelOxyUserId);
 }
 
 /**
- * The ONE place a manifest step's Mongo shape is written down: which collection,
- * which phase, and — where the schema path differs from the manifest's field name
- * or the filter needs a term the scope cannot supply — exactly how.
+ * Remove ONE value from an array column, keeping the row.
+ *
+ * `array_remove` rather than a read-modify-write: it is a single statement, so two
+ * concurrent cascades cannot lose each other's edit, and it is idempotent — a
+ * re-run over a row that no longer contains the value modifies nothing.
+ */
+function pullValue(column: PgColumn, targets: DeletionTargets): SQL {
+  return sql`array_remove(${column}, ${targets.channelOxyUserId})`;
+}
+
+/** Rows whose array column still contains the channel. */
+function arrayContainsAccount(column: PgColumn) {
+  return (targets: DeletionTargets): SQL =>
+    sql`${column} && ${sql.param([targets.channelOxyUserId])}::text[]`;
+}
+
+/**
+ * The ONE place a manifest step's Postgres shape is written down: which table,
+ * which phase, and — where the step is not a plain delete — exactly how.
  *
  * Kept in manifest order so the two files diff against each other, and because
  * within a phase the executor runs steps in that order.
+ *
+ * A manifest step whose action is `'database'` has NO entry here, on purpose: it
+ * is performed by a constraint, and a binding for it would be a query that
+ * re-runs the `DELETE`'s own work and could never be shown to have run. A step
+ * whose action is `'retain'` has none either — a binding for one would be a query
+ * nobody may run.
  */
 const STEP_BINDINGS: Readonly<Record<string, StepBinding>> = {
-  // --- Engagement and derived rows ON the destroyed posts --------------------
-  // DELEGATED to `PostDeletionCascade.cascadePostReferences` — the live delete
-  // route's own implementation of "what happens to a reference on a post that is
-  // gone", whose `POST_REFERENCE_DISPOSITION` is a `Record` over the preflight's
-  // probe list and therefore breaks its own build when a reference type is added.
-  // A second copy here would destroy that property. See the manifest's block
-  // comment for the full argument.
-  'Like.postId|channel-posts': { delegated: true, leg: 'Like.postId' },
-  'Bookmark.postId|channel-posts': { delegated: true, leg: 'Bookmark.postId' },
-  'PostRecentReplier.postId|channel-posts': {
+  // --- Post references no foreign key can express, DELEGATED ------------------
+  // `PostDeletionCascade.cascadePostReferences` is the live delete route's own
+  // implementation of these dispositions, and its `POST_REFERENCE_DISPOSITION` is
+  // a `Record` over the preflight's probe list — so a reference type added
+  // upstream breaks ITS build until somebody decides. A second copy here would
+  // destroy that property.
+  'notifications.entityId|channel-posts': { delegated: true, leg: 'notifications.entity_id' },
+  'content_labels.targetId|channel-posts': {
     delegated: true,
-    leg: 'PostRecentReplier.postId',
+    leg: 'content_labels.target_id(post)',
   },
-  'Poll.postId|channel-posts': { delegated: true, leg: 'Poll.postId' },
-  'Article.postId|channel-posts': { delegated: true, leg: 'Article.postId' },
-  'Postgate.postId|channel-posts': { delegated: true, leg: 'Postgate.postId/postUri' },
-  'Postgate.postUri|channel-post-uris': { delegated: true, leg: 'Postgate.postId/postUri' },
-  'Threadgate.postId|channel-posts': { delegated: true, leg: 'Threadgate.postId/postUri' },
-  'Threadgate.postUri|channel-post-uris': {
+  'postgates.postId|channel-posts': { delegated: true, leg: 'postgates.post_id/post_uri' },
+  'postgates.postUri|channel-post-uris': { delegated: true, leg: 'postgates.post_id/post_uri' },
+  'threadgates.postId|channel-posts': { delegated: true, leg: 'threadgates.post_id/post_uri' },
+  'threadgates.postUri|channel-post-uris': {
     delegated: true,
-    leg: 'Threadgate.postId/postUri',
+    leg: 'threadgates.post_id/post_uri',
   },
-  // Someone else's postgate listing a doomed post among its detached quotes: the
+  'feed_interactions.postUri|channel-post-uris': {
+    delegated: true,
+    leg: 'feed_interactions.post_uri',
+  },
+
+  // --- Post references executed by the batch loop -----------------------------
+  // Scoped to the batch's captured id set, so they cannot be ordinary phase steps
+  // — the ids only exist inside the loop, and only until the `DELETE`.
+  'moderation_enforcements.subjectId|channel-posts': {
+    inBatch: true,
+    run: (batch, dryRun) =>
+      countOrDelete(
+        moderationEnforcements,
+        sql`${eq(moderationEnforcements.subjectType, 'post')} and ${inArray(
+          moderationEnforcements.subjectId,
+          batch.rows.map((row) => row.id),
+        )}`,
+        dryRun,
+      ),
+  },
+  'repair_fetch_failures.postId|channel-posts': {
+    inBatch: true,
+    run: (batch, dryRun) =>
+      countOrDelete(
+        repairFetchFailures,
+        inArray(repairFetchFailures.postId, batch.rows.map((row) => row.id)),
+        dryRun,
+      ),
+  },
+  // Somebody else's postgate listing a doomed post among its detached quotes: the
   // row is theirs and stays, only the entry goes. NOT delegated — the delegate
   // deletes the postgate rows that BELONG to a doomed post, which is a different
   // question from an entry naming one inside a stranger's row.
-  'Postgate.detachedQuoteUris|channel-post-uris': {
-    collection: Postgate,
-    phase: 'scrub-foreign-posts',
-  },
-  // `entityId` holds a POST id only when `entityType` is post/reply — that half is
-  // the delegate's. The SAME column holds an oxyUserId for a profile notification,
-  // which is a channel reference and has no delegate leg, so it runs here.
-  'Notification.entityId|channel-posts': { delegated: true, leg: 'Notification.entityId' },
-  'Notification.entityId|channel-account': {
-    collection: Notification,
-    phase: 'account',
-    match: { entityType: 'profile' },
-  },
-  'EngagementOutbox.postId|channel-posts': {
-    delegated: true,
-    leg: 'EngagementOutbox.payload.postId',
-  },
-  'FeedInteraction.postUri|channel-post-uris': {
-    delegated: true,
-    leg: 'FeedInteraction.postUri',
-  },
-  'RepairFetchFailure.postId|channel-posts': {
-    collection: RepairFetchFailure,
-    phase: 'post-dependents',
-  },
-  // `targetId` is polymorphic on `targetType`, so the column is two references and
-  // the manifest gives it two steps. The post rows are the delegate's; the
-  // user-scoped rows are a label applied TO the channel, which nothing else
-  // sweeps.
-  'ContentLabel.targetId|channel-posts': {
-    delegated: true,
-    leg: 'ContentLabel.targetId(post)',
-  },
-  'ContentLabel.targetId|channel-account': {
-    collection: ContentLabel,
-    phase: 'account',
-    match: { targetType: 'user' },
-  },
-  'ModerationEnforcement.subjectId|channel-posts': {
-    collection: ModerationEnforcement,
-    phase: 'post-dependents',
-  },
-  // `Report.model.reportedId` and `ModerationOutbox.reportId` have NO binding: the
-  // manifest gives them the `retain` action, so there is nothing to execute and a
-  // binding for them would be a query nobody may run. The reasons are on those
-  // entries; the short version is that removing a report leaves an inbound
-  // CrowdSource decision retrying until it expires.
-  //
-  // Hoisted OUT of the account phase and into the drain: the manifest requires
-  // these to go before the actor Delete is broadcast, or a queued Create races it
-  // and republishes a post on the receiving instance.
-  'FederationDeliveryQueue.senderOxyUserId|channel-account': {
-    collection: FederationDeliveryQueue,
-    phase: 'federation-drain',
+  'postgates.detachedQuoteUris|channel-post-uris': {
+    inBatch: true,
+    run: async (batch, dryRun) => {
+      const keys = postKeysOf(batch.rows);
+      const where = sql`${postgates.detachedQuoteUris} && ${sql.param(keys)}::text[]`;
+      if (dryRun) return countRows(postgates, where);
+      const changed = await getDb()
+        .update(postgates)
+        .set({
+          detachedQuoteUris: sql`(select coalesce(array_agg(elem), '{}'::text[]) from unnest(${qualified(postgates.detachedQuoteUris)}) as elem where elem <> all(${sql.param(keys)}::text[]))`,
+        })
+        .where(where)
+        .returning({ id: postgates.id });
+      return changed.length;
+    },
   },
 
-  // --- Other people's POSTS that point INTO the destroyed set ----------------
-  // The boost ROWS themselves; they are already in the doomed set, so this deletes
-  // by id rather than by `boostOf` and cannot reach a post outside it.
-  'Post.boostOf|channel-posts': {
-    collection: Post,
-    phase: 'doomed-posts',
+  // --- The channel's own posts -----------------------------------------------
+  // Both are performed by the batch loop's own `DELETE`, which is what fires every
+  // `ON DELETE CASCADE` above it. `writtenByOxyUserId` is counted BEFORE that
+  // statement, because afterwards there is nothing left to count — and the number
+  // means something on its own: how many of the channel's posts had a human behind
+  // them. It is never used to reattribute one.
+  'posts.oxyUserId|channel-account': {
+    inBatch: true,
+    run: (batch, dryRun) => deleteBatchPosts(batch, dryRun),
+  },
+  'posts.writtenByOxyUserId|channel-posts': {
+    inBatch: true,
+    run: (batch) =>
+      Promise.resolve(batch.channelPosts.filter((row) => row.writtenByOxyUserId != null).length),
+  },
+  'post_authorships.oxyUserId|channel-account': {
+    phase: 'account',
+    table: postAuthorships,
+    where: accountEq(postAuthorships.oxyUserId),
+  },
+  'post_mentions.oxyUserId|channel-account': {
+    phase: 'account',
+    table: postMentions,
+    where: accountEq(postMentions.oxyUserId),
+  },
+
+  // --- Lanes -----------------------------------------------------------------
+  // The lanes go LAST in their phase, so the mutes keyed on the publisher have
+  // already been swept by the time the row that cascades the rest disappears.
+  'lanes.ownerId|channel-account': {
+    phase: 'lanes',
     order: 1,
-    filter: (targets) => ({ _id: { $in: targets.boostPostIds } }),
+    table: lanes,
+    where: accountEq(lanes.ownerId),
   },
-  // `$nin` the doomed set so the count means "somebody else's post scrubbed" —
-  // the doomed rows carrying the same pointer are deleted outright below.
-  'Post.quoteOf|channel-posts': {
-    collection: Post,
-    phase: 'scrub-foreign-posts',
-    filter: (targets) => ({
-      quoteOf: { $in: targets.doomedPostIdStrings },
-      _id: { $nin: targets.doomedPostIds },
-    }),
+  'lane_mutes.laneOwnerOxyUserId|channel-account': {
+    phase: 'lanes',
+    order: 0,
+    table: laneMutes,
+    where: accountEq(laneMutes.laneOwnerOxyUserId),
   },
-  'Post.parentPostId|channel-posts': {
-    collection: Post,
-    phase: 'scrub-foreign-posts',
-    filter: (targets) => ({
-      parentPostId: { $in: targets.doomedPostIdStrings },
-      _id: { $nin: targets.doomedPostIds },
-    }),
+  'lane_mutes.viewerOxyUserId|channel-account': {
+    phase: 'lanes',
+    order: 0,
+    table: laneMutes,
+    where: accountEq(laneMutes.viewerOxyUserId),
   },
-  'Post.threadId|channel-posts': {
-    collection: Post,
-    phase: 'scrub-foreign-posts',
-    filter: (targets) => ({
-      threadId: { $in: targets.doomedPostIdStrings },
-      _id: { $nin: targets.doomedPostIds },
-    }),
-  },
-  'Post.mentions|channel-account': { collection: Post, phase: 'account' },
 
-  // --- The channel's own posts ----------------------------------------------
-  // Deleted by the resolved id set, not by owner: that set is what the preflight
-  // cleared and what every dependent sweep above was enumerated from, so a row
-  // created since resolution is left for the next run rather than deleted with
-  // its dependents unswept.
-  'Post.oxyUserId|channel-account': {
-    collection: Post,
-    phase: 'doomed-posts',
-    order: 3,
-    filter: (targets) => ({ _id: { $in: targets.doomedPostIds } }),
+  // --- Federation ------------------------------------------------------------
+  'federation_delivery_queue.senderOxyUserId|channel-account': {
+    phase: 'federation-drain',
+    table: federationDeliveryQueue,
+    where: accountEq(federationDeliveryQueue.senderOxyUserId),
   },
-  // The doomed rows that name a writer, destroyed FIRST among the authored posts
-  // (`order`) so the count means something: how many of the channel's posts had a
-  // human behind them. Left in manifest order it would run after the owner-keyed
-  // delete had already taken every doomed row, and a step that can only ever
-  // report zero is a step no test can tell from a broken one.
-  //
-  // The row is DELETED. It is never handed to the person named in
-  // `writtenByOxyUserId` — with `signPosts` off that would retroactively publish
-  // who wrote what, the single promise a channel makes, broken at the moment the
-  // channel is no longer there to answer for it.
-  'Post.writtenByOxyUserId|channel-posts': {
-    collection: Post,
-    phase: 'doomed-posts',
-    order: 2,
-    filter: (targets) => ({
-      _id: { $in: targets.doomedPostIds },
-      writtenByOxyUserId: { $exists: true },
-    }),
+  'federated_follows.localUserId|channel-account': {
+    phase: 'account',
+    table: federatedFollows,
+    where: accountEq(federatedFollows.localUserId),
   },
-  'Post.laneId|channel-lanes': { collection: Post, phase: 'lanes' },
+  'actor_key_pairs.oxyUserId|channel-account': {
+    phase: 'account',
+    table: actorKeyPairs,
+    where: accountEq(actorKeyPairs.oxyUserId),
+  },
+  'federated_actors.oxyUserId|channel-account': {
+    phase: 'account',
+    table: federatedActors,
+    where: accountEq(federatedActors.oxyUserId),
+  },
 
   // --- Rows keyed on the channel ACCOUNT -------------------------------------
-  'Lane.ownerId|channel-account': { collection: Lane, phase: 'account' },
-  'LaneMute.laneId|channel-lanes': { collection: LaneMute, phase: 'lanes' },
-  'LaneMute.laneOwnerOxyUserId|channel-account': { collection: LaneMute, phase: 'account' },
-  'LaneMute.viewerOxyUserId|channel-account': { collection: LaneMute, phase: 'account' },
-  'UserSettings.oxyUserId|channel-account': { collection: UserSettings, phase: 'account' },
-  // Another person's privacy settings naming the channel; the array is nested
-  // under `privacy`, and the row is theirs so only the entry goes.
-  'UserSettings.restrictedUsers|channel-account': {
-    collection: UserSettings,
+  'notifications.entityId|channel-account': {
     phase: 'account',
-    path: 'privacy.restrictedUsers',
+    table: notifications,
+    where: (targets) =>
+      and(
+        eq(notifications.entityType, 'profile'),
+        eq(notifications.entityId, targets.channelOxyUserId),
+      ),
   },
-  'ActorKeyPair.oxyUserId|channel-account': { collection: ActorKeyPair, phase: 'account' },
-  'FederatedFollow.localUserId|channel-account': { collection: FederatedFollow, phase: 'account' },
-  'AuthorFollowerSnapshot.oxyUserId|channel-account': {
-    collection: AuthorFollowerSnapshot,
+  'notifications.recipientId|channel-account': {
     phase: 'account',
+    table: notifications,
+    where: accountEq(notifications.recipientId),
   },
-  'MentionSignedRecord.oxyUserId|channel-account': {
-    collection: MentionSignedRecord,
+  'notifications.actorId|channel-account': {
     phase: 'account',
+    table: notifications,
+    where: accountEq(notifications.actorId),
   },
-  'MentionRepoHead.oxyUserId|channel-account': { collection: MentionRepoHead, phase: 'account' },
-  'MentionUserNode.oxyUserId|channel-account': { collection: MentionUserNode, phase: 'account' },
-  'MentionNodeIngestWitness.oxyUserId|channel-account': {
-    collection: MentionNodeIngestWitness,
+  'content_labels.targetId|channel-account': {
     phase: 'account',
+    table: contentLabels,
+    where: (targets) =>
+      and(eq(contentLabels.targetType, 'user'), eq(contentLabels.targetId, targets.channelOxyUserId)),
   },
-  'Notification.recipientId|channel-account': { collection: Notification, phase: 'account' },
-  'Notification.actorId|channel-account': { collection: Notification, phase: 'account' },
-  'EngagementOutbox.actorOxyUserId|channel-account': {
-    collection: EngagementOutbox,
+  'content_labels.createdBy|channel-account': {
     phase: 'account',
-    path: 'payload.actorOxyUserId',
+    table: contentLabels,
+    where: accountEq(contentLabels.createdBy),
   },
-  'EngagementOutbox.postOwnerOxyUserId|channel-account': {
-    collection: EngagementOutbox,
+  'reports.reporter|channel-account': {
     phase: 'account',
-    path: 'payload.postOwnerOxyUserId',
+    table: reports,
+    where: accountEq(reports.reporter),
   },
-  'UserBehavior.oxyUserId|channel-account': { collection: UserBehavior, phase: 'account' },
-  // `preferredAuthors` is an array of SUBDOCUMENTS keyed on `authorId`. The
-  // manifest classifies it under both names, so both steps run: the first pulls
-  // the entries, the second re-runs the identical pull and legitimately reports 0
-  // in a live run (in a dry run both report the same rows, which are the same
-  // rows).
-  'UserBehavior.authorId|channel-account': {
-    collection: UserBehavior,
+  'user_settings.oxyUserId|channel-account': {
     phase: 'account',
-    path: 'preferredAuthors.authorId',
-    pullSubdocument: { arrayPath: 'preferredAuthors', elementKey: 'authorId' },
+    table: userSettings,
+    where: accountEq(userSettings.oxyUserId),
   },
-  'UserBehavior.preferredAuthors|channel-account': {
-    collection: UserBehavior,
+  // Another person's privacy settings naming the channel; their row is theirs so
+  // only the entry goes.
+  'user_settings.privacyRestrictedUsers|channel-account': {
     phase: 'account',
-    path: 'preferredAuthors.authorId',
-    pullSubdocument: { arrayPath: 'preferredAuthors', elementKey: 'authorId' },
+    table: userSettings,
+    where: arrayContainsAccount(userSettings.privacyRestrictedUsers),
+    update: async (targets, where) =>
+      (
+        await getDb()
+          .update(userSettings)
+          .set({ privacyRestrictedUsers: pullValue(userSettings.privacyRestrictedUsers, targets) })
+          .where(where)
+          .returning({ id: userSettings.id })
+      ).length,
   },
-  'UserBehavior.hiddenAuthors|channel-account': { collection: UserBehavior, phase: 'account' },
-  'UserBehavior.mutedAuthors|channel-account': { collection: UserBehavior, phase: 'account' },
-  'UserBehavior.blockedAuthors|channel-account': { collection: UserBehavior, phase: 'account' },
-  'UserFeedPreference.oxyUserId|channel-account': {
-    collection: UserFeedPreference,
+  'author_follower_snapshots.oxyUserId|channel-account': {
     phase: 'account',
+    table: authorFollowerSnapshots,
+    where: accountEq(authorFollowerSnapshots.oxyUserId),
   },
-  'Mute.mutedId|channel-account': { collection: Mute, phase: 'account' },
-  'Mute.userId|channel-account': { collection: Mute, phase: 'account' },
-  'MuteWord.userId|channel-account': { collection: MuteWord, phase: 'account' },
-  'Like.userId|channel-account': { collection: Like, phase: 'account' },
-  'Bookmark.userId|channel-account': { collection: Bookmark, phase: 'account' },
-  'PostSubscription.subscriberId|channel-account': {
-    collection: PostSubscription,
+  'mention_signed_records.oxyUserId|channel-account': {
     phase: 'account',
+    table: mentionSignedRecords,
+    where: accountEq(mentionSignedRecords.oxyUserId),
   },
-  'PostSubscription.authorId|channel-account': { collection: PostSubscription, phase: 'account' },
-  // The channel inside another post's replier projection: an array of
-  // subdocuments, and that post belongs to someone else.
-  'PostRecentReplier.oxyUserId|channel-account': {
-    collection: PostRecentReplier,
+  'mention_repo_heads.oxyUserId|channel-account': {
     phase: 'account',
-    path: 'repliers.oxyUserId',
-    pullSubdocument: { arrayPath: 'repliers', elementKey: 'oxyUserId' },
+    table: mentionRepoHeads,
+    where: accountEq(mentionRepoHeads.oxyUserId),
   },
-  'EntityFollow.userId|channel-account': { collection: EntityFollow, phase: 'account' },
-  'FeedInteraction.userId|channel-account': { collection: FeedInteraction, phase: 'account' },
-  'FeedLike.userId|channel-account': { collection: FeedLike, phase: 'account' },
-  'FeedReview.reviewerId|channel-account': { collection: FeedReview, phase: 'account' },
-  'FeedGenerator.createdBy|channel-account': { collection: FeedGenerator, phase: 'account' },
-  'Labeler.creatorId|channel-account': { collection: Labeler, phase: 'account' },
-  'Poke.pokerId|channel-account': { collection: Poke, phase: 'account' },
-  'Poke.pokedId|channel-account': { collection: Poke, phase: 'account' },
-  'PushToken.userId|channel-account': { collection: PushToken, phase: 'account' },
-  'Poll.createdBy|channel-account': { collection: Poll, phase: 'account' },
-  'Article.createdBy|channel-account': { collection: Article, phase: 'account' },
-  'Postgate.createdBy|channel-account': { collection: Postgate, phase: 'account' },
-  'Threadgate.createdBy|channel-account': { collection: Threadgate, phase: 'account' },
-  'ContentLabel.createdBy|channel-account': { collection: ContentLabel, phase: 'account' },
-  'Report.model.reporter|channel-account': {
-    collection: Report,
+  'mention_user_nodes.oxyUserId|channel-account': {
     phase: 'account',
-    path: 'reporter',
+    table: mentionUserNodes,
+    where: accountEq(mentionUserNodes.oxyUserId),
   },
-  'AccountList.ownerOxyUserId|channel-account': { collection: AccountList, phase: 'account' },
-  'AccountList.memberOxyUserIds|channel-account': { collection: AccountList, phase: 'account' },
-  'CustomFeed.ownerOxyUserId|channel-account': { collection: CustomFeed, phase: 'account' },
-  'CustomFeed.memberOxyUserIds|channel-account': { collection: CustomFeed, phase: 'account' },
-  'StarterPack.ownerOxyUserId|channel-account': { collection: StarterPack, phase: 'account' },
-  'StarterPack.memberOxyUserIds|channel-account': { collection: StarterPack, phase: 'account' },
-  'StarterPack.usedByOxyUserIds|channel-account': { collection: StarterPack, phase: 'account' },
-  'EndorsementOutbox.pendingRemoveOwnerId|channel-account': {
-    collection: EndorsementOutbox,
+  'mention_node_ingest_witnesses.oxyUserId|channel-account': {
     phase: 'account',
+    table: mentionNodeIngestWitnesses,
+    where: accountEq(mentionNodeIngestWitnesses.oxyUserId),
   },
-  'EndorsementOutbox.pendingRemoveMemberIds|channel-account': {
-    collection: EndorsementOutbox,
+  'engagement_outbox.payloadActorOxyUserId|channel-account': {
     phase: 'account',
+    table: engagementOutbox,
+    where: accountEq(engagementOutbox.payloadActorOxyUserId),
   },
-  'Trending.actorIds|channel-account': { collection: Trending, phase: 'account' },
-  'FederatedActor.oxyUserId|channel-account': { collection: FederatedActor, phase: 'account' },
+  'engagement_outbox.payloadPostOwnerOxyUserId|channel-account': {
+    phase: 'account',
+    table: engagementOutbox,
+    where: accountEq(engagementOutbox.payloadPostOwnerOxyUserId),
+  },
+  'user_behaviors.oxyUserId|channel-account': {
+    phase: 'account',
+    table: userBehaviors,
+    where: accountEq(userBehaviors.oxyUserId),
+  },
+  'user_behavior_authors.authorId|channel-account': {
+    phase: 'account',
+    table: userBehaviorAuthors,
+    where: accountEq(userBehaviorAuthors.authorId),
+  },
+  'user_behaviors.hiddenAuthors|channel-account': {
+    phase: 'account',
+    table: userBehaviors,
+    where: arrayContainsAccount(userBehaviors.hiddenAuthors),
+    update: async (targets, where) =>
+      (
+        await getDb()
+          .update(userBehaviors)
+          .set({ hiddenAuthors: pullValue(userBehaviors.hiddenAuthors, targets) })
+          .where(where)
+          .returning({ id: userBehaviors.id })
+      ).length,
+  },
+  'user_behaviors.mutedAuthors|channel-account': {
+    phase: 'account',
+    table: userBehaviors,
+    where: arrayContainsAccount(userBehaviors.mutedAuthors),
+    update: async (targets, where) =>
+      (
+        await getDb()
+          .update(userBehaviors)
+          .set({ mutedAuthors: pullValue(userBehaviors.mutedAuthors, targets) })
+          .where(where)
+          .returning({ id: userBehaviors.id })
+      ).length,
+  },
+  'user_behaviors.blockedAuthors|channel-account': {
+    phase: 'account',
+    table: userBehaviors,
+    where: arrayContainsAccount(userBehaviors.blockedAuthors),
+    update: async (targets, where) =>
+      (
+        await getDb()
+          .update(userBehaviors)
+          .set({ blockedAuthors: pullValue(userBehaviors.blockedAuthors, targets) })
+          .where(where)
+          .returning({ id: userBehaviors.id })
+      ).length,
+  },
+  'user_feed_preferences.oxyUserId|channel-account': {
+    phase: 'account',
+    table: userFeedPreferences,
+    where: accountEq(userFeedPreferences.oxyUserId),
+  },
+  'mutes.mutedId|channel-account': {
+    phase: 'account',
+    table: mutes,
+    where: accountEq(mutes.mutedId),
+  },
+  'mutes.userId|channel-account': {
+    phase: 'account',
+    table: mutes,
+    where: accountEq(mutes.userId),
+  },
+  'mute_words.userId|channel-account': {
+    phase: 'account',
+    table: muteWords,
+    where: accountEq(muteWords.userId),
+  },
+  'likes.userId|channel-account': {
+    phase: 'account',
+    table: likes,
+    where: accountEq(likes.userId),
+  },
+  'bookmarks.userId|channel-account': {
+    phase: 'account',
+    table: bookmarks,
+    where: accountEq(bookmarks.userId),
+  },
+  'post_subscriptions.subscriberId|channel-account': {
+    phase: 'account',
+    table: postSubscriptions,
+    where: accountEq(postSubscriptions.subscriberId),
+  },
+  'post_subscriptions.authorId|channel-account': {
+    phase: 'account',
+    table: postSubscriptions,
+    where: accountEq(postSubscriptions.authorId),
+  },
+  'post_recent_repliers.oxyUserId|channel-account': {
+    phase: 'account',
+    table: postRecentRepliers,
+    where: accountEq(postRecentRepliers.oxyUserId),
+  },
+  'entity_follows.userId|channel-account': {
+    phase: 'account',
+    table: entityFollows,
+    where: accountEq(entityFollows.userId),
+  },
+  'feed_interactions.userId|channel-account': {
+    phase: 'account',
+    table: feedInteractions,
+    where: accountEq(feedInteractions.userId),
+  },
+  'feed_likes.userId|channel-account': {
+    phase: 'account',
+    table: feedLikes,
+    where: accountEq(feedLikes.userId),
+  },
+  'feed_reviews.reviewerId|channel-account': {
+    phase: 'account',
+    table: feedReviews,
+    where: accountEq(feedReviews.reviewerId),
+  },
+  'feed_generators.createdBy|channel-account': {
+    phase: 'account',
+    table: feedGenerators,
+    where: accountEq(feedGenerators.createdBy),
+  },
+  'labelers.creatorId|channel-account': {
+    phase: 'account',
+    table: labelers,
+    where: accountEq(labelers.creatorId),
+  },
+  'pokes.pokerId|channel-account': {
+    phase: 'account',
+    table: pokes,
+    where: accountEq(pokes.pokerId),
+  },
+  'pokes.pokedId|channel-account': {
+    phase: 'account',
+    table: pokes,
+    where: accountEq(pokes.pokedId),
+  },
+  'push_tokens.userId|channel-account': {
+    phase: 'account',
+    table: pushTokens,
+    where: accountEq(pushTokens.userId),
+  },
+  'polls.createdBy|channel-account': {
+    phase: 'account',
+    table: polls,
+    where: accountEq(polls.createdBy),
+  },
+  'poll_votes.userId|channel-account': {
+    phase: 'account',
+    table: pollVotes,
+    where: accountEq(pollVotes.userId),
+  },
+  'articles.createdBy|channel-account': {
+    phase: 'account',
+    table: articles,
+    where: accountEq(articles.createdBy),
+  },
+  'postgates.createdBy|channel-account': {
+    phase: 'account',
+    table: postgates,
+    where: accountEq(postgates.createdBy),
+  },
+  'threadgates.createdBy|channel-account': {
+    phase: 'account',
+    table: threadgates,
+    where: accountEq(threadgates.createdBy),
+  },
+  'account_lists.ownerOxyUserId|channel-account': {
+    phase: 'account',
+    table: accountLists,
+    where: accountEq(accountLists.ownerOxyUserId),
+  },
+  'account_list_members.oxyUserId|channel-account': {
+    phase: 'account',
+    table: accountListMembers,
+    where: accountEq(accountListMembers.oxyUserId),
+  },
+  'custom_feeds.ownerOxyUserId|channel-account': {
+    phase: 'account',
+    table: customFeeds,
+    where: accountEq(customFeeds.ownerOxyUserId),
+  },
+  'custom_feed_members.oxyUserId|channel-account': {
+    phase: 'account',
+    table: customFeedMembers,
+    where: accountEq(customFeedMembers.oxyUserId),
+  },
+  'starter_packs.ownerOxyUserId|channel-account': {
+    phase: 'account',
+    table: starterPacks,
+    where: accountEq(starterPacks.ownerOxyUserId),
+  },
+  'starter_pack_members.oxyUserId|channel-account': {
+    phase: 'account',
+    table: starterPackMembers,
+    where: accountEq(starterPackMembers.oxyUserId),
+  },
+  'starter_pack_uses.oxyUserId|channel-account': {
+    phase: 'account',
+    table: starterPackUses,
+    where: accountEq(starterPackUses.oxyUserId),
+  },
+  'endorsement_outbox.pendingRemoveOwnerId|channel-account': {
+    phase: 'account',
+    table: endorsementOutbox,
+    where: accountEq(endorsementOutbox.pendingRemoveOwnerId),
+  },
+  'endorsement_outbox.pendingRemoveMemberIds|channel-account': {
+    phase: 'account',
+    table: endorsementOutbox,
+    where: arrayContainsAccount(endorsementOutbox.pendingRemoveMemberIds),
+    update: async (targets, where) =>
+      (
+        await getDb()
+          .update(endorsementOutbox)
+          .set({
+            pendingRemoveMemberIds: pullValue(endorsementOutbox.pendingRemoveMemberIds, targets),
+          })
+          .where(where)
+          .returning({ id: endorsementOutbox.id })
+      ).length,
+  },
+  'trending.actorIds|channel-account': {
+    phase: 'account',
+    table: trending,
+    where: arrayContainsAccount(trending.actorIds),
+    update: async (targets, where) =>
+      (
+        await getDb()
+          .update(trending)
+          .set({ actorIds: pullValue(trending.actorIds, targets) })
+          .where(where)
+          .returning({ id: trending.id })
+      ).length,
+  },
+  'mcp_connections.oxyUserId|channel-account': {
+    phase: 'account',
+    table: mcpConnections,
+    where: accountEq(mcpConnections.oxyUserId),
+  },
+  // Somebody else's connector whose ACTIVE account is the channel. Deleting their
+  // row would revoke a person's connector over an account they merely switched to,
+  // so the pointer is cleared and `mcpBundleService` falls back to the owner.
+  'mcp_connections.activeOxyUserId|channel-account': {
+    phase: 'account',
+    table: mcpConnections,
+    where: accountEq(mcpConnections.activeOxyUserId),
+    update: async (_targets, where) =>
+      (
+        await getDb()
+          .update(mcpConnections)
+          .set({ activeOxyUserId: null })
+          .where(where)
+          .returning({ id: mcpConnections.id })
+      ).length,
+  },
+  'mcp_auth_codes.oxyUserId|channel-account': {
+    phase: 'account',
+    table: mcpAuthCodes,
+    where: accountEq(mcpAuthCodes.oxyUserId),
+  },
 };
 
 // ---------------------------------------------------------------------------
 // Step execution
 // ---------------------------------------------------------------------------
 
+/** How many rows match, without touching them. */
+async function countRows(table: PgTable, where: SQL): Promise<number> {
+  const [row] = await getDb().select({ n: count() }).from(table).where(where);
+  return row.n;
+}
+
 /**
  * Count (dry run) or delete (live), returning the affected-row count either way.
- * With {@link countOrUpdate} this is the single chokepoint that keeps a dry run
- * strictly read-only — mirrors `scripts/purgeGoneFederatedActors.ts`.
+ * The single chokepoint that keeps a dry run strictly read-only — mirrors
+ * `scripts/purgeGoneFederatedActors.ts`.
  */
-async function countOrDelete(
-  collection: CascadeCollection,
-  filter: Record<string, unknown>,
-  dryRun: boolean,
-): Promise<number> {
-  if (dryRun) return collection.countDocuments(filter);
-  const result = await collection.deleteMany(filter);
-  return result.deletedCount;
+async function countOrDelete(table: PgTable, where: SQL, dryRun: boolean): Promise<number> {
+  if (dryRun) return countRows(table, where);
+  const removed = await getDb().delete(table).where(where).returning({ deleted: sql<number>`1` });
+  return removed.length;
 }
 
-/** Count (dry run) or apply an `$unset`/`$pull` (live). */
-async function countOrUpdate(
-  collection: CascadeCollection,
-  filter: Record<string, unknown>,
-  update: Record<string, unknown>,
-  dryRun: boolean,
-): Promise<number> {
-  if (dryRun) return collection.countDocuments(filter);
-  const result = await collection.updateMany(filter, update);
-  return result.modifiedCount;
-}
-
-/** The ids a `channel-posts` step filters on, in the spelling its schema stores. */
-function postIdsFor(binding: LocalStepBinding, targets: DeletionTargets): unknown[] {
-  switch (binding.idForm ?? 'string') {
-    case 'objectId':
-      return [...targets.doomedPostIds];
-    case 'both':
-      return [...targets.doomedPostIds, ...targets.doomedPostIdStrings];
-    case 'string':
-      return [...targets.doomedPostIdStrings];
-  }
-}
-
-/** The single value (account scope) or value set (every other scope) a step matches. */
-function scopeOperand(
-  step: CascadeStep,
-  binding: LocalStepBinding,
-  targets: DeletionTargets,
-): unknown {
-  switch (step.scope) {
-    case 'channel-account':
-      return targets.channelOxyUserId;
-    case 'channel-lanes':
-      return { $in: [...targets.laneIds] };
-    case 'channel-post-uris':
-      return { $in: [...targets.postKeys] };
-    case 'channel-posts':
-      return { $in: postIdsFor(binding, targets) };
-  }
-}
-
-function buildFilter(
-  step: CascadeStep,
-  binding: LocalStepBinding,
-  targets: DeletionTargets,
-): Record<string, unknown> {
-  if (binding.filter) return binding.filter(targets);
-  return {
-    [binding.path ?? step.field]: scopeOperand(step, binding, targets),
-    ...binding.match,
-  };
-}
-
-function buildPullUpdate(
-  step: CascadeStep,
-  binding: LocalStepBinding,
-  targets: DeletionTargets,
-): Record<string, unknown> {
-  const operand = scopeOperand(step, binding, targets);
-  if (binding.pullSubdocument) {
-    const { arrayPath, elementKey } = binding.pullSubdocument;
-    return { $pull: { [arrayPath]: { [elementKey]: operand } } };
-  }
-  return { $pull: { [binding.path ?? step.field]: operand } };
-}
-
-async function executeStep(
-  step: CascadeStep,
-  binding: LocalStepBinding,
-  targets: DeletionTargets,
-  dryRun: boolean,
-): Promise<number> {
-  const filter = buildFilter(step, binding, targets);
-  switch (step.action) {
-    case 'delete-row':
-      return countOrDelete(binding.collection, filter, dryRun);
-    case 'unset-field':
-      return countOrUpdate(
-        binding.collection,
-        filter,
-        { $unset: { [binding.path ?? step.field]: '' } },
-        dryRun,
-      );
-    case 'pull-from-array':
-      return countOrUpdate(
-        binding.collection,
-        filter,
-        buildPullUpdate(step, binding, targets),
-        dryRun,
-      );
-    case 'retain':
-      // Unreachable: `buildSchedule` never schedules a retained step, precisely so
-      // no query for one can exist. Kept as a real throw rather than a silent
-      // fall-through so a future binding that contradicts the manifest is loud.
-      throw new Error(
-        `${LOG_PREFIX} ${bindingKey(step)} is retained by the manifest and must not be executed`,
-      );
-  }
+/**
+ * Delete one batch of the channel's posts — the statement every `ON DELETE`
+ * constraint in the manifest hangs off.
+ *
+ * By the captured id set rather than by owner, so it removes exactly what the
+ * preflight cleared and the dependent legs were enumerated from: a post created
+ * since the batch was read is left for the next iteration rather than deleted
+ * with its dependents unswept.
+ */
+async function deleteBatchPosts(batch: PostBatch, dryRun: boolean): Promise<number> {
+  const ids = batch.channelPosts.map((row) => row.id);
+  if (dryRun) return ids.length;
+  const removed = await getDb()
+    .delete(posts)
+    .where(inArray(posts.id, ids))
+    .returning({ id: posts.id });
+  return removed.length;
 }
 
 /**
  * Accumulates what happened to every manifest step, and the failures that make
  * the call throw at the end.
  *
- * Three disjoint accounts, because "this ran and affected N rows", "somebody else
- * owns this" and "this is deliberately kept" are three different statements and
- * collapsing them loses the only one that matters. Counting a delegated or
- * retained step as `0` would be the worst of the three options: indistinguishable
- * from a step that silently stopped running, which is the exact failure the
- * manifest binding exists to catch.
+ * FOUR disjoint accounts, because "this ran and affected N rows", "the delegate
+ * owns this", "a constraint did it" and "this is deliberately kept" are four
+ * different statements and collapsing them loses the only one that matters.
+ * Counting a non-executing step as `0` would be the worst option:
+ * indistinguishable from a step that silently stopped running, which is the exact
+ * failure the manifest binding exists to catch.
  */
 class CascadeRun {
   readonly steps: Record<string, number> = {};
   readonly failures: string[] = [];
   private readonly delegatedKeys = new Set<string>();
+  private readonly databaseKeys = new Set<string>();
   private readonly retainedKeys = new Set<string>();
 
-  record(key: string, count: number): void {
-    this.steps[key] = (this.steps[key] ?? 0) + count;
+  record(key: string, countOfRows: number): void {
+    this.steps[key] = (this.steps[key] ?? 0) + countOfRows;
   }
 
   delegate(key: string): void {
     this.delegatedKeys.add(key);
+  }
+
+  database(key: string): void {
+    this.databaseKeys.add(key);
   }
 
   retain(key: string): void {
@@ -850,35 +1103,44 @@ class CascadeRun {
 
   fail(key: string, error: unknown): void {
     this.failures.push(key);
-    logger.error(`${LOG_PREFIX} cascade step failed`, error);
+    logger.error(`${LOG_PREFIX} cascade step failed`, { step: key, error });
   }
 
   /**
    * A failure the delegate has ALREADY logged with its own leg name; recorded so
-   * the run still throws and a BullMQ retry re-runs it. Not logged a second time —
-   * two entries for one failure read as two failures.
+   * the run still throws and a retry re-runs it. Not logged a second time — two
+   * entries for one failure read as two failures.
    */
   failDelegated(reference: string): void {
     this.failures.push(`PostDeletionCascade:${reference}`);
   }
 
   /**
-   * The delegated and retained key lists, made DISJOINT from `steps`.
+   * The three non-executing key lists, made DISJOINT from `steps` and from each
+   * other.
    *
-   * Two columns are classified twice by scope — `Notification.entityId` and
-   * `ContentLabel.targetId` each hold a post id under one `entityType`/`targetType`
-   * and an account id under another — so one step key can have both a delegated
-   * entry and a locally executed one. Local wins, because a real count is more
-   * informative than a label and because the count would otherwise be silently
-   * dropped from the result. The manifest entry for the delegated half says so in
-   * its `why`, which is where a reader looks for the disposition anyway.
+   * Several columns are classified twice by scope — `notifications.entityId`,
+   * `content_labels.targetId` and `reports.reportedId` each hold a post id under
+   * one type discriminator and an account id under another — so one step key can
+   * carry both a delegated entry and a locally executed one. Local wins, because a
+   * real count is more informative than a label and because the count would
+   * otherwise be silently dropped from the result. The manifest entry for the
+   * non-executing half says so in its `why`, which is where a reader looks for the
+   * disposition anyway.
    */
-  classify(): { delegated: string[]; retained: string[] } {
+  classify(): { delegated: string[]; performedByDatabase: string[]; retained: string[] } {
     const local = new Set(Object.keys(this.steps));
+    const delegated = [...this.delegatedKeys].filter((key) => !local.has(key));
+    const database = [...this.databaseKeys].filter(
+      (key) => !local.has(key) && !this.delegatedKeys.has(key),
+    );
     return {
-      delegated: [...this.delegatedKeys].filter((key) => !local.has(key)).sort(),
+      delegated: delegated.sort(),
+      performedByDatabase: database.sort(),
       retained: [...this.retainedKeys]
-        .filter((key) => !local.has(key) && !this.delegatedKeys.has(key))
+        .filter(
+          (key) => !local.has(key) && !this.delegatedKeys.has(key) && !this.databaseKeys.has(key),
+        )
         .sort(),
     };
   }
@@ -886,50 +1148,66 @@ class CascadeRun {
 
 interface ScheduledStep {
   readonly step: CascadeStep;
-  /** Only a LOCAL binding is ever scheduled — a delegated one has no query here. */
   readonly binding: LocalStepBinding;
 }
 type CascadeSchedule = ReadonlyMap<CascadePhase, readonly ScheduledStep[]>;
 
+interface Schedule {
+  readonly phases: CascadeSchedule;
+  /** Steps the post-batch loop runs, in manifest order. */
+  readonly inBatch: ReadonlyArray<{ step: CascadeStep; binding: InBatchBinding }>;
+}
+
 /**
  * Account for every manifest step exactly once, and group the ones this service
- * executes under the phase that runs them.
+ * executes under the phase or the loop that runs them.
  *
  * Done in ONE pass over the manifest rather than per phase, so a step with no
- * binding is reported once rather than once per phase — and so the delegated and
- * retained accounts are complete even in a dry run, where the delegate is never
- * called.
+ * binding is reported once rather than once per phase — and so the delegated,
+ * database and retained accounts are complete even in a dry run, where the
+ * delegate is never called.
  */
-function buildSchedule(run: CascadeRun): CascadeSchedule {
-  const schedule = new Map<CascadePhase, ScheduledStep[]>();
+function buildSchedule(run: CascadeRun): Schedule {
+  const phases = new Map<CascadePhase, ScheduledStep[]>();
+  const inBatch: Array<{ step: CascadeStep; binding: InBatchBinding }> = [];
 
   for (const step of CHANNEL_CASCADE) {
-    // The manifest's own action decides this, ahead of any binding lookup: a
-    // retained row has no query, and a binding for one would be a query nobody may
-    // run.
+    // The manifest's own action decides these two, ahead of any binding lookup: a
+    // retained row has no query, and a constraint-performed one must not have one.
     if (step.action === 'retain') {
       run.retain(stepKey(step));
       continue;
     }
+    if (step.action === 'database') {
+      run.database(stepKey(step));
+      continue;
+    }
     const binding = STEP_BINDINGS[bindingKey(step)];
     if (!binding) {
-      run.fail(bindingKey(step), new Error(`no Mongo binding for cascade step ${bindingKey(step)}`));
+      run.fail(
+        bindingKey(step),
+        new Error(`no Postgres binding for cascade step ${bindingKey(step)}`),
+      );
       continue;
     }
     if (isDelegated(binding)) {
       run.delegate(stepKey(step));
       continue;
     }
-    const bucket = schedule.get(binding.phase);
+    if (isInBatch(binding)) {
+      inBatch.push({ step, binding });
+      continue;
+    }
+    const bucket = phases.get(binding.phase);
     if (bucket) bucket.push({ step, binding });
-    else schedule.set(binding.phase, [{ step, binding }]);
+    else phases.set(binding.phase, [{ step, binding }]);
   }
 
   // A stable sort, so an entry without an `order` keeps its manifest position.
-  for (const bucket of schedule.values()) {
+  for (const bucket of phases.values()) {
     bucket.sort((left, right) => (left.binding.order ?? 0) - (right.binding.order ?? 0));
   }
-  return schedule;
+  return { phases, inBatch };
 }
 
 /**
@@ -942,14 +1220,25 @@ function buildSchedule(run: CascadeRun): CascadeSchedule {
  */
 async function runPhase(
   phase: CascadePhase,
-  schedule: CascadeSchedule,
+  schedule: Schedule,
   targets: DeletionTargets,
   dryRun: boolean,
   run: CascadeRun,
 ): Promise<void> {
-  for (const { step, binding } of schedule.get(phase) ?? []) {
+  for (const { step, binding } of schedule.phases.get(phase) ?? []) {
     try {
-      run.record(stepKey(step), await executeStep(step, binding, targets, dryRun));
+      const where = binding.where(targets);
+      if (where === undefined) {
+        run.record(stepKey(step), 0);
+        continue;
+      }
+      if (dryRun) {
+        run.record(stepKey(step), await countRows(binding.table, where));
+      } else if (binding.update) {
+        run.record(stepKey(step), await binding.update(targets, where));
+      } else {
+        run.record(stepKey(step), await countOrDelete(binding.table, where, false));
+      }
     } catch (error) {
       run.record(stepKey(step), 0);
       run.fail(stepKey(step), error);
@@ -962,37 +1251,56 @@ async function runPhase(
 // ---------------------------------------------------------------------------
 
 /**
- * Tell the fediverse the posts and then the actor are gone, BEFORE anything they
- * are addressed from is deleted: `deliverToFollowers` resolves its inboxes from
- * the `FederatedFollow` rows, which the account phase removes.
+ * The channel's username, resolved SERVER-SIDE from the authoritative
+ * `oxyUserId` — the canonical Note ids a remote server matches against are minted
+ * from it, and no request-scoped value is trusted for it.
  *
- * The username is resolved SERVER-SIDE from the authoritative `oxyUserId` — the
- * canonical Note ids a remote server matches against are minted from it, and no
- * request-scoped value is trusted for it. A resolve miss THROWS before any row is
- * deleted, so the run is retried rather than leaving remote copies with no local
- * post left to address a later Delete from.
- *
- * Skipped entirely when the channel has no accepted inbound followers: there is
- * nobody to deliver to, so it would be a round trip to Oxy for no delivery.
+ * A resolve miss THROWS before any row is deleted, so the run is retried rather
+ * than leaving remote copies with no local post left to address a later Delete
+ * from. Resolved ONCE per run and reused by every batch's Tombstones.
  */
-async function broadcastFederatedDelete(targets: DeletionTargets): Promise<void> {
-  if (targets.federatedFollowers === 0) return;
-
-  const user = await getServiceOxyClient().getUserById(targets.channelOxyUserId);
+async function resolveChannelUsername(channelOxyUserId: string): Promise<string> {
+  const user = await getServiceOxyClient().getUserById(channelOxyUserId);
   const username = user.username?.trim();
   if (!username) {
     throw new Error(
-      `${LOG_PREFIX} cannot federate the deletion of ${targets.channelOxyUserId}: no resolvable username`,
+      `${LOG_PREFIX} cannot federate the deletion of ${channelOxyUserId}: no resolvable username`,
     );
   }
+  return username;
+}
 
-  // Per-post Tombstones first: once the actor is deleted a remote server may drop
-  // the account wholesale, and an instance that does not still needs each status
-  // named. `federateDelete` is best-effort by design and never throws.
-  for (const postId of targets.federatablePostIds) {
-    await followService.federateDelete({ _id: postId }, targets.channelOxyUserId, username);
+/**
+ * Per-post Tombstones for one batch, sent BEFORE its rows are deleted.
+ *
+ * Once the actor is deleted a remote server may drop the account wholesale, and
+ * an instance that does not still needs each status named. `federateDelete` is
+ * best-effort by design and never throws.
+ *
+ * Only PUBLIC + PUBLISHED posts: a draft, a scheduled post, a followers-only post
+ * or one `restricted` by moderation was never advertised, so a Tombstone for it
+ * would name an object the receiving instance has never heard of.
+ */
+async function broadcastBatchTombstones(
+  batch: PostBatch,
+  channelOxyUserId: string,
+  username: string,
+): Promise<void> {
+  for (const post of batch.channelPosts) {
+    if (post.visibility !== PostVisibility.PUBLIC || post.status !== 'published') continue;
+    await followService.federateDelete({ id: post.id }, channelOxyUserId, username);
   }
+}
 
+/**
+ * Tell the fediverse the actor is gone, BEFORE anything the delivery path reads
+ * is deleted: `deliverToFollowers` resolves its inboxes from the
+ * `federated_follows` rows, which the account phase removes.
+ */
+async function broadcastActorDelete(
+  channelOxyUserId: string,
+  username: string,
+): Promise<void> {
   const actor = actorUrl(username);
   await deliveryService.deliverToFollowers(
     {
@@ -1003,7 +1311,7 @@ async function broadcastFederatedDelete(targets: DeletionTargets): Promise<void>
       to: ['https://www.w3.org/ns/activitystreams#Public'],
       object: actor,
     },
-    targets.channelOxyUserId,
+    channelOxyUserId,
     username,
   );
 }
@@ -1013,53 +1321,93 @@ async function broadcastFederatedDelete(targets: DeletionTargets): Promise<void>
 // ---------------------------------------------------------------------------
 
 /**
- * Repair the denormalized counters on posts that SURVIVE this run but lose an
- * engagement record to it: a channel post that boosted somebody else's post, and
- * a `Like` the channel left on somebody else's post.
+ * The posts the channel LIKED, read while its `likes` rows still exist.
  *
- * Each decrement is independently guarded on `$gt: 0`, mirroring the live
- * `Undo(Announce)` / unlike teardown, so a counter that already lags cannot
- * underflow. `stats.federatedBoostsCount` is deliberately untouched: it counts
- * inbound Announces, and a channel is a local author.
+ * Ordering is load-bearing and is why this is its own function rather than a read
+ * inside the repair: the account phase deletes `likes.user_id = <channel>`, so a
+ * repair that discovered these afterwards would find nothing and silently leave
+ * every one of those counters an increment too high. Called before that phase,
+ * used after it.
  */
-async function repairSurvivingCounters(
-  targets: DeletionTargets,
-  dryRun: boolean,
-): Promise<{ boostCounters: number; likeCounters: number }> {
-  let boostCounters = 0;
-  let likeCounters = 0;
-
-  for (const originalId of targets.boostedOriginalIds) {
-    boostCounters += await decrementStat(originalId, 'stats.boostsCount', dryRun);
-  }
-  for (const postId of targets.likedPostIds) {
-    likeCounters += await decrementStat(postId, 'stats.likesCount', dryRun);
-  }
-
-  return { boostCounters, likeCounters };
+async function readLikedPostIds(channelOxyUserId: string): Promise<string[]> {
+  const rows = await getDb()
+    .select({ postId: likes.postId })
+    .from(likes)
+    .where(eq(likes.userId, channelOxyUserId));
+  return rows.map((row) => row.postId);
 }
 
 /**
- * One guarded decrement. A failure is LOGGED and swallowed rather than thrown,
- * which is the opposite of every other step here and deliberate: the ids being
- * repaired were derived from rows this run has already deleted, so a retry
+ * Repair the denormalized counters on posts that SURVIVE this run but lose an
+ * engagement record to it.
+ *
+ * TWO cases, and the ones that are NOT here are structural rather than omissions:
+ *
+ *  - A channel post that BOOSTED somebody else's surviving post. Its own boosts
+ *    are inside the removed set by construction (the closure is seeded from it),
+ *    so only an original OUTSIDE the set can need repairing.
+ *  - A `Like` the channel left on somebody else's surviving post.
+ *  - NOT `stats_comments_count`: a channel post is never a reply to somebody else
+ *    (the reply gate refuses a `channel` author at five sites) and a channel
+ *    thread's continuations answer the channel's own posts, which are inside the
+ *    removed set.
+ *  - NOT `stats_federated_boosts_count`: it counts inbound Announces, and a
+ *    channel is a local author.
+ *
+ * Each decrement is guarded on `> 0`, mirroring the live `Undo(Announce)` /
+ * unlike teardown, so a counter that already lags cannot underflow. Deleted posts
+ * drop out on their own — an id no longer in `posts` matches nothing.
+ */
+async function repairSurvivingCounters(
+  boostedOriginalIds: readonly string[],
+  likedPostIds: readonly string[],
+  dryRun: boolean,
+): Promise<{ boostCounters: number; likeCounters: number }> {
+  return {
+    boostCounters: await decrementStat(boostedOriginalIds, 'boosts', dryRun),
+    likeCounters: await decrementStat(likedPostIds, 'likes', dryRun),
+  };
+}
+
+/**
+ * One guarded bulk decrement. A failure is LOGGED and swallowed rather than
+ * thrown, which is the opposite of every other step here and deliberate: the ids
+ * being repaired were derived from rows this run has already deleted, so a retry
  * computes an EMPTY repair set and can never make good on it. Failing the job
  * would therefore lose the deletion's success without saving the counter. A stale
  * denormalized count is reconcilable on its own
  * (`scripts/recomputeFederatedEngagement.ts`); a half-reported cascade is not.
+ *
+ * The two counters are named by a literal union rather than passed as a
+ * `PgColumn`, because `.set()` is keyed by the drizzle PROPERTY name and building
+ * that key dynamically would need a cast the compiler could not check — the exact
+ * shape that lets a typo write to a column nobody meant.
  */
-async function decrementStat(postId: string, path: string, dryRun: boolean): Promise<number> {
-  const filter = { _id: postId, [path]: { $gt: 0 } };
+async function decrementStat(
+  postIds: readonly string[],
+  stat: 'boosts' | 'likes',
+  dryRun: boolean,
+): Promise<number> {
+  if (postIds.length === 0) return 0;
+  const column = stat === 'boosts' ? posts.statsBoostsCount : posts.statsLikesCount;
+  const where = and(inArray(posts.id, [...postIds]), sql`${column} > 0`);
+  if (where === undefined) return 0;
   try {
-    if (dryRun) {
-      // Count the SAME predicate the live write uses, so the dry-run figure is not
-      // an optimistic guess about a post that may no longer exist.
-      return (await Post.countDocuments(filter)) > 0 ? 1 : 0;
-    }
-    const result = await Post.updateOne(filter, { $inc: { [path]: -1 } });
-    return result.modifiedCount;
+    // The dry-run figure counts the SAME predicate the live write uses, so it is
+    // not an optimistic guess about a post that may no longer exist.
+    if (dryRun) return countRows(posts, where);
+    const updated = await getDb()
+      .update(posts)
+      .set(
+        stat === 'boosts'
+          ? { statsBoostsCount: sql`${posts.statsBoostsCount} - 1` }
+          : { statsLikesCount: sql`${posts.statsLikesCount} - 1` },
+      )
+      .where(where)
+      .returning({ id: posts.id });
+    return updated.length;
   } catch (error) {
-    logger.error(`${LOG_PREFIX} could not repair ${path} on a surviving post`, error);
+    logger.error(`${LOG_PREFIX} could not repair a counter on a surviving post`, { stat, error });
     return 0;
   }
 }
@@ -1131,7 +1479,7 @@ export interface ChannelDeletionPreview {
   channelOxyUserId: string;
   /** The channel's own posts. */
   posts: number;
-  /** Other people's boosts of them, which are destroyed alongside. */
+  /** Other people's boosts of them, which the database destroys alongside. */
   boostsByOthers: number;
   /** Other people's replies into the set. A channel cannot be replied to, so 0. */
   replies: number;
@@ -1144,8 +1492,8 @@ export interface ChannelDeletionPreview {
 function buildPreview(targets: DeletionTargets): ChannelDeletionPreview {
   return {
     channelOxyUserId: targets.channelOxyUserId,
-    posts: targets.channelPostIds.length,
-    boostsByOthers: targets.boostPostIds.length,
+    posts: targets.posts,
+    boostsByOthers: targets.boostsByOthers,
     replies: targets.repliesByOthers,
     quotesByOthersKept: targets.quotesByOthersKept,
     federatedFollowers: targets.federatedFollowers,
@@ -1172,21 +1520,27 @@ export async function previewChannelDeletion(
 export interface ChannelDeletionResult {
   /**
    * Affected-row counts for the steps THIS service executed, keyed EXACTLY
-   * `${step.model}.${step.field}`.
+   * `${step.table}.${step.column}`.
    *
-   * A key whose column is classified under two scopes (`Notification.entityId`,
-   * `ContentLabel.targetId`) appears here when EITHER scope runs locally, and the
-   * count is that local work only — the other scope's disposition is on its
-   * manifest entry.
+   * A key whose column is classified under two scopes appears here when EITHER
+   * scope runs locally, and the count is that local work only — the other scope's
+   * disposition is on its manifest entry.
    */
   steps: Record<string, number>;
   /**
    * Manifest keys whose disposition belongs to
    * `PostDeletionCascade.cascadePostReferences`. Listed without a count on
-   * purpose: the delegate reports failed legs, not per-reference totals, and
-   * inventing a `0` here would be indistinguishable from a step that never ran.
+   * purpose: the delegate throws on a failed leg rather than reporting
+   * per-reference totals, and inventing a `0` here would be indistinguishable
+   * from a step that never ran.
    */
   delegated: string[];
+  /**
+   * Manifest keys an `ON DELETE` constraint performs. Listed without a count for
+   * the same reason, and with a stronger one besides: nothing in this process
+   * ever sees those rows, so any number here would be fabricated.
+   */
+  performedByDatabase: string[];
   /** Manifest keys deliberately KEPT — see each entry's `why` for the reason. */
   retained: string[];
   preview: ChannelDeletionPreview;
@@ -1214,7 +1568,7 @@ export async function deleteChannelContent(
   const run = new CascadeRun();
   const schedule = buildSchedule(run);
 
-  // 1. Resolve every id set ONCE, read-only. A crash here has changed nothing.
+  // 1. Read the preview counts. Read-only, so a crash here has changed nothing.
   const targets = await resolveDeletionTargets(channelOxyUserId);
   const preview = buildPreview(targets);
   logger.info(`${LOG_PREFIX} resolved deletion targets`, {
@@ -1232,95 +1586,56 @@ export async function deleteChannelContent(
   //    that a re-run drains; nothing has been told the channel is gone yet.
   await runPhase('federation-drain', schedule, targets, dryRun, run);
 
-  // 3. Prove the deletion cannot strand a reference nobody cleans. Read-only, and
-  //    deliberately BEFORE the broadcast rather than after it: a refusal here is
-  //    permanent until an operator acts, and broadcasting first would leave remote
-  //    servers holding a Tombstone for posts that are still live locally, on every
-  //    retry. It runs in a dry run too, so a blocker surfaces before a live run.
-  await assertPostsSafeToDelete(`channelDeletion:${channelOxyUserId}`, targets.deletionTargets, {
-    removedByCascade: REMOVED_BY_CASCADE,
-    // Stated separately from the claim above because it is the opposite kind of
-    // statement: these rows are kept on purpose, so the residue check must not
-    // demand their absence. See the constants at the top of this file.
-    keptByPolicy: KEPT_BY_POLICY,
-    // The graph probe would otherwise refuse the run for the quotes and replies
-    // this cascade UNSETS in phase 6 — a strictly stronger disposition than the
-    // dangling pointer the allowance describes. `boostOf` stays covered, and the
-    // boost closure resolved in phase 1 is what keeps it satisfied.
-    allowDanglingReplyReferences: true,
-  });
-
-  // 4. Tell the fediverse. Nothing delivery reads has been deleted yet. A crash
-  //    here leaves an actor that remote servers may already have dropped while its
-  //    local rows survive — a re-run re-sends (Delete is idempotent remotely) and
-  //    completes the cascade.
-  if (!dryRun) {
-    await broadcastFederatedDelete(targets);
-  }
-
-  // 5. Rows that exist only as an attachment to a doomed post. A crash here leaves
-  //    posts alive with some of their engagement gone: visible as under-counted
-  //    rows, converged by a re-run.
+  // 3. The channel's posts, in keyset batches. Everything about a batch — the
+  //    preflight, the Tombstones, the delegate, the local post-scoped legs and the
+  //    `DELETE` — happens while its captured ids are still meaningful.
   //
-  //    Most of this phase is the DELEGATE's: `cascadePostReferences` is the live
-  //    delete route's own implementation of these dispositions, handed the whole
-  //    doomed set at once. A failed leg is recorded so the run still throws and a
-  //    BullMQ retry re-runs it — the reason that entry point exists separately from
-  //    the never-throwing one the delete route calls. Skipped in a dry run: it
-  //    deletes, and counting it instead would mean writing the queries again here,
-  //    which is the duplication the delegation removes.
-  if (!dryRun) {
-    const { failedLegs } = await cascadePostReferences(targets.doomedRows);
-    for (const leg of failedLegs) run.failDelegated(leg);
+  //    A crash mid-loop leaves the channel with fewer posts and a fediverse that
+  //    has been told about the ones already gone. A re-run walks from the start
+  //    over what survived.
+  const username =
+    !dryRun && targets.federatedFollowers > 0
+      ? await resolveChannelUsername(channelOxyUserId)
+      : null;
+  const boostedOriginals = await destroyChannelPosts(
+    channelOxyUserId,
+    schedule,
+    dryRun,
+    username,
+    run,
+  );
+
+  // 4. Tell the fediverse the actor itself is gone. Nothing delivery reads has
+  //    been deleted yet — the `federated_follows` rows it resolves inboxes from go
+  //    in the account phase below. A crash here leaves an actor remote servers may
+  //    already have dropped while its local account rows survive; a re-run re-sends
+  //    (Delete is idempotent remotely) and completes the cascade.
+  if (username) {
+    await broadcastActorDelete(channelOxyUserId, username);
   }
-  //    The rest is local: the references the preflight has no probe for, so the
-  //    delegate has no leg for them either.
-  await runPhase('post-dependents', schedule, targets, dryRun, run);
 
-  // 6. Other people's posts that point INTO the doomed set. Their content is kept;
-  //    only the pointer goes. A crash here leaves a mix of scrubbed and dangling
-  //    pointers, which hydration already tolerates until the re-run.
-  await runPhase('scrub-foreign-posts', schedule, targets, dryRun, run);
+  // 5. Which posts the channel liked, read while its `likes` rows still exist —
+  //    the account phase below deletes them, and a repair that looked afterwards
+  //    would find nothing and leave every one of those counters an increment too
+  //    high with no error anywhere.
+  const likedPostIds = await readLikedPostIds(channelOxyUserId);
 
-  // 7. The doomed rows: the boosts first (they render entirely from an original
-  //    that is about to disappear), then the channel's own posts. A crash here is
-  //    the first point at which content is actually gone, and everything that
-  //    pointed at it has already been swept.
-  await runPhase('doomed-posts', schedule, targets, dryRun, run);
-
-  // 8. Lane rows, then the account-keyed rows. The lane ids were captured in phase
-  //    1, so deleting the lanes after the mutes cannot orphan either.
+  // 6. Lane rows, then the account-keyed rows. Within the lane phase the mutes are
+  //    swept by publisher and viewer BEFORE the lanes they hang off, so a mute is
+  //    never left to `lane_mutes.lane_id`'s cascade alone — that constraint covers
+  //    the lane key, and the two account-keyed columns carry no constraint at all.
   await runPhase('lanes', schedule, targets, dryRun, run);
   await runPhase('account', schedule, targets, dryRun, run);
 
-  // 9. Counters on posts that SURVIVE but lost an engagement record. Deliberately
+  // 7. Counters on posts that SURVIVE but lost an engagement record. Deliberately
   //    not part of `steps`: no manifest entry describes a counter, and inventing a
   //    key would break the set equality that binds this file to the manifest.
-  //
-  //    NOT duplicated with the delegate: `cascadePostReferences` runs the reference
-  //    legs only — `PostDeletionCascade`'s own counter repair belongs to
-  //    `cascadeDeletedPost`, which this never calls — because which rows survive
-  //    depends on which posts the caller is destroying, and only the caller knows
-  //    that.
-  const counters = await repairSurvivingCounters(targets, dryRun);
+  const counters = await repairSurvivingCounters(boostedOriginals, likedPostIds, dryRun);
   logger.info(`${LOG_PREFIX} repaired counters on surviving posts`, {
     dryRun,
     boostCounters: counters.boostCounters,
     likeCounters: counters.likeCounters,
   });
-
-  // 10. Verify what the cascade CLAIMED to remove actually went — the `cascade`
-  //     half only, never the retained half, whose absence would be the bug.
-  //     Skipped in a dry run, where every claim is trivially unmet because nothing
-  //     was deleted.
-  if (!dryRun) {
-    const residue = await collectPostCascadeResidue(targets.deletionTargets, REMOVED_BY_CASCADE);
-    if (residue.length > 0) {
-      logger.error(
-        `${LOG_PREFIX} cascade claimed references it did not remove: ${residue.join(', ')}`,
-      );
-    }
-  }
 
   if (run.failures.length > 0) {
     throw new Error(
@@ -1329,6 +1644,122 @@ export async function deleteChannelContent(
     );
   }
 
-  const { delegated, retained } = run.classify();
-  return { steps: run.steps, delegated, retained, preview, dryRun };
+  const { delegated, performedByDatabase, retained } = run.classify();
+  return { steps: run.steps, delegated, performedByDatabase, retained, preview, dryRun };
+}
+
+/**
+ * Walk the channel's posts in keyset batches, destroying each one completely
+ * before reading the next.
+ *
+ * Returns the ids of SURVIVING posts that lost a boost to this run — a channel
+ * post that boosted somebody else's post, collected per batch because that is the
+ * only moment its `boost_of` is still readable.
+ */
+async function destroyChannelPosts(
+  channelOxyUserId: string,
+  schedule: Schedule,
+  dryRun: boolean,
+  username: string | null,
+  run: CascadeRun,
+): Promise<string[]> {
+  const boostedOriginals: string[] = [];
+  let after: string | null = null;
+
+  // Open every batch-scoped step's account at zero BEFORE the loop, so a channel
+  // with no posts still reports them rather than leaving five manifest keys
+  // unaccounted for.
+  //
+  // Derived from the SCHEDULE, never from the manifest, and that is the whole
+  // difference: a step whose binding is removed drops out of `schedule.inBatch`,
+  // is not seeded, and fails the union assertion — which is exactly what
+  // pre-seeding from the manifest would have hidden. What is claimed here is only
+  // "this step was reached", which is true the moment the loop is entered.
+  for (const { step } of schedule.inBatch) run.record(stepKey(step), 0);
+
+  for (;;) {
+    const batch: PostBatch | null = await readPostBatch(channelOxyUserId, after);
+    if (!batch) break;
+    after = batch.lastId;
+
+    const removedIds = new Set(batch.rows.map((row) => row.id));
+    for (const post of batch.channelPosts) {
+      if (post.boostOf && !removedIds.has(post.boostOf)) boostedOriginals.push(post.boostOf);
+    }
+
+    // Prove the deletion cannot strand a reference nobody cleans. Read-only, and
+    // deliberately BEFORE the Tombstones rather than after: a refusal here is
+    // permanent until an operator acts, and broadcasting first would leave remote
+    // servers holding a Tombstone for posts that are still live locally, on every
+    // retry. It runs in a dry run too, so a blocker surfaces before a live run.
+    await assertPostsSafeToDelete(
+      `channelDeletion:${channelOxyUserId}`,
+      deletionTargetsOf(batch.rows),
+      {
+        removedByCascade: [...REMOVED_BEFORE_THE_POSTS, ...REMOVED_BY_DATABASE],
+        // Stated separately from the claim above because it is the opposite kind
+        // of statement: these rows are kept on purpose, so the residue check must
+        // not demand their absence.
+        keptByPolicy: KEPT_BY_POLICY,
+        // The graph probe would otherwise refuse the run for the quotes and
+        // replies `ON DELETE SET NULL` clears — a strictly stronger disposition
+        // than the dangling pointer the allowance describes. `boost_of` stays
+        // covered, and the closure captured above is what keeps it satisfied.
+        allowDanglingReplyReferences: true,
+      },
+    );
+
+    if (username) {
+      await broadcastBatchTombstones(batch, channelOxyUserId, username);
+    }
+
+    // The delegate, then the local post-scoped legs, then the `DELETE` — all in
+    // ONE transaction. The delegate THROWS on a failed leg, and that is only
+    // coherent inside a transaction: a leg that fails rolls the batch back, the
+    // posts are NOT deleted, and a retry can still reach the rows it left. Outside
+    // one, the same throw would report a partly-completed batch whose leftovers
+    // nothing could find.
+    try {
+      if (dryRun) {
+        for (const { step, binding } of schedule.inBatch) {
+          run.record(stepKey(step), await binding.run(batch, true));
+        }
+      } else {
+        await getDb().transaction(async (tx) => {
+          await cascadePostReferences(batch.rows, tx);
+          for (const { step, binding } of schedule.inBatch) {
+            run.record(stepKey(step), await binding.run(batch, false));
+          }
+        });
+      }
+    } catch (error) {
+      run.failDelegated(`batch@${batch.lastId}`);
+      logger.error(`${LOG_PREFIX} a post batch failed and was rolled back`, {
+        channelOxyUserId,
+        lastId: batch.lastId,
+        error,
+      });
+      continue;
+    }
+
+    // Verify what the batch CLAIMED to remove actually went, with nothing
+    // acknowledged. OUTSIDE the transaction on purpose: inside it the probes would
+    // read the transaction's own uncommitted deletes and pass by construction,
+    // which is a check that cannot fail. Skipped in a dry run, where every claim is
+    // trivially unmet because nothing was deleted.
+    if (!dryRun) {
+      const residue = await collectPostCascadeResidue(
+        deletionTargetsOf(batch.rows),
+        RESIDUE_CLAIM,
+      );
+      if (residue.length > 0) {
+        logger.error(`${LOG_PREFIX} cascade claimed references it did not remove`, {
+          channelOxyUserId,
+          residue,
+        });
+      }
+    }
+  }
+
+  return boostedOriginals;
 }

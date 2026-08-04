@@ -47,9 +47,20 @@ function body(text: string, tag?: string): PostContent {
   return { variants: [variant] };
 }
 
+/**
+ * Build a Note and assert the post ID REACHED it.
+ *
+ * Every fixture in this file used to key the post on `_id`, which is the SDK's
+ * event spelling, not the builder's — `NoteSourcePost` says `id`. The builder
+ * therefore emitted `.../posts/undefined` in all 25 cases and only the one case
+ * that asserted a URL noticed. The vacuity floor lives here rather than in each
+ * case so a future fixture cannot reintroduce it.
+ */
 function noteFor(post: Parameters<typeof followService.buildCreateNoteActivity>[0]) {
   const activity = followService.buildCreateNoteActivity(post, 'alice');
-  return { activity, note: activity.object as Record<string, unknown> };
+  const note = activity.object as Record<string, unknown>;
+  expect(String(note.id)).not.toContain('undefined');
+  return { activity, note };
 }
 
 beforeEach(() => {
@@ -59,7 +70,7 @@ beforeEach(() => {
 describe('buildCreateNoteActivity — canonical url + hashtag tags', () => {
   it('emits the on-site post url and a Hashtag tag per hashtag', () => {
     const { activity, note } = noteFor({
-      _id: 'post123',
+      id: 'post123',
       content: body('hello world'),
       hashtags: ['news', 'tech'],
       createdAt: ISO,
@@ -80,7 +91,7 @@ describe('buildCreateNoteActivity — canonical url + hashtag tags', () => {
 
   it('normalizes a Mongoose Date createdAt to a canonical ISO 8601 published', () => {
     const { activity, note } = noteFor({
-      _id: 'p1',
+      id: 'p1',
       content: body('hi'),
       createdAt: new Date(ISO),
     });
@@ -90,7 +101,7 @@ describe('buildCreateNoteActivity — canonical url + hashtag tags', () => {
   });
 
   it('omits tag and attachment when the post has neither', () => {
-    const { note } = noteFor({ _id: 'p1', content: body('plain'), createdAt: ISO });
+    const { note } = noteFor({ id: 'p1', content: body('plain'), createdAt: ISO });
     expect(note.tag).toBeUndefined();
     expect(note.attachment).toBeUndefined();
   });
@@ -99,7 +110,7 @@ describe('buildCreateNoteActivity — canonical url + hashtag tags', () => {
 describe('buildCreateNoteActivity — language + contentMap', () => {
   it('emits the primary body as `content` and EVERY author variant in `contentMap`, primary key FIRST', () => {
     const { note } = noteFor({
-      _id: 'p1',
+      id: 'p1',
       content: {
         // `variants[0]` IS the primary — there is no separate `primaryTag` and no
         // stored `content.text`. The body is resolved from here at read time.
@@ -126,7 +137,7 @@ describe('buildCreateNoteActivity — language + contentMap', () => {
 
   it('NEVER federates a machine translation — only author variants reach the wire', () => {
     const { note } = noteFor({
-      _id: 'p1',
+      id: 'p1',
       content: {
         variants: [
           { tag: 'es', source: 'author', text: 'hola' },
@@ -141,7 +152,7 @@ describe('buildCreateNoteActivity — language + contentMap', () => {
   });
 
   it('emits a single-key contentMap for a monolingual post — the only way Mastodon learns the language', () => {
-    const { note } = noteFor({ _id: 'p1', content: body('just english', 'en'), createdAt: ISO });
+    const { note } = noteFor({ id: 'p1', content: body('just english', 'en'), createdAt: ISO });
 
     expect(note.contentMap).toEqual({ en: '<p>just english</p>' });
     expect(note.language).toBe('en');
@@ -152,7 +163,7 @@ describe('buildCreateNoteActivity — language + contentMap', () => {
     // whose language never resolved. The body still federates; we simply do not
     // claim to know what language it is in. Inventing one would be a lie that
     // Mastodon would then display as fact.
-    const { note } = noteFor({ _id: 'p1', content: body('+1'), createdAt: ISO });
+    const { note } = noteFor({ id: 'p1', content: body('+1'), createdAt: ISO });
 
     expect(note.content).toBe('<p>+1</p>');
     expect(note.contentMap).toBeUndefined();
@@ -160,7 +171,7 @@ describe('buildCreateNoteActivity — language + contentMap', () => {
   });
 
   it('emits no body and no language for a post with no rendition at all (a boost)', () => {
-    const { note } = noteFor({ _id: 'p1', content: { variants: [] }, createdAt: ISO });
+    const { note } = noteFor({ id: 'p1', content: { variants: [] }, createdAt: ISO });
 
     expect(note.content).toBe('');
     expect(note.contentMap).toBeUndefined();
@@ -169,7 +180,7 @@ describe('buildCreateNoteActivity — language + contentMap', () => {
 
   it('canonicalizes tags on the way out (`es-es` → `es-ES`) and drops an invalid one', () => {
     const { note } = noteFor({
-      _id: 'p1',
+      id: 'p1',
       content: {
         variants: [
           { tag: 'es-es', source: 'author', text: 'hola' },
@@ -191,7 +202,7 @@ describe('buildCreateNoteActivity — plain-text body → AP HTML content', () =
     // The bug: raw `\n\n` is insignificant whitespace in HTML, so Mastodon
     // collapsed the author's blank lines and the paragraphs ran together.
     const { note } = noteFor({
-      _id: 'p1',
+      id: 'p1',
       content: body('hola mundo.\n\nAhora otra cosa.\n\nPorque sí.', 'es'),
       createdAt: ISO,
     });
@@ -202,17 +213,17 @@ describe('buildCreateNoteActivity — plain-text body → AP HTML content', () =
   });
 
   it('converts a single newline inside a paragraph to <br>', () => {
-    const { note } = noteFor({ _id: 'p1', content: body('line one\nline two'), createdAt: ISO });
+    const { note } = noteFor({ id: 'p1', content: body('line one\nline two'), createdAt: ISO });
     expect(note.content).toBe('<p>line one<br>line two</p>');
   });
 
   it('HTML-escapes < & > in the body so they never mis-render as markup', () => {
-    const { note } = noteFor({ _id: 'p1', content: body('a < b && c > d'), createdAt: ISO });
+    const { note } = noteFor({ id: 'p1', content: body('a < b && c > d'), createdAt: ISO });
     expect(note.content).toBe('<p>a &lt; b &amp;&amp; c &gt; d</p>');
   });
 
   it('keeps an empty-bodied post (a boost) empty — no stray tags', () => {
-    const { note } = noteFor({ _id: 'p1', content: { variants: [] }, createdAt: ISO });
+    const { note } = noteFor({ id: 'p1', content: { variants: [] }, createdAt: ISO });
     expect(note.content).toBe('');
   });
 });
@@ -220,7 +231,7 @@ describe('buildCreateNoteActivity — plain-text body → AP HTML content', () =
 describe('buildCreateNoteActivity — media attachments', () => {
   it('builds Document attachments: native ids via the chokepoint, federated raw urls verbatim', () => {
     const { note } = noteFor({
-      _id: 'p1',
+      id: 'p1',
       content: {
         ...body('with media'),
         media: [
@@ -244,7 +255,7 @@ describe('buildCreateNoteActivity — media attachments', () => {
 
   it('is fail-soft: skips a media item with an empty id but keeps the good ones', () => {
     const { note } = noteFor({
-      _id: 'p1',
+      id: 'p1',
       content: {
         ...body('partial'),
         media: [
@@ -267,7 +278,7 @@ describe('buildCreateNoteActivity — the PRIMARY rendition is what federates', 
     // infographic must federate THAT one — the shared set is what the other
     // languages fall back to, not what the author leads with.
     const { note } = noteFor({
-      _id: 'p1',
+      id: 'p1',
       content: {
         media: [{ id: 'file-shared', type: 'image' }],
         variants: [
@@ -285,7 +296,7 @@ describe('buildCreateNoteActivity — the PRIMARY rendition is what federates', 
 
   it('localizes the alt text of the SHARED media for the primary language', () => {
     const { note } = noteFor({
-      _id: 'p1',
+      id: 'p1',
       content: {
         media: [{ id: 'file-shared', type: 'image', alt: 'a cat' }],
         variants: [{ tag: 'es', source: 'author', text: 'hola', alt: { 'file-shared': 'un gato' } }],
@@ -304,7 +315,7 @@ describe('buildCreateNoteActivity — the PRIMARY rendition is what federates', 
 describe('buildCreateNoteActivity — sensitive flag', () => {
   it('emits sensitive:true when the author flagged the post sensitive', () => {
     const { note } = noteFor({
-      _id: 'p1',
+      id: 'p1',
       content: body('behind a warning'),
       createdAt: ISO,
       metadata: { isSensitive: true },
@@ -316,11 +327,11 @@ describe('buildCreateNoteActivity — sensitive flag', () => {
   });
 
   it('emits sensitive:false for a normal post (no metadata, or the flag unset)', () => {
-    const { note } = noteFor({ _id: 'p1', content: body('safe'), createdAt: ISO });
+    const { note } = noteFor({ id: 'p1', content: body('safe'), createdAt: ISO });
     expect(note.sensitive).toBe(false);
 
     const { note: explicit } = noteFor({
-      _id: 'p2',
+      id: 'p2',
       content: body('safe'),
       createdAt: ISO,
       metadata: { isSensitive: false },
@@ -332,7 +343,7 @@ describe('buildCreateNoteActivity — sensitive flag', () => {
 describe('buildCreateNoteActivity — media width/height', () => {
   it('emits width and height on an attachment when both are present on the item', () => {
     const { note } = noteFor({
-      _id: 'p1',
+      id: 'p1',
       content: { ...body('sized'), media: [{ id: 'file-abc', type: 'image', width: 1200, height: 800 }] },
       createdAt: ISO,
     });
@@ -344,7 +355,7 @@ describe('buildCreateNoteActivity — media width/height', () => {
 
   it('omits the width/height keys entirely when the item carries no dimensions', () => {
     const { note } = noteFor({
-      _id: 'p1',
+      id: 'p1',
       content: { ...body('unsized'), media: [{ id: 'file-abc', type: 'image' }] },
       createdAt: ISO,
     });
@@ -361,7 +372,7 @@ describe('buildCreateNoteActivity — media width/height', () => {
 
   it('emits only the present dimension and never a zero placeholder', () => {
     const { note } = noteFor({
-      _id: 'p1',
+      id: 'p1',
       content: { ...body('half sized'), media: [{ id: 'file-abc', type: 'image', width: 640, height: 0 }] },
       createdAt: ISO,
     });
@@ -374,7 +385,7 @@ describe('buildCreateNoteActivity — media width/height', () => {
 
 describe('buildCreateNoteActivity — source plaintext', () => {
   it('carries the RAW primary body as source (text/plain), NOT the HTML content', () => {
-    const { note } = noteFor({ _id: 'p1', content: body('line one\nline two'), createdAt: ISO });
+    const { note } = noteFor({ id: 'p1', content: body('line one\nline two'), createdAt: ISO });
 
     // `content` is HTML (the newline became a <br>); `source.content` is the
     // author's raw plaintext, so an edit-fetching client recovers the original.
@@ -383,7 +394,7 @@ describe('buildCreateNoteActivity — source plaintext', () => {
   });
 
   it('omits source for an empty body (a boost)', () => {
-    const { note } = noteFor({ _id: 'p1', content: { variants: [] }, createdAt: ISO });
+    const { note } = noteFor({ id: 'p1', content: { variants: [] }, createdAt: ISO });
     expect(note.source).toBeUndefined();
   });
 });
@@ -391,7 +402,7 @@ describe('buildCreateNoteActivity — source plaintext', () => {
 describe('buildUpdateNoteActivity — inherits sensitive + source from the Note', () => {
   it('the embedded Update object carries the same sensitive flag and raw source body', () => {
     const activity = followService.buildUpdateNoteActivity(
-      { _id: 'p1', content: body('edited body'), createdAt: ISO, metadata: { isSensitive: true } },
+      { id: 'p1', content: body('edited body'), createdAt: ISO, metadata: { isSensitive: true } },
       'alice',
     );
     const note = activity.object as Record<string, unknown>;

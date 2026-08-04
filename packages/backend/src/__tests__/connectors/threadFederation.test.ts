@@ -16,11 +16,28 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  *    that ends at the refusal, cannot tell the two apart;
  *  - the extra-audience list names the OTHER participants, so a single-voice
  *    thread and a beast batch are asserted to pass an empty one.
+ *
+ * ## What the Postgres port changed here, and what it did not
+ *
+ * An entry is now a {@link PostRecord} — a plain immutable value with `id`, not
+ * a Mongoose document with `_id` — and `federatePublishedPost` answers with the
+ * RE-READ record when it delivered and `null` when it did not, rather than a
+ * boolean beside a document it mutated in place. The batch path still reads that
+ * answer as "did this go out", so `!delivered` is the same test it always was
+ * and every case below keeps its subject. The stub therefore returns the entry
+ * itself on the delivering path — the honest stand-in for "the row as it now
+ * reads" — and `null` on the refusing one, which is the only shape that can tell
+ * a stop from a skip.
  */
+
+import type { PostRecord } from '../../db/posts/postRecord';
 
 const { isFediverseSharingEnabled, federatePublishedPost } = vi.hoisted(() => ({
   isFediverseSharingEnabled: vi.fn<(oxyUserId: string) => Promise<boolean>>(),
-  federatePublishedPost: vi.fn<() => Promise<boolean>>(),
+  federatePublishedPost: vi.fn<
+    (post: PostRecord, ctx: { oxyUserId: string | null; alsoDeliverToAudiencesOf?: string[] }) =>
+      Promise<PostRecord | null>
+  >(),
 }));
 
 vi.mock('../../services/fediverseSharing', () => ({ isFediverseSharingEnabled }));
@@ -30,24 +47,20 @@ vi.mock('../../services/PostCreationService', () => ({
 }));
 
 import { federatePostBatch, federatePostBatchDetached } from '../../connectors/threadFederation';
-import type { IPost } from '../../models/Post';
 
-/** A minimal created row: the batch path reads only the author off it. */
-function entry(id: string, oxyUserId: string): IPost {
-  return { _id: id, oxyUserId } as unknown as IPost;
+/** A minimal created row: the batch path reads only the id and the author off it. */
+function entry(id: string, oxyUserId: string): PostRecord {
+  return { id, oxyUserId } as unknown as PostRecord;
 }
 
-/** The (post id, author) pairs handed to federation, in call order. */
+/** The post ids handed to federation, in call order. */
 function federatedIds(): string[] {
-  return federatePublishedPost.mock.calls.map((call) => String((call[0] as IPost)._id));
+  return federatePublishedPost.mock.calls.map((call) => call[0].id);
 }
 
 /** The call arguments recorded for the entry with this id. */
-function callFor(postId: string): { oxyUserId?: string; alsoDeliverToAudiencesOf?: string[] } | undefined {
-  const call = federatePublishedPost.mock.calls.find(
-    (c) => String((c[0] as IPost)._id) === postId,
-  );
-  return call?.[1] as { oxyUserId?: string; alsoDeliverToAudiencesOf?: string[] } | undefined;
+function callFor(postId: string): { oxyUserId?: string | null; alsoDeliverToAudiencesOf?: string[] } | undefined {
+  return federatePublishedPost.mock.calls.find((call) => call[0].id === postId)?.[1];
 }
 
 /** The extra-audience list passed alongside the entry with this id. */
@@ -60,10 +73,23 @@ function sharingOffFor(...accounts: string[]): void {
   isFediverseSharingEnabled.mockImplementation(async (id: string) => !accounts.includes(id));
 }
 
+/**
+ * Delivered ⇒ the record; not delivered ⇒ `null`.
+ *
+ * Returning the entry itself stands in for the re-read row the real service
+ * answers with, and it keeps the discriminator the batch path actually reads: a
+ * non-null answer.
+ */
+function deliversUnless(...undeliverableIds: string[]): void {
+  federatePublishedPost.mockImplementation(async (post) =>
+    undeliverableIds.includes(post.id) ? null : post,
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   sharingOffFor();
-  federatePublishedPost.mockResolvedValue(true);
+  deliversUnless();
 });
 
 describe('federatePostBatch — the happy paths', () => {
@@ -186,9 +212,7 @@ describe('federatePostBatch — an author who does not share ends the chain', ()
 
 describe('federatePostBatch — a link that did not go out', () => {
   it('stops the chain after an entry federation refused to deliver', async () => {
-    federatePublishedPost.mockImplementation(async (...args: unknown[]) => {
-      return String((args[0] as IPost)._id) !== 'p2';
-    });
+    deliversUnless('p2');
 
     await federatePostBatch({
       entries: [entry('p1', 'alice'), entry('p2', 'alice'), entry('p3', 'alice')],
@@ -200,9 +224,7 @@ describe('federatePostBatch — a link that did not go out', () => {
   });
 
   it('keeps going through an undelivered entry in a beast batch', async () => {
-    federatePublishedPost.mockImplementation(async (...args: unknown[]) => {
-      return String((args[0] as IPost)._id) !== 'p2';
-    });
+    deliversUnless('p2');
 
     await federatePostBatch({
       entries: [entry('p1', 'alice'), entry('p2', 'alice'), entry('p3', 'alice')],

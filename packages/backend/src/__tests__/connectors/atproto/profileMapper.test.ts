@@ -1,9 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  readActor,
+  seedActor,
+} from '../../helpers/federationFixtures';
+
+const scope = federationScope('atproto-profile-mapper');
 import { getNormalizedUserHandle } from '@oxyhq/core';
 
 /**
  * atproto profile mapping: `app.bsky.actor.getProfile` → normalized actor →
- * `FederatedActor` upsert (`protocol:'atproto'`) → Oxy identity resolution.
+ * `federated_actors` upsert (`protocol:'atproto'`) → Oxy identity resolution.
  * Verifies the no-orphan fail-soft contract: when Oxy cannot resolve the actor's
  * `did:` (oxy-api dependency), the actor returns WITHOUT an `oxyUserId` and never
  * throws.
@@ -11,19 +21,10 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 
 const mocks = vi.hoisted(() => ({
   xrpcGet: vi.fn(),
-  findOneAndUpdate: vi.fn(),
-  updateOne: vi.fn(),
   resolveFederatedActorIdentity: vi.fn(),
 }));
 
 vi.mock('../../../connectors/atproto/xrpcClient', () => ({ xrpcGet: mocks.xrpcGet }));
-
-vi.mock('../../../models/FederatedActor', () => ({
-  default: {
-    findOneAndUpdate: mocks.findOneAndUpdate,
-    updateOne: mocks.updateOne,
-  },
-}));
 
 vi.mock('../../../connectors/identity', () => ({
   // The atproto path resolves through the shared MERGE, not straight at the
@@ -34,13 +35,21 @@ vi.mock('../../../connectors/identity', () => ({
 }));
 
 import {
+  ACTOR_UPSERT_FAILED_METRIC,
+  atprotoIdentityHandle,
   fetchAndUpsertAtprotoProfile,
   mapProfileToNormalizedActor,
   splitHandle,
   upsertAtprotoActor,
 } from '../../../connectors/atproto/profile.mapper';
+import { metrics } from '../../../utils/metrics';
 
 const DID = 'did:plc:ewvi7nxzyoun6zhxrhs64oiz';
+/**
+ * A second, distinct DID whose handle is ALSO unresolved — the only fixture that
+ * can see the constraint, since the first account of its kind never collides.
+ */
+const DID_TWO = 'did:plc:hcn5qmsrdmaiubq36lgy7ptm';
 
 const PROFILE = {
   did: DID,
@@ -54,10 +63,9 @@ const PROFILE = {
   postsCount: 99,
 };
 
-beforeEach(() => {
+beforeEach(async () => {
+  await clearFederationScope(scope, [DID, DID_TWO]);
   vi.clearAllMocks();
-  mocks.findOneAndUpdate.mockResolvedValue({ _id: 'fa1', oxyUserId: undefined });
-  mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.resolveFederatedActorIdentity.mockResolvedValue('oxy-alice');
 });
 
@@ -172,6 +180,34 @@ describe('mapProfileToNormalizedActor', () => {
     expect(mapProfileToNormalizedActor({ handle: 'a.b' })).toBeNull();
     expect(mapProfileToNormalizedActor({ did: DID })).toBeNull();
   });
+
+  // `handle.invalid` is the AppView's ERROR STRING for a failed handle↔DID
+  // verification, identical for every affected account — so it identifies
+  // nobody, and every key derived from it collides.
+  it('identifies an unresolved-handle actor by its DID, never by the sentinel', () => {
+    const actor = mapProfileToNormalizedActor({ ...PROFILE, handle: 'handle.invalid' });
+    expect(actor).toMatchObject({
+      externalId: DID,
+      handle: DID,
+      // oxy-api's `normalizeFederatedResolveUsername` splits on the FIRST `@`, so
+      // the DID's colons ride in the local part and the binding still resolves to
+      // `bsky.social`.
+      federatedUsername: `${DID}@bsky.social`,
+      instanceDomain: 'bsky.social',
+    });
+    // The sentinel must not survive anywhere on the DTO — a copy left in one
+    // field is a copy some future derivation reads.
+    expect(JSON.stringify(actor)).not.toContain('handle.invalid');
+  });
+
+  it('leaves a real handle alone (the substitution is not a blanket rewrite)', () => {
+    expect(mapProfileToNormalizedActor(PROFILE)?.handle).toBe('alice.bsky.social');
+    expect(atprotoIdentityHandle('alice.bsky.social', DID)).toBe('alice.bsky.social');
+    // Case and surrounding space are the same failed verification, so they are
+    // the same sentinel.
+    expect(atprotoIdentityHandle('Handle.Invalid', DID)).toBe(DID);
+    expect(atprotoIdentityHandle(' handle.invalid ', DID)).toBe(DID);
+  });
 });
 
 describe('splitHandle', () => {
@@ -212,19 +248,14 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     const actor = await fetchAndUpsertAtprotoProfile(DID);
 
     expect(mocks.xrpcGet).toHaveBeenCalledWith('public.api.bsky.app', 'app.bsky.actor.getProfile', { actor: DID });
-    // Upsert keyed on the DID, carrying protocol + uri (the DID) + handle acct.
-    expect(mocks.findOneAndUpdate).toHaveBeenCalledWith(
-      { uri: DID },
-      expect.objectContaining({
-        $set: expect.objectContaining({
-          protocol: 'atproto',
-          uri: DID,
-          acct: 'alice.bsky.social',
-          headerUrl: PROFILE.banner,
-        }),
-      }),
-      expect.objectContaining({ upsert: true }),
-    );
+    // The ROW is keyed on the DID and carries protocol + acct + banner.
+    const stored = await readActor(DID);
+    expect(stored).toMatchObject({
+      protocol: 'atproto',
+      uri: DID,
+      acct: 'alice.bsky.social',
+      headerUrl: PROFILE.banner,
+    });
     // Oxy resolution is handed the canonical federated identity (`handle@domain`
     // username + instance domain) — the exact shape oxy-api's username↔domain
     // binding requires for a `did:` actor. Passing the bare handle here would
@@ -238,12 +269,13 @@ describe('fetchAndUpsertAtprotoProfile', () => {
         bannerUrl: PROFILE.banner,
       }),
     );
-    // Oxy user resolved + stamped (the upsert returned no prior oxyUserId).
-    expect(mocks.updateOne).toHaveBeenCalledWith({ _id: 'fa1' }, { $set: { oxyUserId: 'oxy-alice' } });
+    // Oxy user resolved + stamped ON THE ROW (the upsert carried no prior one).
+    expect((await readActor(DID))?.oxyUserId).toBe('oxy-alice');
     expect(actor?.oxyUserId).toBe('oxy-alice');
   });
 
   it('fails soft (no oxyUserId, no throw, no stamp) when Oxy cannot resolve the did:', async () => {
+    await clearFederationScope(scope, [DID]);
     mocks.xrpcGet.mockResolvedValue(PROFILE);
     mocks.resolveFederatedActorIdentity.mockResolvedValue(null);
 
@@ -251,18 +283,41 @@ describe('fetchAndUpsertAtprotoProfile', () => {
 
     expect(actor).not.toBeNull();
     expect(actor?.oxyUserId).toBeUndefined();
-    expect(mocks.updateOne).not.toHaveBeenCalled();
+    expect((await readActor(DID))?.oxyUserId).toBeUndefined();
   });
 
   it('does not adopt another identity when a reassigned handle collides during upsert', async () => {
-    mocks.findOneAndUpdate.mockRejectedValueOnce(new Error('E11000 duplicate key'));
+    // A REAL `federated_actors_acct_key` violation, not a rejected mock: the
+    // handle `alice.bsky.social` is already bound to a DIFFERENT DID, which is
+    // exactly what a reassigned Bluesky handle looks like. The upsert is keyed
+    // on `uri` (the DID), so it tries to INSERT and the acct constraint refuses.
+    await clearFederationScope(scope, [DID, DID_TWO]);
+    await seedActor(scope, {
+      protocol: 'atproto',
+      uri: DID_TWO,
+      username: 'alice',
+      domain: 'bsky.social',
+      acct: 'alice.bsky.social',
+      oxyUserId: 'oxy-previous-holder',
+    });
 
     const actor = mapProfileToNormalizedActor(PROFILE)!;
     const resolved = await upsertAtprotoActor(actor);
 
+    // Fail closed. Without the early return the caller keeps an actor that has
+    // no row of its own, and identity resolution runs against the handle the
+    // PREVIOUS holder still owns — attributing this DID's posts to them.
     expect(resolved.oxyUserId).toBeUndefined();
     expect(mocks.resolveFederatedActorIdentity).not.toHaveBeenCalled();
-    expect(mocks.updateOne).not.toHaveBeenCalled();
+    // No row was written for the new DID, and the previous holder's row is intact.
+    expect(await readActor(DID)).toBeNull();
+    expect((await readActor(DID_TWO))?.oxyUserId).toBe('oxy-previous-holder');
+    expect(
+      metrics.getCounter(ACTOR_UPSERT_FAILED_METRIC, {
+        protocol: 'atproto',
+        reason: 'federated_actors_acct_key',
+      }),
+    ).toBe(1);
   });
 
   it('returns null when the profile cannot be fetched', async () => {
@@ -270,4 +325,79 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     const actor = await fetchAndUpsertAtprotoProfile('ghost.example');
     expect(actor).toBeNull();
   });
+
+  /**
+   * The SECOND unresolved-handle account is the whole test.
+   *
+   * The first always succeeds — there is nothing for it to collide with — so a
+   * single-account fixture passes with the bug fully present and proves nothing.
+   * `federated_actors_acct_key` and `federated_actors_domain_username_key` only
+   * fire on the second, and this is what they used to do to it: `upsertActor`
+   * raises, `upsertAtprotoActor` catches, `fedActor` stays null, no row is
+   * written, no `oxyUserId` is stamped, and the no-orphan rule then drops every
+   * post that account ever made — at `warn`, from a detached ingest path.
+   *
+   * Production held 21 rows sharing `acct: 'handle.invalid'`, written in one
+   * 38-minute window on 2026-07-17 while Mongo had no unique index to refuse
+   * them. Under the Postgres constraints, 20 of those 21 accounts would simply
+   * not exist.
+   */
+  it('stores a SECOND unresolved-handle account rather than losing it to the acct constraint', async () => {
+    await clearFederationScope(scope, [DID, DID_TWO]);
+    metrics.reset();
+
+    mocks.resolveFederatedActorIdentity.mockImplementation(
+      (actor: { externalId: string }) => Promise.resolve(`oxy-${actor.externalId}`),
+    );
+
+    mocks.xrpcGet.mockResolvedValue({ ...PROFILE, did: DID, handle: 'handle.invalid' });
+    const first = await fetchAndUpsertAtprotoProfile(DID);
+    mocks.xrpcGet.mockResolvedValue({ ...PROFILE, did: DID_TWO, handle: 'handle.invalid' });
+    const second = await fetchAndUpsertAtprotoProfile(DID_TWO);
+
+    // FIRST, and on its own line, the claim this test exists for: the second
+    // account EXISTS. Asserted before anything about its columns, because with
+    // the sentinel restored the row is simply absent and an assertion about its
+    // `acct` would fail one step too early — reporting a wrong value where the
+    // actual defect is a missing account, which is a different and much smaller
+    // bug than the one being guarded.
+    const secondRow = await readActor(DID_TWO);
+    expect(secondRow, 'the second unresolved-handle account was not stored at all').not.toBeNull();
+
+    // Both rows are keyed on their own DID — the identity that is actually
+    // unique — and neither carries the sentinel.
+    expect(await readActor(DID)).toMatchObject({ protocol: 'atproto', acct: DID, username: DID });
+    expect(secondRow).toMatchObject({ protocol: 'atproto', acct: DID_TWO, username: DID_TWO });
+
+    // Both resolve an Oxy user. Half a fix would stop here: Oxy's own unique
+    // username index refuses a second `handle.invalid@bsky.social` just as the
+    // acct constraint does, so the two must reach oxy-api under DISTINCT
+    // federated usernames or the account is still unmintable. In production only
+    // 1 of the 21 ever got an `oxyUserId`, which is that half failing.
+    expect(await readActor(DID)).toMatchObject({ oxyUserId: `oxy-${DID}` });
+    expect(await readActor(DID_TWO)).toMatchObject({ oxyUserId: `oxy-${DID_TWO}` });
+    expect(second?.oxyUserId).toBe(`oxy-${DID_TWO}`);
+    expect(first?.oxyUserId).toBe(`oxy-${DID}`);
+    expect(mocks.resolveFederatedActorIdentity.mock.calls.map(([a]) => a.federatedUsername)).toEqual([
+      `${DID}@bsky.social`,
+      `${DID_TWO}@bsky.social`,
+    ]);
+
+    // And nothing was swallowed on the way. Asserted rather than assumed,
+    // because a row can also go missing without an exception — this separates
+    // "the constraint refused it" from "the write never happened".
+    expect(metrics.getCounter(ACTOR_UPSERT_FAILED_METRIC, { protocol: 'atproto', reason: 'federated_actors_acct_key' })).toBe(0);
+  });
+});
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope, [DID, DID_TWO]);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });

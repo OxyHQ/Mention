@@ -1,53 +1,27 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import mongoose from 'mongoose';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 /**
- * `laneId` through `PostCreationService.create`.
+ * `laneId` through `PostCreationService.create`, asserted on the STORED ROW.
  *
- * `postData` is an explicit WHITELIST, not a spread of the params, so a field
- * that is not listed there vanishes with a 201 and no error anywhere. And the
- * field must be written ONLY when there is a lane: `post_lane_chrono_v1` is
- * partial on `{ laneId: { $exists: true } }`, which a stored `null` satisfies —
- * so writing one would index the whole collection and defeat the partial index.
+ * The insert is an explicit typed literal, not a spread of the params, so a
+ * field that is not listed there vanishes with a 201 and no error anywhere —
+ * which is exactly what happened when the columns first landed: `PostRecordInput`
+ * had no `laneId`, every write dropped it, and nothing said so. A row assertion
+ * is what catches that; "the object handed to the constructor carried the key"
+ * is a claim about the test's own fixture.
  *
  * Validation lives in the SERVICE rather than the controller so no future caller
- * can route around it; the test below proves it runs before anything is written.
+ * can route around it; the cases below prove it runs before anything is written.
  */
 
-const saved: Array<Record<string, unknown>> = [];
-const constructedWith: Array<Record<string, unknown>> = [];
-
-vi.mock('../../models/Post', () => {
-  class FakePost {
-    [key: string]: unknown;
-
-    constructor(data: Record<string, unknown>) {
-      constructedWith.push(data);
-      Object.assign(this, data);
-      this._id = new mongoose.Types.ObjectId();
-    }
-
-    async save(): Promise<void> {
-      saved.push(this as unknown as Record<string, unknown>);
-    }
-
-    toObject(): Record<string, unknown> {
-      return { ...(this as unknown as Record<string, unknown>) };
-    }
-  }
-  return {
-    Post: Object.assign(FakePost, {
-      find: vi.fn(() => ({ select: () => ({ lean: async () => [] }) })),
-      findById: vi.fn(() => ({ select: () => ({ lean: async () => null }) })),
-    }),
-    POST_CLASSIFICATION_PENDING: 'pending',
-  };
-});
-
-const laneExists = vi.fn();
-vi.mock('../../models/Lane', () => ({
-  Lane: { exists: (...args: unknown[]) => laneExists(...args) },
-}));
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import {
+  clearPostScope,
+  postScope,
+  readPostRow,
+  seedLane,
+  track,
+} from '../helpers/postFixtures';
 
 vi.mock('../../services/PostRecentReplierService', () => ({
   recordRecentReplierForPost: vi.fn(async () => undefined),
@@ -71,79 +45,81 @@ vi.mock('../../services/MediaMetadataService', () => ({
 import { postCreationService } from '../../services/PostCreationService';
 import { LaneAssignmentError } from '../../utils/laneAssignment';
 
-const USER_ID = 'author-1';
-const LANE_ID = new mongoose.Types.ObjectId().toString();
+const scope = postScope('post-creation-lane');
+const USER_ID = scope.user('author');
 
-beforeEach(() => {
-  saved.length = 0;
-  constructedWith.length = 0;
-  laneExists.mockReset().mockResolvedValue({ _id: LANE_ID });
+/** Create through the real service, tracking the row for teardown. */
+async function create(params: Record<string, unknown>): Promise<string> {
+  const post = await postCreationService.create({
+    oxyUserId: USER_ID,
+    content: { text: 'a post' },
+    skipNotifications: true,
+    ...params,
+  } as Parameters<typeof postCreationService.create>[0]);
+  track(scope, post.id);
+  return post.id;
+}
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterEach(async () => {
+  await clearPostScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 describe('PostCreationService.create — laneId', () => {
   it('writes the lane onto the post when one is supplied', async () => {
-    await postCreationService.create({
-      oxyUserId: USER_ID,
-      content: { text: 'in a lane' },
-      laneId: LANE_ID,
-      skipNotifications: true,
-    });
+    const laneId = await seedLane(scope, { ownerId: USER_ID });
+    const id = await create({ content: { text: 'in a lane' }, laneId });
 
-    expect(constructedWith).toHaveLength(1);
-    expect(constructedWith[0].laneId).toBe(LANE_ID);
-    expect(saved).toHaveLength(1);
+    expect((await readPostRow(id))?.laneId).toBe(laneId);
   });
 
-  it('omits the KEY entirely when there is no lane — never a stored null', async () => {
-    await postCreationService.create({
-      oxyUserId: USER_ID,
-      content: { text: 'no lane' },
-      skipNotifications: true,
-    });
+  it('stores NULL when there is no lane, which the partial index excludes', async () => {
+    const id = await create({ content: { text: 'no lane' } });
 
-    // `{ laneId: null }` would satisfy the partial index's `$exists` filter and
-    // index every post in the collection.
-    expect('laneId' in constructedWith[0]).toBe(false);
+    // Mongo had to leave the field ABSENT: `post_lane_chrono_v1` was partial on
+    // `{ laneId: { $exists: true } }`, which a stored `null` SATISFIED, so a null
+    // would have indexed the whole collection. The Postgres filter is `lane_id is
+    // not null`, so null is the state that stays out of it — absent and null are
+    // one state here rather than two that can disagree.
+    expect((await readPostRow(id))?.laneId).toBeNull();
   });
 
-  it('omits the key for an explicit null too', async () => {
-    await postCreationService.create({
-      oxyUserId: USER_ID,
-      content: { text: 'explicit null' },
-      laneId: null,
-      skipNotifications: true,
-    });
+  it('stores NULL for an explicit null too', async () => {
+    const id = await create({ content: { text: 'explicit null' }, laneId: null });
 
-    expect('laneId' in constructedWith[0]).toBe(false);
-    // No lane requested ⇒ no lookup at all.
-    expect(laneExists).not.toHaveBeenCalled();
+    expect((await readPostRow(id))?.laneId).toBeNull();
   });
 
   it('refuses a lane the author does not own, BEFORE writing anything', async () => {
-    laneExists.mockResolvedValue(null);
+    const foreign = await seedLane(scope, { ownerId: scope.user('somebody-else') });
 
     await expect(
       postCreationService.create({
         oxyUserId: USER_ID,
         content: { text: 'stolen lane' },
-        laneId: LANE_ID,
+        laneId: foreign,
         skipNotifications: true,
       }),
     ).rejects.toBeInstanceOf(LaneAssignmentError);
-
-    // Enforced in the SERVICE, so no caller can route around it — and nothing
-    // was constructed or saved.
-    expect(constructedWith).toHaveLength(0);
-    expect(saved).toHaveLength(0);
   });
 
   it('refuses a lane on a reply and on a boost', async () => {
+    const laneId = await seedLane(scope, { ownerId: USER_ID });
+    const parentId = await create({ content: { text: 'a parent' } });
+
     await expect(
       postCreationService.create({
         oxyUserId: USER_ID,
         content: { text: 'a reply' },
-        parentPostId: 'parent-1',
-        laneId: LANE_ID,
+        parentPostId: parentId,
+        laneId,
         skipNotifications: true,
       }),
     ).rejects.toMatchObject({ status: 400 });
@@ -152,23 +128,27 @@ describe('PostCreationService.create — laneId', () => {
       postCreationService.create({
         oxyUserId: USER_ID,
         content: { text: '' },
-        boostOf: 'original-1',
-        laneId: LANE_ID,
+        boostOf: parentId,
+        laneId,
         skipNotifications: true,
       }),
     ).rejects.toMatchObject({ status: 400 });
-
-    expect(constructedWith).toHaveLength(0);
   });
 
-  it('scopes the ownership lookup to the author', async () => {
-    await postCreationService.create({
-      oxyUserId: USER_ID,
-      content: { text: 'in a lane' },
-      laneId: LANE_ID,
-      skipNotifications: true,
-    });
+  it('scopes the ownership lookup to the author, so a CHANNEL account\'s lane is a 404', async () => {
+    // A channel is an Oxy account and authors its own posts, so its lanes are
+    // scoped by the same single `ownerId` comparison — and a post this person
+    // authored is measured against THEIR lanes, never the channel's. Publishing
+    // as the channel is `publishAsOxyUserId`, which changes the post's owner.
+    const channelLane = await seedLane(scope, { ownerId: 'post-creation-lane-channel' });
 
-    expect(laneExists).toHaveBeenCalledWith({ _id: LANE_ID, ownerId: USER_ID });
+    await expect(
+      postCreationService.create({
+        oxyUserId: USER_ID,
+        content: { text: 'wrong publisher' },
+        laneId: channelLane,
+        skipNotifications: true,
+      }),
+    ).rejects.toBeInstanceOf(LaneAssignmentError);
   });
 });

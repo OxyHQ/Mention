@@ -32,7 +32,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   isBlockedDomain: vi.fn((_host: string) => false),
   resolveOxyUser: vi.fn(),
-  findExistingActor: vi.fn(),
+  findActorByUri: vi.fn(),
+  findActorByAcct: vi.fn(),
   resolveUserSummaries: vi.fn(),
 }));
 
@@ -44,8 +45,11 @@ vi.mock('../../connectors/activitypub/constants', async (importOriginal) => ({
   isBlockedDomain: mocks.isBlockedDomain,
   resolveOxyUser: mocks.resolveOxyUser,
 }));
-vi.mock('../../models/FederatedActor', () => ({
-  default: { findOne: mocks.findExistingActor },
+// The stored-actor REPOSITORY, which is what `services/profileLinkMentions`
+// consults — two point lookups (uri first, acct second), never one disjunction.
+vi.mock('../../db/federation/actorRepository', () => ({
+  findActorByUri: mocks.findActorByUri,
+  findActorByAcct: mocks.findActorByAcct,
 }));
 // Only the Oxy round trip is stubbed. `isFallbackUserSummary` stays REAL: it is
 // the predicate that decides whether an id is nameable, and a copy of it here
@@ -78,7 +82,8 @@ beforeEach(() => {
     (host: string) => host.toLowerCase().replace(/^www\./, '') === OWN_HOST,
   );
   mocks.resolveOxyUser.mockResolvedValue(null);
-  mocks.findExistingActor.mockReturnValue({ lean: async () => null });
+  mocks.findActorByUri.mockResolvedValue(null);
+  mocks.findActorByAcct.mockResolvedValue(null);
   mocks.resolveUserSummaries.mockResolvedValue(new Map());
 });
 
@@ -86,9 +91,7 @@ describe('POST /mentions/profile-links', () => {
   it('names the federated account a link to ANOTHER host will mention', async () => {
     // The gap this route exists to close: the composer cannot see this answer,
     // and the write boundary folds the link anyway.
-    mocks.findExistingActor.mockReturnValue({
-      lean: async () => ({ oxyUserId: BOB_OXY_ID }),
-    });
+    mocks.findActorByAcct.mockResolvedValue({ oxyUserId: BOB_OXY_ID });
     mocks.resolveUserSummaries.mockResolvedValue(
       new Map([
         summary(BOB_OXY_ID, {
@@ -128,7 +131,7 @@ describe('POST /mentions/profile-links', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     // The stored-actor model is exposed to this route as a READ and nothing
     // else; a create/update seam appearing here would be the regression.
-    expect(mocks.findExistingActor).toHaveBeenCalled();
+    expect(mocks.findActorByAcct).toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
 
@@ -256,7 +259,8 @@ describe('POST /mentions/profile-links', () => {
 
     expect(response.status).toBe(400);
     expect(mocks.resolveOxyUser).not.toHaveBeenCalled();
-    expect(mocks.findExistingActor).not.toHaveBeenCalled();
+    expect(mocks.findActorByUri).not.toHaveBeenCalled();
+    expect(mocks.findActorByAcct).not.toHaveBeenCalled();
   });
 
   it('refuses a value that is not a URL at all', async () => {
@@ -265,7 +269,8 @@ describe('POST /mentions/profile-links', () => {
       .send({ urls: ['alice'] });
 
     expect(response.status).toBe(400);
-    expect(mocks.findExistingActor).not.toHaveBeenCalled();
+    expect(mocks.findActorByUri).not.toHaveBeenCalled();
+    expect(mocks.findActorByAcct).not.toHaveBeenCalled();
   });
 
   it(`refuses more than ${MAX_PROFILE_LINKS_PER_BODY} URLs — the ceiling a post could cause`, async () => {
@@ -277,7 +282,8 @@ describe('POST /mentions/profile-links', () => {
     const response = await request(app).post('/mentions/profile-links').send({ urls });
 
     expect(response.status).toBe(400);
-    expect(mocks.findExistingActor).not.toHaveBeenCalled();
+    expect(mocks.findActorByUri).not.toHaveBeenCalled();
+    expect(mocks.findActorByAcct).not.toHaveBeenCalled();
   });
 
   it(`answers exactly ${MAX_PROFILE_LINKS_PER_BODY} URLs`, async () => {
@@ -322,7 +328,8 @@ describe('POST /mentions/profile-links', () => {
     ]);
     // Not profile-shaped, so it never reaches the stored-actor table — and the
     // name resolver is asked about nobody.
-    expect(mocks.findExistingActor).not.toHaveBeenCalled();
+    expect(mocks.findActorByUri).not.toHaveBeenCalled();
+    expect(mocks.findActorByAcct).not.toHaveBeenCalled();
     expect(mocks.resolveUserSummaries).toHaveBeenCalledWith([]);
   });
 });

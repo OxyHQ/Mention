@@ -45,6 +45,11 @@ RUN rm -rf packages/frontend packages/mcp packages/e2e
 
 COPY --from=builder /app/packages/shared-types/dist/ packages/shared-types/dist/
 COPY --from=builder /app/packages/backend/dist/ packages/backend/dist/
+# The SQL migrations, next to the compiled migrator that applies them
+# (`dist/src/db/migrate.js`, run as a one-shot ECS task). Without this the
+# migrator finds no journal and refuses to run rather than reporting a clean
+# no-op — see `findMigrationsFolder` in src/db/migrationLedger.ts.
+COPY --from=builder /app/packages/backend/drizzle/ packages/backend/drizzle/
 
 USER appuser
 EXPOSE 3000

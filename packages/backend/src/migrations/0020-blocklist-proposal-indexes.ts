@@ -25,14 +25,22 @@
 import mongoose from 'mongoose';
 import { logger } from '../utils/logger';
 import { MIGRATION_BLOCKLIST_PROPOSAL_INDEXES } from './constants';
-import BlocklistProposal from '../models/BlocklistProposal';
 import type { Migration } from './runner';
+
+/**
+ * Named here rather than read off a Mongoose model, because the review queue now
+ * lives in Postgres (`blocklist_proposals`) and the model is gone. A landed
+ * migration is frozen history: it repairs the indexes of a PRE-CUTOVER Mongo
+ * collection, so it must keep naming what that collection was called at the
+ * time and must not follow a live constant that could be renamed underneath it.
+ */
+const BLOCKLIST_PROPOSAL_COLLECTION = 'blocklistproposals';
 
 export const migrationBlocklistProposalIndexes: Migration = {
   id: MIGRATION_BLOCKLIST_PROPOSAL_INDEXES,
 
   async run(db: mongoose.mongo.Db): Promise<void> {
-    const queue = db.collection(BlocklistProposal.collection.collectionName);
+    const queue = db.collection(BLOCKLIST_PROPOSAL_COLLECTION);
     await queue.createIndex({ domain: 1 }, { unique: true });
     await queue.createIndex({ status: 1, firstProposedAt: 1 });
     logger.info(

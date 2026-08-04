@@ -1,8 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { decisionFixture } from '@oxyhq/crowdsource-testing';
-
 /**
- * A redelivered decision enforces exactly once (Appendix D).
+ * A redelivered decision enforces exactly once (Appendix D) — and a decision
+ * about a real post is CARRIED OUT rather than silently skipped.
  *
  * §10.9 retries a delivery six times over 24 hours, and a retry also happens when
  * the receiver's 2xx was simply lost. So the same decision WILL arrive twice at a
@@ -10,188 +8,245 @@ import { decisionFixture } from '@oxyhq/crowdsource-testing';
  * removed twice — or, worse, a correction restoring it twice and undoing a later
  * legitimate removal — is the unique key on `decisionId + revision + action`.
  *
- * ## Why the fake reads its key from the real schema
+ * ## Why this runs against a real database
  *
- * The mechanism under test lives in a Mongo index, and a test that hard-coded the
- * same key into its own fake would prove only that the test agrees with itself:
- * delete `decisionRevision` from the model and both the model and the fake would
- * change together, silently. So the fake derives its dedupe key FROM
- * `ModerationEnforcement.schema.indexes()`. Weaken the real index and these tests
- * fail, and the last test in this file names which index it was.
+ * The previous version of this file drove an in-memory fake and mocked
+ * `Post.findById` / `Post.updateOne`, so it asserted that the service ISSUED the
+ * right calls and never that a row ended up right. That is precisely the shape
+ * that let `loadPostState`'s `isValidObjectId` guard survive: a mocked
+ * `Post.findById` returns the post regardless of what the id looks like, so the
+ * guard was never on any path a test could reach, and every enforcement against
+ * a non-ObjectId id was a no-op in production that no assertion could see.
+ *
+ * So: real rows, real constraint, real `posts.status`. `decisionId` is unique per
+ * test because the idempotency key is global — two tests sharing one would
+ * deduplicate each other.
  */
 
-import ModerationEnforcement, {
-  type IModerationEnforcement,
-} from '../../../models/ModerationEnforcement';
-import Post from '../../../models/Post';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { and, eq, sql } from 'drizzle-orm';
+import { decisionFixture } from '@oxyhq/crowdsource-testing';
+
+import { closePostgres, connectPostgres, type Database } from '../../../db/postgres';
+import { moderationEnforcements } from '../../../db/schema/moderation';
+import { posts } from '../../../db/schema/posts';
+import { uuidv7 } from '../../../db/schema/columns';
 import { applyDecisionEnforcement } from '../../../services/moderation/ModerationEnforcementService';
 import { planEnforcement } from '../../../services/moderation/enforcementPlan';
 
-type Doc = Record<string, unknown>;
+let db: Database;
+const createdPostIds: string[] = [];
+const usedDecisionIds: string[] = [];
 
 /**
- * The declared unique index on `ModerationEnforcement`, as fields.
+ * A post row, with the id shape under test.
  *
- * Throws rather than falling back to a default: a fake that quietly dedupes on a
- * key the database does not enforce is a test that passes while production removes
- * a post twice.
+ * `id` is passed EXPLICITLY rather than left to the column default so a case can
+ * pin the shape it is about — a pre-cutover 24-char ObjectId hex, or the uuid v7
+ * every post created after the cutover carries.
  */
-function uniqueIndexFields(): string[] {
-  const indexes = ModerationEnforcement.schema.indexes();
-  const unique = indexes.filter(([, options]) => options?.unique === true);
-  if (unique.length !== 1) {
-    throw new Error(
-      `Expected exactly one unique index on ModerationEnforcement, found ${unique.length}. ` +
-        'Enforcement idempotency depends on it; this test cannot stand in for an index that is not declared.',
-    );
-  }
-  return Object.keys(unique[0][0]);
+async function createPost(
+  id: string,
+  overrides: { status?: 'draft' | 'published' | 'restricted'; metadataIsSensitive?: boolean } = {},
+): Promise<string> {
+  await db.insert(posts).values({
+    id,
+    oxyUserId: 'oxy-enforcement-author',
+    status: overrides.status ?? 'published',
+    metadataIsSensitive: overrides.metadataIsSensitive ?? false,
+  });
+  createdPostIds.push(id);
+  return id;
 }
 
-/** An in-memory collection that enforces the schema's own unique index. */
-class FakeEnforcementCollection {
-  readonly rows: Doc[] = [];
-  private readonly keyFields = uniqueIndexFields();
-  private nextId = 1;
+/** A 24-char ObjectId hex, the shape every pre-cutover post id has. */
+function objectIdHex(): string {
+  return randomUUID().replace(/-/g, '').slice(0, 24);
+}
 
-  private keyOf(doc: Doc): string {
-    return this.keyFields.map((field) => String(doc[field])).join('|');
-  }
+async function readPost(id: string) {
+  const [row] = await db
+    .select({ status: posts.status, metadataIsSensitive: posts.metadataIsSensitive })
+    .from(posts)
+    .where(eq(posts.id, id))
+    .limit(1);
+  return row;
+}
 
-  create(doc: Doc): Doc {
-    const key = this.keyOf(doc);
-    if (this.rows.some((row) => this.keyOf(row) === key)) {
-      // The shape Mongo throws for a unique-index violation.
-      const error = new Error(`E11000 duplicate key error: ${key}`);
-      Object.assign(error, { code: 11000 });
-      throw error;
+/** Enforcement rows for one decision, oldest first. */
+async function enforcementRows(decisionId: string) {
+  return await db
+    .select()
+    .from(moderationEnforcements)
+    .where(eq(moderationEnforcements.decisionId, decisionId))
+    .orderBy(moderationEnforcements.createdAt, moderationEnforcements.id);
+}
+
+/** A decision fixture whose id is unique to this test run. */
+function uniqueDecision(options: Parameters<typeof decisionFixture>[0]) {
+  const decision = { ...decisionFixture(options), id: `dec_${randomUUID()}` };
+  usedDecisionIds.push(decision.id);
+  return decision;
+}
+
+beforeAll(async () => {
+  db = await connectPostgres();
+});
+
+afterEach(async () => {
+  vi.restoreAllMocks();
+  while (usedDecisionIds.length > 0) {
+    const decisionId = usedDecisionIds.pop();
+    if (decisionId) {
+      await db
+        .delete(moderationEnforcements)
+        .where(eq(moderationEnforcements.decisionId, decisionId));
     }
-    const row: Doc = { ...doc, _id: `enf_${this.nextId++}`, createdAt: new Date() };
-    this.rows.push(row);
-    return row;
   }
-
-  findOne(filter: Doc): Doc | null {
-    const matched = this.rows.filter((row) =>
-      Object.entries(filter).every(([field, value]) => row[field] === value),
-    );
-    // Newest first, matching the `.sort({ createdAt: -1 })` the service asks for.
-    return matched.length > 0 ? matched[matched.length - 1] : null;
+  while (createdPostIds.length > 0) {
+    const id = createdPostIds.pop();
+    if (id) await db.delete(posts).where(eq(posts.id, id));
   }
+});
 
-  updateOne(filter: Doc, update: Doc): void {
-    const row = this.rows.find((candidate) => candidate._id === filter._id);
-    if (!row) return;
-    Object.assign(row, (update.$set as Doc | undefined) ?? {});
-  }
+afterAll(async () => {
+  await closePostgres();
+});
 
-  deleteOne(filter: Doc): void {
-    const index = this.rows.findIndex((row) => row._id === filter._id);
-    if (index >= 0) this.rows.splice(index, 1);
-  }
-}
+describe('enforcement — a decision about a real post is actually carried out', () => {
+  /**
+   * THE regression test for the fail-open guard.
+   *
+   * `loadPostState` used to answer `null` for any id that was not 24-char hex,
+   * and the caller reads `null` as "the reported post no longer exists". Every
+   * post created after the cutover carries a uuid v7, so reinstating that guard
+   * turns EVERY CrowdSource enforcement into a silent no-op — recorded, with a
+   * plausible reason, while the post stays up.
+   *
+   * Both assertions below go red under the guard: the outcome degrades from
+   * `applied` to `recorded`, and the post keeps `status: 'published'`.
+   */
+  it('restricts a post whose id is a uuid v7, rather than reporting it does not exist', async () => {
+    const postId = await createPost(uuidv7());
+    const decision = uniqueDecision({ outcome: 'violation' });
 
-const POST_ID = '507f1f77bcf86cd799439022';
-const SUBJECT = { type: 'post', id: POST_ID };
+    const outcomes = await applyDecisionEnforcement({
+      decision,
+      caseId: decision.caseId,
+      subject: { type: 'post', id: postId },
+      mode: 'automatic',
+    });
 
-let enforcements: FakeEnforcementCollection;
-/** The post, as the enforcement effect mutates it. */
-let post: Doc;
+    expect(outcomes).toEqual([{ action: 'restrict', result: 'applied' }]);
+    expect((await readPost(postId))?.status).toBe('restricted');
 
-function wireModels(): void {
-  vi.spyOn(ModerationEnforcement, 'create').mockImplementation((async (doc: Doc) =>
-    enforcements.create(doc)) as never);
+    const [row] = await enforcementRows(decision.id);
+    expect(row.applied).toBe(true);
+    expect(row.skippedReason).toBeNull();
+  });
 
-  vi.spyOn(ModerationEnforcement, 'findOne').mockImplementation(((filter: Doc) => {
-    const query = {
-      sort: () => query,
-      lean: async () => enforcements.findOne(filter),
+  it('restricts a post whose id is a pre-cutover ObjectId hex', async () => {
+    const postId = await createPost(objectIdHex());
+    const decision = uniqueDecision({ outcome: 'violation' });
+
+    const outcomes = await applyDecisionEnforcement({
+      decision,
+      caseId: decision.caseId,
+      subject: { type: 'post', id: postId },
+      mode: 'automatic',
+    });
+
+    expect(outcomes).toEqual([{ action: 'restrict', result: 'applied' }]);
+    expect((await readPost(postId))?.status).toBe('restricted');
+  });
+
+  it('still reports a genuinely absent post as absent', async () => {
+    /**
+     * The counterpart that keeps the test above from passing vacuously: removing
+     * the guard must not make "no such post" unreachable. A malformed id lands
+     * here too — it matches no row, which is the same true answer.
+     */
+    const decision = uniqueDecision({ outcome: 'violation' });
+
+    const outcomes = await applyDecisionEnforcement({
+      decision,
+      caseId: decision.caseId,
+      subject: { type: 'post', id: 'not-an-id-of-any-shape' },
+      mode: 'automatic',
+    });
+
+    expect(outcomes).toEqual([{ action: 'restrict', result: 'recorded' }]);
+    const [row] = await enforcementRows(decision.id);
+    expect(row.applied).toBe(false);
+    expect(row.skippedReason).toBe('The reported post no longer exists');
+  });
+
+  it('applies a content warning to a uuid-v7 post', async () => {
+    const postId = await createPost(uuidv7());
+    const decision = {
+      ...uniqueDecision({ outcome: 'violation' }),
+      recommendedActions: [{ action: 'allow_with_label' as const }],
     };
-    return query as never;
-  }) as never);
 
-  vi.spyOn(ModerationEnforcement, 'updateOne').mockImplementation((async (
-    filter: Doc,
-    update: Doc,
-  ) => {
-    enforcements.updateOne(filter, update);
-    return { matchedCount: 1, modifiedCount: 1 };
-  }) as never);
+    const outcomes = await applyDecisionEnforcement({
+      decision,
+      caseId: decision.caseId,
+      subject: { type: 'post', id: postId },
+      mode: 'automatic',
+    });
 
-  vi.spyOn(ModerationEnforcement, 'deleteOne').mockImplementation((async (filter: Doc) => {
-    enforcements.deleteOne(filter);
-    return { deletedCount: 1 };
-  }) as never);
-
-  vi.spyOn(Post, 'findById').mockImplementation((() => {
-    const query = {
-      select: () => query,
-      lean: async () => ({ ...post }),
-    };
-    return query as never;
-  }) as never);
-
-  vi.spyOn(Post, 'updateOne').mockImplementation((async (_filter: Doc, update: Doc) => {
-    const set = (update.$set as Record<string, unknown> | undefined) ?? {};
-    for (const [path, value] of Object.entries(set)) {
-      if (path === 'metadata.isSensitive') {
-        post.metadata = { ...(post.metadata as Doc | undefined), isSensitive: value };
-      } else {
-        post[path] = value;
-      }
-    }
-    return { matchedCount: 1, modifiedCount: 1 };
-  }) as never);
-}
+    expect(outcomes).toEqual([{ action: 'label_sensitive', result: 'applied' }]);
+    expect((await readPost(postId))?.metadataIsSensitive).toBe(true);
+  });
+});
 
 describe('enforcement — idempotent on decisionId + revision + action', () => {
-  beforeEach(() => {
-    enforcements = new FakeEnforcementCollection();
-    post = { _id: POST_ID, status: 'published', metadata: { isSensitive: false } };
-    wireModels();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it('removes a post once, however many times the decision is delivered', async () => {
-    const decision = decisionFixture({ outcome: 'violation' });
+    const postId = await createPost(uuidv7());
+    const decision = uniqueDecision({ outcome: 'violation' });
+    const subject = { type: 'post', id: postId };
 
     const first = await applyDecisionEnforcement({
       decision,
       caseId: decision.caseId,
-      subject: SUBJECT,
+      subject,
       mode: 'automatic',
     });
     expect(first).toEqual([{ action: 'restrict', result: 'applied' }]);
-    expect(post.status).toBe('restricted');
+    expect((await readPost(postId))?.status).toBe('restricted');
 
     // The redelivery §10.9 guarantees will happen.
     const second = await applyDecisionEnforcement({
       decision,
       caseId: decision.caseId,
-      subject: SUBJECT,
+      subject,
       mode: 'automatic',
     });
     expect(second).toEqual([{ action: 'restrict', result: 'duplicate' }]);
 
-    // One row, one effect. `applied` is still true from the first delivery, and the
-    // post was not touched again.
-    expect(enforcements.rows).toHaveLength(1);
-    expect(enforcements.rows[0].applied).toBe(true);
-    expect(Post.updateOne).toHaveBeenCalledTimes(1);
+    // One row, one effect: `previousStatePostStatus` still records the status the
+    // FIRST delivery replaced, so a redelivery cannot rewrite it to 'restricted'
+    // and make a later restore a no-op.
+    const rows = await enforcementRows(decision.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].applied).toBe(true);
+    expect(rows[0].previousStatePostStatus).toBe('published');
   });
 
-  it('lets a correction restore the post, and only once', async () => {
-    const removal = decisionFixture({ outcome: 'violation', revision: 1 });
+  it('lets a correction restore the post to the status it had, and only once', async () => {
+    // A DRAFT, so "restore" cannot pass by accidentally hardcoding 'published'.
+    const postId = await createPost(uuidv7(), { status: 'draft' });
+    const subject = { type: 'post', id: postId };
+
+    const removal = uniqueDecision({ outcome: 'violation', revision: 1 });
     await applyDecisionEnforcement({
       decision: removal,
       caseId: removal.caseId,
-      subject: SUBJECT,
+      subject,
       mode: 'automatic',
     });
-    expect(post.status).toBe('restricted');
+    expect((await readPost(postId))?.status).toBe('restricted');
 
     /**
      * §9.9: a decision is never edited, only superseded. Revision 2 is a DIFFERENT
@@ -199,91 +254,135 @@ describe('enforcement — idempotent on decisionId + revision + action', () => {
      * key of `decisionId + action` alone would refuse this restore as a duplicate of
      * the removal and leave the post down forever.
      */
-    const correction = decisionFixture({
-      outcome: 'no_violation',
-      revision: 2,
-      status: 'corrected',
-      supersedesDecisionId: removal.id,
-    });
+    const correction = {
+      ...decisionFixture({
+        outcome: 'no_violation',
+        revision: 2,
+        status: 'corrected',
+        supersedesDecisionId: removal.id,
+      }),
+      id: removal.id,
+    };
 
     const restored = await applyDecisionEnforcement({
       decision: correction,
       caseId: correction.caseId,
-      subject: SUBJECT,
+      subject,
       mode: 'automatic',
     });
     expect(restored).toEqual([{ action: 'restore', result: 'applied' }]);
     // Restored to the status it HAD, read off the row that restricted it.
-    expect(post.status).toBe('published');
+    expect((await readPost(postId))?.status).toBe('draft');
 
     const redelivered = await applyDecisionEnforcement({
       decision: correction,
       caseId: correction.caseId,
-      subject: SUBJECT,
+      subject,
       mode: 'automatic',
     });
     expect(redelivered).toEqual([{ action: 'restore', result: 'duplicate' }]);
 
     // Two actions total: one restriction, one restore. Not three.
-    expect(enforcements.rows).toHaveLength(2);
-    expect(enforcements.rows.map((row) => row.action)).toEqual(['restrict', 'restore']);
-    expect(Post.updateOne).toHaveBeenCalledTimes(2);
+    const rows = await enforcementRows(removal.id);
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.action).sort()).toEqual(['restore', 'restrict']);
   });
 
   it('releases the claim when the effect fails, so a retry can still apply it', async () => {
-    const decision = decisionFixture({ outcome: 'violation' });
-    vi.mocked(Post.updateOne).mockRejectedValueOnce(new Error('write concern not met'));
+    const postId = await createPost(uuidv7());
+    const decision = uniqueDecision({ outcome: 'violation' });
+    const subject = { type: 'post', id: postId };
+
+    // Fail the UPDATE that carries the effect, leaving the claim already written.
+    const update = vi
+      .spyOn(db, 'update')
+      .mockImplementationOnce(() => {
+        throw new Error('write concern not met');
+      });
 
     await expect(
       applyDecisionEnforcement({
         decision,
         caseId: decision.caseId,
-        subject: SUBJECT,
+        subject,
         mode: 'automatic',
       }),
     ).rejects.toThrow('write concern not met');
+    update.mockRestore();
 
     /**
      * Nothing is left claimed. Keeping the row would dedupe the action away forever
      * and the decision would silently never be carried out — the worst outcome
      * available, because it looks exactly like success.
      */
-    expect(enforcements.rows).toHaveLength(0);
+    expect(await enforcementRows(decision.id)).toHaveLength(0);
+    expect((await readPost(postId))?.status).toBe('published');
 
     const retry = await applyDecisionEnforcement({
       decision,
       caseId: decision.caseId,
-      subject: SUBJECT,
+      subject,
       mode: 'automatic',
     });
     expect(retry).toEqual([{ action: 'restrict', result: 'applied' }]);
-    expect(post.status).toBe('restricted');
+    expect((await readPost(postId))?.status).toBe('restricted');
   });
 
   it('records the plan and removes nothing in observe mode', async () => {
-    const decision = decisionFixture({ outcome: 'violation' });
+    const postId = await createPost(uuidv7());
+    const decision = uniqueDecision({ outcome: 'violation' });
 
     const outcomes = await applyDecisionEnforcement({
       decision,
       caseId: decision.caseId,
-      subject: SUBJECT,
+      subject: { type: 'post', id: postId },
       mode: 'observe',
     });
 
     // §15.6's definition of done: state is updated, content is not deleted.
     expect(outcomes).toEqual([{ action: 'restrict', result: 'recorded' }]);
-    expect(post.status).toBe('published');
-    expect(Post.updateOne).not.toHaveBeenCalled();
+    expect((await readPost(postId))?.status).toBe('published');
 
     // The plan is auditable rather than merely absent: the row says what would have
     // happened and why it did not.
-    expect(enforcements.rows).toHaveLength(1);
-    expect(enforcements.rows[0]).toMatchObject({
+    const rows = await enforcementRows(decision.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
       action: 'restrict',
       mode: 'observe',
       applied: false,
       skippedReason: 'observe mode: recorded, not applied',
     });
+  });
+
+  it('never treats an observe-mode record as something to reverse', async () => {
+    /**
+     * `observe` writes a `restrict` row with `applied: false`. If the restore
+     * lookup dropped that clause it would find this row, read its empty
+     * `previousStatePostStatus`, and publish a post nothing ever restricted.
+     */
+    const postId = await createPost(uuidv7(), { status: 'restricted' });
+    const subject = { type: 'post', id: postId };
+
+    const observed = uniqueDecision({ outcome: 'violation', revision: 1 });
+    await applyDecisionEnforcement({
+      decision: observed,
+      caseId: observed.caseId,
+      subject,
+      mode: 'observe',
+    });
+
+    const correction = uniqueDecision({ outcome: 'no_violation', revision: 1 });
+    await applyDecisionEnforcement({
+      decision: correction,
+      caseId: correction.caseId,
+      subject,
+      mode: 'automatic',
+    });
+
+    // Nothing applied the restriction, so there is no recorded status to return
+    // to and the documented default stands.
+    expect((await readPost(postId))?.status).toBe('published');
   });
 
   it('records a recommendation it will not execute instead of dropping it', async () => {
@@ -293,21 +392,22 @@ describe('enforcement — idempotent on decisionId + revision + action', () => {
      * becomes a note for a human — and it must still reach the record, or a
      * recommendation Mention declined looks like one it never received.
      */
+    const postId = await createPost(uuidv7());
     const decision = {
-      ...decisionFixture({ outcome: 'violation' }),
+      ...uniqueDecision({ outcome: 'violation' }),
       recommendedActions: [{ action: 'suspend_user' as const }],
     };
 
     const outcomes = await applyDecisionEnforcement({
       decision,
       caseId: decision.caseId,
-      subject: SUBJECT,
+      subject: { type: 'post', id: postId },
       mode: 'automatic',
     });
 
     expect(outcomes).toEqual([{ action: 'manual_review', result: 'recorded' }]);
-    expect(post.status).toBe('published');
-    expect(enforcements.rows[0]).toMatchObject({
+    expect((await readPost(postId))?.status).toBe('published');
+    expect((await enforcementRows(decision.id))[0]).toMatchObject({
       action: 'manual_review',
       recommendedAction: 'suspend_user',
       applied: false,
@@ -315,7 +415,7 @@ describe('enforcement — idempotent on decisionId + revision + action', () => {
   });
 
   it('will not remove content for a reported account', async () => {
-    const decision = decisionFixture({ outcome: 'violation' });
+    const decision = uniqueDecision({ outcome: 'violation' });
 
     const outcomes = await applyDecisionEnforcement({
       decision,
@@ -325,29 +425,77 @@ describe('enforcement — idempotent on decisionId + revision + action', () => {
     });
 
     expect(outcomes).toEqual([{ action: 'restrict', result: 'recorded' }]);
-    expect(Post.updateOne).not.toHaveBeenCalled();
-    expect(enforcements.rows[0].skippedReason).toContain('reported user');
+    expect((await enforcementRows(decision.id))[0].skippedReason).toContain('reported user');
   });
 });
 
-describe('enforcement — the index the idempotency rests on', () => {
-  it('declares Appendix D as a unique compound index', () => {
+describe('enforcement — the constraint the idempotency rests on', () => {
+  it('declares Appendix D as a unique constraint, in the live database', async () => {
     /**
-     * The assertion that makes the fake above trustworthy. Weaken this index —
-     * remove `decisionRevision`, drop `unique` — and either this test fails by name
-     * or `uniqueIndexFields()` throws and every test in this file fails with the
-     * reason. Nothing else in the codebase would notice: the damage would appear in
-     * production as a post removed twice, or a correction that could not restore.
+     * Read from `pg_constraint` rather than from the drizzle table object: the
+     * mechanism under test is what the DATABASE enforces, and a schema file that
+     * declares a constraint the migration never created would pass an assertion
+     * made against the schema object while production removed a post twice.
+     *
+     * Drop `decision_revision` from this key and the correction test above fails
+     * by name; drop the constraint entirely and the redelivery tests do.
      */
-    const indexes = ModerationEnforcement.schema.indexes();
-    const unique = indexes.filter(([, options]) => options?.unique === true);
+    const rows = await db.execute<{ constraint_name: string; columns: string }>(sql`
+      select
+        con.conname as constraint_name,
+        string_agg(att.attname, ',' order by key.ordinality) as columns
+      from pg_constraint con
+      join lateral unnest(con.conkey) with ordinality as key(attnum, ordinality) on true
+      join pg_attribute att
+        on att.attrelid = con.conrelid and att.attnum = key.attnum
+      where con.conrelid = 'moderation_enforcements'::regclass
+        and con.contype = 'u'
+      group by con.conname
+    `);
 
-    expect(unique).toHaveLength(1);
-    expect(Object.keys(unique[0][0])).toEqual([
-      'decisionId',
-      'decisionRevision',
-      'action',
+    expect([...rows]).toEqual([
+      {
+        constraint_name: 'moderation_enforcements_idempotency_key',
+        columns: 'decision_id,decision_revision,action',
+      },
     ]);
+  });
+
+  it('refuses a second row for the same decision, revision and action', async () => {
+    /**
+     * The constraint asserted directly, so the tests above cannot be the only
+     * thing standing between a weakened key and a post removed twice.
+     */
+    const decisionId = `dec_${randomUUID()}`;
+    usedDecisionIds.push(decisionId);
+    const row = {
+      decisionId,
+      decisionRevision: 1,
+      action: 'restrict' as const,
+      caseId: 'case_dup',
+      subjectType: 'post',
+      subjectId: uuidv7(),
+      outcome: 'violation',
+      reason: 'duplicate probe',
+      mode: 'automatic' as const,
+    };
+
+    await db.insert(moderationEnforcements).values(row);
+    await expect(db.insert(moderationEnforcements).values(row)).rejects.toThrow();
+
+    // A different revision is a DIFFERENT action and must still be accepted, or a
+    // correction could never restore what a removal took down.
+    await db.insert(moderationEnforcements).values({ ...row, decisionRevision: 2 });
+    const stored = await db
+      .select({ revision: moderationEnforcements.decisionRevision })
+      .from(moderationEnforcements)
+      .where(
+        and(
+          eq(moderationEnforcements.decisionId, decisionId),
+          eq(moderationEnforcements.action, 'restrict'),
+        ),
+      );
+    expect(stored.map((entry) => entry.revision).sort()).toEqual([1, 2]);
   });
 });
 

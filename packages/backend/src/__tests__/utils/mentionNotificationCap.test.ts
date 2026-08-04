@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Mention notification fan-out cap.
@@ -15,9 +15,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const mocks = vi.hoisted(() => ({
-  notificationFindOne: vi.fn(),
-  notificationFindByIdAndUpdate: vi.fn(),
-  notificationSave: vi.fn(),
   loggerWarn: vi.fn(),
   loggerError: vi.fn(),
   loggerDebug: vi.fn(),
@@ -25,23 +22,12 @@ const mocks = vi.hoisted(() => ({
   sendPushToUser: vi.fn(),
 }));
 
-vi.mock('../../models/Notification', () => {
-  class FakeNotification {
-    constructor(public readonly data: Record<string, unknown>) {}
-    async save(): Promise<void> {
-      mocks.notificationSave(this.data);
-    }
-    toObject(): Record<string, unknown> {
-      return { ...this.data };
-    }
-  }
-  return {
-    default: Object.assign(FakeNotification, {
-      findOne: mocks.notificationFindOne,
-      findByIdAndUpdate: mocks.notificationFindByIdAndUpdate,
-    }),
-  };
-});
+/**
+ * `notifications` is REAL. The cap's whole subject is WHO ends up with a row, so
+ * the observable has to be the rows: a `save` spy could only ever report how many
+ * documents the writer built, and `createNotification` dedupes on a unique index
+ * that a double does not have.
+ */
 vi.mock('../../utils/logger', () => ({
   logger: {
     info: vi.fn(),
@@ -60,26 +46,58 @@ vi.mock('../../utils/push', () => ({
   sendPushToUser: mocks.sendPushToUser,
 }));
 
+import { asc, eq } from 'drizzle-orm';
 import {
   MAX_MENTION_NOTIFICATIONS_PER_POST as CAP,
   isMentionBroadcast,
 } from '@mention/shared-types/mentions';
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { notifications } from '../../db/schema/discovery';
 import { createMentionNotifications } from '../../utils/notificationUtils';
 
-const AUTHOR = 'oxy_author';
-const POST_ID = 'post_1';
+/**
+ * Namespaced: vitest runs files in parallel against one database, and the rows
+ * are found by `entity_id`, so a bare `post_1` would be a claim about every
+ * other file in the run.
+ */
+const RUN = 'mention-cap';
+const AUTHOR = `${RUN}_author`;
+const POST_ID = `${RUN}_post`;
 
 /** `count` distinct mentioned user ids, none of them the author. */
 const mentionIds = (count: number): string[] =>
-  Array.from({ length: count }, (_, i) => `oxy_mentioned_${i}`);
+  Array.from({ length: count }, (_, i) => `${RUN}_mentioned_${i}`);
 
-/** The recipient ids `createNotification` actually persisted. */
-const notifiedRecipients = (): string[] =>
-  mocks.notificationSave.mock.calls.map((call) => String(call[0].recipientId));
+/**
+ * The recipient ids that actually have a row, in insertion order.
+ *
+ * Ordered by `id` rather than by `created_at`: every row of one fan-out is
+ * written inside the same statement burst, and `now()` is
+ * `transaction_timestamp()`, so `created_at` is a tie. The ids are uuid v7,
+ * which is monotonic — and every row here is post-cutover, so ordering by id is
+ * meaningful in exactly this narrow case.
+ */
+const notifiedRecipients = async (): Promise<string[]> => {
+  const rows = await getDb()
+    .select({ recipientId: notifications.recipientId })
+    .from(notifications)
+    .where(eq(notifications.entityId, POST_ID))
+    .orderBy(asc(notifications.id));
+  return rows.map((row) => row.recipientId);
+};
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await getDb().delete(notifications).where(eq(notifications.entityId, POST_ID));
+  await closePostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
-  mocks.notificationFindOne.mockResolvedValue(null);
+  await getDb().delete(notifications).where(eq(notifications.entityId, POST_ID));
   mocks.formatPushForNotification.mockResolvedValue({ title: 't', body: 'b' });
   mocks.sendPushToUser.mockResolvedValue(undefined);
 });
@@ -107,8 +125,7 @@ describe('createMentionNotifications — fan-out cap boundary', () => {
   it(`notifies every mentioned user AT the cap (${CAP})`, async () => {
     await createMentionNotifications(mentionIds(CAP), POST_ID, AUTHOR, 'post');
 
-    expect(notifiedRecipients()).toHaveLength(CAP);
-    expect(notifiedRecipients()).toEqual(mentionIds(CAP));
+    expect(await notifiedRecipients()).toEqual(mentionIds(CAP));
     expect(mocks.loggerWarn).not.toHaveBeenCalled();
   });
 
@@ -119,7 +136,7 @@ describe('createMentionNotifications — fan-out cap boundary', () => {
     // would be attacker-orderable, and in a reply-all pile-up the early names are
     // inherited by every reply — so "first N" would deliver the whole flood to
     // exactly the people the cap exists to protect.
-    expect(mocks.notificationSave).not.toHaveBeenCalled();
+    expect(await notifiedRecipients()).toEqual([]);
     expect(mocks.sendPushToUser).not.toHaveBeenCalled();
   });
 
@@ -127,7 +144,7 @@ describe('createMentionNotifications — fan-out cap boundary', () => {
     // The observed mean of the thread that motivated the cap.
     await createMentionNotifications(mentionIds(29), POST_ID, AUTHOR, 'post');
 
-    expect(mocks.notificationSave).not.toHaveBeenCalled();
+    expect(await notifiedRecipients()).toEqual([]);
   });
 
   it('counts DISTINCT users, so duplicates cannot push an honest post over', async () => {
@@ -135,7 +152,7 @@ describe('createMentionNotifications — fan-out cap boundary', () => {
 
     await createMentionNotifications(duplicated, POST_ID, AUTHOR, 'post');
 
-    expect(notifiedRecipients()).toEqual(mentionIds(CAP));
+    expect(await notifiedRecipients()).toEqual(mentionIds(CAP));
   });
 });
 
@@ -153,13 +170,13 @@ describe('createMentionNotifications — suppression is observable', () => {
     // 2 distinct users repeated to a raw length well over the cap: the post is not
     // a broadcast, so nothing is suppressed and nothing is logged.
     await createMentionNotifications(
-      Array.from({ length: 40 }, (_, i) => `oxy_mentioned_${i % 2}`),
+      Array.from({ length: 40 }, (_, i) => `${RUN}_mentioned_${i % 2}`),
       POST_ID,
       AUTHOR,
       'post',
     );
 
     expect(mocks.loggerWarn).not.toHaveBeenCalled();
-    expect(notifiedRecipients()).toEqual(['oxy_mentioned_0', 'oxy_mentioned_1']);
+    expect(await notifiedRecipients()).toEqual([`${RUN}_mentioned_0`, `${RUN}_mentioned_1`]);
   });
 });

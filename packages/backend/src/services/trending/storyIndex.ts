@@ -19,7 +19,9 @@
  * existed. Diversity is a nicety; it must never be able to cost a feed.
  */
 
-import Trending from '../../models/Trending';
+import { desc, isNotNull } from 'drizzle-orm';
+import { getDb } from '../../db/postgres';
+import { trending } from '../../db/schema/discovery';
 import { logger } from '../../utils/logger';
 
 /**
@@ -55,11 +57,11 @@ export function resetStoryIndexCache(): void {
  *
  * A stale or missing index costs one page its story penalty, and diversity is a
  * nicety — it must never be able to cost a feed, which an `await` on this path
- * would let it do. Mongoose buffers commands while a connection is down, so a
- * database in trouble would not fail fast here; it would hold every feed
- * request open until the buffer timeout, turning a ranking refinement into an
- * outage. The first request after a cold start therefore ranks without stories
- * and every one after it has them.
+ * would let it do. A database in trouble does not fail fast: a saturated
+ * `postgres.js` pool QUEUES the query rather than rejecting it, so awaiting here
+ * would hold every feed request open behind it and turn a ranking refinement
+ * into an outage. The first request after a cold start therefore ranks without
+ * stories and every one after it has them.
  */
 export function getStoryIndex(now: number = Date.now()): ReadonlyMap<string, string> {
   if (!cached || cached.expiresAt <= now) void refreshStoryIndex(now);
@@ -82,12 +84,16 @@ export async function refreshStoryIndex(now: number = Date.now()): Promise<void>
     // The most recent batch only. `calculatedAt` descending with a small limit
     // rides the same index the trend list itself is served from, and a batch is
     // at most `maxTrends` rows.
-    const rows = await Trending.find({ terms: { $exists: true } })
-      .select({ name: 1, terms: 1, calculatedAt: 1 })
-      .sort({ calculatedAt: -1 })
-      .limit(100)
-      .maxTimeMS(1000)
-      .lean<{ name: string; terms?: string[]; calculatedAt: Date }[]>();
+    const rows = await getDb()
+      .select({
+        name: trending.name,
+        terms: trending.terms,
+        calculatedAt: trending.calculatedAt,
+      })
+      .from(trending)
+      .where(isNotNull(trending.terms))
+      .orderBy(desc(trending.calculatedAt))
+      .limit(100);
 
     const map = new Map<string, string>();
     const newest = rows[0]?.calculatedAt?.getTime();

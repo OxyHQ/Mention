@@ -1,5 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import mongoose from 'mongoose';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OxyAuthRequest } from '@oxyhq/core/server';
 
 /**
@@ -23,27 +22,22 @@ import type { OxyAuthRequest } from '@oxyhq/core/server';
  * Together they are why "a channel's operators may reply as the channel" is not
  * reachable: an operator would need the parent gate to let them past AND the
  * service parameter to be settable from a body, and neither is true.
+ *
+ * ## What the Postgres port changed
+ *
+ * The parent is a REAL ROW. `assertParentAcceptsReplies` reads the author off
+ * `posts` through drizzle now, and the suite this replaces stubbed
+ * `Post.findById` to hand back a parent — so it proved the gate was CALLED, not
+ * that the lookup finds anything. That distinction stopped being academic here:
+ * the `ObjectId.isValid` guard that used to stand in front of the lookup answered
+ * "not a channel post" for every uuid v7 this instance mints, which lets a reply
+ * THROUGH (see `utils/channelReplyGate`). Only a real row can tell an inert gate
+ * from a working one. The account KIND still comes from a mocked Oxy identity —
+ * that is Oxy's answer, not Mention's, and there is no local row that could hold it.
  */
 
-const findById = vi.hoisted(() => vi.fn());
 const create = vi.hoisted(() => vi.fn());
 const isChannelAccount = vi.hoisted(() => vi.fn());
-
-vi.mock('../../models/Post', () => ({
-  Post: {
-    findById,
-    findOne: vi.fn(),
-    find: vi.fn(() => ({ select: () => ({ lean: async () => [] }) })),
-  },
-  POST_CLASSIFICATION_PENDING: 'pending',
-}));
-
-vi.mock('../../models/Lane', () => ({
-  Lane: {
-    exists: vi.fn(async () => null),
-    findById: vi.fn(() => ({ select: () => ({ lean: async () => null }) })),
-  },
-}));
 
 vi.mock('../../services/PostCreationService', () => ({
   postCreationService: { create },
@@ -63,23 +57,29 @@ vi.mock('../../utils/oxyHelpers', () => ({
 
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
 
-vi.mock('../../utils/logger', () => ({
-  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+// A link preview is a remote fetch and is never allowed to block a create.
+vi.mock('../../utils/linkPreviewWarm', () => ({
+  warmLinkPreviewForText: vi.fn().mockResolvedValue(undefined),
+  warmLinkPreviewForTextDetached: vi.fn(),
 }));
 
 // The REAL channel reply gate, over a mocked account-kind lookup — the point of
 // this suite is that the gate runs on this route, so stubbing it would assert
-// nothing.
+// nothing. Only the Oxy answer is mocked; the row lookup underneath it is real.
 vi.mock('../../services/publishAsAccount', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   isChannelAccount,
 }));
 
+import { PostType, PostVisibility } from '@mention/shared-types';
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { createPost } from '../../controllers/posts.controller';
 
-const OPERATOR = 'human-1';
-const CHANNEL = 'channel-account-1';
-const CHANNEL_POST = new mongoose.Types.ObjectId().toString();
+const scope = serviceScope('posts-controller-channel-reply');
+const OPERATOR = scope.user('operator');
+const CHANNEL = scope.user('channel');
+const CHANNEL_POST = 'pccr-channel-post';
 
 interface MockRes {
   statusCode: number;
@@ -108,16 +108,33 @@ function req(body: Record<string, unknown>): OxyAuthRequest {
   } as unknown as OxyAuthRequest;
 }
 
+beforeAll(async () => {
+  await connectPostgres();
+  await clearServiceScope(scope);
+  // The parent `assertParentAcceptsReplies` looks up: a published post whose
+  // AUTHOR is the channel account. There is no channel marker on the row — the
+  // author IS the channel — so this is the whole fixture.
+  await seedPost(scope, {
+    id: CHANNEL_POST,
+    oxyUserId: CHANNEL,
+    authorship: [{ oxyUserId: CHANNEL, role: 'owner', status: 'accepted' }],
+    type: PostType.TEXT,
+    visibility: PostVisibility.PUBLIC,
+    status: 'published',
+    replyPermission: ['nobody'],
+    content: { variants: [{ source: 'author', text: 'the channel announces', tag: 'en' }] },
+  });
+});
+
+afterAll(async () => {
+  await clearServiceScope(scope);
+  await closePostgres();
+});
+
 beforeEach(() => {
   create.mockReset();
   isChannelAccount.mockReset();
   isChannelAccount.mockImplementation(async (id: string) => id === CHANNEL);
-  findById.mockReset();
-  // The parent lookup `assertParentAcceptsReplies` makes.
-  findById.mockImplementation(() => ({
-    select: () => ({ lean: async () => ({ _id: CHANNEL_POST, oxyUserId: CHANNEL }) }),
-    maxTimeMS: () => ({ lean: async () => ({ _id: CHANNEL_POST, oxyUserId: CHANNEL }) }),
-  }));
 });
 
 describe('POST /posts — a channel post takes no replies', () => {
@@ -167,6 +184,31 @@ describe('POST /posts — a channel post takes no replies', () => {
   });
 
   /**
+   * The gate has to REACH the row, which is a separate failure from not running
+   * at all. Pointed at an id no row carries, the lookup finds nothing, the author
+   * is unknown, and the reply goes through — so this case is what tells a working
+   * lookup from one that answers "not a channel" for everything. It is the exact
+   * state the deleted `ObjectId.isValid` guard produced for every post created
+   * after the cutover, silently, while the gate still looked present.
+   */
+  it('lets a reply through when the parent id names NO row — the gate is a lookup, not a shape check', async () => {
+    create.mockResolvedValue({
+      id: 'pccr-created',
+      oxyUserId: OPERATOR,
+      content: { text: 'x' },
+    });
+
+    const res = makeRes();
+    await createPost(
+      req({ content: { text: 'x' }, parentPostId: 'pccr-no-such-post' }),
+      res as never,
+    );
+
+    expect(res.statusCode).not.toBe(403);
+    expect(create).toHaveBeenCalled();
+  });
+
+  /**
    * The second lock. Even past the parent gate, a request cannot ASK for the
    * continuation exception — the controller's params are a whitelist and
    * `continuesOwnThread` is not on it. Asserted on a NON-channel parent so the
@@ -175,10 +217,9 @@ describe('POST /posts — a channel post takes no replies', () => {
   it('never forwards continuesOwnThread from a request body', async () => {
     isChannelAccount.mockResolvedValue(false);
     create.mockResolvedValue({
-      _id: new mongoose.Types.ObjectId(),
+      id: 'pccr-created',
       oxyUserId: OPERATOR,
       content: { text: 'x' },
-      toObject: () => ({ content: { text: 'x' } }),
     });
 
     const res = makeRes();

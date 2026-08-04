@@ -11,13 +11,12 @@
  */
 
 import { Response } from 'express';
-import mongoose from 'mongoose';
 import { PRESET_FEEDS, isValidFeedDescriptor, parseFeedDescriptor, validateForYouTuning } from '@mention/shared-types';
 import type { FeedDescriptor, SavedFeed } from '@mention/shared-types';
 import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import UserFeedPreference from '../../models/UserFeedPreference';
-import UserSettings from '../../models/UserSettings';
-import CustomFeed from '../../models/CustomFeed';
+import { loadFeedLayout, replaceFeedLayout } from '../../db/feeds/feedPreferenceRepository';
+import { loadUserSettings, updateUserSettings } from '../../db/userProfile/userSettingsRepository';
+import { loadCustomFeedSource } from '../../db/feeds/customFeedRepository';
 import { sendErrorResponse, sendSuccessResponse } from '../../utils/apiHelpers';
 import { logger } from '../../utils/logger';
 
@@ -52,8 +51,13 @@ type CustomFeedAccess = 'ok' | 'invalid' | 'forbidden';
  * owned by the viewer or public.
  */
 async function resolveCustomFeedAccess(feedId: string | undefined, userId: string): Promise<CustomFeedAccess> {
-  if (!feedId || !mongoose.Types.ObjectId.isValid(feedId)) return 'invalid';
-  const feed = await CustomFeed.findById(feedId).lean();
+  // Emptiness only, for the same reason as the definition loader: an
+  // `ObjectId.isValid` guard here answered 'invalid' for every feed created
+  // since the cutover, so saving a feed you had just made was refused as
+  // malformed.
+  if (!feedId) return 'invalid';
+  // Postgres — the Mongo `CustomFeed` collection has no writer left.
+  const feed = await loadCustomFeedSource(feedId);
   if (!feed) return 'invalid';
   if (feed.ownerOxyUserId === userId || feed.isPublic === true) return 'ok';
   return 'forbidden';
@@ -67,9 +71,11 @@ class FeedPreferencesController {
     }
     const userId = getRequiredOxyUserId(req);
     try {
-      const doc = await UserFeedPreference.findOne({ oxyUserId: userId }).lean();
-      const stored: SavedFeed[] = doc?.savedFeeds ?? [];
-      return sendSuccessResponse(res, 200, { savedFeeds: mergeWithPresetDefaults(stored, Boolean(doc)) });
+      // `hasStored` is a SEPARATE fact from an empty layout: a viewer who saved
+      // a layout and then removed every entry has stored one, and re-pinning the
+      // presets for them on every load is what collapsing the two would do.
+      const { savedFeeds: stored, hasStored } = await loadFeedLayout(userId);
+      return sendSuccessResponse(res, 200, { savedFeeds: mergeWithPresetDefaults(stored, hasStored) });
     } catch (error) {
       logger.error('[FeedPreferences] Failed to load preferences', { userId, error });
       return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to load feed preferences');
@@ -120,18 +126,9 @@ class FeedPreferencesController {
         });
       }
 
-      const updated = await UserFeedPreference.findOneAndUpdate(
-        { oxyUserId: userId },
-        { $set: { savedFeeds } },
-        { new: true, upsert: true },
-      ).lean();
+      const updated = await replaceFeedLayout(userId, savedFeeds);
 
-      return sendSuccessResponse(
-        res,
-        200,
-        { savedFeeds: updated?.savedFeeds ?? savedFeeds },
-        'Feed preferences updated',
-      );
+      return sendSuccessResponse(res, 200, { savedFeeds: updated }, 'Feed preferences updated');
     } catch (error) {
       logger.error('[FeedPreferences] Failed to update preferences', { userId, error });
       return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to update feed preferences');
@@ -149,7 +146,7 @@ class FeedPreferencesController {
     }
     const userId = getRequiredOxyUserId(req);
     try {
-      const doc = await UserSettings.findOne({ oxyUserId: userId }, { feedTuning: 1 }).lean();
+      const doc = await loadUserSettings(userId);
       return sendSuccessResponse(res, 200, { forYou: doc?.feedTuning?.forYou ?? {} });
     } catch (error) {
       logger.error('[FeedPreferences] Failed to load feed tuning', { userId, error });
@@ -175,11 +172,9 @@ class FeedPreferencesController {
         return sendErrorResponse(res, 400, 'Bad Request', result.error);
       }
 
-      const updated = await UserSettings.findOneAndUpdate(
-        { oxyUserId: userId },
-        { $set: { 'feedTuning.forYou': result.value } },
-        { new: true, upsert: true },
-      ).lean();
+      const updated = await updateUserSettings(userId, {
+        set: { 'feedTuning.forYou': result.value },
+      });
 
       return sendSuccessResponse(
         res,

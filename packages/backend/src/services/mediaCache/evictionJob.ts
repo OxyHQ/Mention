@@ -1,4 +1,8 @@
-import FederatedMediaCache, { type IFederatedMediaCache } from '../../models/FederatedMediaCache';
+import {
+  findEvictableMediaCacheEntries,
+  markMediaCacheEvicted,
+  type MediaCacheEvictionCandidate,
+} from '../../db/federation/mediaCacheRepository';
 import { logger } from '../../utils/logger';
 import {
   MEDIA_CACHE_EVICTION_BATCH_SIZE,
@@ -7,15 +11,13 @@ import {
 } from './constants';
 import { deleteCachedMedia, isMediaCacheEnabled } from './oxyMediaStore';
 
-type EvictionCandidate = Pick<IFederatedMediaCache, 'remoteUrl' | 'oxyFileId' | 'posterFileId'>;
-
 /**
  * Delete the Oxy object(s) for one idle entry and transition it to `evicted`,
  * KEEPING the row (file ids cleared) so a future access re-caches it. If a
  * delete fails the row is left `cached` so the next sweep retries — we never
  * mark `evicted` while bytes may still live in S3 (avoids orphaned objects).
  */
-async function evictOne(candidate: EvictionCandidate): Promise<void> {
+async function evictOne(candidate: MediaCacheEvictionCandidate): Promise<void> {
   const fileIds = [candidate.oxyFileId, candidate.posterFileId].filter(
     (id): id is string => typeof id === 'string' && id.length > 0,
   );
@@ -31,13 +33,7 @@ async function evictOne(candidate: EvictionCandidate): Promise<void> {
     return;
   }
 
-  await FederatedMediaCache.updateOne(
-    { remoteUrl: candidate.remoteUrl, state: 'cached' },
-    {
-      $set: { state: 'evicted' },
-      $unset: { oxyFileId: '', posterFileId: '', cachedAt: '', sizeBytes: '' },
-    },
-  );
+  await markMediaCacheEvicted(candidate.remoteUrl);
 }
 
 /**
@@ -52,14 +48,7 @@ export async function runEvictionOnce(): Promise<void> {
   }
 
   const cutoff = new Date(Date.now() - MEDIA_CACHE_TTL_MS);
-  const candidates = await FederatedMediaCache.find({
-    state: 'cached',
-    lastAccessedAt: { $lt: cutoff },
-  })
-    .select('remoteUrl oxyFileId posterFileId')
-    .sort({ lastAccessedAt: 1 })
-    .limit(MEDIA_CACHE_EVICTION_BATCH_SIZE)
-    .lean<EvictionCandidate[]>();
+  const candidates = await findEvictableMediaCacheEntries(cutoff, MEDIA_CACHE_EVICTION_BATCH_SIZE);
 
   if (candidates.length === 0) return;
 

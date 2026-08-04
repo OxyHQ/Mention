@@ -1,6 +1,10 @@
 import { Router, Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import { McpConnection } from '../models/McpConnection';
+import {
+  listLiveConnectionsForUser,
+  listLiveMembersOfBundles,
+  revokeConnectionForOwner,
+} from '../../db/mcp/mcpConnectionRepository';
 import { revokeJti } from '../services/mcpRevocationService';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { logger } from '../../utils/logger';
@@ -60,16 +64,12 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const connections = await McpConnection.find({ oxyUserId, revokedAt: null })
-      .sort({ createdAt: -1 })
-      .lean();
+    const connections = await listLiveConnectionsForUser(oxyUserId);
 
     const bundleIds = Array.from(
       new Set(connections.map((c) => c.bundleId).filter((id): id is string => Boolean(id))),
     );
-    const bundleMembers = bundleIds.length
-      ? await McpConnection.find({ bundleId: { $in: bundleIds }, revokedAt: null }).lean()
-      : [];
+    const bundleMembers = await listLiveMembersOfBundles(bundleIds);
 
     const allUserIds = bundleMembers.map((m) => m.oxyUserId);
     const handleMap = await hydrateHandles(allUserIds);
@@ -86,12 +86,14 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       bundleHandles.set(member.bundleId, list);
     }
 
-    // Never leak secret material (refreshTokenHash / jti) to the client.
+    // Never leak secret material (refreshTokenHash / jti) to the client. The
+    // repository does not select either column, so this shape cannot regain one
+    // by someone adding a field here.
     const sanitized = connections.map((c) => {
       const profile = handleMap.get(c.oxyUserId);
       const handlesInBundle = c.bundleId ? bundleHandles.get(c.bundleId) ?? [] : [];
       return {
-        id: String(c._id),
+        id: c.id,
         clientId: c.clientId,
         clientLabel: c.clientLabel,
         scopes: c.scopes,
@@ -122,14 +124,13 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
     if (!oxyUserId) {
       return res.status(401).json({ message: 'Unauthorized' });
     }
-    const { id } = req.params;
+    const id = typeof req.params.id === 'string' ? req.params.id : undefined;
 
-    // Ownership-scoped update: a user can only revoke their OWN connection.
-    const connection = await McpConnection.findOneAndUpdate(
-      { _id: id, oxyUserId, revokedAt: null },
-      { revokedAt: new Date() },
-      { new: true },
-    );
+    // Ownership-scoped update: a user can only revoke their OWN connection. A
+    // param that is not a single string identifies no connection, and falls
+    // through to the same 404 — the endpoint never distinguishes "no such
+    // connection" from "not yours".
+    const connection = id ? await revokeConnectionForOwner(id, oxyUserId) : null;
 
     if (!connection) {
       return res.status(404).json({ message: 'Connection not found' });

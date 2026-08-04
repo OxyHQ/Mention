@@ -63,9 +63,6 @@ vi.mock('../../models/Post', () => ({
 vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/UserSettings', () => ({
-  UserSettings: { find: () => chainable([]), findOne: () => chainable([]) },
-}));
 vi.mock('../../models/StarterPack', () => ({
   StarterPack: { aggregate: async () => [] },
   default: { aggregate: async () => [] },

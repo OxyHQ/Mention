@@ -4,7 +4,9 @@ import {
   type PostEngagementCountsPayload,
   type PostEngagementEvent,
 } from '@mention/shared-types';
-import { UserSettings } from '../models/UserSettings';
+import { eq } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { userSettings } from '../db/schema/userProfile';
 import { getRuntimeSocketServer } from '../runtime/socketServer';
 import {
   DEFAULT_PRIVACY,
@@ -46,10 +48,20 @@ async function loadAuthorCountPrivacy(
 ): Promise<EngagementCountPrivacy> {
   if (!authorOxyUserId) return { ...DEFAULT_PRIVACY };
   try {
-    const settings = await UserSettings.findOne({ oxyUserId: authorOxyUserId })
-      .select('privacy.hideLikeCounts privacy.hideShareCounts privacy.hideReplyCounts privacy.hideSaveCounts')
-      .lean();
-    return readEngagementCountPrivacy(settings?.privacy);
+    // The four columns are flat and `NOT NULL`, so the row IS a
+    // `CountPrivacySource` — but it still goes through the shared reader,
+    // because this broadcast must hide exactly what the DTO hides.
+    const [settings] = await getDb()
+      .select({
+        hideLikeCounts: userSettings.privacyHideLikeCounts,
+        hideShareCounts: userSettings.privacyHideShareCounts,
+        hideReplyCounts: userSettings.privacyHideReplyCounts,
+        hideSaveCounts: userSettings.privacyHideSaveCounts,
+      })
+      .from(userSettings)
+      .where(eq(userSettings.oxyUserId, authorOxyUserId))
+      .limit(1);
+    return readEngagementCountPrivacy(settings);
   } catch (error) {
     // Same fallback the render path takes, for the same reason: a settings-load
     // failure must not make the live number and the reloaded number disagree.

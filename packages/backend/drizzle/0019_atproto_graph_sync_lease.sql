@@ -1,0 +1,2 @@
+ALTER TABLE "federated_actors" ADD COLUMN "last_atproto_graph_sync_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "federated_actors" ADD COLUMN "atproto_graph_sync_started_at" timestamp with time zone;

@@ -2,46 +2,52 @@
  * Ranked candidate helpers shared by the ranked feeds (ForYou, Explore, Videos,
  * Media).
  *
- * `FeedRankingService.rankPosts` decorates each lean Mongo document with a
- * `finalScore` number. {@link toRankedCandidate} preserves the full lean post
- * document while narrowing `_id` for score/cursor helpers.
+ * `FeedRankingService.rankPosts` decorates each post record with a `finalScore`
+ * number. {@link toRankedCandidate} preserves the whole record while asserting
+ * the id every score/cursor helper needs.
  */
 
 import { FeedPostSlice } from '@mention/shared-types';
 
 /**
- * A ranked candidate post: a lean Mongo document decorated with `finalScore` by
- * FeedRankingService. `_id` is intentionally wide so engine {@link CandidatePost}
- * pools assign without casting; callers stringify via {@link readCandidateId}.
+ * A ranked candidate post: a post record decorated with `finalScore` by
+ * FeedRankingService.
  */
 export interface RankedCandidate {
-  _id: { toString(): string };
-  oxyUserId?: string;
+  id: string;
+  oxyUserId?: string | null;
   finalScore?: number;
+  /**
+   * Written as a reply — the STORED discriminator, carried through ranking
+   * because `ThreadSlicingService` asks the question after scoring and must not
+   * re-derive it from `parentPostId` (which `ON DELETE SET NULL` can clear).
+   */
+  isReply: boolean;
 }
 
 export function readCandidateId(post: RankedCandidate): string {
-  return post._id.toString();
+  return post.id;
 }
 
-function hasToString(value: object): value is { toString(): string } {
-  return typeof Reflect.get(value, 'toString') === 'function';
-}
-
-/** Narrow a lean engine candidate to a ranked candidate when `_id` is stringifiable. */
-export function toRankedCandidate<T extends { _id?: unknown; oxyUserId?: string; finalScore?: number }>(
+/**
+ * Narrow a candidate to a ranked candidate — i.e. assert it has an id.
+ *
+ * This used to do real work, and it is worth recording what that work WAS so
+ * nobody re-adds it. Mongo handed feed candidates ids of three different runtime
+ * shapes (an `ObjectId`, a `string`, or an opaque `{ toString() }` from an
+ * aggregation), so every score/cursor helper had to accept `_id: unknown` and
+ * this function existed to coerce them into something stringifiable.
+ *
+ * `PostRecord.id` is a `string`, always. The three shapes collapse to one, so
+ * the coercion is gone and only the presence check remains — a candidate with no
+ * id cannot be cursored on and is dropped rather than silently cursored to `''`.
+ */
+export function toRankedCandidate<T extends { id?: string; oxyUserId?: string | null; finalScore?: number; isReply: boolean }>(
   post: T,
-): (Omit<T, '_id'> & RankedCandidate) | null {
-  const id = post._id;
-  if (id === null || id === undefined) return null;
-  if (typeof id === 'string' || typeof id === 'number' || typeof id === 'boolean' || typeof id === 'bigint') {
-    const text = String(id);
-    return { ...post, _id: { toString: () => text } };
-  }
-  if (typeof id === 'object' && hasToString(id)) {
-    return { ...post, _id: id };
-  }
-  return null;
+): (T & RankedCandidate) | null {
+  const id = post.id;
+  if (typeof id !== 'string' || id.length === 0) return null;
+  return { ...post, id };
 }
 
 export function readCandidateScore(post: RankedCandidate): number {
@@ -56,8 +62,8 @@ export function readCandidateScore(post: RankedCandidate): number {
  * be resolved (treated as conflict-free by the reranker).
  *
  * Works on BOTH raw (pre-hydration) and hydrated slices: a raw slice's `post` is
- * a lean Mongo doc carrying `oxyUserId`, while a hydrated slice's `post` carries
- * a `user.id`. We read the hydrated id first and fall back to `oxyUserId` so the
+ * a post record carrying `oxyUserId`, while a hydrated slice's `post` carries a
+ * `user.id`. We read the hydrated id first and fall back to `oxyUserId` so the
  * reranker can run before OR after hydration.
  */
 export function sliceAuthorKey(slice: FeedPostSlice): string | undefined {
@@ -106,11 +112,6 @@ export function sliceCursorAnchor(slice: FeedPostSlice): { score: number; id: st
     const idField = Reflect.get(post, 'id');
     if (typeof idField === 'string' && idField.length > 0) {
       return { score: finalScore, id: idField };
-    }
-    const rawId = Reflect.get(post, '_id');
-    if (rawId !== null && rawId !== undefined) {
-      const id = typeof rawId === 'object' && hasToString(rawId) ? rawId.toString() : String(rawId);
-      if (id) return { score: finalScore, id };
     }
   }
   return undefined;

@@ -1,14 +1,22 @@
 import { PassThrough } from 'node:stream';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Site 4 of four for `utils/channelReplyGate`: the ActivityPub OUTBOX BACKFILL.
  *
  * This is the route that does not go through `PostCreationService` at all — it
- * assembles raw documents and writes them with `Post.collection.insertMany`,
- * bypassing Mongoose middleware, schema defaults and every write guard. A
- * candidate that is not filtered out BEFORE that insert is stored unchallenged,
- * so the refusal has to happen inside the candidate loop.
+ * assembles records and writes them directly through the repository, bypassing
+ * every guard that lives in the creation service. A candidate that is not
+ * filtered out BEFORE that insert is stored unchallenged, so the refusal has to
+ * happen inside the candidate loop.
+ *
+ * The parents are REAL ROWS and the assertions are on STORED posts. The gate
+ * reads the parent's AUTHOR (`posts.oxy_user_id`) with a `text` id, and the guard
+ * it replaced (`ObjectId.isValid`) answered `false` for every uuid v7 — which
+ * reads as "not a channel post" and lets the reply through. A mocked `findById`
+ * answers whatever it was told, so it cannot see that; and "insertMany was called
+ * with these docs" cannot see whether the row survived the write either. Only the
+ * KIND lookup is mocked (`isChannelAccount`), because that answer lives in Oxy.
  *
  * Driven through the real entry point (`syncOutboxPostsDetailed`) against the
  * harness `federatedPostEnrichment.test.ts` established, so what is asserted is
@@ -31,12 +39,6 @@ const mocks = vi.hoisted(() => ({
   actorFindOne: vi.fn(),
   findOneAndUpdate: vi.fn(),
   updateOne: vi.fn(),
-  postFind: vi.fn(),
-  postFindOne: vi.fn(),
-  postFindById: vi.fn(),
-  postUpdateOne: vi.fn(),
-  postInsertMany: vi.fn(),
-  postExists: vi.fn(),
   getServiceOxyClient: vi.fn(),
   makeServiceRequest: vi.fn(),
   getLinkPreviews: vi.fn(),
@@ -81,19 +83,16 @@ vi.mock('../../../models/FederatedActor', () => ({
   },
 }));
 
-vi.mock('../../../models/Post', () => ({
-  POST_CLASSIFICATION_PENDING: 'pending',
-  Post: {
-    find: mocks.postFind,
-    findOne: mocks.postFindOne,
-    findById: mocks.postFindById,
-    updateOne: mocks.postUpdateOne,
-    exists: mocks.postExists,
-    collection: { insertMany: mocks.postInsertMany },
-  },
+vi.mock('../../../models/UserSettings', () => ({ default: { updateOne: vi.fn() } }));
+
+vi.mock('../../../db/userProfile/userSettingsRepository', () => ({
+  updateUserSettings: vi.fn(),
 }));
 
-vi.mock('../../../models/UserSettings', () => ({ default: { updateOne: vi.fn() } }));
+vi.mock('../../../db/federation/followRepository', () => ({
+  existsFollow: vi.fn().mockResolvedValue(true),
+  findFollows: vi.fn().mockResolvedValue([]),
+}));
 
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: mocks.getServiceOxyClient,
@@ -120,26 +119,47 @@ vi.mock('../../../models/FederatedFollow', () => ({
 
 // The gate resolves the parent AUTHOR's account kind here — the one module that
 // knows what a channel account is. Mocked so this file needs no Oxy identity
-// path, and so a test that expects a SKIP has to say the author is a channel.
+// path, and so a test that expects a SKIP has to seed the parent under a channel
+// account itself. The factory only CLOSES OVER `CHANNEL_ACCOUNT` below; the
+// closure does not run until the gate resolves an author, long after this module
+// finished initializing, so the `vi.mock` hoisting is harmless.
 vi.mock('../../../services/publishAsAccount', () => ({
   isChannelAccount: (oxyUserId: string) => Promise.resolve(oxyUserId === CHANNEL_ACCOUNT),
 }));
 
+import { like } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { posts } from '../../../db/schema/posts';
+import {
+  clearFederationScope,
+  federationScope,
+  seedPost,
+} from '../../helpers/federationFixtures';
+import * as channelReplyGate from '../../../utils/channelReplyGate';
 import { outboxSyncService } from '../../../connectors/activitypub/outbox.service';
 
-/** Hoisted above the `vi.mock` factory that reads it — `vi.mock` calls are hoisted too. */
-const CHANNEL_ACCOUNT = 'oxy-channel-account';
+const scope = federationScope('channel-reply-outbox');
+/**
+ * The actor host is the SUITE's own, not the shared `mastodon.social`.
+ *
+ * Teardown here deletes by `federation.activity_id LIKE '<actor>%'`, and `posts`
+ * carries no column naming the suite that wrote a row — so a shared actor URI
+ * makes that predicate a claim about every other file in the run. It reached
+ * `postCreationEnrichment`'s rows and deleted them mid-assertion, which is the
+ * exact hazard `federationFixtures` namespaces everything else against.
+ */
+const ACTOR_URI = `${scope.origin}/users/alice`;
+const OUTBOX_URL = `${ACTOR_URI}/outbox`;
+const ALICE_OXY_ID = scope.user('alice');
+/** The Oxy account the mocked `isChannelAccount` answers `true` for. */
+const CHANNEL_ACCOUNT = scope.user('channel');
 
-const ACTOR_URI = 'https://mastodon.social/users/alice';
-const OUTBOX_URL = 'https://mastodon.social/users/alice/outbox';
-const ALICE_OXY_ID = 'oxy_alice';
+const REMOTE_POST_URI = `${scope.origin}/users/bob/statuses/42`;
 
-/** The default `FEDERATION_DOMAIN` (`config/index.ts`), so these ARE local URIs. */
-const LOCAL_CHANNEL_POST_ID = '507f1f77bcf86cd799439011';
-const LOCAL_PLAIN_POST_ID = '507f1f77bcf86cd799439012';
-const LOCAL_CHANNEL_POST_URI = `https://mention.earth/ap/users/nate/posts/${LOCAL_CHANNEL_POST_ID}`;
-const LOCAL_PLAIN_POST_URI = `https://mention.earth/ap/users/nate/posts/${LOCAL_PLAIN_POST_ID}`;
-const REMOTE_POST_URI = 'https://mastodon.social/users/bob/statuses/42';
+/** The default `FEDERATION_DOMAIN` (`config/index.ts`), so this IS a local URI. */
+function localUri(postId: string): string {
+  return `https://mention.earth/ap/users/nate/posts/${postId}`;
+}
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -181,28 +201,50 @@ function stubOutbox(orderedItems: unknown[]): void {
 
 function runOutboxSync() {
   return outboxSyncService.syncOutboxPostsDetailed(
-    { uri: ACTOR_URI, acct: 'alice@mastodon.social', outboxUrl: OUTBOX_URL, oxyUserId: ALICE_OXY_ID },
+    { uri: ACTOR_URI, acct: `alice@${scope.domain}`, outboxUrl: OUTBOX_URL, oxyUserId: ALICE_OXY_ID },
     { limit: 10, maxPages: 1 },
   );
 }
 
-/** The `federation.activityId` of every doc the raw insert was handed. */
-function insertedActivityIds(): string[] {
-  return mocks.postInsertMany.mock.calls.flatMap(([docs]) =>
-    (docs as Array<{ federation?: { activityId?: string } }>).map(
-      (doc) => doc.federation?.activityId ?? '',
-    ),
-  );
+/** The `federation.activity_id` of every post this run actually STORED. */
+async function insertedActivityIds(): Promise<string[]> {
+  const rows = await getDb()
+    .select({ activityId: posts.federationActivityId })
+    .from(posts)
+    .where(like(posts.federationActivityId, `${ACTOR_URI}%`));
+  return rows.map((row) => row.activityId ?? '').sort();
 }
 
-/** The ids the channel gate looked up — empty when it never queried. */
+/**
+ * The ids the channel gate looked up — empty when it never queried.
+ *
+ * A pass-through spy on the real function, so the gate still RUNS and its answer
+ * still decides the outcome. Counting a mock that replaced it would make the two
+ * assertions in each case independent of one another.
+ */
+let gateSpy: ReturnType<typeof vi.spyOn>;
 function gateLookups(): string[] {
-  return mocks.postFindById.mock.calls.map(([id]) => String(id));
+  return gateSpy.mock.calls.map(([id]) => String(id));
 }
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+afterEach(async () => {
+  await getDb().delete(posts).where(like(posts.federationActivityId, `${ACTOR_URI}%`));
+  await clearFederationScope(scope);
+});
 
 beforeEach(() => {
+  vi.restoreAllMocks();
   vi.clearAllMocks();
   vi.unstubAllGlobals();
+  gateSpy = vi.spyOn(channelReplyGate, 'parentIsChannelPost');
 
   mocks.getPublicKey.mockResolvedValue({
     keyId: 'https://mention.earth/ap/users/instance#main-key',
@@ -213,22 +255,6 @@ beforeEach(() => {
   mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.actorFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
   mocks.actorFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
-  mocks.postFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
-  mocks.postFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
-  // The gate's own projection. Default: an ordinary post — so a test that expects
-  // a SKIP has to set the channel itself, and cannot pass by accident.
-  mocks.postFindById.mockImplementation((id: string) => ({
-    select: () => ({
-      lean: async () =>
-        id === LOCAL_CHANNEL_POST_ID
-          ? { oxyUserId: CHANNEL_ACCOUNT }
-          : { oxyUserId: 'oxy-person' },
-    }),
-    lean: vi.fn().mockResolvedValue(null),
-  }));
-  mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
-  mocks.postInsertMany.mockResolvedValue({ insertedCount: 1 });
-  mocks.postExists.mockResolvedValue(null);
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   mocks.recordAccess.mockResolvedValue(undefined);
   mocks.postCreatorCreate.mockResolvedValue({ _id: 'created_post_1' });
@@ -257,27 +283,32 @@ beforeEach(() => {
   mocks.getOrFetchActor.mockResolvedValue({ uri: ACTOR_URI, oxyUserId: ALICE_OXY_ID, type: 'Person' });
 });
 
-describe('outbox backfill — a reply to a channel post never reaches insertMany', () => {
+describe('outbox backfill — a reply to a channel post is never stored', () => {
   it('skips the channel reply and still imports the rest of the page', async () => {
+    const channelPost = await seedPost(scope, { oxyUserId: CHANNEL_ACCOUNT });
     stubOutbox([
-      createNote('to-channel', LOCAL_CHANNEL_POST_URI),
+      createNote('to-channel', localUri(channelPost.id)),
       createNote('ordinary'),
     ]);
 
     const result = await runOutboxSync();
 
-    expect(gateLookups()).toContain(LOCAL_CHANNEL_POST_ID);
-    expect(insertedActivityIds()).toEqual([`${ACTOR_URI}/statuses/ordinary`]);
+    expect(gateLookups()).toContain(channelPost.id);
+    // A REFUSAL, not an aborted batch: the page's other note still landed.
+    expect(await insertedActivityIds()).toEqual([`${ACTOR_URI}/statuses/ordinary`]);
     expect(result.newPostCount).toBe(1);
   });
 
   it('CONTROL: a reply to an ordinary LOCAL post is imported', async () => {
-    stubOutbox([createNote('to-local', LOCAL_PLAIN_POST_URI)]);
+    const plainPost = await seedPost(scope);
+    stubOutbox([createNote('to-local', localUri(plainPost.id))]);
 
     await runOutboxSync();
 
-    expect(gateLookups()).toContain(LOCAL_PLAIN_POST_ID);
-    expect(insertedActivityIds()).toEqual([`${ACTOR_URI}/statuses/to-local`]);
+    // Same path, same lookup, opposite outcome — which is what makes the case
+    // above about the channel rather than about local replies being dropped.
+    expect(gateLookups()).toContain(plainPost.id);
+    expect(await insertedActivityIds()).toEqual([`${ACTOR_URI}/statuses/to-local`]);
   });
 
   it('CONTROL: a reply to a REMOTE post is imported without any gate lookup', async () => {
@@ -289,6 +320,6 @@ describe('outbox backfill — a reply to a channel post never reaches insertMany
     await runOutboxSync();
 
     expect(gateLookups()).toEqual([]);
-    expect(insertedActivityIds()).toEqual([`${ACTOR_URI}/statuses/to-remote`]);
+    expect(await insertedActivityIds()).toEqual([`${ACTOR_URI}/statuses/to-remote`]);
   });
 });

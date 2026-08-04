@@ -1,10 +1,11 @@
 import type { ProcessedEventStore } from '@oxyhq/crowdsource-express';
-import ModerationEvent, {
-  MODERATION_EVENT_RETENTION_SECONDS,
-} from '../../models/ModerationEvent';
+import {
+  claimModerationEvent,
+  releaseModerationEvent,
+} from '../../db/moderation/moderationEventRepository';
 
 /**
- * The webhook dedupe store, in Mongo.
+ * The webhook dedupe store, as the SDK's `ProcessedEventStore`.
  *
  * `@oxyhq/crowdsource-express` defaults to an in-process store and says exactly
  * when that is not enough: two instances behind a load balancer each keep their
@@ -17,49 +18,28 @@ import ModerationEvent, {
  * still deliver the event later. Recording the id only after success would let two
  * copies run at once; recording it before and never releasing would make a
  * transient failure permanent and lose a decision silently.
+ *
+ * ## The duplicate-key classifier is gone, not translated
+ *
+ * In Mongo "somebody else has this event" arrived as a duplicate-key ERROR, so
+ * this file carried an `isDuplicateKeyError` helper and the whole store hung on
+ * getting that predicate right: widen it by one condition and a lost connection
+ * reads as "already processed", the middleware answers 200, and a decision nobody
+ * ever handled is retired. `claimModerationEvent` returns that answer as a VALUE
+ * (`ON CONFLICT DO NOTHING … RETURNING`), so the two are no longer separated by
+ * inspecting an exception — anything thrown is genuinely the store failing to
+ * answer, and propagates.
  */
-
-function isDuplicateKeyError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    Number((error as { code?: unknown }).code) === 11000
-  );
-}
-
-export function mongoProcessedEventStore(): ProcessedEventStore {
+export function moderationProcessedEventStore(): ProcessedEventStore {
   return {
-    /**
-     * True when this call took the claim.
-     *
-     * The insert IS the claim: `_id` is the event id and the index on it is
-     * unique, so the duplicate-key error is not an error condition to work around
-     * — it is the answer "somebody else has this event".
-     */
+    /** True when this call took the claim. */
     async claim(eventId: string): Promise<boolean> {
-      const now = new Date();
-      try {
-        await ModerationEvent.create({
-          _id: eventId,
-          state: 'claimed',
-          receivedAt: now,
-          expiresAt: new Date(now.getTime() + MODERATION_EVENT_RETENTION_SECONDS * 1_000),
-        });
-        return true;
-      } catch (error: unknown) {
-        if (isDuplicateKeyError(error)) return false;
-        // Anything else — a lost connection, a failover — is NOT "already
-        // processed". Rethrowing makes the middleware answer non-2xx so the event
-        // stays on the sender's retry schedule; swallowing it here would answer
-        // 200 and retire a decision nobody ever handled.
-        throw error;
-      }
+      return claimModerationEvent(eventId);
     },
 
     /** Give the claim back so a redelivery can be processed. */
     async release(eventId: string): Promise<void> {
-      await ModerationEvent.deleteOne({ _id: eventId });
+      await releaseModerationEvent(eventId);
     },
   };
 }

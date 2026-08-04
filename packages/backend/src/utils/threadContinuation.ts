@@ -66,8 +66,9 @@
  */
 
 import type { AccountKind } from '@oxyhq/contracts';
-import mongoose from 'mongoose';
-import { Post } from '../models/Post';
+import { inArray } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
 import {
   assertCanPublishAsAccount,
   PublishAsAccessError,
@@ -100,21 +101,21 @@ export async function assertContinuesOwnThread(params: {
 
   const { parentPostId, threadId, authorId } = params;
   if (!authorId || !parentPostId || !threadId) refuse();
-  if (
-    !mongoose.Types.ObjectId.isValid(String(parentPostId)) ||
-    !mongoose.Types.ObjectId.isValid(String(threadId))
-  ) {
-    refuse();
-  }
+
+  // NO id-SHAPE guard. `ObjectId.isValid` stood here and is deleted per
+  // `db/ids.ts`: `posts.id` is `text`, so an id of any shape that names no row
+  // already reaches the refusals below with an absent parent and root — the
+  // exact answer the guard was producing, one branch earlier.
 
   // ONE query for both rows. The root is fetched even when it IS the parent,
   // because the third condition is about the thread's origin and reading it off
   // the parent would make a chain inherit its own claim.
-  const rows = await Post.find({ _id: { $in: [parentPostId, threadId] } })
-    .select('oxyUserId threadId')
-    .lean<Array<{ _id: mongoose.Types.ObjectId; oxyUserId?: string; threadId?: string }>>();
+  const rows = await getDb()
+    .select({ id: posts.id, oxyUserId: posts.oxyUserId, threadId: posts.threadId })
+    .from(posts)
+    .where(inArray(posts.id, [String(parentPostId), String(threadId)]));
 
-  const byId = new Map(rows.map((row) => [String(row._id), row]));
+  const byId = new Map(rows.map((row) => [row.id, row]));
   const parent = byId.get(String(parentPostId));
   const root = byId.get(String(threadId));
 
@@ -189,12 +190,9 @@ export async function assertAnswersOperatedAccount(params: {
 
   const { parentPostId, threadId, authorId, authorKind, callerId, memberReader } = params;
   if (!authorId || !parentPostId || !threadId) refuse();
-  if (
-    !mongoose.Types.ObjectId.isValid(String(parentPostId)) ||
-    !mongoose.Types.ObjectId.isValid(String(threadId))
-  ) {
-    refuse();
-  }
+
+  // NO id-SHAPE guard, for the reason given in {@link assertContinuesOwnThread}:
+  // an id that names no row refuses on the unknown-kind rule below.
 
   // 3, first — it needs no query. The publishing account's kind was already
   // resolved by the authorization gate, so a channel is refused before anything
@@ -203,11 +201,12 @@ export async function assertAnswersOperatedAccount(params: {
   // channel has no login, so it can never be the authenticated subject.
   if (authorKind === 'channel') refuse();
 
-  const rows = await Post.find({ _id: { $in: [parentPostId, threadId] } })
-    .select('oxyUserId threadId')
-    .lean<Array<{ _id: mongoose.Types.ObjectId; oxyUserId?: string; threadId?: string }>>();
+  const rows = await getDb()
+    .select({ id: posts.id, oxyUserId: posts.oxyUserId, threadId: posts.threadId })
+    .from(posts)
+    .where(inArray(posts.id, [String(parentPostId), String(threadId)]));
 
-  const byId = new Map(rows.map((row) => [String(row._id), row]));
+  const byId = new Map(rows.map((row) => [row.id, row]));
   const parent = byId.get(String(parentPostId));
   const root = byId.get(String(threadId));
 

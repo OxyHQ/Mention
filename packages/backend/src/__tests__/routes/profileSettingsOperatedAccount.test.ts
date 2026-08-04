@@ -60,19 +60,29 @@ vi.mock('@oxyhq/core/server', () => ({
   getRequiredOxyUserId: (req: express.Request & { user?: { id: string } }) => req.user?.id ?? '',
 }));
 
-vi.mock('../../models/UserSettings', () => ({
-  default: {
-    findOneAndUpdate: vi.fn((filter: { oxyUserId: string }, operation: Record<string, Record<string, unknown>>) => {
-      const doc = getDoc(filter.oxyUserId);
-      if (operation.$set) {
-        for (const [path, value] of Object.entries(operation.$set)) setDot(doc, path, value);
-      }
-      return { lean: () => ({ exec: () => Promise.resolve(JSON.parse(JSON.stringify(doc))) }) };
-    }),
-    findOne: vi.fn((filter: { oxyUserId: string }) => ({
-      lean: () => ({ exec: () => Promise.resolve(store.get(filter.oxyUserId) ?? null) }),
-    })),
-  },
+/**
+ * The settings STORE, faked at the repository seam rather than at the database.
+ *
+ * `updateUserSettings` takes the same dotted paths the Mongo `$set` took, so the
+ * fake stays a path-walking assignment and the assertions still read the shape
+ * the route wrote. What it must NOT do is normalize the path: the route writes
+ * `channelAccount.signPosts` (the settings path this repository maps to the
+ * `channel_account_sign_posts` column) while the WIRE says `channel.signPosts`,
+ * and a fake that quietly accepted either would stop telling the two apart.
+ */
+vi.mock('../../db/userProfile/userSettingsRepository', () => ({
+  updateUserSettings: vi.fn(
+    async (oxyUserId: string, update: { set?: Record<string, unknown> }) => {
+      const doc = getDoc(oxyUserId);
+      for (const [path, value] of Object.entries(update.set ?? {})) setDot(doc, path, value);
+      return JSON.parse(JSON.stringify(doc));
+    },
+  ),
+  loadUserSettings: vi.fn(async (oxyUserId: string) => store.get(oxyUserId) ?? null),
+  ensureUserSettings: vi.fn(async (oxyUserId: string) =>
+    JSON.parse(JSON.stringify(getDoc(oxyUserId))),
+  ),
+  UnknownSettingsPathError: class UnknownSettingsPathError extends Error {},
 }));
 
 /**
@@ -118,7 +128,6 @@ vi.mock('../../services/publishAsAccount', () => ({
 }));
 
 vi.mock('../../utils/userSettings', () => ({
-  ensureUserSettings: (oxyUserId: string) => Promise.resolve(JSON.parse(JSON.stringify(getDoc(oxyUserId)))),
   buildSettingsResponseForViewer: (doc: unknown) => doc,
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -157,7 +166,7 @@ describe('PUT /profile/settings/:userId — an operated account', () => {
     expect(res.body.data).toEqual({ channel: { signPosts: true } });
     // Written against the CHANNEL's row, never the caller's — the whole point of
     // the route is that the target is not the authenticated subject.
-    expect(store.get(CHANNEL)).toMatchObject({ channel: { signPosts: true } });
+    expect(store.get(CHANNEL)).toMatchObject({ channelAccount: { signPosts: true } });
     expect(store.has(CALLER)).toBe(false);
   });
 
@@ -169,7 +178,7 @@ describe('PUT /profile/settings/:userId — an operated account', () => {
       .expect(200);
 
     expect(res.body.data).toEqual({ channel: { signPosts: false } });
-    expect(store.get(CHANNEL)).toMatchObject({ channel: { signPosts: false } });
+    expect(store.get(CHANNEL)).toMatchObject({ channelAccount: { signPosts: false } });
   });
 
   it('refuses an account the caller does not operate, with the gate\'s status', async () => {
@@ -270,7 +279,7 @@ describe('GET /profile/settings/:userId/channel — an operated channel', () => 
    * exactly the broken behaviour. Only a stored `true` distinguishes them.
    */
   it('reads back a signPosts the operator turned ON', async () => {
-    store.set(CHANNEL, { oxyUserId: CHANNEL, channel: { signPosts: true } });
+    store.set(CHANNEL, { oxyUserId: CHANNEL, channelAccount: { signPosts: true } });
 
     const res = await request(app).get(`/profile/settings/${CHANNEL}/channel`).expect(200);
 
@@ -278,7 +287,7 @@ describe('GET /profile/settings/:userId/channel — an operated channel', () => 
   });
 
   it('reads back a signPosts that is off', async () => {
-    store.set(CHANNEL, { oxyUserId: CHANNEL, channel: { signPosts: false } });
+    store.set(CHANNEL, { oxyUserId: CHANNEL, channelAccount: { signPosts: false } });
 
     const res = await request(app).get(`/profile/settings/${CHANNEL}/channel`).expect(200);
 
@@ -307,6 +316,13 @@ describe('GET /profile/settings/:userId/channel — an operated channel', () => 
    * human who wrote the post. The column is `Boolean` in the schema, so this can
    * only arrive from outside Mongoose (a migration, a manual repair), which is
    * exactly the case worth failing safe on.
+   *
+   * The seed spelling is part of the fixture. These store `channelAccount` — the
+   * STORED path — because the route reads `settings?.channelAccount?.signPosts`
+   * while the WIRE says `channel.signPosts`. Seeded under the wire path, the
+   * value never reaches the check: every case reads `undefined`, answers
+   * `false`, and passes against BOTH readings. The wrong spelling does not
+   * weaken this block, it deletes it, and leaves it green.
    */
   it.each([
     ['the string "false"', 'false'],
@@ -314,7 +330,7 @@ describe('GET /profile/settings/:userId/channel — an operated channel', () => 
     ['the number 1', 1],
     ['an object', {}],
   ])('refuses to read %s as consent to name the writer', async (_label, value) => {
-    store.set(CHANNEL, { oxyUserId: CHANNEL, channel: { signPosts: value } });
+    store.set(CHANNEL, { oxyUserId: CHANNEL, channelAccount: { signPosts: value } });
 
     const res = await request(app).get(`/profile/settings/${CHANNEL}/channel`).expect(200);
 
@@ -327,19 +343,19 @@ describe('GET /profile/settings/:userId/channel — an operated channel', () => 
    * route fixes, so each refusal is pinned on both.
    */
   it('refuses an account the caller does not operate, with the gate\'s status', async () => {
-    store.set(OTHER_CHANNEL, { oxyUserId: OTHER_CHANNEL, channel: { signPosts: true } });
+    store.set(OTHER_CHANNEL, { oxyUserId: OTHER_CHANNEL, channelAccount: { signPosts: true } });
 
     await request(app).get(`/profile/settings/${OTHER_CHANNEL}/channel`).expect(403);
   });
 
   it('refuses the caller\'s own account — `channel.signPosts` means nothing there', async () => {
-    store.set(CALLER, { oxyUserId: CALLER, channel: { signPosts: true } });
+    store.set(CALLER, { oxyUserId: CALLER, channelAccount: { signPosts: true } });
 
     await request(app).get(`/profile/settings/${CALLER}/channel`).expect(400);
   });
 
   it('refuses an ORGANIZATION the caller may act for', async () => {
-    store.set(ORGANIZATION, { oxyUserId: ORGANIZATION, channel: { signPosts: true } });
+    store.set(ORGANIZATION, { oxyUserId: ORGANIZATION, channelAccount: { signPosts: true } });
 
     await request(app).get(`/profile/settings/${ORGANIZATION}/channel`).expect(400);
   });

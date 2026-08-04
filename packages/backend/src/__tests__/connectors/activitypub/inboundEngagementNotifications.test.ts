@@ -1,4 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedFollow,
+  seedPost,
+} from '../../helpers/federationFixtures';
+import type { PostRecord, PostRecordInput } from '../../../db/posts/postRecord';
+
+const scope = federationScope('inbound-engagement-notifications');
 
 /**
  * Inbound federated engagement → LOCAL owner notification parity.
@@ -27,25 +39,33 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * wholesale (its thread-link/boost-import logic has its own coverage).
  */
 
-const ACTOR_URI = 'https://mastodon.social/users/bob';
-const TARGET_POST_ID = '507f1f77bcf86cd799439011';
-const TARGET_POST_URI = `https://mention.earth/ap/users/alice/posts/${TARGET_POST_ID}`;
+const ACTOR_URI = `${scope.origin}/users/bob`;
 const CREATED_REPLY_ID = 'created_post_1';
-const OWNER_OXY_ID = 'oxy_alice';
-const ACTOR_OXY_ID = 'oxy_bob';
-const OWNER_AUTHORSHIP = [{ userId: OWNER_OXY_ID, role: 'owner', status: 'accepted' }];
+const OWNER_OXY_ID = scope.user('alice');
+const ACTOR_OXY_ID = scope.user('bob');
+
+/**
+ * The local post every activity here targets, seeded per test so the AP object
+ * URI resolves back to a REAL row.
+ *
+ * Whether the owner is notifiable at all is decided by `federation` on that row —
+ * a mirrored post's owner is a federated actor with no Mention inbox. Under the
+ * previous `Post.findOne` stub that was a property the TEST asserted, not a
+ * property of a row, and the stub answered by inspecting the caller's filter
+ * shape, so a lookup that matched nothing was indistinguishable from a correct one.
+ */
+let target: PostRecord;
+let targetUri: string;
+
+async function seedTarget(overrides: Partial<PostRecordInput> = {}): Promise<void> {
+  target = await seedPost(scope, { oxyUserId: OWNER_OXY_ID, ...overrides });
+  targetUri = `https://mention.earth/ap/users/alice/posts/${target.id}`;
+}
 
 const mocks = vi.hoisted(() => ({
   getPublicKey: vi.fn(),
   signViaOxy: vi.fn(),
   signRequest: vi.fn(),
-  actorFindOne: vi.fn(),
-  followExists: vi.fn(),
-  postFindOne: vi.fn(),
-  postFindById: vi.fn(),
-  postExists: vi.fn(),
-  postUpdateOne: vi.fn(),
-  postDeleteOne: vi.fn(),
   materializeEngagementRelationship: vi.fn(),
   materializeEngagementTombstone: vi.fn(),
   postCreatorCreate: vi.fn(),
@@ -77,39 +97,11 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   signRequest: mocks.signRequest,
 }));
 
-vi.mock('../../../models/FederatedActor', () => ({
-  default: { findOne: mocks.actorFindOne },
-}));
-
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: { exists: mocks.followExists },
-}));
-
-vi.mock('../../../models/FederationDeliveryQueue', () => ({
-  default: {},
-  getNextRetryTime: vi.fn(),
-}));
-
-vi.mock('../../../models/Post', () => ({
-  POST_CLASSIFICATION_PENDING: 'pending',
-  Post: {
-    findOne: mocks.postFindOne,
-    findById: mocks.postFindById,
-    exists: mocks.postExists,
-    updateOne: mocks.postUpdateOne,
-    deleteOne: mocks.postDeleteOne,
-  },
-}));
-
 vi.mock('../../../services/PostEngagementCommandService', () => ({
   materializeEngagementRelationship: (...args: unknown[]) =>
     mocks.materializeEngagementRelationship(...args),
   materializeEngagementTombstone: (...args: unknown[]) =>
     mocks.materializeEngagementTombstone(...args),
-}));
-
-vi.mock('../../../models/UserSettings', () => ({
-  default: { updateOne: vi.fn() },
 }));
 
 vi.mock('../../../utils/oxyHelpers', () => ({
@@ -161,64 +153,31 @@ vi.mock('../../../services/publishAsAccount', () => ({
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
 
 /** Stub the remote actor (liker/booster/reply-author) resolved via `FederatedActor.findOne`. */
-function stubRemoteActor(oxyUserId: string | null): void {
-  mocks.actorFindOne.mockReturnValue({
-    lean: vi.fn().mockResolvedValue(
-      oxyUserId
-        ? { uri: ACTOR_URI, oxyUserId, lastFetchedAt: new Date() }
-        : { uri: ACTOR_URI, lastFetchedAt: new Date() },
-    ),
-  });
+async function seedRemoteActor(oxyUserId: string | null): Promise<void> {
+  await seedActor(scope, { username: 'bob', uri: ACTOR_URI, oxyUserId, lastFetchedAt: new Date() });
 }
 
-/**
- * Routes every `Post.findOne` call by its filter shape:
- *  - `resolvePostIdFromObjectUri`'s local-post-exists check (`status` present)
- *  - `isLocalPostOwnerSharingEnabled` (owner gate) AND
- *    `notifyLocalPostOwnerOfEngagement` (owner notify) — both bare `{_id}`,
- *    served by the same `owner` doc (gate reads oxyUserId/federation; notify
- *    reads authorship/federation).
- */
-function stubPostFindOne(options: {
-  localPostExists?: boolean;
-  owner?: { oxyUserId?: string | null; federation?: unknown; authorship?: unknown } | null;
-} = {}): void {
-  const {
-    localPostExists = true,
-    owner = { oxyUserId: OWNER_OXY_ID, federation: null, authorship: OWNER_AUTHORSHIP },
-  } = options;
-  mocks.postFindOne.mockImplementation((filter: Record<string, unknown>) => ({
-    lean: async () => {
-      if ('status' in filter) return localPostExists ? { _id: filter._id } : null;
-      return owner;
-    },
-  }));
-}
+beforeAll(async () => {
+  await connectPostgres();
+});
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
-
-  // The channel reply gate (`utils/channelReplyGate`) reads the parent post's
-  // AUTHOR through `Post.findById`, then that author's Oxy account kind. Nothing
-  // in this file involves a channel, so the default is a parent written by a
-  // person — which is what makes these replies reach the assertions below instead
-  // of being dropped by the gate.
-  mocks.postFindById.mockImplementation(() => ({
-    select: () => ({ lean: async () => ({ oxyUserId: 'oxy-person' }) }),
-  }));
-
-  mocks.followExists.mockResolvedValue({ _id: 'follow_1' });
-  mocks.postExists.mockResolvedValue(null);
-  mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
+  await clearFederationScope(scope);
   mocks.materializeEngagementRelationship.mockResolvedValue({ changed: true });
   mocks.materializeEngagementTombstone.mockResolvedValue({ changed: true });
-  mocks.postCreatorCreate.mockResolvedValue({ _id: CREATED_REPLY_ID });
-  mocks.ensureFederatedReplyLink.mockResolvedValue({ parentPostId: TARGET_POST_ID, threadId: TARGET_POST_ID });
+  mocks.postCreatorCreate.mockResolvedValue({ id: CREATED_REPLY_ID });
+  await seedTarget();
+  mocks.ensureFederatedReplyLink.mockImplementation(async () => ({
+    parentPostId: target.id,
+    threadId: target.id,
+  }));
   mocks.importAnnounce.mockResolvedValue(true);
   mocks.isFediverseSharingEnabled.mockResolvedValue(true);
   mocks.createPostAuthorNotifications.mockResolvedValue(undefined);
-  stubRemoteActor(ACTOR_OXY_ID);
-  stubPostFindOne();
+  await seedRemoteActor(ACTOR_OXY_ID);
+  // A local user follows the actor, so `handleCreate`'s follower gate passes.
+  await seedFollow(scope, { remoteActorUri: ACTOR_URI, direction: 'outbound', status: 'accepted' });
 });
 
 // ---------------------------------------------------------------------------
@@ -227,7 +186,7 @@ beforeEach(() => {
 
 describe('handleLike — local owner like notification', () => {
   function likeActivity() {
-    return { id: `${ACTOR_URI}/likes/1`, type: 'Like' as const, actor: ACTOR_URI, object: TARGET_POST_URI };
+    return { id: `${ACTOR_URI}/likes/1`, type: 'Like' as const, actor: ACTOR_URI, object: targetUri };
   }
 
   it('notifies the owner (type:"like") on a NEW inbound like, mirroring the native shape', async () => {
@@ -236,12 +195,12 @@ describe('handleLike — local owner like notification', () => {
     expect(mocks.materializeEngagementRelationship).toHaveBeenCalledWith({
       kind: 'like',
       userId: ACTOR_OXY_ID,
-      postId: TARGET_POST_ID,
+      postId: target.id,
     });
-    expect(mocks.createPostAuthorNotifications).toHaveBeenCalledWith(OWNER_AUTHORSHIP, {
+    expect(mocks.createPostAuthorNotifications).toHaveBeenCalledWith(target.authorship, {
       actorId: ACTOR_OXY_ID,
       type: 'like',
-      entityId: TARGET_POST_ID,
+      entityId: target.id,
       entityType: 'post',
     });
   });
@@ -252,7 +211,6 @@ describe('handleLike — local owner like notification', () => {
     await inboxProcessingService.processInboxActivity(likeActivity(), ACTOR_URI);
 
     expect(mocks.materializeEngagementRelationship).toHaveBeenCalledTimes(1);
-    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
     expect(mocks.createPostAuthorNotifications).not.toHaveBeenCalled();
   });
 
@@ -266,7 +224,10 @@ describe('handleLike — local owner like notification', () => {
   });
 
   it('does NOT notify when the liker actor is unresolved', async () => {
-    stubRemoteActor(null);
+    // The actor exists but was never linked to an Oxy account.
+    await clearFederationScope(scope);
+    await seedRemoteActor(null);
+    await seedFollow(scope, { remoteActorUri: ACTOR_URI, direction: 'outbound', status: 'accepted' });
 
     await inboxProcessingService.processInboxActivity(likeActivity(), ACTOR_URI);
 
@@ -275,8 +236,11 @@ describe('handleLike — local owner like notification', () => {
   });
 
   it('records the like but does NOT notify for a REMOTE-owned/mirrored target (no local inbox)', async () => {
-    stubPostFindOne({
-      owner: { oxyUserId: 'remote_oxy_1', federation: { activityId: 'https://remote.example/1' }, authorship: OWNER_AUTHORSHIP },
+    // A MIRRORED target: its "owner" is a federated actor with no Mention
+    // inbox, so the engagement is recorded and nobody is notified.
+    await seedTarget({
+      oxyUserId: scope.user('remote-owner'),
+      federation: { activityId: `${scope.origin}/statuses/mirrored`, actorUri: ACTOR_URI },
     });
 
     await inboxProcessingService.processInboxActivity(likeActivity(), ACTOR_URI);
@@ -307,7 +271,7 @@ describe('handleAnnounce — local owner boost notification', () => {
       id: `${ACTOR_URI}/announces/1`,
       type: 'Announce' as const,
       actor: ACTOR_URI,
-      object: TARGET_POST_URI,
+      object: targetUri,
       published: new Date().toISOString(),
     };
   }
@@ -316,10 +280,10 @@ describe('handleAnnounce — local owner boost notification', () => {
     await inboxProcessingService.processInboxActivity(announceActivity(), ACTOR_URI);
 
     expect(mocks.importAnnounce).toHaveBeenCalledTimes(1);
-    expect(mocks.createPostAuthorNotifications).toHaveBeenCalledWith(OWNER_AUTHORSHIP, {
+    expect(mocks.createPostAuthorNotifications).toHaveBeenCalledWith(target.authorship, {
       actorId: ACTOR_OXY_ID,
       type: 'boost',
-      entityId: TARGET_POST_ID,
+      entityId: target.id,
       entityType: 'post',
     });
   });
@@ -342,7 +306,10 @@ describe('handleAnnounce — local owner boost notification', () => {
   });
 
   it('does NOT notify when the booster actor is unresolved', async () => {
-    stubRemoteActor(null);
+    // The actor exists but was never linked to an Oxy account.
+    await clearFederationScope(scope);
+    await seedRemoteActor(null);
+    await seedFollow(scope, { remoteActorUri: ACTOR_URI, direction: 'outbound', status: 'accepted' });
 
     await inboxProcessingService.processInboxActivity(announceActivity(), ACTOR_URI);
 
@@ -351,8 +318,11 @@ describe('handleAnnounce — local owner boost notification', () => {
   });
 
   it('imports the boost but does NOT notify for a REMOTE-owned/mirrored target', async () => {
-    stubPostFindOne({
-      owner: { oxyUserId: 'remote_oxy_1', federation: { activityId: 'https://remote.example/1' }, authorship: OWNER_AUTHORSHIP },
+    // A MIRRORED target: its "owner" is a federated actor with no Mention
+    // inbox, so the engagement is recorded and nobody is notified.
+    await seedTarget({
+      oxyUserId: scope.user('remote-owner'),
+      federation: { activityId: `${scope.origin}/statuses/mirrored`, actorUri: ACTOR_URI },
     });
 
     await inboxProcessingService.processInboxActivity(announceActivity(), ACTOR_URI);
@@ -378,7 +348,7 @@ describe('handleCreate — reply notification to the local parent owner', () => 
         attributedTo: ACTOR_URI,
         content: '<p>nice post</p>',
         to: ['https://www.w3.org/ns/activitystreams#Public'],
-        inReplyTo: TARGET_POST_URI,
+        inReplyTo: targetUri,
       },
     };
   }
@@ -387,7 +357,7 @@ describe('handleCreate — reply notification to the local parent owner', () => 
     await inboxProcessingService.processInboxActivity(replyActivity(), ACTOR_URI);
 
     expect(mocks.postCreatorCreate).toHaveBeenCalledTimes(1);
-    expect(mocks.createPostAuthorNotifications).toHaveBeenCalledWith(OWNER_AUTHORSHIP, {
+    expect(mocks.createPostAuthorNotifications).toHaveBeenCalledWith(target.authorship, {
       actorId: ACTOR_OXY_ID,
       type: 'reply',
       entityId: CREATED_REPLY_ID,
@@ -396,7 +366,15 @@ describe('handleCreate — reply notification to the local parent owner', () => 
   });
 
   it('does NOT notify on a redelivered reply (activityId already stored)', async () => {
-    mocks.postExists.mockResolvedValue({ _id: 'already_here' });
+    // The dedupe is a REAL uniqueness check against `federation.activity_id`,
+    // so the premise is a stored row rather than a stubbed `exists` answer —
+    // which is what makes this distinguishable from a dedupe that never runs.
+    await seedPost(scope, {
+      oxyUserId: ACTOR_OXY_ID,
+      parentPostId: target.id,
+      isReply: true,
+      federation: { activityId: `${ACTOR_URI}/statuses/900`, actorUri: ACTOR_URI },
+    });
 
     await inboxProcessingService.processInboxActivity(replyActivity(), ACTOR_URI);
 
@@ -414,8 +392,11 @@ describe('handleCreate — reply notification to the local parent owner', () => 
   });
 
   it('does NOT notify for a REMOTE-owned/mirrored parent (materialized but no local inbox)', async () => {
-    stubPostFindOne({
-      owner: { oxyUserId: 'remote_oxy_1', federation: { activityId: 'https://remote.example/1' }, authorship: OWNER_AUTHORSHIP },
+    // A MIRRORED target: its "owner" is a federated actor with no Mention
+    // inbox, so the engagement is recorded and nobody is notified.
+    await seedTarget({
+      oxyUserId: scope.user('remote-owner'),
+      federation: { activityId: `${scope.origin}/statuses/mirrored`, actorUri: ACTOR_URI },
     });
 
     await inboxProcessingService.processInboxActivity(replyActivity(), ACTOR_URI);
@@ -434,4 +415,12 @@ describe('handleCreate — reply notification to the local parent owner', () => 
     expect(mocks.postCreatorCreate).toHaveBeenCalledTimes(1);
     expect(mocks.createPostAuthorNotifications).not.toHaveBeenCalled();
   });
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });

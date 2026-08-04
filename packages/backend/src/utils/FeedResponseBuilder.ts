@@ -4,17 +4,19 @@
  */
 
 import { FeedResponse, FeedPostSlice, HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
-import mongoose from 'mongoose';
 import { buildFeedCursor, validateCursorAdvanced, deduplicatePosts, validateResultSize } from './feedUtils';
 import { logger } from './logger';
 
 /**
- * Raw feed post document (lean or hydrated Mongo result) before
- * hydration/transformation. Only the identity fields the builder reads are
- * declared; concrete Post documents are structurally assignable.
+ * A raw feed post before hydration/transformation. Only the identity fields the
+ * builder reads are declared; concrete post records are structurally assignable.
+ *
+ * `_id` is still accepted because callers pass records from both spellings, but
+ * it is a `string` now: these rows come from Postgres, where `posts.id` is a
+ * `text` column, not from a Mongo driver that hands back ObjectId instances.
  */
 export interface RawFeedPost {
-  _id?: string | mongoose.Types.ObjectId;
+  _id?: string;
   id?: string;
 }
 

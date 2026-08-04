@@ -53,8 +53,9 @@
  * round trip.
  */
 
-import mongoose from 'mongoose';
-import { Post } from '../models/Post';
+import { eq } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
 import { isChannelAccount } from '../services/publishAsAccount';
 
 /** A refusal carrying the status the HTTP layer should answer with. */
@@ -92,11 +93,18 @@ export async function postIsAuthoredByChannel(
 export async function parentIsChannelPost(
   parentPostId: string | null | undefined,
 ): Promise<boolean> {
-  if (!parentPostId || !mongoose.Types.ObjectId.isValid(parentPostId)) return false;
-  const parent = await Post.findById(parentPostId).select('oxyUserId').lean<{
-    oxyUserId?: string;
-  } | null>();
-  return postIsAuthoredByChannel(parent);
+  // Emptiness only. An `ObjectId.isValid` guard stood here and was worse than a
+  // stale read: `posts.id` is `text` holding uuid v7 after the cutover, so it
+  // answered `false` for every post this instance has minted — and `false` here
+  // means "not a channel post", which lets a reply THROUGH. The gate would have
+  // been entirely inert while looking present.
+  if (!parentPostId) return false;
+  const [parent] = await getDb()
+    .select({ oxyUserId: posts.oxyUserId })
+    .from(posts)
+    .where(eq(posts.id, parentPostId))
+    .limit(1);
+  return postIsAuthoredByChannel(parent ?? null);
 }
 
 /**

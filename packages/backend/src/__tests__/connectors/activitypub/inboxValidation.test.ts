@@ -1,4 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { posts } from '../../../db/schema/posts';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedFollow,
+  seedPost,
+} from '../../../__tests__/helpers/federationFixtures';
+
+const scope = federationScope('inbox-validation');
 
 /**
  * Inbound ActivityPub ingest validation gate.
@@ -24,8 +37,6 @@ const mocks = vi.hoisted(() => ({
   getPublicKey: vi.fn(),
   signViaOxy: vi.fn(),
   signRequest: vi.fn(),
-  actorFind: vi.fn(),
-  actorFindOne: vi.fn(),
   findOneAndUpdate: vi.fn(),
   updateOne: vi.fn(),
   postFind: vi.fn(),
@@ -43,9 +54,6 @@ const mocks = vi.hoisted(() => ({
   persistRemoteMedia: vi.fn(),
   recordAccess: vi.fn(),
   postCreatorCreate: vi.fn(),
-  followExists: vi.fn(),
-  followFindOneAndUpdate: vi.fn(),
-  followDeleteOne: vi.fn(),
   loggerWarn: vi.fn(),
   loggerInfo: vi.fn(),
   loggerError: vi.fn(),
@@ -69,29 +77,6 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   signRequest: mocks.signRequest,
 }));
 
-vi.mock('../../../models/FederatedActor', () => ({
-  default: {
-    findOne: mocks.actorFindOne,
-    find: mocks.actorFind,
-    findOneAndUpdate: mocks.findOneAndUpdate,
-    updateOne: mocks.updateOne,
-  },
-}));
-
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: {
-    exists: mocks.followExists,
-    findOneAndUpdate: mocks.followFindOneAndUpdate,
-    deleteOne: mocks.followDeleteOne,
-    updateOne: mocks.updateOne,
-  },
-}));
-
-vi.mock('../../../models/FederationDeliveryQueue', () => ({
-  default: {},
-  getNextRetryTime: vi.fn(),
-}));
-
 vi.mock('../../../models/Post', () => ({
   POST_CLASSIFICATION_PENDING: 'pending',
   Post: {
@@ -112,12 +97,6 @@ vi.mock('../../../services/PostEngagementCommandService', () => ({
     mocks.materializeEngagementRelationship(...args),
   materializeEngagementTombstone: (...args: unknown[]) =>
     mocks.materializeEngagementTombstone(...args),
-}));
-
-vi.mock('../../../models/UserSettings', () => ({
-  default: {
-    updateOne: vi.fn(),
-  },
 }));
 
 vi.mock('../../../utils/oxyHelpers', () => ({
@@ -144,31 +123,52 @@ vi.mock('../../../services/serviceRegistry', () => ({
 
 import { activityPubConnector as federationService } from '../../../connectors/activitypub/ActivityPubConnector';
 
-const actorUri = 'https://mastodon.social/users/bob';
+const actorUri = `${scope.origin}/users/bob`;
 
 /**
  * Make `getOrFetchActor`/`resolveActorOxyUserId` resolve a remote actor to a
  * fresh (non-stale) federated Oxy user so no background refresh fires.
  */
-function stubResolvedActor(oxyUserId: string | null) {
-  mocks.actorFindOne.mockReturnValue({
-    lean: vi.fn().mockResolvedValue(
-      oxyUserId
-        ? { uri: actorUri, oxyUserId, lastFetchedAt: new Date() }
-        : null,
-    ),
-  });
+async function seedResolvedActor(oxyUserId: string | null): Promise<void> {
+  await clearFederationScope(scope);
+  // A row with NO oxyUserId is the "resolution still pending" state; no row at
+  // all is the "never seen" one, and the two take different code paths.
+  if (oxyUserId !== null) {
+    await seedActor(scope, { username: 'bob', uri: actorUri, oxyUserId, lastFetchedAt: new Date() });
+  }
+  await seedFollow(scope, { remoteActorUri: actorUri, direction: 'outbound', status: 'accepted' });
 }
 
-/** Make `resolvePostIdFromObjectUri` resolve a remote object URI to a local id. */
-function stubResolvedPost(localId: string | null) {
-  mocks.postFindOne.mockReturnValue({
-    lean: vi.fn().mockResolvedValue(localId ? { _id: localId } : null),
+/**
+ * Store the post a remote object URI resolves to, so
+ * `resolvePostIdFromObjectUri` finds it for real.
+ *
+ * This used to be a `Post.findOne` stub handing back `{_id: 'local_post_1'}`.
+ * That made the resolution itself untestable — the whole engagement path hangs
+ * off it, and a resolver that matched nothing was indistinguishable from one
+ * that worked. It also hid the id shape: the stub's literal id is neither an
+ * ObjectId nor a uuid v7, so nothing in the chain was ever exercised with a
+ * post id of the shape the database now mints.
+ */
+async function seedResolvablePost(objectUri: string): Promise<string> {
+  const record = await seedPost(scope, {
+    oxyUserId: scope.user('alice'),
+    federation: { activityId: objectUri, actorUri: 'https://mastodon.social/users/alice' },
   });
+  return record.id;
 }
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
+  await clearFederationScope(scope);
+  // Default fixture: a resolved, followed remote actor. Suites that need the
+  // unresolved or absent variants re-seed with `seedResolvedActor`.
+  await seedActor(scope, { username: 'bob', uri: actorUri, oxyUserId: 'oxy_user_1', lastFetchedAt: new Date() });
+  await seedFollow(scope, { remoteActorUri: actorUri, direction: 'outbound', status: 'accepted' });
 
   mocks.getPublicKey.mockResolvedValue({
     keyId: 'https://mention.earth/ap/users/instance#main-key',
@@ -178,10 +178,6 @@ beforeEach(() => {
   mocks.signRequest.mockResolvedValue({ Signature: 'signature' });
   mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({ _id: 'actor_1', ...update?.$set }));
   mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
-  mocks.followFindOneAndUpdate.mockResolvedValue({ _id: 'follow_1' });
-  mocks.followDeleteOne.mockResolvedValue({ deletedCount: 1 });
-  mocks.actorFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
-  mocks.actorFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
   mocks.postFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
   mocks.postFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
   mocks.postFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
@@ -189,7 +185,6 @@ beforeEach(() => {
   mocks.postDeleteOne.mockResolvedValue({ deletedCount: 1 });
   mocks.postInsertMany.mockResolvedValue({ insertedCount: 0 });
   mocks.postExists.mockResolvedValue(null);
-  mocks.followExists.mockResolvedValue({ _id: 'follow_1' });
   mocks.materializeEngagementRelationship.mockResolvedValue({ changed: true });
   mocks.materializeEngagementTombstone.mockResolvedValue({ changed: true });
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
@@ -211,8 +206,6 @@ describe('processInboxActivity validation gate — invalid activities are droppe
     expect(mocks.materializeEngagementTombstone).not.toHaveBeenCalled();
     expect(mocks.postUpdateOne).not.toHaveBeenCalled();
     expect(mocks.postDeleteOne).not.toHaveBeenCalled();
-    expect(mocks.followFindOneAndUpdate).not.toHaveBeenCalled();
-    expect(mocks.followDeleteOne).not.toHaveBeenCalled();
   }
 
   it('drops an activity with no type (and logs a warn)', async () => {
@@ -272,7 +265,7 @@ describe('processInboxActivity validation gate — valid Create{Note} preserves 
   const activityId = `${actorUri}/statuses/300/activity`;
 
   it('processes the Create and stores the PAST Note published as createdAt (no date regression)', async () => {
-    stubResolvedActor('oxy_bob');
+    await seedResolvedActor('oxy_bob');
     mocks.postExists.mockResolvedValue(null); // not a duplicate
 
     const past = '2022-03-10T14:00:00Z';
@@ -310,7 +303,7 @@ describe('processInboxActivity validation gate — valid Create{Note} preserves 
   });
 
   it('omits createdAt (schema default = now) when the Note carries no published date', async () => {
-    stubResolvedActor('oxy_bob');
+    await seedResolvedActor('oxy_bob');
     mocks.postExists.mockResolvedValue(null);
 
     await federationService.processInboxActivity(
@@ -346,8 +339,8 @@ describe('processInboxActivity validation gate — valid Like/Announce/Undo stil
   const announceId = `${actorUri}/statuses/200/activity`;
 
   it('records a native Like for a valid Like activity', async () => {
-    stubResolvedActor('oxy_bob');
-    stubResolvedPost('local_post_1');
+    await seedResolvedActor('oxy_bob');
+    const postId = await seedResolvablePost(likedUri);
 
     await federationService.processInboxActivity(
       { id: `${actorUri}/likes/1`, type: 'Like', actor: actorUri, object: likedUri },
@@ -357,7 +350,7 @@ describe('processInboxActivity validation gate — valid Like/Announce/Undo stil
     expect(mocks.materializeEngagementRelationship).toHaveBeenCalledWith({
       kind: 'like',
       userId: 'oxy_bob',
-      postId: 'local_post_1',
+      postId,
     });
     expect(mocks.postUpdateOne).not.toHaveBeenCalled();
     expect(mocks.loggerWarn).not.toHaveBeenCalledWith(
@@ -366,13 +359,11 @@ describe('processInboxActivity validation gate — valid Like/Announce/Undo stil
   });
 
   it('creates a native boost Post for a valid Announce activity', async () => {
-    stubResolvedActor('oxy_bob');
-    stubResolvedPost('local_post_2');
-    // The boosted post must be public + published for the boost to be imported.
-    mocks.postFindById.mockReturnValue({
-      lean: vi.fn().mockResolvedValue({ status: 'published', visibility: 'public' }),
-    });
-    mocks.postExists.mockResolvedValue(null); // no existing boost
+    await seedResolvedActor('oxy_bob');
+    // The boosted post must be public + published for the boost to be imported,
+    // which `seedPost` defaults to — and which is now a property of the ROW
+    // rather than of a second stub that could disagree with the first.
+    const postId = await seedResolvablePost(announcedUri);
 
     await federationService.processInboxActivity(
       {
@@ -388,21 +379,28 @@ describe('processInboxActivity validation gate — valid Like/Announce/Undo stil
     expect(mocks.postCreatorCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         oxyUserId: 'oxy_bob',
-        boostOf: 'local_post_2',
+        boostOf: postId,
         federation: expect.objectContaining({ activityId: announceId }),
         createdAt: new Date('2026-06-18T09:30:00Z'),
         updatedAt: new Date('2026-06-18T09:30:00Z'),
       }),
     );
-    expect(mocks.postUpdateOne).toHaveBeenCalledWith(
-      { _id: 'local_post_2' },
-      { $inc: { 'stats.boostsCount': 1, 'stats.federatedBoostsCount': 1 } },
-    );
+    // The counters move on the stored row, in lockstep. `postCreatorCreate` is
+    // mocked here, so no boost row exists to count — the increment is what the
+    // import performs itself.
+    const [counters] = await getDb()
+      .select({
+        boosts: posts.statsBoostsCount,
+        federatedBoosts: posts.statsFederatedBoostsCount,
+      })
+      .from(posts)
+      .where(eq(posts.id, postId));
+    expect(counters).toEqual({ boosts: 1, federatedBoosts: 1 });
   });
 
   it('processes a valid Undo(Like): deletes the Like and decrements the counter', async () => {
-    stubResolvedActor('oxy_bob');
-    stubResolvedPost('local_post_1');
+    await seedResolvedActor('oxy_bob');
+    const postId = await seedResolvablePost(likedUri);
 
     await federationService.processInboxActivity(
       {
@@ -417,11 +415,19 @@ describe('processInboxActivity validation gate — valid Like/Announce/Undo stil
     expect(mocks.materializeEngagementTombstone).toHaveBeenCalledWith({
       kind: 'like',
       userId: 'oxy_bob',
-      postId: 'local_post_1',
+      postId,
     });
     expect(mocks.postUpdateOne).not.toHaveBeenCalled();
     expect(mocks.loggerWarn).not.toHaveBeenCalledWith(
       expect.stringContaining('dropping invalid inbound activity'),
     );
   });
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });

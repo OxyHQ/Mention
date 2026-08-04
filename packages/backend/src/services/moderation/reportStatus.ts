@@ -25,7 +25,7 @@
  * CrowdSource must not be able to silently produce `dismissed` here.
  */
 
-import { ReportStatus } from '../../models/Report.model';
+import type { ReportStatus } from '../../db/moderation/reportRepository';
 import type { ModerationLocalStatus } from '@mention/shared-types';
 
 /**
@@ -39,11 +39,11 @@ import type { ModerationLocalStatus } from '@mention/shared-types';
 export function legacyStatusForOutcome(outcome: string): ReportStatus {
   switch (outcome) {
     case 'violation':
-      return ReportStatus.RESOLVED;
+      return 'resolved';
     case 'no_violation':
-      return ReportStatus.DISMISSED;
+      return 'dismissed';
     default:
-      return ReportStatus.REVIEWED;
+      return 'reviewed';
   }
 }
 

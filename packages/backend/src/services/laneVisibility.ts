@@ -14,14 +14,16 @@
  *    post is still distributed to feeds, still federated, still searchable:
  *    `hidden` is curation of a showcase, never privacy.
  *
- * Neither rule may be expressed as a `match.$or`. `ChronoCursor.applyToQuery`
- * ASSIGNS `match.$or`, so a clause that put one there would filter correctly on
- * page one and silently stop filtering on every page after it. `$nin` on its own
- * key is a flat conjunctive term, and it also matches documents with NO `laneId`
- * at all — which is why a post with no lane needs no clause of its own.
+ * Both are applied by the CALLER as an exclusion on `posts.lane_id` — see
+ * `buildAuthoredConditions` in `mtn/feed/engine/sources/userSources.ts`, which
+ * has to spell the NULL case out: Mongo's `$nin` matched a document with no
+ * `laneId`, but SQL's `not in` is NULL for a NULL column and would drop every
+ * post outside every lane.
  */
 
-import { Lane } from '../models/Lane';
+import { and, eq, inArray } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { lanes } from '../db/schema/channels';
 import { logger } from '../utils/logger';
 import type { AuthorFeedFilter, LaneDisplayMode } from '@mention/shared-types';
 
@@ -46,10 +48,12 @@ export function excludedDisplayModesForTab(filter: AuthorFeedFilter): readonly L
  * The publisher's lane ids in any of `modes` — the ids a profile query excludes
  * with `laneId: { $nin: … }`.
  *
- * One indexed lookup per feed request, served by `{ ownerId, displayMode }`.
- * Fail-soft to `[]`: a lookup error must degrade to an UNCURATED profile rather
- * than an empty one — showing a post the owner meant to tuck away is a far
- * smaller harm than showing them nothing.
+ * One indexed lookup per feed request, served by `lanes_owner_idx`
+ * (`owner_id, created_at`). Fail-soft to `[]`: a lookup error must degrade to an
+ * UNCURATED profile rather than an empty one — showing a post the owner meant to
+ * tuck away is a far smaller harm than showing them nothing, and `hidden` is
+ * curation rather than privacy (see the module docblock), so the safe direction
+ * really is the permissive one here.
  */
 export async function loadExcludedLaneIds(
   ownerId: string,
@@ -57,11 +61,11 @@ export async function loadExcludedLaneIds(
 ): Promise<string[]> {
   if (!ownerId || modes.length === 0) return [];
   try {
-    const lanes = await Lane.find(
-      { ownerId, displayMode: { $in: modes } },
-      { _id: 1 },
-    ).lean<Array<{ _id: unknown }>>();
-    return lanes.map((lane) => String(lane._id));
+    const rows = await getDb()
+      .select({ id: lanes.id })
+      .from(lanes)
+      .where(and(eq(lanes.ownerId, ownerId), inArray(lanes.displayMode, [...modes])));
+    return rows.map((row) => row.id);
   } catch (error) {
     logger.warn('[laneVisibility] Failed to load excluded lanes', error);
     return [];
@@ -80,10 +84,11 @@ export async function loadExcludedLaneIds(
 export async function ownerHasProfileAffectingLane(ownerId: string): Promise<boolean> {
   if (!ownerId) return false;
   try {
-    const lane = await Lane.exists({
-      ownerId,
-      displayMode: { $in: OFF_MAIN_TAB },
-    });
+    const [lane] = await getDb()
+      .select({ id: lanes.id })
+      .from(lanes)
+      .where(and(eq(lanes.ownerId, ownerId), inArray(lanes.displayMode, [...OFF_MAIN_TAB])))
+      .limit(1);
     return lane != null;
   } catch (error) {
     logger.warn('[laneVisibility] Failed to probe profile-affecting lanes', error);

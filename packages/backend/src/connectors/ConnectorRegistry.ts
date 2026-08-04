@@ -3,11 +3,11 @@ import type {
   NetworkConnector,
   NormalizedExternalActor,
   LocalNetworkEvent,
-  LocalPostEventPayload,
 } from '@oxyhq/federation';
 import { logger } from '../utils/logger';
 import { isFediverseSharingEnabled } from '../services/fediverseSharing';
-import type { PostFederator } from '../services/serviceRegistry';
+import { toFederationPostPayload } from '../services/serviceRegistry';
+import type { FederatablePost, PostFederator } from '../services/serviceRegistry';
 
 /**
  * Optional capability implemented by connectors whose normal `deliver` path is
@@ -168,7 +168,7 @@ export class ConnectorRegistry implements PostFederator {
    * depends on via `serviceRegistry`.
    */
   async federateNewPost(
-    post: LocalPostEventPayload<PostContent>,
+    post: FederatablePost,
     senderOxyUserId: string,
     senderUsername: string,
     alsoDeliverToAudiencesOf?: string[],
@@ -176,7 +176,7 @@ export class ConnectorRegistry implements PostFederator {
     await this.deliverToEnabledConnectors(
       {
         kind: 'post.create',
-        post,
+        post: toFederationPostPayload(post),
         actorOxyUserId: senderOxyUserId,
         actorUsername: senderUsername,
       },

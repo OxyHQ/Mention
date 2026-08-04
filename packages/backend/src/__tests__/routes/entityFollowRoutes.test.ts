@@ -1,105 +1,120 @@
-import express, { type NextFunction, type Response } from 'express';
-import request from 'supertest';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
-import type { OxyAuthRequest } from '@oxyhq/core/server';
-
 /**
- * Two things this route must get right.
+ * `/entity-follows`, driven through the real router against real rows.
+ *
+ * The suite this replaces stubbed `EntityFollow.prototype.save` and asserted it
+ * had been CALLED. That could not see a row at all — not its canonical form, not
+ * the unique constraint, and not the order a page comes back in.
+ *
+ * Four things must hold.
  *
  * 1. It accepts EXACTLY the entity kinds something reads back. `hashtag` feeds
  *    ranking (affinity + candidate sourcing) and `list` is a feed subscription
  *    (`ListSubscriptionService` + the feed controller's merge). `feed` and
- *    `topic` used to be accepted here and had NO reader anywhere: a row was
- *    written and never queried again. A custom-feed subscription is a
- *    `FeedLike` (`POST /feeds/:id/like`), so the route must reject `feed`
- *    outright rather than quietly accept a write nothing will ever honor.
+ *    `topic` used to be accepted and had NO reader anywhere: a row was written
+ *    and never queried again. A custom-feed subscription is a `FeedLike`
+ *    (`POST /feeds/:id/like`), so the route must reject `feed` outright rather
+ *    than quietly accept a write nothing will ever honor.
  *
  * 2. Subscribing to a list obeys the SAME visibility rule as reading it. This
  *    write merges the list's members into the subscriber's feed and mutates the
- *    list's `subscriberCount`; ungated, it let any authenticated user subscribe
- *    to a stranger's private list and infer its membership from whose posts
- *    then appeared in their For You. The rule has one definition — `canViewList`
- *    in `services/listAccess` — and the tests below drive it through the route.
+ *    list's `subscriber_count`; ungated, it let any authenticated user subscribe
+ *    to a stranger's private list and infer its membership from whose posts then
+ *    appeared in their For You.
+ *
+ * 3. A followed hashtag is stored in ONE canonical form, so the unique
+ *    constraint can actually fire.
+ *
+ * 4. The listing is NEWEST FIRST on a TOTAL order. Mongo got both for free from
+ *    a descending `_id` sort; a `text` primary key gives neither, which is what
+ *    the ordering block at the bottom is about.
  */
 
-const mockIncrementSubscriberCount = vi.fn().mockResolvedValue(undefined);
-const mockDecrementSubscriberCount = vi.fn().mockResolvedValue(undefined);
+import express, { type NextFunction, type Response } from 'express';
+import request from 'supertest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { eq, inArray } from 'drizzle-orm';
+import type { OxyAuthRequest } from '@oxyhq/core/server';
 
-vi.mock('../../services/ListSubscriptionService', () => ({
-  LIST_ENTITY_TYPE: 'list',
-  listSubscriptionService: {
-    incrementSubscriberCount: (...args: unknown[]) => mockIncrementSubscriberCount(...args),
-    decrementSubscriberCount: (...args: unknown[]) => mockDecrementSubscriberCount(...args),
-  },
-}));
-
-/**
- * Only the DATABASE READ is stubbed. `canViewList` — the rule under test — runs
- * for real, so removing the gate from the route cannot be masked by a mock that
- * quietly answers "allowed".
- */
-const mockLoadListVisibility = vi.fn();
-
-vi.mock('../../services/listAccess', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../services/listAccess')>();
-  return {
-    ...actual,
-    loadListVisibility: (listId: string) => mockLoadListVisibility(listId),
-  };
-});
-
-vi.mock('../../utils/logger', () => ({
-  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
-
-import { EntityFollow, ENTITY_FOLLOW_TYPES } from '../../models/EntityFollow';
+import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
+import { accountLists } from '../../db/schema/lists';
+import { ENTITY_FOLLOW_TYPES, entityFollows } from '../../db/schema/engagement';
+import { uuidv7 } from '../../db/schema/columns';
 import { canViewList } from '../../services/listAccess';
 import entityFollowRouter from '../../routes/entity-follow.routes';
 
-const VIEWER_ID = 'viewer-1';
-const OTHER_USER_ID = 'stranger-9';
-const LIST_ID = '65b0c9178fcdefaf81988ffb';
+let db: Database;
 
-function buildApp(): express.Express {
-  const app = express();
-  app.use(express.json());
-  app.use((req: OxyAuthRequest, _res: Response, next: NextFunction) => {
-    req.user = { id: VIEWER_ID };
-    next();
-  });
-  app.use('/entity-follows', entityFollowRouter);
-  return app;
+const run = randomUUID();
+const VIEWER_ID = `viewer-${run}`;
+const OTHER_USER_ID = `stranger-${run}`;
+
+const createdListIds: string[] = [];
+
+const app = express();
+app.use(express.json());
+app.use((req: OxyAuthRequest, _res: Response, next: NextFunction) => {
+  req.user = { id: VIEWER_ID };
+  next();
+});
+app.use('/entity-follows', entityFollowRouter);
+
+/** A list owned by `OTHER_USER_ID` unless told otherwise. */
+async function makeList(isPublic: boolean, ownerOxyUserId = OTHER_USER_ID): Promise<string> {
+  const [list] = await db
+    .insert(accountLists)
+    .values({ ownerOxyUserId, title: `List ${randomUUID()}`, isPublic })
+    .returning({ id: accountLists.id, subscriberCount: accountLists.subscriberCount });
+  createdListIds.push(list.id);
+  return list.id;
 }
 
-describe('entity-follow routes — accepted entity types', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    mockIncrementSubscriberCount.mockReset().mockResolvedValue(undefined);
-    mockDecrementSubscriberCount.mockReset().mockResolvedValue(undefined);
-    mockLoadListVisibility.mockReset();
-  });
+async function readSubscriberCount(listId: string): Promise<number> {
+  const [row] = await db
+    .select({ subscriberCount: accountLists.subscriberCount })
+    .from(accountLists)
+    .where(eq(accountLists.id, listId));
+  return row.subscriberCount;
+}
 
+async function readFollows(): Promise<Array<{ entityType: string; entityId: string }>> {
+  return db
+    .select({ entityType: entityFollows.entityType, entityId: entityFollows.entityId })
+    .from(entityFollows)
+    .where(eq(entityFollows.userId, VIEWER_ID));
+}
+
+beforeAll(async () => {
+  db = await connectPostgres();
+});
+
+afterEach(async () => {
+  await db.delete(entityFollows).where(eq(entityFollows.userId, VIEWER_ID));
+  if (createdListIds.length > 0) {
+    await db.delete(accountLists).where(inArray(accountLists.id, createdListIds));
+    createdListIds.length = 0;
+  }
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+describe('entity-follow routes — accepted entity types', () => {
   it('exposes only the entity kinds that have a reader', () => {
     expect([...ENTITY_FOLLOW_TYPES]).toEqual(['hashtag', 'list']);
   });
 
   it.each(['feed', 'topic'])('rejects the dead entity type %s', async (entityType) => {
-    const save = vi.spyOn(EntityFollow.prototype, 'save');
-
-    const res = await request(buildApp())
-      .post('/entity-follows')
-      .send({ entityType, entityId: 'entity-1' });
+    const res = await request(app).post('/entity-follows').send({ entityType, entityId: 'entity-1' });
 
     expect(res.status).toBe(400);
     expect(res.body.message).toBe('entityType must be one of: hashtag, list');
     // The row is never written — not even optimistically.
-    expect(save).not.toHaveBeenCalled();
-    expect(mockIncrementSubscriberCount).not.toHaveBeenCalled();
+    expect(await readFollows()).toEqual([]);
   });
 
   it('rejects a feed follow on every entry point of the route', async () => {
-    const app = buildApp();
-
     const status = await request(app)
       .get('/entity-follows/status')
       .query({ entityType: 'feed', entityId: 'feed-1' });
@@ -114,31 +129,39 @@ describe('entity-follow routes — accepted entity types', () => {
     expect(unfollow.status).toBe(400);
   });
 
-  it('still follows a hashtag', async () => {
-    const save = vi.spyOn(EntityFollow.prototype, 'save').mockResolvedValue(undefined);
-
-    const res = await request(buildApp())
+  it('still follows a hashtag, and touches no list', async () => {
+    const res = await request(app)
       .post('/entity-follows')
       .send({ entityType: 'hashtag', entityId: 'design' });
 
     expect(res.status).toBe(201);
-    expect(save).toHaveBeenCalledTimes(1);
-    // A hashtag follow is not a subscription — it must not touch list counts.
-    expect(mockIncrementSubscriberCount).not.toHaveBeenCalled();
-    // Nor is it a list: the visibility gate must not fire for it at all.
-    expect(mockLoadListVisibility).not.toHaveBeenCalled();
+    expect(await readFollows()).toEqual([{ entityType: 'hashtag', entityId: 'design' }]);
+    // The row it reports back is the row it wrote, and it carries `_id` because
+    // a Mongoose document did.
+    expect(res.body.follow).toMatchObject({ userId: VIEWER_ID, entityType: 'hashtag', entityId: 'design' });
+    expect(res.body.follow._id).toBe(res.body.follow.id);
   });
 
   it('still subscribes to a public list, and bumps its subscriber count', async () => {
-    vi.spyOn(EntityFollow.prototype, 'save').mockResolvedValue(undefined);
-    mockLoadListVisibility.mockResolvedValue({ isPublic: true, ownerOxyUserId: OTHER_USER_ID });
+    const listId = await makeList(true);
 
-    const res = await request(buildApp())
+    const res = await request(app)
       .post('/entity-follows')
-      .send({ entityType: 'list', entityId: LIST_ID });
+      .send({ entityType: 'list', entityId: listId });
 
     expect(res.status).toBe(201);
-    expect(mockIncrementSubscriberCount).toHaveBeenCalledWith(LIST_ID);
+    expect(await readSubscriberCount(listId)).toBe(1);
+  });
+
+  it('refuses a duplicate follow with 409, leaving exactly one row', async () => {
+    await request(app).post('/entity-follows').send({ entityType: 'hashtag', entityId: 'design' });
+    const second = await request(app)
+      .post('/entity-follows')
+      .send({ entityType: 'hashtag', entityId: 'design' });
+
+    expect(second.status).toBe(409);
+    expect(second.body.message).toBe('Already following this entity');
+    expect(await readFollows()).toHaveLength(1);
   });
 });
 
@@ -147,78 +170,62 @@ describe('entity-follow routes — accepted entity types', () => {
  * reads as "the private-list gate is gone", not "some list test broke".
  */
 describe('entity-follow routes — a list subscription obeys list visibility', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    mockIncrementSubscriberCount.mockReset().mockResolvedValue(undefined);
-    mockDecrementSubscriberCount.mockReset().mockResolvedValue(undefined);
-    mockLoadListVisibility.mockReset();
-  });
-
   it('refuses to subscribe a stranger to a PRIVATE list, and writes nothing', async () => {
-    const save = vi.spyOn(EntityFollow.prototype, 'save').mockResolvedValue(undefined);
-    mockLoadListVisibility.mockResolvedValue({ isPublic: false, ownerOxyUserId: OTHER_USER_ID });
+    const listId = await makeList(false);
 
-    const res = await request(buildApp())
+    const res = await request(app)
       .post('/entity-follows')
-      .send({ entityType: 'list', entityId: LIST_ID });
+      .send({ entityType: 'list', entityId: listId });
 
     expect(res.status).toBe(403);
     // The row is what leaks membership into the feed — it must never be written.
-    expect(save).not.toHaveBeenCalled();
-    // ...and someone else's list document must not be mutated either.
-    expect(mockIncrementSubscriberCount).not.toHaveBeenCalled();
+    expect(await readFollows()).toEqual([]);
+    // ...and someone else's list must not be mutated either.
+    expect(await readSubscriberCount(listId)).toBe(0);
   });
 
   it('lets the OWNER subscribe to their own private list', async () => {
-    vi.spyOn(EntityFollow.prototype, 'save').mockResolvedValue(undefined);
-    mockLoadListVisibility.mockResolvedValue({ isPublic: false, ownerOxyUserId: VIEWER_ID });
+    const listId = await makeList(false, VIEWER_ID);
 
-    const res = await request(buildApp())
+    const res = await request(app)
       .post('/entity-follows')
-      .send({ entityType: 'list', entityId: LIST_ID });
+      .send({ entityType: 'list', entityId: listId });
 
     expect(res.status).toBe(201);
-    expect(mockIncrementSubscriberCount).toHaveBeenCalledWith(LIST_ID);
+    expect(await readSubscriberCount(listId)).toBe(1);
   });
 
   it('404s a list that does not exist, and writes nothing', async () => {
-    const save = vi.spyOn(EntityFollow.prototype, 'save').mockResolvedValue(undefined);
-    mockLoadListVisibility.mockResolvedValue(null);
-
-    const res = await request(buildApp())
+    const res = await request(app)
       .post('/entity-follows')
-      .send({ entityType: 'list', entityId: LIST_ID });
+      .send({ entityType: 'list', entityId: uuidv7() });
 
     expect(res.status).toBe(404);
-    expect(save).not.toHaveBeenCalled();
-    expect(mockIncrementSubscriberCount).not.toHaveBeenCalled();
-  });
-
-  it('treats a list stored without isPublic as private (fails closed)', async () => {
-    const save = vi.spyOn(EntityFollow.prototype, 'save').mockResolvedValue(undefined);
-    mockLoadListVisibility.mockResolvedValue({ ownerOxyUserId: OTHER_USER_ID });
-
-    const res = await request(buildApp())
-      .post('/entity-follows')
-      .send({ entityType: 'list', entityId: LIST_ID });
-
-    expect(res.status).toBe(403);
-    expect(save).not.toHaveBeenCalled();
+    expect(await readFollows()).toEqual([]);
   });
 
   it('still lets a subscriber unsubscribe from a list that has since gone private', async () => {
-    const remove = vi.spyOn(EntityFollow, 'findOneAndDelete').mockResolvedValue({ _id: 'row-1' });
-    // The gate deliberately does not run on DELETE, so no visibility is stubbed:
-    // if one were consulted it would resolve undefined and 404, failing loudly.
+    const listId = await makeList(true);
+    await request(app).post('/entity-follows').send({ entityType: 'list', entityId: listId });
+    await db.update(accountLists).set({ isPublic: false }).where(eq(accountLists.id, listId));
 
-    const res = await request(buildApp())
+    const res = await request(app)
       .delete('/entity-follows')
-      .send({ entityType: 'list', entityId: LIST_ID });
+      .send({ entityType: 'list', entityId: listId });
 
+    // Teardown has to converge: gating this would strand the row forever, and
+    // the stranded row keeps feeding the list's members into the viewer's feed.
     expect(res.status).toBe(200);
-    expect(remove).toHaveBeenCalledWith({ userId: VIEWER_ID, entityType: 'list', entityId: LIST_ID });
-    expect(mockDecrementSubscriberCount).toHaveBeenCalledWith(LIST_ID);
-    expect(mockLoadListVisibility).not.toHaveBeenCalled();
+    expect(await readFollows()).toEqual([]);
+    expect(await readSubscriberCount(listId)).toBe(0);
+  });
+
+  it('404s an unfollow of something the viewer never followed', async () => {
+    const res = await request(app)
+      .delete('/entity-follows')
+      .send({ entityType: 'hashtag', entityId: 'design' });
+
+    expect(res.status).toBe(404);
   });
 });
 
@@ -237,43 +244,31 @@ describe('canViewList', () => {
 });
 
 describe('entity-follow routes — write inputs are bounded', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    mockIncrementSubscriberCount.mockReset().mockResolvedValue(undefined);
-    mockLoadListVisibility.mockReset();
-  });
-
-  it('rejects a non-string entityId rather than letting an operator reach Mongo', async () => {
-    const save = vi.spyOn(EntityFollow.prototype, 'save').mockResolvedValue(undefined);
-
-    const res = await request(buildApp())
+  it('rejects a non-string entityId', async () => {
+    const res = await request(app)
       .post('/entity-follows')
       .send({ entityType: 'hashtag', entityId: { $ne: null } });
 
     expect(res.status).toBe(400);
-    expect(save).not.toHaveBeenCalled();
+    expect(await readFollows()).toEqual([]);
   });
 
   it('rejects an over-long entityId', async () => {
-    const save = vi.spyOn(EntityFollow.prototype, 'save').mockResolvedValue(undefined);
-
-    const res = await request(buildApp())
+    const res = await request(app)
       .post('/entity-follows')
       .send({ entityType: 'hashtag', entityId: 'x'.repeat(101) });
 
     expect(res.status).toBe(400);
-    expect(save).not.toHaveBeenCalled();
+    expect(await readFollows()).toEqual([]);
   });
 
   it('still accepts a hashtag at the length bound', async () => {
-    const save = vi.spyOn(EntityFollow.prototype, 'save').mockResolvedValue(undefined);
-
-    const res = await request(buildApp())
+    const res = await request(app)
       .post('/entity-follows')
       .send({ entityType: 'hashtag', entityId: 'x'.repeat(100) });
 
     expect(res.status).toBe(201);
-    expect(save).toHaveBeenCalledTimes(1);
+    expect(await readFollows()).toHaveLength(1);
   });
 });
 
@@ -283,22 +278,11 @@ describe('entity-follow routes — write inputs are bounded', () => {
  * The write path used to store whatever the client sent while both readers
  * lowercased at read time, and the hashtag screen sends the URL segment
  * un-normalized — so `/hashtag/Design` and `/hashtag/design` wrote two rows for
- * one viewer, straight past the unique index on
+ * one viewer, straight past the unique constraint on
  * `{userId, entityType, entityId}`. Each row was then counted again by the
  * affinity signals, and an unfollow removed only the casing it arrived by.
- *
- * `normalizeHashtag` is the same function that derives `Post.hashtags`, so a
- * followed tag and an indexed tag are the same string by construction. Every
- * entry point resolves through it: otherwise a client asking about `Design`
- * would miss the `design` row its own follow just created.
  */
 describe('entity-follow routes — a followed hashtag is stored canonically', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    mockIncrementSubscriberCount.mockReset().mockResolvedValue(undefined);
-    mockLoadListVisibility.mockReset();
-  });
-
   it.each([
     ['upper case', 'Design', 'design'],
     ['mixed case', 'DeSiGn', 'design'],
@@ -307,79 +291,162 @@ describe('entity-follow routes — a followed hashtag is stored canonically', ()
     ['punctuation', 'my-tag', 'mytag'],
     ['spaces between words', 'the village', 'thevillage'],
     ['an emoji separator', 'design✨', 'design'],
+    ['a non-ASCII tag', '#Café', 'café'],
   ])('stores %s as the canonical tag', async (_label, sent, stored) => {
-    const save = vi.spyOn(EntityFollow.prototype, 'save').mockResolvedValue(undefined);
-
-    const res = await request(buildApp())
-      .post('/entity-follows')
-      .send({ entityType: 'hashtag', entityId: sent });
+    const res = await request(app).post('/entity-follows').send({ entityType: 'hashtag', entityId: sent });
 
     expect(res.status).toBe(201);
-    expect(save).toHaveBeenCalledTimes(1);
-    // The row the API reports back is the row it wrote.
+    // The row it reports back is the row it wrote — and the row really in the table.
     expect(res.body.follow.entityId).toBe(stored);
+    expect(await readFollows()).toEqual([{ entityType: 'hashtag', entityId: stored }]);
   });
 
-  it('preserves a non-ASCII tag rather than mangling it to ASCII', async () => {
-    vi.spyOn(EntityFollow.prototype, 'save').mockResolvedValue(undefined);
+  it('collapses two casings of one tag onto a single row', async () => {
+    const first = await request(app).post('/entity-follows').send({ entityType: 'hashtag', entityId: 'Design' });
+    const second = await request(app).post('/entity-follows').send({ entityType: 'hashtag', entityId: 'design' });
 
-    const res = await request(buildApp())
-      .post('/entity-follows')
-      .send({ entityType: 'hashtag', entityId: '#Café' });
-
-    expect(res.status).toBe(201);
-    expect(res.body.follow.entityId).toBe('café');
+    expect(first.status).toBe(201);
+    // Without canonicalization this is a second row that the unique constraint
+    // never sees, and an unfollow then removes only one of them.
+    expect(second.status).toBe(409);
+    expect(await readFollows()).toEqual([{ entityType: 'hashtag', entityId: 'design' }]);
   });
 
   it('rejects a tag that canonicalizes to nothing', async () => {
-    const save = vi.spyOn(EntityFollow.prototype, 'save').mockResolvedValue(undefined);
+    const res = await request(app).post('/entity-follows').send({ entityType: 'hashtag', entityId: '#!!!' });
 
-    const res = await request(buildApp())
-      .post('/entity-follows')
-      .send({ entityType: 'hashtag', entityId: '#!!!' });
-
-    // An empty entityId would violate the schema; there is no tag here to follow.
     expect(res.status).toBe(400);
-    expect(save).not.toHaveBeenCalled();
+    expect(await readFollows()).toEqual([]);
   });
 
   it('unfollows by the canonical tag, so the casing sent does not matter', async () => {
-    const remove = vi.spyOn(EntityFollow, 'findOneAndDelete').mockResolvedValue({ _id: 'row-1' });
+    await request(app).post('/entity-follows').send({ entityType: 'hashtag', entityId: 'design' });
 
-    const res = await request(buildApp())
+    const res = await request(app)
       .delete('/entity-follows')
       .send({ entityType: 'hashtag', entityId: '#Design' });
 
     expect(res.status).toBe(200);
-    expect(remove).toHaveBeenCalledWith({ userId: VIEWER_ID, entityType: 'hashtag', entityId: 'design' });
+    expect(await readFollows()).toEqual([]);
   });
 
   it('reads status by the canonical tag, so a follow it just wrote is found', async () => {
-    const findOne = vi.spyOn(EntityFollow, 'findOne').mockResolvedValue({ _id: 'row-1' });
+    await request(app).post('/entity-follows').send({ entityType: 'hashtag', entityId: 'design' });
 
-    const res = await request(buildApp())
+    const res = await request(app)
       .get('/entity-follows/status')
       .query({ entityType: 'hashtag', entityId: 'Design' });
 
     expect(res.status).toBe(200);
     expect(res.body.isFollowing).toBe(true);
-    expect(findOne).toHaveBeenCalledWith({ userId: VIEWER_ID, entityType: 'hashtag', entityId: 'design' });
   });
 
   it('leaves a LIST id untouched — normalization is for tags, not ids', async () => {
-    vi.spyOn(EntityFollow.prototype, 'save').mockResolvedValue(undefined);
-    mockLoadListVisibility.mockResolvedValue({ isPublic: true, ownerOxyUserId: OTHER_USER_ID });
+    const listId = await makeList(true);
 
-    const res = await request(buildApp())
+    const res = await request(app)
       .post('/entity-follows')
-      .send({ entityType: 'list', entityId: LIST_ID });
+      .send({ entityType: 'list', entityId: listId });
 
     expect(res.status).toBe(201);
-    // An ObjectId must survive verbatim: `normalizeHashtag` would happily strip
-    // characters out of one, and the id would then match no list.
-    expect(res.body.follow.entityId).toBe(LIST_ID);
-    expect(mockLoadListVisibility).toHaveBeenCalledWith(LIST_ID);
-    expect(mockIncrementSubscriberCount).toHaveBeenCalledWith(LIST_ID);
+    // A uuid v7 must survive verbatim: `normalizeHashtag` strips the hyphens out
+    // of one, and the id would then match no list.
+    expect(res.body.follow.entityId).toBe(listId);
+  });
+});
+
+/**
+ * The listing's ORDER, which is the part of this route the storage change could
+ * silently break.
+ */
+describe('GET /entity-follows — newest first, on a total order', () => {
+  /** Insert a row with an explicit id and timestamp, bypassing the route. */
+  async function seedFollow(entityId: string, createdAt: Date, id: string): Promise<void> {
+    await db.insert(entityFollows).values({
+      id,
+      userId: VIEWER_ID,
+      entityType: 'hashtag',
+      entityId,
+      createdAt,
+      updatedAt: createdAt,
+    });
+  }
+
+  it('puts a NEW uuid-v7 row above an OLD ObjectId row', async () => {
+    /**
+     * THE regression test for the sort axis. Mongo ordered on `_id`, and an
+     * ObjectId embeds its creation time, so `_id desc` WAS newest-first. A `text`
+     * id is not: a post-cutover uuid v7 begins `0198…` and an ObjectId minted in
+     * 2024 begins `65b0…`, so ordering on the id alone files every NEW follow
+     * BELOW every old one — silently, and only after the cutover.
+     */
+    await seedFollow('older', new Date('2024-01-01T00:00:00.000Z'), '65b0c9178fcdefaf81988ffb');
+    await seedFollow('newer', new Date('2026-01-01T00:00:00.000Z'), '0198a2b1-4c3d-7e2f-8a1b-0123456789ab');
+
+    const res = await request(app).get('/entity-follows').expect(200);
+
+    expect(res.body.follows.map((f: { entityId: string }) => f.entityId)).toEqual(['newer', 'older']);
+  });
+
+  it('orders rows sharing a timestamp by id, descending', async () => {
+    // Inserted in ASCENDING id order, so physical order is the exact opposite of
+    // the order the route must produce. Drop `id` from the ORDER BY and the sort
+    // has nothing left to distinguish these six rows by.
+    const tied = new Date('2026-02-02T00:00:00.000Z');
+    for (const suffix of ['a', 'b', 'c', 'd', 'e', 'f']) {
+      await seedFollow(`tag-${suffix}`, tied, `0198a2b1-4c3d-7e2f-8a1b-00000000000${suffix}`);
+    }
+
+    const res = await request(app).get('/entity-follows').expect(200);
+
+    expect(res.body.follows.map((f: { entityId: string }) => f.entityId)).toEqual([
+      'tag-f', 'tag-e', 'tag-d', 'tag-c', 'tag-b', 'tag-a',
+    ]);
+  });
+
+  it('pages through rows sharing a timestamp without repeating or skipping one', async () => {
+    const tied = new Date('2026-03-03T00:00:00.000Z');
+    for (const suffix of ['a', 'b', 'c', 'd', 'e']) {
+      await seedFollow(`tag-${suffix}`, tied, `0198a2b1-4c3d-7e2f-8a1b-00000000000${suffix}`);
+    }
+
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < 5; page += 1) {
+      const query: Record<string, string | number> = { limit: 1 };
+      if (cursor) query.cursor = cursor;
+      const res = await request(app).get('/entity-follows').query(query).expect(200);
+      seen.push(...res.body.follows.map((f: { entityId: string }) => f.entityId));
+      cursor = res.body.nextCursor;
+      if (!res.body.hasMore) break;
+    }
+
+    expect(seen).toEqual(['tag-e', 'tag-d', 'tag-c', 'tag-b', 'tag-a']);
+    expect(new Set(seen).size).toBe(5);
+  });
+
+  it('narrows by type, and reports hasMore honestly', async () => {
+    const listId = await makeList(true);
+    await request(app).post('/entity-follows').send({ entityType: 'hashtag', entityId: 'design' });
+    await request(app).post('/entity-follows').send({ entityType: 'list', entityId: listId });
+
+    const hashtags = await request(app).get('/entity-follows').query({ type: 'hashtag' }).expect(200);
+    expect(hashtags.body.follows.map((f: { entityId: string }) => f.entityId)).toEqual(['design']);
+    expect(hashtags.body.hasMore).toBe(false);
+    expect(hashtags.body.nextCursor).toBeUndefined();
+  });
+
+  it('400s a cursor it did not issue, rather than silently serving page one', async () => {
+    /**
+     * A cursor quietly ignored makes an infinite-scroll client loop over the
+     * first page forever, with no error anywhere to explain it.
+     */
+    await request(app).post('/entity-follows').send({ entityType: 'hashtag', entityId: 'design' });
+
+    const res = await request(app).get('/entity-follows').query({ cursor: 'not-a-cursor' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('cursor is malformed');
   });
 });
 
@@ -391,7 +458,7 @@ describe('entity-follow routes — the entity followers endpoint is gone', () =>
    * UI). Nothing called it. It must stay absent, not come back gated.
    */
   it.each(['list', 'hashtag'])('404s for %s', async (entityType) => {
-    const res = await request(buildApp()).get(`/entity-follows/${entityType}/${LIST_ID}/followers`);
+    const res = await request(app).get(`/entity-follows/${entityType}/${uuidv7()}/followers`);
     expect(res.status).toBe(404);
   });
 });

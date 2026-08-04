@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   buildFeedDescriptor,
   isValidFeedDescriptor,
@@ -18,10 +18,9 @@ import {
  * profile tabs.
  */
 
-// `resolveDefinition` reaches presets, which read config; the lane branch itself
-// touches no model, so nothing else needs stubbing.
-vi.mock('../models/Lane', () => ({ Lane: {} }));
-
+// `resolveDefinition` reaches presets, which read config. Nothing here opens a
+// database: descriptor parsing and definition resolution are pure, and the lane
+// SOURCE — the only part that queries — is another suite's subject.
 import { resolveDefinition } from '../mtn/feed/definitions/resolveDefinition';
 import { laneDefinition } from '../mtn/feed/definitions/presets';
 

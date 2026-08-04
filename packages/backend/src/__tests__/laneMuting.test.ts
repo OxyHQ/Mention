@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import mongoose from 'mongoose';
 
 /**
  * A reader's muted lanes, applied by the ENGINE.
@@ -28,7 +27,7 @@ vi.mock('../services/ThreadSlicingService', () => ({
   threadSlicingService: {
     sliceFeed: vi.fn(async (posts: Array<Record<string, unknown>>) => ({
       slices: posts.map((post) => ({
-        _sliceKey: String(post._id),
+        _sliceKey: String(post.id),
         items: [{ post, isThreadParent: false, isThreadChild: false, isThreadLastChild: false }],
         isIncompleteThread: false,
       })),
@@ -39,14 +38,10 @@ vi.mock('../services/ThreadSlicingService', () => ({
 
 vi.mock('../services/PostHydrationService', () => ({
   postHydrationService: {
-    hydrateSlices: vi.fn(async (slices: Array<{ items: Array<{ post: Record<string, unknown> }> }>) => {
-      for (const slice of slices) for (const item of slice.items) item.post.id = String(item.post._id);
-      return slices;
-    }),
-    hydratePosts: vi.fn(async (posts: Array<Record<string, unknown>>) => {
-      for (const post of posts) post.id = String(post._id);
-      return posts;
-    }),
+    // Identity: `id` is already the post's own primary key. The mock exists to
+    // keep hydration out of this file, not to rename anything.
+    hydrateSlices: vi.fn(async (slices: unknown) => slices),
+    hydratePosts: vi.fn(async (posts: unknown) => posts),
   },
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
@@ -63,13 +58,19 @@ import { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
 import { authorDefinition } from '../mtn/feed/definitions/presets';
 import type { CandidatePost, FeedDefinition, SourceModule } from '../mtn/feed/engine/types';
 
-const oid = (n: number) => new mongoose.Types.ObjectId(`5f${n.toString().padStart(22, '0')}`);
+/**
+ * A stable post id. Plain text, because `posts.id` is `text` holding uuid v7
+ * after the cutover — nothing in the engine parses an id, so a readable one is
+ * strictly better than a fabricated ObjectId that implies a shape the column no
+ * longer has.
+ */
+const oid = (n: number) => `lanemute-post-${n}`;
 const MUTED_LANE = 'lane-muted';
 const OTHER_LANE = 'lane-other';
 
 function makePost(n: number, extra: Record<string, unknown> = {}): CandidatePost {
   return {
-    _id: oid(n),
+    id: oid(n),
     oxyUserId: `author-${n}`,
     createdAt: new Date(2020, 0, n),
     engagementScore: 100 - n,
@@ -129,7 +130,7 @@ describe('gatherPool — muted lanes', () => {
     );
 
     // A post with no lane at all is never affected.
-    expect(idsOf(response)).toEqual([oid(3).toString(), oid(2).toString()]);
+    expect(idsOf(response)).toEqual([oid(3), oid(2)]);
   });
 
   it('changes nothing for a reader who muted no lane', async () => {
@@ -157,7 +158,7 @@ describe('gatherPool — muted lanes', () => {
       { limit: 10 },
     );
 
-    expect(idsOf(response)).toEqual([oid(2).toString()]);
+    expect(idsOf(response)).toEqual([oid(2)]);
   });
 
   it('applies on the cheap peekLatest probe too', async () => {
@@ -189,7 +190,7 @@ describe('runPopularFallback — muted lanes', () => {
       { limit: 10 },
     );
 
-    expect(response.items.map((item) => item.id)).toEqual([oid(2).toString()]);
+    expect(response.items.map((item) => item.id)).toEqual([oid(2)]);
   });
 
   it('reads hasMore from the SOURCE, not from what survived the mute', async () => {

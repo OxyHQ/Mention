@@ -1,4 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  readFollows,
+  seedFollow,
+} from '../../helpers/federationFixtures';
+
+const scope = federationScope('atproto-connector');
 
 /**
  * AtprotoConnector contract: subject matching, the follow → local subscription
@@ -12,8 +22,6 @@ const mocks = vi.hoisted(() => ({
   fetchAndUpsertAtprotoProfile: vi.fn(),
   importAuthorFeed: vi.fn(),
   resolveOxyExternalUser: vi.fn(),
-  followUpsert: vi.fn(),
-  followDelete: vi.fn(),
 }));
 
 vi.mock('../../../connectors/atproto/identityResolver', () => ({
@@ -32,18 +40,12 @@ vi.mock('../../../connectors/identity', () => ({
   resolveOxyExternalUser: mocks.resolveOxyExternalUser,
 }));
 
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: {
-    findOneAndUpdate: mocks.followUpsert,
-    deleteOne: mocks.followDelete,
-  },
-}));
-
 import { atprotoConnector } from '../../../connectors/atproto/AtprotoConnector';
 
 const DID = 'did:plc:ewvi7nxzyoun6zhxrhs64oiz';
 
-beforeEach(() => {
+beforeEach(async () => {
+  await clearFederationScope(scope);
   vi.clearAllMocks();
   mocks.resolveIdentity.mockResolvedValue({ did: DID, handle: 'alice.bsky.social' });
   mocks.fetchAndUpsertAtprotoProfile.mockResolvedValue({
@@ -53,8 +55,14 @@ beforeEach(() => {
     oxyUserId: 'oxy-alice',
   });
   mocks.importAuthorFeed.mockResolvedValue({ posts: [], cursor: undefined });
-  mocks.followUpsert.mockResolvedValue({ _id: 'ff1' });
-  mocks.followDelete.mockResolvedValue({ deletedCount: 1 });
+});
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 describe('AtprotoConnector.matches', () => {
@@ -71,35 +79,45 @@ describe('AtprotoConnector.deliver', () => {
   it('records a local subscription on follow.add and backfills the feed', async () => {
     await atprotoConnector.deliver({
       kind: 'follow.add',
-      localOxyUserId: 'viewer-1',
+      localOxyUserId: scope.localUserId,
       localUsername: 'viewer',
       targetActorUri: DID,
     });
 
-    expect(mocks.followUpsert).toHaveBeenCalledWith(
-      { localUserId: 'viewer-1', remoteActorUri: DID, direction: 'outbound' },
-      { $set: { status: 'accepted', network: 'atproto' } },
-      expect.objectContaining({ upsert: true }),
-    );
+    // A REAL subscription row, written straight to `accepted` — atproto has no
+    // wire Follow, so the edge exists purely to make the backfill happen.
+    const follows = await readFollows(scope);
+    expect(follows).toHaveLength(1);
+    expect(follows[0]).toMatchObject({
+      localUserId: scope.localUserId,
+      remoteActorUri: DID,
+      direction: 'outbound',
+      status: 'accepted',
+      network: 'atproto',
+    });
     expect(mocks.importAuthorFeed).toHaveBeenCalled();
   });
 
   it('removes the local subscription on follow.remove', async () => {
+    await seedFollow(scope, {
+      remoteActorUri: DID,
+      direction: 'outbound',
+      status: 'accepted',
+      network: 'atproto',
+    });
+
     await atprotoConnector.deliver({
       kind: 'follow.remove',
-      localOxyUserId: 'viewer-1',
+      localOxyUserId: scope.localUserId,
       localUsername: 'viewer',
       targetActorUri: DID,
     });
 
-    expect(mocks.followDelete).toHaveBeenCalledWith({
-      localUserId: 'viewer-1',
-      remoteActorUri: DID,
-      direction: 'outbound',
-    });
+    expect(await readFollows(scope)).toHaveLength(0);
   });
 
   it('is a no-op on post.create (no outbound publish in C2)', async () => {
+    await clearFederationScope(scope);
     await expect(
       atprotoConnector.deliver({
         kind: 'post.create',
@@ -108,7 +126,7 @@ describe('AtprotoConnector.deliver', () => {
         actorUsername: 'viewer',
       }),
     ).resolves.toBeUndefined();
-    expect(mocks.followUpsert).not.toHaveBeenCalled();
+    expect(await readFollows(scope)).toHaveLength(0);
   });
 });
 
@@ -126,4 +144,8 @@ describe('AtprotoConnector.fetchPosts', () => {
     expect(result).toEqual({ posts: [] });
     expect(mocks.importAuthorFeed).not.toHaveBeenCalled();
   });
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
 });

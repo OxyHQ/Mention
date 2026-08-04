@@ -8,7 +8,7 @@
  * from then on. The ~15k EXISTING federated actors never re-resolve, so their
  * profiles stay banner-less until this runs.
  *
- * This script walks every `FederatedActor` that advertises a `headerUrl` and is
+ * This script walks every federated actor that advertises a `headerUrl` and is
  * already linked to an Oxy user (`oxyUserId` set), and mirrors that banner
  * through the SAME `mirrorFederatedBanner` helper the live path uses (banner-only:
  * no full re-resolve, no re-PUT of `/users/resolve`). It is idempotent — by
@@ -43,14 +43,15 @@
 
 import mongoose from 'mongoose';
 import { connectToDatabase } from '../utils/database';
-import { FederatedActor } from '../models/FederatedActor';
-import UserSettings from '../models/UserSettings';
+import { countActors, scanActors } from '../db/federation/actorRepository';
+import { connectPostgres, closePostgres } from '../db/postgres';
+import { loadUserSettings } from '../db/userProfile/userSettingsRepository';
 import { mirrorFederatedBanner } from '../connectors/identity';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { assertAdminRunComplete } from './lib/adminScriptLifecycle';
 
-/** Actors scanned per page (stable ascending `_id` cursor pagination). */
+/** Actors scanned per page (stable ascending `id` cursor pagination). */
 const PAGE_SIZE = 500;
 
 /** Re-mirror every actor's banner, even when one is already stored. */
@@ -109,7 +110,7 @@ class RateGate {
 }
 
 interface FederatedActorRow {
-  _id: mongoose.Types.ObjectId;
+  id: string;
   uri: string;
   headerUrl: string;
   oxyUserId: string;
@@ -141,10 +142,7 @@ async function processActor(
   dryRun: boolean,
 ): Promise<void> {
   if (!FORCE) {
-    const existing = await UserSettings.findOne(
-      { oxyUserId: actor.oxyUserId },
-      { profileHeaderImage: 1 },
-    ).lean<{ profileHeaderImage?: string } | null>();
+    const existing = await loadUserSettings(actor.oxyUserId);
     if (existing?.profileHeaderImage) {
       counters.skippedAlreadySet += 1;
       return;
@@ -232,21 +230,21 @@ async function backfillFederatedBanners(): Promise<void> {
       dryRun,
     });
     await connectToDatabase();
+    // Actors live in Postgres; `UserSettings` (what this writes) is still Mongo,
+    // so the run needs both connections open.
+    await connectPostgres();
     logger.info(
-      `[backfillFederatedBanners] connected to MongoDB; mode=${dryRun ? 'DRY-RUN' : 'LIVE'}, ` +
+      `[backfillFederatedBanners] connected; mode=${dryRun ? 'DRY-RUN' : 'LIVE'}, ` +
         `FORCE=${FORCE}, concurrency=${concurrency}, rate=${ratePerMinute}/min`,
     );
 
     // Actors that advertise a banner AND are linked to an Oxy user (so the banner
     // has an owner to upload it under). `oxyUserId` is sparse-indexed; the set is
     // immutable for this run (we only write `UserSettings`, never the actor), so
-    // the ascending `_id` cursor never revisits a row.
-    const baseFilter: Record<string, unknown> = {
-      headerUrl: { $type: 'string', $ne: '' },
-      oxyUserId: { $type: 'string', $ne: '' },
-    };
+    // the ascending `id` cursor never revisits a row.
+    const baseFilter = { hasHeaderUrl: true, hasOxyUserId: true } as const;
 
-    const totalCount = await FederatedActor.countDocuments(baseFilter);
+    const totalCount = await countActors(baseFilter);
     logger.info(`[backfillFederatedBanners] ${totalCount} federated actors with a banner to scan`);
 
     if (totalCount === 0) {
@@ -262,25 +260,25 @@ async function backfillFederatedBanners(): Promise<void> {
       failed: 0,
       dead: 0,
     };
-    let lastId: mongoose.Types.ObjectId | null = null;
+    let lastId: string | undefined;
 
     for (;;) {
-      const pageFilter: Record<string, unknown> = { ...baseFilter };
-      if (lastId) {
-        pageFilter._id = { $gt: lastId };
-      }
+      const scanned = await scanActors(baseFilter, { afterId: lastId, limit: PAGE_SIZE });
+      if (scanned.length === 0) break;
 
-      const page = await FederatedActor.find(pageFilter, { _id: 1, uri: 1, headerUrl: 1, oxyUserId: 1 })
-        .sort({ _id: 1 })
-        .limit(PAGE_SIZE)
-        .lean<FederatedActorRow[]>();
-
-      if (page.length === 0) break;
+      // The filter already guarantees both fields are non-empty strings; the
+      // narrowing is written out rather than asserted so a future change to the
+      // filter cannot make a `undefined` reach `processActor` unnoticed.
+      const page: FederatedActorRow[] = scanned.flatMap((actor) =>
+        actor.headerUrl && actor.oxyUserId
+          ? [{ id: actor.id, uri: actor.uri, headerUrl: actor.headerUrl, oxyUserId: actor.oxyUserId }]
+          : [],
+      );
 
       await runPool(page, concurrency, (actor) => processActor(actor, counters, gate, dryRun));
 
-      counters.processed += page.length;
-      lastId = page[page.length - 1]._id;
+      counters.processed += scanned.length;
+      lastId = scanned[scanned.length - 1].id;
       logger.info(
         `[backfillFederatedBanners] progress: processed ${counters.processed}/${totalCount}, ` +
           `${dryRun ? 'would-store' : 'stored'} ${counters.stored}, ` +
@@ -305,6 +303,7 @@ async function backfillFederatedBanners(): Promise<void> {
     throw error;
   } finally {
     await mongoose.disconnect();
+    await closePostgres();
   }
 }
 

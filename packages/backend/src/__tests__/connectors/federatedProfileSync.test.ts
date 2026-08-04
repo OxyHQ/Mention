@@ -1,4 +1,17 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { posts } from '../../db/schema/posts';
+import {
+  clearFederationScope,
+  federationScope,
+  readActor,
+  seedActor,
+  seedPost,
+} from '../helpers/federationFixtures';
+
+const scope = federationScope('federated-profile-sync');
 
 /**
  * Sync-on-view for federated profiles.
@@ -12,58 +25,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
  *    before any network call settles.
  */
 
-const actorFindOne = vi.fn();
-const actorUpdateOne = vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => undefined);
-const actorFindOneAndUpdate = vi.fn(async () => null);
-vi.mock('../../models/FederatedActor', () => ({
-  default: {
-    findOne: (...args: unknown[]) => actorFindOne(...args),
-    updateOne: (...args: unknown[]) => actorUpdateOne(...(args as [])),
-    findOneAndUpdate: (...args: unknown[]) => actorFindOneAndUpdate(...(args as [])),
-  },
-}));
-
-/**
- * The orphaned federated posts (`oxyUserId: null`) the background sync's author
- * backfill claims, plus enough of Mongo's matching to tell a `/`-terminated RANGE
- * over `federation.activityId` apart from a prefix `$regex`. The corpus holds two
- * actors whose usernames share a prefix, so a match that is not `/`-terminated
- * visibly hands one user's posts to the other.
- */
-const h = vi.hoisted(() => {
-  interface OrphanPost {
-    activityId: string;
-    oxyUserId: string | null;
-  }
-  const orphans: OrphanPost[] = [];
-
-  function matchesActivityId(activityId: string, condition: Record<string, unknown>): boolean {
-    if (typeof condition.$regex === 'string') return new RegExp(condition.$regex).test(activityId);
-    const { $gte: gte, $lt: lt } = condition;
-    if (typeof gte !== 'string' || typeof lt !== 'string') return false;
-    return activityId >= gte && activityId < lt;
-  }
-
-  const postUpdateMany = vi.fn(async (
-    filter: { 'federation.activityId': Record<string, unknown>; oxyUserId: string | null },
-    update: { $set: { oxyUserId: string } },
-  ) => {
-    let modifiedCount = 0;
-    for (const post of orphans) {
-      if (post.oxyUserId !== filter.oxyUserId) continue;
-      if (!matchesActivityId(post.activityId, filter['federation.activityId'])) continue;
-      post.oxyUserId = update.$set.oxyUserId;
-      modifiedCount += 1;
-    }
-    return { matchedCount: modifiedCount, modifiedCount };
-  });
-
-  return { orphans, postUpdateMany };
-});
-
-vi.mock('../../models/Post', () => ({
-  Post: { updateMany: (...a: unknown[]) => h.postUpdateMany(...(a as Parameters<typeof h.postUpdateMany>)) },
-}));
 
 /** Resolves only when the test lets it — proves the request path never awaits it. */
 let releaseOutboxSync: (() => void) | undefined;
@@ -120,13 +81,16 @@ vi.mock('../../utils/oxyHelpers', () => ({
 
 import { federatedProfileSync } from '../../connectors/federatedProfileSync';
 
+const AP_ACTOR_URI = `${scope.origin}/users/alice`;
+const AT_ACTOR_URI = 'did:plc:abc123';
+
 /** A cached federated actor row, never synced before. */
 function federatedActor(overrides: Record<string, unknown> = {}) {
   return {
-    _id: 'actor1',
-    uri: 'https://remote.example/users/alice',
-    acct: 'alice@remote.example',
-    outboxUrl: 'https://remote.example/users/alice/outbox',
+    username: 'alice',
+    uri: AP_ACTOR_URI,
+    acct: `alice@${scope.domain}`,
+    outboxUrl: `${AP_ACTOR_URI}/outbox`,
     oxyUserId: 'fed1',
     lastFetchedAt: new Date(),
     ...overrides,
@@ -136,10 +100,11 @@ function federatedActor(overrides: Record<string, unknown> = {}) {
 /** A cached atproto (Bluesky) actor row: no AP outbox, keyed by DID. */
 function atprotoActor(overrides: Record<string, unknown> = {}) {
   return {
-    _id: 'atactor1',
-    protocol: 'atproto',
-    uri: 'did:plc:abc123',
+    protocol: 'atproto' as const,
+    username: 'someone',
+    uri: AT_ACTOR_URI,
     acct: 'someone.bsky.social',
+    outboxUrl: null,
     oxyUserId: 'at1',
     postsCount: 0,
     lastFetchedAt: new Date(),
@@ -147,23 +112,30 @@ function atprotoActor(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function mockActorLookup(actor: unknown) {
-  actorFindOne.mockReturnValue({ lean: () => Promise.resolve(actor) });
+/** Seed the cached actor row `syncOnProfileView` looks up by `oxyUserId`. */
+async function seedCachedActor(actor: Record<string, unknown> | null): Promise<void> {
+  await clearFederationScope(scope, [AT_ACTOR_URI]);
+  // `null` is "no cached actor row at all" — the state a first-ever profile view
+  // of an unresolved user is in, and a different code path from a row that
+  // exists but is unlinked.
+  if (actor !== null) await seedActor(scope, actor);
 }
 
-function isGraphClaim(filter: unknown, update: unknown): boolean {
-  return Boolean(
-    filter
-    && typeof filter === 'object'
-    && (filter as { protocol?: unknown }).protocol === 'atproto'
-    && update
-    && typeof update === 'object'
-    && Boolean((update as { $set?: { atprotoGraphSyncStartedAt?: unknown } }).$set?.atprotoGraphSyncStartedAt),
-  );
-}
+beforeAll(async () => {
+  await connectPostgres();
+});
 
-beforeEach(() => {
+afterEach(async () => {
+  await clearFederationScope(scope, [AT_ACTOR_URI]);
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
+  await clearFederationScope(scope, [AT_ACTOR_URI]);
   releaseOutboxSync = undefined;
   fetchRemoteActor.mockResolvedValue(null);
   connectorFor.mockReturnValue(undefined);
@@ -171,12 +143,11 @@ beforeEach(() => {
   // `clearAllMocks` keeps implementations, so restore the default identity here
   // rather than leaking one test's Oxy user into the next.
   getUserById.mockResolvedValue(LOCAL_OXY_USER);
-  h.orphans.length = 0;
 });
 
 describe('federatedProfileSync.syncOnProfileView', () => {
   it('reports pending and syncs the outbox for a known federated author', async () => {
-    mockActorLookup(federatedActor());
+    await seedCachedActor(federatedActor());
 
     const pending = await federatedProfileSync.syncOnProfileView('fed1');
 
@@ -187,7 +158,7 @@ describe('federatedProfileSync.syncOnProfileView', () => {
   });
 
   it('resolves without waiting for the outbox sync to finish', async () => {
-    mockActorLookup(federatedActor());
+    await seedCachedActor(federatedActor());
 
     // The mocked sync never settles until the test releases it. If the request
     // path awaited it, this would hang instead of resolving.
@@ -202,7 +173,7 @@ describe('federatedProfileSync.syncOnProfileView', () => {
     // sync — inventing an actor row with a guessed `<actorUri>/outbox` would import
     // from an instance the policy just refused (and would guess a URL that is wrong
     // on PeerTube/Lemmy/some Pleroma anyway).
-    mockActorLookup(null);
+    await seedCachedActor(null);
     getUserById.mockResolvedValue({
       id: 'fed2',
       type: 'federated',
@@ -214,13 +185,12 @@ describe('federatedProfileSync.syncOnProfileView', () => {
     await expect(federatedProfileSync.syncOnProfileView('fed2')).resolves.toBe(false);
 
     await vi.waitFor(() => expect(fetchRemoteActor).toHaveBeenCalledOnce());
-    expect(actorFindOneAndUpdate).not.toHaveBeenCalled();
     expect(syncOutboxPostsDetailed).not.toHaveBeenCalled();
     expect(refreshActorInBackground).not.toHaveBeenCalled();
   });
 
   it('does NOT report pending for a local author, and never syncs an outbox', async () => {
-    mockActorLookup(null);
+    await seedCachedActor(null);
     // A local Oxy user has no `federation.actorUri`, so the background probe stops.
     getUserById.mockResolvedValue({ id: 'local1', type: 'user', username: 'local' });
 
@@ -233,50 +203,50 @@ describe('federatedProfileSync.syncOnProfileView', () => {
   });
 
   it('does NOT report pending once the outbox backfill is complete', async () => {
-    mockActorLookup(federatedActor({
-      outboxBackfill: {
-        outboxUrl: 'https://remote.example/users/alice/outbox',
-        status: 'complete',
-      },
+    await seedCachedActor(federatedActor({
+      outboxBackfillOutboxUrl: `${AP_ACTOR_URI}/outbox`,
+      outboxBackfillStatus: 'complete',
     }));
 
     await expect(federatedProfileSync.syncOnProfileView('fed1')).resolves.toBe(false);
   });
 
   it('does NOT report pending when the outbox is permanently unavailable', async () => {
-    mockActorLookup(federatedActor({
-      outboxBackfill: {
-        outboxUrl: 'https://remote.example/users/alice/outbox',
-        status: 'unavailable',
-      },
+    await seedCachedActor(federatedActor({
+      outboxBackfillOutboxUrl: `${AP_ACTOR_URI}/outbox`,
+      outboxBackfillStatus: 'unavailable',
     }));
 
     await expect(federatedProfileSync.syncOnProfileView('fed1')).resolves.toBe(false);
   });
 
   it('does NOT report pending inside the outbox-sync cooldown window', async () => {
-    mockActorLookup(federatedActor({ lastOutboxSyncAt: new Date() }));
+    await seedCachedActor(federatedActor({ lastOutboxSyncAt: new Date() }));
 
     await expect(federatedProfileSync.syncOnProfileView('fed1')).resolves.toBe(false);
   });
 
   it('reports pending again once the cooldown window has elapsed', async () => {
     const sixteenMinutesAgo = new Date(Date.now() - 16 * 60 * 1000);
-    mockActorLookup(federatedActor({ lastOutboxSyncAt: sixteenMinutesAgo }));
+    await seedCachedActor(federatedActor({ lastOutboxSyncAt: sixteenMinutesAgo }));
 
     await expect(federatedProfileSync.syncOnProfileView('fed1')).resolves.toBe(true);
   });
 
   it('never throws when the actor lookup fails', async () => {
-    actorFindOne.mockReturnValue({ lean: () => Promise.reject(new Error('mongo down')) });
+    // A closed pool is the real "database unavailable" this soft-fails on: the
+    // lookup must not fail the FEED, only cost this view its background sync.
+    await closePostgres();
 
     await expect(federatedProfileSync.syncOnProfileView('fed1')).resolves.toBe(false);
+
+    await connectPostgres();
   });
 
   it('does NOT report pending for an atproto actor with zero upstream posts', async () => {
     // A Bluesky account with genuinely 0 posts has nothing to import — reporting
     // pending would make the client poll "Loading posts…" forever.
-    mockActorLookup(atprotoActor({ postsCount: 0 }));
+    await seedCachedActor(atprotoActor({ postsCount: 0 }));
 
     const pending = await federatedProfileSync.syncOnProfileView('at1');
 
@@ -287,7 +257,7 @@ describe('federatedProfileSync.syncOnProfileView', () => {
 
   it('reports pending for an atproto actor with posts and no prior sync, then stamps the backfill', async () => {
     connectorFor.mockReturnValue({ fetchPosts: atprotoFetchPosts });
-    mockActorLookup(atprotoActor({ postsCount: 5 }));
+    await seedCachedActor(atprotoActor({ postsCount: 5 }));
 
     const pending = await federatedProfileSync.syncOnProfileView('at1');
     expect(pending).toBe(true);
@@ -297,27 +267,26 @@ describe('federatedProfileSync.syncOnProfileView', () => {
     await vi.waitFor(() =>
       expect(atprotoFetchPosts).toHaveBeenCalledWith('did:plc:abc123', { limit: 20 }),
     );
-    await vi.waitFor(() =>
-      expect(actorUpdateOne).toHaveBeenCalledWith(
-        { _id: 'atactor1' },
-        { $set: { lastOutboxSyncAt: expect.any(Date) } },
-      ),
+    // The stamp lands ON THE ROW — without it `shouldReportPending` never
+    // clears and an atproto profile polls forever.
+    await vi.waitFor(async () =>
+      expect((await readActor(AT_ACTOR_URI))?.lastOutboxSyncAt).toBeInstanceOf(Date),
     );
     expect(syncOutboxPostsDetailed).not.toHaveBeenCalled();
   });
 
   it('claims atproto graph syncs so concurrent profile views cannot duplicate expensive work', async () => {
+    // The claim itself is a ROW: `main` staged it by having a `FederatedActor.updateOne`
+    // double return `modifiedCount: 1` once and `0` afterwards, which is the test
+    // deciding the outcome it then asserts. Three concurrent views against one real
+    // actor row put the claim under genuine contention instead, so the counts below
+    // are produced by whatever the code does rather than by the fixture.
+    //
+    // `atprotoFetchPosts` three times and `syncAtprotoProfileGraph` ONCE is the
+    // whole property: the cheap per-view import is per view, the expensive
+    // starter-pack/member resolution is per actor per cooldown window.
     connectorFor.mockReturnValue({ fetchPosts: atprotoFetchPosts });
-    mockActorLookup(atprotoActor({ postsCount: 5 }));
-    let graphClaimed = false;
-    actorUpdateOne.mockImplementation(async (filter: unknown, update: unknown) => {
-      if (isGraphClaim(filter, update)) {
-        const modifiedCount = graphClaimed ? 0 : 1;
-        graphClaimed = true;
-        return { modifiedCount };
-      }
-      return { modifiedCount: 1 };
-    });
+    await seedCachedActor(atprotoActor({ postsCount: 5 }));
 
     await Promise.all([
       federatedProfileSync.syncOnProfileView('at1'),
@@ -333,51 +302,90 @@ describe('federatedProfileSync.syncOnProfileView', () => {
   it('clears pending for an atproto actor once the backfill has been stamped', async () => {
     // postsCount > 0 skips the zero-post short-circuit; a recent stamp inside the
     // cooldown window is what terminates the poll after the background import.
-    mockActorLookup(atprotoActor({ postsCount: 5, lastOutboxSyncAt: new Date() }));
+    await seedCachedActor(atprotoActor({ postsCount: 5, lastOutboxSyncAt: new Date() }));
 
     await expect(federatedProfileSync.syncOnProfileView('at1')).resolves.toBe(false);
   });
 });
 
 describe('federatedProfileSync author backfill', () => {
-  /** Let the detached background task reach the author backfill. */
-  async function runSyncAndAwaitBackfill(oxyUserId: string): Promise<void> {
-    syncOutboxPostsDetailed.mockResolvedValueOnce({ syncedCount: 3, shouldStampCooldown: true });
-    await federatedProfileSync.syncOnProfileView(oxyUserId);
-    await vi.waitFor(() => expect(h.postUpdateMany).toHaveBeenCalledOnce());
+  /**
+   * Seed an ORPHANED federated post: stored with its remote activity id but no
+   * resolved local author, which is what the backfill claims.
+   *
+   * These used to be objects in an in-memory array behind a `Post.updateMany`
+   * double that re-implemented Mongo's matching. That double is what decided
+   * whether the range matched — so it could not distinguish the `/`-terminated
+   * range the code actually issues from a prefix that claims a sibling's posts,
+   * which is the entire property these two cases exist to pin.
+   */
+  async function seedOrphan(activityId: string): Promise<string> {
+    const record = await seedPost(scope, {
+      oxyUserId: null,
+      authorship: [],
+      federation: { activityId, actorUri: activityId.split('/statuses/')[0] },
+    });
+    return record.id;
   }
 
-  it('claims ONLY the synced actor\'s orphaned posts, never a username-prefix sibling\'s', async () => {
-    // `@alice` and `@alicesmith` are different people on the same instance. An
-    // activityId prefix that is not `/`-terminated matches both.
-    h.orphans.push(
-      { activityId: 'https://remote.example/users/alice/statuses/1', oxyUserId: null },
-      { activityId: 'https://remote.example/users/alicesmith/statuses/1', oxyUserId: null },
+  async function ownerOf(postId: string): Promise<string | null> {
+    const [row] = await getDb()
+      .select({ oxyUserId: posts.oxyUserId })
+      .from(posts)
+      .where(eq(posts.id, postId));
+    return row?.oxyUserId ?? null;
+  }
+
+  /** Let the detached background task reach the author backfill and finish it. */
+  async function runSyncAndAwaitBackfill(
+    oxyUserId: string,
+    claimed: string,
+  ): Promise<void> {
+    syncOutboxPostsDetailed.mockResolvedValueOnce({ syncedCount: 3, shouldStampCooldown: true });
+    await federatedProfileSync.syncOnProfileView(oxyUserId);
+    // Wait on the ROW the backfill is supposed to write, not on a spy: the task
+    // is detached, so there is no promise to await and no call to count.
+    await vi.waitFor(
+      async () => expect(await ownerOf(claimed)).toBe(oxyUserId),
+      { timeout: 3000 },
     );
-    mockActorLookup(federatedActor());
+  }
 
-    await runSyncAndAwaitBackfill('fed1');
+  it("claims ONLY the synced actor's orphaned posts, never a username-prefix sibling's", async () => {
+    // `@alice` and `@alicesmith` are different people on the same instance. A
+    // prefix bound that is not `/`-terminated matches both.
+    // The actor FIRST: `seedCachedActor` clears the whole scope, seeded posts
+    // included, so orphans created before it would be gone by the assertion —
+    // and the claim would read as "correctly did not match a sibling" for the
+    // wrong reason.
+    await seedCachedActor(federatedActor());
+    const mine = await seedOrphan(`${AP_ACTOR_URI}/statuses/1`);
+    const sibling = await seedOrphan(`${scope.origin}/users/alicesmith/statuses/1`);
 
-    expect(h.orphans).toEqual([
-      { activityId: 'https://remote.example/users/alice/statuses/1', oxyUserId: 'fed1' },
-      // The sibling's post must still be unclaimed.
-      { activityId: 'https://remote.example/users/alicesmith/statuses/1', oxyUserId: null },
-    ]);
+    await runSyncAndAwaitBackfill('fed1', mine);
+
+    expect(await ownerOf(sibling)).toBeNull();
   });
 
-  it('treats regex metacharacters in the actor URI as literal text', async () => {
-    // A dot in the remote username is a wildcard to a mongod-evaluated `$regex`,
-    // so `@a.ice` would claim `@alice`'s posts (and the pattern would run over an
-    // unindexable scan).
-    h.orphans.push({ activityId: 'https://remote.example/users/alice/statuses/1', oxyUserId: null });
-    mockActorLookup(federatedActor({
-      uri: 'https://remote.example/users/a.ice',
-      acct: 'a.ice@remote.example',
-      outboxUrl: 'https://remote.example/users/a.ice/outbox',
+  it('treats a dot in the actor URI as literal text, never a wildcard', async () => {
+    // A dot in the remote username is a wildcard to any pattern-based match, so
+    // `@a.ice` would claim `@alice`'s posts — and the pattern would run over an
+    // unindexable scan. A range bound compares bytes and cannot do either.
+    await seedCachedActor(federatedActor({
+      uri: `${scope.origin}/users/a.ice`,
+      acct: `a.ice@${scope.domain}`,
+      outboxUrl: `${scope.origin}/users/a.ice/outbox`,
     }));
+    const alicePost = await seedOrphan(`${AP_ACTOR_URI}/statuses/1`);
 
-    await runSyncAndAwaitBackfill('fed1');
+    syncOutboxPostsDetailed.mockResolvedValueOnce({ syncedCount: 3, shouldStampCooldown: true });
+    await federatedProfileSync.syncOnProfileView('fed1');
+    // The sync stamps the actor AFTER the claim would have run, so waiting on the
+    // stamp proves the backfill finished rather than merely not having started.
+    await vi.waitFor(async () =>
+      expect((await readActor(`${scope.origin}/users/a.ice`))?.lastOutboxSyncAt).toBeInstanceOf(Date),
+    );
 
-    expect(h.orphans[0].oxyUserId).toBeNull();
+    expect(await ownerOf(alicePost)).toBeNull();
   });
 });

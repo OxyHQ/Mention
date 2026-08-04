@@ -69,18 +69,21 @@ describe('migration task database isolation', () => {
     mocks.loadBlockedDomainPolicy.mockReset().mockReturnValue([]);
   });
 
-  it('uses a bounded migration-only pool and a 15-minute socket timeout', async () => {
+  it('uses a bounded migration-only pool and a ONE-MINUTE socket timeout', async () => {
     await runMigrationTask();
 
     expect(mocks.connectToDatabase).toHaveBeenCalledOnce();
     expect(mocks.connectToDatabase).toHaveBeenCalledWith({
-      socketTimeoutMS: 15 * 60 * 1_000,
+      // 60s, not 15 minutes: this task runs inside the cutover window with the
+      // service stopped, and `socketTimeoutMS` bounds one operation's inactivity.
+      // A stalled connection used to burn 15 of the deploy's 20-minute deadline.
+      socketTimeoutMS: 60 * 1_000,
       minPoolSize: 0,
       maxPoolSize: 10,
       readPreference: 'primary',
     });
     expect(MIGRATION_DATABASE_CONNECTION_OPTIONS).toEqual({
-      socketTimeoutMS: 900_000,
+      socketTimeoutMS: 60_000,
       minPoolSize: 0,
       maxPoolSize: 10,
       readPreference: 'primary',

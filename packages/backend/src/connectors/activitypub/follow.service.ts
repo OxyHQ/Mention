@@ -1,8 +1,15 @@
 import { logger } from '../../utils/logger';
-import FederatedActor, { IFederatedActor } from '../../models/FederatedActor';
-import FederatedFollow from '../../models/FederatedFollow';
-import { Post } from '../../models/Post';
-import Poll from '../../models/Poll';
+import {
+  findActorByUri,
+  findActorInboxesByUris,
+  findActorsByOxyUserIds,
+} from '../../db/federation/actorRepository';
+import { distinctRemoteActorUris } from '../../db/federation/followRepository';
+import type { FederatedActorRecord } from '../../db/federation/actorRecord';
+import { loadPostRecord } from '../../db/posts/postRepository';
+import { asc, inArray } from 'drizzle-orm';
+import { getDb } from '../../db/postgres';
+import { pollOptions, pollVotes, polls } from '../../db/schema/polls';
 import { AP_CONTEXT } from '@oxyhq/federation';
 import {
   FEDERATION_DOMAIN,
@@ -43,7 +50,7 @@ interface FederationTarget {
   /**
    * The author's fediverse acct (`user@domain`) — the source of a reply's
    * `Mention` tag `name` (`@<acct>`). For a federated original it is the stored
-   * `FederatedActor.acct`; for a local original it is `<username>@<domain>`.
+   * the actor's `acct`; for a local original it is `<username>@<domain>`.
    */
   authorAcct?: string;
 }
@@ -119,12 +126,12 @@ function buildNoteAttachment(item: MediaItem | undefined | null): Record<string,
 }
 
 /**
- * The post fields the Note builder reads. A lean `Post` document satisfies it —
+ * The post fields the Note builder reads. A {@link PostRecord} satisfies it —
  * every caller (push delivery, the outbox page, the per-post dereference route)
  * already has one, so nothing re-fetches.
  */
 export interface NoteSourcePost {
-  _id: unknown;
+  id: string;
   content: PostContent;
   hashtags?: string[];
   mentions?: string[];
@@ -197,7 +204,7 @@ interface ResolvedMentionEntry {
 /**
  * The mention addressing a Note carries: everything resolved from the post's
  * declared `mentions` (Oxy user ids → `[mention:<id>]` placeholders in the body).
- * Resolved by the async federation caller (a batched `FederatedActor` read + one
+ * Resolved by the async federation caller (a batched `federated_actors` read + one
  * bulk Oxy lookup) and passed into the PURE Note builder so
  * {@link FollowService.buildCreateNoteActivity} never touches the database.
  *
@@ -252,10 +259,63 @@ export interface NoteQuoteContext {
 
 /** The Poll fields {@link buildPollContext} reads from a lean `Poll` document. */
 interface PollContextSource {
-  _id: unknown;
-  options: Array<{ text: string; votes?: string[] }>;
+  id: string;
+  options: Array<{ text: string; votes: string[] }>;
   endsAt: Date;
-  isMultipleChoice?: boolean;
+  isMultipleChoice: boolean;
+}
+
+/**
+ * Load polls with their options and ballots, as {@link PollContextSource}.
+ *
+ * Three tables where Mongo had one document: the options are their own rows
+ * (`position` is what preserves the order the author wrote them in) and each
+ * ballot is a row rather than an id inside `options[].votes`. Reading the
+ * Mongoose model instead — which is what this did until the posts port — returns
+ * nothing, so every poll post federated as a PLAIN NOTE and no remote server
+ * ever saw a Question. Nothing errored: `null` is also how "this post has no
+ * poll" is spelled.
+ */
+async function loadPollContextSources(pollIds: string[]): Promise<PollContextSource[]> {
+  if (pollIds.length === 0) return [];
+  const db = getDb();
+  const [pollRows, optionRows, voteRows] = await Promise.all([
+    db
+      .select({ id: polls.id, endsAt: polls.endsAt, isMultipleChoice: polls.isMultipleChoice })
+      .from(polls)
+      .where(inArray(polls.id, pollIds)),
+    db
+      .select({ id: pollOptions.id, pollId: pollOptions.pollId, text: pollOptions.text })
+      .from(pollOptions)
+      .where(inArray(pollOptions.pollId, pollIds))
+      .orderBy(asc(pollOptions.pollId), asc(pollOptions.position)),
+    db
+      .select({ optionId: pollVotes.optionId, userId: pollVotes.userId })
+      .from(pollVotes)
+      .where(inArray(pollVotes.pollId, pollIds)),
+  ]);
+
+  const votersByOption = new Map<string, string[]>();
+  for (const vote of voteRows) {
+    const existing = votersByOption.get(vote.optionId);
+    if (existing) existing.push(vote.userId);
+    else votersByOption.set(vote.optionId, [vote.userId]);
+  }
+
+  const optionsByPoll = new Map<string, Array<{ text: string; votes: string[] }>>();
+  for (const option of optionRows) {
+    const entry = { text: option.text, votes: votersByOption.get(option.id) ?? [] };
+    const existing = optionsByPoll.get(option.pollId);
+    if (existing) existing.push(entry);
+    else optionsByPoll.set(option.pollId, [entry]);
+  }
+
+  return pollRows.map((poll) => ({
+    id: poll.id,
+    endsAt: poll.endsAt,
+    isMultipleChoice: poll.isMultipleChoice,
+    options: optionsByPoll.get(poll.id) ?? [],
+  }));
 }
 
 /**
@@ -443,7 +503,7 @@ export class FollowService {
     quote?: NoteQuoteContext,
   ): Record<string, unknown> {
     const actor = actorUrl(username);
-    const postId = String(post._id);
+    const postId = post.id;
     const noteId = `${actor}/posts/${postId}`;
     // Emit a canonical ISO 8601 `published` regardless of whether the caller
     // passed a Mongoose `Date` (outbox/dereference) or an ISO string (push).
@@ -605,17 +665,16 @@ export class FollowService {
     const unique = [...new Set(oxyUserIds.filter(Boolean))];
     if (unique.length === 0) return [];
     try {
-      const follows = await FederatedFollow.find({
-        localUserId: { $in: unique },
+      // DISTINCT in SQL, one statement for all the accounts at once — the same
+      // read `deliveryService` performs for a single account's own followers.
+      const actorUris = await distinctRemoteActorUris({
+        localUserIds: unique,
         direction: 'inbound',
-        status: 'accepted',
-      }).lean<Array<{ remoteActorUri: string }>>();
-      const actorUris = [...new Set(follows.map((f) => f.remoteActorUri).filter(Boolean))];
+        statuses: ['accepted'],
+      });
       if (actorUris.length === 0) return [];
 
-      const actors = await FederatedActor.find({ uri: { $in: actorUris } }).lean<
-        Array<Pick<IFederatedActor, 'sharedInboxUrl' | 'inboxUrl'>>
-      >();
+      const actors = await findActorInboxesByUris(actorUris);
       const inboxes = new Set<string>();
       for (const actor of actors) {
         const inbox = actor.sharedInboxUrl || actor.inboxUrl;
@@ -648,7 +707,7 @@ export class FollowService {
     // below and federates as a normal Note.)
     if (post.boostOf) {
       await this.federateBoost(
-        { _id: post._id, boostOf: String(post.boostOf), createdAt: post.createdAt },
+        { _id: post.id, boostOf: String(post.boostOf), createdAt: post.createdAt },
         senderOxyUserId,
         senderUsername,
       );
@@ -763,7 +822,7 @@ export class FollowService {
    * ({@link ResolvedMentionEntry}) in AT MOST two batched reads — no N+1 per
    * mention:
    *
-   *  1. ONE {@link FederatedActor} query resolves every FEDERATED mention at once,
+   *  1. ONE {@link FederatedActorRecord} query resolves every FEDERATED mention at once,
    *     yielding its actor URI (`href`), `acct` (`user@domain` handle) AND the
    *     delivery inbox from the same row.
    *  2. The remaining ids are LOCAL Oxy users (or a federated user whose actor row
@@ -784,13 +843,9 @@ export class FollowService {
 
     // 1. Federated mentions — one read gives href (actor uri), handle (acct) and
     //    the delivery inbox.
-    let federatedActors: Array<
-      Pick<IFederatedActor, 'oxyUserId' | 'uri' | 'acct' | 'sharedInboxUrl' | 'inboxUrl'>
-    > = [];
+    let federatedActors: FederatedActorRecord[] = [];
     try {
-      federatedActors = await FederatedActor.find({ oxyUserId: { $in: unique } })
-        .select('oxyUserId uri acct sharedInboxUrl inboxUrl')
-        .lean<Array<Pick<IFederatedActor, 'oxyUserId' | 'uri' | 'acct' | 'sharedInboxUrl' | 'inboxUrl'>>>();
+      federatedActors = await findActorsByOxyUserIds(unique);
     } catch (err) {
       logger.warn('[FedDeliver] mention federated-actor lookup failed', {
         count: unique.length,
@@ -876,7 +931,7 @@ export class FollowService {
     for (const post of posts) {
       const ids = normalizeMentionIds(post.mentions);
       if (ids.length === 0) continue;
-      perPostIds.set(String(post._id), ids);
+      perPostIds.set(post.id, ids);
       allIds.push(...ids);
     }
     if (allIds.length === 0) return result;
@@ -916,9 +971,7 @@ export class FollowService {
     const pollId = post.content?.pollId;
     if (!pollId) return null;
     try {
-      const poll = await Poll.findById(pollId)
-        .select('options endsAt isMultipleChoice')
-        .lean<PollContextSource | null>();
+      const [poll] = await loadPollContextSources([String(pollId)]);
       return poll ? buildPollContext(poll) : null;
     } catch (err) {
       logger.warn('[FedDeliver] failed to resolve poll context', err);
@@ -943,17 +996,15 @@ export class FollowService {
       if (!pollId) continue;
       const key = String(pollId);
       const bucket = pollIdToPostIds.get(key);
-      if (bucket) bucket.push(String(post._id));
-      else pollIdToPostIds.set(key, [String(post._id)]);
+      if (bucket) bucket.push(post.id);
+      else pollIdToPostIds.set(key, [post.id]);
     }
     if (pollIdToPostIds.size === 0) return result;
 
     try {
-      const polls = await Poll.find({ _id: { $in: [...pollIdToPostIds.keys()] } })
-        .select('options endsAt isMultipleChoice')
-        .lean<PollContextSource[]>();
-      for (const poll of polls) {
-        const postIds = pollIdToPostIds.get(String(poll._id));
+      const sources = await loadPollContextSources([...pollIdToPostIds.keys()]);
+      for (const poll of sources) {
+        const postIds = pollIdToPostIds.get(poll.id);
         if (!postIds) continue;
         const context = buildPollContext(poll);
         for (const postId of postIds) result.set(postId, context);
@@ -1006,7 +1057,7 @@ export class FollowService {
     for (const post of posts) {
       const quoteId = post.quoteOf ? String(post.quoteOf) : undefined;
       if (!quoteId) continue;
-      const postId = String(post._id);
+      const postId = post.id;
       const bucket = quoteIdToPostIds.get(quoteId);
       if (bucket) bucket.push(postId);
       else quoteIdToPostIds.set(quoteId, [postId]);
@@ -1034,7 +1085,7 @@ export class FollowService {
    * ORIGINAL post (plus, for a federated original, its author's remote inbox).
    *
    *  - FEDERATED original → the remote `federation.activityId` IS its canonical
-   *    AP id; the author's inbox is resolved from the stored `FederatedActor`.
+   *    AP id; the author's inbox is resolved from the stored actor row.
    *  - LOCAL original → we mint our own note URI
    *    `https://<domain>/ap/users/<owner-username>/posts/<postId>` (the exact id
    *    `buildCreateNoteActivity` / the outbox / the per-post dereference route
@@ -1045,19 +1096,17 @@ export class FollowService {
    * Returns null when the original is missing or its author cannot be resolved.
    */
   private async resolveFederationTarget(originalPostId: string): Promise<FederationTarget | null> {
-    const original = await Post.findById(originalPostId).select('oxyUserId federation').lean();
+    const original = await loadPostRecord(originalPostId);
     if (!original) return null;
 
     const activityId = original.federation?.activityId;
     if (activityId) {
       const authorActorUri = original.federation?.actorUri;
       // ONE actor read yields both the delivery inbox and the acct (`user@domain`)
-      // a reply's `Mention` name is built from — the same `FederatedActor` row
+      // a reply's `Mention` name is built from — the same `federated_actors` row
       // `resolveActorInbox` reads. (`resolveActorInbox` remains the standalone
       // inbox resolver for callers that have only an actor uri.)
-      const actor = authorActorUri
-        ? await FederatedActor.findOne({ uri: authorActorUri }).lean()
-        : null;
+      const actor = authorActorUri ? await findActorByUri(authorActorUri) : null;
       return {
         objectUri: activityId,
         authorActorUri,
@@ -1257,7 +1306,7 @@ export class FollowService {
    * {@link federateNewPost}; best-effort.
    */
   async federateDelete(
-    post: { _id: unknown },
+    post: { id: string },
     deleterOxyUserId: string,
     deleterUsername: string,
   ): Promise<void> {
@@ -1265,7 +1314,7 @@ export class FollowService {
     if (!(await isFediverseSharingEnabled(deleterOxyUserId))) return;
 
     try {
-      const activity = this.buildDeleteActivity(deleterUsername, String(post._id));
+      const activity = this.buildDeleteActivity(deleterUsername, post.id);
       await deliveryService.deliverToFollowers(activity, deleterOxyUserId, deleterUsername);
     } catch (err) {
       logger.error('Failed to federate post delete:', err);

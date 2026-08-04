@@ -38,9 +38,7 @@
  */
 
 import { FEDERATION_ENABLED } from '../../connectors/activitypub/constants';
-import BlocklistProposalRun, {
-  type IBlocklistProposalRun,
-} from '../../models/BlocklistProposalRun';
+import { latestProposalRunStartedAt } from '../../db/blocklist/blocklistProposalRepository';
 import {
   renderProposalReport,
   runBlocklistProposalSweep,
@@ -139,11 +137,12 @@ export class BlocklistProposalScheduler {
   }
 
   private async sweepIfDue(): Promise<void> {
-    const latest = await BlocklistProposalRun.findOne()
-      .sort({ startedAt: -1 })
-      .lean<Pick<IBlocklistProposalRun, 'startedAt'> | null>();
+    // NULL means no sweep has ever been recorded, which is DUE. That direction
+    // costs a redundant poll; the other one is a sweep that silently stops
+    // happening, which is precisely what the run history exists to make visible.
+    const latestStartedAt = await latestProposalRunStartedAt();
 
-    if (latest && Date.now() - latest.startedAt.getTime() < BLOCKLIST_PROPOSAL_INTERVAL_MS) {
+    if (latestStartedAt && Date.now() - latestStartedAt.getTime() < BLOCKLIST_PROPOSAL_INTERVAL_MS) {
       return;
     }
 

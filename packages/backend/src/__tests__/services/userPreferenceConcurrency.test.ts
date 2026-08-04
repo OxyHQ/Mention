@@ -1,243 +1,210 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import mongoose from 'mongoose';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
 
 /**
  * Concurrency coverage for {@link UserPreferenceService.recordInteraction}.
  *
  * Feed-impression telemetry fires many concurrent interactions for the SAME
- * user, so the load-modify-`.save()` on the `UserBehavior` document races on
- * Mongoose optimistic concurrency (`__v`) → a flood of `VersionError`. The
- * service now wraps the write in a bounded retry loop that RE-READS the freshest
- * document and RE-APPLIES the same mutation. These tests prove:
- *  1. a `VersionError` on `.save()` is retried (no throw) and the accumulators
- *     end up correct on the winning revision,
- *  2. the first-interaction insert race (`E11000` duplicate key) is retried the
- *     same way,
- *  3. retries are bounded — a persistent conflict eventually surfaces the error.
+ * viewer, and the write is a read-modify-write over stateful accumulators, so
+ * two writers racing on one behaviour row is the ordinary case rather than an
+ * edge one. The guarantee is that none of them is LOST.
  *
- * The Post and UserBehavior models are mocked (no DB). `mongoose` itself is NOT
- * mocked, so the real `VersionError` / `MongoServerError` classes are used and
- * the service's `instanceof` checks exercise production code paths.
+ * ## What the Postgres port changed here
+ *
+ * The mechanism is different, so these tests are different. Mongoose gave the
+ * write optimistic concurrency: the loser's `.save()` raised a `VersionError`
+ * and the service caught it, re-read and re-applied, up to five times. The
+ * previous version of this file staged those races on a mocked model — it
+ * asserted that a spy rejecting with a `VersionError` caused a second `findOne`,
+ * which is a statement about the retry loop and not about any stored value.
+ *
+ * `updateUserBehavior` now takes `SELECT … FOR UPDATE` on the row before reading
+ * it, so the loser BLOCKS and then applies its mutation to the winner's
+ * committed state. That is a property of the database, and it is only observable
+ * under genuine concurrency — so every case below runs real interleaved
+ * transactions against real rows, and the two that turn on the lock assert what
+ * a lost update would destroy: the SUM of what the racers each contributed.
+ *
+ * The lock ORDER matters as much as the lock. An `UPDATE` alone would also
+ * serialize the writers, and would still lose an update — the loser would have
+ * read the pre-image before waiting. `blocks a second writer BEFORE it reads`
+ * below is what pins the read to the locked side of the boundary.
  */
 
-interface AuthorPref {
-  authorId: string;
-  interactionCount: number;
-  lastInteractionAt: Date;
-  interactionTypes: { likes: number; boosts: number; comments: number; saves: number; shares: number };
-  weight: number;
-}
-
-interface MockBehavior {
-  oxyUserId: string;
-  preferredAuthors: AuthorPref[];
-  preferredTopics: Array<Record<string, unknown>>;
-  preferredPostTypes: Record<string, number>;
-  activeHours: number[];
-  preferredLanguages: string[];
-  hiddenAuthors: string[];
-  mutedAuthors: string[];
-  blockedAuthors: string[];
-  hiddenTopics: string[];
-  lastUpdated?: Date;
-  markModified: () => void;
-  save: () => Promise<void>;
-}
-
-const mocks = vi.hoisted(() => ({
-  findById: vi.fn(),
-  findOne: vi.fn(),
-  construct: vi.fn(),
-}));
-
-vi.mock('../../models/Post', () => ({
-  Post: { findById: (id: string) => ({ lean: () => mocks.findById(id) }) },
-}));
-// The default export is BOTH a constructor (service does `new UserBehavior(...)`
-// on a first interaction) and a holder of the static `findOne`.
-vi.mock('../../models/UserBehavior', () => {
-  function UserBehavior(this: unknown, doc: unknown) {
-    return mocks.construct(doc);
-  }
-  UserBehavior.findOne = (filter: unknown) => mocks.findOne(filter);
-  return { __esModule: true, default: UserBehavior };
-});
 vi.mock('../../models/Like', () => ({ __esModule: true, default: { find: vi.fn() } }));
 vi.mock('../../models/Bookmark', () => ({ __esModule: true, default: { find: vi.fn() } }));
 
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { userBehaviors } from '../../db/schema/userProfile';
+import {
+  deleteUserBehavior,
+  loadUserBehavior,
+  updateUserBehavior,
+} from '../../db/userProfile/userBehaviorRepository';
+import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { userPreferenceService } from '../../services/UserPreferenceService';
 
-function makeBehavior(overrides: Partial<MockBehavior> = {}): MockBehavior {
-  return {
-    oxyUserId: 'viewer-1',
-    preferredAuthors: [],
-    preferredTopics: [],
-    preferredPostTypes: { text: 0, image: 0, video: 0, poll: 0 },
-    activeHours: [],
-    preferredLanguages: [],
-    hiddenAuthors: [],
-    mutedAuthors: [],
-    blockedAuthors: [],
-    hiddenTopics: [],
-    markModified: vi.fn(),
-    save: vi.fn().mockResolvedValue(undefined),
-    ...overrides,
-  };
-}
+const scope = serviceScope('user-pref-concurrency');
+const VIEWER = scope.user('viewer');
+const AUTHOR = scope.user('author');
 
-function makeVersionError(): mongoose.Error.VersionError {
-  // A value whose prototype IS VersionError.prototype, so the service's
-  // `error instanceof mongoose.Error.VersionError` check is exercised against the
-  // real class. The real constructor needs a fully-typed Document we don't have
-  // in a unit test, so we build the instance via the prototype + a realistic
-  // message instead of fabricating a fake Document.
-  const err: mongoose.Error.VersionError = Object.create(mongoose.Error.VersionError.prototype);
-  Object.defineProperty(err, 'message', {
-    value: 'No matching document found for id "beh-1" version 1 modifiedPaths "preferredAuthors"',
-    enumerable: false,
-    writable: true,
-    configurable: true,
-  });
-  return err;
-}
+/** Concurrent interactions per contention case. */
+const CONCURRENT_LIKES = 3;
+/** How long a blocked racer is given to (incorrectly) proceed before we conclude it blocked. */
+const BLOCK_OBSERVATION_MS = 300;
+/** How long a released racer may take to finish before the test FAILS rather than hangs. */
+const RELEASE_TIMEOUT_MS = 5_000;
 
-function makeDuplicateKeyError(): mongoose.mongo.MongoServerError {
-  const err = new mongoose.mongo.MongoServerError({ message: 'E11000 duplicate key error' });
-  err.code = 11000;
-  return err;
-}
+/** The post every interaction below is about. Seeded once — it is not the subject. */
+let likedPostId: string;
 
-const LIKE_POST = {
-  _id: 'p1',
-  oxyUserId: 'author-1',
-  type: 'text',
-  hashtags: [],
-};
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  mocks.findById.mockResolvedValue(LIKE_POST);
+beforeAll(async () => {
+  await connectPostgres();
 });
 
-describe('UserPreferenceService.recordInteraction — concurrent write retries', () => {
-  it('retries on a VersionError and applies the mutation to the freshest revision (no throw)', async () => {
-    // Attempt 1: a stale doc whose `.save()` loses the `__v` race.
-    const stale = makeBehavior();
-    stale.save = vi.fn().mockRejectedValueOnce(makeVersionError());
-    // Attempt 2: the freshest revision (a concurrent like already landed for a
-    // DIFFERENT author) — the retry must apply OUR like on top of it.
-    const fresh = makeBehavior({
-      preferredAuthors: [
-        {
-          authorId: 'author-2',
-          interactionCount: 1,
-          lastInteractionAt: new Date(),
-          interactionTypes: { likes: 1, boosts: 0, comments: 0, saves: 0, shares: 0 },
-          weight: 0.01,
-        },
-      ],
-    });
+beforeEach(async () => {
+  vi.clearAllMocks();
+  await clearServiceScope(scope);
+  await deleteUserBehavior(VIEWER);
+  likedPostId = (await seedPost(scope, { oxyUserId: AUTHOR })).id;
+  // Without a readable row `recordInteraction` returns before touching the
+  // behaviour at all, so every contention assertion below would hold vacuously.
+  // Assert it, once.
+  expect((await readPost(likedPostId))?.oxyUserId).toBe(AUTHOR);
+});
 
-    mocks.findOne.mockResolvedValueOnce(stale).mockResolvedValueOnce(fresh);
+afterEach(async () => {
+  await clearServiceScope(scope);
+  await deleteUserBehavior(VIEWER);
+});
 
-    await expect(
-      userPreferenceService.recordInteraction('viewer-1', 'p1', 'like'),
-    ).resolves.toBeUndefined();
+afterAll(async () => {
+  await closePostgres();
+});
 
-    // Re-read happened on the retry, and the second attempt persisted.
-    expect(mocks.findOne).toHaveBeenCalledTimes(2);
-    expect(fresh.save).toHaveBeenCalledTimes(1);
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-    // The concurrent author survives AND our like is applied on top — accumulators correct.
-    expect(fresh.preferredAuthors.find(a => a.authorId === 'author-2')).toBeDefined();
-    const mine = fresh.preferredAuthors.find(a => a.authorId === 'author-1');
-    expect(mine).toBeDefined();
-    expect(mine?.interactionTypes.likes).toBe(1);
-    expect(mine?.weight).toBeGreaterThan(0);
-  });
-
-  it('retries on a duplicate-key error from a racing first-interaction insert', async () => {
-    // Attempt 1: no doc yet → service builds one via `new UserBehavior(...)`; its
-    // `.save()` loses the unique-`oxyUserId` insert race (E11000).
-    const inserted = makeBehavior();
-    inserted.save = vi.fn().mockRejectedValueOnce(makeDuplicateKeyError());
-    mocks.construct.mockReturnValueOnce(inserted);
-    // Attempt 2: the racing insert's document now exists.
-    const winner = makeBehavior();
-    mocks.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(winner);
-
-    await expect(
-      userPreferenceService.recordInteraction('viewer-1', 'p1', 'like'),
-    ).resolves.toBeUndefined();
-
-    expect(mocks.findOne).toHaveBeenCalledTimes(2);
-    expect(winner.save).toHaveBeenCalledTimes(1);
-    expect(winner.preferredAuthors.find(a => a.authorId === 'author-1')?.interactionTypes.likes).toBe(1);
-  });
-
-  it('does NOT retry on a non-conflict error (re-throws immediately)', async () => {
-    const doc = makeBehavior();
-    doc.save = vi.fn().mockRejectedValue(new Error('mongo offline'));
-    mocks.findOne.mockResolvedValue(doc);
-
-    await expect(
-      userPreferenceService.recordInteraction('viewer-1', 'p1', 'like'),
-    ).rejects.toThrow('mongo offline');
-
-    // Read exactly once — no retry on a generic error.
-    expect(mocks.findOne).toHaveBeenCalledTimes(1);
-  });
-
-  it('bounds retries — a persistent VersionError eventually surfaces', async () => {
-    // Every attempt re-reads a fresh stale doc whose save always loses the race.
-    mocks.findOne.mockImplementation(async () => {
-      const d = makeBehavior();
-      d.save = vi.fn().mockRejectedValue(makeVersionError());
-      return d;
-    });
-
-    await expect(
-      userPreferenceService.recordInteraction('viewer-1', 'p1', 'like'),
-    ).rejects.toBeInstanceOf(mongoose.Error.VersionError);
-
-    // 1 initial attempt + MAX_VERSION_CONFLICT_RETRIES (5) retries = 6 reads.
-    expect(mocks.findOne).toHaveBeenCalledTimes(6);
-  });
-
-  it('concurrent likes never throw VersionError — each contending write retries into success', async () => {
-    // Model contention deterministically: the first 3 saves (the first attempt
-    // of each of the 3 concurrent interactions) lose the `__v` race and raise a
-    // VersionError; once contention clears, the retry saves commit. Each
-    // `findOne` returns a FRESH revision, mirroring the DB re-read on retry.
-    const savedDocs: MockBehavior[] = [];
-    let saveCount = 0;
-    const CONFLICTING_SAVES = 3;
-    mocks.findOne.mockImplementation(async () => {
-      const doc = makeBehavior();
-      doc.save = vi.fn().mockImplementation(async () => {
-        saveCount += 1;
-        if (saveCount <= CONFLICTING_SAVES) {
-          throw makeVersionError();
-        }
-        savedDocs.push(doc);
-      });
-      return doc;
-    });
-
-    const results = await Promise.allSettled([
-      userPreferenceService.recordInteraction('viewer-1', 'p1', 'like'),
-      userPreferenceService.recordInteraction('viewer-1', 'p1', 'like'),
-      userPreferenceService.recordInteraction('viewer-1', 'p1', 'like'),
+/**
+ * Await `work`, or THROW when it takes longer than {@link RELEASE_TIMEOUT_MS}.
+ *
+ * A bare `await` on a write that never unblocks hangs the whole file until
+ * vitest's own timeout kills it, which reports as a slow suite rather than as
+ * the broken guarantee it is.
+ */
+async function withReleaseTimeout<T>(work: Promise<T>, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`${what} did not complete within ${RELEASE_TIMEOUT_MS}ms`)),
+          RELEASE_TIMEOUT_MS,
+        );
+      }),
     ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
-    // No interaction rejected — every conflict was retried into a success.
-    for (const r of results) {
-      expect(r.status).toBe('fulfilled');
+/** The viewer's stored author preference for {@link AUTHOR}. */
+async function authorPreference() {
+  const behavior = await loadUserBehavior(VIEWER);
+  return behavior?.preferredAuthors.find((a) => a.authorId === AUTHOR);
+}
+
+describe('UserPreferenceService.recordInteraction — concurrent writes', () => {
+  it('loses no update when several interactions for one viewer run concurrently', async () => {
+    // Issued WITHOUT awaiting in between: three transactions are open at once and
+    // contend for the same row. Serialising them would still pass and would cover
+    // nothing.
+    const results = await Promise.allSettled(
+      Array.from({ length: CONCURRENT_LIKES }, () =>
+        userPreferenceService.recordInteraction(VIEWER, likedPostId, 'like'),
+      ),
+    );
+    for (const result of results) {
+      expect(result.status).toBe('fulfilled');
     }
-    // All three interactions committed, and each committed doc carries the like.
-    expect(savedDocs).toHaveLength(3);
-    for (const doc of savedDocs) {
-      expect(doc.preferredAuthors.find(a => a.authorId === 'author-1')?.interactionTypes.likes).toBe(1);
+
+    // THE assertion. Each like adds exactly one to the per-type counter and 1.0
+    // to the accumulated weight, so anything less than the full sum is an update
+    // that was read, mutated and then overwritten by a racer.
+    const preference = await authorPreference();
+    expect(preference?.interactionTypes.likes).toBe(CONCURRENT_LIKES);
+    expect(preference?.interactionCount).toBeCloseTo(CONCURRENT_LIKES, 6);
+  });
+
+  it('creates exactly ONE behaviour row when concurrent FIRST interactions race', async () => {
+    // Nothing exists for this viewer yet (the beforeEach deleted it), so every
+    // racer takes the create path. The unique key on `oxy_user_id` is what makes
+    // the loser wait rather than insert a second row, and the upsert is what
+    // makes it then proceed rather than raise.
+    expect(await loadUserBehavior(VIEWER)).toBeNull();
+
+    const results = await Promise.allSettled(
+      Array.from({ length: CONCURRENT_LIKES }, () =>
+        userPreferenceService.recordInteraction(VIEWER, likedPostId, 'like'),
+      ),
+    );
+    for (const result of results) {
+      expect(result.status).toBe('fulfilled');
     }
+
+    const rows = await getDb()
+      .select({ id: userBehaviors.id })
+      .from(userBehaviors)
+      .where(eq(userBehaviors.oxyUserId, VIEWER));
+    expect(rows).toHaveLength(1);
+    expect((await authorPreference())?.interactionTypes.likes).toBe(CONCURRENT_LIKES);
+  });
+
+  it('blocks a second writer BEFORE it reads, so it cannot derive a value from a stale row', async () => {
+    // Establish the row, then hold it in an uncommitted transaction.
+    await userPreferenceService.recordInteraction(VIEWER, likedPostId, 'like');
+
+    let racerRead = false;
+    let racer: Promise<boolean> | undefined;
+
+    await getDb().transaction(async (tx) => {
+      await tx
+        .select()
+        .from(userBehaviors)
+        .where(eq(userBehaviors.oxyUserId, VIEWER))
+        .for('update');
+
+      racer = updateUserBehavior(VIEWER, (behavior) => {
+        racerRead = true;
+        behavior.averageEngagementTime = behavior.averageEngagementTime + 1;
+      });
+
+      await sleep(BLOCK_OBSERVATION_MS);
+      // The racer is queued on the row lock and has NOT yet read the record. Were
+      // the lock taken only by the final UPDATE, it would have read the row by
+      // now and be about to write a value derived from it.
+      expect(racerRead).toBe(false);
+    });
+
+    // Released — and it must actually finish, not merely be unblocked.
+    expect(await withReleaseTimeout(racer as Promise<boolean>, 'the blocked writer')).toBe(true);
+    expect(racerRead).toBe(true);
+    expect((await loadUserBehavior(VIEWER))?.averageEngagementTime).toBe(1);
+  });
+
+  it('refuses to create a row for a viewer who has none when createIfMissing is not set', async () => {
+    // The two refine-only callers (`recordViewTime`, `batchUpdatePreferences`)
+    // rely on this to tell "there was nothing to refine" from "refined it": a
+    // silent create would give every viewer an empty behaviour profile.
+    let applied = false;
+    const mutated = await updateUserBehavior(VIEWER, () => {
+      applied = true;
+    });
+
+    expect(mutated).toBe(false);
+    expect(applied).toBe(false);
+    expect(await loadUserBehavior(VIEWER)).toBeNull();
   });
 });

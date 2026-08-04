@@ -21,14 +21,23 @@
 import mongoose from 'mongoose';
 import { logger } from '../utils/logger';
 import { MIGRATION_BLOCKED_DOMAIN_PURGE_RUN_INDEXES } from './constants';
-import BlockedDomainPurgeRun from '../models/BlockedDomainPurgeRun';
 import type { Migration } from './runner';
+
+/**
+ * Named literally rather than read off a Mongoose model, which the Postgres port
+ * deleted. A landed migration is FROZEN HISTORY: it repairs the indexes of a
+ * pre-cutover Mongo collection, so it must keep naming what that collection was
+ * called at the time and must not follow a live constant that could be renamed
+ * underneath it. Same treatment `0012` got when the MTN models went.
+ */
+const BLOCKED_DOMAIN_PURGE_RUN_COLLECTION = 'blockeddomainpurgeruns';
+
 
 export const migrationBlockedDomainPurgeRunIndexes: Migration = {
   id: MIGRATION_BLOCKED_DOMAIN_PURGE_RUN_INDEXES,
 
   async run(db: mongoose.mongo.Db): Promise<void> {
-    const runs = db.collection(BlockedDomainPurgeRun.collection.collectionName);
+    const runs = db.collection(BLOCKED_DOMAIN_PURGE_RUN_COLLECTION);
     await runs.createIndex({ domain: 1, runId: 1 }, { unique: true });
     await runs.createIndex({ domain: 1, runAt: -1 });
     logger.info(

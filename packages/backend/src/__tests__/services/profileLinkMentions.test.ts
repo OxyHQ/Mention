@@ -24,14 +24,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  *    body already carries.
  *
  * Mocking mirrors `connectors/activitypub/apProfileLinkMentions.test.ts`: the
- * `FederatedActor` model, the federation `constants` (own-domain policy + Oxy
- * user resolution) and the logger are stubbed, so no network, DB or Oxy I/O runs.
+ * stored-actor REPOSITORY (`db/federation/actorRepository`), the federation
+ * `constants` (own-domain policy + Oxy user resolution) and the logger are
+ * stubbed, so no network, DB or Oxy I/O runs.
  */
 
 const mocks = vi.hoisted(() => ({
   isBlockedDomain: vi.fn((_host: string) => false),
   resolveOxyUser: vi.fn(),
-  findExistingActor: vi.fn(),
+  findActorByUri: vi.fn(),
+  findActorByAcct: vi.fn(),
   createActor: vi.fn(),
   updateActor: vi.fn(),
 }));
@@ -40,12 +42,11 @@ vi.mock('../../connectors/activitypub/constants', () => ({
   isBlockedDomain: mocks.isBlockedDomain,
   resolveOxyUser: mocks.resolveOxyUser,
 }));
-vi.mock('../../models/FederatedActor', () => ({
-  default: {
-    findOne: mocks.findExistingActor,
-    create: mocks.createActor,
-    findOneAndUpdate: mocks.updateActor,
-  },
+vi.mock('../../db/federation/actorRepository', () => ({
+  findActorByUri: mocks.findActorByUri,
+  findActorByAcct: mocks.findActorByAcct,
+  upsertActor: mocks.createActor,
+  setActorOxyUserId: mocks.updateActor,
 }));
 vi.mock('../../utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -63,22 +64,20 @@ const ALICE_OXY_ID = 'oxy_alice_local';
 const BOB_OXY_ID = 'oxy_bob_federated';
 
 /**
- * Stub the stored-actor table. Keys are matched exactly as the code queries them:
- * by actor `uri` (the `/users/<id>` shape) and by `acct` (the `/@<user>` shape).
+ * Stub the stored-actor rows. Keyed exactly as the code looks them up: by actor
+ * `uri` (the `/users/<id>` shape) and by `acct` (the `/@<user>` shape).
+ *
+ * TWO point lookups, not one disjunction — that is what the repository does, and
+ * the acct read only happens when the uri read missed. Modelling it as two stubs
+ * keeps that observable, which is what the `not.toHaveBeenCalled()` cases below
+ * assert on.
  */
 function stubStoredActors(rows: { uri?: Record<string, string>; acct?: Record<string, string> }): void {
-  mocks.findExistingActor.mockImplementation(
-    (filter: { uri?: string; $or?: Array<{ uri?: string; acct?: string }> }) => ({
-      lean: async () => {
-        for (const clause of filter.$or ?? [filter]) {
-          const byUri = clause.uri ? rows.uri?.[clause.uri] : undefined;
-          if (byUri) return { oxyUserId: byUri };
-          const byAcct = clause.acct ? rows.acct?.[clause.acct] : undefined;
-          if (byAcct) return { oxyUserId: byAcct };
-        }
-        return null;
-      },
-    }),
+  mocks.findActorByUri.mockImplementation(async (uri: string) =>
+    rows.uri?.[uri] ? { oxyUserId: rows.uri[uri] } : null,
+  );
+  mocks.findActorByAcct.mockImplementation(async (acct: string) =>
+    rows.acct?.[acct] ? { oxyUserId: rows.acct[acct] } : null,
   );
 }
 
@@ -97,7 +96,8 @@ beforeEach(() => {
     (host: string) => host.toLowerCase().replace(/^www\./, '') === OWN_HOST,
   );
   mocks.resolveOxyUser.mockResolvedValue(null);
-  mocks.findExistingActor.mockReturnValue({ lean: async () => null });
+  mocks.findActorByUri.mockResolvedValue(null);
+  mocks.findActorByAcct.mockResolvedValue(null);
 });
 
 describe('a profile link on OUR OWN host', () => {
@@ -260,11 +260,9 @@ describe('a profile link on a FOREIGN fediverse host', () => {
   });
 
   it('leaves the link alone when the lookup throws, without failing the write', async () => {
-    mocks.findExistingActor.mockImplementation(() => ({
-      lean: async () => {
-        throw new Error('mongo is having a day');
-      },
-    }));
+    mocks.findActorByUri.mockImplementation(async () => {
+      throw new Error('postgres is having a day');
+    });
     const content = body('see https://mastodon.social/@bob');
 
     const fold = await foldProfileLinkMentions(content, []);
@@ -282,7 +280,8 @@ describe('an ordinary link is not a mention', () => {
 
     expect(content.text).toBe('read https://example.com/2026/an-article and tell me');
     expect(fold.mentions).toEqual([]);
-    expect(mocks.findExistingActor).not.toHaveBeenCalled();
+    expect(mocks.findActorByUri).not.toHaveBeenCalled();
+    expect(mocks.findActorByAcct).not.toHaveBeenCalled();
     expect(mocks.resolveOxyUser).not.toHaveBeenCalled();
   });
 
@@ -292,7 +291,8 @@ describe('an ordinary link is not a mention', () => {
     await foldProfileLinkMentions(content, []);
 
     expect(content.text).toBe('https://mastodon.social/@bob/followers');
-    expect(mocks.findExistingActor).not.toHaveBeenCalled();
+    expect(mocks.findActorByUri).not.toHaveBeenCalled();
+    expect(mocks.findActorByAcct).not.toHaveBeenCalled();
   });
 
   it('does no work at all for a body with no links', async () => {
@@ -301,7 +301,8 @@ describe('an ordinary link is not a mention', () => {
     const fold = await foldProfileLinkMentions(content, []);
 
     expect(fold.rewritten).toBe(false);
-    expect(mocks.findExistingActor).not.toHaveBeenCalled();
+    expect(mocks.findActorByUri).not.toHaveBeenCalled();
+    expect(mocks.findActorByAcct).not.toHaveBeenCalled();
   });
 });
 
@@ -340,7 +341,8 @@ describe('the per-post ceiling is shared with the mentions the body already carr
 
     const fold = await foldProfileLinkMentions(content, carried);
 
-    expect(mocks.findExistingActor).not.toHaveBeenCalled();
+    expect(mocks.findActorByUri).not.toHaveBeenCalled();
+    expect(mocks.findActorByAcct).not.toHaveBeenCalled();
     expect(fold.mentions).toEqual(carried);
     expect(content.text).toContain('https://mastodon.social/@bob');
   });

@@ -1,203 +1,38 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import mongoose from 'mongoose';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
-
 /**
- * MTN PostMaterializer — `projectRecord` projection + idempotency tests.
+ * MTN `projectRecord` — a signed record becoming real rows.
  *
- * The `Post` / `Like` / `Bookmark` model statics are mocked with an in-memory
- * store so the REAL projection logic (collection routing, field-scoped `$set`,
- * media preservation, classification mirroring, tombstone removal, schema
- * validation) runs WITHOUT MongoDB. Mirrors the in-package model-mock pattern
- * from `scripts/migrateThreadFanToChain.test.ts`.
+ * The suite this replaces ran the projection against an in-memory
+ * re-implementation of Mongo's dotted-`$set` semantics. That could only ever
+ * assert that the code built the update it was written to build; it could not see
+ * the two things this port makes possible to get wrong, and both are silent:
+ *
+ * **A post is SIX tables now.** The body is `post_content_variants`, the media is
+ * `post_media`, the owner is `post_authorships`. Writing the parent row alone
+ * produces a post that exists, satisfies every foreign key, is returned by every
+ * feed query — and renders as an empty card, with no error anywhere. Every case
+ * below reads the post back through `loadPostRecord`, which is the same assembly
+ * hydration and the feed engine use, so a missing child row is a missing field
+ * here.
+ *
+ * **Re-projection is now a delete-and-rewrite of the content graph**, where Mongo
+ * touched only the paths it named. Anything the record does NOT own — an existing
+ * post's media that would not re-resolve, its @mention allowlist, its article —
+ * has to be carried across explicitly, and the cases that check that are the ones
+ * that go red if `mergeRecordContent` is simplified away.
+ *
+ * The Oxy blob lookup stays mocked: it is a network call, and it is the input the
+ * read-side resolution cases need to control. Everything else is real, including
+ * `PostEngagementCommandService` — so a like record has to satisfy the same
+ * foreign key a native like does.
  */
 
-// --- In-memory model store (built in vi.hoisted so it predates the mocks). ----
-interface StoredDoc {
-  _id: string;
-  [key: string]: unknown;
-}
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { eq, inArray } from 'drizzle-orm';
+import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 
-const h = vi.hoisted(() => {
-  const posts = new Map<string, StoredDoc>();
-  const likes = new Map<string, StoredDoc>();
-  const bookmarks = new Map<string, StoredDoc>();
-
-  /**
-   * Apply a dotted `$set` / `$setOnInsert` upsert into a map, mirroring Mongo's
-   * dotted-path set semantics (so `content.text` nests under `content`). Existing
-   * fields NOT named in `$set` are preserved (the zero-regression contract).
-   */
-  function applyUpsert(
-    map: Map<string, StoredDoc>,
-    id: string,
-    update: { $set?: Record<string, unknown>; $setOnInsert?: Record<string, unknown> },
-    filterFields: Record<string, unknown> = {},
-  ): StoredDoc {
-    const isInsert = !map.has(id);
-    const doc: StoredDoc = map.get(id) ?? { _id: id };
-    // On insert Mongo seeds the new document from the filter's equality fields
-    // before applying the update operators.
-    const merged: Record<string, unknown> = {
-      ...(isInsert ? filterFields : {}),
-      ...(update.$set ?? {}),
-    };
-    if (isInsert && update.$setOnInsert) {
-      Object.assign(merged, update.$setOnInsert);
-    }
-    for (const [path, value] of Object.entries(merged)) {
-      setDottedPath(doc, path, value);
-    }
-    map.set(id, doc);
-    return doc;
-  }
-
-  function setDottedPath(target: Record<string, unknown>, path: string, value: unknown): void {
-    const segments = path.split('.');
-    let cursor = target;
-    for (let i = 0; i < segments.length - 1; i++) {
-      const seg = segments[i];
-      if (typeof cursor[seg] !== 'object' || cursor[seg] === null) {
-        cursor[seg] = {};
-      }
-      cursor = cursor[seg] as Record<string, unknown>;
-    }
-    cursor[segments[segments.length - 1]] = value;
-  }
-
-  function findByIdAndUpdate(map: Map<string, StoredDoc>) {
-    return vi.fn(
-      async (
-        id: string,
-        update: { $set?: Record<string, unknown>; $setOnInsert?: Record<string, unknown> },
-        options?: { upsert?: boolean },
-      ) => {
-        if (!map.has(id) && !options?.upsert) return null;
-        return applyUpsert(map, id, update);
-      },
-    );
-  }
-
-  /**
-   * `findOneAndUpdate` with the filter semantics the owner-scoped post upsert
-   * relies on, verified against a real MongoDB 8 server:
-   *  - the filter matches only when EVERY equality field matches the stored doc;
-   *  - a miss with `upsert` inserts, seeding the doc from the filter's fields;
-   *  - a miss with `upsert` on an `_id` that ALREADY EXISTS (i.e. the row belongs
-   *    to another owner) raises a duplicate-key error (code 11000) and leaves the
-   *    stored document untouched.
-   * The `_id` is compared as a string: the materializer passes a 24-hex rkey and
-   * Mongoose casts it, so the mock's string keys are the equivalent identity.
-   */
-  function findOneAndUpdate(map: Map<string, StoredDoc>) {
-    return vi.fn(
-      async (
-        filter: Record<string, unknown> & { _id: string },
-        update: { $set?: Record<string, unknown>; $setOnInsert?: Record<string, unknown> },
-        options?: { upsert?: boolean },
-      ) => {
-        const { _id, ...predicate } = filter;
-        const existing = map.get(_id);
-        const matches = existing !== undefined
-          && Object.entries(predicate).every(([field, value]) => existing[field] === value);
-        if (matches) return applyUpsert(map, _id, update, predicate);
-        if (!options?.upsert) return null;
-        if (existing !== undefined) {
-          throw Object.assign(
-            new Error(`E11000 duplicate key error collection: posts index: _id_ dup key: { _id: "${_id}" }`),
-            { code: 11000 },
-          );
-        }
-        return applyUpsert(map, _id, update, predicate);
-      },
-    );
-  }
-
-  function findByIdAndDelete(map: Map<string, StoredDoc>) {
-    return vi.fn(async (id: string) => {
-      const existing = map.get(id) ?? null;
-      map.delete(id);
-      return existing;
-    });
-  }
-
-  const findOwnedPostAndDelete = vi.fn(async (filter: {
-    _id: string;
-    oxyUserId: string;
-  }) => {
-    const existing = posts.get(filter._id) ?? null;
-    if (existing?.oxyUserId !== filter.oxyUserId) return null;
-    posts.delete(filter._id);
-    return existing;
-  });
-
-  return {
-    posts,
-    likes,
-    bookmarks,
-    Post: {
-      // `findByIdAndUpdate` is the UNSCOPED (rkey-only) upsert the materializer no
-      // longer uses. It stays on the double so a regression that drops the owner
-      // predicate still runs against faithful Mongo semantics and is reported as a
-      // rewritten victim post, not as a missing mock method.
-      findByIdAndUpdate: findByIdAndUpdate(posts),
-      findOneAndUpdate: findOneAndUpdate(posts),
-      findByIdAndDelete: findByIdAndDelete(posts),
-      findOneAndDelete: findOwnedPostAndDelete,
-    },
-    Like: { findByIdAndUpdate: findByIdAndUpdate(likes), findByIdAndDelete: findByIdAndDelete(likes) },
-    Bookmark: {
-      findByIdAndUpdate: findByIdAndUpdate(bookmarks),
-      findByIdAndDelete: findByIdAndDelete(bookmarks),
-    },
-  };
-});
-
-vi.mock('../../../models/Post', () => ({
-  Post: h.Post,
-  POST_CLASSIFICATION_PENDING: 'pending',
-}));
-vi.mock('../../../models/Like', () => ({ default: h.Like }));
-vi.mock('../../../models/Bookmark', () => ({ default: h.Bookmark }));
-vi.mock('../../../services/PostRecentReplierService', () => ({
-  recordRecentReplierForPost: vi.fn(async () => undefined),
-  repairRecentRepliersAfterPostDelete: vi.fn(async () => undefined),
-}));
-vi.mock('../../../services/PostEngagementCommandService', () => ({
-  materializeEngagementRelationship: vi.fn(async (input: {
-    kind: 'like' | 'bookmark';
-    relationshipId: string;
-    userId: string;
-    postId: string;
-  }) => {
-    const map = input.kind === 'like' ? h.likes : h.bookmarks;
-    if (map.has(input.relationshipId)) return { changed: false };
-    map.set(input.relationshipId, {
-      _id: input.relationshipId,
-      userId: input.userId,
-      postId: { toString: () => input.postId },
-      ...(input.kind === 'like' ? { value: 1 } : {}),
-    });
-    return { changed: true };
-  }),
-  materializeEngagementTombstone: vi.fn(async (input: {
-    kind: 'like' | 'bookmark';
-    relationshipId: string;
-    userId: string;
-  }) => {
-    const map = input.kind === 'like' ? h.likes : h.bookmarks;
-    const existing = map.get(input.relationshipId);
-    if (!existing || existing.userId !== input.userId) {
-      return { changed: false };
-    }
-    map.delete(input.relationshipId);
-    return { changed: true };
-  }),
-}));
-
-// Mock the service-scoped Oxy client so the read-side blob resolver's REVERSE
-// lookup (`getServiceAssetMetadataBySha256`, sha256 → fileId) is fully
-// controllable and performs no real I/O. Hoisted so it predates the import.
+// The service-scoped Oxy client, so the read-side blob resolver's REVERSE lookup
+// (`getServiceAssetMetadataBySha256`, sha256 → fileId) is controllable and does
+// no real I/O. Hoisted so it predates the import.
 const oxyMock = vi.hoisted(() => ({
   getServiceAssetMetadataBySha256: vi.fn<
     (sha256s: string[]) => Promise<
@@ -209,29 +44,52 @@ vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => oxyMock,
 }));
 
+import { closePostgres, connectPostgres, type Database } from '../../../db/postgres';
+import { posts } from '../../../db/schema/posts';
+import { bookmarks, likes } from '../../../db/schema/engagement';
+import { postRecentRepliers } from '../../../db/schema/postContent';
+import { insertPostRecord, loadPostRecord } from '../../../db/posts/postRepository';
+import type { PostRecord, PostRecordInput } from '../../../db/posts/postRecord';
 import { projectRecord } from '../../../services/mtn/PostMaterializer';
 import { buildUserDid } from '../../../services/mtn/mentionDid';
 import { baselineContentClassifier } from '../../../services/BaselineContentClassifier';
+import { buildAuthorship } from '../../../utils/postAuthorship';
 import {
   MENTION_POST_COLLECTION,
   MENTION_LIKE_COLLECTION,
   MENTION_REPOST_COLLECTION,
   MENTION_TOMBSTONE_COLLECTION,
   MENTION_BOOKMARK_COLLECTION,
+  PostType,
+  PostVisibility,
   createPostUri,
   createLikeUri,
   createBookmarkUri,
 } from '@mention/shared-types';
 
+let db: Database;
+
 const SUBJECT_OXY_ID = '650000000000000000000abc';
 const SUBJECT_DID = buildUserDid(SUBJECT_OXY_ID);
-// 24-hex Mongo ObjectId strings used as rkeys / post ids.
-const POST_RKEY = '650000000000000000000001';
-const LIKE_RKEY = '650000000000000000000002';
-const REPOST_RKEY = '650000000000000000000003';
-const BOOKMARK_RKEY = '650000000000000000000004';
-const LIKED_POST_ID = '650000000000000000000005';
 const OWNER_OXY_ID = '650000000000000000000fff';
+
+/**
+ * Every post id this suite writes.
+ *
+ * They are the rkeys the records name, so they are also the PRIMARY KEY — and
+ * vitest runs test FILES in parallel against ONE database, so the prefix has to
+ * be unique to this file or an unrelated suite's insert collides with ours.
+ */
+const NAMESPACE = '65000000000000000mtn';
+const POST_RKEY = `${NAMESPACE}0001`;
+const LIKE_RKEY = `${NAMESPACE}0002`;
+const REPOST_RKEY = `${NAMESPACE}0003`;
+const BOOKMARK_RKEY = `${NAMESPACE}0004`;
+const LIKED_POST_ID = `${NAMESPACE}0005`;
+const PARENT_RKEY = `${NAMESPACE}0006`;
+const ROOT_RKEY = `${NAMESPACE}0007`;
+const REPLY_RKEY = `${NAMESPACE}0013`;
+const ALL_POST_IDS = [POST_RKEY, REPOST_RKEY, LIKED_POST_ID, PARENT_RKEY, ROOT_RKEY, REPLY_RKEY];
 
 /** Build a v2 envelope around an inner `record` for the materializer to project. */
 function envelope(
@@ -257,22 +115,52 @@ function envelope(
   };
 }
 
+/** A post the projection will find already present, written the normal way. */
+async function seedPost(
+  id: string,
+  oxyUserId: string,
+  overrides: Partial<PostRecordInput> = {},
+): Promise<PostRecord> {
+  return insertPostRecord({
+    id,
+    oxyUserId,
+    authorship: buildAuthorship(oxyUserId, []),
+    type: PostType.TEXT,
+    visibility: PostVisibility.PUBLIC,
+    status: 'published',
+    content: { variants: [{ source: 'author', text: 'seeded' }] },
+    ...overrides,
+  });
+}
+
+/** The stored post, assembled exactly as hydration and the feed engine read it. */
+function readPost(id: string): Promise<PostRecord | null> {
+  return loadPostRecord(id);
+}
+
+beforeAll(async () => {
+  db = await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 beforeEach(() => {
-  h.posts.clear();
-  h.likes.clear();
-  h.bookmarks.clear();
-  h.Post.findByIdAndUpdate.mockClear();
-  h.Post.findOneAndUpdate.mockClear();
-  h.Post.findByIdAndDelete.mockClear();
-  h.Post.findOneAndDelete.mockClear();
-  h.Like.findByIdAndUpdate.mockClear();
-  h.Like.findByIdAndDelete.mockClear();
-  h.Bookmark.findByIdAndUpdate.mockClear();
-  h.Bookmark.findByIdAndDelete.mockClear();
-  // Default: no blob resolves (records without embeds are unaffected). Tests that
-  // exercise the resolver override this per-case.
+  // Default: no blob resolves (records without embeds are unaffected). Cases that
+  // exercise the resolver override this.
   oxyMock.getServiceAssetMetadataBySha256.mockReset();
   oxyMock.getServiceAssetMetadataBySha256.mockResolvedValue([]);
+});
+
+afterEach(async () => {
+  await db.delete(likes).where(inArray(likes.postId, ALL_POST_IDS));
+  await db.delete(bookmarks).where(inArray(bookmarks.postId, ALL_POST_IDS));
+  await db.delete(postRecentRepliers).where(inArray(postRecentRepliers.postId, ALL_POST_IDS));
+  // Children cascade from `posts`; rows REFERENCING these ids go first.
+  await db.delete(posts).where(inArray(posts.parentPostId, ALL_POST_IDS));
+  await db.delete(posts).where(inArray(posts.boostOf, ALL_POST_IDS));
+  await db.delete(posts).where(inArray(posts.id, ALL_POST_IDS));
 });
 
 describe('projectRecord — post', () => {
@@ -284,28 +172,33 @@ describe('projectRecord — post', () => {
     langs: ['en'],
   };
 
-  it('projects a post record into a feed-identical Post row', async () => {
+  it('writes the parent row AND every child row a post needs to render', async () => {
     const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
-
     expect(result).toEqual({ ok: true, kind: 'post', id: POST_RKEY });
-    const doc = h.posts.get(POST_RKEY);
-    expect(doc).toBeDefined();
-    expect(doc?.oxyUserId).toBe(SUBJECT_OXY_ID);
-    expect(doc?.type).toBe('text');
-    // The body lives in the variants — `variants[0]` is the primary rendition.
-    expect((doc?.content as { variants: Array<{ text: string }> }).variants[0].text).toBe(postRecord.text);
-    expect(doc?.hashtags).toEqual(['mtn', 'protocol']);
-    expect(doc?.parentPostId).toBeNull();
-    expect(doc?.threadId).toBeNull();
-    expect((doc?.createdAt as Date).toISOString()).toBe(createdAtIso);
-    // Insert-only defaults applied.
-    expect(doc?.visibility).toBe('public');
-    expect(doc?.status).toBe('published');
+
+    const post = await readPost(POST_RKEY);
+    expect(post).not.toBeNull();
+    expect(post?.oxyUserId).toBe(SUBJECT_OXY_ID);
+    expect(post?.type).toBe(PostType.TEXT);
+    expect(post?.visibility).toBe(PostVisibility.PUBLIC);
+    expect(post?.status).toBe('published');
+    // The BODY — `post_content_variants`. Without this row the post renders empty
+    // and every other assertion here still passes.
+    expect(post?.content.variants?.[0]?.text).toBe(postRecord.text);
+    expect(post?.content.variants?.[0]?.source).toBe('author');
+    expect(post?.content.variants?.[0]?.tag).toBe('en');
+    // The OWNER — `post_authorships`, the authority `oxy_user_id` projects.
+    expect(post?.authorship).toEqual([
+      { oxyUserId: SUBJECT_OXY_ID, role: 'owner', status: 'accepted' },
+    ]);
+    expect(post?.hashtags).toEqual(['mtn', 'protocol']);
+    expect(post?.parentPostId).toBeNull();
+    expect(post?.threadId).toBeNull();
+    expect(post?.isReply).toBe(false);
+    expect(post?.createdAt.toISOString()).toBe(createdAtIso);
   });
 
-  it('writes a postClassification identical to baselineContentClassifier output', async () => {
-    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
-
+  it('writes a classification identical to the baseline classifier output', async () => {
     const expected = baselineContentClassifier.classify({
       text: postRecord.text,
       hashtags: postRecord.tags,
@@ -313,570 +206,646 @@ describe('projectRecord — post', () => {
       languages: postRecord.langs,
     });
 
-    const doc = h.posts.get(POST_RKEY);
-    const classification = doc?.postClassification as {
-      status: string;
-      topics: string[];
-      languages: string[];
-      hashtagsNorm: string[];
-      sensitive?: boolean;
-      version: number;
-    };
-    expect(classification.status).toBe('pending');
-    expect(classification.topics).toEqual(expected.topics);
-    expect(classification.languages).toEqual(expected.languages);
-    expect(classification.hashtagsNorm).toEqual(expected.hashtagsNorm);
-    expect(classification.sensitive).toBe(expected.sensitive);
-    expect(classification.version).toBe(expected.version);
-    // Top-level primary language mirrors PostCreationService.
-    expect(doc?.language).toBe(expected.languages[0]);
+    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
+
+    const post = await readPost(POST_RKEY);
+    expect(post?.postClassification.status).toBe('pending');
+    expect(post?.postClassification.attempts).toBe(0);
+    expect(post?.postClassification.topics).toEqual(expected.topics);
+    expect(post?.postClassification.languages).toEqual(expected.languages);
+    expect(post?.postClassification.hashtagsNorm).toEqual(expected.hashtagsNorm);
+    expect(post?.postClassification.scores).toEqual(expected.scores);
+    expect(post?.postClassification.version).toBe(expected.version);
+    // The top-level AP protocol field follows the resolved primary.
+    expect(post?.language).toBe(expected.languages[0]);
   });
 
-  it('is idempotent on a second projection (same row, stable classification)', async () => {
+  it('converges on a second projection instead of duplicating anything', async () => {
     await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
-    const first = JSON.parse(JSON.stringify(h.posts.get(POST_RKEY)));
+    const first = await readPost(POST_RKEY);
 
     await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
-    const second = JSON.parse(JSON.stringify(h.posts.get(POST_RKEY)));
+    const second = await readPost(POST_RKEY);
 
-    // Exactly one row, and its content/structure is stable across re-projection
-    // (classifiedAt is a timestamp, so compare the stable fields).
-    expect(h.posts.size).toBe(1);
-    expect(second.oxyUserId).toBe(first.oxyUserId);
-    expect(second.content).toEqual(first.content);
-    expect(second.hashtags).toEqual(first.hashtags);
-    expect(second.postClassification.topics).toEqual(first.postClassification.topics);
-    expect(second.postClassification.languages).toEqual(first.postClassification.languages);
+    expect(second?.content.variants).toEqual(first?.content.variants);
+    expect(second?.authorship).toEqual(first?.authorship);
+    expect(second?.postClassification.scores).toEqual(first?.postClassification.scores);
+    // One rendition, not two — the content rewrite deletes before it inserts.
+    expect(second?.content.variants).toHaveLength(1);
   });
 
-  it('recovers reply context (threadId=root rkey, parentPostId=parent rkey)', async () => {
-    const rootId = '650000000000000000000010';
-    const parentId = '650000000000000000000011';
-    const replyRecord = {
-      text: 'a reply in a thread that is long enough to classify',
-      createdAt: createdAtIso,
-      reply: {
-        root: createPostUri(OWNER_OXY_ID, rootId),
-        parent: createPostUri(OWNER_OXY_ID, parentId),
-      },
-    };
-
-    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, replyRecord));
-
-    const doc = h.posts.get(POST_RKEY);
-    expect(doc?.threadId).toBe(rootId);
-    expect(doc?.parentPostId).toBe(parentId);
-  });
-
-  it('REJECTS a record whose rkey is ANOTHER user\'s post — the victim row is untouched', async () => {
-    // The rkey is a key in the SUBJECT's namespace, so a genuinely-signed record
-    // naming someone else's post id must never rewrite that post. Without the
-    // owner predicate this projection silently forges the victim's content and
-    // hands their post (oxyUserId + authorship) to the record's author.
-    h.posts.set(POST_RKEY, {
-      _id: POST_RKEY,
-      oxyUserId: OWNER_OXY_ID,
-      content: { variants: [{ source: 'author', text: 'the victim wrote this' }] },
-      status: 'published',
-      visibility: 'public',
-    });
-
-    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
-
-    // Assert the victim's row FIRST: a failure here is the forgery itself, so the
-    // message names the damage rather than only the wrong return value.
-    const doc = h.posts.get(POST_RKEY);
-    expect((doc?.content as { variants: Array<{ text: string }> }).variants[0].text).toBe(
-      'the victim wrote this',
+  it('applies an edited body over the previous one', async () => {
+    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
+    await projectRecord(
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, { ...postRecord, text: 'the edited body' }),
     );
-    expect(doc?.oxyUserId).toBe(OWNER_OXY_ID);
-    expect(doc?.authorship).toBeUndefined();
-    // No second row was invented for the taken rkey either.
-    expect(h.posts.size).toBe(1);
-    expect(result).toEqual({ ok: false, reason: 'record_owner_mismatch' });
+
+    const post = await readPost(POST_RKEY);
+    expect(post?.content.variants).toHaveLength(1);
+    expect(post?.content.variants?.[0]?.text).toBe('the edited body');
   });
 
-  it('PRESERVES existing content.media (BLOB DEFERRED — never clobbers to empty)', async () => {
-    // Seed an existing post that already carries fileId media (the B2 corpus case).
-    h.posts.set(POST_RKEY, {
-      _id: POST_RKEY,
-      oxyUserId: SUBJECT_OXY_ID,
-      content: {
-        text: 'original',
-        media: [{ id: 'file-abc', type: 'image' }],
-      },
+  it('recovers reply context and links it when both ends are materialized', async () => {
+    await seedPost(ROOT_RKEY, SUBJECT_OXY_ID);
+    await seedPost(PARENT_RKEY, SUBJECT_OXY_ID);
+
+    await projectRecord(
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, {
+        ...postRecord,
+        reply: {
+          root: createPostUri(SUBJECT_OXY_ID, ROOT_RKEY),
+          parent: createPostUri(SUBJECT_OXY_ID, PARENT_RKEY),
+        },
+      }),
+    );
+
+    const post = await readPost(POST_RKEY);
+    expect(post?.parentPostId).toBe(PARENT_RKEY);
+    expect(post?.threadId).toBe(ROOT_RKEY);
+    expect(post?.isReply).toBe(true);
+    // The parent's recent-replier projection moved too, as for a native reply.
+    const repliers = await db
+      .select({ oxyUserId: postRecentRepliers.oxyUserId })
+      .from(postRecentRepliers)
+      .where(eq(postRecentRepliers.postId, PARENT_RKEY));
+    expect(repliers.map((row) => row.oxyUserId)).toEqual([SUBJECT_OXY_ID]);
+  });
+
+  it('keeps an unlinkable reply OUT of the root feeds', async () => {
+    // THE regression this guards. `parent_post_id` is a real foreign key, so a
+    // reply whose parent is not materialized here cannot store the link — and if
+    // `is_reply` were derived from that null link, the reply would be PROMOTED
+    // into For You / Following / Explore, every one of which reads
+    // `is_reply = false`.
+    const result = await projectRecord(
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, {
+        ...postRecord,
+        reply: {
+          root: createPostUri(SUBJECT_OXY_ID, ROOT_RKEY),
+          parent: createPostUri(SUBJECT_OXY_ID, PARENT_RKEY),
+        },
+      }),
+    );
+
+    expect(result).toEqual({ ok: true, kind: 'post', id: POST_RKEY });
+    const post = await readPost(POST_RKEY);
+    expect(post?.parentPostId).toBeNull();
+    expect(post?.threadId).toBeNull();
+    expect(post?.isReply).toBe(true);
+  });
+
+  it("REFUSES a record whose rkey is another user's post, leaving that post untouched", async () => {
+    await seedPost(POST_RKEY, OWNER_OXY_ID, {
+      content: { variants: [{ source: 'author', text: 'the victim body' }] },
     });
 
     const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
-    expect(result.ok).toBe(true);
 
-    const doc = h.posts.get(POST_RKEY);
-    const content = doc?.content as {
-      variants: Array<{ text: string }>;
-      media: Array<{ id: string; type: string }>;
-    };
-    // The body was updated from the record…
-    expect(content.variants[0].text).toBe(postRecord.text);
-    // …but the fileId media survives (the materializer never writes content.media).
-    expect(content.media).toEqual([{ id: 'file-abc', type: 'image' }]);
+    expect(result).toEqual({ ok: false, reason: 'record_owner_mismatch' });
+    const post = await readPost(POST_RKEY);
+    expect(post?.oxyUserId).toBe(OWNER_OXY_ID);
+    expect(post?.content.variants?.[0]?.text).toBe('the victim body');
+    expect(post?.authorship[0]?.oxyUserId).toBe(OWNER_OXY_ID);
   });
 
-  it('READ-SIDE: resolves a blob embed (sha256) → fileId MediaItem via reverse lookup', async () => {
-    // The write side emits content-addressed blob refs; the read side resolves
-    // each sha256 back to its live Oxy fileId and writes a native content.media
-    // MediaItem, so the post renders through the normal CDN path.
-    oxyMock.getServiceAssetMetadataBySha256.mockResolvedValue([
-      { sha256: 'sha-img', id: 'file-img', mime: 'image/png', size: 42, status: 'active' },
-      { sha256: 'sha-vid', id: 'file-vid', mime: 'video/mp4', size: 99, status: 'active' },
-    ]);
-
-    const recordWithEmbed = {
-      ...postRecord,
-      embed: {
-        type: 'media',
-        items: [
-          { blob: { sha256: 'sha-img', mediaType: 'image', mime: 'image/png', size: 42 }, alt: 'a cat' },
-          { blob: { sha256: 'sha-vid', mediaType: 'video', mime: 'video/mp4', size: 99 } },
-        ],
-      },
-    };
-
-    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, recordWithEmbed));
-    expect(result).toEqual({ ok: true, kind: 'post', id: POST_RKEY });
-
-    // The reverse lookup is called once with the embed's distinct sha256s.
-    expect(oxyMock.getServiceAssetMetadataBySha256).toHaveBeenCalledTimes(1);
-    expect(oxyMock.getServiceAssetMetadataBySha256).toHaveBeenCalledWith(['sha-img', 'sha-vid']);
-
-    const doc = h.posts.get(POST_RKEY);
-    const content = doc?.content as {
-      variants: Array<{ text: string }>;
-      media: Array<{ id: string; type: string; alt?: string }>;
-    };
-    expect(content.variants[0].text).toBe(postRecord.text);
-    // Each blob became a fileId MediaItem (id = resolved fileId, type = mediaType),
-    // order + alt preserved.
-    expect(content.media).toEqual([
-      { id: 'file-img', type: 'image', alt: 'a cat' },
-      { id: 'file-vid', type: 'video' },
-    ]);
-  });
-
-  it('READ-SIDE FAIL-SOFT: an unresolvable sha256 is dropped (no fake URL)', async () => {
-    // Only one of two blobs resolves; the other (unknown/trashed) is omitted by
-    // the upstream batch. The materializer drops it rather than inventing a URL.
-    oxyMock.getServiceAssetMetadataBySha256.mockResolvedValue([
-      { sha256: 'sha-ok', id: 'file-ok', mime: 'image/jpeg', size: 10, status: 'active' },
-      // sha-trash present but trashed → not renderable, treated as unresolvable.
-      { sha256: 'sha-trash', id: 'file-trash', mime: 'image/jpeg', size: 11, status: 'trash' },
-      // sha-missing simply absent from the response.
-    ]);
-
-    const recordWithEmbed = {
-      ...postRecord,
-      embed: {
-        type: 'media',
-        items: [
-          { blob: { sha256: 'sha-ok', mediaType: 'image' } },
-          { blob: { sha256: 'sha-trash', mediaType: 'image' } },
-          { blob: { sha256: 'sha-missing', mediaType: 'image' } },
-        ],
-      },
-    };
-
-    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, recordWithEmbed));
-    expect(result.ok).toBe(true);
-
-    const doc = h.posts.get(POST_RKEY);
-    const content = doc?.content as { media: Array<{ id: string; type: string }> };
-    // Only the single resolvable, active blob survived.
-    expect(content.media).toEqual([{ id: 'file-ok', type: 'image' }]);
-  });
-
-  it('READ-SIDE FAIL-SOFT: a reverse-lookup error never aborts projection (no media written)', async () => {
-    oxyMock.getServiceAssetMetadataBySha256.mockRejectedValue(new Error('403 forbidden: files:read'));
-
-    const recordWithEmbed = {
-      ...postRecord,
-      embed: {
-        type: 'media',
-        items: [{ blob: { sha256: 'sha-x', mediaType: 'image' } }],
-      },
-    };
-
-    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, recordWithEmbed));
-    expect(result).toEqual({ ok: true, kind: 'post', id: POST_RKEY });
-
-    const doc = h.posts.get(POST_RKEY);
-    const content = doc?.content as { variants: Array<{ text: string }>; media?: unknown };
-    expect(content.variants[0].text).toBe(postRecord.text);
-    // Lookup failed → no media materialized, no throw.
-    expect(content.media).toBeUndefined();
-  });
-
-  it('READ-SIDE ZERO-REGRESSION: an empty resolution preserves existing fileId media', async () => {
-    // Existing post already carries fileId media. The incoming record carries a
-    // blob embed whose sha256 does NOT resolve → resolver returns [] → the upsert
-    // must NOT write content.media, so the existing media survives.
-    h.posts.set(POST_RKEY, {
-      _id: POST_RKEY,
-      oxyUserId: SUBJECT_OXY_ID,
-      content: { text: 'original', media: [{ id: 'file-existing', type: 'image' }] },
-    });
-    oxyMock.getServiceAssetMetadataBySha256.mockResolvedValue([]); // nothing resolves
-
-    const recordWithEmbed = {
-      ...postRecord,
-      embed: {
-        type: 'media',
-        items: [{ blob: { sha256: 'sha-unresolved', mediaType: 'image' } }],
-      },
-    };
-
-    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, recordWithEmbed));
-    expect(result.ok).toBe(true);
-
-    const doc = h.posts.get(POST_RKEY);
-    const content = doc?.content as {
-      variants: Array<{ text: string }>;
-      media: Array<{ id: string; type: string }>;
-    };
-    expect(content.variants[0].text).toBe(postRecord.text);
-    // Existing fileId media preserved (resolver returned nothing → no write).
-    expect(content.media).toEqual([{ id: 'file-existing', type: 'image' }]);
-  });
-
-  it('rejects an invalid inner record with reason invalid_record', async () => {
-    // `text` is required by mentionPostRecordSchema; omit it.
+  it('rejects an invalid inner record', async () => {
     const result = await projectRecord(
-      envelope(MENTION_POST_COLLECTION, POST_RKEY, { createdAt: createdAtIso }),
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, { text: 42 }),
     );
     expect(result).toEqual({ ok: false, reason: 'invalid_record' });
-    expect(h.posts.size).toBe(0);
+    expect(await readPost(POST_RKEY)).toBeNull();
   });
 
   it('is a clear no-op for a non-parseable subject DID', async () => {
     const result = await projectRecord(
-      envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord, 'did:web:not-a-user-did'),
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord, 'did:web:example.com:not-a-user'),
     );
     expect(result).toEqual({ ok: false, reason: 'unresolvable_subject_did' });
-    expect(h.posts.size).toBe(0);
+    expect(await readPost(POST_RKEY)).toBeNull();
   });
 });
 
-/**
- * A record's `createdAt` is self-asserted by whoever runs the node the record was
- * synced from, and the lexicon types it `z.string().min(1)` — any non-empty string
- * validates. The profile feed and post search both sort `{createdAt: -1, _id: -1}`,
- * so an unbounded value pins the post above everything else until the clock catches
- * up. Signature verification proves authorship, not that the clock is honest.
- */
-describe('projectRecord — self-asserted createdAt is bounded', () => {
-  const HOUR_MS = 60 * 60 * 1000;
+describe('projectRecord — the record owns some of the content, not all of it', () => {
+  const postRecord = { text: 'a body', createdAt: '2024-01-02T03:04:05.000Z' };
 
-  /** The date the projection actually stored for `rkey`. */
-  function storedCreatedAt(rkey: string): Date {
-    return h.posts.get(rkey)?.createdAt as Date;
+  it('PRESERVES existing media when the record resolves none', async () => {
+    await seedPost(POST_RKEY, SUBJECT_OXY_ID, {
+      content: {
+        variants: [{ source: 'author', text: 'seeded' }],
+        media: [{ id: 'file-existing', type: 'image' }],
+      },
+    });
+
+    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
+
+    const post = await readPost(POST_RKEY);
+    expect(post?.content.media).toEqual([{ id: 'file-existing', type: 'image' }]);
+    expect(post?.content.variants?.[0]?.text).toBe('a body');
+  });
+
+  it("PRESERVES the post's @mention allowlist, which the record does not carry", async () => {
+    await seedPost(POST_RKEY, SUBJECT_OXY_ID, { mentions: ['mentioned-user-a', 'mentioned-user-b'] });
+
+    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
+
+    const post = await readPost(POST_RKEY);
+    expect([...(post?.mentions ?? [])].sort()).toEqual(['mentioned-user-a', 'mentioned-user-b']);
+  });
+
+  it('PRESERVES a collaborator, which the record does not carry either', async () => {
+    // A post record names only its SUBJECT, so rewriting the authorship from it
+    // revokes every collaborator on every re-projection — which is what the
+    // Mongoose version did, and what `replacePostContent` deliberately refuses to
+    // do for the same reason. Found by mutation-testing the refresh path: deleting
+    // the authorship rewrite made nothing go red, because nothing had a
+    // collaborator to lose.
+    await seedPost(POST_RKEY, SUBJECT_OXY_ID, {
+      authorship: [
+        { oxyUserId: SUBJECT_OXY_ID, role: 'owner', status: 'accepted' },
+        { oxyUserId: 'collaborator-1', role: 'collaborator', status: 'accepted' },
+      ],
+    });
+
+    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
+
+    const post = await readPost(POST_RKEY);
+    expect(post?.authorship).toEqual([
+      { oxyUserId: SUBJECT_OXY_ID, role: 'owner', status: 'accepted' },
+      { oxyUserId: 'collaborator-1', role: 'collaborator', status: 'accepted' },
+    ]);
+    // …and the body still updated, so this is not passing by doing nothing.
+    expect(post?.content.variants?.[0]?.text).toBe('a body');
+  });
+
+  it('PRESERVES an attached article, which the record does not carry', async () => {
+    await seedPost(POST_RKEY, SUBJECT_OXY_ID, {
+      content: {
+        variants: [{ source: 'author', text: 'seeded' }],
+        article: { articleId: 'article-1', title: 'A long read' },
+      },
+    });
+
+    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
+
+    const post = await readPost(POST_RKEY);
+    expect(post?.content.article?.articleId).toBe('article-1');
+    expect(post?.content.article?.title).toBe('A long read');
+  });
+
+  it('writes the source links the record DOES carry', async () => {
+    await projectRecord(
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, {
+        ...postRecord,
+        sources: [{ url: 'https://example.com/a', title: 'A' }, { url: 'https://example.com/b' }],
+      }),
+    );
+
+    const post = await readPost(POST_RKEY);
+    expect(post?.content.sources).toEqual([
+      { url: 'https://example.com/a', title: 'A' },
+      { url: 'https://example.com/b' },
+    ]);
+  });
+
+  it('writes the shared location as a coordinate pair', async () => {
+    await projectRecord(
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, {
+        ...postRecord,
+        location: { type: 'Point', coordinates: [2.1734, 41.3851] },
+      }),
+    );
+
+    const post = await readPost(POST_RKEY);
+    expect(post?.content.location?.coordinates).toEqual([2.1734, 41.3851]);
+  });
+});
+
+describe('projectRecord — read-side blob resolution', () => {
+  const SHA = 'a'.repeat(64);
+  const withEmbed = {
+    text: 'a post with media',
+    createdAt: '2024-01-02T03:04:05.000Z',
+    embed: { type: 'media', items: [{ blob: { sha256: SHA, mediaType: 'image' }, alt: 'alt text' }] },
+  };
+
+  it('turns a content address into a native fileId MediaItem', async () => {
+    oxyMock.getServiceAssetMetadataBySha256.mockResolvedValue([
+      { sha256: SHA, id: 'file-resolved', mime: 'image/jpeg', size: 1, status: 'active' },
+    ]);
+
+    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, withEmbed));
+
+    const post = await readPost(POST_RKEY);
+    expect(post?.content.media).toEqual([{ id: 'file-resolved', type: 'image', alt: 'alt text' }]);
+  });
+
+  it('DROPS an unresolvable blob rather than inventing a URL', async () => {
+    oxyMock.getServiceAssetMetadataBySha256.mockResolvedValue([]);
+
+    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, withEmbed));
+
+    const post = await readPost(POST_RKEY);
+    expect(post?.content.media ?? []).toEqual([]);
+  });
+
+  it('drops a trashed asset — only a live one is renderable', async () => {
+    oxyMock.getServiceAssetMetadataBySha256.mockResolvedValue([
+      { sha256: SHA, id: 'file-trashed', mime: 'image/jpeg', size: 1, status: 'trash' },
+    ]);
+
+    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, withEmbed));
+
+    const post = await readPost(POST_RKEY);
+    expect(post?.content.media ?? []).toEqual([]);
+  });
+
+  it('never aborts the projection when the reverse lookup fails', async () => {
+    oxyMock.getServiceAssetMetadataBySha256.mockRejectedValue(new Error('files:read scope missing'));
+
+    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, withEmbed));
+
+    expect(result).toEqual({ ok: true, kind: 'post', id: POST_RKEY });
+    const post = await readPost(POST_RKEY);
+    expect(post?.content.variants?.[0]?.text).toBe('a post with media');
+    expect(post?.content.media ?? []).toEqual([]);
+  });
+
+  it('an empty resolution leaves an existing post its real media', async () => {
+    await seedPost(POST_RKEY, SUBJECT_OXY_ID, {
+      content: {
+        variants: [{ source: 'author', text: 'seeded' }],
+        media: [{ id: 'file-existing', type: 'image' }],
+      },
+    });
+    oxyMock.getServiceAssetMetadataBySha256.mockResolvedValue([]);
+
+    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, withEmbed));
+
+    const post = await readPost(POST_RKEY);
+    expect(post?.content.media).toEqual([{ id: 'file-existing', type: 'image' }]);
+  });
+});
+
+describe('projectRecord — self-asserted createdAt is bounded', () => {
+  async function projectWithCreatedAt(createdAt: unknown): Promise<Date | undefined> {
+    await projectRecord(
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, { text: 'a body', createdAt }),
+    );
+    return (await readPost(POST_RKEY))?.createdAt;
   }
 
-  it('keeps a plausible past createdAt exactly as the record asserts it', async () => {
-    const iso = '2024-01-02T03:04:05.000Z';
-    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, {
-      text: 'authored a while ago, synced today',
-      createdAt: iso,
-    }));
-
-    expect(storedCreatedAt(POST_RKEY).toISOString()).toBe(iso);
+  it('keeps a plausible past createdAt exactly as asserted', async () => {
+    const stored = await projectWithCreatedAt('2024-01-02T03:04:05.000Z');
+    expect(stored?.toISOString()).toBe('2024-01-02T03:04:05.000Z');
   });
 
-  it('does not let a far-future post record pin itself atop the profile feed', async () => {
+  it('refuses a far-future createdAt instead of pinning the post atop every feed', async () => {
     const before = Date.now();
-    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, {
-      text: 'from the year 2999',
-      createdAt: '2999-01-01T00:00:00.000Z',
-    }));
-
-    const stored = storedCreatedAt(POST_RKEY).getTime();
-    expect(stored).toBeGreaterThanOrEqual(before);
-    expect(stored).toBeLessThanOrEqual(Date.now());
-  });
-
-  it('does not let a far-future BOOST record pin itself either', async () => {
-    const before = Date.now();
-    await projectRecord(envelope(MENTION_REPOST_COLLECTION, REPOST_RKEY, {
-      subject: createPostUri(OWNER_OXY_ID, LIKED_POST_ID),
-      createdAt: '2999-01-01T00:00:00.000Z',
-    }));
-
-    const stored = storedCreatedAt(REPOST_RKEY).getTime();
-    expect(stored).toBeGreaterThanOrEqual(before);
-    expect(stored).toBeLessThanOrEqual(Date.now());
-  });
-
-  it('falls back to NOW rather than re-dating the post to the clamp edge', async () => {
-    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, {
-      text: 'a post that wants to be first forever',
-      createdAt: '2999-01-01T00:00:00.000Z',
-    }));
-
-    // A post silently re-dated to `now + window` is the same pin, one window long.
-    expect(storedCreatedAt(POST_RKEY).getTime()).toBeLessThanOrEqual(Date.now());
+    const stored = await projectWithCreatedAt(new Date(Date.now() + 400 * 24 * 3600 * 1000).toISOString());
+    expect(stored?.getTime()).toBeGreaterThanOrEqual(before);
+    expect(stored?.getTime()).toBeLessThanOrEqual(Date.now());
   });
 
   it('tolerates a small clock skew on the node that produced the record', async () => {
-    const slightlyAhead = new Date(Date.now() + HOUR_MS / 2).toISOString();
-    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, {
-      text: 'a node whose clock runs a little fast',
-      createdAt: slightlyAhead,
-    }));
-
-    expect(storedCreatedAt(POST_RKEY).toISOString()).toBe(slightlyAhead);
+    const skewed = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    const stored = await projectWithCreatedAt(skewed);
+    expect(stored?.toISOString()).toBe(skewed);
   });
 
-  it('projects a record whose createdAt is unparseable instead of failing it', async () => {
-    // `z.string().min(1)` accepts this, and `new Date('banana').toISOString()` throws
-    // a RangeError inside variant building — which used to fail the whole projection.
-    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, {
-      text: 'a record with a garbage timestamp',
-      createdAt: 'banana',
-    }));
-
-    expect(result).toEqual({ ok: true, kind: 'post', id: POST_RKEY });
-    expect(storedCreatedAt(POST_RKEY).getTime()).toBeLessThanOrEqual(Date.now());
-    expect(Number.isNaN(storedCreatedAt(POST_RKEY).getTime())).toBe(false);
+  it('projects a record whose createdAt is unparseable rather than failing it', async () => {
+    const before = Date.now();
+    const stored = await projectWithCreatedAt('banana');
+    expect(stored?.getTime()).toBeGreaterThanOrEqual(before);
   });
 });
 
 describe('projectRecord — like', () => {
-  it('projects a like record into a Like row', async () => {
-    const likeRecord = {
-      subject: createPostUri(OWNER_OXY_ID, LIKED_POST_ID),
-      createdAt: '2024-01-02T03:04:05.000Z',
-    };
-    const result = await projectRecord(envelope(MENTION_LIKE_COLLECTION, LIKE_RKEY, likeRecord));
+  it('projects a like record into a real Like row against a real post', async () => {
+    await seedPost(LIKED_POST_ID, OWNER_OXY_ID);
+
+    const result = await projectRecord(
+      envelope(MENTION_LIKE_COLLECTION, LIKE_RKEY, {
+        subject: createPostUri(OWNER_OXY_ID, LIKED_POST_ID),
+        createdAt: '2024-01-02T03:04:05.000Z',
+      }),
+    );
 
     expect(result).toEqual({ ok: true, kind: 'like', id: LIKE_RKEY });
-    const doc = h.likes.get(LIKE_RKEY);
-    expect(doc?.userId).toBe(SUBJECT_OXY_ID);
-    expect((doc?.postId as mongoose.Types.ObjectId).toString()).toBe(LIKED_POST_ID);
-    expect(doc?.value).toBe(1);
+    const rows = await db
+      .select({ id: likes.id, userId: likes.userId, postId: likes.postId })
+      .from(likes)
+      .where(eq(likes.postId, LIKED_POST_ID));
+    // The signed rkey IS the like's id — that is what lets the tombstone find it.
+    expect(rows).toEqual([{ id: LIKE_RKEY, userId: SUBJECT_OXY_ID, postId: LIKED_POST_ID }]);
+  });
+
+  it('rejects a like whose subject URI is not an MTN URI', async () => {
+    const result = await projectRecord(
+      envelope(MENTION_LIKE_COLLECTION, LIKE_RKEY, {
+        subject: 'https://example.com/notes/1',
+        createdAt: '2024-01-02T03:04:05.000Z',
+      }),
+    );
+    expect(result).toEqual({ ok: false, reason: 'unresolvable_like_subject' });
   });
 });
 
 describe('projectRecord — repost', () => {
-  it('projects a repost record into a boost Post (type boost, boostOf set, empty body)', async () => {
-    const repostRecord = {
-      subject: createPostUri(OWNER_OXY_ID, LIKED_POST_ID),
-      createdAt: '2024-01-02T03:04:05.000Z',
-    };
-    const result = await projectRecord(envelope(MENTION_REPOST_COLLECTION, REPOST_RKEY, repostRecord));
-
-    expect(result).toEqual({ ok: true, kind: 'repost', id: REPOST_RKEY });
-    const doc = h.posts.get(REPOST_RKEY);
-    expect(doc?.type).toBe('boost');
-    expect(doc?.boostOf).toBe(LIKED_POST_ID);
-    expect(doc?.oxyUserId).toBe(SUBJECT_OXY_ID);
-    // No rendition at all — a boost has nothing to say in any language.
-    expect((doc?.content as { variants: unknown[] }).variants).toEqual([]);
+  const repostRecord = (subjectPostId: string) => ({
+    subject: createPostUri(OWNER_OXY_ID, subjectPostId),
+    createdAt: '2024-01-02T03:04:05.000Z',
   });
 
-  it('REJECTS a repost record whose rkey is ANOTHER user\'s post — the victim row is untouched', async () => {
-    h.posts.set(REPOST_RKEY, {
-      _id: REPOST_RKEY,
-      oxyUserId: OWNER_OXY_ID,
-      type: 'text',
-      content: { variants: [{ source: 'author', text: 'the victim wrote this' }] },
+  it('projects a boost with an EMPTY body and a link to the original', async () => {
+    await seedPost(LIKED_POST_ID, OWNER_OXY_ID);
+
+    const result = await projectRecord(
+      envelope(MENTION_REPOST_COLLECTION, REPOST_RKEY, repostRecord(LIKED_POST_ID)),
+    );
+
+    expect(result).toEqual({ ok: true, kind: 'repost', id: REPOST_RKEY });
+    const boost = await readPost(REPOST_RKEY);
+    expect(boost?.type).toBe(PostType.BOOST);
+    expect(boost?.boostOf).toBe(LIKED_POST_ID);
+    expect(boost?.oxyUserId).toBe(SUBJECT_OXY_ID);
+    // NO rendition at all — a boost has nothing to say in any language, and the
+    // hydration layer reads `boostOf` for what to show.
+    expect(boost?.content.variants ?? []).toEqual([]);
+    expect(boost?.authorship).toEqual([
+      { oxyUserId: SUBJECT_OXY_ID, role: 'owner', status: 'accepted' },
+    ]);
+  });
+
+  it('REFUSES a boost whose original is not materialized here', async () => {
+    // `boost_of` is a foreign key and a boost that points at nothing renders as a
+    // permanently blank card, so refusing keeps the projection re-runnable — the
+    // boost lands the moment the original does.
+    const result = await projectRecord(
+      envelope(MENTION_REPOST_COLLECTION, REPOST_RKEY, repostRecord(LIKED_POST_ID)),
+    );
+    expect(result).toEqual({ ok: false, reason: 'unmaterialized_repost_subject' });
+    expect(await readPost(REPOST_RKEY)).toBeNull();
+  });
+
+  it("REFUSES a repost whose rkey is another user's post", async () => {
+    await seedPost(LIKED_POST_ID, OWNER_OXY_ID);
+    await seedPost(REPOST_RKEY, OWNER_OXY_ID, {
+      content: { variants: [{ source: 'author', text: 'the victim body' }] },
     });
 
-    const repostRecord = {
-      subject: createPostUri(OWNER_OXY_ID, LIKED_POST_ID),
-      createdAt: '2024-01-02T03:04:05.000Z',
-    };
-    const result = await projectRecord(envelope(MENTION_REPOST_COLLECTION, REPOST_RKEY, repostRecord));
-
-    const doc = h.posts.get(REPOST_RKEY);
-    expect((doc?.content as { variants: Array<{ text: string }> }).variants[0].text).toBe(
-      'the victim wrote this',
+    const result = await projectRecord(
+      envelope(MENTION_REPOST_COLLECTION, REPOST_RKEY, repostRecord(LIKED_POST_ID)),
     );
-    expect(doc?.oxyUserId).toBe(OWNER_OXY_ID);
-    expect(doc?.type).toBe('text');
-    expect(doc?.boostOf).toBeUndefined();
+
     expect(result).toEqual({ ok: false, reason: 'record_owner_mismatch' });
+    const victim = await readPost(REPOST_RKEY);
+    expect(victim?.oxyUserId).toBe(OWNER_OXY_ID);
+    expect(victim?.content.variants?.[0]?.text).toBe('the victim body');
+  });
+
+  it("refuses to rewrite one of the subject's OWN posts into a boost", async () => {
+    await seedPost(LIKED_POST_ID, OWNER_OXY_ID);
+    await seedPost(REPOST_RKEY, SUBJECT_OXY_ID, {
+      content: { variants: [{ source: 'author', text: 'a real post' }] },
+    });
+
+    const result = await projectRecord(
+      envelope(MENTION_REPOST_COLLECTION, REPOST_RKEY, repostRecord(LIKED_POST_ID)),
+    );
+
+    expect(result).toEqual({ ok: false, reason: 'repost_subject_mismatch' });
+    expect((await readPost(REPOST_RKEY))?.type).toBe(PostType.TEXT);
   });
 });
 
 describe('projectRecord — bookmark', () => {
-  it('projects a bookmark record into a Bookmark row', async () => {
-    const bookmarkRecord = {
-      subject: createPostUri(OWNER_OXY_ID, LIKED_POST_ID),
-      createdAt: '2024-01-02T03:04:05.000Z',
-    };
+  it('projects a bookmark record into a real Bookmark row', async () => {
+    await seedPost(LIKED_POST_ID, OWNER_OXY_ID);
+
     const result = await projectRecord(
-      envelope(MENTION_BOOKMARK_COLLECTION, BOOKMARK_RKEY, bookmarkRecord),
+      envelope(MENTION_BOOKMARK_COLLECTION, BOOKMARK_RKEY, {
+        subject: createPostUri(OWNER_OXY_ID, LIKED_POST_ID),
+        createdAt: '2024-01-02T03:04:05.000Z',
+      }),
     );
 
     expect(result).toEqual({ ok: true, kind: 'bookmark', id: BOOKMARK_RKEY });
-    const doc = h.bookmarks.get(BOOKMARK_RKEY);
-    expect(doc?.userId).toBe(SUBJECT_OXY_ID);
-    expect((doc?.postId as mongoose.Types.ObjectId).toString()).toBe(LIKED_POST_ID);
+    const rows = await db
+      .select({ id: bookmarks.id, userId: bookmarks.userId })
+      .from(bookmarks)
+      .where(eq(bookmarks.postId, LIKED_POST_ID));
+    expect(rows).toEqual([{ id: BOOKMARK_RKEY, userId: SUBJECT_OXY_ID }]);
   });
 });
 
 describe('projectRecord — tombstone', () => {
-  it('removes the referenced Post for a post-subject tombstone', async () => {
-    h.posts.set(POST_RKEY, { _id: POST_RKEY, oxyUserId: SUBJECT_OXY_ID });
-    const tombstone = {
-      subject: createPostUri(SUBJECT_OXY_ID, POST_RKEY),
-      createdAt: '2024-01-02T03:04:05.000Z',
-    };
+  const tombstone = (subject: string) => ({ subject, createdAt: '2024-01-02T03:04:05.000Z' });
+
+  it('removes the post and every child row with it', async () => {
+    await seedPost(POST_RKEY, SUBJECT_OXY_ID, {
+      content: {
+        variants: [{ source: 'author', text: 'doomed' }],
+        media: [{ id: 'file-1', type: 'image' }],
+      },
+      mentions: ['someone'],
+    });
 
     const result = await projectRecord(
-      envelope(MENTION_TOMBSTONE_COLLECTION, '650000000000000000000099', tombstone),
+      envelope(
+        MENTION_TOMBSTONE_COLLECTION,
+        `${NAMESPACE}0008`,
+        tombstone(createPostUri(SUBJECT_OXY_ID, POST_RKEY)),
+      ),
     );
 
     expect(result).toEqual({ ok: true, kind: 'tombstone', id: POST_RKEY });
-    expect(h.posts.has(POST_RKEY)).toBe(false);
+    expect(await readPost(POST_RKEY)).toBeNull();
   });
 
-  it('removes the referenced Like for a like-subject tombstone', async () => {
-    h.likes.set(LIKE_RKEY, { _id: LIKE_RKEY, userId: SUBJECT_OXY_ID });
-    const tombstone = {
-      subject: createLikeUri(SUBJECT_OXY_ID, LIKE_RKEY),
-      createdAt: '2024-01-02T03:04:05.000Z',
-    };
+  it('takes the direct replies with it, instead of PROMOTING them to root posts', async () => {
+    /**
+     * BUG #126, on the path `#134` did not cover — and the MIGRATION causes it.
+     *
+     * `posts.parent_post_id` is `ON DELETE SET NULL`, so deleting the parent row
+     * alone leaves each reply alive with a null parent and `is_reply: true`: a
+     * root post, in every feed, written by someone who never posted it. Mongo had
+     * no such promotion — the reply was deleted — so this is a parity regression
+     * the port introduces rather than one it inherits.
+     *
+     * `deletePost` fixed this by owning the subtree inside one transaction. The
+     * MTN tombstone reached `deletePostRecord` directly, so it kept the defect.
+     *
+     * The assertion is `readPost(...)` being null rather than a `parent_post_id`
+     * check on purpose: promotion and survival are the same damage, and a reply
+     * that outlives its parent is the thing readers see.
+     */
+    await seedPost(POST_RKEY, SUBJECT_OXY_ID);
+    await seedPost(REPLY_RKEY, OWNER_OXY_ID, { parentPostId: POST_RKEY, isReply: true });
 
     const result = await projectRecord(
-      envelope(MENTION_TOMBSTONE_COLLECTION, '650000000000000000000098', tombstone),
+      envelope(
+        MENTION_TOMBSTONE_COLLECTION,
+        `${NAMESPACE}0014`,
+        tombstone(createPostUri(SUBJECT_OXY_ID, POST_RKEY)),
+      ),
     );
 
-    expect(result).toEqual({ ok: true, kind: 'tombstone', id: LIKE_RKEY });
-    expect(h.likes.has(LIKE_RKEY)).toBe(false);
+    expect(result).toEqual({ ok: true, kind: 'tombstone', id: POST_RKEY });
+    expect(await readPost(POST_RKEY)).toBeNull();
+    expect(await readPost(REPLY_RKEY)).toBeNull();
   });
 
-  it('removes the referenced Bookmark for a bookmark-subject tombstone', async () => {
-    h.bookmarks.set(BOOKMARK_RKEY, { _id: BOOKMARK_RKEY, userId: SUBJECT_OXY_ID });
-    const tombstone = {
-      subject: createBookmarkUri(SUBJECT_OXY_ID, BOOKMARK_RKEY),
-      createdAt: '2024-01-02T03:04:05.000Z',
-    };
-
-    const result = await projectRecord(
-      envelope(MENTION_TOMBSTONE_COLLECTION, '650000000000000000000097', tombstone),
+  it('removes the Like a like-subject tombstone names', async () => {
+    await seedPost(LIKED_POST_ID, OWNER_OXY_ID);
+    await projectRecord(
+      envelope(MENTION_LIKE_COLLECTION, LIKE_RKEY, {
+        subject: createPostUri(OWNER_OXY_ID, LIKED_POST_ID),
+        createdAt: '2024-01-02T03:04:05.000Z',
+      }),
     );
 
-    expect(result).toEqual({ ok: true, kind: 'tombstone', id: BOOKMARK_RKEY });
-    expect(h.bookmarks.has(BOOKMARK_RKEY)).toBe(false);
+    await projectRecord(
+      envelope(
+        MENTION_TOMBSTONE_COLLECTION,
+        `${NAMESPACE}0009`,
+        tombstone(createLikeUri(SUBJECT_OXY_ID, LIKE_RKEY)),
+      ),
+    );
+
+    const rows = await db.select({ id: likes.id }).from(likes).where(eq(likes.id, LIKE_RKEY));
+    expect(rows).toEqual([]);
+  });
+
+  it('removes the Bookmark a bookmark-subject tombstone names', async () => {
+    await seedPost(LIKED_POST_ID, OWNER_OXY_ID);
+    await projectRecord(
+      envelope(MENTION_BOOKMARK_COLLECTION, BOOKMARK_RKEY, {
+        subject: createPostUri(OWNER_OXY_ID, LIKED_POST_ID),
+        createdAt: '2024-01-02T03:04:05.000Z',
+      }),
+    );
+
+    await projectRecord(
+      envelope(
+        MENTION_TOMBSTONE_COLLECTION,
+        `${NAMESPACE}0010`,
+        tombstone(createBookmarkUri(SUBJECT_OXY_ID, BOOKMARK_RKEY)),
+      ),
+    );
+
+    const rows = await db.select({ id: bookmarks.id }).from(bookmarks).where(eq(bookmarks.id, BOOKMARK_RKEY));
+    expect(rows).toEqual([]);
   });
 
   it('is idempotent: tombstoning an already-removed row is a no-op success', async () => {
-    const tombstone = {
-      subject: createPostUri(SUBJECT_OXY_ID, POST_RKEY),
-      createdAt: '2024-01-02T03:04:05.000Z',
-    };
     const result = await projectRecord(
-      envelope(MENTION_TOMBSTONE_COLLECTION, '650000000000000000000096', tombstone),
+      envelope(
+        MENTION_TOMBSTONE_COLLECTION,
+        `${NAMESPACE}0011`,
+        tombstone(createPostUri(SUBJECT_OXY_ID, POST_RKEY)),
+      ),
     );
-    expect(result.ok).toBe(true);
+    expect(result).toEqual({ ok: true, kind: 'tombstone', id: POST_RKEY });
   });
 
-  it('rejects a tombstone whose URI belongs to another account', async () => {
-    h.likes.set(LIKE_RKEY, { _id: LIKE_RKEY, userId: 'other-user' });
-    const tombstone = {
-      subject: createLikeUri('other-user', LIKE_RKEY),
-      createdAt: '2024-01-02T03:04:05.000Z',
-    };
+  it("REFUSES to delete another account's post", async () => {
+    await seedPost(POST_RKEY, OWNER_OXY_ID);
 
     const result = await projectRecord(
-      envelope(MENTION_TOMBSTONE_COLLECTION, '650000000000000000000095', tombstone),
+      envelope(
+        MENTION_TOMBSTONE_COLLECTION,
+        `${NAMESPACE}0012`,
+        tombstone(createPostUri(OWNER_OXY_ID, POST_RKEY)),
+      ),
     );
 
-    expect(result).toEqual({
-      ok: false,
-      reason: 'tombstone_subject_owner_mismatch',
-    });
-    expect(h.likes.has(LIKE_RKEY)).toBe(true);
+    expect(result).toEqual({ ok: false, reason: 'tombstone_subject_owner_mismatch' });
+    expect(await readPost(POST_RKEY)).not.toBeNull();
   });
 });
 
 describe('projectRecord — multilingual post (variants)', () => {
   const createdAtIso = '2024-01-02T03:04:05.000Z';
 
-  it('materializes the record variants as AUTHOR variants', async () => {
-    const record = {
-      text: 'hola mundo',
-      createdAt: createdAtIso,
-      langs: ['es-ES', 'en-US'],
-      variants: [
-        { tag: 'es-ES', text: 'hola mundo' },
-        { tag: 'en-US', text: 'hello world' },
-      ],
-    };
+  it('materializes every rendition as an AUTHOR variant, in order', async () => {
+    await projectRecord(
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, {
+        text: 'hola mundo',
+        createdAt: createdAtIso,
+        langs: ['es-ES', 'en-US'],
+        variants: [
+          { tag: 'es-ES', text: 'hola mundo' },
+          { tag: 'en-US', text: 'hello world' },
+        ],
+      }),
+    );
 
-    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, record));
-    expect(result).toEqual({ ok: true, kind: 'post', id: POST_RKEY });
-
-    const doc = h.posts.get(POST_RKEY);
-    const content = doc?.content as { variants: Array<{ tag?: string; source: string; text: string }> };
+    const post = await readPost(POST_RKEY);
     // Everything on the chain is author-written — a machine translation is never
-    // signed, so there is nothing else it could be. `variants[0]` is the primary.
-    expect(content.variants).toEqual([
+    // signed. `variants[0]` is the primary, and `position` in the table IS that
+    // order, so a lost ordering shows up here rather than as a mystery later.
+    expect(post?.content.variants).toEqual([
       { tag: 'es-ES', source: 'author', text: 'hola mundo', createdAt: createdAtIso },
       { tag: 'en-US', source: 'author', text: 'hello world', createdAt: createdAtIso },
     ]);
     // The top-level AP `language` is the BASE subtag — the alphabet the ranking
     // layer reads — even though the record's `langs` are regional.
-    expect(doc?.language).toBe('es');
+    expect(post?.language).toBe('es');
   });
 
   it('re-keys a variant alt map from blob sha256 back to the live Oxy file id', async () => {
     oxyMock.getServiceAssetMetadataBySha256.mockResolvedValue([
       { sha256: 'sha-img', id: 'file-img', mime: 'image/png', size: 10, status: 'active' },
     ]);
-    const record = {
-      text: 'hola',
-      createdAt: createdAtIso,
-      langs: ['es'],
-      embed: { type: 'media', items: [{ blob: { sha256: 'sha-img', mediaType: 'image' }, alt: 'un gato' }] },
-      variants: [
-        { tag: 'es', text: 'hola' },
-        { tag: 'en', text: 'hi', alt: { 'sha-img': 'a cat' } },
-      ],
-    };
 
-    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, record));
+    await projectRecord(
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, {
+        text: 'hola',
+        createdAt: createdAtIso,
+        langs: ['es'],
+        embed: { type: 'media', items: [{ blob: { sha256: 'sha-img', mediaType: 'image' }, alt: 'un gato' }] },
+        variants: [
+          { tag: 'es', text: 'hola' },
+          { tag: 'en', text: 'hi', alt: { 'sha-img': 'a cat' } },
+        ],
+      }),
+    );
 
-    const content = h.posts.get(POST_RKEY)?.content as {
-      media: Array<{ id: string; alt?: string }>;
-      variants: Array<{ tag: string; alt?: Record<string, string> }>;
-    };
+    const post = await readPost(POST_RKEY);
     // ONE batched reverse lookup covers the shared embed AND the variant alt keys.
     expect(oxyMock.getServiceAssetMetadataBySha256).toHaveBeenCalledTimes(1);
-    expect(content.media).toEqual([{ id: 'file-img', type: 'image', alt: 'un gato' }]);
-    expect(content.variants[1].alt).toEqual({ 'file-img': 'a cat' });
+    expect(post?.content.media).toEqual([{ id: 'file-img', type: 'image', alt: 'un gato' }]);
+    expect(post?.content.variants?.[1]?.alt).toEqual({ 'file-img': 'a cat' });
   });
 
-  it('rebuilds the single rendition of a MONOLINGUAL record from `text` + `langs`', async () => {
+  it('rebuilds the single rendition of a MONOLINGUAL record from text + langs', async () => {
     // The writer omits a one-entry `variants` array (it would just duplicate
     // `text`), so the reader reconstitutes it. This is also the DEGRADATION path:
     // a record written by a reader that never heard of `variants` still
     // materializes a complete, correctly-tagged post.
-    const record = { text: 'hola', createdAt: createdAtIso, langs: ['es-ES'] };
+    await projectRecord(
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, {
+        text: 'hola',
+        createdAt: createdAtIso,
+        langs: ['es-ES'],
+      }),
+    );
 
-    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, record));
-
-    const content = h.posts.get(POST_RKEY)?.content as { variants: Array<{ tag?: string; text: string }> };
-    expect(content.variants).toEqual([
+    const post = await readPost(POST_RKEY);
+    expect(post?.content.variants).toEqual([
       { tag: 'es-ES', source: 'author', text: 'hola', createdAt: createdAtIso },
     ]);
   });
 
   it('materializes an UNTAGGED rendition when the record declares no language', async () => {
-    const record = { text: '+1', createdAt: createdAtIso };
+    await projectRecord(
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, { text: '+1', createdAt: createdAtIso }),
+    );
 
-    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, record));
-
-    const content = h.posts.get(POST_RKEY)?.content as { variants: Array<{ tag?: string; text: string }> };
-    expect(content.variants).toEqual([{ source: 'author', text: '+1', createdAt: createdAtIso }]);
-    expect(content.variants[0].tag).toBeUndefined();
+    const post = await readPost(POST_RKEY);
+    expect(post?.content.variants).toEqual([
+      { source: 'author', text: '+1', createdAt: createdAtIso },
+    ]);
+    expect(post?.content.variants?.[0]?.tag).toBeUndefined();
   });
 });

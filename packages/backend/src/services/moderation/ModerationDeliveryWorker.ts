@@ -1,9 +1,14 @@
-import Report, { type LeanReport } from '../../models/Report.model';
+import {
+  closeUndeliverableReport,
+  findReportById,
+  markReportDeliveryFailed,
+  markReportSubmitted,
+} from '../../db/moderation/reportRepository';
 import { logger } from '../../utils/logger';
 import { metrics } from '../../utils/metrics';
 import { getCrowdSourceClient } from './crowdSourceClient';
 import { buildModerationReportInput } from './EvidenceSnapshotService';
-import type { ModerationOutboxEvent } from './ModerationOutboxService';
+import type { ModerationOutboxEvent } from '../../db/moderation/moderationOutboxRepository';
 
 /**
  * Delivering a stored report to CrowdSource.
@@ -51,14 +56,6 @@ export class ModerationDeliveryRejectedError extends Error {
   }
 }
 
-/** Close a report there is genuinely nothing left to do about. */
-async function closeUndeliverable(reportId: string, reason: string): Promise<void> {
-  await Report.updateOne(
-    { _id: reportId },
-    { $set: { localStatus: 'closed', localStatusReason: reason } },
-  );
-}
-
 /** Handle one `report.submit` outbox event. */
 export async function deliverReportOutboxEvent(
   event: ModerationOutboxEvent,
@@ -70,7 +67,7 @@ export async function deliverReportOutboxEvent(
     );
   }
 
-  const report = await Report.findById(reportId).lean<LeanReport | null>();
+  const report = await findReportById(reportId);
   if (!report) {
     /**
      * The report is gone but its delivery event survived. Nothing to deliver and
@@ -92,15 +89,7 @@ export async function deliverReportOutboxEvent(
    * alerts on.
    */
   const input = await buildModerationReportInput(
-    {
-      id: String(report._id),
-      reportedType: report.reportedType,
-      reportedId: report.reportedId,
-      reporter: report.reporter,
-      categories: report.categories,
-      details: report.details,
-      createdAt: report.createdAt,
-    },
+    report,
     /**
      * From the EVENT, not from a fresh look at the post. The urgency was frozen
      * when the report was taken precisely so that every attempt at this event
@@ -111,7 +100,7 @@ export async function deliverReportOutboxEvent(
   );
 
   if (input === null) {
-    await closeUndeliverable(
+    await closeUndeliverableReport(
       reportId,
       'The reported content no longer exists, so there is nothing to review.',
     );
@@ -129,40 +118,24 @@ export async function deliverReportOutboxEvent(
      * The failure is visible on the report itself, not only in the outbox row.
      * `delivery_failed` is a state §14.3 defines and it is what a reporter's receipt
      * and the reconciliation sweep both read; leaving the report at `queued` while the
-     * outbox quietly backed off would hide the problem in a collection nobody looks
+     * outbox quietly backed off would hide the problem in a table nobody looks
      * at. Written before rethrowing so the outbox still applies its own backoff or
      * dead-letters the event.
      */
-    await Report.updateOne(
-      { _id: reportId },
-      {
-        $set: {
-          localStatus: 'delivery_failed',
-          lastDeliveryError: (error instanceof Error ? error.message : String(error)).slice(
-            0,
-            2_000,
-          ),
-        },
-      },
+    await markReportDeliveryFailed(
+      reportId,
+      error instanceof Error ? error.message : String(error),
     );
     metrics.incrementCounter('crowdsource_report_delivery_total', 1, { result: 'failed' });
     throw error;
   }
 
-  await Report.updateOne(
-    { _id: reportId },
-    {
-      $set: {
-        localStatus: 'submitted',
-        crowdSourceReportId: receipt.reportId,
-        crowdSourceCaseId: receipt.caseId,
-        crowdSourceMerged: receipt.merged,
-        contentSnapshotHash: input.snapshotHash,
-        submittedAt: new Date(),
-      },
-      $unset: { lastDeliveryError: '', localStatusReason: '' },
-    },
-  );
+  await markReportSubmitted(reportId, {
+    crowdSourceReportId: receipt.reportId,
+    crowdSourceCaseId: receipt.caseId,
+    crowdSourceMerged: receipt.merged,
+    contentSnapshotHash: input.snapshotHash,
+  });
 
   metrics.incrementCounter('crowdsource_report_delivery_total', 1, {
     result: receipt.merged ? 'merged' : 'delivered',

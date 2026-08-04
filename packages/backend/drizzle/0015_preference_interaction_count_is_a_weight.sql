@@ -1,0 +1,2 @@
+ALTER TABLE "user_behavior_authors" ALTER COLUMN "interaction_count" SET DATA TYPE double precision;--> statement-breakpoint
+ALTER TABLE "user_behavior_topics" ALTER COLUMN "interaction_count" SET DATA TYPE double precision;

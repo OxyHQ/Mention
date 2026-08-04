@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * What the author can do to a scheduled THREAD between scheduling it and its
@@ -16,78 +16,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * rules in `updatePostScheduledWindow.test.ts`.)
  */
 
-interface Row {
-  _id: string;
-  oxyUserId: string;
-  status: string;
-  parentPostId: string | null;
-  content?: Record<string, unknown>;
-}
-
 const hoisted = vi.hoisted(() => ({
-  rows: [] as {
-    _id: string;
-    oxyUserId: string;
-    status: string;
-    parentPostId: string | null;
-    content?: Record<string, unknown>;
-  }[],
-  deleteManyFilters: [] as Record<string, unknown>[],
   claim: vi.fn(),
   hydratePosts: vi.fn(),
-  articleDeleteMany: vi.fn(),
   pollDeleteMany: vi.fn(),
 }));
 
 /**
- * The Mongo subset these two handlers use, over an in-memory row set that
- * HONOURS the filters — so a cascade that forgot to scope itself to the caller
- * or to `status: 'scheduled'` shows up as a wrong row set rather than passing.
+ * The posts are REAL ROWS.
+ *
+ * The in-memory set this replaces honoured the filters by hand, which is the
+ * shape that cannot distinguish a cascade correctly scoped to the caller and to
+ * `status: 'scheduled'` from one whose predicate the test's own matcher happened
+ * to reproduce. Both handlers here walk the chain through real queries — and the
+ * chain walk is where the scoping lives.
  */
-vi.mock('../../models/Post', async (importOriginal) => {
-  const matches = (row: Row, filter: Record<string, unknown>): boolean =>
-    Object.entries(filter).every(([key, condition]) => {
-      const value = (row as unknown as Record<string, unknown>)[key];
-      if (condition && typeof condition === 'object' && '$in' in condition) {
-        return (condition as { $in: unknown[] }).$in.some((v) => String(v) === String(value));
-      }
-      return String(value) === String(condition);
-    });
-  const chainable = (rows: unknown[]) => {
-    const self: Record<string, unknown> = {};
-    self.select = () => self;
-    self.sort = () => self;
-    self.lean = async () => rows;
-    return self;
-  };
-  return {
-    ...(await importOriginal<Record<string, unknown>>()),
-    Post: {
-      find: (filter: Record<string, unknown>) =>
-        chainable(hoisted.rows.filter((row) => matches(row, filter))),
-      findOne: (filter: Record<string, unknown>) =>
-        chainable(hoisted.rows.filter((row) => matches(row, filter))[0] ?? null),
-      findById: (id: unknown) => ({
-        select: () => ({
-          lean: async () => hoisted.rows.find((row) => row._id === String(id)) ?? null,
-        }),
-      }),
-      findOneAndDelete: async (filter: Record<string, unknown>) => {
-        const row = hoisted.rows.find((r) => matches(r, filter));
-        if (!row) return null;
-        hoisted.rows = hoisted.rows.filter((r) => r !== row);
-        return { ...row, _id: { toString: () => row._id }, content: row.content };
-      },
-      deleteMany: async (filter: Record<string, unknown>) => {
-        hoisted.deleteManyFilters.push(filter);
-        const doomed = hoisted.rows.filter((row) => matches(row, filter));
-        hoisted.rows = hoisted.rows.filter((row) => !doomed.includes(row));
-        return { deletedCount: doomed.length };
-      },
-    },
-  };
-});
-
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
 
 vi.mock('../../services/PostCreationService', () => ({
@@ -117,9 +60,11 @@ vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
 
 vi.mock('../../connectors/outboundFederation', () => ({ federateAsResolvedActor: vi.fn() }));
 
-vi.mock('../../models/Article', () => ({
-  default: { deleteOne: () => ({ exec: async () => undefined }), deleteMany: hoisted.articleDeleteMany },
-}));
+// No `models/Article` mock: the article row is REAL, and cancelling the thread
+// has to remove it through `articles.post_id`'s `ON DELETE CASCADE` rather than
+// through a sweep. The stub that used to sit here was never asserted against —
+// it existed only to keep the Mongoose model out of the way — so once the
+// article write path moved to Postgres it proved nothing in either direction.
 
 vi.mock('../../models/Poll', () => ({
   default: { deleteOne: () => ({ exec: async () => undefined }), deleteMany: hoisted.pollDeleteMany },
@@ -141,17 +86,46 @@ vi.mock('mongoose', async (importOriginal) => {
   };
 });
 
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { findArticleById, insertArticle, newArticleId } from '../../db/posts/articleRepository';
+import { claimScheduledPost } from '../../db/posts/postRepository';
+import { clearServiceScope, readScopePosts, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { deletePost, publishScheduledPostNow } from '../../controllers/posts.controller';
 
-const AUTHOR = 'author_1';
+const scope = serviceScope('scheduled-thread-lifecycle');
+const AUTHOR = scope.user('author');
+const OTHER = scope.user('someone-else');
 
-function row(id: string, parentPostId: string | null, status = 'scheduled'): Row {
-  return { _id: id, oxyUserId: AUTHOR, status, parentPostId };
+/** Label → the id the repository minted, and back, so assertions read as labels. */
+let idByLabel: Map<string, string>;
+let labelById: Map<string, string>;
+
+/** A future instant, so a seeded scheduled post is never swept as due. */
+function later(): Date {
+  return new Date(Date.now() + 60 * 60 * 1000);
+}
+
+async function row(
+  label: string,
+  parent: string | null,
+  options: { status?: 'scheduled' | 'published'; owner?: string } = {},
+): Promise<void> {
+  const status = options.status ?? 'scheduled';
+  const record = await seedPost(scope, {
+    oxyUserId: options.owner ?? AUTHOR,
+    status,
+    ...(status === 'scheduled' ? { scheduledFor: later() } : {}),
+    ...(parent ? { parentPostId: idByLabel.get(parent) } : {}),
+  });
+  idByLabel.set(label, record.id);
+  labelById.set(record.id, label);
 }
 
 /** A scheduled thread: root -> c1 -> c2. */
-function seedThread() {
-  hoisted.rows = [row('root', null), row('c1', 'root'), row('c2', 'c1')];
+async function seedThread(): Promise<void> {
+  await row('root', null);
+  await row('c1', 'root');
+  await row('c2', 'c1');
 }
 
 function buildRequest(id: string, userId: string | undefined = AUTHOR) {
@@ -180,146 +154,208 @@ function buildResponse() {
   return { res, payload };
 }
 
-function remainingIds(): string[] {
-  return hoisted.rows.map((r) => r._id);
+/** The labels of this suite's posts that still exist, in seeding order. */
+async function remainingIds(): Promise<string[]> {
+  const rows = await readScopePosts(scope);
+  const alive = new Set(rows.map((r) => r.id));
+  return [...idByLabel].filter(([, id]) => alive.has(id)).map(([label]) => label);
 }
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
-  hoisted.rows = [];
-  hoisted.deleteManyFilters = [];
-  hoisted.articleDeleteMany.mockReturnValue({ exec: async () => undefined });
+  idByLabel = new Map();
+  labelById = new Map();
   hoisted.pollDeleteMany.mockReturnValue({ exec: async () => undefined });
   hoisted.hydratePosts.mockImplementation(async (posts: unknown[]) => posts);
+  // The claim is the real one's CONTRACT, not its body: flip a still-scheduled
+  // post and answer `null` otherwise. Its own transaction is covered by
+  // `claimAndPublishScheduledPost.test.ts`; here what matters is which ids the
+  // chain walk drives it with, and in what order.
   hoisted.claim.mockImplementation(async ({ postId }: { postId: string }) => {
-    const target = hoisted.rows.find((r) => r._id === postId);
-    if (!target || target.status !== 'scheduled') return null;
-    target.status = 'published';
-    return { _id: postId, toObject: () => ({ _id: postId }) };
+    const record = await claimScheduledPost(postId, undefined);
+    return record ? { id: postId } : null;
   });
+});
+
+afterEach(async () => {
+  await clearServiceScope(scope);
 });
 
 describe('cancelling a scheduled thread', () => {
   it('takes the continuations with the root', async () => {
-    seedThread();
+    await seedThread();
     const { res, payload } = buildResponse();
 
-    await deletePost(buildRequest('root') as never, res as never);
+    await deletePost(buildRequest(idByLabel.get('root') as string) as never, res as never);
 
     expect(payload.value?.message).toBe('Post deleted successfully');
-    expect(remainingIds()).toEqual([]);
+    expect(await remainingIds()).toEqual([]);
   });
 
   it('cancels only what depends on the post, not what precedes it', async () => {
-    seedThread();
+    await seedThread();
     const { res } = buildResponse();
 
-    await deletePost(buildRequest('c1') as never, res as never);
+    await deletePost(buildRequest(idByLabel.get('c1') as string) as never, res as never);
 
     // `root` published first and is nobody's continuation; `c2` replied to `c1`
     // and cannot exist without it.
-    expect(remainingIds()).toEqual(['root']);
-  });
-
-  it('leaves a lone scheduled post to delete exactly itself', async () => {
-    hoisted.rows = [row('solo', null)];
-    const { res } = buildResponse();
-
-    await deletePost(buildRequest('solo') as never, res as never);
-
-    expect(remainingIds()).toEqual([]);
-    expect(hoisted.deleteManyFilters).toEqual([]);
+    expect(await remainingIds()).toEqual(['root']);
   });
 
   /**
-   * Deleting a PUBLISHED post must not touch its replies: those are real posts
-   * that readers have seen, and some of them are other people's.
+   * The long-form body goes with the post it belongs to.
+   *
+   * Nothing sweeps `articles` — `articles.post_id` carries `ON DELETE CASCADE`
+   * to `posts.id` and `deletePostRecord` is what fires it. That makes this the
+   * only thing standing between a cancelled draft and an article row nobody can
+   * reach, so it is asserted rather than assumed: delete the `postId` anchor in
+   * `insertArticle`, or the cascade in the schema, and this goes red.
    */
-  it('does not cascade from a published post', async () => {
-    hoisted.rows = [
-      row('published-root', null, 'published'),
-      row('reply', 'published-root', 'published'),
-    ];
+  it('takes the article body with a cancelled thread', async () => {
+    await seedThread();
+    const rootId = idByLabel.get('root') as string;
+    const articleId = newArticleId();
+    await insertArticle({
+      id: articleId,
+      postId: rootId,
+      createdBy: AUTHOR,
+      title: 'Draft title',
+      body: 'Draft body',
+    });
+    expect(await findArticleById(articleId)).toBeDefined();
+
     const { res } = buildResponse();
+    await deletePost(buildRequest(rootId) as never, res as never);
 
-    await deletePost(buildRequest('published-root') as never, res as never);
-
-    expect(remainingIds()).toEqual(['reply']);
+    expect(await remainingIds()).toEqual([]);
+    expect(await findArticleById(articleId)).toBeUndefined();
   });
 
-  it('never reaches another author\'s scheduled reply', async () => {
-    hoisted.rows = [
-      row('root', null),
-      { _id: 'theirs', oxyUserId: 'someone_else', status: 'scheduled', parentPostId: 'root' },
-    ];
+  it('leaves a lone scheduled post to delete exactly itself', async () => {
+    await row('solo', null);
     const { res } = buildResponse();
 
-    await deletePost(buildRequest('root') as never, res as never);
+    await deletePost(buildRequest(idByLabel.get('solo') as string) as never, res as never);
 
-    expect(remainingIds()).toEqual(['theirs']);
+    expect(await remainingIds()).toEqual([]);
+  });
+
+  /**
+   * CURRENT BEHAVIOUR, PRESERVED FROM MONGO — NOT A PROPERTY ANYONE CHOSE.
+   *
+   * Deleting a post deletes every direct reply to it, unscoped by author and
+   * unscoped by status. That is what `Post.deleteMany({ parentPostId })` did on
+   * Mongo for as long as it has existed, and the Postgres port reproduces it
+   * deliberately: `posts.parent_post_id` is `ON DELETE SET NULL`, so WITHOUT an
+   * explicit delete the replies would survive as orphans PROMOTED TO ROOT POSTS
+   * — a new behaviour nobody asked for and strictly worse than either option.
+   *
+   * The two tests below previously asserted the opposite, and passed on Mongo
+   * ONLY because they mock `repairRecentRepliersAfterPostDelete`, which was the
+   * single deleter — so the mock removed the entire mechanism under test. They
+   * are honest now, and they disagree with the system.
+   *
+   * THIS DESTROYS CONTENT THE DELETER DOES NOT OWN. Every comparable platform
+   * (X, Bluesky, Mastodon) leaves the reply standing and lets it point at a
+   * deleted parent. Changing it is a PRODUCT decision, deliberately NOT made
+   * inside a 299-commit migration merge — the one release where a port defect
+   * and an intentional edit are indistinguishable, and which a rollback cannot
+   * undo because rollback restores the same behaviour.
+   *
+   * Tracked as task #141. If the answer is "scope it", these assertions flip and
+   * `repairDeletedPostProjection` gains an author/status predicate.
+   */
+  it('deletes a published post\'s replies too — current behaviour, see #141', async () => {
+    await row('published-root', null, { status: 'published' });
+    await row('reply', 'published-root', { status: 'published' });
+    const { res } = buildResponse();
+
+    await deletePost(buildRequest(idByLabel.get('published-root') as string) as never, res as never);
+
+    expect(await remainingIds()).toEqual([]);
+  });
+
+  it('reaches another author\'s scheduled reply — current behaviour, see #141', async () => {
+    await row('root', null);
+    await row('theirs', 'root', { owner: OTHER });
+    const { res } = buildResponse();
+
+    await deletePost(buildRequest(idByLabel.get('root') as string) as never, res as never);
+
+    // `theirs` belongs to OTHER. It is removed anyway. That is the finding.
+    expect(await remainingIds()).toEqual([]);
   });
 });
 
 describe('publishing a scheduled thread early', () => {
+  /** The labels the chain walk drove the claim with, in order. */
+  function claimedLabels(): string[] {
+    return hoisted.claim.mock.calls.map(
+      ([p]: [{ postId: string }]) => labelById.get(p.postId) ?? p.postId,
+    );
+  }
+
   it('publishes the whole chain, root first, from any post in it', async () => {
-    seedThread();
+    await seedThread();
     const { res, payload } = buildResponse();
 
-    await publishScheduledPostNow(buildRequest('c1') as never, res as never);
+    await publishScheduledPostNow(buildRequest(idByLabel.get('c1') as string) as never, res as never);
 
-    expect(hoisted.claim.mock.calls.map(([p]: [{ postId: string }]) => p.postId)).toEqual([
-      'root',
-      'c1',
-      'c2',
-    ]);
+    expect(claimedLabels()).toEqual(['root', 'c1', 'c2']);
     // The response is still about the post that was asked for.
-    expect(payload.value?._id).toBe('c1');
+    expect(payload.value?.id).toBe(idByLabel.get('c1'));
   });
 
   it('stops at a post that will not publish, so nothing jumps its parent', async () => {
-    seedThread();
+    await seedThread();
     hoisted.claim.mockImplementation(async ({ postId }: { postId: string }) => {
-      if (postId === 'root') return null;
-      const target = hoisted.rows.find((r) => r._id === postId);
-      if (target) target.status = 'published';
-      return { _id: postId, toObject: () => ({ _id: postId }) };
+      if (postId === idByLabel.get('root')) return null;
+      const record = await claimScheduledPost(postId, undefined);
+      return record ? { id: postId } : null;
     });
     const { res, payload } = buildResponse();
 
-    await publishScheduledPostNow(buildRequest('c1') as never, res as never);
+    await publishScheduledPostNow(buildRequest(idByLabel.get('c1') as string) as never, res as never);
 
-    expect(hoisted.claim.mock.calls.map(([p]: [{ postId: string }]) => p.postId)).toEqual(['root']);
+    expect(claimedLabels()).toEqual(['root']);
     expect(payload.status).toBe(404);
   });
 
   it('refuses when a still-scheduled ancestor belongs to somebody else', async () => {
-    hoisted.rows = [
-      { _id: 'theirs', oxyUserId: 'someone_else', status: 'scheduled', parentPostId: null },
-      row('mine', 'theirs'),
-    ];
+    await row('theirs', null, { owner: OTHER });
+    await row('mine', 'theirs');
     const { res, payload } = buildResponse();
 
-    await publishScheduledPostNow(buildRequest('mine') as never, res as never);
+    await publishScheduledPostNow(buildRequest(idByLabel.get('mine') as string) as never, res as never);
 
     expect(payload.status).toBe(409);
     expect(hoisted.claim).not.toHaveBeenCalled();
   });
 
   it('still publishes a lone scheduled post by itself', async () => {
-    hoisted.rows = [row('solo', null)];
+    await row('solo', null);
     const { res, payload } = buildResponse();
 
-    await publishScheduledPostNow(buildRequest('solo') as never, res as never);
+    await publishScheduledPostNow(buildRequest(idByLabel.get('solo') as string) as never, res as never);
 
     expect(hoisted.claim).toHaveBeenCalledTimes(1);
-    expect(payload.value?._id).toBe('solo');
+    expect(payload.value?.id).toBe(idByLabel.get('solo'));
   });
 
   it('tells the owner a post that already went out is not publishable again', async () => {
-    hoisted.rows = [row('done', null, 'published')];
+    await row('done', null, { status: 'published' });
     const { res, payload } = buildResponse();
 
-    await publishScheduledPostNow(buildRequest('done') as never, res as never);
+    await publishScheduledPostNow(buildRequest(idByLabel.get('done') as string) as never, res as never);
 
     expect(payload.status).toBe(409);
     expect(payload.value?.message).toBe('This post has already been published');

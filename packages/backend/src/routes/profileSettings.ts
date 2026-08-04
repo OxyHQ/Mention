@@ -1,13 +1,25 @@
 import { Router, Response } from 'express';
-import UserSettings, { type ProfileMedia } from '../models/UserSettings';
-import UserBehavior from '../models/UserBehavior';
-import Post from '../models/Post';
-import Bookmark from '../models/Bookmark';
-import Like from '../models/Like';
+import type { ProfileMedia } from '../db/userProfile/userSettingsRecord';
+import { deleteUserBehavior } from '../db/userProfile/userBehaviorRepository';
+import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { posts } from '../db/schema/posts';
+import { findPostRecords } from '../db/posts/postRepository';
+import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../mtn/feed/CursorBuilder';
+
+/** Posts assembled per page while streaming a user's data export. */
+const EXPORT_PAGE_SIZE = 200;
+import { getDb } from '../db/postgres';
+import { bookmarks, likes } from '../db/schema/engagement';
 // Block and Restrict routes removed - frontend should use Oxy services directly
 import type { AccountKind } from '@oxyhq/contracts';
 import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import { buildSettingsResponseForViewer, ensureUserSettings } from '../utils/userSettings';
+import { buildSettingsResponseForViewer } from '../utils/userSettings';
+import {
+  UnknownSettingsPathError,
+  ensureUserSettings,
+  loadUserSettings,
+  updateUserSettings,
+} from '../db/userProfile/userSettingsRepository';
 import { createUserScopedOxyServices, ensureProfileMediaPublic } from '../utils/oxyHelpers';
 import { assertCanPublishAsAccount, PublishAsAccessError } from '../services/publishAsAccount';
 import { canViewProfileDesign } from '../utils/privacyHelpers';
@@ -67,7 +79,7 @@ router.get('/settings/:userId', async (req: AuthRequest, res: Response) => {
 
     const doc = userId === viewerUserId
       ? await ensureUserSettings(userId)
-      : await UserSettings.findOne({ oxyUserId: userId }).lean().exec();
+      : await loadUserSettings(userId);
 
     // This route serves the SAME profile-design DTO as `GET /profile/design/:userId`,
     // so it applies the SAME visibility rule. Without it a private profile's
@@ -146,14 +158,14 @@ router.get(
         return sendErrorResponse(res, 400, 'Bad Request', 'That account cannot be published as');
       }
 
-      const doc = await UserSettings.findOne({ oxyUserId: targetUserId }).lean().exec();
+      const settings = await loadUserSettings(targetUserId);
 
       // `=== true` rather than a truthiness test, and the same read the write half
       // answers with: a channel with no settings row yet has never opted in, and a
       // truthy non-boolean that reached the column outside the schema (a migration,
       // a manual repair) must not read as consent to name a writer.
       return sendSuccessResponse(res, 200, {
-        channel: { signPosts: doc?.channel?.signPosts === true },
+        channel: { signPosts: settings?.channelAccount?.signPosts === true },
       });
     } catch (err) {
       logger.error('[ProfileSettings] Error fetching operated account settings:', {
@@ -229,15 +241,21 @@ router.put(
         return sendErrorResponse(res, 400, 'Bad Request', 'That account cannot be published as');
       }
 
-      const doc = await UserSettings.findOneAndUpdate(
-        { oxyUserId: targetUserId },
-        { $set: { 'channel.signPosts': signPosts } },
-        { new: true, upsert: true },
-      )
-        .lean()
-        .exec();
+      // WIRE `channel`, STORAGE `channelAccount`, and the two are deliberately
+      // not renamed into agreement here. `channel.signPosts` is what the client
+      // sends and reads (`frontend/services/channelAccountService.ts`), so it is
+      // an API contract; `channelAccount.signPosts` is the settings path this
+      // repository maps to the `channel_account_sign_posts` column, named apart
+      // from the retired `channels` table it used to live beside. Renaming
+      // either side to match the other would be a breaking change to the half
+      // that is not broken.
+      const record = await updateUserSettings(targetUserId, {
+        set: { 'channelAccount.signPosts': signPosts },
+      });
 
-      return sendSuccessResponse(res, 200, { channel: { signPosts: doc?.channel?.signPosts === true } });
+      return sendSuccessResponse(res, 200, {
+        channel: { signPosts: record.channelAccount?.signPosts === true },
+      });
     } catch (err) {
       logger.error('[ProfileSettings] Error updating operated account settings:', {
         userId: req.user?.id,
@@ -543,13 +561,23 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       operation.$unset = unset;
     }
 
-    const doc = Object.keys(operation).length > 0
-      ? await UserSettings.findOneAndUpdate(
-        { oxyUserId },
-        operation,
-        { upsert: true, new: true }
-      ).lean()
-      : await ensureUserSettings(oxyUserId);
+    // An unregistered dotted path is the caller's error, not a server fault:
+    // this route builds its update map from the REQUEST BODY, so an unknown key
+    // is the one place `UnknownSettingsPathError` is reachable from outside.
+    // Surfacing it as a 400 that names the path is the whole point of the
+    // repository throwing rather than silently dropping the write — a 500 with
+    // a stack would tell the caller nothing about which key was wrong.
+    let doc;
+    try {
+      doc = Object.keys(operation).length > 0
+        ? await updateUserSettings(oxyUserId, { set: operation.$set, unset: operation.$unset })
+        : await ensureUserSettings(oxyUserId);
+    } catch (error) {
+      if (error instanceof UnknownSettingsPathError) {
+        return sendErrorResponse(res, 400, 'Bad Request', error.message);
+      }
+      throw error;
+    }
 
     // Profile banners are public-facing media: an anonymous <img> on a profile
     // page can't send a bearer token, so a private Oxy asset is denied and the
@@ -592,13 +620,13 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
 router.delete('/settings/behavior', async (req: AuthRequest, res: Response) => {
   try {
     const oxyUserId = getAuthenticatedUserId(req);
-    const result = await UserBehavior.findOneAndDelete({ oxyUserId });
+    const deleted = await deleteUserBehavior(oxyUserId);
 
     return sendSuccessResponse(
       res,
       200,
       { success: true },
-      result ? 'Personalization data reset successfully' : 'No personalization data to reset'
+      deleted ? 'Personalization data reset successfully' : 'No personalization data to reset'
     );
   } catch (err) {
     logger.error('[ProfileSettings] Error resetting user behavior:', { userId: req.user?.id, error: err });
@@ -633,17 +661,77 @@ router.post('/export', async (req: AuthRequest, res: Response) => {
   try {
     writeLine('meta', { exportedAt: new Date().toISOString(), userId: oxyUserId });
 
-    for await (const post of Post.find({ oxyUserId }).sort({ createdAt: -1 }).lean().cursor()) {
-      writeLine('post', post);
+    // Paged rather than streamed through a cursor: the export is a bounded
+    // walk over one author's posts, and each page is assembled from nine tables,
+    // so a keyset page is both the cheapest correct shape and the one that keeps
+    // a single reader's memory flat.
+    let exportCursor: string | undefined;
+    for (;;) {
+      const keyset = await chronoCursorSql(exportCursor);
+      const scope = eq(posts.oxyUserId, oxyUserId);
+      const page = await findPostRecords(keyset ? and(scope, keyset) : scope, {
+        orderBy: chronoOrderBy(),
+        limit: EXPORT_PAGE_SIZE,
+      });
+      for (const post of page) {
+        writeLine('post', post);
+      }
+      if (page.length < EXPORT_PAGE_SIZE) break;
+      const last = page[page.length - 1];
+      exportCursor = ChronoCursor.build(last.id, last.createdAt);
     }
-    for await (const bookmark of Bookmark.find({ userId: oxyUserId }).sort({ createdAt: -1 }).lean().cursor()) {
-      writeLine('bookmark', bookmark);
-    }
-    for await (const like of Like.find({ userId: oxyUserId }).sort({ createdAt: -1 }).lean().cursor()) {
-      writeLine('like', like);
+    // Postgres, like the posts above. These two read Mongo until now, which had
+    // stopped receiving engagement when the command service moved — so this
+    // export, the artefact a user downloads to have their own data, would have
+    // silently omitted every like and bookmark made after the cutover while
+    // still listing their posts. An export that is quietly incomplete is worse
+    // than one that fails.
+    //
+    // Paged rather than streamed through a cursor: postgres.js materialises a
+    // result set, so an unbounded select would hold every row of a heavy
+    // account in memory at once. The keyset is `(created_at, id)` — `created_at`
+    // alone is not unique, since every row written in one transaction shares
+    // `transaction_timestamp()`, and a bare `created_at` cursor would then skip
+    // or repeat rows at a page boundary.
+    // Written out per table rather than looped over `[bookmarks, likes]`: the
+    // two are different drizzle table types, and a union of them makes the
+    // builder's row type unresolvable (TS7022) — recoverable only with a cast
+    // that would erase the column types this export writes verbatim.
+    let bookmarkCursor: { createdAt: Date; id: string } | null = null;
+    for (;;) {
+      const keyset: SQL | undefined = bookmarkCursor
+        ? sql`(${bookmarks.createdAt}, ${bookmarks.id}) < (${bookmarkCursor.createdAt}, ${bookmarkCursor.id})`
+        : undefined;
+      const page: (typeof bookmarks.$inferSelect)[] = await getDb()
+        .select()
+        .from(bookmarks)
+        .where(and(eq(bookmarks.userId, oxyUserId), keyset))
+        .orderBy(desc(bookmarks.createdAt), desc(bookmarks.id))
+        .limit(EXPORT_PAGE_SIZE);
+      for (const row of page) writeLine('bookmark', row);
+      if (page.length < EXPORT_PAGE_SIZE) break;
+      const last = page[page.length - 1];
+      bookmarkCursor = { createdAt: last.createdAt, id: last.id };
     }
 
-    const settings = await UserSettings.findOne({ oxyUserId }).lean();
+    let likeCursor: { createdAt: Date; id: string } | null = null;
+    for (;;) {
+      const keyset: SQL | undefined = likeCursor
+        ? sql`(${likes.createdAt}, ${likes.id}) < (${likeCursor.createdAt}, ${likeCursor.id})`
+        : undefined;
+      const page: (typeof likes.$inferSelect)[] = await getDb()
+        .select()
+        .from(likes)
+        .where(and(eq(likes.userId, oxyUserId), keyset))
+        .orderBy(desc(likes.createdAt), desc(likes.id))
+        .limit(EXPORT_PAGE_SIZE);
+      for (const row of page) writeLine('like', row);
+      if (page.length < EXPORT_PAGE_SIZE) break;
+      const last = page[page.length - 1];
+      likeCursor = { createdAt: last.createdAt, id: last.id };
+    }
+
+    const settings = await loadUserSettings(oxyUserId);
     writeLine('settings', settings ?? null);
 
     res.end();

@@ -30,9 +30,11 @@ import {
   mentionTombstoneRecordSchema,
   PostVisibility,
 } from '@mention/shared-types';
+import { and, desc, eq, inArray, or } from 'drizzle-orm';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
-import MentionSignedRecord from '../../../models/MentionSignedRecord';
-import { Post } from '../../../models/Post';
+import { getDb } from '../../../db/postgres';
+import { mentionSignedRecords } from '../../../db/schema/mtn';
+import { posts } from '../../../db/schema/posts';
 import { buildUserDid } from '../../../services/mtn/mentionDid';
 import { logger } from '../../../utils/logger';
 import {
@@ -76,11 +78,17 @@ function clampLimit(limit: number | undefined): number {
   return Math.max(1, Math.min(Math.trunc(limit), LIST_RECORDS_MAX_LIMIT));
 }
 
-/** The denormalized row shape this service reads from the ledger. */
+/**
+ * The denormalized row shape this service reads from the ledger.
+ *
+ * The chain columns are `string | null` rather than optional: Postgres hands back
+ * an explicit NULL where Mongoose omitted an absent field, and the consumers below
+ * test them for a non-empty string either way.
+ */
 interface LedgerRow {
-  rkey?: string;
-  nsid?: string;
-  recordId?: string;
+  rkey: string | null;
+  nsid: string | null;
+  recordId: string | null;
   createdAt: Date;
   envelope: SignedRecordEnvelope;
 }
@@ -103,16 +111,28 @@ async function readLiveRows(
 ): Promise<LedgerRow[]> {
   // The feed-collection branch is the only one narrowed by rkey; tombstones are
   // always read in full (they delete by `subject`, not by their own rkey).
-  const feedClause: Record<string, unknown> = { nsid: mtnCollection };
-  if (typeof rkey === 'string' && rkey.length > 0) feedClause.rkey = rkey;
+  const narrowedByRkey = typeof rkey === 'string' && rkey.length > 0;
+  const feedClause = narrowedByRkey
+    ? and(eq(mentionSignedRecords.nsid, mtnCollection), eq(mentionSignedRecords.rkey, rkey))
+    : eq(mentionSignedRecords.nsid, mtnCollection);
 
-  return MentionSignedRecord.find({
-    oxyUserId,
-    verified: true,
-    $or: [feedClause, { nsid: MENTION_TOMBSTONE_COLLECTION }],
-  })
-    .sort({ createdAt: -1, seq: -1 })
-    .lean<LedgerRow[]>();
+  return getDb()
+    .select({
+      rkey: mentionSignedRecords.rkey,
+      nsid: mentionSignedRecords.nsid,
+      recordId: mentionSignedRecords.recordId,
+      createdAt: mentionSignedRecords.createdAt,
+      envelope: mentionSignedRecords.envelope,
+    })
+    .from(mentionSignedRecords)
+    .where(
+      and(
+        eq(mentionSignedRecords.oxyUserId, oxyUserId),
+        eq(mentionSignedRecords.verified, true),
+        or(feedClause, eq(mentionSignedRecords.nsid, MENTION_TOMBSTONE_COLLECTION)),
+      ),
+    )
+    .orderBy(desc(mentionSignedRecords.createdAt), desc(mentionSignedRecords.seq));
 }
 
 /** Collect the set of MTN record keys (`collection/rkey`) deleted by tombstones. */
@@ -216,16 +236,16 @@ async function filterPublicPublishedPosts(
   if (records.length === 0) return records;
 
   const postIds = records.map((record) => record.rkey);
-  const publicPosts = await Post.find(
-    {
-      _id: { $in: postIds },
-      oxyUserId,
-      status: 'published',
-      visibility: PostVisibility.PUBLIC,
-    },
-    { _id: 1 },
-  ).lean<Array<{ _id: unknown }>>();
-  const publicPostIds = new Set(publicPosts.map((post) => String(post._id)));
+  const publicPosts = await getDb()
+    .select({ id: posts.id })
+    .from(posts)
+    .where(and(
+      inArray(posts.id, postIds),
+      eq(posts.oxyUserId, oxyUserId),
+      eq(posts.status, 'published'),
+      eq(posts.visibility, PostVisibility.PUBLIC),
+    ));
+  const publicPostIds = new Set(publicPosts.map((post) => post.id));
   return records.filter((record) => publicPostIds.has(record.rkey));
 }
 

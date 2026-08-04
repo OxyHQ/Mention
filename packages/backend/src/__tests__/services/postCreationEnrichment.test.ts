@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * `PostCreationService` runs the converged post-ingest enrichment for the posts
@@ -26,37 +26,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  *   - enrichment is DETACHED — a preview service that rejects never fails create.
  */
 
-const { getLinkPreviews, getUserById, MockPost, postFindLean } = vi.hoisted(() => {
-  class HoistedMockPost {
-    [key: string]: unknown;
-    constructor(data: Record<string, unknown>) {
-      Object.assign(this, data);
-    }
-    save = vi.fn().mockResolvedValue(undefined);
-    markModified = vi.fn();
-    toObject(): Record<string, unknown> {
-      return { ...this };
-    }
-    _id = 'mock_post_id';
-  }
-  return {
-    getLinkPreviews: vi.fn(),
-    getUserById: vi.fn(),
-    MockPost: HoistedMockPost,
-    postFindLean: vi.fn().mockResolvedValue([]),
-  };
-});
+const { getLinkPreviews, getUserById } = vi.hoisted(() => ({
+  getLinkPreviews: vi.fn(),
+  getUserById: vi.fn(),
+}));
 
-vi.mock('../../models/Post', async () => {
-  const actual = await vi.importActual<typeof import('../../models/Post')>('../../models/Post');
-  return {
-    POST_CLASSIFICATION_PENDING: actual.POST_CLASSIFICATION_PENDING,
-    Post: Object.assign(MockPost, {
-      find: () => ({ select: () => ({ lean: () => postFindLean() }) }),
-    }),
-  };
-});
-
+/**
+ * The post is a REAL row. `PostCreationService.create` writes through the
+ * repository now, so the `new Post(...)` double this replaces intercepted
+ * nothing — every case here would have died on an absent connection rather than
+ * on the enrichment it is about.
+ */
 vi.mock('../../utils/notificationUtils', () => ({
   createNotification: vi.fn().mockResolvedValue(undefined),
   createMentionNotifications: vi.fn().mockResolvedValue(undefined),
@@ -87,8 +67,12 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
 }));
 
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import { clearServiceScope, serviceScope } from '../helpers/serviceFixtures';
 import { postCreationService } from '../../services/PostCreationService';
 import { PostVisibility } from '@mention/shared-types';
+
+const scope = serviceScope('post-creation-enrichment');
 
 const ARTICLE_URL = 'https://example.com/a-federated-article';
 
@@ -102,14 +86,24 @@ async function settle(): Promise<void> {
   await new Promise((resolve) => setImmediate(resolve));
 }
 
-/** The params an AP inbox `Create` / atproto import hands the shared route. */
+/**
+ * The params an AP inbox `Create` / atproto import hands the shared route.
+ *
+ * The activity id is unique PER CALL. `posts.federation_activity_id` carries a
+ * unique constraint — which is the import's own dedupe — so reusing one literal
+ * across cases makes the second create a duplicate-key error rather than the
+ * enrichment the case is about.
+ */
+let federatedSeq = 0;
 function federatedCreateParams(text: string) {
+  federatedSeq += 1;
+  const activityId = `https://mastodon.social/users/alice/statuses/${scope.name}-${federatedSeq}`;
   return {
-    oxyUserId: 'oxy_remote_author',
+    oxyUserId: scope.user('remote-author'),
     federation: {
-      activityId: 'https://mastodon.social/users/alice/statuses/1',
+      activityId,
       actorUri: 'https://mastodon.social/users/alice',
-      url: 'https://mastodon.social/users/alice/statuses/1',
+      url: activityId,
       sensitive: false,
     },
     // A federated body's ONLY home is the variants array — never `content.text`.
@@ -122,11 +116,22 @@ function federatedCreateParams(text: string) {
   };
 }
 
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
-  getUserById.mockResolvedValue({ id: 'oxy_remote_author', username: 'alice' });
+  getUserById.mockResolvedValue({ id: scope.user('remote-author'), username: 'alice' });
   getLinkPreviews.mockResolvedValue({});
-  postFindLean.mockResolvedValue([]);
+});
+
+afterEach(async () => {
+  await clearServiceScope(scope);
 });
 
 describe('PostCreationService — post-ingest enrichment', () => {
@@ -146,7 +151,7 @@ describe('PostCreationService — post-ingest enrichment', () => {
 
   it('enriches a NATIVE post from the link in its text', async () => {
     await postCreationService.create({
-      oxyUserId: 'oxy_local_author',
+      oxyUserId: scope.user('local-author'),
       content: { text: `look at ${ARTICLE_URL}` },
       visibility: PostVisibility.PUBLIC,
       skipSocketEmit: true,
@@ -173,7 +178,7 @@ describe('PostCreationService — a scheduled post is enriched when it publishes
   /** Create a post that is scheduled, not yet published. */
   function createScheduled() {
     return postCreationService.create({
-      oxyUserId: 'oxy_local_author',
+      oxyUserId: scope.user('local-author'),
       content: { text: `look at ${ARTICLE_URL}` },
       visibility: PostVisibility.PUBLIC,
       status: 'scheduled',
