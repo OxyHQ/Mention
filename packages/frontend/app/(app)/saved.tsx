@@ -392,7 +392,7 @@ const SavedPostsScreen: React.FC = () => {
                 {canUsePrivateApi ? (
                     <BottomBarAwareFab
                         onPress={newFolderControl.open}
-                        icon={<Ionicons name="add" size={24} color="white" />}
+                        icon={<Ionicons name="add" size={24} color={theme.colors.tertiaryForeground} />}
                         accessibilityLabel={t('saved.newFolder', 'New folder')}
                     />
                 ) : null}
@@ -464,7 +464,7 @@ const SavedPostsScreen: React.FC = () => {
                             </TouchableOpacity>
                         ))}
                         <TouchableOpacity
-                            className="px-4 py-2.5 rounded-[10px] items-center mt-3 bg-secondary"
+                            className="px-4 py-2.5 rounded-[10px] items-center mt-3 bg-muted"
                             onPress={() => {
                                 setShowMoveModal(false);
                                 setMovingPostId(null);

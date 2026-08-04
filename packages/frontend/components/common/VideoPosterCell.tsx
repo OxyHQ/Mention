@@ -109,7 +109,7 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
       typeof durationSec === 'number' && durationSec > 0 ? formatDuration(durationSec) : null;
 
     return (
-      <View className="bg-secondary" style={containerStyle}>
+      <View className="bg-muted" style={containerStyle}>
         {posterUri && !posterFailed ? (
           <Image
             source={{ uri: posterUri }}
@@ -120,7 +120,7 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
             onError={handlePosterError}
           />
         ) : (
-          <View className="w-full h-full items-center justify-center bg-secondary">
+          <View className="w-full h-full items-center justify-center bg-muted">
             <Ionicons name="videocam-outline" size={placeholderIconSize} color={placeholderColor} />
           </View>
         )}

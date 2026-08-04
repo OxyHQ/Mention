@@ -23,7 +23,7 @@ interface PodcastCardProps {
   /**
    * `'full'` — the full-width profile card (square artwork + title + PODCAST +
    * author). `'card'` — a 280px carousel card sharing the link attachment card's
-   * container chrome (border + bg-secondary + rounded-[14px]) so it reads as one
+   * container chrome (border + bg-muted + rounded-[14px]) so it reads as one
    * family in the feed (compose + feed).
    */
   variant?: PodcastCardVariant;
@@ -84,7 +84,7 @@ export const PodcastCard = memo(function PodcastCard({
   if (variant === 'full') {
     return (
       <Pressable
-        className={cn('flex-row items-center gap-3 mb-3 rounded-2xl bg-secondary p-3', className)}
+        className={cn('flex-row items-center gap-3 mb-3 rounded-2xl bg-muted p-3', className)}
         style={style}
         onPress={handlePress}
         onLongPress={isOwnProfile ? onEdit : undefined}
@@ -134,7 +134,7 @@ export const PodcastCard = memo(function PodcastCard({
   return (
     <Pressable
       className={cn(
-        'w-[280px] flex-row items-center gap-3 border border-border bg-secondary rounded-[14px] overflow-hidden p-3',
+        'w-[280px] flex-row items-center gap-3 border border-border bg-muted rounded-[14px] overflow-hidden p-3',
         className,
       )}
       style={style}

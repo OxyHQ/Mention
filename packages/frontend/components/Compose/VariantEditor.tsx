@@ -162,7 +162,7 @@ const VariantEditor = memo(function VariantEditor({
             {(ownMedia ?? sharedMedia).map((media) => (
               <View
                 key={media.id}
-                className="border-border bg-secondary"
+                className="border-border bg-muted"
                 style={styles.mediaCard}
               >
                 {media.type === 'video' ? (
@@ -236,7 +236,7 @@ const VariantEditor = memo(function VariantEditor({
           {item.article ? (
             <>
               <TouchableOpacity
-                className="border-border bg-secondary"
+                className="border-border bg-muted"
                 style={styles.articleCard}
                 activeOpacity={0.85}
                 onPress={handleArticlePress}

@@ -79,8 +79,8 @@ function BlockCard({ block }: { block: PublishedFederationBlock }) {
     <View className="mt-3 rounded-2xl border border-border bg-card p-4">
       <View className="flex-row items-start justify-between gap-3">
         <Text className="flex-1 text-base font-semibold text-foreground">{block.domain}</Text>
-        <View className="rounded-full bg-secondary px-2.5 py-1">
-          <Text className="text-xs font-medium text-secondary-foreground">
+        <View className="rounded-full bg-muted px-2.5 py-1">
+          <Text className="text-xs font-medium text-muted-foreground">
             {severityLabel(block.severity)}
           </Text>
         </View>

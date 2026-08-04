@@ -2347,7 +2347,7 @@ const ComposeScreenBody = () => {
 
             {/* Editing indicator */}
             {isEditMode && (
-              <View className="px-4 py-2 bg-secondary border-b border-border">
+              <View className="px-4 py-2 bg-muted border-b border-border">
                 <Text className="text-primary text-[13px] font-semibold">{editLoading
                   ? t('Loading post...')
                   : editingScheduledPost
@@ -2358,7 +2358,7 @@ const ComposeScreenBody = () => {
 
             {/* Mode Toggle Section */}
             {showModeToggle && (
-              <View className="bg-secondary border-border" style={styles.modeToggleContainer}>
+              <View className="bg-muted border-border" style={styles.modeToggleContainer}>
                 <View style={styles.modeToggleRow}>
                   <View style={styles.modeOption}>
                     <Text className="text-foreground" style={[styles.modeLabel, postingMode === 'thread' && styles.activeModeLabel]}>
@@ -2487,7 +2487,7 @@ const ComposeScreenBody = () => {
                                 wrapperStyle={styles.pollAttachmentWrapper}
                               >
                                 <TouchableOpacity
-                                  className="border-border bg-secondary" style={styles.pollAttachmentCard}
+                                  className="border-border bg-muted" style={styles.pollAttachmentCard}
                                   activeOpacity={0.85}
                                   onPress={focusPollCreator}
                                 >

@@ -97,7 +97,7 @@ export const BannerSection: React.FC = () => {
         </View>
       ) : (
         <Pressable
-          className="rounded-xl border-[1.5px] border-dashed border-border bg-secondary py-5 items-center gap-1.5"
+          className="rounded-xl border-[1.5px] border-dashed border-border bg-muted py-5 items-center gap-1.5"
           onPress={openHeaderPicker}
         >
           <View className="w-10 h-10 rounded-full items-center justify-center bg-muted">

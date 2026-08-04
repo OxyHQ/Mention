@@ -20,7 +20,7 @@ interface TrendsWidgetProps {
 
 export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
   const { t } = useTranslation();
-  const { trends, summary, isLoading, hasFetched, error, hiddenTrendIds, startPolling, stopPolling } =
+  const { trends, summary, hasFetched, error, hiddenTrendIds, startPolling, stopPolling } =
     useTrendsStore();
   const router = useRouter();
   const handleMenuPress = useTrendItemMenu();
@@ -52,11 +52,16 @@ export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
     [navigateToTrend, visibleTrends],
   );
 
-  if (hasFetched && !error && visibleTrends.length === 0) {
+  // A failed fetch is settled too: the widget has nothing to say, so it says
+  // nothing rather than turning the rail into an error report. Trends that are
+  // already on screen survive a later failure — they are stale, not wrong.
+  const hasSettled = hasFetched || error !== null;
+
+  if (hasSettled && visibleTrends.length === 0) {
     return null;
   }
 
-  const content = (isLoading && !hasFetched) ? (
+  const content = !hasSettled ? (
     <View className="gap-2.5 py-1">
       {Array.from({ length: 5 }).map((_, i) => (
         <Skeleton.Row key={i} style={{ alignItems: 'center', justifyContent: 'space-between' }}>
@@ -68,8 +73,6 @@ export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
         </Skeleton.Row>
       ))}
     </View>
-  ) : error ? (
-    <Text className="text-destructive">{t('error.fetch_trends')}</Text>
   ) : (
     <View className="gap-2">
       <View>

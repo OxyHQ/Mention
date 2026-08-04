@@ -169,7 +169,7 @@ const PostAttachmentVideo: React.FC<{
   const { cardStyle, onAspectRatio } = useSingleMediaCardStyle(recordRatio, availableWidth);
   return (
     <View
-      className="bg-secondary rounded-[15px] overflow-hidden"
+      className="bg-muted rounded-[15px] overflow-hidden"
       style={[
         webGrabCursorStyle,
         hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' as const },
@@ -209,7 +209,7 @@ const PostAttachmentGif: React.FC<{
   const { cardStyle, onAspectRatio } = useSingleMediaCardStyle(recordRatio, availableWidth);
   return (
     <View
-      className="bg-secondary rounded-[15px] overflow-hidden"
+      className="bg-muted rounded-[15px] overflow-hidden"
       style={[
         webGrabCursorStyle,
         hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' as const },
@@ -344,7 +344,7 @@ const PostAttachmentImage: React.FC<{
       accessibilityLabel={hasAlt ? alt : undefined}
       placeholder={
         <View
-          className="bg-secondary justify-center items-center"
+          className="bg-muted justify-center items-center"
           style={{ width: computedWidth, height: computedHeight }}
         />
       }

@@ -184,7 +184,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
                 ) : (
                     <Image
                         source={{ uri: item.uri }}
-                        className="bg-secondary"
+                        className="bg-muted"
                         style={{ width: '100%', height: '100%' }}
                         contentFit="cover"
                         transition={150}

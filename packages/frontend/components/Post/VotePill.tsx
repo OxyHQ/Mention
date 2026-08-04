@@ -36,7 +36,7 @@ const VotePill: React.FC<VotePillProps> = ({
 
   return (
     <View
-      className="border-border bg-secondary"
+      className="border-border bg-muted"
       style={styles.pill}
     >
       <PressableScale

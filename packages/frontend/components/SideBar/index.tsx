@@ -215,7 +215,11 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                     <View style={styles.composeButtonContainer}>
                         <Pressable
                             onPress={handleComposePress}
-                            className="bg-primary"
+                            // TEMPORARY (colour preview): the compose action is the
+                            // screen's standout moment, which is what the tertiary
+                            // accent exists for. Revert to `bg-primary` when the
+                            // preview harness comes out.
+                            className="bg-tertiary"
                             style={[
                                 styles.composeButton,
                                 showExpanded ? styles.composeButtonExpanded : styles.composeButtonCollapsed,
@@ -223,11 +227,11 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                             ]}
                         >
                             {showExpanded ? (
-                                <Text style={{ color: theme.colors.primaryForeground, fontSize: 17, fontWeight: '800', textAlign: 'center' }}>
+                                <Text style={{ color: theme.colors.tertiaryForeground, fontSize: 17, fontWeight: '800', textAlign: 'center' }}>
                                     {t("sidebar.compose")}
                                 </Text>
                             ) : (
-                                <ComposeIcon size={26} color={theme.colors.primaryForeground} />
+                                <ComposeIcon size={26} color={theme.colors.tertiaryForeground} />
                             )}
                         </Pressable>
                     </View>

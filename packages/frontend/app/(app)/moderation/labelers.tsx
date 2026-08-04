@@ -59,7 +59,7 @@ const LabelerCard = React.memo(({ labeler, onSubscribeToggle, subscribing }: Lab
 
   return (
     <TouchableOpacity
-      className="rounded-2xl p-4 gap-2 bg-secondary"
+      className="rounded-2xl p-4 gap-2 bg-muted"
       onPress={() => router.push(`/moderation/labelers/${id}`)}
       activeOpacity={0.7}
     >
@@ -281,7 +281,7 @@ const LabelersScreen: React.FC = () => {
         disableSticky
       />
 
-      <View className="flex-row items-center gap-2 mx-4 mt-2 mb-1 rounded-xl border border-border px-3 py-2.5 bg-secondary">
+      <View className="flex-row items-center gap-2 mx-4 mt-2 mb-1 rounded-xl border border-border px-3 py-2.5 bg-muted">
         <Ionicons name="search" size={16} color={theme.colors.textSecondary} />
         <TextInput
           value={search}

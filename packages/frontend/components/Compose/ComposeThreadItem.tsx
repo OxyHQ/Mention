@@ -351,7 +351,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
               {item.showPollCreator ? (
                 <View style={styles.pollAttachmentWrapper}>
                   <TouchableOpacity
-                    className="border-border bg-secondary" style={styles.pollAttachmentCard}
+                    className="border-border bg-muted" style={styles.pollAttachmentCard}
                     activeOpacity={0.85}
                     onPress={handlePollPress}
                   >
@@ -413,7 +413,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                 return (
                   <View
                     key={mediaItem.id}
-                    className="border-border bg-secondary" style={styles.mediaPreviewItem}
+                    className="border-border bg-muted" style={styles.mediaPreviewItem}
                   >
                     {mediaItem.type === 'video' ? (
                       <VideoPreview src={mediaUrl} />
@@ -463,7 +463,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
               {itemHasArticle && item.article && (
                 <View style={styles.pollAttachmentWrapper}>
                   <TouchableOpacity
-                    className="border-border bg-secondary"
+                    className="border-border bg-muted"
                     style={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                     activeOpacity={0.85}
                     onPress={handleArticlePress}
@@ -488,7 +488,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
               {itemHasEvent && item.event && (
                 <View style={styles.pollAttachmentWrapper}>
                   <TouchableOpacity
-                    className="border-border bg-secondary"
+                    className="border-border bg-muted"
                     style={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                     activeOpacity={0.85}
                     onPress={handleEventPress}

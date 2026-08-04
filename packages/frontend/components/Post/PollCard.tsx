@@ -93,7 +93,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
                 ended || (hasVoted && !poll.isMultipleChoice) ? { opacity: 0.9 } : null,
               ]}
             >
-              <View className="absolute left-0 top-0 bottom-0 w-full bg-secondary">
+              <View className="absolute left-0 top-0 bottom-0 w-full bg-muted">
                 <View className="absolute left-0 top-0 bottom-0 bg-primary/25" style={{ width: `${pct * 100}%` }} />
               </View>
               <View className="flex-row justify-between items-center">
