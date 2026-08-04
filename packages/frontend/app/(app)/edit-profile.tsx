@@ -2,7 +2,13 @@ import React, { useMemo } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
-import { useBloomTheme, useTheme, PREMIUM_COLOR_NAMES, type AppColorName } from '@oxyhq/bloom/theme';
+import {
+  useBloomTheme,
+  useTheme,
+  FREE_COLOR_NAMES,
+  PREMIUM_COLOR_NAMES,
+  type AppColorName,
+} from '@oxyhq/bloom/theme';
 import { SettingsListDivider } from '@oxyhq/bloom/settings-list';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { Loading } from '@oxyhq/bloom/loading';
@@ -33,16 +39,20 @@ export default function EditProfileScreen() {
   const isOxyUser = normalizedUsername === 'oxy';
   const isFaircoinUser = normalizedUsername === 'faircoin';
 
-  // Reproduces `appearance.tsx`'s premium-color-unlock logic verbatim: full
-  // premium palette for premium users, else only the colors tied to a
-  // username-gated preset (@oxy unlocks "oxy", @faircoin unlocks "faircoin").
-  const unlockedPremiumColors = useMemo<readonly AppColorName[] | undefined>(() => {
-    if (isPremium) return PREMIUM_COLOR_NAMES;
-    const unlocked: AppColorName[] = [];
-    if (isOxyUser) unlocked.push('oxy');
-    if (isFaircoinUser) unlocked.push('faircoin');
-    return unlocked.length > 0 ? unlocked : undefined;
-  }, [isPremium, isOxyUser, isFaircoinUser]);
+  // The full list this viewer may pick, built UP from the free presets rather
+  // than down from all of them. Two different gates, and they are not
+  // interchangeable: `oxy` and `faircoin` belong to those accounts and cannot be
+  // bought, while `mono` — black on white and white on black — is what a
+  // subscription buys.
+  const visibleColors = useMemo<readonly AppColorName[]>(
+    () => [
+      ...FREE_COLOR_NAMES,
+      ...(isOxyUser ? (['oxy'] as const) : []),
+      ...(isFaircoinUser ? (['faircoin'] as const) : []),
+      ...(isPremium ? PREMIUM_COLOR_NAMES : []),
+    ],
+    [isPremium, isOxyUser, isFaircoinUser],
+  );
 
   if (!isAuthenticated) {
     return (
@@ -118,7 +128,7 @@ export default function EditProfileScreen() {
             <Icon name="color-palette" size={22} color={colors.text} />
             <Text className="text-[16px] text-foreground">{t('settings.accentColor', 'Accent color')}</Text>
           </View>
-          <ColorSwatchPicker value={appColor} onChange={saveColor} extraColors={unlockedPremiumColors} />
+          <ColorSwatchPicker value={appColor} onChange={saveColor} colors={visibleColors} />
         </View>
         <SettingsListDivider />
         <PinnedMediaSection />
