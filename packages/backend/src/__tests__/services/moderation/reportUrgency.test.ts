@@ -25,6 +25,13 @@ type Doc = Record<string, unknown>;
 let posts: Map<string, Doc>;
 /** Every `payload` handed to the outbox, in order. */
 let enqueuedPayloads: Doc[];
+/**
+ * Thrown by the post load when set, so a database failure during intake can be
+ * exercised through the REAL provider rather than a stubbed one. The value is
+ * deliberately `unknown`: a rejection is not obliged to be an `Error`, and the
+ * two shapes take different paths through the failure handler.
+ */
+let postLoadFailure: unknown;
 
 vi.mock('../../../models/Post', () => ({
   default: {
@@ -32,6 +39,7 @@ vi.mock('../../../models/Post', () => ({
       const query = {
         select: () => query,
         lean: async () => {
+          if (postLoadFailure !== undefined) throw postLoadFailure;
           const post = posts.get(String(id));
           return post ? { ...post } : null;
         },
@@ -73,6 +81,7 @@ vi.mock('../../../runtime/oxyClient', () => ({
 
 import ModerationOutbox from '../../../models/ModerationOutbox';
 import Report, { ReportCategory, ReportedType } from '../../../models/Report.model';
+import { logger } from '../../../utils/logger';
 import { createReport } from '../../../services/moderation/ReportIntakeService';
 import { buildModerationReportInput } from '../../../services/moderation/EvidenceSnapshotService';
 import { createPostSubjectProvider } from '../../../services/moderation/subjects/postSubject';
@@ -160,6 +169,7 @@ function reportRow(reportedId = POST_ID, reporter = REPORTER) {
 beforeEach(() => {
   posts = new Map();
   enqueuedPayloads = [];
+  postLoadFailure = undefined;
   vi.clearAllMocks();
 });
 
@@ -395,6 +405,50 @@ describe('report urgency — an absence is not a zero', () => {
     expect(payload).toEqual({ reportId: REPORT_ID });
     expect(built?.reportInput).not.toHaveProperty('urgency');
   });
+
+  it('sends no urgency for material whose distribution cannot be described', async () => {
+    // The post is gone between the report and this read, so the provider answers
+    // `null` — distinct from throwing, and distinct from "this noun has no reach".
+    const payload = await intake({ reportedType: ReportedType.POST, reportedId: POST_ID });
+
+    expect(payload).toEqual({ reportId: REPORT_ID });
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  const INTAKE_FAILURES: ReadonlyArray<[string, unknown, string]> = [
+    ['an Error', new Error('connection to mongo lost'), 'connection to mongo lost'],
+    // A rejection is under no obligation to be an `Error`. The handler stringifies
+    // whatever it caught, because a failure nobody can read is the one thing worse
+    // than a failure.
+    ['something that is not an Error', 'ECONNRESET', 'ECONNRESET'],
+  ];
+
+  it.each(INTAKE_FAILURES)(
+    'still takes the report when composing urgency throws %s',
+    async (_case, thrown, expectedMessage) => {
+      posts.set(POST_ID, post(POST_ID, { stats: { viewsCount: 5 } }));
+      postLoadFailure = thrown;
+
+      const payload = await intake({ reportedType: ReportedType.POST, reportedId: POST_ID });
+
+      /**
+       * The priority of the two things at stake. A missing urgency costs the case
+       * up to ten of a hundred triage points; a raised one costs the reporter their
+       * report entirely, because `createReport` is what `POST /reports` awaits. So
+       * the failure is swallowed for the URGENCY and never for the report — the
+       * outbox row is still written, and the report will still be delivered.
+       */
+      expect(payload).toEqual({ reportId: REPORT_ID });
+      expect(Report.create).toHaveBeenCalledTimes(1);
+
+      // Swallowed is not the same as silent: the reason has to reach an operator,
+      // or a permanently mis-triaged queue has no explanation anywhere.
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[CrowdSource] could not snapshot report urgency',
+        expect.objectContaining({ reportedId: POST_ID, error: expectedMessage }),
+      );
+    },
+  );
 
   it('drops a stored urgency the contract refuses instead of losing the report', async () => {
     posts.set(POST_ID, post(POST_ID, { stats: { viewsCount: 5 } }));
