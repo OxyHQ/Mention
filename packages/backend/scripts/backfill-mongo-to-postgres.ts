@@ -900,6 +900,26 @@ async function runVerification(
     }
 
     heading('VERIFICATION FAILED');
+    // The SAME three figures the PASS branch prints, and they belong here more
+    // than they belong there.
+    //
+    // A passing run needs its scope stated so nobody reads a green line as a
+    // whole-database guarantee. A FAILING run needs it to be actionable at all:
+    // "3 field mismatch(es)" is a different decision at 3 of 40 column
+    // comparisons than at 3 of 800,000, and the operator making it is inside the
+    // cutover window choosing between proceeding and rolling back. Printed only
+    // on success, the denominator was available exactly when nobody needed it.
+    //
+    // First, not last, because everything below is a numerator. `VacuousVerification`
+    // Error already catches a run that compared too little to mean anything; this
+    // covers the wide band beneath that floor where the run is legitimate and its
+    // SCALE still changes the answer.
+    say(
+      `  Scope of this run: ${report.collections.length} collection(s), ` +
+        `${report.documentsSampled} sampled document(s), ` +
+        `${report.columnsCompared} column comparison(s). ` +
+        `Every figure below is out of these.`
+    );
     for (const count of report.countMismatches) {
       say(
         `  count  ${count.table}: the transforms produced ${count.expected} row(s), ` +
