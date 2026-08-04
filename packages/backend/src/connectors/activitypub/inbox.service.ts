@@ -31,6 +31,7 @@ import {
 } from './helpers';
 import { buildFederatedNoteContent, buildFederatedNoteContentForEdit } from './apPostContent';
 import { identityDomainOfActor } from './identityDomain';
+import { federationBridges } from './federationBridgePolicy';
 import { applyMentionPlaceholders, resolveInboundMentions } from './apMentions';
 import { isMentionBroadcast } from '@mention/shared-types/mentions';
 import { normalizeMentionIds } from '../../utils/textProcessing';
@@ -536,6 +537,13 @@ export class InboxProcessingService {
       // bridge host the copy arrived through; an ordinary actor falls back to
       // its own instance.
       identityDomain: identityDomainOfActor(actor),
+      // Only for a REVIEWED bridge. These operators flatten a retweet into a
+      // plain Note authored by the retweeter, carrying no reference to the
+      // original at all — so the post would appear under a byline that did not
+      // write it, with no way to reach the real author. Dropped until the
+      // original can be shown. An ordinary instance is never gated this way, so
+      // a human opening a post with "RT:" is unaffected.
+      dropFlattenedRetweets: federationBridges.findBridge(actor?.domain ?? '') !== undefined,
     });
     if (built.skip) {
       logger.debug('[Federation] skipped empty Create', {

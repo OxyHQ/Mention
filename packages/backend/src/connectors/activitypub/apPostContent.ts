@@ -6,6 +6,7 @@ import {
 } from '@mention/shared-types';
 import { normalizeMultilineText } from '@oxyhq/core';
 import { qualifyBareHandles } from '@mention/shared-types/textEntities';
+import { isBridgeFlattenedRetweet } from './flattenedRetweet';
 import { htmlToInlineLabel, htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { normalizePostHashtags } from '../../utils/textProcessing';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
@@ -51,6 +52,11 @@ export interface BuildFederatedNoteContentContext {
    * and every dry run wants.
    */
   identityDomain?: string;
+  /**
+   * Drop a Note whose body is a retweet the bridge flattened into plain text.
+   * Set only for actors on a reviewed bridge — see {@link isBridgeFlattenedRetweet}.
+   */
+  dropFlattenedRetweets?: boolean;
   /**
    * Disable media persistence/queueing for an administrative dry run. Normal
    * ingest defaults to true; false keeps extracted remote URLs unchanged.
@@ -449,6 +455,12 @@ export async function buildFederatedNoteContent(
   ctx: BuildFederatedNoteContentContext = {},
 ): Promise<BuiltFederatedNoteContent | SkippedFederatedNoteContent> {
   const built = await assembleFederatedNoteContent(object, ownerOxyUserId, ctx);
+
+  // Checked BEFORE the empty-note guard so the reason a post was dropped is the
+  // real one rather than whatever it degrades into.
+  if (ctx.dropFlattenedRetweets && isBridgeFlattenedRetweet(built.text.trim())) {
+    return { skip: true, reason: 'bridge-flattened-retweet' };
+  }
 
   const hasText = built.text.trim().length > 0;
   if (!hasText && built.media.length === 0 && built.attachments.length === 0 && built.summary === undefined) {
