@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import { isApActorType } from '@oxyhq/federation';
 import { createInboundDispatcher } from '@oxyhq/federation/node';
 import { logger } from '../../utils/logger';
 import { findActorByUri } from '../../db/federation/actorRepository';
@@ -962,8 +963,16 @@ export class InboxProcessingService {
           );
         }
       }
-    } else if (object.type === 'Person' || object.type === 'Service' || object.type === 'Application') {
-      // Profile update — re-fetch the actor to get updated data
+    } else if (isApActorType(object.type)) {
+      // Profile update — re-fetch the actor to get updated data.
+      //
+      // Every AS2 actor type, not the `Person | Service | Application` subset
+      // this used to name: `Group` and `Organization` are ordinary actors that
+      // edit their profiles like any other, and dropping their Update applied
+      // NOTHING with no error — a Lemmy community's renames and avatar changes
+      // never landed here. It also became load-bearing the moment a channel
+      // started federating as `Organization`: without this, a Mention channel's
+      // profile edit would not propagate to another Mention instance.
       await actorService.fetchRemoteActor(actorUri);
       logger.debug('[Federation] updated federated actor');
     }
