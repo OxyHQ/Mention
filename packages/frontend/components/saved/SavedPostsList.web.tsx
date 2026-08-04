@@ -29,6 +29,24 @@ export default function SavedPostsList({
   onLongPress,
   backgroundColor,
 }: SavedPostsListProps) {
+  // REQUIRED — without it `getTotalSize()` below is called once and cached
+  // forever, so the spacer stops tracking the content. `useWindowVirtualizer`
+  // returns an instance whose identity is stable for this component's lifetime,
+  // and the compiler keys the cached call on exactly that (`$[11] !==
+  // virtualizer`), which never changes. Rows are taller than the 280px estimate,
+  // so the real total grows as they measure and the frozen value does not:
+  // measured against this component, the spacer stayed at 5600px where it should
+  // have reached 8400px. A spacer shorter than its absolutely-positioned rows
+  // does not grow to contain them, so the column — and the sticky side rails'
+  // containing block — stops short and the rails scroll away.
+  //
+  // The `useEffect` below deliberately avoids a "latest ref" written during
+  // render, which is correct and is also why this function compiles at all;
+  // `Feed.web.tsx` is safe from this only because it does the illegal thing and
+  // gets refused. Opting out is the honest version of that accident. There is no
+  // `subscribe` on the virtualizer to drive `useSyncExternalStore` from.
+  'use no memo';
+
   const headerRef = useRef<HTMLDivElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
