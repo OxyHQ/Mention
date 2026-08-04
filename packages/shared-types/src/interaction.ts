@@ -28,7 +28,7 @@ export interface Interaction {
   targetType: 'post' | 'user' | 'comment';
   type: InteractionType;
   status: InteractionStatus;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }

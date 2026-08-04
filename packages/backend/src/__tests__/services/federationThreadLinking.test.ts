@@ -26,6 +26,49 @@ interface StoredPost {
   content?: { text?: string };
 }
 
+/**
+ * Shape of a `records.find({...})` query, narrowed from the two real call
+ * sites: the bulk-dedup `$in` lookup and the reconciliation script's
+ * cursor-paginated orphan scan.
+ */
+interface PostFindQuery {
+  'federation.activityId'?: { $in?: string[] };
+  'federation.inReplyTo'?: unknown;
+  _id?: { $gt?: string };
+}
+
+/** The `$set` shape every `Post.updateOne` call in this suite writes. */
+interface PostUpdateBody {
+  $set?: { parentPostId?: string | null; threadId?: string | null };
+}
+
+/** A raw Mongo document as `Post.collection.insertMany` receives it. */
+interface InsertManyDoc {
+  federation?: { activityId?: string; inReplyTo?: string };
+  threadId?: string | null;
+  parentPostId?: string | null;
+  status?: string;
+  visibility?: string;
+  content?: { text?: string };
+}
+
+/** One `Post.bulkWrite` operation, narrowed to the fields this store applies. */
+interface BulkWriteOp {
+  updateOne?: {
+    filter: { _id?: unknown };
+    update: { $set?: { parentPostId?: string | null; threadId?: string | null } };
+  };
+}
+
+/** Params the `PostCreationService.create` stand-in below is called with. */
+interface PostCreatorParams {
+  federation?: { activityId?: string; inReplyTo?: string };
+  threadId?: string | null;
+  parentPostId?: string | null;
+  visibility?: string;
+  content?: { text?: string };
+}
+
 const h = vi.hoisted(() => {
   const store: StoredPost[] = [];
   const state = { counter: 0 };
@@ -40,7 +83,7 @@ const h = vi.hoisted(() => {
   };
 
   // --- Post model (stateful) ---
-  const postFindOne = vi.fn((query: Record<string, any>) => ({
+  const postFindOne = vi.fn((query: Record<string, unknown>) => ({
     lean: async () => {
       if (query?.['federation.activityId'] !== undefined) {
         const found = findByActivityId(query['federation.activityId']);
@@ -73,18 +116,18 @@ const h = vi.hoisted(() => {
 
   // Supports BOTH the bulk-dedup call (`.lean()` directly) and the
   // reconciliation script's paginated call (`.sort().limit().lean()`).
-  const postFind = vi.fn((query: Record<string, any>) => {
+  const postFind = vi.fn((query: PostFindQuery) => {
     const run = async () => {
-      const inClause = query?.['federation.activityId']?.$in;
+      const inClause = query['federation.activityId']?.$in;
       if (Array.isArray(inClause)) {
         return store
           .filter((p) => p.federation?.activityId !== undefined && inClause.includes(p.federation.activityId))
           .map((p) => ({ federation: { activityId: p.federation?.activityId } }));
       }
       // Reconciliation orphan query: federation.inReplyTo set, parentPostId null.
-      const wantsOrphans = query?.['federation.inReplyTo'] !== undefined;
+      const wantsOrphans = query['federation.inReplyTo'] !== undefined;
       if (wantsOrphans) {
-        const gt = query?._id?.$gt as string | undefined;
+        const gt = query._id?.$gt;
         return store
           .filter(
             (p) =>
@@ -105,7 +148,7 @@ const h = vi.hoisted(() => {
     return chain;
   });
 
-  const postUpdateOne = vi.fn(async (query: Record<string, any>, update: Record<string, any>) => {
+  const postUpdateOne = vi.fn(async (query: Record<string, unknown>, update: PostUpdateBody) => {
     let target: StoredPost | undefined;
     if (query?.['federation.activityId'] !== undefined) target = findByActivityId(query['federation.activityId']);
     else if (query?._id !== undefined) target = findById(query._id);
@@ -116,30 +159,30 @@ const h = vi.hoisted(() => {
     return { modifiedCount: target ? 1 : 0 };
   });
 
-  const postExists = vi.fn(async (query: Record<string, any>) => {
+  const postExists = vi.fn(async (query: Record<string, unknown>) => {
     const found = findByActivityId(query?.['federation.activityId']);
     return found ? { _id: found._id } : null;
   });
 
-  const postInsertMany = vi.fn(async (docs: Record<string, any>[]) => {
+  const postInsertMany = vi.fn(async (docs: InsertManyDoc[]) => {
     for (const doc of docs) {
       store.push({
         _id: nextId('inserted'),
         federation: {
-          activityId: (doc.federation as { activityId?: string })?.activityId,
-          inReplyTo: (doc.federation as { inReplyTo?: string })?.inReplyTo,
+          activityId: doc.federation?.activityId,
+          inReplyTo: doc.federation?.inReplyTo,
         },
-        threadId: (doc.threadId as string | null | undefined) ?? null,
-        parentPostId: (doc.parentPostId as string | null | undefined) ?? null,
-        status: doc.status as string | undefined,
-        visibility: doc.visibility as string | undefined,
-        content: doc.content as { text?: string } | undefined,
+        threadId: doc.threadId ?? null,
+        parentPostId: doc.parentPostId ?? null,
+        status: doc.status,
+        visibility: doc.visibility,
+        content: doc.content,
       });
     }
     return { insertedCount: docs.length };
   });
 
-  const postCountDocuments = vi.fn(async (query: Record<string, any>) => {
+  const postCountDocuments = vi.fn(async (query: Record<string, unknown>) => {
     if (query?.['federation.inReplyTo'] !== undefined) {
       return store.filter(
         (p) => p.federation?.inReplyTo != null && (p.parentPostId === null || p.parentPostId === undefined),
@@ -148,7 +191,7 @@ const h = vi.hoisted(() => {
     return store.length;
   });
 
-  const postBulkWrite = vi.fn(async (ops: Array<{ updateOne?: { filter: Record<string, any>; update: Record<string, any> } }>) => {
+  const postBulkWrite = vi.fn(async (ops: BulkWriteOp[]) => {
     let modified = 0;
     for (const op of ops) {
       const u = op.updateOne;
@@ -164,18 +207,18 @@ const h = vi.hoisted(() => {
   });
 
   // --- post creator (PostCreationService stand-in) ---
-  const postCreatorCreate = vi.fn(async (params: Record<string, any>) => {
+  const postCreatorCreate = vi.fn(async (params: PostCreatorParams) => {
     const created: StoredPost = {
       _id: nextId('created'),
       federation: {
-        activityId: (params.federation as { activityId?: string })?.activityId,
-        inReplyTo: (params.federation as { inReplyTo?: string })?.inReplyTo,
+        activityId: params.federation?.activityId,
+        inReplyTo: params.federation?.inReplyTo,
       },
-      threadId: (params.threadId as string | null | undefined) ?? null,
-      parentPostId: (params.parentPostId as string | null | undefined) ?? null,
+      threadId: params.threadId ?? null,
+      parentPostId: params.parentPostId ?? null,
       status: 'published',
-      visibility: (params.visibility as string | undefined) ?? 'public',
-      content: params.content as { text?: string } | undefined,
+      visibility: params.visibility ?? 'public',
+      content: params.content,
     };
     store.push(created);
     return created;

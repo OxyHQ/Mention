@@ -39,9 +39,9 @@ const h = vi.hoisted(() => {
 
   const aggregate = vi.fn(async () => state.candidates);
 
-  const find = vi.fn((query: Record<string, any>) => ({
+  const find = vi.fn((query: { _id?: { $in?: mongoose.Types.ObjectId[] } }) => ({
     lean: async () => {
-      const inClause = query?._id?.$in as mongoose.Types.ObjectId[] | undefined;
+      const inClause = query?._id?.$in;
       if (!Array.isArray(inClause)) return [];
       const wanted = new Set(inClause.map((id) => id.toString()));
       return state.roots.filter((r) => wanted.has(r._id.toString()));
