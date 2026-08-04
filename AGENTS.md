@@ -181,6 +181,65 @@ External networks are a pluggable module at `packages/backend/src/connectors/`:
 
 The old `services/FederationService.ts` facade has been replaced by the connectors module. Code that previously imported from `FederationService` now imports from the relevant connector or the registry.
 
+### A reposted post: whether we can rebuild it depends on what arrived, not on the network
+
+Three shapes reach us and they are NOT interchangeable. The rule is the same one
+every time — **structure comes from structured fields, never from the body** —
+and the outcome differs only because what the sender chose to include differs.
+
+- **A real `Announce`** — an ordinary boost. Nothing special.
+- **A quote** — the reference arrives in `quote` / `quoteUri` / `quoteUrl` /
+  `_misskey_quote` or the FEP-e232 `Link` tag. `extractApQuoteUri` reads all of
+  them, and a quoted post we do not hold is FETCHED through
+  `ensureQuotedNote` → `ensureFederatedNote`, the same signed, SSRF-safe,
+  depth-capped import a boost and a reply ancestor use. Mastodon ALSO renders
+  such a post's body as `RE: <url>`; that is a rendering for clients that cannot
+  show quotes, and it is never the source — a body carrying `RE: <url>` with no
+  quote field yields no quote, and a test pins it.
+- **A bridge-flattened retweet** — bird.makeup and mastox publish a plain Note,
+  authored by the RETWEETER, opening `RT: @original`, and carrying nothing else:
+  `inReplyTo` null, `tag` empty, no quote field, no link to the upstream post, no
+  id. Verified field by field on live notes from both. There is nothing to
+  rebuild from, so these are DROPPED at ingest
+  (`isBridgeFlattenedRetweet`) rather than published under a byline that did not
+  write them. Reading the `RT:` prefix is the one place a body decides anything,
+  and it is scoped to actors on a reviewed bridge because the failure directions
+  are unequal: a missed retweet stores what we stored before, a false match
+  destroys a real post.
+
+Do not "fix" the third case by parsing the prefix into an author and fetching
+them — that reconstructs from prose a relationship the bridge already destroyed,
+and it is the fragility that was deliberately removed from the identity path.
+
+### Bridge identity comes from the actor's `type`, not from its bio
+
+A bridge on stock server software has nothing to fingerprint. The tempting tell
+is the per-account notice it writes into each mirrored bio — and that fails on
+LANGUAGE: mastox serves the same sentence in English, French and Spanish, an
+entry listing two of them left 18 of 50 held actors unrelabelled, and nobody
+would report it because the account merely looks ordinary.
+
+`upstreamHandleFromAutomatedActor` reads `type` instead: every mirror is
+published as a `Service`, the operator's own account is a `Person`. **`Application`
+is refused** — that is the SERVER'S own actor (`https://<host>/actor`,
+`mastodon.internal`), and accepting it re-labels the instance itself.
+
+Not "relabel the whole host and exclude the admin": an exclusion list is
+unbounded, and one miss publishes a real person as an account on a network they
+may not use. Asking each actor what it is needs no list.
+
+### Handles in synced text are qualified only where the result resolves
+
+A handle written on another network means the account THERE, so ingest qualifies
+it (`@openai` → `@openai@x.com`) via `qualifyBareHandles`, keyed on
+`identityDomainOfActor` — which reads `networkAcct`, NOT `domain`: a re-labelled
+actor's `domain` still addresses the bridge.
+
+It answers for re-labelled actors ONLY. An ordinary instance's `@alice` already
+means alice there and already resolves, so qualifying it would lengthen the body
+of every federated post to say what the reader could already act on — measured
+before scoping it: 1,266 of 5,000 sampled posts, all ordinary Mastodon content.
+
 ### Feed System (MTN)
 
 Feeds live in `backend/src/mtn/` — ForYou, Following, Author, Hashtag, Explore, Custom, Videos feeds + tuners.
