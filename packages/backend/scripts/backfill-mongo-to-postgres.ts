@@ -128,6 +128,11 @@ import {
   assertTargetDeclared,
 } from '../src/db/backfill/targetDatabase';
 import {
+  assertSourceDatabase,
+  assertSourceDeclared,
+  assertSourceNotEmpty,
+} from '../src/db/backfill/sourceDatabase';
+import {
   CHECKPOINT_TABLE,
   clearState,
   loadState,
@@ -209,6 +214,15 @@ interface Options {
    * denylist.
    */
   readonly targetDatabase: string | undefined;
+  /**
+   * The SOURCE database this run believes it is reading. REQUIRED.
+   *
+   * The mirror of {@link targetDatabase}, and it closes the direction nothing
+   * guarded: a wrong `MONGODB_URI` that still connects makes every collection
+   * read as empty, the copy writes nothing, and the run exits 0. See
+   * `db/backfill/sourceDatabase.ts`.
+   */
+  readonly sourceDatabase: string | undefined;
   /** Must repeat `targetDatabase` to arm `--start-from-empty`. */
   readonly confirmTruncate: string | undefined;
   readonly batchSize: number;
@@ -241,6 +255,7 @@ function parseOptions(argv: readonly string[]): Options {
     restart: flag('restart'),
     startFromEmpty: flag('start-from-empty'),
     targetDatabase: value('target-database'),
+    sourceDatabase: value('source-database'),
     confirmTruncate: value('confirm-truncate'),
     batchSize: numeric('batch-size', DEFAULT_BATCH_SIZE),
     concurrency: numeric('concurrency', DEFAULT_CONCURRENCY),
@@ -283,6 +298,7 @@ async function main(): Promise<number> {
   // against the connection below. Argument-only, so a mistyped flag is refused
   // before a socket is opened rather than after two handshakes.
   const targetDatabase = assertTargetDeclared(options);
+  const sourceDatabase = assertSourceDeclared(options);
 
   const mongoUri = process.env.MONGODB_URI;
   if (!mongoUri) throw new Error('MONGODB_URI is not set — it names the SOURCE database');
@@ -321,6 +337,12 @@ async function main(): Promise<number> {
     // table is touched: is this the database the operator named? Everything
     // else in this file assumes the answer is yes.
     await assertTargetDatabase(db, targetDatabase);
+    // The same question asked of the other end, and the one nothing asked
+    // before: a `MONGODB_URI` pointing somewhere unintended reads every
+    // collection as empty, so the copy writes nothing and exits 0. Checked from
+    // the driver's own `databaseName`, never parsed out of the URI.
+    assertSourceDatabase(source.databaseName, sourceDatabase);
+    say(`Source database:   ${source.databaseName} (declared, and it agrees)`);
 
     // Both bookkeeping tables, checked HERE rather than where they are first
     // written. The checkpoint table is touched at the START of the copy and the
@@ -343,6 +365,14 @@ async function main(): Promise<number> {
     const discovery = await discover(source);
     reportDiscovery(discovery);
     if (discovery.unknown.length > 0) throw new UnknownCollectionError(discovery.unknown);
+    // The COARSEST possible count, and deliberately not per-collection floors:
+    // a single collection can legitimately empty out, so a floor on one encodes
+    // a population claim that rots — and a false refusal here costs the cutover
+    // window. Zero across ALL of them cannot be a production source, so this
+    // has no false-positive mode. Reported on success by `reportDiscovery`
+    // above, which stays a REPORTER: the refusal lives here, beside the other
+    // refusals, rather than inside something whose name promises only printing.
+    assertSourceNotEmpty(discovery.migrated.map((entry) => entry.documents));
 
     // ---- audit (pre-pass) -------------------------------------------------
     if (options.auditOnly || options.startFromEmpty) {

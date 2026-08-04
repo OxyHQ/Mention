@@ -452,6 +452,7 @@ run_release migration-order true true false 0
 printf '%s\n' \
   'task:bun packages/backend/dist/src/db/migrate.js --target-database=mention' \
   'task:bun packages/backend/dist/scripts/migrate.js' \
+  'task:bun packages/backend/dist/src/scripts/assertPostgresPopulated.js' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
   task:reconcile \
@@ -459,6 +460,17 @@ printf '%s\n' \
 diff -u \
   "$test_directory/migration-order/expected.log" \
   "$test_directory/migration-order/aws.log"
+
+# THE POPULATION FLOOR IS LAST, AND THAT IS THE ASSERTION ABOVE, not a detail
+# of the diff: it counts rows, so it cannot run before the Postgres migration
+# has created the tables to count. The whole-log `diff` is what notices if
+# someone reorders the list; grepping for the entry would pass either way round.
+#
+# What it buys is the case no HTTP check can see. A trunk image went live
+# against an EMPTY Postgres on 2026-08-04 and every smoke check passed, because
+# an empty store answers the anonymous feed 200 with no items. This entry fails
+# BEFORE `update-service`, so nothing is routed -- which the sequence above
+# proves by position: `service:` comes after it.
 
 # A migration one-shot that never STOPS is the case that reaches the EXIT trap's
 # unfinished-task warning -- the only signal that a migration may still be

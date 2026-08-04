@@ -118,6 +118,15 @@ export function readOnlyCollection(collection: DriverCollection): ReadOnlyCollec
 
 /** The source database, connected read-only-by-construction. */
 export interface MongoSource {
+  /**
+   * The name the driver actually connected to.
+   *
+   * Read from the connection rather than parsed out of `MONGODB_URI`: a URI
+   * carries the name in more than one place, so parsing re-derives — badly —
+   * something the driver already knows. `db/backfill/sourceDatabase.ts` is the
+   * consumer, and it is the mirror of `current_database()` on the target side.
+   */
+  readonly databaseName: string;
   /** Live collection names, from `db.listCollections()`. */
   listCollections(): Promise<string[]>;
   /** A read-only handle on one collection. */
@@ -142,6 +151,7 @@ export interface MongoSource {
  *   connection's lifetime because it owns its creation.
  */
 export function mongoSourceFromDb(db: DriverDb, close: () => Promise<void>): MongoSource {
+  const databaseName = db.databaseName;
   const existing = new Set<string>();
   let listed = false;
 
@@ -155,6 +165,7 @@ export function mongoSourceFromDb(db: DriverDb, close: () => Promise<void>): Mon
   }
 
   return {
+    databaseName,
     listCollections,
     collection(name) {
       return readOnlyCollection(db.collection<SourceDocument>(name));
