@@ -1,9 +1,12 @@
 // Types
 export * from './types';
 export * from './profileRoute';
+export * from './profileTabRoute';
+export * from './profileViewer';
 
 // Hooks
 export { useSubscription } from './hooks/useSubscription';
+export { usePersonProfileView } from './hooks/usePersonProfileView';
 export { useProfileScroll } from './hooks/useProfileScroll';
 export { useProfileAccount } from './hooks/useProfileAccount';
 export { useProfileChrome } from './hooks/useProfileChrome';
@@ -15,6 +18,8 @@ export { useChannelWriters } from './hooks/useChannelWriters';
 // Components
 export { ProfileSkeleton } from './ProfileSkeleton';
 export { ProfileShell } from './ProfileShell';
+export { ProfileChromeLayers } from './ProfileChromeLayers';
+export { ProfileTabBarRow } from './ProfileTabBarRow';
 export { ProfileHeader } from './ProfileHeader';
 export { ChannelHeader, ChannelActions } from './ChannelHeader';
 export { ProfileStats } from './ProfileStats';
