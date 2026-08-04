@@ -1779,5 +1779,17 @@
   "accountCategories": {
     "title": "Categorie",
     "primary": "Principale"
+  },
+  "settings": {
+    "interests": {
+      "searchPlaceholder": "Cerca argomenti",
+      "searchLabel": "Cerca argomenti",
+      "noMatches": "Nessun argomento corrisponde a “{{query}}”.",
+      "noTopics": "Non ci sono ancora argomenti disponibili.",
+      "chipFollow": "Segui {{topic}}",
+      "chipUnfollow": "Smetti di seguire {{topic}}",
+      "chipOffHere": "Mostra di nuovo {{topic}} su Mention",
+      "description": "Gli argomenti che segui plasmano il tuo feed e ti seguono in tutte le app Oxy."
+    }
   }
 }

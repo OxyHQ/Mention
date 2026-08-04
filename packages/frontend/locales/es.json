@@ -1999,5 +1999,17 @@
   "accountCategories": {
     "title": "Categorías",
     "primary": "Principal"
+  },
+  "settings": {
+    "interests": {
+      "searchPlaceholder": "Buscar temas",
+      "searchLabel": "Buscar temas",
+      "noMatches": "Ningún tema coincide con “{{query}}”.",
+      "noTopics": "Todavía no hay temas disponibles.",
+      "chipFollow": "Seguir {{topic}}",
+      "chipUnfollow": "Dejar de seguir {{topic}}",
+      "chipOffHere": "Volver a mostrar {{topic}} en Mention",
+      "description": "Los temas que sigues moldean tu feed y te acompañan en todas las apps de Oxy."
+    }
   }
 }

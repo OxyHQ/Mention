@@ -45,6 +45,15 @@ export const publicQueryKeys = {
     ...PUBLIC_ROOT,
     'marketplace-categories',
   ] as const,
+  /**
+   * The topic catalogue behind the interests picker — the default grid when the
+   * search box is empty, and the matches for a query otherwise.
+   *
+   * Public, and keyed only on the query: `/topics` is mounted on the public API
+   * and the catalogue is the same for every reader. What the VIEWER follows out
+   * of it is a separate, viewer-scoped key.
+   */
+  topicCatalogue: (query: string) => [...PUBLIC_ROOT, 'topic-catalogue', query] as const,
   trendingHistory: () => [...PUBLIC_ROOT, 'trending-history'] as const,
   /**
    * The generated summary of one trend, keyed by its TERM (the stable identity)
@@ -352,6 +361,33 @@ export const viewerQueryKeys = {
   interestsCategories: (viewerId: ViewerId) => [
     ...viewerQueryKeys.all(viewerId),
     'interests-categories',
+  ] as const,
+  /**
+   * Every topic this viewer follows, read in one paginated sweep of the
+   * user-owned follow graph rather than one status request per rendered chip.
+   *
+   * Holds the target ids and the SEED for the SDK's own store, never a second
+   * copy of follow status: `useFollowTarget` takes an `initialStatus` for
+   * exactly this case, and its store stays the sole authority once seeded.
+   */
+  followedTopics: (viewerId: ViewerId) => [
+    ...viewerQueryKeys.all(viewerId),
+    'follow-graph',
+    'topics',
+  ] as const,
+  /**
+   * The registered target id for ONE canonical URI.
+   *
+   * Keyed on the URI rather than on the slug or account id it was built from:
+   * the URI is the identity the graph resolves, so two callers that build the
+   * same one share a cache entry and two that build different ones cannot
+   * silently collide.
+   */
+  followGraphTarget: (viewerId: ViewerId, uri: string) => [
+    ...viewerQueryKeys.all(viewerId),
+    'follow-graph',
+    'target',
+    uri,
   ] as const,
   myAppearance: (viewerId: ViewerId) => [
     ...viewerQueryKeys.all(viewerId),

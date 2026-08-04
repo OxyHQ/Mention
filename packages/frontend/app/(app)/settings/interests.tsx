@@ -1,204 +1,179 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { Loading } from '@oxyhq/bloom/loading';
+import { SettingsListGroup } from '@oxyhq/bloom/settings-list';
+import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
+import { useFollowTarget } from '@oxyhq/services';
+import type { TopicData } from '@oxyhq/core';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { useTranslation } from 'react-i18next';
-import { useAppearanceStore } from '@/stores/appearanceStore';
-import { authenticatedClient } from '@/utils/api';
 import { topicService } from '@/services/topicService';
-import { SettingsListGroup } from '@oxyhq/bloom/settings-list';
-import { Icon } from '@/lib/icons';
+import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 import { cn } from '@/lib/utils';
-import { logger } from '@oxyhq/core/logger';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
-import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import {
+    useFollowedTopics,
+    useTopicFollowTargetId,
+    type FollowedTopic,
+} from '@/hooks/useTopicFollows';
+import { resolveTopicChipAction, topicFollowUri } from '@/services/followGraph';
 
-function debounce<T extends (...args: unknown[]) => unknown>(func: T, wait: number): T {
-    let timeout: ReturnType<typeof setTimeout> | null = null;
-    return ((...args: unknown[]) => {
-        if (timeout) clearTimeout(timeout);
-        timeout = setTimeout(() => func(...args), wait);
-    }) as T;
-}
-
+/**
+ * Your interests — a searchable grid of topics, where selecting one FOLLOWS it.
+ *
+ * This screen used to write a list of slugs to `interests.tags` on the profile
+ * settings. Nothing read that field: the feed learns topics from behaviour, not
+ * from it. A chip now creates a real edge in the user-owned follow graph
+ * instead, which every Oxy application shares — so a topic picked here is picked
+ * everywhere, and giving it up here gives it up everywhere.
+ *
+ * `interests.tags` is deliberately left alone rather than migrated or
+ * dual-written. Writing both would make two sources of truth for one intention,
+ * and whichever one a future reader picked would be a coin flip.
+ *
+ * The topics are Oxy's (`GET /topics` proxies to the Oxy API) and so is the kind
+ * — `oxy.topic` is seeded as a platform kind — so Mention registers nothing at
+ * all here. See `services/followGraph.ts`.
+ */
 export default function InterestsSettingsScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
-    const { colors } = useTheme();
-    const { user, canUsePrivateApi, isPrivateApiPending } = useAuth();
-    const mySettings = useAppearanceStore((state) => state.mySettings);
-    const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
-    const [isSaving, setIsSaving] = useState(false);
+    const { canUsePrivateApi, isPrivateApiPending } = useAuth();
 
-    // The interest categories are served by an auth-gated endpoint, so the query
-    // is keyed on the viewer identity and gated on `canUsePrivateApi` (matching
-    // the sibling authed settings screens). `getCategories` resolves to `[]` on
-    // failure rather than throwing, so the query always settles — the spinner can
-    // never hang, and an error simply surfaces the empty state.
-    const categoriesQuery = useQuery({
-        queryKey: viewerQueryKeys.interestsCategories(user?.id),
-        queryFn: () => topicService.getCategories(),
-        enabled: canUsePrivateApi,
+    const [query, setQuery] = useState('');
+    const trimmedQuery = query.trim();
+
+    /*
+     * An empty box shows the curated categories; a query searches the catalogue.
+     * ONE query key covers both, because they answer the same question — what
+     * should the grid show — and a second key would let the two disagree about
+     * which is on screen.
+     *
+     * Not gated on the viewer: `/topics` is mounted on the public API and the
+     * catalogue is the same for everyone. Only the FOLLOW state below is
+     * viewer-scoped. Both service calls resolve to an empty list rather than
+     * throwing, so the grid always settles.
+     */
+    const catalogue = useQuery({
+        queryKey: publicQueryKeys.topicCatalogue(trimmedQuery),
+        queryFn: () =>
+            trimmedQuery.length > 0
+                ? topicService.search(trimmedQuery, 40)
+                : topicService.getCategories(),
         staleTime: 5 * 60 * 1000,
     });
 
-    // Drive the Zustand `loadMySettings` action declaratively through React Query
-    // (no data-fetching effect, no fire-and-forget `void`). The action swallows its
-    // own errors, so this query settles regardless of outcome — the spinner clears
-    // on success AND on failure, rather than waiting forever for `mySettings` to
-    // become truthy (the old permanent-spinner bug).
-    const mySettingsQuery = useQuery({
-        queryKey: viewerQueryKeys.myAppearance(user?.id),
-        queryFn: async () => {
-            await loadMySettings(true);
-            return useAppearanceStore.getState().mySettings ?? null;
-        },
-        enabled: canUsePrivateApi,
-    });
-
-    const availableInterests = useMemo(
-        () => (categoriesQuery.data ?? []).map((c) => ({ name: c.slug, displayName: c.displayName })),
-        [categoriesQuery.data]
-    );
-
-    const preselectedInterests = useMemo(
-        () => mySettings?.interests?.tags || [],
-        [mySettings?.interests?.tags]
-    );
-
-    // Loading is derived from the two queries' fetch state (never from data
-    // presence). Both `getCategories` and `loadMySettings` resolve to an
-    // empty/degraded result instead of throwing, so `isLoading` always returns to
-    // `false` — the error path ends the spinner and shows the empty state.
-    const isLoading = categoriesQuery.isLoading || mySettingsQuery.isLoading;
-
-    // Seed the locally-editable selection from the loaded settings, re-syncing
-    // whenever the persisted tags change (React's "adjust state during render"
-    // pattern — no effect). `preselectedInterests` only changes reference when the
-    // stored `interests.tags` array does, so this fires once per real update.
-    const [interests, setInterests] = useState<string[]>(preselectedInterests);
-    const [syncedInterests, setSyncedInterests] = useState<string[]>(preselectedInterests);
-    if (syncedInterests !== preselectedInterests) {
-        setSyncedInterests(preselectedInterests);
-        setInterests(preselectedInterests);
-    }
-
-    const saveInterests = useMemo(() => {
-        return debounce(async (...args: unknown[]) => {
-            const newInterests = args[0] as string[];
-            const noEdits =
-                newInterests.length === preselectedInterests.length &&
-                preselectedInterests.every(pre => {
-                    return newInterests.find(int => int === pre);
-                });
-
-            if (noEdits) return;
-
-            setIsSaving(true);
-
-            try {
-                await authenticatedClient.put('/profile/settings', {
-                    interests: {
-                        tags: newInterests,
-                    },
-                });
-
-                await loadMySettings(true);
-
-                logger.info('Interests saved successfully');
-            } catch (error) {
-                logger.error('Failed to save interests', error);
-            } finally {
-                setIsSaving(false);
-            }
-        }, 1500);
-    }, [preselectedInterests, loadMySettings]);
-
-    const onChangeInterests = useCallback((newInterests: string[]) => {
-        setInterests(newInterests);
-        saveInterests(newInterests);
-    }, [saveInterests]);
-
-    const toggleInterest = useCallback((interest: string) => {
-        const newInterests = interests.includes(interest)
-            ? interests.filter(i => i !== interest)
-            : [...interests, interest];
-        onChangeInterests(newInterests);
-    }, [interests, onChangeInterests]);
+    const followed = useFollowedTopics();
+    const topics = useMemo(() => catalogue.data ?? [], [catalogue.data]);
 
     if (isPrivateApiPending) {
         return (
-            <ThemedView className="flex-1">
-                <Header
-                    options={{
-                        title: t('settings.interests.title', { defaultValue: 'Your interests' }),
-                        leftComponents: [
-                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    hideBottomBorder
-                    disableSticky
-                />
+            <InterestsShell t={t} safeBack={safeBack}>
                 <View className="flex-1 justify-center items-center bg-background">
                     <Loading className="text-primary" size="large" />
                 </View>
-            </ThemedView>
+            </InterestsShell>
         );
     }
 
     if (!canUsePrivateApi) {
         return (
-            <ThemedView className="flex-1">
-                <Header
-                    options={{
-                        title: t('settings.interests.title', { defaultValue: 'Your interests' }),
-                        leftComponents: [
-                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    hideBottomBorder
-                    disableSticky
-                />
+            <InterestsShell t={t} safeBack={safeBack}>
                 <OxyAuthPrompt
-                    label={t('settings.interests.signInRequired', { defaultValue: 'Sign in to choose your interests' })}
-                    description={t('settings.interests.signInRequiredDesc', { defaultValue: 'Pick topics so we can tailor your feed.' })}
+                    label={t('settings.interests.signInRequired', {
+                        defaultValue: 'Sign in to choose your interests',
+                    })}
+                    description={t('settings.interests.signInRequiredDesc', {
+                        defaultValue: 'Pick topics so we can tailor your feed.',
+                    })}
                 />
-            </ThemedView>
+            </InterestsShell>
         );
     }
 
-    if (isLoading) {
-        return (
-            <ThemedView className="flex-1">
-                <Header
-                    options={{
-                        title: t('settings.interests.title', { defaultValue: 'Your interests' }),
-                        leftComponents: [
-                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    hideBottomBorder
-                    disableSticky
-                />
-                <View className="flex-1 justify-center items-center bg-background">
-                    <Loading className="text-primary" size="large" />
+    return (
+        <InterestsShell t={t} safeBack={safeBack}>
+            <ScrollView
+                className="flex-1"
+                contentContainerClassName="py-2"
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+            >
+                <View className="px-4 pb-2">
+                    <TextInput
+                        value={query}
+                        onChangeText={setQuery}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        placeholder={t('settings.interests.searchPlaceholder', {
+                            defaultValue: 'Search topics',
+                        })}
+                        accessibilityLabel={t('settings.interests.searchLabel', {
+                            defaultValue: 'Search topics',
+                        })}
+                        className="bg-muted text-foreground rounded-2xl px-4 py-3 text-[15px]"
+                    />
                 </View>
-            </ThemedView>
-        );
-    }
 
+                <SettingsListGroup
+                    title={t('settings.interests.title', { defaultValue: 'Your interests' })}
+                    footer={t('settings.interests.description', {
+                        defaultValue:
+                            'Topics you follow shape your feed, and come with you to every Oxy app.',
+                    })}
+                >
+                    {catalogue.isLoading ? (
+                        <View className="py-8 items-center">
+                            <Loading className="text-primary" size="large" />
+                        </View>
+                    ) : topics.length === 0 ? (
+                        <View className="px-4 py-6">
+                            <Text className="text-[13px] text-muted-foreground">
+                                {trimmedQuery.length > 0
+                                    ? t('settings.interests.noMatches', {
+                                        query: trimmedQuery,
+                                        defaultValue: 'No topics match “{{query}}”.',
+                                    })
+                                    : t('settings.interests.noTopics', {
+                                        defaultValue: 'No topics are available yet.',
+                                    })}
+                            </Text>
+                        </View>
+                    ) : (
+                        <View className="flex-row flex-wrap gap-2 px-4 py-4">
+                            {topics.map((topic) => (
+                                <TopicChip
+                                    key={topic.slug}
+                                    topic={topic}
+                                    seeded={followed.byUri.get(topicFollowUri(topic.slug))}
+                                    // Until the sweep lands, a chip cannot tell
+                                    // "not followed" from "not asked yet", and
+                                    // offering to follow something already
+                                    // followed is the one mistake this screen
+                                    // must not make.
+                                    followsReady={followed.isReady}
+                                />
+                            ))}
+                        </View>
+                    )}
+                </SettingsListGroup>
+            </ScrollView>
+        </InterestsShell>
+    );
+}
+
+interface ShellProps {
+    t: (key: string, options?: { defaultValue?: string }) => string;
+    safeBack: () => void;
+    children: React.ReactNode;
+}
+
+/** The chrome every branch of this screen shares, so the header cannot drift. */
+function InterestsShell({ t, safeBack, children }: ShellProps) {
     return (
         <ThemedView className="flex-1">
             <Header
@@ -209,79 +184,120 @@ export default function InterestsSettingsScreen() {
                             <BackArrowIcon size={20} className="text-foreground" />
                         </IconButton>,
                     ],
-                    rightComponents: isSaving ? [
-                        <View key="loading" className="p-1 mr-2">
-                            <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
-                        </View>,
-                    ] : [],
                 }}
                 hideBottomBorder
                 disableSticky
             />
-            <ScrollView
-                className="flex-1"
-                contentContainerClassName="py-2"
-                showsVerticalScrollIndicator={false}
-            >
-                {interests.length === 0 && (
-                    <SettingsListGroup>
-                        <View className="px-4 py-3.5 flex-row items-center gap-3">
-                            <View className="w-7 items-center justify-center">
-                                <Icon name="information-circle-outline" size={20} color={colors.primary} />
-                            </View>
-                            <Text className="flex-1 text-[13px] text-foreground">
-                                {t('settings.interests.tip', { defaultValue: 'We recommend selecting at least two interests.' })}
-                            </Text>
-                        </View>
-                    </SettingsListGroup>
-                )}
-
-                <SettingsListGroup
-                    title={t('settings.interests.title', { defaultValue: 'Your interests' })}
-                    footer={t('settings.interests.description', {
-                        defaultValue: 'Your selected interests help us serve you content you care about.',
-                    })}
-                >
-                    <View className="flex-row flex-wrap gap-2 px-4 py-4">
-                        {availableInterests.map(({ name, displayName }) => (
-                            <InterestButton
-                                key={name}
-                                interest={name}
-                                label={displayName}
-                                isSelected={interests.includes(name)}
-                                onPress={() => toggleInterest(name)}
-                            />
-                        ))}
-                    </View>
-                </SettingsListGroup>
-            </ScrollView>
+            {children}
         </ThemedView>
     );
 }
 
-interface InterestButtonProps {
-    interest: string;
-    label: string;
-    isSelected: boolean;
-    onPress: () => void;
+interface TopicChipProps {
+    topic: TopicData;
+    seeded: FollowedTopic | undefined;
+    followsReady: boolean;
 }
 
-function InterestButton({ label, isSelected, onPress }: InterestButtonProps) {
+/**
+ * ONE topic, as a chip whose selected state IS the follow.
+ *
+ * A chip rather than the SDK's `FollowTargetButton` because the two want
+ * opposite fills: that button is a call to action, so it draws PRIMARY when you
+ * do NOT follow yet, while a selected chip in a picker has to be the filled one.
+ * A grid of filled chips meaning "none selected" is worse than a local
+ * affordance. The state machine is still the SDK's — `useFollowTarget` owns the
+ * optimistic update, the rollback and the store — and only the drawing is local.
+ */
+function TopicChip({ topic, seeded, followsReady }: TopicChipProps) {
+    const { t } = useTranslation();
+
+    const targetId = useTopicFollowTargetId({
+        slug: topic.slug,
+        displayName: topic.displayName,
+        ...(topic.icon ? { icon: topic.icon } : {}),
+        ...(seeded ? { seededTargetId: seeded.targetId } : {}),
+    });
+
+    const follow = useFollowTarget(
+        targetId,
+        seeded ? { initialStatus: seeded.status } : undefined,
+    );
+
+    const isOffHere = follow.isFollowing && follow.status.applicationMode === 'disabled';
+
+    const onPress = useCallback(() => {
+        switch (
+        resolveTopicChipAction({
+            isFollowing: follow.isFollowing,
+            applicationMode: follow.status.applicationMode,
+        })
+        ) {
+            case 'follow':
+                void follow.follow();
+                return;
+            case 'enable-here':
+                void follow.enableHere();
+                return;
+            case 'unfollow':
+                void follow.unfollow();
+        }
+    }, [follow]);
+
+    /*
+     * Inert until BOTH the sweep has settled and a target exists. Pressing
+     * earlier would either act on a relationship whose state is not yet known or
+     * address a row that does not exist yet.
+     */
+    const disabled = !followsReady || !targetId || follow.isPending;
+
+    const label = topic.displayName || topic.slug;
+
     return (
         <TouchableOpacity
             className={cn(
-                "px-4 py-2.5 rounded-full border",
-                isSelected
-                    ? "bg-primary border-primary"
-                    : "bg-muted border-border"
+                'px-4 py-2.5 rounded-full border',
+                // `bg-muted`, not `bg-secondary`: under Bloom 0.74's colour
+                // system `secondary` is an ACCENT and renders red here, so an
+                // unpicked interest looked like a destructive action. `muted` is
+                // the neutral surface, and the same token the search box above
+                // uses — an unpicked chip should read as "not chosen", not as a
+                // warning.
+                follow.isFollowing ? 'bg-primary border-primary' : 'bg-muted border-border',
+                // Followed globally, switched off in Mention: still selected —
+                // the person does follow it — but visibly not acting here, and
+                // one press turns it back on rather than giving it up everywhere.
+                isOffHere && 'opacity-60',
+                disabled && 'opacity-40',
             )}
             onPress={onPress}
+            disabled={disabled}
+            accessibilityRole="button"
+            accessibilityState={{ selected: follow.isFollowing, disabled }}
+            accessibilityLabel={
+                isOffHere
+                    ? t('settings.interests.chipOffHere', {
+                        topic: label,
+                        defaultValue: 'Show {{topic}} in Mention again',
+                    })
+                    : follow.isFollowing
+                        ? t('settings.interests.chipUnfollow', {
+                            topic: label,
+                            defaultValue: 'Unfollow {{topic}}',
+                        })
+                        : t('settings.interests.chipFollow', {
+                            topic: label,
+                            defaultValue: 'Follow {{topic}}',
+                        })
+            }
             activeOpacity={0.7}
         >
             <Text
                 className={cn(
-                    "text-sm",
-                    isSelected ? "text-primary-foreground font-semibold" : "text-foreground font-medium"
+                    'text-sm',
+                    follow.isFollowing
+                        ? 'text-primary-foreground font-semibold'
+                        : 'text-foreground font-medium',
                 )}
             >
                 {label}
