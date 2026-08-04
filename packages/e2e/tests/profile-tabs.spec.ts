@@ -144,23 +144,44 @@ test('a profile pushed from another profile still opens on the default tab', asy
   // thing that has broken, and each row is a `ProfileCard`, i.e. a literal
   // `router.push('/@handle')`.
   await page.goto(`/@${PROFILE_HANDLE}/followers`);
-  await expect(page.locator('[role="button"]').first()).toBeVisible();
 
-  const pushed = await page.evaluate((here: string) => {
-    const cards = Array.from(document.querySelectorAll('[role="button"]')).filter((element) => {
+  // Find the first federated row and focus it. ONE function, used to wait AND to
+  // pick, so what is waited for cannot drift from what is pressed. Focusing while
+  // polling is harmless: it runs only once a match exists, and the same call
+  // below leaves the focus this test's Enter needs.
+  const focusFederatedCard = (here: string): boolean => {
+    const first = Array.from(document.querySelectorAll('[role="button"]')).filter((element) => {
       const text = (element.textContent || '').replace(/\s+/g, ' ').trim();
       if (text.length > 200 || text.includes('·')) return false;
       const match = text.match(/@([a-z0-9_.@-]+)/i);
       // An instance suffix is what makes the actor remote, and therefore cold.
       return Boolean(match) && match?.[1] !== here && Boolean(match?.[1]?.includes('@'));
-    });
-    const first = cards[0];
+    })[0];
     if (!first) return false;
     // Focus + Enter: `mention.earth` renders zero anchors, and a real mouse
     // click on an RNW `Pressable` is a measured no-op.
     (first as HTMLElement).focus();
     return true;
-  }, PROFILE_HANDLE);
+  };
+
+  // Waiting for the first `[role="button"]` was NOT waiting for the list, and
+  // that is what made this gate unpassable. Measured against production: at the
+  // moment that condition is satisfied the page holds TWO buttons — both app
+  // chrome — and ZERO follower rows; the rows arrive ~1.5s later, at which point
+  // there are twenty buttons and seven federated actors. So the gate evaluated an
+  // empty list every time and reported it as "no federated account exists" — a
+  // verdict about the fixture rather than about the candidate, which is what sent
+  // an earlier investigation to the followers API hunting for data that was there
+  // all along.
+  //
+  // A timeout is deliberately NOT an error here: it falls through to the
+  // assertion below, so a fixture that genuinely has no federated follower still
+  // reports exactly as it did before.
+  await page
+    .waitForFunction(focusFederatedCard, PROFILE_HANDLE, { timeout: 20_000 })
+    .catch(() => undefined);
+
+  const pushed = await page.evaluate(focusFederatedCard, PROFILE_HANDLE);
 
   // Not a skip. A skip is indistinguishable from a pass in a report, and this
   // flow exists to block a promotion. If no federated card rendered, the gate
