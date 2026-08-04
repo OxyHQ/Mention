@@ -89,6 +89,7 @@ import {
   ISOLATED_DATABASE_FILES,
   needsIsolatedDatabase,
 } from './isolatedDatabaseFiles';
+import { SCRIPT_SCOPE } from './scriptScope';
 
 /** `packages/backend/` — the root the listed paths are relative to. */
 const PACKAGE_ROOT = resolve(__dirname, '..', '..');
@@ -150,6 +151,8 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
     call: /\bbackfillFederatedHandleQualification\s*\(/,
   },
   { name: 'backfillQuotedPosts', call: /\bbackfillQuotedPosts\s*\(/ },
+  { name: 'backfillPostLanguages', call: /\bbackfillPostLanguages\s*\(/ },
+  { name: 'backfillCustomFeedDefinitions', call: /\bbackfillCustomFeedDefinitions\s*\(/ },
 ];
 
 /** Every `*.test.ts` under `src/__tests__/`, as paths relative to the package root. */
@@ -247,6 +250,95 @@ describe('isolated-database file list', () => {
   it('gives each entry a reason naming what the job reaches', () => {
     for (const entry of ISOLATED_DATABASE_FILES) {
       expect(entry.reason.length, `${entry.path} has no reason recorded`).toBeGreaterThan(40);
+    }
+  });
+});
+
+/**
+ * Every `src/scripts/…` specifier a test file imports, and who imports it.
+ *
+ * Matches the IMPORT rather than the call, and deliberately not a directory: the
+ * two most recently discovered whole-table reconcilers
+ * (`backfillPostLanguages`, `backfillCustomFeedDefinitions`) have their suites at
+ * the top of `src/__tests__/`, so a rule keyed on `src/__tests__/scripts/`
+ * reports them clean. A deeper relative prefix and a shallower one state the
+ * same fact about the same module, so the pattern accepts any depth.
+ *
+ * This file is scanned by its own regex like every other, which is deliberate —
+ * excluding the scanner from its own scan is the hole that hides the next real
+ * caller. So no example here is written in the matching form.
+ */
+const SCRIPT_IMPORT = /from '(?:\.\.\/)+scripts\/([A-Za-z0-9._/-]+)'/g;
+
+function scriptImportsOf(source: string): string[] {
+  return [...source.matchAll(SCRIPT_IMPORT)].map((match) => match[1] ?? '');
+}
+
+const scriptImportsByFile = new Map(
+  testFiles.map((file) => [file, scriptImportsOf(sourceByFile.get(file) ?? '')] as const),
+);
+
+describe('script scope declarations', () => {
+  it('found script imports at all, so an empty scan cannot read as clean', () => {
+    const total = [...scriptImportsByFile.values()].reduce((sum, list) => sum + list.length, 0);
+    // 20 against the ~28 importing files present: a floor that survives churn
+    // while still failing a regex that stopped matching.
+    expect(total).toBeGreaterThanOrEqual(20);
+  });
+
+  it('classifies every script a test imports', () => {
+    for (const [file, specifiers] of scriptImportsByFile) {
+      for (const specifier of specifiers) {
+        expect(
+          SCRIPT_SCOPE[specifier],
+          `${file} imports src/scripts/${specifier}, which has no entry in SCRIPT_SCOPE. ` +
+          'Classify it: does its DRIVING SELECT name an owner, or does it page a whole ' +
+          'table? Read the select that CHOOSES the rows, not the where on the write — ' +
+          'every known offender updates by primary key.',
+        ).toBeDefined();
+      }
+    }
+  });
+
+  it('isolates every test that drives a whole-table script', () => {
+    /**
+     * THE PROPERTY THREE SEPARATE SCANS EACH GOT A DIFFERENT ANSWER TO, now
+     * derived from imports instead of from wherever somebody chose to look.
+     */
+    for (const [file, specifiers] of scriptImportsByFile) {
+      for (const specifier of specifiers) {
+        if (SCRIPT_SCOPE[specifier]?.scope !== 'whole-table') continue;
+        expect(
+          needsIsolatedDatabase(join(PACKAGE_ROOT, file)),
+          `${file} imports src/scripts/${specifier}, declared "whole-table" — it pages a ` +
+          'whole table and rewrites what it finds, so on the shared database it reaches ' +
+          "rows other files own. Add it to ISOLATED_DATABASE_FILES.",
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('gives every caller-scoped declaration a reason, since that is the claim', () => {
+    // A `whole-table` entry is enforced by the check above; a `caller-scoped`
+    // one is a human assertion that nothing enforces, so it has to say why.
+    for (const [specifier, declaration] of Object.entries(SCRIPT_SCOPE)) {
+      expect(
+        declaration.reason.length,
+        `${specifier} is declared "${declaration.scope}" with no reason recorded`,
+      ).toBeGreaterThan(40);
+    }
+  });
+
+  it('has no declaration for a script no test imports', () => {
+    // Membership is driven by imports, so a stale entry is a claim about a file
+    // nothing exercises — and it would keep reading as covered.
+    const imported = new Set([...scriptImportsByFile.values()].flat());
+    for (const specifier of Object.keys(SCRIPT_SCOPE)) {
+      expect(
+        imported.has(specifier),
+        `SCRIPT_SCOPE declares src/scripts/${specifier}, which no test imports — drop it ` +
+        'rather than carrying a classification nothing checks',
+      ).toBe(true);
     }
   });
 });
