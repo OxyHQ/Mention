@@ -167,7 +167,7 @@ async function readEvent() {
  * suite's row would not fail here; it would succeed, deliver through this file's
  * mocked client, and fail over there.
  */
-async function tick(): Promise<{ processed: number; failed: number; deadLettered: number }> {
+async function assertOursIsNext(): Promise<void> {
   const now = new Date();
   const [next] = await getDb()
     .select({ id: moderationOutbox.id })
@@ -187,8 +187,30 @@ async function tick(): Promise<{ processed: number; failed: number; deadLettered
         `Backdate this file's event further than every other suite's.`,
     );
   }
+}
+
+async function tick(): Promise<{ processed: number; failed: number; deadLettered: number }> {
+  await assertOursIsNext();
   return dispatchModerationOutbox({ handler: handleModerationOutboxEvent, batchSize: 1 });
 }
+
+/**
+ * One dispatcher pass with a handler of the test's choosing — same isolation
+ * contract as {@link tick}, which is why the guard is shared rather than copied.
+ *
+ * The lease tests below need a handler that is SLOW (so the heartbeat has time to
+ * fire) or HOSTILE (so it can steal the row mid-delivery); neither is expressible
+ * through `handleModerationOutboxEvent`, and neither may skip the guard.
+ */
+async function dispatchOurs(
+  handler: (event: Parameters<typeof handleModerationOutboxEvent>[0]) => Promise<void>,
+  options: { leaseMs?: number; signal?: AbortSignal } = {},
+): Promise<{ processed: number; failed: number; deadLettered: number }> {
+  await assertOursIsNext();
+  return dispatchModerationOutbox({ handler, batchSize: 1, ...options });
+}
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Make the event due again, as the passage of real time would. */
 async function fastForwardPastBackoff(): Promise<void> {
@@ -382,5 +404,114 @@ describe('moderation outbox — delivery survives CrowdSource being unreachable'
     expect(concurrent).toBeNull();
     expect(mocks.reportsCreate).toHaveBeenCalledTimes(1);
     expect((await readEvent())?.status).toBe('processed');
+  });
+});
+
+/**
+ * The lease under contention — what keeps N ECS tasks from delivering one report.
+ *
+ * `moderationOutboxDispatcher` starts on EVERY task, so "two dispatchers, one row"
+ * is the normal case rather than an edge one, and the heartbeat is the whole of
+ * what makes a delivery longer than one lease safe. Every case here drives that
+ * with a REAL second owner — a row update by another `leaseOwner` — and never by
+ * stubbing `renewModerationOutboxEvent` to answer false. The distinction is not
+ * stylistic: a stub proves the code reacts to a `false`, while a genuine steal
+ * additionally proves the repository's own `ownedLease` predicate is what produces
+ * that `false`. Only the second is evidence about two tasks.
+ *
+ * This block exists because the Postgres port silently removed it. The Mongo
+ * suites forced these paths by making a mocked model answer however they liked;
+ * rewriting them onto real rows kept every assertion and lost every path that
+ * needs a second actor, so the four heartbeat closures and both lease-loss
+ * branches went unexecuted while the file stayed green. It surfaced as a coverage
+ * threshold, not as a failure — which is the only reason anybody looked.
+ */
+describe('moderation outbox — the lease under contention', () => {
+  beforeEach(async () => {
+    await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
+    vi.clearAllMocks();
+    mocks.reportsCreate.mockReset();
+    await seed();
+  });
+
+  it('renews its own lease, so a delivery may outlive the lease it started with', async () => {
+    /**
+     * The timings are the assertion. `leaseMs: 1000` renews every
+     * `max(250, floor(1000/3))` = 333ms, and the handler runs for 1400ms — longer
+     * than the ORIGINAL lease. Without the heartbeat the lease expires mid-flight
+     * and the owner-checked completion refuses, so this test reports `failed: 1`.
+     * A shorter handler would pass either way and prove nothing.
+     */
+    const startedAt = Date.now();
+    const result = await dispatchOurs(async () => {
+      await sleep(1400);
+    }, { leaseMs: 1000 });
+
+    expect(Date.now() - startedAt).toBeGreaterThan(1000);
+    expect(result).toEqual({ processed: 1, failed: 0, deadLettered: 0 });
+    expect((await readEvent())?.status).toBe('processed');
+  });
+
+  it('gives up when a second worker steals the lease mid-delivery, and completes nothing', async () => {
+    /**
+     * The failure this prevents is the expensive one: two tasks both believing they
+     * own the row, both delivering, and only the SDK's idempotency key between that
+     * and two cases for one report. The dispatcher that LOST must not write a
+     * completion — its handler already ran, so `processed` would be a lie about a
+     * row somebody else now owns.
+     */
+    let stolen = false;
+    const result = await dispatchOurs(async () => {
+      await getDb()
+        .update(moderationOutbox)
+        .set({ leaseOwner: 'a-second-ecs-task', leaseUntil: new Date(Date.now() + 60_000) })
+        .where(eq(moderationOutbox.id, eventId));
+      stolen = true;
+      // Outlast one renewal interval (333ms), so the heartbeat observes the theft
+      // rather than the test asserting on a race it never gave the code time to see.
+      await sleep(900);
+    }, { leaseMs: 1000 });
+
+    expect(stolen).toBe(true);
+    expect(result).toEqual({ processed: 0, failed: 1, deadLettered: 0 });
+
+    // The thief still owns it. The loser wrote nothing.
+    const row = await readEvent();
+    expect(row?.leaseOwner).toBe('a-second-ecs-task');
+    expect(row?.status).not.toBe('processed');
+  });
+
+  it('stops claiming new work once the shutdown signal is aborted', async () => {
+    /**
+     * Shutdown must not strand a claimed row, so the check is at the TOP of the
+     * loop: an in-flight delivery reaches a durable state, and nothing new is
+     * claimed. Aborted before the first iteration, the queue is left untouched.
+     */
+    const controller = new AbortController();
+    controller.abort();
+    const handler = vi.fn();
+
+    const result = await dispatchOurs(handler, { signal: controller.signal });
+
+    expect(result).toEqual({ processed: 0, failed: 0, deadLettered: 0 });
+    expect(handler).not.toHaveBeenCalled();
+    expect((await readEvent())?.status).toBe('pending');
+  });
+
+  it('retries an error that does not say whether it is retryable', async () => {
+    /**
+     * `retryable` is read off the error, and anything that is not a boolean means
+     * the thrower did not answer. Dead-lettering on silence would discard a report
+     * because of an unfamiliar error shape — a bug and a transport failure would be
+     * indistinguishable — so the default is to keep it and try again.
+     */
+    const result = await dispatchOurs(async () => {
+      throw new Error('something nobody has classified');
+    });
+
+    expect(result).toEqual({ processed: 0, failed: 1, deadLettered: 0 });
+    const row = await readEvent();
+    expect(row?.status).toBe('pending');
+    expect(row?.attempts).toBe(1);
   });
 });
