@@ -692,22 +692,222 @@ describe('duplicate federated actors', () => {
     expect(auditWouldBlockCopy(uriFinding as NonNullable<typeof uriFinding>)).toBe(true);
   });
 
-  it('still BLOCKS a NON-sentinel acct shared across DIFFERENT uris — neither remedy applies', async () => {
-    // Two different actors that happen to share an acct. Not one actor fetched
-    // twice (so the drop must not touch them) and not the sentinel (so the
-    // re-key must not either). `resolvesUniquenessGroup` fails closed and a
-    // human decides — which is the property that keeps the rule from becoming
-    // a general licence to delete a colliding row.
+  /**
+   * REMEDY THREE — a real handle two different `uri`s both claim.
+   *
+   * The shape production stopped the cutover on: one person's Bridgy Fed actor
+   * either side of an atproto DID rotation, two rows, one `acct`. Neither is a
+   * duplicate of the other (so the drop must not touch them) and neither is the
+   * sentinel (so remedy two does not apply), and Postgres will take exactly one
+   * of them.
+   *
+   * The uris deliberately END IN A DID and share a host, which is what makes
+   * "re-key onto the last path segment" look reasonable and is why the
+   * assertions below compare against the WHOLE `uri`.
+   */
+  const rotation = (index: number) => `${DUP_URI_PREFIX}ap/did:plc:bffrot${index}`;
+
+  async function seedIdentityCollision(
+    rows: ReadonlyArray<{ id: ObjectId; uri?: string; lastFetchedAt?: Date }>
+  ) {
     await mongo.collection('federatedactors').insertMany(
-      Array.from({ length: 3 }, (_, index) => ({
-        _id: oid(41 + index),
-        uri: `${DUP_URI_PREFIX}shared-${index}`,
+      rows.map((row, index) => ({
+        _id: row.id,
+        ...(row.uri === undefined ? { uri: rotation(index) } : { uri: row.uri }),
+        username: 'shared',
+        domain: 'bff-dup.example',
+        acct: 'shared@bff-dup.example',
+        ...(row.lastFetchedAt === undefined ? {} : { lastFetchedAt: row.lastFetchedAt }),
+      }))
+    );
+  }
+
+  it('RE-KEYS the losers of a shared handle and KEEPS the freshest row holding it', async () => {
+    await seedIdentityCollision([
+      { id: oid(41), lastFetchedAt: new Date('2026-01-01T00:00:00Z') },
+      // The freshest sits in the MIDDLE of the ids, so "keeps the first" and
+      // "keeps the last" both fail here rather than passing by accident.
+      { id: oid(42), lastFetchedAt: new Date('2026-03-01T00:00:00Z') },
+      { id: oid(43), lastFetchedAt: new Date('2026-02-01T00:00:00Z') },
+    ]);
+
+    await copy('federatedactors');
+
+    const rows = await getDb()
+      .select()
+      .from(federatedActors)
+      .where(inArray(federatedActors.uri, [rotation(0), rotation(1), rotation(2)]));
+    // ALL THREE land. These are three accounts, and the rule that removes rows
+    // is scoped to `uri` precisely so this case cannot reach it.
+    expect(rows).toHaveLength(3);
+    expect(new Set(rows.map((row) => row.acct)).size).toBe(3);
+    expect(new Set(rows.map((row) => row.username)).size).toBe(3);
+
+    const survivor = rows.find((row) => row.id === oid(42).toHexString());
+    // The row the resolver has been keeping current KEEPS the handle — the
+    // whole difference from remedy two, which re-keys its group entire.
+    expect(survivor?.acct).toBe('shared@bff-dup.example');
+    expect(survivor?.username).toBe('shared');
+
+    for (const row of rows.filter((entry) => entry.id !== oid(42).toHexString())) {
+      // The WHOLE uri, not a DID extracted from it: `uri` is unique by
+      // `federated_actors_uri_key`, and a derived substring is not unique by
+      // anything.
+      expect(row.acct).toBe(row.uri);
+      expect(row.username).toBe(row.uri);
+      // `domain` is NOT re-keyed. The domain policy, the blocklist and the
+      // purge scripts all key off it, and moving it would hide a moderation
+      // decision from them.
+      expect(row.domain).toBe('bff-dup.example');
+    }
+
+    // A RE-KEY removes nothing, and the emission says so with the numbers the
+    // referential audit reads: three read, three emitted, none dropped by rule.
+    const emission = await walkEmissionWhere({ acct: 'shared@bff-dup.example' });
+    expect(emission.documentsRead).toBe(3);
+    expect(emission.primaryRowsEmitted).toBe(3);
+    expect(emission.documentsDroppedByRule).toBe(0);
+    expect(droppedDocuments(emission)).toBe(0);
+  });
+
+  it('stops BOTH findings blocking, and reports each re-keyed row by id under its remedy', async () => {
+    await seedIdentityCollision([
+      { id: oid(45), lastFetchedAt: new Date('2026-01-01T00:00:00Z') },
+      { id: oid(46), lastFetchedAt: new Date('2026-02-01T00:00:00Z') },
+    ]);
+
+    const log = new ResolutionLog();
+    const resolutions = createResolutionContext(await planResolutions(source), log);
+    const findings = await auditUniqueness(source, planFor('federatedactors'), resolutions);
+    // One group of rows answers BOTH indexes, because the remedy acts on ids
+    // and `resolvesUniquenessGroup` asks about ids — the `(domain, username)`
+    // collision here is the same two documents as the `acct` one.
+    for (const index of ['federated_actors_acct_key', 'federated_actors_domain_username_key']) {
+      const finding = findings.find((entry) => entry.detail.includes(index));
+      expect(finding, index).toBeDefined();
+      // Still computed, still counted, still printed with its ids.
+      expect(finding?.documents).toBe(2);
+      expect(finding?.resolvedBy?.id).toBe(KEEP_FRESHEST_FEDERATED_ACTOR.id);
+      expect(auditWouldBlockCopy(finding as NonNullable<typeof finding>)).toBe(false);
+    }
+
+    await copyCollection(planFor('federatedactors'), {
+      db: getDb(),
+      source,
+      resolutions,
+      parents: parentKeysFrom(new Map()),
+    });
+    const record = log
+      .summary()
+      .find((entry) => entry.rule.id === KEEP_FRESHEST_FEDERATED_ACTOR.id)
+      ?.records.find((entry) => entry.documentId === oid(45).toHexString());
+    // BY ID, and saying WHICH remedy — the rule carries three, and a report
+    // that named only the rule would not let an operator tell a re-keyed
+    // account from a dropped duplicate.
+    expect(record).toBeDefined();
+    expect(record?.detail).toContain('claimed by another row under a DIFFERENT `uri`');
+    expect(record?.evidence?.acct).toBe('shared@bff-dup.example');
+    // The freshest row is not acted on at all, so it has no record.
+    expect(
+      log
+        .summary()
+        .find((entry) => entry.rule.id === KEEP_FRESHEST_FEDERATED_ACTOR.id)
+        ?.documentIds
+    ).toEqual([oid(45).toHexString()]);
+  });
+
+  it('leaves the sentinel group to remedy two — the identity re-key claims none of its rows', async () => {
+    // Asserted on the PLAN rather than on the copy, because the two remedies
+    // compute the SAME set for this group (both keep the freshest of it), so
+    // no outcome of a run can tell which one acted. What differs is the claim
+    // `rekeyedActorIdentities` makes about itself, and the transform reads that
+    // set to decide a remedy — so a row in it that remedy three does not
+    // actually re-key is a set that lies to its only consumer.
+    const dids = Array.from({ length: 3 }, (_, index) => `did:plc:bffown${String(index).padStart(19, 'z')}`);
+    await mongo.collection('federatedactors').insertMany(
+      dids.map((did, index) => ({
+        _id: oid(58 + index),
+        uri: did,
+        protocol: 'atproto',
+        username: 'handle.invalid',
+        domain: 'bsky.social',
+        acct: 'handle.invalid',
+        lastFetchedAt: new Date(2026, 0, 1 + index),
+      }))
+    );
+
+    const plan = await planResolutions(source);
+    expect(plan.rekeyedActorIdentities.size).toBe(0);
+    // The floor that stops the line above passing vacuously: the group IS a
+    // collision and IS answered — by remedy two, which acts on all but the
+    // freshest of the three.
+    expect(plan.actedOn.get(KEEP_FRESHEST_FEDERATED_ACTOR.id)?.size).toBe(2);
+  });
+
+  it('still BLOCKS an acct group that OVERLAPS a uri group, rather than letting the remedies collide', async () => {
+    // Two rows of one `uri` (remedy one's) sharing an acct with a third row
+    // under a different `uri` (remedy three's). Re-keying inside the `uri` pair
+    // would leave both of them landing — two rows on one `uri` — so every row
+    // of a `uri` group is excluded from the re-key, which leaves too few
+    // candidates to answer the acct group and it blocks.
+    await mongo.collection('federatedactors').insertMany([
+      ...[0, 1].map((index) => ({
+        _id: oid(51 + index),
+        uri: `${DUP_URI_PREFIX}ap/did:plc:bffboth`,
         username: 'shared',
         domain: 'bff-dup.example',
         acct: 'shared@bff-dup.example',
         lastFetchedAt: new Date(2026, 0, 1 + index),
-      }))
+      })),
+      {
+        _id: oid(53),
+        uri: `${DUP_URI_PREFIX}ap/did:plc:bffother`,
+        username: 'shared',
+        domain: 'bff-dup.example',
+        acct: 'shared@bff-dup.example',
+        lastFetchedAt: new Date(2026, 0, 9),
+      },
+    ]);
+
+    const resolutions = createResolutionContext(await planResolutions(source), new ResolutionLog());
+    const findings = await auditUniqueness(source, planFor('federatedactors'), resolutions);
+
+    const acctFinding = findings.find((entry) =>
+      entry.detail.includes('federated_actors_acct_key')
     );
+    expect(acctFinding).toBeDefined();
+    expect(acctFinding?.resolvedBy).toBeUndefined();
+    expect(auditWouldBlockCopy(acctFinding as NonNullable<typeof acctFinding>)).toBe(true);
+
+    // And the `uri` pair is STILL answered by the drop — the exclusion stands
+    // remedy three down, not remedy one.
+    const uriFinding = findings.find((entry) => entry.detail.includes('federated_actors_uri_key'));
+    expect(uriFinding?.resolvedBy?.id).toBe(KEEP_FRESHEST_FEDERATED_ACTOR.id);
+    expect(auditWouldBlockCopy(uriFinding as NonNullable<typeof uriFinding>)).toBe(false);
+  });
+
+  it('still BLOCKS when a colliding row has no uri to be re-keyed onto', async () => {
+    // The re-key writes the row's own `uri` into two uniquely-constrained
+    // columns. A row without one has no identity to move to, so it is left out
+    // and the group keeps blocking — the same fail-closed answer the pre-pass
+    // gives a document with no `_id`.
+    await mongo.collection('federatedactors').insertMany([
+      {
+        _id: oid(56),
+        username: 'shared',
+        domain: 'bff-dup.example',
+        acct: 'shared@bff-dup.example',
+        lastFetchedAt: new Date('2026-01-01T00:00:00Z'),
+      },
+      {
+        _id: oid(57),
+        uri: `${DUP_URI_PREFIX}ap/did:plc:bffhasuri`,
+        username: 'shared',
+        domain: 'bff-dup.example',
+        acct: 'shared@bff-dup.example',
+        lastFetchedAt: new Date('2026-02-01T00:00:00Z'),
+      },
+    ]);
 
     const resolutions = createResolutionContext(await planResolutions(source), new ResolutionLog());
     const findings = await auditUniqueness(source, planFor('federatedactors'), resolutions);

@@ -134,6 +134,32 @@ one.
 Expected verdict (last measured, 2026-08-03): `0 finding(s) BLOCK the copy`,
 FK coverage `47/47`, row cardinality `58/58`.
 
+**That verdict did not hold in the window of 2026-08-04, and the cause is now
+answered in code rather than by hand.** The copy refused with TWO BLOCK
+findings — `federated_actors_acct_key` and
+`federated_actors_domain_username_key` — from ONE cause: two `federatedactors`
+rows for `hmans.dev@bsky.brid.gy` under two Bluesky DIDs, the same person either
+side of a DID rotation, reaching us over ActivityPub through Bridgy Fed. Nothing
+referenced either row (0 posts, 0 federated follows either way, 0 media cache).
+`KEEP_FRESHEST_FEDERATED_ACTOR` already promised in prose that such rows are
+answered by a re-key; only the `handle.invalid` sentinel was implemented, so the
+code under-implemented its own documentation. **REMEDY THREE** now re-keys all
+but the freshest row of an `acct` group onto its own `uri` and drops nothing —
+so expect the audit to report both findings CARRYING THE RULE rather than
+blocking, and expect the run to record one additional resolution under
+`keep-freshest-federated-actor` naming the non-freshest of those two rows.
+
+Patching the DATA by hand instead is what NOT to do here, and it was tried and
+reverted in that window. A hand edit and the rule can disagree on BOTH axes,
+neither of which is visible while you are making the edit: **which row moves**
+(the rule takes the one that is not the freshest by `lastFetchedAt`; by eye you
+take the one that looks less real — the one with no `oxyUserId`, say — and those
+are not the same question) and **what it moves to** (the rule writes the row's
+whole `uri`, unique by `federated_actors_uri_key`; by eye you write the DID out
+of it, which for a Mastodon-shaped URI would not be unique at all). A collision
+the algorithm can answer must be answered by the algorithm, or the copy and the
+report describe different databases.
+
 **Every number this audit reports describes ROWS.** None of them describes
 whether a row's columns were filled. A rehearsal scoring `58/58` was found to be
 silently dropping eleven columns that hold real values in production — see #92.
