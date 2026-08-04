@@ -9,10 +9,25 @@
  *
  * ## What this gate does and does NOT cover
  *
- * It covers a NEW CALLER of a KNOWN job. It cannot discover a TWELFTH unscoped
- * job — only a fresh scan of the write path can do that — so the list's
- * completeness rests on how it was built, which is worth stating because the
- * obvious method does not work:
+ * It covers a NEW CALLER of a KNOWN job. It cannot discover a job it has never
+ * been told about — only a fresh scan of the write path can do that — so the
+ * list's completeness rests on how it was built, which is worth stating because
+ * the obvious method does not work:
+ *
+ * **That limitation has now cost a real CI failure, and the follow-up scan found
+ * TEN more.** `backfillFederatedThreadLinks` surfaced as an intermittent
+ * `run incomplete: unresolved=1` — green on the commits either side, so it read
+ * as a flake — and this gate could not have caught it, exactly as it said. The
+ * scan that followed checked every `*.test.ts` for a call into a module whose
+ * DRIVING SELECT names no owner, and the answers cluster in
+ * `src/__tests__/scripts/`: an admin one-shot is a whole-table reconciler by
+ * definition, and the first list was built from `src/services/`, where a global
+ * sweep is the exception rather than the rule. So the gap was a category, not a
+ * set of individual oversights.
+ *
+ * **Read the DRIVING SELECT, never the write's `where`.** All ten update by
+ * primary key, which looks perfectly scoped at the write; what is unscoped is the
+ * query that chose the key.
  *
  * The list came from scanning for UNSCOPED DRIZZLE WRITES (an `update`/`delete`
  * whose `where` names no owner; a `select` whose predicate is a status alone),
@@ -115,6 +130,26 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
   { name: 'sweepExpiredRows', call: /\bsweepExpiredRows\s*\(/ },
   { name: 'reconcileBlockedDomainPurges', call: /\breconcileBlockedDomainPurges\s*\(/ },
   { name: 'processQueue', call: /\.processQueue\s*\(/ },
+
+  /*
+   * The admin one-shots, added by the second scan. Each is keyed on the IMPORTED
+   * script rather than on whatever local wrapper a suite happens to define —
+   * `backfillFederatedBanners.test.ts` calls it through a local `runBackfill()`,
+   * and keying on that name would match any file that coined the same helper.
+   */
+  { name: 'backfillFederatedThreadLinks', call: /\bbackfillFederatedThreadLinks\s*\(/ },
+  { name: 'normalizeStoredText', call: /\bnormalizeStoredText\s*\(/ },
+  { name: 'purgeGoneFederatedActors', call: /\bpurgeGoneFederatedActors\s*\(/ },
+  { name: 'repairFederatedMentions', call: /\brepairFederatedMentions\s*\(/ },
+  { name: 'backfillThreadRootThreadId', call: /\bbackfillThreadRootThreadId\s*\(/ },
+  { name: 'migrateThreadFanToChain', call: /\bmigrateThreadFanToChain\s*\(/ },
+  { name: 'backfillMtnRecords', call: /\bbackfillMtnRecords\s*\(/ },
+  { name: 'backfillFederatedBanners', call: /\bbackfillFederatedBanners\s*\(/ },
+  {
+    name: 'backfillFederatedHandleQualification',
+    call: /\bbackfillFederatedHandleQualification\s*\(/,
+  },
+  { name: 'backfillQuotedPosts', call: /\bbackfillQuotedPosts\s*\(/ },
 ];
 
 /** Every `*.test.ts` under `src/__tests__/`, as paths relative to the package root. */

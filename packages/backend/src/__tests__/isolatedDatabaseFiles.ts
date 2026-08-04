@@ -24,15 +24,15 @@
  * to serve the harness, and the parameter would be wrong (unset) in the one
  * place it matters.
  *
- * Cost: one `createTestDatabase()` per listed file, measured at ~0.60s, paid by
- * eleven files out of ~500.
+ * Cost: one `createTestDatabase()` per listed file, paid by twenty-one files out
+ * of ~500.
  *
  * ## How this list was built, and what would keep it complete
  *
  * By scanning for UNSCOPED DRIZZLE WRITES — an `update`/`delete` whose `where`
  * names no owner, or a `select` whose predicate is a status alone — and NOT by
  * looking for job-sounding names. A `Reconcil|Dispatch|Sweep|Job|Scheduler`
- * sweep finds nine of these eleven and provably misses
+ * sweep finds nine of the original eleven and provably misses
  * `PostClassificationService.processQueue`, which contains none of those
  * substrings and whose two writers are called `markEmptyPosts` and
  * `classifyBatch`.
@@ -40,9 +40,37 @@
  * `src/__tests__/isolatedDatabaseCoverage.test.ts` is what keeps membership
  * ASSERTABLE rather than remembered: it scans every `*.test.ts` for calls to the
  * entry points named below and fails, naming the file, if a caller is missing
- * here. That gate cannot discover a TWELFTH unscoped job — only a fresh scan of
- * the write path can — but it does guarantee that no new CALLER of a known one
- * slips in unlisted.
+ * here. That gate cannot discover a job it has never been told about — only a
+ * fresh scan of the write path can — but it does guarantee that no new CALLER of
+ * a known one slips in unlisted.
+ *
+ * ## THE SECOND SCAN, and what it says about the first
+ *
+ * The gate's limitation is not hypothetical: a twelfth job
+ * (`backfillFederatedThreadLinks`) surfaced as an intermittent CI failure —
+ * `run incomplete: unresolved=1`, green on two neighbouring commits, so it read
+ * as a flake — and the gate could not have found it, exactly as it said.
+ *
+ * The scan that followed found **ten**, not one. Every `*.test.ts` was checked
+ * for a call into a module whose DRIVING SELECT names no owner, and the answer
+ * clusters almost entirely in `src/__tests__/scripts/`: an admin one-shot is a
+ * whole-table reconciler BY DEFINITION, so the ten are less a set of oversights
+ * than one category the first pass did not look in. The first list was built
+ * from `src/services/`, where a global sweep is the exception; `src/scripts/` is
+ * where it is the rule.
+ *
+ * **The discriminator is the DRIVING SELECT, never the write's `where`.** Every
+ * one of these ten updates by primary key — `.where(eq(posts.id, row.id))` reads
+ * perfectly scoped in isolation. What is unscoped is the query that CHOSE that
+ * id. `normalizeFederatedText` is the limit case and worth remembering as the
+ * shape: its filter is the literal `const POST_SCAN_FILTER = undefined`, so it
+ * scans the entire `posts` table, and its suite runs it in write mode.
+ *
+ * Two entries are also a correction to work that landed hours earlier:
+ * `backfillFederatedHandleQualification` and `backfillQuotedPosts` were ported
+ * to Postgres with new real-rows suites, and those suites call them with
+ * `dryRun: false` against the shared database. Adding a global reconciler to
+ * the suite is what creates one of these; it is not a pre-existing condition.
  */
 
 /** One test file that cannot share the run's database. */
@@ -169,6 +197,91 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'Runs the classification cycle: `markEmptyPosts` marks every pending text-less post in ' +
       'the database classified, and `classifyBatch` claims the oldest unclassified published ' +
       'posts database-wide and writes results onto them.',
+  },
+
+  /*
+   * ── THE ADMIN ONE-SHOTS ─────────────────────────────────────────────────────
+   *
+   * Everything below reconciles a WHOLE TABLE, because that is what an admin
+   * one-shot is for. Each updates by primary key, so the write reads scoped; the
+   * SELECT that chose the key does not.
+   */
+  {
+    path: 'src/__tests__/services/federationThreadLinking.test.ts',
+    jobEntryPoint: 'backfillFederatedThreadLinks',
+    reason:
+      'Scans `and(isNotNull(federation_in_reply_to), isNull(parent_post_id))` — every federated ' +
+      'orphan in the table — and UPDATEs `parent_post_id`/`thread_id` on what it can resolve. ' +
+      'The one that surfaced this class: a foreign orphan it cannot resolve makes the run ' +
+      'report `unresolved=1` and throw, which reads as a flake in THIS file.',
+  },
+  {
+    path: 'src/__tests__/scripts/normalizeFederatedText.test.ts',
+    jobEntryPoint: 'normalizeStoredText',
+    reason:
+      'The limit case: its filter is the literal `const POST_SCAN_FILTER = undefined`, so it ' +
+      'scans the ENTIRE `posts` table and rewrites variant bodies, media alt text and spoiler ' +
+      'text. The suite calls it with `dryRun: false`.',
+  },
+  {
+    path: 'src/__tests__/scripts/purgeGoneFederatedActors.test.ts',
+    jobEntryPoint: 'purgeGoneFederatedActors',
+    reason:
+      'The most destructive of the set: its candidate set is every SUSPENDED federated actor in ' +
+      'the database, and for each it DELETEs that actor\'s posts, boosts, mentions and MTN ' +
+      'chain rows. Another file\'s suspended actor is a candidate.',
+  },
+  {
+    path: 'src/__tests__/scripts/repairFederatedMentions.test.ts',
+    jobEntryPoint: 'repairFederatedMentions',
+    reason:
+      'Its candidate filter is bounded by `options.actorUri` — which the suite does not pass, so ' +
+      'the scan is every federated post there is, and it rewrites `post_content_variants.body` ' +
+      'on whatever it decides is malformed.',
+  },
+  {
+    path: 'src/__tests__/scripts/backfillThreadRootThreadId.test.ts',
+    jobEntryPoint: 'backfillThreadRootThreadId',
+    reason:
+      'Groups every native post by `thread_id` across the table and stamps `thread_id` onto the ' +
+      'roots it finds — so a thread another file is mid-way through seeding is a group.',
+  },
+  {
+    path: 'src/__tests__/scripts/migrateThreadFanToChain.test.ts',
+    jobEntryPoint: 'migrateThreadFanToChain',
+    reason:
+      'The same table-wide `thread_id` grouping, and it REPARENTS what it matches: it writes ' +
+      '`parent_post_id` on continuations to convert a fan into a chain.',
+  },
+  {
+    path: 'src/__tests__/scripts/backfillMtnRecords.test.ts',
+    jobEntryPoint: 'backfillMtnRecords',
+    reason:
+      'Selects every local published public non-boost post in the database and signs an MTN ' +
+      'record for each — so it emits chain records for posts other files own.',
+  },
+  {
+    path: 'src/__tests__/scripts/backfillFederatedBanners.test.ts',
+    jobEntryPoint: 'backfillFederatedBanners',
+    reason:
+      'Pages `federated_actors` through `countActors`/`scanActors` with a table-wide filter and ' +
+      'writes a banner onto each, so another file\'s federated actor is in the page.',
+  },
+  {
+    path: 'src/__tests__/scripts/backfillFederatedHandleQualificationRows.test.ts',
+    jobEntryPoint: 'backfillFederatedHandleQualification',
+    reason:
+      'Reads every `federated_actors` row, then every `post_content_variants` body whose post is ' +
+      'authored by one of them, and rewrites the bodies it can qualify. The suite runs it with ' +
+      '`dryRun: false`.',
+  },
+  {
+    path: 'src/__tests__/scripts/backfillQuotedPostsRows.test.ts',
+    jobEntryPoint: 'backfillQuotedPosts',
+    reason:
+      'Selects every federated post with a null `quote_of` whose body renders as `RE: <url>` and ' +
+      'UPDATEs `quote_of` on it. Its suite mocks `signedFetch` to answer with a quote for ANY ' +
+      'candidate, so a foreign row entering the scan is linked to this file\'s fixture.',
   },
 ];
 
