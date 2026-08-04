@@ -1,9 +1,11 @@
 import { createHash } from 'crypto';
 import type { ReportInput } from '@oxyhq/crowdsource';
+import { CaseUrgencySchema, type CaseUrgency } from '@oxyhq/crowdsource-contracts';
 import { REPORT_TAXONOMY_VERSION, allegationsForCategories } from './reportTaxonomy';
 import { subjectProviderFor } from './subjects/registry';
 import type { ModerationSubjectSnapshot } from './subjects/types';
 import type { ReportRecord } from '../../db/moderation/reportRepository';
+import { logger } from '../../utils/logger';
 
 /**
  * Turning a stored report into the thing the SDK delivers.
@@ -78,6 +80,41 @@ export function snapshotHash(snapshot: ModerationSubjectSnapshot): string {
   return `sha256:${createHash('sha256').update(canonical, 'utf8').digest('hex')}`;
 }
 
+/**
+ * The urgency the INTAKE froze, or nothing.
+ *
+ * Validated against the published contract rather than trusted, because the value
+ * crosses two boundaries no type survives: a Mongo document, and a deployment that
+ * need not be the one that wrote it. `CaseUrgencySchema` is a STRICT object, so an
+ * extra or malformed key makes envelope composition throw
+ * `CrowdSourceReportInputError` — which carries `retryable: false`, so the outbox
+ * would dead-letter a report whose only defect is a scheduling hint. Dropping the
+ * hint costs at most ten of a hundred triage points; keeping a bad one costs the
+ * review entirely, so this fails toward delivering the report.
+ *
+ * Parsing also normalises key ORDER to the contract's own shape, so two rows that
+ * differ only in how Mongo happened to store them still compose byte-identical
+ * envelopes.
+ *
+ * Deliberately never RECOMPUTED when absent. This function runs at delivery time,
+ * and a value read here would vary between two attempts at the same report — the
+ * permanent-409 trap `ReportIntakeService` exists to close. A report predating the
+ * snapshot, or one whose delivery event was re-derived by the reconciliation
+ * sweep, ships without urgency and triages at the bottom of the reach band. That
+ * is the correct trade: a late report is recoverable, a 409'd one is not.
+ */
+function contractUrgency(stored: unknown): CaseUrgency | undefined {
+  if (stored === undefined || stored === null) return undefined;
+
+  const parsed = CaseUrgencySchema.safeParse(stored);
+  if (parsed.success) return parsed.data;
+
+  logger.warn('[CrowdSource] stored report urgency does not match the contract', {
+    issues: parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`),
+  });
+  return undefined;
+}
+
 export interface ModerationReportInput {
   /** What the SDK delivers. */
   readonly reportInput: ReportInput;
@@ -92,12 +129,21 @@ export interface ModerationReportInput {
  * either: content deleted between the report and its delivery is ordinary, and
  * §5.6 keeps evidence available through retention on CrowdSource's side — but an
  * object Mention never got to snapshot has no evidence to keep.
+ *
+ * `storedUrgency` arrives from the outbox row rather than being derived here, and
+ * that asymmetry is the point — see {@link contractUrgency}.
  */
 export async function buildModerationReportInput(
   report: Pick<
     ReportRecord,
     'id' | 'reportedType' | 'reportedId' | 'reporter' | 'categories' | 'details' | 'createdAt'
   >,
+  /**
+   * The urgency FROZEN AT INTAKE, off the outbox row — never re-measured here.
+   * `unknown` because it is stored data whose schema belongs to CrowdSource;
+   * `contractUrgency` validates it on the way out.
+   */
+  storedUrgency?: unknown,
 ): Promise<ModerationReportInput | null> {
   const provider = subjectProviderFor(report.reportedType);
   if (!provider) throw new ModerationSubjectUnsupportedError(report.reportedType);
@@ -107,6 +153,7 @@ export async function buildModerationReportInput(
 
   const allegationCodes = allegationsForCategories(report.categories);
   const details = report.details?.trim();
+  const urgency = contractUrgency(storedUrgency);
 
   return {
     reportInput: {
@@ -136,6 +183,16 @@ export async function buildModerationReportInput(
        * retry from the outbox a permanent 409 (§10.5).
        */
       submittedAt: report.createdAt,
+      /**
+       * How far the material had travelled, so a report about a post thousands of
+       * people saw is not queued behind one about a post nobody has seen. §7.4
+       * scores this as up to ten of a hundred priority points; sending nothing
+       * triages every Mention case as if its subject had reached no one.
+       *
+       * An input to ORDER, never to a verdict — the tokens name distribution and
+       * say nothing about whether the allegation is true.
+       */
+      ...(urgency === undefined ? {} : { urgency }),
       metadata: {
         /**
          * So a case can be read back against the mapping that produced it.

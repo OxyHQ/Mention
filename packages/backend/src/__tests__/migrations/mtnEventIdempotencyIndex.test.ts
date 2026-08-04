@@ -15,7 +15,55 @@ import {
   migrationMtnEventIdempotencyIndex,
 } from '../../migrations/0012-mtn-event-idempotency-index';
 
-type TestDocument = Record<string, any>;
+type TestDocument = Record<string, unknown>;
+
+/** A `MentionSignedRecord` fixture row — mirrors the migration's own `ChainRow`. */
+interface RecordFixtureRow {
+  _id: string;
+  oxyUserId: string;
+  subjectDid: string;
+  seq?: number;
+  prev?: string | null;
+  recordId: string;
+  verified?: boolean;
+  envelope: SignedRecordEnvelope;
+  chainStatus?: string;
+}
+
+/** A `MentionRepoHead` fixture row — mirrors the migration's own `RepoHeadRow`. */
+interface HeadFixtureRow {
+  _id: string;
+  oxyUserId: string;
+  subjectDid: string;
+  seq: number;
+  headRecordId: string;
+  recordCount: number;
+}
+
+/** The two `records.find(...)` filter shapes the migration actually issues. */
+interface RecordFindFilter {
+  oxyUserId?: string;
+  seq?: { $lte?: number; $exists?: boolean; $type?: string };
+  chainStatus?: { $exists?: boolean };
+}
+
+interface IndexOptions {
+  name?: string;
+  unique?: boolean;
+}
+
+interface CommandInput {
+  collMod?: string;
+  index?: { prepareUnique?: boolean; unique?: boolean };
+  dryRun?: boolean;
+}
+
+interface BulkWriteOperation {
+  updateOne: {
+    filter: TestDocument;
+    update: { $set?: TestDocument; $unset?: TestDocument };
+  };
+}
 
 function cursor<T>(rows: T[]) {
   const value = {
@@ -29,20 +77,21 @@ function cursor<T>(rows: T[]) {
   return value;
 }
 
-function matchesId(document: TestDocument, filter: TestDocument): boolean {
-  const ids = filter._id?.$in;
-  if (Array.isArray(ids)) {
+function matchesId(document: { _id: unknown }, filter: TestDocument): boolean {
+  const idFilter = filter._id;
+  if (idFilter && typeof idFilter === 'object' && '$in' in idFilter) {
+    const ids = (idFilter as { $in: unknown[] }).$in;
     return ids.some((id) => String(id) === String(document._id));
   }
   return filter._id === undefined || String(filter._id) === String(document._id);
 }
 
 interface HarnessOptions {
-  records: TestDocument[];
-  heads: TestDocument[];
+  records: RecordFixtureRow[];
+  heads: HeadFixtureRow[];
   recordIndexes?: TestDocument[];
   headIndexes?: TestDocument[];
-  headSnapshots?: TestDocument[];
+  headSnapshots?: HeadFixtureRow[];
 }
 
 function createHarness(options: HarnessOptions) {
@@ -55,7 +104,7 @@ function createHarness(options: HarnessOptions) {
 
   const recordCollection = {
     indexes: vi.fn(async () => recordIndexes),
-    createIndex: vi.fn(async (key: TestDocument, indexOptions: TestDocument) => {
+    createIndex: vi.fn(async (key: TestDocument, indexOptions: IndexOptions) => {
       if (indexOptions.name === MTN_SEQUENCE_INDEX.name) {
         events.push('createSequence');
       }
@@ -66,7 +115,7 @@ function createHarness(options: HarnessOptions) {
       if (index >= 0) recordIndexes.splice(index, 1);
       return { ok: 1 };
     }),
-    aggregate: vi.fn((pipeline: TestDocument[]) => {
+    aggregate: vi.fn((pipeline: { $group?: { _id?: unknown } }[]) => {
       const ownerAggregation = pipeline.some(
         (stage) => stage.$group?._id === '$_id.oxyUserId',
       );
@@ -85,14 +134,16 @@ function createHarness(options: HarnessOptions) {
       ].map((_id) => ({ _id }));
       return cursor(ownerAggregation ? duplicateOwners : duplicateOwners.slice(0, 1));
     }),
-    find: vi.fn((filter: TestDocument) => {
-      let rows: TestDocument[];
+    find: vi.fn((filter: RecordFindFilter) => {
+      let rows: RecordFixtureRow[];
       if (typeof filter.oxyUserId === 'string') {
+        const maxSeq = filter.seq?.$lte;
         rows = records.filter(
           (row) =>
             row.oxyUserId === filter.oxyUserId &&
             typeof row.seq === 'number' &&
-            row.seq <= filter.seq.$lte,
+            typeof maxSeq === 'number' &&
+            row.seq <= maxSeq,
         );
       } else if (filter.chainStatus?.$exists === false) {
         rows = records.filter((row) => {
@@ -111,7 +162,7 @@ function createHarness(options: HarnessOptions) {
       }
       return cursor(rows);
     }),
-    bulkWrite: vi.fn(async (operations: TestDocument[]) => {
+    bulkWrite: vi.fn(async (operations: BulkWriteOperation[]) => {
       events.push('repair');
       for (const operation of operations) {
         const target = records.find((row) =>
@@ -119,12 +170,12 @@ function createHarness(options: HarnessOptions) {
         if (!target) continue;
         Object.assign(target, operation.updateOne.update.$set ?? {});
         for (const field of Object.keys(operation.updateOne.update.$unset ?? {})) {
-          delete target[field];
+          delete (target as unknown as TestDocument)[field];
         }
       }
       return { modifiedCount: operations.length };
     }),
-    updateMany: vi.fn(async (filter: TestDocument, update: TestDocument) => {
+    updateMany: vi.fn(async (filter: TestDocument, update: { $set?: TestDocument }) => {
       let modifiedCount = 0;
       for (const row of records) {
         if (!matchesId(row, filter)) continue;
@@ -137,7 +188,7 @@ function createHarness(options: HarnessOptions) {
 
   const headCollection = {
     indexes: vi.fn(async () => headIndexes),
-    createIndex: vi.fn(async (key: TestDocument, indexOptions: TestDocument) => {
+    createIndex: vi.fn(async (key: TestDocument, indexOptions: IndexOptions) => {
       events.push('headUnique');
       headIndexes.push({
         name: indexOptions.name,
@@ -172,7 +223,7 @@ function createHarness(options: HarnessOptions) {
     }),
   };
 
-  const command = vi.fn(async (input: TestDocument) => {
+  const command = vi.fn(async (input: CommandInput) => {
     if (input.collMod === MENTION_SIGNED_RECORD_COLLECTION) {
       if (input.index?.prepareUnique === true) events.push('prepare');
       if (input.index?.unique === true && input.dryRun === true) {
@@ -241,7 +292,7 @@ async function forkFixture() {
   const canonicalId = await computeRecordId(canonicalEnvelope);
   const conflictEnvelope = makeEnvelope(subject, 1, genesisId, 'conflict');
   const conflictId = await computeRecordId(conflictEnvelope);
-  const records = [
+  const records: RecordFixtureRow[] = [
     {
       _id: 'r0',
       oxyUserId,
@@ -273,7 +324,7 @@ async function forkFixture() {
       envelope: conflictEnvelope,
     },
   ];
-  const head = {
+  const head: HeadFixtureRow = {
     _id: 'head-1',
     oxyUserId,
     subjectDid: subject,

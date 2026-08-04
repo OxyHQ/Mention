@@ -11,6 +11,8 @@ import {
 import { enqueueModerationOutboxEvent } from '../../db/moderation/moderationOutboxRepository';
 import { reportSubmitEventId } from './ModerationOutboxService';
 import { subjectProviderFor } from './subjects/registry';
+import type { ModerationSubjectProvider, ModerationUrgency } from './subjects/types';
+import { logger } from '../../utils/logger';
 
 /**
  * Storing a report and, when there is somewhere to send it, the promise to deliver
@@ -103,6 +105,49 @@ function localOnlyReason(reportedType: string): string {
 }
 
 /**
+ * The distribution facts as they stood WHEN THE REPORT WAS TAKEN.
+ *
+ * Read here, once, and carried on the outbox row — never re-read when the row is
+ * delivered. CrowdSource's ingress fingerprints the whole
+ * `{ externalReportId, envelope }` to detect §10.5's "external id reused with
+ * different content", and an audience count is the fastest-moving value an
+ * envelope can carry: on any live post it differs between two reads seconds apart.
+ * Read at delivery it would turn an ordinary outbox retry into a PERMANENT 409,
+ * and the symptom is moderation work silently stuck in a queue days later, with
+ * nothing failing at the moment the mistake is made. The SDK's own note on
+ * `submittedAt` names this exact trap; this is the same trap with a value that
+ * moves far faster than a timestamp.
+ *
+ * Read BEFORE the transaction, alongside the delivery decision it belongs with,
+ * for the same reason that one is: an input the transaction body consumes rather
+ * than a write that has to commit atomically with anything. Freezing it is what
+ * makes it stable — the moment it is read is not what matters, only that it is
+ * read once.
+ *
+ * A failure here costs the case up to ten of a hundred triage points and nothing
+ * else, so it must never cost the reporter their report: an urgency that cannot be
+ * composed is logged and omitted, not raised. `POST /reports` answering 5xx
+ * because a stats read failed would trade the whole report for its queue position.
+ */
+async function snapshotUrgency(
+  provider: ModerationSubjectProvider,
+  reportedId: string,
+  reporterId: string,
+): Promise<ModerationUrgency | undefined> {
+  if (!provider.urgencySnapshot) return undefined;
+  try {
+    return (await provider.urgencySnapshot(reportedId, reporterId)) ?? undefined;
+  } catch (error: unknown) {
+    logger.warn('[CrowdSource] could not snapshot report urgency', {
+      reportedType: provider.reportedType,
+      reportedId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return undefined;
+  }
+}
+
+/**
  * Store the report, and queue its delivery in the same transaction.
  *
  * Delivery is queued when — and only when — the reported type has a subject provider.
@@ -129,7 +174,11 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
   if (!(REPORTED_TYPES as readonly string[]).includes(reportedType)) {
     throw new TypeError(`createReport: reportedType '${reportedType}' is not a reportable type.`);
   }
-  const deliverable = subjectProviderFor(reportedType) !== undefined;
+  const provider = subjectProviderFor(reportedType);
+  const deliverable = provider !== undefined;
+  const urgency = provider
+    ? await snapshotUrgency(provider, reportedId, reporter)
+    : undefined;
 
   try {
     return await getDb().transaction(async (tx) => {
@@ -160,7 +209,16 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
         {
           eventId: reportSubmitEventId(report.id),
           kind: 'report.submit',
-          payload: { reportId: report.id },
+          /**
+           * Spread CONDITIONALLY so a subject type with no urgency to report
+           * writes the payload it always wrote. `payloadColumns` would turn an
+           * explicit `urgency: undefined` into a stored `null` and `toPayload`
+           * would then omit it again — so the round trip survives either way,
+           * but the contract refuses an EMPTY urgency rather than treating it
+           * as an absence, and keeping the key out entirely is what states that
+           * at the one place a reader looks.
+           */
+          payload: { reportId: report.id, ...(urgency === undefined ? {} : { urgency }) },
         },
         tx,
       );

@@ -15,6 +15,18 @@ import type { ModerationSubjectProvider, ModerationSubjectSnapshot } from './typ
  * routinely has none) and every field of §5.3's `profile` resource is optional for
  * exactly that reason, so nothing here substitutes a handle for a missing name.
  * The handle travels separately, as a claim.
+ *
+ * ## No `urgencySnapshot`, deliberately
+ *
+ * The reported material here is the PROFILE — a display name, a bio, a handle —
+ * and Mention holds no audience figure for it. The tempting substitute is the
+ * account's follower count, and it answers a different question: how many people
+ * subscribed to an account, not how many read the bio under review. Sending it as
+ * `reach` would triage every report about a large account above every report about
+ * a small one on a number that describes neither the material nor its exposure,
+ * and `log10` makes that a systematic four-point thumb on the scale rather than a
+ * rounding error. Omitting the field costs queue position and asserts nothing;
+ * `urgency` is optional precisely so an application does not have to invent one.
  */
 
 /** §5.3 `profile.claims`: bounded, flat, scalar. */

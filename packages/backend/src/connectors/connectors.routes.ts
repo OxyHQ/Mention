@@ -314,8 +314,25 @@ router.get('/resolve', async (req: AuthRequest, res: Response) => {
 
   const query = parsed.data.handle;
   const isPastedUrl = isAbsoluteHttpUrl(query);
+  // NOT AN ERROR STATUS, AND THE REASON IS WHAT THIS ENDPOINT IS FOR.
+  //
+  // This is a search-as-you-type probe: the caller fires it on a debounced
+  // keystroke and merges any hit into the people results as one extra row. So
+  // "no such actor" is not an exceptional outcome, it is the MAJORITY outcome —
+  // most queries name nobody on another network, and the sole consumer already
+  // mapped the 404 straight to `null` without reading it.
+  //
+  // Representing the common case as an error misreports it everywhere it is
+  // counted: a red line in the browser console for an ordinary search, a 404
+  // rate in monitoring that reads as breakage, and a log full of failures that
+  // are not. Same reasoning that made an exhausted `maxTimeMS` a 503 rather than
+  // a 500 — the status has to describe what actually happened.
+  //
+  // A genuinely malformed request is still a 400, and an upstream failure is
+  // still a 500: `{ actor: null }` means "asked, answered, nobody", never
+  // "something went wrong and we swallowed it".
   if (!isPastedUrl && classifyQuery(query) === 'local') {
-    return res.status(404).json({ error: 'Not an external handle' });
+    return res.json({ actor: null });
   }
 
   try {
@@ -337,7 +354,7 @@ router.get('/resolve', async (req: AuthRequest, res: Response) => {
     if (!actor && !isPastedUrl) {
       actor = await resolveThroughCandidates(networkHandleCandidates(query));
     }
-    if (!actor) return res.status(404).json({ error: 'Actor not found' });
+    if (!actor) return res.json({ actor: null });
 
     // Follow state for the (optional) viewer — keyed on the actor's protocol id.
     let followed = false;
@@ -352,24 +369,26 @@ router.get('/resolve', async (req: AuthRequest, res: Response) => {
     }
 
     return res.json({
-      network: actor.network,
-      externalId: actor.externalId,
-      // The IDENTITY, never the protocol address. `handle` is the account this
-      // row IS — the same `local@domain` the ingest just stored in Oxy — while
-      // `externalId` stays the protocol id the follow is addressed to. The two
-      // differ for exactly the actors this lane exists to reach: a bridged actor's
-      // protocol acct names the BRIDGE (`elonmusk@bird.makeup`), so returning it
-      // renders a reader the hostname a copy happened to arrive through instead
-      // of the account that wrote the posts, and — because the client dedupes the
-      // resolved actor against the people results BY HANDLE — leaves it sitting
-      // next to the Oxy row for the same person as a visible twin. An atproto
-      // actor's differs too (`alice.bsky.social` addresses, `alice@bsky.social`
-      // identifies), and had the same duplicate-row consequence.
-      handle: actor.federatedUsername,
-      displayName: actor.displayName,
-      avatarUrl: actor.avatarUrl,
-      oxyUserId: actor.oxyUserId,
-      followed,
+      actor: {
+        network: actor.network,
+        externalId: actor.externalId,
+        // The IDENTITY, never the protocol address. `handle` is the account this
+        // row IS — the same `local@domain` the ingest just stored in Oxy — while
+        // `externalId` stays the protocol id the follow is addressed to. The two
+        // differ for exactly the actors this lane exists to reach: a bridged actor's
+        // protocol acct names the BRIDGE (`elonmusk@bird.makeup`), so returning it
+        // renders a reader the hostname a copy happened to arrive through instead
+        // of the account that wrote the posts, and — because the client dedupes the
+        // resolved actor against the people results BY HANDLE — leaves it sitting
+        // next to the Oxy row for the same person as a visible twin. An atproto
+        // actor's differs too (`alice.bsky.social` addresses, `alice@bsky.social`
+        // identifies), and had the same duplicate-row consequence.
+        handle: actor.federatedUsername,
+        displayName: actor.displayName,
+        avatarUrl: actor.avatarUrl,
+        oxyUserId: actor.oxyUserId,
+        followed,
+      },
     });
   } catch (err) {
     logger.error('Federation resolve error:', err);

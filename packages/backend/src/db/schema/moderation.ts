@@ -227,6 +227,28 @@ export const moderationOutbox = pgTable(
     payloadCaseId: text(),
     /** The decision exactly as published. Loose by contract — see the docblock. */
     payloadDecision: jsonb(),
+    /**
+     * §5.1 `urgency` — how far the material had travelled when the report was
+     * TAKEN, composed by the subject provider at intake.
+     *
+     * It is STORED rather than measured at delivery, and that is the whole
+     * reason the column exists. CrowdSource's ingress fingerprints the entire
+     * `{ externalReportId, envelope }` to catch §10.5's "external id reused with
+     * different content", so an audience count read afresh on each delivery
+     * attempt turns an ordinary outbox retry into a permanent 409 — days later,
+     * as moderation work stuck in a queue, with nothing failing at the moment
+     * the mistake is made. This row is written once and never updated, which is
+     * exactly the property the envelope needs.
+     *
+     * `jsonb` and NULLABLE, for the same reason `decision` is loose: it is
+     * stored data whose schema belongs to CrowdSource, read back by a
+     * deployment that need not be the one that wrote it.
+     * `EvidenceSnapshotService` validates it against the published
+     * `CaseUrgencySchema` on the way out. NULL is the absence — never `{}`,
+     * which that strict schema rejects, so a subject with no defensible
+     * audience must leave the column unset rather than store an empty object.
+     */
+    payloadUrgency: jsonb(),
     status: text({ enum: MODERATION_OUTBOX_STATUSES }).notNull().default('pending'),
     attempts: integer().notNull().default(0),
     availableAt: timestamptz().notNull().defaultNow(),

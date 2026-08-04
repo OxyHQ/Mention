@@ -105,6 +105,15 @@ export async function reconcileModerationReports(
      * slips through.
      */
     await getDb().transaction(async (tx) => {
+      /**
+       * No `urgency`, and re-measuring one here would be a mistake rather than a
+       * completeness fix. A sweep re-derives work from the report, and the
+       * distribution facts it could read now are the ones at RECONCILIATION time
+       * — a different envelope from the one the lost event would have composed,
+       * which is exactly what the ingress fingerprint treats as §10.5's payload
+       * conflict. A report re-derived here therefore triages at the bottom of the
+       * reach band, which is the price of having lost its event.
+       */
       await enqueueModerationOutboxEvent(
         { eventId, kind: 'report.submit', payload: { reportId: report.id } },
         tx,

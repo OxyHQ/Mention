@@ -2,7 +2,7 @@ import {
   FEDERATION_NETWORKS,
   blueskyUsernameFromHandle,
   createBridgeRelabeller,
-  upstreamHandleFromPreferredUsername,
+  upstreamHandleFromAutomatedActor,
   upstreamHandleFromProfileField,
   type FederationBridgeEntry,
 } from '@oxyhq/federation';
@@ -166,16 +166,38 @@ export const FEDERATION_BRIDGE_POLICY: readonly FederationBridgeEntry[] = [
     network: FEDERATION_NETWORKS.x,
     operator: 'mastox.eu (contact @admin@mastox.eu)',
     software: 'Mastodon (stock; no bridge software to fingerprint)',
-    derive: upstreamHandleFromPreferredUsername([
-      /\(bot from x to mastodon managed by mastox\.eu, contact @admin for any information\)\s*$/i,
-      /\(bot de x . mastodon g.r. par mastox\.eu, contactez @admin pour toute demande\)\s*$/i,
-    ]),
+    // IDENTITY COMES FROM `type`, NOT FROM THE BIO — AND THAT REPLACED A
+    // MARKER, WHICH IS THE POINT.
+    //
+    // This matched the per-account notice mastox writes into each mirrored bio.
+    // It listed English and French; the notice also exists in SPANISH, so 18 of
+    // the 50 mastox actors we hold were never re-labelled — they kept
+    // `@name@mastox.eu` with the notice still in the bio, looking to a reader
+    // like an ordinary Mastodon account. Nothing errored, and nobody would
+    // report it. Widening the pattern to match the notice's SHAPE fixed those 18
+    // and still left identity resting on prose, one wording change from
+    // breaking again.
+    //
+    // The operator already declares it in a machine-readable field: every mirror
+    // here is an ActivityPub `Service`, its own `@admin` is a `Person` (both
+    // measured against the live host). Same claim, no language.
+    //
+    // NOT "relabel the whole host, exclude the admin", which is simpler and
+    // inverts the direction of failure. Registrations are closed here today, but
+    // an exclusion list is unbounded and unknowable, and one miss publishes a
+    // real person as an X account they may not have — the impersonation-shaped
+    // error this file calls heavier than a wrong block. Asking each actor what
+    // it is needs no list at all.
+    derive: upstreamHandleFromAutomatedActor(),
     caseRule: 'lowercase',
     relabel: 'enabled',
     upstreamIdStability: 'recyclable',
+    // TEXT CLEANING ONLY, and no longer load-bearing for identity — that split
+    // is what makes matching prose acceptable here. A pattern that misses now
+    // leaves one operator sentence in a bio; it can no longer decide whose
+    // account this is. Kept SHAPE-matched so a fourth language cleans itself.
     boilerplate: [
-      /\s*\(bot from x to mastodon managed by mastox\.eu, contact @admin for any information\)\s*$/i,
-      /\s*\(bot de x . mastodon g.r. par mastox\.eu, contactez @admin pour toute demande\)\s*$/i,
+      /\s*\(bot\b[^)]{0,160}\bmastox\.eu\b[^)]{0,160}@admin[^)]{0,80}\)\s*$/i,
     ],
     consent: 'unconsented',
     evidence:

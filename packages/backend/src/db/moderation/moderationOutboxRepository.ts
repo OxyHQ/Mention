@@ -58,6 +58,17 @@ export interface ModerationOutboxPayload {
   caseId?: string;
   /** The decision exactly as CrowdSource published it — whole and opaque. */
   decision?: unknown;
+  /**
+   * §5.1 `urgency`, frozen at intake — see the column's docblock in
+   * `schema/moderation.ts` for why it is stored rather than measured at
+   * delivery (short version: the ingress fingerprints the envelope, so a
+   * re-measured audience count makes a retry a permanent 409).
+   *
+   * `unknown` for the same reason as `decision`: the schema belongs to
+   * CrowdSource and this row may be read back by a different deployment than
+   * the one that wrote it.
+   */
+  urgency?: unknown;
 }
 
 /** One claimed event, in the shape the dispatcher consumes. */
@@ -89,6 +100,12 @@ function toPayload(row: OutboxRow): ModerationOutboxPayload {
     ...(row.payloadEventId === null ? {} : { eventId: row.payloadEventId }),
     ...(row.payloadCaseId === null ? {} : { caseId: row.payloadCaseId }),
     ...(row.payloadDecision === null ? {} : { decision: row.payloadDecision }),
+    // Conditional like its siblings, and load-bearing here rather than tidy: a
+    // subject with no defensible audience must come back with NO `urgency` key
+    // at all. `CaseUrgencySchema` is strict, so an `{}` (or an explicit
+    // `undefined` that survives into the envelope) is a validation failure
+    // rather than an omission.
+    ...(row.payloadUrgency === null ? {} : { urgency: row.payloadUrgency }),
   };
 }
 
@@ -113,6 +130,7 @@ function payloadColumns(payload: ModerationOutboxPayload) {
     payloadEventId: payload.eventId ?? null,
     payloadCaseId: payload.caseId ?? null,
     payloadDecision: payload.decision ?? null,
+    payloadUrgency: payload.urgency ?? null,
   };
 }
 

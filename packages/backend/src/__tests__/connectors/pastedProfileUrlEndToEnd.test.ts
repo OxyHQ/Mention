@@ -181,7 +181,7 @@ describe('pasting https://x.com/elonmusk', () => {
     expect(res.status).toBe(200);
     // What the reader sees. `externalId` is the protocol id the follow is
     // addressed to, and stays pointed at the bridge.
-    expect(res.body).toMatchObject({
+    expect(res.body.actor).toMatchObject({
       network: 'activitypub',
       handle: 'elonmusk@x.com',
       externalId: ACTOR_URI,
@@ -198,7 +198,7 @@ describe('pasting https://x.com/elonmusk', () => {
       actorUri: ACTOR_URI,
       displayName: 'Elon Musk',
     });
-    expect(res.body.handle).toBe(usersResolveBody()?.username);
+    expect(res.body.actor.handle).toBe(usersResolveBody()?.username);
   });
 
   it('stores the bridge address on the row it keeps for reaching the actor', async () => {

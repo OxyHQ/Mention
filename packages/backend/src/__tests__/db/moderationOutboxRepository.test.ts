@@ -164,6 +164,60 @@ describe('enqueueing', () => {
     expect(rows).toHaveLength(1);
   });
 
+  /**
+   * §5.1 `urgency` ROUND-TRIPS through the row, byte for byte.
+   *
+   * The value is snapshotted at intake and read back at delivery, so the ROW is
+   * what has to be faithful. That is the whole design: CrowdSource's ingress
+   * fingerprints the entire envelope, so if the stored value and the delivered
+   * value ever disagreed, the second attempt at an ordinary outbox retry would
+   * be a permanent 409 — surfacing days later as a report stuck in a queue,
+   * with nothing failing at the moment the mistake was made.
+   *
+   * Asserted against `toPayload`'s output rather than the raw column, because
+   * the payload is what the delivery worker actually reads.
+   */
+  it('round-trips a frozen urgency exactly as the contract shapes it', async () => {
+    const id = eventId();
+    const reportId = await seedReport();
+    const urgency = { hint: 'public_feed', reach: 250_000, activeDistribution: true };
+
+    await getDb().transaction(async (tx) => {
+      await enqueueModerationOutboxEvent(
+        { eventId: id, kind: 'report.submit', payload: { reportId, urgency } },
+        tx,
+      );
+    });
+
+    const claimed = await claimModerationOutboxEvent({ leaseOwner: 'worker-1', eventId: id });
+    expect(claimed?.payload).toEqual({ reportId, urgency });
+  });
+
+  /**
+   * ABSENT STAYS ABSENT, and the difference is not cosmetic.
+   *
+   * `CaseUrgencySchema` is a STRICT object requiring `hint`, so an empty `{}`
+   * materialised onto the payload fails envelope composition with a
+   * NON-retryable input error — dead-lettering a report whose only defect is a
+   * missing triage hint. A subject with no defensible audience (a profile) must
+   * therefore produce NO `urgency` key at all, not an empty one.
+   *
+   * This is the fixture that tells the conditional spread in `toPayload` from a
+   * plain `urgency: row.payloadUrgency`: the latter stores `null` in the column
+   * and hands back `{ urgency: null }`, which the contract refuses just as
+   * surely as `{}`.
+   */
+  it('stores NO urgency key for a subject that had none', async () => {
+    const id = eventId();
+    const reportId = await enqueue(id);
+
+    expect(await readRow(id)).toMatchObject({ payloadUrgency: null });
+
+    const claimed = await claimModerationOutboxEvent({ leaseOwner: 'worker-1', eventId: id });
+    expect(claimed?.payload).toEqual({ reportId });
+    expect(claimed?.payload).not.toHaveProperty('urgency');
+  });
+
   it('rolls the event back with its transaction', async () => {
     const id = eventId();
     const reportId = await seedReport();

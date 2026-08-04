@@ -88,7 +88,16 @@ export async function deliverReportOutboxEvent(
    * Catching it and writing a local state would put the report somewhere nothing
    * alerts on.
    */
-  const input = await buildModerationReportInput(report);
+  const input = await buildModerationReportInput(
+    report,
+    /**
+     * From the EVENT, not from a fresh look at the post. The urgency was frozen
+     * when the report was taken precisely so that every attempt at this event
+     * composes the same envelope — the ingress fingerprints it, so a value
+     * re-measured here would make the second attempt a permanent 409 (§10.5).
+     */
+    event.payload.urgency,
+  );
 
   if (input === null) {
     await closeUndeliverableReport(
