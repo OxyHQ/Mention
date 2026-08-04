@@ -479,6 +479,23 @@ export interface ProfileTabsProps {
   actorUri?: string;
 }
 
+/**
+ * The `[username]` layout's body.
+ *
+ * Declared here rather than beside either implementation because the component
+ * is a PLATFORM PAIR (`ProfileChromeFrame.tsx` / `.web.tsx`): a type exported
+ * from one half would resolve to the other half on the platform that shadows it,
+ * and on web that is a module importing itself.
+ */
+export interface ProfileChromeFrameProps {
+  /**
+   * The `[username]` segment's navigator — a `<Slot/>`. Every implementation
+   * must render it, in every branch, at one tree position; see
+   * `ProfileChromeFrame.web.tsx` for what breaks when it moves.
+   */
+  children: React.ReactNode;
+}
+
 // Private badge props
 export interface PrivateBadgeProps {
   privacySettings?: ProfileData['privacy'];

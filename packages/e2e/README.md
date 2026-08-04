@@ -118,6 +118,7 @@ whatever is already live.
 | 3 | `/@<handle>` as a page, and as ActivityPub | `webShell.routes.ts` content negotiation — breaks fediverse discovery while the profile still looks healthy |
 | 4 | Search suggestions survive typing and blur; submit carries the full query | The suggestion surface vanishing on the first keystroke or on blur; the stale-closure submit that drops the final character |
 | 5 | An image post whose dimensions the feed KNEW settles on ONE layout | The 280x180 fallback box jumping to the real aspect ratio, i.e. media geometry being dropped from the DTO |
+| 6 | `/@<handle>` is the Posts tab, on a cold load and after a client-side push from another profile; the strip survives a tab switch | The profile tab strip being unmounted by the navigation it performs (597ms with no strip); a pushed profile resolving to `/about` because its tab routes sat in a nested group |
 
 ### Reading a red run of flow 5
 

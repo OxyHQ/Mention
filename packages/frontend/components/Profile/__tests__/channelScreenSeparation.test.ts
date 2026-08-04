@@ -90,12 +90,20 @@ describe('channel and person profiles are separate screens', () => {
   /**
    * The canonicalization between `/@` and `/c/` is the ONE piece that cannot be
    * duplicated: two screens each deciding where to redirect can build a bounce
-   * loop between them. Both screens must reach it through the shared helper.
+   * loop between them. Every screen must reach it through the shared helper.
+   *
+   * There are three of them because the person profile is a platform pair — on
+   * web its chrome belongs to the `[username]` layout and the screen is only the
+   * tab's content (`ProfileChromeFrame.web.tsx`) — and BOTH halves redirect,
+   * because a layout may not: it must render its navigator in every branch, and
+   * a `<Redirect/>` renders null. `usePersonProfileView` counts as reaching the
+   * helper; it is `useProfileAccount` with the rest of the page around it, and
+   * it passes `canonicalHref` straight through.
    */
-  it('routes both screens through the one canonicalization', () => {
-    for (const screen of ['ProfileScreen.tsx', 'ChannelScreen.tsx']) {
+  it('routes every profile screen through the one canonicalization', () => {
+    for (const screen of ['ProfileScreen.tsx', 'ProfileScreen.web.tsx', 'ChannelScreen.tsx']) {
       const source = code(read('components', screen));
-      expect(source).toMatch(/useProfileAccount\(/);
+      expect(source).toMatch(/useProfileAccount\(|usePersonProfileView\(/);
       expect(source).toMatch(/canonicalHref/);
       // A screen that builds its own redirect target has left the shared rule.
       expect(source).not.toMatch(/<Redirect href={`/);
@@ -146,7 +154,9 @@ describe('a channel has its own about page', () => {
   });
 
   it('keeps the person profile on the person family, so the check is not vacuous', () => {
-    const source = code(read('components', 'ProfileScreen.tsx'));
+    // The person profile's summary is built in `usePersonProfileView`, which is
+    // where both platforms read it from — the screen files compose it.
+    const source = code(read('components', 'Profile', 'hooks', 'usePersonProfileView.tsx'));
     expect(source).toMatch(/aboutHref=\{`\/@\$\{handle\}\/about`\}/);
   });
 
