@@ -392,7 +392,7 @@ const SavedPostsScreen: React.FC = () => {
                 {canUsePrivateApi ? (
                     <BottomBarAwareFab
                         onPress={newFolderControl.open}
-                        icon={<Ionicons name="add" size={24} color={theme.colors.tertiaryForeground} />}
+                        icon={<Ionicons name="add" size={24} color={theme.colors.tertiaryStrongForeground} />}
                         accessibilityLabel={t('saved.newFolder', 'New folder')}
                     />
                 ) : null}

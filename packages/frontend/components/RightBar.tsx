@@ -77,7 +77,8 @@ export function RightBar() {
     }
 
     return (
-        <View className="flex-col px-4 pt-4 gap-4" style={styles.container}>
+        // No column `gap` — each child owns its own bottom margin, see `BaseWidget`.
+        <View className="flex-col px-4 pt-4" style={styles.container}>
             <SearchBar />
             <WidgetManager screenId="home" />
             {Platform.OS === 'web' && <RightBarFooter />}

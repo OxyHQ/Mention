@@ -853,7 +853,7 @@ export default function CustomFeedTimelineScreen() {
       {!isLoading && !hasError && (
         <BottomBarAwareFab
           onPress={() => router.push('/compose')}
-          icon={<ComposeIcon size={22} className="text-tertiary-foreground" />}
+          icon={<ComposeIcon size={22} className="text-tertiary-strong-foreground" />}
           accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
         />
       )}
