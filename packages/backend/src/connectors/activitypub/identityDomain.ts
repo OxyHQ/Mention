@@ -1,5 +1,3 @@
-import type { IFederatedActor } from '../../models/FederatedActor';
-
 /**
  * The network an actor's IDENTITY belongs to, which is not always the host the
  * actor was fetched from.
@@ -23,8 +21,16 @@ import type { IFederatedActor } from '../../models/FederatedActor';
  * and those two happen to coincide: relabel is enabled only where a reviewed
  * bridge can be asked.
  */
+/**
+ * Typed STRUCTURALLY rather than off a model interface, because both stores hand
+ * this an actor and the two spell absence differently — a Mongoose document omits
+ * `networkAcct`, a Drizzle row carries `null`. Naming the two fields it reads is
+ * also the honest signature: `domain` stays in the shape only so a caller can
+ * pass a whole actor row without narrowing, and the body deliberately never
+ * touches it (see the note below the `networkAcct` branch).
+ */
 export function identityDomainOfActor(
-  actor: Pick<IFederatedActor, 'networkAcct' | 'domain'> | null | undefined,
+  actor: { networkAcct?: string | null; domain?: string | null } | null | undefined,
 ): string | undefined {
   const networkAcct = actor?.networkAcct?.trim();
   if (networkAcct) {
