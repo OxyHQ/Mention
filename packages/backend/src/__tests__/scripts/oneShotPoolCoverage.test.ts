@@ -56,6 +56,22 @@ const OPENER = 'connectPostgres';
 const ENTRY_DIRS = ['scripts', 'src/scripts'];
 
 /**
+ * One-shots that do NOT live in an entry directory.
+ *
+ * Enumerating by DIRECTORY is a guess about where entry points live, and it is
+ * wrong for at least one: `.github/scripts/deploy-ecs-image.sh` runs
+ * `packages/backend/dist/src/db/migrate.js` as the FIRST migration one-shot of
+ * every deploy — the step whose own comment calls Postgres "the store that can
+ * invalidate the whole rollout". A directory scan would have left the most
+ * consequential entry point in the deploy unchecked.
+ *
+ * It passes today for a reason that does not generalise: it builds its own
+ * `postgres(url, …)` client rather than going through `connectPostgres`. The
+ * day it imports a service instead, this is what notices.
+ */
+const EXTRA_ENTRY_POINTS = ['src/db/migrate.ts'];
+
+/**
  * The FLOOR. A traversal that silently stopped finding entry points would pass
  * every assertion below while checking nothing, so the count is asserted first.
  * Deliberately a floor and not an equality: adding a script must not fail this.
@@ -269,14 +285,17 @@ function chainTo(via: Map<string, string>, entry: string, file: string): string[
   return out;
 }
 
-const entryPoints = ENTRY_DIRS.flatMap((dir) => {
-  const absolute = resolve(BACKEND, dir);
-  if (!existsSync(absolute)) return [];
-  return readdirSync(absolute)
-    .filter((name) => name.endsWith('.ts') && !name.endsWith('.d.ts'))
-    .map((name) => resolve(absolute, name))
-    .filter((file) => statSync(file).isFile());
-});
+const entryPoints = [
+  ...ENTRY_DIRS.flatMap((dir) => {
+    const absolute = resolve(BACKEND, dir);
+    if (!existsSync(absolute)) return [];
+    return readdirSync(absolute)
+      .filter((name) => name.endsWith('.ts') && !name.endsWith('.d.ts'))
+      .map((name) => resolve(absolute, name))
+      .filter((file) => statSync(file).isFile());
+  }),
+  ...EXTRA_ENTRY_POINTS.map((entry) => resolve(BACKEND, entry)),
+];
 
 interface Verdict {
   readonly entry: string;
@@ -318,6 +337,15 @@ function exemptionFor(verdict: Verdict) {
 }
 
 describe('one-shot entry points and the Postgres pool', () => {
+  it('scans every declared out-of-directory entry point', () => {
+    // A path that stopped existing would silently drop out of the scan and take
+    // its coverage with it, which is the same failure the directory walk has —
+    // one file at a time instead of a whole directory.
+    for (const entry of EXTRA_ENTRY_POINTS) {
+      expect(existsSync(resolve(BACKEND, entry)), `${entry} is declared but missing`).toBe(true);
+    }
+  });
+
   it(`scans at least ${MIN_ENTRY_POINTS} entry points`, () => {
     // The vacuity floor. Every assertion below is over `verdicts`, so a
     // traversal that found nothing would pass all of them.
