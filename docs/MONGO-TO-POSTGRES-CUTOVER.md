@@ -67,13 +67,17 @@ Each is a fact to CHECK, not to assume.
    and then cancelled.
 5. `drizzle/foundation` is merged to `main` and CI is green.
 6. **The trunk's test suite is at its verified baseline.** Measured on
-   `drizzle/channels-plans` @ `b017809c`, three consecutive full runs agreeing
-   exactly: **504 files, 5,939 tests collected, 5,938 passing, 1 failing, zero
-   files dead at load.** The single failure is `closedValueSets.test.ts` ›
-   *"has no set that disagrees with the vocabulary Mongo holds"* — the
-   `notifications.entityType` case, parked pending the production `distinct()`
-   in §2. Anything else red is new and is not this baseline. Re-take with
-   `bun run --cwd packages/backend test` plus
+   `drizzle/channels-plans` @ `1b60437b` — **535 files, 6,373 tests, ALL
+   passing, zero files dead at load** — and confirmed by CI rather than by one
+   machine, which is what changed (see the #124 note in §6). The local run and
+   the CI run agree, including on the per-file coverage floors.
+
+   **This supersedes the `b017809c` baseline of 504 files / 5,939 tests /
+   1 failing**, and the difference is 300-odd commits, not a regression: the
+   parked `closedValueSets.test.ts` › *"has no set that disagrees with the
+   vocabulary Mongo holds"* failure is gone. **Anything red now is new.**
+
+   Re-take with `bun run --cwd packages/backend test` plus
    `bun run check:suite-collection <report.json> packages/backend/src`.
 
    The collection gate matters here specifically: a test file that dies before
@@ -911,18 +915,46 @@ the right merge — see #102, where git merges cleanly and the result is wrong.
     larger than the sample.
   - **This closes the DATA question, not the window.** The two items directly
     below still decide whether a date can be picked at all.
-- **CI HAS NEVER RUN ON THIS TRUNK, and the divergence is what stops it. (#124)**
-  `.github/workflows/ci.yml` triggers on `push: [main]` and `pull_request:
-  [main]` only, so the **299 commits** this branch carries ahead of `main` (as
-  of `60fbb587`) have never been through a single CI job. **A probe PR does not
-  close this:** GitHub builds no merge commit for a conflicted PR, so
-  `refs/pull/N/merge` never exists, no `pull_request` run is created, and the PR
-  sits with no jobs and no red X — the same shape as the `workflow_run` trap in
-  §3.4, where nothing having run looks exactly like nothing needing to run. The
-  only path to a first CI verdict is **landing the absorb**, which resolves the
-  divergence. Until then every "CI is green" statement about this trunk is a
-  statement about `main`, and the local suite is the only evidence there is —
-  evidence about one machine.
+- **~~CI HAS NEVER RUN ON THIS TRUNK~~ — CLOSED 2026-08-04, and the fix removed
+  the failure mode rather than the instance. (#124)** `ci.yml` now lists
+  `drizzle/channels-plans` under `push:`, so the trunk is checked **independent
+  of PR mergeability**, and `main` is fully absorbed besides. First verdict on
+  the 330-odd commits: **535 files, 6,373 tests, all green**, plus typecheck,
+  lint, lockfile, mcp, shared-types, frontend and the bundle budget.
+
+  **Keep the diagnosis, because it recurs and it is silent.** A `pull_request`
+  run builds `refs/pull/N/merge`, which GitHub cannot create while the PR
+  conflicts — so **every time `main` lands a commit touching anything this trunk
+  touches, every push here dispatches NOTHING.** Not a failure, not a queued run:
+  no run, and the checks page is indistinguishable from a branch nobody pushed
+  to. Measured that day: four consecutive trunk pushes carrying five merged fixes
+  produced zero runs across an hour, and the silence was reported as "CI is
+  running" four times before anyone ran `gh run list`. Same shape as the
+  `workflow_run` trap in §3.4 — nothing having run looks exactly like nothing
+  needing to run.
+
+  **Two safety facts checked before that trigger was added, and worth re-checking
+  if anyone touches it:** all three deploy workflows fire on `workflow_run` with
+  `branches: [main]`, so a green run on this branch **cannot** deploy it; and
+  `concurrency.group` keys on `github.ref`, so trunk runs share no lane with
+  `main`'s. **Remove the entry when this branch is deleted** — it is the only
+  branch-specific line in that file.
+
+  **One asymmetry to know:** `Frontend bundle budget` is gated to
+  `pull_request`, so it does not run on a push. Green-on-push is therefore weaker
+  than green-on-PR for the bundle specifically. Immaterial while no frontend file
+  changes; if frontend work lands here, get a PR run or measure locally.
+
+- **MERGING THIS TRUNK TO `main` PERFORMS THE CUTOVER — green CI does not change
+  that.** `merge → CI on main → green → deploy-aws` (its only conditions are
+  `conclusion == 'success'` and `head_branch == 'main'`) → ECS runs the Postgres
+  backend against production traffic, and `connectPostgres` throws when
+  `DATABASE_URL` is unset. **No human step exists anywhere in that chain.** This
+  is called out because `AGENTS.md` says *"Green CI = merge to main… don't park
+  it for separate manual review"* — correct for every other PR in this repo and
+  exactly wrong here. PR #636 is held as a **draft**, which is the mechanism;
+  its title states the consequence rather than a temporary blocker, because a
+  guard defended by a reason that expires is a guard somebody removes.
 - **`oxy-mongo` host access is broken** — root volume 100% full, SSM
   success-shaped nothing. **Fix before the window**; Mongo is the rollback
   target. Full detail in the §4 banner. (#104)
