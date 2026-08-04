@@ -283,6 +283,32 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'UPDATEs `quote_of` on it. Its suite mocks `signedFetch` to answer with a quote for ANY ' +
       'candidate, so a foreign row entering the scan is linked to this file\'s fixture.',
   },
+
+  /*
+   * ── THE TWO THE SECOND SCAN ALSO MISSED ─────────────────────────────────────
+   *
+   * Found only when the scan was re-run from IMPORTS rather than from a
+   * directory. Both drive an admin one-shot and neither lives under
+   * `src/__tests__/scripts/`, so a rule keyed on that directory would have
+   * reported clean — the same search-space error the second scan had just
+   * diagnosed, repeated one level up. `scriptScope.ts` exists so a third one
+   * cannot arrive this way.
+   */
+  {
+    path: 'src/__tests__/backfillPostLanguages.test.ts',
+    jobEntryPoint: 'backfillPostLanguages',
+    reason:
+      'Pages every post whose classification is missing or below ' +
+      '`BASELINE_CLASSIFIER_VERSION` and writes languages onto each. Its own docblock says it ' +
+      '"takes no scope — by design", and the suite calls it with `batchSize` only.',
+  },
+  {
+    path: 'src/__tests__/backfillCustomFeedDefinitions.test.ts',
+    jobEntryPoint: 'backfillCustomFeedDefinitions',
+    reason:
+      'Its filter is `isNull(custom_feeds.definition_mode)` — every unmigrated feed in the ' +
+      'table — and it stamps a definition onto each. The suite calls it with no arguments.',
+  },
 ];
 
 /**
