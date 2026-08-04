@@ -25,6 +25,9 @@ class MockSocket {
   connected = true;
   active = false;
   disconnectCalls = 0;
+  connectCalls = 0;
+  /** Every value passed to the Manager's `reconnection()`, in order. */
+  readonly reconnectionSettings: boolean[] = [];
 
   readonly io = {
     on: (event: string, handler: MockHandler) => {
@@ -32,6 +35,9 @@ class MockSocket {
     },
     off: (event: string) => {
       this.managerHandlers.delete(event);
+    },
+    reconnection: (value: boolean) => {
+      this.reconnectionSettings.push(value);
     },
   };
 
@@ -46,6 +52,11 @@ class MockSocket {
   disconnect() {
     this.disconnectCalls += 1;
     this.connected = false;
+  }
+
+  connect() {
+    this.connectCalls += 1;
+    this.connected = true;
   }
 
   /** Deliver a server broadcast to whatever the service registered. */
@@ -216,5 +227,66 @@ describe('reconnect resync', () => {
     liveSocket().emitReconnect();
 
     expect(mockApiGet).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * An open WebSocket makes the whole document ineligible for the browser's
+ * back/forward cache, which is what turns a cross-document Back into a full app
+ * reload. `lib/socketBfcache.web.ts` drives this pair from `pagehide`/`pageshow`.
+ */
+describe('back/forward-cache freeze and restore', () => {
+  it('suppresses reconnection rather than only closing the socket', () => {
+    publicRealtimeService.connect();
+    const socket = liveSocket();
+
+    publicRealtimeService.suspendForPageFreeze();
+
+    expect(socket.disconnectCalls).toBe(1);
+    // Without this the Manager reopens the transport within a second and the
+    // page is refused the cache again, before the traversal even happens.
+    expect(socket.reconnectionSettings).toEqual([false]);
+  });
+
+  it('keeps the socket and its listeners, unlike a disconnect', () => {
+    publicRealtimeService.connect();
+    const socket = liveSocket();
+
+    publicRealtimeService.suspendForPageFreeze();
+    publicRealtimeService.resumeAfterPageRestore();
+
+    // The same Socket, reopened — not a replacement. A second `io()` call here
+    // would mean the frozen page lost its listeners and had to renegotiate.
+    expect(mockIoCalls).toHaveLength(1);
+    expect(socket.connectCalls).toBe(1);
+    expect(socket.reconnectionSettings).toEqual([false, true]);
+    expect(socket.handlers.has(PUBLIC_REALTIME_EVENTS.TRENDS_UPDATED)).toBe(true);
+  });
+
+  it('refetches the whole list on restore, having slept through every batch', async () => {
+    publicRealtimeService.connect();
+    respond([trend('tech', 40, [1, 2, 3, 4, 5, 6])], 'batch-1');
+    await useTrendsStore.getState().fetchTrends();
+
+    // Reopening by hand is not a Manager `reconnect`, so the handler bound to
+    // that event never fires on this path — without its own resync the restored
+    // page would show however stale a chart it was frozen with.
+    respond([trend('tech', 90, [11, 12, 13, 14, 15, 16])], 'batch-7');
+    publicRealtimeService.suspendForPageFreeze();
+    publicRealtimeService.resumeAfterPageRestore();
+    await settle();
+
+    expect(useTrendsStore.getState().trends[0].series).toEqual([11, 12, 13, 14, 15, 16]);
+  });
+
+  it('does nothing on a restore it was never frozen for', () => {
+    publicRealtimeService.connect();
+    const socket = liveSocket();
+
+    publicRealtimeService.resumeAfterPageRestore();
+
+    // A `pageshow` that follows no freeze must not touch a live connection.
+    expect(socket.connectCalls).toBe(0);
+    expect(socket.reconnectionSettings).toEqual([]);
   });
 });
