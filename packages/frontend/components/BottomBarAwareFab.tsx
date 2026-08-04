@@ -50,8 +50,6 @@ export function BottomBarAwareFab({ onPress, icon, accessibilityLabel, size = 48
     if (!followsBottomBar) {
         return (
             <Fab
-                // A FAB is the canonical M3 home for the standout accent.
-                variant="tertiary"
                 size={size}
                 onPress={onPress}
                 offset={FAB_BASE_OFFSET}
@@ -77,7 +75,6 @@ export function BottomBarAwareFab({ onPress, icon, accessibilityLabel, size = 48
             style={{ bottom: FAB_BASE_OFFSET + reserved, marginRight: FAB_BASE_OFFSET }}
         >
             <Fab
-                    variant="tertiary"
                 size={size}
                 onPress={onPress}
                 placement="static"
