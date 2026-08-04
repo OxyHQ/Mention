@@ -29,6 +29,7 @@ import { AppInitializer } from '@/lib/appInitializer';
 import { logger } from '@oxyhq/core/logger';
 import { configureAppLogging } from '@/lib/logging';
 import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
+import { registerSocketBfcacheRelease } from '@/lib/socketBfcache';
 import { initializeWebTelemetry } from '@/lib/webTelemetry';
 
 // Styles
@@ -107,6 +108,11 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => initializeWebTelemetry(), []);
+
+  // Release the realtime sockets while the browser holds this document in its
+  // back/forward cache — an open WebSocket makes the page ineligible, which is
+  // what turns a cross-document Back into a full app reload.
+  useEffect(() => registerSocketBfcacheRelease(), []);
 
   // React Query managers - setup once on mount
   useEffect(() => {

@@ -115,6 +115,10 @@ class SocketService {
   private liveRoomsRefetchTimer: ReturnType<typeof setTimeout> | null = null;
   // Post rooms the mounted screens have asked for; replayed on every connect.
   private joinedPostIds = new Set<string>();
+  // Web only: the document is frozen in the browser's back/forward cache, so the
+  // transport is deliberately released and NOTHING may reopen it until it is
+  // restored. See `lib/socketBfcache.web.ts`.
+  private frozenForPageCache = false;
 
   constructor() {
     this.setupEventListeners();
@@ -130,6 +134,7 @@ class SocketService {
 
   private readonly handleManagerReconnectFailed = () => {
     this.isConnected = false;
+    if (this.frozenForPageCache) return;
     const manager = this.socket?.io;
     if (!manager || !this.currentUserId) return;
 
@@ -327,6 +332,46 @@ class SocketService {
     this.currentUserId = undefined;
     this.currentToken = undefined;
     this.reconnectAttempts = 0;
+    this.frozenForPageCache = false;
+  }
+
+  /**
+   * Release the transport because the browser is about to freeze the document
+   * into its back/forward cache.
+   *
+   * Deliberately NOT `disconnect()`, which is the sign-out teardown: it drops the
+   * viewer's credentials, the post rooms their mounted screens are watching and
+   * every queued update, none of which a frozen page consented to losing. The
+   * Socket and all of its listeners survive, so `resumeAfterPageRestore` reopens
+   * the SAME session rather than negotiating a new one.
+   */
+  suspendForPageFreeze(): void {
+    if (this.frozenForPageCache) return;
+    this.frozenForPageCache = true;
+    if (!this.socket) return;
+    // Reconnection belongs to the Manager, and BOTH realtime services share one
+    // — same origin, same path, two namespaces, one WebSocket. Releasing this
+    // namespace socket alone therefore leaves the Manager live and free to
+    // retry, reopening the transport within a second and making the page
+    // ineligible again before the browser has finished deciding. Socket.IO does
+    // stop retrying once EVERY namespace socket has been released, but only as
+    // a side effect of an internal flag and only in that order; saying it
+    // outright is what makes the frozen window safe either way.
+    this.socket.io.reconnection(false);
+    this.socket.disconnect();
+    this.isConnected = false;
+  }
+
+  /** The document came back out of the back/forward cache: reopen the session. */
+  resumeAfterPageRestore(): void {
+    if (!this.frozenForPageCache) return;
+    this.frozenForPageCache = false;
+    if (!this.socket) return;
+    this.socket.io.reconnection(true);
+    // Room membership is server-side state the closed connection destroyed. The
+    // `connect` handler re-joins the feed room and replays `joinedPostIds`, so
+    // the screens still mounted behind the restored page come back live.
+    this.socket.connect();
   }
 
   /** Final teardown for tests or a host that unloads the singleton entirely. */
@@ -490,9 +535,13 @@ class SocketService {
     // Handle app state changes (React Native)
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
-        // App came to foreground - reconnect if needed
+        // App came to foreground - reconnect if needed. A frozen document is
+        // exempt: on web this fires from `visibilitychange`, which also fires
+        // around a back/forward-cache restore, and reopening the socket there
+        // would undo the release the freeze depends on.
         if (
           !this.isConnected
+          && !this.frozenForPageCache
           && this.socket
           && !this.socket.connected
           && !this.socket.active

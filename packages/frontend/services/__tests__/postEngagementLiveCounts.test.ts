@@ -132,6 +132,7 @@ describe('live post engagement counts, over a real socket', () => {
   let ioServer: SocketIOServer;
   let serverSockets: ServerSocket[] = [];
   let joinedRooms: string[] = [];
+  let handshakeAuths: Array<Record<string, unknown>> = [];
   let socketService: typeof import('@/services/socketService').socketService;
 
   beforeAll(async () => {
@@ -142,6 +143,7 @@ describe('live post engagement counts, over a real socket', () => {
     // one; the admission decision is the backend's and is tested there.
     ioServer.on('connection', (socket) => {
       serverSockets.push(socket);
+      handshakeAuths.push(socket.handshake.auth);
       socket.on('joinPost', (postId: string) => {
         joinedRooms.push(postId);
         socket.join(postEngagementRoom(postId));
@@ -169,6 +171,7 @@ describe('live post engagement counts, over a real socket', () => {
   beforeEach(async () => {
     mockPosts.clear();
     joinedRooms = [];
+    handshakeAuths = [];
     seedPost(WATCHED_POST);
     seedPost(UNWATCHED_POST);
 
@@ -413,5 +416,97 @@ describe('live post engagement counts, over a real socket', () => {
       () => joinedRooms.includes(WATCHED_POST),
       'the client to re-assert its room after reconnecting',
     );
+  });
+
+  // The web app is frozen into the browser's back/forward cache on a
+  // cross-document Back, and an open WebSocket makes the page ineligible for
+  // that cache. `lib/socketBfcache.web.ts` drives this pair from
+  // `pagehide`/`pageshow`; these tests are what stands behind the authenticated
+  // socket, which a signed-out browser check cannot reach.
+  describe('back/forward-cache freeze and restore', () => {
+    it('stays down for the whole frozen period instead of reconnecting', async () => {
+      const live = serverSockets.at(-1);
+      if (!live) throw new Error('no server-side socket for this connection');
+      const connectionsBefore = serverSockets.length;
+
+      socketService.suspendForPageFreeze();
+      // Asked of THIS connection's server-side socket, not of the client's own
+      // flag: `suspendForPageFreeze` sets that flag itself, so it would read
+      // "closed" even for a suspend that never touched the transport — the exact
+      // case this test exists to catch.
+      await waitFor(() => live.disconnected, 'the server to see this client leave');
+
+      // Long enough to cover several turns of the 1s reconnection delay. A
+      // Socket.IO retry loop left running here reopens the connection within a
+      // second and the page is refused the cache all over again — which is why
+      // closing the socket without suppressing reconnection is not a fix.
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      expect(serverSockets).toHaveLength(connectionsBefore);
+      expect(socketService.getConnectionStatus().isConnected).toBe(false);
+    }, 15000);
+
+    it('comes back live on the SAME session, with its post rooms replayed', async () => {
+      socketService.suspendForPageFreeze();
+      await waitFor(
+        () => !socketService.getConnectionStatus().isConnected,
+        'the transport to close',
+      );
+      joinedRooms = [];
+      handshakeAuths = [];
+
+      socketService.resumeAfterPageRestore();
+      await waitFor(
+        () => socketService.getConnectionStatus().isConnected,
+        'the transport to reopen',
+      );
+
+      // The credentials survived the freeze. A `disconnect()` here instead would
+      // have dropped them, leaving nothing to reconnect WITH — the restored page
+      // would have had to wait for the auth cold boot all over again.
+      expect(handshakeAuths).toHaveLength(1);
+      expect(handshakeAuths[0]).toEqual({ token: 'test-token', userId: VIEWER_ID });
+
+      // Room membership died with the connection, so the counts only keep moving
+      // if the client says so again.
+      await waitFor(
+        () => joinedRooms.includes(WATCHED_POST),
+        'the client to re-assert its post room after the restore',
+      );
+
+      broadcast(POST_ENGAGEMENT_EVENTS.LIKED, {
+        postId: WATCHED_POST,
+        likesCount: 77,
+        actorId: OTHER_ACTOR_ID,
+      });
+      await waitFor(
+        () => storedPost(WATCHED_POST).engagement.likes === 77,
+        'a live broadcast to reach the store after the restore',
+      );
+    }, 15000);
+
+    it('leaves the retry loop armed, so a LATER drop still reconnects', async () => {
+      socketService.suspendForPageFreeze();
+      await waitFor(
+        () => (serverSockets.at(-1)?.disconnected ?? false),
+        'the transport to close',
+      );
+      socketService.resumeAfterPageRestore();
+      await waitFor(
+        () => socketService.getConnectionStatus().isConnected,
+        'the transport to reopen',
+      );
+
+      // Reopening the socket by hand clears Socket.IO's one-shot skip flag, so a
+      // restore that forgot to turn reconnection back ON looks entirely healthy
+      // until the next blip — after which the socket never comes back at all.
+      const connectionsBefore = serverSockets.length;
+      for (const socket of serverSockets) socket.conn.close();
+
+      await waitFor(
+        () => serverSockets.length > connectionsBefore,
+        'the client to reconnect after a drop that follows a restore',
+      );
+    }, 15000);
   });
 });

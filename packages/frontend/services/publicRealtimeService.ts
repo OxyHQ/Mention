@@ -30,6 +30,10 @@ const logger = createLogger('PublicRealtime');
  */
 class PublicRealtimeService {
   private socket: Socket | null = null;
+  // Web only: the document is frozen in the browser's back/forward cache, so the
+  // transport is deliberately released and NOTHING may reopen it until it is
+  // restored. See `lib/socketBfcache.web.ts`.
+  private frozenForPageCache = false;
 
   private readonly handleTrendsUpdated = () => {
     // The payload is a notice; the data arrives through the one cached, filtered
@@ -76,12 +80,51 @@ class PublicRealtimeService {
   }
 
   disconnect(): void {
+    this.frozenForPageCache = false;
     if (!this.socket) return;
     this.socket.off(PUBLIC_REALTIME_EVENTS.TRENDS_UPDATED, this.handleTrendsUpdated);
     this.socket.off('connect_error');
     this.socket.io.off('reconnect', this.handleReconnect);
     this.socket.disconnect();
     this.socket = null;
+  }
+
+  /**
+   * Release the transport because the browser is about to freeze the document
+   * into its back/forward cache.
+   *
+   * Deliberately NOT `disconnect()`: that drops the socket and its listeners for
+   * good, and this connection is the one that must survive everything (see the
+   * class comment). The Socket is kept so `resumeAfterPageRestore` reopens it.
+   *
+   * Both realtime services share ONE Socket.IO Manager — same origin, same path,
+   * two namespaces, one WebSocket — so the transport only actually closes once
+   * BOTH of them have released their namespace socket. Which is also why
+   * reconnection is turned off explicitly rather than left to the Manager's own
+   * behaviour: it stops retrying once every namespace socket is released, but
+   * only as a side effect of an internal flag and only in that order, and until
+   * then its retry loop is free to reopen the transport within a second.
+   */
+  suspendForPageFreeze(): void {
+    if (this.frozenForPageCache) return;
+    this.frozenForPageCache = true;
+    if (!this.socket) return;
+    this.socket.io.reconnection(false);
+    this.socket.disconnect();
+  }
+
+  /** The document came back out of the back/forward cache: reopen the socket. */
+  resumeAfterPageRestore(): void {
+    if (!this.frozenForPageCache) return;
+    this.frozenForPageCache = false;
+    if (!this.socket) return;
+    this.socket.io.reconnection(true);
+    this.socket.connect();
+    // Reopening the transport by hand is not a Manager `reconnect`, so the
+    // handler bound to that event never runs on this path — and the list on
+    // screen is stale by however many batches the document slept through. Ask
+    // for the same whole-list resync here, from the one owner of that policy.
+    useTrendsStore.getState().resyncAfterReconnect();
   }
 
   /** Whether the transport is currently up. Used by tests and diagnostics. */
