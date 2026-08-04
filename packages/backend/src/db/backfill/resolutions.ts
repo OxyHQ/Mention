@@ -480,8 +480,18 @@ export const DROP_BOOST_OF_A_POST_MENTION_NEVER_HELD: ResolutionRule = {
     '2026-08-03, not a sample: every one is `type: boost` and `published`; ' +
     'none carries text; none carries media; none carries a like, reply, quote ' +
     'or boost of its own; and none is referenced by any reply, quote, boost, ' +
-    '`Like` row or recent-replier row. So the drop discards no writing and ' +
-    'strands no child.' +
+    '`Like` row or recent-replier row. So the drop discards no writing, and no ' +
+    'OTHER document points at one.' +
+    '\n\n' +
+    'That enumeration is INBOUND, and it is not what makes the drop safe. A ' +
+    "boost's own document emits child rows — `authorship[]` is required on every " +
+    'post — and no census of what refers to it can see them. An earlier version ' +
+    'of this decision read "strands no child" on the strength of the inbound ' +
+    'facts alone, and the copy died 26 minutes in on ' +
+    '`post_authorships_post_id_posts_id_fk`. What makes it safe is that dropping ' +
+    'a plan\'s PRIMARY row drops the whole DOCUMENT, its own children with it — ' +
+    "see `transformDocument`'s Pass 1b, which owns that behaviour and explains " +
+    'why it is deliberately not a cascade over declared relations.' +
     '\n\n' +
     'NULL is the worse answer, which is why this is a drop and not a ' +
     '`null-column`. It would keep a `type: boost` row with `boostOf: NULL` — a ' +
