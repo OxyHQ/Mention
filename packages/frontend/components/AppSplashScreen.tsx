@@ -41,23 +41,13 @@ const DARK_STOP = '#1A1A1A';
 /**
  * Build a DARK two-stop gradient from a preset. Stop 1 is the engine's dark-mode
  * `--background` for the preset (a very dark, preset-tinted surface), stop 2 is
- * near-black. Falls back to the safe literal when the preset can't be resolved.
+ * near-black, so the white logo/spinner always stay clearly visible regardless of
+ * preset. Falls back to the safe literal when the preset can't be resolved.
  */
 function buildDarkGradient(presetName: AppColorName): readonly [string, string] {
     const darkBackground = getPresetVars(presetName, 'dark')['--background'];
     if (!darkBackground) return FALLBACK_GRADIENT;
     return [darkBackground, DARK_STOP];
-}
-
-/**
- * The logo takes the standout accent — the same token the FAB and the compose
- * button fill with (`--tertiary`), read in DARK because that is the mode this
- * gradient always paints. Resolved from the persisted preset like the gradient
- * is, so it lands on the first paint rather than after theme hydration. Falls
- * back to white, which is what it was before the palette had an accent to spare.
- */
-function buildLogoColor(presetName: AppColorName): string {
-    return getPresetVars(presetName, 'dark')['--tertiary'] ?? 'white';
 }
 
 /** Validate an unknown value as a known preset name. */
@@ -132,7 +122,6 @@ const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
     }, []);
 
     const gradient = useMemo(() => buildDarkGradient(preset), [preset]);
-    const logoColor = useMemo(() => buildLogoColor(preset), [preset]);
 
     const handleFadeComplete = useCallback(
         (finished: boolean) => {
@@ -178,7 +167,7 @@ const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
                 style={styles.gradient}
             >
                 <View style={styles.logoContainer}>
-                    <LogoIcon size={LOGO_SIZE} color={logoColor} />
+                    <LogoIcon size={LOGO_SIZE} color="white" />
                     <View style={styles.spinnerContainer}>
                         <Loading iconSize={SPINNER_SIZE} color="white" showText={false} />
                     </View>
