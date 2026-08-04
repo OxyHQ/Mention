@@ -12,6 +12,8 @@ import {
   assertActorAnchorSafeToDelete,
   assertActorSafeToDelete,
   ACTOR_REFERENCE_PROBE_NAMES,
+  ACTOR_ANCHOR_PROBE_NAMES,
+  actorAnchorProbes,
   actorReferenceProbes,
   assertNoDeletionBlockers,
   assertPostsSafeToDelete,
@@ -405,6 +407,27 @@ describe('administrative deletion preflight', () => {
     );
 
     expect([...built].sort()).toEqual([...ACTOR_REFERENCE_PROBE_NAMES].sort());
+  });
+
+  it('declares every ANCHOR probe it builds, and builds every one it declares', () => {
+    /**
+     * The THIRD union, and the last of the three to get this.
+     *
+     * Set EQUALITY both directions, for the same reason as the actor union above:
+     * `toContain` catches a probe never written and cannot catch one DELETED, nor
+     * a declared name nothing builds. With `actorAnchorProbes` typed against
+     * `ACTOR_ANCHOR_PROBE_NAMES`, a removed probe is a compile error and this is
+     * what keeps the union honest in the other direction.
+     *
+     * ONE call shape here, not the four the actor union needs — and that is a
+     * property of `ActorAnchorDeletionTarget` rather than a shortcut. It has no
+     * optional field, so every probe is built on every call and a single shape
+     * cannot under-report.
+     */
+    const built = actorAnchorProbes({ actorUri: 'https://remote.example/users/a' })
+      .map((probe) => probe.name);
+
+    expect([...built].sort()).toEqual([...ACTOR_ANCHOR_PROBE_NAMES].sort());
   });
 
   it('probes every user-referencing field a cascade would otherwise strand', () => {
