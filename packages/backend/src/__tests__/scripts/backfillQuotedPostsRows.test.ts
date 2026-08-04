@@ -242,6 +242,28 @@ describe('quoted-post backfill — the rows, not the call', () => {
     expect(await quoteOfRow(candidateId)).toBe(imported.id);
   });
 
+  it('COUNTS a fetch that never happened, so total failure is not read as nothing to do', async () => {
+    /**
+     * `main`'s earned lesson, kept on the store that matters. Its first
+     * production run had to be killed after fifty minutes because the script
+     * knew things the operator could not see, and this is the half of that which
+     * belongs on the RESULT rather than in a log line: a run that reaches the end
+     * having failed EVERY fetch reports `linked: 0` and exits clean — identical,
+     * from outside, to a run that found nothing to link.
+     */
+    await seedQuotedPost();
+    const candidateId = await seedCandidate();
+    mocks.signedFetch.mockRejectedValue(new Error('remote unreachable'));
+
+    const result = await backfillQuotedPosts({ dryRun: false });
+
+    expect(result.candidates).toBe(1);
+    expect(result.fetchFailures).toBe(1);
+    // The two numbers a bare `linked: 0` cannot tell apart.
+    expect(result.linked).toBe(0);
+    expect(await quoteOfRow(candidateId)).toBeNull();
+  });
+
   it('is idempotent — a linked post is no longer a candidate', async () => {
     await seedQuotedPost();
     await seedCandidate();

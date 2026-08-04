@@ -86,10 +86,21 @@ import { outboxSyncService } from '../connectors/activitypub/outbox.service';
 
 const SCRIPT_NAME = 'backfillQuotedPosts';
 const AP_CONTENT_TYPE = 'application/activity+json';
+/** How often to report progress. A per-candidate network fetch makes this slow. */
+const PROGRESS_EVERY = 500;
 
 export interface QuotedPostBackfillResult {
   /** Bodies matching the rendered-quote filter — the cheap candidate set. */
   candidates: number;
+  /**
+   * Candidates whose object could not be fetched at all.
+   *
+   * Carried on the RESULT, not only in a log line, and that is `main`'s point
+   * rather than a flourish: a run that reaches the end having failed EVERY fetch
+   * is otherwise indistinguishable from one that found nothing to link — both
+   * report `linked: 0` and exit clean.
+   */
+  fetchFailures: number;
   /** Of those, objects whose STRUCTURED fields actually carry a quote URI. */
   withQuoteField: number;
   /**
@@ -140,8 +151,33 @@ export async function backfillQuotedPosts(
   let notHeldLocally = 0;
   let linked = 0;
   let written = 0;
+  let fetchFailures = 0;
+  const startedAt = Date.now();
 
   for (const row of rows) {
+    /**
+     * PROGRESS, because a run that fetches an AP object per candidate takes an
+     * hour and one that only logs at its start and end is indistinguishable from
+     * one that hung — `main` learned that by having to kill the first production
+     * run after fifty minutes.
+     *
+     * Reported on `candidates`, and there is no separate `scanned`. The Mongo
+     * version needed both because its query was unfiltered and the `RE:` test ran
+     * in JS, so "rows examined" and "rows that matched" were different numbers.
+     * The filter is in SQL here, so every row this loop sees is already a
+     * candidate — shipping two counters would imply a distinction the query no
+     * longer has, and an operator comparing them would read a bug into two
+     * numbers that are equal by construction.
+     */
+    if (candidates > 0 && candidates % PROGRESS_EVERY === 0) {
+      logger.info('[Backfill] quoted posts progress', {
+        candidates,
+        linked,
+        written,
+        fetchFailures,
+        elapsedSec: Math.round((Date.now() - startedAt) / 1000),
+      });
+    }
     candidates += 1;
     const activityId = row.activityId;
     if (!activityId) continue;
@@ -152,6 +188,7 @@ export async function backfillQuotedPosts(
       if (res.ok) object = (await res.json()) as Record<string, unknown>;
     } catch {
       // Fail-soft by design: an unreachable origin leaves the post untouched.
+      fetchFailures += 1;
       continue;
     }
     if (!object) continue;
@@ -183,6 +220,7 @@ export async function backfillQuotedPosts(
 
   const result: QuotedPostBackfillResult = {
     candidates,
+    fetchFailures,
     withQuoteField,
     notHeldLocally,
     linked,
@@ -193,6 +231,7 @@ export async function backfillQuotedPosts(
   logger.info('[Backfill] quoted posts complete', {
     dryRun: DRY_RUN,
     ...result,
+    elapsedSec: Math.round((Date.now() - startedAt) / 1000),
     cappedAt: candidates >= MAX ? MAX : undefined,
   });
   return result;
