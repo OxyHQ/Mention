@@ -423,7 +423,7 @@ diff -u \
 # task from the reconciliation task and so recorded the wrong one by name.
 run_release migration-failure false true false 1
 printf '%s\n' \
-  'task:bun packages/backend/dist/src/db/migrate.js' \
+  'task:bun packages/backend/dist/src/db/migrate.js --target-database=mention' \
   tasklogs \
   >"$test_directory/migration-failure/expected.log"
 diff -u \
@@ -450,7 +450,7 @@ fi
 # reordering -- grepping for both entries would pass either way round.
 run_release migration-order true true false 0
 printf '%s\n' \
-  'task:bun packages/backend/dist/src/db/migrate.js' \
+  'task:bun packages/backend/dist/src/db/migrate.js --target-database=mention' \
   'task:bun packages/backend/dist/scripts/migrate.js' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
@@ -476,7 +476,7 @@ DEPLOY_TEST_TASK_LAST_STATUS=RUNNING
 run_release migration-task-never-stops false true false 0
 DEPLOY_TEST_TASK_LAST_STATUS=STOPPED
 printf '%s\n' \
-  'task:bun packages/backend/dist/src/db/migrate.js' \
+  'task:bun packages/backend/dist/src/db/migrate.js --target-database=mention' \
   >"$test_directory/migration-task-never-stops/expected.log"
 diff -u \
   "$test_directory/migration-task-never-stops/expected.log" \
@@ -588,58 +588,69 @@ grep -F \
   "$test_directory/smoke-no-rollback-failure/output.log" \
   >/dev/null
 
-# ALLOW_ZERO_DESIRED_COUNT, in the three states that matter.
+# ALLOW_ZERO_DESIRED_COUNT, in the four states that matter.
 #
 # The cutover deploys `mention` while it is deliberately scaled to zero, because
 # the running image is Mongo-backed and bringing it up after the copy would let
 # real writes land in the store being abandoned. Every OTHER deploy must still
-# refuse a zero-count service.
+# refuse a zero-count service, and the exemption must not outlive the window.
 #
-# The middle case is the point of the trio: it proves the opt-in NAMES the
-# service rather than merely being present. A boolean would pass cases 1 and 3
-# and fail only this one, which is why `true` is not accepted.
+# The value is `<service>:<YYYY-MM-DD>`. Two cases carry the design:
+#   - WRONG SERVICE proves the value is compared against APP rather than read as
+#     a boolean. A boolean passes every other case here.
+#   - EXPIRED proves a forgotten variable disarms itself. Without it the
+#     exemption is a permanent reduction in protection bought for one window.
 
-# 1. Absent -> refuses. (The pre-existing `zero-desired-count` case above already
-#    covers the unset variable; this repeats it with the variable explicitly
-#    empty, which is what a workflow passing an unset secret actually produces.)
+zero_optin_future="$(date -u -d '+2 days' +%F)"
+zero_optin_past="$(date -u -d '-1 day' +%F)"
+
+# 1. Absent -> refuses.
 DEPLOY_TEST_ALLOW_ZERO_DESIRED_COUNT="" \
   run_release zero-count-optin-absent false false false 0 false 0
-grep -F \
-  "must have a positive desiredCount before deployment (current: 0)" \
-  "$test_directory/zero-count-optin-absent/output.log" \
-  >/dev/null
+grep -F "must have a positive desiredCount before deployment (current: 0)" \
+  "$test_directory/zero-count-optin-absent/output.log" >/dev/null
 if [[ -s "$test_directory/zero-count-optin-absent/aws.log" ]]; then
   echo "Zero-count deploy with no opt-in reached a mutating AWS call." >&2
   exit 1
 fi
 
-# 2. Names the WRONG service -> refuses. This is the case a bare boolean cannot
-#    distinguish, and the one that makes a copy-pasted confirmation useless.
-DEPLOY_TEST_ALLOW_ZERO_DESIRED_COUNT="some-other-service" \
+# 2. WRONG service, valid date -> refuses. A boolean cannot tell this from case 4.
+DEPLOY_TEST_ALLOW_ZERO_DESIRED_COUNT="some-other-service:$zero_optin_future" \
   run_release zero-count-optin-wrong-service false false false 0 false 0
-grep -F \
-  "must have a positive desiredCount before deployment (current: 0)" \
-  "$test_directory/zero-count-optin-wrong-service/output.log" \
-  >/dev/null
+grep -F "must have a positive desiredCount before deployment (current: 0)" \
+  "$test_directory/zero-count-optin-wrong-service/output.log" >/dev/null
 if [[ -s "$test_directory/zero-count-optin-wrong-service/aws.log" ]]; then
   echo "Zero-count deploy authorised by the WRONG service name reached a mutating AWS call." >&2
   echo "The opt-in is being read as a boolean rather than compared against APP." >&2
   exit 1
 fi
 
-# 3. Names THIS service -> proceeds, and says so rather than passing silently.
-DEPLOY_TEST_ALLOW_ZERO_DESIRED_COUNT="deploy-test" \
+# 3. Right service, EXPIRED -> refuses, and says so by name rather than falling
+#    through to the generic desiredCount message.
+DEPLOY_TEST_ALLOW_ZERO_DESIRED_COUNT="deploy-test:$zero_optin_past" \
+  run_release zero-count-optin-expired false false false 0 false 0
+grep -F "ALLOW_ZERO_DESIRED_COUNT expired on $zero_optin_past" \
+  "$test_directory/zero-count-optin-expired/output.log" >/dev/null
+if [[ -s "$test_directory/zero-count-optin-expired/aws.log" ]]; then
+  echo "An EXPIRED zero-count opt-in reached a mutating AWS call." >&2
+  exit 1
+fi
+
+# 3b. A regex-valid but nonexistent date must refuse rather than sort after every
+#     real date and never expire — the one fail-OPEN this could have had.
+DEPLOY_TEST_ALLOW_ZERO_DESIRED_COUNT="deploy-test:2026-13-45" \
+  run_release zero-count-optin-impossible-date false false false 0 false 0
+grep -F "carries an invalid date: 2026-13-45" \
+  "$test_directory/zero-count-optin-impossible-date/output.log" >/dev/null
+
+# 4. Right service, valid date -> proceeds, and SAYS so.
+DEPLOY_TEST_ALLOW_ZERO_DESIRED_COUNT="deploy-test:$zero_optin_future" \
   run_release zero-count-optin-correct true false false 0 false 0 completed-zero-deployment
-grep -F \
-  "Deploying deploy-test at desiredCount=0, authorised by ALLOW_ZERO_DESIRED_COUNT=deploy-test" \
-  "$test_directory/zero-count-optin-correct/output.log" \
-  >/dev/null
-grep -F \
-  "completed at desiredCount=0, as authorised" \
-  "$test_directory/zero-count-optin-correct/output.log" \
-  >/dev/null
-if grep -qF \
-  "refusing to accept a zero-task steady state" \
+grep -F "authorised by ALLOW_ZERO_DESIRED_COUNT=deploy-test:$zero_optin_future (expires $zero_optin_future)" \
+  "$test_directory/zero-count-optin-correct/output.log" >/dev/null
+grep -F "completed at desiredCount=0, as authorised" \
+  "$test_directory/zero-count-optin-correct/output.log" >/dev/null
+if grep -qF "refusing to accept a zero-task steady state" \
   "$test_directory/zero-count-optin-correct/output.log"; then
   echo "An authorised zero-count deploy was still killed by the steady-state guard." >&2
   echo "The exemption was applied to the pre-check only; both zero-checks need it." >&2

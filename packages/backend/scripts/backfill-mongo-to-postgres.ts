@@ -911,6 +911,32 @@ async function runVerification(
     }
     if (report.missingRows > 0) {
       say(`  ${report.missingRows} row(s) the transforms produced are not in Postgres at all.`);
+      // NAME them. This is the only number in the whole verification that can
+      // mean data loss, and printing just its length made it unactionable: the
+      // first real run produced 43 and nobody could say which table, which
+      // collection, or which row — so it could not be told apart from live-source
+      // churn, which is the entire question the check exists to answer.
+      //
+      // The ids were never lost, only summarised: `VerificationReport.missingRows`
+      // is a count, but each `CollectionVerification` still carries the
+      // `table:rowId` strings. This reads them back off the per-collection
+      // reports rather than changing what `verify.ts` collects.
+      //
+      // Grouped by collection because the SAMPLE is per collection: the check
+      // looks at the first `DEFAULT_FIDELITY_SAMPLE` documents of each, and
+      // `streamCollection` sorts by `_id`, so it is the OLDEST documents. A
+      // missing row from a collection larger than the sample therefore CANNOT be
+      // a document that arrived after the copy — the sample cannot reach it —
+      // while one from a smaller collection can. That distinction is the whole
+      // difference between churn and loss, and it is only visible per collection.
+      for (const collection of report.collections) {
+        if (collection.missingRows.length === 0) continue;
+        say(
+          `    ${collection.collection}: ${collection.missingRows.length} missing ` +
+            `(of ${collection.documents} document(s) in the collection)`
+        );
+        for (const row of collection.missingRows) say(`      ${row}`);
+      }
     }
     return 1;
   } catch (error) {

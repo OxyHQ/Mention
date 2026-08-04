@@ -186,6 +186,24 @@ jobs:
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
           RUN_MIGRATIONS: 'true'
           INTERNAL_METRICS_PARAMETER: /oxy/mention/INTERNAL_METRICS_TOKEN
+          # Normally EMPTY, and empty is the safe value: the deploy then refuses
+          # a service scaled to zero, which is what a lost-capacity incident
+          # looks like.
+          #
+          # Set to `mention:<YYYY-MM-DD>` for the Mongo->Postgres cutover ONLY,
+          # where traffic
+          # is deliberately held at zero for the whole window because the running
+          # image is Mongo-backed and bringing it up after the copy would let
+          # real writes land in the store being abandoned. The runbook sets it in
+          # the same step that scales to 0 and unsets it in the step that scales
+          # back up, so its lifetime is the window's.
+          #
+          # It is inert on its own: `deploy-ecs-image.sh` only consults it when
+          # `desiredCount` is already 0, which takes a deliberate scale-down. A
+          # variable left set cannot authorise anything by itself — and the
+          # expiry means a forgotten one disarms itself the day after, rather
+          # than leaving this repo permanently easier to deploy onto nothing.
+          ALLOW_ZERO_DESIRED_COUNT: ${{ vars.ALLOW_ZERO_DESIRED_COUNT }}
           # The task definition this deploy registers is derived from the LIVE one,
           # not from Terraform — `terraform-uswest2` is many revisions behind and
           # its `image` is `:latest`, so applying it would replace the

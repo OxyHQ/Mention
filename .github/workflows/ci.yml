@@ -59,12 +59,18 @@ jobs:
         run: bun install --frozen-lockfile --ignore-scripts
       - name: Verify workspace, build, lint and typecheck
         run: bun run check
+      # After `check`, which builds shared-types: the Drizzle schema imports it,
+      # so a run before that would fail to load and — without the table-count
+      # floor in the script — would have reported "no changes" as success.
+      - name: Verify schema and migrations agree
+        run: bash .github/scripts/check-schema-migration-parity.sh
       - name: Verify CI and deployment safeguards
         run: |
           bash -n .github/scripts/*.sh
           bash .github/scripts/test-ci-scope.sh
           bash .github/scripts/test-deploy-ecs-image.sh
           bash .github/scripts/test-smoke-mention.sh
+          bash .github/scripts/test-check-schema-migration-parity.sh
           bun .github/scripts/test-runtime-image-audit.mjs
 
   # Ported from bluesky-social/social-app 513a188a2 ("Add a GitHub Action

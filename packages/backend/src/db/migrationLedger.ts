@@ -131,6 +131,157 @@ export function pendingEntries(
 }
 
 /**
+ * A journal entry the high-water rule can never reach.
+ *
+ * Thrown by {@link planMigrationRun} instead of being reported, because the
+ * whole defect is that the condition is currently INVISIBLE: it presents as
+ * `No pending Postgres migrations` and exit 0.
+ */
+export class UnreachableMigrationError extends Error {
+  /** The entries that will never be applied, in journal order. */
+  readonly entries: readonly JournalEntry[];
+
+  constructor(entries: readonly JournalEntry[], highWaterMillis: number) {
+    super(
+      `${entries.length} migration(s) in this image can never be applied: ` +
+      `${entries.map((entry) => `${entry.tag} (when=${entry.when})`).join(', ')}. ` +
+      `The applied-migration ledger has reached ${highWaterMillis}, and both this ` +
+      'migrator and drizzle-kit apply a migration only when its journal timestamp ' +
+      'is strictly NEWER than the newest recorded one — so these are skipped in ' +
+      'silence and the run reports success. This happens when a migration is ' +
+      'generated on a branch that was created before another branch\'s migration ' +
+      'landed. Fix it by regenerating the affected migration(s) so their `when` ' +
+      'is newer than every applied one (rename the file and its ' +
+      'drizzle/meta/_journal.json entry), NEVER by editing the ledger.'
+    );
+    this.name = 'UnreachableMigrationError';
+    this.entries = entries;
+  }
+}
+
+/**
+ * The newest `created_at` in the ledger, or `null` when nothing is recorded.
+ *
+ * Split from {@link readAppliedMillis} so the high-water rule has ONE
+ * definition: `pendingEntries` and `unreachableEntries` both key off this, and
+ * `Math.max` over an empty list returning `-Infinity` is exactly the sort of
+ * silent wrong answer this file exists to refuse.
+ */
+export function highWaterMillis(appliedMillis: readonly number[]): number | null {
+  return appliedMillis.length === 0 ? null : Math.max(...appliedMillis);
+}
+
+/**
+ * Journal entries that are NOT recorded in the ledger and sit at or below its
+ * high-water mark — the ones the apply rule steps over without a word.
+ *
+ * ## Why this is a separate question from `pendingEntries`
+ *
+ * `pendingEntries` mirrors the APPLY rule, and must keep doing so (see its own
+ * docblock). But that rule is a high-water filter rather than a set difference,
+ * so the two disagree on exactly one input: an entry the ledger has never
+ * recorded whose `when` is not newer than the newest recorded one. `pendingEntries`
+ * says "not pending" — truthfully, since it will never be applied — and the
+ * migrator therefore reports a clean run over a migration that did not happen.
+ *
+ * This function names that set. It does not change what gets applied; it makes
+ * the difference between the two rules SAYABLE, which is the whole defect.
+ *
+ * ## This journal already contains the shape that produces it
+ *
+ * `0005_post_trend_terms` (when=1785675946096) is stranded the moment `0003`
+ * (1785678207141) is applied — TWO entries before it in journal order, which is
+ * exactly why reading the journal top to bottom does not reveal the hazard.
+ * `0006` goes once `0004` is applied. On a database migrated from empty they all
+ * apply anyway: drizzle reads the ledger ONCE before its loop, so
+ * `!lastDbMigration` holds for every entry in that run. Generating migrations on
+ * parallel branches and merging is what produces it, and this repo is worked
+ * from ~160 worktrees.
+ *
+ * ## Identity is the timestamp, not the hash
+ *
+ * The ledger stores drizzle's own content hash and `created_at`; only the second
+ * is derivable from the journal without reimplementing drizzle's hashing, and it
+ * is the value the apply rule itself compares. Two migrations generated in the
+ * same millisecond would be indistinguishable here — noted rather than guarded,
+ * because the collision makes this check MISS a skip (it never invents one), and
+ * `db:generate` has never produced one in this journal.
+ */
+export function unreachableEntries(
+  entries: JournalEntry[],
+  appliedMillis: readonly number[]
+): JournalEntry[] {
+  const highWater = highWaterMillis(appliedMillis);
+  // Nothing recorded: drizzle's `!lastDbMigration` branch applies the whole
+  // journal regardless of order, so no entry is unreachable on a fresh database.
+  if (highWater === null) return [];
+  const applied = new Set(appliedMillis);
+  // `<=` states the apply rule faithfully (drizzle applies when `lastApplied <
+  // when`, so `when <= lastApplied` is skipped). It is EQUIVALENT to `<` here
+  // and cannot be tested apart from it: `highWater` is `Math.max(appliedMillis)`
+  // and is therefore always a member of `appliedMillis`, so `entry.when ===
+  // highWater` implies `applied.has(entry.when)` and the second clause rejects
+  // it either way. Verified by mutation — `<` survives the suite — and then by
+  // 200,000 random inputs, zero disagreements. Kept as `<=` because it says what
+  // the rule is; do not "fix" either direction expecting a behaviour change.
+  return entries.filter((entry) => entry.when <= highWater && !applied.has(entry.when));
+}
+
+/**
+ * What this run should apply — or a refusal, when the journal holds an entry the
+ * apply rule cannot reach.
+ *
+ * The check is INSIDE the function that produces the pending list, not beside
+ * it, so a caller cannot obtain the plan without it having run. That is the
+ * difference between a guard and a comment: removing this one means rewriting
+ * the call site to ask a different function, rather than deleting a line.
+ *
+ * @throws {UnreachableMigrationError} When any journal entry sits at or below
+ *   the ledger's high-water mark without a row of its own.
+ */
+export function planMigrationRun(
+  entries: JournalEntry[],
+  appliedMillis: readonly number[]
+): JournalEntry[] {
+  const unreachable = unreachableEntries(entries, appliedMillis);
+  const highWater = highWaterMillis(appliedMillis);
+  if (unreachable.length > 0 && highWater !== null) {
+    throw new UnreachableMigrationError(unreachable, highWater);
+  }
+  return pendingEntries(entries, highWater);
+}
+
+/**
+ * Every `created_at` the ledger has recorded, or `[]` when the ledger table does
+ * not exist yet (a database no migration has ever touched).
+ *
+ * The empty array and the absent table collapse deliberately: both mean "no
+ * migration is recorded", which is the one input on which every rule here agrees.
+ *
+ * Reads only — calling it against a fresh database creates nothing, which is
+ * what lets the dry run stay genuinely read-only.
+ */
+export async function readAppliedMillis(client: postgres.Sql): Promise<number[]> {
+  const [ledger] = await client<{ present: boolean }[]>`
+    select to_regclass(${`${MIGRATIONS_SCHEMA}.${MIGRATIONS_TABLE}`}) is not null as present
+  `;
+  if (!ledger?.present) return [];
+
+  const rows = await client<{ created_at: string | null }[]>`
+    select created_at
+    from ${client(MIGRATIONS_SCHEMA)}.${client(MIGRATIONS_TABLE)}
+  `;
+
+  // `bigint` arrives as a string from postgres.js. A NULL `created_at` is
+  // dropped rather than coerced: `Number(null)` is 0, which would read as a row
+  // applied at the epoch and drag the whole comparison with it.
+  return rows
+    .map((row) => row.created_at)
+    .filter((value): value is string => value !== null)
+    .map(Number);
+}
+
+/**
  * The newest `created_at` in the ledger, or `null` when the ledger table does
  * not exist yet (a database no migration has ever touched).
  *

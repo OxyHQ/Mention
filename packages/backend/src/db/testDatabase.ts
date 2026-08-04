@@ -51,9 +51,14 @@ const PACKAGE_ROOT = join(__dirname, '..', '..');
  *   migration failure would leave every test querying an empty database and
  *   failing for the wrong reason.
  */
-function runMigrations(databaseUrl: string): Promise<void> {
+function runMigrations(databaseUrl: string, databaseName: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn('bun', ['run', 'db:migrate'], {
+    // `--target-database` is required by the migrator and is not a formality
+    // here: the harness generated this name and built `databaseUrl` from it, so
+    // passing it asserts that the URL still points where the harness thinks it
+    // does. A test run that silently migrated the DEVELOPER's database instead
+    // of its throwaway one is exactly the accident the flag exists to refuse.
+    const child = spawn('bun', ['run', 'db:migrate', `--target-database=${databaseName}`], {
       cwd: PACKAGE_ROOT,
       env: { ...process.env, DATABASE_URL: databaseUrl },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -122,7 +127,7 @@ export async function createTestDatabase(): Promise<string> {
   }
 
   try {
-    await runMigrations(url);
+    await runMigrations(url, name);
   } catch (error) {
     // An unmigrated database left behind would be dropped by nothing, so remove
     // it before surfacing the failure.

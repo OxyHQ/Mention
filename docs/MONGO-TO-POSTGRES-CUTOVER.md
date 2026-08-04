@@ -172,9 +172,39 @@ before the data lands gives an app reading an empty database.
 
 ### 3.1 Stop taking traffic
 
+**Scaling to zero and arming the deploy's zero-count exemption are ONE step with
+two halves. Do both here, and do them BEFORE the merge in §3.4.**
+
 ```bash
 aws ecs update-service --cluster oxy-cluster --service mention --desired-count 0
+gh variable set ALLOW_ZERO_DESIRED_COUNT --body "mention:$(date -u -d '+2 days' +%F)"
 ```
+
+**Why it must be set before the merge, not after.** The deploy has **no manual
+trigger** — `deploy-aws.yml` fires on `workflow_run` when CI completes on `main`,
+so merging starts it automatically about four minutes later with nobody at the
+controls. `vars` is read when the deploy job runs, so setting it here (well
+before §3.4) removes the race entirely. Set it after the merge and you are
+betting on beating CI.
+
+**Without it the deploy exits 1** at `deploy-ecs-image.sh`'s desiredCount
+pre-check, with traffic already stopped and the copy already done — see §3.4 for
+the full reasoning and the unset half.
+
+**The value carries an EXPIRY — `mention:<YYYY-MM-DD>` — and both halves are
+checked.** Give it a date a day or two out. If the window slips past it the
+deploy **refuses**, loudly, and you fix it in thirty seconds by re-setting the
+variable; it can never fail toward permitting. The expiry is a backstop for the
+unset in §3.4 being skipped, not a replacement for it — a forgotten variable
+disarms itself the day after rather than leaving this repo permanently easier to
+deploy onto nothing.
+
+**A variable left set cannot authorise anything on its own** either, which is
+what makes this pairing acceptable rather than merely convenient: the script consults it
+only when `desiredCount` is ALREADY 0, and that takes a deliberate scale-down. It
+needs a second deliberate act to become live. Do not "clean up" the pairing on
+the theory that the variable alone is the danger — it is the scale-down that
+arms it, and the unset in §3.4 is what keeps the two lifetimes equal.
 
 Confirm it stopped — do not trust the command's exit code:
 
@@ -218,7 +248,7 @@ real `/oxy/mention/DATABASE_URL`, and run the migrator on that:
 
 ```bash
 --overrides '{"containerOverrides":[{"name":"mention","command":[
-   "bun","packages/backend/dist/src/db/migrate.js"]}]}'
+   "bun","packages/backend/dist/src/db/migrate.js","--target-database=mention"]}]}'
 ```
 
 **Assert the image before you trust the result** — see the `journalEntries`
@@ -234,11 +264,20 @@ database, is it empty); never for the migration.
 
 #### Three other task definitions look right, and every one of them is wrong
 
-**This step has NO target-database guard.** `--target-database` protects the copy
-in §3.3; nothing equivalent protects this one. `migrate.ts` applies the journal to
-whatever `DATABASE_URL` names and cannot tell one database from another, so **the
-task definition is the only thing deciding** — the precise failure
-`db/backfill/targetDatabase.ts` exists to make impossible one step later.
+**This step now HAS a target-database guard.** `--target-database=<name>` is
+REQUIRED — including for `DRY_RUN` — and is asserted against `current_database()`
+as the FIRST statement on the connection, before the ledger read and before
+`ensureExtensions`. The task definition is therefore no longer the only thing
+deciding.
+
+The three task definitions below still look right and are still wrong. What the
+guard changes is what happens when somebody picks one: **a silent success becomes
+a refusal that names both databases.** That matters here more than it does for
+the copy, because this step is the one that fails success-shaped — aimed at the
+wrong database the copy dies on a missing table, while the migrator finds an
+empty ledger, applies the whole journal, logs `Applied 19` and exits 0, leaving
+the real database untouched for the copy to write into a schema that does not
+exist.
 
 Measured 2026-08-03:
 
@@ -260,13 +299,16 @@ exits 0 — while the real database stays unmigrated and §3.3 then copies five
 million rows into a schema that does not exist.
 
 **So dry-run first.** `DRY_RUN=true` reports what WOULD be applied and writes
-nothing, not even the ledger table, which makes it the cheapest way to find out
-which database you are actually pointed at before any DDL runs:
+nothing, not even the ledger table. The guard now answers "which database am I
+pointed at" on its own — and `--target-database` is required on the dry run too,
+deliberately, so the rehearsal exercises the same refusal the real run does
+rather than being the one mode that skips it:
 
 ```bash
 --overrides '{"containerOverrides":[{"name":"mention",
    "environment":[{"name":"DRY_RUN","value":"true"}],
-   "command":["bun","packages/backend/dist/src/db/migrate.js"]}]}'
+   "command":["bun","packages/backend/dist/src/db/migrate.js",
+   "--target-database=mention"]}]}'
 ```
 
 Expect `DRY RUN — 19 migration(s) would be applied; nothing was written`.
@@ -406,9 +448,40 @@ half: a task refuses to become ready if migrations are pending, so a bypassed
 migration step surfaces as a task that will not serve rather than one that serves
 wrongly.
 
-**Set `ALLOW_ZERO_DESIRED_COUNT=mention` on this deploy.** Without it the deploy
-**refuses and exits 1** — traffic already stopped, copy already done, window
+**`ALLOW_ZERO_DESIRED_COUNT` was already set to `mention:<date>` in §3.1** — it is
+the second half of the scale-to-zero step, not a separate action here, and it had
+to be set before this merge (see §3.1 for the race). `deploy-aws.yml` passes it
+through as `${{ vars.ALLOW_ZERO_DESIRED_COUNT }}`. **Without it the deploy
+refuses and exits 1** — traffic already stopped, copy already done, window
 burning.
+
+**CONFIRM DELIVERY FROM THE DEPLOY LOG, not from having run `gh variable set`.**
+Whether GitHub actually hands the variable to the job is the one link in this
+chain no test covers: the guard's behaviour is mutation-tested on every value,
+but nothing here has ever exercised real variable delivery, and a rehearsal
+deploy to production days before the window is a worse risk than the gap.
+
+It fails in the safe direction — an undelivered variable reads as empty, and the
+guard **refuses before any mutating AWS call** (measured: the pre-check exits at
+`deploy-ecs-image.sh`'s desiredCount guard, well before `register-task-definition`
+and `update-service`; the test asserts the mocked AWS log is empty). So the
+failure is loud, early, and fixed in thirty seconds by re-setting the variable —
+not a silent deploy onto zero capacity.
+
+**Both signals are in the log. Look for one of them:**
+
+| log line | meaning |
+| --- | --- |
+| `Deploying mention at desiredCount=0, authorised by ALLOW_ZERO_DESIRED_COUNT=…` | delivered; the deploy is proceeding on the exemption |
+| `must have a positive desiredCount before deployment` | NOT delivered (or expired/misspelled) — re-set the variable and re-run |
+
+The first line also names the expiry, so it doubles as the check that the window
+has not outlived it.
+
+**Confirm the deploy run actually STARTED.** This workflow is `workflow_run`-
+triggered off CI, and a `workflow_run` that never fires looks identical to one
+that was not needed: no run, no jobs, no alarm. Do not infer from a green merge
+that a deploy began — open Actions and see it.
 
 `.github/scripts/deploy-ecs-image.sh` requires a positive `desiredCount`, in two
 places: a pre-check before anything mutates, and a steady-state check that
@@ -430,11 +503,18 @@ It **names the service** rather than being a boolean, for the same reason
 authorises a zero-count deploy of anything.
 
 **Bring the service back up only AFTER the rollout has completed** — this is the
-step that ends the outage, and it must not be moved earlier:
+step that ends the outage, and it must not be moved earlier. **Scaling back up
+and disarming the exemption are ONE step with two halves, the mirror of §3.1:**
 
 ```bash
 aws ecs update-service --cluster oxy-cluster --service mention --desired-count 2
+gh variable delete ALLOW_ZERO_DESIRED_COUNT
 ```
+
+Leaving it set does not authorise anything by itself — the script only consults
+it when `desiredCount` is already 0 — but the point of the pairing is that the
+exemption's lifetime is exactly the window's. Unset it here and the next person
+to scale this service to zero gets the loud refusal they should get.
 
 If a rollback happens instead, note that `rollback_service` reuses the
 `desiredCount` it captured at the start rather than assuming 2 — so a rollback
@@ -492,10 +572,10 @@ the topology assertion and the 25 migrations, keeping the blocked-domain
 reconciliation as a Postgres-only step — and it is deliberately scheduled AFTER
 the cutover, so this deploy is the last one that carries it.
 
-### 3.4b Two EXPECTED conditions — do not diagnose these as defects
+### 3.4b Three EXPECTED conditions — do not diagnose these as defects
 
-Both are known, both look like corruption to a completeness check, and both will
-be met by someone under time pressure who did not write them down.
+All three are known, all three look like corruption to a completeness check, and
+all three will be met by someone under time pressure who did not write them down.
 
 **(a) 834 posts will have no `post_authorships` row. This is correct.**
 
@@ -536,6 +616,77 @@ absent on every Mongo post, so **every backfilled row lands `false`** and no
 pre-cutover post fans out. Only posts created after the flip carry a `true`.
 Confirm with the two counts in §2.1.
 
+**(c) If you verify while anything is still writing to Mongo, the mismatches are
+not data loss.**
+
+`verifyCollection` streams the source with **no upper `_id` bound**, so any
+document created after the copy read that collection is counted as a row
+Postgres should hold and does not. It looks exactly like loss: a per-table count
+mismatch, with real numbers.
+
+**This is measured, not theoretical.** The referential audit hit the same shape
+on 2026-08-03 and reported **407 orphans** — every one an id created inside the
+run's last four minutes, every parent present in Mongo the whole time. That audit
+now passes an explicit `upTo` bound for this reason; the verifier does not,
+because in the window it runs against a source nothing is writing to.
+
+So: **run §3.4c with the service at `desiredCount 0`.** If you verified early and
+see mismatches, re-run the verification after the writes have stopped before
+concluding anything. **A cutover rolled back over this would be a cutover rolled
+back over nothing.**
+
+### 3.4c Verify the copy against the SOURCE
+
+**This is the only step in the whole window that compares what Postgres holds
+against what Mongo actually contains.** Everything else compares the copy with
+its own account of itself — the resolution-log reconciliation checks that the
+report's record count matches the rows written to the log table, and the row
+counts in §3.5 are read against *the copy's own report*. Both are
+self-consistency checks. Neither can see a document that never became a row.
+
+Run it after §3.4 and before admitting anyone:
+
+```bash
+--overrides '{"containerOverrides":[{"name":"mention","command":[
+   "bun","packages/backend/dist/scripts/backfill-mongo-to-postgres.js",
+   "--verify-only","--target-database=mention"]}]}'
+```
+
+`VERIFY PASS` is the line to look for. A failure prints, per table, the row count
+the transforms produced against the row count Postgres holds — and **a count
+mismatch here is the signal that means the copy lost something.**
+
+**Two costs, and both land on the window's clock:**
+
+- **It re-reads the entire source.** The verifier recomputes what Postgres
+  *should* hold by streaming every document again and re-running each plan's
+  transform. Budget a second full pass over Mongo, not a quick tail check.
+- **It must run with the service still at `desiredCount 0`** — see §3.4b(c).
+  Verify first, admit users second.
+
+**What a PASS covers, and what it does not** — the two halves have different
+reach, and a reader at 3am must not have to infer this:
+
+- **Row counts are TOTAL.** Every document of every mapped collection, every
+  table including child tables, no sampling. This is the half that answers "did
+  we lose data".
+- **Field fidelity is SAMPLED** — 200 documents per collection — and it compares
+  only columns the transform actually supplied. A column the plan never sets is
+  invisible to it by design: an omitted column is one the database default
+  filled, so the transform is not claiming a value there.
+- **No audit runs during the copy at all.** The column-coverage pass — the one
+  that answers "which columns got filled" — runs only under `--audit-only` or
+  `--start-from-empty`, and §3.4 rules the latter out on a first cutover. The
+  §1 pre-flight audit is where that question is answered, and it is answered
+  about the PLANS rather than about the copied rows.
+- **The verifier and the copy read Mongo through the same code.** If a
+  truncation cause ever lived in that shared reader, both would truncate
+  identically and this step would report PASS. That limit is stated rather than
+  papered over; the mitigation is that a driver-level cursor failure propagates
+  as a thrown error rather than a short read, so the loud case stays loud. **Do
+  not build a second reader to close this** — two readers that disagree for their
+  own reasons would be worse than one whose limit is written down.
+
 ### 3.5 Verify BEFORE admitting users
 
 Traffic is already flowing at this point (the service is up and the ALB will
@@ -546,8 +697,12 @@ rather than a gate you can hold traffic behind. If a check fails, §4.
   cycling, not as an error page.
 - `.github/scripts/smoke-mention.sh` runs as part of the deploy — read its result
   rather than assuming.
+- `VERIFY PASS` from §3.4c. **This is the source-to-target comparison**; the row
+  counts below it are the copy's own account of itself and cannot stand in for
+  it.
 - Row counts in Postgres against the copy's own report. Two independent paths
-  agreed to the row in rehearsal; they should again.
+  agreed to the row in rehearsal; they should again — but note this compares the
+  copy against what the copy said it wrote, not against Mongo.
 - One authenticated read of a real feed, and one profile.
 - One federation round trip: the actor JSON at
   `https://api.mention.earth/ap/users/<user>` returns 200 with a `publicKey`
@@ -556,7 +711,9 @@ rather than a gate you can hold traffic behind. If a check fails, §4.
 ### 3.6 What sends us back rather than forward
 
 - Tasks that will not stay `RUNNING`.
-- The copy did not complete, or its row counts disagree with the report.
+- The copy did not complete, or §3.4c reported a count mismatch that **survives a
+  re-verify against a quiesced source** — an early verify against a live one is
+  §3.4b(c), not loss.
 - A feed or profile read that errors rather than merely being slow.
 - Any write path returning 5xx.
 
