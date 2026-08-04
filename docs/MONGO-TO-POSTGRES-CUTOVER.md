@@ -357,9 +357,50 @@ probe or a database can only be brought to a migration the image contains — so
 **build first, then migrate.** Migrating before rebuilding is a no-op that
 reports success.
 
-Then the real run: expect `Applied 19 Postgres migration(s)` and exit 0.
-**Re-derive that number rather than trusting this line** — it is `0000`–`0018` as
-of `94ba6797`, and §1 records the real database as holding no ledger, so every
+### §3.1a — PIN THE COMMIT, AND FREEZE THE TRUNK, BEFORE ANY OF THIS
+
+**Every step below names "the image" as though there were one. Nothing here says
+which commit it comes from, and the trunk takes commits continuously** — CI now
+runs on it directly, so green is not a moment, it is a stream.
+
+**Write the SHA down before §3.2 and use it everywhere:**
+
+```bash
+CUTOVER_SHA=$(git rev-parse origin/drizzle/channels-plans)
+```
+
+- **Build the image FROM that SHA**, and check the deployed task definition
+  carries the tag derived from it — not `latest`, and not "the newest green
+  build", which is a different artefact the moment anyone pushes.
+- **Announce a freeze on the trunk for the window**, and mean it as "no pushes
+  until the flip is done or rolled back" rather than as a request. The failure
+  it prevents is specific: an image built at §3.2 and a rollback image resolved
+  at §5 that are not the same code, discovered while deciding whether to roll
+  back.
+- **`journalEntries` is what makes the pin CHECKABLE rather than declared** — the
+  count travels in the image, so the dry run proves which build you are holding
+  before any DDL runs. That is the whole reason it is read on the two
+  "nothing happened" lines.
+
+**Why this is written down rather than assumed:** the runbook contained no word
+about freezing or pinning until 2026-08-04, while simultaneously instructing a
+rebuild in the middle of the window. Both are correct individually; together and
+unpinned they let the window deploy something CI never saw.
+
+Then the real run: expect `Applied 21 Postgres migration(s)` and exit 0.
+
+> **21 as of trunk `79a3c73e` — `0000`–`0020`, verified as a SET and not a
+> count.** 21 SQL files and 21 journal entries is a coincidence-shaped fact, so
+> it was checked both ways: no `.sql` missing from the journal (which `migrate`
+> would SKIP IN SILENCE, leaving the schema short and the first symptom a query
+> failing in production after the flip), no journal entry missing its file
+> (which throws, and is the benign half), `idx` contiguous `0..20`. The previous
+> figure in this line was **19**, correct at `94ba6797` and wrong by two after
+> `0019_atproto_graph_sync_lease` and `0020_moderation_outbox_urgency` landed.
+
+**Re-derive that number rather than trusting this line** — the instruction
+outlives the number, which is the point, and §1 records the real database as
+holding no ledger, so every
 journal entry is pending and the count is simply `len(meta/_journal.json entries)`
 at whatever commit you deploy. It has already been wrong twice here, reading `17`
 after `0017` landed and `18` after `0018` landed. Measured at 0.5s against an
