@@ -117,30 +117,15 @@ import {
 import { repairRecentRepliersAfterPostDelete } from '../services/PostRecentReplierService';
 import {
   allDeletionTargets,
-  cascadePostReferences,
-  collectDeletionTargets,
+  deletePostSubtree,
   PostDeletionTooLargeError,
   recordDeletionSideEffectFailure,
   repairSurvivingCounters,
   reportResidue,
+  type DeletedPostSubtree,
   type PostDeletionTargets,
 } from '../services/PostDeletionCascade';
 
-/**
- * The delete's own ownership predicate matched no row — somebody else's post,
- * or a concurrent delete that claimed it first.
- *
- * Thrown rather than returned because it has to ROLL BACK the transaction that
- * has, by that point, already removed the references and the replies. A plain
- * `return` would commit those deletions for a post the caller was never allowed
- * to delete, which is the security-relevant half of the claim.
- */
-class PostDeletionNotClaimedError extends Error {
-  constructor() {
-    super('Post deletion claim matched no row');
-    this.name = 'PostDeletionNotClaimedError';
-  }
-}
 import { loadScheduledChain } from '../services/scheduledChain';
 
 /**
@@ -2518,58 +2503,25 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
      * before. Moving it inside a transaction changes when it commits, never
      * what it checks.
      */
-    let post: PostRecord | null = null;
-    let targets: PostDeletionTargets | null = null;
-    let removedIds: ReadonlySet<string> = new Set<string>();
+    let deletion: DeletedPostSubtree | null = null;
     try {
-      await getDb().transaction(async (tx) => {
-        const collected = await collectDeletionTargets(String(req.params.id), tx);
-        if (!collected) return;
-
-        const all = allDeletionTargets(collected);
-        await cascadePostReferences(all, tx);
-
-        // The replies, explicitly — no foreign key removes them, and after the
-        // post row goes there is nothing left to find them by.
-        if (collected.replies.length > 0) {
-          await tx.delete(postsTable).where(
-            inArray(postsTable.id, collected.replies.map((reply) => reply.id)),
-          );
-        }
-
-        // `authorId`, NOT `userId`. Authorization was already decided above by
-        // `postManagementRefusal`, which deliberately admits a channel post's
-        // WRITER and its co-operators — none of whom is the row's
-        // `oxy_user_id`, because a channel post is owned by the CHANNEL and no
-        // session can ever have a channel as its subject. Claiming on the
-        // caller's own id therefore matched nothing and answered 404 to the
-        // person who wrote the post, after telling them they were allowed.
-        // Same trap the lane path names two hundred lines above; this is the
-        // site where it survived the port.
-        //
-        // The claim keeps its atomic-claim property either way: `authorId` comes
-        // from the row this request already read and re-checks the SAME
-        // ownership the refusal decided against, in the DELETE's own `WHERE`, so
-        // this is still one statement that authorizes and removes rather than a
-        // read followed by a write.
-        const claimed = await deletePostRecord(
-          String(req.params.id),
-          eq(postsTable.oxyUserId, authorId),
-          tx,
-        );
-        // Somebody else's post, or a concurrent delete that got there first.
-        // Rolling back is what keeps the replies and the references intact for
-        // whoever the row actually belongs to.
-        if (!claimed) throw new PostDeletionNotClaimedError();
-
-        post = claimed;
-        targets = collected;
-        removedIds = new Set(all.map((row) => row.id));
-      });
+      // `authorId`, NOT `userId`. Authorization was already decided above by
+      // `postManagementRefusal`, which deliberately admits a channel post's
+      // WRITER and its co-operators — none of whom is the row's `oxy_user_id`,
+      // because a channel post is owned by the CHANNEL and no session can ever
+      // have a channel as its subject. Claiming on the caller's own id therefore
+      // matched nothing and answered 404 to the person who wrote the post, after
+      // telling them they were allowed. Same trap the lane path names two hundred
+      // lines above; this is the site where it survived the port.
+      //
+      // The claim keeps its atomic-claim property: `authorId` comes from the row
+      // this request already read and re-checks the SAME ownership the refusal
+      // decided against, in the DELETE's own `WHERE`.
+      deletion = await deletePostSubtree(
+        String(req.params.id),
+        eq(postsTable.oxyUserId, authorId),
+      );
     } catch (error) {
-      if (error instanceof PostDeletionNotClaimedError) {
-        return res.status(404).json({ message: 'Post not found' });
-      }
       if (error instanceof PostDeletionTooLargeError) {
         logger.error('Post deletion refused: too many dependent rows', {
           postId: String(req.params.id),
@@ -2579,11 +2531,15 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
       }
       throw error;
     }
-    if (!post || !targets) {
+    if (!deletion) {
+      // Either no such post, or the ownership claim matched nothing — the
+      // second rolled back, so nothing was removed for a caller who was never
+      // allowed to. Both answer 404; distinguishing them would disclose that
+      // the post exists.
       return res.status(404).json({ message: 'Post not found' });
     }
-    const deletedPost: PostRecord = post;
-    const deletedTargets: PostDeletionTargets = targets;
+    const deletedPost: PostRecord = deletion.post;
+    const deletedTargets: PostDeletionTargets = deletion.targets;
     const postId = deletedPost.id;
 
     // Everything from here is BEST-EFFORT: the deletion is committed and the
@@ -2599,7 +2555,7 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
       recordDeletionSideEffectFailure('recent_replier_projection', error);
     }
     try {
-      await repairSurvivingCounters(deletedTargets, removedIds);
+      await repairSurvivingCounters(deletedTargets, deletion.removedIds);
     } catch (error) {
       recordDeletionSideEffectFailure('surviving_counters', error);
     }

@@ -88,7 +88,8 @@ const BOOKMARK_RKEY = `${NAMESPACE}0004`;
 const LIKED_POST_ID = `${NAMESPACE}0005`;
 const PARENT_RKEY = `${NAMESPACE}0006`;
 const ROOT_RKEY = `${NAMESPACE}0007`;
-const ALL_POST_IDS = [POST_RKEY, REPOST_RKEY, LIKED_POST_ID, PARENT_RKEY, ROOT_RKEY];
+const REPLY_RKEY = `${NAMESPACE}0013`;
+const ALL_POST_IDS = [POST_RKEY, REPOST_RKEY, LIKED_POST_ID, PARENT_RKEY, ROOT_RKEY, REPLY_RKEY];
 
 /** Build a v2 envelope around an inner `record` for the materializer to project. */
 function envelope(
@@ -659,6 +660,39 @@ describe('projectRecord — tombstone', () => {
 
     expect(result).toEqual({ ok: true, kind: 'tombstone', id: POST_RKEY });
     expect(await readPost(POST_RKEY)).toBeNull();
+  });
+
+  it('takes the direct replies with it, instead of PROMOTING them to root posts', async () => {
+    /**
+     * BUG #126, on the path `#134` did not cover — and the MIGRATION causes it.
+     *
+     * `posts.parent_post_id` is `ON DELETE SET NULL`, so deleting the parent row
+     * alone leaves each reply alive with a null parent and `is_reply: true`: a
+     * root post, in every feed, written by someone who never posted it. Mongo had
+     * no such promotion — the reply was deleted — so this is a parity regression
+     * the port introduces rather than one it inherits.
+     *
+     * `deletePost` fixed this by owning the subtree inside one transaction. The
+     * MTN tombstone reached `deletePostRecord` directly, so it kept the defect.
+     *
+     * The assertion is `readPost(...)` being null rather than a `parent_post_id`
+     * check on purpose: promotion and survival are the same damage, and a reply
+     * that outlives its parent is the thing readers see.
+     */
+    await seedPost(POST_RKEY, SUBJECT_OXY_ID);
+    await seedPost(REPLY_RKEY, OWNER_OXY_ID, { parentPostId: POST_RKEY, isReply: true });
+
+    const result = await projectRecord(
+      envelope(
+        MENTION_TOMBSTONE_COLLECTION,
+        `${NAMESPACE}0014`,
+        tombstone(createPostUri(SUBJECT_OXY_ID, POST_RKEY)),
+      ),
+    );
+
+    expect(result).toEqual({ ok: true, kind: 'tombstone', id: POST_RKEY });
+    expect(await readPost(POST_RKEY)).toBeNull();
+    expect(await readPost(REPLY_RKEY)).toBeNull();
   });
 
   it('removes the Like a like-subject tombstone names', async () => {

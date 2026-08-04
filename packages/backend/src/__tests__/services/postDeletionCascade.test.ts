@@ -115,6 +115,7 @@ import {
   POST_REFERENCES_KEPT_BY_POLICY,
   POST_REFERENCES_REMOVED_BY_DATABASE,
   MAX_DELETION_TARGETS,
+  deletePostSubtree,
 } from '../../services/PostDeletionCascade';
 import { POST_REFERENCE_PROBE_NAMES } from '../../scripts/lib/adminDeletionPreflight';
 import { deletePost } from '../../controllers/posts.controller';
@@ -310,6 +311,42 @@ describe('the ownership claim', () => {
     // The ROW, not the status. A refusal that had also written would satisfy the
     // status assertion on its own.
     expect(await readPostRow(post.id)).toBeDefined();
+  });
+
+  it('ROLLS BACK the subtree when the claim matches nothing — asserted on the FUNCTION, not the route', async () => {
+    /**
+     * THE FIXTURE IN THE GAP, and it needed TWO corrections to become one.
+     *
+     * `deletePostSubtree` runs the reference legs and deletes the replies BEFORE
+     * it claims the post, so when the ownership predicate matches nothing a
+     * subtree has already been removed inside the open transaction. Only a THROW
+     * discards it; a plain `return` COMMITS that damage and still returns null,
+     * so the caller answers a correct-looking 404 over a conversation that is
+     * now gone.
+     *
+     * Measured: mutating the throw to `return` left the whole suite green.
+     *
+     * The first attempt at this fixture drove it through the ROUTE with a
+     * stranger — and stayed green under the same mutation, because
+     * `postManagementRefusal` refuses a stranger BEFORE the transaction opens,
+     * so the claim inside it is never reached. That makes the claim genuine
+     * defence-in-depth (its reachable trigger is a race, or the channel-writer
+     * path where the claim uses `authorId`), and defence in depth is only
+     * testable at the layer that holds it. Hence this calls the function
+     * directly with a predicate that matches no row.
+     */
+    const post = await seedPost(scope, { oxyUserId: AUTHOR });
+    const reply = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      parentPostId: post.id,
+      isReply: true,
+    });
+
+    const result = await deletePostSubtree(post.id, eq(posts.oxyUserId, 'nobody-owns-this'));
+
+    expect(result).toBeNull();
+    expect(await readPostRow(post.id)).toBeDefined();
+    expect(await readPostRow(reply.id)).toBeDefined();
   });
 
   it('404s an id that names no row', async () => {

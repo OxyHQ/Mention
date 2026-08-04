@@ -57,10 +57,12 @@
  * **Fail-soft is fine, silent is not.**
  */
 
-import { and, eq, inArray, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { PostType } from '@mention/shared-types';
 import { getDb, type DatabaseOrTransaction } from '../db/postgres';
 import { posts } from '../db/schema/posts';
+import { deletePostRecord } from '../db/posts/postRepository';
+import type { PostRecord } from '../db/posts/postRecord';
 import { notifications } from '../db/schema/discovery';
 import { contentLabels } from '../db/schema/moderation';
 import { postgates, threadgates } from '../db/schema/gates';
@@ -423,6 +425,102 @@ export async function cascadePostReferences(
       logger.error('Post deletion cascade leg failed', { reference: leg.reference, error });
       throw error;
     }
+  }
+}
+
+/**
+ * A post deletion that COMMITTED, and everything the best-effort stage needs.
+ *
+ * `removedIds` is every row this transaction took — the post plus its boost
+ * closure plus its replies — so a counter repair can tell "this author lost a
+ * reply" from "this author's row is one of the ones that went".
+ */
+export interface DeletedPostSubtree {
+  post: PostRecord;
+  targets: PostDeletionTargets;
+  removedIds: ReadonlySet<string>;
+}
+
+/**
+ * DELETE A POST AND THE SUBTREE IT OWNS, IN ONE TRANSACTION — the single
+ * implementation, because there are two callers and only one of them used to
+ * have it.
+ *
+ * `deletePost` grew this ordering as the fix for a defect that shipped (#126);
+ * `PostMaterializer.materializeTombstone` reached `deletePostRecord` directly
+ * and therefore kept the defect, on a path the fix did not cover. The failure is
+ * specific and silent: `posts.parent_post_id` is `ON DELETE SET NULL`, so
+ * deleting the parent row alone leaves every direct reply alive with a null
+ * parent and `is_reply: true` — a ROOT POST in every feed, written by somebody
+ * who never posted it. Mongo deleted them, so the MIGRATION introduces this
+ * rather than inheriting it.
+ *
+ * The ORDER inside the transaction is the fix and is not a preference:
+ *
+ *   1. CAPTURE the closure first. `posts.boost_of` is `ON DELETE CASCADE`, so
+ *      the instant the post row goes, every boost of it is removed by the
+ *      database along with the only link that could have found the boosts' own
+ *      polymorphic references.
+ *   2. The reference legs, which THROW — coherent only because they are in here
+ *      with the `DELETE`. A leg that fails rolls the whole thing back, the post
+ *      is NOT deleted, and the caller's 500 is honest and retryable.
+ *   3. The replies, explicitly. No foreign key removes them, and after the post
+ *      row goes there is nothing left to find them by.
+ *   4. The post itself, claimed by `ownership` in the DELETE's own `WHERE`, so
+ *      this is one statement that authorizes and removes rather than a read
+ *      followed by a write.
+ *
+ * Returns `null` for BOTH "no such post" and "the ownership claim matched
+ * nothing", which is what every caller wants: they answer 404 to each. The
+ * second case ROLLS BACK — a plain return would commit the reference and reply
+ * deletions for a post the caller was never allowed to delete, which is the
+ * security-relevant half of the claim.
+ *
+ * Throws {@link PostDeletionTooLargeError} unchanged, so a caller can answer 409.
+ *
+ * Best-effort work — the replier projection, the surviving-row counters, the
+ * federation tombstone — is deliberately NOT here: it runs after the commit, in
+ * the caller, so a failure cannot turn a completed deletion into an error.
+ */
+export async function deletePostSubtree(
+  postId: string,
+  ownership: SQL | undefined,
+): Promise<DeletedPostSubtree | null> {
+  let result: DeletedPostSubtree | null = null;
+  try {
+    await getDb().transaction(async (tx) => {
+      const collected = await collectDeletionTargets(postId, tx);
+      if (!collected) return;
+
+      const all = allDeletionTargets(collected);
+      await cascadePostReferences(all, tx);
+
+      if (collected.replies.length > 0) {
+        await tx.delete(posts).where(inArray(posts.id, collected.replies.map((reply) => reply.id)));
+      }
+
+      const claimed = await deletePostRecord(postId, ownership, tx);
+      if (!claimed) throw new PostDeletionClaimFailedError();
+
+      result = { post: claimed, targets: collected, removedIds: new Set(all.map((row) => row.id)) };
+    });
+  } catch (error) {
+    if (error instanceof PostDeletionClaimFailedError) return null;
+    throw error;
+  }
+  return result;
+}
+
+/**
+ * Internal only — the signal that rolls the transaction back when the ownership
+ * claim matches no row. It never escapes {@link deletePostSubtree}, because a
+ * caller cannot act on it differently from "no such post": both are 404, and
+ * distinguishing them in a response would disclose that the post exists.
+ */
+class PostDeletionClaimFailedError extends Error {
+  constructor() {
+    super('Post deletion claim matched no row');
+    this.name = 'PostDeletionClaimFailedError';
   }
 }
 

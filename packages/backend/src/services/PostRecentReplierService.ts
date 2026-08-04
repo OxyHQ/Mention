@@ -71,20 +71,6 @@ export interface DeletedPostProjectionContext {
   parentPostId?: unknown;
 }
 
-/**
- * A direct reply removed alongside its parent, in the shape
- * {@link import('./PostDeletionCascade').CascadedPostRow} consumes — the two are
- * checked against each other by the compiler at the call site in
- * `posts.controller`.
- */
-export interface DeletedReplyRow {
-  id: string;
-  oxyUserId: string | null;
-  parentPostId: string | null;
-  federationActivityId: string | null;
-  federationUrl: string | null;
-}
-
 function validDate(value: unknown): Date | null {
   const date = value instanceof Date ? value : new Date(String(value ?? ''));
   return Number.isFinite(date.getTime()) ? date : null;
@@ -255,56 +241,41 @@ export async function recordRecentReplierForPost(reply: RecentReplyLike): Promis
 /**
  * Repair the read model after a Post row has already been deleted.
  *
- * Two jobs, and only the first is about this post: recompute the PARENT (the
- * deleted row was one of its repliers), then remove the deleted post's own
- * projection along with those of the direct replies it takes with it.
+ * ONE job, and it is about the PARENT rather than about the deleted post: the
+ * deleted row was one of its repliers, so its avatar row has to go and the next
+ * replier behind it has to take the slot. Nothing else here is reachable.
  *
- * **Ordering hazard for whoever ports `deletePost`.** Finding the children by
- * `parent_post_id` only works while the parent row's deletion has not yet run
- * against Postgres — `posts.parent_post_id` is declared `ON DELETE SET NULL`
- * (the escalated decision in `schema/CONVENTIONS.md`), so once the parent DELETE
- * moves to Postgres it will have nulled these links before this function is
- * called, this DELETE will match zero rows, and the direct replies will be
- * PROMOTED to root posts instead of being removed with their parent. That is the
- * `SET NULL`-vs-`CASCADE` question the schema escalated, surfacing at a concrete
- * call site: the caller must hand the child ids in, or the deletion must own the
- * subtree, before `deletePost` reads Postgres.
+ * **THIS FUNCTION USED TO DO TWO MORE THINGS, AND BOTH WERE DEAD — for the same
+ * structural reason, one layer apart.** It ran AFTER a committed deletion, so
+ * every row it went looking for was already gone:
+ *
+ *  - It DELETED THE DIRECT REPLIES by `parent_post_id`. Its own comment
+ *    predicted the failure: `posts.parent_post_id` is `ON DELETE SET NULL`, so
+ *    the parent's DELETE nulls those links first. Zero rows on `deletePost`
+ *    (whose transaction deletes the replies itself and commits before this
+ *    runs), zero on the MTN tombstone path — where nothing else deleted them
+ *    either, so replies were PROMOTED to root posts. That was bug #126, live on
+ *    a second path. `deletePostSubtree` owns the subtree now.
+ *  - It DELETED THE PROJECTIONS of the deleted post and its replies.
+ *    `post_recent_repliers.post_id` is `ON DELETE CASCADE` on `posts.id`
+ *    (MEASURED, not assumed: one projection row before the post's DELETE, zero
+ *    after), so the database had already removed every row that statement named.
+ *    Its absence is asserted after the fact anyway — `post_recent_repliers.post_id`
+ *    is a `database`-disposition probe in `adminDeletionPreflight`, so
+ *    `reportResidue` fails if one ever survives.
+ *
+ * Dead and redundant look identical from outside and mean opposite things: the
+ * first was hiding a data-loss bug, the second was merely re-doing the
+ * database's work. Neither was reachable, and the only cases that exercised
+ * either were tests calling this WITHOUT deleting the post first — a state no
+ * production caller can produce.
  */
 async function repairDeletedPostProjection(
-  input: { postId: string; parentPostId: string },
+  input: { parentPostId: string },
   tx: Transaction,
-): Promise<DeletedReplyRow[]> {
-  if (input.parentPostId) {
-    await recomputeRecentRepliers(input.parentPostId, tx);
-  }
-
-  // RETURNING carries what the cascade's remaining legs actually need: the id
-  // for the id-keyed ones, and both federation URIs for the URI-keyed ones
-  // (`feed_interactions.post_uri`, the two gate tables, and the delivery
-  // queue's activity JSON). It deliberately does NOT carry `boost_of`, a poll
-  // id or an article id, which main's Mongo shape had to: all three are
-  // `ON DELETE CASCADE` on `posts.id` here, so Postgres removes them with the
-  // row and a leg claiming to is a leg nothing can ever prove ran.
-  const deletedChildren = await tx
-    .delete(posts)
-    .where(eq(posts.parentPostId, input.postId))
-    .returning({
-      id: posts.id,
-      oxyUserId: posts.oxyUserId,
-      parentPostId: posts.parentPostId,
-      federationActivityId: posts.federationActivityId,
-      federationUrl: posts.federationUrl,
-    });
-  const deletedChildIds = deletedChildren.map((child) => child.id);
-
-  // The deleted parent can have a projection of its own, and so can each direct
-  // child that had replies. Remove every projection belonging to a row this
-  // transaction deleted, so hydration cannot expose orphaned avatars.
-  await tx
-    .delete(postRecentRepliers)
-    .where(inArray(postRecentRepliers.postId, [input.postId, ...deletedChildIds]));
-
-  return deletedChildren;
+): Promise<void> {
+  if (!input.parentPostId) return;
+  await recomputeRecentRepliers(input.parentPostId, tx);
 }
 
 /**
@@ -328,21 +299,18 @@ function isRetryableProjectionConflict(error: unknown): boolean {
  */
 export async function repairRecentRepliersAfterPostDelete(
   input: DeletedPostProjectionContext,
-): Promise<DeletedReplyRow[]> {
+): Promise<void> {
   const postId = normalizedId(input.postId);
   const parentPostId = normalizedId(input.parentPostId);
-  if (!postId) return [];
+  if (!postId) return;
 
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_PROJECTION_REPAIR_ATTEMPTS; attempt += 1) {
     try {
-      let deletedReplies: DeletedReplyRow[] = [];
       await getDb().transaction(async (tx) => {
-        // Reassigned per attempt: a retried transaction re-reads the children,
-        // and the previous attempt's rows were rolled back.
-        deletedReplies = await repairDeletedPostProjection({ postId, parentPostId }, tx);
+        await repairDeletedPostProjection({ parentPostId }, tx);
       });
-      return deletedReplies;
+      return;
     } catch (error) {
       lastError = error;
       if (
@@ -359,7 +327,6 @@ export async function repairRecentRepliersAfterPostDelete(
     parentPostId: parentPostId || undefined,
     reason: lastError instanceof Error ? lastError.message : String(lastError),
   });
-  return [];
 }
 
 /**

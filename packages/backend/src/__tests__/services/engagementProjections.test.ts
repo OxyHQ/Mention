@@ -449,106 +449,80 @@ describe('repairing after a reply is deleted', () => {
 });
 
 describe('repairing after a parent is deleted', () => {
-  it('deletes the direct replies and every projection the deletion orphaned', async () => {
-    const grandparent = await seedPost();
-    const parentPostId = await seedPost({ parentPostId: grandparent, oxyUserId: 'parent-author' });
-    const childA = await reply({
-      parentPostId,
-      oxyUserId: 'child-a',
-      createdAt: '2026-07-26T12:00:00.000Z',
-    });
-    const childB = await reply({
-      parentPostId,
-      oxyUserId: 'child-b',
-      createdAt: '2026-07-26T11:00:00.000Z',
-    });
-    // The children have replies of their own, so they carry projections too.
-    await reply({
-      parentPostId: childA,
-      oxyUserId: 'grandchild',
-      createdAt: '2026-07-26T12:30:00.000Z',
-    });
+  /**
+   * THIS BLOCK USED TO ASSERT THAT THE REPAIR DELETED THINGS. It no longer does,
+   * and the removal is the fix rather than a loss of coverage (#142).
+   *
+   * Two statements were dropped, both provably unreachable from any production
+   * caller because the deletion COMMITS FIRST:
+   *
+   *  - the direct-reply DELETE, whose `parent_post_id` links the parent's own
+   *    DELETE had already nulled (`ON DELETE SET NULL`). It matched zero rows on
+   *    the route and zero on the MTN tombstone path — and on the second nothing
+   *    else deleted them either, so replies were promoted to root posts. That
+   *    guarantee now lives with the deletion that owns the subtree, and is
+   *    asserted there: `postDeletionCascade.test.ts` ("deletes a reply with its
+   *    parent — GONE, never orphaned as a root post") for the route, and
+   *    `mtn/postMaterializer.test.ts` ("takes the direct replies with it") for
+   *    the tombstone.
+   *  - the projection DELETE, which `post_recent_repliers.post_id`'s
+   *    `ON DELETE CASCADE` had already performed — MEASURED against a real row,
+   *    and separately asserted after every deletion by `reportResidue`, which
+   *    probes that reference.
+   *
+   * The four cases that exercised them all called this function WITHOUT deleting
+   * the post first — the one state no caller can produce, which is exactly why
+   * they stayed green while the behaviour they described was dead. What remains
+   * is the job no foreign key does: recomputing the PARENT.
+   */
 
-    await repairRecentRepliersAfterPostDelete({ postId: parentPostId, parentPostId: grandparent });
-
-    expect(await postExists(childA)).toBe(false);
-    expect(await postExists(childB)).toBe(false);
-    expect(await replierIds(parentPostId)).toEqual([]);
-    expect(await replierIds(childA)).toEqual([]);
-  });
-
-  it('REPORTS the children it deleted, carrying the ids the cascade keys on', async () => {
+  it('DELETES NOTHING — the deletion owns the subtree, this owns the read model', async () => {
     /**
-     * The return value is the only record that these rows ever existed — the
-     * post rows are gone by the time this resolves and no other reader learns
-     * of them. `posts.parent_post_id` is `ON DELETE SET NULL`, so the deletion
-     * this repair performs is also the LAST moment the parent link is
-     * queryable; a caller that re-derived the children afterwards would find
-     * none.
-     *
-     * Both federation URIs are asserted because the cascade's URI-keyed legs
-     * read BOTH (`feed_interactions.post_uri`, the two gate tables, and the
-     * delivery queue's activity JSON). Dropping either from the projection
-     * strands exactly the remote rows nobody would think to look for.
+     * Deliberately the impossible fixture, and named as such: the post is still
+     * present. That is the only state in which a delete inside this function
+     * could match anything, so it is the only state that can prove there is no
+     * longer one. Re-add either removed statement and this goes red.
      */
     const parentPostId = await seedPost();
-    const federated = await seedPost({
-      parentPostId,
-      oxyUserId: 'federated-child',
-      isReply: true,
-      federationActivityId: 'https://remote.example/activities/child-1',
-      federationUrl: 'https://remote.example/@someone/child-1',
-    });
-    const native = await seedPost({
-      parentPostId,
-      oxyUserId: 'native-child',
-      isReply: true,
-    });
-
-    const deleted = await repairRecentRepliersAfterPostDelete({ postId: parentPostId });
-
-    // Order is not part of the contract — the cascade consumes the whole set.
-    expect([...deleted].sort((left, right) => left.id.localeCompare(right.id))).toEqual(
-      [
-        {
-          id: federated,
-          oxyUserId: 'federated-child',
-          parentPostId,
-          federationActivityId: 'https://remote.example/activities/child-1',
-          federationUrl: 'https://remote.example/@someone/child-1',
-        },
-        {
-          id: native,
-          oxyUserId: 'native-child',
-          parentPostId,
-          federationActivityId: null,
-          federationUrl: null,
-        },
-      ].sort((left, right) => left.id.localeCompare(right.id)),
-    );
-  });
-
-  it('recomputes nothing when the deleted post was a root post', async () => {
-    // A root post has no parent to repair, so the repair is purely the removal
-    // of what it took with it.
-    const rootPostId = await seedPost({ oxyUserId: 'root-author' });
     const child = await reply({
-      parentPostId: rootPostId,
+      parentPostId,
       oxyUserId: 'child',
       createdAt: '2026-07-26T12:00:00.000Z',
     });
 
-    await repairRecentRepliersAfterPostDelete({ postId: rootPostId });
+    await repairRecentRepliersAfterPostDelete({ postId: parentPostId });
 
-    expect(await postExists(child)).toBe(false);
-    expect(await replierIds(rootPostId)).toEqual([]);
+    expect(await postExists(child)).toBe(true);
+    expect(await replierIds(parentPostId)).toEqual(['child']);
+  });
+
+  it('recomputes the PARENT — the one repair no foreign key performs', async () => {
+    /**
+     * The deleted post was one of its parent's repliers, and that projection row
+     * is keyed on the SURVIVING parent, so nothing cascades it away. Without
+     * this the parent keeps an avatar for a post that is gone.
+     */
+    const grandparent = await seedPost();
+    const doomed = await reply({
+      parentPostId: grandparent,
+      oxyUserId: 'doomed-author',
+      createdAt: '2026-07-26T12:00:00.000Z',
+    });
+    await reply({
+      parentPostId: grandparent,
+      oxyUserId: 'surviving-author',
+      createdAt: '2026-07-26T11:00:00.000Z',
+    });
+
+    // Production ORDER: the deletion commits, then the repair runs.
+    await db.delete(posts).where(eq(posts.id, doomed));
+    await repairRecentRepliersAfterPostDelete({ postId: doomed, parentPostId: grandparent });
+
+    expect(await replierIds(grandparent)).toEqual(['surviving-author']);
   });
 
   it('does nothing at all without a post id', async () => {
-    // An EMPTY list, never a rejection and never a non-empty one: the return
-    // value is the cascade's input, so anything else here would send the
-    // remaining legs hunting for rows this call never touched.
-    await expect(repairRecentRepliersAfterPostDelete({ postId: '   ' })).resolves.toEqual([]);
+    await expect(repairRecentRepliersAfterPostDelete({ postId: '   ' })).resolves.toBeUndefined();
     expect(logger.warn).not.toHaveBeenCalled();
   });
 
@@ -582,7 +556,7 @@ describe('repairing after a parent is deleted', () => {
 
     await expect(
       repairRecentRepliersAfterPostDelete({ postId: doomed, parentPostId }),
-    ).resolves.toEqual([]);
+    ).resolves.toBeUndefined();
 
     // Both halves are the claim: the parent ended up correct, AND the service
     // never reported a failure. Asserting only the projection would also pass
@@ -613,12 +587,11 @@ describe('repairing after a parent is deleted', () => {
     });
     await db.delete(posts).where(eq(posts.id, doomed));
 
-    // Empty, not partial: the transaction rolled back, so the children it had
-    // deleted are still there. Reporting them would have the cascade clean up
-    // after rows that still exist.
+    // Resolves rather than rejecting: the post is already gone, so a rejection
+    // here would report a completed deletion as a failure.
     await expect(
       repairRecentRepliersAfterPostDelete({ postId: doomed, parentPostId }),
-    ).resolves.toEqual([]);
+    ).resolves.toBeUndefined();
 
     expect(logger.warn).toHaveBeenCalledWith(
       '[PostRecentReplier] Failed to repair projection after post deletion',

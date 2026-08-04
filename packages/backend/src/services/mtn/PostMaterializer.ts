@@ -108,7 +108,6 @@ import { isUniqueViolation } from '../../db/pgErrors';
 import { posts } from '../../db/schema/posts';
 import type { PostRecord, PostRecordClassification } from '../../db/posts/postRecord';
 import {
-  deletePostRecord,
   insertPostRecord,
   loadPostRecord,
   replacePostContent,
@@ -125,6 +124,7 @@ import {
   recordRecentReplierForPost,
   repairRecentRepliersAfterPostDelete,
 } from '../PostRecentReplierService';
+import { deletePostSubtree, recordDeletionSideEffectFailure } from '../PostDeletionCascade';
 import {
   materializeEngagementRelationship,
   materializeEngagementTombstone,
@@ -779,15 +779,35 @@ async function projectTombstone(
   switch (subject.collection) {
     case MENTION_POST_COLLECTION:
     case MENTION_REPOST_COLLECTION: {
-      // A post or boost: delete it by id. The owner predicate prevents a valid
-      // chain for account A from deleting account B's post by guessing its rkey.
-      // Child rows (authorship, variants, media, sources) cascade.
-      const deleted = await deletePostRecord(rkey, eq(posts.oxyUserId, ownerOxyUserId));
-      if (deleted) {
-        await repairRecentRepliersAfterPostDelete({
-          postId: rkey,
-          parentPostId: deleted.parentPostId,
-        });
+      /**
+       * A post or boost, deleted through THE SAME subtree owner `deletePost`
+       * uses. The owner predicate prevents a valid chain for account A from
+       * deleting account B's post by guessing its rkey, and it is carried in the
+       * DELETE's own `WHERE` exactly as before.
+       *
+       * This called `deletePostRecord` directly until #142. That deleted the
+       * post row alone, so `posts.parent_post_id`'s `ON DELETE SET NULL` left
+       * every direct reply alive with a null parent and `is_reply: true` — a
+       * root post nobody wrote. Mongo deleted them, so the divergence is one the
+       * PORT introduced; `deletePost` had already been fixed for it (#126/#134)
+       * and this second path was not covered.
+       *
+       * Whatever the reply-scoping decision turns out to be, it is now made in
+       * ONE place for both callers rather than diverging between them.
+       */
+      const deletion = await deletePostSubtree(rkey, eq(posts.oxyUserId, ownerOxyUserId));
+      if (deletion) {
+        // Best-effort, exactly as on the route: the deletion is committed, so a
+        // projection that will not repair is not a reason to fail the
+        // projection of a verified record. Counted, never silent.
+        try {
+          await repairRecentRepliersAfterPostDelete({
+            postId: rkey,
+            parentPostId: deletion.post.parentPostId,
+          });
+        } catch (error) {
+          recordDeletionSideEffectFailure('recent_replier_projection', error);
+        }
       }
       return { ok: true, kind: 'tombstone', id: rkey };
     }
