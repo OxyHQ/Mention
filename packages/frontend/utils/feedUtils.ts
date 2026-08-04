@@ -235,23 +235,6 @@ export function buildFeedScrollKey(params: FeedIdentityParams): string {
 }
 
 /**
- * Deep equality check for objects/arrays
- * Uses JSON.stringify for simple comparison - optimized for filters
- */
-export function deepEqual<T>(a: T, b: T): boolean {
-    if (a === b) return true;
-    if (a == null || b == null) return false;
-    if (typeof a !== 'object' || typeof b !== 'object') return false;
-
-    try {
-        return JSON.stringify(a) === JSON.stringify(b);
-    } catch {
-        // If JSON.stringify fails, fall back to reference equality
-        return false;
-    }
-}
-
-/**
  * Shallow, one-level equality for {@link FeedFilters}.
  *
  * Feed filters are a FLAT bag of primitive scalars (type/hashtag/topic/postId/
