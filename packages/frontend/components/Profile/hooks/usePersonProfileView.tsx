@@ -110,7 +110,7 @@ export function usePersonProfileView({
   onSelectTab,
 }: PersonProfileViewOptions): PersonProfileView {
   const account = useProfileAccount('person');
-  const { username, handle, isFederated, profileData, loading } = account;
+  const { username, handle, isFederated, profileData } = account;
   const { user: currentUser } = useAuth();
   const { t } = useTranslation();
 
