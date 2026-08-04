@@ -946,6 +946,74 @@ export async function assertActorSafeToDelete(
 }
 
 /**
+ * Every reference the ANCHOR check probes — the third of the three unions in
+ * this file, and the last to get one.
+ *
+ * `POST_REFERENCE_PROBE_NAMES` and `ACTOR_REFERENCE_PROBE_NAMES` have had this
+ * protection for a while; the anchor path built its two probes inline, untyped,
+ * so a deleted probe compiled cleanly and nothing enumerated what it claimed.
+ * Two probes is small, and the exposure is the same class one function over: a
+ * gate that silently stops checking something is worse than an absent one,
+ * because the operator believes it ran.
+ *
+ * **The two unions OVERLAP, and the overlap is correct — measured, because the
+ * obvious guess is wrong.** A first version of this pinned them as disjoint and
+ * the assertion failed immediately: `federated_follows.remote_actor_uri` is
+ * declared and BUILT in both, which is right, because a uri-keyed reference
+ * dangles whether the identity survives or not, so both checks must prove it
+ * absent. What is anchor-ONLY is `posts.federation_actor_uri`.
+ *
+ * That asymmetry is the reason this union exists rather than being folded into
+ * `ACTOR_REFERENCE_PROBE_NAMES`: a first version of THAT union declared
+ * `posts.federation_actor_uri`, and its set-equality test rejected it within a
+ * minute as a declared name nothing builds. Widening it to cover the anchor path
+ * would type the wrong thing. No test pins the disjointness, deliberately —
+ * there is none to pin, and the equality tests on each union already catch a
+ * name declared in the wrong one.
+ */
+export const ACTOR_ANCHOR_PROBE_NAMES = [
+  'posts.federation_actor_uri',
+  'federated_follows.remote_actor_uri',
+] as const;
+
+export type ActorAnchorProbeName = (typeof ACTOR_ANCHOR_PROBE_NAMES)[number];
+
+/** A {@link ReferenceProbe} whose name is a declared anchor reference. */
+export type ActorAnchorProbe = ReferenceProbe & { name: ActorAnchorProbeName };
+
+/**
+ * What the anchor check is deleting: the row, identified by its uri.
+ *
+ * Deliberately NOT `ActorDeletionTarget` — that carries an optional
+ * `oxyUserId`, and accepting one here would invite a caller to pass the identity
+ * to a check that by construction says nothing about it.
+ */
+export interface ActorAnchorDeletionTarget {
+  actorUri: string;
+}
+
+/**
+ * The anchor probes, extracted so they can be ENUMERATED rather than only run.
+ *
+ * ONE call shape, unlike `actorReferenceProbes`, and that is a property of the
+ * target rather than an omission: there is no optional field to vary, so every
+ * probe is built on every call and a single shape cannot under-report.
+ */
+export function actorAnchorProbes(target: ActorAnchorDeletionTarget): ActorAnchorProbe[] {
+  const { actorUri } = target;
+  return [
+    {
+      name: 'posts.federation_actor_uri',
+      hasReference: () => postExists(eq(posts.federationActorUri, actorUri)),
+    },
+    {
+      name: 'federated_follows.remote_actor_uri',
+      hasReference: () => existsFollow({ remoteActorUri: actorUri }),
+    },
+  ];
+}
+
+/**
  * Prove that deleting a `FederatedActor` ANCHOR ROW alone cannot strand a
  * reference, for a caller that deliberately RETAINS the actor's Oxy identity.
  *
@@ -967,18 +1035,8 @@ export async function assertActorSafeToDelete(
  */
 export async function assertActorAnchorSafeToDelete(
   context: string,
-  target: { actorUri: string },
+  target: ActorAnchorDeletionTarget,
 ): Promise<void> {
-  const { actorUri } = target;
-  const blockers = await collectReferenceBlockers([
-    {
-      name: 'posts.federation_actor_uri',
-      hasReference: () => postExists(eq(posts.federationActorUri, actorUri)),
-    },
-    {
-      name: 'federated_follows.remote_actor_uri',
-      hasReference: () => existsFollow({ remoteActorUri: actorUri }),
-    },
-  ]);
+  const blockers = await collectReferenceBlockers(actorAnchorProbes(target));
   assertNoDeletionBlockers(context, blockers);
 }
