@@ -68,3 +68,45 @@ describe('mastox.eu mirror notice', () => {
     expect(stripped(bio)).toBe(bio.trim());
   });
 });
+
+/**
+ * Identity no longer reads the bio at all — that is the whole change.
+ *
+ * The notice pattern above still exists, but only to CLEAN text. If it ever
+ * misses, a bio keeps one operator sentence; it can no longer decide whose
+ * account this is, which is what a missed language used to do to 18 accounts.
+ */
+describe('mastox.eu identity is decided by the actor type', () => {
+  const candidate = (over: Record<string, unknown> = {}) => ({
+    host: 'mastox.eu',
+    acct: 'pabloiglesias@mastox.eu',
+    preferredUsername: 'PabloIglesias',
+    actorUri: 'https://mastox.eu/users/PabloIglesias',
+    actorType: 'Service',
+    alsoKnownAs: [],
+    fields: [],
+    proxyOf: [],
+    bio: '',
+    ...over,
+  });
+
+  it('relabels a mirror whose bio carries NO notice in any language', () => {
+    // Measured live: mastox publishes every mirror as a Service.
+    expect(MASTOX?.derive(candidate())).toBe('PabloIglesias');
+  });
+
+  it('leaves the operator’s own Person account alone even so', () => {
+    // Measured live: @admin is a Person. This is the case an exclusion list
+    // would have had to enumerate, and this one does not need the list.
+    expect(MASTOX?.derive(candidate({ actorType: 'Person', preferredUsername: 'admin' })))
+      .toBeUndefined();
+  });
+
+  it('does not relabel a Person even when its bio DOES carry the notice', () => {
+    // Proves the bio is not consulted for identity in either direction.
+    expect(MASTOX?.derive(candidate({
+      actorType: 'Person',
+      bio: '(bot de x a mastodon administrado por mastox.eu, contacte con @admin)',
+    }))).toBeUndefined();
+  });
+});

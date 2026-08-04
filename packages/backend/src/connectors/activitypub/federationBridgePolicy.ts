@@ -2,7 +2,7 @@ import {
   FEDERATION_NETWORKS,
   blueskyUsernameFromHandle,
   createBridgeRelabeller,
-  upstreamHandleFromPreferredUsername,
+  upstreamHandleFromAutomatedActor,
   upstreamHandleFromProfileField,
   type FederationBridgeEntry,
 } from '@oxyhq/federation';
@@ -166,33 +166,36 @@ export const FEDERATION_BRIDGE_POLICY: readonly FederationBridgeEntry[] = [
     network: FEDERATION_NETWORKS.x,
     operator: 'mastox.eu (contact @admin@mastox.eu)',
     software: 'Mastodon (stock; no bridge software to fingerprint)',
-    // ONE STRUCTURAL MARKER, NOT A LIST OF TRANSLATIONS.
+    // IDENTITY COMES FROM `type`, NOT FROM THE BIO — AND THAT REPLACED A
+    // MARKER, WHICH IS THE POINT.
     //
-    // This was two literals, English and French, and it silently mis-served 18
-    // of the 50 mastox actors we hold: their notice is in SPANISH, matched
-    // neither, and the per-actor derivation failed closed — so they kept
-    // `@name@mastox.eu` and the notice stayed in their bio unstripped. Nobody
-    // would report that; it just looks like a Mastodon account.
+    // This matched the per-account notice mastox writes into each mirrored bio.
+    // It listed English and French; the notice also exists in SPANISH, so 18 of
+    // the 50 mastox actors we hold were never re-labelled — they kept
+    // `@name@mastox.eu` with the notice still in the bio, looking to a reader
+    // like an ordinary Mastodon account. Nothing errored, and nobody would
+    // report it. Widening the pattern to match the notice's SHAPE fixed those 18
+    // and still left identity resting on prose, one wording change from
+    // breaking again.
     //
-    // Enumerating languages cannot converge (this file already says the tell is
-    // free text "in French here and in anything anywhere else"), so the marker
-    // matches the notice's SHAPE instead: a trailing parenthetical that calls
-    // itself a bot, names THIS operator's host, and points at its @admin. That
-    // is the operator's own stamp, applied to mirrors and not to its own
-    // account, so it remains a per-ACTOR proof rather than a host-wide
-    // assumption — the distinction that keeps a human who merely signs up on
-    // this stock Mastodon instance from being published as an X account.
+    // The operator already declares it in a machine-readable field: every mirror
+    // here is an ActivityPub `Service`, its own `@admin` is a `Person` (both
+    // measured against the live host). Same claim, no language.
     //
-    // Verified against all four wordings in production (EN, FR, and both
-    // Spanish forms, whose `@admin` appears bare and host-qualified), and
-    // against negatives: the operator's own profile text, an ordinary bio
-    // mentioning bots, and the same notice naming a DIFFERENT host.
-    derive: upstreamHandleFromPreferredUsername([
-      /\(bot\b[^)]{0,160}\bmastox\.eu\b[^)]{0,160}@admin[^)]{0,80}\)\s*$/i,
-    ]),
+    // NOT "relabel the whole host, exclude the admin", which is simpler and
+    // inverts the direction of failure. Registrations are closed here today, but
+    // an exclusion list is unbounded and unknowable, and one miss publishes a
+    // real person as an X account they may not have — the impersonation-shaped
+    // error this file calls heavier than a wrong block. Asking each actor what
+    // it is needs no list at all.
+    derive: upstreamHandleFromAutomatedActor(),
     caseRule: 'lowercase',
     relabel: 'enabled',
     upstreamIdStability: 'recyclable',
+    // TEXT CLEANING ONLY, and no longer load-bearing for identity — that split
+    // is what makes matching prose acceptable here. A pattern that misses now
+    // leaves one operator sentence in a bio; it can no longer decide whose
+    // account this is. Kept SHAPE-matched so a fourth language cleans itself.
     boilerplate: [
       /\s*\(bot\b[^)]{0,160}\bmastox\.eu\b[^)]{0,160}@admin[^)]{0,80}\)\s*$/i,
     ],
