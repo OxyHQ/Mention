@@ -2,7 +2,29 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # `drizzle/channels-plans` is the Mongo->Postgres migration trunk, and it is
+    # here because on `pull_request` alone its CI is hostage to a branch it does
+    # not control.
+    #
+    # A `pull_request` run builds `refs/pull/N/merge`, which GitHub cannot create
+    # while the PR conflicts — so the MOMENT `main` lands a commit that touches
+    # anything the trunk also touched, every push to the trunk dispatches NOTHING.
+    # Not a failure, not a queued run: no run at all. Measured 2026-08-04, four
+    # consecutive trunk pushes carrying five merged fixes produced zero runs over
+    # an hour, and the silence was read as "CI is running" four times before
+    # anybody checked. A gate whose absence is indistinguishable from its success
+    # is the failure mode this repo has already paid for once, in the deploy
+    # workflows above.
+    #
+    # Safe on both counts that matter, checked rather than assumed:
+    #  - the three deploy workflows trigger on `workflow_run` with
+    #    `branches: [main]`, so a green run here CANNOT deploy this branch; and
+    #  - `concurrency.group` keys on `github.ref`, so trunk runs share no lane
+    #    with main's and hold at most one running plus one pending, same bound.
+    #
+    # REMOVE THIS ENTRY when the migration trunk merges and the branch is deleted.
+    # It is the only branch-specific line in this file and it should stay that way.
+    branches: [main, drizzle/channels-plans]
   pull_request:
     branches: [main]
 
