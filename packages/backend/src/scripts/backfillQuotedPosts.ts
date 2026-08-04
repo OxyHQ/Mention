@@ -51,6 +51,8 @@ const SCRIPT_NAME = 'backfillQuotedPosts';
 const DRY_RUN = (process.env.BACKFILL_DRY_RUN ?? 'true') !== 'false';
 const MAX = Number(process.env.BACKFILL_MAX ?? 2000);
 const AP_CONTENT_TYPE = 'application/activity+json';
+/** How often to report progress. A per-candidate network fetch makes this slow. */
+const PROGRESS_EVERY = 500;
 
 /** How Mastodon renders a quote when the client cannot show one. A FILTER only. */
 const RENDERED_QUOTE_PREFIX = /^RE:\s*https?:\/\//;
@@ -61,10 +63,13 @@ async function main(): Promise<void> {
   await mongoose.connect(mongoUri, { dbName: `mention-${process.env.NODE_ENV || 'development'}` });
   logger.info('[Backfill] quoted posts starting', { dryRun: DRY_RUN, max: MAX });
 
+  let scanned = 0;
   let candidates = 0;
   let withQuoteField = 0;
   let linked = 0;
   let written = 0;
+  let fetchFailures = 0;
+  const startedAt = Date.now();
 
   const cursor = Post
     .find(
@@ -76,6 +81,20 @@ async function main(): Promise<void> {
     .cursor();
 
   for await (const post of cursor) {
+    scanned += 1;
+    // A backfill that fetches per candidate can run for an hour, and one that
+    // only logs at its start and end is indistinguishable from one that hung —
+    // which is exactly how the first attempt at this had to be killed. Progress
+    // is reported as it goes.
+    if (scanned % PROGRESS_EVERY === 0) {
+      logger.info('[Backfill] quoted posts progress', {
+        scanned,
+        candidates,
+        linked,
+        fetchFailures,
+        elapsedSec: Math.round((Date.now() - startedAt) / 1000),
+      });
+    }
     const body = post.content?.variants?.[0]?.text ?? '';
     if (!RENDERED_QUOTE_PREFIX.test(body.trim())) continue;
     candidates += 1;
@@ -89,6 +108,7 @@ async function main(): Promise<void> {
       if (res.ok) object = (await res.json()) as Record<string, unknown>;
     } catch {
       // Fail-soft by design: an unreachable origin leaves the post untouched.
+      fetchFailures += 1;
       continue;
     }
     if (!object) continue;
@@ -111,7 +131,10 @@ async function main(): Promise<void> {
 
   logger.info('[Backfill] quoted posts complete', {
     dryRun: DRY_RUN,
+    scanned,
     candidates,
+    fetchFailures,
+    elapsedSec: Math.round((Date.now() - startedAt) / 1000),
     withQuoteField,
     linked,
     written,
