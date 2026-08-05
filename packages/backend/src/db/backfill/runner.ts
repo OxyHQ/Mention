@@ -43,6 +43,7 @@
 import { eq, getTableColumns, is } from 'drizzle-orm';
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { getPostgresClient, type Database } from '../postgres';
+import { sqlColumnName } from '../casing';
 import {
   auditColumnCoverageForPlan,
   auditDefaultedColumns,
@@ -52,7 +53,7 @@ import {
   auditWouldBlockCopy,
   type AuditFinding,
 } from './audit';
-import { analyzeTables, copyRowsInto } from './bulkLoad';
+import { analyzeTables, copyRowsInto, keysPresentIn } from './bulkLoad';
 import { classifyCollection, COLLECTION_PLANS, NOT_MIGRATED } from './collectionMap';
 import {
   checkpointOf,
@@ -308,6 +309,19 @@ export interface CopyResult {
   readonly collection: string;
   readonly documentsRead: number;
   readonly rowsByTable: Record<string, number>;
+  /**
+   * Rows NOT written because the parent they name is not in the target — keyed
+   * by the child table, absent when there were none.
+   *
+   * Reported rather than merely skipped. A row dropped here is a real
+   * discrepancy between source and target: the parent lost a conflict against a
+   * DIFFERENT row already holding some unique value, so this document's version
+   * of it is not the one the target kept. Silently writing fewer rows than the
+   * source has is the failure mode a migration audit exists to catch, so the
+   * count travels with the result and `verify` has a number to reconcile
+   * against instead of an unexplained shortfall.
+   */
+  readonly droppedByTable: Record<string, number>;
   readonly selfReferencesFilled: number;
   /**
    * Wall-clock for this collection, so the report quotes a MEASURED rate rather
@@ -400,6 +414,103 @@ export function orderPlanTables(plan: CollectionPlan): PgTable[] {
   return ordered;
 }
 
+/** One column of a child table that must name a row of a table in the same plan. */
+interface PlanParentEdge {
+  /** The child's column PROPERTY name holding the reference. */
+  readonly property: string;
+  /** The referenced table's name, as `tableName` renders it. */
+  readonly parentTable: string;
+  /** The referenced column's PROPERTY name — the key set is read on this. */
+  readonly parentProperty: string;
+}
+
+/**
+ * The foreign keys a table has ON OTHER TABLES OF THE SAME PLAN.
+ *
+ * Derived from the schema rather than declared per plan, so a child that gains a
+ * reference is covered without anyone remembering to add it — the same reasoning
+ * {@link orderPlanTables} uses to derive the write order instead of listing it.
+ *
+ * SELF-references are excluded, and that exclusion is load-bearing rather than
+ * an optimisation: `posts.parent_post_id -> posts.id` is stripped from the row
+ * before the insert (`withoutDeferred`) and written by pass B, so the column is
+ * not in the row this filter would read, and treating it as one would drop every
+ * reply on a first pass that has not filled it yet.
+ *
+ * Composite foreign keys are skipped. None exists in this schema — every FK a
+ * plan crosses is single-column — and a partial implementation that checked only
+ * the first column would answer a DIFFERENT question while looking like this
+ * one. If one is ever added, `assertNoCompositePlanEdges` fails rather than
+ * letting it through unchecked.
+ */
+function planParentEdges(table: PgTable, planTableNames: ReadonlySet<string>): PlanParentEdge[] {
+  const self = tableName(table);
+  const columns = getTableColumns(table);
+  const propertyOf = new Map<string, string>();
+  for (const [property, column] of Object.entries(columns)) {
+    propertyOf.set(sqlColumnName(column), property);
+  }
+
+  const edges: PlanParentEdge[] = [];
+  for (const foreignKey of getTableConfig(table).foreignKeys) {
+    const reference = foreignKey.reference();
+    const target = reference.foreignTable;
+    if (!is(target, PgTable)) continue;
+    const parentTable = getTableConfig(target).name;
+    if (parentTable === self) continue;
+    if (!planTableNames.has(parentTable)) continue;
+    if (reference.columns.length !== 1 || reference.foreignColumns.length !== 1) continue;
+
+    const property = propertyOf.get(sqlColumnName(reference.columns[0]));
+    const parentColumns = getTableColumns(target);
+    const parentName = sqlColumnName(reference.foreignColumns[0]);
+    const parentProperty = Object.entries(parentColumns).find(
+      ([, column]) => sqlColumnName(column) === parentName
+    )?.[0];
+    if (property === undefined || parentProperty === undefined) continue;
+    edges.push({ property, parentTable, parentProperty });
+  }
+  return edges;
+}
+
+/**
+ * Drop the rows whose parent is not in the target, and say how many.
+ *
+ * A row is kept when every in-plan reference it carries is either NULL (no
+ * constraint to satisfy) or names a key the parent table actually holds. The
+ * survivors map is keyed by parent table name and is built from what the target
+ * HOLDS after that parent's insert, never from what the insert returned — see
+ * {@link keysPresentIn} for why those differ and which one is right.
+ */
+function withPresentParents(
+  rows: readonly Record<string, unknown>[],
+  edges: readonly PlanParentEdge[],
+  survivors: ReadonlyMap<string, ReadonlySet<string>>
+): { kept: Record<string, unknown>[]; dropped: number } {
+  if (edges.length === 0) return { kept: [...rows], dropped: 0 };
+  const kept: Record<string, unknown>[] = [];
+  let dropped = 0;
+
+  for (const row of rows) {
+    const orphaned = edges.some((edge) => {
+      const value = row[edge.property];
+      if (value === null || value === undefined) return false;
+      const present = survivors.get(edge.parentTable);
+      // No key set for that parent means its rows were not written in this
+      // batch — nothing to contradict, so the foreign key stands as the check.
+      if (present === undefined) return false;
+      return !present.has(String(value));
+    });
+    if (orphaned) {
+      dropped += 1;
+      continue;
+    }
+    kept.push(row);
+  }
+
+  return { kept, dropped };
+}
+
 /**
  * Copy one collection.
  *
@@ -458,6 +569,19 @@ export async function copyCollection(
   for (const table of tables) rowsByTable[tableName(table)] = 0;
   let documentsRead = 0;
 
+  // The plan's own parent/child edges, derived once. `referencedKeyProperty`
+  // inverts them: a table is read back only if something later in the plan
+  // actually points at it, so a plan of unrelated tables costs no extra query.
+  const planTableNames = new Set(tables.map(tableName));
+  const parentEdgesByTable = new Map<string, PlanParentEdge[]>();
+  const referencedKeyProperty = new Map<string, string>();
+  for (const table of tables) {
+    const edges = planParentEdges(table, planTableNames);
+    parentEdgesByTable.set(tableName(table), edges);
+    for (const edge of edges) referencedKeyProperty.set(edge.parentTable, edge.parentProperty);
+  }
+  const droppedByTable: Record<string, number> = {};
+
   for await (const documents of streamCollection(source, plan.collection, batchSize, resumeFrom)) {
     const collected = new Map<string, { table: PgTable; rows: Record<string, unknown>[] }>();
     for (const table of tables) collected.set(tableName(table), { table, rows: [] });
@@ -486,14 +610,50 @@ export async function copyCollection(
 
     // Tables in FK order, each loaded with COPY → staging → INSERT … SELECT …
     // ON CONFLICT DO NOTHING. NOT wrapped in one transaction across tables: the
-    // order already guarantees a parent lands before its child, and a
-    // batch-wide transaction would hold every table's locks for the whole batch
-    // while buying nothing — the copy is idempotent, so a partial batch is
+    // order is what lets a child be filtered against a parent already committed,
+    // and a batch-wide transaction would hold every table's locks for the whole
+    // batch while buying nothing — the copy is idempotent, so a partial batch is
     // re-done rather than rolled back.
+    //
+    // The order alone is NOT enough, and the sentence that used to stand here
+    // ("the order already guarantees a parent lands before its child") is the
+    // defect this filter closes. The order guarantees the parent's INSERT runs
+    // first; `ON CONFLICT DO NOTHING` decides whether its ROW landed, and those
+    // come apart whenever a parent conflicts on a unique that is not its primary
+    // key — a different row already holds that value, so this id never enters
+    // the table while its children, built from the same document and carrying
+    // that id, are inserted against nothing. Postgres refuses them and the run
+    // dies naming the CHILD's foreign key.
+    //
+    // Twice in production, on two unrelated pairs (`post_authorships -> posts`
+    // via `federation_activity_id`, and `blocklist_proposal_observations ->
+    // blocklist_proposals` via `domain`), which is why this is here and not in a
+    // plan. `assertTargetsEmpty` makes it unreachable from a COLD start; a
+    // resume is by definition a run whose target is not empty.
+    const survivors = new Map<string, ReadonlySet<string>>();
     for (const table of tables) {
-      const bucket = collected.get(tableName(table));
+      const name = tableName(table);
+      const bucket = collected.get(name);
       if (!bucket || bucket.rows.length === 0) continue;
-      rowsByTable[tableName(table)] += await copyRowsInto(client, table, bucket.rows);
+
+      const edges = parentEdgesByTable.get(name) ?? [];
+      const { kept, dropped } = withPresentParents(bucket.rows, edges, survivors);
+      if (dropped > 0) {
+        droppedByTable[name] = (droppedByTable[name] ?? 0) + dropped;
+      }
+      if (kept.length === 0) continue;
+
+      rowsByTable[name] += await copyRowsInto(client, table, kept);
+
+      // Read back what the table HOLDS, but only when a later table in this plan
+      // actually references it — otherwise this is a query for nobody.
+      const keyProperty = referencedKeyProperty.get(name);
+      if (keyProperty !== undefined) {
+        const keys = kept
+          .map((row) => row[keyProperty])
+          .filter((value): value is string => typeof value === 'string');
+        survivors.set(name, await keysPresentIn(client, table, keyProperty, keys));
+      }
     }
 
     // AFTER the batch is committed, never before: a checkpoint written first
@@ -509,7 +669,14 @@ export async function copyCollection(
       ? 0
       : await fillSelfReferences(plan, options, tables, deferredByTable, resolutions, parents);
 
-  return { collection: plan.collection, documentsRead, rowsByTable, selfReferencesFilled, elapsedMs: 0 };
+  return {
+    collection: plan.collection,
+    documentsRead,
+    rowsByTable,
+    droppedByTable,
+    selfReferencesFilled,
+    elapsedMs: 0,
+  };
 }
 
 /** A copy of `row` with the deferred columns removed, so they insert as NULL. */
