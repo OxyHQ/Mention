@@ -454,7 +454,6 @@ fi
 run_release migration-order true true false 0
 printf '%s\n' \
   'task:bun packages/backend/dist/src/db/migrate.js --target-database=mention' \
-  'task:bun packages/backend/dist/scripts/migrate.js' \
   'task:bun packages/backend/dist/src/scripts/assertPostgresPopulated.js' \
   'task:bun packages/backend/dist/src/scripts/reconcileBlockedDomains.js' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
