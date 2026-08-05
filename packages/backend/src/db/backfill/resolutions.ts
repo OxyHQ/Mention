@@ -1081,14 +1081,26 @@ async function planActorIdentityRekeys(source: MongoSource): Promise<{
               { count: { $gt: 1 } },
               // The sentinel identifies nobody even when it appears ONCE, so a
               // lone row carrying it is re-keyed too — which `count > 1` alone
-              // would never reach. Trimmed and lower-cased for the same reason
-              // `isUnresolvedAtprotoHandle` does it, and built from the shared
-              // constant rather than a second copy of the literal. That
-              // function stays the AUTHORITY and is re-applied below; this only
-              // decides what leaves Mongo, and must never be narrower than it.
+              // would never reach.
+              //
+              // CONTAINS, not equals-after-trimming, and the difference is
+              // measured rather than stylistic. `isUnresolvedAtprotoHandle`
+              // stays the AUTHORITY and is re-applied below, so this arm only
+              // has to be a SUPERSET of it — and `$trim` is not one. Mongo's
+              // `$trim` strips a fixed ASCII whitespace set plus NBSP, while
+              // JavaScript's `.trim()` strips all Unicode whitespace, so an
+              // `acct` padded with U+2028, U+FEFF or U+3000 satisfies the
+              // predicate and NOT the pipeline: a lone row carrying one would
+              // have kept the sentinel, silently, where the pre-unification
+              // transform re-keyed it. Containment cannot have that gap —
+              // trimming only removes leading and trailing characters, so any
+              // value whose trimmed lower-case IS the sentinel still contains
+              // it — and it needs no belief about either whitespace set.
+              // Returning a few extra groups (`xhandle.invalidy`) costs one
+              // rejected group in TypeScript.
               {
                 $expr: {
-                  $eq: [{ $toLower: { $trim: { input: '$_id' } } }, UNRESOLVED_HANDLE],
+                  $ne: [{ $indexOfCP: [{ $toLower: '$_id' }, UNRESOLVED_HANDLE] }, -1],
                 },
               },
             ],

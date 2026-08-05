@@ -845,6 +845,39 @@ describe('duplicate federated actors', () => {
     expect(plan.actedOn.get(KEEP_FRESHEST_FEDERATED_ACTOR.id)?.size).toBe(2);
   });
 
+  it('re-keys a lone sentinel row whose acct is padded with whitespace MONGO does not trim', async () => {
+    // `isUnresolvedAtprotoHandle` trims with JavaScript, which strips all
+    // Unicode whitespace; Mongo's `$trim` strips a fixed set that does NOT
+    // include U+3000. So a pipeline arm written as "equals after trimming" is
+    // NARROWER than the predicate it stands in for, and this row would keep the
+    // sentinel — silently, and only when it is alone, since a colliding group
+    // arrives through `count > 1` instead. Measured on a real mongod: `$trim`
+    // handles NBSP but not U+2028, U+FEFF or U+3000.
+    const did = 'did:plc:bffpaddedsentinel00000000';
+    await mongo.collection('federatedactors').insertOne({
+      _id: oid(66),
+      uri: did,
+      protocol: 'atproto',
+      username: 'handle.invalid',
+      domain: 'bsky.social',
+      acct: '　handle.invalid',
+      lastFetchedAt: new Date('2026-01-01T00:00:00Z'),
+    });
+
+    const plan = await planResolutions(source);
+    expect(plan.rekeyedActorIdentities.has(oid(66).toHexString())).toBe(true);
+
+    await copy('federatedactors');
+    const [row] = await getDb()
+      .select()
+      .from(federatedActors)
+      .where(eq(federatedActors.uri, did));
+    // The sentinel survives nowhere — a copy left in one column is a copy the
+    // next collision is built from.
+    expect(row?.acct).toBe(did);
+    expect(row?.username).toBe(did);
+  });
+
   it('re-keys a LONE sentinel row, which no collision would ever reach', async () => {
     // `handle.invalid` identifies nobody whether or not a second row carries
     // it, so a `count > 1` pre-pass would leave this row holding a value that
