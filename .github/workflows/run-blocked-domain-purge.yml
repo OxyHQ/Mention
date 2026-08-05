@@ -28,7 +28,7 @@ name: Purge blocked-domain data from the platform
 # TWO GATES, AND THE SECOND ONE IS NOT IN THIS REPO
 #   A real run needs `confirm_write` here AND `FEDERATION_DOMAIN_PURGE_ENABLED=true`
 #   on the oxy-api deployment, which answers 409 otherwise. Arming the endpoint is
-#   an operator decision made over in OxyHQServices, on purpose — this workflow
+#   an operator decision made over in the oxy repo, on purpose — this workflow
 #   cannot talk itself into a deletion.
 #
 # ALWAYS PLAN FIRST (`dry_run=true`, the default). `dryRun` is the ONLY field the
