@@ -1,6 +1,6 @@
 # Mention
 
-> Parent files (`~/AGENTS.md`, `~/Oxy/AGENTS.md`) hold universal standards, the agent team, shared-SDK rules, SDK version targets, Bloom/Expo/expo-router gotchas, and the infra pointer. This file holds ONLY Mention-specific content.
+> Org-wide engineering standards (TypeScript, React, naming, error handling, security, testing, git, bun) live at <https://github.com/OxyHQ/engineering/blob/main/AGENTS.md> and are not repeated here. Parent files (`~/AGENTS.md`, `~/Oxy/AGENTS.md`) hold the agent team, shared-SDK rules, the Bloom/Expo/expo-router gotchas, and the infra pointer. This file holds ONLY Mention-specific content.
 
 ## AWS Deployment
 
@@ -142,16 +142,20 @@ Monorepo using Bun workspaces.
 
 ```
 packages/
-  frontend/       @mention/frontend    Expo 56 / React Native 0.85.3 / React 19
-  backend/        @mention/backend     Express 5.2 / Mongoose 8.24 / Redis / Socket.io
+  frontend/       @mention/frontend    Expo / React Native / React
+  backend/        @mention/backend     Express / Mongoose / Redis / Socket.io
   shared-types/   @mention/shared-types TypeScript type definitions
   mcp/            @mention/mcp         Model Context Protocol server for Claude
+  e2e/            @mention/e2e         Playwright release gate: drives the candidate
+                                       web build at the production origin before promotion
 ```
+
+Every version is in `package.json`: the frontend's own manifest for `expo`, and the root `overrides` for `react-native`/`react` (the override is what wins, so read it there and not in the workspace manifest). Never restate a version here.
 
 ### Key Tech
 
-- **Frontend**: Expo Router, NativeWind + TailwindCSS 4.2, TanStack React Query, Zustand, Socket.io-client, LiveKit
-- **Backend**: Express 5, Mongoose 8, Redis 5, Socket.io, Firebase Admin, Oxy media services
+- **Frontend**: Expo Router, NativeWind + TailwindCSS, TanStack React Query, Zustand, Socket.io-client, LiveKit
+- **Backend**: Express, Mongoose, Redis, Socket.io, Firebase Admin, Oxy media services
 
 ## MTN Protocol (Mention's signed-records layer)
 
@@ -571,7 +575,7 @@ Surface behaviour: **search** excludes sensitive at the QUERY level and drops mu
 
 ## React Compiler — a render-phase ref write is REFUSED, not miscompiled
 
-Writing a ref during render (`const r = useRef(x); r.current = x;` at the top level of a component or hook) does NOT produce a stale read with the compiler this app ships. Measured against the installed `babel-plugin-react-compiler` 19.1.0-rc.1 with the options `babel-preset-expo` passes in production (`target: '19'`, `panicThreshold: 'NONE'`): the compiler emits
+Writing a ref during render (`const r = useRef(x); r.current = x;` at the top level of a component or hook) does NOT produce a stale read with the compiler this app ships. Measured against the installed `babel-plugin-react-compiler` with the options `babel-preset-expo` passes in production (`target: '19'`, `panicThreshold: 'NONE'`): the compiler emits
 
 ```
 CompileError: Ref values (the `current` property) may not be accessed during render.
@@ -639,7 +643,7 @@ A provider returns a DESCRIPTION and never an envelope. §7.3's dedup key is com
 
 ### Known gaps (deliberate, not oversights)
 
-- **Media evidence is declared, not attached.** A post with no text gets a `metadata` subject resource saying what it consisted of, so a jury can answer `insufficient_context` for the right reason. **The answer changed at contracts 0.3.0 and is now small:** `AssetRef` is `{ fileId, url?, mimeType, sha256, sizeBytes?, width?, height?, durationSeconds? }` — the `uploadId`/`Uploads` route is gone, CrowdSource serves no upload route, bytes go through the Oxy media chokepoint, and `url` is provenance no reviewer client ever dereferences. Mention already holds all of it: `MediaItem.id` IS the `fileId` (federated too, once the media cache rewrote it — origin URL kept in `remoteUrl`), and one batched `getServiceAssetMetadataByIds` returns `{sha256, mime, size, width, height, durationSec}` field-for-field. **No byte fetching** — Mention makes that same call in `services/mtn/mentionRecordBuilders.ts` (`resolvePostRecordEmbeds`) for the MTN chain. Closing it: one function in `postSubject.ts` + flip `evidenceAttachmentsSupported`. Two traps documented in that file: the digest must enter the snapshot hash, and a federated item the cache never rewrote has a URL in `id` and no file id, so it must stay declared-only.
+- **Media evidence is declared, not attached.** A post with no text gets a `metadata` subject resource saying what it consisted of, so a jury can answer `insufficient_context` for the right reason. **The answer has since changed and is now small:** `AssetRef` is `{ fileId, url?, mimeType, sha256, sizeBytes?, width?, height?, durationSeconds? }` — the `uploadId`/`Uploads` route is gone, CrowdSource serves no upload route, bytes go through the Oxy media chokepoint, and `url` is provenance no reviewer client ever dereferences. Mention already holds all of it: `MediaItem.id` IS the `fileId` (federated too, once the media cache rewrote it — origin URL kept in `remoteUrl`), and one batched `getServiceAssetMetadataByIds` returns `{sha256, mime, size, width, height, durationSec}` field-for-field. **No byte fetching** — Mention makes that same call in `services/mtn/mentionRecordBuilders.ts` (`resolvePostRecordEmbeds`) for the MTN chain. Closing it: one function in `postSubject.ts` + flip `evidenceAttachmentsSupported`. Two traps documented in that file: the digest must enter the snapshot hash, and a federated item the cache never rewrote has a URL in `id` and no file id, so it must stay declared-only.
 - **Mention only SENDS FOR REVIEW the objects it owns — `post`, `comment`, `user` — but it ACCEPTS every type in the enum.** Two questions, two authorities, and conflating them was tried and reverted: `ReportedType` is the API contract, `subjects/registry.ts` decides delivery. A type with a provider gets a `ModerationOutbox` row in the intake transaction and `localStatus: 'queued'`; a type without one is stored at `localStatus: 'received'` with `localStatusReason` saying why, and **no outbox row is created at all** — never one that a worker skips later, because that would dead-letter (`ModerationSubjectUnsupportedError`, `retryable: false`) a report that is not defective. `POST /reports` only 400s a type the enum has never heard of.
   - **Why not refuse.** Gating the route on the registry makes adopting CrowdSource a breaking change for every report surface an app has not yet wired up. Incremental adoption, one subject type at a time, is the property the other six apps (Mercaria, Homiio, Allo, Noted, Moovo, Alia, Syra) need — so a type with no provider must keep its previous local behaviour.
   - **Why a live room has no provider,** and would not gain one by trying harder: Mention owns the room *experience* (`LiveRoomContext`, the room UI) but persists no Room document, so §5.6's "pin the exact version reported" has nothing to pin short of capturing audio. The tenancy argument survives even if a Room document appeared — `applicationId` comes off the credential, so the case would open in *Mention's* tenant naming an object only Syra can enforce against, and Syra reporting the same room under its own credential gets a different §7.3 dedup key, hence two cases, two juries, two consequences. Both arguments land on a **missing provider**, not a refused report. Cross-application hand-off is still an open design question.
