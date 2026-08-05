@@ -122,9 +122,11 @@ describe('the sweep registry', () => {
       ttlModels.map((file) => file.slice(file.lastIndexOf(sep) + 1)).sort(),
       'Mongo models declaring a TTL index'
     ).toStrictEqual([
-      'AuthorFollowerSnapshot.ts',
+      // Shrinks as models are deleted, and the registry below does NOT — see the
+      // note after this assertion. `AuthorFollowerSnapshot` and `FeedInteraction`
+      // left this list when their Mongoose models were deleted as orphans; their
+      // registry entries stay, because the sweep is about the COLLECTION.
       'EngagementOutbox.ts',
-      'FeedInteraction.ts',
       'Notification.ts',
       'TrendSummary.ts',
       'Trending.ts',
@@ -139,6 +141,16 @@ describe('the sweep registry', () => {
     // regression, and the obvious repair (deleting the entry with the model) is
     // precisely the failure this whole file exists to prevent.
     const REGISTERED_WITHOUT_A_MODEL = [
+      // `models/AuthorFollowerSnapshot.ts`, deleted as an orphan after the
+      // Postgres cutover — nothing imported it any more. Its rows are one
+      // follower-count sample per author per run, so the table only grows and the
+      // sweep is the only bound.
+      'author_follower_snapshots',
+      // `models/FeedInteraction.ts`, deleted with it. `FeedInteractionTracker`
+      // already wrote `feed_interactions` in Postgres; the model was the last
+      // thing referencing the Mongo collection. One row per impression, so
+      // unbounded without the sweep.
+      'feed_interactions',
       // `mcp/models/McpAuthCode.ts`, deleted when the MCP OAuth surface moved to
       // `mcp_auth_codes`. Mongo reaped these for free; nothing does now but the
       // registry entry.
@@ -169,9 +181,15 @@ describe('the sweep registry', () => {
       expect(registered, `${table} lost its sweep along with its Mongoose model`).toContain(table);
     }
 
-    // Vacuity floor: a walk that found nothing would satisfy an equality
-    // between two empty lists.
-    expect(ttlModels.length).toBeGreaterThan(5);
+    // Vacuity floor. It is anchored to the WALK's reach, not to how many models
+    // declare a TTL — that count only falls as models are ported and deleted, so
+    // a floor under it has to be lowered every time and stops asserting anything
+    // the moment it is set to whatever the current number happens to be. What
+    // must never happen is the traversal reaching nothing: a broken `tsFilesUnder`
+    // satisfies the equality above between two empty lists, and every model would
+    // silently stop being checked. The number of `.ts` files under the package is
+    // in the hundreds and is not a function of this port.
+    expect(tsFilesUnder(join(__dirname, '..', '..')).length).toBeGreaterThan(200);
   });
 
   it('gives every entry a reason', () => {

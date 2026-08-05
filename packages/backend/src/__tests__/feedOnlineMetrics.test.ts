@@ -1,5 +1,4 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import mongoose from 'mongoose';
 import { PostVisibility } from '@mention/shared-types';
 
 /**
@@ -55,7 +54,6 @@ import {
   isDiscoveryGateExperimentEnabled,
 } from '../mtn/feed/discoveryGateExperiment';
 import { applyImpressionSignals, recordReportSignal } from '../mtn/feed/FeedInteractionTracker';
-import { FeedInteraction } from '../models/FeedInteraction';
 import { closePostgres, connectPostgres } from '../db/postgres';
 import type { PostRecordInput } from '../db/posts/postRecord';
 import { clearPostScope, postScope, seedPost } from './helpers/postFixtures';
@@ -166,18 +164,6 @@ describe('discovery-gate A/B bucketing', () => {
     expect(isDiscoveryGateExperimentEnabled()).toBe(true);
     expect(resolveDiscoveryGateBucket(undefined)).toBeUndefined();
     expect(resolveDiscoveryGateBucket('u1')).toBe(bucketForDiscoveryGate('u1'));
-  });
-});
-
-describe('FeedInteraction report event', () => {
-  it('accepts the report event and rejects an unknown one', () => {
-    const postUri = new mongoose.Types.ObjectId().toString();
-    const ok = new FeedInteraction({ userId: 'u', feedDescriptor: 'for_you', postUri, event: 'report' });
-    expect(ok.validateSync()).toBeUndefined();
-
-    const bad = new FeedInteraction({ userId: 'u', feedDescriptor: 'for_you', postUri, event: 'bogus' });
-    const error = bad.validateSync();
-    expect(error?.errors.event).toBeDefined();
   });
 });
 

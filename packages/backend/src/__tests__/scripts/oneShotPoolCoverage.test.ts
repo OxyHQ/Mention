@@ -75,8 +75,24 @@ const EXTRA_ENTRY_POINTS = ['src/db/migrate.ts'];
  * The FLOOR. A traversal that silently stopped finding entry points would pass
  * every assertion below while checking nothing, so the count is asserted first.
  * Deliberately a floor and not an equality: adding a script must not fail this.
+ *
+ * **Lowering it needs a reason, not the current count.** The number that comes
+ * out of the walk today satisfies any floor set to it, so a floor re-pinned to
+ * whatever is there stops being an assertion about what must exist and becomes
+ * "there are as many as there are". This one was 30 before the orphan Mongo
+ * scripts were deleted; twelve of them went, so the honest floor is not
+ * `30 - 12 = 18` either — that is still just arithmetic on an old guess.
+ *
+ * 15 is the number of entry points this package cannot function without: the
+ * three the deploy invokes by name (`src/db/migrate.ts`, `scripts/migrate.ts`,
+ * `src/scripts/assertPostgresPopulated.ts`), the three the operational workflows
+ * invoke (`normalizeFederatedText`, `purgeBlockedDomainContent`,
+ * `purgeBlockedDomainPlatformData`), the two the cutover depends on
+ * (`backfill-mongo-to-postgres.ts`, `reconcile-engagement-projections.ts`), and
+ * the seven remaining reviewed admin scripts. Falling below it means a walk that
+ * lost a whole class of file, not a deletion somebody made on purpose.
  */
-const MIN_ENTRY_POINTS = 30;
+const MIN_ENTRY_POINTS = 15;
 
 /**
  * Entries whose only route into a pool-using module is through symbols that

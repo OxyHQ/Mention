@@ -38,11 +38,8 @@ const READ_ONLY_SCRIPTS = new Set([
  * found guarded, is a floor a broken traversal cannot meet.
  */
 const REQUIRED_GUARDED_SCRIPTS = [
-  'pruneGoneFederatedActors.ts',
   'purgeBlockedDomainContent.ts',
   'purgeBlockedDomainPlatformData.ts',
-  'purgeGoneFederatedActors.ts',
-  'purgeOwnDomainFederatedActors.ts',
 ];
 
 /**

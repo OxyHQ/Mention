@@ -11,7 +11,7 @@
  * without a server or database; the route handlers do only auth + persistence.
  */
 
-import type { StoredFeedDefinition } from '../models/CustomFeed';
+import type { StoredFeedDefinition } from '../mtn/feed/engine/types';
 import { validateDefinition } from '../mtn/feed/definitions/validateDefinition';
 import type { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
 
