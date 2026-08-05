@@ -28,26 +28,32 @@
  *
  * `deploy-aws.yml` used to pass this file as `POST_DEPLOY_TASK_COMMAND_JSON`.
  * That variable is now deliberately unset, and the removal site there carries the
- * four reasons. The short one: a failing post-deploy one-shot rolls the service
- * back, and this task's cost is O(distinct reply parents) with no watermark and
- * no incremental mode, so it grows with the table until it outlives any timeout —
- * which is what rolled back a healthy release on 2026-08-05.
+ * five reasons. The short one: a failing post-deploy one-shot rolls the service
+ * back, and that one-shot runs on the WEB SERVICE's task definition — 512 CPU,
+ * against the 8192 this sweep was timed on — so it never fit the deploy's
+ * deadline, at any table size. It rolled back a healthy release on 2026-08-05.
  *
  * ## Launching it
  *
- * A Fargate one-shot on the live service's own task definition, network
- * configuration and secrets. Take all of them from the RUNNING service rather
- * than naming a task definition here: a pinned name is a claim about
- * infrastructure this repo does not own, and it goes stale silently.
+ * A Fargate one-shot taking its network configuration and secrets from the LIVE
+ * service, rather than naming a task definition here: a pinned name is a claim
+ * about infrastructure this repo does not own, and it goes stale silently.
  * `.github/workflows/run-federated-text-backfill.yml` is the worked example —
- * `describe-services` -> `taskDefinition` + `networkConfiguration` -> `run-task`
- * with a container override whose command is:
+ * `describe-services` -> `taskDefinition` + `networkConfiguration` -> register a
+ * throwaway revision -> `run-task` with a container override whose command is:
  *
  *     bun packages/backend/dist/scripts/reconcile-engagement-projections.js
  *
  * `dist/scripts/`, not `dist/src/scripts/`: `tsconfig.json` sets `rootDir: ./`,
  * so this file (outside `src/`) compiles to a sibling of it. The runtime image is
  * `oven/bun:*-alpine` and has no `node`.
+ *
+ * **Raise `cpu`/`memory` on that throwaway revision — do not inherit the web
+ * service's.** The service is sized to answer HTTP requests (512 CPU / 1024 MiB
+ * on `oxy-mention:211`); this sweep's only published timing, ~12 minutes over
+ * production's data, was taken at 8192 CPU / 61440 MiB. Sixteen times the CPU,
+ * so a run left on the service's sizing is a different job with the same name. A
+ * duration quoted without the sizing it was measured at is not a number.
  *
  * Postgres-only, because `reconcileEngagementProjections` reads and writes
  * exclusively through Drizzle. A one-shot gets none of `server.ts`'s startup,
