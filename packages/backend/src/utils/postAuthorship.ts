@@ -163,7 +163,17 @@ export function followedAuthorsSql(authorIds: readonly string[]): SQL {
 }
 
 /**
- * The profile feed's match: "this post is `authorId`'s".
+ * The profile feed's match: "this post is `authorId`'s" — the SPECIFICATION.
+ *
+ * Production no longer executes this predicate. `fetchAuthored`
+ * (`mtn/feed/engine/sources/userSources.ts`) reaches the same posts down two
+ * separately-indexed branches, because a single `or` gives the planner only one
+ * usable ordering index and the other half degrades into a probe-per-candidate
+ * walk. This stays as the statement of WHAT that decomposition has to mean, and
+ * `__tests__/authorshipChronoSync.test.ts` asserts the two select the same rows
+ * over the fixtures that distinguish them. Keeping the rule written once, in one
+ * expression, is what makes "the fast path is still correct" a checkable claim
+ * rather than a reading of two branches and a `union`.
  *
  * The `post_authorships` `EXISTS` is the AUTHORITY and stays exactly as
  * {@link followedAuthorsSql} writes it. The `oxy_user_id` term in front of it is
