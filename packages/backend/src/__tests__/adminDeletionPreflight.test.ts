@@ -471,21 +471,13 @@ describe('administrative deletion preflight', () => {
 
   });
 
-  it('uses durable delivery acknowledgements and explicit resource closure', () => {
-    for (const script of [
-      'resendPendingOutboundFollows.ts',
-      'redeliverUserPosts.ts',
-      'backfillFederatedPostHtml.ts',
-    ]) {
-      const source = readFileSync(
-        path.resolve(__dirname, `../scripts/${script}`),
-        'utf8',
-      );
-      expect(source).not.toContain('SETTLE_MS');
-      expect(source).toContain('closeAdminScriptResources');
-      expect(source).toContain('assertAdminRunComplete');
-    }
-  });
+  // A case checking that `resendPendingOutboundFollows`, `redeliverUserPosts`
+  // and `backfillFederatedPostHtml` acknowledge deliveries durably and close
+  // their resources lived here. All three were Mongo-only one-shots that
+  // nothing imported after the Postgres cutover, and they were deleted with the
+  // rest of the orphan set — so the case had no subject left. It is removed
+  // rather than narrowed: the property it asserted belongs to whichever script
+  // does that work, and today no script does.
 });
 
 /**

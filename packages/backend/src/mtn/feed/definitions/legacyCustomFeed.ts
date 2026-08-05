@@ -12,7 +12,7 @@
  * request-time fallback in `customFeedDefinition.ts` (for feeds not yet backfilled).
  */
 
-import type { StoredFeedDefinition } from '../../../models/CustomFeed';
+import type { StoredFeedDefinition } from '../engine/types';
 import type { ModuleRef } from '../engine/types';
 
 /** The legacy fields the mapping reads off a CustomFeed document. */

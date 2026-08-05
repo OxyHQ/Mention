@@ -867,24 +867,9 @@ export const config = {
   },
 } as const;
 
-/**
- * The variables a task cannot boot without.
- *
- * **`MONGODB_URI` is deliberately NOT among them, and must not come back.** This
- * function runs from `server.ts`, and the web service loads no Mongo at all —
- * measured on the compiled artifact rather than argued from the source: zero of
- * the 61 modules under `dist/` that require `mongoose`/`mongodb` are reachable
- * from `dist/server.js`. Requiring the variable here was the last thing making
- * "Mention needs MongoDB to start" true, months after it stopped being true in
- * any other sense — a refusal to boot over a store the process never opens.
- *
- * It stays REQUIRED for the one entry point that genuinely reads Mongo:
- * `scripts/backfill-mongo-to-postgres.ts` asserts it itself and names it as the
- * SOURCE database, which is the right place for it — that check belongs to the
- * consumer, not to every process that shares this config module.
- */
 export function validateEnvironment(): void {
   const missing: string[] = [];
+  if (!config.mongoUri) missing.push('MONGODB_URI');
   if (config.runtime.isProduction && !config.frontendUrl) missing.push('FRONTEND_URL');
   if (config.runtime.isProduction && !environment.MENTION_PUBLIC_API_URL) {
     missing.push('MENTION_PUBLIC_API_URL');

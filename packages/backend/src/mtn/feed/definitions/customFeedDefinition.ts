@@ -13,7 +13,7 @@
  */
 
 import { MtnConfig } from '@mention/shared-types';
-import { type ICustomFeed, type StoredFeedDefinition } from '../../../models/CustomFeed';
+import type { StoredFeedDefinition } from '../engine/types';
 import { loadCustomFeedSource } from '../../../db/feeds/customFeedRepository';
 import type { FeedDefinition, FeedExecution, ModuleRef } from '../engine/types';
 import { legacyCustomFeedToDefinition, type LegacyCustomFeedShape } from './legacyCustomFeed';
@@ -32,8 +32,10 @@ function ensureSafetyFilters(filters?: ModuleRef[] | null): ModuleRef[] {
 }
 
 /** The loaded-feed fields this resolver reads. */
-export type CustomFeedSource = Pick<ICustomFeed, 'title' | 'isPublic'> &
-  LegacyCustomFeedShape & {
+export type CustomFeedSource = {
+  title: string;
+  isPublic: boolean;
+} & LegacyCustomFeedShape & {
     _id: unknown;
     definition?: StoredFeedDefinition;
   };

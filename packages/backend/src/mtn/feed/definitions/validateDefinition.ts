@@ -18,7 +18,7 @@
  * caller's raw object (no mass-assignment).
  */
 
-import type { StoredFeedDefinition } from '../../../models/CustomFeed';
+import type { StoredFeedDefinition } from '../engine/types';
 import type { FeedDefinitionMode, ModuleRef } from '../engine/types';
 import { feedModuleRegistry, FeedModuleRegistry } from '../engine/FeedModuleRegistry';
 

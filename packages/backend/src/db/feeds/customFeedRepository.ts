@@ -26,7 +26,7 @@ import {
   customFeedTopics,
   customFeeds,
 } from '../schema/feeds';
-import type { StoredFeedDefinition } from '../../models/CustomFeed';
+import type { StoredFeedDefinition } from '../../mtn/feed/engine/types';
 import type { ModuleRef } from '../../mtn/feed/engine/types';
 import type { CustomFeedSource } from '../../mtn/feed/definitions/customFeedDefinition';
 

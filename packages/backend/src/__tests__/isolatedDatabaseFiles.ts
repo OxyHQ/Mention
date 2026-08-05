@@ -224,14 +224,6 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'text. The suite calls it with `dryRun: false`.',
   },
   {
-    path: 'src/__tests__/scripts/purgeGoneFederatedActors.test.ts',
-    jobEntryPoint: 'purgeGoneFederatedActors',
-    reason:
-      'The most destructive of the set: its candidate set is every SUSPENDED federated actor in ' +
-      'the database, and for each it DELETEs that actor\'s posts, boosts, mentions and MTN ' +
-      'chain rows. Another file\'s suspended actor is a candidate.',
-  },
-  {
     path: 'src/__tests__/scripts/repairFederatedMentions.test.ts',
     jobEntryPoint: 'repairFederatedMentions',
     reason:
@@ -259,13 +251,6 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
     reason:
       'Selects every local published public non-boost post in the database and signs an MTN ' +
       'record for each — so it emits chain records for posts other files own.',
-  },
-  {
-    path: 'src/__tests__/scripts/backfillFederatedBanners.test.ts',
-    jobEntryPoint: 'backfillFederatedBanners',
-    reason:
-      'Pages `federated_actors` through `countActors`/`scanActors` with a table-wide filter and ' +
-      'writes a banner onto each, so another file\'s federated actor is in the page.',
   },
   {
     path: 'src/__tests__/scripts/backfillFederatedHandleQualificationRows.test.ts',
