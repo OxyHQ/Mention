@@ -114,7 +114,6 @@ jobs:
           MENTION_OXY_CLIENT_ID: ${{ secrets.MENTION_OXY_CLIENT_ID }}
           MENTION_PRIVATE_KEY: ${{ secrets.MENTION_PRIVATE_KEY }}
           MENTION_PUBLIC_KEY: ${{ secrets.MENTION_PUBLIC_KEY }}
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
           OXY_SERVICE_API_KEY: ${{ secrets.OXY_SERVICE_API_KEY }}
           OXY_SERVICE_API_SECRET: ${{ secrets.OXY_SERVICE_API_SECRET }}
           OXY_SERVICE_TOKEN: ${{ secrets.OXY_SERVICE_TOKEN }}
@@ -122,10 +121,22 @@ jobs:
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           REDIS_URI: ${{ secrets.REDIS_URI }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
+          # MONGODB_URI is deliberately ABSENT. The sync loop only ever calls
+          # `put-parameter --overwrite`, so dropping the name stops UPDATING
+          # `/oxy/mention/MONGODB_URI` and leaves the parameter itself in place —
+          # which is the point: its one remaining consumer is the Mongo->Postgres
+          # copier (`packages/backend/scripts/backfill-mongo-to-postgres.ts`),
+          # which runs as its own one-shot and names it as the SOURCE database.
+          # Deleting the parameter is a separate, irreversible decision.
+          #
+          # The cost, accepted knowingly: the parameter is now FROZEN at its last
+          # synced value. If the Mongo endpoint or its credentials ever rotate,
+          # the copier will start with a stale URI and fail to connect — update
+          # it by hand at that point. It is not synced from here any more.
           SSM_SECRET_ALLOWLIST: >-
             ALIA_API_KEY DATABASE_URL FIREBASE_SERVICE_ACCOUNT_BASE64 FIREBASE_PROJECT_ID
             INTERNAL_METRICS_TOKEN KLIPY_APP_KEY MENTION_OXY_CLIENT_ID
-            MENTION_DID MENTION_PRIVATE_KEY MENTION_PUBLIC_KEY MONGODB_URI
+            MENTION_DID MENTION_PRIVATE_KEY MENTION_PUBLIC_KEY
             OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET OXY_SERVICE_TOKEN
             REDIS_URL REDIS_URI
             REDIS_HOST REDIS_PASSWORD
@@ -265,6 +276,17 @@ jobs:
           # after any window where those writers were not the only ones writing.
           # `packages/backend/scripts/reconcile-engagement-projections.ts` holds
           # the command and how to launch it.
+          # The web service loads NO Mongo — measured on the compiled artefact,
+          # zero of the modules under `dist/` that require mongoose are reachable
+          # from `dist/server.js` — and since #676 it no longer demands the
+          # variable to boot. Nothing on this task reads it.
+          #
+          # It is REMOVED rather than merely unnamed because the definition is
+          # derived from the LIVE one: a secret nobody names survives every
+          # deploy, which is exactly how this one outlived its store. Naming it
+          # here re-asserts the absence each time, so a Terraform apply or a
+          # hand-registered revision cannot quietly put it back.
+          TASK_SECRET_REMOVALS: MONGODB_URI
           POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-mention.sh
         # The existing target group remains on `/`, which server.ts now serves
         # as the same readiness gate as `/health/ready`. ELB mutations belong
