@@ -96,6 +96,42 @@ export const postAuthorships = pgTable(
     status: text({ enum: POST_AUTHOR_STATUSES }).notNull(),
     invitedAt: timestamptz(),
     respondedAt: timestamptz(),
+
+    /**
+     * A copy of `posts.created_at`, and the ONLY reason it exists is that an
+     * index cannot span two tables.
+     *
+     * The profile feed asks "this author's posts, newest first". The author lives
+     * here and the timestamp lives on `posts`, so with no shared column the
+     * planner has two bad choices and picks whichever the statistics favour:
+     * walk a chronological index over the WHOLE table probing this one per
+     * candidate row (measured 84–99 ms for an ordinary account, 42,394 probes to
+     * return 21 rows), or gather every one of the author's posts and sort them
+     * (cost proportional to their lifetime output, 243 ms at 20,000 posts).
+     * Neither is bounded by the page. Carrying the timestamp HERE lets
+     * `post_authorships_author_chrono_idx` answer the whole question — author,
+     * status, order — and the join to `posts` becomes 21 primary-key lookups.
+     *
+     * Measured on 624k posts, page of 21, flat where the alternatives were not:
+     *
+     *   ordinary account (2,003 posts)    5.0 ms  →  0.81–0.95 ms
+     *   prolific account (20,000 posts)   5.8 ms  →  0.93–1.00 ms
+     *
+     * ## Keeping it true
+     *
+     * `posts.created_at` is written once and never updated (`columns.ts`: "set by
+     * the database on insert, never updated"), which is what makes a copy safe at
+     * all — there is no update path to miss. It is written by the two functions
+     * that write authorship rows, `insertChildRows` and `replacePostAuthorship`,
+     * both inside the same transaction as the row they describe.
+     *
+     * Nullable, and deliberately not `NOT NULL`: the backfill fills it for
+     * existing rows, and a `NOT NULL` column with no default cannot be added to a
+     * populated table without rewriting it under an ACCESS EXCLUSIVE lock. A NULL
+     * sorts last under `DESC NULLS LAST` rather than corrupting an order, and
+     * `__tests__/authorshipChronoSync.test.ts` is what stops one being written.
+     */
+    postCreatedAt: timestamptz(),
   },
   (t) => [
     check('post_authorships_role_check', sql`${t.role} in (${sql.raw(inList(POST_AUTHOR_ROLES))})`),
@@ -112,6 +148,24 @@ export const postAuthorships = pgTable(
       .where(sql`${t.role} = 'owner'`),
     // The author feed's `$elemMatch` on (oxyUserId, status) becomes this.
     index('post_authorships_author_idx').on(t.oxyUserId, t.status),
+    /**
+     * The profile feed's whole question in one index: this author, accepted,
+     * newest first. See {@link postAuthorships.postCreatedAt} for why the
+     * timestamp is here at all.
+     *
+     * `desc()` emits `DESC NULLS LAST`, so the query that reads it must be
+     * spelled `desc nulls last` too — a bare `desc()` means `DESC NULLS FIRST`
+     * and matches nothing, which is the same trap `CursorBuilder.chronoOrderBy`
+     * exists for. `post_id` is the tiebreak that makes the order total, and
+     * carrying it here rather than joining for it is what keeps the scan
+     * index-only until the page is chosen.
+     */
+    index('post_authorships_author_chrono_idx').on(
+      t.oxyUserId,
+      t.status,
+      t.postCreatedAt.desc(),
+      t.postId.desc()
+    ),
   ]
 );
 

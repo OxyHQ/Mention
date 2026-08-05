@@ -846,6 +846,28 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
 }
 
 /**
+ * `post_authorships.post_created_at` READ BACK FROM THE POST, in the statement
+ * that writes the row.
+ *
+ * A denormalized copy is only as good as the thing that writes it, and the
+ * obvious spelling — thread the `Date` in as a parameter — makes "the copy
+ * disagrees with `posts.created_at`" a thing a caller can do by passing the
+ * wrong value, silently, with the index then ordering a profile by a timestamp
+ * that post never had. Deriving it from the authority in the same `INSERT`
+ * removes the parameter, so there is nothing to pass wrongly: the row is written
+ * from the post or it is not written at all.
+ *
+ * Safe in both writers because the `posts` row is already visible to the
+ * transaction — `insertPostRecord` inserts it immediately before calling
+ * {@link insertChildRows}, and `replacePostAuthorship` only ever runs against a
+ * post that already exists. A subquery on the primary key costs a single index
+ * lookup per statement.
+ */
+function postCreatedAtSql(postId: string): SQL<Date> {
+  return sql<Date>`(select ${posts.createdAt} from ${posts} where ${posts.id} = ${postId})`;
+}
+
+/**
  * Write every child row a post owns.
  *
  * Shared by insert and by the content-replacing half of {@link updatePostContent}
@@ -870,6 +892,7 @@ async function insertChildRows(
         status: entry.status,
         invitedAt: entry.invitedAt ? new Date(entry.invitedAt) : null,
         respondedAt: entry.respondedAt ? new Date(entry.respondedAt) : null,
+        postCreatedAt: postCreatedAtSql(postId),
       })),
     );
   }
@@ -1338,6 +1361,7 @@ export async function replacePostAuthorship(
           status: entry.status,
           invitedAt: entry.invitedAt ? new Date(entry.invitedAt) : null,
           respondedAt: entry.respondedAt ? new Date(entry.respondedAt) : null,
+          postCreatedAt: postCreatedAtSql(postId),
         })),
       );
     }
