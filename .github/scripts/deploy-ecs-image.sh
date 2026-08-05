@@ -17,6 +17,20 @@ POLL_INTERVAL="${POLL_INTERVAL:-15}"
 RUN_MIGRATIONS="${RUN_MIGRATIONS:-false}"
 INTERNAL_METRICS_PARAMETER="${INTERNAL_METRICS_PARAMETER:-}"
 TASK_SECRET_OVERRIDES_JSON="${TASK_SECRET_OVERRIDES_JSON:-}"
+# Secret NAMES to REMOVE from the rendered task definition, space-separated.
+#
+# The script derives each release's definition from the LIVE one and rewrites
+# only what it is told about, so a secret nobody names survives indefinitely —
+# which is how `MONGODB_URI` outlived the store it pointed at. Removal has to be
+# expressible, and it has to be a STANDING assertion rather than a one-off manual
+# registration: the definition is also recorded in Terraform, so an apply or a
+# hand-registered revision can reintroduce a secret that was deleted once. Naming
+# it here re-asserts its absence on every deploy.
+#
+# Removing the secret does NOT delete its SSM parameter. That is deliberate and
+# is the whole safety margin: the parameter stays for one-shots that still need
+# it.
+TASK_SECRET_REMOVALS="${TASK_SECRET_REMOVALS:-}"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
 AWS_PARTITION="${AWS_PARTITION:-aws}"
 POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
@@ -187,6 +201,21 @@ fi
 if [[ -z "$TASK_SECRET_OVERRIDES_JSON" ]]; then
   TASK_SECRET_OVERRIDES_JSON='{}'
 fi
+for removal_name in $TASK_SECRET_REMOVALS; do
+  if ! [[ "$removal_name" =~ ^[A-Z][A-Z0-9_]{0,127}$ ]]; then
+    echo "::error::TASK_SECRET_REMOVALS must be space-separated environment variable names; got '$removal_name'."
+    exit 1
+  fi
+  # A name in BOTH lists is refused rather than resolved. The render filters by
+  # name and then concatenates the overrides, so such a name would be dropped and
+  # immediately re-added — the outcome would depend on the order of two
+  # operations nobody is reading, in a render of SECRETS. Whoever wrote both
+  # entries meant one of them; the script must not pick.
+  if jq -e --arg name "$removal_name" 'has($name)' <<<"$TASK_SECRET_OVERRIDES_JSON" >/dev/null; then
+    echo "::error::$removal_name is in both TASK_SECRET_OVERRIDES_JSON and TASK_SECRET_REMOVALS. Remove it from one."
+    exit 1
+  fi
+done
 if ! jq -e '
   type == "object" and
   length <= 20 and
@@ -521,6 +550,10 @@ task_secret_overrides="$(jq -c '
   ]
 ' <<<"$TASK_SECRET_OVERRIDES_JSON")"
 
+# The removals ride the SAME filter as the overrides — both are "drop any secret
+# with this name" — and only the overrides are concatenated back afterwards.
+task_secret_removals="$(jq -cRn '[inputs | select(length > 0)]' <<<"$(printf '%s\n' $TASK_SECRET_REMOVALS)")"
+
 aws ecs describe-task-definition \
   --task-definition "$current_task_definition" \
   --query taskDefinition \
@@ -538,6 +571,7 @@ jq \
   --arg image "$IMAGE_URI" \
   --arg internalMetricsSecretArn "$internal_metrics_secret_arn" \
   --argjson taskSecretOverrides "$task_secret_overrides" \
+  --argjson taskSecretRemovals "$task_secret_removals" \
   '
     del(
       .taskDefinitionArn,
@@ -548,7 +582,7 @@ jq \
       .registeredAt,
       .registeredBy
     )
-    | ($taskSecretOverrides | map(.name)) as $taskSecretNames
+    | (($taskSecretOverrides | map(.name)) + $taskSecretRemovals) as $taskSecretNames
     | .containerDefinitions |= map(
         if .name == $name then
           .image = $image
