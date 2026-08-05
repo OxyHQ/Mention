@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { checkPostgresHealth } from '../db/postgres';
-import { isDatabaseConnected } from '../utils/database';
 import { getRedisStats } from '../utils/redis';
 import { getRuntimeHealthState } from '../utils/runtimeHealth';
 
@@ -15,36 +14,37 @@ router.get('/health/live', (_req, res) => {
 });
 
 /**
- * Readiness gates on POSTGRES, and the asymmetry with Mongo below is deliberate.
+ * Readiness gates on POSTGRES, and on nothing else that is a data store.
  *
- * Mongo is checked with `isDatabaseConnected()` — a synchronous `readyState`
- * read, no command, because a probe must not cost a round trip per call.
  * Postgres is checked with `checkPostgresHealth()`, which issues a real
- * `select 1`, and the difference is the whole point: the failure this exists to
+ * `select 1` rather than reading a connection flag: the failure this exists to
  * catch is a task whose database has become UNREACHABLE, and a pool object
  * survives that. `isPostgresConnected()` would answer "was a pool ever built",
- * which is true of exactly the task that is failing every query.
+ * which is true of exactly the task that is failing every request.
  *
- * Before the Mongo→Postgres cutover this endpoint checked Mongo and not
- * Postgres at all. That matched which store was authoritative, and it inverts
- * the moment the data moves: a task with no Postgres connection kept reporting
- * ready and kept taking traffic while erroring on every request. `postgres.ts`
- * already said the health endpoint was the caller `checkPostgresHealth` existed
- * for; it simply was not wired.
+ * ## Mongo was removed from this gate, and it had to be removed WITH the boot
  *
- * Mongo stays in the gate while Mongo is still running. Removing it is
- * decommission work, and it must be removed rather than left: once Mongo is off,
- * `isDatabaseConnected()` pins readiness false forever.
+ * The gate used to `&&` in `isDatabaseConnected()`, a synchronous `readyState`
+ * read on the default mongoose connection that `server.ts` opened at boot. The
+ * previous version of this comment stated the consequence exactly — "once Mongo
+ * is off, `isDatabaseConnected()` pins readiness false forever" — and it is
+ * why this file is part of the same change that stopped the web task connecting
+ * to Mongo. Dropping the connection alone would leave every task answering 503
+ * on `/health/ready` for as long as it lived: the ALB would drain the fleet and
+ * the deploy's own smoke checks would fail, on a store no request touches.
+ *
+ * `dependencies.mongo` is gone from the payload for the same reason it is gone
+ * from the gate — reporting a store this process never opens would be inventing
+ * a status. What still uses Mongo is the deploy one-shot and the restore
+ * tooling, and neither is a web task whose readiness this answers.
  */
 router.get('/health/ready', async (_req, res) => {
   const runtime = getRuntimeHealthState();
-  const mongoReady = isDatabaseConnected();
   const postgresReady = await checkPostgresHealth();
   const redis = getRedisStats();
   const ready =
     runtime.phase === 'ready' &&
     runtime.migrationsComplete &&
-    mongoReady &&
     postgresReady;
 
   res.setHeader('Cache-Control', 'no-store');
@@ -52,7 +52,6 @@ router.get('/health/ready', async (_req, res) => {
     status: ready ? 'ready' : 'not_ready',
     phase: runtime.phase,
     dependencies: {
-      mongo: mongoReady ? 'ready' : 'unavailable',
       postgres: postgresReady ? 'ready' : 'unavailable',
       migrations: runtime.migrationsComplete ? 'ready' : 'pending',
       // Redis is intentionally non-blocking for HTTP readiness. Singleton jobs

@@ -1,15 +1,11 @@
 // --- Imports ---
 import http from "http";
-import mongoose from "mongoose";
 import { hostname } from 'os';
-import { connectToDatabase } from "./src/utils/database";
 import { Server as SocketIOServer, Namespace } from "socket.io";
 import { PUBLIC_REALTIME_NAMESPACE } from "@mention/shared-types";
 import { logger, sanitizeLogValue } from "./src/utils/logger";
 import { config, validateEnvironment } from './src/config';
 import { isAllowedOrigin } from "./src/utils/allowedOrigins";
-import { assertMigrationsApplied, runMigrations } from "./src/migrations/runner";
-import { assertMongoTransactionalTopology } from "./src/utils/mongoTopology";
 import { closePostgres, connectPostgres, getPostgresClient } from "./src/db/postgres";
 import { assertPostgresMigrationsCurrent } from "./src/db/migrationLedger";
 import { leaderElection } from "./src/services/LeaderElection";
@@ -539,32 +535,6 @@ app.set("io", io);
 app.set("notificationsNamespace", notificationsNamespace);
 app.set("postsNamespace", postsNamespace);
 
-// --- MongoDB Connection ---
-const db = mongoose.connection;
-let hasLoggedMongoError = false;
-db.on("error", (error: Error & { code?: string; syscall?: string }) => {
-  // Only log connection errors once to reduce spam
-  if (error.code === 'ECONNREFUSED' || error.syscall === 'querySrv') {
-    // Connection errors are already logged by connectToDatabase retry logic
-    // Don't log them again here to avoid duplicate messages
-    if (!hasLoggedMongoError) {
-      hasLoggedMongoError = true;
-      logger.debug("MongoDB connection error:", error.message);
-    }
-  } else {
-    logger.error("MongoDB connection error", error);
-  }
-});
-
-// Reset error flag and load models on successful connection.
-// Note: connectToDatabase() in src/utils/database.ts already logs the success message.
-db.once("open", () => {
-  hasLoggedMongoError = false;
-
-  // Load models
-  require("./src/models/Post");
-});
-
 /**
  * Start all in-process schedulers. Invoked by LeaderElection ONLY on the task
  * that holds the scheduler leadership lock. Redis failure pauses all singleton
@@ -634,8 +604,8 @@ function startSchedulers(): void {
 
   // CrowdSource reconciliation (leader-gated, env-gated on CROWDSOURCE_ENABLED):
   // finds reports whose durable delivery event is missing or dead-lettered. The
-  // outbox DISPATCHER runs on every task (Mongo-leased); this sweep scans the whole
-  // collection, so one task is enough.
+  // outbox DISPATCHER runs on every task (lease-claimed in Postgres); this sweep
+  // scans the whole table, so one task is enough.
   try {
     const { moderationReconciliationJob } = require("./src/services/moderation/ModerationReconciliationJob");
     moderationReconciliationJob.start();
@@ -736,33 +706,30 @@ const PORT = config.runtime.port;
 const bootServer = async () => {
   validateEnvironment();
   markRuntimeNotReady('booting');
-  await connectToDatabase();
-  // Both stores open before anything can be asked to serve. `getDb()` throws
-  // until this resolves, and the port has moved most reads onto Postgres — a
-  // task that skipped this would answer the health check and then fail every
-  // query that is no longer Mongo's.
+  // ONE store opens here, and it is Postgres. `getDb()` throws until this
+  // resolves, so a task that skipped it would answer the health check and then
+  // fail every query.
+  //
+  // Mongo used to open FIRST, on this line, on every task — so a web task could
+  // not boot without it even though no runtime read or write has gone to Mongo
+  // since the cutover. The connection is gone; what still uses Mongo is the
+  // DEPLOY ONE-SHOT (`scripts/migrate.ts`) and the restore/backfill tooling,
+  // neither of which is this process. See the PR that removed it for the full
+  // list of what was deliberately left in place.
   await connectPostgres();
 
   // Production migrations run as a deployment one-shot with the exact image
   // that will be rolled out. Web tasks never mutate schema during a scale-out;
-  // they only refuse readiness until that one-shot has completed. The one-shot
-  // is the primary topology barrier; this startup check is defense in depth if
-  // a task is launched outside the normal deployment workflow. It is not run in
-  // the readiness endpoint, avoiding a Mongo command on every health probe.
+  // they only refuse readiness until that one-shot has completed.
   //
-  // The Postgres half is the same posture against the same failure, and it is
-  // load-bearing during the cutover rather than defence in depth: the drizzle
+  // This assert is load-bearing rather than defence in depth: the drizzle
   // migrations are applied by the deploy's one-shot, and a task that boots
   // against a database that one-shot never reached becomes ready and then
   // fails every Postgres query — after traffic has been routed to it. Outside
   // production the migrator is a developer command (`bun run db:migrate`), so
   // there is nothing here to assert against.
   if (config.runtime.isProduction) {
-    await assertMongoTransactionalTopology();
-    await assertMigrationsApplied();
     await assertPostgresMigrationsCurrent(getPostgresClient());
-  } else {
-    await runMigrations();
   }
   markMigrationsComplete();
 
@@ -779,7 +746,8 @@ const bootServer = async () => {
   // Start BullMQ federation queue workers on EVERY task (inbox + delivery
   // throughput should scale with the fleet; BullMQ delivers each job to exactly
   // one worker). No-op when Redis is not configured — federation then falls
-  // back to inline inbox processing + the in-process Mongo delivery scheduler.
+  // back to inline inbox processing + the in-process delivery scheduler, which
+  // drains the Postgres `federation_delivery_queue` table.
   // Periodic repeatable-job REGISTRATION is leader-only (FederationJobScheduler,
   // driven by leaderElection); only the consuming workers run everywhere.
   try {
@@ -792,9 +760,9 @@ const bootServer = async () => {
   // Register MTN Protocol feed engine modules (sources / signals / filters)
   registerAllModules();
 
-  // Mongo-leased workers may run on every task: claims are atomic and do not
-  // depend on Redis leadership, so committed engagement effects keep draining
-  // even while Redis is degraded.
+  // Lease-claimed workers may run on every task: the claim is an atomic Postgres
+  // update and does not depend on Redis leadership, so committed engagement
+  // effects keep draining even while Redis is degraded.
   engagementOutboxDispatcher.start();
   // Same reasoning for moderation: a report and its delivery event committed
   // together, and the lease-based claim means every task can drain the queue.
@@ -815,7 +783,7 @@ const bootServer = async () => {
 // --- Graceful Shutdown ---
 // ECS sends SIGTERM on task stop (and again SIGKILL after the stop timeout).
 // Readiness is cleared and HTTP stops accepting immediately. Producers and
-// workers then drain while Mongo/Redis are still available, and the scheduler
+// workers then drain while Postgres/Redis are still available, and the scheduler
 // leadership lock is released only after singleton schedulers have stopped.
 let isShuttingDown = false;
 const gracefulShutdown = (signal: string): void => {
@@ -889,7 +857,7 @@ const gracefulShutdown = (signal: string): void => {
     };
 
     await presenceShutdown();
-    // Stop every producer/worker while Redis and Mongo are still available.
+    // Stop every producer/worker while Redis and Postgres are still available.
     // LeaderElection releases its owner-checked lock only after onLose has
     // stopped singleton schedulers.
     await Promise.allSettled([
@@ -905,12 +873,11 @@ const gracefulShutdown = (signal: string): void => {
       invalidationShutdown(),
       pubSubShutdown(),
       closeRedisConnection(),
-      mongoose.disconnect(),
       closePostgres(),
     ]);
 
     clearTimeout(hardTimeout);
-    logger.info('HTTP, sockets, queues, Redis, MongoDB and PostgreSQL closed');
+    logger.info('HTTP, sockets, queues, Redis and PostgreSQL closed');
     process.exit(0);
   })();
 };

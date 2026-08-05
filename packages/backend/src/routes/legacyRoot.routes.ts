@@ -1,7 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { checkPostgresHealth } from '../db/postgres';
 import { isApexHost } from '../middleware/apexFrontendProxy';
-import { isDatabaseConnected } from '../utils/database';
 import { getRuntimeHealthState } from '../utils/runtimeHealth';
 
 /**
@@ -25,7 +24,6 @@ export async function legacyApiRootReadiness(
   const ready =
     runtime.phase === 'ready' &&
     runtime.migrationsComplete &&
-    isDatabaseConnected() &&
     (await checkPostgresHealth());
 
   res.setHeader('Cache-Control', 'no-store');
