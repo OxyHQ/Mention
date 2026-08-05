@@ -326,6 +326,63 @@ export async function copyRowsInto(
 }
 
 /**
+ * Which of `keys` the target table actually HOLDS.
+ *
+ * ## Why this exists, and why `RETURNING` is not it
+ *
+ * `copyRowsInto` ends in `ON CONFLICT DO NOTHING`, which is silent about what it
+ * skipped. A row can be skipped for two reasons that look identical from here
+ * and mean opposite things:
+ *
+ *  - it conflicted on the PRIMARY KEY — the row is already there, under the id
+ *    the children point at, and everything about it is fine;
+ *  - it conflicted on some OTHER unique — a DIFFERENT row holds that value, so
+ *    this id never entered the table and every child of it now dangles.
+ *
+ * `insert … on conflict do nothing returning id` distinguishes neither: it
+ * reports the ids INSERTED, which excludes both. Filtering children on that set
+ * is the obvious implementation and it silently drops the children of every row
+ * a previous run already wrote — that is, the whole resume path, which is
+ * exactly the path this defect appears on. Measured: mutating this function to
+ * return nothing (the shape "filter on the inserted set" produces for an
+ * already-present parent) turns `backfillConflictedParents.test.ts` red on
+ * "still writes children when the parent was already there under the same id".
+ *
+ * So the question is not "what did this statement insert" but "what does the
+ * table hold", and it is asked directly. One indexed lookup per batch on the
+ * primary key, over ids the caller already has in memory.
+ *
+ * `= any($1)` rather than an interpolated `IN` list: the ids are source data (a
+ * Mongo `_id`, or whatever a transform derived), so they are bound as ONE array
+ * parameter and never become text in a statement.
+ */
+export async function keysPresentIn(
+  client: Sql,
+  table: PgTable,
+  keyProperty: string,
+  keys: readonly string[]
+): Promise<Set<string>> {
+  if (keys.length === 0) return new Set();
+  const name = getTableConfig(table).name;
+  const meta = columnMeta(table).get(keyProperty);
+  if (!meta) {
+    throw new Error(
+      `${name} has no column with property name ${JSON.stringify(keyProperty)}, so ` +
+        'the rows referencing it cannot be checked against what the table holds'
+    );
+  }
+
+  const unique = [...new Set(keys)];
+  const rows = await client.unsafe<Array<{ key: string | null }>>(
+    `select "${meta.sqlName}" as key from "${name}" where "${meta.sqlName}" = any($1)`,
+    [unique as unknown as string]
+  );
+  const present = new Set<string>();
+  for (const row of rows) if (typeof row.key === 'string') present.add(row.key);
+  return present;
+}
+
+/**
  * `ANALYZE` the tables a run touched.
  *
  * A bulk load leaves the planner's statistics describing an empty table, so the
