@@ -114,6 +114,14 @@ fi
 # smoke checks because a failure here has routed nothing; a smoke failure rolls
 # back after the image has already served.
 #
+# THE FOURTH ENTRY PURGES NEWLY BLOCKED DOMAINS, and it is last because it is
+# the only one that DELETES: the schema has to be current and the store has to be
+# populated before content is removed from it. It was the tail of the MONGO
+# migration one-shot until it was split out — it is Postgres-only, so carrying it
+# inside a step named after Mongo meant removing Mongo from the deploy would have
+# removed the purge with it, silently. It exits 0 even when it fails (fail-soft
+# by design), so it cannot roll a healthy release back over a cleanup.
+#
 # ITS LIFETIME IS THE CUTOVER'S. It asserts that Postgres is authoritative,
 # which is false before the cutover and false again after a rollback to Mongo —
 # the planned contingency. It therefore ships INSIDE the cutover commit, so
@@ -132,6 +140,10 @@ MIGRATION_TASK_COMMANDS_JSON='[
   {
     "label": "Postgres population floor",
     "command": ["bun", "packages/backend/dist/src/scripts/assertPostgresPopulated.js"]
+  },
+  {
+    "label": "Blocked-domain reconciliation",
+    "command": ["bun", "packages/backend/dist/src/scripts/reconcileBlockedDomains.js"]
   }
 ]'
 # Exit code a smoke script uses to say "this failed, and rolling back cannot fix

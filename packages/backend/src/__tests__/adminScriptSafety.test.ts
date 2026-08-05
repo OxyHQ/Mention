@@ -37,6 +37,20 @@ const READ_ONLY_SCRIPTS = new Set([
  * offenders. These are the destructive ones; requiring that they are FOUND, and
  * found guarded, is a floor a broken traversal cannot meet.
  */
+/**
+ * Scripts the DEPLOY invokes unattended, which therefore cannot require
+ * `CONFIRM_ADMIN_MUTATION` — there is no operator present to set it, and a guard
+ * that would refuse every run is not a guard.
+ *
+ * They are not `READ_ONLY_SCRIPTS`: this one deletes rows. What replaces the
+ * confirmation is that its INPUT is not operator-supplied — the domains come from
+ * a committed policy file that reaches production through review and a deploy, so
+ * the decision was already made in the place this guard exists to force it to be
+ * made. Anything added here must have that same property; a script taking a
+ * domain or an id from the environment does not.
+ */
+const DEPLOY_INVOKED_SCRIPTS = new Set(['reconcileBlockedDomains.ts']);
+
 const REQUIRED_GUARDED_SCRIPTS = [
   'purgeBlockedDomainContent.ts',
   'purgeBlockedDomainPlatformData.ts',
@@ -151,8 +165,16 @@ describe('assertAdminMutationAllowed', () => {
     // exemption written for a different one.
     expect([...READ_ONLY_SCRIPTS].filter((name) => !scripts.includes(name)).map(at)).toEqual([]);
 
+    // FLOOR — the deploy-invoked exemptions must name real scripts too.
+    expect([...DEPLOY_INVOKED_SCRIPTS].filter((name) => !scripts.includes(name)).map(at)).toEqual([]);
+
     const unguarded = scripts
-      .filter((name) => !READ_ONLY_SCRIPTS.has(name) && !guarded.has(name))
+      .filter(
+        (name) =>
+          !READ_ONLY_SCRIPTS.has(name) &&
+          !DEPLOY_INVOKED_SCRIPTS.has(name) &&
+          !guarded.has(name),
+      )
       .map(at);
     expect(unguarded).toEqual([]);
   });

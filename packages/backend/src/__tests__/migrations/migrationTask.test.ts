@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 const mocks = vi.hoisted(() => ({
   connectToDatabase: vi.fn(),
@@ -113,49 +115,25 @@ describe('migration task database isolation', () => {
     expect(mocks.runMigrations).not.toHaveBeenCalled();
   });
 
-  it('does not reconcile blocked domains when the policy names none', async () => {
-    mocks.loadBlockedDomainPolicy.mockReturnValue([]);
-
-    await runMigrationTask();
-
-    // The branch that hid this whole path from the suite until the blocklist
-    // gained entries. Asserted deliberately now, rather than relied upon.
-    expect(mocks.reconcileBlockedDomainPurges).not.toHaveBeenCalled();
-  });
-
-  it('reconciles blocked domains once the policy names some', async () => {
-    mocks.loadBlockedDomainPolicy.mockReturnValue([{
-  domain: 'spam.example',
-  severity: 'suspend' as const,
-  category: 'spam' as const,
-  reason: 'test',
-  since: '2026-01-01',
-  corroboratingSources: [] as readonly string[],
-}]);
-
-    await runMigrationTask();
-
-    expect(mocks.reconcileBlockedDomainPurges).toHaveBeenCalledOnce();
-    const input = mocks.reconcileBlockedDomainPurges.mock.calls[0][0];
-    expect(input.policyEntries).toHaveLength(1);
-    expect(input.policyEntries[0].domain).toBe('spam.example');
-  });
-
-  it('completes the migration task even when reconciliation throws', async () => {
-    mocks.loadBlockedDomainPolicy.mockReturnValue([{
-  domain: 'spam.example',
-  severity: 'suspend' as const,
-  category: 'spam' as const,
-  reason: 'test',
-  since: '2026-01-01',
-  corroboratingSources: [] as readonly string[],
-}]);
-    mocks.reconcileBlockedDomainPurges.mockRejectedValue(new Error('reconcile exploded'));
-
-    // Fail-soft on purpose: this runs inside the deploy one-shot, and a content
-    // cleanup problem must never stop a release from shipping. Failing to delete
-    // is the safe direction; blocking the deploy is not.
-    await expect(runMigrationTask()).resolves.toBeUndefined();
-    expect(mocks.runMigrations).toHaveBeenCalledOnce();
+  it('no longer reconciles blocked domains at all', () => {
+    // The payload MOVED to `scripts/reconcileBlockedDomains.ts`, its own deploy
+    // step, because it is Postgres-only and carrying it inside the MONGO
+    // migration one-shot meant removing Mongo from the deploy would have removed
+    // the purge with it. This asserts the departure rather than the behaviour:
+    // whether the purge still works is `__tests__/scripts/reconcileBlockedDomains.test.ts`,
+    // which runs the real entry point against a real database instead of
+    // asserting a mock was called.
+    //
+    // Read on SOURCE, not through a spy, because a spy can only observe a symbol
+    // this module still imports — and the point is that it imports none of them.
+    const source = readFileSync(
+      path.resolve(__dirname, '../../migrations/task.ts'),
+      'utf8',
+    );
+    expect(source).not.toContain('reconcileBlockedDomainPurges');
+    expect(source).not.toContain('purgeBlockedDomainContent');
+    expect(source).not.toContain('loadBlockedDomainPolicy');
+    // Floor: the file was actually read and is the one under test.
+    expect(source).toContain('export async function runMigrationTask');
   });
 });

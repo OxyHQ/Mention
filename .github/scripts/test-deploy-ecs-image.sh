@@ -446,13 +446,17 @@ fi
 # Both stores migrate on one release, and the ORDER is the assertion: Postgres
 # first, because a task that boots without its schema becomes ready and then
 # fails every query, while a missed Mongo data migration leaves the previous
-# release's behaviour standing. A `diff` of the whole log is what notices a
-# reordering -- grepping for both entries would pass either way round.
+# release's behaviour standing. The blocked-domain reconciliation is LAST of the
+# pre-rollout steps because it is the only one that deletes rows, so it must not
+# run before the schema is current and the store is known to be populated. A
+# `diff` of the whole log is what notices a reordering -- grepping for the
+# entries would pass in any order.
 run_release migration-order true true false 0
 printf '%s\n' \
   'task:bun packages/backend/dist/src/db/migrate.js --target-database=mention' \
   'task:bun packages/backend/dist/scripts/migrate.js' \
   'task:bun packages/backend/dist/src/scripts/assertPostgresPopulated.js' \
+  'task:bun packages/backend/dist/src/scripts/reconcileBlockedDomains.js' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
   task:reconcile \
