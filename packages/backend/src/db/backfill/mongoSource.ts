@@ -251,6 +251,66 @@ export function reviveCheckpoint(checkpoint: Checkpoint): mongo.ObjectId | strin
 }
 
 /**
+ * Raised when a stored checkpoint's `kind` does not match the `_id` type the
+ * collection actually uses.
+ *
+ * This exists because the failure it replaces is SILENT and total. MongoDB
+ * compares across BSON types by a canonical type order in which **String sorts
+ * before ObjectId**, so `{_id: {$gt: ObjectId("000…0")}}` over a collection of
+ * STRING ids excludes every document. The stream then yields nothing, the copy
+ * reports `0 document(s) read`, the sweep reaches the end and the collection is
+ * marked COMPLETE — with an exit code of 0 and every row still in the source.
+ *
+ * Observed in production during the cutover on `engagement_outbox` (25
+ * documents) and `moderation_outbox` (1): both key their documents by a
+ * caller-supplied string (`timestamps.ts` says so), and both had been given a
+ * hand-written `objectId` checkpoint while rewinding another collection. The
+ * only symptom was a source/target count that somebody happened to compare.
+ *
+ * The code that CONSUMES a checkpoint already handles both kinds correctly
+ * ({@link checkpointOf}, {@link reviveCheckpoint}) — that is not the gap. The
+ * gap is that nothing checked whether the kind it was HANDED describes the
+ * collection it is about to filter, which is a different question: "can it do
+ * this?" versus "is what it was given coherent?".
+ */
+export class CheckpointKindMismatchError extends Error {
+  constructor(collection: string, stored: Checkpoint['kind'], actual: string) {
+    super(
+      `Checkpoint for ${collection} says kind ${JSON.stringify(stored)}, but its ` +
+        `documents are keyed by ${actual}. Resuming would build ` +
+        `{_id: {$gt: <${stored}>}}, and MongoDB orders BSON types before values — ` +
+        `so that filter selects NO ${actual} document and the copy would report ` +
+        'zero rows read, mark the collection complete and exit 0 with every row ' +
+        'still in the source. Clear this checkpoint (or re-run with --restart) ' +
+        'rather than resuming from it.'
+    );
+    this.name = 'CheckpointKindMismatchError';
+  }
+}
+
+/**
+ * The `_id` kind a collection actually uses, sampled from one document.
+ *
+ * `null` when the collection is empty — there is nothing to read, so a
+ * mismatched checkpoint cannot hide anything and refusing would be a false
+ * alarm on a legitimately empty source.
+ */
+async function sampledIdKind(
+  source: MongoSource,
+  name: string
+): Promise<Checkpoint['kind'] | 'an unsupported type' | null> {
+  const [doc] = await source
+    .collection(name)
+    .find({}, { projection: { _id: 1 }, limit: 1 })
+    .toArray();
+  if (!doc) return null;
+  const raw = (doc as MongoDocument)._id;
+  if (isObjectId(raw)) return 'objectId';
+  if (typeof raw === 'string') return 'string';
+  return 'an unsupported type';
+}
+
+/**
  * Stream a collection in `_id` order, in batches, from an optional checkpoint.
  *
  * `after` is the last `_id` a previous run committed. Restarting from
@@ -277,7 +337,15 @@ export async function* streamCollection(
   upTo?: unknown
 ): AsyncGenerator<MongoDocument[]> {
   const bounds: Record<string, unknown> = {};
-  if (after !== undefined) bounds.$gt = reviveCheckpoint(after);
+  if (after !== undefined) {
+    // BEFORE the cursor, because a mismatch here does not fail — it silently
+    // matches nothing. See {@link CheckpointKindMismatchError}.
+    const actual = await sampledIdKind(source, name);
+    if (actual !== null && actual !== after.kind) {
+      throw new CheckpointKindMismatchError(name, after.kind, actual);
+    }
+    bounds.$gt = reviveCheckpoint(after);
+  }
   if (upTo !== undefined) bounds.$lte = upTo;
   const filter = Object.keys(bounds).length === 0 ? {} : { _id: bounds };
   const cursor = source
