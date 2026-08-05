@@ -42,6 +42,7 @@
  * values are identical. A divergence fails the build naming the column.
  */
 
+import { randomBytes } from 'node:crypto';
 import { getTableColumns } from 'drizzle-orm';
 import { getTableConfig, type PgTable } from 'drizzle-orm/pg-core';
 import type { Sql } from 'postgres';
@@ -211,6 +212,51 @@ export function applyDefaultFns(table: PgTable, rows: readonly BuiltRow[]): Buil
  */
 export const STAGING_TABLE_PREFIX = 'mention_backfill_stage_';
 
+/**
+ * A token unique to this PROCESS, and the reason it is not `process.pid`.
+ *
+ * The name used to be `pid + counter`. **In a container the pid is 1**, always,
+ * and the counter starts at 0 — so two backfill tasks running at the same time
+ * generate byte-identical staging names. Since {@link copyRowsInto} issues
+ * `drop table if exists` BEFORE creating, the second task drops the first task's
+ * staging table out from under an in-flight `COPY`.
+ *
+ * That is not merely a crash. The staging table is created
+ * `as select <columns> from "<target>" with no data`, so its SHAPE comes from
+ * whichever target that task is loading. Two tasks copying different
+ * collections therefore create same-named tables with different columns: the
+ * loud outcome is a column-mismatch error, and the quiet one — when the two
+ * shapes happen to agree — is one task's rows being inserted into the other
+ * task's target. Silent cross-contamination between two tables is the worst
+ * failure this module can produce, and a name derived from a constant is all it
+ * takes.
+ *
+ * Sixteen hex characters from a CSPRNG, so the names cannot collide across
+ * processes on any host, in any container, however the scheduler assigns pids.
+ * Well inside Postgres' 63-byte identifier limit with the prefix and counter.
+ *
+ * ## What this gives up, stated rather than discovered later
+ *
+ * Deterministic names meant the NEXT run reclaimed a dead run's leftovers, since
+ * it generated the same names and dropped them first. Random names do not: a run
+ * that dies hard now leaves its staging tables behind for good. They are
+ * `UNLOGGED` and empty-to-small, so the cost is catalogue clutter rather than
+ * storage, and reclaiming them is one statement an operator can run when no
+ * backfill is in flight:
+ *
+ * ```sql
+ * -- ONLY with no backfill running: this cannot tell a dead run's tables from a live one's.
+ * select format('drop table if exists %I', c.relname)
+ * from pg_class c join pg_namespace n on n.oid = c.relnamespace
+ * where n.nspname = 'public' and c.relname like 'mention_backfill_stage_%';
+ * ```
+ *
+ * An automatic sweep is deliberately NOT done here: nothing in the catalogue
+ * distinguishes a crashed run's staging table from a concurrent run's, so a
+ * sweeper would reintroduce exactly the cross-task destruction this fixes.
+ */
+const STAGING_PROCESS_TOKEN = randomBytes(8).toString('hex');
+
 /** A staging table name unique to one load, safe to interpolate. */
 let stagingCounter = 0;
 function nextStagingName(): string {
@@ -219,7 +265,7 @@ function nextStagingName(): string {
 }
 
 function stagingNameFor(counter: number): string {
-  return `${STAGING_TABLE_PREFIX}${process.pid}_${counter}`;
+  return `${STAGING_TABLE_PREFIX}${STAGING_PROCESS_TOKEN}_${counter}`;
 }
 
 /**
@@ -276,14 +322,11 @@ export async function copyRowsInto(
     // pure cost. `on commit drop` is not used because the copy runs outside a
     // transaction block here; the explicit drop below is the pair.
     //
-    // Dropped FIRST as well, and that is what makes the run genuinely
-    // re-runnable rather than only claiming to be. The name is
-    // `pid + counter`, and in a container the pid is 1 and the counter restarts
-    // at 0 — so every run generates the SAME names. A run that dies hard skips
-    // the drop below, and the next run then fails on
-    // `relation "mention_backfill_stage_1_51" already exists` — nowhere near
-    // the collection at fault, and with the previous failure's cause long since
-    // scrolled away.
+    // Dropped FIRST, which is now belt-and-braces rather than the load-bearing
+    // step it once was: the name carries a per-process random token
+    // (STAGING_PROCESS_TOKEN), so no other run — concurrent or dead — can be
+    // holding this name. It stays because a name is only unique per PROCESS, and
+    // a retry inside one process must not meet its own leftovers.
     //
     // TEMP would drop itself, and is wrong here: the COPY and the INSERT can
     // land on different pooled connections, and a temporary table is invisible
