@@ -390,6 +390,10 @@ const postsPlan: CollectionPlan = {
     const postId = ownId(doc);
     const parentPostId = id(doc, 'parentPostId');
     const federationInReplyTo = str(doc, 'federation.inReplyTo');
+    // Bound once so the post row and its authorship rows carry the SAME
+    // instant — including the six documents whose `createdAt` is derived from
+    // the ObjectId rather than stored.
+    const timestamps = timestampsCreatedFromId(doc);
 
     emit(
       posts,
@@ -535,13 +539,13 @@ const postsPlan: CollectionPlan = {
           // DERIVED from `_id` when absent — six production posts have no
           // `createdAt` at all, and this column is NOT NULL with a DEFAULT, so
           // the silent outcome is `now()`. See `timestampsCreatedFromId`.
-          ...timestampsCreatedFromId(doc),
+          ...timestamps,
         },
         postId
       )
     );
 
-    emitAuthorships(doc, postId, emit);
+    emitAuthorships(doc, postId, timestamps.createdAt, emit);
     emitVariants(doc, postId, emit);
     emitMedia(doc, postId, emit);
     emitAttachments(doc, postId, emit);
@@ -579,8 +583,30 @@ function coordinates(
   return { [latitudeKey]: pair[1], [longitudeKey]: pair[0] };
 }
 
-/** `authorship[]` → `post_authorships`. `_id: false`, so ids are derived. */
-function emitAuthorships(doc: MongoDocument, postId: string, emit: Emit): void {
+/**
+ * `authorship[]` → `post_authorships`. `_id: false`, so ids are derived.
+ *
+ * `postCreatedAt` is the post's OWN `created_at`, copied onto every authorship
+ * row — the denormalized column `post_authorships_author_chrono_idx` orders the
+ * profile feed by (`0021_faithful_bloodstrike`). The backfill is the THIRD
+ * writer of this table, after `insertChildRows` and `replacePostAuthorship`, and
+ * it is the one a migration's own `UPDATE` cannot reach: that statement runs
+ * once, at migration time, and every row this copy inserts afterwards would
+ * carry NULL. On a restore that is EVERY row.
+ *
+ * It takes the value the parent row is built from rather than reading
+ * `createdAt` again, because those two are not the same for six production
+ * posts: `timestampsCreatedFromId` derives the timestamp from the ObjectId when
+ * the document has no `createdAt`, so re-reading the field here would store NULL
+ * against a post whose `created_at` is a real derived instant — a disagreement
+ * `__tests__/authorshipChronoSync.test.ts` exists to refuse.
+ */
+function emitAuthorships(
+  doc: MongoDocument,
+  postId: string,
+  postCreatedAt: unknown,
+  emit: Emit
+): void {
   for (const [entry, position] of subdocuments(doc, 'authorship')) {
     emit(
       postAuthorships,
@@ -594,6 +620,7 @@ function emitAuthorships(doc: MongoDocument, postId: string, emit: Emit): void {
           status: reqStr(entry, 'status'),
           invitedAt: date(entry, 'invitedAt'),
           respondedAt: date(entry, 'respondedAt'),
+          postCreatedAt,
         },
         postId
       )

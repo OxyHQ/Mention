@@ -158,6 +158,51 @@ afterAll(async () => {
   await closePostgres();
 });
 
+/**
+ * The denormalized timestamp `post_authorships_author_chrono_idx` orders the
+ * profile feed by, written by the COPY.
+ *
+ * The backfill is the third writer of this column, after `insertChildRows` and
+ * `replacePostAuthorship`, and the only one `0021`'s `UPDATE` cannot reach — that
+ * statement runs once at migration time, so every row copied afterwards would
+ * carry NULL. On a restore that is every row, which silently makes the profile
+ * feed's authorship branch pick its page by an all-NULL sort.
+ *
+ * Asserted against `posts.created_at` itself rather than the fixture's literal,
+ * so a writer that stores a plausible-but-different instant fails.
+ */
+describe('the copy fills post_authorships.post_created_at', () => {
+  it('copies the post\'s own created_at onto every authorship row', async () => {
+    const postId = new ObjectId();
+    await mongo.collection('posts').insertOne(
+      basePost(postId, {
+        authorship: [
+          { oxyUserId: OWNER, role: 'owner', status: 'accepted' },
+          { oxyUserId: `${OWNER}-collab`, role: 'collaborator', status: 'accepted' },
+        ],
+      })
+    );
+
+    await copyPosts();
+
+    const rows = await getDb()
+      .select({
+        oxyUserId: postAuthorships.oxyUserId,
+        postCreatedAt: postAuthorships.postCreatedAt,
+        postCreatedAtOnPost: posts.createdAt,
+      })
+      .from(postAuthorships)
+      .innerJoin(posts, eq(posts.id, postAuthorships.postId))
+      .where(eq(postAuthorships.postId, String(postId)));
+
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.postCreatedAt).not.toBeNull();
+      expect(row.postCreatedAt?.toISOString()).toBe(row.postCreatedAtOnPost.toISOString());
+    }
+  });
+});
+
 describe('the coordinate order', () => {
   it('reads GeoJSON [longitude, latitude] into the right columns', async () => {
     const id = new ObjectId();
