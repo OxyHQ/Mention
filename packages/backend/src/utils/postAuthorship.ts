@@ -1,6 +1,6 @@
 import type { PostAuthorshipEntry, PostAuthorRole, PostAuthorStatus } from '@mention/shared-types';
 import { MAX_POST_COLLABORATORS } from '@mention/shared-types';
-import { and, eq, exists, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, eq, exists, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { postAuthorships, posts } from '../db/schema';
 
@@ -162,7 +162,61 @@ export function followedAuthorsSql(authorIds: readonly string[]): SQL {
   return authored;
 }
 
-/** Single-author form of {@link followedAuthorsSql} — the profile feed's match. */
+/**
+ * The profile feed's match: "this post is `authorId`'s".
+ *
+ * The `post_authorships` `EXISTS` is the AUTHORITY and stays exactly as
+ * {@link followedAuthorsSql} writes it. The `oxy_user_id` term in front of it is
+ * a second, cheaper way to reach the same posts, and it is here for two distinct
+ * reasons — one of them a correctness fix, not an optimisation.
+ *
+ * ## It is a SUPERSET, which is what makes it safe
+ *
+ * `posts.oxy_user_id` is the denormalized owner (`db/schema/postContent.ts`:
+ * exactly one `owner`, always `accepted`, mirrored onto the post). So under that
+ * invariant the two terms select the same owner rows and this changes nothing.
+ * Written as an `or`, a DRIFTED mirror cannot cost a row either way: a post whose
+ * mirror is NULL or stale is still found by the `EXISTS`, and a post whose
+ * authorship row is missing is still found by the mirror. That direction matters
+ * because the failure being fixed is posts MISSING from their author's own
+ * profile — a formulation that trades the `EXISTS` for the mirror (or narrows it
+ * to `role = 'collaborator'`) is faster still and silently drops exactly the
+ * drifted rows, which is the bug wearing the fix's clothes.
+ *
+ * ## The correctness half
+ *
+ * `insertChildRows` writes authorship rows only `if (authorship.length > 0)`, so
+ * a post created with an empty authorship list — and any Mongo document that
+ * backfilled from one — has an `oxy_user_id` and NO `post_authorships` row at
+ * all. The `EXISTS` alone cannot see those, so they are invisible on their own
+ * author's profile. This term is what serves them.
+ *
+ * ## The performance half
+ *
+ * The `EXISTS` alone gives the planner no index that connects "this author" to
+ * "newest first", so it walks a chronological index over the whole table probing
+ * `post_authorships` once per candidate. Measured on 624k posts, page of 21:
+ *
+ *   author with 2,003 posts    84–99 ms  →  2.3–4.2 ms   (the common case)
+ *   author with 20,000 posts   3.7–6.0 ms → 10.5–15.6 ms  (a REGRESSION, kept)
+ *
+ * The regression is real and deliberate: the second shape is an account owning a
+ * measurable fraction of all recent posts, where the probe-as-you-scan plan
+ * happens to hit matches immediately. Trading ~5 ms there for ~90 ms on the
+ * ordinary case is the right side of that trade, and both land in single or low
+ * double digit milliseconds. Removing the regression entirely needs
+ * `posts.created_at` denormalized onto `post_authorships` with a
+ * `(oxy_user_id, status, post_created_at desc, post_id desc)` index — measured
+ * at 0.58 ms / 0.93 ms for the two shapes — which is a migration, not a
+ * predicate change.
+ *
+ * ## Channel posts stay excluded, and not by accident
+ *
+ * A channel post's `oxy_user_id` is the CHANNEL account; the human is in
+ * `written_by_oxy_user_id`, which this term does not read. So the exclusion
+ * {@link followedAuthorsSql} documents survives — asserted, not assumed, in
+ * `__tests__/authorFeedMatch.test.ts`.
+ */
 export function authorFeedSql(authorId: string): SQL {
-  return followedAuthorsSql([authorId]);
+  return or(eq(posts.oxyUserId, authorId), followedAuthorsSql([authorId])) as SQL;
 }
