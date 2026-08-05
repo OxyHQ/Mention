@@ -85,27 +85,28 @@ fi
 # image being rolled out. A non-zero exit from any of them stops the release
 # before `update-service`.
 #
-# ORDER IS LOAD-BEARING, AND POSTGRES IS FIRST.
+# ORDER IS LOAD-BEARING, AND THE SCHEMA IS FIRST.
 #
-# The two stores fail differently. The Mongo migrations are data migrations
-# against a schema that already exists, and skipping them leaves the previous
-# release's behaviour in place. The Postgres migrations are the SCHEMA: a task
-# that boots against a database they never reached connects, answers the health
-# check, is given traffic, and only then fails every query — the damage lands
-# after the point of no return rather than before it. So the store that can
-# invalidate the whole rollout is settled first, and a failure there costs
-# nothing because nothing has been routed yet.
+# The Postgres migrations are the SCHEMA: a task that boots against a database
+# they never reached connects, answers the health check, is given traffic, and
+# only then fails every query — the damage lands after the point of no return
+# rather than before it. So the step that can invalidate the whole rollout is
+# settled first, and a failure there costs nothing because nothing has been
+# routed yet.
 #
 # `assertPostgresMigrationsCurrent` in packages/backend/src/db/migrationLedger.ts
 # is the other half: it refuses to let a task become ready when this step did not
 # run. Neither replaces the other — this one applies the migrations, that one
 # survives the case where somebody bypassed this one.
 #
-# Both migration entries run during the dual-run. Postgres does not replace
-# Mongo yet.
+# THE MONGO MIGRATION ENTRY IS GONE. It ran a ledger-guarded runner whose every
+# migration was already recorded applied in production, so it applied nothing;
+# its one live payload was the blocked-domain purge, which is Postgres-only and
+# now has its own entry below. Verified by SET INCLUSION before removal — every
+# id the runner declared was present in production's ledger — not by comparing
+# counts.
 #
-# THE THIRD ENTRY IS THE POPULATION FLOOR, and it is last because it is the only
-# one that reads rows: the schema has to exist before rows can be counted.
+# THE POPULATION FLOOR reads rows, so it comes after the schema exists.
 #
 # It exists because a 200 is not evidence of a database. A trunk image went live
 # against an empty Postgres on 2026-08-04, every post-deploy smoke check passed
@@ -132,10 +133,6 @@ MIGRATION_TASK_COMMANDS_JSON='[
   {
     "label": "Postgres migration",
     "command": ["bun", "packages/backend/dist/src/db/migrate.js", "--target-database=mention"]
-  },
-  {
-    "label": "Mongo migration",
-    "command": ["bun", "packages/backend/dist/scripts/migrate.js"]
   },
   {
     "label": "Postgres population floor",

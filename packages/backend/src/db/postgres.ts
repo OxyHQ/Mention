@@ -9,13 +9,14 @@
  * global and hard-fails the moment anything loads it outside Bun, which is
  * exactly what every test run does.
  *
- * Placement note: Mongo's connector lives in `src/utils/database.ts` in this
- * package (the sibling oxy-api port puts its Postgres connector in
- * `src/config/postgres.ts`). Everything Postgres is kept together under
- * `src/db/` here rather than split across two directories.
+ * Placement note: everything Postgres is kept together under `src/db/` rather
+ * than split across two directories (the sibling oxy-api port puts its connector
+ * in `src/config/postgres.ts`). This note used to orient the reader by naming
+ * Mongo's connector at `src/utils/database.ts`; that file no longer exists, and
+ * a pointer to a deleted path is worse than no pointer.
  *
- * Shape mirrors the Mongo setup: connect once at boot, then read the handle
- * synchronously from anywhere via `getDb()`.
+ * Connect once at boot, then read the handle synchronously from anywhere via
+ * `getDb()`.
  */
 
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';

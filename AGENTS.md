@@ -123,11 +123,27 @@ NODE_ENV=production ./gradlew :app:assembleRelease \
 
 ## Indexes and migrations
 
-`autoIndex`/`autoCreate` are OFF in production, so **declaring an index on a schema does not create it**. Two traps follow, and both fail silently:
+**Schema changes go through `drizzle/` and `src/db/migrate.ts`, and nothing else.**
+The deploy applies them as its FIRST one-shot, before `update-service`, and
+`assertPostgresMigrationsCurrent` (`src/db/migrationLedger.ts`) refuses to let a
+task become ready if that step did not run — two halves, neither replacing the
+other: one applies, the other survives somebody bypassing it.
 
-- **`POST_HOT_PATH_INDEXES` in `indexes/manifest.ts` is NOT a generic manifest** — it is migration `0010`'s payload, and `0010` is recorded applied and never re-runs. Appending an index there is a **no-op in production** while looking like the obvious place. `POST_HOT_PATH_INDEX_MANIFEST_VERSION` is read by nothing; bumping it is theatre. A new index ships as **its own migration**, modelled on `0014-post-trend-terms-index.ts`, registered in `migrations/constants.ts` AND the `MIGRATIONS` array in `runner.ts` (`MIGRATION_IDS` exists so an unregistered migration is a test failure, not a discovery months later).
-- **Never edit an already-written migration to add an index**, even one that has not reached production — it may have run on a developer's machine, and a migration that creates different indexes depending on when you first ran it is worse than an extra file.
-- **`sparse: true` is wrong on a COMPOUND index here.** Mongo indexes a document if *any* indexed key exists, and every post has `visibility`/`status`/`createdAt` — so `sparse` indexes the whole collection and buys nothing. Use `partialFilterExpression`, and make every query carry a literal term on the filtered field so the planner can prove eligibility. Verify with `explain()` on a real `mongod`; the test suite is fully mocked and cannot see this.
+**The Mongo migration mechanism is gone** — the whole `src/migrations` tree (its
+runner, its ledger-guarded task and its 26 migrations), the top-level migrate
+one-shot, and the deploy step that invoked them. Every id the runner declared was
+confirmed present in production's ledger by SET INCLUSION before removal, with a
+vacuity floor on the extracted set and a negative control, so "none missing" was
+a measurement rather than an empty comparison.
+
+Paths are named WITHOUT backticks in that sentence on purpose:
+`__tests__/agentsMdReferences.test.ts` resolves every backticked path in this
+file and fails on one that does not exist, which is what caught this section
+going stale in the first place. A deliberately-dead path has to be described
+rather than cited. Anything you find elsewhere describing a migrations
+constants module, a `MIGRATIONS` array, or `POST_HOT_PATH_INDEXES` describes a
+mechanism that no longer exists; do not resurrect the pattern for a Postgres
+index.
 
 ## MongoDB → PostgreSQL Migration
 
