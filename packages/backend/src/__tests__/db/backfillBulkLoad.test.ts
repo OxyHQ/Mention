@@ -19,7 +19,7 @@
  * GENERATED `tsvector` that must never be written.
  */
 
-import { afterAll, beforeAll, afterEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb, getPostgresClient } from '../../db/postgres';
 import { gifs } from '../../db/schema/discovery';
@@ -29,6 +29,7 @@ import {
   encodeCopyValue,
   groupByColumnSet,
   peekNextStagingName,
+  STAGING_TABLE_PREFIX,
 } from '../../db/backfill/bulkLoad';
 import { buildRow, BackfillRowError } from '../../db/backfill/rowBuilder';
 
@@ -166,6 +167,52 @@ describe('COPY encoder vs drizzle parameter binding', () => {
 
     const rows = await getDb().select().from(gifs).where(eq(gifs.id, id));
     expect(rows).toHaveLength(1);
+  });
+});
+
+/**
+ * Staging table names must differ BETWEEN PROCESSES.
+ *
+ * They used to be `pid + counter`, and the pid is 1 in every container — so two
+ * backfill tasks generated identical names and, because `copyRowsInto` drops
+ * before it creates, each dropped the other's staging table mid-`COPY`. With
+ * matching column shapes that silently inserts one task's rows into the other
+ * task's target.
+ *
+ * The property is per-PROCESS, so a single module instance cannot demonstrate
+ * it: the token is bound once at module load. `vi.resetModules()` gives a
+ * genuinely fresh instance, which is the closest thing in-process to a second
+ * task and exercises the same binding a second container would perform.
+ */
+describe('staging table names', () => {
+  async function freshStagingName(): Promise<string> {
+    vi.resetModules();
+    const module = await import('../../db/backfill/bulkLoad');
+    return module.peekNextStagingName();
+  }
+
+  it('differ between independently loaded instances', async () => {
+    const first = await freshStagingName();
+    const second = await freshStagingName();
+
+    expect(first).not.toBe(second);
+    // Both are still recognisable as staging tables, so the invariant sweep in
+    // `schemaInvariants.test.ts` keeps excluding them.
+    expect(first.startsWith(STAGING_TABLE_PREFIX)).toBe(true);
+    expect(second.startsWith(STAGING_TABLE_PREFIX)).toBe(true);
+  });
+
+  it('stays within Postgres\' 63-byte identifier limit', async () => {
+    // The counter is unbounded in principle; a wide margin is what keeps a long
+    // run from silently truncating into a COLLIDING name.
+    expect((await freshStagingName()).length).toBeLessThan(50);
+  });
+
+  it('does not derive from the pid, which is constant in a container', async () => {
+    // The specific regression, named: the old scheme embedded `process.pid`, so
+    // this asserts the pid is not what makes one name differ from another.
+    const name = await freshStagingName();
+    expect(name).not.toContain(`${STAGING_TABLE_PREFIX}${process.pid}_`);
   });
 });
 
