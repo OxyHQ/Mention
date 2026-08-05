@@ -147,7 +147,6 @@
  */
 
 import { createHash } from 'node:crypto';
-import mongoose from 'mongoose';
 import {
   and,
   asc,
@@ -164,7 +163,6 @@ import {
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { PostType } from '@mention/shared-types';
 import { config } from '../config';
-import { connectToDatabase } from '../utils/database';
 import { connectPostgres, getDb } from '../db/postgres';
 import { bookmarks, entityFollows, likes, postSubscriptions } from '../db/schema/engagement';
 import { notifications } from '../db/schema/discovery';
@@ -2034,13 +2032,15 @@ async function main(): Promise<void> {
     );
 
     /**
-     * BOTH stores, and now for exactly ONE reason rather than because the script
-     * was half-ported: `feed_interactions` still has a live Mongo writer, so the
-     * cascade deletes that collection as well as its Postgres table (see
-     * {@link purgeFeedInteractions}). Everything else this run touches is
-     * Postgres. When that writer ports, the Mongo connection goes with it.
+     * POSTGRES ONLY. The comment that used to sit here justified a Mongo
+     * connection by saying `feed_interactions` still had a live Mongo writer —
+     * it does not: `purgeFeedInteractions` deletes through `getDb()` against the
+     * `feed_interactions` TABLE, and the Mongoose model was deleted once nothing
+     * imported it. The connection outlived its reason, and the reason outlived
+     * its truth, which is the more dangerous half: a stale justification reads as
+     * a decision somebody made.
      */
-    await Promise.all([connectToDatabase(), connectPostgres()]);
+    await connectPostgres();
     logger.info(`[${SCRIPT_NAME}] connected`, {
       dryRun: options.dryRun,
       domains: domains.size,
@@ -2078,7 +2078,6 @@ async function main(): Promise<void> {
     throw error;
   } finally {
     await closeAdminScriptResources();
-    await mongoose.disconnect();
   }
 }
 
