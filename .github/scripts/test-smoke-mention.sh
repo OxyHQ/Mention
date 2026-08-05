@@ -60,9 +60,14 @@ curl() {
   local status_variable="SMOKE_TEST_STATUS_${key}"
   local content_type_variable="SMOKE_TEST_CT_${key}"
   local curl_exit_variable="SMOKE_TEST_CURL_EXIT_${key}"
+  # The BODY matters now, not just the status: an empty store answers the
+  # anonymous feed with HTTP 200 and no items, so a scenario that cannot vary
+  # the body cannot express the failure the population floor exists for.
+  local body_variable="SMOKE_TEST_BODY_${key}"
   status="${!status_variable:-}"
   content_type="${!content_type_variable:-application/json; charset=utf-8}"
   curl_exit="${!curl_exit_variable:-0}"
+  local body="${!body_variable:-\{\}}"
 
   if [[ -z "$status" ]]; then
     echo "Stubbed curl has no configured status for check $name." >&2
@@ -79,7 +84,7 @@ curl() {
   fi
 
   printf 'HTTP/2 %s\r\ncontent-type: %s\r\n\r\n' "$status" "$content_type" >"$dump_header"
-  [[ -n "$output" ]] && printf '{}' >"$output"
+  [[ -n "$output" ]] && printf '%s' "$body" >"$output"
   printf '%s\n' "$status"
 }
 export -f curl
@@ -100,6 +105,11 @@ run_scenario() {
     SMOKE_TEST_STATUS_webfinger=404
     SMOKE_TEST_STATUS_actor=404
     SMOKE_TEST_STATUS_inbox=404
+    # A healthy production answers the anonymous feed with POSTS. Defaulted here
+    # rather than per scenario so every existing scenario keeps describing a
+    # populated store, and only a scenario that says otherwise is testing the
+    # empty case.
+    'SMOKE_TEST_BODY_anonymous_feed={"success":true,"data":{"items":[{"id":"p1"},{"id":"p2"}]}}'
     "$@"
   )
 
@@ -210,5 +220,34 @@ expect_output hermetic-outranks-dependent "readiness returned HTTP 503 (expected
 expect_output hermetic-outranks-dependent "webfinger returned HTTP 500 (expected 404)"
 expect_output hermetic-outranks-dependent "rolling the deployment back"
 refute_output hermetic-outranks-dependent "will NOT be rolled back"
+
+# --- the population floor ----------------------------------------------------
+#
+# On 2026-08-04 a trunk image went live against an EMPTY Postgres, every check
+# here passed, and the rollback came from an unrelated post-deploy task
+# crashing. A 200 says the process answered; it says nothing about whether the
+# process has a database behind it.
+
+# The case the floor exists for: HTTP 200, valid JSON, zero content. Hermetic,
+# because only the deployed image decides which store it reads.
+run_scenario feed-empty-store 1 \
+  'SMOKE_TEST_BODY_anonymous_feed={"success":true,"data":{"items":[]}}'
+expect_output feed-empty-store "anonymous-feed returned 0 feed item(s)"
+expect_output feed-empty-store "it is a LIVE task whose store has nothing in it"
+expect_output feed-empty-store "This check is hermetic"
+expect_output feed-empty-store "rolling the deployment back"
+
+# A shape change must not read as "no data" — nor pass silently. Both readings
+# are wrong in the same direction: they would let an unrecognisable response
+# through as if it had been counted.
+run_scenario feed-missing-items 1 \
+  'SMOKE_TEST_BODY_anonymous_feed={"success":true,"data":{}}'
+expect_output feed-missing-items "no \`.data.items\` array at all"
+expect_output feed-missing-items "rolling the deployment back"
+
+# The CONTROL, and it is what stops the two scenarios above from passing under a
+# floor that fails on everything: a populated store still passes, and says what
+# it counted rather than only that it passed.
+expect_output healthy "anonymous-feed: 2 feed item(s) (floor 1, from \`.data.items\`)"
 
 echo "Mention smoke check classification tests passed."
