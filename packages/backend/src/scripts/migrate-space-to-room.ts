@@ -31,9 +31,9 @@
  * Runnable as a Fargate one-shot, BEFORE the schema-removal deploy is the safe
  * window but it is also safe to run after (it only touches legacy `content.space`
  * documents):
- *   DRY_RUN=1 node dist/scripts/migrate-space-to-room.js   # preview
+ *   DRY_RUN=1 bun dist/src/scripts/migrate-space-to-room.js   # preview
  *   CONFIRM_ADMIN_MUTATION=migrateSpaceToRoom \
- *     node dist/scripts/migrate-space-to-room.js           # reviewed migration
+ *     bun dist/src/scripts/migrate-space-to-room.js           # reviewed migration
  */
 
 import mongoose from 'mongoose';

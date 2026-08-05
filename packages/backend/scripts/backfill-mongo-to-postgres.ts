@@ -6,12 +6,41 @@
  *
  * ```bash
  * aws --profile oxy --region us-west-2 ecs run-task \
- *   --cluster oxy-cluster --task-definition oxy-mention --launch-type FARGATE \
+ *   --cluster oxy-cluster --task-definition <a definition SIZED FOR THIS> \
+ *   --launch-type FARGATE \
  *   --network-configuration 'awsvpcConfiguration={subnets=[…],securityGroups=[…],assignPublicIp=ENABLED}' \
  *   --overrides '{"containerOverrides":[{"name":"mention","command":[
- *      "bun","run","packages/backend/scripts/backfill-mongo-to-postgres.ts",
+ *      "bun","packages/backend/dist/scripts/backfill-mongo-to-postgres.js",
  *      "--target-database=mention_audit_probe","--audit-only"]}]}'
  * ```
+ *
+ * The BUILT path, `dist/scripts/…​.js`, not the source. The image ships the
+ * compiled output only (`tsconfig.json`: `rootDir: ./`, `outDir: dist`), so
+ * `bun run packages/backend/scripts/….ts` — which this example used to show —
+ * fails at startup on the very environment the paragraph above declares. An
+ * example that cannot run where it says it runs is invisible until somebody
+ * launches it, which in practice means during an incident.
+ *
+ * ## And NOT the web service's task definition — it runs out of memory
+ *
+ * The task definition is left as a placeholder deliberately. This example used
+ * to name `oxy-mention`, which is the definition the WEB SERVICE runs on —
+ * 512 CPU units and 1 GiB — and a backfill launched against it **dies with
+ * exit 137, OOM-killed**, observed on a real run. So the old example did not
+ * merely fail to start; it sent the reader to a failure that looks like a bug in
+ * this script.
+ *
+ * The requirement is a definition provisioned for a bulk copy: this streams
+ * whole collections, holds a batch plus its staging rows in memory, and plans
+ * `federatedactors` identity resolution over the entire collection before it
+ * writes anything. At the time of writing that was `oxy-mention-backfill`, at
+ * 8 vCPU / 60 GiB, ARM64.
+ *
+ * That name is deliberately NOT pinned here. It was created by hand during the
+ * cutover and exists in no Terraform state or repository file, so a docblock
+ * citing it would outlive it silently — the same class of stale claim as the
+ * path above, which is exactly what this file has already been caught doing
+ * once. The SIZE and the reason survive a rename; the name would not.
  *
  * ## `--target-database` is REQUIRED, on every mode
  *

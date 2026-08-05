@@ -56,7 +56,7 @@
  * as a Fargate one-shot in the oxy-api SG/subnets, post-deploy:
  *   BACKFILL_APPLY=true \
  *     CONFIRM_ADMIN_MUTATION=backfillFederatedPostAuthors \
- *     node dist/scripts/backfillFederatedPostAuthors.js
+ *     bun dist/src/scripts/backfillFederatedPostAuthors.js
  */
 
 import { and, asc, count, eq, gt, isNotNull, isNull, type SQL } from 'drizzle-orm';
