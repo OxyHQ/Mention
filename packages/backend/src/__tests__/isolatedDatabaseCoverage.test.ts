@@ -140,6 +140,10 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
    */
   { name: 'backfillFederatedThreadLinks', call: /\bbackfillFederatedThreadLinks\s*\(/ },
   { name: 'normalizeStoredText', call: /\bnormalizeStoredText\s*\(/ },
+  // Keyed on the FILE, not on a call: its suite runs the entry point as a
+  // subprocess rather than importing it, which is the only way to exercise the
+  // `require.main === module` block where the pool is opened.
+  { name: 'reconcileBlockedDomains', call: /'scripts',\s*'reconcileBlockedDomains\.ts'/ },
   { name: 'repairFederatedMentions', call: /\brepairFederatedMentions\s*\(/ },
   { name: 'backfillThreadRootThreadId', call: /\bbackfillThreadRootThreadId\s*\(/ },
   { name: 'migrateThreadFanToChain', call: /\bmigrateThreadFanToChain\s*\(/ },

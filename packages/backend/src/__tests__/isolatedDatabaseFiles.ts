@@ -224,6 +224,14 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'text. The suite calls it with `dryRun: false`.',
   },
   {
+    path: 'src/__tests__/scripts/reconcileBlockedDomains.test.ts',
+    jobEntryPoint: 'reconcileBlockedDomains',
+    reason:
+      'Its candidate set is every domain in the COMMITTED blocklist policy, and for each it ' +
+      'deletes that domain\'s posts and actor rows. Another file\'s federated post from a ' +
+      'blocked domain is a candidate, and the run also writes the shared purge ledger.',
+  },
+  {
     path: 'src/__tests__/scripts/repairFederatedMentions.test.ts',
     jobEntryPoint: 'repairFederatedMentions',
     reason:
