@@ -9,9 +9,16 @@
  *   --cluster oxy-cluster --task-definition oxy-mention --launch-type FARGATE \
  *   --network-configuration 'awsvpcConfiguration={subnets=[…],securityGroups=[…],assignPublicIp=ENABLED}' \
  *   --overrides '{"containerOverrides":[{"name":"mention","command":[
- *      "bun","run","packages/backend/scripts/backfill-mongo-to-postgres.ts",
+ *      "bun","packages/backend/dist/scripts/backfill-mongo-to-postgres.js",
  *      "--target-database=mention_audit_probe","--audit-only"]}]}'
  * ```
+ *
+ * The BUILT path, `dist/scripts/…​.js`, not the source. The image ships the
+ * compiled output only (`tsconfig.json`: `rootDir: ./`, `outDir: dist`), so
+ * `bun run packages/backend/scripts/….ts` — which this example used to show —
+ * fails at startup on the very environment the paragraph above declares. An
+ * example that cannot run where it says it runs is invisible until somebody
+ * launches it, which in practice means during an incident.
  *
  * ## `--target-database` is REQUIRED, on every mode
  *
