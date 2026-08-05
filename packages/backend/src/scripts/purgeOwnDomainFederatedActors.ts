@@ -26,9 +26,9 @@
  * mutating anything.
  *
  * Runnable as a Fargate one-shot post-deploy:
- *   DRY_RUN=1 node dist/scripts/purgeOwnDomainFederatedActors.js   # preview
+ *   DRY_RUN=1 bun dist/src/scripts/purgeOwnDomainFederatedActors.js   # preview
  *   CONFIRM_ADMIN_MUTATION=purgeOwnDomainFederatedActors \
- *     node dist/scripts/purgeOwnDomainFederatedActors.js           # reviewed delete
+ *     bun dist/src/scripts/purgeOwnDomainFederatedActors.js           # reviewed delete
  */
 
 import mongoose from 'mongoose';

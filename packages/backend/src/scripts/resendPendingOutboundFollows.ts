@@ -13,8 +13,8 @@
  * follow that IS already known to the remote is harmless to resend).
  *
  * Idempotent and safe to re-run. Runnable as a Fargate one-shot post-deploy:
- *   node dist/scripts/resendPendingOutboundFollows.js --dry-run
- *   node dist/scripts/resendPendingOutboundFollows.js
+ *   bun dist/src/scripts/resendPendingOutboundFollows.js --dry-run
+ *   bun dist/src/scripts/resendPendingOutboundFollows.js
  */
 
 import mongoose from 'mongoose';

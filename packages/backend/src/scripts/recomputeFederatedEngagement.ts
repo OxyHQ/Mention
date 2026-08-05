@@ -19,8 +19,8 @@
  * posts were corrected and the total absolute drift removed.
  *
  * Runnable as a Fargate one-shot post-deploy:
- *   node dist/scripts/recomputeFederatedEngagement.js --dry-run
- *   node dist/scripts/recomputeFederatedEngagement.js
+ *   bun dist/src/scripts/recomputeFederatedEngagement.js --dry-run
+ *   bun dist/src/scripts/recomputeFederatedEngagement.js
  */
 
 import { and, asc, count, eq, gt, inArray, isNotNull } from 'drizzle-orm';

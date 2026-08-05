@@ -30,7 +30,7 @@
  * script already invokes both forms.
  */
 
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -89,6 +89,34 @@ function offencesIn(file: string): Offence[] {
   return offences;
 }
 
+
+/** Every `dist/….js` path cited in a comment, with the source file it implies. */
+function citedDistPaths(): Array<{ file: string; line: number; cited: string; implied: string }> {
+  const found: Array<{ file: string; line: number; cited: string; implied: string }> = [];
+  for (const file of walk(BACKEND_ROOT)) {
+    if (!file.endsWith('.ts')) continue;
+    // Tests are not operator documentation, and THIS file necessarily spells the
+    // broken shape out to explain it — a gate that reads its own examples as
+    // offences reports itself and nothing else.
+    if (file.includes(`${path.sep}__tests__${path.sep}`)) continue;
+    const lines = readFileSync(file, 'utf8').split('\n');
+    lines.forEach((text, index) => {
+      // Only this package's OWN build output. `rootDir` is the package root, so
+      // every real citation is `dist/src/…` or `dist/scripts/…`; a dependency's
+      // internal `dist/cjs/node/index.js` is not ours to validate.
+      for (const match of text.matchAll(/dist\/(?:src|scripts)\/[A-Za-z0-9/_.-]+\.js/g)) {
+        found.push({
+          file: path.relative(REPO_ROOT, file),
+          line: index + 1,
+          cited: match[0],
+          implied: `${match[0].slice('dist/'.length, -'.js'.length)}.ts`,
+        });
+      }
+    });
+  }
+  return found;
+}
+
 describe('ECS invocations written in comments name built paths', () => {
   const files = walk(BACKEND_ROOT).concat(
     [path.join(REPO_ROOT, '.github')].flatMap((d) => {
@@ -122,5 +150,47 @@ describe('ECS invocations written in comments name built paths', () => {
     expect(
       offences.map((o) => `${o.file}: ${o.cited} -> ${o.shouldBe}`),
     ).toEqual([]);
+  });
+});
+
+/**
+ * A `dist/…​.js` path cited anywhere must correspond to a source file that exists.
+ *
+ * Separate from the check above, and deliberately so. That one keys on
+ * `containerOverrides` — an ECS override array, which unambiguously means "run
+ * inside the image". Most one-shot documentation is not an override array at
+ * all; it is a bare shell line, and stretching the override signal to cover
+ * those would make it guess. This check needs no signal about intent: a cited
+ * BUILT path either names a real source file or it does not.
+ *
+ * `rootDir` is the package root and `outDir` is `dist`, so `dist/X.js` implies
+ * `X.ts`. `src/scripts/foo.ts` builds to `dist/src/scripts/foo.js`, and
+ * `scripts/foo.ts` to `dist/scripts/foo.js` — the deploy invokes both forms, so
+ * the two are not interchangeable and the difference is invisible by eye.
+ *
+ * Nine citations across five files were wrong when this was written, all the
+ * same way: `dist/scripts/…` for a script living in `src/scripts/`. One of them
+ * was in the script the cutover was about to run.
+ *
+ * Deriving the expectation from the FILE SYSTEM rather than a pattern is what
+ * makes it exact: matching on basename alone gets this wrong, because
+ * `migrate.ts` exists in BOTH `scripts/` and `src/db/` and the two build to
+ * different places. That mistake produced three false positives on the first
+ * pass of this very sweep.
+ */
+describe('cited dist paths name a source file that exists', () => {
+  const cited = citedDistPaths();
+
+  it('finds the citations to check', () => {
+    // A floor: this repo documents dozens of one-shots. Zero would mean the
+    // sweep broke, not that the docs are clean.
+    expect(cited.length).toBeGreaterThan(40);
+  });
+
+  it('every cited dist path implies a real source file', () => {
+    const broken = cited
+      .filter((entry) => !existsSync(path.join(BACKEND_ROOT, entry.implied)))
+      .map((entry) => `${entry.file}:${entry.line}: ${entry.cited} implies ${entry.implied}, which does not exist`);
+    expect(broken).toEqual([]);
   });
 });
