@@ -31,6 +31,7 @@ const hoisted = vi.hoisted(() => ({
   autoAcceptInvites: vi.fn(),
   notifyPendingInvites: vi.fn(),
   emitPostCreated: vi.fn(),
+  listAccountMembers: vi.fn(),
 }));
 
 /**
@@ -45,7 +46,13 @@ const hoisted = vi.hoisted(() => ({
  */
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: hoisted.createScopedOxyClient,
-  createUserScopedOxyServices: vi.fn(() => undefined),
+  // A real member reader, because the CHANNEL case below is authorized through
+  // `postManagementRefusal` rather than by owning the row. Every other case in
+  // this file edits its own post, which `canManagePostWithoutLookup` settles
+  // before any account read — so none of them reaches this.
+  createUserScopedOxyServices: vi.fn(() => ({
+    listAccountMembers: (accountId: string) => hoisted.listAccountMembers(accountId),
+  })),
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({
@@ -386,5 +393,66 @@ describe('updatePost — rescheduling moves the whole thread', () => {
 
     expect(await scheduledTimes()).toEqual(before);
     expect(await storedText()).toBe('reworded');
+  });
+
+  /**
+   * A CHANNEL'S thread, moved by a member who is not its owner.
+   *
+   * The chain is walked as the post's OWNER, never as the caller, and a channel
+   * is the one case where those differ: a channel AUTHORS its own posts and no
+   * session can ever be one. Scoped to the caller, the descendant query matched
+   * nothing, so the edited post moved alone and its continuations stayed where
+   * they were — silently producing the exact split queue this whole block exists
+   * to prevent, with no error and nothing in the response to suggest it.
+   *
+   * The caller's RIGHT to be here is a separate question, already settled by
+   * `postManagementRefusal` above; this is only about which account's chain the
+   * walk names.
+   */
+  it('carries a CHANNEL’s continuations, walked as the channel and not the caller', async () => {
+    const channel = scope.user('channel');
+    const member = scope.user('channel-member');
+    hoisted.resolveUserSummaries.mockResolvedValue(
+      new Map([[channel, { user: { id: channel, username: 'thechannel', kind: 'channel' } }]]),
+    );
+    hoisted.listAccountMembers.mockResolvedValue([
+      {
+        _id: `member-${channel}-${member}`,
+        accountId: channel,
+        memberUserId: member,
+        role: 'editor',
+        permissions: ['account:read', 'account:act_as'],
+        inherit: true,
+        status: 'active',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+    ]);
+
+    await seedTarget({
+      oxyUserId: channel,
+      writtenByOxyUserId: scope.user('some-writer'),
+      status: 'scheduled',
+      scheduledFor: ORIGINAL_TIME(),
+    });
+    const continuation = await seedPost(scope, {
+      oxyUserId: channel,
+      status: 'scheduled',
+      scheduledFor: ORIGINAL_TIME(),
+      parentPostId: POST_ID,
+    });
+    continuationIds = [continuation.id];
+
+    const later = new Date(Date.now() + 4 * HOUR_MS);
+    const { res, captured } = buildResponse();
+
+    await updatePost(
+      buildRequest({ scheduledFor: later.toISOString() }, { id: member }) as never,
+      res as never,
+    );
+
+    expect(captured.status).toBeUndefined();
+    expect((await stored())?.scheduledFor?.toISOString()).toBe(later.toISOString());
+    expect(await scheduledTimes()).toEqual([later.toISOString()]);
   });
 });

@@ -662,6 +662,35 @@ export const posts = pgTable(
       .where(sql`${t.status} = 'scheduled'`),
 
     /**
+     * ONE ACCOUNT'S QUEUE — `GET /posts/scheduled`, which reads the caller's own
+     * pending posts UNION those of every channel they operate.
+     *
+     * `posts_scheduled_idx` above serves the SWEEP, which wants every due post
+     * regardless of owner, and it cannot serve this: with only that index the
+     * planner walks the entire site-wide scheduled set in `scheduled_for` order
+     * and filters by owner, so one member's queue read costs a scan proportional
+     * to how much EVERYBODY ELSE has scheduled. Measured on 403k posts of which
+     * 3k scheduled, reading 20 accounts' entries: 200 rows returned, **2,800
+     * removed by filter**, 0.407 ms — against 0.125 ms and no wasted rows here.
+     * The absolute numbers are small; the coupling is the defect, because it
+     * grows with global scheduled volume rather than with the caller's own.
+     *
+     * PARTIAL on `status = 'scheduled'`, which is what makes it nearly free: a
+     * post enters the index when it is scheduled and leaves when it publishes, so
+     * this indexes a set that drains every 60 seconds rather than the table. The
+     * query carries `status = 'scheduled'` as a literal term, so the planner can
+     * prove eligibility.
+     *
+     * `scheduled_for` second gives the ORDER BY for free per account; `id` is
+     * deliberately NOT a third column — it is the sort's tie-break only, and it
+     * holds both pre-cutover ObjectId hex and post-cutover uuid v7, so it is not
+     * a chronological axis worth widening every index entry for.
+     */
+    index('post_owner_scheduled_v1')
+      .on(t.oxyUserId, t.scheduledFor)
+      .where(sql`${t.status} = 'scheduled'`),
+
+    /**
      * The lane tab's keyset — `laneSource` pages ONE lane on `(created_at, id)`,
      * and this serves the predicate and the order end to end.
      *

@@ -55,6 +55,11 @@ jest.mock('@/utils/alerts', () => ({ confirmDialog: (...args: unknown[]) => mock
 jest.mock('@oxyhq/core/logger', () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() }),
 }));
+// Reached through `ScheduledPostsList`, which this screen shares its cancel
+// helper with. `@oxyhq/core` ships ESM jest does not transform.
+jest.mock('@oxyhq/core', () => ({
+  getNormalizedUserHandle: (user?: { username?: string }) => user?.username,
+}));
 
 jest.mock('@/components/Feed/PostItem', () => {
   const react = jest.requireActual('react');

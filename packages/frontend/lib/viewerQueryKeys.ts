@@ -91,9 +91,15 @@ export const viewerQueryKeys = {
     profileId,
   ] as const,
   /**
-   * The viewer's own not-yet-published scheduled posts. Strictly private: the
-   * list is the caller's alone, so it can never be shared across viewers the way
-   * a public post detail can.
+   * The not-yet-published posts this viewer can act on — their own, plus the
+   * shared editorial queue of every channel they operate.
+   *
+   * Still strictly VIEWER-scoped, and the distinction matters: the entries are no
+   * longer the caller's alone, but WHICH entries they are depends on the caller's
+   * channel memberships, so this response can never be shared across viewers the
+   * way a public post detail can. Two members of one channel see overlapping
+   * lists that are not equal — each also holds their own posts — so keying on the
+   * channel instead would serve one member the other's personal queue.
    */
   scheduledPosts: (viewerId: ViewerId) => [
     ...viewerQueryKeys.postsRoot(viewerId),
