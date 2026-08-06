@@ -1,0 +1,52 @@
+# Put every new issue on the Oxy Roadmap.
+#
+# https://github.com/orgs/OxyHQ/projects/14 spans BOTH organisations. GitHub
+# refuses to LINK a repository to a project owned by a different organisation
+# ("Only projects owned by the same owner as the repository can be linked"),
+# which is why the project's own built-in auto-add cannot be used for the
+# FairCoin repositories. Adding an ITEM across organisations is allowed, and
+# that is exactly what this action does, so one workflow covers both.
+#
+# Inert until ADD_TO_PROJECT_TOKEN exists. It must be a CLASSIC token with the
+# `project` scope: a fine-grained token is scoped to a single owner and cannot
+# reach both organisations. `public_repo` alone is not enough, Projects v2 is a
+# separate scope.
+#
+# The action is pinned to a commit rather than a tag: a tag can be moved to
+# point at different code, and this workflow holds a token that can write to
+# every project in the organisation.
+
+name: Add to roadmap
+
+on:
+  issues:
+    types: [opened, reopened, transferred]
+
+permissions: {}
+
+concurrency:
+  group: add-to-roadmap-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check whether the token is configured
+        id: gate
+        env:
+          TOKEN: ${{ secrets.ADD_TO_PROJECT_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::ADD_TO_PROJECT_TOKEN is not set, so this issue was not added to the roadmap."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Add the issue to the roadmap
+        if: steps.gate.outputs.ready == 'true'
+        uses: actions/add-to-project@5afcf98fcd03f1c2f92c3c83f58ae24323cc57fd # v2.0.0
+        with:
+          project-url: https://github.com/orgs/OxyHQ/projects/14
+          github-token: ${{ secrets.ADD_TO_PROJECT_TOKEN }}
