@@ -1,26 +1,25 @@
-=============================================================================
+============================================================================
  NOTICE
  OxyHQ/Mention
  Copyright (c) 2024-present The Oxy Collective, Inc.
-=============================================================================
+============================================================================
 
-This product is licensed under the Breathe License 1.0
-(`LicenseRef-Breathe-1.0`). See the LICENSE file. Commercial terms are
-available; see
-<https://github.com/OxyHQ/.github/blob/main/LICENSE-COMMERCIAL.md>.
+This product is licensed under the Breathe License 1.0, license identifier
+LicenseRef-Breathe-1.0. See the LICENSE file. Commercial terms are available
+at https://github.com/OxyHQ/.github/blob/main/LICENSE-COMMERCIAL.md
 
-Attribution under Section 3.1 of the Breathe License is required of everyone,
-including paying commercial licensees, and cannot be waived.
+Attribution under Section 3.1 of the Breathe License is required of
+everyone, including paying commercial licensees, and cannot be waived.
 
------------------------------------------------------------------------------
+----------------------------------------------------------------------------
  THIRD PARTY COMPONENTS
------------------------------------------------------------------------------
+----------------------------------------------------------------------------
 
-This repository contains no vendored third party source. Its dependencies are
-resolved and installed by the package manager and remain governed by their own
-licenses.
+This repository contains no vendored third party source. Its dependencies
+are resolved and installed by the package manager and remain governed by
+their own licenses.
 
-This work must not take on a GPL or AGPL dependency that is linked in process:
-the Breathe License is not compatible with either, in either direction. If you
-are adding one, stop and read
+This work must not take on a GPL or AGPL dependency that is linked in
+process: the Breathe License is not compatible with either, in either
+direction. If you are adding one, stop and read
 https://github.com/OxyHQ/.github/blob/main/licensing/README.md
