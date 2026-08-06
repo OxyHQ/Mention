@@ -14,6 +14,29 @@ import { logger } from '../../utils/logger';
  * trusted to remember which of its transitive services opened one. It is a no-op
  * when nothing connected.
  */
+/**
+ * Load the services an admin script needs REGISTERED rather than merely
+ * importable.
+ *
+ * `PostCreationService` registers itself with the service registry as a side
+ * effect of being imported, and the HTTP server imports it on the way to
+ * mounting routes — so inside the app the registry is always populated by the
+ * time anything creates a post. A one-shot script imports no routes, so it is
+ * not, and every path that ends in `getPostCreator()` throws
+ * "PostCreator not registered".
+ *
+ * That is not hypothetical: the quoted-post backfill failed to import 898 of
+ * 908 quoted posts on exactly this, reporting them as un-importable. It looked
+ * like remote instances refusing us.
+ *
+ * Called explicitly, and paired with {@link closeAdminScriptResources}, so a
+ * script that needs it says so — and so the import cannot be mistaken for an
+ * unused one and deleted, which is what a bare side-effect import invites.
+ */
+export async function registerAdminScriptServices(): Promise<void> {
+  await import('../../services/PostCreationService');
+}
+
 export async function closeAdminScriptResources(): Promise<void> {
   await closeQueues();
   await Promise.all([

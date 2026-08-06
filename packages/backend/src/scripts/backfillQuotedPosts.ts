@@ -79,6 +79,7 @@ import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
+import { registerAdminScriptServices } from './lib/adminScriptLifecycle';
 import { posts } from '../db/schema/posts';
 import { postContentVariants } from '../db/schema/postContent';
 import { extractApQuoteUri, resolvePostIdFromObjectUri, signedFetch } from '../connectors/activitypub/helpers';
@@ -279,6 +280,11 @@ async function main(): Promise<void> {
 
   assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun });
   await connectPostgres();
+  // Without this, every quoted post we do not already hold fails to import with
+  // "PostCreator not registered", is counted as un-importable, and is
+  // indistinguishable in the tally from a remote instance refusing us. It cost a
+  // full live run: 908 with a quote field, 908 reported un-importable, 0 linked.
+  await registerAdminScriptServices();
   logger.info('[Backfill] quoted posts starting', { dryRun, max });
   try {
     await backfillQuotedPosts({ dryRun, max });
