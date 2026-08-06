@@ -366,12 +366,49 @@ export function allSchemaTables(): PgTable[] {
 }
 
 /**
- * Tables no plan writes to.
+ * Barrel tables that have no Mongo counterpart to be fed FROM, each with the
+ * reason — the target-side analogue of {@link NOT_MIGRATED}.
+ *
+ * The class was anticipated and empty: all 73 tables were derived from the 47
+ * collections that feed them, so "no plan" and "forgotten" meant the same thing.
+ * It stops being empty the first time a feature ships AFTER the cutover, whose
+ * table therefore never existed in Mongo and has nothing to copy.
+ *
+ * This is deliberately NOT the same escape hatch `mention_backfill_checkpoints`
+ * uses. That table stays out of the schema barrel entirely because it is
+ * migration BOOKKEEPING; these are ordinary application tables that need drizzle
+ * queries, so they must be in the barrel and need a reason here instead.
+ *
+ * A reason must say why the table cannot have a source, never merely that it
+ * does not have one yet — "no plan written" is the bug this list would otherwise
+ * hide.
+ */
+export const TABLES_WITH_NO_MONGO_SOURCE: ReadonlyArray<{ table: string; reason: string }> = [
+  {
+    table: 'post_corrections',
+    reason:
+      'The public correction trail of a channel post, added after the cutover. ' +
+      'Mongo never held a row of this shape: the only pre-cutover record of an ' +
+      'edit was `posts.edit_history`, an opaque `text[]` of previous bodies ' +
+      'carrying no timestamp and no editor, which cannot honestly populate a ' +
+      'trail whose whole claim is WHEN a post was corrected. Backfilling it ' +
+      'would have to invent those values, so the trail legitimately starts ' +
+      'empty and fills as publications correct their posts.',
+  },
+];
+
+const TABLES_WITH_NO_MONGO_SOURCE_NAMES = new Set(
+  TABLES_WITH_NO_MONGO_SOURCE.map((entry) => entry.table),
+);
+
+/**
+ * Tables no plan writes to, and which have no reason on file for it.
  *
  * Empty is the finish line. A table with no source is either a table that
- * should be fed by a plan and is not, or a table that legitimately has no Mongo
- * counterpart — and there is currently no member of the second class, because
- * all 73 tables were derived FROM the 47 collections that feed them.
+ * should be fed by a plan and is not — the case this answers — or one that
+ * legitimately has no Mongo counterpart, which is {@link TABLES_WITH_NO_MONGO_SOURCE}
+ * and is excluded here so a post-cutover feature cannot make the backfill CLI
+ * refuse a production run over a table that could never have had a source.
  */
 export function tablesWithoutAPlan(): string[] {
   const covered = new Set<string>();
@@ -380,7 +417,7 @@ export function tablesWithoutAPlan(): string[] {
   }
   return allSchemaTables()
     .map((table) => getTableConfig(table).name)
-    .filter((name) => !covered.has(name))
+    .filter((name) => !covered.has(name) && !TABLES_WITH_NO_MONGO_SOURCE_NAMES.has(name))
     .sort();
 }
 

@@ -46,6 +46,16 @@ export const publicQueryKeys = {
     'marketplace-categories',
   ] as const,
   /**
+   * One post's correction trail. Public because the endpoint is: a publication's
+   * corrections are addressed to whoever read the post, so the answer does not
+   * depend on who is asking and two readers must not hold separate copies of it.
+   */
+  postCorrections: (postId: string) => [
+    ...PUBLIC_ROOT,
+    'post-corrections',
+    postId,
+  ] as const,
+  /**
    * The topic catalogue behind the interests picker — the default grid when the
    * search box is empty, and the matches for a query otherwise.
    *

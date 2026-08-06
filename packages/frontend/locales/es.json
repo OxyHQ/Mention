@@ -1631,6 +1631,10 @@
       "manage": "Crear o gestionar canales",
       "alsoPostToProfile": "Publicar también en mi perfil",
       "alsoPostToProfileHint": "Republica la publicación en tu propio perfil en cuanto se publique."
+    },
+    "editingNotice": "Editando la publicación: los cambios deben guardarse dentro de los 30 minutos posteriores a su creación.",
+    "channel": {
+      "editingNotice": "Estás editando una publicación ya publicada. No hay límite de tiempo y tu cambio quedará registrado en el historial público de correcciones de esta publicación."
     }
   },
   "post": {
@@ -1642,6 +1646,24 @@
       "pickerTitle": "Leer esta publicación en",
       "translateTo": "Traducir a",
       "machine": "Traducción automática"
+    },
+    "corrections": {
+      "title": "Historial de correcciones",
+      "description": "Todas las versiones de esta publicación en Mention",
+      "intro": "Esta publicación ha cambiado desde que se publicó. Aquí están todas las versiones que ha tenido, de la más antigua a la más reciente.",
+      "marker_one": "Corregida una vez",
+      "marker_other": "Corregida {{count}} veces",
+      "viewHistory": "Ver historial",
+      "originalVersion": "Tal como se publicó",
+      "version": "Versión {{revision}}",
+      "currentVersion": "Versión actual",
+      "replaced": "Reemplazada el {{timestamp}}",
+      "since": "Desde el {{timestamp}}",
+      "truncated_one": "1 versión intermedia ya no se conserva. Los números de versión de abajo la omiten.",
+      "truncated_other": "{{count}} versiones intermedias ya no se conservan. Los números de versión de abajo las omiten.",
+      "empty": "Esta publicación no se ha corregido.",
+      "error": "No se pudo cargar el historial de correcciones de esta publicación.",
+      "retry": "Reintentar"
     }
   },
   "translation.failed": "Error al traducir. Inténtalo más tarde.",

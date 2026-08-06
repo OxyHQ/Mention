@@ -538,3 +538,75 @@ export const postRecentRepliers = pgTable(
     index('post_recent_repliers_post_idx').on(t.postId, t.repliedAt.desc()),
   ]
 );
+
+/**
+ * `post_corrections` — the PUBLIC record of how a channel post's body has
+ * changed since it was published.
+ *
+ * A channel is a publication, and a publication corrects in the open. Its posts
+ * are editable for their whole life (the 30-minute window personal posts carry
+ * does not apply — see `updatePost`), and this table is the price of that: every
+ * correction leaves a row saying what the post said BEFORE it, so a reader can
+ * see that it changed and read the version they were shown.
+ *
+ * ## One row per correction, holding the body it SUPERSEDED
+ *
+ * `previous_text` is the primary rendition as it read immediately before this
+ * correction, so revision 1 holds the post AS PUBLISHED and the live post is the
+ * newest version. The full history is therefore
+ * `[revision 1, revision 2, …, the post itself]` and nothing needs to duplicate
+ * the current body here.
+ *
+ * ## `corrected_by_oxy_user_id` is stored and NEVER served
+ *
+ * A channel's writer is disclosed only when the channel sets
+ * `UserSettings.channel.signPosts`, which is why `posts.written_by_oxy_user_id`
+ * is absent from the post DTO. A correction is made by exactly such a writer, so
+ * shipping it here would route around that setting and end the anonymity of every
+ * channel that did not opt in — the same reasoning, one table over. It exists for
+ * operator audit and stays server-side; see `listPostCorrections`, which does not
+ * select it.
+ *
+ * ## Retention
+ *
+ * Bounded per post by `MAX_RETAINED_POST_CORRECTIONS`, oldest-superseded-first,
+ * with revision 1 exempt — the version as published is the one a correction trail
+ * exists to preserve. `posts.correction_count` counts corrections MADE, so the
+ * cap can never make a publication look like it rewrote itself less often than it
+ * did; only the intermediate bodies become unreadable, and the gap in `revision`
+ * says exactly where.
+ *
+ * Append-only: a row records that something happened at a moment, so it carries
+ * `created_at` alone (the CONVENTIONS contract for an append-only table) and that
+ * timestamp IS when the correction was made.
+ */
+export const postCorrections = pgTable(
+  'post_corrections',
+  {
+    id: generatedId(),
+    postId: text()
+      .notNull()
+      .references(() => posts.id, { onDelete: 'cascade' }),
+    /**
+     * 1-based, in the order the corrections happened. NOT a row count: retention
+     * deletes intermediate rows and never renumbers, so a gap is a dropped body
+     * rather than a miscount.
+     */
+    revision: integer().notNull(),
+    /** The primary rendition as it read BEFORE this correction. */
+    previousText: text().notNull(),
+    /**
+     * The human who made the correction — an Oxy account id, no foreign key.
+     * Stored for audit, never served; see the module docblock.
+     */
+    correctedByOxyUserId: text().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check('post_corrections_revision_check', sql`${t.revision} >= 1`),
+    // One row per revision of a post, and the only read this table serves —
+    // "this post's trail, in order" — is a leading-prefix scan of it. A separate
+    // index on `post_id` would be redundant with it.
+    unique('post_corrections_post_id_revision_key').on(t.postId, t.revision),
+  ]
+);

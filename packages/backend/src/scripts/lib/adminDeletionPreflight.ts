@@ -48,7 +48,12 @@ import {
 import { contentLabels, labelers, moderationEnforcements, reports } from '../../db/schema/moderation';
 import { endorsementOutbox, engagementOutbox } from '../../db/schema/outbox';
 import { pollVotes, polls } from '../../db/schema/polls';
-import { postAuthorships, postMentions, postRecentRepliers } from '../../db/schema/postContent';
+import {
+  postAuthorships,
+  postCorrections,
+  postMentions,
+  postRecentRepliers,
+} from '../../db/schema/postContent';
 import { posts } from '../../db/schema/posts';
 import { laneMutes, lanes } from '../../db/schema/channels';
 import { mcpConnections } from '../../db/schema/mcp';
@@ -180,6 +185,7 @@ export const POST_REFERENCE_PROBE_NAMES = [
   'federation_delivery_queue.activity_json',
   'likes.post_id',
   'bookmarks.post_id',
+  'post_corrections.post_id',
 ] as const;
 
 export type PostReferenceProbeName = (typeof POST_REFERENCE_PROBE_NAMES)[number];
@@ -310,6 +316,8 @@ function buildPostReferenceProbes(
     'likes.post_id': () => anyRow(likes, likes.id, inArray(likes.postId, idStrings)),
     'bookmarks.post_id': () =>
       anyRow(bookmarks, bookmarks.id, inArray(bookmarks.postId, idStrings)),
+    'post_corrections.post_id': () =>
+      anyRow(postCorrections, postCorrections.id, inArray(postCorrections.postId, idStrings)),
   };
 }
 

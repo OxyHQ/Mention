@@ -20,6 +20,7 @@ import {
 import { logger } from '../utils/logger';
 import { createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { postManagementRefusal } from '../services/postManagementAccess';
+import { resolveAccountKind } from '../services/publishAsAccount';
 
 /**
  * Return the owner's raw author source for editing.
@@ -79,6 +80,8 @@ export const getPostEditSource = async (
       return res.status(refusal.status).json({ message: refusal.message });
     }
 
+    const authorKind = await resolveAccountKind(post.oxyUserId);
+
     const variants = authorVariants(post.content);
     const content: PostContent = {
       text: variants[0]?.text ?? '',
@@ -122,6 +125,16 @@ export const getPostEditSource = async (
       // `NOT NULL` here, so it is always sent rather than conditionally.
       status: post.status,
       ...(post.scheduledFor ? { scheduledFor: post.scheduledFor.toISOString() } : {}),
+      // The other half of the same question. A channel post has no window and
+      // records a correction instead, and the composer must say so rather than
+      // promising a deadline that does not bind it — so the kind rides on the
+      // request the composer already makes, resolved through the same cached
+      // identity read `updatePost` decides the rule from.
+      //
+      // Omitted when the author does not resolve, which is the case the server
+      // answers by APPLYING the window: absent therefore means "assume the
+      // window", and the client needs no separate outage branch.
+      ...(authorKind ? { authorKind } : {}),
     };
     return res.json(response);
   } catch (error) {

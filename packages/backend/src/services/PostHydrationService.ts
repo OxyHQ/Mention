@@ -145,6 +145,9 @@ interface RawPost {
   replyPermission?: string[];
   reviewReplies?: boolean;
   quotesDisabled?: boolean;
+  /** Corrections MADE to this post's body — see `post_corrections`. */
+  correctionCount?: number;
+  lastCorrectedAt?: unknown;
   hashtags?: string[];
   mentions?: unknown[];
   tags?: string[];
@@ -2436,6 +2439,20 @@ export class PostHydrationService {
     const scheduledFor = scheduledAt && !Number.isNaN(scheduledAt.getTime())
       ? scheduledAt.toISOString()
       : undefined;
+    // The correction marker. Both halves are REQUIRED to emit it: a count with no
+    // timestamp could not say when the post changed, and the summary's whole job
+    // is to be openable. Guarded like `scheduledFor` above, and for the same
+    // reason — the column is nullable, so an unparseable value is reachable and
+    // `toISOString()` throws on one, which would fail the entire hydration.
+    const correctedAt = post.lastCorrectedAt
+      ? new Date(post.lastCorrectedAt as string | number | Date)
+      : null;
+    const corrections = typeof post.correctionCount === 'number'
+      && post.correctionCount > 0
+      && correctedAt
+      && !Number.isNaN(correctedAt.getTime())
+      ? { count: post.correctionCount, lastCorrectedAt: correctedAt.toISOString() }
+      : undefined;
     const metadata = {
       visibility: (post.visibility ?? PostVisibility.PUBLIC) as PostVisibility,
       replyPermission: post.replyPermission as import('@mention/shared-types').ReplyPermission[] | undefined,
@@ -2456,6 +2473,7 @@ export class PostHydrationService {
       hashtags: includeFullMetadata && Array.isArray(post.hashtags) && post.hashtags.length > 0 ? post.hashtags : undefined,
       createdAt: new Date((post.createdAt || post.date || Date.now()) as string | number | Date).toISOString(),
       updatedAt: new Date((post.updatedAt || post.createdAt || Date.now()) as string | number | Date).toISOString(),
+      corrections,
       status: post.status as 'draft' | 'published' | 'scheduled' | undefined,
       // Only a scheduled post carries one, and the ACL above already dropped
       // every unpublished post for anyone but its owner/collaborators — so this

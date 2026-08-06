@@ -1411,6 +1411,10 @@
       "manage": "Crea o gestisci canali",
       "alsoPostToProfile": "Pubblica anche sul mio profilo",
       "alsoPostToProfileHint": "Ripubblica il post sul tuo profilo una volta pubblicato."
+    },
+    "editingNotice": "Modifica del post: le modifiche devono essere salvate entro 30 minuti dalla creazione.",
+    "channel": {
+      "editingNotice": "Stai modificando un post già pubblicato. Non c'è limite di tempo e la modifica verrà registrata nella cronologia pubblica delle correzioni di questo post."
     }
   },
   "post": {
@@ -1422,6 +1426,24 @@
       "pickerTitle": "Leggi questo post in",
       "translateTo": "Traduci in",
       "machine": "Traduzione automatica"
+    },
+    "corrections": {
+      "title": "Cronologia delle correzioni",
+      "description": "Tutte le versioni di questo post su Mention",
+      "intro": "Questo post è stato modificato dopo la pubblicazione. Qui sono elencate tutte le versioni che ha avuto, dalla più vecchia alla più recente.",
+      "marker_one": "Corretto una volta",
+      "marker_other": "Corretto {{count}} volte",
+      "viewHistory": "Vedi cronologia",
+      "originalVersion": "Come pubblicato inizialmente",
+      "version": "Versione {{revision}}",
+      "currentVersion": "Versione attuale",
+      "replaced": "Sostituita il {{timestamp}}",
+      "since": "Dal {{timestamp}}",
+      "truncated_one": "1 versione intermedia non è più conservata. I numeri di versione qui sotto la saltano.",
+      "truncated_other": "{{count}} versioni intermedie non sono più conservate. I numeri di versione qui sotto le saltano.",
+      "empty": "Questo post non è stato corretto.",
+      "error": "Impossibile caricare la cronologia delle correzioni di questo post.",
+      "retry": "Riprova"
     }
   },
   "translation.failed": "Traduzione non riuscita. Riprova più tardi.",

@@ -227,6 +227,31 @@ export const posts = pgTable(
     quotesDisabled: boolean().notNull().default(false),
 
     /**
+     * How many times this post's body has been CORRECTED — the public count a
+     * channel post carries, denormalized here so a feed row can say "corrected"
+     * without a per-post lookup.
+     *
+     * It counts corrections MADE, never rows retained. `post_corrections` keeps a
+     * bounded window of superseded bodies (see that table), so an aggregate over
+     * it would silently shrink the moment the cap bit — a trail that quietly
+     * under-reports how often a publication rewrote itself is worse than no trail,
+     * because it reads as authoritative. This column only ever increments.
+     *
+     * Zero for every post that has never been corrected, which is nearly all of
+     * them, and for personal posts always: only a channel post records a
+     * correction (see `updatePost`).
+     */
+    correctionCount: integer().notNull().default(0),
+    /**
+     * When the most recent correction was made.
+     *
+     * Distinct from `updated_at`, which moves for a pin, a lane change or a
+     * settings write — none of which is a correction and none of which a reader
+     * should be told about. NULL means never corrected.
+     */
+    lastCorrectedAt: timestamptz(),
+
+    /**
      * The boosted original. CASCADE: a `type:'boost'` row carries an
      * intentionally EMPTY body and exists only to point here, so with the
      * original gone it can never render anything. Mongo leaves these behind as

@@ -238,6 +238,76 @@ describe('getPostEditSource', () => {
     );
   });
 
+  it("tells the composer the author is a CHANNEL, so it does not promise a deadline", async () => {
+    // The composer shows one of three notices, and the difference is not
+    // cosmetic: a channel post has no 30-minute window at all, so the sentence
+    // about one would be false. The kind is answered here, by the SERVER, out of
+    // the same identity read `updatePost` decides the rule from — a client
+    // re-deriving it could disagree with what the server will actually allow.
+    const post = await insertPostRecord({
+      oxyUserId: CHANNEL,
+      writtenByOxyUserId: OWNER,
+      authorship: [{ oxyUserId: CHANNEL, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: { variants: [{ source: 'author', text: 'from the channel' }] },
+    });
+    resolveUserSummaries.mockResolvedValue(
+      new Map([[CHANNEL, { user: { id: CHANNEL, username: 'thechannel', kind: 'channel' } }]]),
+    );
+
+    const res = responseDouble();
+    await getPostEditSource(request(post.id, OWNER), res as unknown as Response);
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ authorKind: 'channel' }));
+  });
+
+  it('reports an ordinary author as what they are, not as a channel', async () => {
+    // The control. Without it a handler that hardcoded `'channel'`, or that
+    // reported the kind of whoever asked rather than of the author, would pass
+    // the case above.
+    const post = await insertPostRecord({
+      oxyUserId: OWNER,
+      authorship: [{ oxyUserId: OWNER, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: { variants: [{ source: 'author', text: 'my own post' }] },
+    });
+    resolveUserSummaries.mockResolvedValue(
+      new Map([[OWNER, { user: { id: OWNER, username: 'owner', kind: 'personal' } }]]),
+    );
+
+    const res = responseDouble();
+    await getPostEditSource(request(post.id, OWNER), res as unknown as Response);
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ authorKind: 'personal' }));
+  });
+
+  it('omits the kind entirely when the author cannot be resolved', async () => {
+    // Absent is not a gap to fill in with a default: the server APPLIES the
+    // window when it cannot resolve the author, so an absent kind and "the
+    // window binds this post" are the same answer, and the composer needs no
+    // separate outage branch to say the right thing.
+    const post = await insertPostRecord({
+      oxyUserId: OWNER,
+      authorship: [{ oxyUserId: OWNER, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: { variants: [{ source: 'author', text: 'my own post' }] },
+    });
+    resolveUserSummaries.mockRejectedValue(new Error('oxy unreachable'));
+
+    const res = responseDouble();
+    await getPostEditSource(request(post.id, OWNER), res as unknown as Response);
+
+    expect(res.status).not.toHaveBeenCalled();
+    const [payload] = res.json.mock.calls[0] as [Record<string, unknown>];
+    expect('authorKind' in payload).toBe(false);
+  });
+
   it('refuses the same channel post to somebody who neither wrote it nor operates it', async () => {
     // The vacuity floor for the case above: admitting the WRITER must not be
     // admitting everybody. `OTHER` wrote nothing and Oxy resolves no membership

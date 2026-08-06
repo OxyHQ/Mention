@@ -27,6 +27,7 @@ import {
   getLocationStats,
   getPostLikes,
   getKnownPostLikers,
+  getPostCorrections,
   getPostBoosts,
   translatePost,
   translateDraft,
@@ -118,6 +119,12 @@ publicPostsRouter.get('/saved', getSavedPosts);
 // anonymous viewer could not already see — it is scoped to the viewer's own
 // follow graph, so signed-out callers get an empty result rather than a 401.
 publicPostsRouter.get('/:id/likes/known', getKnownPostLikers);
+
+// A channel post's public correction trail. Public for the same reason the post
+// detail below is: a publication corrects in the open, and most of the people it
+// owes that to are not signed in. The handler hydrates the post first and 404s
+// when this viewer may not read it, so it discloses nothing `/:id` would not.
+publicPostsRouter.get('/:id/corrections', getPostCorrections);
 
 // Public post detail — parameterized, MUST be registered LAST so every literal
 // read above resolves first. Anonymous viewers receive ONLY public+published
