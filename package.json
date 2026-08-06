@@ -2,7 +2,7 @@
   "name": "mention",
   "version": "2.0.0",
   "description": "Mention frontend, backend, shared contracts, and MCP server",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "private": true,
   "packageManager": "bun@1.3.14",
   "workspaces": {
