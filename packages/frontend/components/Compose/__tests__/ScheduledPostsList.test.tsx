@@ -46,6 +46,13 @@ jest.mock('@/utils/alerts', () => ({ confirmDialog: (...args: unknown[]) => mock
 jest.mock('@oxyhq/core/logger', () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() }),
 }));
+// `@oxyhq/core` ships ESM that jest does not transform, so it is stubbed at the
+// one symbol this component uses — the same shape `CollaboratorsList.test.tsx`
+// takes. Returning the username IS the real behaviour for a local account, which
+// is what every channel is.
+jest.mock('@oxyhq/core', () => ({
+  getNormalizedUserHandle: (user?: { username?: string }) => user?.username,
+}));
 
 /** Far enough ahead that the row is never accidentally past due. */
 const SCHEDULED_AT = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -250,5 +257,77 @@ describe('ScheduledPostsList', () => {
     expect(textContent(tree)).toContain('No scheduled posts');
 
     act(() => tree.unmount());
+  });
+
+  /**
+   * WHOSE QUEUE AN ENTRY IS IN.
+   *
+   * This list stopped being only the reader's own: `GET /posts/scheduled` merges
+   * in the shared editorial queue of every channel they operate, so two people
+   * publishing under one byline can see each other's plans. Unlabelled, a
+   * channel's entry is indistinguishable from your own — which is the confusion
+   * the feature exists to remove, reintroduced one layer up.
+   *
+   * It names the ACCOUNT and never the person who queued it. A channel's writers
+   * are anonymous unless the channel signs its posts, and that decision is made
+   * on the server — when it says yes, the writer already arrives in `authors[]`
+   * and the preview's byline draws them. This row therefore has no disclosure
+   * judgement of its own to get wrong.
+   */
+  describe('attribution', () => {
+    const CHANNEL = {
+      id: 'channel-1',
+      username: 'techweekly',
+      name: { displayName: 'Tech Weekly' },
+    };
+
+    function channelEntry(user: HydratedPost['user']): HydratedPost {
+      return { ...post(), user };
+    }
+
+    it('names the account when the entry is not the reader’s own', () => {
+      const tree = renderList({
+        posts: [channelEntry(CHANNEL)],
+        viewerId: 'viewer-1',
+      });
+
+      expect(textContent(tree)).toContain('Tech Weekly');
+
+      act(() => tree.unmount());
+    });
+
+    it('says nothing on the reader’s OWN entry', () => {
+      // The fixture's author IS `viewer-1`. Labelling every personal row "you"
+      // would be noise on the common case, and its absence already reads as mine.
+      const tree = renderList({ posts: [post()], viewerId: 'viewer-1' });
+
+      expect(textContent(tree)).not.toContain('Author');
+
+      act(() => tree.unmount());
+    });
+
+    it('falls back to the handle when the account has no display name', () => {
+      // `name` itself is REQUIRED on a user DTO; it is `name.displayName` that is
+      // optional, and absent is the ordinary shape for an unresolved account.
+      const tree = renderList({
+        posts: [channelEntry({ ...CHANNEL, name: {} })],
+        viewerId: 'viewer-1',
+      });
+
+      expect(textContent(tree)).toContain('techweekly');
+
+      act(() => tree.unmount());
+    });
+
+    it('labels nothing at all while the session is still restoring', () => {
+      // `viewerId` is absent for the moment between mount and the session
+      // landing. Labelling then would mark the reader's OWN posts as somebody
+      // else's, which is worse than labelling nothing.
+      const tree = renderList({ posts: [channelEntry(CHANNEL)] });
+
+      expect(textContent(tree)).not.toContain('Tech Weekly');
+
+      act(() => tree.unmount());
+    });
   });
 });

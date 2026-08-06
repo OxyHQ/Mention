@@ -119,11 +119,14 @@ export function noteChannelBylineChanged(channelOxyUserId: string): void {
       // byline the server has just rewritten:
       //   `posts`       — the post detail behind a notification, and a profile's
       //                   pinned post, which on a channel's page is the channel's
-      //                   own. `scheduledPosts` rides in the same family and is
-      //                   collateral rather than a target: `GET /posts/scheduled`
-      //                   matches `oxyUserId: <caller>`, and a post published as a
-      //                   channel carries the CHANNEL's id, so an operator's
-      //                   scheduled list cannot hold one.
+      //                   own. `scheduledPosts` rides in the same family and IS a
+      //                   target: `GET /posts/scheduled` now returns the shared
+      //                   editorial queue of every channel the caller operates, so
+      //                   an operator's scheduled list holds channel posts whose
+      //                   byline this change rewrites. (It used to be collateral —
+      //                   the read was owner-scoped and a channel's post reached
+      //                   nobody's queue. The invalidation was already correct;
+      //                   only the reason it fires has changed.)
       //   `saved-posts` — the saved screen, React Query's own post list.
       //   `search`      — the posts tab.
       //   `notifications` — rows embed the post they are about, and the server

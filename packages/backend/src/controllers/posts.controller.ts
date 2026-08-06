@@ -87,6 +87,7 @@ import type { AccountKind } from '@oxyhq/contracts';
 import {
   assertCanPublishAsAccount,
   cacheAccountMemberReads,
+  listOperatedChannelIds,
   PublishAsAccessError,
 } from '../services/publishAsAccount';
 import { postManagementRefusal } from '../services/postManagementAccess';
@@ -2067,8 +2068,16 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // parent is still scheduled simply waits — but it would show the author a
     // queue with three different times for one thread and publish it in dribs.
     // After the write, so a failed edit cannot move anything.
+    //
+    // Scoped to the post's OWNER, never the caller. A channel's thread is owned
+    // by the channel, so walking it as the caller matched nothing and moved the
+    // edited post alone — silently producing the exact split queue this block
+    // exists to prevent, with no error anywhere. The caller's right to be here at
+    // all was settled by `postManagementRefusal` above; this only has to name the
+    // account whose chain it is.
     if (rescheduledTo) {
-      const chain = await loadScheduledChain(post.id, userId);
+      const chainOwnerId = post.oxyUserId ? String(post.oxyUserId) : userId;
+      const chain = await loadScheduledChain(post.id, chainOwnerId);
       if (chain.ok) {
         const others = chain.postIds.filter((id) => id !== post.id);
         if (others.length > 0) {
@@ -2077,7 +2086,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
             .set({ scheduledFor: rescheduledTo })
             .where(and(
               inArray(postsTable.id, others),
-              eq(postsTable.oxyUserId, userId),
+              eq(postsTable.oxyUserId, chainOwnerId),
               eq(postsTable.status, 'scheduled'),
             ));
         }
@@ -3197,10 +3206,18 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
  * exact method rather than reimplementing publishing in a controller; the post
  * takes the identical pipeline, only sooner.
  *
- * Ownership and the publish decision are both server-side and both inside ONE
- * atomic claim: the update filters on `oxyUserId` AND `status: 'scheduled'`, so a
- * non-owner cannot publish someone else's post, and nothing can publish twice —
- * not even the sweep running concurrently, which selects on the same filter.
+ * The publish decision stays inside ONE atomic claim: the update filters on the
+ * post's OWNER and `status: 'scheduled'`, so nothing can publish twice — not even
+ * the sweep running concurrently, which selects on the same filter.
+ *
+ * **The owner is the post's `oxyUserId`, which is NOT the caller.** For a channel
+ * post it is the channel — an account nobody can be signed in as — so passing the
+ * caller here (as this did) made every channel's scheduled post unpublishable by
+ * everybody, the writer included, while `DELETE /posts/:id` had already been
+ * widened to let any member CANCEL that same post. Authorization is therefore
+ * asked SEPARATELY, of `postManagementRefusal` — the one authority the other six
+ * management routes use — and the owner it resolves is what scopes the claim. The
+ * claim is no weaker for it: it still names one exact account, just the right one.
  *
  * **Publishing one post of a scheduled THREAD publishes the thread.** Its posts
  * are replies to one another, so there is no coherent way to send just one:
@@ -3216,7 +3233,37 @@ export const publishScheduledPostNow = async (req: AuthRequest, res: Response) =
     }
 
     const targetId = String(req.params.id);
-    const chain = await loadScheduledChain(targetId, userId);
+
+    // Two columns, not a whole `PostRecord`: this read only has to answer "may
+    // the caller manage this post, and whose queue is it in". Assembling the
+    // content graph for that would be nine joins on the way to a decision that
+    // reads neither. Same shape, and the same order, as `deletePost`.
+    const [target] = await getDb()
+      .select({
+        oxyUserId: postsTable.oxyUserId,
+        writtenByOxyUserId: postsTable.writtenByOxyUserId,
+      })
+      .from(postsTable)
+      .where(eq(postsTable.id, targetId))
+      .limit(1);
+    if (!target) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+    const publishRefusal = await postManagementRefusal({
+      post: target,
+      callerId: userId,
+      memberReader: createUserScopedOxyServices(req),
+    });
+    if (publishRefusal) {
+      return res.status(publishRefusal.status).json({ message: publishRefusal.message });
+    }
+    // The account the chain and the claim are scoped to. Falls back to the caller
+    // only for a post with no owner at all, which is a federated row — one that
+    // `postManagementRefusal` has already refused above, so this is a total
+    // function rather than a reachable branch.
+    const ownerId = target.oxyUserId ? String(target.oxyUserId) : userId;
+
+    const chain = await loadScheduledChain(targetId, ownerId);
     if (!chain.ok) {
       return res.status(409).json({
         message: 'This post continues a thread that has not been published yet.',
@@ -3228,7 +3275,7 @@ export const publishScheduledPostNow = async (req: AuthRequest, res: Response) =
     // scheduled and publishes at its own time, still in order.
     let published: PostRecord | null = null;
     for (const postId of chain.postIds) {
-      const result = await postCreationService.claimAndPublishScheduledPost({ postId, ownerId: userId });
+      const result = await postCreationService.claimAndPublishScheduledPost({ postId, ownerId });
       if (postId === targetId) {
         published = result;
       }
@@ -3238,16 +3285,17 @@ export const publishScheduledPostNow = async (req: AuthRequest, res: Response) =
     }
 
     if (!published) {
-      // The claim missed. Tell the OWNER why — a post of theirs that already
-      // went out is a different situation from one that never existed — but only
-      // after proving ownership, so this can never confirm the existence of
-      // someone else's post.
+      // The claim missed. Tell the caller why — a post that already went out is a
+      // different situation from one that never existed — which is safe to
+      // distinguish here because `postManagementRefusal` above has already
+      // established they may manage this post. Scoped to the resolved OWNER, so
+      // it still reports on the row the claim actually tried.
       const [own] = await getDb()
         .select({ status: postsTable.status })
         .from(postsTable)
         .where(and(
-          eq(postsTable.id, String(req.params.id)),
-          eq(postsTable.oxyUserId, userId),
+          eq(postsTable.id, targetId),
+          eq(postsTable.oxyUserId, ownerId),
         ))
         .limit(1);
       if (own && own.status === 'published') {
@@ -3279,19 +3327,54 @@ export const publishScheduledPostNow = async (req: AuthRequest, res: Response) =
 };
 
 /**
- * The caller's own pending scheduled posts, soonest first.
+ * The pending scheduled posts this caller can act on, soonest first: their own,
+ * plus the SHARED EDITORIAL QUEUE of every channel they operate.
  *
- * Hydrated like every other post listing, so the composer can PREVIEW one
- * through the same renderer the feed uses — media resolved to display URLs,
- * author, poll, quote and language variants all built by the one service that
- * knows how. Serving raw lean documents here (as this did) forced the client to
- * reimplement a slice of hydration, which drifts the moment either side changes.
+ * ## Why the channel half exists
  *
- * Access control is enforced TWICE, both server-side: the query is scoped to
- * `oxyUserId`, and `PostHydrationService` — the single ACL authority — drops any
- * post whose `status` is not `published` for a viewer who does not own it. A
- * non-owner therefore cannot obtain a scheduled post here even if the query
- * scoping were ever loosened.
+ * Several people publish under one channel's byline, and scheduling was private
+ * to each author — so two writers could schedule a story for the same Tuesday and
+ * neither would know. Worse, and measured rather than inferred: a channel AUTHORS
+ * its own posts, so a scheduled channel post carries the CHANNEL as `oxy_user_id`
+ * — an account nobody can sign in as — and the owner-scoped query below returned
+ * it to NOBODY, *including the person who scheduled it*. It could only ever leave
+ * the queue via the 60-second sweep.
+ *
+ * ## Whose queue an entry belongs to is already in the DTO
+ *
+ * Each post's `user` IS its authoring account, so the client groups by
+ * `post.user.id` with no extra field, no second request and no parallel notion of
+ * "queue" to keep in sync with the posts themselves.
+ *
+ * ## Access control, still enforced twice and now agreeing
+ *
+ * The query admits an account only after {@link listOperatedChannelIds} confirms
+ * an ACTIVE membership through the caller's OWN bearer, and hydration — the
+ * single ACL authority — is told the same set, so a post reaches the response
+ * only if BOTH agree. The two gates are fed from one resolution, so they cannot
+ * drift; loosening the query alone would still return nothing.
+ *
+ * Fail-soft to `[]` (that resolver's own contract), so an Oxy outage degrades
+ * this to the personal queue it has always been rather than 500-ing the
+ * composer. It can never ADD an account, which is the direction that would
+ * matter.
+ *
+ * ## Seeing and acting are the SAME right here, deliberately
+ *
+ * Membership is the strongest right that exists over a channel — it can never be
+ * acted as — so there is nothing stronger to demand of someone publishing an
+ * entry early than of someone reading it. `postManagementRefusal` already lets
+ * any active member DELETE and EDIT these exact posts, so this restores
+ * `affordance ⊆ permission` rather than stretching it: the read had been the
+ * narrow half, not the wide one.
+ *
+ * ## WHO QUEUED IT is `signPosts`' decision, and is not made here
+ *
+ * These are hydrated by the same `PostHydrationService` as every other listing,
+ * so an entry names its writer in `authors[]` exactly when the channel signs its
+ * posts, and `writtenByOxyUserId` never crosses the wire either way. This surface
+ * therefore makes NO new disclosure: it shows a member precisely what the
+ * published post would have shown them.
  */
 export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
   try {
@@ -3300,8 +3383,16 @@ export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
+    // ONE resolution feeding both gates below. Asked with the caller's own client
+    // because `GET /accounts` is anchored on the authenticated operator — a
+    // service credential cannot ask "which accounts does person X operate" at all.
+    const operatedChannelIds = await listOperatedChannelIds(createUserScopedOxyServices(req));
+
     const scheduledPosts = await findPostRecords(
-      and(eq(postsTable.oxyUserId, userId), eq(postsTable.status, 'scheduled')),
+      and(
+        inArray(postsTable.oxyUserId, [userId, ...operatedChannelIds]),
+        eq(postsTable.status, 'scheduled'),
+      ),
       { orderBy: [asc(postsTable.scheduledFor), asc(postsTable.id)] },
     );
 
@@ -3311,6 +3402,7 @@ export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
+      operatedAccountIds: operatedChannelIds,
     });
 
     res.json({ posts: hydratedPosts });

@@ -1,0 +1,36 @@
+-- A CHANNEL'S SCHEDULED QUEUE IS READ BY ITS MEMBERS, NOT BY ITS OWNER.
+--
+-- `GET /posts/scheduled` used to read one account's pending posts. It now reads
+-- the caller's own UNION those of every channel they operate, because a channel
+-- AUTHORS its own posts and no session can ever have a channel as its subject —
+-- so a scheduled channel post was returned to nobody at all, the person who
+-- wrote it included.
+--
+-- WHY A SECOND SCHEDULED INDEX. `posts_scheduled_idx` (on `scheduled_for`,
+-- partial) serves the 60-second publisher sweep, which wants every DUE post
+-- regardless of owner. It cannot serve a per-account read: with only that index
+-- the planner walks the whole site-wide scheduled set in `scheduled_for` order
+-- and filters on the owner, so one member's queue costs a scan proportional to
+-- what EVERYBODY ELSE has scheduled. Measured on 403,000 posts of which 3,000
+-- scheduled, reading 20 accounts' entries:
+--
+--   posts_scheduled_idx only  200 rows returned, 2,800 removed by filter, 0.407 ms
+--   post_owner_scheduled_v1   200 rows returned,     0 removed by filter, 0.125 ms
+--
+-- The absolute numbers are small. The COUPLING is the defect: it grows with
+-- global scheduled volume rather than with the caller's own queue.
+--
+-- PARTIAL on `status = 'scheduled'` is what makes this nearly free, and it is the
+-- Postgres spelling of the rule the Mongo schema stated as
+-- `partialFilterExpression` (never `sparse`, which indexes a document when ANY
+-- indexed key exists and would therefore have indexed the whole table here). A
+-- post enters this index when it is scheduled and leaves when it publishes, so
+-- it covers a set that drains every 60 seconds. The reading query carries
+-- `status = 'scheduled'` as a literal term so the planner can prove eligibility.
+--
+-- NOT ONLINE, matching `0021`, `0004` and `0003`: `CREATE INDEX CONCURRENTLY`
+-- cannot run inside the migrator's transaction. The argument is stronger here
+-- than in any of those — this indexes only unpublished, not-yet-due posts, a set
+-- bounded by how much is scheduled at that instant rather than by the table, so
+-- the build is short. There is no table rewrite and no column change.
+CREATE INDEX "post_owner_scheduled_v1" ON "posts" USING btree ("oxy_user_id","scheduled_for") WHERE "posts"."status" = 'scheduled';

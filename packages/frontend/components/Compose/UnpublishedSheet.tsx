@@ -99,6 +99,7 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
     refetch,
     cancelScheduledPost,
     publishScheduledPostNow,
+    viewerId,
   } = useScheduledPosts();
 
   const showDrafts = useCallback(() => setActiveTab('drafts'), []);
@@ -203,6 +204,7 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
           onPreview={openPreview}
           onEdit={editPost}
           onCancel={cancelScheduledPost}
+          viewerId={viewerId}
         />
       )}
     </View>

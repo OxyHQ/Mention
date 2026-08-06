@@ -207,6 +207,26 @@ interface HydrationOptions {
    * number, wasted on every feed request that does not.
    */
   includeQuoteCounts?: boolean;
+  /**
+   * Accounts this viewer OPERATES — today, the channels they are an active member
+   * of, as resolved by `listOperatedChannelIds`.
+   *
+   * A channel AUTHORS its own posts, so `oxyUserId` on a channel post is an
+   * account NOBODY can be signed in as (`isActAsEligibleKind` refuses a channel as
+   * a session subject). The ACL's ownership test is an id comparison against that
+   * author, so without this every unpublished channel post is unreadable by every
+   * human alive — measured, including by the person who wrote it.
+   *
+   * OPT-IN, and deliberately so: resolving it costs an Oxy `GET /accounts` round
+   * trip, which must never land on a feed hydration. Only a caller that is
+   * already asking an account-scoped question passes it (`getScheduledPosts`),
+   * and every other surface hydrates with an empty set and is bit-for-bit
+   * unchanged.
+   *
+   * It widens READ only. What a member may DO with the post they can now see is
+   * still `postManagementRefusal`'s answer, asked per action on the write routes.
+   */
+  operatedAccountIds?: readonly string[];
 }
 
 interface HydratedGraphNode {
@@ -240,6 +260,12 @@ interface ViewerContext {
   boostedPosts: Set<string>;
   /** Author IDs with private or followers_only profile visibility */
   privateProfileIds: Set<string>;
+  /**
+   * Accounts the viewer operates, from {@link HydrationOptions.operatedAccountIds}.
+   * EMPTY on every caller that does not opt in, which is every caller but the
+   * scheduled queue — see that option for why this is not resolved here.
+   */
+  operatedAccountIds: Set<string>;
 }
 
 interface ExtendedViewerContext extends ViewerContext {
@@ -1178,6 +1204,7 @@ export class PostHydrationService {
       savedPosts: new Set<string>(),
       boostedPosts: new Set<string>(),
       privateProfileIds: new Set<string>(),
+      operatedAccountIds: new Set<string>(options?.operatedAccountIds ?? []),
       includeFullArticleBody: options?.includeFullArticleBody ?? true,
       includeFullMetadata: options?.includeFullMetadata ?? true,
     };
@@ -2050,10 +2077,31 @@ export class PostHydrationService {
     // collab-invite UI can render the actual content before they accept),
     // alongside the owner and accepted collaborators. All three bypass the
     // unpublished/private/followers-only/restricted ACL checks below.
+    //
+    // The last two clauses are the CHANNEL cases, and they exist because the id
+    // comparison above answers "no" for every human on a channel's post: a
+    // channel AUTHORS its own posts, and no session can ever have a channel as
+    // its subject. Without them an unpublished channel post is readable by
+    // nobody at all — not a narrow gap, a black hole, and measured as one.
+    //
+    //  - `canManagePostWithoutLookup` covers the WRITER, off two columns already
+    //    in hand and with no lookup. It is the SAME predicate `buildViewerState`
+    //    uses for `isOwner`, which is what makes the two agree: the DTO used to
+    //    be able to say `isOwner: true` about a post this gate would refuse.
+    //  - `operatedAccountIds` covers the writer's CO-OPERATORS, and is empty
+    //    unless the caller opted in (see `HydrationOptions.operatedAccountIds`),
+    //    so no feed pays an Oxy round trip for it.
+    //
+    // Both are strictly narrower than what the write routes already permit:
+    // `postManagementRefusal` lets any active member DELETE and EDIT this exact
+    // post today. Granting them READ removes an inconsistency rather than
+    // creating one.
     const viewerOwnsPost =
       viewerContext.viewerId === authorId ||
       (viewerEntry?.role === 'collaborator' &&
-        (viewerEntry.status === 'accepted' || viewerEntry.status === 'pending'));
+        (viewerEntry.status === 'accepted' || viewerEntry.status === 'pending')) ||
+      canManagePostWithoutLookup(post, viewerContext.viewerId) ||
+      (Boolean(viewerContext.viewerId) && viewerContext.operatedAccountIds.has(authorId));
 
     if ((post.status ?? 'published') !== 'published' && !viewerOwnsPost) {
       return false;
