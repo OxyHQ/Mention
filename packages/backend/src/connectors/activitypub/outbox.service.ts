@@ -6,9 +6,8 @@ import {
   markOutboxBackfillUnavailable as markActorOutboxBackfillUnavailable,
 } from '../../db/federation/actorRepository';
 import { getDb } from '../../db/postgres';
-import { isUniqueViolation } from '../../db/pgErrors';
+import { isUniqueViolation, uuidv7 } from '@oxyhq/db';
 import { posts } from '../../db/schema/posts';
-import { uuidv7 } from '../../db/schema/columns';
 import {
   bumpPostCounters,
   CHRONO_DESC,

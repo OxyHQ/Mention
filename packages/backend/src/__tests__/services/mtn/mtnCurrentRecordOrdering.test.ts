@@ -83,7 +83,7 @@ import {
   mentionSignedRecords,
   mentionUserNodes,
 } from '../../../db/schema/mtn';
-import { uuidv7 } from '../../../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import {
   MTN_CHAIN_STATUS,
   MentionRecordStoreImpl,

@@ -19,11 +19,11 @@
  * `getDb()`.
  */
 
-import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type postgres from 'postgres';
+import { createDatabase } from '@oxyhq/db';
 import { config } from '../config';
 import { logger } from '../utils/logger';
-import { DATABASE_CASING } from './casing';
 import * as schema from './schema';
 
 /** Seconds `closePostgres` waits for in-flight queries before forcing the socket shut. */
@@ -76,12 +76,21 @@ export async function connectPostgres(): Promise<Database> {
   }
 
   const maxPoolSize = config.postgres.maxPoolSize;
-  const instanceClient = postgres(url, {
-    max: maxPoolSize,
-    idle_timeout: config.postgres.idleTimeoutSeconds,
-    connect_timeout: config.postgres.connectTimeoutSeconds,
-    max_lifetime: config.postgres.maxLifetimeSeconds,
-    onnotice: (notice) => logger.debug('Postgres notice', { notice: notice.message }),
+  // `createDatabase` is what guarantees this handle is built with
+  // `DATABASE_CASING`: drizzle applies `casing` at RUNTIME when building SQL,
+  // drizzle-kit applies it at GENERATE time when emitting DDL, and they must
+  // agree or queries reference columns the migrations never created — see
+  // `@oxyhq/db`'s `casing.ts`.
+  const created = createDatabase({
+    databaseUrl: url,
+    schema,
+    client: {
+      max: maxPoolSize,
+      idle_timeout: config.postgres.idleTimeoutSeconds,
+      connect_timeout: config.postgres.connectTimeoutSeconds,
+      max_lifetime: config.postgres.maxLifetimeSeconds,
+      onnotice: (notice) => logger.debug('Postgres notice', { notice: notice.message }),
+    },
   });
 
   // postgres.js connects lazily, so constructing the pool proves nothing. Issue
@@ -89,18 +98,14 @@ export async function connectPostgres(): Promise<Database> {
   // startup instead of on the first user request — and only publish the handle
   // once that round trip succeeded.
   try {
-    await instanceClient`select 1`;
+    await created.client`select 1`;
   } catch (error) {
-    await instanceClient.end({ timeout: CLOSE_TIMEOUT_SECONDS });
+    await created.client.end({ timeout: CLOSE_TIMEOUT_SECONDS });
     throw error;
   }
 
-  client = instanceClient;
-  // Drizzle applies `casing` at RUNTIME when building SQL; drizzle-kit applies
-  // it at GENERATE time when emitting DDL. They must agree or queries reference
-  // columns the migrations never created — so both read the SAME constant, and
-  // `db/casing.ts` owns it.
-  db = drizzle(instanceClient, { schema, casing: DATABASE_CASING });
+  client = created.client;
+  db = created.db;
 
   logger.info('Connected to PostgreSQL successfully', { maxPoolSize });
   return db;

@@ -43,7 +43,7 @@
 import { eq, getTableColumns, is } from 'drizzle-orm';
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { getPostgresClient, type Database } from '../postgres';
-import { sqlColumnName } from '../casing';
+import { sqlColumnName } from '@oxyhq/db';
 import {
   auditColumnCoverageForPlan,
   auditDefaultedColumns,

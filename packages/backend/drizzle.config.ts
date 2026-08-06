@@ -1,5 +1,5 @@
 import { defineConfig } from 'drizzle-kit';
-import { DATABASE_CASING } from './src/db/casing';
+import { DATABASE_CASING } from '@oxyhq/db';
 
 /**
  * drizzle-kit configuration.
@@ -14,9 +14,9 @@ import { DATABASE_CASING } from './src/db/casing';
  *   migration in production. Dev, CI, the vitest harness and production all run
  *   that one migrator; see its docblock.
  *
- * `casing` decides what the DDL CREATES; the same value passed to `drizzle()` in
- * `src/db/postgres.ts` decides what queries REFERENCE. Both read it from
- * `src/db/casing.ts` so they cannot drift apart.
+ * `casing` decides what the DDL CREATES; the same value passed to `createDatabase()`
+ * in `src/db/postgres.ts` decides what queries REFERENCE. Both read it from
+ * `@oxyhq/db`'s `casing.ts` so they cannot drift apart.
  */
 
 const url = process.env.DATABASE_URL;

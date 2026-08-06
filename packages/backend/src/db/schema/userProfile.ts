@@ -21,7 +21,7 @@ import {
   text,
   unique,
 } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, timestamptz, updatedAt } from './columns';
+import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxyhq/db';
 
 /** `ThemeMode`. */
 export const THEME_MODES = ['light', 'dark', 'system', 'adaptive'] as const;

@@ -22,7 +22,7 @@
  * rejecting it does.
  */
 
-import { isLiveEntityId } from '../../db/ids';
+import { isLiveEntityId } from '@oxyhq/db';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema';
 import { and, eq, gt, lt, or, sql, type SQL } from 'drizzle-orm';

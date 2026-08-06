@@ -34,7 +34,7 @@
 import { sql } from 'drizzle-orm';
 import { check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { LANE_DISPLAY_MODES } from '@mention/shared-types';
-import { createdAt, generatedId, inList, updatedAt } from './columns';
+import { createdAt, generatedId, inList, updatedAt } from '@oxyhq/db';
 
 /** `lanes` — a publisher's named track, curating the profile it shows on. */
 export const lanes = pgTable(

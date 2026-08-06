@@ -16,7 +16,7 @@
 
 import { sql } from 'drizzle-orm';
 import { boolean, check, index, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, updatedAt } from './columns';
+import { createdAt, generatedId, inList, updatedAt } from '@oxyhq/db';
 
 /** `IThreadgate.allow[].type`. */
 export const THREADGATE_ALLOW_TYPES = [

@@ -38,9 +38,9 @@ write it out, one entry per table.
 not pass an explicit column name unless the SQL name genuinely differs from the
 property.
 
-**`db/casing.ts` is the naming authority.** `DATABASE_CASING` is read by
-`drizzle()` (what queries reference), by `drizzle.config.ts` (what the DDL
-creates), and by `sqlColumnName`. One setting, not three copies.
+**`@oxyhq/db`'s `casing.ts` is the naming authority.** `DATABASE_CASING` is read
+by `createDatabase()` (what queries reference), by `drizzle.config.ts` (what the
+DDL creates), and by `sqlColumnName`. One setting, not three copies.
 
 > **Trap:** `column.name` on a drizzle column is the TypeScript **property** name
 > (`expiresAt`), never the SQL name (`expires_at`) — casing is applied when SQL
@@ -57,7 +57,7 @@ creates), and by `sqlColumnName`. One setting, not three copies.
 > of its columns to each other, and the query returns `[]` **with no error at
 > all**. This shipped in the sibling oxy-api port: follow counts read zero on
 > every public profile until a test caught it. Qualify every correlated reference
-> with `qualified(column)` from `db/casing.ts`, and treat "a correlated subquery
+> with `qualified(column)` from `@oxyhq/db`, and treat "a correlated subquery
 > returned nothing" as a bug in the SQL until proven otherwise.
 >
 > Related: `${col} <> all(${jsArray})` binds a TUPLE, not an array, and Postgres

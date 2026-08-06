@@ -40,7 +40,7 @@
 
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb, type Transaction } from '../db/postgres';
-import type { SelectedRow } from '../db/schema/columns';
+import type { SelectedRow } from '@oxyhq/db';
 import { bookmarks, likes } from '../db/schema/engagement';
 import { posts } from '../db/schema/posts';
 import {

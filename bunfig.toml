@@ -37,6 +37,7 @@ minimumReleaseAgeExcludes = [
   "@oxyhq/crowdsource-contracts",
   "@oxyhq/crowdsource-express",
   "@oxyhq/crowdsource-testing",
+  "@oxyhq/db",
   "@oxyhq/federation",
   "@oxyhq/protocol",
   "@oxyhq/services",

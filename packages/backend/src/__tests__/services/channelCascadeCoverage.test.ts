@@ -49,7 +49,7 @@ import {
  *
  * The shape regex survived the port UNCHANGED, and that is not luck: `column.name`
  * on a drizzle column is the camelCase PROPERTY name, never the snake_case SQL
- * name — casing is applied at runtime by `drizzle()` (`db/casing.ts`), not in the
+ * name — casing is applied at runtime by `drizzle()` (`@oxyhq/db`), not in the
  * table definitions. So the same `Id$`/`Ids$`/`Uri$` shapes the Mongoose schema
  * paths had are the shapes the drizzle columns have. A regex written against
  * `post_id` would have matched NOTHING and passed vacuously, which is the trap

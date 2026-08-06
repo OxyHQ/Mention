@@ -110,7 +110,7 @@ export function tableShape(table: PgTable): TableShape {
   for (const column of config.columns) {
     // `column.name` on a drizzle column is the TypeScript PROPERTY name, which
     // is exactly what `values()` is keyed by. It is NOT the SQL name — that is
-    // `sqlColumnName(column)` from `db/casing.ts`, and conflating the two is
+    // `sqlColumnName(column)` from `@oxyhq/db`, and conflating the two is
     // the trap that file exists to close.
     const property = column.name;
     properties.add(property);

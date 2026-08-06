@@ -51,7 +51,7 @@ vi.mock('@oxyhq/core/server', async (importOriginal) => {
 
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { laneMutes, lanes } from '../../db/schema/channels';
-import { uuidv7 } from '../../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import lanesRouter, { publicLanesRouter } from '../../routes/lanes.routes';
 import { clearPostScope, postScope, readPostRow, seedPost } from '../helpers/postFixtures';
 

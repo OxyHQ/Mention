@@ -20,7 +20,7 @@ import {
   MissingMigrationTargetError,
   readTargetDatabase,
   WrongMigrationTargetError,
-} from '../../db/targetDatabase';
+} from '@oxyhq/db/migrate';
 
 describe('readTargetDatabase', () => {
   it('REFUSES an argv with no --target-database at all', () => {

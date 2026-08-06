@@ -39,7 +39,7 @@ import type { OxyAuthRequest } from '@oxyhq/core/server';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { accountLists } from '../../db/schema/lists';
 import { ENTITY_FOLLOW_TYPES, entityFollows } from '../../db/schema/engagement';
-import { uuidv7 } from '../../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { canViewList } from '../../services/listAccess';
 import entityFollowRouter from '../../routes/entity-follow.routes';
 

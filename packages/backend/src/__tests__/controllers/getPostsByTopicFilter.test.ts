@@ -8,7 +8,7 @@ import { PostType, PostVisibility } from '@mention/shared-types';
  * These used to assert the Mongo filter OBJECT each builder returned, which
  * proved only that the builder produced the literal someone typed into the test.
  * Both are now correlated `EXISTS` / array-containment SQL — the exact shapes
- * that render a bare column and silently match NOTHING (see `db/casing.ts`) —
+ * that render a bare column and silently match NOTHING (see `@oxyhq/db`) —
  * and an empty topic page is indistinguishable from "nobody posted about that",
  * so a shape assertion cannot guard them and a row assertion can.
  *

@@ -23,7 +23,7 @@
 
 import { sql } from 'drizzle-orm';
 import { boolean, check, index, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, updatedAt } from './columns';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { posts } from './posts';
 
 export const polls = pgTable(

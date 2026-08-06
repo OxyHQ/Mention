@@ -30,7 +30,7 @@ import {
   unique,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, timestamptz, tsvector, updatedAt } from './columns';
+import { createdAt, generatedId, inList, timestamptz, tsvector, updatedAt } from '@oxyhq/db';
 import { posts } from './posts';
 
 /** `PostAuthorRole` — exactly one `owner` per post, plus up to 5 collaborators. */

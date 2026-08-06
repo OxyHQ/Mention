@@ -38,15 +38,15 @@
  */
 
 import { and, asc, gt, inArray, isNotNull, sql } from 'drizzle-orm';
-import { qualified } from '../db/casing';
 import { getDb, type Transaction } from '../db/postgres';
 import {
   DEADLOCK_DETECTED,
   SERIALIZATION_FAILURE,
   isForeignKeyViolation,
   isUniqueViolation,
+  qualified,
   sqlStateOf,
-} from '../db/pgErrors';
+} from '@oxyhq/db';
 import { bookmarks } from '../db/schema/engagement';
 import { postRecentRepliers } from '../db/schema/postContent';
 import { posts } from '../db/schema/posts';

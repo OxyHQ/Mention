@@ -57,7 +57,7 @@ import {
   inList,
   timestamptz,
   updatedAt,
-} from './columns';
+} from '@oxyhq/db';
 
 /**
  * `PostType` (`@mention/shared-types`). Declared as a local tuple so the column

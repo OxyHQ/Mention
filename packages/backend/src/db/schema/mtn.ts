@@ -43,7 +43,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
-import { createdAt, generatedId, inList, timestamptz, updatedAt } from './columns';
+import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxyhq/db';
 
 /** `MTN_CHAIN_STATUS` — local fork classification, outside the signed envelope. */
 export const MTN_CHAIN_STATUSES = ['canonical', 'conflict'] as const;

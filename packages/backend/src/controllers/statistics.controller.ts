@@ -4,7 +4,7 @@ import { getBaseLanguage, getPrimaryLanguage } from '@oxyhq/core';
 import { and, asc, desc, eq, gte, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { PostType, PostVisibility } from '@mention/shared-types';
-import { qualified } from '../db/casing';
+import { qualified } from '@oxyhq/db';
 import { getDb, type Transaction } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { postAuthorships, postContentVariants } from '../db/schema/postContent';
