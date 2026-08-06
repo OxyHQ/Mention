@@ -105,7 +105,7 @@ function RightBarFooter() {
             {/* Mention and Oxy are unregistered marks, so the symbol is (TM) and never (R):
                 using (R) before a registration is granted is unlawful in several
                 jurisdictions. Swap it only once a registration actually issues. */}
-            <Text className="text-muted-foreground text-[12.5px] pt-0.5">Mention&trade; is a trademark of The Oxy Collective Inc.</Text>
+            <Text className="text-muted-foreground text-[12.5px] pt-0.5">Mention&trade; is a trademark of The Oxy Collective, Inc.</Text>
         </View>
     );
 }
