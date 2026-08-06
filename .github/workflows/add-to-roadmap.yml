@@ -3,18 +3,20 @@
 # https://github.com/orgs/OxyHQ/projects/14 spans BOTH organisations. GitHub
 # refuses to LINK a repository to a project owned by a different organisation
 # ("Only projects owned by the same owner as the repository can be linked"),
-# which is why the project's own built-in auto-add cannot be used for the
-# FairCoin repositories. Adding an ITEM across organisations is allowed, and
-# that is exactly what this action does, so one workflow covers both.
+# so the project's own built-in auto-add cannot cover the FairCoin
+# repositories. Adding an ITEM across organisations IS allowed, which is what
+# this does, so one workflow covers both.
 #
 # Inert until ADD_TO_PROJECT_TOKEN exists. It must be a CLASSIC token with the
-# `project` scope: a fine-grained token is scoped to a single owner and cannot
-# reach both organisations. `public_repo` alone is not enough, Projects v2 is a
-# separate scope.
+# `project` scope: a fine-grained token is scoped to one owner and cannot reach
+# both organisations, and `public_repo` does not cover Projects v2.
 #
-# The action is pinned to a commit rather than a tag: a tag can be moved to
-# point at different code, and this workflow holds a token that can write to
-# every project in the organisation.
+# WHY NOT actions/add-to-project: it is not idempotent. Adding an issue that is
+# already on the board fails the run with "Content already exists in this
+# project", which is the normal outcome for `reopened` and for any issue put on
+# the board by hand. A workflow that goes red on a non-problem is a workflow
+# everyone learns to ignore, so the mutation is called directly and that one
+# response is treated as the success it is.
 
 name: Add to roadmap
 
@@ -32,21 +34,39 @@ jobs:
   add:
     runs-on: ubuntu-latest
     steps:
-      - name: Check whether the token is configured
-        id: gate
+      - name: Add the issue to the roadmap
         env:
-          TOKEN: ${{ secrets.ADD_TO_PROJECT_TOKEN }}
+          GH_TOKEN: ${{ secrets.ADD_TO_PROJECT_TOKEN }}
+          ISSUE_NODE_ID: ${{ github.event.issue.node_id }}
         run: |
-          if [ -n "$TOKEN" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
+          set -uo pipefail
+
+          if [ -z "${GH_TOKEN:-}" ]; then
             echo "::notice::ADD_TO_PROJECT_TOKEN is not set, so this issue was not added to the roadmap."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
-      - name: Add the issue to the roadmap
-        if: steps.gate.outputs.ready == 'true'
-        uses: actions/add-to-project@5afcf98fcd03f1c2f92c3c83f58ae24323cc57fd # v2.0.0
-        with:
-          project-url: https://github.com/orgs/OxyHQ/projects/14
-          github-token: ${{ secrets.ADD_TO_PROJECT_TOKEN }}
+          project_id=$(gh api graphql \
+            -f query='query($org:String!,$num:Int!){organization(login:$org){projectV2(number:$num){id}}}' \
+            -f org=OxyHQ -F num=14 --jq '.data.organization.projectV2.id') || {
+              echo "::error::Could not resolve the roadmap project. Check that ADD_TO_PROJECT_TOKEN carries the 'project' scope."
+              exit 1
+            }
+
+          response=$(gh api graphql \
+            -f query='mutation($project:ID!,$content:ID!){addProjectV2ItemById(input:{projectId:$project,contentId:$content}){item{id}}}' \
+            -f project="$project_id" -f content="$ISSUE_NODE_ID" 2>&1)
+
+          if printf '%s' "$response" | grep -q 'already exists'; then
+            echo "Already on the roadmap, nothing to do."
+            exit 0
+          fi
+
+          if printf '%s' "$response" | grep -q '"addProjectV2ItemById"'; then
+            echo "Added to the roadmap."
+            exit 0
+          fi
+
+          echo "::error::Adding the issue to the roadmap failed."
+          printf '%s\n' "$response"
+          exit 1
