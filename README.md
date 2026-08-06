@@ -79,19 +79,18 @@ bun run --cwd packages/frontend web
 
 <br>
 
-The Compose stack is a single node MongoDB replica set, Valkey, and a one shot migration container. The backend starts only once the replica set is writable, Valkey is healthy and migrations have finished:
+The Compose stack is PostGIS-flavoured PostgreSQL, Valkey, and a one shot migration container. The backend starts only once Postgres and Valkey are healthy and migrations have finished:
 
 ```bash
 docker compose up --build backend
 ```
 
-MongoDB and Valkey bind to loopback ports `27017` and `6379`, and their data lives in the named `mongo_data` and `valkey_data` volumes.
+Postgres and Valkey bind to loopback ports `5434` and `6379`, and their data lives in the named `postgres_data` and `valkey_data` volumes. Port `5434` rather than `5433` on purpose: `docker-compose.postgres.yml` binds `5433` for the database that sits beside the test suite, and both stacks are routinely up at once.
 
 For watch mode, start the dependencies only and run the backend on the host:
 
 ```bash
-docker compose up -d mongo valkey
-docker compose run --rm mongo-init
+docker compose up -d postgres valkey
 bun run dev:backend
 ```
 
