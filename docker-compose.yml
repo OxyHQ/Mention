@@ -13,52 +13,42 @@ x-backend-environment: &backend-environment
   # HOST side of the port mapping below uses; inside the container the two must
   # agree with the Dockerfile, so set it explicitly rather than inherit.
   PORT: "3000"
-  MONGODB_URI: mongodb://mongo:27017/mention?replicaSet=rs0&directConnection=true
+  # The backend opens Postgres and Redis. It does NOT open Mongo — the whole
+  # Mongo surface left in this package is the copier, which reads a PRODUCTION
+  # database named by its own `MONGODB_URI` and is never run from this stack.
+  DATABASE_URL: postgres://mention:mention@postgres:5432/mention
   REDIS_URL: redis://valkey:6379
 
 services:
-  mongo:
-    image: mongo:8.0.16@sha256:4b58ebcb1dc7a7b4e84cd8ce9098d48764ae4478876898ff9551acf2ac4a6a6d
-    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+  postgres:
+    # The SAME pinned image as `docker-compose.postgres.yml` and `ci.yml`, on
+    # purpose: a developer's database, CI's and this stack's must not disagree
+    # about what is installed. PostGIS rather than plain Postgres because
+    # `posts.geo`/`posts.content_geo` are generated `geography` columns, so
+    # `CREATE EXTENSION postgis` has to succeed before the migration naming the
+    # type; the major (17) is the one RDS runs, and both versions are pinned
+    # because a floating PostGIS minor is a floating set of function
+    # volatilities and a generated column requires IMMUTABLE.
+    image: postgis/postgis:17-3.5
     restart: unless-stopped
+    environment:
+      POSTGRES_USER: mention
+      POSTGRES_PASSWORD: mention
+      # `mention`, matching the `--target-database` the migrate step asserts.
+      POSTGRES_DB: mention
     ports:
-      - "127.0.0.1:27017:27017"
+      # 5434, deliberately NOT 5433: `docker-compose.postgres.yml` binds 5433 for
+      # the database that sits beside `bun run dev:backend` and the test suite,
+      # and both stacks are routinely up at once. Loopback only.
+      - "127.0.0.1:5434:5432"
     volumes:
-      - mongo_data:/data/db
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "mongosh --quiet --host 127.0.0.1:27017 --eval 'quit(db.adminCommand({ ping: 1 }).ok ? 0 : 1)'",
-        ]
+      test: ["CMD-SHELL", "pg_isready -U mention -d mention"]
       interval: 5s
       timeout: 5s
       retries: 20
       start_period: 10s
-
-  mongo-init:
-    image: mongo:8.0.16@sha256:4b58ebcb1dc7a7b4e84cd8ce9098d48764ae4478876898ff9551acf2ac4a6a6d
-    depends_on:
-      mongo:
-        condition: service_healthy
-    restart: "no"
-    entrypoint: ["/bin/bash", "-euc"]
-    command:
-      - |
-        mongosh --quiet --host mongo:27017 --eval '
-          try {
-            rs.status()
-          } catch (error) {
-            rs.initiate({
-              _id: "rs0",
-              members: [{ _id: 0, host: "mongo:27017" }]
-            })
-          }
-        '
-        until mongosh --quiet --host mongo:27017 --eval \
-          'quit(db.hello().isWritablePrimary ? 0 : 1)'; do
-          sleep 1
-        done
 
   valkey:
     image: valkey/valkey:8.1.9-alpine@sha256:a038175878d66b9d274fbf8be73c0305e93798b83917647f167e18cef3c71eec
@@ -75,11 +65,19 @@ services:
 
   migrate:
     <<: *backend-image
-    command: ["bun", "packages/backend/dist/scripts/migrate.js"]
+    # `dist/src/db/migrate.js`, not the top-level `dist/scripts/migrate.js` this
+    # used to run: that was the MONGO migration one-shot and it no longer exists.
+    # Until this line was fixed the stack failed before it could even reach a
+    # connection error, so the missing Postgres service below it was invisible.
+    #
+    # `--target-database` is required by the migrator and is not a formality: it
+    # asserts the URL still points where the caller thinks it does.
+    command:
+      ["bun", "packages/backend/dist/src/db/migrate.js", "--target-database=mention"]
     restart: "no"
     depends_on:
-      mongo-init:
-        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
       valkey:
         condition: service_healthy
     environment: *backend-environment
@@ -99,5 +97,5 @@ services:
       - "127.0.0.1:${MENTION_PORT:-4110}:3000"
 
 volumes:
-  mongo_data:
+  postgres_data:
   valkey_data:
