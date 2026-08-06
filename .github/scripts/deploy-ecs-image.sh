@@ -108,9 +108,10 @@ fi
 # settled first, and a failure there costs nothing because nothing has been
 # routed yet.
 #
-# `assertPostgresMigrationsCurrent` in packages/backend/src/db/migrationLedger.ts
-# is the other half: it refuses to let a task become ready when this step did not
-# run. Neither replaces the other — this one applies the migrations, that one
+# `assertPostgresMigrationsCurrent` in packages/backend/src/db/migrationsFolder.ts
+# (wrapping @oxyhq/db/migrate's assertPostgresMigrationsCurrentAgainst) is the
+# other half: it refuses to let a task become ready when this step did not run.
+# Neither replaces the other — this one applies the migrations, that one
 # survives the case where somebody bypassed this one.
 #
 # THE MONGO MIGRATION ENTRY IS GONE. It ran a ledger-guarded runner whose every
