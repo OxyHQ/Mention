@@ -27,6 +27,14 @@ on:
     branches: [main, drizzle/channels-plans]
   pull_request:
     branches: [main]
+  # The escape hatch the comment above is missing. A push that dispatches NO run
+  # is indistinguishable from one whose run passed, and the three deploy
+  # workflows key on `workflow_run` of this one — so a skipped dispatch is a
+  # release that silently never happens, with nothing red to notice. Measured on
+  # `ea100282`: the only run GitHub recorded for that commit was CodeQL, this
+  # workflow never dispatched, and the merge sat undeployed with `main` green.
+  # Without this, the only way to recover is to push another commit.
+  workflow_dispatch:
 
 permissions:
   contents: read
