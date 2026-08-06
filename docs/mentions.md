@@ -80,7 +80,7 @@ invented handle.
 
 `Post.content` stores the placeholder text and `Post.mentions` stores the
 identity references used by queries and readers. Readers normalize and
-deduplicate this array. MongoDB indexes `mentions` together with `createdAt`.
+deduplicate this array. `mentions` is indexed together with `created_at`.
 
 All post DTOs go through `PostHydrationService`. For each post it:
 

@@ -40,7 +40,10 @@ a failed production smoke rolls back to the previously captured deployment.
 ## Health and secrets
 
 - Liveness: `GET /health/live`.
-- Readiness: `GET /health/ready`; Mongo and the expected schema are mandatory.
+- Readiness: `GET /health/ready`; it checks `postgres`, `migrations` and `redis`.
+  Mongo is NOT among them and has not been since the cutover — a task that fails
+  readiness is failing one of those three, so debugging the store this line used
+  to name would be debugging a store the service no longer opens.
 - Redis degradation does not fail HTTP readiness, but singleton workers never
   claim leadership without their distributed lock.
 - GitHub authenticates to AWS with OIDC. Runtime secrets are stored in SSM and

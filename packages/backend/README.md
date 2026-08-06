@@ -1,6 +1,6 @@
 # @mention/backend
 
-Mention's Express, MongoDB, Redis/Valkey, Socket.IO, federation, and MTN
+Mention's Express, PostgreSQL, Redis/Valkey, Socket.IO, federation, and MTN
 backend. The production service listens on port 3000 and serves both
 `api.mention.earth` and the `mention.earth` web/federation surface.
 
@@ -66,7 +66,8 @@ Production migrations run only as the deployment one-shot. Do not run
 ## Operational endpoints
 
 - `GET /health/live` checks that the process can answer.
-- `GET /health/ready` requires completed startup, Mongo connectivity, and the
+- `GET /health/ready` requires completed startup, Postgres connectivity, applied
+  migrations, Redis, and the
   expected migration version.
 - `GET /internal/metrics` is disabled unless configured and additionally
   requires an allowed network source plus a service bearer token.
