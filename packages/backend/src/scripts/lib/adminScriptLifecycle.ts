@@ -14,29 +14,6 @@ import { logger } from '../../utils/logger';
  * trusted to remember which of its transitive services opened one. It is a no-op
  * when nothing connected.
  */
-/**
- * Load the services an admin script needs REGISTERED rather than merely
- * importable.
- *
- * `PostCreationService` registers itself with the service registry as a side
- * effect of being imported, and the HTTP server imports it on the way to
- * mounting routes — so inside the app the registry is always populated by the
- * time anything creates a post. A one-shot script imports no routes, so it is
- * not, and every path that ends in `getPostCreator()` throws
- * "PostCreator not registered".
- *
- * That is not hypothetical: the quoted-post backfill failed to import 898 of
- * 908 quoted posts on exactly this, reporting them as un-importable. It looked
- * like remote instances refusing us.
- *
- * Called explicitly, and paired with {@link closeAdminScriptResources}, so a
- * script that needs it says so — and so the import cannot be mistaken for an
- * unused one and deleted, which is what a bare side-effect import invites.
- */
-export async function registerAdminScriptServices(): Promise<void> {
-  await import('../../services/PostCreationService');
-}
-
 export async function closeAdminScriptResources(): Promise<void> {
   await closeQueues();
   await Promise.all([
@@ -44,6 +21,37 @@ export async function closeAdminScriptResources(): Promise<void> {
     closeRedisConnection(),
     closePostgres(),
   ]);
+}
+
+/**
+ * Load the services an admin script will reach but never imports.
+ *
+ * `PostCreationService` registers itself with the service registry as a side
+ * effect of being imported, and the HTTP server imports it on the way to
+ * mounting routes — so inside the app the registry is populated by the time
+ * anything creates a post. A one-shot script mounts no routes, so it is not,
+ * and every path ending in `getPostCreator()` throws.
+ *
+ * WHAT MAKES THIS WORTH A NAMED FUNCTION IS THAT THE FAILURE IS INVISIBLE. The
+ * quoted-post backfill's first live run on PostgreSQL reported 908 posts with a
+ * quote field, 908 un-importable and 0 linked — every one of them this throw,
+ * swallowed by a best-effort catch, exit code 0. The tally reads exactly like
+ * remote instances refusing us, and was misread as that twice before anyone read
+ * the error itself.
+ *
+ * Dynamic on purpose: nineteen scripts import this module, most only for
+ * {@link closeAdminScriptResources}, and a static import here would load the
+ * whole post-creation stack — `firebase-admin` included — for every one of them.
+ * Under `"module": "commonjs"` this emits a plain `require` behind one
+ * microtask, so the laziness costs nothing where it is used.
+ *
+ * The deeper fix is for `getPostCreator()` to resolve the module itself, so that
+ * no caller can forget. Not done here: the accessor is synchronous, `require` on
+ * its miss path resolves in the compiled CommonJS but not under the test runner,
+ * and making it async would change every call site in the connectors.
+ */
+export async function registerAdminScriptServices(): Promise<void> {
+  await import('../../services/PostCreationService');
 }
 
 /**

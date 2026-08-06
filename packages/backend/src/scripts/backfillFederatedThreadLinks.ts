@@ -43,6 +43,7 @@ import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import {
   assertAdminRunComplete,
   closeAdminScriptResources,
+  registerAdminScriptServices,
 } from './lib/adminScriptLifecycle';
 import {
   recordRecentReplierForPost,
@@ -66,6 +67,10 @@ async function backfillFederatedThreadLinks(): Promise<void> {
       dryRun: DRY_RUN,
     });
     await connectPostgres();
+    // Reaches `getPostCreator()` through `ensureFederatedReplyLink` →
+    // `ensureFederatedNote`, the same call the quoted-post backfill reaches one
+    // frame higher — see `registerAdminScriptServices`.
+    await registerAdminScriptServices();
     logger.info('[backfillFederatedThreadLinks] connected to PostgreSQL', {
       dryRun: DRY_RUN,
       backfillAncestors: BACKFILL_ANCESTORS,

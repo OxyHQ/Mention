@@ -280,10 +280,8 @@ async function main(): Promise<void> {
 
   assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun });
   await connectPostgres();
-  // Without this, every quoted post we do not already hold fails to import with
-  // "PostCreator not registered", is counted as un-importable, and is
-  // indistinguishable in the tally from a remote instance refusing us. It cost a
-  // full live run: 908 with a quote field, 908 reported un-importable, 0 linked.
+  // `getPostCreator()` throws without this, and the throw is counted as
+  // un-importable — see `registerAdminScriptServices`.
   await registerAdminScriptServices();
   logger.info('[Backfill] quoted posts starting', { dryRun, max });
   try {
