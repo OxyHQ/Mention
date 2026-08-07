@@ -291,7 +291,13 @@ jobs:
   # both paths.
   frontend-bundle-baseline:
     name: Frontend bundle baseline
-    if: github.event_name == 'push'
+    # `workflow_dispatch` rides the push path deliberately. A manual run is a
+    # run of `main`, so it should record a baseline exactly as a push does —
+    # and `CI complete` requires the bundle to have run on EXACTLY one of the
+    # two paths, so leaving a third event matching neither made the required
+    # check fail by construction on every dispatch. Measured: baseline=skipped
+    # pull-request=skipped on run 31127222964, with every other job green.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
