@@ -17,7 +17,8 @@
  * wholesale, and every existing suite keeps running against that mock.
  */
 
-import { createTestDatabase, dropTestDatabase } from './src/db/testDatabase';
+import { dropTestDatabase } from '@oxyhq/db/testing';
+import { createTestDatabase } from './src/db/testDatabase';
 
 /**
  * The per-worker connection pool, capped for the test run.

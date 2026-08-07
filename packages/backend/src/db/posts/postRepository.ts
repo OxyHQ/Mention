@@ -62,7 +62,7 @@ import type {
 } from '@mention/shared-types';
 import { followedAuthorsSql } from '../../utils/postAuthorship';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
-import { uuidv7 } from '../schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { posts } from '../schema/posts';
 import {
   postAttachments,
@@ -260,7 +260,7 @@ async function loadChildRows(
       //
       // COLLABORATORS AMONG THEMSELVES ARE ARBITRARY, NOT IN INVITE ORDER, and
       // this comment used to claim otherwise. `asc(id)` cannot deliver insertion
-      // order here: `uuidv7()` (`db/schema/columns.ts`) is a millisecond
+      // order here: `uuidv7()` (`@oxyhq/db`) is a millisecond
       // timestamp plus pure randomness with NO monotonic counter, and every
       // authorship row for a post is written by ONE multi-row insert — so the
       // ids share a millisecond and their relative order is random. It is STABLE

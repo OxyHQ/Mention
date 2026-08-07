@@ -80,7 +80,7 @@ vi.mock('../../../db/moderation/reportRepository', async (importOriginal) => {
 
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
 import { moderationOutbox, reports } from '../../../db/schema/moderation';
-import { sqlStateOf } from '../../../db/pgErrors';
+import { sqlStateOf } from '@oxyhq/db';
 import { findDuplicateReport } from '../../../db/moderation/reportRepository';
 import {
   DuplicateReportError,

@@ -17,7 +17,7 @@ import { randomUUID } from 'node:crypto';
 import { eq, inArray, or } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import { uuidv7 } from '../../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { muteWords, mutes } from '../../db/schema/engagement';
 import muteRouter from '../../routes/mute.routes';
 import muteWordsRouter from '../../routes/muteWords.routes';

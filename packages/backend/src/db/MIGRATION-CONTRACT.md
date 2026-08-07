@@ -123,7 +123,7 @@ check that accepts BOTH live id shapes.
 **Audit each site — several branch on the result rather than merely rejecting,
 and some FAIL OPEN.** The full inventory is in the migration report.
 
-`db/ids.ts` `isLiveEntityId` is the ONLY place either id shape is spelled out,
+`@oxyhq/db`'s `isLiveEntityId` is the ONLY place either id shape is spelled out,
 and it exists for the documented-400 case alone (`middleware/validate.ts`
 `validateObjectId`, which now accepts both). Reaching for it as a precondition on
 a QUERY re-introduces the fail-open bug in a new costume.

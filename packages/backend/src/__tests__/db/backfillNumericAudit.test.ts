@@ -33,7 +33,7 @@ import type { MongoSource, ReadOnlyCollection } from '../../db/backfill/mongoSou
 import { describeNumericBound, numericIsAccepted, type CollectionPlan } from '../../db/backfill/plan';
 import { LIKE_VALUES, likes } from '../../db/schema/engagement';
 import { authorFollowerSnapshots, trending } from '../../db/schema/discovery';
-import { numericInList } from '../../db/schema/columns';
+import { numericInList } from '@oxyhq/db';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { runAudits } from '../../db/backfill/runner';
 import {

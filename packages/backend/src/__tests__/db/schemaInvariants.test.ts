@@ -14,7 +14,7 @@ import { sql } from 'drizzle-orm';
 import { getTableColumns, getTableName } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import { sqlColumnName } from '../../db/casing';
+import { sqlColumnName } from '@oxyhq/db';
 import { STAGING_TABLE_PREFIX } from '../../db/backfill/bulkLoad';
 import * as schema from '../../db/schema';
 

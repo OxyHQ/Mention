@@ -32,7 +32,7 @@
 import { arrayOverlaps, or, sql, type SQL } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { posts } from '../../db/schema/posts';
-import { qualified } from '../../db/casing';
+import { qualified } from '@oxyhq/db';
 
 /**
  * The columns whose contents may PROPOSE a trend — author-asserted only.

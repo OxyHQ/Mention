@@ -4,7 +4,7 @@
  * inlined per plan.
  *
  * `created_at` and `updated_at` are `NOT NULL` with a database default
- * (`db/schema/columns.ts`). That gives a transform three answers where a naive
+ * (`@oxyhq/db`). That gives a transform three answers where a naive
  * port sees two:
  *
  * - **Copy the source value.** What every document that has one gets, and the

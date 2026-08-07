@@ -21,6 +21,7 @@
         "@oxyhq/crowdsource": "0.3.0",
         "@oxyhq/crowdsource-contracts": "0.3.0",
         "@oxyhq/crowdsource-express": "0.3.0",
+        "@oxyhq/db": "^0.1.1",
         "@oxyhq/federation": "^0.14.1",
         "@oxyhq/protocol": "^0.1.6",
         "@socket.io/redis-adapter": "^8.3.0",
@@ -847,6 +848,8 @@
     "@oxyhq/crowdsource-express": ["@oxyhq/crowdsource-express@0.3.0", "", { "peerDependencies": { "@oxyhq/crowdsource-contracts": "^0.3.0", "express": ">=4" } }, "sha512-sMYvLaNli3yLZVLzYWeazcEUygvV4lo0hzdp9KEdLi1PY5HYyY3nJCwGlGaY0+0V4ByO7mEIEcuclhOvt0ZWbg=="],
 
     "@oxyhq/crowdsource-testing": ["@oxyhq/crowdsource-testing@0.3.0", "", { "peerDependencies": { "@oxyhq/crowdsource-contracts": "^0.3.0" } }, "sha512-Yd/cStpexe+Pl7rrSKJFkBJ8SAuid9uLBCj6VmQ30YvEB4WY2ravJUzpoTI/UTQy11gwXBuMAImzoaYxIlO4cA=="],
+
+    "@oxyhq/db": ["@oxyhq/db@0.1.1", "", { "peerDependencies": { "drizzle-orm": "^0.45.2", "postgres": "^3.4.9" } }, "sha512-/Ggn8PWj0TfjQTinH+Liz10ODNHck9TStzHuIYV7KmOUY2s8PXTEictAX5lV1CCmbHvgZgB+GnhTrT6X/R+9PQ=="],
 
     "@oxyhq/federation": ["@oxyhq/federation@0.14.1", "", { "dependencies": { "@oxyhq/contracts": "^0.23.0", "@oxyhq/core": "^19.0.0" }, "peerDependencies": { "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["express"] }, "sha512-HysRyBPvthoDY2NdcX1y/npayhL51lBNY4bNG9iXl+iUlsAqK0Tquw9ZLH3bgeySFVeaB+UkEYBcYIShN/Z84A=="],
 

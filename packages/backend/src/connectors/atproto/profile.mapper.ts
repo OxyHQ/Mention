@@ -8,7 +8,7 @@ import {
   blueskyUsernameFromHandle,
   type NormalizedExternalActor,
 } from '@oxyhq/federation';
-import { describeDriverError, isUniqueViolation } from '../../db/pgErrors';
+import { describeDriverError, isUniqueViolation } from '@oxyhq/db';
 import { metrics } from '../../utils/metrics';
 import { xrpcGet } from './xrpcClient';
 import { PUBLIC_APPVIEW } from './constants';

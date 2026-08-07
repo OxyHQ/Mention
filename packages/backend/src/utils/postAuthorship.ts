@@ -125,7 +125,7 @@ export function collectAuthorshipUserIds(authorship: PostAuthorshipEntry[] | und
  * `post_authorships.post_id = posts.id` renders FULLY QUALIFIED. Hand-writing it
  * inside a `sql` template is the documented way to get two bare column names
  * that both resolve against the subquery's own table, matching nothing and
- * raising nothing (`db/casing.ts`).
+ * raising nothing (`@oxyhq/db`).
  *
  * Returns a predicate matching NOTHING for an empty id list, which is the honest
  * answer and matches Mongo's `$in: []`.

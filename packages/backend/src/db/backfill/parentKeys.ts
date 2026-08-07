@@ -32,7 +32,7 @@
 import { getTableColumns, sql } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import type { Database } from '../postgres';
-import { sqlColumnName } from '../casing';
+import { sqlColumnName } from '@oxyhq/db';
 import { planLevels } from './order';
 import { planTables, singlePrimaryKeyProperty, tableName, type CollectionPlan } from './plan';
 import {
@@ -173,7 +173,7 @@ export async function loadParentKeyMap(
     // Written as raw SQL over the table and column NAMES rather than through
     // the query builder, because this is generic over a `PgTable` the caller
     // chooses. `sqlColumnName` is what keeps it from asking for the TypeScript
-    // property name — the trap `db/casing.ts` exists to close.
+    // property name — the trap `@oxyhq/db` exists to close.
     const rows = await db.execute<{ key: string | null }>(
       sql`select ${sql.identifier(sqlColumnName(column))} as key from ${sql.identifier(name)}`
     );

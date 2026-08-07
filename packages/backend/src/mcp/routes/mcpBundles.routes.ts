@@ -5,7 +5,7 @@ import {
   findLiveBundleMember,
   findLiveBundlePrimary,
 } from '../../db/mcp/mcpConnectionRepository';
-import { isUniqueViolation } from '../../db/pgErrors';
+import { isUniqueViolation } from '@oxyhq/db';
 import {
   listBundleMembers,
   setActiveAccount,

@@ -21,7 +21,7 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import { uuidv7 } from '../../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { contentLabels, labelers } from '../../db/schema/moderation';
 import { userSettings } from '../../db/schema/userProfile';
 import { LabelService } from '../../services/LabelService';

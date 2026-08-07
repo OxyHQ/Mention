@@ -362,7 +362,7 @@ export async function deleteMediaCacheRowsByUrls(
 /**
  * One `id`-ordered page of the whole table, for the purge script's sweep.
  *
- * `id` is `text` holding an ObjectId hex OR a uuid v7 (`db/ids.ts`), so this
+ * `id` is `text` holding an ObjectId hex OR a uuid v7 (`@oxyhq/db`), so this
  * order is NOT chronological — but a keyset scan only needs a total order that
  * agrees between `>` and `ORDER BY`, which it does, and this phase sweeps the
  * whole table rather than reading recency off it.

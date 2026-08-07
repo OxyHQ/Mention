@@ -36,10 +36,10 @@
  *
  * TARGET DATABASE. `--target-database=<name>` is REQUIRED, on every run
  * including `DRY_RUN`, and is checked against `current_database()` before any
- * other statement. See `db/targetDatabase.ts` for why this step needs the guard
- * more than the copy does: aimed at the wrong database the copy dies on a
- * missing table, while this one applies the whole journal to whatever it
- * reached, prints `Applied N` and exits 0.
+ * other statement. See `@oxyhq/db/migrate`'s `targetDatabase.ts` for why this
+ * step needs the guard more than the copy does: aimed at the wrong database the
+ * copy dies on a missing table, while this one applies the whole journal to
+ * whatever it reached, prints `Applied N` and exits 0.
  *
  * UNREACHABLE MIGRATIONS. The shared apply rule is a HIGH-WATER filter, not a
  * per-migration set difference, so a journal entry generated before another
@@ -47,25 +47,26 @@
  * migrations`, exit 0, a constraint that never got applied. The rule itself is
  * kept (it is drizzle's, and diverging would make this report disagree with
  * what `drizzle-kit migrate` does to the same database); what changes is that
- * `planMigrationRun` REFUSES rather than reporting a clean run. See
- * `migrationLedger.ts` for the mechanism and for the two entries already in
- * this journal that have the shape.
+ * `planLedgerRun` REFUSES rather than reporting a clean run. See
+ * `@oxyhq/db/migrate`'s `ledger.ts` for the mechanism and for the two entries
+ * already in this journal that have the shape.
  */
 
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
-import { ensureExtensions } from './extensions';
-import { logger } from '../utils/logger';
 import {
-  MIGRATIONS_FOLDER,
+  assertMigrationTarget,
+  ensureExtensions,
   MIGRATIONS_SCHEMA,
   MIGRATIONS_TABLE,
-  planMigrationRun,
+  planLedgerRun,
   readAppliedMillis,
-  readJournal,
-} from './migrationLedger';
-import { assertMigrationTarget, readTargetDatabase } from './targetDatabase';
+  readTargetDatabase,
+} from '@oxyhq/db/migrate';
+import { logger } from '../utils/logger';
+import { REQUIRED_EXTENSIONS } from './extensions';
+import { MIGRATIONS_FOLDER, readJournal } from './migrationsFolder';
 
 /** Seconds to wait for in-flight queries before forcing the socket shut. */
 const CLOSE_TIMEOUT_SECONDS = 5;
@@ -106,13 +107,13 @@ async function main(): Promise<void> {
     // checking a database it has already started changing.
     await assertMigrationTarget(client, target);
 
-    // `planMigrationRun` and not `pendingEntries`: it REFUSES when the journal
+    // `planLedgerRun` and not `pendingEntries`: it REFUSES when the journal
     // holds an entry the apply rule can never reach, before the `pending.length
     // === 0` branch below — which is the branch that would otherwise print
     // `No pending Postgres migrations` over a migration that never ran. The
     // refusal has to sit ahead of the dry run too: a dry run answering "nothing
     // to do" about an unreachable migration tells the same lie for free.
-    const pending = planMigrationRun(entries, await readAppliedMillis(client));
+    const pending = planLedgerRun(entries, await readAppliedMillis(client));
 
     if (pending.length === 0) {
       logger.info('No pending Postgres migrations', { journalEntries: entries.length });
@@ -134,7 +135,7 @@ async function main(): Promise<void> {
     // COMPILED form of this file directly as a one-shot ECS task, so anything
     // chained in package.json would silently not run there. A migration that
     // creates a `geography` column fails partway through without it.
-    await ensureExtensions(url);
+    await ensureExtensions(url, REQUIRED_EXTENSIONS);
 
     logger.info(`Applying ${pending.length} Postgres migration(s)`, { pending: tags });
 
@@ -149,7 +150,7 @@ async function main(): Promise<void> {
 
     // A migrator that reports success while leaving work pending is worse than
     // one that fails, so re-read the ledger rather than trusting the call.
-    const remaining = planMigrationRun(entries, await readAppliedMillis(client));
+    const remaining = planLedgerRun(entries, await readAppliedMillis(client));
     if (remaining.length > 0) {
       throw new Error(
         `Migration reported success but ${remaining.length} migration(s) are still ` +

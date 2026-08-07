@@ -55,7 +55,7 @@
  */
 
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
-import { sqlColumnName } from '../casing';
+import { sqlColumnName } from '@oxyhq/db';
 import { isUnresolvedAtprotoHandle, UNRESOLVED_HANDLE } from '../../connectors/atproto/unresolvedHandle';
 import type { MongoSource } from './mongoSource';
 import {

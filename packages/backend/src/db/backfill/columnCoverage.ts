@@ -74,7 +74,7 @@
 
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { getTableColumns } from 'drizzle-orm';
-import { sqlColumnName } from '../casing';
+import { sqlColumnName } from '@oxyhq/db';
 import { tableName } from './plan';
 
 /** A column the plan states it cannot populate, and why. */

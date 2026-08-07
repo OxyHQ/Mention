@@ -65,7 +65,7 @@ export function notABoostSql(): SQL {
  * Returns `undefined` for an empty set so the caller can drop the term entirely
  * rather than emit a degenerate `NOT IN ()`. The Mongo original also filtered
  * the incoming ids through `ObjectId.isValid`; that guard is deleted per
- * `db/ids.ts` — it existed only to dodge a `CastError`, and a text id that names
+ * `@oxyhq/db` — it existed only to dodge a `CastError`, and a text id that names
  * no row already produces exactly the "no such post" answer the caller wanted.
  */
 export function excludeSeenSql(seenPostIds: readonly string[]): SQL | undefined {
@@ -143,7 +143,7 @@ export class FeedQueryBuilder {
    * semantics: the conditions must all hold on ONE media row, not be spread
    * across several. Built through drizzle's query builder rather than a hand-
    * written `sql` template so the correlated `post_media.post_id = posts.id`
-   * renders FULLY QUALIFIED — the failure mode documented in `db/casing.ts`
+   * renders FULLY QUALIFIED — the failure mode documented in `@oxyhq/db`
    * (both names resolving against the subquery's own table, matching nothing,
    * raising no error) is exactly what this shape would otherwise invite.
    *

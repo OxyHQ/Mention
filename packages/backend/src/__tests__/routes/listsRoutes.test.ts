@@ -50,7 +50,7 @@ vi.mock('../../services/EndorsementSignalService', () => ({
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { accountListMembers, accountLists } from '../../db/schema/lists';
-import { uuidv7 } from '../../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import listRoutes from '../../routes/lists';
 

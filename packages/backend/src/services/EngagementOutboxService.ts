@@ -47,7 +47,7 @@
 import { randomUUID } from 'crypto';
 import { and, asc, eq, gt, inArray, lt, lte, ne, or, sql } from 'drizzle-orm';
 import { getDb, type Transaction } from '../db/postgres';
-import type { SelectedRow } from '../db/schema/columns';
+import type { SelectedRow } from '@oxyhq/db';
 import {
   ENGAGEMENT_OUTBOX_RETENTION_SECONDS,
   engagementOutbox,
