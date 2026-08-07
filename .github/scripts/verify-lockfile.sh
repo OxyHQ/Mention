@@ -57,6 +57,27 @@ if git diff --quiet --exit-code -- bun.lock; then
   exit 0
 fi
 
+# A difference is not automatically a defect, and the reason is in this script's
+# own notes above: bun carries a resolution forward from the lockfile it starts
+# with. So an edge the BASE pinned at a stale version survives this
+# reproduction, and the only way to move a transitive dependency off a published
+# advisory without inventing an override — deleting the stale record and
+# re-resolving — reads here as drift.
+#
+# That cost a real outage: a security exception for GHSA-rgw5-rvv9-x895 was
+# written with the reason "the patch satisfies the range its dependent already
+# declares, no override needed", and then expired unactioned, because nothing
+# re-resolves an edge already in the lockfile and this gate refused the commit
+# that would have.
+#
+# So: ahead is allowed, behind is not. Forgetting `bun install` leaves the
+# committed file BEHIND the reproduction or missing edges, and both still fail.
+git show HEAD:bun.lock >/tmp/committed-bun.lock
+if bun .github/scripts/compare-lockfile-resolutions.mjs /tmp/committed-bun.lock bun.lock; then
+  echo "::notice::bun.lock differs from a clean resolve only by being ahead on some edges; accepted."
+  exit 0
+fi
+
 echo "::error file=bun.lock::bun.lock is not what \`bun install\` produces from ${base_revision}'s lockfile and this revision's package.json files. Run \`bun install\` and commit bun.lock in the same commit as the package.json change. The corrective diff is in the job summary."
 
 # Third possible cause, and the only one that is not a defect: a branch running
