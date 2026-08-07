@@ -263,4 +263,36 @@ describe('viewer-scoped private cache', () => {
 
     queryClient.clear();
   });
+
+  /**
+   * Both of these are PUBLIC keys, and the property worth pinning is not the
+   * literal shape but that they do not carry a viewer: two readers looking at
+   * the same post's corrections, or at the same set of links, must share one
+   * cache entry rather than each holding a private copy of an answer the server
+   * gives everybody.
+   */
+  it('keys a post\'s corrections on the post alone, with no viewer in it', () => {
+    const key = publicQueryKeys.postCorrections('post-1');
+
+    expect(key).toEqual([...key.slice(0, -2), 'post-corrections', 'post-1']);
+    expect(publicQueryKeys.postCorrections('post-2')).not.toEqual(key);
+    // The discriminating assertion: a viewer-scoped key would differ per reader.
+    expect(publicQueryKeys.postCorrections('post-1')).toEqual(key);
+  });
+
+  it('keys profile-link mentions on the SET of urls, not their order', () => {
+    const one = publicQueryKeys.profileLinkMentions(['b.example', 'a.example']);
+    const other = publicQueryKeys.profileLinkMentions(['a.example', 'b.example']);
+
+    // Sorted before joining, so the same set in a different order is one entry.
+    expect(one).toEqual(other);
+    expect(publicQueryKeys.profileLinkMentions(['a.example'])).not.toEqual(one);
+  });
+
+  it('gives the marketplace categories a viewer-free key', () => {
+    expect(publicQueryKeys.marketplaceCategories()).toEqual(
+      publicQueryKeys.marketplaceCategories(),
+    );
+    expect(publicQueryKeys.marketplaceCategories()).toContain('marketplace-categories');
+  });
 });
