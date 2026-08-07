@@ -264,6 +264,12 @@ export const CASCADED_POST_REFERENCES: readonly PostReferenceProbeName[] = [
   'federation_delivery_queue.activity_json',
   'likes.post_id',
   'bookmarks.post_id',
+  // Removed by `ON DELETE CASCADE` when the post row goes, with no leg of its
+  // own: unlike `likes`/`bookmarks`, which are deleted explicitly so their
+  // denormalized counters can be decremented first, a correction trail has no
+  // counter anywhere but on the post that is being destroyed. The residue check
+  // re-runs the probe afterwards, so the claim is verified rather than asserted.
+  'post_corrections.post_id',
 ];
 
 /** Cursor scope names — one resumable territory per phase. */

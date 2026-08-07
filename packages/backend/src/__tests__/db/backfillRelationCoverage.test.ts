@@ -37,6 +37,7 @@ import {
 } from '../../db/backfill/referentialIntegrity';
 import {
   COLLECTION_PLANS,
+  TABLES_WITH_NO_MONGO_SOURCE,
   allSchemaTables,
   tablesWithoutAPlan,
 } from '../../db/backfill/collectionMap';
@@ -410,16 +411,29 @@ describe('coverage of the current plan set', () => {
       // would be true of every possible value, which is the vacuous form of this
       // same repair. The PARTITION is the structural half: every deployed
       // constraint is in scope or out of it, exactly once.
-      const unplanned = new Set(tablesWithoutAPlan());
+      // Two ways a table can be outside the backfill's scope, and the second one
+      // is permanent. `tablesWithoutAPlan()` is the work-in-progress set, empty
+      // since the plans landed. `TABLES_WITH_NO_MONGO_SOURCE` is a table that
+      // shipped AFTER the cutover and therefore never had a source to derive a
+      // relation from — so "every deployed constraint is in scope" stopped being
+      // true the first time one arrived, and asserting it would now fail on a
+      // correct schema rather than on a broken derivation.
+      const outsideScope = new Set([
+        ...tablesWithoutAPlan(),
+        ...TABLES_WITH_NO_MONGO_SOURCE.map((entry) => entry.table),
+      ]);
       const expectedOutOfScope = deployed.filter((relation) =>
-        unplanned.has(relation.tableName)
+        outsideScope.has(relation.tableName)
       ).length;
       expect(coverage.outOfScope).toBe(expectedOutOfScope);
       expect(coverage.outOfScope + coverage.deployedInScope).toBe(deployed.length);
-      // The floor moves to the side that is now non-empty: with nothing
-      // unplanned, EVERY deployed constraint must be in scope, so a partition
-      // that put them all outside would pass the sum above and mean nothing.
-      expect(coverage.deployedInScope).toBe(deployed.length);
+      // The floor, restated for a partition that is no longer all on one side: a
+      // derivation that shoved every constraint out of scope would satisfy the
+      // sum above and mean nothing, so the in-scope side must be non-empty AND
+      // the out-of-scope side must be exactly the post-cutover tables' — not
+      // merely "some number that happens to add up".
+      expect(coverage.deployedInScope).toBeGreaterThan(0);
+      expect(coverage.deployedInScope).toBe(deployed.length - expectedOutOfScope);
     } finally {
       await closePostgres();
     }

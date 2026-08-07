@@ -158,6 +158,32 @@ Not a fail-open guard, checked and left alone: `services/MediaMetadataService.ts
 shape belongs to **oxy-api**, a different service still on Mongo — it must NOT
 widen to uuid v7 with Mention's own ids.
 
+## A table that ships AFTER the cutover has no source, and must say so
+
+Every table in the schema barrel needs a plan feeding it — `tablesWithoutAPlan()`
+refuses to start a copy otherwise, and `backfillTableCoverage.test.ts` gates the
+same question in CI. That was written when "no plan" and "somebody forgot"
+described the same state, because all 73 tables were derived FROM the 47
+collections that feed them.
+
+A feature that lands after the cutover breaks that equivalence: its table never
+existed in Mongo, so there is nothing to copy and no plan can be written. Those
+go in **`TABLES_WITH_NO_MONGO_SOURCE`** (`db/backfill/collectionMap.ts`) with a
+reason — the target-side analogue of `NOT_MIGRATED` — and are subtracted from
+`tablesWithoutAPlan()` so a post-cutover feature cannot make the backfill CLI
+refuse a production run over a table that could never have had a source.
+
+The reason must say why the table CANNOT have a source, never that it does not
+have one yet: "no plan written" is the bug this list would otherwise hide. Two
+tests hold the list to that — one rejects an entry naming a table that is not in
+the schema or that has since acquired a plan, the other rejects a placeholder
+reason. `post_corrections` is the first member, and its entry is the model.
+
+This is NOT the escape hatch `mention_backfill_checkpoints` uses: that table
+stays out of the schema barrel entirely because it is migration BOOKKEEPING.
+These are ordinary application tables that need drizzle queries, so they must be
+in the barrel and need a reason instead.
+
 ## Production safety
 
 Production MongoDB is NOT touched by any code-porting task. It stays live until a

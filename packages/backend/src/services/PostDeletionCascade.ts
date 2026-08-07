@@ -134,6 +134,15 @@ const POST_REFERENCE_DISPOSITION: Record<PostReferenceProbeName, ReferenceDispos
   'bookmarks.post_id': 'database',
   'post_recent_repliers.post_id': 'database',
   'engagement_outbox.payload_post_id': 'database',
+  /**
+   * The correction trail goes WITH the post, which is the opposite of the
+   * evidence-row rule that keeps `repair_fetch_failures` and `reports` around.
+   * Those record something that happened TO us; this holds the author's own
+   * superseded bodies, so retaining it after they delete the post would keep
+   * serving text they withdrew — through a route whose whole premise is that the
+   * post it belongs to is readable.
+   */
+  'post_corrections.post_id': 'database',
 
   /**
    * The one queue that is cancelled rather than erased.

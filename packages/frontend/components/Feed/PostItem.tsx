@@ -21,6 +21,7 @@ import PostContentText from '../Post/PostContentText';
 import PostLanguageChip from '../Post/PostLanguageChip';
 import PostLaneChip from '../Post/PostLaneChip';
 import ContentWarning from '../Post/ContentWarning';
+import PostCorrectionNotice from '../Post/PostCorrectionNotice';
 import PostActions from '../Post/PostActions';
 import PostDetailStats from '../Post/PostDetailStats';
 import PostLocation from '../Post/PostLocation';
@@ -224,6 +225,11 @@ const PostItem: React.FC<PostItemProps> = ({
     // `metadata.spoilerText`. Rendered as a visible label above the body — media blur
     // is handled separately via `isSensitiveContent`; this never gates the body text.
     const spoilerText = typeof metadata.spoilerText === 'string' ? metadata.spoilerText.trim() : '';
+    // The post's public correction trail. Absent — not zeroed — on a post that
+    // has never been corrected, so presence IS the whole condition for the
+    // marker. In practice only a channel post carries one: a personal post keeps
+    // its 30-minute edit window and leaves no trail.
+    const corrections = metadata.corrections;
 
     const isOwner = viewerState.isOwner ?? false;
     const canViewInsights = permissions.canViewInsights ?? isOwner;
@@ -898,6 +904,9 @@ const PostItem: React.FC<PostItemProps> = ({
                                 isTranslating={isTranslating}
                                 onSelect={selectLanguage}
                             />
+                        ) : null}
+                        {corrections && viewPostId ? (
+                            <PostCorrectionNotice postId={viewPostId} count={corrections.count} />
                         ) : null}
                     </PostHeader>
 

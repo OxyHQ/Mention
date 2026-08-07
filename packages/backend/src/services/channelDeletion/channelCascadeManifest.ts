@@ -211,6 +211,29 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     why: 'A denormalized replier projection for a destroyed post. `ON DELETE CASCADE` on `posts.id`.',
   },
   {
+    table: 'post_corrections',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why:
+      'The public correction trail of a channel post: the superseded bodies of a post that no longer ' +
+      'exists. It is the channel\'s OWN writing, so destroying the channel destroys it — unlike an ' +
+      'evidence row about the channel, which outlives it. `ON DELETE CASCADE` on `posts.id`.',
+  },
+  {
+    table: 'post_corrections',
+    column: 'correctedByOxyUserId',
+    scope: 'channel-posts',
+    action: 'database',
+    why:
+      'The human who made a correction — the same promise as `posts.written_by_oxy_user_id` and broken ' +
+      'the same way if it survives. It is never served (the trail carries no author, precisely so a ' +
+      'channel that did not opt into naming its writers cannot be made to), and nothing may reattribute ' +
+      'a correction to its writer on the way out. The column carries no constraint of its own — it is an ' +
+      'Oxy account id — so what removes it is the row it sits on: `ON DELETE CASCADE` on ' +
+      '`post_corrections.post_id`, hanging off `posts.id`.',
+  },
+  {
     table: 'polls',
     column: 'postId',
     scope: 'channel-posts',

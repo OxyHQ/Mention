@@ -168,6 +168,14 @@ export interface PostRecord {
   replyPermission: ReplyPermission[];
   reviewReplies: boolean;
   quotesDisabled: boolean;
+  /**
+   * How many times this post's body has been corrected — the denormalized public
+   * counter behind `post_corrections`. Zero on every post that never was, which
+   * includes every personal post: only a channel post records corrections.
+   */
+  correctionCount: number;
+  /** When the most recent correction was made; absent when never corrected. */
+  lastCorrectedAt: Date | null;
 
   boostOf: string | null;
   quoteOf: string | null;

@@ -42,6 +42,7 @@ import {
   PostContent,
   StoredPostContent,
   PostContentVariant,
+  type PostCorrectionsResponse,
   PostUser,
   ReplyPermission,
   toBaseLanguages,
@@ -87,9 +88,11 @@ import type { AccountKind } from '@oxyhq/contracts';
 import {
   assertCanPublishAsAccount,
   cacheAccountMemberReads,
+  isChannelAccount,
   listOperatedChannelIds,
   PublishAsAccessError,
 } from '../services/publishAsAccount';
+import { listPostCorrections, recordPostCorrection } from '../db/posts/postCorrectionsRepository';
 import { postManagementRefusal } from '../services/postManagementAccess';
 import { sendSuccessResponse } from '../utils/apiHelpers';
 import { sanitizePodcast, resolvePodcastContent } from '../utils/syraPodcast';
@@ -1686,6 +1689,56 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
 };
 
 /**
+ * `GET /posts/:id/corrections` — a post's public correction trail.
+ *
+ * The trail is readable exactly when the POST is, and that is enforced by
+ * hydrating the post for this viewer and 404ing when hydration drops it —
+ * reusing the one ACL rather than restating it. A second implementation of "may
+ * this viewer see this post" is a second answer, and the one that is wrong is
+ * wrong in the direction of serving superseded bodies of a post the viewer was
+ * refused.
+ *
+ * Public like `getPostById`, for the same reason: a publication's corrections
+ * are addressed to whoever read the post, and most of them are not signed in.
+ *
+ * The response is served straight from the trail rather than from the summary on
+ * the post, so `total` and the rows come from one read and cannot disagree about
+ * a correction made between two of them.
+ */
+export const getPostCorrections = async (req: AuthRequest, res: Response) => {
+  try {
+    const postId = String(req.params.id);
+    const post = await loadPostRecord(postId);
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    const hydrated = await postHydrationService.hydratePosts([post], {
+      viewerId: req.user?.id,
+      oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
+    });
+    if (hydrated.length === 0) {
+      return res.status(404).json({ message: 'Post not available' });
+    }
+
+    const corrections = await listPostCorrections(postId);
+    const response: PostCorrectionsResponse = {
+      postId,
+      // The post's own counter, NOT `corrections.length`: retention drops
+      // intermediate bodies, and a total taken from the surviving rows would
+      // report a publication as having corrected itself fewer times than it did.
+      total: post.correctionCount,
+      corrections,
+    };
+    return res.json(response);
+  } catch (error) {
+    logger.error('Error fetching post corrections', { postId: String(req.params.id), error });
+    return res.status(500).json({ message: 'Error fetching post corrections' });
+  }
+};
+
+/**
  * The renditions a post carries after an edit.
  *
  * Three cases, and the machine translations survive NONE of them — they translate
@@ -1760,8 +1813,22 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // Tuesday uneditable thirty minutes after it was written. Hence the
     // carve-out. It is decided from the STORED status read in this request;
     // nothing the client sends can select it.
+    // A CHANNEL post has no window either, and for the opposite reason to a
+    // scheduled one: not that nobody has read it, but that a publication is
+    // expected to fix what it published however long ago — and to do it in the
+    // open. So the grace period is replaced rather than extended: the post stays
+    // editable for life, and every change to its body appends a row to
+    // `post_corrections` that says what it said before (see below). Permanent
+    // editability WITHOUT that trail would be strictly worse than the window,
+    // because it would let a publication rewrite what people read with nothing to
+    // show for it.
+    //
+    // `isChannelAccount` fails SOFT to `false`, which here means "apply the
+    // window" — during an Oxy identity outage a late correction is refused rather
+    // than allowed, and refusing an edit is the recoverable direction.
     const editingScheduledPost = loaded.status === 'scheduled';
-    if (!editingScheduledPost) {
+    const editingChannelPost = await isChannelAccount(loaded.oxyUserId);
+    if (!editingScheduledPost && !editingChannelPost) {
       const EDIT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
       if (Date.now() - loaded.createdAt.getTime() > EDIT_WINDOW_MS) {
         return res.status(403).json({ message: 'Edit window has expired. Posts can only be edited within 30 minutes of creation.' });
@@ -2061,6 +2128,27 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     await updatePostRecord(post.id, patch);
     await replacePostContent(post.id, content, nextMentions);
 
+    // The correction trail — the half of permanent editability that makes it
+    // honest. Recorded AFTER the write, so an edit that failed leaves no claim
+    // that the post once said something else.
+    //
+    // Three conditions, and each excludes a case where there is nothing to be
+    // accountable for. A channel post, because only a publication trades its
+    // window for a trail. A change to the BODY, because that is what a reader
+    // read — a lane move, a pin or a media swap is not a correction and
+    // `isEdited` has never counted one either. And a post that was already
+    // PUBLISHED before this edit: a draft or a scheduled post has no readers, so
+    // rewriting it corrects nobody's understanding of anything.
+    let correction: Awaited<ReturnType<typeof recordPostCorrection>> = null;
+    if (editingChannelPost && textChanged && post.status === 'published') {
+      correction = await recordPostCorrection({
+        postId: post.id,
+        previousText: currentText ?? '',
+        correctedByOxyUserId: userId,
+        correctedAt: new Date(),
+      });
+    }
+
     // A scheduled THREAD has one publish moment, not one per post: its
     // continuations are replies to each other and the author picked a time for
     // the thread, so moving any member moves the whole chain. Leaving the others
@@ -2103,6 +2191,12 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         ? { postClassification: { ...post.postClassification, ...patch.postClassification } }
         : {}),
       ...(patch.location !== undefined ? { location: patch.location ?? undefined } : {}),
+      // Carried onto the in-memory record so the response this request hydrates
+      // already shows the correction it just made. Without it the marker appears
+      // only on the NEXT read of the post.
+      ...(correction
+        ? { correctionCount: correction.correctionCount, lastCorrectedAt: correction.correctedAt }
+        : {}),
       content,
       mentions: nextMentions,
     };

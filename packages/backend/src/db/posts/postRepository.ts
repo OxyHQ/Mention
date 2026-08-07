@@ -538,6 +538,8 @@ function assembleRecord(row: PostRow, children: PostChildRows): PostRecord {
     replyPermission: (row.replyPermission ?? DEFAULT_REPLY_PERMISSION) as ReplyPermission[],
     reviewReplies: row.reviewReplies,
     quotesDisabled: row.quotesDisabled,
+    correctionCount: row.correctionCount,
+    lastCorrectedAt: row.lastCorrectedAt,
 
     boostOf: row.boostOf,
     writtenByOxyUserId: row.writtenByOxyUserId,
@@ -751,6 +753,10 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     replyPermission: input.replyPermission ?? DEFAULT_REPLY_PERMISSION,
     reviewReplies: input.reviewReplies ?? false,
     quotesDisabled: input.quotesDisabled ?? false,
+    // A post cannot arrive already corrected: a correction is recorded by the
+    // edit path against a post that already exists. Not a caller-supplied value.
+    correctionCount: 0,
+    lastCorrectedAt: null,
 
     boostOf: input.boostOf ?? null,
     // Ordinary nullable values. Mongo had to set them ONLY when present,

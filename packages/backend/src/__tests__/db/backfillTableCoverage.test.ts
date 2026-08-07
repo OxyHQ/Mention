@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { tablesWithoutAPlan } from '../../db/backfill/collectionMap';
+import { getTableConfig } from 'drizzle-orm/pg-core';
+
+import {
+  COLLECTION_PLANS,
+  TABLES_WITH_NO_MONGO_SOURCE,
+  allSchemaTables,
+  tablesWithoutAPlan,
+} from '../../db/backfill/collectionMap';
+import { planTables, tableName } from '../../db/backfill/plan';
 
 /**
  * EVERY TABLE HAS A SOURCE, and the ones that do not are named here.
@@ -69,6 +77,45 @@ describe('every schema table has a plan feeding it', () => {
     // Named in the message, because the fix is to delete exactly these lines and
     // a bare boolean would send the reader back to compute the difference.
     expect(stale).toEqual([]);
+  });
+
+  /**
+   * The same shrink rule, applied to the OTHER exclusion.
+   *
+   * `TABLES_WITH_NO_MONGO_SOURCE` is subtracted from `tablesWithoutAPlan()`, so
+   * an entry that stops being true — a table renamed away, or one that somebody
+   * later writes a plan for — silently suppresses a real answer. That is exactly
+   * the rot the list above is guarded against, one exclusion over.
+   */
+  it('names only real tables that genuinely have no plan', () => {
+    const schemaTables = new Set(
+      allSchemaTables().map((table) => getTableConfig(table).name),
+    );
+    const planned = new Set<string>();
+    for (const plan of COLLECTION_PLANS) {
+      for (const table of planTables(plan)) planned.add(tableName(table));
+    }
+
+    const notInSchema = TABLES_WITH_NO_MONGO_SOURCE
+      .map((entry) => entry.table)
+      .filter((table) => !schemaTables.has(table));
+    expect(notInSchema).toEqual([]);
+
+    const nowPlanned = TABLES_WITH_NO_MONGO_SOURCE
+      .map((entry) => entry.table)
+      .filter((table) => planned.has(table));
+    expect(nowPlanned).toEqual([]);
+  });
+
+  it('gives every no-source table a reason that says WHY, not just that it lacks one', () => {
+    // A reason is the whole safety of this exclusion: without one it is
+    // indistinguishable from "nobody wrote the plan yet", which is the bug it
+    // would then hide. Length is a crude proxy, but it is the one that stops a
+    // placeholder.
+    const thin = TABLES_WITH_NO_MONGO_SOURCE
+      .filter((entry) => entry.reason.trim().length < 40)
+      .map((entry) => entry.table);
+    expect(thin).toEqual([]);
   });
 
   it('finds enough tables to be checking something', () => {

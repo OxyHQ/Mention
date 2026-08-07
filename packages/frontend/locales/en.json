@@ -1629,6 +1629,10 @@
       "manage": "Create or manage channels",
       "alsoPostToProfile": "Also post to my profile",
       "alsoPostToProfileHint": "Reposts the post onto your own profile once it is published."
+    },
+    "editingNotice": "Editing post — changes must be saved within 30 minutes of creation.",
+    "channel": {
+      "editingNotice": "Editing a published post. There is no time limit, and your change is recorded in this post’s public correction history."
     }
   },
   "post": {
@@ -1640,6 +1644,24 @@
       "pickerTitle": "Read this post in",
       "translateTo": "Translate to",
       "machine": "Translated"
+    },
+    "corrections": {
+      "title": "Correction history",
+      "description": "Every version of this post on Mention",
+      "intro": "This post has been changed since it was published. Every version it has had is listed here, oldest first.",
+      "marker_one": "Corrected once",
+      "marker_other": "Corrected {{count}} times",
+      "viewHistory": "View history",
+      "originalVersion": "As first published",
+      "version": "Version {{revision}}",
+      "currentVersion": "Current version",
+      "replaced": "Replaced {{timestamp}}",
+      "since": "Since {{timestamp}}",
+      "truncated_one": "1 version in between is no longer kept. The version numbers below skip it.",
+      "truncated_other": "{{count}} versions in between are no longer kept. The version numbers below skip them.",
+      "empty": "This post has not been corrected.",
+      "error": "Couldn't load this post's correction history.",
+      "retry": "Try again"
     }
   },
   "translation.failed": "Translation failed. Try again later.",

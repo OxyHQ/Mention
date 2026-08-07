@@ -956,6 +956,20 @@ export interface PostEditSource {
   status?: PostPublicationStatus;
   /** When a `scheduled` post is due to publish, ISO-8601. */
   scheduledFor?: string;
+  /**
+   * The account kind that PUBLISHED this post, for the same reason
+   * {@link PostEditSource.status} is here: the composer must not promise a
+   * deadline that does not apply. A `channel` post has no 30-minute window at
+   * all — a publication corrects what it published — and a change to its body is
+   * recorded in a public correction trail instead, which the screen has to say.
+   *
+   * Answered by the SERVER, out of the same identity read `updatePost` uses to
+   * decide the rule, so the notice and the rule cannot disagree. Absent when the
+   * author could not be resolved, which is exactly when the server applies the
+   * window — so treating an absent value as "the window applies" is correct
+   * rather than merely safe.
+   */
+  authorKind?: AccountKind;
 }
 
 export interface HydratedAuthor extends PostUser {
@@ -1035,6 +1049,75 @@ export interface PostFeedContext {
   isThreadParent?: boolean;
 }
 
+/**
+ * "This post has been corrected, N times, most recently then."
+ *
+ * A channel is a publication: its posts stay editable for their whole life, and
+ * that is only acceptable because every change to the body leaves a trail a
+ * reader can open. This summary is the part that rides on every post — enough to
+ * render the marker and nothing more. The versions themselves are a separate,
+ * paginated read (`GET /posts/:id/corrections` →
+ * {@link PostCorrectionsResponse}), because a post corrected twenty times would
+ * otherwise put twenty superseded bodies on every feed row that shows it.
+ *
+ * Present ONLY on a post that has actually been corrected, and in practice only
+ * on a channel post: a personal post keeps its 30-minute edit window, whose whole
+ * premise is that the change happens before the post has really been read, and
+ * attaching a permanent public trail to it would change that bargain.
+ */
+export interface PostCorrectionSummary {
+  /**
+   * How many corrections have been MADE — never how many superseded bodies are
+   * still readable. Retention bounds the second number; this one only grows, so
+   * a publication cannot be made to look like it rewrote itself less often than
+   * it did.
+   */
+  count: number;
+  /**
+   * When the most recent correction was made, ISO-8601. Distinct from
+   * {@link PostMetadataState.updatedAt}, which also moves for a pin, a lane
+   * change or a settings write.
+   */
+  lastCorrectedAt: string;
+}
+
+/**
+ * One superseded version of a post's body.
+ *
+ * The body is the one that was REPLACED, so revision 1 is the post as first
+ * published and the live post is the newest version — a reader reconstructs the
+ * whole history as `[…corrections, the post itself]` with nothing duplicated.
+ *
+ * There is deliberately no author field. A channel's writer is disclosed only
+ * when the channel opts in (`signPosts`), and a correction is made by exactly
+ * such a writer, so naming one here would route around that setting.
+ */
+export interface PostCorrection {
+  /**
+   * 1-based, in the order the corrections happened. A GAP means an intermediate
+   * version was dropped by retention — the numbering is never reassigned, so the
+   * gap is visible rather than silent.
+   */
+  revision: number;
+  /** The primary rendition as it read before this correction replaced it. */
+  previousText: string;
+  /** When this correction was made, ISO-8601. */
+  correctedAt: string;
+}
+
+/** The full correction trail of one post. */
+export interface PostCorrectionsResponse {
+  postId: string;
+  /**
+   * Corrections MADE, oldest first — the same number as
+   * {@link PostCorrectionSummary.count}. May exceed `corrections.length` when
+   * retention has dropped intermediate versions.
+   */
+  total: number;
+  /** The versions still readable, oldest first. */
+  corrections: PostCorrection[];
+}
+
 export interface PostMetadataState {
   visibility: PostVisibility;
   replyPermission?: ReplyPermission[];
@@ -1066,6 +1149,12 @@ export interface PostMetadataState {
   hashtags?: string[];
   createdAt: string;
   updatedAt: string;
+  /**
+   * The post's public correction trail, when it has one. Absent — not a zeroed
+   * object — on a post that has never been corrected, so a renderer's presence
+   * check is the whole condition for showing the marker.
+   */
+  corrections?: PostCorrectionSummary;
   status?: PostPublicationStatus;
   /**
    * When a `scheduled` post is due to publish, ISO-8601. Present ONLY on a post
