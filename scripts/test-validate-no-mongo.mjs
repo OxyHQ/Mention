@@ -71,11 +71,16 @@ async function runAgainst(files, { realFloors = false } = {}) {
 /**
  * A clean tree.
  *
- * It carries the file named by the live `KNOWN_EXCEPTIONS` entry, with the
- * `mongodb://` literal that entry excuses — so every case below also exercises
- * the exception path, and the guard's "the list must only shrink" check has
- * something to be satisfied by. The stale-exception case is the one tree that
- * deliberately omits it.
+ * It carries one file per live `KNOWN_EXCEPTIONS` entry, holding the text that
+ * entry excuses — so every case below also exercises the exception path, and the
+ * guard's "the list must only shrink" check has something to be satisfied by.
+ * The stale-exception case is the one tree that deliberately omits them.
+ *
+ * THIS IS COUPLED TO THE LIVE LIST ON PURPOSE, and the coupling is the point:
+ * the self-test then proves the real exceptions match real text, rather than
+ * proving a synthetic list matches synthetic text. Adding an entry to the guard
+ * means adding its file here; forgetting turns every case below red with a
+ * message naming the entry. The cost shrinks as the list does.
  */
 function filler(extra = {}) {
   return {
@@ -104,6 +109,7 @@ function filler(extra = {}) {
       "it('redacts a database URI', () => {\n"
       + "  expect(sanitise('mongodb://alice:password@host/mention')).toBe('[REDACTED]');\n"
       + "});\n",
+    ".github/workflows/deploy-aws.yml": "        env:\n          TASK_SECRET_REMOVALS: MONGODB_URI\n",
     ...extra,
   };
 }
@@ -375,6 +381,54 @@ const cases = [
       "packages/backend/README.md": "Set MONGODB_URI to nothing — it is gone. Old value: mongodb://localhost:27017.\n",
     }),
     expectFailure: false,
+  },
+
+  // --------------------------------------- exceptions must stay NARROW ------
+  //
+  // An exception is scoped to a FILE, so what decides whether it is safe is what
+  // else that file could say. The live one covers `TASK_SECRET_REMOVALS:
+  // MONGODB_URI` in the deploy workflow — the likeliest file in the repository
+  // for a real Mongo secret to reappear — so these assert that excusing the
+  // removal directive does not also excuse a line SUPPLYING the secret beside
+  // it. Without them, widening the pattern to a bare `MONGODB_URI` would look
+  // correct and silently blind the guard to the one file it most needs to watch.
+  {
+    name: "an excused workflow still FAILS when it also supplies the secret",
+    files: filler({
+      ".github/workflows/deploy-aws.yml":
+        "        env:\n"
+        + "          TASK_SECRET_REMOVALS: MONGODB_URI\n"
+        + "          MONGODB_URI: ${{ secrets.MONGODB_URI }}\n",
+    }),
+    expectFailure: true,
+    expectOutput: "names MONGODB_URI",
+  },
+  {
+    // `TASK_SECRET_OVERRIDES_JSON` in this same file supplies secrets by SSM
+    // path, so an ARN is the other shape a reintroduction here would take.
+    name: "an excused workflow still FAILS on an SSM ARN for the same parameter",
+    files: filler({
+      ".github/workflows/deploy-aws.yml":
+        "        env:\n"
+        + "          TASK_SECRET_REMOVALS: MONGODB_URI\n"
+        + '          TASK_SECRET_OVERRIDES_JSON: {"MONGODB_URI":'
+        + '"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MONGODB_URI"}\n',
+    }),
+    expectFailure: true,
+    expectOutput: "names MONGODB_URI",
+  },
+  {
+    // The exception names the directive in FULL, so renaming the mechanism makes
+    // the entry stale and forces a re-review rather than carrying the excuse
+    // over to a directive nobody has looked at. A pattern matching some fragment
+    // of the name would keep excusing it silently — that is the input shape that
+    // tells a full pattern from a partial one, and nothing else does.
+    name: "renaming the directive makes its exception stale rather than carrying over",
+    files: filler({
+      ".github/workflows/deploy-aws.yml": "        env:\n          SECRET_REMOVALS: MONGODB_URI\n",
+    }),
+    expectFailure: true,
+    expectOutput: "no longer matches anything",
   },
 
   // ------------------------------------------------------- self-protection ---

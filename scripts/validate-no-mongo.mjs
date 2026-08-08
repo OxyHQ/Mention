@@ -130,6 +130,18 @@ const KNOWN_EXCEPTIONS = [
       + "upstream never reaches a log sink. The literal is the string being redacted, not a database "
       + "Mention connects to — deleting it would delete the proof that the redaction works.",
   },
+  {
+    file: ".github/workflows/deploy-aws.yml",
+    pattern: "TASK_SECRET_REMOVALS: MONGODB_URI",
+    reason:
+      "The directive that keeps the secret OFF the ECS task definition. It names MONGODB_URI in order "
+      + "to remove it, every deploy: the definition is derived from the LIVE one, so a secret nobody "
+      + "names survives indefinitely. Deleting this line does not remove Mongo, it removes the "
+      + "enforcement that Mongo stays removed, and a Terraform apply or a hand-registered revision then "
+      + "puts the secret back with nothing to strip it. This guard flagged the line once and it was "
+      + "deleted in response (restored in e0f7e08e) — which is precisely why the exception exists rather "
+      + "than a rewrite.",
+  },
 ];
 
 const MINIMUM_MANIFESTS = fixtureFloors ? 1 : 4;
