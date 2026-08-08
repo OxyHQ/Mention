@@ -8,8 +8,8 @@ name: Purge blocked-domain content from Mention
 # without this the clean is half done in the direction users actually see.
 #
 # Runs as an ECS Fargate one-shot, same as its sibling and for the same two
-# reasons: Mongo is on a private VPC address, and the task must run code from
-# `main` because it reuses the live service's role, secrets and network.
+# reasons: the database is on a private VPC address, and the task must run code
+# from `main` because it reuses the live service's role, secrets and network.
 #
 # ⚠ THE SAFE DEFAULT IS INVERTED IN THE SCRIPT, WHICH IS WHY THIS FILE GUARDS IT
 #   `purgeBlockedDomainContent` reads `DRY_RUN` as TRUE only for "1"/"true"/"yes"

@@ -680,8 +680,9 @@ router.post('/export', async (req: AuthRequest, res: Response) => {
       const last = page[page.length - 1];
       exportCursor = ChronoCursor.build(last.id, last.createdAt);
     }
-    // Postgres, like the posts above. These two read Mongo until now, which had
-    // stopped receiving engagement when the command service moved — so this
+    // Postgres, like the posts above. These two read the abandoned store until
+    // the port reached them, and it had stopped receiving engagement when the
+    // command service moved — so this
     // export, the artefact a user downloads to have their own data, would have
     // silently omitted every like and bookmark made after the cutover while
     // still listing their posts. An export that is quietly incomplete is worse

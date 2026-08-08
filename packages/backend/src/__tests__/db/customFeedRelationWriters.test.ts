@@ -34,9 +34,10 @@ import { join, relative, sep } from 'node:path';
  *
  * ## Why that is harmless TODAY — both grounds verified, not assumed
  *
- *  1. **Nothing outside the backfill writes these tables.** The only producer is
- *     `db/backfill/plans/feeds.ts`, which emits rows from the Mongo documents.
- *     No request path inserts into either.
+ *  1. **Nothing writes these tables at all.** Their only producer was the
+ *     Mongo→Postgres copier (`db/backfill/plans/feeds.ts`), which is deleted; the
+ *     rows it wrote are all there will ever be until somebody adds a writer. No
+ *     request path inserts into either.
  *  2. **Nothing reads them as a sequence.** `customFeedRepository.ts` says so
  *     outright where it assembles the DTO: `sourceListIds` and `topicIds` are
  *     deliberately left off `CustomFeedSource` because `legacyCustomFeedToDefinition`
@@ -73,7 +74,6 @@ const RELATIONS = ['customFeedSourceLists', 'customFeedTopics'] as const;
  * the reasoning above has moved and the next reader should be told where.
  */
 const ALLOWED: ReadonlyArray<{ path: string; because: string }> = [
-  { path: 'db/backfill/plans/feeds.ts', because: 'the ONLY writer: emits both relations from the Mongo documents' },
   { path: 'db/feeds/customFeedRepository.ts', because: 'the two reads — the `asc(id)` ordering this test exists for' },
   { path: 'db/schema/deferredForeignKeys.ts', because: 'declares the deferred FK on custom_feed_topics.topic_id' },
   { path: 'db/schema/feeds.ts', because: 'defines both tables' },

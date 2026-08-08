@@ -166,9 +166,10 @@ expect_status() {
 # live against an empty Postgres on 2026-08-04, these checks passed, and the
 # rollback came from an unrelated post-deploy task crashing.
 #
-# It needs no "we are mid-migration" escape hatch, and that is a property of the
-# runbook rather than luck: `docs/MONGO-TO-POSTGRES-CUTOVER.md` §3.4 deploys
-# AFTER §3.3 copies, and the service sits at desired count 0 in between, so the
+# It needs no "the store is legitimately empty right now" escape hatch, and that
+# is a property of the deploy order rather than luck: the pre-rollout one-shots
+# run before any task takes traffic, and a window that deliberately empties or
+# reloads the store holds the service at desired count 0 while it does — so the
 # only moment the store is legitimately empty is a moment this script does not
 # run. If that ORDER ever changes, this check is what will notice.
 #

@@ -74,7 +74,7 @@ export class InterestScoreService {
      * `sum()` and `count()` back as STRINGS (they are `numeric`/`int8` on the
      * wire), so an unmapped column would flow into `Math.log1p` as a string and
      * silently score every author 0 — the read-side shape of the trap
-     * `MIGRATION-CONTRACT.md` describes for `db.execute`.
+     * `db/schema/CONVENTIONS.md` describes for `db.execute`.
      *
      * The five `stats_*` columns are `NOT NULL DEFAULT 0`, so Mongo's `$ifNull`
      * wrappers have nothing left to guard and are dropped rather than ported as

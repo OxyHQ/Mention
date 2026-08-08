@@ -39,7 +39,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../controllers/feed.controller', () => ({
   feedController: { transformPostsWithProfiles: mocks.transformPostsWithProfiles },
 }));
-// The endorsement outbox is a fire-and-forget Oxy signal that still reads Mongo.
+// The endorsement outbox is a fire-and-forget Oxy signal with its own queries.
 vi.mock('../../services/EndorsementSignalService', () => ({
   endorsementSignalService: {
     syncScope: vi.fn().mockResolvedValue(undefined),

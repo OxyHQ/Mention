@@ -15,6 +15,22 @@
       "reason": "Same shape: 3.1.5 fixes it and satisfies the declared ranges, and it was published 2026-07-31 — inside this repository's seven-day resolution quarantine. Nothing about the fix is contentious; only its age is.",
       "compensation": "Deliberately WEAK, and said plainly rather than dressed up: the MCP server does parse URIs through this dependency, so unlike the entry above this is not a build-time-only exposure. What bounds it is time and access — every MCP route is behind OAuth with an audience-pinned JWT, and this entry expires the day the patch becomes installable.",
       "expires": "2026-08-08"
+    },
+    {
+      "advisory": "GHSA-w3rx-r6r6-pgpr",
+      "package": "image-size",
+      "scope": "Metro bundler, build time only",
+      "reason": "Unlike every other entry here, this one is not waiting out the quarantine — there is no patched release to wait for. The advisory covers `<= 2.0.2`, GitHub and npm both report no first_patched_version, and 2.0.2 IS the newest version published (2025-04-02). The lockfile pins 1.2.1 because metro@0.84.4 declares `image-size ^1.0.2`; moving to 2.0.2 would break that range and still be vulnerable, so there is no version to move to and no override that would help.",
+      "compensation": "The ICNS parser is reachable only through metro, which runs at BUNDLE time on developer and CI machines over the repository's own committed image assets — no first-party code imports image-size, and no runtime request path reaches it (the backend resolves media through the Oxy asset services and extracts video posters with ffmpeg). Feeding the parser a malicious ICNS therefore requires commit access to this repository, which is a strictly stronger capability than the denial of service it would buy. The advisory is DoS-only: CVSS 7.5, A:H with no confidentiality or integrity impact.",
+      "expires": "2026-10-08"
+    },
+    {
+      "advisory": "GHSA-5p2g-fcmc-qvqq",
+      "package": "image-size",
+      "scope": "Metro bundler, build time only",
+      "reason": "Same package, same closed bump path as the entry above, filed separately because it is a separate advisory over separate parsers (JXL and HEIF rather than ICNS) and should expire on its own evidence. `<= 2.0.2` with no first_patched_version, and 2.0.2 is the newest release; metro@0.84.4's `image-size ^1.0.2` holds the tree at 1.2.1.",
+      "compensation": "Identical and build-time only: metro parses the repository's own committed assets while bundling, nothing first-party imports image-size, and no runtime request path reaches these parsers. Both loops need attacker-controlled image bytes at BUILD time, so the prerequisite is commit access. DoS-only, CVSS 7.5, A:H. The expiry is a re-check date, not a deadline anyone upstream has committed to — if image-size still has no patched release then, the entry should be renewed on fresh evidence rather than extended by habit.",
+      "expires": "2026-10-08"
     }
   ]
 }

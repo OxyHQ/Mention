@@ -36,16 +36,6 @@
  *  5. Every network fetch goes through the same signed, SSRF-safe, depth-capped
  *     import ingest uses. A failure leaves the post exactly as it is.
  *
- * ── WHY THIS FILE IS POSTGRES ────────────────────────────────────────────────
- *
- * It arrived from `main` writing Mongo (`import mongoose`, `models/Post`) and
- * merged into the port with ZERO conflicts and ZERO type errors, because
- * `models/Post` is among the models the port KEPT — the second instance of that
- * shape in as many absorbs. Post-cutover it would have reported a truthful write
- * count about a table nothing reads, which is strictly worse than a wrong one:
- * a fabricated number invites suspicion and a correct number about the wrong
- * subject does not.
- *
  * ── THREE DELIBERATE DIVERGENCES FROM THE MONGO ORIGINAL ─────────────────────
  *
  * 1. THE `RE:` FILTER IS IN SQL, NOT IN JS AFTER THE LIMIT. Mongo fetched `MAX`

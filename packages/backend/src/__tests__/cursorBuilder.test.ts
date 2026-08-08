@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import mongoose from 'mongoose';
 import { ScoreCursor } from '../mtn/feed/CursorBuilder';
 
-const oid = (n: number) => new mongoose.Types.ObjectId(`5f${n.toString().padStart(22, '0')}`).toString();
+/**
+ * A 24-hex id, the shape every post id in this schema still has. Spelled out
+ * rather than built through a driver: `ScoreCursor` only ever treats these as
+ * opaque strings, so a Mongo ObjectId was never anything but a hex generator.
+ */
+const oid = (n: number) => `5f${n.toString().padStart(22, '0')}`;
 
 describe('ScoreCursor', () => {
   it('round-trips a versioned snapshot cursor without truncating score precision', () => {
@@ -46,7 +50,7 @@ describe('ScoreCursor', () => {
 
   it('bounds the previous-page exclusion set carried by the cursor', () => {
     const ids = Array.from({ length: 130 }, (_, index) =>
-      new mongoose.Types.ObjectId((index + 1).toString(16).padStart(24, '0')).toString(),
+      (index + 1).toString(16).padStart(24, '0'),
     );
     const parsed = ScoreCursor.parse(ScoreCursor.build(1, ids[0], {
       asOf: Date.now(),

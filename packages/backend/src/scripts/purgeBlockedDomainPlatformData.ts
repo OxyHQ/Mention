@@ -47,11 +47,11 @@
  *   Ingest is live: the federated corpus grows while a purge runs, so this is
  *   not a one-shot that gets ticked off. Each domain is walked in `limit`-sized
  *   passes, `nextCursor` echoed back as `afterId`, until the endpoint reports
- *   `done`. Progress is recorded in Mongo per domain after every pass — a
+ *   `done`. Progress is recorded in the database per domain after every pass — a
  *   Fargate one-shot's filesystem dies with the task — so a run that is killed
  *   resumes where it stopped, and a re-run costs one short pass per finished
- *   domain while still catching actors ingested since (an `_id` cursor advances
- *   into new arrivals by construction).
+ *   domain while still catching actors ingested since (the cursor advances into
+ *   new arrivals by construction).
  *
  *   `done` is THE loop condition, never `remaining`: retained rows keep matching
  *   forever and a dry run deletes nothing, so a caller looping on "anything

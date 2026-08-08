@@ -96,7 +96,7 @@ All post DTOs go through `PostHydrationService`. For each post it:
 
 An undeclared or unresolved placeholder is not linked and is left unchanged
 rather than inventing an identity. Consumers must render hydrated DTOs, not raw
-MongoDB posts.
+post rows.
 
 `packages/frontend/components/common/LinkifiedText.tsx` recognizes the hydrated
 form, renders its label with link styling, normalizes the handle, and navigates

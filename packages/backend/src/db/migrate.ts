@@ -26,10 +26,9 @@
  * the newest recorded `created_at`" rule — so a database migrated by either is
  * understood by the other.
  *
- * This is deliberately SEPARATE from `src/migrations/runner.ts`, which is the
- * Mongo data-migration runner (`bun run migrate`). The two stores have two
- * ledgers because they have two lifetimes; merging them would make a Mongo
- * backfill and a Postgres DDL step share a failure mode they do not share.
+ * THIS IS THE ONLY MIGRATION MECHANISM. A separate data-migration runner used to
+ * sit beside it for the Mongo store, with its own ledger; both are gone, and a
+ * schema change now goes through `drizzle/` and this file and nothing else.
  *
  * DRY RUN. `DRY_RUN=true` reports which migrations WOULD be applied and writes
  * nothing — not even the ledger table.

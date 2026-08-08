@@ -711,11 +711,10 @@ const bootServer = async () => {
   // fail every query.
   //
   // Mongo used to open FIRST, on this line, on every task — so a web task could
-  // not boot without it even though no runtime read or write has gone to Mongo
-  // since the cutover. The connection is gone; what still uses Mongo is the
-  // DEPLOY ONE-SHOT (`scripts/migrate.ts`) and the restore/backfill tooling,
-  // neither of which is this process. See the PR that removed it for the full
-  // list of what was deliberately left in place.
+  // not boot without it even though no runtime read or write had gone to Mongo
+  // since the cutover. That connection went first, and the rest of the surface
+  // (driver, models, the Mongo→Postgres copier) followed: there is no Mongo
+  // left in this package for any entry point to open.
   await connectPostgres();
 
   // Production migrations run as a deployment one-shot with the exact image

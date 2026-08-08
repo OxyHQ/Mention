@@ -10,8 +10,8 @@
  * reverted the deployment was an unrelated post-deploy task crashing. The
  * breakage was load-bearing, and this is the control that replaces it.
  *
- * It runs as the THIRD migration one-shot in `deploy-ecs-image.sh`, after both
- * migrations (the schema has to exist before rows can be counted) and before
+ * It runs as a pre-rollout one-shot in `deploy-ecs-image.sh`, after the schema
+ * migration (the tables have to exist before rows can be counted) and before
  * `update-service`. A non-zero exit there stops the release having routed
  * nothing, which is the whole reason it lives at that point rather than in the
  * post-deploy smoke: a smoke failure rolls back after the image has served.
@@ -23,28 +23,21 @@
  * about in its own comments. Anything this file did to the data could therefore
  * still be happening after the deploy gave up. It counts and it exits.
  *
- * ## ITS LIFETIME IS THE CUTOVER'S LIFETIME — do not land it separately
+ * ## IT ASSERTS SOMETHING TRUE ONLY OF THIS DEPLOYMENT
  *
- * This asserts that Postgres is authoritative. That is TRUE from the cutover
- * onward and FALSE before it, and it is false again the moment we exercise the
- * planned rollback: Mongo is the rollback target, and reverting to it makes an
- * empty Postgres correct again. A floor that outlived the cutover would then
- * block every subsequent deploy for a reason nothing about a Mongo rollback
- * would lead anyone to look for.
+ * "Postgres is authoritative and populated" is a claim about production, not
+ * about the application, which is the objection that kept this out of
+ * `/health/ready`: a permanent claim there becomes a trap for whoever first
+ * boots on a fresh database. It shipped with the cutover so that reverting the
+ * cutover would have reverted the guard too — the two were one decision.
  *
- * So it ships INSIDE the cutover commit, and reverting the cutover reverts it.
- * No flag, nothing to remember, and the guard's scope equals the scope of the
- * claim it makes. That is the same objection that kept this out of
- * `/health/ready`: a permanent claim about the app becomes a trap for whoever
- * first boots on a fresh database.
+ * ## It needs no "the store is legitimately empty" escape hatch
  *
- * ## It needs no "we are mid-migration" escape hatch
- *
- * `docs/MONGO-TO-POSTGRES-CUTOVER.md` §3.4 deploys AFTER §3.3 copies, and the
- * service sits at desired count 0 in between, so the only moment the store is
- * legitimately empty is a moment no deploy is running. That dependency on the
- * runbook's ORDER is now executable rather than prose: change the order and
- * this is what notices.
+ * The pre-rollout one-shots run before any task takes traffic, and a window that
+ * deliberately empties or reloads the store holds the service at desired count
+ * 0 while it does — so the only moment the store is legitimately empty is a
+ * moment no deploy is running. That dependency on the deploy's ORDER is
+ * executable rather than prose: change the order and this is what notices.
  */
 
 import { sql } from 'drizzle-orm';
@@ -89,12 +82,12 @@ export const POPULATION_FLOORS: readonly PopulationFloor[] = [
     table: 'federated_actors',
     minimum: 10_000,
     why:
-      'The source holds 66,258 remote actors (same count, same day). It is ' +
-      'written at a DIFFERENT level of the copy than `posts`, which is what ' +
-      'makes the pair able to tell a partial copy from an empty one — and ' +
-      'federated ingest keeps writing this table while the site serves Mongo, ' +
-      'so it accrues residue fastest and needs the wider margin most. 10,000 is ' +
-      '~6x below the real count and ~500x above the residue observed.',
+      'The copy carried 66,258 remote actors. It was written at a DIFFERENT ' +
+      'level of that copy than `posts`, which is what makes the pair able to ' +
+      'tell a partial restore from an empty database — and federated ingest ' +
+      'writes this table continuously, so a fresh or wrong database accrues ' +
+      'residue here fastest and it needs the wider margin most. 10,000 is ~6x ' +
+      'below the real count and ~500x above the residue observed.',
   },
 ];
 

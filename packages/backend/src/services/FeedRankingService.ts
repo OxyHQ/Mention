@@ -646,8 +646,8 @@ export class FeedRankingService {
       if (Math.abs(scoreDiff) > 0.001) {
         return scoreDiff; // Significant score difference, use score
       }
-      // Scores are very close or equal - preserve MongoDB's createdAt order
-      // Lower originalIndex = newer post (MongoDB sorted createdAt: -1)
+      // Scores are very close or equal - preserve the query's createdAt order
+      // Lower originalIndex = newer post (the query sorted created_at desc)
       return a.originalIndex - b.originalIndex;
     });
 

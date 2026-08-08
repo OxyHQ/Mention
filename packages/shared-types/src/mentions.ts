@@ -305,9 +305,9 @@ export function mentionTextsFromContent(content: unknown): string[] {
  * reads. Returns true when any of them actually changed.
  *
  * In place rather than returning a copy because the callers hold the content
- * they are about to persist — a plain object being assembled, or a Mongoose
- * subdocument on a loaded post — and neither can accept a foreign replacement
- * without the caller knowing which one it is holding.
+ * they are about to persist — a plain body being assembled, or the content of a
+ * post already loaded, with its author variants — and neither can accept a
+ * foreign replacement without the caller knowing which one it is holding.
  */
 export function mapMentionTexts(
   content: unknown,

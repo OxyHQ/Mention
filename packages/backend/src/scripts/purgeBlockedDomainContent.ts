@@ -624,8 +624,8 @@ async function countOrDeleteDistinctPosts(
 }
 
 /**
- * `feed_interactions` — the ONE lane that deletes from BOTH stores, because both
- * hold rows that are real.
+ * `feed_interactions` — the lane whose residue is not fully reachable, and the
+ * reason is worth reading before trusting its count.
  *
  * This used to delete from BOTH stores and sum the counts, because the table was
  * half-ported in the unusual direction: everything around it was Postgres — the

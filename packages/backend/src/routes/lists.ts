@@ -528,13 +528,8 @@ router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
 /**
  * Timeline of a list (chronological posts from members).
  *
- * The LIST half is Postgres; the POST half is still Mongo, and deliberately so.
- * `Post` and the hydration path it feeds (`feedController.transformPostsWithProfiles`
- * → `PostHydrationService`) belong to a different batch of this migration and
- * still read Mongo documents, so selecting posts from Postgres here would hand
- * hydration rows of a shape it cannot read. This is an entity boundary, not a
- * half-ported entity: every `account_lists` access in this file is Postgres.
- * When posts move, this query moves with them.
+ * Both halves are Postgres: the list and its membership, and the posts fed to
+ * `feedController.transformPostsWithProfiles` → `PostHydrationService`.
  */
 router.get('/:id/timeline', ...timelineRateLimiters, async (req: AuthRequest, res: Response) => {
   try {

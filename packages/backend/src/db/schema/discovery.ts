@@ -134,9 +134,9 @@ export const PUSH_TOKEN_PLATFORMS = ['android', 'ios', 'unknown'] as const;
 
 /**
  * Retention windows, in seconds, for the three tables in this module that had a
- * Mongo TTL index. Declared here beside the table and asserted EQUAL to the
- * Mongoose model's own constant by `__tests__/expiry.test.ts`, so the two cannot
- * drift while both stores are live.
+ * Mongo TTL index. Declared here beside the table, and now the only declaration
+ * of each: the Mongoose models these were once asserted equal to are gone, so
+ * the sweep in `db/expiry.ts` is the whole bound.
  */
 export const TRENDING_RETENTION_SECONDS = 90 * 24 * 60 * 60;
 /**

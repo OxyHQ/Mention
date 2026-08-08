@@ -1,11 +1,21 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
-import mongoose from 'mongoose';
+import { randomBytes } from 'node:crypto';
 import { uuidv7 } from '../../db/schema/columns';
 import { validateBody, validateObjectId, schemas } from '../../middleware/validate';
 import { ErrorCodes } from '../../utils/apiResponse';
 
 // --- helpers ----------------------------------------------------------------
+
+/**
+ * A 24-char ObjectId hex — one of the two shapes `isLiveEntityId` accepts, and
+ * the one every pre-cutover row still carries. Generated here rather than taken
+ * from a driver: the middleware matches a regex, so the only property a fixture
+ * needs is the shape.
+ */
+function objectIdHex(): string {
+  return randomBytes(12).toString('hex');
+}
 
 function makeReq(body: unknown = {}, params: Record<string, string> = {}): Request {
   return { body, params } as unknown as Request;
@@ -172,7 +182,7 @@ describe('validateBody — likeRequest schema', () => {
 
 describe('validateObjectId middleware', () => {
   it('calls next() when the param is a valid ObjectId', () => {
-    const validId = new mongoose.Types.ObjectId().toHexString();
+    const validId = objectIdHex();
     const req = makeReq({}, { id: validId });
     const res = makeRes();
     const next = makeNext();
@@ -208,7 +218,7 @@ describe('validateObjectId middleware', () => {
   });
 
   it('accepts a custom param name', () => {
-    const validId = new mongoose.Types.ObjectId().toHexString();
+    const validId = objectIdHex();
     const req = makeReq({}, { postId: validId });
     const res = makeRes();
     const next = makeNext();

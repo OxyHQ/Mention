@@ -35,8 +35,9 @@ router.get('/health/live', (_req, res) => {
  *
  * `dependencies.mongo` is gone from the payload for the same reason it is gone
  * from the gate — reporting a store this process never opens would be inventing
- * a status. What still uses Mongo is the deploy one-shot and the restore
- * tooling, and neither is a web task whose readiness this answers.
+ * a status. Nothing in this package opens Mongo any more: the driver, the
+ * models and the copier have all been removed, so there is no longer any
+ * process, one-shot included, whose readiness could involve it.
  */
 router.get('/health/ready', async (_req, res) => {
   const runtime = getRuntimeHealthState();

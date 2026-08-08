@@ -21,22 +21,16 @@
  * reason. Getting this backwards would pin every handle in every historical body
  * onto a bridge hostname.
  *
- * ── WHY THIS FILE IS POSTGRES ────────────────────────────────────────────────
+ * ── WHY THE WRITE COUNT BELOW IS INSTRUMENTED SO CAREFULLY ───────────────────
  *
- * It arrived from `main` writing Mongo, and merged into the port with ZERO
- * conflicts and ZERO type errors — because `models/Post` and
- * `models/FederatedActor` are among the models the port KEPT, so nothing failed
- * to resolve. Post-cutover it would have reported a real, truthful write count
- * about a store nothing reads.
- *
- * That matters more than an ordinary wrong-store bug, because of what the
- * counting below is FOR. The reporting exists precisely so a silent no-op is
- * visible — the first production run logged 213 written while modifying nothing.
- * Pointed at the abandoned store, that same instrumentation reports `written: N`
- * and N is TRUE: it really did write N rows, to a table the app no longer serves
- * from. A fabricated number invites suspicion; a correct number about the wrong
- * subject does not, and it survives every review that only checks whether the
- * metric is accurate. The defence becomes the concealment.
+ * The reporting exists so a silent no-op is visible — the first production run
+ * logged 213 written while modifying nothing. The lesson from the port is worth
+ * keeping whole: an earlier revision of this script wrote to the store that was
+ * being abandoned, and that same instrumentation would have reported `written:
+ * N` with N TRUE. A fabricated number invites suspicion; a correct number about
+ * the wrong subject does not, and it survives every review that only checks
+ * whether the metric is accurate. The defence becomes the concealment. Check
+ * WHAT is being counted, not just whether the count is right.
  *
  * SELECTION:
  *  1. Variants whose post's author has a `federated_actors` row — a local user's
