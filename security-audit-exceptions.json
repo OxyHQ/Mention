@@ -9,14 +9,6 @@
       "expires": "2026-10-31"
     },
     {
-      "advisory": "GHSA-7p8r-x3mc-p8w7",
-      "package": "fast-uri",
-      "scope": "MCP SDK and ESLint",
-      "reason": "Same shape: 3.1.5 fixes it and satisfies the declared ranges, and it was published 2026-07-31 — inside this repository's seven-day resolution quarantine. Nothing about the fix is contentious; only its age is.",
-      "compensation": "Deliberately WEAK, and said plainly rather than dressed up: the MCP server does parse URIs through this dependency, so unlike the entry above this is not a build-time-only exposure. What bounds it is time and access — every MCP route is behind OAuth with an audience-pinned JWT, and this entry expires the day the patch becomes installable.",
-      "expires": "2026-08-08"
-    },
-    {
       "advisory": "GHSA-w3rx-r6r6-pgpr",
       "package": "image-size",
       "scope": "Metro bundler, build time only",
