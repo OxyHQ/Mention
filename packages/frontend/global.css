@@ -26,6 +26,17 @@
    drift to `var(--surface)` (card === surface no longer holds: card is the
    lightest surface). */
 @theme {
+  /* Shell breakpoints, as CSS.
+
+     `hooks/useOptimizedMediaQuery.ts` already draws the line: a JS width read is
+     for MOUNT gates and data-level decisions, and "pure show/hide and pure
+     styling differences use NativeWind responsive classes — NOT these hooks".
+     Naming the widths here is what lets the shell keep that rule instead of
+     re-rendering on every resize frame to pick a class name.
+
+     The numbers are the hook's, unchanged. */
+  --breakpoint-shell: 500px;
+
   --font-sans: Inter, sans-serif;
 
   --radius-lg: var(--radius);

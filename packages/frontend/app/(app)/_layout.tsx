@@ -23,7 +23,6 @@ import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
 import { useIsScreenNotMobile } from "@/hooks/useOptimizedMediaQuery";
 import { useScreenColor } from '@/context/ScreenColorContext';
 import { APP_COLOR_PRESETS, BloomColorScope, useTheme, type AppColorName } from '@oxyhq/bloom/theme';
-import { cn } from '@/lib/utils';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -132,30 +131,19 @@ export default function AppLayout() {
           for signed-out visitors, who cannot connect to the two above at all. */}
       <PublicRealtimeBridge />
       {/* ── visual shell (was MainLayout): SideBar + gutter/ContentPanel + RightBar ── */}
-      <View
-        className={cn(
-          "flex-1 w-full bg-background",
-          isScreenNotMobile ? "flex-row justify-center" : "flex-col"
-        )}
-      >
+      {/* Every width decision below is a CLASS, not a measured boolean. The
+          shell used to read `isScreenNotMobile` for its direction, its cap and
+          its gutter — pure styling, which `useOptimizedMediaQuery`'s own docs
+          send to NativeWind — so dragging a window re-rendered this subtree on
+          every frame to pick between two strings. The hook stays for what it is
+          actually for: the mount gates below. */}
+      <View className="flex-1 w-full flex-col shell:flex-row shell:justify-center bg-background">
         <SideBar />
-        <View
-          className={cn(
-            "flex-1 justify-between bg-background",
-            isScreenNotMobile ? "flex-row" : "flex-col"
-          )}
-          style={isScreenNotMobile ? { maxWidth: 950, flexShrink: 1 } : undefined}
-        >
+        <View className="flex-1 justify-between flex-col shell:flex-row shell:max-w-[950px] shell:shrink bg-background">
           {/* Desktop-web gutter: the `bg-background` band around the floating panel
               (`p-2 pl-0` so the panel meets the rail flush). Gated to the same
               >=500px breakpoint as the sidebar; full-bleed once the sidebar hides. */}
-          <View
-            className={cn(
-              "bg-background",
-              IS_WEB && isScreenNotMobile && "p-2 pl-0",
-            )}
-            style={{ flex: isScreenNotMobile ? 2.2 : 1 }}
-          >
+          <View className="flex-1 shell:flex-[2.2] bg-background web:shell:p-2 web:shell:pl-0">
             <BloomColorScope colorPreset={activeScreenColor} asChild>
               <ContentPanel
                 framedFrom={500}
