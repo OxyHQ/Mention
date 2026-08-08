@@ -55,9 +55,6 @@ const LOCAL_MENTION_OXY_ID = 'oxy_alice_local';
 const CREATED_POST_ID = 'created_post_1';
 
 const mocks = vi.hoisted(() => ({
-  postFindOne: vi.fn(),
-  postExists: vi.fn(),
-  postUpdateOne: vi.fn(),
   postCreatorCreate: vi.fn(),
   ensureFederatedReplyLink: vi.fn(),
   isFediverseSharingEnabled: vi.fn(),
@@ -87,20 +84,6 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   getPublicKey: vi.fn(),
   signViaOxy: vi.fn(),
   signRequest: vi.fn(),
-}));
-
-vi.mock('../../../models/Post', () => ({
-  POST_CLASSIFICATION_PENDING: 'pending',
-  Post: {
-    findOne: mocks.postFindOne,
-    exists: mocks.postExists,
-    updateOne: mocks.postUpdateOne,
-    deleteOne: vi.fn(),
-  },
-}));
-
-vi.mock('../../../models/Like', () => ({
-  default: { create: vi.fn(), findOneAndDelete: vi.fn() },
 }));
 
 vi.mock('../../../utils/oxyHelpers', () => ({
@@ -205,12 +188,9 @@ beforeAll(async () => {
 beforeEach(async () => {
   vi.clearAllMocks();
   await clearFederationScope(scope);
-  mocks.postExists.mockResolvedValue(null);
-  mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.postCreatorCreate.mockResolvedValue({ id: CREATED_POST_ID });
   mocks.ensureFederatedReplyLink.mockResolvedValue(null);
   mocks.isFediverseSharingEnabled.mockResolvedValue(true);
-  mocks.postFindOne.mockReturnValue({ lean: async () => null });
   await seedActors({ [AUTHOR_URI]: AUTHOR_OXY_ID, [FED_MENTION_URI]: FED_MENTION_OXY_ID });
   // A local user follows the author, so `handleCreate`'s follower gate passes.
   await seedFollow(scope, { remoteActorUri: AUTHOR_URI, direction: 'outbound', status: 'accepted' });

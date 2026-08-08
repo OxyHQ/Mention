@@ -47,33 +47,6 @@ vi.mock('../../utils/privacyHelpers', () => ({
     Array.isArray((res as { followers?: unknown[] })?.followers) ? (res as { followers: string[] }).followers : [],
 }));
 
-function chainable(rows: unknown[] | null) {
-  const q: Record<string, unknown> = {};
-  for (const m of ['select', 'sort', 'limit', 'maxTimeMS']) {
-    q[m] = () => q;
-  }
-  q.lean = async () => rows;
-  q.then = undefined;
-  return q;
-}
-
-vi.mock('../../models/Post', () => ({
-  Post: { find: () => chainable([]), findOne: () => chainable(null) },
-}));
-vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/FederatedActor', () => ({
-  FederatedActor: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
-  default: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
-}));
-// The starter-pack CURATION aggregation runs on the cache-fill path (it stamps the
-// ranking-side `starterPackScore`). No DB here → no packs → no scores.
-vi.mock('../../models/StarterPack', () => ({
-  StarterPack: { aggregate: async () => [] },
-  default: { aggregate: async () => [] },
-}));
-
 const cacheStore = new Map<string, CachedUserSummary>();
 vi.mock('../../services/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {

@@ -1,51 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  SENSITIVE_EXCLUDE_MATCH,
-  NSFW_HASHTAG_EXCLUDE_MATCH,
-  DISCOVERY_SAFE_MATCH,
   isSensitivePost,
   isSfw,
   isDiscoverable,
   filterDiscoverable,
 } from '../mtn/feed/feedSafety';
-import { NSFW_HASHTAGS } from '../services/contentClassification/nsfw';
 
 /**
  * Unit coverage for the SINGLE shared feed-safety module. Every feed/ranking
- * surface imports these clauses + predicate, so this is the one place the gating
- * definition is verified.
+ * surface imports this predicate, so this is the one place the gating definition
+ * is verified.
  */
-describe('feedSafety — canonical Mongo clauses', () => {
-  it('SENSITIVE_EXCLUDE_MATCH excludes all three sensitive flags', () => {
-    expect(SENSITIVE_EXCLUDE_MATCH).toEqual({
-      'postClassification.sensitive': { $ne: true },
-      'metadata.isSensitive': { $ne: true },
-      'federation.sensitive': { $ne: true },
-    });
-  });
-
-  it('NSFW_HASHTAG_EXCLUDE_MATCH excludes the NSFW blocklist via $nin', () => {
-    const nin = (NSFW_HASHTAG_EXCLUDE_MATCH.hashtags as { $nin: string[] }).$nin;
-    expect(Array.isArray(nin)).toBe(true);
-    expect(nin).toContain('nsfw');
-    expect(nin.length).toBe(NSFW_HASHTAGS.size);
-  });
-
-  it('DISCOVERY_SAFE_MATCH combines the sensitive flags AND the NSFW-hashtag clause', () => {
-    expect(DISCOVERY_SAFE_MATCH['postClassification.sensitive']).toEqual({ $ne: true });
-    expect(DISCOVERY_SAFE_MATCH['metadata.isSensitive']).toEqual({ $ne: true });
-    expect(DISCOVERY_SAFE_MATCH['federation.sensitive']).toEqual({ $ne: true });
-    expect((DISCOVERY_SAFE_MATCH.hashtags as { $nin: string[] }).$nin).toContain('nsfw');
-  });
-
-  it('the shared clauses are frozen (cannot be mutated by a consumer)', () => {
-    expect(Object.isFrozen(SENSITIVE_EXCLUDE_MATCH)).toBe(true);
-    expect(Object.isFrozen(NSFW_HASHTAG_EXCLUDE_MATCH)).toBe(true);
-    expect(Object.isFrozen(DISCOVERY_SAFE_MATCH)).toBe(true);
-  });
-});
-
 describe('feedSafety — isSensitivePost / isSfw', () => {
   it('is false (neutral) for a clean post and nullish input', () => {
     expect(isSensitivePost(null)).toBe(false);

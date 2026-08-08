@@ -20,7 +20,6 @@ const mocks = vi.hoisted(() => ({
   sendEachForMulticast: vi.fn(),
   initializeApp: vi.fn(),
   getUserById: vi.fn(),
-  postFindById: vi.fn(),
 }));
 
 vi.mock('firebase-admin', () => ({
@@ -38,8 +37,6 @@ vi.mock('../../config', async (importOriginal) => ({
     projectId: 'test',
   }),
 }));
-
-vi.mock('../../models/Post', () => ({ default: { findById: mocks.postFindById } }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ getUserById: mocks.getUserById }),
@@ -77,7 +74,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.sendEachForMulticast.mockResolvedValue({ responses: [] });
   mocks.getUserById.mockResolvedValue({ id: 'actor-1', name: { displayName: 'Ada' } });
-  mocks.postFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
 });
 
 afterEach(async () => {

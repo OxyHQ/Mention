@@ -26,10 +26,6 @@ import { isVideoSurface, MtnConfig, PostType } from '@mention/shared-types';
  * the reels viewer.
  */
 
-// Like/Bookmark are imported by the service but unused on the recordInteraction path.
-vi.mock('../../models/Like', () => ({ default: {} }));
-vi.mock('../../models/Bookmark', () => ({ default: {} }));
-
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import {
   deleteUserBehavior,

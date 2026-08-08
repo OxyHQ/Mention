@@ -35,10 +35,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 const mocks = vi.hoisted(() => ({
   getPublicKey: vi.fn(),
   signViaOxy: vi.fn(),
-  actorFind: vi.fn(),
-  actorFindOne: vi.fn(),
-  findOneAndUpdate: vi.fn(),
-  updateOne: vi.fn(),
   getServiceOxyClient: vi.fn(),
   makeServiceRequest: vi.fn(),
   getLinkPreviews: vi.fn(),
@@ -74,17 +70,6 @@ vi.mock('../../../connectors/activitypub/actor.service', () => ({
   },
 }));
 
-vi.mock('../../../models/FederatedActor', () => ({
-  default: {
-    findOne: mocks.actorFindOne,
-    find: mocks.actorFind,
-    findOneAndUpdate: mocks.findOneAndUpdate,
-    updateOne: mocks.updateOne,
-  },
-}));
-
-vi.mock('../../../models/UserSettings', () => ({ default: { updateOne: vi.fn() } }));
-
 vi.mock('../../../db/userProfile/userSettingsRepository', () => ({
   updateUserSettings: vi.fn(),
 }));
@@ -111,10 +96,6 @@ vi.mock('../../../services/serviceRegistry', () => ({
   registerPostFederator: vi.fn(),
   registerPostCreator: vi.fn(),
   getPostFederator: vi.fn(),
-}));
-
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: { exists: vi.fn().mockResolvedValue({ _id: 'follow_1' }) },
 }));
 
 // The gate resolves the parent AUTHOR's account kind here — the one module that
@@ -251,10 +232,6 @@ beforeEach(() => {
     publicKeyPem: 'public',
   });
   mocks.signViaOxy.mockResolvedValue('c2lnbmF0dXJl');
-  mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({ _id: 'actor_1', ...update.$set }));
-  mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
-  mocks.actorFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
-  mocks.actorFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   mocks.recordAccess.mockResolvedValue(undefined);
   mocks.postCreatorCreate.mockResolvedValue({ _id: 'created_post_1' });

@@ -2,7 +2,7 @@
  * Global test setup for the backend package.
  *
  * Mocks heavy external dependencies so unit tests run fast without
- * requiring a live MongoDB, Redis, or Oxy API connection.
+ * requiring a live Redis or Oxy API connection.
  *
  * Also gives the handful of files listed in `isolatedDatabaseFiles.ts` their own
  * throwaway Postgres — see the block below, which must stay FIRST in this file.

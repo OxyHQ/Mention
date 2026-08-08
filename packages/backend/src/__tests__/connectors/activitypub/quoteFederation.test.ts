@@ -33,9 +33,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 vi.mock('../../../connectors/activitypub/actor.service', () => ({ actorService: {} }));
 vi.mock('../../../connectors/activitypub/crypto', () => ({ getPublicKey: vi.fn(), signRequest: vi.fn() }));
 vi.mock('../../../queue/producers', () => ({ enqueueDelivery: vi.fn(), enqueueInboxActivity: vi.fn() }));
-vi.mock('../../../models/FederationDeliveryQueue', () => ({ default: {} }));
-vi.mock('../../../models/FederatedFollow', () => ({ default: {} }));
-vi.mock('../../../models/Poll', () => ({ default: {} }));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxyhq/core/server')>()),

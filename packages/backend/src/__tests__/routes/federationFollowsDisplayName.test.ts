@@ -90,8 +90,6 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ getUsersByIds }),
 }));
 
-vi.mock('../../models/Post', () => ({ Post: { find: vi.fn() } }));
-
 function leanable(rows: unknown[]) {
   return { lean: async () => rows };
 }

@@ -10,7 +10,7 @@ import { resolveVariant } from '../../services/postVariants';
  *
  * `buildAttachments` is private, so it is exercised through a precise structural
  * interface (no `as any`). It performs no DB / network I/O for the podcast
- * branch, so the model + client imports are stubbed only so the service module
+ * branch, so the client imports are stubbed only so the service module
  * imports cleanly (mirrors the mention-hydration test harness).
  *
  * It takes the reader's RESOLVED language rendition (media + article), because the
@@ -28,10 +28,6 @@ vi.mock('../../utils/oxyHelpers', () => ({
 }));
 
 // Mongo models are not touched on the buildAttachments path; stub to empty objects.
-vi.mock('../../models/Post', () => ({ Post: {} }));
-vi.mock('../../models/Poll', () => ({ default: {} }));
-vi.mock('../../models/Like', () => ({ default: {} }));
-vi.mock('../../models/Bookmark', () => ({ default: {} }));
 vi.mock('../../services/userSummaryCache', () => ({
   mget: vi.fn(async () => new Map()),
   mset: vi.fn(async () => undefined),

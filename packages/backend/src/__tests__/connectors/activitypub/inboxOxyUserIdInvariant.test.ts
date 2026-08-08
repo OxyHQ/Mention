@@ -33,16 +33,7 @@ const mocks = vi.hoisted(() => ({
   signRequest: vi.fn(),
   findOneAndUpdate: vi.fn(),
   updateOne: vi.fn(),
-  postFind: vi.fn(),
-  postFindOne: vi.fn(),
-  postFindById: vi.fn(),
-  postUpdateOne: vi.fn(),
-  postCreate: vi.fn(),
   postInsertMany: vi.fn(),
-  postExists: vi.fn(),
-  postDeleteOne: vi.fn(),
-  likeCreate: vi.fn(),
-  likeFindOneAndDelete: vi.fn(),
   getServiceOxyClient: vi.fn(),
   makeServiceRequest: vi.fn(),
   persistRemoteMedia: vi.fn(),
@@ -69,28 +60,6 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   getPublicKey: mocks.getPublicKey,
   signViaOxy: mocks.signViaOxy,
   signRequest: mocks.signRequest,
-}));
-
-vi.mock('../../../models/Post', () => ({
-  POST_CLASSIFICATION_PENDING: 'pending',
-  Post: {
-    find: mocks.postFind,
-    findOne: mocks.postFindOne,
-    findById: mocks.postFindById,
-    updateOne: mocks.postUpdateOne,
-    exists: mocks.postExists,
-    deleteOne: mocks.postDeleteOne,
-    collection: {
-      insertMany: mocks.postInsertMany,
-    },
-  },
-}));
-
-vi.mock('../../../models/Like', () => ({
-  default: {
-    create: mocks.likeCreate,
-    findOneAndDelete: mocks.likeFindOneAndDelete,
-  },
 }));
 
 vi.mock('../../../utils/oxyHelpers', () => ({
@@ -170,13 +139,8 @@ beforeEach(async () => {
 
   mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({ _id: 'actor_1', ...update?.$set }));
   mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
-  mocks.postFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
-  mocks.postFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
-  mocks.postFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
-  mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.postInsertMany.mockResolvedValue({ insertedCount: 0 });
   // Not a duplicate — `handleCreate` proceeds past the dedup check.
-  mocks.postExists.mockResolvedValue(null);
   // The actor is followed by at least one local user (required by handleCreate).
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   mocks.recordAccess.mockResolvedValue(undefined);

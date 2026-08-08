@@ -26,7 +26,6 @@ const mocks = vi.hoisted(() => ({
   getOrFetchActor: vi.fn(),
   isBlockedDomain: vi.fn(() => false),
   resolveOxyUser: vi.fn(),
-  findExistingActor: vi.fn(),
 }));
 
 vi.mock('../../../connectors/activitypub/actor.service', () => ({
@@ -35,9 +34,6 @@ vi.mock('../../../connectors/activitypub/actor.service', () => ({
 vi.mock('../../../connectors/activitypub/constants', () => ({
   isBlockedDomain: mocks.isBlockedDomain,
   resolveOxyUser: mocks.resolveOxyUser,
-}));
-vi.mock('../../../models/FederatedActor', () => ({
-  default: { findOne: mocks.findExistingActor },
 }));
 vi.mock('../../../utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -79,7 +75,6 @@ const OPTIONS = { concurrency: 3, perActorTimeoutMs: 20_000 };
 
 beforeEach(() => {
   mocks.getOrFetchActor.mockReset();
-  mocks.findExistingActor.mockReset();
   mocks.isBlockedDomain.mockReturnValue(false);
 });
 

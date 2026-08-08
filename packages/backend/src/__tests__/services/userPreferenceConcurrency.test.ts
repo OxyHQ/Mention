@@ -31,9 +31,6 @@ import { eq } from 'drizzle-orm';
  * below is what pins the read to the locked side of the boundary.
  */
 
-vi.mock('../../models/Like', () => ({ __esModule: true, default: { find: vi.fn() } }));
-vi.mock('../../models/Bookmark', () => ({ __esModule: true, default: { find: vi.fn() } }));
-
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { userBehaviors } from '../../db/schema/userProfile';
 import {

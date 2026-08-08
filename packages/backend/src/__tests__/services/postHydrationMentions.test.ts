@@ -36,24 +36,6 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ getUsersByIds }),
 }));
 
-// Mongo models are only touched on other hydration paths; stub to empty objects.
-vi.mock('../../models/Post', () => ({ Post: {} }));
-vi.mock('../../models/Poll', () => ({ default: {} }));
-vi.mock('../../models/Like', () => ({ default: {} }));
-vi.mock('../../models/Bookmark', () => ({ default: {} }));
-// The starter-pack CURATION aggregation runs on the cache-fill path (it stamps the
-// ranking-side `starterPackScore`). No DB here → no packs → no scores.
-vi.mock('../../models/StarterPack', () => ({
-  StarterPack: { aggregate: async () => [] },
-  default: { aggregate: async () => [] },
-}));
-// Federated enrichment lookup for still-degraded ids — return nothing so an
-// unresolved mention stays a raw placeholder (no ghost handle).
-vi.mock('../../models/FederatedActor', () => ({
-  FederatedActor: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
-  default: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
-}));
-
 // The Redis-backed user-summary cache: start cold (all misses), capture writes.
 vi.mock('../../services/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
