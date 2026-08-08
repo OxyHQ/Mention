@@ -106,9 +106,9 @@
  *
  * REVIEW THE FULL REPORT IN PROCESS (every candidate, every published comment):
  *   bun -e "const m=require('./packages/backend/dist/src/scripts/reportFederationBlocklistCandidates');\
- *   const g=require('mongoose');(async()=>{await g.connect(process.env.MONGODB_URI);\
+ *   const p=require('./packages/backend/dist/src/db/postgres');(async()=>{await p.connectPostgres();\
  *   const r=await m.reportFederationBlocklistCandidates();\
- *   console.dir(r,{depth:null});await g.disconnect();})()"
+ *   console.dir(r,{depth:null});await p.closePostgres();})()"
  */
 
 import { createHash } from 'node:crypto';

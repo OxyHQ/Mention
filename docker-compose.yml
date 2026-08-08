@@ -13,9 +13,8 @@ x-backend-environment: &backend-environment
   # HOST side of the port mapping below uses; inside the container the two must
   # agree with the Dockerfile, so set it explicitly rather than inherit.
   PORT: "3000"
-  # The backend opens Postgres and Redis. It does NOT open Mongo — the whole
-  # Mongo surface left in this package is the copier, which reads a PRODUCTION
-  # database named by its own `MONGODB_URI` and is never run from this stack.
+  # The backend opens Postgres and Redis, and nothing else — there is no Mongo
+  # anywhere in this package to open.
   DATABASE_URL: postgres://mention:mention@postgres:5432/mention
   REDIS_URL: redis://valkey:6379
 

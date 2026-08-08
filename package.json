@@ -90,7 +90,6 @@
     "fast-uri": "3.1.4",
     "fast-xml-parser": "5.10.1",
     "linkify-it": "5.0.2",
-    "mongoose": "^8.17.0",
     "ioredis": "5.11.1",
     "postcss": "8.5.18",
     "lightningcss": "1.30.1",

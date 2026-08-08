@@ -28,8 +28,7 @@ export const ENGAGEMENT_OUTBOX_KINDS = [
 export const ENGAGEMENT_OUTBOX_STATUSES = ['pending', 'processing', 'processed'] as const;
 
 /**
- * 30 days — `ENGAGEMENT_OUTBOX_RETENTION_SECONDS` in `models/EngagementOutbox.ts`.
- * A hard ceiling so a stalled dispatcher cannot turn the outbox into an
+ * 30 days. A hard ceiling so a stalled dispatcher cannot turn the outbox into an
  * unbounded table. See the WARNING on this table's entry in `db/expiry.ts`: the
  * sweep deletes by deadline regardless of status, so operational alerting has to
  * fire long before it.

@@ -74,18 +74,6 @@ vi.mock('../../models/Like', () => ({ default: { deleteMany: () => ({ exec: asyn
 vi.mock('../../models/Bookmark', () => ({ default: { deleteMany: () => ({ exec: async () => undefined }) } }));
 vi.mock('../../models/PostSubscription', () => ({ default: { deleteMany: () => ({ exec: async () => undefined }) } }));
 
-vi.mock('mongoose', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
-    ...actual,
-    default: {
-      ...(actual.default as Record<string, unknown>),
-      model: () => ({ deleteMany: () => ({ exec: async () => undefined }) }),
-      Types: (actual.default as { Types: unknown }).Types,
-    },
-  };
-});
-
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { findArticleById, insertArticle, newArticleId } from '../../db/posts/articleRepository';
 import { claimScheduledPost } from '../../db/posts/postRepository';

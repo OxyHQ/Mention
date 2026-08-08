@@ -1,6 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { Post } from '../../models/Post';
-import { PostType, PostVisibility } from '@mention/shared-types';
 import { parseApPublished } from '../../connectors/activitypub/helpers';
 
 /**
@@ -12,15 +10,14 @@ import { parseApPublished } from '../../connectors/activitypub/helpers';
  *     and rejects missing / unparseable / implausibly-future values (so callers
  *     fall back to the schema default — now).
  *
- *  2. The real `Post` Mongoose schema (which enables `timestamps`) HONORS a
- *     `createdAt` supplied on a NEW document instead of overwriting it with the
- *     current time. This is the load-bearing detail: in Mongoose 9 the
- *     timestamps plugin only fills `createdAt` when it is ABSENT on save
- *     (`!doc.$__getValue(createdAt)`). We verify the observable preconditions of
- *     that guard against the ACTUAL Post schema, with no DB connection: the
- *     schema declares named timestamp paths, and a document built with a past
- *     `createdAt` retains it and reports it as modified (so the save-time guard
- *     sees it as present and leaves it untouched).
+ *  2. (retired) The second half asserted that the Mongoose `Post` schema HONORED
+ *     a `createdAt` supplied on a new document rather than overwriting it with
+ *     `now` — a Mongoose-9 save-time detail (`timestamps` fills the path only
+ *     when it is absent) that the federated insert had to depend on. Postgres
+ *     has no such plugin: `created_at` is a column the writer sets outright, and
+ *     what it is set to is asserted end-to-end against real rows in
+ *     `services/postCreationBaseline.test.ts`. Only the parser is left to unit
+ *     test here.
  */
 
 describe('parseApPublished', () => {
@@ -56,58 +53,5 @@ describe('parseApPublished', () => {
   it('accepts a slightly-future date within the skew window', () => {
     const nearFuture = new Date(Date.now() + 1000 * 60 * 60).toISOString(); // +1h
     expect(parseApPublished(nearFuture)).toBeInstanceOf(Date);
-  });
-});
-
-describe('Post schema timestamps honor a provided createdAt (federated ingest)', () => {
-  const PAST = new Date('2021-09-01T10:00:00.000Z');
-
-  // The IPost interface types createdAt/updatedAt as ISO strings (the serialized
-  // read shape), but the underlying schema stores Date instances — read them
-  // through `Date` for the timestamp assertions.
-  function readDate(doc: { get(path: string): unknown }, path: string): Date {
-    const value = doc.get(path);
-    expect(value).toBeInstanceOf(Date);
-    return value as Date;
-  }
-
-  it('declares named timestamp paths so a provided createdAt is honored on save', () => {
-    // Mongoose 9's save-time timestamp guard fills createdAt ONLY when the named
-    // path is absent (`!doc.$__getValue(createdAt)`). Confirm the path is named
-    // 'createdAt' (the precondition the federated-insert override depends on).
-    const timestampsOption = Post.schema.options.timestamps;
-    expect(timestampsOption).toMatchObject({ createdAt: 'createdAt', updatedAt: 'updatedAt' });
-  });
-
-  it('a federated post built with a past createdAt retains it and marks it modified', () => {
-    const post = new Post({
-      oxyUserId: 'federated_user_1',
-      type: PostType.TEXT,
-      visibility: PostVisibility.PUBLIC,
-      content: { text: 'A federated note authored in the past', media: [] },
-      federation: { activityId: 'https://mastodon.social/users/alice/statuses/1' },
-      createdAt: PAST,
-      updatedAt: PAST,
-    });
-
-    // Present + modified → the save-time guard sees createdAt as set and leaves
-    // it untouched (does NOT overwrite with now).
-    expect(post.isNew).toBe(true);
-    expect(post.isModified('createdAt')).toBe(true);
-    expect(readDate(post, 'createdAt').toISOString()).toBe(PAST.toISOString());
-    expect(readDate(post, 'updatedAt').toISOString()).toBe(PAST.toISOString());
-  });
-
-  it('a native post built without createdAt leaves the path unset for save() to fill', () => {
-    const post = new Post({
-      oxyUserId: 'local_user_1',
-      type: PostType.TEXT,
-      visibility: PostVisibility.PUBLIC,
-      content: { text: 'A native post', media: [] },
-    });
-
-    // Absent → the save-time guard fills it with the current time (verified
-    // empirically against mongoose 9.3.1's setDocumentTimestamps helper).
-    expect(post.get('createdAt')).toBeUndefined();
   });
 });

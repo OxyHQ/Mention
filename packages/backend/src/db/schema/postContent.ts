@@ -30,6 +30,7 @@ import {
   unique,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
+import type { MediaItem } from '@mention/shared-types';
 import { createdAt, generatedId, inList, timestamptz, tsvector, updatedAt } from './columns';
 import { posts } from './posts';
 
@@ -47,6 +48,39 @@ export const MEDIA_TYPES = ['image', 'video', 'gif'] as const;
 
 /** `MediaItem.orientation`, derived at ingest from width/height. */
 export const MEDIA_ORIENTATIONS = ['portrait', 'landscape', 'square'] as const;
+
+/**
+ * The two media vocabularies above ARE `@mention/shared-types`, pinned.
+ *
+ * Mongo never declared either as an `enum:` — it enforced them in a hand-written
+ * validator on the Post model — so where every other closed set in this schema
+ * was compared against its Mongoose source, these two were compared against the
+ * TypeScript type instead. That comparison lived in the migration's own test
+ * file and is deleted with the rest of the copier. It was inert there anyway:
+ * `tsconfig.json` excludes `src/__tests__`, so no typecheck ever read it. Here
+ * it runs.
+ *
+ * `satisfies` alone would only prove the members are assignable, which accepts a
+ * set that is MISSING a value — half of what this is for. The assignment in both
+ * directions is what makes it an equality.
+ */
+const _mediaTypesMatchTheContract: readonly MediaItem['type'][] = MEDIA_TYPES;
+const _mediaTypesCoverTheContract: readonly (typeof MEDIA_TYPES)[number][] = [
+  'image',
+  'video',
+  'gif',
+] satisfies readonly MediaItem['type'][];
+const _orientationsMatchTheContract: readonly NonNullable<MediaItem['orientation']>[] =
+  MEDIA_ORIENTATIONS;
+const _orientationsCoverTheContract: readonly (typeof MEDIA_ORIENTATIONS)[number][] = [
+  'portrait',
+  'landscape',
+  'square',
+] satisfies readonly NonNullable<MediaItem['orientation']>[];
+void _mediaTypesMatchTheContract;
+void _mediaTypesCoverTheContract;
+void _orientationsMatchTheContract;
+void _orientationsCoverTheContract;
 
 /**
  * `PostAttachmentType`.

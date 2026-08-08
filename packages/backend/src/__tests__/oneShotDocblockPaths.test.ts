@@ -42,7 +42,7 @@ const REPO_ROOT = path.resolve(BACKEND_ROOT, '../..');
  * one carrying the ECS example; if it stops matching, the walk is broken rather
  * than the repo clean.
  */
-const REQUIRED_SCANNED = ['packages/backend/scripts/backfill-mongo-to-postgres.ts'];
+const REQUIRED_SCANNED = ['.github/scripts/deploy-ecs-image.sh'];
 
 function walk(directory: string, out: string[] = []): string[] {
   for (const entry of readdirSync(directory)) {
@@ -141,9 +141,10 @@ describe('ECS invocations written in comments name built paths', () => {
    * THE case. Reported as `cited -> shouldBe`, because "a path is wrong" sends
    * somebody reading, and the corrected path sends them editing.
    *
-   * Mutation: restore `…/scripts/backfill-mongo-to-postgres.ts` to that
-   * docblock's override array and this goes red naming it and its `dist`
-   * replacement — verified.
+   * Mutation: put any `packages/backend/….ts` path inside a `containerOverrides`
+   * command array and this goes red naming it and its `dist` replacement. The
+   * original offender was the Mongo→Postgres copier's own docblock, which is
+   * deleted along with the copier.
    */
   it('cites no source path inside a containerOverrides command', () => {
     const offences = files.flatMap(offencesIn);

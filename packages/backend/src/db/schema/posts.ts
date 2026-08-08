@@ -613,9 +613,10 @@ export const posts = pgTable(
       .on(t.federationActivityId)
       .where(sql`${t.federationActivityId} is not null`),
 
-    // ── Hot paths, ported from `indexes/manifest.ts` + the model's own list ──
-    // Named after the manifest entries so a DBA reading `pg_indexes` and a
-    // developer reading the migration see the same names.
+    // ── Hot paths, ported from the Mongo index manifest + the model's own list ──
+    // The names are the manifest's, kept so a DBA reading `pg_indexes` and a
+    // developer reading the migration see the same ones. Both the manifest and
+    // the model are deleted; these declarations are now the only record.
     index('post_public_chrono_v1').on(t.visibility, t.status, t.createdAt.desc(), t.id.desc()),
     // The root-feed predicate, which is now a column test rather than the
     // `parent_post_id IS NULL` + `federation.inReplyTo` disjunction it used to

@@ -20,7 +20,7 @@ import {
   resolvePostRecordEmbeds,
   type ReplyContext,
 } from '../../../services/mtn/mentionRecordBuilders';
-import type { IPost } from '../../../models/Post';
+import type { PostRecord } from '../../../db/posts/postRecord';
 import type { PostContentVariant, StoredPostContent } from '@mention/shared-types';
 import {
   mentionPostRecordSchema,
@@ -47,14 +47,14 @@ function body(text: string, tag?: string): StoredPostContent {
   return { variants: [variant] };
 }
 
-function makePost(overrides: Partial<IPost>): IPost {
+function makePost(overrides: Partial<PostRecord>): PostRecord {
   return {
     _id: 'post-1',
     oxyUserId: 'author-1',
     content: body('hello'),
     createdAt: '2026-06-30T00:00:00.000Z',
     ...overrides,
-  } as unknown as IPost;
+  } as unknown as PostRecord;
 }
 
 describe('buildPostRecord', () => {
@@ -93,7 +93,7 @@ describe('buildPostRecord', () => {
   it('prefers the multi-language classification set when present', () => {
     const post = makePost({
       language: 'en',
-      postClassification: { languages: ['es', 'en'] } as IPost['postClassification'],
+      postClassification: { languages: ['es', 'en'] } as PostRecord['postClassification'],
     });
     const record = buildPostRecord(post);
     expect(record.langs).toEqual(['es', 'en']);
@@ -317,7 +317,7 @@ describe('buildPostRecord — multilingual variants on the chain', () => {
           { tag: 'pt-BR', source: 'author', text: 'ola' },
         ],
       },
-      postClassification: { languages: ['es', 'pt'] } as IPost['postClassification'],
+      postClassification: { languages: ['es', 'pt'] } as PostRecord['postClassification'],
     }));
 
     expect(record.langs).toEqual(['es-ES', 'pt-BR']);

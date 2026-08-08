@@ -73,8 +73,6 @@ export default defineConfig({
     // (skipping silently when the database is absent) is a check that cannot
     // tell success from failure. Start one with:
     //   docker compose -f ../../docker-compose.postgres.yml up -d postgres
-    // The Mongo side is untouched: `src/__tests__/setup.ts` still mocks mongoose
-    // wholesale and every pre-existing suite runs against that mock.
     globalSetup: [path.resolve(backendRoot, 'vitest.globalSetup.ts')],
     include: [path.resolve(backendRoot, 'src/__tests__/**/*.test.ts')],
     coverage: {
@@ -100,10 +98,9 @@ export default defineConfig({
         // are worth keeping because the numbers alone explain neither.
         //
         // DOWN a tenth of a point when the engagement services moved to
-        // Postgres: their Mongoose models (`models/EngagementOutbox.ts`,
-        // `models/PostRecentReplier.ts`) are no longer executed by any test —
-        // they survive only for the historical Mongo migrations — so their
-        // declarations moved from the covered column to the uncovered one.
+        // Postgres: the Mongoose models behind them stopped being executed by
+        // any test, so their declarations moved from the covered column to the
+        // uncovered one. Both models have since been deleted outright.
         //
         // UP, by considerably more, with the long-tail query port (lists,
         // starter packs, discovery, notifications, feeds, statistics). The
@@ -246,12 +243,6 @@ export default defineConfig({
         'src/routes/webTelemetry.routes.ts': {
           statements: 100,
           branches: 98.33,
-          functions: 100,
-          lines: 100,
-        },
-        'src/utils/mongoTopology.ts': {
-          statements: 100,
-          branches: 100,
           functions: 100,
           lines: 100,
         },

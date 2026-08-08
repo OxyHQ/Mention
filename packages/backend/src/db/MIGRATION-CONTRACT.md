@@ -204,9 +204,9 @@ docker compose -f docker-compose.postgres.yml up -d postgres
 consume it. Prove response parity for endpoints you touch.
 
 **Rewriting a suite means replacing the assertions, not translating them.**
-`src/__tests__/setup.ts` mocks mongoose wholesale, so the existing suites assert
-that a query was BUILT a certain way and never that a row is correct. Seed real
-rows, run the real function, assert what is stored and returned.
+`src/__tests__/setup.ts` used to mock mongoose wholesale, so a Mongo-era suite
+asserts that a query was BUILT a certain way and never that a row is correct.
+Seed real rows, run the real function, assert what is stored and returned.
 
 **Mutation-test anything load-bearing:** break the guarantee, confirm the test
 goes red AND names it, then restore the file **in place** (`cat pristine >
