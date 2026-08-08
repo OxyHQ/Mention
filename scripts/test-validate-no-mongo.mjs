@@ -74,7 +74,7 @@ async function runAgainst(files, { realFloors = false } = {}) {
  * It carries one file per live `KNOWN_EXCEPTIONS` entry, holding the text that
  * entry excuses — so every case below also exercises the exception path, and the
  * guard's "the list must only shrink" check has something to be satisfied by.
- * The stale-exception case is the one tree that deliberately omits them.
+ * The stale-exception case is the one tree that deliberately omits it.
  *
  * THIS IS COUPLED TO THE LIVE LIST ON PURPOSE, and the coupling is the point:
  * the self-test then proves the real exceptions match real text, rather than
@@ -109,7 +109,6 @@ function filler(extra = {}) {
       "it('redacts a database URI', () => {\n"
       + "  expect(sanitise('mongodb://alice:password@host/mention')).toBe('[REDACTED]');\n"
       + "});\n",
-    ".github/workflows/deploy-aws.yml": "        env:\n          TASK_SECRET_REMOVALS: MONGODB_URI\n",
     ...extra,
   };
 }
@@ -383,52 +382,43 @@ const cases = [
     expectFailure: false,
   },
 
-  // --------------------------------------- exceptions must stay NARROW ------
+  // --------------------------- the retired standing removal ----------------
   //
-  // An exception is scoped to a FILE, so what decides whether it is safe is what
-  // else that file could say. The live one covers `TASK_SECRET_REMOVALS:
-  // MONGODB_URI` in the deploy workflow — the likeliest file in the repository
-  // for a real Mongo secret to reappear — so these assert that excusing the
-  // removal directive does not also excuse a line SUPPLYING the secret beside
-  // it. Without them, widening the pattern to a bare `MONGODB_URI` would look
-  // correct and silently blind the guard to the one file it most needs to watch.
+  // `TASK_SECRET_REMOVALS: MONGODB_URI` was briefly excused. It named the secret
+  // in order to strip it from every rendered task definition, which was load-
+  // bearing while a Terraform apply could still reintroduce it — the definition
+  // is derived from the LIVE one, so a secret nobody names is carried forward.
+  //
+  // That threat model closed upstream: oxy-infra `099db84` records DATABASE_URL
+  // and no MONGODB_URI for this service, and `/oxy/mention/MONGODB_URI` is
+  // deleted from SSM, so a name that comes back now fails task provisioning
+  // loudly instead of resurrecting a secret. The directive and its exception are
+  // both gone, and the absence assertion lives here instead, in CI.
+  //
+  // These two cases are what makes that a decision rather than a drift: the
+  // retired directive is now an ordinary finding, and so is every other shape a
+  // reintroduction would take in that file.
   {
-    name: "an excused workflow still FAILS when it also supplies the secret",
+    name: "the retired removal directive is now an ordinary finding",
     files: filler({
-      ".github/workflows/deploy-aws.yml":
-        "        env:\n"
-        + "          TASK_SECRET_REMOVALS: MONGODB_URI\n"
-        + "          MONGODB_URI: ${{ secrets.MONGODB_URI }}\n",
+      ".github/workflows/deploy-aws.yml": "        env:\n          TASK_SECRET_REMOVALS: MONGODB_URI\n",
     }),
     expectFailure: true,
     expectOutput: "names MONGODB_URI",
   },
   {
-    // `TASK_SECRET_OVERRIDES_JSON` in this same file supplies secrets by SSM
-    // path, so an ARN is the other shape a reintroduction here would take.
-    name: "an excused workflow still FAILS on an SSM ARN for the same parameter",
+    // `TASK_SECRET_OVERRIDES_JSON` supplies secrets by SSM path in this file, so
+    // an ARN is the other shape a reintroduction would take — and the one a
+    // scanner looking only for a bare variable name would miss.
+    name: "the deploy workflow FAILS on an SSM ARN for the parameter",
     files: filler({
       ".github/workflows/deploy-aws.yml":
         "        env:\n"
-        + "          TASK_SECRET_REMOVALS: MONGODB_URI\n"
         + '          TASK_SECRET_OVERRIDES_JSON: {"MONGODB_URI":'
         + '"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MONGODB_URI"}\n',
     }),
     expectFailure: true,
     expectOutput: "names MONGODB_URI",
-  },
-  {
-    // The exception names the directive in FULL, so renaming the mechanism makes
-    // the entry stale and forces a re-review rather than carrying the excuse
-    // over to a directive nobody has looked at. A pattern matching some fragment
-    // of the name would keep excusing it silently — that is the input shape that
-    // tells a full pattern from a partial one, and nothing else does.
-    name: "renaming the directive makes its exception stale rather than carrying over",
-    files: filler({
-      ".github/workflows/deploy-aws.yml": "        env:\n          SECRET_REMOVALS: MONGODB_URI\n",
-    }),
-    expectFailure: true,
-    expectOutput: "no longer matches anything",
   },
 
   // ------------------------------------------------------- self-protection ---

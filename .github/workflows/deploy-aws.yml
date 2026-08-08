@@ -271,24 +271,6 @@ jobs:
           # after any window where those writers were not the only ones writing.
           # `packages/backend/scripts/reconcile-engagement-projections.ts` holds
           # the command and how to launch it.
-          # A STANDING assertion, not a completed one — do not delete it on the
-          # grounds that the live definition is already clean, because this is
-          # part of what keeps it clean. The definition is derived from the LIVE
-          # one, so a secret nobody names is carried forward verbatim, and that
-          # is how the named one outlived the store it pointed at in the first
-          # place.
-          #
-          # Its remaining job is narrow and worth stating, because the SSM
-          # parameter behind this name has since been DELETED and oxy-infra's
-          # terraform now records DATABASE_URL for this service (oxy-infra
-          # `099db84`). That closes the reintroduction path this was written
-          # for. What is left is the ORDER hazard: a definition naming a
-          # parameter that no longer exists fails every task launch on
-          # `unable to pull secrets`, so if the name ever comes back by hand,
-          # this strips it before it can break a rollout. Retiring the line is
-          # therefore a reasonable call to make deliberately — it is not one to
-          # make in passing while tidying prose.
-          TASK_SECRET_REMOVALS: MONGODB_URI
           POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-mention.sh
         # The existing target group remains on `/`, which server.ts now serves
         # as the same readiness gate as `/health/ready`. ELB mutations belong
