@@ -17,7 +17,8 @@ name: Run federated-text normalization backfill
 #
 # The backfill is idempotent and only writes the documents that actually change,
 # so a second run over clean data is a no-op. Signed MTN records are immutable and
-# are NOT touched — this fixes the Mongo rows, which is what every reader sees.
+# are NOT touched — this fixes the application rows, which is what every reader
+# sees.
 #
 # ALWAYS run dry FIRST (`dry_run=true`, the default): it scans the same documents,
 # computes the same updates, prints scanned-vs-would-change counts, a per-field

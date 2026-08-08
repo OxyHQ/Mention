@@ -12,7 +12,7 @@ name: Purge blocked-domain data from the platform
 # definition. So it runs as an ECS Fargate one-shot, exactly like
 # `run-federated-text-backfill.yml`, and for the same two reasons:
 #
-# 1. In-VPC, or it reaches neither Mongo nor the credential.
+# 1. In-VPC, or it reaches neither the database nor the credential.
 # 2. From `main` only. The task reuses the live service's role, secrets, subnets
 #    and security groups, so accepting an arbitrary ref here would turn a branch
 #    workflow into production code execution.
@@ -40,9 +40,9 @@ name: Purge blocked-domain data from the platform
 # Start with ONE domain (`purge_domain`) before sweeping the whole policy.
 #
 # Ingest is live and the corpus grows while a purge runs, so this is expected to
-# be re-run rather than ticked off. Progress is recorded per domain in Mongo, so a
-# killed run resumes; a re-run costs one short pass per finished domain and still
-# catches actors ingested since.
+# be re-run rather than ticked off. Progress is recorded per domain in the
+# database, so a killed run resumes; a re-run costs one short pass per finished
+# domain and still catches actors ingested since.
 
 on:
   workflow_dispatch:

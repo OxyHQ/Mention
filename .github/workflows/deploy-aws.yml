@@ -121,18 +121,12 @@ jobs:
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           REDIS_URI: ${{ secrets.REDIS_URI }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
-          # MONGODB_URI is deliberately ABSENT. The sync loop only ever calls
-          # `put-parameter --overwrite`, so dropping the name stops UPDATING
-          # `/oxy/mention/MONGODB_URI` and leaves the parameter itself in place —
-          # which is the point: its one remaining consumer is the Mongo->Postgres
-          # copier (`packages/backend/scripts/backfill-mongo-to-postgres.ts`),
-          # which runs as its own one-shot and names it as the SOURCE database.
-          # Deleting the parameter is a separate, irreversible decision.
-          #
-          # The cost, accepted knowingly: the parameter is now FROZEN at its last
-          # synced value. If the Mongo endpoint or its credentials ever rotate,
-          # the copier will start with a stale URI and fail to connect — update
-          # it by hand at that point. It is not synced from here any more.
+          # The allowlist below is the whole set. A name absent from it is never
+          # written: the sync loop only ever calls `put-parameter --overwrite`,
+          # so dropping a name leaves any existing parameter of that name in
+          # place, frozen at its last synced value. `/oxy/mention/MONGODB_URI` is
+          # such a leftover — nothing reads it, and deleting the parameter is a
+          # separate, irreversible decision that belongs to whoever owns SSM.
           SSM_SECRET_ALLOWLIST: >-
             ALIA_API_KEY DATABASE_URL FIREBASE_SERVICE_ACCOUNT_BASE64 FIREBASE_PROJECT_ID
             INTERNAL_METRICS_TOKEN KLIPY_APP_KEY MENTION_OXY_CLIENT_ID
@@ -201,13 +195,11 @@ jobs:
           # a service scaled to zero, which is what a lost-capacity incident
           # looks like.
           #
-          # Set to `mention:<YYYY-MM-DD>` for the Mongo->Postgres cutover ONLY,
-          # where traffic
-          # is deliberately held at zero for the whole window because the running
-          # image is Mongo-backed and bringing it up after the copy would let
-          # real writes land in the store being abandoned. The runbook sets it in
-          # the same step that scales to 0 and unsets it in the step that scales
-          # back up, so its lifetime is the window's.
+          # Set to `mention:<YYYY-MM-DD>` only for a planned window where traffic
+          # is deliberately held at zero — a store migration is the case it was
+          # written for, and the last one is done. Set it in the same step that
+          # scales to 0 and unset it in the step that scales back up, so its
+          # lifetime is the window's.
           #
           # It is inert on its own: `deploy-ecs-image.sh` only consults it when
           # `desiredCount` is already 0, which takes a deliberate scale-down. A
@@ -221,10 +213,10 @@ jobs:
           # digest-pinned image this pipeline runs. Anything that must reach
           # production therefore goes HERE as well as in the Terraform record.
           #
-          # DATABASE_URL: the Mongo->Postgres port requires it at boot. Added
-          # ahead of the port so the wiring is proven against an image that
-          # ignores the variable; a missing parameter would otherwise surface as
-          # `ResourceInitializationError: unable to pull secrets` during a cutover.
+          # DATABASE_URL: the backend opens Postgres at boot and refuses to come
+          # up without it, so a missing parameter surfaces as
+          # `ResourceInitializationError: unable to pull secrets` before any task
+          # runs.
           TASK_SECRET_OVERRIDES_JSON: >-
             {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MENTION_MCP_JWT_SECRET",
              "DATABASE_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/DATABASE_URL"}
@@ -266,26 +258,28 @@ jobs:
           #    MAX_WAIT_SECS would not have bought months even before (1); with
           #    it, there was never a value that worked.
           # 5. IT IS A MIGRATION-WINDOW CLOSER, not a release step — its own
-          #    docblock says so. It repairs what the pre-cutover Mongo writers
-          #    left wrong: a fixed, historical set. Today's writers maintain both
-          #    projections transactionally (`PostEngagementCommandService`,
-          #    `recordRecentReplierForPost`) and the backfill loads both, so on
-          #    an ordinary deploy it recomputes correct values into themselves.
+          #    docblock says so. It repairs what the writers that predate the
+          #    Postgres cutover left wrong: a fixed, historical set. Today's
+          #    writers maintain both projections transactionally
+          #    (`PostEngagementCommandService`, `recordRecentReplierForPost`) and
+          #    the backfill loads both, so on an ordinary deploy it recomputes
+          #    correct values into themselves.
           #
           # It now runs BY HAND when there is a reason to — after a restore, or
           # after any window where those writers were not the only ones writing.
           # `packages/backend/scripts/reconcile-engagement-projections.ts` holds
           # the command and how to launch it.
-          # The web service loads NO Mongo — measured on the compiled artefact,
-          # zero of the modules under `dist/` that require mongoose are reachable
-          # from `dist/server.js` — and since #676 it no longer demands the
-          # variable to boot. Nothing on this task reads it.
-          #
-          # It is REMOVED rather than merely unnamed because the definition is
-          # derived from the LIVE one: a secret nobody names survives every
-          # deploy, which is exactly how this one outlived its store. Naming it
-          # here re-asserts the absence each time, so a Terraform apply or a
-          # hand-registered revision cannot quietly put it back.
+          # A STANDING assertion, not a completed one — do not delete it because
+          # the live definition is already clean. Nothing in this package can
+          # open Mongo any more, so no task reads this secret; that is why it may
+          # go, not why the directive may. The task definition is derived from
+          # the LIVE one and a secret nobody names is carried forward verbatim,
+          # which is exactly how this one outlived its store. The definition is
+          # also recorded in Terraform, many revisions behind, so an apply or a
+          # hand-registered revision puts the secret back with nothing to notice
+          # — and if `/oxy/mention/MONGODB_URI` has been deleted by then, every
+          # task launch fails on `unable to pull secrets`. Naming it here
+          # re-asserts the absence on every deploy, for free.
           TASK_SECRET_REMOVALS: MONGODB_URI
           POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-mention.sh
         # The existing target group remains on `/`, which server.ts now serves

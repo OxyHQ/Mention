@@ -1,5 +1,5 @@
 ##
-## Docker Compose — local PostgreSQL for the Mongo→Postgres migration.
+## Docker Compose — the local PostgreSQL a developer runs beside the backend.
 ##
 ## Separate from `docker-compose.yml`, which runs the application stack. This
 ## file holds only the database a developer needs running next to
@@ -17,8 +17,8 @@
 services:
   postgres:
     # PostGIS, not plain Postgres: `posts.geo` and `posts.content_geo` are
-    # generated `geography` columns with GiST indexes (the port of the two Mongo
-    # `2dsphere` indexes that `$near`/`$geoWithin` queries use), so
+    # generated `geography` columns with GiST indexes, serving the proximity
+    # queries `posts.controller.ts` runs, so
     # `CREATE EXTENSION postgis` has to succeed before the migration that names
     # the type. `postgis/postgis` is the PostGIS project's own image and is
     # pinned on BOTH versions — Postgres 17 (matching what RDS runs) and PostGIS
@@ -38,9 +38,9 @@ services:
     environment:
       POSTGRES_USER: mention
       POSTGRES_PASSWORD: mention
-      # Matches the `mention-{env}` naming the Mongo side uses
-      # (src/utils/database.ts `databaseName()`), with `-` swapped for `_`
-      # because an unquoted Postgres identifier cannot hold a hyphen.
+      # `mention_dev` — the `mention-{env}` naming this database inherited, with
+      # `-` swapped for `_` because an unquoted Postgres identifier cannot hold
+      # a hyphen. Production's is plain `mention`.
       POSTGRES_DB: mention_dev
     ports:
       # 5433, not 5432: oxy-api's own `docker-compose.dev.yml` already binds

@@ -55,7 +55,7 @@ state from the server entry point:
 ```text
 configuration
     │
-    ├──> Mongo supervisor and schema state
+    ├──> PostgreSQL pool and schema state
     ├──> Redis state, cache, queues, locks, and pub/sub
     ├──> Express application and route dependencies
     ├──> Socket.IO and distributed presence
@@ -64,7 +64,7 @@ configuration
 
 Configuration is parsed with Zod during startup. Feature-specific variables
 become required only when that feature is enabled. Request handling uses one
-central Mongo connection; handlers do not reconnect per request.
+central PostgreSQL pool; handlers do not open a connection per request.
 
 Public and authenticated routers are separate. Authentication accepts an Oxy
 access token or an eligible MCP JWT. Public reads may use optional identity for
@@ -89,7 +89,7 @@ Supported descriptor families include:
 
 The request-scoped viewer context resolves graph membership, language settings,
 blocks, restrictions, and Mention mutes once. Excluded authors are removed
-before pagination. Chronological cursors use `(createdAt, _id)` where that is
+before pagination. Chronological cursors use `(createdAt, id)` where that is
 the feed's declared sort axis.
 
 ## MTN signed records
@@ -102,7 +102,7 @@ The signed-record layer lives under `packages/backend/src/services/mtn`:
   idempotently.
 - Node registry, sync, and scheduling support user-operated Mention nodes.
 
-MongoDB remains authoritative for application reads. Record append is
+PostgreSQL remains authoritative for application reads. Record append is
 best-effort and isolated from the native write result. Protocol verification
 uses Oxy verification methods for self-issued records and configured Mention
 keys for custodial records.
@@ -120,13 +120,13 @@ network cannot abort another or the native post write.
 
 Post creation depends on the registry's narrow federation interface, not a
 network implementation. Protocol DTOs at the connector boundary do not depend
-on Mongoose.
+on the persistence layer.
 
 ## Storage and degradation
 
 | Dependency | Use | Failure behavior |
 | --- | --- | --- |
-| MongoDB | Authoritative application data and schema version | Readiness fails |
+| PostgreSQL | Authoritative application data and schema version | Readiness fails |
 | Valkey/Redis | Cache, queues, rate limits, locks, Socket.IO adapter, presence | HTTP degrades quickly |
 | Oxy | Identity, settings, graph, service-backed media | Endpoint-specific degraded behavior |
 | Object storage | Canonical and cached media | Media operation fails or falls back |
@@ -140,30 +140,37 @@ singleton leadership when it cannot acquire the distributed lock.
 Startup runs in this order:
 
 1. Validate configuration.
-2. Connect MongoDB with bounded retry.
-3. Run migrations outside production, or verify the deployed schema in
-   production.
+2. Connect PostgreSQL. This is the only data store the process opens, and
+   `getDb()` throws until it resolves.
+3. In production, assert that the deploy's migration one-shot has already
+   brought the schema current; a task refuses readiness otherwise. Outside
+   production the migrator is a developer command (`bun run db:migrate`), so
+   startup asserts nothing.
 4. Initialize Redis-backed optional capabilities.
-5. Register sockets, workers, outbox processing, and leader-gated jobs.
+5. Register sockets, workers, outbox dispatchers, and leader-gated jobs.
 6. Start HTTP and mark readiness true.
 
 Shutdown first marks readiness false and stops accepting HTTP. It then stops
-schedulers and workers and closes Socket.IO, pub/sub, Redis, and MongoDB in
+schedulers, dispatchers and queue workers while their dependencies are still
+reachable, and finally closes Socket.IO, pub/sub, Redis, and PostgreSQL in
 parallel. A hard ten-second deadline prevents a stuck deployment drain.
 
 ## Local topology
 
-`docker-compose.yml` reproduces the transactional data requirements:
+`docker-compose.yml` reproduces the data requirements:
 
 ```text
-mongo ──healthy──> mongo-init ──completed──┐
-valkey ─────────────healthy────────────────┼──> migrate ──completed──> backend
+postgres ──healthy──┐
+valkey ───healthy───┼──> migrate ──completed──> backend
 ```
 
-MongoDB runs as a single-node replica set so transactions behave like
-production. The migration container and backend use the same locally built
-backend image. MongoDB and Valkey expose loopback-only ports and persist to
-named volumes.
+The Postgres image is PostGIS-pinned to the major RDS runs, because generated
+`geography` columns require the extension before the migration that names the
+type. The migration container and backend use the same locally built backend
+image. Postgres and Valkey expose loopback-only ports and persist to named
+volumes. `docker-compose.postgres.yml` binds a separate database on another
+loopback port for `bun run dev:backend` and the test suite, so both stacks can
+be up at once.
 
 ## Production topology
 

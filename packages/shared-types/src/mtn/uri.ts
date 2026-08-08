@@ -19,7 +19,7 @@ export interface MtnUriParts {
   identity: string;
   /** The lexicon NSID (e.g., app.mention.feed.post) */
   collection: string;
-  /** The record key (typically the MongoDB _id) */
+  /** The record key (typically the record's own id in Mention's store) */
   rkey: string;
 }
 
@@ -87,7 +87,7 @@ export function createBookmarkUri(oxyUserId: string, bookmarkId: string): string
 }
 
 /**
- * Extract the MongoDB record ID from an MTN URI.
+ * Extract the record ID from an MTN URI.
  */
 export function mtnUriToRecordId(uri: string): string {
   return MtnUri.parse(uri).rkey;

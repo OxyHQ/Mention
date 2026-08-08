@@ -20,9 +20,10 @@
  *
  * A channel is the other thing one might expect here, and it is deliberately
  * absent: a channel is an Oxy ACCOUNT, and account follows still live in the
- * legacy Mongo-backed graph that the Following feed reads. Wiring one here would
- * give a channel two independent follow states that disagree the first time
- * anybody pressed either. Channels join when the user graph itself migrates.
+ * older account-follow graph that the Following feed reads. Wiring one here
+ * would give a channel two independent follow states that disagree the first
+ * time anybody pressed either. Channels join when account follows themselves
+ * move onto `/v2/follows`.
  */
 
 /**

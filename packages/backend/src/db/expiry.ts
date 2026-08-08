@@ -1,42 +1,30 @@
 /**
  * Expiry Sweep — the replacement for Mongo TTL indexes
  *
- * Postgres has no TTL index. Several Mention models relied on one, so the
- * mechanism is defined ONCE here and every table that needs it adds a registry
- * entry rather than growing its own cleanup path.
+ * Postgres has no TTL index. Several Mention collections relied on one before
+ * the port, so the mechanism is defined ONCE here and every table that needs it
+ * adds a registry entry rather than growing its own cleanup path.
  *
- * ## THE RULE, because it is the quietest failure in this migration
+ * ## THE RULE, because it is the quietest failure in this file's subject
  *
- * **A TTL index is a behaviour of the SOURCE that does not survive the port.**
- * Mongo reaps; Postgres does not. A table ported without a registry entry grows
- * FOREVER — no error, no failing test, no symptom of any kind until disk. It is
- * structurally invisible because the thing doing the work was never in our code
- * to be missed: there is no deleted call site, no orphaned function, nothing a
- * reviewer diffing the port would see go absent.
+ * **Nothing reaps a Postgres table on its own.** A table added without a
+ * registry entry grows FOREVER — no error, no failing test, no symptom of any
+ * kind until disk. It is structurally invisible: there is no missing call site
+ * and no orphaned function, nothing a reviewer diffing the change would see go
+ * absent.
  *
- * So porting a collection is not done when its schema, migration and backfill
- * plan exist. If its Mongoose model declares `expireAfterSeconds`, it is done
- * when it appears BELOW as well.
+ * That was not hypothetical during the port, where the omissions tracked the
+ * porting frontier exactly — measured 2026-08-02, ten collections declared a TTL
+ * index, eight had an entry, and the two gaps were precisely the two nobody had
+ * ported yet. It stopped being self-correcting once the models were deleted:
+ * there is no longer any source declaration a walk could derive this list from.
  *
- * This is not hypothetical and the omission is not random — it tracks the
- * PORTING FRONTIER. Measured 2026-08-02: ten models declared a TTL index, eight
- * were registered, and the two gaps were exactly the two collections nobody had
- * ported yet (`mcp/models/McpAuthCode.ts`, `models/TrendGraph.ts`). The rule
- * held everywhere it had been applied; the exceptions were both in flight.
- *
- * `__tests__/db/expiry.test.ts` enforces it by WALKING the tree for models
- * declaring `expireAfterSeconds` — never by naming a directory. The enumeration
- * that produced the original "seven" read `src/models/` only and could not see
- * `src/mcp/models/McpAuthCode.ts`, which is the same directory blind spot that
- * hid three whole collections from the migration's collection map.
- *
- * **A finished port DELETES the Mongoose model but must never delete the
- * registry entry.** `mcp/models/McpAuthCode.ts` is gone — its call sites all
- * read `mcp_auth_codes` now — so the walk can no longer see the obligation that
- * put `mcp_auth_codes` below. The entry is what stands between a ported table
- * and unbounded growth, and it is the LAST thing a completed port should tidy
- * away; the test names such entries explicitly rather than requiring a model to
- * vouch for them.
+ * **So the registry is the WHOLE obligation, and `__tests__/db/expiry.test.ts`
+ * holds it EXACT in both directions** — a table that lost its entry and a table
+ * that never had one fail the same way. Two arrived exactly that way,
+ * `mcp_auth_codes` and `trend_graphs`, each ported without an entry until that
+ * test said so. Deleting an entry alongside a table's last writer is the obvious
+ * tidy-up and is exactly the failure this guards.
  *
  * ## The shape
  *

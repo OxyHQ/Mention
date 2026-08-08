@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * Offline tests for the driver that asks Oxy to purge what the PLATFORM holds
  * for each blocked instance.
  *
- * The Oxy service client and the Mongo-backed resume cursor are the only two
+ * The Oxy service client and the persisted resume cursor are the only two
  * things mocked; the real paging loop, the real stall guard, the real
  * mode/canonical agreement checks and the real report all run. The endpoint is
  * scripted per test as a queue of responses so a pass sequence can be stated

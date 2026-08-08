@@ -81,7 +81,7 @@ function isTemporaryPostId(value: string): boolean {
  * replaces were application behaviour with no schema counterpart (`required` on
  * `question`/`postId`/`endsAt`/each option's `text`, and the `Mixed` `postId`
  * shape validator), so they are re-applied at the call site — the rule in
- * `db/MIGRATION-CONTRACT.md`. `details` is dropped: it was `error.errors`, a
+ * `db/schema/CONVENTIONS.md`. `details` is dropped: it was `error.errors`, a
  * Mongoose-internal map with nothing to derive it from.
  */
 function validationError(res: Response, message: string) {

@@ -71,9 +71,9 @@
  *     bun packages/backend/dist/src/scripts/normalizeFederatedText.js              # reviewed apply
  *
  * Env:
- *   MONGODB_URI   the cluster (injected by ECS from SSM)
- *   NODE_ENV      selects the database (`mention-<NODE_ENV>`)
+ *   DATABASE_URL  the Postgres database (injected by ECS from SSM)
  *   DRY_RUN=true  plan only, no writes
+ *   CONFIRM_ADMIN_MUTATION=normalizeFederatedText  required for a real apply
  */
 
 import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';

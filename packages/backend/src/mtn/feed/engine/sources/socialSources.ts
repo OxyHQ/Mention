@@ -421,11 +421,11 @@ export const starterPackSource: SourceModule = {
  * when `params.scope === 'follows'`) from earlier years on today's month/day.
  *
  * `extract(... from created_at)` is the port of Mongo's `$month`/`$dayOfMonth`
- * `$expr`. Both stores evaluate it per row, so it is bounded by the author-id
- * filter exactly as before — the timestamps are `timestamptz`, so the extraction
- * runs in the session time zone; `at time zone 'utc'` pins it to the same UTC
- * calendar day Mongo's operators used, which is also what the JS side computes
- * with `getUTCMonth`/`getUTCDate`.
+ * `$expr`, and like it, it is evaluated per row — so the query is bounded by the
+ * author-id filter exactly as before. The timestamps are `timestamptz`, so the
+ * extraction runs in the session time zone; `at time zone 'utc'` pins it to the
+ * same UTC calendar day the original operators used, which is also what the JS
+ * side computes with `getUTCMonth`/`getUTCDate`.
  */
 export const onThisDaySource: SourceModule = {
   id: 'onThisDay',

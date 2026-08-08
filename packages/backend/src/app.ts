@@ -69,7 +69,8 @@ const MENTION_CSP_EXTENSIONS: OxyCspExtensions = {
  * Build the HTTP application only.
  *
  * All runtime-bearing dependencies are injected. This function never listens,
- * opens Mongo/Redis, creates Socket.IO, starts timers, or registers schedulers.
+ * opens Postgres or Redis, creates Socket.IO, starts timers, or registers
+ * schedulers.
  */
 export function createApp(deps: CreateAppDependencies): express.Express {
   const { middleware, routes } = deps;

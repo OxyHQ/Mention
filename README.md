@@ -42,7 +42,7 @@ The interface is built with [**Bloom**](https://github.com/OxyHQ/Bloom). Live au
 | Package | Path | What it holds |
 |---|---|---|
 | `@mention/frontend` | [`packages/frontend`](./packages/frontend) | Expo Router app for iOS, Android and web. Expo 57, React Native 0.86, React 19, NativeWind, TanStack Query, Zustand |
-| `@mention/backend` | [`packages/backend`](./packages/backend) | Express 5 API, Socket.IO, background workers, ActivityPub federation, the MTN signed record layer and the web shell |
+| `@mention/backend` | [`packages/backend`](./packages/backend) | Express 5 API over PostgreSQL (Drizzle ORM) and Valkey, Socket.IO, background workers, ActivityPub federation, the MTN signed record layer and the web shell |
 | `@mention/shared-types` | [`packages/shared-types`](./packages/shared-types) | The request and response contracts, plus the MTN record schemas, that both sides compile against |
 | `@mention/mcp` | [`packages/mcp`](./packages/mcp) | Model Context Protocol server, remote over HTTP and local over stdio |
 | `@mention/e2e` | [`packages/e2e`](./packages/e2e) | Real browser release gate that exercises a candidate web build before it is promoted |
@@ -123,7 +123,7 @@ Two things save time here. Rebuild `shared-types` before you trust a red type ch
 
 **Signed records (MTN)**
 
-Local posts are dual written to a per user hash chain built on `@oxyhq/protocol`. MongoDB stays authoritative for reads while the chain gives an author a verifiable, portable history. Native writes are signed on the device, web writes are signed custodially by the service, and a user can run their own node to hold their own chain.
+Local posts are dual written to a per user hash chain built on `@oxyhq/protocol`. PostgreSQL stays authoritative for reads while the chain gives an author a verifiable, portable history. Native writes are signed on the device, web writes are signed custodially by the service, and a user can run their own node to hold their own chain.
 
 **Federation**
 

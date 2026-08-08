@@ -29,11 +29,11 @@ Post responses are hydrated by `PostHydrationService` and use contracts from
 | Method | Path | Access | Contract |
 | --- | --- | --- | --- |
 | GET | `/health/live` | Public | `200` while the process can answer HTTP |
-| GET | `/health/ready` | Public | `200` only after startup, migrations, and MongoDB; otherwise `503` |
+| GET | `/health/ready` | Public | `200` only after startup, migrations, and PostgreSQL; otherwise `503` |
 | GET | `/internal/metrics` | Service-only | Prometheus output after network and bearer-token checks |
 | POST | `/telemetry/web` | Trusted browser origin | Bounded web-vitals/runtime batch; returns `204` |
 
-A ready response reports the runtime phase and MongoDB, migration, and Redis
+A ready response reports the runtime phase and PostgreSQL, migration, and Redis
 states. Redis can be `degraded` without failing HTTP readiness.
 
 Metrics use normalized route templates and bounded labels. The service does not
@@ -144,9 +144,10 @@ changing their payloads.
 
 ## Search and statistics
 
-`GET /search` searches only published, visible posts. It uses MongoDB text
-search, a minimal projection, a bounded execution time, and an opaque,
-versioned cursor over `(createdAt, _id)`.
+`GET /search` searches only published, visible posts. It uses PostgreSQL
+full-text search — a generated `tsvector` column queried with
+`websearch_to_tsquery('english', …)` — a minimal projection, a bounded
+execution time, and an opaque, versioned cursor over `(createdAt, id)`.
 
 Authenticated statistics routes:
 

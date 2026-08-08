@@ -41,12 +41,12 @@ POST_DEPLOY_TASK_COMMAND_JSON="${POST_DEPLOY_TASK_COMMAND_JSON:-}"
 # lost, and rolling a new image onto nothing produces a green deploy and an
 # outage. That guard stays.
 #
-# The exception it exists for is the Mongo->Postgres cutover. Traffic is stopped
-# at desiredCount 0 for the whole window ON PURPOSE, because the running image
-# is Mongo-backed: bringing it up after the copy has finished would let real
-# user writes land in the store being abandoned, and the copy is not
-# incremental, so nothing recovers them. Downtime is acceptable there; losing
-# writes is not.
+# The exception it exists for is a planned window that holds traffic at
+# desiredCount 0 ON PURPOSE. The case it was written for was the Postgres
+# cutover: bringing the old image up after the copy had finished would have let
+# real user writes land in the store being abandoned, and the copy was not
+# incremental, so nothing would have recovered them. Downtime was acceptable
+# there; losing writes was not. Any future window with that shape uses this.
 #
 # It names the SERVICE rather than being a boolean, for the same reason
 # `--confirm-truncate` names the database instead of taking `true`: a bare
@@ -129,20 +129,13 @@ fi
 # smoke checks because a failure here has routed nothing; a smoke failure rolls
 # back after the image has already served.
 #
-# THE FOURTH ENTRY PURGES NEWLY BLOCKED DOMAINS, and it is last because it is
-# the only one that DELETES: the schema has to be current and the store has to be
-# populated before content is removed from it. It was the tail of the MONGO
-# migration one-shot until it was split out — it is Postgres-only, so carrying it
-# inside a step named after Mongo meant removing Mongo from the deploy would have
-# removed the purge with it, silently. It exits 0 even when it fails (fail-soft
-# by design), so it cannot roll a healthy release back over a cleanup.
-#
-# ITS LIFETIME IS THE CUTOVER'S. It asserts that Postgres is authoritative,
-# which is false before the cutover and false again after a rollback to Mongo —
-# the planned contingency. It therefore ships INSIDE the cutover commit, so
-# reverting the cutover reverts it. Landing it separately would leave a guard
-# that blocks every deploy after a Mongo rollback, for a reason nothing about
-# that rollback would lead anyone to look for.
+# THE BLOCKED-DOMAIN PURGE IS LAST because it is the only one that DELETES: the
+# schema has to be current and the store has to be populated before content is
+# removed from it. It used to ride inside the retired Mongo migration one-shot
+# and was split out precisely because it is Postgres-only — carrying it inside a
+# step named after Mongo meant removing that step would have removed the purge
+# with it, silently. It exits 0 even when it fails (fail-soft by design), so it
+# cannot roll a healthy release back over a cleanup.
 MIGRATION_TASK_COMMANDS_JSON='[
   {
     "label": "Postgres migration",

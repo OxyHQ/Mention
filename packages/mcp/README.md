@@ -44,7 +44,7 @@ Claude Web  →  mcp.mention.earth (ECS mention-mcp)  →  api.mention.earth (EC
 | `api.mention.earth` | REST API + OAuth authorization server (RFC 8414 / 9728 / 7591 DCR) |
 | `mention.earth` | Consent UI (`/oauth/mcp/authorize`), link UI (`/oauth/mcp/link`), Settings revoke |
 
-**Identity model:** Claude holds one OAuth token (primary account). The backend resolves the **active account** per request via `bundleId` + Redis/Mongo (`activeOxyUserId` on the primary `McpConnection`). Linked accounts approve via browser link flow — not a second Claude OAuth grant.
+**Identity model:** Claude holds one OAuth token (primary account). The backend resolves the **active account** per request via `bundleId` + Redis/Postgres (`activeOxyUserId` on the primary `McpConnection`). Linked accounts approve via browser link flow — not a second Claude OAuth grant.
 
 ## MCP tools (59 total)
 

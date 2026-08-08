@@ -36,18 +36,15 @@ import { posts } from '../../db/schema/posts';
 import { NSFW_HASHTAGS, isNsfwHashtag } from '../../services/contentClassification/nsfw';
 
 /**
- * Mongo `$match` clauses — RETAINED ONLY for the consumers that are still on
- * Mongoose, and deleted by the batch that ports them.
+ * Mongo `$match` clauses — DEAD. Every consumer has moved to the SQL predicates
+ * below and the only importer left is this module's own test.
  *
- * `routes/search.ts` and `services/TrendingService.ts` still issue Mongo
- * queries. A helper that spans an unfinished, deliberately BATCHED cutover has
- * to speak both stores for exactly as long as that is true, and the alternative
- * — each of those files inlining its own copy of the sensitive-flag rule — is
- * how this module came to exist in the first place (`ForYouFeed.fetchPopular`
- * shipped without the filter and leaked NSFW into For You).
- *
- * The three flags are stated ONCE per store, immediately adjacent, so a reviewer
- * comparing them sees both in one screen.
+ * They are still exported rather than deleted because that is a separate change
+ * from the one that retired their last caller. Do not add an importer, and do
+ * not treat them as a second form to keep in sync with the SQL: the rule they
+ * encode lives in the predicates, and the reason this module exists at all is
+ * that each caller inlining its own copy is how `ForYouFeed.fetchPopular` once
+ * shipped without the filter and leaked NSFW into For You.
  */
 export const SENSITIVE_EXCLUDE_MATCH: Readonly<Record<string, unknown>> = Object.freeze({
   'postClassification.sensitive': { $ne: true },

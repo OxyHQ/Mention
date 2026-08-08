@@ -73,9 +73,9 @@ export const timestamptz = () => timestamp({ withTimezone: true, mode: 'date' })
  * Removing the precision at the source costs nothing and fixes every keyset,
  * present and future.
  *
- * It is also the more honest value. `MIGRATION-CONTRACT.md` treats a Mongo
- * `Date` as an absolute UTC instant, and Mongo stores those at MILLISECOND
- * precision — so every backfilled row already ends in `000`, and only rows
+ * It is also the more honest value. `CONVENTIONS.md` treats a stored timestamp
+ * as an absolute UTC instant, and the Mongo `Date`s this data came from were
+ * MILLISECOND precision — so every backfilled row already ends in `000`, and only rows
  * written by this default were inventing precision nothing downstream can
  * represent.
  *

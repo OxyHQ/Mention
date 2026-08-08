@@ -22,10 +22,11 @@
  * bridge can be asked.
  */
 /**
- * Typed STRUCTURALLY rather than off a model interface, because both stores hand
- * this an actor and the two spell absence differently — a Mongoose document omits
- * `networkAcct`, a Drizzle row carries `null`. Naming the two fields it reads is
- * also the honest signature: `domain` stays in the shape only so a caller can
+ * Typed STRUCTURALLY rather than off a row type, because callers hand this an
+ * actor from more than one shape and they spell absence differently — a Drizzle
+ * row carries `null` where a plain object omits the field entirely. Naming the
+ * two fields it reads is also the honest signature: `domain` stays in the shape
+ * only so a caller can
  * pass a whole actor row without narrowing, and the body deliberately never
  * touches it (see the note below the `networkAcct` branch).
  */

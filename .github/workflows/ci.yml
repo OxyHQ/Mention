@@ -2,29 +2,13 @@ name: CI
 
 on:
   push:
-    # `drizzle/channels-plans` is the Mongo->Postgres migration trunk, and it is
-    # here because on `pull_request` alone its CI is hostage to a branch it does
-    # not control.
-    #
-    # A `pull_request` run builds `refs/pull/N/merge`, which GitHub cannot create
-    # while the PR conflicts — so the MOMENT `main` lands a commit that touches
-    # anything the trunk also touched, every push to the trunk dispatches NOTHING.
-    # Not a failure, not a queued run: no run at all. Measured 2026-08-04, four
-    # consecutive trunk pushes carrying five merged fixes produced zero runs over
-    # an hour, and the silence was read as "CI is running" four times before
-    # anybody checked. A gate whose absence is indistinguishable from its success
-    # is the failure mode this repo has already paid for once, in the deploy
-    # workflows above.
-    #
-    # Safe on both counts that matter, checked rather than assumed:
-    #  - the three deploy workflows trigger on `workflow_run` with
-    #    `branches: [main]`, so a green run here CANNOT deploy this branch; and
-    #  - `concurrency.group` keys on `github.ref`, so trunk runs share no lane
-    #    with main's and hold at most one running plus one pending, same bound.
-    #
-    # REMOVE THIS ENTRY when the migration trunk merges and the branch is deleted.
-    # It is the only branch-specific line in this file and it should stay that way.
-    branches: [main, drizzle/channels-plans]
+    # No branch-specific entry here, and it should stay that way. A long-lived
+    # branch was listed while the Postgres migration trunk existed, because on
+    # `pull_request` alone a run builds `refs/pull/N/merge`, which GitHub cannot
+    # create while the PR conflicts — so a conflicted branch dispatches NO run at
+    # all, which looks exactly like a green one. That branch has merged and been
+    # deleted; the escape hatch below covers the same failure mode generally.
+    branches: [main]
   pull_request:
     branches: [main]
   # The escape hatch the comment above is missing. A push that dispatches NO run
@@ -159,7 +143,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
-    # PostgreSQL for the Mongo->Postgres migration. The backend suite creates ONE
+    # PostgreSQL, the backend's only data store. The suite creates ONE
     # throwaway, fully-migrated database per run against this server
     # (packages/backend/src/db/testDatabase.ts) and drops it afterwards.
     #
@@ -216,18 +200,11 @@ jobs:
             command: bun run --cwd packages/mcp test
             coverage: false
     steps:
-      # fetch-depth: 0 for TWO independent reasons, arrived at separately. Either
-      # one alone justifies it, so do not remove it on the strength of retiring
-      # just one of them:
-      #
-      #  1. The backend suite resolves DELETED Mongoose models out of git
-      #     history. The Mongo->Postgres port removes each model as its
-      #     collection lands, so on a shallow checkout the closed-value-set gate
-      #     (packages/backend/src/__tests__/db/closedValueSets.test.ts) would
-      #     find no deletions — indistinguishable from a port that has deleted
-      #     none — and would silently stop comparing those vocabularies. It
-      #     refuses on a shallow clone rather than pass vacuously.
-      #  2. The scope diff below needs both ends of the comparison.
+      # fetch-depth: 0 because the scope diff below needs both ends of the
+      # comparison. It used to carry a second, independent reason — a gate that
+      # resolved deleted Mongoose models out of git history and refused on a
+      # shallow clone rather than pass vacuously — which retired with the models
+      # themselves.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0

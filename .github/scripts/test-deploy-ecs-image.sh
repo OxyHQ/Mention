@@ -454,9 +454,9 @@ diff -u \
   "$test_directory/reconciliation-failure/expected.log" \
   "$test_directory/reconciliation-failure/aws.log"
 
-# A migration one-shot that exits non-zero stops the release. The FIRST task run
-# is the Postgres migrator, and the Mongo one never runs -- previously this case
-# expected a bare "reconcile" here, because the mock could not tell a migration
+# A migration one-shot that exits non-zero stops the release, and nothing after
+# it runs. The assertion names the FIRST task by its full command -- this case
+# used to expect a bare "reconcile", because the mock could not tell a migration
 # task from the reconciliation task and so recorded the wrong one by name.
 run_release migration-failure false true false 1
 printf '%s\n' \
@@ -474,18 +474,17 @@ if grep -q '^service:' "$test_directory/migration-failure/aws.log"; then
   echo "Failed migration reached update-service." >&2
   exit 1
 fi
-if grep -qF 'packages/backend/dist/scripts/migrate.js' \
+if grep -qF 'assertPostgresPopulated.js' \
   "$test_directory/migration-failure/aws.log"; then
-  echo "A failed Postgres migration still ran the Mongo migration." >&2
+  echo "A failed migration still ran the step after it." >&2
   exit 1
 fi
 
-# Both stores migrate on one release, and the ORDER is the assertion: Postgres
-# first, because a task that boots without its schema becomes ready and then
-# fails every query, while a missed Mongo data migration leaves the previous
-# release's behaviour standing. The blocked-domain reconciliation is LAST of the
-# pre-rollout steps because it is the only one that deletes rows, so it must not
-# run before the schema is current and the store is known to be populated. A
+# Every pre-rollout one-shot on one release, and the ORDER is the assertion. The
+# schema migration is first, because a task that boots without its schema becomes
+# ready and then fails every query. The blocked-domain reconciliation is LAST
+# because it is the only one that deletes rows, so it must not run before the
+# schema is current and the store is known to be populated. A
 # `diff` of the whole log is what notices a reordering -- grepping for the
 # entries would pass in any order.
 run_release migration-order true true false 0
@@ -642,10 +641,11 @@ grep -F \
 
 # ALLOW_ZERO_DESIRED_COUNT, in the four states that matter.
 #
-# The cutover deploys `mention` while it is deliberately scaled to zero, because
-# the running image is Mongo-backed and bringing it up after the copy would let
-# real writes land in the store being abandoned. Every OTHER deploy must still
-# refuse a zero-count service, and the exemption must not outlive the window.
+# A planned window may deploy a service while it is deliberately scaled to zero
+# -- the Postgres cutover was the case this was written for, where bringing the
+# old image up after the copy would have let real writes land in the store being
+# abandoned. Every OTHER deploy must still refuse a zero-count service, and the
+# exemption must not outlive the window.
 #
 # The value is `<service>:<YYYY-MM-DD>`. Two cases carry the design:
 #   - WRONG SERVICE proves the value is compared against APP rather than read as
