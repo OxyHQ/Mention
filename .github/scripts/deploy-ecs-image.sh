@@ -21,15 +21,20 @@ TASK_SECRET_OVERRIDES_JSON="${TASK_SECRET_OVERRIDES_JSON:-}"
 #
 # The script derives each release's definition from the LIVE one and rewrites
 # only what it is told about, so a secret nobody names survives indefinitely —
-# which is how `MONGODB_URI` outlived the store it pointed at. Removal has to be
-# expressible, and it has to be a STANDING assertion rather than a one-off manual
-# registration: the definition is also recorded in Terraform, so an apply or a
-# hand-registered revision can reintroduce a secret that was deleted once. Naming
-# it here re-asserts its absence on every deploy.
+# which is how the connection string for a retired datastore once outlived the
+# store it pointed at. Removal has to be expressible, and it has to be a STANDING
+# assertion rather than a one-off manual registration: the definition is also
+# recorded in Terraform, so an apply or a hand-registered revision can
+# reintroduce a secret that was deleted once. Naming it here re-asserts its
+# absence on every deploy.
 #
-# Removing the secret does NOT delete its SSM parameter. That is deliberate and
-# is the whole safety margin: the parameter stays for one-shots that still need
-# it.
+# Removing the secret does NOT delete its SSM parameter, and the two decisions
+# are deliberately independent: a parameter may still be needed by a one-shot
+# that is not this service. Retiring the parameter is a separate, irreversible
+# step — and note the ORDER matters, because a definition that still names a
+# parameter which no longer exists fails every task launch on
+# `unable to pull secrets`. Strip the secret here first, ship a deploy, then
+# delete the parameter.
 TASK_SECRET_REMOVALS="${TASK_SECRET_REMOVALS:-}"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
 AWS_PARTITION="${AWS_PARTITION:-aws}"

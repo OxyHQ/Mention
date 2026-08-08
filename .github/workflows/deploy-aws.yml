@@ -123,10 +123,12 @@ jobs:
           REDIS_URL: ${{ secrets.REDIS_URL }}
           # The allowlist below is the whole set. A name absent from it is never
           # written: the sync loop only ever calls `put-parameter --overwrite`,
-          # so dropping a name leaves any existing parameter of that name in
-          # place, frozen at its last synced value. `/oxy/mention/MONGODB_URI` is
-          # such a leftover — nothing reads it, and deleting the parameter is a
-          # separate, irreversible decision that belongs to whoever owns SSM.
+          # so dropping a name does not delete anything — it leaves any existing
+          # parameter of that name in place, frozen at its last synced value.
+          # A frozen parameter is invisible until something reads it and gets a
+          # stale answer, so retiring a secret means dropping it from here AND
+          # deciding separately whether the parameter itself goes. That second
+          # decision is irreversible and belongs to whoever owns SSM.
           SSM_SECRET_ALLOWLIST: >-
             ALIA_API_KEY DATABASE_URL FIREBASE_SERVICE_ACCOUNT_BASE64 FIREBASE_PROJECT_ID
             INTERNAL_METRICS_TOKEN KLIPY_APP_KEY MENTION_OXY_CLIENT_ID
@@ -269,17 +271,23 @@ jobs:
           # after any window where those writers were not the only ones writing.
           # `packages/backend/scripts/reconcile-engagement-projections.ts` holds
           # the command and how to launch it.
-          # A STANDING assertion, not a completed one — do not delete it because
-          # the live definition is already clean. Nothing in this package can
-          # open Mongo any more, so no task reads this secret; that is why it may
-          # go, not why the directive may. The task definition is derived from
-          # the LIVE one and a secret nobody names is carried forward verbatim,
-          # which is exactly how this one outlived its store. The definition is
-          # also recorded in Terraform, many revisions behind, so an apply or a
-          # hand-registered revision puts the secret back with nothing to notice
-          # — and if `/oxy/mention/MONGODB_URI` has been deleted by then, every
-          # task launch fails on `unable to pull secrets`. Naming it here
-          # re-asserts the absence on every deploy, for free.
+          # A STANDING assertion, not a completed one — do not delete it on the
+          # grounds that the live definition is already clean, because this is
+          # part of what keeps it clean. The definition is derived from the LIVE
+          # one, so a secret nobody names is carried forward verbatim, and that
+          # is how the named one outlived the store it pointed at in the first
+          # place.
+          #
+          # Its remaining job is narrow and worth stating, because the SSM
+          # parameter behind this name has since been DELETED and oxy-infra's
+          # terraform now records DATABASE_URL for this service (oxy-infra
+          # `099db84`). That closes the reintroduction path this was written
+          # for. What is left is the ORDER hazard: a definition naming a
+          # parameter that no longer exists fails every task launch on
+          # `unable to pull secrets`, so if the name ever comes back by hand,
+          # this strips it before it can break a rollout. Retiring the line is
+          # therefore a reasonable call to make deliberately — it is not one to
+          # make in passing while tidying prose.
           TASK_SECRET_REMOVALS: MONGODB_URI
           POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-mention.sh
         # The existing target group remains on `/`, which server.ts now serves
