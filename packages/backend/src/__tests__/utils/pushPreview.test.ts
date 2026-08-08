@@ -7,12 +7,10 @@ import { describe, expect, it, vi } from 'vitest';
  * the canonical collapser in the ecosystem. It now delegates to
  * `normalizeInlineText`, keeping only its own product rule: the length budget.
  *
- * `push.ts` pulls in firebase-admin and the Mongo models at import time, so both
- * are stubbed — `buildPreview` itself is pure.
+ * `push.ts` pulls in firebase-admin at import time, so it is stubbed —
+ * `buildPreview` itself is pure.
  */
 vi.mock('firebase-admin', () => ({ default: { apps: [], initializeApp: vi.fn(), credential: { cert: vi.fn() } } }));
-vi.mock('../../models/PushToken', () => ({ default: { find: vi.fn() } }));
-vi.mock('../../models/Post', () => ({ default: { findById: vi.fn() } }));
 vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: vi.fn() }));
 
 import { buildPreview } from '../../utils/push';

@@ -37,9 +37,6 @@ vi.mock('../../utils/oxyHelpers', () => ({
 vi.mock('../../utils/syraPodcast', () => ({
   syraClient: {},
 }));
-vi.mock('../../models/Post', () => ({ default: {} }));
-vi.mock('../../models/Bookmark', () => ({ default: {} }));
-vi.mock('../../models/Like', () => ({ default: {} }));
 
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';

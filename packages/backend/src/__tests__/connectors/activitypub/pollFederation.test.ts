@@ -17,15 +17,12 @@ import { inArray } from 'drizzle-orm';
  *     UNIQUE voters across options.
  *
  * The builder's transitive deps are stubbed so `FollowService` imports in
- * isolation; the `Poll` model is stubbed with controllable lean output.
+ * isolation; the poll itself is REAL rows, seeded by `seedPoll` below.
  */
 
 vi.mock('../../../connectors/activitypub/actor.service', () => ({ actorService: {} }));
 vi.mock('../../../connectors/activitypub/crypto', () => ({ getPublicKey: vi.fn(), signRequest: vi.fn() }));
 vi.mock('../../../queue/producers', () => ({ enqueueDelivery: vi.fn(), enqueueInboxActivity: vi.fn() }));
-vi.mock('../../../models/FederatedActor', () => ({ default: {} }));
-vi.mock('../../../models/FederatedFollow', () => ({ default: {} }));
-vi.mock('../../../models/FederationDeliveryQueue', () => ({ default: {} }));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
@@ -34,10 +31,6 @@ vi.mock('@oxyhq/core/server', async (importOriginal) => ({
 vi.mock('../../../utils/mediaResolver', () => ({
   resolveMediaRef: (ref: string) => ({ url: `https://cloud.oxy.so/${ref}` }),
 }));
-
-const { pollFindLean } = vi.hoisted(() => ({
-}));
-
 
 import type { PostContent } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';

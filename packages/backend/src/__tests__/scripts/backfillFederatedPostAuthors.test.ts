@@ -50,7 +50,6 @@ vi.mock('../../connectors/activitypub/helpers', () => ({
   asRecord: vi.fn(),
 }));
 vi.mock('../../connectors/activitypub/constants', () => ({ AP_CONTENT_TYPE: 'application/activity+json' }));
-vi.mock('../../models/Post', () => ({ Post: {} }));
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
   assertSafePublicUrl: vi.fn(),

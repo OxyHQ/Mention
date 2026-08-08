@@ -64,11 +64,6 @@ vi.mock('@oxyhq/core/server', async (importOriginal) => ({
   assertSafePublicUrl: mocks.assertSafePublicUrl,
 }));
 
-vi.mock('../../models/FederationDeliveryQueue', () => ({
-  default: {},
-  getNextRetryTime: vi.fn(),
-}));
-
 // `models/Post` is NOT mocked and `PostEngagementCommandService` is NOT mocked:
 // posts, likes and the denormalized counters are all Postgres now, and the
 // counter-in-lockstep guarantee this suite exists to protect is a property of
@@ -79,10 +74,6 @@ vi.mock('../../utils/notificationUtils', () => ({
   createMentionNotifications: vi.fn().mockResolvedValue(undefined),
   createBatchNotifications: vi.fn().mockResolvedValue(undefined),
   createPostAuthorNotifications: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('../../models/PostSubscription', () => ({
-  default: { find: () => ({ lean: () => Promise.resolve([]) }) },
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({

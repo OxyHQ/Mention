@@ -17,9 +17,8 @@
  *  - **`push_tokens.token` is GLOBALLY unique** — one device, one row, owned by
  *    whichever account registered it last. A re-registration must MOVE the row.
  *
- * The referenced POSTS are still Mongo (they belong to the posts batch), so
- * `models/Post` and `PostHydrationService` are stubbed; everything this file is
- * actually about is a real row in a real database.
+ * `PostHydrationService` is stubbed — the referenced posts are not what this
+ * file is about; everything it IS about is a real row in a real database.
  */
 
 import express from 'express';
@@ -29,7 +28,6 @@ import { randomUUID } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
 
 const mocks = vi.hoisted(() => ({
-  postFind: vi.fn(),
   hydratePosts: vi.fn(),
   getUsersByIds: vi.fn(),
   createScopedOxyClient: vi.fn(),
@@ -39,8 +37,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../middleware/rateLimiter', () => ({
   apiRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
-
-vi.mock('../../models/Post', () => ({ default: { find: mocks.postFind } }));
 
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: mocks.hydratePosts },
@@ -151,7 +147,6 @@ beforeEach(() => {
   mocks.getUsersByIds.mockResolvedValue([]);
   mocks.createScopedOxyClient.mockReturnValue({ scope: 'viewer' });
   mocks.loadFollowedAuthorIds.mockResolvedValue(new Set<string>());
-  mocks.postFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
   mocks.hydratePosts.mockResolvedValue([]);
 });
 

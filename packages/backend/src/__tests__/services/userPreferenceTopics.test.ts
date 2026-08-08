@@ -24,9 +24,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * the regression test for that column type.
  */
 
-vi.mock('../../models/Like', () => ({ __esModule: true, default: { find: vi.fn() } }));
-vi.mock('../../models/Bookmark', () => ({ __esModule: true, default: { find: vi.fn() } }));
-
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import type { TopicPreference } from '../../db/userProfile/userBehaviorRecord';
 import {

@@ -47,10 +47,7 @@ const h = vi.hoisted(() => ({
   fetchUpstreamFollowingRedirects: vi.fn(),
   persistRemoteMedia: vi.fn(),
   recordAccess: vi.fn(),
-  likeCreate: vi.fn(),
-  likeFindOneAndDelete: vi.fn(),
   getServiceOxyClient: vi.fn(),
-  followExists: vi.fn(),
 }));
 
 vi.mock('../../connectors/activitypub/crypto', () => ({
@@ -59,20 +56,9 @@ vi.mock('../../connectors/activitypub/crypto', () => ({
   signRequest: h.signRequest,
 }));
 
-vi.mock('../../models/FederatedFollow', () => ({ default: { exists: h.followExists } }));
-
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
   assertSafePublicUrl: h.assertSafePublicUrl,
-}));
-
-vi.mock('../../models/FederationDeliveryQueue', () => ({
-  default: {},
-  getNextRetryTime: vi.fn(),
-}));
-
-vi.mock('../../models/Like', () => ({
-  default: { create: h.likeCreate, findOneAndDelete: h.likeFindOneAndDelete },
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: h.getServiceOxyClient }));
@@ -114,10 +100,6 @@ vi.mock('../../utils/notificationUtils', () => ({
   createMentionNotifications: vi.fn().mockResolvedValue(undefined),
   createBatchNotifications: vi.fn().mockResolvedValue(undefined),
   createPostAuthorNotifications: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('../../models/PostSubscription', () => ({
-  default: { find: () => ({ lean: () => Promise.resolve([]) }) },
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({
@@ -266,8 +248,6 @@ beforeEach(async () => {
   h.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   h.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   h.recordAccess.mockResolvedValue(undefined);
-  h.likeCreate.mockResolvedValue({ _id: 'like_1' });
-  h.likeFindOneAndDelete.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
   h.getServiceOxyClient.mockReturnValue({
     makeServiceRequest: vi.fn(),
     getUserById: vi.fn(async () => ({ id: AUTHOR_OXY, username: 'alice' })),

@@ -57,16 +57,6 @@ function chainable(rows: unknown[] | null) {
   return q;
 }
 
-vi.mock('../../models/Post', () => ({
-  Post: {
-    find: () => chainable([]),
-    findOne: () => chainable(null),
-  },
-}));
-vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/FederatedActor', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../services/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();

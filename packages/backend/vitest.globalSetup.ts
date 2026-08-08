@@ -12,9 +12,6 @@
  * failure. Start one with:
  *
  *   docker compose -f docker-compose.postgres.yml up -d postgres
- *
- * The Mongo side is untouched: `src/__tests__/setup.ts` still mocks mongoose
- * wholesale, and every existing suite keeps running against that mock.
  */
 
 import { createTestDatabase, dropTestDatabase } from './src/db/testDatabase';
