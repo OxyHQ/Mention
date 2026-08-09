@@ -112,6 +112,16 @@ const BANNED_PACKAGES = [
 const BANNED_LOCK_PACKAGES = ["mongoose", "mongodb", "mongodb-memory-server", "connect-mongo"];
 
 /**
+ * Mongo named in PROSE, for the manifest's `description` and `keywords`.
+ *
+ * Word-anchored so `mongo`, `mongodb` and `mongoose` all match in any case,
+ * while a word that merely contains them does not: `mongolia` and `among` stay
+ * clean. This is a claim check, not a dependency check — the package names in
+ * `BANNED_PACKAGES` are the wrong vocabulary for a sentence a human wrote.
+ */
+const MONGO_PROSE = /\bmongo(?:db|ose)?\b/i;
+
+/**
  * Deliberate, reasoned survivals. Each entry excuses findings in ONE file whose
  * matched text contains `pattern`.
  *
@@ -213,6 +223,28 @@ function lineHolding(lines, needle) {
   return index === -1 ? 1 : index + 1;
 }
 
+/**
+ * Read a tracked file, or record WHY it could not be read and skip it.
+ *
+ * `git ls-files` reports the INDEX, which can name a file the working tree does
+ * not have — a half-applied checkout, an interrupted rebase, a stale worktree.
+ * Left unhandled that threw an ENOENT stack trace out of the middle of the
+ * scan, which is the worst of both worlds: the run ends with no verdict, and
+ * the reason looks like a bug in the guard rather than a fact about the tree.
+ * Reading it as a FAILURE keeps the run loud and finishes the other surfaces.
+ */
+async function readTrackedFile(path) {
+  try {
+    return await readFile(resolve(repositoryRoot, path), "utf8");
+  } catch (error) {
+    failures.push(
+      `${path} is tracked by git but could not be read (${error.code ?? error.message}) — `
+      + "the working tree disagrees with the index, so this scan was incomplete",
+    );
+    return null;
+  }
+}
+
 const findings = [];
 const failures = [];
 
@@ -242,7 +274,8 @@ function overrideKeys(value, collected = []) {
 }
 
 for (const path of manifests) {
-  const text = await readFile(resolve(repositoryRoot, path), "utf8");
+  const text = await readTrackedFile(path);
+  if (text === null) continue;
   const lines = text.split("\n");
   let manifest;
   try {
@@ -271,6 +304,32 @@ for (const path of manifests) {
       `${field} declares ${name}`,
     );
   }
+
+  // `description` is PROSE, and it is the most visible claim a manifest makes —
+  // npm, the GitHub sidebar and every package viewer render it. It is also the
+  // one this validator could not see: `@mention/backend` described itself as an
+  // "Express 5 / Mongoose / Socket.io backend" for the whole life of the guard,
+  // because a description declares no dependency and every check above reads
+  // dependency NAMES. A gate blind to the single most-read line in the file it
+  // guards is worse than no gate, since its silence is taken for a verdict.
+  //
+  // Matched on the word rather than the package names: prose says "Mongoose",
+  // "MongoDB" and "Mongo", none of which is a package identifier, and the point
+  // is the CLAIM, not the spelling.
+  for (const field of ["description", "keywords"]) {
+    const value = manifest[field];
+    if (value === undefined) continue;
+    const text = Array.isArray(value) ? value.join(" ") : value;
+    if (typeof text !== "string") continue;
+    const found = MONGO_PROSE.exec(text);
+    if (!found) continue;
+    record(
+      path,
+      lineHolding(lines, `"${field}"`),
+      (lines.find((line) => line.includes(`"${field}"`)) ?? `${field}: ${text}`).trim().slice(0, 160),
+      `${field} claims ${found[0]}`,
+    );
+  }
 }
 
 // ------------------------------------------------------------- 2. lockfile ---
@@ -296,7 +355,9 @@ if (tracked.includes("bun.lock")) {
 
 for (const path of [...sources, ...configs]) {
   const isSource = SOURCE_FILE.test(path);
-  const lines = (await readFile(resolve(repositoryRoot, path), "utf8")).split("\n");
+  const text = await readTrackedFile(path);
+  if (text === null) continue;
+  const lines = text.split("\n");
 
   for (const [index, line] of lines.entries()) {
     if (isSource && BANNED_IMPORT.test(line)) {
