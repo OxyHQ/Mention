@@ -107,6 +107,28 @@ measured reason: `uuid@14` is ESM-only under the node condition and this package
 emits CommonJS, while `uuid@11` would collide with the transitive `uuid@3.4.0`
 already hoisted at the workspace root.
 
+**It carries NO monotonic counter, so id order is not insertion order within a
+millisecond.** `uuidv7()` is 48 bits of `Date.now()` followed by
+`randomFillSync`; RFC 9562's optional `rand_a` sub-millisecond sequence is not
+implemented. Two rows minted in the same millisecond therefore order on their
+random tail — measured at 49.3% inversion over 20,000 pairs, a coin flip rather
+than an edge case. The id is still a UNIQUE and STABLE total order, which is
+exactly what the keyset pagination in `mtn/feed/CursorBuilder.ts` needs from it:
+every feed sort spells the id LAST, after `score` and/or `created_at`, so
+chronology is carried by `created_at` and the id only breaks the remaining ties.
+
+Two consequences, both of which have already cost real debugging time:
+
+- **Never assert which of two rows written back to back leads.** A database round
+  trip usually spreads inserts across milliseconds, so such an assertion passes
+  for months and then fails at random, reading as a ranking or pagination
+  regression. Test fixtures state the tie instead —
+  `__tests__/helpers/tiedIds.ts`.
+- **If true insertion order is ever load-bearing, it needs a `position` column
+  and a migration, not a different sort.** `post_content_variants` and
+  `post_sources` already have one; `db/posts/postRepository.ts` records where the
+  absence of one is deliberate.
+
 **Two exceptions, both caller-supplied ids with no generator:**
 `moderation_outbox.id` (deterministic, so a retry re-derives the same row) and
 `moderation_events.id` (the CrowdSource event id — the primary key IS the §10.8

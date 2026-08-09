@@ -78,6 +78,7 @@ import {
 import { FeedEngine } from '../mtn/feed/engine/FeedEngine';
 import { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
 import type { FeedDefinition, FeedEngineContext, SourceModule } from '../mtn/feed/engine/types';
+import { sameMillisecondIds } from './helpers/tiedIds';
 
 let db: Database;
 const created: string[] = [];
@@ -156,17 +157,23 @@ async function create(
  *
  * - `top` / `second`: distinct engagement.
  * - `sameScoreNewer` / `sameScoreOlder`: TIED on engagement, split by `created_at`.
- * - `tiedLater` / `tiedEarlier`: tied on engagement AND `created_at`, split by id
- *   descending (uuid v7 is monotonic, so the later insert leads).
+ * - `tiedHigher` / `tiedLower`: tied on engagement AND `created_at`, split by id
+ *   descending — so the HIGHER id leads.
+ *
+ * That last pair's ids are SUPPLIED rather than minted. `uuidv7()` has no
+ * monotonic counter, so two rows written back to back order on their random tail
+ * whenever they share a millisecond; asserting that the later insert leads was a
+ * coin flip that a database round trip usually, but not reliably, hid.
  */
 async function pool(content: Partial<PostRecordInput>): Promise<string[]> {
+  const [tiedLower, tiedHigher] = sameMillisecondIds(2);
   const top = await create(50, RECENT, content);
   const second = await create(40, RECENT, content);
   const sameScoreOlder = await create(30, OLDER, content);
   const sameScoreNewer = await create(30, RECENT, content);
-  const tiedEarlier = await create(10, RECENT, content);
-  const tiedLater = await create(10, RECENT, content);
-  return [top, second, sameScoreNewer, sameScoreOlder, tiedLater, tiedEarlier];
+  await create(10, RECENT, { ...content, id: tiedLower });
+  await create(10, RECENT, { ...content, id: tiedHigher });
+  return [top, second, sameScoreNewer, sameScoreOlder, tiedHigher, tiedLower];
 }
 
 function definitionFor(sourceId: string): FeedDefinition {
