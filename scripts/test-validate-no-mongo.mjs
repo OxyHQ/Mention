@@ -165,6 +165,50 @@ const cases = [
     expectFailure: true,
     expectOutput: "overrides declares mongoose",
   },
+  {
+    // The regression this check exists for. `@mention/backend` described itself
+    // as an "Express 5 / Mongoose / Socket.io backend" while every dependency
+    // check above passed, because a description declares nothing. The most
+    // visible line in the manifest was the one the guard could not read.
+    name: "a description claiming Mongoose is rejected",
+    files: filler({
+      "packages/backend/package.json": `${JSON.stringify(
+        { name: "@mention/backend", description: "Express 5 / Mongoose / Socket.io backend for Mention" },
+        null,
+        2,
+      )}\n`,
+    }),
+    expectFailure: true,
+    expectOutput: "description claims Mongoose",
+  },
+  {
+    name: "a keyword claiming MongoDB is rejected",
+    files: filler({
+      "packages/backend/package.json": `${JSON.stringify(
+        { name: "@mention/backend", keywords: ["api", "MongoDB"] },
+        null,
+        2,
+      )}\n`,
+    }),
+    expectFailure: true,
+    expectOutput: "keywords claims MongoDB",
+  },
+  {
+    // The distinguishing shape for the word anchor. A substring match would
+    // reject both of these, and a maintainer who hit that would delete the
+    // check rather than argue with it — a gate that cries wolf gets disabled by
+    // whoever trips over it next. Without this fixture, `/mongo/i` and
+    // `/\bmongo(?:db|ose)?\b/i` are indistinguishable.
+    name: "a description containing mongo inside another word passes",
+    files: filler({
+      "packages/backend/package.json": `${JSON.stringify(
+        { name: "@mention/backend", description: "Ranked among the fastest, deployed in Mongolia" },
+        null,
+        2,
+      )}\n`,
+    }),
+    expectFailure: false,
+  },
 
   // ------------------------------------------------------------- lockfile ---
   {

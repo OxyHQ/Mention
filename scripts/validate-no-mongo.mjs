@@ -112,6 +112,16 @@ const BANNED_PACKAGES = [
 const BANNED_LOCK_PACKAGES = ["mongoose", "mongodb", "mongodb-memory-server", "connect-mongo"];
 
 /**
+ * Mongo named in PROSE, for the manifest's `description` and `keywords`.
+ *
+ * Word-anchored so `mongo`, `mongodb` and `mongoose` all match in any case,
+ * while a word that merely contains them does not: `mongolia` and `among` stay
+ * clean. This is a claim check, not a dependency check — the package names in
+ * `BANNED_PACKAGES` are the wrong vocabulary for a sentence a human wrote.
+ */
+const MONGO_PROSE = /\bmongo(?:db|ose)?\b/i;
+
+/**
  * Deliberate, reasoned survivals. Each entry excuses findings in ONE file whose
  * matched text contains `pattern`.
  *
@@ -269,6 +279,32 @@ for (const path of manifests) {
       lineHolding(lines, quoted),
       (lines.find((line) => line.includes(quoted)) ?? `${field}.${name}`).trim(),
       `${field} declares ${name}`,
+    );
+  }
+
+  // `description` is PROSE, and it is the most visible claim a manifest makes —
+  // npm, the GitHub sidebar and every package viewer render it. It is also the
+  // one this validator could not see: `@mention/backend` described itself as an
+  // "Express 5 / Mongoose / Socket.io backend" for the whole life of the guard,
+  // because a description declares no dependency and every check above reads
+  // dependency NAMES. A gate blind to the single most-read line in the file it
+  // guards is worse than no gate, since its silence is taken for a verdict.
+  //
+  // Matched on the word rather than the package names: prose says "Mongoose",
+  // "MongoDB" and "Mongo", none of which is a package identifier, and the point
+  // is the CLAIM, not the spelling.
+  for (const field of ["description", "keywords"]) {
+    const value = manifest[field];
+    if (value === undefined) continue;
+    const text = Array.isArray(value) ? value.join(" ") : value;
+    if (typeof text !== "string") continue;
+    const found = MONGO_PROSE.exec(text);
+    if (!found) continue;
+    record(
+      path,
+      lineHolding(lines, `"${field}"`),
+      (lines.find((line) => line.includes(`"${field}"`)) ?? `${field}: ${text}`).trim().slice(0, 160),
+      `${field} claims ${found[0]}`,
     );
   }
 }
