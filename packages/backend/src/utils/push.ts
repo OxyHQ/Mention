@@ -167,9 +167,8 @@ export async function formatPushForNotification(n: PushNotificationSource) {
   let f = map[n.type] || { title: 'Notification', body: 'You have a new notification' };
   let preview: string | undefined;
   // For post notifications, try to include a short preview in the push body.
-  // The POST row is deliberately still read from Mongo: `posts` and
-  // `resolveVariant`'s content shape belong to the posts batch, and reading a
-  // half-migrated table here would produce an empty preview rather than an error.
+  // Best-effort: a preview is a nicety, so every failure below is swallowed and
+  // logged at debug. A push with a generic body is better than no push.
   try {
     if (n.type === 'post' && n.entityType === 'post' && n.entityId) {
       const post = await loadPostRecord(String(n.entityId));

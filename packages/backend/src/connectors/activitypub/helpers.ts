@@ -474,17 +474,6 @@ export async function runWithTimeout<T>(work: Promise<T>, timeoutMs: number): Pr
 }
 
 /**
- * Whether an error is a MongoDB duplicate-key error (code 11000), including
- * Mongoose `MongoServerError` and bulk write error shapes.
- */
-export function isDuplicateKeyError(err: unknown): boolean {
-  if (err && typeof err === 'object' && 'code' in err) {
-    return (err as { code?: unknown }).code === 11000;
-  }
-  return false;
-}
-
-/**
  * Extract the announced object URI from an Announce activity's `object`,
  * which may be a plain URI string or an embedded object with an `id`.
  */

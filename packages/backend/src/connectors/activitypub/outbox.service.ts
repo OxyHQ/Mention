@@ -53,7 +53,6 @@ import {
   fetchActivityPubObject,
   fetchVerifiedAnnouncedNote,
   runWithTimeout,
-  isDuplicateKeyError,
   extractAnnouncedObjectUri,
   extractActorUri,
   extractInReplyToUri,
@@ -1375,9 +1374,9 @@ export class OutboxSyncService {
         ...(published ? { createdAt: published, updatedAt: published } : {}),
       });
     } catch (err) {
-      // A duplicate-key error means a concurrent import already created the
+      // A unique violation means a concurrent import already created the
       // boost — treat as already-imported, not a failure.
-      if (isDuplicateKeyError(err)) return false;
+      if (isUniqueViolation(err)) return false;
       const message = err instanceof Error ? err.message : String(err);
       logger.warn('[FedSync] failed to create boost', {
         error: message,
@@ -1629,7 +1628,7 @@ export class OutboxSyncService {
       return created.id;
     } catch (err) {
       // Concurrent import may have created it — re-read to return the id.
-      if (isDuplicateKeyError(err)) {
+      if (isUniqueViolation(err)) {
         const [raced] = await getDb()
           .select({ id: posts.id })
           .from(posts)
