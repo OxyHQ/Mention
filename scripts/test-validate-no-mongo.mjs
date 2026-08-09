@@ -488,6 +488,21 @@ const cases = [
     expectOutput: "tracked by git but could not be read",
   },
 
+  {
+    // Not this repository's own spelling, and included for exactly that reason:
+    // with nothing here matching either form, `/\\bMONGODB_URI/i` and
+    // `/\\bMONGO(?:DB)?_URI/i` are indistinguishable, and the broader pattern
+    // would be an untested claim. A sibling Oxy service carries `MONGO_URI` on
+    // its live task definition, and a guard written for the other spelling
+    // called that repository clean while the secret was still there.
+    name: "the no-DB spelling MONGO_URI is caught too, and reported as itself",
+    files: filler({
+      "packages/backend/src/config/legacy.ts": "export const uri = process.env.MONGO_URI;\n",
+    }),
+    expectFailure: true,
+    expectOutput: "names MONGO_URI",
+  },
+
   // ------------------------------------------------------- self-protection ---
   {
     name: "a broken file listing cannot pass silently (vacuity floors)",
