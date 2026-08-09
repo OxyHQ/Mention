@@ -125,6 +125,7 @@ import type {
   FeedEngineContext,
   SourceModule,
 } from '../mtn/feed/engine/types';
+import { sameMillisecondIds } from './helpers/tiedIds';
 
 let db: Database;
 const created: string[] = [];
@@ -206,15 +207,21 @@ async function fallbackLane(): Promise<string[]> {
     content: { variants: [{ source: 'author', text: 'clip' }], media: [PORTRAIT_VIDEO] },
   };
 
+  // The pair tied on BOTH keys carries SUPPLIED ids. `uuidv7()` has no monotonic
+  // counter, so two rows written back to back order on their random tail
+  // whenever they share a millisecond; asserting that the later insert leads was
+  // a coin flip that a database round trip usually, but not reliably, hid.
+  const [tiedLower, tiedHigher] = sameMillisecondIds(2);
+
   const top = await create(author, 50_000, RECENT, video);
   const second = await create(author, 40_000, RECENT, video);
   const sameScoreNewer = await create(author, 30_000, RECENT, video);
   const sameScoreOlder = await create(author, 30_000, OLDER, video);
-  const tiedEarlier = await create(author, 20_000, RECENT, video);
-  const tiedLater = await create(author, 20_000, RECENT, video);
+  await create(author, 20_000, RECENT, { ...video, id: tiedLower });
+  await create(author, 20_000, RECENT, { ...video, id: tiedHigher });
 
-  // uuid v7 is monotonic, so the later insert leads the pair tied on both keys.
-  return [top, second, sameScoreNewer, sameScoreOlder, tiedLater, tiedEarlier];
+  // That pair is split by id DESCENDING, so the higher id leads.
+  return [top, second, sameScoreNewer, sameScoreOlder, tiedHigher, tiedLower];
 }
 
 /**

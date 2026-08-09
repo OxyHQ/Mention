@@ -53,6 +53,7 @@ import type { PostRecordInput } from '../db/posts/postRecord';
 import { exploreSource } from '../mtn/feed/engine/sources/discoverySources';
 import { ScoreCursor } from '../mtn/feed/CursorBuilder';
 import type { CandidatePost, FeedEngineContext } from '../mtn/feed/engine/types';
+import { sameMillisecondIds } from './helpers/tiedIds';
 
 let db: Database;
 
@@ -392,18 +393,25 @@ describe('a pagination session is a frozen snapshot', () => {
    */
   async function pool(): Promise<string[]> {
     const tiedAt = new Date(AS_OF - 3 * 60 * 60 * 1000);
-    const ids = [
+
+    // The tied pair's ids are SUPPLIED rather than minted. `uuidv7()` has no
+    // monotonic counter, so two rows written back to back order on their random
+    // tail whenever they share a millisecond — "the later insert leads" was a
+    // coin flip that a database round trip usually, but not reliably, hid.
+    // `sameMillisecondIds` states the tie instead of hoping for it.
+    const [tiedLower, tiedHigher] = sameMillisecondIds(2);
+
+    const [a, b, c, d] = [
       await create({ createdAt: tiedAt }, { likes: 50 }),
       await create({ createdAt: tiedAt }, { likes: 40 }),
       await create({ createdAt: tiedAt }, { likes: 30 }),
       await create({ createdAt: tiedAt }, { likes: 20 }),
-      await create({ createdAt: tiedAt }, { likes: 10 }),
-      await create({ createdAt: tiedAt }, { likes: 10 }),
     ];
-    // The two tied posts sort by DESCENDING id, and uuid v7 is monotonic, so the
-    // later insert leads.
-    const [a, b, c, d, tiedFirst, tiedSecond] = ids;
-    return [a, b, c, d, tiedSecond, tiedFirst];
+    await create({ id: tiedLower, createdAt: tiedAt }, { likes: 10 });
+    await create({ id: tiedHigher, createdAt: tiedAt }, { likes: 10 });
+
+    // The tied pair sorts by DESCENDING id, so the higher id leads.
+    return [a, b, c, d, tiedHigher, tiedLower];
   }
 
   it('walks adjacent pages that neither overlap nor gap, across a score tie', async () => {

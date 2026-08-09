@@ -75,6 +75,7 @@ import { videosSource } from '../mtn/feed/engine/sources/discoverySources';
 import { FeedEngine } from '../mtn/feed/engine/FeedEngine';
 import { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
 import type { FeedDefinition, FeedEngineContext } from '../mtn/feed/engine/types';
+import { sameMillisecondIds } from './helpers/tiedIds';
 
 let db: Database;
 
@@ -262,25 +263,44 @@ describe('portrait-first ordering on the served page', () => {
   }
 
   /**
-   * THE PORTRAIT POST IS INSERTED FIRST, AND THAT ORDER IS THE ENTIRE TEST.
+   * THE LANDSCAPE POST CARRIES THE HIGHER ID, AND THAT IS THE ENTIRE TEST.
    *
    * On a ranking tie `finalizeRanked` falls through to
-   * `readCandidateId(b).localeCompare(readCandidateId(a))` — DESCENDING id — and
-   * ids are uuid v7, so the later insert wins. Insert the portrait clip last and
-   * the id tiebreak alone produces `[portrait, landscape]`: the assertion passes
-   * whether or not the portrait preference exists, which is worth nothing.
+   * `readCandidateId(b).localeCompare(readCandidateId(a))` — DESCENDING id — so
+   * giving the landscape clip the higher id makes the tiebreak alone produce
+   * `[landscape, portrait]`. The assertion is the OPPOSITE order, so it can only
+   * pass if the portrait preference did the work.
+   *
+   * The ids are SUPPLIED rather than left to insertion order, and that is a
+   * correctness fix rather than tidying. `uuidv7()` has no monotonic counter, so
+   * two rows written back to back share a millisecond and order on their RANDOM
+   * tail — "insert the portrait first" therefore bought this control only about
+   * half the time, and the other half the id tiebreak agreed with the assertion
+   * and it passed whether or not the preference existed. That failure mode is
+   * GREEN, not red: nothing reports a check that has stopped discriminating.
+   *
    * Mutation-tested — renaming the definition away from `videos` (the id the
-   * preference is keyed on) had to make this go RED, and with the fixtures in
-   * this order it does.
+   * preference is keyed on) had to make this go RED, and with the ids pinned this
+   * way it does on every run rather than half of them.
    */
   it('emits a portrait clip before a landscape one when ranking ties', async () => {
-    const portrait = await create([video({ id: 'm-port', orientation: 'portrait', durationSec: 30 })]);
+    const [portraitId, landscapeId] = sameMillisecondIds(2);
+    const portrait = await create([video({ id: 'm-port', orientation: 'portrait', durationSec: 30 })], {
+      id: portraitId,
+    });
     const landscape = await create(
       [video({ id: 'm-land', width: 1920, height: 1080, orientation: 'landscape', durationSec: 30 })],
-      { oxyUserId: OTHER_AUTHOR, authorship: [{ oxyUserId: OTHER_AUTHOR, role: 'owner', status: 'accepted' }] },
+      {
+        id: landscapeId,
+        oxyUserId: OTHER_AUTHOR,
+        authorship: [{ oxyUserId: OTHER_AUTHOR, role: 'owner', status: 'accepted' }],
+      },
     );
 
-    // The id tiebreak alone would say `[landscape, portrait]`.
+    // The control, stated rather than assumed: the id tiebreak alone would say
+    // `[landscape, portrait]`, so the expected order below is the one only the
+    // portrait preference can produce.
+    expect(landscape > portrait).toBe(true);
     expect(await emittedIds([portrait, landscape])).toEqual([portrait, landscape]);
     expect(rankPosts).toHaveBeenCalled();
   });
@@ -289,16 +309,27 @@ describe('portrait-first ordering on the served page', () => {
     // `hasPortraitVideo` requires BOTH `type: 'video'` and the orientation. A
     // post carrying a portrait image alongside a landscape clip is landscape as
     // far as the Reels surface is concerned — so the genuinely portrait clip
-    // still leads despite being the OLDER id.
-    const trulyPortrait = await create([video({ id: 'm-tall-video', orientation: 'portrait', durationSec: 30 })]);
+    // still leads despite carrying the LOWER id, which the descending-id tiebreak
+    // would otherwise place second. Supplied for the same reason as the case
+    // above: minting order does not decide id order.
+    const [portraitId, landscapeId] = sameMillisecondIds(2);
+    const trulyPortrait = await create(
+      [video({ id: 'm-tall-video', orientation: 'portrait', durationSec: 30 })],
+      { id: portraitId },
+    );
     const imagePlusLandscape = await create(
       [
         video({ id: 'm-wide', width: 1920, height: 1080, orientation: 'landscape', durationSec: 30 }),
         { id: 'm-tall-photo', type: 'image', width: 1080, height: 1920, orientation: 'portrait' },
       ],
-      { oxyUserId: OTHER_AUTHOR, authorship: [{ oxyUserId: OTHER_AUTHOR, role: 'owner', status: 'accepted' }] },
+      {
+        id: landscapeId,
+        oxyUserId: OTHER_AUTHOR,
+        authorship: [{ oxyUserId: OTHER_AUTHOR, role: 'owner', status: 'accepted' }],
+      },
     );
 
+    expect(imagePlusLandscape > trulyPortrait).toBe(true);
     expect(await emittedIds([trulyPortrait, imagePlusLandscape])).toEqual([
       trulyPortrait,
       imagePlusLandscape,

@@ -46,7 +46,7 @@ vi.mock('../../utils/push', () => ({
   sendPushToUser: mocks.sendPushToUser,
 }));
 
-import { asc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import {
   MAX_MENTION_NOTIFICATIONS_PER_POST as CAP,
   isMentionBroadcast,
@@ -69,21 +69,34 @@ const mentionIds = (count: number): string[] =>
   Array.from({ length: count }, (_, i) => `${RUN}_mentioned_${i}`);
 
 /**
- * The recipient ids that actually have a row, in insertion order.
+ * The recipient ids that actually have a row, SORTED — the set, not a sequence.
  *
- * Ordered by `id` rather than by `created_at`: every row of one fan-out is
- * written inside the same statement burst, and `now()` is
- * `transaction_timestamp()`, so `created_at` is a tie. The ids are uuid v7,
- * which is monotonic — and every row here is post-cutover, so ordering by id is
- * meaningful in exactly this narrow case.
+ * This used to order by `id` and call the result insertion order, on the grounds
+ * that uuid v7 is monotonic. It is NOT: `uuidv7()` (`db/schema/columns.ts`) is 48
+ * bits of `Date.now()` followed by `randomFillSync`, with none of RFC 9562's
+ * optional monotonic counter, so two rows sharing a millisecond order on their
+ * random tail — measured at a ~50/50 split, the same coin flip
+ * `services/profileLinkMentionWrites.test.ts` records having hit for real.
+ * `db/posts/postRepository.ts` states the rule.
+ *
+ * `createMentionNotifications` fans out in a sequential loop of separate round
+ * trips, so the rows usually — never reliably — land in distinct milliseconds.
+ * Every collision was a 50% chance of transposing two names inside an ordered
+ * `toEqual`, which is a red failure arriving at random, with no code change, and
+ * reading as a cap regression.
+ *
+ * Sorting is the right answer here rather than pinning the ids, because ORDER
+ * CARRIES NO MEANING: every case below asks who was notified and how many — the
+ * cap's decision — and nothing reads notifications in id sequence. The
+ * assertions keep their full force; a truncated prefix, a missing recipient, an
+ * extra one or a wrongly suppressed fan-out all still fail.
  */
 const notifiedRecipients = async (): Promise<string[]> => {
   const rows = await getDb()
     .select({ recipientId: notifications.recipientId })
     .from(notifications)
-    .where(eq(notifications.entityId, POST_ID))
-    .orderBy(asc(notifications.id));
-  return rows.map((row) => row.recipientId);
+    .where(eq(notifications.entityId, POST_ID));
+  return rows.map((row) => row.recipientId).sort();
 };
 
 beforeAll(async () => {
@@ -125,7 +138,7 @@ describe('createMentionNotifications — fan-out cap boundary', () => {
   it(`notifies every mentioned user AT the cap (${CAP})`, async () => {
     await createMentionNotifications(mentionIds(CAP), POST_ID, AUTHOR, 'post');
 
-    expect(await notifiedRecipients()).toEqual(mentionIds(CAP));
+    expect(await notifiedRecipients()).toEqual([...mentionIds(CAP)].sort());
     expect(mocks.loggerWarn).not.toHaveBeenCalled();
   });
 
@@ -152,7 +165,7 @@ describe('createMentionNotifications — fan-out cap boundary', () => {
 
     await createMentionNotifications(duplicated, POST_ID, AUTHOR, 'post');
 
-    expect(await notifiedRecipients()).toEqual(mentionIds(CAP));
+    expect(await notifiedRecipients()).toEqual([...mentionIds(CAP)].sort());
   });
 });
 
@@ -177,6 +190,6 @@ describe('createMentionNotifications — suppression is observable', () => {
     );
 
     expect(mocks.loggerWarn).not.toHaveBeenCalled();
-    expect(await notifiedRecipients()).toEqual([`${RUN}_mentioned_0`, `${RUN}_mentioned_1`]);
+    expect(await notifiedRecipients()).toEqual([`${RUN}_mentioned_0`, `${RUN}_mentioned_1`].sort());
   });
 });
