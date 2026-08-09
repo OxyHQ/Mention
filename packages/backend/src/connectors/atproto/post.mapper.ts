@@ -3,6 +3,7 @@ import { normalizeMultilineText } from '@oxyhq/core';
 import { logger } from '../../utils/logger';
 import { inArray } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
+import { isUniqueViolation } from '../../db/pgErrors';
 import { posts } from '../../db/schema/posts';
 import { findActorByUri } from '../../db/federation/actorRepository';
 import { normalizeAlt } from '../../services/MediaMetadataService';
@@ -395,11 +396,6 @@ export function mapPostViewToNormalizedPost(
   };
 }
 
-/** True for a MongoDB duplicate-key (E11000) error — a concurrent import race. */
-function isDuplicateKeyError(err: unknown): boolean {
-  return Boolean(err && typeof err === 'object' && (err as { code?: number }).code === 11000);
-}
-
 /**
  * Resolve a mentioned atproto DID to its Oxy user id. Prefers an already-synced
  * `federated_actors` row (no network round trip); otherwise resolves + mints the actor
@@ -556,7 +552,7 @@ async function createPostFromNormalized(
     });
     return true;
   } catch (err) {
-    if (isDuplicateKeyError(err)) return false;
+    if (isUniqueViolation(err)) return false;
     logger.warn('[atproto] failed to import post', err);
     return false;
   }

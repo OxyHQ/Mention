@@ -219,8 +219,9 @@ async function upsertMirroredPack(
     });
     return true;
   } catch (err) {
-    // A concurrent sync of the same pack can race the upsert to an E11000; that is
-    // benign (the other writer landed the same mirror), so it is not re-thrown.
+    // A concurrent sync of the same pack can race the upsert to a unique
+    // violation; that is benign (the other writer landed the same mirror), so it
+    // is not re-thrown.
     logger.warn('[atproto] failed to upsert mirrored starter pack', err);
     return false;
   }
