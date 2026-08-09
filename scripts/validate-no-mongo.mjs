@@ -223,6 +223,28 @@ function lineHolding(lines, needle) {
   return index === -1 ? 1 : index + 1;
 }
 
+/**
+ * Read a tracked file, or record WHY it could not be read and skip it.
+ *
+ * `git ls-files` reports the INDEX, which can name a file the working tree does
+ * not have — a half-applied checkout, an interrupted rebase, a stale worktree.
+ * Left unhandled that threw an ENOENT stack trace out of the middle of the
+ * scan, which is the worst of both worlds: the run ends with no verdict, and
+ * the reason looks like a bug in the guard rather than a fact about the tree.
+ * Reading it as a FAILURE keeps the run loud and finishes the other surfaces.
+ */
+async function readTrackedFile(path) {
+  try {
+    return await readFile(resolve(repositoryRoot, path), "utf8");
+  } catch (error) {
+    failures.push(
+      `${path} is tracked by git but could not be read (${error.code ?? error.message}) — `
+      + "the working tree disagrees with the index, so this scan was incomplete",
+    );
+    return null;
+  }
+}
+
 const findings = [];
 const failures = [];
 
@@ -252,7 +274,8 @@ function overrideKeys(value, collected = []) {
 }
 
 for (const path of manifests) {
-  const text = await readFile(resolve(repositoryRoot, path), "utf8");
+  const text = await readTrackedFile(path);
+  if (text === null) continue;
   const lines = text.split("\n");
   let manifest;
   try {
@@ -332,7 +355,9 @@ if (tracked.includes("bun.lock")) {
 
 for (const path of [...sources, ...configs]) {
   const isSource = SOURCE_FILE.test(path);
-  const lines = (await readFile(resolve(repositoryRoot, path), "utf8")).split("\n");
+  const text = await readTrackedFile(path);
+  if (text === null) continue;
+  const lines = text.split("\n");
 
   for (const [index, line] of lines.entries()) {
     if (isSource && BANNED_IMPORT.test(line)) {

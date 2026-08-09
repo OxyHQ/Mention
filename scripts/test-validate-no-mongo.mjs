@@ -34,7 +34,7 @@ const validator = resolve(repositoryRoot, "scripts/validate-no-mongo.mjs");
  * see them fire; every other case relaxes them, since a fixture tree of six
  * files would otherwise fail for a reason that has nothing to do with Mongo.
  */
-async function runAgainst(files, { realFloors = false } = {}) {
+async function runAgainst(files, { realFloors = false, removeAfterAdd = [] } = {}) {
   const root = await mkdtemp(join(tmpdir(), "no-mongo-validator-"));
   try {
     for (const [path, contents] of Object.entries(files)) {
@@ -48,6 +48,12 @@ async function runAgainst(files, { realFloors = false } = {}) {
     // the wrong reason.
     Bun.spawnSync({ cmd: ["git", "-c", "init.defaultBranch=main", "init", "-q"], cwd: root });
     Bun.spawnSync({ cmd: ["git", "add", "-A", "-f"], cwd: root });
+
+    // Deleted AFTER `git add`, so the path stays in the index while the working
+    // tree loses it. That divergence is real — a half-applied checkout or an
+    // interrupted rebase produces it — and it is the only way to reach the
+    // unreadable-file branch, which cannot be staged into existence.
+    for (const path of removeAfterAdd) await rm(join(root, path), { force: true });
 
     const environment = { ...process.env, NO_MONGO_VALIDATOR_ROOT: root };
     if (!realFloors) environment.NO_MONGO_VALIDATOR_FIXTURE_FLOORS = "1";
@@ -465,6 +471,23 @@ const cases = [
     expectOutput: "names MONGODB_URI",
   },
 
+  {
+    // A tracked path the working tree does not have. Before this was handled the
+    // guard threw an ENOENT stack trace out of the middle of the scan: no
+    // verdict, and a failure that reads like a bug in the guard rather than a
+    // fact about the tree. Met in the wild on a stale worktree, not imagined.
+    //
+    // It must FAIL rather than skip quietly, because the scan really was
+    // incomplete — the unread file is exactly where a reintroduction could sit.
+    name: "a tracked file missing from the working tree fails loudly, not with a stack trace",
+    files: filler({
+      "packages/backend/src/db/legacy.ts": "export const uri = 'postgres://localhost/x';\n",
+    }),
+    removeAfterAdd: ["packages/backend/src/db/legacy.ts"],
+    expectFailure: true,
+    expectOutput: "tracked by git but could not be read",
+  },
+
   // ------------------------------------------------------- self-protection ---
   {
     name: "a broken file listing cannot pass silently (vacuity floors)",
@@ -493,7 +516,10 @@ const cases = [
 
 let failed = 0;
 for (const testCase of cases) {
-  const { exitCode, output } = await runAgainst(testCase.files, { realFloors: testCase.realFloors === true });
+  const { exitCode, output } = await runAgainst(testCase.files, {
+    realFloors: testCase.realFloors === true,
+    removeAfterAdd: testCase.removeAfterAdd ?? [],
+  });
   const didFail = exitCode !== 0;
 
   if (didFail !== testCase.expectFailure) {
