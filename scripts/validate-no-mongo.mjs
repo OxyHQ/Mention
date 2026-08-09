@@ -189,8 +189,19 @@ const BANNED_IMPORT = new RegExp(
  * and a lowercased `mongodb_uri` config key are both the same reference. No
  * trailing word boundary, deliberately: a suffixed spelling is the likeliest way
  * one comes back, and nothing benign is spelled this way.
+ *
+ * `MONGO_URI` — no DB — is matched too, and the reason is worth keeping. A
+ * sibling Oxy service spells it that way on its LIVE task definition and in its
+ * SSM parameter, and `MONGODB_URI` appears nowhere in that repository. A check
+ * written for one spelling reported it clean while a live secret named a
+ * database that was about to be dropped, and the mistake surfaced sideways
+ * rather than by anyone re-reading the pattern.
+ *
+ * So a guard that catches one spelling and certifies the other is not a weaker
+ * guard — it is an instance of the failure it exists to prevent. Matching both
+ * costs nothing.
  */
-const MONGO_ENV_VARIABLE = /\bMONGODB_URI/i;
+const MONGO_ENV_VARIABLE = /\bMONGO(?:DB)?_URI/i;
 
 /** A live connection string. Escaped regex SOURCE containing `:\/\/` cannot match. */
 const MONGO_CONNECTION_STRING = /\bmongodb(?:\+srv)?:\/\//i;
@@ -363,8 +374,14 @@ for (const path of [...sources, ...configs]) {
     if (isSource && BANNED_IMPORT.test(line)) {
       record(path, index + 1, line.trim(), "imports a Mongo driver");
     }
-    if (MONGO_ENV_VARIABLE.test(line)) {
-      record(path, index + 1, line.trim(), "names MONGODB_URI");
+    const envMatch = MONGO_ENV_VARIABLE.exec(line);
+    if (envMatch) {
+      // Reports the spelling it actually MATCHED, not the one this guard is
+      // named after. Same principle as printing the whole matched line instead
+      // of a capture group: an operator reading "names MONGODB_URI" under a line
+      // that says MONGO_URI would reasonably doubt the tool, and doubting the
+      // tool is how a real finding gets dismissed.
+      record(path, index + 1, line.trim(), `names ${envMatch[0].toUpperCase()}`);
     }
     if (MONGO_CONNECTION_STRING.test(line)) {
       record(path, index + 1, line.trim(), "carries a mongodb:// connection string");
