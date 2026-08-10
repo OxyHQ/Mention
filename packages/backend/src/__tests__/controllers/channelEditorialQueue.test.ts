@@ -514,6 +514,18 @@ describe('the shared editorial queue — publishing an entry early', () => {
     expect(claim).not.toHaveBeenCalled();
   });
 
+  it('refuses a former WRITER whose channel membership was removed', async () => {
+    const entry = await seedScheduled({ owner: CHANNEL, writtenBy: WRITER });
+    listAccountMembers.mockResolvedValue([
+      membership(CHANNEL, WRITER, 'removed'),
+      membership(CHANNEL, COLLEAGUE),
+    ]);
+
+    expect((await publishAs(WRITER, entry)).status).toBe(404);
+    expect(listAccountMembers).toHaveBeenCalledWith(CHANNEL);
+    expect(claim).not.toHaveBeenCalled();
+  });
+
   it('refuses a member whose invitation is not yet ACCEPTED', async () => {
     const entry = await seedScheduled({ owner: CHANNEL, writtenBy: WRITER });
 
@@ -547,22 +559,17 @@ describe('the shared editorial queue — publishing an entry early', () => {
 /**
  * THE ACL UNDERNEATH, asked WITHOUT the operated-account set.
  *
- * This block exists because a mutation SURVIVED without it. Every case above
- * reaches the queue through the endpoint, which resolves the caller's channels
- * and hands them to hydration — so the writer is admitted by `operatedAccountIds`
- * and the writer clause beside it never decides anything. Deleting
- * `canManagePostWithoutLookup` from the ACL left all twelve of them green.
+ * Every queue case above reaches hydration through an endpoint that resolves the
+ * caller's channels and supplies `operatedAccountIds`. This block exercises the
+ * other id-based surfaces that do not make that current-authority lookup.
  *
  * The distinguishing shape is the one the endpoint can never produce: hydration
  * asked with NO operated accounts, which is every other surface in the
  * application (post detail, a thread, a notification embed) because resolving
- * that set costs an Oxy round trip nothing else may pay. There the writer clause
- * is the only thing standing between a person and their OWN unpublished writing.
- *
- * It also settles a real incoherence rather than adding a capability: `isOwner`
- * on the DTO already comes from `canManagePostWithoutLookup`, so before this the
- * two could disagree — the summary would have said "you own this post" about one
- * the same service refused to return.
+ * that set costs an Oxy round trip nothing else may pay. There, a stored writer
+ * id cannot establish whether that person STILL operates the channel. Treating
+ * it as authority would disclose queued content to a former member who retained
+ * the post id.
  */
 describe('the hydration ACL on an unpublished channel post', () => {
   const service = new PostHydrationService();
@@ -580,8 +587,27 @@ describe('the hydration ACL on an unpublished channel post', () => {
     return service.hydratePosts([post], { viewerId, maxDepth: 0 });
   }
 
-  it('lets the WRITER read their own unpublished channel post', async () => {
-    expect(await hydrateAs(WRITER)).toHaveLength(1);
+  it('refuses the stored WRITER without proof they still operate the channel', async () => {
+    expect(await hydrateAs(WRITER)).toHaveLength(0);
+  });
+
+  it('lets the WRITER read after current channel authority is supplied', async () => {
+    const post = await seedPost(scope, {
+      oxyUserId: CHANNEL,
+      authorship: [{ oxyUserId: CHANNEL, role: 'owner', status: 'accepted' }],
+      writtenByOxyUserId: WRITER,
+      status: 'scheduled',
+      scheduledFor: later(60),
+      content: { variants: [{ source: 'author', text: 'a queued story', tag: 'en' }] },
+    });
+
+    expect(
+      await service.hydratePosts([post], {
+        viewerId: WRITER,
+        operatedAccountIds: [CHANNEL],
+        maxDepth: 0,
+      }),
+    ).toHaveLength(1);
   });
 
   it('refuses a colleague who operates the channel but did not write it', async () => {

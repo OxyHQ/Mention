@@ -2078,32 +2078,37 @@ export class PostHydrationService {
     // alongside the owner and accepted collaborators. All three bypass the
     // unpublished/private/followers-only/restricted ACL checks below.
     //
-    // The last two clauses are the CHANNEL cases, and they exist because the id
-    // comparison above answers "no" for every human on a channel's post: a
-    // channel AUTHORS its own posts, and no session can ever have a channel as
-    // its subject. Without them an unpublished channel post is readable by
-    // nobody at all — not a narrow gap, a black hole, and measured as one.
+    // The channel cases exist because the id comparison answers "no" for every
+    // human on a channel's post: a channel AUTHORS its own posts, and no session
+    // can ever have a channel as its subject.
     //
-    //  - `canManagePostWithoutLookup` covers the WRITER, off two columns already
-    //    in hand and with no lookup. It is the SAME predicate `buildViewerState`
-    //    uses for `isOwner`, which is what makes the two agree: the DTO used to
-    //    be able to say `isOwner: true` about a post this gate would refuse.
-    //  - `operatedAccountIds` covers the writer's CO-OPERATORS, and is empty
-    //    unless the caller opted in (see `HydrationOptions.operatedAccountIds`),
-    //    so no feed pays an Oxy round trip for it.
+    //  - `canManagePostWithoutLookup` remains the published-post affordance for
+    //    its stored WRITER, off two columns already in hand and with no lookup.
+    //  - `operatedAccountIds` proves CURRENT authority for unpublished channel
+    //    posts. It is empty unless the caller opted in (see
+    //    `HydrationOptions.operatedAccountIds`), so no feed pays an Oxy round
+    //    trip for it.
     //
-    // Both are strictly narrower than what the write routes already permit:
-    // `postManagementRefusal` lets any active member DELETE and EDIT this exact
-    // post today. Granting them READ removes an inconsistency rather than
-    // creating one.
-    const viewerOwnsPost =
+    // The stored writer alone cannot grant unpublished access: membership can
+    // be revoked after the post was written, while the stored id does not change.
+    const viewerOperatesAuthor =
       viewerContext.viewerId === authorId ||
+      (Boolean(viewerContext.viewerId) && viewerContext.operatedAccountIds.has(authorId));
+    const viewerOwnsPost =
+      viewerOperatesAuthor ||
       (viewerEntry?.role === 'collaborator' &&
         (viewerEntry.status === 'accepted' || viewerEntry.status === 'pending')) ||
-      canManagePostWithoutLookup(post, viewerContext.viewerId) ||
-      (Boolean(viewerContext.viewerId) && viewerContext.operatedAccountIds.has(authorId));
+      canManagePostWithoutLookup(post, viewerContext.viewerId);
 
-    if ((post.status ?? 'published') !== 'published' && !viewerOwnsPost) {
+    // A stored channel writer is historical authorship, not proof they still
+    // operate the channel. Unpublished content therefore requires current
+    // authority supplied by the caller, rather than the lookup-free management
+    // affordance used for already-published posts.
+    const viewerOwnsUnpublishedPost =
+      viewerOperatesAuthor ||
+      (viewerEntry?.role === 'collaborator' &&
+        (viewerEntry.status === 'accepted' || viewerEntry.status === 'pending'));
+    if ((post.status ?? 'published') !== 'published' && !viewerOwnsUnpublishedPost) {
       return false;
     }
 

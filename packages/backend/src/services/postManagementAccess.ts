@@ -81,8 +81,17 @@ export async function postManagementRefusal(params: {
   post: ManageablePost;
   callerId: string;
   memberReader: AccountMemberReader | undefined;
+  /** Require current authority over the authoring account, even for its stored writer. */
+  requireAuthorAuthority?: boolean;
 }): Promise<PostManagementRefusal | null> {
-  if (canManagePostWithoutLookup(params.post, params.callerId)) return null;
+  const isAuthor =
+    Boolean(params.post.oxyUserId) && String(params.post.oxyUserId) === params.callerId;
+  if (
+    isAuthor ||
+    (!params.requireAuthorAuthority && canManagePostWithoutLookup(params.post, params.callerId))
+  ) {
+    return null;
+  }
 
   const authorId = params.post.oxyUserId ? String(params.post.oxyUserId) : '';
   if (!authorId) return NOT_FOUND;
