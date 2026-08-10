@@ -1998,7 +1998,7 @@ export class PostHydrationService {
    */
   async canViewerReadPostId(
     postId: string,
-    viewerId: string,
+    viewerId?: string,
     options?: Pick<HydrationOptions, 'oxyClient'>,
   ): Promise<boolean> {
     const [post] = await loadReplyParents([postId]);

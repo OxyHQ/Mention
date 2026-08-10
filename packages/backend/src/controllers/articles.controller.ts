@@ -1,7 +1,10 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { eq } from 'drizzle-orm';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { getDb } from '../db/postgres';
 import { articles } from '../db/schema/articles';
+import { postHydrationService } from '../services/PostHydrationService';
+import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 
 /**
@@ -25,7 +28,7 @@ import { logger } from '../utils/logger';
  * application behaviour with no Postgres counterpart, but it belongs to the
  * WRITE path (`controllers/posts.controller.ts`), not here.
  */
-export const getArticle = async (req: Request, res: Response) => {
+export const getArticle = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const [article] = await getDb()
@@ -35,6 +38,22 @@ export const getArticle = async (req: Request, res: Response) => {
       .limit(1);
 
     if (!article) {
+      return res.status(404).json({ message: 'Article not found' });
+    }
+
+    // The article id is included in hydrated post content, but it is not a
+    // bearer credential. Apply the exact same status, visibility, relationship,
+    // profile-privacy, collaboration, restriction, and block checks as post
+    // detail before returning the long-form body. Keep a 404 response so this
+    // endpoint does not disclose whether a forbidden article exists.
+    if (
+      article.postId !== null &&
+      !(await postHydrationService.canViewerReadPostId(
+        article.postId,
+        req.user?.id,
+        { oxyClient: createScopedOxyClient(req) },
+      ))
+    ) {
       return res.status(404).json({ message: 'Article not found' });
     }
 
