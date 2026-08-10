@@ -472,7 +472,7 @@ const stillMissing = new Set();
 
 if (sourceCatalog) {
   const reported = new Set();
-  for (const { key, location, hasDefault, hasCount } of callSites) {
+  for (const { key, location, hasCount } of callSites) {
     if (reported.has(key)) continue;
 
     const resolved = resolveKey(sourceCatalog.parsed, key);
@@ -491,7 +491,8 @@ if (sourceCatalog) {
     ) {
       continue;
     }
-    if (hasDefault) continue;
+    // A default value only protects English users. Every user-facing call must
+    // have a catalog entry so it can be translated for every supported locale.
 
     stillMissing.add(key);
     reported.add(key);
@@ -499,7 +500,7 @@ if (sourceCatalog) {
     failures.push(
       isPathShaped(key)
         ? `${location}: t("${key}") has no entry in locales/${SOURCE_LANGUAGE}.json, so users see the raw key`
-        : `${location}: t("${key}") has no entry in locales/${SOURCE_LANGUAGE}.json, so it renders in English for every language — add it, or pass a defaultValue`,
+        : `${location}: t("${key}") has no entry in locales/${SOURCE_LANGUAGE}.json, so it renders in English for every language — add it to the catalog`,
     );
   }
 
@@ -514,8 +515,8 @@ if (sourceCatalog) {
 // ---------------------------------------------------------------------------
 // 4. Key drift.
 //
-//    Missing FROM a translation is fine: i18next falls back to English, so it
-//    is reported and never fails the build. Present in a translation with no
+//    Missing FROM a translation fails the build: falling back would leave that
+//    part of the app untranslated. Present in a translation with no
 //    English source is an error when nothing in the app can reach the key —
 //    that is a translation whose English source was renamed or deleted, and
 //    no code path will ever render it again. A prose key that IS reached from
@@ -552,6 +553,11 @@ if (sourceCatalog) {
     }
 
     const untranslated = [...sourceCatalog.entries.keys()].filter((key) => !catalog.entries.has(key));
+    for (const key of untranslated) {
+      failures.push(
+        `locales/${catalog.name}: key "${key}" is missing — every supported locale must cover the complete app`,
+      );
+    }
     notes.push(
       `${catalog.name}: ${catalog.entries.size} entries, ${untranslated.length} untranslated (rendered in ${SOURCE_LANGUAGE}), ${orphans.length} orphaned`,
     );

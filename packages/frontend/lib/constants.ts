@@ -12,7 +12,23 @@ export const STORAGE_KEYS = {
 
 export const DEFAULT_LANGUAGE = 'en-US';
 
-export const SUPPORTED_LANGUAGES = ['en-US', 'es-ES', 'it-IT'] as const;
+export const SUPPORTED_LANGUAGES = [
+  'en-US',
+  'es-ES',
+  'it-IT',
+  'ca-ES',
+  'fr-FR',
+  'pt-BR',
+  'de-DE',
+  'ru-RU',
+  'zh-CN',
+  'hi-IN',
+  'ar-SA',
+  'bn-BD',
+  'ja-JP',
+  'id-ID',
+  'tr-TR',
+] as const;
 
 export const INITIALIZATION_TIMEOUT = {
   AUTH: 1000, // Fast timeout for cached token check
@@ -28,4 +44,3 @@ export const Z_INDEX = {
   MODAL: 10000,
   FLOATING_ACTION_BUTTON: 10000,
 } as const;
-
