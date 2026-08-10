@@ -137,7 +137,7 @@
     "expo-symbols": "~57.0.1",
     "expo-video": "~57.0.2",
     "expo-web-browser": "~57.0.2",
-    "hls.js": "^1.6.16",
+    "hls.js": "^1.6.17",
     "i18next": "^26.3.6",
     "lightningcss": "1.30.1",
     "livekit-client": "^2.20.1",
