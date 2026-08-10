@@ -22,6 +22,18 @@ const LANGUAGE_OPTIONS = [
     { code: 'en-US', name: 'English', nativeName: 'English', flag: '\u{1F1FA}\u{1F1F8}' },
     { code: 'es-ES', name: 'Spanish', nativeName: 'Espa\u00F1ol', flag: '\u{1F1EA}\u{1F1F8}' },
     { code: 'it-IT', name: 'Italian', nativeName: 'Italiano', flag: '\u{1F1EE}\u{1F1F9}' },
+    { code: 'ca-ES', name: 'Catalan', nativeName: 'Català', flag: '\u{1F1E6}\u{1F1E9}' },
+    { code: 'fr-FR', name: 'French', nativeName: 'Français', flag: '\u{1F1EB}\u{1F1F7}' },
+    { code: 'pt-BR', name: 'Portuguese', nativeName: 'Português', flag: '\u{1F1E7}\u{1F1F7}' },
+    { code: 'de-DE', name: 'German', nativeName: 'Deutsch', flag: '\u{1F1E9}\u{1F1EA}' },
+    { code: 'ru-RU', name: 'Russian', nativeName: 'Русский', flag: '\u{1F1F7}\u{1F1FA}' },
+    { code: 'zh-CN', name: 'Chinese', nativeName: '简体中文', flag: '\u{1F1E8}\u{1F1F3}' },
+    { code: 'hi-IN', name: 'Hindi', nativeName: 'हिन्दी', flag: '\u{1F1EE}\u{1F1F3}' },
+    { code: 'ar-SA', name: 'Arabic', nativeName: 'العربية', flag: '\u{1F1F8}\u{1F1E6}' },
+    { code: 'bn-BD', name: 'Bengali', nativeName: 'বাংলা', flag: '\u{1F1E7}\u{1F1E9}' },
+    { code: 'ja-JP', name: 'Japanese', nativeName: '日本語', flag: '\u{1F1EF}\u{1F1F5}' },
+    { code: 'id-ID', name: 'Indonesian', nativeName: 'Bahasa Indonesia', flag: '\u{1F1EE}\u{1F1E9}' },
+    { code: 'tr-TR', name: 'Turkish', nativeName: 'Türkçe', flag: '\u{1F1F9}\u{1F1F7}' },
 ];
 
 const LANGUAGE_STORAGE_KEY = 'user_language_preference';
