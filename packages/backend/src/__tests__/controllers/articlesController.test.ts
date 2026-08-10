@@ -31,7 +31,7 @@ interface CapturedResponse {
   body: unknown;
 }
 
-async function call(id: string): Promise<CapturedResponse> {
+async function call(id: string, viewerId?: string): Promise<CapturedResponse> {
   const captured: CapturedResponse = { status: 200, body: undefined };
   const res = {
     status(code: number) {
@@ -43,7 +43,10 @@ async function call(id: string): Promise<CapturedResponse> {
       return res;
     },
   };
-  await getArticle({ params: { id } } as never, res as never);
+  await getArticle(
+    { params: { id }, user: viewerId ? { id: viewerId } : undefined } as never,
+    res as never,
+  );
   return captured;
 }
 
@@ -88,7 +91,7 @@ describe('getArticle', () => {
     expect((res.body as { updatedAt: Date }).updatedAt).toBeInstanceOf(Date);
   });
 
-  it('OMITS an absent optional rather than sending null', async () => {
+  it('returns an unlinked draft only to its creator and omits absent optionals', async () => {
     const author = `article-author-${randomUUID()}`;
     const [article] = await db
       .insert(articles)
@@ -96,7 +99,11 @@ describe('getArticle', () => {
       .returning({ id: articles.id });
     createdArticleIds.push(article.id);
 
-    const res = await call(article.id);
+    const anonymous = await call(article.id);
+    expect(anonymous.status).toBe(404);
+    expect(anonymous.body).toEqual({ message: 'Article not found' });
+
+    const res = await call(article.id, author);
     expect(res.status).toBe(200);
     expect(res.body).not.toHaveProperty('postId');
     expect(res.body).not.toHaveProperty('title');

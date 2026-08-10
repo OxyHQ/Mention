@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { articles } from '../db/schema/articles';
+import { postHydrationService } from '../services/PostHydrationService';
 import { logger } from '../utils/logger';
 
 /**
@@ -35,6 +36,18 @@ export const getArticle = async (req: Request, res: Response) => {
       .limit(1);
 
     if (!article) {
+      return res.status(404).json({ message: 'Article not found' });
+    }
+
+    const viewerId = req.user?.id;
+    const canRead = article.postId
+      ? await postHydrationService.canViewerReadPostId(article.postId, viewerId)
+      : viewerId === article.createdBy;
+
+    // Do not reveal whether an inaccessible article id exists. An unlinked
+    // article is a draft and is readable only by its creator; linked articles
+    // inherit the canonical post ACL (status, visibility, profile and graph).
+    if (!canRead) {
       return res.status(404).json({ message: 'Article not found' });
     }
 

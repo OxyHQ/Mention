@@ -106,7 +106,9 @@ export function createAppRoutes({
   publicApi.use('/feed', optionalAuth, feedRoutes);
   publicApi.use('/posts', optionalAuth, publicPostsRouter);
   publicApi.use('/profile/design', profileDesignRoutes);
-  publicApi.use('/articles', articlesRoutes);
+  // Article reads are public only after the controller applies the linked
+  // post's ACL; optional auth lets owners/followers supply that viewer context.
+  publicApi.use('/articles', optionalAuth, articlesRoutes);
   publicApi.use('/trending', trendingRoutes);
   publicApi.use('/topics', topicsRoutes);
   publicApi.use('/federation', optionalAuth, federationApiRoutes);
