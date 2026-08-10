@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { eq } from 'drizzle-orm';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { isLiveEntityId } from '../db/ids';
@@ -13,6 +13,7 @@ import {
   pollVoteService,
   type PollRecord,
 } from '../services/PollVoteService';
+import { postHydrationService } from '../services/PostHydrationService';
 
 /** Default poll lifetime when the client does not supply `endsAt`. */
 const DEFAULT_POLL_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -86,6 +87,22 @@ function isTemporaryPostId(value: string): boolean {
  */
 function validationError(res: Response, message: string) {
   return res.status(400).json({ error: 'Validation Error', message });
+}
+
+/**
+ * Apply the owning post's canonical read ACL before exposing a poll subresource.
+ * An unattached poll is a composer intermediate and is visible only to its
+ * creator; once attached, the post gate covers status, visibility, follows,
+ * blocks, profile privacy, and collaborators in one place.
+ */
+async function canViewerAccessPoll(poll: PollRecord, viewerId: string): Promise<boolean> {
+  if (poll.postId === null) return poll.createdBy === viewerId;
+  return postHydrationService.canViewerReadPostId(poll.postId, viewerId);
+}
+
+function pollNotFound(res: Response) {
+  // Do not disclose whether a poll exists behind an inaccessible post.
+  return res.status(404).json({ error: 'Not found', message: 'Poll not found' });
 }
 
 class PollsController {
@@ -242,7 +259,7 @@ class PollsController {
     }
   }
 
-  async getPoll(req: Request, res: Response, next: NextFunction) {
+  async getPoll(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
 
@@ -257,12 +274,8 @@ class PollsController {
       }
 
       const poll = await loadPollRecord(getDb(), id);
-      if (!poll) {
-        return res.status(404).json({
-          error: 'Not found',
-          message: 'Poll not found'
-        });
-      }
+      const viewerId = req.user?.id;
+      if (!poll || !viewerId || !(await canViewerAccessPoll(poll, viewerId))) return pollNotFound(res);
 
       res.json({
         success: true,
@@ -294,6 +307,9 @@ class PollsController {
         });
       }
 
+      const poll = await loadPollRecord(getDb(), id);
+      if (!poll || !(await canViewerAccessPoll(poll, userId))) return pollNotFound(res);
+
       // Record the vote through the shared service (the SAME atomic dedup path the
       // inbound ActivityPub poll-vote handler uses), then map its result to HTTP.
       const result = await pollVoteService.recordVoteByOptionId(id, String(optionId), userId);
@@ -317,7 +333,7 @@ class PollsController {
     }
   }
 
-  async getResults(req: Request, res: Response, next: NextFunction) {
+  async getResults(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
 
@@ -329,12 +345,8 @@ class PollsController {
       }
 
       const poll = await loadPollRecord(getDb(), id);
-      if (!poll) {
-        return res.status(404).json({
-          error: 'Not found',
-          message: 'Poll not found'
-        });
-      }
+      const viewerId = req.user?.id;
+      if (!poll || !viewerId || !(await canViewerAccessPoll(poll, viewerId))) return pollNotFound(res);
 
       // Calculate results
       const totalVotes = poll.options.reduce((sum, option) => sum + option.votes.length, 0);

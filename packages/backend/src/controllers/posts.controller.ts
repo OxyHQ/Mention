@@ -879,7 +879,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    if (!isScheduled && pollId) {
+    if (pollId) {
       try {
         await attachPollToPost(pollId, post.id);
       } catch (pollUpdateError) {
