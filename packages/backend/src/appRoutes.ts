@@ -106,7 +106,7 @@ export function createAppRoutes({
   publicApi.use('/feed', optionalAuth, feedRoutes);
   publicApi.use('/posts', optionalAuth, publicPostsRouter);
   publicApi.use('/profile/design', profileDesignRoutes);
-  publicApi.use('/articles', articlesRoutes);
+  publicApi.use('/articles', optionalAuth, articlesRoutes);
   publicApi.use('/trending', trendingRoutes);
   publicApi.use('/topics', topicsRoutes);
   publicApi.use('/federation', optionalAuth, federationApiRoutes);

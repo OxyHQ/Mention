@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
-import { eq } from 'drizzle-orm';
+import { and, eq, or } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { articles } from '../db/schema/articles';
+import { posts } from '../db/schema/posts';
 import { logger } from '../utils/logger';
 
 /**
@@ -24,14 +25,35 @@ import { logger } from '../utils/logger';
  * This route is read-only. `Article`'s `trim: true` on `title`/`body` is
  * application behaviour with no Postgres counterpart, but it belongs to the
  * WRITE path (`controllers/posts.controller.ts`), not here.
+ *
+ * An article is readable when its linked post is public and published, or by
+ * its author. Keeping that predicate in the query makes inaccessible and
+ * nonexistent ids indistinguishable and also protects orphan draft articles.
  */
 export const getArticle = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const viewerId = req.user?.id;
+    const publiclyReadable = and(
+      eq(posts.status, 'published'),
+      eq(posts.visibility, 'public'),
+    );
+    const canRead = viewerId
+      ? or(publiclyReadable, eq(articles.createdBy, viewerId))
+      : publiclyReadable;
     const [article] = await getDb()
-      .select()
+      .select({
+        id: articles.id,
+        postId: articles.postId,
+        title: articles.title,
+        body: articles.body,
+        createdBy: articles.createdBy,
+        createdAt: articles.createdAt,
+        updatedAt: articles.updatedAt,
+      })
       .from(articles)
-      .where(eq(articles.id, String(id)))
+      .leftJoin(posts, eq(posts.id, articles.postId))
+      .where(and(eq(articles.id, String(id)), canRead))
       .limit(1);
 
     if (!article) {
