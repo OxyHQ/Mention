@@ -195,6 +195,16 @@ export interface CreatePostParams {
   updatedAt?: Date;
 }
 
+/**
+ * Account subscriptions are an opt-in to PUBLIC publication announcements,
+ * not permission to read an author's unpublished or restricted posts.
+ */
+export function isSubscriberNotificationEligible(
+  post: Pick<PostRecord, 'status' | 'visibility'>,
+): boolean {
+  return post.status === 'published' && post.visibility === PostVisibility.PUBLIC;
+}
+
 function derivePostType(params: CreatePostParams): PostType {
   if (params.boostOf) return PostType.BOOST;
   if (params.quoteOf) return PostType.QUOTE;
@@ -887,7 +897,13 @@ class PostCreationService {
       // anyone else's.
       (async () => {
         const isTopLevelPost = !parentPostId;
-        if (!oxyUserId || !isTopLevelPost) return;
+        if (
+          !oxyUserId ||
+          !isTopLevelPost ||
+          !isSubscriberNotificationEligible(post)
+        ) {
+          return;
+        }
         // Subscribers of the AUTHOR, plus — for a channel post — everyone who
         // follows the channel with `notify`.
         const recipientIds = new Set<string>();
