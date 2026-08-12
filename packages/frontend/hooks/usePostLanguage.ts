@@ -8,7 +8,7 @@ import {
   buildPostLanguageOptions,
   findOptionForLanguage,
   servedLanguageTag,
-  shouldAutoTranslate,
+  shouldOfferTranslation,
   type PostLanguageOption,
 } from '@/utils/postLanguages';
 
@@ -42,8 +42,14 @@ export interface PostLanguageState {
   isTranslating: boolean;
   /** The body on screen is a machine translation, not the author's words. */
   isTranslated: boolean;
+  /**
+   * Whether translating would give this reader anything — false for a post
+   * already written in their language, which is the only post whose action bar
+   * has no translate icon at all.
+   */
+  canTranslate: boolean;
   selectLanguage: (tag: string) => void;
-  /** The action-bar button: translate into the reader's language, or undo it. */
+  /** The action-bar icon: translate into the reader's language, or undo it. */
   toggleReaderTranslation: () => void;
 }
 
@@ -146,6 +152,8 @@ export function usePostLanguage(
     selectLanguage(existing?.tag ?? readerLanguage);
   }, [selectedTag, options, readerLanguage, selectLanguage]);
 
+  const canTranslate = shouldOfferTranslation({ content, postLanguage, readerLanguage, options });
+
   // Auto-translate, computed during render and fired once per post. It stays
   // silent when the author already wrote this post in the reader's language.
   if (
@@ -154,7 +162,7 @@ export function usePostLanguage(
     selectedTag === null &&
     !isTranslating &&
     postId &&
-    shouldAutoTranslate({ content, postLanguage, readerLanguage, options })
+    canTranslate
   ) {
     autoTranslateAttempted.current = true;
     const target = findOptionForLanguage(options, readerLanguage)?.tag ?? readerLanguage;
@@ -171,6 +179,7 @@ export function usePostLanguage(
     displayText,
     isTranslating,
     isTranslated: selectedTag !== null && activeOption?.source === 'machine',
+    canTranslate,
     selectLanguage,
     toggleReaderTranslation,
   };

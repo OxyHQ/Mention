@@ -1637,10 +1637,6 @@
   },
   "post": {
     "language": {
-      "showingIn": "Visualizzazione in {{language}}",
-      "showingTranslation": "Tradotto in {{language}}",
-      "viewIn": "Leggi in {{language}}",
-      "otherLanguages": "Altre lingue",
       "pickerTitle": "Leggi questo post in",
       "translateTo": "Traduci in",
       "machine": "Traduzione automatica"

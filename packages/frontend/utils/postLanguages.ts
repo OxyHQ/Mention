@@ -95,14 +95,21 @@ export function findOptionForLanguage(
 }
 
 /**
- * Whether to machine-translate this post for a reader who has auto-translate on.
+ * Whether translating this post would give the reader anything.
  *
- * It must NOT fire when the author already wrote this post in the reader's
- * language — machine-translating a body the author wrote by hand replaces their
- * words with a robot's. The comparison is on the BASE subtag throughout: an
- * `es-MX` reader and an `es-ES` post speak the same language.
+ * ONE predicate with two consumers: it decides whether the action bar shows the
+ * translate icon at all, and — for a reader who has auto-translate on — whether
+ * the translation fires by itself. Both must answer the same question, because
+ * an icon that translates a post into the language it is already written in does
+ * nothing, and auto-translating such a post replaces the author's own words with
+ * a robot's. The comparison is on the BASE subtag throughout: an `es-MX` reader
+ * and an `es-ES` post speak the same language.
+ *
+ * It stays true once the reader HAS translated — it reads the tag the server
+ * served, which a local override never moves — so the icon survives to undo
+ * itself.
  */
-export function shouldAutoTranslate(params: {
+export function shouldOfferTranslation(params: {
   content: PostContent;
   postLanguage?: string;
   readerLanguage: string | undefined;

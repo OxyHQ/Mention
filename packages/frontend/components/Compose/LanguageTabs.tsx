@@ -112,8 +112,8 @@ const LanguageTab = memo(function LanguageTab({
  * The lone primary tab of a single-language post stays, for its own reason:
  * tapping it is how the author changes what language the post DECLARES, which
  * decides who the feed serves it to and what federates. It is not the
- * reader-side `PostLanguageChip`, which correctly hides below two renditions
- * because it only switches between bodies that already exist.
+ * reader-side translate icon, which is absent on a post already written in the
+ * reader's language because translating it would do nothing.
  */
 const LanguageTabs = memo(function LanguageTabs({
   primaryTag,

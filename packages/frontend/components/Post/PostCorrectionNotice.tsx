@@ -18,9 +18,10 @@ interface Props {
 /**
  * "Corrected 3 times · View history".
  *
- * A quiet line under the body, in the same slot and at the same weight as
- * `PostLanguageChip`. It is deliberately NOT a `ContentWarning`-style pill and
- * NOT one of `PostItem`'s context rows:
+ * A quiet line under the body — now the only one there, since the language
+ * switcher that used to share this slot was retired for an action-bar icon. It
+ * is deliberately NOT a `ContentWarning`-style pill and NOT one of `PostItem`'s
+ * context rows:
  *
  * - A context row (Reposted by / Pinned / Replying to) renders above the author's
  *   name and says why this row is in front of the reader. A correction says
