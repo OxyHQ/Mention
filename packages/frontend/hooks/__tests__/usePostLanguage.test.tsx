@@ -19,6 +19,9 @@ import { usePostLanguage, type PostLanguageState } from '../usePostLanguage';
  *    post) is the same language.
  * 4. Nothing here asks who the reader is. Translation is not premium — the hook
  *    takes no viewer, no entitlement, and no upsell route.
+ * 5. `canTranslate` is the ONE predicate behind both the icon's presence and
+ *    auto-translate, so the icon is absent exactly where translating would do
+ *    nothing — and stays present once translated, or there would be no way back.
  */
 
 const mockApiPost = jest.fn();
@@ -276,6 +279,46 @@ describe('the translate button', () => {
 
     expect(state.displayText).toBe('Ciao mondo');
     expect(mockApiPost).not.toHaveBeenCalled();
+  });
+});
+
+describe('whether the action bar shows a translate icon at all', () => {
+  it('offers nothing on a post already written in the reader’s language', async () => {
+    mockReaderLanguage = 'es-MX';
+    await render(bilingual);
+    expect(state.canTranslate).toBe(false);
+  });
+
+  it('offers nothing when the AUTHOR wrote a rendition in the reader’s language', async () => {
+    // Served in English, but the author's own Spanish is one tap away through
+    // the picker — a machine has nothing to add.
+    mockReaderLanguage = 'es-MX';
+    await render({ ...bilingual, text: 'Hello world', textLang: 'en-US' });
+    expect(state.canTranslate).toBe(false);
+  });
+
+  it('offers an icon on a foreign post', async () => {
+    mockReaderLanguage = 'es-ES';
+    await render(englishOnly);
+    expect(state.canTranslate).toBe(true);
+  });
+
+  it('KEEPS the icon once the reader has translated — it is the only way back', async () => {
+    mockReaderLanguage = 'it-IT';
+    await render(englishWithMachineItalian);
+
+    await act(async () => {
+      state.toggleReaderTranslation();
+    });
+
+    expect(state.isTranslated).toBe(true);
+    expect(state.canTranslate).toBe(true);
+  });
+
+  it('offers nothing on a post with no body to translate', async () => {
+    mockReaderLanguage = 'es-ES';
+    await render({ text: '   ', textLang: 'en' });
+    expect(state.canTranslate).toBe(false);
   });
 });
 
