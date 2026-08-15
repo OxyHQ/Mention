@@ -62,7 +62,6 @@ vi.mock('../runtime/oxyClient', () => ({
   }),
 }));
 
-vi.mock('./userSummaryCache', () => ({}));
 vi.mock('../services/userSummaryCache', () => ({
   invalidate: mocks.invalidateUserSummaries,
 }));
