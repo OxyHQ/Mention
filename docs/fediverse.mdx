@@ -152,6 +152,57 @@ AT Protocol handle resolution and read/discovery are independently gated by
 features do not change the ActivityPub routes or the native PostgreSQL
 authority.
 
+## The connector contract
+
+Mention's content core (`PostCreationService`, the feed engine, notifications)
+never imports ActivityPub or AT Protocol code directly. It talks to
+`ConnectorRegistry`, which fans a `LocalNetworkEvent` out to every enabled
+`NetworkConnector`. Both the contract and the normalized DTOs it trades in
+(`NormalizedExternalActor`, `NormalizedExternalPost`, the `LocalNetworkEvent`
+union) ship from the shared `@oxyhq/federation` package — not a Mention-local
+type — so `ActivityPubConnector` and `AtprotoConnector` are two
+implementations of one interface Mention does not own:
+
+```ts
+interface NetworkConnector<TContent = unknown> {
+  readonly id: NetworkId;
+  readonly enabled: boolean;
+  matches(subject: string): boolean;
+  resolve(handle: string): Promise<NormalizedExternalActor | null>;
+  fetchProfile(externalId: string): Promise<NormalizedExternalActor | null>;
+  fetchPosts(externalId: string, opts?: FetchPostsOptions): Promise<FetchPostsResult>;
+  deliver(event: LocalNetworkEvent<TContent>): Promise<void>;
+  receive(payload: unknown, ctx: ReceiveContext): Promise<void>;
+  mapIdentity(actor: NormalizedExternalActor): Promise<string | null>;
+}
+```
+
+**What capability discovery looks like today.** There is no `getCapabilities()`
+method — instead, `AtprotoConnector.deliver()` switches on every
+`LocalNetworkEvent` kind and no-ops the write-side ones with an in-source
+comment explaining why ("Mention does not publish posts, reposts, edits,
+deletes, likes, or actor changes into a foreign atproto PDS"). That is a
+documented, deliberate design choice, not an unimplemented method throwing —
+`ConnectorRegistry.deliver` fans out via `Promise.allSettled`, so a connector
+that has nothing to do for an event kind returning cleanly is the intended
+shape.
+
+**The real gap** is that this is legible to a person reading the source, not
+to a caller asking the interface a question before it acts — there is no
+machine-checkable "can connector X publish/delete/follow" a caller could use
+to skip the call, or a contract-test suite every implementation of
+`NetworkConnector` must pass for the operations it actually performs. Adding
+either is a change to `@oxyhq/federation` itself, which Mention does not own
+(`@oxyhq/services`/`@oxyhq/core`'s home repository does) — per this repo's
+"fix upstream, never patch" rule, that is upstream work, tracked as
+[OxyHQ/oxy#971](https://github.com/OxyHQ/oxy/issues/971), not a local
+reimplementation of the interface.
+
+Adding a third protocol to Mention means writing one more `NetworkConnector`
+implementation under `connectors/<protocol>/` and registering it in
+`ConnectorRegistry` — no changes to `PostCreationService`, the feed engine, or
+any other product code, because none of it references a protocol by name.
+
 ## Deployment routing
 
 Both `mention.earth` and `api.mention.earth` reach the Mention backend on AWS
