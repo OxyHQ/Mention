@@ -1,0 +1,92 @@
+# Performance budgets
+
+**Scope of this document, stated up front:** issue #703 asked for SLOs and
+regression budgets across a long list of backend and client paths. This
+document is deliberately narrower than that list. An SLO nobody measures is
+worse than none — it looks like a commitment while giving the team nothing
+to hold it against — so this covers exactly the paths that have a real
+measurement pipeline BEHIND them today, and says plainly, for every other
+path in the original ask, what instrumentation exists and what is still
+missing before a numeric budget would mean anything.
+
+## What is measured and enforced today
+
+### Client JS/web bundle size
+
+`packages/frontend/bundle-budgets.json` is a real, CI-enforced regression
+budget — `packages/frontend/scripts/analyze-bundle.js --ci` fails the build
+past any of:
+
+| Budget | Ceiling |
+| --- | --- |
+| Total bytes | 18 MiB |
+| JavaScript bytes | 13 MiB |
+| Initial JavaScript bytes | 8.5 MiB |
+| Initial JavaScript gzip bytes | ~2.35 MiB (target: ~1.9 MiB) |
+| Font bytes | 4 MiB |
+| Largest single file | 7.5 MiB |
+
+Wired into `.github/workflows/ci.yml`'s "Enforce bundle budgets" step, which
+also diffs the PR's export against `main`'s baseline. This is the one item
+on the original SLO list that already has the property the rest of this
+document argues for: a number, a place it is measured, and a build that
+fails when the number is exceeded.
+
+### Real-browser release gate
+
+`packages/e2e` drives the candidate web build at the production origin
+before promotion — see `packages/e2e/README.md`. It is a correctness gate
+(cold-boot deadlocks, auth races, search regressions), not a latency budget:
+it does not currently assert on timing. Worth knowing before assuming
+"there's an e2e gate" implies "there's a performance gate."
+
+## What is instrumented but not held to a budget
+
+`packages/backend/src/utils/metrics.ts` defines a real `prom-client`
+registry — `http_request_duration_ms` (histogram, labeled by method/route/
+status), `feed_ranking_duration_ms`, and real-user `web_vital_lcp_ms` /
+`web_vital_inp_ms` / `web_vital_cls_ratio` histograms (fed by
+`routes/webTelemetry.routes.ts`) all exist and are computed correctly today.
+`routes/internalMetrics.routes.ts` exposes them in Prometheus text format,
+IP-allowlisted and token-gated.
+
+**Nothing scrapes it.** There is no Prometheus, Grafana, or CloudWatch
+metrics pipeline for Mention in `oxy-infra/terraform-uswest2` (checked
+directly, not inferred) — `/internal/metrics` is a live snapshot an operator
+can `curl` by hand, not a time series anything retains. That means:
+
+- No p50/p95/p99 for any backend path survives past the current process.
+- No dashboard, no alert, and no way to answer "did this regress since last
+  week" from data — only "what is it right now."
+- A numeric SLO written against `http_request_duration_ms` today would be a
+  budget nothing enforces, which is the exact failure mode this document
+  opens by naming.
+
+This covers every backend path #703 asked for (following/For You/profile
+feed, search, post create/update, notifications, ActivityPub inbox and
+delivery-queue age, websocket propagation, background worker queue age) in
+the sense that request-level latency for anything routed through Express is
+already in `http_request_duration_ms` by route label, and feed ranking has
+its own histogram. The gap is uniformly the pipeline, not per-path
+instrumentation — fixing it once (standing up scraping + retention for
+`/internal/metrics`) unlocks a budget for all of them at once, rather than
+needing a bespoke solution per path.
+
+## What has no instrumentation at all
+
+Feed scroll memory behavior after a large number of posts, image/media
+loading regressions, and cold-start / first-usable-screen timing on native
+(iOS/Android) have no measurement of any kind in this repository today —
+not "uncollected," genuinely absent. Web LCP is covered by the real-user web
+vitals above; native cold start is not.
+
+## Recommended next step, not taken in this pass
+
+Wire `/internal/metrics` into a retained time series (CloudWatch embedded
+metric format from the existing ECS tasks is the lowest-new-infrastructure
+option, since Mention already runs there — see `oxy-infra`). That is an
+infrastructure decision for `oxy-infra`'s own owners, not a Mention code
+change, and is why it is a recommendation here rather than a PR. Once a
+metric survives longer than the process that emitted it, come back and
+write a real p95/p99 number against it — a number chosen before that lands
+would be a guess wearing an SLO's clothes.
