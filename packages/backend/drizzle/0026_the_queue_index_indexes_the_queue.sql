@@ -1,0 +1,2 @@
+DROP INDEX "posts_classification_queue_idx";--> statement-breakpoint
+CREATE INDEX "posts_classification_queue_idx" ON "posts" USING btree ("classification_status","created_at") WHERE "posts"."classification_status" = 'pending';
