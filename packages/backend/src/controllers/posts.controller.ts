@@ -75,7 +75,7 @@ import { getRuntimeSocketServer } from '../runtime/socketServer';
 import { emitPostEngagement, POST_ENGAGEMENT_EVENTS } from '../services/postEngagementBroadcast';
 import { normalizeMediaItems, type NormalizedMediaItem } from '../utils/mediaInput';
 import { warmLinkPreviewForText } from '../utils/linkPreviewWarm';
-import { authorVariants, buildPrimaryVariant, resolveVariant, validateAuthorVariants } from '../services/postVariants';
+import { authorVariants, buildPrimaryVariant, resolveVariant, stripSpamHashtagBlocks, validateAuthorVariants } from '../services/postVariants';
 import { postTranslationService, TranslationRequestError } from '../services/PostTranslationService';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
 import { assertLaneAssignable, LaneAssignmentError } from '../utils/laneAssignment';
@@ -1971,12 +1971,20 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       // Rewrite the renditions. Every branch drops the machine translations: they
       // translate a body that no longer exists, and serving one would show a reader
       // the post as it used to be.
-      content.variants = rewriteEditedVariants({
+      //
+      // `stripSpamHashtagBlocks` is the edit half of the retired `pre('validate')`
+      // hook (`toStoredContent` is the create half). It sits INSIDE this branch on
+      // purpose: the branch condition — the edit supplied renditions, or the body
+      // changed — is what `isModified('content.variants')` used to answer, so a
+      // media-only or settings-only edit still rewrites nobody's words. The tags
+      // themselves survive the strip: `patch.hashtags` was taken from the RAW body
+      // above, before this runs.
+      content.variants = stripSpamHashtagBlocks(rewriteEditedVariants({
         authorLanguageVariants,
         existingAuthorVariants,
         text,
         detectedPrimary: primaryLanguage,
-      });
+      }));
     }
 
     // Handle content location updates (user's shared location)
