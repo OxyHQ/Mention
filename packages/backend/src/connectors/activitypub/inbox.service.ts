@@ -49,7 +49,11 @@ import {
   parseApPublished,
   resolvePostIdFromObjectUri,
 } from './helpers';
-import { buildFederatedNoteContent, buildFederatedNoteContentForEdit } from './apPostContent';
+import {
+  buildFederatedNoteContent,
+  buildFederatedNoteContentForEdit,
+  buildFederatedNoteProvenance,
+} from './apPostContent';
 import { identityDomainOfActor } from './identityDomain';
 import { federationBridges } from './federationBridgePolicy';
 import { applyMentionPlaceholders, resolveInboundMentions } from './apMentions';
@@ -629,14 +633,14 @@ export class InboxProcessingService {
 
     const createdPost = await getPostCreator().create({
       oxyUserId: authorOxyUserId,
-      federation: {
+      federation: buildFederatedNoteProvenance({
         activityId: note.id,
         actorUri,
         inReplyTo: inReplyToUri,
-        url: typeof note.url === 'string' ? note.url : note.id,
+        noteUrl: note.url,
         sensitive,
         spoilerText: summary,
-      },
+      }),
       parentPostId: threadLink?.parentPostId ?? null,
       threadId: threadLink?.threadId ?? null,
       quoteOf,
