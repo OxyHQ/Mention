@@ -52,12 +52,19 @@
  *
  * ## What this file deliberately does not do
  *
- * It runs no `EXPLAIN`. Asserting a plan over `posts` asserts the planner's
- * CHOICE among two dozen candidate indexes, which moves with the statistics every
- * other file in a parallel run changes — `chronoOrderPlan.test.ts` shipped that
- * and it was flaky twice in eight runs. The property here is what the DDL
- * DECLARES; that the declaration is what makes an index usable is measured next
- * door, on a private single-index temp table where the planner has no choice.
+ * It runs no `EXPLAIN` against `posts`. Asserting a plan over that table asserts
+ * the planner's CHOICE among two dozen candidate indexes, which moves with the
+ * statistics every other file in a parallel run changes —
+ * `chronoOrderPlan.test.ts` shipped that and it was flaky twice in eight runs.
+ * The property asserted above is what the DDL DECLARES.
+ *
+ * The one plan assertion here is the last block, and it is the other shape: a
+ * private single-index temp table, `on commit drop` inside one transaction,
+ * where the planner has no choice to make and no other file can be writing rows.
+ * It exists because migration 0026 made this file's `posts_classification_queue_idx`
+ * entry a claim a declaration cannot carry — that a PARTIAL index is still
+ * reachable by the queries it was cut for — and a declaration test alone would
+ * pin the predicate while saying nothing about whether anything can still use it.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -295,15 +302,16 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
     serves:
       'the Stage-B classification queue, which drains oldest-first within one status. Ascending ' +
       '`created_at` on purpose — this is the one chronological index here that is not a feed keyset. ' +
-      'KEPT FULL, and the #753 audit left it that way for WANT OF EVIDENCE rather than on a decision: ' +
-      'it could not rule out a reader of the other three statuses, and the cost of guessing wrong is ' +
-      'silent. That evidence is now measured, and it is the census below — every predicate on ' +
-      "`classification_status` in this package selects `'pending'`, through ONE constant. So a partial " +
-      "index `WHERE classification_status = 'pending'` would serve both of its queries and shrink to " +
-      'the size of the queue rather than the table. It is not narrowed here because that needs a ' +
-      "migration, which is an operator decision and not this file's",
+      'NARROWED to the pending set by migration 0026 (11 MB → 296 kB on the seeded corpus, the queue ' +
+      'drained), on the census below rather than on a recollection: every predicate on ' +
+      "`classification_status` in this package selects `'pending'`, through ONE constant, and the #753 " +
+      'audit had left this index full for want of exactly that evidence. The predicate is what makes ' +
+      'it small and is also the whole risk — a predicate on any OTHER status falls off it silently, ' +
+      'onto a sequential scan — so the census is what keeps the narrowing licensed, and the plan ' +
+      'assertions below are what show the pending side still reaches it',
     definition:
-      'CREATE INDEX posts_classification_queue_idx ON public.posts USING btree (classification_status, created_at)',
+      'CREATE INDEX posts_classification_queue_idx ON public.posts USING btree (classification_status, created_at) ' +
+      "WHERE (classification_status = 'pending'::text)",
   },
   {
     name: 'posts_curated_idx',
@@ -488,13 +496,15 @@ describe('the classification of `posts` indexes is exhaustive', () => {
  * `classification.status === 'classified'` in memory. Neither is a query and
  * neither can reach an index.
  *
- * So the narrowing is justified. It is not performed here because it needs a
- * migration, and this census is what makes performing it later safe: an
- * occurrence of the column that this file cannot MAP fails the build, so a
- * second predicate cannot arrive unnoticed and quietly make a partial index
- * unusable by it. This lives beside the index's own classification on purpose —
- * they are two halves of one claim, and separating them is how one goes stale
- * while the other keeps passing.
+ * Migration 0026 performed the narrowing on that evidence, and this census is
+ * what keeps it safe rather than what justified it once: an occurrence of the
+ * column that this file cannot MAP fails the build, so a second predicate cannot
+ * arrive unnoticed and quietly find the index it needs no longer covers its
+ * status. Read the failure that way — a new predicate on `'failed'` is not a
+ * lint to be silenced here, it is a query that will silently sequential-scan
+ * `posts` until this index is widened again. This lives beside the index's own
+ * classification on purpose — they are two halves of one claim, and separating
+ * them is how one goes stale while the other keeps passing.
  */
 describe('the classification queue index is settled by a census, not by a memory', () => {
   /**
@@ -620,5 +630,157 @@ describe('the classification queue index is settled by a census, not by a memory
       + 'One that is not means the classification queue index cannot be narrowed to the pending set, '
       + 'and the entry for `posts_classification_queue_idx` above says the opposite.',
     ).toEqual(predicates.map(({ entry }) => `${entry.file}: eq(…, 'pending')`));
+  });
+});
+
+/**
+ * The pending queue still REACHES its index — and nothing else does.
+ *
+ * `WHERE classification_status = 'pending'` is a promise about what the index
+ * contains, not about what the planner will do with it, and the two come apart
+ * in the direction that has no symptom: a partial index the queries can no
+ * longer use is a correct index nobody reads. `eq` is strict, so Postgres can
+ * prove `classification_status = 'pending'` implies the predicate — which is a
+ * reason to expect this to work, not a measurement that it does.
+ *
+ * Measured here on a probe table rather than on `posts`, for the reason the
+ * header gives: with one index there is no CHOICE to attribute a result to, and
+ * `on commit drop` inside a transaction keeps the whole thing invisible to the
+ * files running in parallel. The probe carries no primary key on purpose — a
+ * `posts_pkey` analogue would be a second index, and then "it used the partial
+ * one" would be a preference rather than the only thing available.
+ *
+ * Both shapes are the ones `PostClassificationService` really issues, taken from
+ * the statements postgres logged while the service ran, with the projection cut
+ * to the columns the probe has: `classifyBatch`'s semi-join SELECT and
+ * `markEmptyPosts`' anti-join UPDATE. On the seeded corpus (300k posts, 3%
+ * pending) both stayed on the index — an Index Scan and a Bitmap Index Scan
+ * respectively — while the negative control fell to a parallel sequential scan.
+ */
+describe('the narrowed queue index is still reachable by the queue, and only by it', () => {
+  /** 3% of the probe's rows, matching the drained queue the seeded corpus modelled. */
+  const PROBE_ROWS = 60_000;
+
+  /** `classifyBatch`: the pending set, joined to its bodies, oldest first. */
+  const PENDING_SELECT = `
+    select id from queue_probe
+    where classification_status = 'pending'
+      and exists (select 1 from queue_probe_bodies where queue_probe_bodies.post_id = queue_probe.id)
+      and status = 'published'
+      and boost_of is null
+    order by created_at asc, id asc
+    limit 25`;
+
+  /** `markEmptyPosts`: the pending rows with no body at all, flipped in one statement. */
+  const PENDING_UPDATE = `
+    update queue_probe set classification_status = 'classified'
+    where classification_status = 'pending'
+      and not exists (select 1 from queue_probe_bodies where queue_probe_bodies.post_id = queue_probe.id)`;
+
+  /**
+   * The negative control: `PENDING_SELECT` with the status changed to `'failed'`.
+   *
+   * `'failed'`, not `'classified'`, and that is the whole control rather than a
+   * detail of it. Measured: with the probe's index widened back to TOTAL, a
+   * `'classified'` predicate STILL plans as a sequential scan — `'classified'`
+   * is 97% of the rows, so the planner would not use an index over it either
+   * way, and the control passed against a total index. It measured selectivity
+   * and reported it as coverage.
+   *
+   * `'failed'` is seeded at the same 3% as `'pending'`, so selectivity is held
+   * constant and the only difference left between the two queries is whether
+   * this index covers the status. Against a total index the control plans as a
+   * Bitmap Index Scan and this test fails; against the partial one it falls to a
+   * sequential scan, which is the cost the narrowing accepts and the census
+   * upstream is what keeps nothing from paying it.
+   */
+  const FAILED_SELECT = PENDING_SELECT.replace("'pending'", "'failed'");
+
+  /**
+   * Plan every query against a private table carrying exactly ONE index, shaped
+   * like `posts_classification_queue_idx` after migration 0026.
+   */
+  async function probePlans(queries: readonly string[]): Promise<string[]> {
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`
+        create temp table queue_probe (
+          id text not null,
+          created_at timestamptz not null,
+          classification_status text not null,
+          status text not null,
+          boost_of text
+        ) on commit drop
+      `);
+      await tx.execute(sql`
+        create temp table queue_probe_bodies (post_id text not null) on commit drop
+      `);
+      await tx.execute(sql`
+        create index queue_probe_idx on queue_probe (classification_status, created_at)
+        where classification_status = 'pending'
+      `);
+      await tx.execute(sql`
+        insert into queue_probe
+        select lpad(g::text, 24, '0'),
+               now() - (g || ' seconds')::interval,
+               case
+                 when g % 100 < 3 then 'pending'
+                 when g % 100 < 6 then 'failed'
+                 else 'classified'
+               end,
+               'published',
+               null
+        from generate_series(1, ${sql.raw(String(PROBE_ROWS))}) g
+      `);
+      await tx.execute(sql`
+        insert into queue_probe_bodies
+        select lpad(g::text, 24, '0') from generate_series(1, ${sql.raw(String(PROBE_ROWS))}) g
+        where g % 25 <> 0
+      `);
+      await tx.execute(sql`analyze queue_probe`);
+      await tx.execute(sql`analyze queue_probe_bodies`);
+
+      const plans: string[] = [];
+      for (const query of queries) {
+        const rows = await tx.execute<{ 'QUERY PLAN': string }>(
+          sql`explain (costs off) ${sql.raw(query)}`,
+        );
+        plans.push([...rows].map((row) => row['QUERY PLAN']).join('\n'));
+      }
+      return plans;
+    });
+  }
+
+  it('plans the queue on the partial index, and an equally rare non-pending status off it', async () => {
+    const [pendingSelect, pendingUpdate, failedSelect] = await probePlans([
+      PENDING_SELECT,
+      PENDING_UPDATE,
+      FAILED_SELECT,
+    ]);
+
+    // `classifyBatch` — the query the index exists for.
+    expect(pendingSelect, 'the pending SELECT no longer reaches the partial index').toContain(
+      'queue_probe_idx',
+    );
+    // Anchored, and the anchor is the assertion: `queue_probe_bodies` is
+    // sequentially scanned in every plan here, so a substring test for
+    // `Seq Scan on queue_probe` matches whatever happens and a test for it with
+    // a trailing space matches nothing at all — the plan ends that line.
+    expect(pendingSelect).not.toMatch(/Seq Scan on queue_probe$/m);
+
+    // `markEmptyPosts` — an UPDATE, which is the half a SELECT-only proof would
+    // miss: it reaches the same rows through a different scan node.
+    expect(pendingUpdate, 'the pending UPDATE no longer reaches the partial index').toContain(
+      'queue_probe_idx',
+    );
+
+    // The control. A total index serves this one — measured — so its FALLING
+    // OFF is the only observation in this file that distinguishes the narrowed
+    // index from the index it replaced.
+    expect(
+      failedSelect,
+      "a predicate on 'failed' reached the partial index — which an index restricted to the pending " +
+      'set cannot serve, so this plan is measuring a WIDER index than the one 0026 created',
+    ).not.toContain('queue_probe_idx');
+    expect(failedSelect).toMatch(/Seq Scan on queue_probe$/m);
   });
 });

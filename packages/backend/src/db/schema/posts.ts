@@ -798,8 +798,34 @@ export const posts = pgTable(
     index('posts_classification_region_idx')
       .on(t.classificationRegion, t.createdAt.desc())
       .where(sql`${t.classificationRegion} is not null`),
-    // The classification batch queue drains oldest-first within one status.
-    index('posts_classification_queue_idx').on(t.classificationStatus, t.createdAt),
+    /**
+     * The classification batch queue drains oldest-first within one status.
+     *
+     * PARTIAL on `classification_status = 'pending'`, which is the whole set the
+     * queue is: `PostClassificationService` holds ONE predicate on this column
+     * (`UNCLASSIFIED`, `eq(…, 'pending')`), shared by `markEmptyPosts` and by
+     * `classifyBatch` — the `order by created_at asc, id asc limit 25` this
+     * index exists for. `'baseline'`, `'classified'` and `'failed'` are read only
+     * off an already-hydrated record (`contentClassification/trustedScores.ts`,
+     * `ranking/signals/optIn.ts`), which is memory, not a query, and cannot reach
+     * an index either way.
+     *
+     * The leading column stays even though the predicate pins it — `eq` is
+     * strict, so Postgres proves the implication, and the entry it costs is
+     * paid on the pending set rather than on the table.
+     *
+     * Measured on 300k seeded posts with a drained queue (3% pending): 11 MB
+     * rebuilt (21 MB as the inserts grew it) → 296 kB, with both queries still
+     * on `posts_classification_queue_idx` — an Index Scan for `classifyBatch`
+     * that no longer even rechecks the status, and a Bitmap Index Scan for
+     * `markEmptyPosts`. The half worth checking rather than asserting: a
+     * predicate on any OTHER status now falls off it onto a parallel sequential
+     * scan. That is the trade, and the census in
+     * `__tests__/db/hotPathIndexes.test.ts` is what keeps it licensed.
+     */
+    index('posts_classification_queue_idx')
+      .on(t.classificationStatus, t.createdAt)
+      .where(sql`${t.classificationStatus} = 'pending'`),
 
     // Mongo indexed `curated` SPARSE. A partial index is the analogue and keeps
     // the index the size of the curated set rather than the whole table.
