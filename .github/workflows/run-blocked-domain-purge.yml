@@ -25,11 +25,13 @@ name: Purge blocked-domain data from the platform
 #   but erasing an instance's history from a shared platform waits for a reviewed
 #   entry with an author and a diff.
 #
-# TWO GATES, AND THE SECOND ONE IS NOT IN THIS REPO
-#   A real run needs `confirm_write` here AND `FEDERATION_DOMAIN_PURGE_ENABLED=true`
-#   on the oxy-api deployment, which answers 409 otherwise. Arming the endpoint is
-#   an operator decision made over in the oxy repo, on purpose — this workflow
-#   cannot talk itself into a deletion.
+# AUTHORIZATION PLUS TWO SAFETY GATES
+#   Dispatches are accepted only from an actor in the repository-administered
+#   `BLOCKED_DOMAIN_PURGE_OPERATORS` variable. A real run then needs
+#   `confirm_write` here AND `FEDERATION_DOMAIN_PURGE_ENABLED=true` on the oxy-api
+#   deployment, which answers 409 otherwise. Arming the endpoint is an operator
+#   decision made over in the oxy repo, on purpose — this workflow cannot talk
+#   itself into a deletion.
 #
 # ALWAYS PLAN FIRST (`dry_run=true`, the default). `dryRun` is the ONLY field the
 # script derives from the mode, so the numbers a plan reports are the numbers the
@@ -90,7 +92,15 @@ permissions:
 
 jobs:
   purge:
-    if: github.ref == 'refs/heads/main'
+    # This is authorization, not another typo guard: Actions dispatch access is
+    # broader than permission to delete production data. Repository admins own
+    # this comma-separated, no-spaces allowlist outside the workflow, so changing
+    # a public confirmation phrase cannot grant an operator capability. Re-runs
+    # must also be initiated by the original authorized dispatcher.
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      contains(format(',{0},', vars.BLOCKED_DOMAIN_PURGE_OPERATORS), format(',{0},', github.actor)) &&
+      github.triggering_actor == github.actor
     # Same arch as the deployed image — the service runs linux/arm64.
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 90
