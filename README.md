@@ -152,6 +152,11 @@ Reports go to [**CrowdSource**](https://github.com/OxyHQ/CrowdSource), which dra
 | [Architecture](./docs/architecture.mdx) | How the pieces fit together |
 | [API](./docs/api.mdx) | The HTTP surface |
 | [Fediverse](./docs/fediverse.mdx) | ActivityPub integration and discovery |
+| [Federation behaviors](./docs/federation-behaviors.md) | Reposted-post shapes, bridge identity, thread federation, blocklist/purge, HLS media proxy |
+| [Channels and lanes](./docs/channels-and-lanes.md) | Channel-as-account design, disclosure, correction trail, lane curation |
+| [Moderation (CrowdSource)](./docs/moderation-crowdsource.md) | Report intake, enforcement modes, the subject-provider seam, known gaps |
+| [Feed ranking](./docs/feed-ranking.md) | Content classification, safety gating, ranking signals, interstitials |
+| [Frontend compiler notes](./docs/frontend-compiler-notes.md) | React Compiler ref-write findings, web feed virtualization |
 | [Product positioning](./docs/PRODUCT_POSITIONING.md) | What Mention is (and is not) as a product category |
 | [Performance budgets](./docs/PERFORMANCE_BUDGETS.md) | What is measured today, what is instrumented but unheld, what is missing |
 | [Compose intent URLs](./docs/compose-intent.mdx) | Linking into the composer from outside the app |

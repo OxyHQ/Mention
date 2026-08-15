@@ -36,9 +36,6 @@ const AGENTS_MD = resolve(REPO_ROOT, 'AGENTS.md');
  */
 const UNRESOLVABLE_BY_DESIGN: ReadonlyMap<string, string> = new Map([
   ['__common.js', "Metro's generated shared chunk — an output artifact, never a repo file"],
-  ['_worker.js', 'the deleted Cloudflare Pages Advanced-Mode worker; cited as history, must not come back'],
-  ['_routes.json', 'deleted alongside that worker; cited as history'],
-  ['services/FederationService.ts', 'the removed facade the connectors module replaced; cited as history'],
 ]);
 
 /**
