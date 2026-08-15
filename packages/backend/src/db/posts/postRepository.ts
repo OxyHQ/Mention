@@ -533,7 +533,6 @@ function assembleRecord(row: PostRow, children: PostChildRows): PostRecord {
     isEdited: row.isEdited,
     language: optional(row.language),
     curated: optional(row.curated),
-    tags: optional(row.tags),
     hashtags: row.hashtags ?? [],
     editHistory: row.editHistory ?? [],
     replyPermission: (row.replyPermission ?? DEFAULT_REPLY_PERMISSION) as ReplyPermission[],
@@ -754,7 +753,6 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     hasLinks: postTextHasHttpLink(content.variants),
     isEdited: false,
     language: input.language ?? null,
-    tags: input.tags ?? null,
     hashtags: input.hashtags ?? [],
     editHistory: [],
     replyPermission: input.replyPermission ?? DEFAULT_REPLY_PERMISSION,
@@ -1064,7 +1062,6 @@ export interface PostRecordPatch {
   visibility?: PostRecord['visibility'];
   language?: string | null;
   hashtags?: string[];
-  tags?: string[] | null;
   isEdited?: boolean;
   editHistory?: string[];
   threadId?: string | null;
@@ -1101,7 +1098,6 @@ export async function updatePostRecord(
     visibility: patch.visibility,
     language: patch.language,
     hashtags: patch.hashtags,
-    tags: patch.tags,
     isEdited: patch.isEdited,
     editHistory: patch.editHistory,
     threadId: patch.threadId,

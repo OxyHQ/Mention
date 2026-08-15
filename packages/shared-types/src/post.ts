@@ -609,7 +609,6 @@ export interface Post {
   isEdited: boolean;
   editHistory?: string[];
   language?: string;
-  tags?: string[];
   mentions?: string[]; // oxyUserIds
   /**
    * Every hashtag detected for this post, in canonical form: lowercase, without
@@ -707,7 +706,6 @@ export interface CreatePostRequest {
    * format snake-cases this to `quoted_post_id` (see `feedService.createPost`).
    */
   quotedPostId?: string;
-  tags?: string[];
   mentions?: string[];
   hashtags?: string[];
   replyPermission?: ReplyPermission[];
@@ -759,7 +757,6 @@ export interface CreatePostRequest {
 export interface CreateThreadPostRequest {
   content: PostContentInput;
   visibility?: PostVisibility;
-  tags?: string[];
   mentions?: string[];
   hashtags?: string[];
   replyPermission?: ReplyPermission[];
@@ -838,7 +835,6 @@ export interface CreateThreadRequest {
 export interface UpdatePostRequest {
   content?: PostContent;
   visibility?: PostVisibility;
-  tags?: string[];
   mentions?: string[];
   hashtags?: string[];
   /** Invite collaborators when editing a solo post within the 30-minute window. */
@@ -1144,7 +1140,6 @@ export interface PostMetadataState {
    * {@link PostMetadataState.language} is the protocol-facing primary.
    */
   languages?: string[];
-  tags?: string[];
   mentions?: string[];
   hashtags?: string[];
   createdAt: string;

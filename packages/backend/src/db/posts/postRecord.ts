@@ -162,7 +162,6 @@ export interface PostRecord {
   /** The PRIMARY language (ISO 639-1) — the AP protocol field. */
   language?: string;
   curated?: boolean;
-  tags?: string[];
   hashtags: string[];
   editHistory: string[];
   replyPermission: ReplyPermission[];
@@ -267,7 +266,6 @@ export interface PostRecordInput {
   visibility: PostVisibility;
   status: PostPublicationStatus;
   language?: string;
-  tags?: string[];
   hashtags?: string[];
   replyPermission?: ReplyPermission[];
   reviewReplies?: boolean;

@@ -195,8 +195,35 @@ export const posts = pgTable(
      */
     curated: boolean(),
 
-    /** Free-form author tags (distinct from `hashtags`). Scalar set → `text[]`. */
-    tags: text().array(),
+    // `tags` USED TO BE DECLARED HERE, and the column still exists in the
+    // database. It is removed from this schema — and therefore from every
+    // `select()` drizzle builds — one release AHEAD of the `DROP COLUMN`, on
+    // purpose. See the note below before generating a migration.
+    //
+    // It never had a writer, in any store, at any point in its life. Measured
+    // rather than inferred, each census carrying a `hashtags` positive control
+    // to prove the pattern could match at all: the Mongo-era
+    // `PostCreationService` built its document from an explicit whitelist
+    // literal with no `tags` key and no body spread (so Mongoose strict mode had
+    // nothing to admit); `posts.controller.ts` at the same revision was 2786
+    // lines with 20 `hashtags` references and zero `tags`; and every plausible
+    // write shape (`post.tags =`, `tags: req.body.tags`, `$set: { tags`, …)
+    // returns empty from `git log -S` across all history while the `hashtags`
+    // equivalents return real commits. The only thing that ever named it on the
+    // write side was the Postgres repository's own `input.tags ?? null`
+    // pass-through, which no caller ever fed.
+    //
+    // So it was never the `hasLinks` case (a Mongoose hook lost in the port) —
+    // there was no hook and no behaviour to re-express. It was a column that
+    // shipped a read path and an API field for a value nothing ever produced.
+    //
+    // WHEN YOU GENERATE THE NEXT MIGRATION, `drizzle-kit` will emit
+    // `ALTER TABLE "posts" DROP COLUMN "tags"` against the snapshot. That drop
+    // is intended, but it must NOT ride along with unrelated work: migrations
+    // run as a one-shot BEFORE the rolling update, so dropping the column while
+    // the previous image is still serving makes every post read fail with
+    // `42703` for the length of the rollout. Land it as its own migration in a
+    // release after this one.
     /**
      * Canonical hashtags: lowercase, `#`-stripped, deduped, first-seen order
      * preserved. Multikey in Mongo; a `text[]` with a GIN index answers the same
