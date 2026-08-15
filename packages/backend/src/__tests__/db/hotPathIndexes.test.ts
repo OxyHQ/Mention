@@ -62,6 +62,8 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import path from 'node:path';
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 
@@ -292,7 +294,14 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
     table: 'posts',
     serves:
       'the Stage-B classification queue, which drains oldest-first within one status. Ascending ' +
-      '`created_at` on purpose — this is the one chronological index here that is not a feed keyset',
+      '`created_at` on purpose — this is the one chronological index here that is not a feed keyset. ' +
+      'KEPT FULL, and the #753 audit left it that way for WANT OF EVIDENCE rather than on a decision: ' +
+      'it could not rule out a reader of the other three statuses, and the cost of guessing wrong is ' +
+      'silent. That evidence is now measured, and it is the census below — every predicate on ' +
+      "`classification_status` in this package selects `'pending'`, through ONE constant. So a partial " +
+      "index `WHERE classification_status = 'pending'` would serve both of its queries and shrink to " +
+      'the size of the queue rather than the table. It is not narrowed here because that needs a ' +
+      "migration, which is an operator decision and not this file's",
     definition:
       'CREATE INDEX posts_classification_queue_idx ON public.posts USING btree (classification_status, created_at)',
   },
@@ -448,5 +457,168 @@ describe('the classification of `posts` indexes is exhaustive', () => {
     // distinct classifications silently disagreed with the list's length.
     const names = ALL_INDEXES.map((index) => index.name);
     expect(new Set(names).size).toBe(names.length);
+  });
+});
+
+/**
+ * `posts_classification_queue_idx`, settled — the census the #753 audit could
+ * not perform to its own satisfaction.
+ *
+ * The audit narrowed four indexes to partial and recovered 65 MB. It left this
+ * one (15 MB) full and said why: a partial index on
+ * `classification_status = 'pending'` would make it tiny, but it could not rule
+ * out a reader of the OTHER three statuses, and the failure mode of getting that
+ * wrong is silent — a missing index has no functional symptom, it just gets slow
+ * at a row count nobody can reproduce locally.
+ *
+ * Measured 2026-08-16, this is the whole surface of that column in this package:
+ *
+ *   PREDICATE  `services/PostClassificationService.ts` — ONE constant,
+ *              `UNCLASSIFIED`, comparing the column to `'pending'`, used by
+ *              `markEmptyPosts` (an UPDATE) and `classifyBatch` (the SELECT this
+ *              index exists for, `order by created_at asc, id asc limit 25`).
+ *   WRITE      `db/posts/postRepository.ts` (insert + patch values) and
+ *              `PostClassificationService`'s `.set({ classificationStatus })`.
+ *   PROJECTION `db/posts/postRepository.ts` (row → record) and
+ *              `scripts/inspectTrendTerms.ts`.
+ *
+ * `'baseline'`, `'classified'` and `'failed'` are read ONLY from an
+ * already-hydrated record — `services/contentClassification/trustedScores.ts`
+ * and `services/ranking/signals/optIn.ts` both compare
+ * `classification.status === 'classified'` in memory. Neither is a query and
+ * neither can reach an index.
+ *
+ * So the narrowing is justified. It is not performed here because it needs a
+ * migration, and this census is what makes performing it later safe: an
+ * occurrence of the column that this file cannot MAP fails the build, so a
+ * second predicate cannot arrive unnoticed and quietly make a partial index
+ * unusable by it. This lives beside the index's own classification on purpose —
+ * they are two halves of one claim, and separating them is how one goes stale
+ * while the other keeps passing.
+ */
+describe('the classification queue index is settled by a census, not by a memory', () => {
+  /**
+   * `src`, minus the two places an occurrence means nothing about queries.
+   *
+   * `__tests__` writes fixtures. `db/schema/` DECLARES the column and its CHECK
+   * constraint — the constraint names every status by construction, which is
+   * what a whole-table declaration does and is not a query. Everything else,
+   * `scripts/` included, is in scope.
+   */
+  const SOURCE_ROOT = path.resolve(__dirname, '../..');
+  const EXCLUDED_DIRS = new Set(['__tests__', 'node_modules', 'schema']);
+
+  /** The column, as a query builder names it and as raw SQL would. */
+  const OCCURRENCE = /classificationStatus|classification_status/;
+
+  /** A comparison against the column — `eq(posts.classificationStatus, 'pending')` and every other shape. */
+  const PREDICATE = /\b(\w+)\(\s*posts\.classificationStatus\s*,\s*([^)]*)\)/;
+  /** `status: posts.classificationStatus` / `status: row.classificationStatus`. */
+  const PROJECTION = /:\s*(?:posts|row)\.classificationStatus\b/;
+  /** `classificationStatus: <value>` — an object key being ASSIGNED, never compared. */
+  const WRITE = /\bclassificationStatus\s*:/;
+
+  interface Occurrence {
+    file: string;
+    line: number;
+    text: string;
+  }
+
+  function sourceFiles(dir: string): string[] {
+    const out: string[] = [];
+    for (const name of readdirSync(dir)) {
+      const full = path.join(dir, name);
+      if (statSync(full).isDirectory()) {
+        if (EXCLUDED_DIRS.has(name)) continue;
+        out.push(...sourceFiles(full));
+        continue;
+      }
+      if (name.endsWith('.ts')) out.push(full);
+    }
+    return out;
+  }
+
+  /**
+   * Strip comments before counting.
+   *
+   * A comment quoting a predicate verbatim inflates a census, most dangerously
+   * when it is written to CORRECT someone — and the prose above spells one out.
+   */
+  function stripComments(source: string): string {
+    return source
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  }
+
+  /** Every line of in-scope source naming the column, comments removed. */
+  function occurrences(): Occurrence[] {
+    const found: Occurrence[] = [];
+    for (const file of sourceFiles(SOURCE_ROOT)) {
+      const lines = stripComments(readFileSync(file, 'utf8')).split('\n');
+      lines.forEach((text, index) => {
+        if (OCCURRENCE.test(text)) {
+          found.push({ file: path.relative(SOURCE_ROOT, file), line: index + 1, text: text.trim() });
+        }
+      });
+    }
+    return found;
+  }
+
+  it('sees the column at all, in more than one file — the vacuity floor', () => {
+    const found = occurrences();
+
+    // A traversal that broke, or a pattern that stopped matching, reports the
+    // same clean zero as an absent column — and a zero here would make every
+    // assertion below vacuously true.
+    expect(found.length).toBeGreaterThanOrEqual(4);
+    expect(new Set(found.map((entry) => entry.file)).size).toBeGreaterThanOrEqual(2);
+    expect(found.some((entry) => entry.file === 'services/PostClassificationService.ts')).toBe(true);
+  });
+
+  it('can tell a predicate on ANOTHER status apart — the positive control', () => {
+    // The measurement below is "no predicate selects anything but 'pending'",
+    // and that is also what a matcher which recognises nothing reports. So the
+    // matcher is shown a predicate of exactly the shape it must catch.
+    const synthetic = "const STUCK = eq(posts.classificationStatus, 'failed');";
+
+    const match = PREDICATE.exec(synthetic);
+    expect(match).not.toBeNull();
+    expect(match?.[1]).toBe('eq');
+    expect(match?.[2]).toBe("'failed'");
+    // And the same string must NOT be swallowed by the two benign classifiers.
+    expect(PROJECTION.test(synthetic)).toBe(false);
+    expect(WRITE.test(synthetic)).toBe(false);
+  });
+
+  it('maps every occurrence — an unmapped one is a shape nobody decided about', () => {
+    const unmapped = occurrences().filter(
+      (entry) =>
+        !PREDICATE.test(entry.text) && !PROJECTION.test(entry.text) && !WRITE.test(entry.text),
+    );
+
+    expect(
+      unmapped,
+      'A `classification_status` reference this census cannot classify as a predicate, a projection '
+      + 'or a write.\nIf it is a new PREDICATE, say which status it selects and re-decide '
+      + '`posts_classification_queue_idx` above — a partial index on the pending set would not serve '
+      + 'it.\nDo NOT widen the patterns to make it disappear.',
+    ).toEqual([]);
+  });
+
+  it("compares the column only against 'pending', and only with `eq`", () => {
+    const predicates = occurrences()
+      .map((entry) => ({ entry, match: PREDICATE.exec(entry.text) }))
+      .filter((row): row is { entry: Occurrence; match: RegExpExecArray } => row.match !== null);
+
+    // Floor: the queue's own predicate exists. Without it, "every predicate
+    // selects 'pending'" is true of a list with no predicates in it.
+    expect(predicates.length).toBeGreaterThanOrEqual(1);
+
+    expect(
+      predicates.map(({ entry, match }) => `${entry.file}: ${match[1]}(…, ${match[2]})`),
+      "Every predicate on `classification_status` must be `eq(…, 'pending')`.\n"
+      + 'One that is not means the classification queue index cannot be narrowed to the pending set, '
+      + 'and the entry for `posts_classification_queue_idx` above says the opposite.',
+    ).toEqual(predicates.map(({ entry }) => `${entry.file}: eq(…, 'pending')`));
   });
 });
