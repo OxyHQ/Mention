@@ -24,7 +24,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { TREND_CATEGORIES } from '@mention/shared-types';
 import type { TrendGraphEdgeDTO, TrendGraphNodeDTO } from '@mention/shared-types';
-import { createdAt, generatedId, inList, timestamptz, tsvector, updatedAt } from './columns';
+import { createdAt, generatedId, inList, timestamptz, tsvector, updatedAt } from '@oxyhq/db';
 
 /** The vocabulary the `trending.type` CHECK enforces. */
 export const TRENDING_TYPES = ['hashtag', 'topic', 'entity'] as const;

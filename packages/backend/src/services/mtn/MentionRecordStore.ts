@@ -41,7 +41,7 @@ import { and, asc, eq, gt, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import type { AppendOutcome, ChainHead, RecordStore } from '@oxyhq/protocol';
 import { getDb } from '../../db/postgres';
-import { isUniqueViolation } from '../../db/pgErrors';
+import { isUniqueViolation } from '@oxyhq/db';
 import {
   MTN_CHAIN_STATUSES,
   mentionRepoHeads,

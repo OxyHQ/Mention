@@ -21,7 +21,7 @@ import { join, relative, sep } from 'node:path';
  * | `custom_feed_source_lists`       | **`asc(id)`** |
  * | `custom_feed_topics`             | **`asc(id)`** |
  *
- * `id` is a `uuidv7()` from `db/schema/columns.ts`: 48 bits of millisecond
+ * `id` is a `uuidv7()` from `@oxyhq/db`: 48 bits of millisecond
  * timestamp then pure randomness, with NO monotonic counter. Rows written in one
  * batch therefore share a millisecond and their relative order is decided by the
  * random tail — so **the stored order of these two relations is not the order

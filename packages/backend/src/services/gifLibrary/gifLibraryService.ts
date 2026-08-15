@@ -7,9 +7,8 @@ import { pipeline } from 'node:stream/promises';
 import type { IncomingMessage } from 'node:http';
 
 import { desc, eq, gte, inArray, sql } from 'drizzle-orm';
-import { qualified } from '../../db/casing';
+import { isUniqueViolation, qualified } from '@oxyhq/db';
 import { getDb } from '../../db/postgres';
-import { isUniqueViolation } from '../../db/pgErrors';
 import { gifs } from '../../db/schema/discovery';
 import { logger } from '../../utils/logger';
 import { SsrfRejection } from '@oxyhq/core/server';

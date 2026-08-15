@@ -6,8 +6,8 @@
  *
  * Several ranking and pagination suites created two rows back to back and then
  * asserted which one led, justified by a comment saying "uuid v7 is monotonic,
- * so the later insert leads". **It is not.** `uuidv7()` in
- * `db/schema/columns.ts` is 48 bits of `Date.now()` followed by
+ * so the later insert leads". **It is not.** `@oxyhq/db`'s `uuidv7()` is 48
+ * bits of `Date.now()` followed by
  * `randomFillSync` — RFC 9562's optional monotonic counter (the `rand_a`
  * "method 2" sub-millisecond sequence) is NOT implemented, and
  * `db/posts/postRepository.ts` already says so where it explains why an

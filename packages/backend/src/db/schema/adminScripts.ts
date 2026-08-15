@@ -34,7 +34,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, integer, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, updatedAt } from './columns';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 
 /**
  * `admin_script_cursors` — where a long-running sweep got to, per shard.

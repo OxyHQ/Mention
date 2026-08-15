@@ -31,7 +31,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import type { MediaItem } from '@mention/shared-types';
-import { createdAt, generatedId, inList, timestamptz, tsvector, updatedAt } from './columns';
+import { createdAt, generatedId, inList, timestamptz, tsvector, updatedAt } from '@oxyhq/db';
 import { posts } from './posts';
 
 /** `PostAuthorRole` — exactly one `owner` per post, plus up to 5 collaborators. */
@@ -153,7 +153,7 @@ export const postAuthorships = pgTable(
      *
      * ## Keeping it true
      *
-     * `posts.created_at` is written once and never updated (`columns.ts`: "set by
+     * `posts.created_at` is written once and never updated (`@oxyhq/db`: "set by
      * the database on insert, never updated"), which is what makes a copy safe at
      * all — there is no update path to miss. It is written by the two functions
      * that write authorship rows, `insertChildRows` and `replacePostAuthorship`,

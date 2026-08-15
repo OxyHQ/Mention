@@ -81,7 +81,7 @@ import {
   trackPostView,
 } from '../../controllers/statistics.controller';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import { uuidv7 } from '../../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { posts } from '../../db/schema/posts';
 import { postAuthorships, postContentVariants } from '../../db/schema/postContent';
 import { userSettings } from '../../db/schema/userProfile';

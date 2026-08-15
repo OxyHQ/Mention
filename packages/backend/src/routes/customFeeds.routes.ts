@@ -14,7 +14,7 @@ import {
   sql,
   type SQL,
 } from 'drizzle-orm';
-import { qualified } from '../db/casing';
+import { qualified } from '@oxyhq/db';
 import { getDb } from '../db/postgres';
 import {
   definitionOf,

@@ -93,7 +93,7 @@ import {
 } from '../../db/mtn/nodeRepository';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
-import { isUniqueViolation } from '../../db/pgErrors';
+import { isUniqueViolation } from '@oxyhq/db';
 import { mentionSignedRecords } from '../../db/schema/mtn';
 import { logger } from '../../utils/logger';
 import { LWW_CURRENT_ORDER, MTN_CHAIN_STATUS } from './MentionRecordStore';

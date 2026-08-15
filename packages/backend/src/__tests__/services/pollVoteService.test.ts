@@ -22,7 +22,7 @@ import { randomUUID } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import { uuidv7 } from '../../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { pollOptions, pollVotes, polls } from '../../db/schema/polls';
 import { loadPollRecord, pollVoteService } from '../../services/PollVoteService';
 

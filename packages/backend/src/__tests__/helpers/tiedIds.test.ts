@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { uuidv7 } from '../../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { sameMillisecondIds } from './tiedIds';
 
 /** The 48-bit timestamp is the first 12 hex characters, i.e. `xxxxxxxx-xxxx`. */

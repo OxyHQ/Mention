@@ -21,7 +21,7 @@ import {
   loadPostRecord,
 } from '../db/posts/postRepository';
 import { POST_CLASSIFICATION_PENDING, type PostRecord } from '../db/posts/postRecord';
-import { isUniqueViolation } from '../db/pgErrors';
+import { isUniqueViolation } from '@oxyhq/db';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { emitPostEngagement, POST_ENGAGEMENT_EVENTS } from '../services/postEngagementBroadcast';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';

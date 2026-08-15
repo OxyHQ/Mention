@@ -1,7 +1,7 @@
 import express, { Response } from "express";
 import { and, arrayContains, eq, exists, gte, lte, lt, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
-import { QUERY_CANCELED, sqlStateOf } from '../db/pgErrors';
+import { QUERY_CANCELED, sqlStateOf } from '@oxyhq/db';
 import { posts } from '../db/schema/posts';
 import { postAuthorships, postContentVariants, postMedia, postMentions } from '../db/schema/postContent';
 import { findPostRecords } from '../db/posts/postRepository';

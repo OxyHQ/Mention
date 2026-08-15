@@ -135,7 +135,7 @@ export interface CascadeStep {
    *
    * Deliberately the property name and not the SQL name: `column.name` on a
    * drizzle column IS the property name (casing is applied at runtime by
-   * `drizzle()`, see `db/casing.ts`), so this is the spelling both the gate and
+   * `drizzle()`, see `@oxyhq/db`), so this is the spelling both the gate and
    * the service's binding table can check against without a conversion step
    * either of them could get wrong.
    */

@@ -103,7 +103,7 @@ export async function assertContinuesOwnThread(params: {
   if (!authorId || !parentPostId || !threadId) refuse();
 
   // NO id-SHAPE guard. `ObjectId.isValid` stood here and is deleted per
-  // `db/ids.ts`: `posts.id` is `text`, so an id of any shape that names no row
+  // `@oxyhq/db`: `posts.id` is `text`, so an id of any shape that names no row
   // already reaches the refusals below with an absent parent and root — the
   // exact answer the guard was producing, one branch earlier.
 

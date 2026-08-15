@@ -16,7 +16,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import { GENERATED_ALWAYS, sqlStateOf } from '../../db/pgErrors';
+import { GENERATED_ALWAYS, sqlStateOf } from '@oxyhq/db';
 import { posts } from '../../db/schema/posts';
 
 /** Barcelona city centre. */

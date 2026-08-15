@@ -25,7 +25,7 @@ import { eq, inArray } from 'drizzle-orm';
 
 import pollsController from '../../controllers/polls.controller';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import { uuidv7 } from '../../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { pollOptions, pollVotes, polls } from '../../db/schema/polls';
 import { posts } from '../../db/schema/posts';
 import { postHydrationService } from '../../services/PostHydrationService';
@@ -214,7 +214,7 @@ describe('the id guards — a documented 400, widened to both live shapes', () =
   });
 
   it('accepts a uuid v7 id and answers 404 when it names nothing', async () => {
-    // `db/ids.ts` exists for exactly this: the 400 stays a contract, but a poll
+    // `@oxyhq/db` exists for exactly this: the 400 stays a contract, but a poll
     // created after the cutover carries a uuid v7 and must not be rejected as
     // malformed.
     const { getPoll } = pollsController;

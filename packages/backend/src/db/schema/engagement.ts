@@ -11,7 +11,7 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, numericInList, updatedAt } from './columns';
+import { createdAt, generatedId, inList, numericInList, updatedAt } from '@oxyhq/db';
 import { posts } from './posts';
 
 /** `Like.value` — an up-vote or a down-vote. */

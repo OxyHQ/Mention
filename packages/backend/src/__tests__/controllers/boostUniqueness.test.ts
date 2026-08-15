@@ -56,7 +56,7 @@ vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => und
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { postAuthorships } from '../../db/schema/postContent';
-import { uuidv7 } from '../../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { insertPostRecord } from '../../db/posts/postRepository';
 import { buildAuthorship } from '../../utils/postAuthorship';
 import { feedController } from '../../controllers/feed.controller';

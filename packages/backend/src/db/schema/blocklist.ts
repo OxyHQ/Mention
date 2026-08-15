@@ -43,7 +43,7 @@
 
 import { sql } from 'drizzle-orm';
 import { boolean, check, index, integer, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, timestamptz, updatedAt } from './columns';
+import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxyhq/db';
 
 /** `BlocklistProposalStatus`. */
 export const BLOCKLIST_PROPOSAL_STATUSES = ['open', 'declined', 'adopted', 'lapsed'] as const;

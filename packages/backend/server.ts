@@ -7,7 +7,7 @@ import { logger, sanitizeLogValue } from "./src/utils/logger";
 import { config, validateEnvironment } from './src/config';
 import { isAllowedOrigin } from "./src/utils/allowedOrigins";
 import { closePostgres, connectPostgres, getPostgresClient } from "./src/db/postgres";
-import { assertPostgresMigrationsCurrent } from "./src/db/migrationLedger";
+import { assertPostgresMigrationsCurrent } from "./src/db/migrationsFolder";
 import { leaderElection } from "./src/services/LeaderElection";
 import {
   markMigrationsComplete,
