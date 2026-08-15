@@ -169,6 +169,13 @@
       "when": 1786045126774,
       "tag": "0023_a_publication_corrects_in_the_open",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1786811476871,
+      "tag": "0024_drop_backfill_bookkeeping_tables",
+      "breakpoints": true
     }
   ]
 }
