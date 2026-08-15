@@ -2,7 +2,7 @@
   "name": "@mention/e2e",
   "version": "1.0.0",
   "description": "Real-browser release gate: runs the candidate web build at the production origin before it is promoted",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "private": true,
   "type": "module",
   "scripts": {

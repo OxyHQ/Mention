@@ -5,7 +5,7 @@
 
 <p align="center">
   <a href="https://mention.earth"><img alt="mention.earth" src="https://img.shields.io/badge/mention.earth-440151?style=flat-square"></a>
-  <a href="./LICENSE"><img alt="License MIT" src="https://img.shields.io/badge/license-MIT-informational?style=flat-square"></a>
+  <a href="./LICENSE"><img alt="License Breathe 1.0" src="https://img.shields.io/badge/license-Breathe%201.0-informational?style=flat-square"></a>
   <img alt="Expo SDK 57" src="https://img.shields.io/badge/Expo-SDK%2057-000020?style=flat-square&logo=expo&logoColor=white">
   <img alt="React Native 0.86" src="https://img.shields.io/badge/React%20Native-0.86-61DAFB?style=flat-square&logo=react&logoColor=black">
   <img alt="TypeScript 5.9" src="https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript&logoColor=white">
@@ -152,6 +152,8 @@ Reports go to [**CrowdSource**](https://github.com/OxyHQ/CrowdSource), which dra
 | [Architecture](./docs/architecture.mdx) | How the pieces fit together |
 | [API](./docs/api.mdx) | The HTTP surface |
 | [Fediverse](./docs/fediverse.mdx) | ActivityPub integration and discovery |
+| [Product positioning](./docs/PRODUCT_POSITIONING.md) | What Mention is (and is not) as a product category |
+| [Performance budgets](./docs/PERFORMANCE_BUDGETS.md) | What is measured today, what is instrumented but unheld, what is missing |
 | [Compose intent URLs](./docs/compose-intent.mdx) | Linking into the composer from outside the app |
 | [User mentions](./docs/mentions.md) | How handles resolve, local and federated |
 | [Theming](./docs/THEMING.md) | Bloom and NativeWind in this app |
@@ -166,4 +168,24 @@ Issues and pull requests are welcome. Please run `bun run check` and `bun run te
 
 ## License
 
-MIT. See [LICENSE](./LICENSE).
+[The Breathe License 1.0](./LICENSE). Free to breathe, paid to bottle.
+
+Free to run, read, modify, fork, and share, for any purpose that is not
+commercial. Two conditions on everyone: publish the source of what you deploy,
+and credit Oxy in one reachable place. Neither can be bought out of.
+
+**Commercial use requires a paid license.** The trigger is revenue, including
+internal use inside a business that earns it. See the
+[Commercial Terms](https://github.com/OxyHQ/.github/blob/main/LICENSE-COMMERCIAL.md).
+Paying buys the right to use it commercially; it does not let you keep your
+changes private and it does not remove attribution.
+
+Cooperatives, nonprofits, educational institutions, and public bodies pay
+nothing. They publish source and attribute like everyone else. See the
+[Exemption Policy](https://github.com/OxyHQ/.github/blob/main/licensing/EXEMPTIONS.md).
+
+The Breathe License is **source available, not open source**. It is not OSI
+approved, because charging for commercial use is discrimination against a
+field of endeavour under clause 6 of the Open Source Definition. Oxy's SDKs
+and client libraries (`@oxyhq/core`, `@oxyhq/services`, Bloom) are
+Apache-2.0, so building against Oxy carries none of this.

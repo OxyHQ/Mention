@@ -101,4 +101,4 @@ client that still depends on Metro.
 - [Compose intent URL](docs/INTENT_URL.md)
 - [MCP OAuth and linked accounts](../mcp/README.md)
 
-The repository is available under the [MIT License](../../LICENSE).
+The repository is available under [the Breathe License 1.0](../../LICENSE) — source available, not open source. See the [root README](../../README.md#license).
