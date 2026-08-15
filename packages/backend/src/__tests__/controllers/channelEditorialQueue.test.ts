@@ -514,6 +514,22 @@ describe('the shared editorial queue — publishing an entry early', () => {
     expect(claim).not.toHaveBeenCalled();
   });
 
+  it('refuses a former WRITER whose channel membership was removed', async () => {
+    // `writtenByOxyUserId` records who wrote the entry and never changes; it is
+    // not evidence they still operate the channel. Every OTHER management action
+    // may still ride that stored id, but publishing acts under the channel's
+    // identity and cannot be undone, so this one asks the roster.
+    const entry = await seedScheduled({ owner: CHANNEL, writtenBy: WRITER });
+    listAccountMembers.mockResolvedValue([
+      membership(CHANNEL, WRITER, 'removed'),
+      membership(CHANNEL, COLLEAGUE),
+    ]);
+
+    expect((await publishAs(WRITER, entry)).status).toBe(404);
+    expect(listAccountMembers).toHaveBeenCalledWith(CHANNEL);
+    expect(claim).not.toHaveBeenCalled();
+  });
+
   it('refuses a member whose invitation is not yet ACCEPTED', async () => {
     const entry = await seedScheduled({ owner: CHANNEL, writtenBy: WRITER });
 

@@ -3347,6 +3347,10 @@ export const publishScheduledPostNow = async (req: AuthRequest, res: Response) =
       post: target,
       callerId: userId,
       memberReader: createUserScopedOxyServices(req),
+      // Publishing is irreversible and acts under the author's identity. A
+      // stored writer may have left the channel since scheduling, so unlike
+      // ordinary management actions this must prove their authority now.
+      requireAuthorAuthority: true,
     });
     if (publishRefusal) {
       return res.status(publishRefusal.status).json({ message: publishRefusal.message });
