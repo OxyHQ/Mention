@@ -134,9 +134,9 @@ function requiredMcpScopeForRequest(req: Request): 'mcp:read' | 'mcp:write' {
   return ['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase()) ? 'mcp:read' : 'mcp:write';
 }
 
-function enforceMcpRequestScope(req: Request, res: Response, outcome: Extract<McpAuthOutcome, { status: 'ok' }>): boolean {
+function enforceMcpRequestScope(req: Request, res: Response, scope: string): boolean {
   const requiredScope = requiredMcpScopeForRequest(req);
-  if (parseScopeSet(outcome.scope).has(requiredScope)) {
+  if (parseScopeSet(scope).has(requiredScope)) {
     return true;
   }
 
@@ -196,8 +196,13 @@ export function createRequireMcpOrOxyAuth(oxy: OxyServices): RequestHandler {
 
   return async (req: Request, res: Response, next: NextFunction) => {
     // An earlier pass (e.g. the global rate limiter's optional auth) may have
-    // already resolved an Oxy identity — honour it and skip re-verification.
+    // already resolved an identity. MCP identities still need the scope for
+    // this route enforced before their pre-resolved user can be trusted.
     if ((req as OxyAuthRequest).user?.id) {
+      const mcp = (req as OxyAuthRequestWithMcp).mcp;
+      if (mcp && !enforceMcpRequestScope(req, res, mcp.scope)) {
+        return;
+      }
       next();
       return;
     }
@@ -206,7 +211,7 @@ export function createRequireMcpOrOxyAuth(oxy: OxyServices): RequestHandler {
     if (token && looksLikeMcpToken(token)) {
       const outcome = await resolveMcpUser(token);
       if (outcome.status === 'ok') {
-        if (!enforceMcpRequestScope(req, res, outcome)) {
+        if (!enforceMcpRequestScope(req, res, outcome.scope)) {
           return;
         }
         attachMcpIdentity(req as OxyAuthRequest, outcome);

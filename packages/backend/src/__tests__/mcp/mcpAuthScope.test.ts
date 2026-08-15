@@ -15,14 +15,15 @@ vi.mock('../../mcp/services/mcpRevocationService', () => ({
 // and every case times out rather than exercising the scope check.
 vi.mock('../../mcp/services/mcpBundleService', () => ({
   resolveBundleContext: vi.fn(async (jti: string, sub: string) => ({
-    connectionId: 'conn-1',
     bundleId: 'bundle-1',
-    activeOxyUserId: sub,
+    clientId: 'test-client',
+    primaryUserId: sub,
+    activeUserId: sub,
     jti,
   })),
 }));
 
-import { createRequireMcpOrOxyAuth } from '../../mcp/middleware/mcpAuth';
+import { createOptionalMcpAuth, createRequireMcpOrOxyAuth } from '../../mcp/middleware/mcpAuth';
 import { signAccessToken } from '../../mcp/services/mcpTokenService';
 
 function token(scopes: string[]): string {
@@ -46,8 +47,21 @@ function buildApp() {
   return app;
 }
 
+function buildProductionOrderedApp() {
+  const app = express();
+  app.use(express.json());
+  const fakeOxy = {
+    auth: () => (_req: express.Request, res: express.Response) => res.status(401).json({ error: 'oxy_required' }),
+  } as unknown as OxyServices;
+  app.use(createOptionalMcpAuth());
+  app.use(createRequireMcpOrOxyAuth(fakeOxy));
+  app.post('/resource', (_req, res) => res.status(201).json({ ok: true }));
+  return app;
+}
+
 describe('createRequireMcpOrOxyAuth MCP scope enforcement', () => {
   const app = buildApp();
+  const productionOrderedApp = buildProductionOrderedApp();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -77,6 +91,27 @@ describe('createRequireMcpOrOxyAuth MCP scope enforcement', () => {
 
   it('allows write-scoped MCP tokens on mutating requests', async () => {
     const res = await request(app).post('/resource').set('Authorization', `Bearer ${token(['mcp:read', 'mcp:write'])}`).send({});
+
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({ ok: true });
+  });
+
+  it('rejects read-only MCP tokens pre-resolved by optional auth on mutating requests', async () => {
+    const res = await request(productionOrderedApp)
+      .post('/resource')
+      .set('Authorization', `Bearer ${token(['mcp:read'])}`)
+      .send({});
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('insufficient_scope');
+    expect(res.body.required_scope).toBe('mcp:write');
+  });
+
+  it('allows write-scoped MCP tokens pre-resolved by optional auth on mutating requests', async () => {
+    const res = await request(productionOrderedApp)
+      .post('/resource')
+      .set('Authorization', `Bearer ${token(['mcp:read', 'mcp:write'])}`)
+      .send({});
 
     expect(res.status).toBe(201);
     expect(res.body).toEqual({ ok: true });
