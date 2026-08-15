@@ -44,7 +44,8 @@ import { validatePublicShareTarget } from '../utils/postAccessControl';
 import { postIsAuthoredByChannel } from '../utils/channelReplyGate';
 import { baselineContentClassifier } from '../services/BaselineContentClassifier';
 import { toStoredContent } from '../services/postVariants';
-import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { createScopedOxyClient, createUserScopedOxyServices } from '../utils/oxyHelpers';
+import type { OperatedAccountReader } from '../services/publishAsAccount';
 import { federateAsResolvedActor } from '../connectors/outboundFederation';
 import {
   emitPostCreated,
@@ -133,8 +134,12 @@ class FeedController {
     currentUserId?: string,
     oxyClient?: OxyClient,
     // Only the single-item detail route asks for quote counts — see
-    // `HydrationOptions.includeQuoteCounts` for why the feed does not.
-    options: { includeQuoteCounts?: boolean } = {},
+    // `HydrationOptions.includeQuoteCounts` for why the feed does not. It is
+    // also the only caller that can be handed a WITHHELD post (it loads by id;
+    // the list timeline beside it filters on status), so it is the only one that
+    // supplies an operated-account reader — see `HydrationOptions` for what
+    // decides whether that reader is ever actually asked anything.
+    options: { includeQuoteCounts?: boolean; operatedAccountReader?: OperatedAccountReader } = {},
   ): Promise<HydratedPost[]> {
     try {
       if (!posts || posts.length === 0) {
@@ -151,6 +156,7 @@ class FeedController {
         includeFullArticleBody: false, // Don't include article bodies in feed
         includeFullMetadata: false, // Skip some metadata fields for performance
         includeQuoteCounts: options.includeQuoteCounts === true,
+        operatedAccountReader: options.operatedAccountReader,
       });
       
       // Ensure all posts have required fields
@@ -1142,7 +1148,10 @@ class FeedController {
         [post],
         currentUserId,
         createScopedOxyClient(req),
-        { includeQuoteCounts: true },
+        {
+          includeQuoteCounts: true,
+          operatedAccountReader: createUserScopedOxyServices(req),
+        },
       );
 
       return res.json(transformed);

@@ -121,7 +121,11 @@ import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { userSettings } from '../../db/schema/userProfile';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { PostHydrationService } from '../../services/PostHydrationService';
-import { getScheduledPosts, publishScheduledPostNow } from '../../controllers/posts.controller';
+import {
+  getPostById,
+  getScheduledPosts,
+  publishScheduledPostNow,
+} from '../../controllers/posts.controller';
 import { loadPostRecord } from '../../db/posts/postRepository';
 
 const scope = serviceScope('channel-editorial-queue');
@@ -561,30 +565,39 @@ describe('the shared editorial queue — publishing an entry early', () => {
 });
 
 /**
- * THE ACL UNDERNEATH, asked WITHOUT the operated-account set.
+ * THE ACL UNDERNEATH, on every surface that is NOT the queue endpoint.
  *
- * This block exists because a mutation SURVIVED without it. Every case above
- * reaches the queue through the endpoint, which resolves the caller's channels
- * and hands them to hydration — so the writer is admitted by `operatedAccountIds`
- * and the writer clause beside it never decides anything. Deleting
- * `canManagePostWithoutLookup` from the ACL left all twelve of them green.
+ * Every queue case above reaches hydration through a handler that resolves the
+ * caller's channels for its own query and hands the same list to the ACL. This
+ * block is the shape that handler can never produce: hydration asked by a
+ * surface holding only a post id — post detail, an article body, the response to
+ * an edit — where the only thing in hand is the post row itself.
  *
- * The distinguishing shape is the one the endpoint can never produce: hydration
- * asked with NO operated accounts, which is every other surface in the
- * application (post detail, a thread, a notification embed) because resolving
- * that set costs an Oxy round trip nothing else may pay. There the writer clause
- * is the only thing standing between a person and their OWN unpublished writing.
+ * That row used to be enough. `writtenByOxyUserId` names the human who wrote a
+ * channel post, is free to read, and the ACL admitted them on it alone. It is
+ * the wrong column for the question: it is written once at creation and never
+ * again, so it kept answering "yes" after the desk rewrote the post and after
+ * its writer left the channel. A removed member holding the id therefore kept a
+ * live read on the channel's embargoed queue.
  *
- * It also settles a real incoherence rather than adding a capability: `isOwner`
- * on the DTO already comes from `canManagePostWithoutLookup`, so before this the
- * two could disagree — the summary would have said "you own this post" about one
- * the same service refused to return.
+ * The replacement is not "refuse the writer" — that is a black hole, and it was
+ * measured as one: a channel AUTHORS its own posts, so the id comparison in the
+ * ACL answers "no" for every human alive, and with the writer clause gone and
+ * nothing put in its place, a queued story is readable by nobody. The
+ * replacement is to ASK, from `operatedAccountReader`, and the cases below pin
+ * both halves: that a current operator still reads the post, and that Oxy is not
+ * asked when the answer could not matter.
  */
 describe('the hydration ACL on an unpublished channel post', () => {
   const service = new PostHydrationService();
 
-  async function hydrateAs(viewerId: string | undefined) {
-    const post = await seedPost(scope, {
+  /** The reader an id-based surface hands over — the caller's own Oxy client. */
+  function readerFor(viewerId: string | undefined) {
+    return { listAccounts: async () => listAccounts(viewerId) as Promise<AccountNode[]> };
+  }
+
+  async function seedQueued(): Promise<Awaited<ReturnType<typeof seedPost>>> {
+    return seedPost(scope, {
       oxyUserId: CHANNEL,
       authorship: [{ oxyUserId: CHANNEL, role: 'owner', status: 'accepted' }],
       writtenByOxyUserId: WRITER,
@@ -592,25 +605,217 @@ describe('the hydration ACL on an unpublished channel post', () => {
       scheduledFor: later(60),
       content: { variants: [{ source: 'author', text: 'a queued story', tag: 'en' }] },
     });
-    // No `operatedAccountIds` — the defaults every other caller hydrates with.
-    return service.hydratePosts([post], { viewerId, maxDepth: 0 });
   }
 
-  it('lets the WRITER read their own unpublished channel post', async () => {
+  /** An id-based surface: no resolved set, but the capability to resolve one. */
+  async function hydrateAs(viewerId: string | undefined) {
+    const post = await seedQueued();
+    return service.hydratePosts([post], {
+      viewerId,
+      maxDepth: 0,
+      operatedAccountReader: readerFor(viewerId),
+    });
+  }
+
+  it('lets a current WRITER read their own unpublished channel post', async () => {
+    // THE BLACK-HOLE CONTROL. This is the case #737 broke and the reason that PR
+    // could not land as written: an id-based surface supplies no
+    // `operatedAccountIds`, so with the stored-writer clause removed and nothing
+    // resolving current authority, the person who queued the story cannot open
+    // it. Here the surface can ASK, so they can.
     expect(await hydrateAs(WRITER)).toHaveLength(1);
+    expect(listAccounts).toHaveBeenCalledWith(WRITER);
   });
 
-  it('refuses a colleague who operates the channel but did not write it', async () => {
-    // Not a permission judgement — they DO operate it. It is that this surface
-    // never asked Oxy, so it cannot know. The endpoint that does ask admits them
-    // (see the read cases above), which is what keeps affordance ⊆ permission:
-    // narrower without the answer, never wider.
-    expect(await hydrateAs(COLLEAGUE)).toHaveLength(0);
+  it('refuses a former WRITER whose channel membership was removed', async () => {
+    // THE DISCLOSURE. `writtenByOxyUserId` still names them — it is written once
+    // and never revised — but Oxy no longer does, and Oxy is now what decides.
+    // Before this, holding the post id was enough to keep reading the channel's
+    // queue, and to keep reading edits colleagues made after they left.
+    listAccounts.mockImplementation(async () => [node(WRITER, 'personal', null)]);
+
+    expect(await hydrateAs(WRITER)).toHaveLength(0);
   });
 
-  it('refuses an outsider and an anonymous reader', async () => {
+  it('lets a COLLEAGUE who operates the channel read it, though they did not write it', async () => {
+    // Widened deliberately, and it removes an incoherence rather than adding a
+    // capability: `postManagementRefusal` already lets any active member DELETE
+    // and EDIT this exact post. The question was never whether they may see it,
+    // only whether this surface could find out — and now it can.
+    expect(await hydrateAs(COLLEAGUE)).toHaveLength(1);
+  });
+
+  it('refuses an invited-but-not-accepted member, an outsider and an anonymous reader', async () => {
+    // The INVITEE is the discriminating case for the membership predicate: the
+    // channel IS in their forest, so anything that merely asked "is this account
+    // reachable" would admit them.
+    expect(await hydrateAs(INVITEE)).toHaveLength(0);
     expect(await hydrateAs(OUTSIDER)).toHaveLength(0);
     expect(await hydrateAs(undefined)).toHaveLength(0);
+    // ...and the anonymous read never even asked, since there is no viewer whose
+    // memberships could be resolved.
+    expect(listAccounts).not.toHaveBeenCalledWith(undefined);
+  });
+
+  it('refuses everyone when the surface supplies no reader at all', async () => {
+    // FAIL-CLOSED, pinned so the direction of the failure is a decision. A
+    // surface that can serve a withheld channel post and does not pass a reader
+    // refuses it to its own writer — recoverable and visible. The opposite
+    // default would serve it to someone who left.
+    const post = await seedQueued();
+
+    expect(await service.hydratePosts([post], { viewerId: WRITER, maxDepth: 0 })).toHaveLength(0);
+    expect(listAccounts).not.toHaveBeenCalled();
+  });
+
+  it('lets an explicitly supplied set win, even an empty one', async () => {
+    // `getScheduledPosts` scopes its QUERY with the list it resolved; a second,
+    // later resolution inside hydration could disagree with it. An explicit
+    // answer therefore suppresses the lazy one outright.
+    const post = await seedQueued();
+
+    const hydrated = await service.hydratePosts([post], {
+      viewerId: WRITER,
+      maxDepth: 0,
+      operatedAccountIds: [],
+      operatedAccountReader: readerFor(WRITER),
+    });
+
+    expect(hydrated).toHaveLength(0);
+    expect(listAccounts).not.toHaveBeenCalled();
+  });
+
+  /**
+   * THE COST, which is the half that decides whether this design is allowed to
+   * exist at all. Resolving current authority is an Oxy `GET /accounts`, and the
+   * reason the old code read a column instead is that this must never land on a
+   * feed. It does not: the trip is made only for a post that is WITHHELD from
+   * this viewer AND authored by an account on somebody's behalf.
+   *
+   * Each case below carries its own positive control — the same viewer, the same
+   * reader, one field different — because "Oxy was not called" is also what a
+   * hydration that silently did nothing would report.
+   */
+  describe('what does NOT cost an Oxy round trip', () => {
+    it('a PUBLISHED channel post, which is every channel post on every feed', async () => {
+      const published = await seedPost(scope, {
+        oxyUserId: CHANNEL,
+        authorship: [{ oxyUserId: CHANNEL, role: 'owner', status: 'accepted' }],
+        writtenByOxyUserId: WRITER,
+        status: 'published',
+        content: { variants: [{ source: 'author', text: 'a published story', tag: 'en' }] },
+      });
+
+      const hydrated = await service.hydratePosts([published], {
+        viewerId: COLLEAGUE,
+        maxDepth: 0,
+        operatedAccountReader: readerFor(COLLEAGUE),
+      });
+
+      expect(hydrated).toHaveLength(1);
+      expect(listAccounts).not.toHaveBeenCalled();
+
+      // POSITIVE CONTROL: the identical call over the identical fixture with the
+      // status withheld DOES ask, so the zero above is a decision and not a
+      // reader that was never wired up.
+      await service.hydratePosts([await seedQueued()], {
+        viewerId: COLLEAGUE,
+        maxDepth: 0,
+        operatedAccountReader: readerFor(COLLEAGUE),
+      });
+      expect(listAccounts).toHaveBeenCalledTimes(1);
+    });
+
+    it('an unpublished post NO account authored — an ordinary person’s own draft', async () => {
+      const draft = await seedPost(scope, {
+        oxyUserId: COLLEAGUE,
+        authorship: [{ oxyUserId: COLLEAGUE, role: 'owner', status: 'accepted' }],
+        status: 'draft',
+        content: { variants: [{ source: 'author', text: 'a private draft', tag: 'en' }] },
+      });
+
+      // Admitted for free by the id comparison, with nothing asked of Oxy.
+      expect(
+        await service.hydratePosts([draft], {
+          viewerId: COLLEAGUE,
+          maxDepth: 0,
+          operatedAccountReader: readerFor(COLLEAGUE),
+        }),
+      ).toHaveLength(1);
+      expect(listAccounts).not.toHaveBeenCalled();
+    });
+
+    it('and it asks ONCE for a whole page, not once per post', async () => {
+      const page = [await seedQueued(), await seedQueued(), await seedQueued()];
+
+      expect(
+        await service.hydratePosts(page, {
+          viewerId: COLLEAGUE,
+          maxDepth: 0,
+          operatedAccountReader: readerFor(COLLEAGUE),
+        }),
+      ).toHaveLength(3);
+      expect(listAccounts).toHaveBeenCalledTimes(1);
+    });
+  });
+});
+
+/**
+ * THE SURFACES, asserted where the reader is actually wired — the half a service
+ * test cannot see.
+ *
+ * `hydratePosts` is honest about a missing reader: it refuses. So every test in
+ * the block above passes on a controller that forgot to pass one, and the
+ * symptom in production would be a writer unable to open their own queued story.
+ * These drive the real handler.
+ */
+describe('the id-based surfaces resolve current channel authority', () => {
+  async function seedQueuedEntry(): Promise<string> {
+    return seedScheduled({ owner: CHANNEL, writtenBy: WRITER });
+  }
+
+  async function fetchPost(viewerId: string | undefined, postId: string): Promise<Captured> {
+    const { res, captured } = buildResponse();
+    await getPostById(
+      { ...buildRequest(viewerId), params: { id: postId } } as never,
+      res as never,
+    );
+    return captured;
+  }
+
+  it('GET /posts/:id serves a queued channel post to a current operator', async () => {
+    const entry = await seedQueuedEntry();
+
+    // COLLEAGUE, not WRITER: nothing on the row names them, so this can only
+    // have come from the account graph.
+    const response = await fetchPost(COLLEAGUE, entry);
+
+    expect(response.status).toBeUndefined();
+    expect((response.body as unknown as HydratedPost | undefined)?.id).toBe(entry);
+    expect(listAccounts).toHaveBeenCalledWith(COLLEAGUE);
+  });
+
+  it('GET /posts/:id refuses the stored writer once their membership is gone', async () => {
+    const entry = await seedQueuedEntry();
+    listAccounts.mockImplementation(async () => [node(WRITER, 'personal', null)]);
+
+    expect((await fetchPost(WRITER, entry)).status).toBe(404);
+  });
+
+  it('CONTROL: an ordinary published post still costs no account lookup', async () => {
+    // Without this, both cases above would pass on a handler that had started
+    // resolving the account graph for every post-detail read in the app.
+    const ordinary = await seedPost(scope, {
+      oxyUserId: OUTSIDER,
+      authorship: [{ oxyUserId: OUTSIDER, role: 'owner', status: 'accepted' }],
+      status: 'published',
+      content: { variants: [{ source: 'author', text: 'an ordinary post', tag: 'en' }] },
+    });
+
+    const response = await fetchPost(COLLEAGUE, ordinary.id);
+
+    expect((response.body as unknown as HydratedPost | undefined)?.id).toBe(ordinary.id);
+    expect(listAccounts).not.toHaveBeenCalled();
   });
 });
 
