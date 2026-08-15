@@ -597,6 +597,12 @@ export const linksSource: SourceModule = {
  * with `DISTINCT ON` over the real `(created_at DESC, id DESC)` order — which is
  * also strictly more correct for federated posts, whose import-time id bears no
  * relation to when they were written.
+ *
+ * "Earliest-arriving first" is the `ORDER BY min(created_at) DESC` below and
+ * nothing else. `min(created_at)` was ALSO selected, as a bare `sql<Date>` no
+ * caller ever read — a false assertion (the value arrives as the driver's
+ * string) sitting on a column with no consumer, so it was deleted rather than
+ * mapped. The ordering is a separate expression and is untouched.
  */
 export const newVoicesSource: SourceModule = {
   id: 'newVoices',
@@ -611,7 +617,6 @@ export const newVoicesSource: SourceModule = {
         oxyUserId: posts.oxyUserId,
         latestPostId: sql<string>`(array_agg(${posts.id} order by ${posts.createdAt} desc, ${posts.id} desc))[1]`,
         recentCount: sql<number>`count(*)::int`,
-        firstPostAt: sql<Date>`min(${posts.createdAt})`,
       })
       .from(posts)
       .where(
