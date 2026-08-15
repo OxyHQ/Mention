@@ -312,6 +312,37 @@ describe('the newVoices source', () => {
     // never the one returned, because replies are excluded from the grouping.
     expect(suiteIdsOf(gathered)).toEqual([quiet.id, root.id]);
   });
+
+  /**
+   * The ORDER is `min(created_at) DESC` — "earliest-arriving first" — and it was
+   * NOT pinned by anything until this test.
+   *
+   * Every other fixture in this describe gives its authors a single post, and
+   * for a one-post author `min(created_at)` and `max(created_at)` are the same
+   * value. Mutation-tested: rewriting the `ORDER BY` from `min` to `max`
+   * SURVIVED the rest of this file. That matters now because the selected
+   * `min(created_at)` column — an unread bare date assertion — was deleted, and
+   * the `min` left in the `ORDER BY` reads like its orphan. It is the ordering
+   * itself, and this is what says so.
+   *
+   * The discriminator is an author whose two posts straddle another author's
+   * one: `veteran` ARRIVED first (older `min`) but posted most recently (newer
+   * `max`), so the two aggregates rank the pair in opposite orders.
+   */
+  it('orders by each author\'s FIRST post, not their latest', async () => {
+    const veteranFirst = await create({ oxyUserId: 'classsrc-veteran', createdAt: at(-30_000) });
+    const veteranLatest = await create({ oxyUserId: 'classsrc-veteran', createdAt: at(0) });
+    const newcomer = await create({ oxyUserId: 'classsrc-latecomer', createdAt: at(-15_000) });
+
+    const gathered = await newVoicesSource.gather({}, {}, WIDE_CAP);
+
+    // `min DESC`: latecomer (-15s) before veteran (-30s). Under `max DESC` the
+    // veteran's 0s would come first, which is the mutation this refuses.
+    // Each author contributes their LATEST post, so the veteran's row is
+    // `veteranLatest` and never `veteranFirst`.
+    expect(suiteIdsOf(gathered)).toEqual([newcomer.id, veteranLatest.id]);
+    expect(suiteIdsOf(gathered)).not.toContain(veteranFirst.id);
+  });
 });
 
 describe('the topReplies source', () => {

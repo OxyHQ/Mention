@@ -136,6 +136,39 @@ describe('aggregateAuthors — the numbers come back as NUMBERS', () => {
     expect(row.lastPostMs).toBe(newer.getTime());
   });
 
+  /**
+   * The DATE half of the same trap, and it needs its own test because the two
+   * fail in opposite ways.
+   *
+   * `sum()` returning a string is silent: `Math.log1p('45')` scores an author 0
+   * and nothing complains. `max(created_at)` returning a string was silent too,
+   * but only because the consumer laundered it — `new Date(r.lastPost)` parses
+   * the driver's `'2026-08-15 17:01:48.833+00'` correctly in V8, so the VALUE
+   * was right and no assertion on it could ever have distinguished the two.
+   *
+   * `.mapWith(posts.createdAt)` made it a real `Date`, and the consumer now
+   * calls `.getTime()` on it directly. That is what turns the property into
+   * something a test can see: delete the `.mapWith` and this throws
+   * `r.lastPost.getTime is not a function` — the same shape of 500 that the
+   * channel-writers route once shipped — where before it would have passed.
+   * `tsc` cannot catch that mutation; the declared type is `Date` either way.
+   *
+   * Mutation-tested by removing the `.mapWith` and confirming this test, and
+   * only this family of tests, goes red.
+   */
+  it('hands the consumer a real Date, not the driver string that parses like one', async () => {
+    const author = authorId('date-shape');
+    const at = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    await seedPost(author, { createdAt: at });
+
+    const [row] = await aggregateMine();
+
+    // Exact, not approximate: a string that reparsed to a DIFFERENT instant
+    // would be a second, quieter bug this also refuses.
+    expect(row.lastPostMs).toBe(at.getTime());
+    expect(new Date(row.lastPostMs).toISOString()).toBe(at.toISOString());
+  });
+
   it('excludes boosts, drafts, private posts, and posts outside the 30-day window', async () => {
     const counted = authorId('counted');
     const boostOnly = authorId('boost-only');

@@ -868,9 +868,17 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
  * {@link insertChildRows}, and `replacePostAuthorship` only ever runs against a
  * post that already exists. A subquery on the primary key costs a single index
  * lookup per statement.
+ *
+ * Returns a bare `SQL`, deliberately NOT `SQL<Date>`. A type argument on a raw
+ * expression describes how the value DECODES, and this one is never decoded —
+ * it goes out in an `INSERT` and never comes back. Annotating it `Date` would be
+ * the same unfalsifiable assertion the SELECT-side sites carried, differing only
+ * in that nothing here could ever contradict it; `src/__tests__/db/bareSqlDate.test.ts`
+ * refuses the annotation everywhere rather than maintaining a list of the
+ * positions where it happens to be harmless.
  */
-function postCreatedAtSql(postId: string): SQL<Date> {
-  return sql<Date>`(select ${posts.createdAt} from ${posts} where ${posts.id} = ${postId})`;
+function postCreatedAtSql(postId: string): SQL {
+  return sql`(select ${posts.createdAt} from ${posts} where ${posts.id} = ${postId})`;
 }
 
 /**
