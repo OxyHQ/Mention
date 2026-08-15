@@ -603,6 +603,13 @@ export const linksSource: SourceModule = {
  * caller ever read — a false assertion (the value arrives as the driver's
  * string) sitting on a column with no consumer, so it was deleted rather than
  * mapped. The ordering is a separate expression and is untouched.
+ *
+ * A `recentCount` (`count(*)::int`) went the same way, for the weaker reason:
+ * its annotation was TRUE, so it was dead code rather than a lie. The `HAVING`
+ * clause below is what the count is FOR, and that is untouched — the projection
+ * was the only part nothing read. `oxy_user_id` is likewise unread by the
+ * caller, and stays: it is the `GROUP BY` key, and a select list that names it
+ * is what makes the grouping legible at the call site.
  */
 export const newVoicesSource: SourceModule = {
   id: 'newVoices',
@@ -616,7 +623,6 @@ export const newVoicesSource: SourceModule = {
       .select({
         oxyUserId: posts.oxyUserId,
         latestPostId: sql<string>`(array_agg(${posts.id} order by ${posts.createdAt} desc, ${posts.id} desc))[1]`,
-        recentCount: sql<number>`count(*)::int`,
       })
       .from(posts)
       .where(
