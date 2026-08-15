@@ -151,7 +151,6 @@ interface RawPost {
   lastCorrectedAt?: unknown;
   hashtags?: string[];
   mentions?: unknown[];
-  tags?: string[];
   visibility?: string;
   status?: string;
   scheduledFor?: unknown;
@@ -2628,8 +2627,7 @@ export class PostHydrationService {
       isThread: Boolean(post.threadId),
       language: post.language || undefined,
       languages: post.postClassification?.languages ?? undefined,
-      // Only include tags/hashtags if needed (can be large arrays)
-      tags: includeFullMetadata && Array.isArray(post.tags) && post.tags.length > 0 ? post.tags : undefined,
+      // Only include mentions/hashtags if needed (can be large arrays)
       mentions: includeFullMetadata && Array.isArray(post.mentions) && post.mentions.length > 0 ? post.mentions.filter((m): m is string => typeof m === 'string') : undefined,
       hashtags: includeFullMetadata && Array.isArray(post.hashtags) && post.hashtags.length > 0 ? post.hashtags : undefined,
       createdAt: new Date((post.createdAt || post.date || Date.now()) as string | number | Date).toISOString(),

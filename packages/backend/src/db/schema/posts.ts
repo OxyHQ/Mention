@@ -195,13 +195,20 @@ export const posts = pgTable(
      */
     curated: boolean(),
 
-    /** Free-form author tags (distinct from `hashtags`). Scalar set → `text[]`. */
-    tags: text().array(),
     /**
-     * Canonical hashtags: lowercase, `#`-stripped, deduped, first-seen order
-     * preserved. Multikey in Mongo; a `text[]` with a GIN index answers the same
-     * `$in` predicate natively.
+     * Free-form author tags. NOTHING has ever written this column, in any store,
+     * at any point in its life — measured, with a `hashtags` positive control on
+     * every census. It is no longer read: `PostRecord`, the repository mapping,
+     * the DTO and `@mention/shared-types` all dropped it.
+     *
+     * The DECLARATION stays only because `drizzle-kit generate` would otherwise
+     * emit `DROP COLUMN "tags"`, and that must not land yet: migrations run as a
+     * one-shot BEFORE the rolling update, so the previous image — whose
+     * `select()` still names the column — would answer `42703` on every post
+     * read for the length of the rollout. Drop it in a LATER release, once no
+     * running image selects it.
      */
+    tags: text().array(),
     hashtags: text().array(),
     /** Prior body revisions, oldest first. Opaque strings. */
     editHistory: text().array(),
