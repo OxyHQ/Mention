@@ -568,9 +568,10 @@ export const authoredSource: SourceModule = {
  *     lane its owner took down.
  *
  * The query is `lane_id = …` plus the publisher's scope, deliberately NOT
- * `authorFeedSql`: that correlated `EXISTS` over `post_authorships` would pull
- * the planner onto `post_author_chrono_v1` instead of `post_lane_chrono_v1`, and
- * the literal `lane_id` term is also what lets the PARTIAL index be used at all.
+ * `authorFeedSql`: that correlated `EXISTS` over `post_authorships` leaves the
+ * statement with no literal `lane_id` term, and `post_lane_chrono_v1` is a
+ * PARTIAL index (`where lane_id is not null`) — so without that term it cannot
+ * be used at all, whatever the planner reaches for instead.
  * The scope is `oxy_user_id` — ONE term, because a publisher is always an Oxy
  * account now — and a lane's posts and its publisher's posts are the same set by
  * construction (`assertLaneAssignable` refuses any other pairing), so the scope
