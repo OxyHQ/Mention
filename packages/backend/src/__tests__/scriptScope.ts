@@ -109,6 +109,11 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     scope: 'whole-table',
     reason: 'Every federated post with a null quote_of whose body renders as `RE: <url>`.',
   },
+  backfillPostHasLinks: {
+    scope: 'whole-table',
+    reason:
+      'Every post whose has_links column disagrees with its own renditions, in both directions.',
+  },
   backfillPostLanguages: {
     scope: 'whole-table',
     reason: 'Its own docblock: "takes no scope — by design, it is a one-shot over" the table.',

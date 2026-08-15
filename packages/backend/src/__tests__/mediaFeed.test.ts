@@ -149,10 +149,9 @@ describe('each arm of the "carries media" disjunction', () => {
     // feed with text posts that render as a blank tile.
     await create({
       content: {
-        variants: [{ source: 'author', text: 'links' }],
+        variants: [{ source: 'author', text: 'links https://example.test' }],
         attachments: [{ type: 'sources' }],
       },
-      hasLinks: true,
     });
     await create({
       content: { variants: [{ source: 'author', text: 'a poll' }], attachments: [{ type: 'poll' }] },

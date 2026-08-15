@@ -153,6 +153,7 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
     call: /\bbackfillFederatedHandleQualification\s*\(/,
   },
   { name: 'backfillQuotedPosts', call: /\bbackfillQuotedPosts\s*\(/ },
+  { name: 'backfillPostHasLinks', call: /\bbackfillPostHasLinks\s*\(/ },
   { name: 'backfillPostLanguages', call: /\bbackfillPostLanguages\s*\(/ },
   { name: 'backfillCustomFeedDefinitions', call: /\bbackfillCustomFeedDefinitions\s*\(/ },
 ];

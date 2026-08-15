@@ -37,7 +37,6 @@ import {
   buildFederatedNoteVariants,
 } from './apPostContent';
 import { normalizeMentionIds } from '../../utils/textProcessing';
-import { postTextHasHttpLink } from '../../utils/postSearchMetadata';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { enrichIngestedPosts } from '../../services/postEnrichment';
 import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
@@ -912,7 +911,6 @@ export class OutboxSyncService {
             media: media.length > 0 ? media : undefined,
             attachments: attachments.length > 0 ? attachments : undefined,
           },
-          hasLinks: postTextHasHttpLink(variants),
           visibility,
           hashtags,
           // Resolved @mention Oxy user ids (federated + local) — the SAME allowlist

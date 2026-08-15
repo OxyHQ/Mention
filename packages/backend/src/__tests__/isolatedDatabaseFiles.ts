@@ -276,6 +276,16 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'UPDATEs `quote_of` on it. Its suite mocks `signedFetch` to answer with a quote for ANY ' +
       'candidate, so a foreign row entering the scan is linked to this file\'s fixture.',
   },
+  {
+    path: 'src/__tests__/scripts/backfillPostHasLinksRows.test.ts',
+    jobEntryPoint: 'backfillPostHasLinks',
+    reason:
+      'Sweeps every post in the table whose `has_links` column disagrees with its stored ' +
+      'renditions and rewrites the column on each — it takes no scope, because a repair that ' +
+      'only fixed the caller\'s rows would repair nothing in production. Its suite runs it with ' +
+      '`dryRun: false`, and the rows it would eat are the deliberately-disagreeing ones ' +
+      '`routes/searchPosts.test.ts` seeds to prove `has:links` reads the column, not the body.',
+  },
 
   /*
    * ── THE TWO THE SECOND SCAN ALSO MISSED ─────────────────────────────────────

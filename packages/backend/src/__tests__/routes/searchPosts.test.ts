@@ -164,6 +164,22 @@ async function setCounters(
     .where(eq(posts.id, postId));
 }
 
+/**
+ * Set a post's `has_links` column directly, to a value its body disagrees with.
+ *
+ * The whole point of the column is that `has:links` does not scan bodies, and
+ * the only way to SHOW that is a row where the two disagree — which the write
+ * path can no longer produce, because `toPostInsert` and `replacePostContent`
+ * derive the column from the renditions and `PostRecordInput` has no field for
+ * it. So the disagreement is written here, in SQL, deliberately.
+ *
+ * That the derivation itself is right is a different claim, pinned by
+ * `db/postHasLinksDerivation.test.ts`.
+ */
+async function setHasLinks(postId: string, hasLinks: boolean): Promise<void> {
+  await getDb().update(posts).set({ hasLinks }).where(eq(posts.id, postId));
+}
+
 const mutedUserIds: string[] = [];
 const settingsUserIds: string[] = [];
 
@@ -587,10 +603,20 @@ describe('GET /search — operators', () => {
   });
 
   it('selects has:links from the stored flag rather than scanning the body', async () => {
-    const linked = await seedPost(scope, { content: body('see https://example.test'), hasLinks: true });
+    const linked = await seedPost(scope, { content: body('see https://example.test') });
     await seedPost(scope, { content: body('no link here') });
 
     expect(await idsFor({ query: `${TERM} has:links` })).toEqual([linked.id]);
+
+    // The column, not the text. Both rows now lie about their own bodies, and
+    // the filter follows the column both ways — which is the property that makes
+    // `has:links` an index lookup instead of an unanchored regex over every
+    // localized rendition.
+    const unlinked = await seedPost(scope, { content: body('also no link here') });
+    await setHasLinks(linked.id, false);
+    await setHasLinks(unlinked.id, true);
+
+    expect(await idsFor({ query: `${TERM} has:links` })).toEqual([unlinked.id]);
   });
 
   it('applies min_likes and min_boosts against the stored counters', async () => {
@@ -625,8 +651,7 @@ describe('GET /search — operators', () => {
     const post = await seedPost(scope, {
       oxyUserId: VIEWER,
       authorship: [{ oxyUserId: VIEWER, role: 'owner', status: 'accepted' }],
-      content: body('rust release'),
-      hasLinks: true,
+      content: body('rust release https://example.test/rust'),
     });
     await setCounters(post.id, { likes: 7 });
 
