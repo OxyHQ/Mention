@@ -22,7 +22,7 @@
         "@oxyhq/crowdsource-contracts": "0.3.0",
         "@oxyhq/crowdsource-express": "0.3.0",
         "@oxyhq/db": "^0.1.2",
-        "@oxyhq/federation": "^0.15.0",
+        "@oxyhq/federation": "^0.16.1",
         "@oxyhq/protocol": "^0.2.0",
         "@socket.io/redis-adapter": "^8.3.0",
         "@syra.fm/sdk": "catalog:",
@@ -849,7 +849,7 @@
 
     "@oxyhq/db": ["@oxyhq/db@0.1.2", "", { "peerDependencies": { "drizzle-orm": "^0.45.2", "postgres": "^3.4.9" } }, "sha512-a7T8oMYgQJvIRzf4KRTljHShFcPTR42ZN1yRwv07P1FekqERDoNtTEbppUExamTuzjm5IWUZ0c3enW+YQCxddg=="],
 
-    "@oxyhq/federation": ["@oxyhq/federation@0.15.0", "", { "dependencies": { "@oxyhq/contracts": "^0.25.0", "@oxyhq/core": "^20.0.0" }, "peerDependencies": { "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["express"] }, "sha512-jt+tByrEC+Cj3zdPiTAaWzbzNHwWJfg5ekJbO7BmLm2hiiGyQ/a6AUnqGIl7Ah0ZuDlUssaIjAjz/gfF8GuZNA=="],
+    "@oxyhq/federation": ["@oxyhq/federation@0.16.1", "", { "dependencies": { "@oxyhq/contracts": ">=0.25.0 <0.28.0", "@oxyhq/core": "^20.1.0 || ^21.0.0" }, "peerDependencies": { "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["express"] }, "sha512-EeAHFp7iPxg9rN2/os7+wnaZw/gh7knwD+39YpVCTvN7q/gHOU0RJ/jmh3EcP9uIWhrXCgm+9C1WMnkZKoAvsw=="],
 
     "@oxyhq/protocol": ["@oxyhq/protocol@0.2.0", "", { "dependencies": { "@oxyhq/contracts": "^0.25.0", "elliptic": "^6.6.1", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "*", "expo-crypto": "*", "expo-modules-core": "*", "expo-secure-store": "*", "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-RRevLBL7LDvSpbaHSkojBHm053JdY5wBVrQCUYvw4N+8kV/lzVax6KXYhQaVBItkBfrwJrhCqNkWgMu9O4yWSQ=="],
 
