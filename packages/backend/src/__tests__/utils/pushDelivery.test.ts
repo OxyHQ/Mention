@@ -22,12 +22,18 @@ const mocks = vi.hoisted(() => ({
   getUserById: vi.fn(),
 }));
 
-vi.mock('firebase-admin', () => ({
-  default: {
-    initializeApp: mocks.initializeApp,
-    credential: { cert: vi.fn() },
-    messaging: () => ({ sendEachForMulticast: mocks.sendEachForMulticast }),
-  },
+// firebase-admin 14 dropped the `admin.*` namespace, so the stub follows the
+// two modular subpaths the module under test imports. Mocking the old default
+// export still "works" — vitest resolves it and nothing errors — while the real
+// import is left untouched and every send goes nowhere, which reads as a
+// delivery bug rather than a stale mock.
+vi.mock('firebase-admin/app', () => ({
+  initializeApp: mocks.initializeApp,
+  cert: vi.fn(),
+}));
+
+vi.mock('firebase-admin/messaging', () => ({
+  getMessaging: () => ({ sendEachForMulticast: mocks.sendEachForMulticast }),
 }));
 
 vi.mock('../../config', async (importOriginal) => ({
