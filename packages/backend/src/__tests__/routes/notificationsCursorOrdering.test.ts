@@ -63,7 +63,7 @@ vi.mock('../../services/viewerFollowGraph', () => ({
 }));
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import { uuidv7 } from '../../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { notifications } from '../../db/schema/discovery';
 import notificationsRouter, { NOTIFICATION_PAGE_ORDER } from '../../routes/notifications';
 

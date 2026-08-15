@@ -72,7 +72,7 @@ const mentionIds = (count: number): string[] =>
  * The recipient ids that actually have a row, SORTED — the set, not a sequence.
  *
  * This used to order by `id` and call the result insertion order, on the grounds
- * that uuid v7 is monotonic. It is NOT: `uuidv7()` (`db/schema/columns.ts`) is 48
+ * that uuid v7 is monotonic. It is NOT: `uuidv7()` (`@oxyhq/db`) is 48
  * bits of `Date.now()` followed by `randomFillSync`, with none of RFC 9562's
  * optional monotonic counter, so two rows sharing a millisecond order on their
  * random tail — measured at a ~50/50 split, the same coin flip

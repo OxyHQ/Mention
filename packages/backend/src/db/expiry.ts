@@ -1,9 +1,14 @@
 /**
- * Expiry Sweep — the replacement for Mongo TTL indexes
+ * Expiry Sweep registry — the replacement for Mongo TTL indexes
  *
  * Postgres has no TTL index. Several Mention collections relied on one before
- * the port, so the mechanism is defined ONCE here and every table that needs it
- * adds a registry entry rather than growing its own cleanup path.
+ * the port, so every table that needs it adds an entry here rather than growing
+ * its own cleanup path. The registry stays here because it names THIS schema's
+ * own tables; the mechanism that sweeps it (`sweepExpiredRows`,
+ * `sweepAllExpiredRows`, `ExpirySweepTarget`) lives in `@oxyhq/db/expiry` — see
+ * that module's doc comment for the full shape and for why a TTL index is a
+ * behaviour of the SOURCE that does not survive a Mongo-to-Postgres port on its
+ * own.
  *
  * ## THE RULE, because it is the quietest failure in this file's subject
  *
@@ -69,15 +74,13 @@
  *
  * ## Scheduling
  *
- * `sweepExpiredRows` is the mechanism; wiring it to a schedule belongs with the
- * call-site port, alongside the leader-gated jobs already in
- * `services/FeedJobScheduler.ts`. Until then it is callable and tested, and
- * nothing reads a swept table yet.
+ * `@oxyhq/db/expiry`'s `sweepExpiredRows` is the mechanism; wiring it to a
+ * schedule belongs with the call-site port, alongside the leader-gated jobs
+ * already in `services/FeedJobScheduler.ts`. Until then it is callable and
+ * tested, and nothing reads a swept table yet.
  */
 
-import { getTableName, sql, type SQL } from 'drizzle-orm';
-import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
-import type { Database } from './postgres';
+import type { ExpirySweepTarget } from '@oxyhq/db/expiry';
 import {
   AUTHOR_FOLLOWER_SNAPSHOT_RETENTION_SECONDS,
   NOTIFICATION_RETENTION_SECONDS,
@@ -98,30 +101,6 @@ import { MCP_AUTH_CODE_RETENTION_SECONDS, mcpAuthCodes } from './schema/mcp';
 // deadline). Importing them here would imply a second, independent window.
 import { moderationEvents, moderationOutbox } from './schema/moderation';
 import { engagementOutbox } from './schema/outbox';
-
-/**
- * Rows deleted per statement. Bounded so a large backlog cannot hold one long
- * transaction open — Mongo's TTL monitor deleted incrementally for the same
- * reason.
- */
-const DEFAULT_BATCH_SIZE = 1000;
-
-/**
- * Ceiling on batches per table per call, so one enormous table cannot starve the
- * others in the registry. The remainder is picked up on the next run.
- */
-const DEFAULT_MAX_BATCHES = 50;
-
-/** One table's expiry rule — the direct analogue of a Mongo TTL index. */
-export interface ExpirySweepTarget {
-  readonly table: PgTable;
-  /** The date column the retention is measured from. Must be indexed. */
-  readonly column: PgColumn;
-  /** Seconds a row may survive past `column` before it is deleted. */
-  readonly retentionSeconds: number;
-  /** What deleting the row costs, in one line. */
-  readonly reason: string;
-}
 
 /**
  * Every table that had a Mongo TTL index. A table with an expiry column but no
@@ -240,80 +219,3 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'data loss. Sweep every other table; leave this one unscheduled.',
   },
 ];
-
-/** Outcome of one sweep, for the caller to log or assert on. */
-export interface ExpirySweepResult {
-  readonly table: string;
-  readonly deleted: number;
-  /** True when the batch ceiling was hit and rows remain for the next run. */
-  readonly truncated: boolean;
-}
-
-export interface ExpirySweepOptions {
-  readonly batchSize?: number;
-  readonly maxBatches?: number;
-}
-
-/**
- * `column <= now() - retentionSeconds`.
- *
- * The column is interpolated as a drizzle Column, not as
- * `sql.identifier(column.name)`: `column.name` is the TypeScript property name
- * (`expiresAt`), and only drizzle's own renderer applies the configured casing
- * to reach `expires_at` — see `db/casing.ts`.
- */
-function expiredPredicate(target: ExpirySweepTarget): SQL {
-  return sql`${target.column} <= now() - make_interval(secs => ${target.retentionSeconds})`;
-}
-
-/**
- * Delete every expired row from one target, in bounded batches.
- *
- * Batching goes through `ctid` (Postgres's physical row address) because
- * `DELETE ... LIMIT` is not valid SQL: the inner select takes the limit, the
- * outer delete removes exactly those rows.
- */
-export async function sweepExpiredRows(
-  db: Database,
-  target: ExpirySweepTarget,
-  options: ExpirySweepOptions = {}
-): Promise<ExpirySweepResult> {
-  const batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE;
-  const maxBatches = options.maxBatches ?? DEFAULT_MAX_BATCHES;
-  const table = sql.identifier(getTableName(target.table));
-  const expired = expiredPredicate(target);
-
-  let deleted = 0;
-  for (let batch = 0; batch < maxBatches; batch += 1) {
-    const rows = await db.execute<{ ctid: string }>(sql`
-      delete from ${table}
-      where ctid in (
-        select ctid from ${table} where ${expired} limit ${batchSize}
-      )
-      returning ctid
-    `);
-
-    deleted += rows.length;
-    if (rows.length < batchSize) {
-      return { table: getTableName(target.table), deleted, truncated: false };
-    }
-  }
-
-  return { table: getTableName(target.table), deleted, truncated: true };
-}
-
-/**
- * Sweep every registered target. Runs them in sequence rather than in parallel:
- * this is background maintenance and should not contend with request traffic for
- * the connection pool.
- */
-export async function sweepAllExpiredRows(
-  db: Database,
-  options: ExpirySweepOptions = {}
-): Promise<ExpirySweepResult[]> {
-  const results: ExpirySweepResult[] = [];
-  for (const target of EXPIRY_SWEEP_TARGETS) {
-    results.push(await sweepExpiredRows(db, target, options));
-  }
-  return results;
-}

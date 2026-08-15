@@ -27,7 +27,7 @@
  * ## The window is `created_at`; the cursor is NOT
  *
  * Paging is a keyset over `id`, which is `text` holding an ObjectId hex for a
- * pre-cutover row and a uuid v7 after it (`db/ids.ts`) — a total order, but NOT
+ * pre-cutover row and a uuid v7 after it (`@oxyhq/db`) — a total order, but NOT
  * a chronological one, so it cannot stand in for the window. The
  * `created_at >= since` term is therefore carried in the filter on every page
  * rather than expressed as a cursor bound, which is what keeps a backfilled

@@ -53,7 +53,7 @@ describe('collaborative posts integration', () => {
    * that the helper returned the shape someone typed into the test. The
    * predicate is now a correlated `EXISTS` over `post_authorships` — the exact
    * construct that renders a bare column name and silently matches NOTHING (see
-   * `db/casing.ts`). An empty author feed is indistinguishable from "this person
+   * `@oxyhq/db`). An empty author feed is indistinguishable from "this person
    * has not posted", so shape assertions cannot guard it and row assertions can.
    *
    * Two guarantees in one case, because they fail in opposite directions: an

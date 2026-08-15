@@ -122,7 +122,7 @@ vi.mock('../../utils/push', () => ({
 }));
 
 import { closePostgres, connectPostgres, getDb, type Database } from '../../db/postgres';
-import { uuidv7 } from '../../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { notifications } from '../../db/schema/discovery';
 import { muteWords } from '../../db/schema/engagement';
 import type { PostRecordInput } from '../../db/posts/postRecord';

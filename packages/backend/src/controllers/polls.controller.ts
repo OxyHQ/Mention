@@ -1,8 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { eq } from 'drizzle-orm';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import { isLiveEntityId } from '../db/ids';
-import { isCheckViolation, isForeignKeyViolation } from '../db/pgErrors';
+import { isCheckViolation, isForeignKeyViolation, isLiveEntityId } from '@oxyhq/db';
 import { getDb } from '../db/postgres';
 import { pollOptions, polls } from '../db/schema/polls';
 import { posts } from '../db/schema/posts';
@@ -278,7 +277,7 @@ class PollsController {
       const id = req.params.id as string;
 
       // A 400 for a malformed poll id is a documented contract of these routes
-      // (`db/ids.ts` names them), so the guard is WIDENED to both live id shapes
+      // (`@oxyhq/db` names them), so the guard is WIDENED to both live id shapes
       // rather than deleted. It rejects; it never decides what to query.
       if (!id || !isLiveEntityId(id)) {
         return res.status(400).json({

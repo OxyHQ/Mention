@@ -161,7 +161,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       // client reads, and dropping it would be a fail-open change of the wire
       // contract: every column in the keyset is comparable against nonsense, so
       // a malformed token would silently serve an arbitrary page instead of the
-      // 400 it used to. The codec accepts both live id shapes (`db/ids.ts`), so
+      // 400 it used to. The codec accepts both live id shapes (`@oxyhq/db`), so
       // no cursor this server minted is ever refused.
       return res.status(400).json({
         message: "Invalid cursor format",

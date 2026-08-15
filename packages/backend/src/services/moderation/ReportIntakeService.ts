@@ -1,6 +1,6 @@
 import { REPORTED_TYPES } from '../../db/schema/moderation';
 import { getDb } from '../../db/postgres';
-import { isUniqueViolation } from '../../db/pgErrors';
+import { isUniqueViolation } from '@oxyhq/db';
 import {
   findDuplicateReport,
   insertReport,

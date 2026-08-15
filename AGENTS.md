@@ -132,9 +132,10 @@ NODE_ENV=production ./gradlew :app:assembleRelease \
 
 **Schema changes go through `drizzle/` and `src/db/migrate.ts`, and nothing else.**
 The deploy applies them as its FIRST one-shot, before `update-service`, and
-`assertPostgresMigrationsCurrent` (`src/db/migrationLedger.ts`) refuses to let a
-task become ready if that step did not run — two halves, neither replacing the
-other: one applies, the other survives somebody bypassing it.
+`assertPostgresMigrationsCurrent` (`src/db/migrationsFolder.ts`, delegating to
+`@oxyhq/db/migrate`) refuses to let a task become ready if that step did not
+run — two halves, neither replacing the other: one applies, the other survives
+somebody bypassing it.
 
 **The Mongo migration mechanism is gone** — the whole `src/migrations` tree (its
 runner, its ledger-guarded task and its 26 migrations), the top-level migrate

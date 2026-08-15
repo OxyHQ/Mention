@@ -52,7 +52,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq, inArray, sql } from 'drizzle-orm';
 
-import { isForeignKeyViolation } from '../../db/pgErrors';
+import { isForeignKeyViolation } from '@oxyhq/db';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { bookmarks } from '../../db/schema/engagement';
 import { postRecentRepliers } from '../../db/schema/postContent';

@@ -23,7 +23,7 @@
  * shapes does not matter for a tiebreak, because the ORDER BY and the keyset
  * comparison use the same comparison and therefore agree.
  *
- * ## Why the id shape comes from `db/ids.ts`
+ * ## Why the id shape comes from `@oxyhq/db`
  *
  * This used to carry its own `/^[a-f0-9]{24}$/` — an ObjectId check, written
  * when every `_id` was one. Primary keys are `text` now, holding a 24-char
@@ -49,7 +49,7 @@
  * widened to "any non-empty string".
  */
 
-import { isLiveEntityId } from '../db/ids';
+import { isLiveEntityId } from '@oxyhq/db';
 
 const CHRONO_CURSOR_VERSION = 1;
 const CHRONO_CURSOR_PREFIX = `v${CHRONO_CURSOR_VERSION}.`;

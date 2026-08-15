@@ -20,7 +20,7 @@ import { randomUUID } from 'node:crypto';
 import { eq, inArray, sql } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, type Database } from '../db/postgres';
-import { isCheckViolation } from '../db/pgErrors';
+import { isCheckViolation } from '@oxyhq/db';
 import { customFeedDefinitionModules, customFeeds } from '../db/schema/feeds';
 
 let db: Database;

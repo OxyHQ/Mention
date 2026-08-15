@@ -9,7 +9,7 @@
 
 import { sql } from 'drizzle-orm';
 import { index, pgTable, text } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, updatedAt } from './columns';
+import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
 import { posts } from './posts';
 
 /** `Article.title` ceiling, from the Mongoose `maxlength`. */

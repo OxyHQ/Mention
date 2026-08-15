@@ -1,9 +1,9 @@
 import { PostVisibility } from '@mention/shared-types';
 import { normalizeMultilineText } from '@oxyhq/core';
+import { isUniqueViolation } from '@oxyhq/db';
 import { logger } from '../../utils/logger';
 import { inArray } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
-import { isUniqueViolation } from '../../db/pgErrors';
 import { posts } from '../../db/schema/posts';
 import { findActorByUri } from '../../db/federation/actorRepository';
 import { normalizeAlt } from '../../services/MediaMetadataService';

@@ -31,12 +31,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import {
-  MIGRATIONS_SCHEMA,
-  MIGRATIONS_TABLE,
-  readJournal,
-  type JournalEntry,
-} from '../../db/migrationLedger';
+import { MIGRATIONS_SCHEMA, MIGRATIONS_TABLE, type JournalEntry } from '@oxyhq/db/migrate';
+import { readJournal } from '../../db/migrationsFolder';
 
 /** The tables `0016` created and `0024` removes. */
 const DROPPED_TABLES = [

@@ -104,7 +104,7 @@ import {
 import type { StoredPostContent } from '@mention/shared-types';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { getDb, type DatabaseOrTransaction } from '../../db/postgres';
-import { isUniqueViolation } from '../../db/pgErrors';
+import { isUniqueViolation } from '@oxyhq/db';
 import { posts } from '../../db/schema/posts';
 import type { PostRecord, PostRecordClassification } from '../../db/posts/postRecord';
 import {

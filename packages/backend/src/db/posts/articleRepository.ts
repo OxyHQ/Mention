@@ -26,7 +26,7 @@
 import { eq, inArray } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import { articles, ARTICLE_TITLE_MAX_LENGTH } from '../schema/articles';
-import { uuidv7 } from '../schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 
 /** One stored article. Absent optionals are `undefined`, never `null`. */
 export interface ArticleRecord {

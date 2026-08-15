@@ -32,7 +32,7 @@ import { inArray } from 'drizzle-orm';
 
 import { getArticle } from '../../controllers/articles.controller';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import { uuidv7 } from '../../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { articles } from '../../db/schema/articles';
 import { posts } from '../../db/schema/posts';
 

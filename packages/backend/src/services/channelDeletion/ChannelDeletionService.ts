@@ -91,7 +91,7 @@ import { PostVisibility } from '@mention/shared-types';
 import { CHANNEL_CASCADE, type CascadeStep } from './channelCascadeManifest';
 
 import { getDb } from '../../db/postgres';
-import { qualified } from '../../db/casing';
+import { qualified } from '@oxyhq/db';
 import { posts } from '../../db/schema/posts';
 import { postAuthorships, postMentions, postRecentRepliers } from '../../db/schema/postContent';
 import { articles } from '../../db/schema/articles';

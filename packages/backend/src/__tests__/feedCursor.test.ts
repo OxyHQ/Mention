@@ -34,7 +34,7 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 
 import { closePostgres, connectPostgres, type Database } from '../db/postgres';
 import { posts } from '../db/schema';
-import { uuidv7 } from '../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { insertPostRecord } from '../db/posts/postRepository';
 import type { PostRecord, PostRecordInput } from '../db/posts/postRecord';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../mtn/feed/CursorBuilder';
@@ -117,7 +117,7 @@ describe('the cursor token', () => {
   it('refuses a token that is not one of the two live id shapes', async () => {
     // A malformed token must RESET to page one, never become a keyset bound —
     // which is the whole reason the check survives here while it was deleted
-    // from the query paths (`db/ids.ts`).
+    // from the query paths (`@oxyhq/db`).
     expect(ChronoCursor.parse('not-an-id')).toBeUndefined();
     expect(ChronoCursor.parse('1704067200000:not-an-id')).toBeUndefined();
     // Nothing in this schema mints a v4, so a v4 is a client error rather than

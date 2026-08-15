@@ -32,7 +32,7 @@ import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import { sqlStateOf } from '../../db/pgErrors';
+import { sqlStateOf } from '@oxyhq/db';
 import { bookmarks, likes } from '../../db/schema/engagement';
 import { engagementOutbox } from '../../db/schema/outbox';
 import { posts } from '../../db/schema/posts';

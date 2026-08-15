@@ -4,7 +4,7 @@ import { decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
 /**
  * The id half of this token accepts exactly the two shapes `posts.id` holds —
  * a 24-char ObjectId hex for pre-cutover rows, a uuid v7 for everything after —
- * because that is what `db/ids.ts` says the database can mint.
+ * because that is what `@oxyhq/db` says the database can mint.
  *
  * Both directions are pinned below and both are load-bearing. Narrower than the
  * live shapes (the ObjectId-only pattern this used to carry) is a 500 on every

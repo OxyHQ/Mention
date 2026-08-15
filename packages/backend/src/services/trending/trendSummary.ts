@@ -29,7 +29,7 @@ import { MtnConfig } from '@mention/shared-types';
 import { createHash } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
-import { isUniqueViolation } from '../../db/pgErrors';
+import { isUniqueViolation } from '@oxyhq/db';
 import { trendSummaries } from '../../db/schema/discovery';
 import { aliaChat, isAliaEnabled } from '../../utils/alia';
 import { logger } from '../../utils/logger';

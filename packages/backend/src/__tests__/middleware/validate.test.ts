@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
 import { randomBytes } from 'node:crypto';
-import { uuidv7 } from '../../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { validateBody, validateObjectId, schemas } from '../../middleware/validate';
 import { ErrorCodes } from '../../utils/apiResponse';
 
