@@ -32,7 +32,11 @@ import {
 import { parentIsChannelPost } from '../../utils/channelReplyGate';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
-import { buildFederatedNoteContent, buildFederatedNoteVariants } from './apPostContent';
+import {
+  buildFederatedNoteContent,
+  buildFederatedNoteProvenance,
+  buildFederatedNoteVariants,
+} from './apPostContent';
 import { normalizeMentionIds } from '../../utils/textProcessing';
 import { postTextHasHttpLink } from '../../utils/postSearchMetadata';
 import { getPostCreator } from '../../services/serviceRegistry';
@@ -890,14 +894,14 @@ export class OutboxSyncService {
           id: uuidv7(),
           oxyUserId: resolvedOxyUserId,
           authorship: buildAuthorship(resolvedOxyUserId, []),
-          federation: {
+          federation: buildFederatedNoteProvenance({
             activityId,
             actorUri,
             inReplyTo: inReplyToUri,
-            url: typeof note.url === 'string' ? note.url : activityId,
+            noteUrl: note.url,
             sensitive,
             spoilerText: summary,
-          },
+          }),
           type: media.length > 0
             ? (media.some((m) => m.type === 'video') ? PostType.VIDEO : PostType.IMAGE)
             : PostType.TEXT,
@@ -1594,13 +1598,14 @@ export class OutboxSyncService {
     try {
       const created = await getPostCreator().create({
         oxyUserId: authorOxyUserId,
-        federation: {
+        federation: buildFederatedNoteProvenance({
           activityId: noteActivityId,
+          actorUri: authorUri,
           inReplyTo: inReplyToUri,
-          url: typeof note.url === 'string' ? note.url : noteActivityId,
+          noteUrl: note.url,
           sensitive,
           spoilerText: summary,
-        },
+        }),
         parentPostId: threadLink?.parentPostId ?? null,
         threadId: threadLink?.threadId ?? null,
         content: {
@@ -1618,6 +1623,12 @@ export class OutboxSyncService {
         language: extractApLanguage(note),
         languages: extractApLanguages(note),
         instanceDomain: authorUri ? getRemoteHost(authorUri) : undefined,
+        // The author's AP type feeds the Stage-A RSS/bot-mirror spam signal, as
+        // it does on the inbox `Create` and outbox-backfill paths. Dropped here
+        // for the same reason `actorUri` was — the actor is resolved above and
+        // nothing objected to leaving it out — which classified the SAME remote
+        // Note differently depending on which path happened to import it.
+        actorType: authorActor?.type,
         status: 'published',
         metadata: { isSensitive: sensitive },
         skipNotifications: true,
