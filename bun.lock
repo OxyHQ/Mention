@@ -80,7 +80,7 @@
         "@floating-ui/react-dom": "^2.1.9",
         "@livekit/react-native": "^2.12.0",
         "@livekit/react-native-expo-plugin": "^1.0.2",
-        "@livekit/react-native-webrtc": "^144.1.1",
+        "@livekit/react-native-webrtc": "^144.1.2",
         "@mention/shared-types": "workspace:*",
         "@oxyhq/bloom": "catalog:",
         "@oxyhq/contracts": "catalog:",
@@ -129,7 +129,7 @@
         "expo-symbols": "~57.0.1",
         "expo-video": "~57.0.2",
         "expo-web-browser": "~57.0.2",
-        "hls.js": "^1.6.17",
+        "hls.js": "^1.6.16",
         "i18next": "^26.3.6",
         "lightningcss": "1.30.1",
         "livekit-client": "^2.20.1",
@@ -792,7 +792,7 @@
 
     "@livekit/react-native-expo-plugin": ["@livekit/react-native-expo-plugin@1.0.2", "", { "peerDependencies": { "@livekit/react-native": "^2.1.0", "expo": "*", "react": "*", "react-native": "*" } }, "sha512-Crnht6xAlvbSo677oXFBMzS6I5lCMfCNNyLIs6bQZOwlwempz6tWj4CddRknqCCd/dvAyHCa1HwslqXpvGoSJA=="],
 
-    "@livekit/react-native-webrtc": ["@livekit/react-native-webrtc@144.1.1", "", { "dependencies": { "base64-js": "1.5.1", "debug": "4.3.4" }, "peerDependencies": { "react-native": ">=0.60.0" } }, "sha512-nRONGKZrQDBSM7DLBPLGintJZmoCjIcXAbMxlhwn4PCAqhz6KjY67VrDrN9oX0JM3lKMSLBwF6hfDC6Nog+G8Q=="],
+    "@livekit/react-native-webrtc": ["@livekit/react-native-webrtc@144.1.2", "", { "dependencies": { "base64-js": "1.5.1", "debug": "4.3.4" }, "peerDependencies": { "react-native": ">=0.60.0" } }, "sha512-Ls8w3FGlf67SMNu6r8SUpbFHXMIkyEEGb25j6apZ7HrBSGqOFSRWAx7ms9z5d0D3e9Zs1AMNiziG1YWBLOtqiQ=="],
 
     "@mention/backend": ["@mention/backend@workspace:packages/backend"],
 
@@ -2044,7 +2044,7 @@
 
     "hermes-parser": ["hermes-parser@0.36.0", "", { "dependencies": { "hermes-estree": "0.36.0" } }, "sha512-GdpwMmH5x6IpC1cijvcvYnlPB60Mh6kTSF/NFdYV/j56gYdi+0RIakYs+eqOV+bbO0SW7mgVVGSsTJxyPQfo3w=="],
 
-    "hls.js": ["hls.js@1.6.17", "", {}, "sha512-NUplVGVuc1hSPwdB/9/cbRkUmLrYi75/hqiXKdA+l300pJNxDu96R7jRb2imDzWJqIUF4I5ThmAdp9GvOCXsuQ=="],
+    "hls.js": ["hls.js@1.6.16", "", {}, "sha512-VSIRpLfRwlAAdGL4wiTucx2ScRipo0ed1FBatWkyt832jC4CReKstga6yIhYVwGu9LOBjuX9wzmRMeQdBJtzEA=="],
 
     "hmac-drbg": ["hmac-drbg@1.0.1", "", { "dependencies": { "hash.js": "^1.0.3", "minimalistic-assert": "^1.0.0", "minimalistic-crypto-utils": "^1.0.1" } }, "sha512-Tti3gMqLdZfhOQY1Mzf/AanLiqh1WTiJgEj26ZuYQ9fbkLomzGchCws4FyrSd4VkpBfiNhaE1On+lOz894jvXg=="],
 
