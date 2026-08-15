@@ -59,14 +59,30 @@ name: Run federated-author backfill
 # persisted cursor: a run killed by the container timeout keeps every write it
 # already committed and simply rescans from the top next time.
 #
-# READING A RED RUN. `assertAdminRunComplete` fails the process when ANY orphan
-# did not fully resolve (`unresolvedAuthor`, `transient`, and on a write run
-# `goneNotDeleted`), and it does so AFTER the sweep, with the tally already
-# printed. A dry run is lookup-only and so is expected to report unresolved
-# authors, which means the DEFAULT dispatch will usually exit 1. That exit means
-# "incomplete", never "nothing happened": every write the sweep made is already
-# committed, and the numbers in the log are the result. Read the tally, not the
-# checkmark.
+# READING THE RESULT. There are THREE outcomes and this workflow names each of
+# them in its own output, so telling them apart never requires reading the tally
+# by eye:
+#
+#   green, "::notice::" COMPLETE   — the sweep finished with nothing left over.
+#   green, "::warning::" INCOMPLETE — the sweep FINISHED, every write it made is
+#     committed, and some orphans remain for a re-run. This is the ordinary
+#     outcome of a sweep over the open fediverse: an instance rejecting our HTTP
+#     signature, a host that is down, an actor we could not mint. Re-run when
+#     you like; the script is idempotent and repaired posts leave the set.
+#   RED — the sweep failed, or something on OUR side did (a write that threw, a
+#     deletion the preflight refused, a task that never reported an exit code).
+#
+# Those map to the script's exit codes 0 / 75 / anything-else. 75 is
+# `EXIT_INCOMPLETE` in `packages/backend/src/scripts/backfillFederatedPostAuthors.ts`
+# — the number is spelled in both places and the two are one fact.
+#
+# This replaced a guard that failed the process on ANY unresolved orphan. Both
+# of its triggers are structurally guaranteed — a dry run resolves lookup-only,
+# so unresolved authors are certain, and transient remote failures are certain
+# on any sweep over the open fediverse — so three production runs on 2026-08-15
+# repaired 520 of 578 orphans and all three reported FAILURE. A red run that
+# means success is worse than no signal: the next operator cannot tell a working
+# sweep from a broken one.
 
 on:
   workflow_dispatch:
@@ -380,9 +396,44 @@ jobs:
 
           echo "exit code: $EXIT_CODE  (stopped reason: $REASON)"
 
-          # A backfill whose result you cannot see is a backfill you have not run.
-          if [ "$EXIT_CODE" != "0" ]; then
-            echo "::error::Backfill task exited with $EXIT_CODE"
-            echo "A 'run incomplete:' line in the output above means the sweep FINISHED and every write it made is committed — it exited non-zero because some orphans did not fully resolve. Unresolved authors are EXPECTED on a dry run (resolution is lookup-only there) and transient remote failures are expected on any sweep over the open fediverse. Read the tally, then re-run: the script is idempotent."
-            exit 1
-          fi
+          # A backfill whose result you cannot see is a backfill you have not
+          # run. The verdict comes from the exit code and NOT from grepping the
+          # log, because log retrieval above is best-effort: an unavailable log
+          # stream would otherwise read as the comfortable answer. `None` (a task
+          # that stopped without reporting a container exit code) lands in `*)`
+          # and is red, which is the safe direction — a killed sweep may well
+          # have left work behind but cannot say how much.
+          case "$EXIT_CODE" in
+            0)
+              echo "::notice::Backfill COMPLETE — the sweep finished with nothing left unresolved."
+              {
+                echo "### Federated-author backfill: COMPLETE"
+                echo ""
+                echo "The sweep finished and left nothing unresolved. Mode: \`BACKFILL_APPLY=$APPLY\`, \`BACKFILL_DELETE_GONE=$DELETE_GONE\`."
+              } >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            75)
+              # EXIT_INCOMPLETE in backfillFederatedPostAuthors.ts.
+              echo "::warning::Backfill FINISHED with orphans remaining — every write it made is committed. Re-run to retry the rest; the script is idempotent."
+              {
+                echo "### Federated-author backfill: FINISHED, SOME REMAIN"
+                echo ""
+                echo "This is **not** a failure. The sweep completed and every write it made is committed;"
+                echo "some orphans could not be resolved this pass — an instance rejecting our HTTP signature,"
+                echo "a host that is down, an actor we could not mint."
+                echo ""
+                echo "The \`verdict: INCOMPLETE\` line in the task output above names the counts. Re-run when"
+                echo "convenient: repaired posts leave the orphan set, so a re-run costs one pass over the rest."
+              } >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo "::error::Backfill task exited with $EXIT_CODE — this is a real failure, not a partial sweep."
+              echo "Exit 1 means the sweep threw, or something on OUR side did: an orphan whose write failed (\`failed\`), or a deletion the preflight refused (\`blockedDelete\`). Neither is fixed by re-running. Any other code (including 'None') means the task did not report a verdict at all — check ECS."
+              {
+                echo "### Federated-author backfill: FAILED"
+                echo ""
+                echo "Exit code \`$EXIT_CODE\`. Stopped reason: \`$REASON\`."
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+              ;;
+          esac
