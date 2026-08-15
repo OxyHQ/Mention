@@ -152,37 +152,37 @@
     "components/providers/AuthRouter.tsx": {
       "since": "2026-08-15",
       "measured": "78.94% statements / 50% branches",
-      "reason": "AuthRouter.test.tsx covers the routing decisions but not the cold-boot restore branches, which need the 5-25s SSO window a jest run cannot reproduce."
+      "reason": "components/providers/__tests__/AuthRouter.test.tsx exists and covers the redirect decisions; the branch half is what falls short. Which branches are uncovered has not been traced to lines — run the suite with an lcov reporter before writing that down."
     },
     "hooks/usePostLike.ts": {
       "since": "2026-08-15",
       "measured": "0%",
-      "reason": "No direct test. usePostSave.ts is the covered sibling and the shape to copy; the optimistic-write and rollback paths are the ones that matter."
+      "reason": "No direct test, so nothing loads the file. hooks/__tests__/usePostSave.test.tsx holds its covered sibling at 100% and is the shape to copy."
     },
     "hooks/usePostBoost.ts": {
       "since": "2026-08-15",
       "measured": "0%",
-      "reason": "No direct test. Boosts write through postsStore and must reach engagementInvalidation; neither leg is asserted anywhere today."
+      "reason": "No direct test, so nothing loads the file. Its two covered siblings are usePostSave (100%) and usePostLanguage (87%); stores/__tests__/engagementInvalidationWiring.test.ts asserts the invalidation wiring separately, not this hook."
     },
     "hooks/usePostVote.ts": {
       "since": "2026-08-15",
       "measured": "0%",
-      "reason": "No direct test. It is one of the two call sites that write invalidation through the store rather than the hooks, so a regression here is invisible to the hook-level tests."
+      "reason": "No direct test, so nothing loads the file. AGENTS.md names it as one of the two call sites that write invalidation through the store rather than through the engagement hooks, so a regression here is invisible to the hook-level tests."
     },
     "hooks/usePostActions.tsx": {
       "since": "2026-08-15",
       "measured": "0%",
-      "reason": "No direct test. Mostly menu assembly, but it is where the operated-account and channel refusals are applied."
+      "reason": "No direct test, so nothing loads the file. It carries the channel-post and edit-window branch that decides which actions a post offers (isChannelPost, around line 184), which is the part worth asserting first."
     },
     "stores/postsStore.ts": {
       "since": "2026-08-15",
       "measured": "47.85% statements / 29.93% branches",
-      "reason": "postsStoreGranularReactivity.test.tsx covers selector reactivity only. The engagement write path — the authority every post surface reads — is largely unasserted."
+      "reason": "stores/__tests__/postsStoreGranularReactivity.test.tsx is the only test naming it, and it is about selector reactivity. At 29.93% branches, most of the engagement write path this store owns — the authority every post surface reads — is unexercised."
     },
     "utils/postBuilder.ts": {
       "since": "2026-08-15",
       "measured": "68.25% statements / 37.3% branches",
-      "reason": "Covered indirectly through compose tests. The quote, poll and scheduled variants each add branches nothing exercises directly."
+      "reason": "Covered only incidentally through compose tests; buildMainPost has no test of its own. It assembles the poll, quote and scheduled fields of CreatePostRequest, so its branches are where a composer variant silently loses a field."
     },
     "services/channelDeletionService.ts": {
       "since": "2026-08-15",
@@ -192,7 +192,7 @@
     "hooks/useExternalActorResolve.ts": {
       "since": "2026-08-15",
       "measured": "0%",
-      "reason": "No direct test. externalActorQuery.test.ts covers the query shape, not the hook's federated-handle branches."
+      "reason": "No direct test, so nothing loads the file. __tests__/externalActorQuery.test.ts covers the query shape beside it, not this hook."
     },
     "hooks/useMentionNode.ts": {
       "since": "2026-08-15",
@@ -217,17 +217,17 @@
     "hooks/useFeedState.ts": {
       "since": "2026-08-15",
       "measured": "65.21% statements / 54.65% branches",
-      "reason": "Two test files cover memory mode and the auth-identity keying. Pagination, the pending/refetch path and scroll restoration are the uncovered remainder."
+      "reason": "hooks/__tests__/useFeedState.test.ts and useFeedState.memory.test.tsx cover memory mode and the auth-identity keying. The remaining third is unattributed; the hook also owns loadMore and the federated pending/poll state, neither of which those two files drive."
     },
     "stores/feedScrollStore.ts": {
       "since": "2026-08-15",
       "measured": "65.62% statements / 50% branches",
-      "reason": "feedScrollStore.test.ts covers retention and keying; the eviction and warm-start branches are not asserted."
+      "reason": "stores/__tests__/feedScrollStore.test.ts covers retention and keying. Half the branches are unexercised; the store also owns clearAllFeedMemoryCaches (viewer change) and the retainedAt warm-start comparison."
     },
     "db/cacheLifecycle.ts": {
       "since": "2026-08-15",
       "measured": "83.87% statements / 54.54% branches",
-      "reason": "Clears the statement bar, not the branch bar. The uncovered branches are the SQLite-unavailable fallbacks, which only run on web where isDbAvailable() is false."
+      "reason": "Clears the statement bar, not the branch bar. The file is largely error-recovery: seven catch blocks including a nested recovery path, and a failure path is exactly what a happy-path test never enters."
     }
   },
   "$comment:unenforceable": [
