@@ -68,8 +68,21 @@ const ALLOWED_REGISTRY_HOSTS = ["registry.npmjs.org"];
  */
 const ALLOWED_NON_REGISTRY_PROTOCOLS = ["workspace:"];
 
-/** Aliases (`"alias": ["real-package@1.0.0", ...]`) that are known and accepted. */
-const ALLOWED_PACKAGE_NAME_ALIASES = [];
+/**
+ * Aliases (`"alias": ["real-package@1.0.0", ...]`) that are known and accepted.
+ *
+ * All three below are `@isaacs/cliui@8`'s own declarations — it depends on the
+ * ESM major of each package AND, under a `-cjs` alias, the last CJS major, so it
+ * can be required either way. They arrived with `firebase-admin@14` through
+ * `google-gax` → `rimraf` → `glob` → `jackspeak`, and each resolves to a
+ * registry tarball with integrity like any other dependency; the alias only
+ * renames the edge. Nothing here is a second copy admitted by the back door.
+ */
+const ALLOWED_PACKAGE_NAME_ALIASES = [
+  "string-width-cjs:string-width",
+  "strip-ansi-cjs:strip-ansi",
+  "wrap-ansi-cjs:wrap-ansi",
+];
 
 /**
  * Override-masked range violations that are deliberate, keyed
