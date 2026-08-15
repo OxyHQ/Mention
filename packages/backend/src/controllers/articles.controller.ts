@@ -1,7 +1,9 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { eq } from 'drizzle-orm';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { getDb } from '../db/postgres';
 import { articles } from '../db/schema/articles';
+import { postHydrationService } from '../services/PostHydrationService';
 import { logger } from '../utils/logger';
 
 /**
@@ -24,8 +26,23 @@ import { logger } from '../utils/logger';
  * This route is read-only. `Article`'s `trim: true` on `title`/`body` is
  * application behaviour with no Postgres counterpart, but it belongs to the
  * WRITE path (`controllers/posts.controller.ts`), not here.
+ *
+ * **The body follows the linked post's ACL, and asks the ONE gate for it.** An
+ * article is the long-form body of a post, so it is exactly as readable as that
+ * post — a draft, a scheduled entry, a private or followers-only post, or one
+ * whose author the viewer is restricted by, must not hand its prose to whoever
+ * knows the article id. `canViewerReadPostId` is that decision and answering it
+ * here with a second hand-rolled visibility check is precisely how two gates
+ * drift apart; it already treats an absent viewer correctly, so anonymous reads
+ * pass `''` rather than getting a bespoke branch.
+ *
+ * An article with NO `postId` is an unpublished draft that no post governs, so
+ * the only reader is its creator.
+ *
+ * A refusal is a 404 with the same body as a missing row, deliberately: a 403
+ * would confirm that an article with this id exists.
  */
-export const getArticle = async (req: Request, res: Response) => {
+export const getArticle = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const [article] = await getDb()
@@ -35,6 +52,28 @@ export const getArticle = async (req: Request, res: Response) => {
       .limit(1);
 
     if (!article) {
+      return res.status(404).json({ message: 'Article not found' });
+    }
+
+    const viewerId = req.user?.id ?? '';
+    let canRead = false;
+    try {
+      canRead = article.postId
+        ? await postHydrationService.canViewerReadPostId(article.postId, viewerId)
+        : viewerId !== '' && viewerId === article.createdBy;
+    } catch (error) {
+      // Fails CLOSED, the same way `ContentRoomLifecycle` treats this gate. It
+      // needs the viewer's blocks from Oxy, so an Oxy outage makes the question
+      // unanswerable — and an unanswerable ACL is not a yes. Refusing costs a
+      // reader an article they were entitled to; allowing would publish one
+      // nobody checked. This is NOT the 500 below: the ACL was reached and
+      // declined to answer, which is a refusal rather than a broken route.
+      logger.warn('[Articles] Refusing read: visibility check failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    if (!canRead) {
       return res.status(404).json({ message: 'Article not found' });
     }
 
