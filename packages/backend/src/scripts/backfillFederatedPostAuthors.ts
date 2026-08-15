@@ -73,6 +73,25 @@
  *   BACKFILL_APPLY=true \
  *     CONFIRM_ADMIN_MUTATION=backfillFederatedPostAuthors \
  *     bun dist/src/scripts/backfillFederatedPostAuthors.js
+ *
+ * EXIT CODES — three outcomes, because two of them are not failures
+ * ----------------------------------------------------------------
+ *   0   the sweep finished with nothing left for a later run, OR it was a dry
+ *       run (which writes nothing, so nothing about it can be incomplete).
+ *   75  the sweep FINISHED and every write it made is committed, and some
+ *       orphans remain for a re-run. See {@link EXIT_INCOMPLETE}.
+ *   1   the sweep failed, or something on OUR side did.
+ *
+ * Why not the ordinary `assertAdminRunComplete` verdict for the remaining
+ * orphans: that guard's tolerance is a FRACTION OF SCANNED, and this sweep has
+ * no cursor and repaired posts leave the orphan set — so run 2 scans exactly
+ * what run 1 could not repair and its unresolved RATE approaches 100% by
+ * construction. Measured on production, 2026-08-15: run 1 linked 520 of 578
+ * with `transient 49` (8.5%); a re-run over the remainder would sit near 85%
+ * for the same two instances rejecting our HTTP signature. Any fraction that
+ * passes run 1 fails run 2, which is the same red-run-that-means-success this
+ * script had before. So the residual is a distinct EXIT PATH, and the guard
+ * keeps only what it is right about: our own side, strict, at any count.
  */
 
 import { and, asc, count, eq, gt, isNotNull, isNull, type SQL } from 'drizzle-orm';
@@ -97,6 +116,21 @@ import {
   assertAdminRunComplete,
   closeAdminScriptResources,
 } from './lib/adminScriptLifecycle';
+
+/**
+ * `EX_TEMPFAIL` from sysexits(3) — "temporary failure, the user is invited to
+ * retry" — which is exactly what an orphan we could not reach this time is.
+ *
+ * It is a DISTINCT code rather than a zero because "finished, some remain" is a
+ * different instruction from "finished" and an operator must not have to read
+ * the tally to tell them apart; and rather than a 1 because the sweep did not
+ * fail — every write it made is committed and a re-run costs one pass over
+ * whatever is still unresolved.
+ *
+ * `.github/workflows/run-federated-author-backfill.yml` spells the same number
+ * and names this constant where it does; the two are one fact.
+ */
+export const EXIT_INCOMPLETE = 75;
 
 /** Orphans scanned per page (stable ascending `_id` cursor). */
 const PAGE_SIZE = 200;
@@ -257,6 +291,15 @@ interface Counters {
   blockedDelete: number;
   unresolvedAuthor: number;
   transient: number;
+  /**
+   * An orphan whose processing THREW — a write that did not go through, a bug.
+   * Separate from `transient` on purpose: `transient` is now a non-fatal
+   * residual, and an unexpected exception folded into it would be a real
+   * failure exiting 0. `transient` is therefore only ever what
+   * {@link resolveOrphanAuthorUri} classifies as one, which is a remote
+   * condition by construction.
+   */
+  failed: number;
 }
 
 /** Process one orphan; returns the counter bucket it fell into. */
@@ -308,7 +351,45 @@ async function processOrphan(orphan: OrphanRow): Promise<keyof Omit<Counters, 's
   return 'linked';
 }
 
-async function backfillFederatedPostAuthors(): Promise<void> {
+/**
+ * What the sweep concluded, so the caller can pick an exit code without
+ * re-deriving it from the tally.
+ */
+export interface BackfillVerdict {
+  /** Orphans the sweep finished without resolving. `0` on a dry run. */
+  remaining: number;
+}
+
+/**
+ * The orphans this run finished without resolving — the whole residual, and
+ * nothing our side did wrong (that is `failed`/`blockedDelete`, which the
+ * completion guard fails on strictly).
+ *
+ * ZERO on a dry run, unconditionally. A dry run resolves lookup-only and writes
+ * nothing, so every orphan is "unresolved" by construction and none of it is a
+ * result — reporting a residual there would make the DEFAULT dispatch report
+ * incomplete forever, which is the signal this exists to restore.
+ *
+ * `gone` counts only on a write run that was not allowed to delete: there the
+ * post is a real leftover with an operator action attached (re-run with
+ * `BACKFILL_DELETE_GONE`). On a delete-enabled run it has already become
+ * `deleted`, and on a dry run it is part of the preview.
+ */
+export function countRemaining(
+  // `Pick`, so the residual cannot silently acquire a bucket that belongs to the
+  // strict guard: `failed` and `blockedDelete` are not reachable from here.
+  counters: Pick<Counters, 'transient' | 'unresolvedAuthor' | 'gone'>,
+  mode: { apply: boolean; deleteGone: boolean },
+): number {
+  if (!mode.apply) return 0;
+  return (
+    counters.transient
+    + counters.unresolvedAuthor
+    + (mode.deleteGone ? 0 : counters.gone)
+  );
+}
+
+async function backfillFederatedPostAuthors(): Promise<BackfillVerdict> {
   const startedAt = Date.now();
 
   // `is not null` / `is null`, never `<> null`: Mongo's `$ne: null` also matched
@@ -337,7 +418,8 @@ async function backfillFederatedPostAuthors(): Promise<void> {
     const totalCount = totals?.count ?? 0;
     logger.info(`[backfillFederatedPostAuthors] ${totalCount} orphan federated posts to scan`);
     if (totalCount === 0) {
-      return;
+      logger.info('[backfillFederatedPostAuthors] verdict: COMPLETE — no orphan federated posts remain');
+      return { remaining: 0 };
     }
 
     const counters: Counters = {
@@ -349,6 +431,7 @@ async function backfillFederatedPostAuthors(): Promise<void> {
       blockedDelete: 0,
       unresolvedAuthor: 0,
       transient: 0,
+      failed: 0,
     };
     let lastId: string | null = null;
 
@@ -374,7 +457,7 @@ async function backfillFederatedPostAuthors(): Promise<void> {
               });
               return error instanceof DeletionPreflightError
                 ? 'blockedDelete' as const
-                : 'transient' as const;
+                : 'failed' as const;
             }),
           ),
         );
@@ -388,7 +471,7 @@ async function backfillFederatedPostAuthors(): Promise<void> {
           `linked ${counters.linked}, gone ${counters.gone}, ` +
           `deleteCandidates ${counters.deleteCandidates}, deleted ${counters.deleted}, ` +
           `blockedDelete ${counters.blockedDelete}, unresolvedAuthor ${counters.unresolvedAuthor}, ` +
-          `transient ${counters.transient}`,
+          `transient ${counters.transient}, failed ${counters.failed}`,
       );
     }
 
@@ -398,16 +481,37 @@ async function backfillFederatedPostAuthors(): Promise<void> {
         `linked ${counters.linked}, gone ${counters.gone}, ` +
         `deleteCandidates ${counters.deleteCandidates}, deleted ${counters.deleted}, ` +
         `blockedDelete ${counters.blockedDelete}, unresolvedAuthor ${counters.unresolvedAuthor}, ` +
-        `transient ${counters.transient}` +
+        `transient ${counters.transient}, failed ${counters.failed}` +
         (APPLY ? '' : ' (DRY RUN — no writes)'),
     );
 
+    // OUR side only, and strict at any count — an orphan whose write threw, and
+    // a deletion the preflight refused. Neither is a matter of rate and neither
+    // is fixed by re-running, so both stay a red run.
     assertAdminRunComplete('backfillFederatedPostAuthors', {
-      goneNotDeleted: APPLY && !DELETE_GONE ? counters.gone : 0,
+      failed: counters.failed,
       blockedDelete: counters.blockedDelete,
-      unresolvedAuthor: counters.unresolvedAuthor,
-      transient: counters.transient,
     });
+
+    const remaining = countRemaining(counters, { apply: APPLY, deleteGone: DELETE_GONE });
+    // ONE line an operator can read instead of the tally. The workflow reports
+    // the same verdict from the exit code, so this is the detail behind it.
+    logger.info(
+      !APPLY
+        ? `[backfillFederatedPostAuthors] verdict: DRY RUN — nothing written; of ${counters.scanned} scanned, `
+          + `${counters.linked} would link, ${counters.unresolvedAuthor} need a live run, `
+          + `${counters.transient} were unreachable, ${counters.gone} are gone`
+        : remaining === 0
+          ? `[backfillFederatedPostAuthors] verdict: COMPLETE — ${counters.scanned} scanned, `
+            + `${counters.linked} linked, nothing left unresolved`
+          : `[backfillFederatedPostAuthors] verdict: INCOMPLETE — ${counters.scanned} scanned, `
+            + `${counters.linked} linked, ${remaining} remain `
+            + `(transient ${counters.transient}, unresolvedAuthor ${counters.unresolvedAuthor}, `
+            + `gone ${DELETE_GONE ? 0 : counters.gone}). The sweep finished and every write is `
+            + 'committed; re-run to retry.',
+    );
+
+    return { remaining };
   } catch (error) {
     logger.error('[backfillFederatedPostAuthors] failed', error);
     throw error;
@@ -420,7 +524,7 @@ if (require.main === module) {
   // Exit deterministically: imported singletons (BullMQ Redis, MediaCache workers)
   // otherwise keep the event loop alive after the work completes.
   backfillFederatedPostAuthors()
-    .then(() => process.exit(0))
+    .then((verdict) => process.exit(verdict.remaining > 0 ? EXIT_INCOMPLETE : 0))
     .catch((error) => {
       logger.error('[backfillFederatedPostAuthors] unhandled failure', error);
       process.exit(1);
