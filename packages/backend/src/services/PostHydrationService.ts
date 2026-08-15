@@ -1010,15 +1010,15 @@ function ownershipDecidesReadability(
  * It is `resolveCurrentChannelAuthority` that makes that affordable, and this
  * function is meaningless without it — the two have to move together.
  *
- * **The same clause still grants WRITE, and that is a live gap, not a decision
- * made here.** `postManagementRefusal` takes a free path on
- * `canManagePostWithoutLookup` unless the caller passes `requireAuthorAuthority`,
- * and only `publishScheduledPostNow` does. Delete, edit, settings, lane moves
- * and insights therefore still answer to the stored writer alone, so a removed
- * member can still destroy or rewrite the queued post this gate now refuses to
- * show them. Closing that means making `requireAuthorAuthority` unconditional —
- * a change to six routes' latency and to what `viewerState.isOwner` may promise,
- * which is why it is named here rather than smuggled in.
+ * **The WRITE side has since been closed to match, and there is no longer a
+ * clause granting it.** `postManagementRefusal` used to take a free path on
+ * `canManagePostWithoutLookup` unless a caller opted out of it, so a removed
+ * member could still destroy or rewrite the queued post this gate refuses to
+ * show them. All seven management routes now prove current authority, with no
+ * per-route opt-out to forget. What remains is the DTO's `viewerState.isOwner`,
+ * which still reads the stored writer and is now deliberately WIDER than any
+ * route will honour — the argument for that residue is on
+ * `postManagementRefusal`, and it is a stale menu, never a stale capability.
  *
  * It takes no post, and that absence is the change: every remaining answer comes
  * from the viewer's identity, the authorship rows and the account graph. Nothing
@@ -2942,12 +2942,22 @@ export class PostHydrationService {
    * in `authorship` (putting them there would break the channel's anonymity and
    * put the post back on their own profile), which is why this reads both.
    *
-   * `canManagePostWithoutLookup` is the SAME predicate the write routes take
-   * their fast path from, so the button and the route agree by construction on
-   * everything it covers. What it deliberately does not cover is a co-operator
-   * who did not write the post: that is a membership question only Oxy can
-   * answer, and this runs once per post per hydration. They see no button and
-   * would not be refused if they reached the route — affordance ⊆ permission.
+   * **It is a HINT about a permission a third party can revoke, and the two
+   * disagreements it leaves run in opposite directions.** The write routes prove
+   * CURRENT membership against Oxy's account graph
+   * (`postManagementRefusal`); this runs once per post per hydration and cannot
+   * afford to ask. So:
+   *
+   *  - a co-operator who did not write the post sees no button and would be
+   *    accepted by the route — affordance ⊂ permission, the safe direction;
+   *  - a writer who has LEFT the channel is still named by
+   *    `writtenByOxyUserId`, is still drawn the menu, and is refused by every
+   *    route it offers. That is the unsafe direction, and it is accepted
+   *    deliberately: dropping the clause would leave `isOwner` false for every
+   *    human alive on every channel post outside the editorial queue, taking the
+   *    menu away from the people currently running the channel in order to spare
+   *    the people who left a 404. The argument in full is on
+   *    `postManagementRefusal`.
    */
   private buildViewerState(
     post: RawPost,

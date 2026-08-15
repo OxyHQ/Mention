@@ -79,8 +79,8 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     expect(resolveUserSummaries).not.toHaveBeenCalled();
   });
 
-  it("allows a channel post's writer with NO Oxy call either", async () => {
-    const reader = memberReaderReturning([]);
+  it("allows a channel post's writer only once Oxy says they still operate it", async () => {
+    const reader = memberReaderReturning([{ memberUserId: WRITER, status: 'active' }]);
 
     const refusal = await postManagementRefusal({
       post: { oxyUserId: CHANNEL, writtenByOxyUserId: WRITER },
@@ -89,7 +89,60 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     });
 
     expect(refusal).toBeNull();
-    expect(reader.listAccountMembers).not.toHaveBeenCalled();
+    // The point of the whole change: the stored writer buys no shortcut. Being
+    // named on the row is what the READ path may act on; the write path asks.
+    expect(reader.listAccountMembers).toHaveBeenCalledWith(CHANNEL);
+  });
+
+  it('REFUSES the stored writer once their membership is gone', async () => {
+    // The defect. `written_by_oxy_user_id` is written once at creation and never
+    // revised, so it goes on naming a removed member — who could, on that column
+    // alone, delete the channel's queued story, rewrite it under the channel's
+    // byline, pin it, move it between the channel's lanes and read its private
+    // engagement figures, with nothing asked of Oxy anywhere.
+    const reader = memberReaderReturning([{ memberUserId: 'somebody-still-here', status: 'active' }]);
+
+    const refusal = await postManagementRefusal({
+      post: { oxyUserId: CHANNEL, writtenByOxyUserId: WRITER },
+      callerId: WRITER,
+      memberReader: reader,
+    });
+
+    expect(refusal).toEqual({ status: 404, message: 'Post not found' });
+  });
+
+  it('REFUSES a writer whose membership was downgraded to invited', async () => {
+    // The discriminating fixture for `status === 'active'`: the row still exists
+    // and still names them, so anything asking only "are they on the roster"
+    // would admit them.
+    const reader = memberReaderReturning([{ memberUserId: WRITER, status: 'invited' }]);
+
+    const refusal = await postManagementRefusal({
+      post: { oxyUserId: CHANNEL, writtenByOxyUserId: WRITER },
+      callerId: WRITER,
+      memberReader: reader,
+    });
+
+    expect(refusal?.status).toBe(404);
+  });
+
+  it('answers 503, not 404, when Oxy cannot say whether the writer is still a member', async () => {
+    // The direction that matters for the person this change costs the most: a
+    // current writer during an Oxy outage is told to retry, never that the story
+    // they queued has vanished.
+    const reader = {
+      listAccountMembers: vi.fn(async () => {
+        throw new Error('oxy is down');
+      }),
+    };
+
+    const refusal = await postManagementRefusal({
+      post: { oxyUserId: CHANNEL, writtenByOxyUserId: WRITER },
+      callerId: WRITER,
+      memberReader: reader,
+    });
+
+    expect(refusal?.status).toBe(503);
   });
 
   it('allows a CO-OPERATOR who did not write it, at the cost of one membership read', async () => {
@@ -187,17 +240,32 @@ describe('postManagementRefusal — the WRITE path gate', () => {
   });
 });
 
-describe('affordance ⊆ permission', () => {
-  /**
-   * The property the whole design rests on: everything the DTO offers, the route
-   * accepts. The reverse is allowed — a co-operator is permitted but not offered
-   * — and that asymmetry is the deliberate one, because a missing button is a
-   * smaller problem than a button that refuses.
-   */
-  it('never draws a button the route would refuse', async () => {
+/**
+ * WHERE THE DTO AND THE ROUTE AGREE, AND THE ONE PLACE THEY DO NOT.
+ *
+ * `viewerState.isOwner` is {@link canManagePostWithoutLookup}, so this is what
+ * the client's post menu is drawn from. The house rule is affordance ⊆
+ * permission — a missing button beats one that refuses — and it holds for every
+ * case here except one, which is enumerated rather than described so it cannot
+ * quietly widen.
+ *
+ * The exception is the stored writer who has LEFT the channel. It is accepted
+ * deliberately: the only ways to close it are to ask Oxy during hydration (the
+ * round trip the read path exists to avoid, landing on every feed) or to drop
+ * the writer clause from `isOwner` — which, because a channel authors its own
+ * posts, would leave `isOwner` false for every human alive on every channel post
+ * outside the editorial queue. That takes the menu from the people currently
+ * running the channel to spare the people who left a 404.
+ *
+ * It is also the least bad residual available. `isOwner` names a permission a
+ * THIRD PARTY revokes, so no cached DTO can be right about it without asking;
+ * the only question is what a stale one does. Before this it was obeyed and the
+ * story was destroyed. Now it is refused.
+ */
+describe('affordance vs permission', () => {
+  it('never draws a button the route refuses, for everyone whose authority cannot go stale', async () => {
     const cases: { post: { oxyUserId?: string; writtenByOxyUserId?: string }; caller: string }[] = [
       { post: { oxyUserId: OWNER }, caller: OWNER },
-      { post: { oxyUserId: CHANNEL, writtenByOxyUserId: WRITER }, caller: WRITER },
       { post: { oxyUserId: CHANNEL, writtenByOxyUserId: WRITER }, caller: STRANGER },
       { post: { oxyUserId: OWNER }, caller: STRANGER },
       { post: {}, caller: OWNER },
@@ -217,6 +285,32 @@ describe('affordance ⊆ permission', () => {
 
     // Vacuity floor: if the predicate ever returned false for everything, the
     // loop above would assert nothing at all and still pass.
-    expect(offered).toBe(2);
+    expect(offered).toBe(1);
+  });
+
+  it('DOES draw one the route refuses: a writer the channel has removed', async () => {
+    const post = { oxyUserId: CHANNEL, writtenByOxyUserId: WRITER };
+
+    // The DTO offers the menu, off the row alone and with nothing asked.
+    expect(canManagePostWithoutLookup(post, WRITER)).toBe(true);
+
+    // The route refuses it, because Oxy no longer names them.
+    const refusal = await postManagementRefusal({
+      post,
+      callerId: WRITER,
+      memberReader: memberReaderReturning([{ memberUserId: 'somebody-still-here', status: 'active' }]),
+    });
+    expect(refusal?.status).toBe(404);
+
+    // POSITIVE CONTROL, so the refusal above is a judgement about membership and
+    // not a gate that refuses this shape whatever Oxy says: the identical call
+    // with the writer still on the roster is allowed.
+    expect(
+      await postManagementRefusal({
+        post,
+        callerId: WRITER,
+        memberReader: memberReaderReturning([{ memberUserId: WRITER, status: 'active' }]),
+      }),
+    ).toBeNull();
   });
 });

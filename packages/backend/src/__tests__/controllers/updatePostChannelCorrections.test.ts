@@ -38,11 +38,18 @@ const hoisted = vi.hoisted(() => ({
   notifyPendingInvites: vi.fn(),
   emitPostCreated: vi.fn(),
   federateAsResolvedActor: vi.fn(),
+  listAccountMembers: vi.fn(),
 }));
 
+// A real member reader, because `postManagementRefusal` proves CURRENT channel
+// membership against Oxy before this handler reaches its correction logic. Being
+// named on the row as its writer is not authority — that column is written once
+// and never revised — so a suite about the writer editing has to say who Oxy
+// currently thinks they are. Every PERSON_ID case edits its own post and never
+// reaches this.
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: hoisted.createScopedOxyClient,
-  createUserScopedOxyServices: vi.fn(() => undefined),
+  createUserScopedOxyServices: vi.fn(() => ({ listAccountMembers: hoisted.listAccountMembers })),
 }));
 
 /**
@@ -120,8 +127,10 @@ function setAccountKinds(kinds: Record<string, string>): void {
 /**
  * A published CHANNEL post: authored by the channel, written by the human.
  *
- * `writtenByOxyUserId` is what makes the writer able to manage it without an Oxy
- * membership lookup, which is the production path for the person who wrote it.
+ * `writtenByOxyUserId` records who wrote it and is never revised, so it is not
+ * what lets them edit it — the ACTIVE membership staged in `beforeEach` is. Both
+ * are here because a correction is made by a current member who is also, in this
+ * fixture, the original writer.
  */
 async function seedChannelPost(overrides: Partial<PostRecordInput> = {}): Promise<void> {
   const record = await seedPost(scope, {
@@ -199,6 +208,11 @@ beforeEach(() => {
   hoisted.createScopedOxyClient.mockReturnValue(undefined);
   hoisted.hydratePosts.mockImplementation(async () => [{ id: POST_ID }]);
   hoisted.resolveCollaboratorRefs.mockResolvedValue(undefined);
+  // Oxy still names the writer as an active member, which is what admits them to
+  // this route at all — see the mock of `createUserScopedOxyServices` above. The
+  // departed-writer half is `channelPostManagementAuthority`'s subject, not this
+  // file's; here it is a precondition so the correction rules can be the subject.
+  hoisted.listAccountMembers.mockResolvedValue([{ memberUserId: WRITER_ID, status: 'active' }]);
   setAccountKinds({ [CHANNEL_ID]: 'channel', [PERSON_ID]: 'personal', [WRITER_ID]: 'personal' });
 });
 

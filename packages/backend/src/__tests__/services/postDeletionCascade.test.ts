@@ -50,17 +50,28 @@ import type { OxyAuthRequest } from '@oxyhq/core/server';
 const mocks = vi.hoisted(() => ({
   deletePendingDeliveries: vi.fn(),
   repairRecentRepliers: vi.fn(),
+  /** Who Oxy currently says is a member of the channel. Empty unless a case says otherwise. */
+  listAccountMembers: vi.fn(async () => [] as unknown[]),
+  /** What kind Oxy says each account is — `assertCanPublishAsAccount` asks before reading members. */
+  accountKinds: new Map<string, string>(),
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (objs: object[]) => objs) },
-  resolveUserSummaries: vi.fn(async () => new Map()),
+  resolveUserSummaries: vi.fn(async (ids: string[]) => {
+    const summaries = new Map();
+    for (const id of ids) {
+      const kind = mocks.accountKinds.get(id);
+      if (kind) summaries.set(id, { user: { id, kind } });
+    }
+    return summaries;
+  }),
   degradedActorSummary: vi.fn(() => ({ id: 'unknown', username: '' })),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
-  createUserScopedOxyServices: vi.fn(() => undefined),
+  createUserScopedOxyServices: vi.fn(() => ({ listAccountMembers: mocks.listAccountMembers })),
   getServiceOxyClient: vi.fn(() => ({})),
 }));
 
@@ -234,6 +245,10 @@ beforeAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Nobody operates anything unless a case stages it. `clearAllMocks` resets the
+  // implementation too, so the default has to be restated rather than assumed.
+  mocks.accountKinds.clear();
+  mocks.listAccountMembers.mockResolvedValue([]);
   incrementCounter = vi.spyOn(metrics, 'incrementCounter');
   loggedError = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
 });
@@ -354,17 +369,15 @@ describe('the ownership claim', () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it('lets the WRITER of a channel post delete it, though the row belongs to the channel', async () => {
+  it('lets a CURRENT member of the channel delete its post, though the row belongs to the channel', async () => {
     /**
      * The one case that can observe which id the ownership claim uses.
      *
-     * `postManagementRefusal` deliberately admits the human who wrote a channel
-     * post (`canManagePostWithoutLookup` returns true when
-     * `writtenByOxyUserId === callerId`) and any co-operator of the channel. A
-     * channel post's `oxy_user_id` is the CHANNEL, so a claim built from the
-     * CALLER's id matches nothing: the transaction rolls back and the writer is
-     * told their own post does not exist — after being told they were allowed.
-     * That is what this merge briefly reintroduced, and what this pins.
+     * `postManagementRefusal` admits a human who currently operates the channel.
+     * A channel post's `oxy_user_id` is the CHANNEL, so a claim built from the
+     * CALLER's id matches nothing: the transaction rolls back and the member is
+     * told the post does not exist — after being told they were allowed. That is
+     * what this merge briefly reintroduced, and what this pins.
      *
      * Every other delete in this suite is an ordinary author deleting their own
      * post, where caller and owner are the same string and the two spellings are
@@ -373,7 +386,15 @@ describe('the ownership claim', () => {
      *
      * The lane path two hundred lines above carries a comment naming the same
      * trap ("it used to be `userId` … which made every channel post unmovable").
+     *
+     * The membership is STAGED rather than taken off the row. Writing the post
+     * is not what authorises deleting it — `written_by_oxy_user_id` is never
+     * revised, so it goes on naming somebody after they leave — and the roster
+     * here is what the route actually asks. `channelPostManagementAuthority`
+     * owns the departed-writer half.
      */
+    mocks.accountKinds.set(CHANNEL, 'channel');
+    mocks.listAccountMembers.mockResolvedValue([{ memberUserId: WRITER, status: 'active' }]);
     const post = await seedPost(scope, {
       oxyUserId: CHANNEL,
       authorship: [{ oxyUserId: CHANNEL, role: 'owner', status: 'accepted' }],

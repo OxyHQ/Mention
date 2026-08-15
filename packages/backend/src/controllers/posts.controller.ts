@@ -2471,10 +2471,10 @@ export const updatePostLane = async (req: AuthRequest, res: Response) => {
     }
 
     // By id, NOT narrowed by `oxy_user_id` — see `updatePost`. The projection
-    // carries `oxy_user_id` and `written_by_oxy_user_id` because
-    // `postManagementRefusal` reads both: the first names the account that
-    // authored it (a channel, for a channel post) and the second the human who
-    // wrote it, and a projection missing either silently refuses its own writer.
+    // carries `oxy_user_id` because `postManagementRefusal` reads it: it names
+    // the account that authored the post (a channel, for a channel post) and is
+    // what the membership proof is made against, so a projection missing it
+    // silently refuses everybody.
     const [post] = await getDb()
       .select({
         id: postsTable.id,
@@ -2482,7 +2482,6 @@ export const updatePostLane = async (req: AuthRequest, res: Response) => {
         boostOf: postsTable.boostOf,
         laneId: postsTable.laneId,
         oxyUserId: postsTable.oxyUserId,
-        writtenByOxyUserId: postsTable.writtenByOxyUserId,
       })
       .from(postsTable)
       .where(eq(postsTable.id, String(req.params.id)))
@@ -2582,14 +2581,13 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
     // Resolved and authorized BEFORE anything is deleted or walked, because both
     // of the steps below need the post's AUTHOR — which for a channel post is
     // the channel, not the caller.
-    // Two columns, not a whole `PostRecord`: this read exists only to answer
+    // One column, not a whole `PostRecord`: this read exists only to answer
     // "may the caller manage this post", and assembling the content graph for it
     // would be six extra joins on the way to a decision that reads neither.
+    // `written_by_oxy_user_id` is not among them — see `publishScheduledPostNow`
+    // on why the stored writer stopped being an authority over a channel's post.
     const [target] = await getDb()
-      .select({
-        oxyUserId: postsTable.oxyUserId,
-        writtenByOxyUserId: postsTable.writtenByOxyUserId,
-      })
+      .select({ oxyUserId: postsTable.oxyUserId })
       .from(postsTable)
       .where(eq(postsTable.id, String(req.params.id)))
       .limit(1);
@@ -3367,15 +3365,17 @@ export const publishScheduledPostNow = async (req: AuthRequest, res: Response) =
 
     const targetId = String(req.params.id);
 
-    // Two columns, not a whole `PostRecord`: this read only has to answer "may
+    // One column, not a whole `PostRecord`: this read only has to answer "may
     // the caller manage this post, and whose queue is it in". Assembling the
     // content graph for that would be nine joins on the way to a decision that
     // reads neither. Same shape, and the same order, as `deletePost`.
+    //
+    // `written_by_oxy_user_id` is deliberately NOT projected. It used to be,
+    // because the gate read it — and reading it was the defect: a stored writer
+    // who has left the channel is not an authority over it. The gate proves
+    // current membership instead, off `oxy_user_id` alone.
     const [target] = await getDb()
-      .select({
-        oxyUserId: postsTable.oxyUserId,
-        writtenByOxyUserId: postsTable.writtenByOxyUserId,
-      })
+      .select({ oxyUserId: postsTable.oxyUserId })
       .from(postsTable)
       .where(eq(postsTable.id, targetId))
       .limit(1);
@@ -3386,10 +3386,6 @@ export const publishScheduledPostNow = async (req: AuthRequest, res: Response) =
       post: target,
       callerId: userId,
       memberReader: createUserScopedOxyServices(req),
-      // Publishing is irreversible and acts under the author's identity. A
-      // stored writer may have left the channel since scheduling, so unlike
-      // ordinary management actions this must prove their authority now.
-      requireAuthorAuthority: true,
     });
     if (publishRefusal) {
       return res.status(publishRefusal.status).json({ message: publishRefusal.message });
