@@ -28,6 +28,7 @@ import { closePostgres, connectPostgres, type Database } from '../../db/postgres
 import { uuidv7 } from '../../db/schema/columns';
 import { pollOptions, pollVotes, polls } from '../../db/schema/polls';
 import { posts } from '../../db/schema/posts';
+import { postHydrationService } from '../../services/PostHydrationService';
 
 let db: Database;
 const createdPollIds: string[] = [];
@@ -103,6 +104,7 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   if (createdPollIds.length > 0) {
     await db.delete(polls).where(inArray(polls.id, createdPollIds.splice(0)));
   }
@@ -118,7 +120,9 @@ afterAll(async () => {
 describe('polls controller called the way Express calls it', () => {
   it('GET /polls/:id answers with the sanitized poll', async () => {
     const author = `author-${randomUUID()}`;
-    const { poll, choices } = await seedPoll({ createdBy: author, isAnonymous: true });
+    const postId = await seedPost(author);
+    const acl = vi.spyOn(postHydrationService, 'canViewerReadPostId').mockResolvedValueOnce(true);
+    const { poll, choices } = await seedPoll({ createdBy: author, isAnonymous: true, postId });
     await db.insert(pollVotes).values([
       { pollId: poll.id, optionId: choices[0].id, userId: 'u1' },
       { pollId: poll.id, optionId: choices[0].id, userId: 'u2' },
@@ -126,7 +130,7 @@ describe('polls controller called the way Express calls it', () => {
 
     // Detached on purpose — this is the registration the router uses.
     const { getPoll } = pollsController;
-    const { captured, next } = await call(getPoll, { params: { id: poll.id } });
+    const { captured, next } = await call(getPoll, { params: { id: poll.id }, user: { id: 'u1' } });
 
     expect(next).not.toHaveBeenCalled();
     const body = captured.body as { success: boolean; data: Record<string, unknown> };
@@ -137,11 +141,14 @@ describe('polls controller called the way Express calls it', () => {
       { _id: choices[0].id, text: 'yes', votes: 2 },
       { _id: choices[1].id, text: 'no', votes: 0 },
     ]);
+    expect(acl).toHaveBeenCalledWith(postId, 'u1');
   });
 
   it('POST /polls/:id/vote answers instead of 500-ing after recording the vote', async () => {
     const author = `author-${randomUUID()}`;
-    const { poll, choices } = await seedPoll({ createdBy: author });
+    const postId = await seedPost(author);
+    vi.spyOn(postHydrationService, 'canViewerReadPostId').mockResolvedValueOnce(true);
+    const { poll, choices } = await seedPoll({ createdBy: author, postId });
 
     const { vote } = pollsController;
     const { captured, next } = await call(vote, {
@@ -156,6 +163,39 @@ describe('polls controller called the way Express calls it', () => {
     // Not anonymous, so the voter ids come back as the array the client expects.
     expect(body.data.options[0].votes).toEqual(['u1']);
     expect(await db.select().from(pollVotes).where(eq(pollVotes.pollId, poll.id))).toHaveLength(1);
+  });
+
+  it('conceals an attached poll when the owning post ACL refuses the viewer', async () => {
+    const author = `author-${randomUUID()}`;
+    const postId = await seedPost(author);
+    const { poll } = await seedPoll({ createdBy: author, postId });
+    vi.spyOn(postHydrationService, 'canViewerReadPostId').mockResolvedValueOnce(false);
+
+    const { getPoll } = pollsController;
+    const { captured } = await call(getPoll, {
+      params: { id: poll.id },
+      user: { id: 'intruder' },
+    });
+
+    expect(captured.status).toBe(404);
+    expect(captured.body).toEqual({ error: 'Not found', message: 'Poll not found' });
+  });
+
+  it('refuses voting before writing when the owning post ACL refuses the viewer', async () => {
+    const author = `author-${randomUUID()}`;
+    const postId = await seedPost(author);
+    const { poll, choices } = await seedPoll({ createdBy: author, postId });
+    vi.spyOn(postHydrationService, 'canViewerReadPostId').mockResolvedValueOnce(false);
+
+    const { vote } = pollsController;
+    const { captured } = await call(vote, {
+      params: { id: poll.id },
+      body: { optionId: choices[0].id },
+      user: { id: 'intruder' },
+    });
+
+    expect(captured.status).toBe(404);
+    expect(await db.select().from(pollVotes).where(eq(pollVotes.pollId, poll.id))).toHaveLength(0);
   });
 });
 
@@ -178,7 +218,7 @@ describe('the id guards — a documented 400, widened to both live shapes', () =
     // created after the cutover carries a uuid v7 and must not be rejected as
     // malformed.
     const { getPoll } = pollsController;
-    const { captured } = await call(getPoll, { params: { id: uuidv7() } });
+    const { captured } = await call(getPoll, { params: { id: uuidv7() }, user: { id: 'u1' } });
     expect(captured.status).toBe(404);
   });
 });
@@ -292,8 +332,14 @@ describe('getResults', () => {
       { pollId: poll.id, optionId: choices[1].id, userId: 'u3' },
     ]);
 
+    // Read as the CREATOR of a poll no post owns: that branch of the gate is
+    // decided from two columns, so this stays the percentages test rather than
+    // turning into an Oxy round trip nothing here can serve.
     const { getResults } = pollsController;
-    const { captured } = await call(getResults, { params: { id: poll.id } });
+    const { captured } = await call(getResults, {
+      params: { id: poll.id },
+      user: { id: author },
+    });
     const body = captured.body as {
       data: {
         id: string;
@@ -308,6 +354,40 @@ describe('getResults', () => {
     expect(body.data.isEnded).toBe(false);
     expect(body.data.results.map((r) => r.votes)).toEqual([2, 1]);
     expect(body.data.results[0].percentage).toBeCloseTo(66.67, 1);
+  });
+
+  it('conceals results when the owning post ACL refuses the viewer', async () => {
+    const author = `author-${randomUUID()}`;
+    const postId = await seedPost(author);
+    const { poll } = await seedPoll({ createdBy: author, postId });
+    vi.spyOn(postHydrationService, 'canViewerReadPostId').mockResolvedValueOnce(false);
+
+    const { getResults } = pollsController;
+    const { captured } = await call(getResults, {
+      params: { id: poll.id },
+      user: { id: 'intruder' },
+    });
+
+    expect(captured.status).toBe(404);
+    expect(captured.body).toEqual({ error: 'Not found', message: 'Poll not found' });
+  });
+
+  it('conceals results when the ACL cannot be answered at all', async () => {
+    const author = `author-${randomUUID()}`;
+    const postId = await seedPost(author);
+    const { poll } = await seedPoll({ createdBy: author, postId });
+    vi.spyOn(postHydrationService, 'canViewerReadPostId').mockRejectedValueOnce(
+      new Error('Oxy could not resolve the delegated blocked privacy context'),
+    );
+
+    const { getResults } = pollsController;
+    const { captured } = await call(getResults, {
+      params: { id: poll.id },
+      user: { id: 'intruder' },
+    });
+
+    // Fails closed rather than 500-ing: an unanswerable ACL is not a yes.
+    expect(captured.status).toBe(404);
   });
 });
 

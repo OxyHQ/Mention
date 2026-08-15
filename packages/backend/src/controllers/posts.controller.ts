@@ -786,8 +786,6 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'scheduledFor is required when scheduling a post' });
     }
 
-    const isScheduled = postStatus === 'scheduled';
-
     const postMetadata = buildPostMetadata(req.body.metadata);
 
     if (quoted_post_id) {
@@ -879,7 +877,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    if (!isScheduled && pollId) {
+    if (pollId) {
       try {
         await attachPollToPost(pollId, post.id);
       } catch (pollUpdateError) {
