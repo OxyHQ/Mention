@@ -97,7 +97,21 @@ function validationError(res: Response, message: string) {
  */
 async function canViewerAccessPoll(poll: PollRecord, viewerId: string): Promise<boolean> {
   if (poll.postId === null) return poll.createdBy === viewerId;
-  return postHydrationService.canViewerReadPostId(poll.postId, viewerId);
+  try {
+    return await postHydrationService.canViewerReadPostId(poll.postId, viewerId);
+  } catch (error) {
+    // Fails CLOSED, the same way `ContentRoomLifecycle` treats this gate: it
+    // needs the viewer's blocks from Oxy, so an Oxy outage makes the question
+    // unanswerable, and an unanswerable ACL is not a yes. Caught HERE rather
+    // than at the three call sites so a refusal cannot become a 500 at one of
+    // them and a 404 at the others — and, on the vote path, so the throw
+    // cannot escape before the write is refused.
+    logger.warn('Refusing poll access: visibility check failed', {
+      pollId: poll.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
 }
 
 function pollNotFound(res: Response) {

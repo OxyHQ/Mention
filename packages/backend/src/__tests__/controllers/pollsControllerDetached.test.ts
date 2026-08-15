@@ -332,8 +332,14 @@ describe('getResults', () => {
       { pollId: poll.id, optionId: choices[1].id, userId: 'u3' },
     ]);
 
+    // Read as the CREATOR of a poll no post owns: that branch of the gate is
+    // decided from two columns, so this stays the percentages test rather than
+    // turning into an Oxy round trip nothing here can serve.
     const { getResults } = pollsController;
-    const { captured } = await call(getResults, { params: { id: poll.id } });
+    const { captured } = await call(getResults, {
+      params: { id: poll.id },
+      user: { id: author },
+    });
     const body = captured.body as {
       data: {
         id: string;
@@ -348,6 +354,40 @@ describe('getResults', () => {
     expect(body.data.isEnded).toBe(false);
     expect(body.data.results.map((r) => r.votes)).toEqual([2, 1]);
     expect(body.data.results[0].percentage).toBeCloseTo(66.67, 1);
+  });
+
+  it('conceals results when the owning post ACL refuses the viewer', async () => {
+    const author = `author-${randomUUID()}`;
+    const postId = await seedPost(author);
+    const { poll } = await seedPoll({ createdBy: author, postId });
+    vi.spyOn(postHydrationService, 'canViewerReadPostId').mockResolvedValueOnce(false);
+
+    const { getResults } = pollsController;
+    const { captured } = await call(getResults, {
+      params: { id: poll.id },
+      user: { id: 'intruder' },
+    });
+
+    expect(captured.status).toBe(404);
+    expect(captured.body).toEqual({ error: 'Not found', message: 'Poll not found' });
+  });
+
+  it('conceals results when the ACL cannot be answered at all', async () => {
+    const author = `author-${randomUUID()}`;
+    const postId = await seedPost(author);
+    const { poll } = await seedPoll({ createdBy: author, postId });
+    vi.spyOn(postHydrationService, 'canViewerReadPostId').mockRejectedValueOnce(
+      new Error('Oxy could not resolve the delegated blocked privacy context'),
+    );
+
+    const { getResults } = pollsController;
+    const { captured } = await call(getResults, {
+      params: { id: poll.id },
+      user: { id: 'intruder' },
+    });
+
+    // Fails closed rather than 500-ing: an unanswerable ACL is not a yes.
+    expect(captured.status).toBe(404);
   });
 });
 
