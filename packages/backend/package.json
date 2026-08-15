@@ -2,7 +2,7 @@
   "name": "@mention/backend",
   "version": "1.0.0",
   "description": "Express 5 / Drizzle on PostgreSQL / Socket.io backend for Mention — the REST API, ActivityPub federation, and web shell",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "author": "Mention Team",
   "private": true,
   "type": "commonjs",

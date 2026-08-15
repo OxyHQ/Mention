@@ -121,7 +121,7 @@
     "mention"
   ],
   "author": "Mention Team",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "dependencies": {
     "@oxyhq/contracts": "catalog:",
     "zod": "catalog:"

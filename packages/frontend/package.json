@@ -3,7 +3,7 @@
   "main": "expo-router/entry",
   "version": "2.0.0",
   "description": "Expo / React Native / Expo Router universal app for Mention",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "scripts": {
     "start": "RCT_METRO_PORT=8110 expo start --reset-cache --tunnel --clear",
     "start:local": "RCT_METRO_PORT=8110 expo start --reset-cache --clear",
