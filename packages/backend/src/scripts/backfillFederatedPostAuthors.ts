@@ -17,28 +17,44 @@
  * PER-ORPHAN ALGORITHM
  * --------------------
  * For each post with `federation.activityId` set and `oxyUserId == null`:
- *   1. Determine the author actor URI:
+ *   1. Determine the author actor URI, cheapest source first:
  *        - use `federation.actorUri` when present (no network); else
+ *        - DERIVE the bridged actor URI from the atproto DID embedded in a Bridgy
+ *          Fed object URL (`deriveBridgyActorUri`, no network) — the same
+ *          derivation hydration applies to these very posts; else
  *        - re-fetch the AP object by `federation.activityId` (falling back to
- *          `federation.url`) and read `attributedTo`. This covers brid.gy /
- *          Bluesky-bridged notes, which arrive over ActivityPub (brid.gy is an AP
- *          bridge) and whose actor is a normal AP actor — so the SAME
- *          `actorService` path resolves them; the atproto connector is NOT
- *          involved (that is READ/discovery of NATIVE bsky, and our own outbound
- *          be-discovered bridge — both unrelated to inbound bridged content).
+ *          `federation.url`) and read `attributedTo`. brid.gy / Bluesky-bridged
+ *          notes arrive over ActivityPub (brid.gy is an AP bridge) and their actor
+ *          is a normal AP actor — so the SAME `actorService` path resolves them;
+ *          the atproto connector is NOT involved (that is READ/discovery of NATIVE
+ *          bsky, and our own outbound be-discovered bridge — both unrelated to
+ *          inbound bridged content).
+ *
+ *      Why the middle step earns its place, measured against production on
+ *      2026-08-15 over the whole 578-post orphan cohort: NONE carries a stored
+ *      `actorUri`, but 509 are Bridgy Fed objects whose DID yields an actor URI
+ *      locally, and 257 of those already resolve against a `federated_actors` row
+ *      we hold — repaired with ZERO network calls. The remaining 252 need one
+ *      ACTOR fetch per distinct DID (170 of them), not one OBJECT fetch per post.
+ *      Only 69 posts have no derivable DID and reach the fetch below.
  *   2. Resolve the actor URI → `oxyUserId` via `actorService.getOrFetchActor`,
  *      forcing a full `fetchRemoteActor` (which mints/refreshes the Oxy user via
  *      the shared `resolveOxyExternalUser` identity bridge) when a cached actor
  *      row exists but was never linked. Repeated actors are resolved once
- *      (in-memory cache) — the 11,967 orphans come from far fewer actors.
- *   3. On success: set the post's `oxyUserId` + `authorship` (`buildAuthorship`)
- *      and backfill `federation.actorUri` when it was missing. `updateOne` does
- *      NOT run the Post pre-save hook, so BOTH fields are written explicitly and
- *      stay in lockstep (the same shape the hook would produce).
+ *      (in-memory cache) — the orphans come from far fewer actors than posts:
+ *      measured 2026-08-15, 578 posts over 295 distinct DIDs plus 69 non-bridged.
+ *   3. On success: `replacePostAuthorship` writes the authorship rows and the
+ *      denormalized `posts.oxy_user_id` they project in ONE transaction, and
+ *      `federation.actorUri` is backfilled when it was missing — so a repaired
+ *      post never has an owner column naming a user with no authorship row.
  *   4. DELETE the post ONLY when its source is definitively gone (HTTP 404/410)
  *      AND no author could be resolved. A transient failure (timeout, 5xx, 401/403
  *      signature rejection, SSRF-blocked, no `attributedTo`) is LEFT UNTOUCHED for
- *      a later re-run — never deleted.
+ *      a later re-run — never deleted. Note that step 1's derivation shrinks this
+ *      bucket on purpose: a bridged post whose author DELETED it on Bluesky answers
+ *      404/410 at the object URL while its author stays perfectly knowable, so
+ *      without the derivation it would be a deletion candidate under
+ *      `BACKFILL_DELETE_GONE` despite a repair being available.
  *
  * SAFETY / OPERATION
  * ------------------
@@ -67,6 +83,7 @@ import type { PostRecord } from '../db/posts/postRecord';
 import { findActorByUri } from '../db/federation/actorRepository';
 import { actorService } from '../connectors/activitypub/actor.service';
 import { extractActorUri, signedFetch, asRecord } from '../connectors/activitypub/helpers';
+import { deriveBridgyActorUri } from '../connectors/activitypub/bridgy';
 import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
 import { assertSafePublicUrl } from '@oxyhq/core/server';
 import { buildAuthorship } from '../utils/postAuthorship';
@@ -169,15 +186,38 @@ export async function resolveAuthorOxyUserId(
 }
 
 /**
- * Determine the author actor URI for an orphan: prefer the stored
- * `federation.actorUri`, otherwise re-fetch the AP object and read `attributedTo`.
+ * Determine the author actor URI for an orphan, cheapest source first: the stored
+ * `federation.actorUri`, then the actor URI DERIVED from a Bridgy Fed object URL,
+ * and only then a re-fetch of the AP object to read `attributedTo`.
  * Distinguishes a definitively-gone source (404/410) from a transient failure so
  * only truly-dead posts become deletion candidates.
  */
-async function resolveOrphanAuthorUri(orphan: OrphanRow): Promise<AuthorUriResult> {
+export async function resolveOrphanAuthorUri(orphan: OrphanRow): Promise<AuthorUriResult> {
   const storedActorUri = orphan.federation?.actorUri;
   if (storedActorUri) {
     return { kind: 'ok', authorUri: storedActorUri, actorUriWasMissing: false };
+  }
+
+  // A Bridgy Fed object URL embeds the author's atproto DID
+  // (`.../convert/ap/at://<did>/app.bsky.feed.post/<rkey>`), and an AT-URI's
+  // authority IS the repo holding the record — the author, by protocol
+  // definition rather than by pattern guess. The bridged actor URI is a pure
+  // function of that DID, so the author is knowable with NO network round trip.
+  // This is the SAME derivation hydration already applies to these very posts
+  // (`resolveOrphanFederatedAuthors`); both call one helper on purpose.
+  //
+  // It is not only cheaper, it is STRICTLY MORE CORRECT than the fetch below.
+  // The object URL 404s once the author deletes the post on Bluesky, which sends
+  // the orphan to the `gone` bucket — so without this branch, a post whose author
+  // was locally knowable all along becomes a deletion candidate under
+  // `BACKFILL_DELETE_GONE`. An actor also outlives any single post, so the
+  // derived URI resolves in cases where the object fetch cannot.
+  const derivedActorUri = deriveBridgyActorUri(
+    orphan.federation?.activityId,
+    orphan.federation?.url,
+  );
+  if (derivedActorUri) {
+    return { kind: 'ok', authorUri: derivedActorUri, actorUriWasMissing: true };
   }
 
   const objectUrl = orphan.federation?.activityId || orphan.federation?.url;
