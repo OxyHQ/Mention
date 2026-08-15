@@ -643,7 +643,43 @@ export const posts = pgTable(
     index('posts_owner_chrono_idx').on(t.oxyUserId, t.visibility, t.status, t.createdAt.desc(), t.id.desc()),
     index('posts_type_chrono_idx').on(t.type, t.visibility, t.status, t.createdAt.desc()),
     index('posts_created_at_idx').on(t.createdAt.desc()),
-    index('posts_thread_idx').on(t.threadId, t.oxyUserId, t.parentPostId, t.createdAt),
+    /**
+     * The self-thread spine — `(thread_id, author)`, oldest first.
+     *
+     * PARTIAL on `thread_id is not null`, and the predicate is doing real work
+     * rather than tidying: a thread is a rare shape, so the full index spent
+     * ~90% of its entries on rows whose `thread_id` is NULL and which no query
+     * reaching this index can ever return. Both consumers —
+     * `feed.controller.getSelfThreadContinuations` and `ThreadSlicingService` —
+     * spell it `eq(thread_id, X)`, which is strict, so Postgres proves the
+     * implication and still chooses the index. Measured on 300k seeded posts
+     * (30k threaded): 23 MB → 2992 kB, same `Index Scan using posts_thread_idx`
+     * with `parent_post_id IS NOT NULL` still in the Index Cond.
+     *
+     * There is NO `thread_id is null` predicate anywhere in the tree, which is
+     * what makes the narrowing safe — see `posts_boost_of_idx` below for the
+     * case where there IS one and the index therefore stays full.
+     */
+    index('posts_thread_idx')
+      .on(t.threadId, t.oxyUserId, t.parentPostId, t.createdAt)
+      .where(sql`${t.threadId} is not null`),
+    /**
+     * DELIBERATELY NOT PARTIAL, unlike its three neighbours above and below.
+     *
+     * `boost_of` is NULL on ~95% of rows, so `where boost_of is not null` would
+     * shrink this the way it shrank `posts_thread_idx` — and it is refused
+     * anyway, because `notABoostSql()` (`utils/feedQueryBuilder.ts`) is
+     * `isNull(posts.boostOf)` and runs on hot feed paths, with two more
+     * `isNull(boostOf)` predicates in `PostClassificationService` and
+     * `scripts/backfill-mtn-records.ts`. A partial index cannot serve a query
+     * asking for the rows it excludes, and the failure has no symptom: those
+     * queries would silently stop having this index available and get slower
+     * under a row count no local corpus reproduces.
+     *
+     * The same reasoning holds `posts_quote_of_idx` full — `backfillQuotedPosts`
+     * spells `isNull(posts.quoteOf)`. Both were measured and kept: the rule that
+     * decides is "does anything ask for the NULL side", not the NULL fraction.
+     */
     index('posts_boost_of_idx').on(t.boostOf, t.createdAt.desc()),
     /**
      * One NATIVE boost per account per post — the constraint that makes "have
@@ -739,7 +775,21 @@ export const posts = pgTable(
     index('posts_classification_topics_gin').using('gin', t.classificationTopics),
     index('posts_classification_languages_gin').using('gin', t.classificationLanguages),
     index('posts_classification_trend_terms_gin').using('gin', t.classificationTrendTerms),
-    index('posts_classification_region_idx').on(t.classificationRegion, t.createdAt.desc()),
+    /**
+     * PARTIAL on `classification_region is not null`. The only two predicates
+     * are `eq(posts.classificationRegion, region)` (`forYouCandidateSources`,
+     * `relatedSources`) — strict, so the implication is provable — and nothing
+     * anywhere asks for the unclassified-region side. Measured on the seeded
+     * corpus (22% of rows carry a region): 9264 kB → 2080 kB, still
+     * `Index Scan using posts_classification_region_idx`.
+     *
+     * `TrendingService` and `discoverySources` also name the column, but as a
+     * SELECT projection and inside a `case when` scoring expression — neither is
+     * a predicate and neither can reach an index either way.
+     */
+    index('posts_classification_region_idx')
+      .on(t.classificationRegion, t.createdAt.desc())
+      .where(sql`${t.classificationRegion} is not null`),
     // The classification batch queue drains oldest-first within one status.
     index('posts_classification_queue_idx').on(t.classificationStatus, t.createdAt),
 
@@ -749,9 +799,29 @@ export const posts = pgTable(
       .on(t.createdAt.desc())
       .where(sql`${t.curated} is true`),
 
-    // The two spatial indexes, replacing the `2dsphere` pair. GiST over the
-    // GENERATED point, so there is nothing to keep in sync.
-    index('posts_geo_gist').using('gist', t.geo),
-    index('posts_content_geo_gist').using('gist', t.contentGeo),
+    /**
+     * The two spatial indexes, replacing the `2dsphere` pair. GiST over the
+     * GENERATED point, so there is nothing to keep in sync.
+     *
+     * PARTIAL on `is not null`, and here the predicate is worth more than
+     * anywhere else on this table: a location is rare (2.2% and 1.3% of the
+     * seeded corpus), and a GiST index indexes the NULLs too, so the full form
+     * paid a GiST insert on every ordinary post to store an entry no
+     * `ST_DWithin` can ever match. Measured: `posts_geo_gist` 20 MB → 488 kB,
+     * `posts_content_geo_gist` 19 MB → 264 kB — the two largest single wins in
+     * the audit, and together most of the 352 MB → 287 MB it recovered.
+     *
+     * `ST_DWithin` is strict, so Postgres proves the implication; the `nearby`
+     * controller's OR over BOTH columns (`posts.controller.ts`) still plans as a
+     * `BitmapOr` of the two, which was checked rather than assumed because that
+     * is the shape a naive narrowing would break.
+     *
+     * `postgis.test.ts` asserts these two by NAME (`am.amname = 'gist'`), so it
+     * keeps passing; `hotPathIndexes.test.ts` is what pins the predicate.
+     */
+    index('posts_geo_gist').using('gist', t.geo).where(sql`${t.geo} is not null`),
+    index('posts_content_geo_gist')
+      .using('gist', t.contentGeo)
+      .where(sql`${t.contentGeo} is not null`),
   ]
 );
