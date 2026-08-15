@@ -176,6 +176,13 @@
       "when": 1786811476871,
       "tag": "0024_drop_backfill_bookkeeping_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1786814217255,
+      "tag": "0025_posts_indexes_stop_indexing_absence",
+      "breakpoints": true
     }
   ]
 }

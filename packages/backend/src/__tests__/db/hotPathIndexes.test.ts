@@ -1,6 +1,6 @@
 /**
- * The named indexes a measured hot path depends on still exist, spelled the way
- * the query that reads them is spelled.
+ * Every index on `posts` is classified, exists, and is declared exactly as
+ * written here.
  *
  * ## Why an index needs a test of its own
  *
@@ -19,27 +19,41 @@
  *
  *   * a GENERATED column's expression changes, and `drizzle-kit generate` emits
  *     `DROP COLUMN` + `ADD COLUMN` — which takes every index over that column
- *     with it and re-emits none of them;
+ *     with it and re-emits none of them. `posts.geo` and `posts.content_geo` are
+ *     generated and carry two of the indexes below;
  *   * an index is regenerated with drizzle's query-side default spelling, so it
  *     declares `DESC NULLS FIRST`. It exists, it is the right columns, and
  *     Postgres will not use it for the order the code asks for. That is the
  *     failure `chronoOrderPlan.test.ts` exists for, and this file is the half of
  *     it that names the index rather than iterating whatever happens to match.
  *
+ * ## Why the map is EXHAUSTIVE over `posts`
+ *
+ * A gate that skips what is missing from a hand-maintained map is not a gate.
+ * `everyPostsIndexIsClassified` asserts the catalogue's set of `posts` indexes
+ * EQUALS this file's, so a new index that nobody classified fails the build and
+ * a dropped one fails it too. That is the whole output of the #753 audit: not a
+ * verdict frozen in a document, but a list that stops being true out loud.
+ *
+ * Each entry states what pays when it is gone, so a failure reads as an
+ * instruction rather than a name — and, for the four indexes the audit narrowed
+ * to partial, what makes the narrowing safe.
+ *
  * ## Why the whole `indexdef`, and why by NAME
  *
  * The definition, because "an index called X exists" is satisfied by an index on
- * the wrong columns in the wrong order with the wrong NULLS placement — which is
- * exactly the second failure above. By name, because
- * `chronoOrderPlan.test.ts` asserts a PROPERTY over every `posts` index matching
- * a pattern (`created_at desc`), and its vacuity floor is a count: an index that
- * disappears leaves that loop iterating nine instead of ten and green either
- * way. A property over a set and the membership of that set are two claims.
+ * the wrong columns in the wrong order with the wrong NULLS placement — and,
+ * since the audit, by one whose partial predicate has quietly widened or
+ * narrowed. By name, because `chronoOrderPlan.test.ts` asserts a PROPERTY over
+ * every `posts` index matching a pattern (`created_at desc`), and its vacuity
+ * floor is a count: an index that disappears leaves that loop iterating nine
+ * instead of ten and green either way. A property over a set and the membership
+ * of that set are two claims.
  *
  * ## What this file deliberately does not do
  *
  * It runs no `EXPLAIN`. Asserting a plan over `posts` asserts the planner's
- * CHOICE among a dozen candidate indexes, which moves with the statistics every
+ * CHOICE among two dozen candidate indexes, which moves with the statistics every
  * other file in a parallel run changes — `chronoOrderPlan.test.ts` shipped that
  * and it was flaky twice in eight runs. The property here is what the DDL
  * DECLARES; that the declaration is what makes an index usable is measured next
@@ -52,14 +66,13 @@ import { sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 
 /**
- * One index this repository has measured a hot path against, its exact
- * definition, and the path that pays when it is gone.
+ * One index, its exact definition, and what pays when it is gone.
  *
  * The definition is the `pg_indexes.indexdef` a migrated database reports, minus
- * nothing — schema qualification and `USING btree` included, because a change to
- * either is a change worth reading.
+ * nothing — schema qualification, `USING btree`, and the normalised partial
+ * predicate included, because a change to any of them is a change worth reading.
  */
-interface HotPathIndex {
+interface ClassifiedIndex {
   name: string;
   table: string;
   /** What breaks — slowly, silently — if this index stops existing. */
@@ -67,54 +80,274 @@ interface HotPathIndex {
   definition: string;
 }
 
-const HOT_PATH_INDEXES: readonly HotPathIndex[] = [
+/**
+ * Every index on `posts`, classified. Order follows `db/schema/posts.ts`.
+ *
+ * Measured on 2026-08-15 against a private PostGIS 17 container seeded to 300k
+ * posts (200k roots / 100k replies, 12k authors, production-shaped
+ * distributions) — NOT production, and not the shared dev database. Sizes quoted
+ * in `serves` are from that corpus and are proportional, not absolute.
+ */
+const POSTS_INDEXES: readonly ClassifiedIndex[] = [
   {
-    name: 'post_authorships_author_chrono_idx',
-    table: 'post_authorships',
-    serves:
-      "the profile feed's authorship branch (`fetchAuthored`, mtn/feed/engine/sources/userSources.ts) — " +
-      'author, accepted, newest first, in one index, which is why `post_created_at` is copied onto this table at all',
-    definition:
-      'CREATE INDEX post_authorships_author_chrono_idx ON public.post_authorships ' +
-      'USING btree (oxy_user_id, status, post_created_at DESC NULLS LAST, post_id DESC NULLS LAST)',
+    name: 'posts_pkey',
+    table: 'posts',
+    serves: 'the primary key — every id lookup, and the target of five self-referencing foreign keys',
+    definition: 'CREATE UNIQUE INDEX posts_pkey ON public.posts USING btree (id)',
   },
   {
-    name: 'posts_owner_chrono_idx',
+    name: 'posts_federation_activity_id_key',
     table: 'posts',
     serves:
-      "the profile feed's owner branch (`fetchAuthored`) — the denormalized owner reached chronologically, " +
-      'the cheaper of the two routes the `union` merges',
+      'federation dedup — a CONSTRAINT, not a performance index: it is the only identity a remote ' +
+      'instance guarantees for an activity, and dropping it duplicates every redelivered Announce',
     definition:
-      'CREATE INDEX posts_owner_chrono_idx ON public.posts ' +
-      'USING btree (oxy_user_id, visibility, status, created_at DESC NULLS LAST, id DESC NULLS LAST)',
-  },
-  {
-    name: 'post_links_chrono_v1',
-    table: 'posts',
-    serves:
-      'search `has:links` (routes/search.ts) — the only query this index exists for, and the one that ' +
-      'made it 99 MB of pure write amplification for as long as the query was spelled `desc()`',
-    definition:
-      'CREATE INDEX post_links_chrono_v1 ON public.posts ' +
-      'USING btree (has_links, visibility, status, created_at DESC NULLS LAST, id DESC NULLS LAST)',
+      'CREATE UNIQUE INDEX posts_federation_activity_id_key ON public.posts ' +
+      'USING btree (federation_activity_id) WHERE (federation_activity_id IS NOT NULL)',
   },
   {
     name: 'post_public_chrono_v1',
     table: 'posts',
-    serves: 'every public chronological scan — the feed engine\'s `fetchChrono` and post search',
+    serves:
+      "every public chronological scan that does NOT fix `is_reply` — post search with no operators, " +
+      "and the feed engine's `fetchChrono`. Reachability is not assumed: the negative control in this " +
+      'file drives a query onto it and reads it back out of the plan',
     definition:
       'CREATE INDEX post_public_chrono_v1 ON public.posts ' +
       'USING btree (visibility, status, created_at DESC NULLS LAST, id DESC NULLS LAST)',
   },
   {
+    name: 'posts_roots_chrono_idx',
+    table: 'posts',
+    serves:
+      'the root feeds, which all fix `is_reply = false`. Its key columns are IDENTICAL to ' +
+      '`post_public_chrono_v1` and it is still not redundant with it, in either direction: this one is ' +
+      'the size of the root set and applies the filter the planner would otherwise re-check per row, ' +
+      'and the full one serves the queries that carry no `is_reply` term at all',
+    definition:
+      'CREATE INDEX posts_roots_chrono_idx ON public.posts ' +
+      'USING btree (visibility, status, created_at DESC NULLS LAST, id DESC NULLS LAST) ' +
+      'WHERE (is_reply = false)',
+  },
+  {
     name: 'post_replies_chrono_v1',
     table: 'posts',
-    serves: 'a post\'s replies, oldest- or newest-first (the index is read backwards for ascending)',
+    serves: "a post's replies, newest- or oldest-first (the index is read backwards for ascending)",
     definition:
       'CREATE INDEX post_replies_chrono_v1 ON public.posts ' +
       'USING btree (parent_post_id, visibility, status, created_at DESC NULLS LAST, id DESC NULLS LAST)',
   },
+  {
+    name: 'post_links_chrono_v1',
+    table: 'posts',
+    serves:
+      'search `has:links` (`routes/search.ts`) — the only query this index exists for, and the one that ' +
+      'made it pure write amplification for as long as the query was spelled `desc()`',
+    definition:
+      'CREATE INDEX post_links_chrono_v1 ON public.posts ' +
+      'USING btree (has_links, visibility, status, created_at DESC NULLS LAST, id DESC NULLS LAST)',
+  },
+  {
+    name: 'posts_owner_chrono_idx',
+    table: 'posts',
+    serves:
+      "the profile feed's owner branch (`fetchAuthored`, mtn/feed/engine/sources/userSources.ts) — the " +
+      'denormalized owner reached chronologically, the cheaper of the two routes the `union` merges',
+    definition:
+      'CREATE INDEX posts_owner_chrono_idx ON public.posts ' +
+      'USING btree (oxy_user_id, visibility, status, created_at DESC NULLS LAST, id DESC NULLS LAST)',
+  },
+  {
+    name: 'posts_type_chrono_idx',
+    table: 'posts',
+    serves:
+      'the GLOBAL media and videos feeds — `inArray(posts.type, [IMAGE, VIDEO])` in ' +
+      '`utils/feedQueryBuilder.ts`, which is the one place a `type` predicate leads with no author term ' +
+      'to send the planner somewhere cheaper',
+    definition:
+      'CREATE INDEX posts_type_chrono_idx ON public.posts ' +
+      'USING btree (type, visibility, status, created_at DESC NULLS LAST)',
+  },
+  {
+    name: 'posts_created_at_idx',
+    table: 'posts',
+    serves:
+      'a chronological scan carrying no visibility/status term. It is the ONLY index on this table whose ' +
+      'leading column is `created_at`, so nothing else can serve that shape — which is also why the ' +
+      "audit's left-prefix rule does not condemn it despite being one column wide",
+    definition: 'CREATE INDEX posts_created_at_idx ON public.posts USING btree (created_at DESC NULLS LAST)',
+  },
+  {
+    name: 'posts_thread_idx',
+    table: 'posts',
+    serves:
+      'the self-thread spine — `feed.controller.getSelfThreadContinuations` and `ThreadSlicingService`, ' +
+      'both `eq(thread_id, X)`. NARROWED to partial by the #753 audit (23 MB → 2992 kB): ~90% of its ' +
+      'entries were rows with a NULL `thread_id` that no query reaching it can return, and no predicate ' +
+      'anywhere in the tree asks for that side',
+    definition:
+      'CREATE INDEX posts_thread_idx ON public.posts ' +
+      'USING btree (thread_id, oxy_user_id, parent_post_id, created_at) WHERE (thread_id IS NOT NULL)',
+  },
+  {
+    name: 'posts_boost_of_idx',
+    table: 'posts',
+    serves:
+      '"who boosted this post" — `inArray(posts.boostOf, ids)` in the deletion cascade, engagement ' +
+      'recompute and the AP inbox. KEPT FULL although `boost_of` is NULL on ~95% of rows: ' +
+      '`notABoostSql()` is `isNull(posts.boostOf)` and runs on hot feed paths, so a partial index ' +
+      'excluding NULLs would silently stop being available to them',
+    definition:
+      'CREATE INDEX posts_boost_of_idx ON public.posts USING btree (boost_of, created_at DESC NULLS LAST)',
+  },
+  {
+    name: 'posts_one_boost_per_account_key',
+    table: 'posts',
+    serves:
+      'one NATIVE boost per account per post — a CONSTRAINT. `federation_activity_id is null` in the ' +
+      'predicate is load-bearing: widen it and a re-Announced remote boost 23505s inside the inbox ' +
+      'worker, which retries forever',
+    definition:
+      'CREATE UNIQUE INDEX posts_one_boost_per_account_key ON public.posts USING btree (oxy_user_id, boost_of) ' +
+      "WHERE ((type = 'boost'::text) AND (boost_of IS NOT NULL) AND (federation_activity_id IS NULL))",
+  },
+  {
+    name: 'posts_quote_of_idx',
+    table: 'posts',
+    serves:
+      'quotes of a given post. KEPT FULL for the same reason as `posts_boost_of_idx` — ' +
+      '`scripts/backfillQuotedPosts.ts` spells `isNull(posts.quoteOf)`',
+    definition:
+      'CREATE INDEX posts_quote_of_idx ON public.posts USING btree (quote_of, created_at DESC NULLS LAST)',
+  },
+  {
+    name: 'posts_scheduled_idx',
+    table: 'posts',
+    serves:
+      'the site-wide scheduled SWEEP, which wants every due post regardless of owner. Partial, so it ' +
+      'indexes a set that drains every 60 seconds rather than the table',
+    definition:
+      "CREATE INDEX posts_scheduled_idx ON public.posts USING btree (scheduled_for) WHERE (status = 'scheduled'::text)",
+  },
+  {
+    name: 'post_owner_scheduled_v1',
+    table: 'posts',
+    serves:
+      "ONE account's queue — `GET /posts/scheduled`. `posts_scheduled_idx` cannot serve it (wrong leading " +
+      "column), which is why both exist: without this one a member's queue read costs a scan " +
+      'proportional to how much everybody else has scheduled',
+    definition:
+      'CREATE INDEX post_owner_scheduled_v1 ON public.posts USING btree (oxy_user_id, scheduled_for) ' +
+      "WHERE (status = 'scheduled'::text)",
+  },
+  {
+    name: 'post_lane_chrono_v1',
+    table: 'posts',
+    serves: "the lane tab's keyset — `laneSource` pages ONE lane on `(created_at, id)`",
+    definition:
+      'CREATE INDEX post_lane_chrono_v1 ON public.posts ' +
+      'USING btree (lane_id, visibility, status, created_at DESC NULLS LAST, id DESC NULLS LAST) ' +
+      'WHERE (lane_id IS NOT NULL)',
+  },
+  {
+    name: 'posts_hashtags_gin',
+    table: 'posts',
+    serves: 'hashtag feeds and `trendTermMatchSql` — an array overlap a btree cannot serve at all',
+    definition: 'CREATE INDEX posts_hashtags_gin ON public.posts USING gin (hashtags)',
+  },
+  {
+    name: 'posts_classification_topics_gin',
+    table: 'posts',
+    serves: 'topic-matched feed candidates and the trend term space',
+    definition:
+      'CREATE INDEX posts_classification_topics_gin ON public.posts USING gin (classification_topics)',
+  },
+  {
+    name: 'posts_classification_languages_gin',
+    table: 'posts',
+    serves: "language-matched feed candidates and search's `language=` filter",
+    definition:
+      'CREATE INDEX posts_classification_languages_gin ON public.posts USING gin (classification_languages)',
+  },
+  {
+    name: 'posts_classification_trend_terms_gin',
+    table: 'posts',
+    serves: '`trendTermMatchSql` — trend detection, trend feeds and excerpt lookup',
+    definition:
+      'CREATE INDEX posts_classification_trend_terms_gin ON public.posts USING gin (classification_trend_terms)',
+  },
+  {
+    name: 'posts_classification_region_idx',
+    table: 'posts',
+    serves:
+      'region-matched feed candidates (`forYouCandidateSources`, `relatedSources`). NARROWED to partial ' +
+      'by the #753 audit (9264 kB → 2080 kB); the only predicates are `eq(classification_region, X)` and ' +
+      'nothing asks for the unclassified side',
+    definition:
+      'CREATE INDEX posts_classification_region_idx ON public.posts ' +
+      'USING btree (classification_region, created_at DESC NULLS LAST) WHERE (classification_region IS NOT NULL)',
+  },
+  {
+    name: 'posts_classification_queue_idx',
+    table: 'posts',
+    serves:
+      'the Stage-B classification queue, which drains oldest-first within one status. Ascending ' +
+      '`created_at` on purpose — this is the one chronological index here that is not a feed keyset',
+    definition:
+      'CREATE INDEX posts_classification_queue_idx ON public.posts USING btree (classification_status, created_at)',
+  },
+  {
+    name: 'posts_curated_idx',
+    table: 'posts',
+    serves:
+      'curated posts, newest first. Partial, and NOT redundant with `posts_created_at_idx` despite the ' +
+      'identical key: the total index is what a naive left-prefix rule would keep, and it is the one ' +
+      'that cannot apply the `curated` filter',
+    definition:
+      'CREATE INDEX posts_curated_idx ON public.posts USING btree (created_at DESC NULLS LAST) WHERE (curated IS TRUE)',
+  },
+  {
+    name: 'posts_geo_gist',
+    table: 'posts',
+    serves:
+      '`ST_DWithin` on the post location — the `nearby` controller. NARROWED to partial by the #753 ' +
+      'audit (20 MB → 488 kB, the single largest win): a GiST index indexes NULLs too, so the full form ' +
+      'paid an insert on every ordinary post for an entry no proximity query can match',
+    definition: 'CREATE INDEX posts_geo_gist ON public.posts USING gist (geo) WHERE (geo IS NOT NULL)',
+  },
+  {
+    name: 'posts_content_geo_gist',
+    table: 'posts',
+    serves:
+      '`ST_DWithin` on the content location. NARROWED with `posts_geo_gist` (19 MB → 264 kB); the ' +
+      'controller ORs the two, which still plans as a `BitmapOr` over both partial indexes',
+    definition:
+      'CREATE INDEX posts_content_geo_gist ON public.posts USING gist (content_geo) WHERE (content_geo IS NOT NULL)',
+  },
 ];
+
+/**
+ * Indexes on OTHER tables that a measured hot path depends on.
+ *
+ * Deliberately not exhaustive over their tables — the #753 audit's subject was
+ * `posts`, and a map claiming completeness it has not measured would be worse
+ * than one that says where its edge is. Widen it by auditing a table, not by
+ * appending to this list.
+ */
+const OTHER_TABLE_INDEXES: readonly ClassifiedIndex[] = [
+  {
+    name: 'post_authorships_author_chrono_idx',
+    table: 'post_authorships',
+    serves:
+      "the profile feed's authorship branch (`fetchAuthored`) — author, accepted, newest first, in one " +
+      'index, which is why `post_created_at` is copied onto that table at all',
+    definition:
+      'CREATE INDEX post_authorships_author_chrono_idx ON public.post_authorships ' +
+      'USING btree (oxy_user_id, status, post_created_at DESC NULLS LAST, post_id DESC NULLS LAST)',
+  },
+];
+
+const ALL_INDEXES: readonly ClassifiedIndex[] = [...POSTS_INDEXES, ...OTHER_TABLE_INDEXES];
 
 let db: Database;
 
@@ -132,6 +365,14 @@ async function indexDefinition(name: string): Promise<string | null> {
     sql`select indexdef from pg_indexes where schemaname = 'public' and indexname = ${name}`
   );
   return [...rows][0]?.indexdef ?? null;
+}
+
+/** Every index the catalogue holds for `table`. */
+async function catalogueIndexNames(table: string): Promise<string[]> {
+  const rows = await db.execute<{ indexname: string }>(
+    sql`select indexname from pg_indexes where schemaname = 'public' and tablename = ${table} order by indexname`
+  );
+  return [...rows].map((row) => row.indexname);
 }
 
 describe('the indexes the measured hot paths are built on', () => {
@@ -157,22 +398,55 @@ describe('the indexes the measured hot paths are built on', () => {
     await expect(indexDefinition('post_authorships_no_such_index')).resolves.toBeNull();
   });
 
-  it.each(HOT_PATH_INDEXES)('$name exists, on $table', async ({ name, table }) => {
+  it.each(ALL_INDEXES)('$name exists, on $table', async ({ name, table, serves }) => {
     const definition = await indexDefinition(name);
-    expect(definition, `${name} is missing — it serves ${
-      HOT_PATH_INDEXES.find((index) => index.name === name)?.serves
-    }`).not.toBeNull();
+    expect(definition, `${name} is missing — it serves ${serves}`).not.toBeNull();
     expect(definition).toContain(`ON public.${table} `);
   });
 
-  it.each(HOT_PATH_INDEXES)('$name is declared exactly as the query reads it', async ({ name, definition }) => {
+  it.each(ALL_INDEXES)('$name is declared exactly as the query reads it', async ({ name, definition }) => {
     /**
-     * The NULLS placement is the load-bearing half and the one with no symptom.
-     * Postgres matches an index to an ORDER BY on the NULLS placement as well as
-     * the direction, so an index regenerated with drizzle's query-side default
-     * (`DESC NULLS FIRST`) is present, correct, and unusable by the order every
-     * one of these paths asks for.
+     * Three things ride on the exact text, and none has a functional symptom:
+     * the NULLS placement (Postgres matches an index to an ORDER BY on it, so
+     * drizzle's query-side default `DESC NULLS FIRST` is present, correct and
+     * unusable), the column order, and — since the #753 audit — the partial
+     * predicate. A predicate that widens costs the disk the audit recovered; one
+     * that narrows makes the index unusable by the query it was cut for.
      */
     await expect(indexDefinition(name)).resolves.toBe(definition);
+  });
+});
+
+describe('the classification of `posts` indexes is exhaustive', () => {
+  it('classifies every index the catalogue holds, and holds every index it classifies', async () => {
+    /**
+     * The output of the #753 audit, expressed so it can stop being true.
+     *
+     * An equality, not two inclusions, because the two directions catch
+     * different mistakes and both matter: an index in the catalogue and not here
+     * is one nobody decided about — the exact state the audit found and resolved
+     * — and one here but not in the catalogue is a migration that took a live
+     * index with it. A `toContain` loop would pass in the first case, which is
+     * the case the audit exists to prevent recurring.
+     */
+    const catalogued = await catalogueIndexNames('posts');
+    const classified = POSTS_INDEXES.map((index) => index.name).sort();
+
+    expect(catalogued.length, 'no indexes read back for `posts` — the catalogue query is broken')
+      .toBeGreaterThanOrEqual(20);
+    expect(
+      catalogued,
+      'An index on `posts` is unclassified, or one classified here is gone.\n' +
+      'Add it to POSTS_INDEXES with its exact `pg_indexes.indexdef` and what pays when it is missing — ' +
+      'or, if a migration removed it, delete its entry in the SAME change.\n' +
+      'Do NOT relax this to a subset check: an index nobody decided about is what the #753 audit found.'
+    ).toEqual(classified);
+  });
+
+  it('names each index exactly once', () => {
+    // A duplicate entry would make the equality above pass while the count of
+    // distinct classifications silently disagreed with the list's length.
+    const names = ALL_INDEXES.map((index) => index.name);
+    expect(new Set(names).size).toBe(names.length);
   });
 });
