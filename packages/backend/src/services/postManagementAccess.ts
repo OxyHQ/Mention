@@ -18,24 +18,36 @@ export interface ManageablePost {
 }
 
 /**
- * Whether the viewer may manage this post WITHOUT asking Oxy anything.
+ * Whether the viewer LOOKS like somebody who may manage this post, answered
+ * without asking Oxy anything.
  *
- * Two cases, both free, and between them they cover every post anybody actually
- * manages: you authored it yourself, or you wrote it for an account that
- * authored it on your behalf.
+ * Two cases, both free: you authored it yourself, or the post RECORDS you as
+ * having written it for an account that authored it on your behalf.
  *
- * This is the predicate the READ path uses, and the reason it may not grow: it
- * runs once per post per hydration, so anything it consults has to be already in
- * hand. A third case — "I am one of the OTHER people who operate the authoring
- * account" — is a membership question only Oxy can answer, and putting it here
- * would put an Oxy round trip on the feed. The write path takes that cost
- * instead, on an action somebody actually initiated; see
- * {@link assertCanManagePost}.
+ * **Its only remaining caller is the DTO** — `viewerState.isOwner` and the
+ * `PostPermissions` flags beside it, which are what the client's post menu is
+ * drawn from. It is not the ACL (`canViewerReadPost` resolves current authority)
+ * and it is not the write gate ({@link postManagementRefusal} does the same),
+ * and the reason it may not grow into either is that it runs once per post per
+ * hydration: anything it consults has to be already in hand, and "am I one of
+ * the OTHER people who operate this account" is a membership question only Oxy
+ * can answer.
  *
- * The consequence is deliberate and one-directional: a co-operator who did not
- * write the post is not OFFERED the menu, but would not be refused if they
- * reached the route. Affordance ⊆ permission — a button that is missing is a
- * smaller problem than a button that 403s.
+ * **So it is a HINT, and the second clause is why it can be wrong.**
+ * `writtenByOxyUserId` is written once at creation and never revised, so it goes
+ * on naming somebody after they leave the channel. That makes it evidence of
+ * historical authorship rather than of current authority — good enough to decide
+ * whether to draw a menu, not good enough to decide whether to honour it.
+ *
+ * The two disagreements it leaves are both bounded, and they run in opposite
+ * directions:
+ *
+ *  - a CO-OPERATOR who did not write the post is not offered the menu but is
+ *    accepted by the route. Affordance ⊂ permission — the direction the house
+ *    rule prefers, since a missing button is smaller than one that refuses.
+ *  - a DEPARTED writer is still offered the menu and is refused by the route.
+ *    That is the direction the rule warns about, and it is accepted here
+ *    deliberately; {@link postManagementRefusal} carries the argument.
  */
 export function canManagePostWithoutLookup(
   post: ManageablePost,
@@ -54,19 +66,39 @@ export interface PostManagementRefusal {
 
 /**
  * `null` when `callerId` may manage this post — delete it, edit it, pin it, move
- * it between lanes, change its settings — otherwise the refusal to answer with.
+ * it between lanes, change its settings, read its insights, publish it early —
+ * otherwise the refusal to answer with.
  *
  * The rule is "whoever may publish as the authoring account may manage what it
- * published", plus the writer of the post in their own right. It reuses
- * {@link assertCanPublishAsAccount} rather than re-deriving membership, so the
- * authority for writing as an account and the authority for managing what was
- * written cannot drift apart — and so a kind Oxy adds later is refused here for
- * the same reason it is refused there.
+ * published". It reuses {@link assertCanPublishAsAccount} rather than
+ * re-deriving membership, so the authority for writing as an account and the
+ * authority for managing what was written cannot drift apart — and so a kind Oxy
+ * adds later is refused here for the same reason it is refused there.
  *
- * **Cost.** Nothing is asked of Oxy on the two free paths above, which is every
- * ordinary post and every channel post managed by the person who wrote it. Only
- * a co-operator reaches the lookup, and only on a request they initiated — never
- * on the read path, where it would land on every feed hydration.
+ * ## Why the stored writer is not a second rule
+ *
+ * A channel post carries the human who wrote it in `writtenByOxyUserId`, free
+ * and already in hand, and this gate used to admit them on that alone. It is the
+ * wrong column for the question. It is written once, at creation, and never
+ * again — not when a colleague rewrites the post, and not when its writer leaves
+ * the channel. So it kept answering "yes" for a removed member, over the
+ * channel's embargoed queue, for as long as they held the post id: they could
+ * delete the story, rewrite it under the channel's byline, pin it, move it
+ * between the channel's lanes and read its private engagement figures, with
+ * nothing asked of Oxy anywhere. Historical authorship is not current authority,
+ * so the proof has to be current, and only Oxy's account graph holds it.
+ *
+ * The same reasoning already governs the READ side (`PostHydrationService`
+ * resolves current authority before serving a withheld channel post), and every
+ * management route now answers to it too. There is no per-route opt-out: the
+ * cheap free path would be reintroduced one defensible call site at a time, and
+ * the routes it would be reintroduced on are the destructive ones.
+ *
+ * **Cost.** Authoring the post yourself is still free and is checked first,
+ * which is every ordinary post — no query, no round trip. What now pays a
+ * membership read is the case where the caller is NOT the authoring account:
+ * a co-operator, and (newly) the post's stored writer. Both are account-authored
+ * posts on a request somebody initiated, never a feed hydration.
  *
  * **A refusal is a 404, not a 403.** These routes have always answered 404 for a
  * post the caller may not touch, so the response cannot be used to discover that
@@ -74,22 +106,40 @@ export interface PostManagementRefusal {
  * again", where a 404 would tell an operator their post had vanished.
  *
  * Returning the refusal rather than throwing it is what keeps that mapping in
- * one place. Six handlers ask this question, and a `catch` at each of them is
- * six chances to answer a refusal with the wrong status.
+ * one place. Seven handlers ask this question, and a `catch` at each of them is
+ * seven chances to answer a refusal with the wrong status.
+ *
+ * ## The divergence from `viewerState.isOwner`, stated rather than hidden
+ *
+ * The DTO's `isOwner` is still {@link canManagePostWithoutLookup}, so a departed
+ * writer is drawn a post menu whose every action this gate now answers 404 to.
+ * That is the direction AGENTS.md warns about — affordance ⊄ permission — and it
+ * is accepted here because the alternative is worse in both size and kind.
+ *
+ * Making the two agree means either asking Oxy during hydration, which is the
+ * round trip the read path exists to avoid and would land on every feed, or
+ * dropping the writer clause from `isOwner`. The second is not symmetrical with
+ * this change: a channel AUTHORS its own posts, so with that clause gone
+ * `isOwner` is false for every human alive on every channel post, on every
+ * surface that has not resolved the operated-account set — which is all of them
+ * except the editorial queue. That trades a stale menu shown to people who have
+ * LEFT a channel for no menu at all shown to the people currently running it.
+ *
+ * The residual error is also the least bad one available. `isOwner` is a
+ * snapshot of a permission a THIRD PARTY can revoke — the channel's owner
+ * removing a member — so no cached DTO can be right about it without asking; the
+ * only question is what happens when it is stale. Before this it was stale and
+ * OBEYED, and the story was destroyed. Now it is stale and refused.
  */
 export async function postManagementRefusal(params: {
   post: ManageablePost;
   callerId: string;
   memberReader: AccountMemberReader | undefined;
-  /** Require current authority over the authoring account, even for its stored writer. */
-  requireAuthorAuthority?: boolean;
 }): Promise<PostManagementRefusal | null> {
-  const isAuthor =
-    Boolean(params.post.oxyUserId) && String(params.post.oxyUserId) === params.callerId;
-  if (
-    isAuthor ||
-    (!params.requireAuthorAuthority && canManagePostWithoutLookup(params.post, params.callerId))
-  ) {
+  // The one free path, and the only one: the caller IS the account that authored
+  // the post. Nothing about it can go stale — it is a comparison between the
+  // row's own owner and the authenticated subject of this request.
+  if (Boolean(params.post.oxyUserId) && String(params.post.oxyUserId) === params.callerId) {
     return null;
   }
 

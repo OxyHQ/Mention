@@ -23,7 +23,10 @@ import type { OxyAuthRequest } from '@oxyhq/core/server';
 import { inArray } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
-const { resolveUserSummaries } = vi.hoisted(() => ({ resolveUserSummaries: vi.fn() }));
+const { resolveUserSummaries, listAccountMembers } = vi.hoisted(() => ({
+  resolveUserSummaries: vi.fn(),
+  listAccountMembers: vi.fn(async () => [] as unknown[]),
+}));
 
 // Oxy owns identity and is reached over HTTP; the ROW is what this suite is
 // about, so the identity resolver is the one thing still doubled.
@@ -32,12 +35,17 @@ vi.mock('../../services/PostHydrationService', () => ({
   isFallbackUserSummary: (user: { username?: string }) => !user.username,
 }));
 
-// `utils/oxyHelpers` is deliberately NOT doubled. The controller only reaches
-// it for `createUserScopedOxyServices(req)`, and the real one returns
-// `undefined` for a request carrying no bearer — which is exactly what a stub
-// would have returned, while a module factory would silently blank every other
-// export the controller graph reads. `utils/logger` is already mocked globally
-// in `__tests__/setup.ts`.
+// `utils/oxyHelpers` is doubled for ONE export and spread from the original for
+// the rest, so no other export the controller graph reads silently becomes
+// `undefined`. It has to be doubled at all because the gate behind this route
+// asks Oxy who currently operates a channel — the real
+// `createUserScopedOxyServices` answers `undefined` for a request carrying no
+// bearer, and an absent reader is a refusal. `utils/logger` is already mocked
+// globally in `__tests__/setup.ts`.
+vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../utils/oxyHelpers')>()),
+  createUserScopedOxyServices: () => ({ listAccountMembers }),
+}));
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { insertPostRecord } from '../../db/posts/postRepository';
@@ -71,6 +79,9 @@ beforeAll(async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   resolveUserSummaries.mockResolvedValue(new Map());
+  // Nobody operates anything unless a case stages it — `clearAllMocks` drops the
+  // implementation, so the empty roster is restated rather than assumed.
+  listAccountMembers.mockResolvedValue([]);
 });
 
 afterEach(async () => {
@@ -206,16 +217,21 @@ describe('getPostEditSource', () => {
     expect(res.json).toHaveBeenCalledWith({ message: 'Post not found' });
   });
 
-  it("lets a CHANNEL post's writer open it, though the channel is the author", async () => {
+  it("lets a CURRENT member of a CHANNEL open its post, though the channel is the author", async () => {
     // The defect this route shares with `updatePost`: a channel post is authored
     // by an account nobody can sign in as, so an owner-scoped lookup refused the
     // composer to the very person who wrote it. The row here is the real shape —
     // `oxy_user_id` is the CHANNEL and `written_by_oxy_user_id` is the human — so
     // a query narrowed back to the viewer finds nothing and this goes red.
     //
-    // It costs no Oxy round trip: `canManagePostWithoutLookup` answers from the
-    // two columns already in hand, which is why the writer is admitted even
-    // though `memberReader` is `undefined` here.
+    // The membership is STAGED. Being named on the row as its writer is not what
+    // opens the composer: that column is written once and never revised, so it
+    // goes on naming somebody after they leave the channel, and this route hands
+    // back the whole body of a story that may still be embargoed.
+    resolveUserSummaries.mockResolvedValue(
+      new Map([[CHANNEL, { user: { id: CHANNEL, username: 'thechannel', kind: 'channel' } }]]),
+    );
+    listAccountMembers.mockResolvedValue([{ memberUserId: OWNER, status: 'active' }]);
     const post = await insertPostRecord({
       oxyUserId: CHANNEL,
       writtenByOxyUserId: OWNER,
@@ -256,6 +272,7 @@ describe('getPostEditSource', () => {
     resolveUserSummaries.mockResolvedValue(
       new Map([[CHANNEL, { user: { id: CHANNEL, username: 'thechannel', kind: 'channel' } }]]),
     );
+    listAccountMembers.mockResolvedValue([{ memberUserId: OWNER, status: 'active' }]);
 
     const res = responseDouble();
     await getPostEditSource(request(post.id, OWNER), res as unknown as Response);
