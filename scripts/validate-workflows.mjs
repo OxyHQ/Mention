@@ -253,6 +253,31 @@ for (const workflowName of workflowNames) {
         }
       }
     }
+
+    // The frontend coverage policy is a STEP inside the test matrix, so deleting
+    // the step deletes the gate silently: the suite stays green and no check
+    // reports itself missing. Asserting it from a different job — `quality`,
+    // which always runs — is what makes the deletion loud. Ordering matters as
+    // well, because the policy reads the report `test:coverage` writes: a step
+    // placed above the suite would measure the previous run's artefacts, or
+    // nothing at all.
+    if (workflowName === "ci.yml") {
+      const suiteIndex = source.indexOf("Run complete package test suite");
+      const policyIndex = source.indexOf("Enforce the frontend coverage policy");
+      if (policyIndex < 0) {
+        failures.push(
+          `${workflowName}: the frontend test leg must run \`coverage:check\` — without it the critical-path floor and the no-regression ratchet enforce nothing`,
+        );
+      } else if (suiteIndex < 0 || policyIndex < suiteIndex) {
+        failures.push(
+          `${workflowName}: the coverage policy step must come after the suite that writes the report it reads`,
+        );
+      } else if (!source.includes("COVERAGE_POLICY_BASE")) {
+        failures.push(
+          `${workflowName}: the coverage policy step must be given a base revision, or a pull request can lower the recorded baseline in the same commit that removed the tests`,
+        );
+      }
+    }
   }
 }
 

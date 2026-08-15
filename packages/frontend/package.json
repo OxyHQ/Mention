@@ -22,6 +22,9 @@
     "build:preview": "eas build --platform android --profile preview",
     "test": "node ../../node_modules/jest/bin/jest.js --watchAll=false --runInBand",
     "test:coverage": "node ../../node_modules/jest/bin/jest.js --watchAll=false --runInBand --coverage",
+    "coverage:check": "node ./scripts/coverage-policy.mjs",
+    "coverage:record": "node ./scripts/coverage-policy.mjs --record",
+    "coverage:policy-selftest": "node ./scripts/test-coverage-policy.mjs",
     "typecheck": "node ./scripts/typecheck.mjs",
     "lint": "expo lint",
     "clean": "rm -rf dist .expo",
@@ -54,10 +57,10 @@
     ],
     "coverageThreshold": {
       "global": {
-        "statements": 14.86,
-        "branches": 12.32,
-        "functions": 12.17,
-        "lines": 15.16
+        "statements": 27.8,
+        "branches": 23.3,
+        "functions": 23.5,
+        "lines": 28.4
       },
       "./components/providers/AccountSwitchReset.tsx": {
         "statements": 98.03,

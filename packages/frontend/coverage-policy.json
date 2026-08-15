@@ -1,0 +1,297 @@
+{
+  "$comment": [
+    "The frontend coverage policy. Hand-curated; the measured numbers live in",
+    "coverage-baseline.json, which is machine-written. Rationale and the local",
+    "workflow: packages/frontend/docs/TESTING-POLICY.md. Enforced by",
+    "scripts/coverage-policy.mjs, mutation-tested by scripts/test-coverage-policy.mjs."
+  ],
+  "$comment:domains": [
+    "Behavioural logic only. `components/` is deliberately absent apart from",
+    "`components/providers/`: a rendered row is presentational boilerplate and",
+    "covering it inflates the percentage without buying confidence, which is the",
+    "failure mode issue #700 asks to avoid. Membership is by GLOB, so a new store",
+    "or service is inside the gate the moment it is written rather than whenever",
+    "somebody remembers to add it to a list."
+  ],
+  "domains": [
+    {
+      "id": "stores",
+      "why": "Zustand stores hold the client's own truth — engagement, identity, scroll position, invalidation signals.",
+      "include": [
+        "stores/**/*.ts",
+        "stores/**/*.tsx"
+      ]
+    },
+    {
+      "id": "services",
+      "why": "Every network call the app makes and the shapes it expects back.",
+      "include": [
+        "services/**/*.ts"
+      ]
+    },
+    {
+      "id": "lib",
+      "why": "Session, query client, query keys, share intents, telemetry, platform forks.",
+      "include": [
+        "lib/**/*.ts",
+        "lib/**/*.tsx"
+      ],
+      "exclude": [
+        "lib/animations/**"
+      ]
+    },
+    {
+      "id": "db",
+      "why": "The on-device feed cache, its schema and its migrations.",
+      "include": [
+        "db/**/*.ts"
+      ]
+    },
+    {
+      "id": "providers",
+      "why": "Boot order, auth routing and account-switch teardown — the components that are logic.",
+      "include": [
+        "components/providers/**/*.ts",
+        "components/providers/**/*.tsx"
+      ]
+    },
+    {
+      "id": "hooks",
+      "why": "Where the app's product behaviour actually lives.",
+      "include": [
+        "hooks/**/*.ts",
+        "hooks/**/*.tsx"
+      ]
+    },
+    {
+      "id": "utils",
+      "why": "Pure logic: intent parsing, post building, feed merging, formatting.",
+      "include": [
+        "utils/**/*.ts",
+        "utils/**/*.tsx"
+      ]
+    }
+  ],
+  "globalExcludes": [
+    "**/__tests__/**",
+    "**/__fixtures__/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.d.ts"
+  ],
+  "$comment:criticalPathBar": [
+    "The seven areas issue #700 names, held materially higher than anything a",
+    "global percentage asks for. Branches matter more than statements here: a",
+    "permission check, a consent gate and a cursor boundary are all branches, and",
+    "a test that walks the happy path covers every statement in them."
+  ],
+  "criticalPathBar": {
+    "statements": 80,
+    "branches": 65
+  },
+  "criticalPaths": {
+    "authentication, session and account switching": [
+      "components/providers/AccountSwitchReset.tsx",
+      "components/providers/AuthRouter.tsx",
+      "stores/identityUpdates.ts",
+      "lib/actorCache.ts"
+    ],
+    "composer and post mutations": [
+      "hooks/usePostSave.ts",
+      "hooks/usePostLike.ts",
+      "hooks/usePostBoost.ts",
+      "hooks/usePostVote.ts",
+      "hooks/usePostActions.tsx",
+      "stores/postsStore.ts",
+      "utils/postBuilder.ts"
+    ],
+    "react query cache keys and invalidation": [
+      "lib/viewerQueryKeys.ts",
+      "lib/queryClient.ts",
+      "stores/engagementInvalidation.ts",
+      "stores/bylineInvalidation.ts",
+      "stores/laneInvalidation.ts",
+      "stores/safetyInvalidation.ts"
+    ],
+    "permissions and channel management": [
+      "lib/operatedAccounts.ts",
+      "services/channelAccountService.ts",
+      "services/channelWritersService.ts",
+      "services/channelDeletionService.ts"
+    ],
+    "federation-facing UI state": [
+      "utils/externalActor.ts",
+      "hooks/useExternalActorResolve.ts",
+      "hooks/useMentionNode.ts",
+      "hooks/useFediversePreferredLanguage.ts"
+    ],
+    "deep links and share intents": [
+      "utils/composeIntent.ts",
+      "lib/shareIntent.ts",
+      "lib/shareIntent.native.ts"
+    ],
+    "feed pagination and state restoration": [
+      "hooks/useFeedState.ts",
+      "stores/feedScrollStore.ts",
+      "utils/feedUtils.ts",
+      "utils/feedMemoryMode.ts",
+      "utils/feedTelemetry.ts",
+      "db/cacheLifecycle.ts"
+    ]
+  },
+  "$comment:belowBarExemptions": [
+    "Critical-path files that do NOT clear the bar today. This list is the honest",
+    "half of the policy: it says out loud which named-critical code is untested,",
+    "rather than lowering the bar until everything passes. Each entry still",
+    "carries its measured pin in coverage-baseline.json, so an exempt file cannot",
+    "get worse — only stay put or improve. `expectedCounts.belowBarExemptions` is",
+    "an equality, so the list cannot grow quietly, and an entry that starts",
+    "clearing the bar is reported as a failure until it is deleted."
+  ],
+  "belowBarExemptions": {
+    "components/providers/AuthRouter.tsx": {
+      "since": "2026-08-15",
+      "measured": "78.94% statements / 50% branches",
+      "reason": "AuthRouter.test.tsx covers the routing decisions but not the cold-boot restore branches, which need the 5-25s SSO window a jest run cannot reproduce."
+    },
+    "hooks/usePostLike.ts": {
+      "since": "2026-08-15",
+      "measured": "0%",
+      "reason": "No direct test. usePostSave.ts is the covered sibling and the shape to copy; the optimistic-write and rollback paths are the ones that matter."
+    },
+    "hooks/usePostBoost.ts": {
+      "since": "2026-08-15",
+      "measured": "0%",
+      "reason": "No direct test. Boosts write through postsStore and must reach engagementInvalidation; neither leg is asserted anywhere today."
+    },
+    "hooks/usePostVote.ts": {
+      "since": "2026-08-15",
+      "measured": "0%",
+      "reason": "No direct test. It is one of the two call sites that write invalidation through the store rather than the hooks, so a regression here is invisible to the hook-level tests."
+    },
+    "hooks/usePostActions.tsx": {
+      "since": "2026-08-15",
+      "measured": "0%",
+      "reason": "No direct test. Mostly menu assembly, but it is where the operated-account and channel refusals are applied."
+    },
+    "stores/postsStore.ts": {
+      "since": "2026-08-15",
+      "measured": "47.85% statements / 29.93% branches",
+      "reason": "postsStoreGranularReactivity.test.tsx covers selector reactivity only. The engagement write path — the authority every post surface reads — is largely unasserted."
+    },
+    "utils/postBuilder.ts": {
+      "since": "2026-08-15",
+      "measured": "68.25% statements / 37.3% branches",
+      "reason": "Covered indirectly through compose tests. The quote, poll and scheduled variants each add branches nothing exercises directly."
+    },
+    "services/channelDeletionService.ts": {
+      "since": "2026-08-15",
+      "measured": "0%",
+      "reason": "No direct test. Its siblings channelAccountService and channelWritersService are both at 100%; this one is the destructive operation and is the odd one out."
+    },
+    "hooks/useExternalActorResolve.ts": {
+      "since": "2026-08-15",
+      "measured": "0%",
+      "reason": "No direct test. externalActorQuery.test.ts covers the query shape, not the hook's federated-handle branches."
+    },
+    "hooks/useMentionNode.ts": {
+      "since": "2026-08-15",
+      "measured": "0%",
+      "reason": "No direct test. Self-hosted node pairing state; low traffic, but it is federation-facing state as the issue defines it."
+    },
+    "hooks/useFediversePreferredLanguage.ts": {
+      "since": "2026-08-15",
+      "measured": "0%",
+      "reason": "No direct test. Reads and writes a consent-adjacent Oxy setting."
+    },
+    "lib/shareIntent.ts": {
+      "since": "2026-08-15",
+      "measured": "0% statements",
+      "reason": "The neutral default of a platform split; the native fork is where the work happens. Kept on the critical list because a deep link landing in the wrong composer is a data-loss bug."
+    },
+    "lib/shareIntent.native.ts": {
+      "since": "2026-08-15",
+      "measured": "0%",
+      "reason": "No direct test. expo-share-intent's module surface needs a mock nobody has written; utils/composeIntent.ts, at 97%, is the parser it feeds."
+    },
+    "hooks/useFeedState.ts": {
+      "since": "2026-08-15",
+      "measured": "65.21% statements / 54.65% branches",
+      "reason": "Two test files cover memory mode and the auth-identity keying. Pagination, the pending/refetch path and scroll restoration are the uncovered remainder."
+    },
+    "stores/feedScrollStore.ts": {
+      "since": "2026-08-15",
+      "measured": "65.62% statements / 50% branches",
+      "reason": "feedScrollStore.test.ts covers retention and keying; the eviction and warm-start branches are not asserted."
+    },
+    "db/cacheLifecycle.ts": {
+      "since": "2026-08-15",
+      "measured": "83.87% statements / 54.54% branches",
+      "reason": "Clears the statement bar, not the branch bar. The uncovered branches are the SQLite-unavailable fallbacks, which only run on web where isDbAvailable() is false."
+    }
+  },
+  "$comment:unenforceable": [
+    "jest-expo resolves the NATIVE platform extension, so `import './X'` never",
+    "loads `X.web.tsx`. Measured on this repository: a syntax error inserted into",
+    "Feed.web.tsx left the whole suite green. A test that names `../X.web`",
+    "explicitly DOES load it — which is why three web forks here carry real",
+    "coverage and are pinned like anything else. These three are reachable by no",
+    "implicit path and have no direct test, so a coverage floor on them would be",
+    "a number nobody can move. tsc and `expo export --platform web` are their",
+    "gates. The policy fails if one of them gains coverage and stays on this list."
+  ],
+  "unenforceable": {
+    "lib/chunkReload.web.ts": {
+      "reason": "Web-only fork, no direct test; jest resolves lib/chunkReload.native.ts instead."
+    },
+    "lib/hlsPlayback.web.ts": {
+      "reason": "Web-only fork, no direct test; jest resolves lib/hlsPlayback.native.ts instead."
+    },
+    "lib/socketBfcache.web.ts": {
+      "reason": "Web-only fork, no direct test; jest resolves lib/socketBfcache.native.ts instead."
+    }
+  },
+  "$comment:jestOwnedThresholds": [
+    "Pre-existing hard floors in package.json's jest config. They stay there — the",
+    "policy asserts the numbers rather than re-implementing them, so that lowering",
+    "one is a failure here as well as a lie there. viewerQueryKeys.ts at 100% is",
+    "the boundary that keeps one account's cached data out of another's."
+  ],
+  "jestOwnedThresholds": {
+    "./lib/viewerQueryKeys.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "./components/providers/AccountSwitchReset.tsx": {
+      "statements": 98.03,
+      "branches": 93.18,
+      "functions": 100,
+      "lines": 100
+    }
+  },
+  "$comment:allowedBaselineDecreases": [
+    "Dated, path-and-metric-named permission to record a LOWER baseline than the",
+    "base revision — the one legitimate case being code that legitimately shrank.",
+    "An entry that is not currently excusing a real decrease fails, so this list",
+    "cannot become a standing permission slip."
+  ],
+  "allowedBaselineDecreases": [],
+  "globalDriftAllowancePoints": 0.75,
+  "minimumFilesInReport": 500,
+  "minimumTestFiles": 140,
+  "$comment:expectedCounts": [
+    "Equalities, not bounds. Each of these lists is a way to switch the gate off",
+    "one defensible line at a time, and a bound cannot tell growth from shrinkage."
+  ],
+  "expectedCounts": {
+    "domainFiles": 238,
+    "pins": 235,
+    "unenforceable": 3,
+    "belowBarExemptions": 16,
+    "criticalPaths": 34,
+    "allowedBaselineDecreases": 0,
+    "snapshotAssertions": 0
+  }
+}

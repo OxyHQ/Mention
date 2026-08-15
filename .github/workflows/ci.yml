@@ -86,6 +86,7 @@ jobs:
           bash .github/scripts/test-smoke-mention.sh
           bash .github/scripts/test-check-schema-migration-parity.sh
           bun .github/scripts/test-runtime-image-audit.mjs
+          bun run --cwd packages/frontend coverage:policy-selftest
 
   # Ported from bluesky-social/social-app 513a188a2 ("Add a GitHub Action
   # verifying lockfile against base", MIT (c) 2023-2026 Bluesky Social PBC).
@@ -249,6 +250,24 @@ jobs:
       - name: Assert the suite collected what it claims to run
         if: always() && matrix.package == 'backend' && steps.scope.outputs.run == 'true'
         run: bun run check:suite-collection "$RUNNER_TEMP/backend-report.json" packages/backend/src
+      # The frontend's critical-path floor and no-regression ratchet. Kept out of
+      # `test:coverage` itself because CI appends `--coverageDirectory` to that
+      # script, and an appended flag lands on the LAST command of a chain — so
+      # `jest && policy` would hand the flag to the policy and instrument nothing.
+      #
+      # `always()`: jest's own thresholds can fail for a reason the policy would
+      # explain — which file, and how to reproduce it — and a step that runs only
+      # after a green suite never gets to say so.
+      #
+      # The base revision is the one the scope step diffs against. It is what
+      # stops a pull request lowering the recorded baseline in the same commit
+      # that removes the tests; the script REFUSES an unresolvable base rather
+      # than skipping, so a shallow clone fails loudly instead of vacuously.
+      - name: Enforce the frontend coverage policy
+        if: always() && matrix.package == 'frontend' && steps.scope.outputs.run == 'true'
+        env:
+          COVERAGE_POLICY_BASE: ${{ github.base_ref && format('origin/{0}', github.base_ref) || github.event.before }}
+        run: bun run --cwd packages/frontend coverage:check -- --coverage-dir "$RUNNER_TEMP/frontend-coverage"
       - name: Upload coverage summary
         if: always() && matrix.coverage && steps.scope.outputs.run == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
