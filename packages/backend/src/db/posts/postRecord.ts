@@ -266,7 +266,6 @@ export interface PostRecordInput {
   type: PostType;
   visibility: PostVisibility;
   status: PostPublicationStatus;
-  hasLinks?: boolean;
   language?: string;
   tags?: string[];
   hashtags?: string[];

@@ -61,6 +61,7 @@ import type {
   StoredPostContent,
 } from '@mention/shared-types';
 import { followedAuthorsSql } from '../../utils/postAuthorship';
+import { postTextHasHttpLink } from '../../utils/postSearchMetadata';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import { uuidv7 } from '@oxyhq/db';
 import { posts } from '../schema/posts';
@@ -744,7 +745,13 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     // stored discriminator can never disagree with the links the CHECK
     // constraints police.
     isReply: derivesReplyIntent(input),
-    hasLinks: input.hasLinks ?? false,
+    // Derived HERE and in `replacePostContent`, for the same reason `isReply` is:
+    // it is a projection of the body, so a caller-supplied value could only ever
+    // agree with the content in the same statement or be wrong. It WAS
+    // caller-supplied, and only the outbox backfill remembered to supply it — so
+    // every post written by any other path stored `has_links = false` however
+    // many URLs it contained, and `filter:links` matched none of them.
+    hasLinks: postTextHasHttpLink(content.variants),
     isEdited: false,
     language: input.language ?? null,
     tags: input.tags ?? null,
@@ -1315,6 +1322,23 @@ export async function replacePostContent(
     await tx
       .update(posts)
       .set({
+        // The edit half of the `has_links` derivation `toPostInsert` performs on
+        // create. It belongs here rather than at a caller because this statement
+        // is where the new body lands: an edit that adds or removes a URL is
+        // exactly an edit that changes this column, and every content-changing
+        // path in the tree goes through this one function. The eight callers that
+        // pass their EXISTING variants through unchanged (the media backfill, the
+        // metadata enrich job, the federated repair paths) recompute the same
+        // value from the same text, so a derivation — unlike a body REWRITE, which
+        // `stripSpamHashtagBlocks` keeps out of here for that very reason — is
+        // safe at this seam.
+        //
+        // Not covered, and deliberately: the two one-shot repair scripts that
+        // `UPDATE post_content_variants` directly (`normalizeFederatedText`,
+        // `repairFederatedMentions` — the latter can fold a profile URL into a
+        // `[mention:<id>]` placeholder, removing a link). `backfillPostHasLinks`
+        // is the repair for any row they leave stale.
+        hasLinks: postTextHasHttpLink(content.variants),
         contentPollId: content.pollId ?? null,
         contentArticleId: content.article?.articleId ?? null,
         contentArticleTitle: content.article?.title ?? null,
