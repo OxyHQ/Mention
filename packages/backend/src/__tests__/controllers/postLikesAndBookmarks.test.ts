@@ -42,6 +42,11 @@ const hoisted = vi.hoisted(() => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: hoisted.createScopedOxyClient,
   getServiceOxyClient: () => ({ getUserById: vi.fn(), getUsersByIds: vi.fn(async () => []) }),
+  // `getSavedPosts` hands hydration a way to resolve the viewer's channels,
+  // because bookmarks are selected by id alone and can therefore hold a post the
+  // ACL withholds. Irrelevant to the SELECTION this suite is about — hydration
+  // is a passthrough here — but the export has to exist or the route throws.
+  createUserScopedOxyServices: () => undefined,
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({

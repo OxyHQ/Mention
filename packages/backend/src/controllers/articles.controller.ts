@@ -4,6 +4,7 @@ import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { getDb } from '../db/postgres';
 import { articles } from '../db/schema/articles';
 import { postHydrationService } from '../services/PostHydrationService';
+import { createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 
 /**
@@ -59,7 +60,15 @@ export const getArticle = async (req: AuthRequest, res: Response) => {
     let canRead = false;
     try {
       canRead = article.postId
-        ? await postHydrationService.canViewerReadPostId(article.postId, viewerId)
+        ? await postHydrationService.canViewerReadPostId(article.postId, viewerId, {
+            // The docstring above names "a draft, a scheduled entry" as things
+            // this gate exists to withhold — which is also, for a CHANNEL's
+            // long-form piece, the state its editors most need to read it in.
+            // The gate can only tell the editors from a departed writer by
+            // asking Oxy who currently runs the channel, and it only asks when
+            // the post is withheld and an account authored it.
+            operatedAccountReader: createUserScopedOxyServices(req),
+          })
         : viewerId !== '' && viewerId === article.createdBy;
     } catch (error) {
       // Fails CLOSED, the same way `ContentRoomLifecycle` treats this gate. It

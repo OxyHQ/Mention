@@ -54,6 +54,7 @@ import {
   normalizeAuthorship,
 } from '../utils/postAuthorship';
 import { canManagePostWithoutLookup } from './postManagementAccess';
+import { listOperatedChannelIds, type OperatedAccountReader } from './publishAsAccount';
 import { normalizeMentionIds } from '../utils/textProcessing';
 import { degradedActorSummary } from '../utils/degradedActorSummary';
 import {
@@ -220,16 +221,42 @@ interface HydrationOptions {
    * author, so without this every unpublished channel post is unreadable by every
    * human alive — measured, including by the person who wrote it.
    *
-   * OPT-IN, and deliberately so: resolving it costs an Oxy `GET /accounts` round
-   * trip, which must never land on a feed hydration. Only a caller that is
-   * already asking an account-scoped question passes it (`getScheduledPosts`),
-   * and every other surface hydrates with an empty set and is bit-for-bit
-   * unchanged.
+   * Pass this when the caller has ALREADY resolved the set for its own reasons
+   * (`getScheduledPosts` scopes its query with it, and feeding the query and the
+   * ACL from one resolution is what keeps the two from disagreeing). Every other
+   * caller passes {@link operatedAccountReader} instead and lets hydration decide
+   * whether the round trip is worth making.
+   *
+   * Supplying it — even as an empty array — SUPPRESSES that decision: an explicit
+   * answer is never second-guessed by a lazy one.
    *
    * It widens READ only. What a member may DO with the post they can now see is
    * still `postManagementRefusal`'s answer, asked per action on the write routes.
    */
   operatedAccountIds?: readonly string[];
+  /**
+   * How to resolve {@link operatedAccountIds} IF a post in this batch turns out
+   * to need it — the caller's own Oxy client, since `GET /accounts` is anchored
+   * on the authenticated operator and honours no service delegation.
+   *
+   * A capability rather than a value, because the answer costs an Oxy round trip
+   * and almost nothing needs it. `mayNeedCurrentChannelAuthority` decides, off
+   * columns already in hand: the post must be withheld from this viewer AND
+   * authored by an account on somebody's behalf. A feed of published posts asks
+   * Oxy nothing, an ordinary post-detail read asks nothing, and a channel's own
+   * published posts ask nothing — the trip is made only for a withheld
+   * account-authored post, which is the one case where the answer can change the
+   * verdict.
+   *
+   * **Omitting it is fail-CLOSED, and that is the failure worth knowing about.**
+   * A surface that can serve a withheld channel post and does not pass this
+   * refuses that post to every human alive, including its own writer — the black
+   * hole the stored-writer clause used to paper over. Every id-based surface that
+   * can reach such a post passes it; the tests that pin this are behavioural, one
+   * per surface, so a new surface that forgets shows up as a person unable to read
+   * their own queued post rather than as a leak.
+   */
+  operatedAccountReader?: OperatedAccountReader;
 }
 
 interface HydratedGraphNode {
@@ -916,6 +943,127 @@ export async function resolveOrphanFederatedAuthors(
   return result;
 }
 
+/**
+ * Does this post's readability turn on whether the viewer OWNS it?
+ *
+ * The five gates below — unpublished, private, followers-only to a
+ * non-follower, an author the viewer is restricted by, an author behind a
+ * private profile — are exactly the states {@link viewerOwnsPost} overrides.
+ * `false` means every one of them passes on its own terms and the post is
+ * readable whoever is asking; `true` means ownership is the whole question.
+ *
+ * Split out of {@link PostHydrationService.canViewerReadPost} (whose verdict is
+ * unchanged — this is the same five conditions with the repeated
+ * `&& !viewerOwnsPost` factored out) so that {@link resolveCurrentChannelAuthority}
+ * can ask "could proving current authority change this answer?" without
+ * restating any of them. A second, hand-written copy of the gate conditions
+ * would decide when to pay for the proof, and drift from the gate that consumes
+ * it — the direction that drifts silently is a post nobody can read.
+ */
+function ownershipDecidesReadability(
+  post: RawPost,
+  authorId: string,
+  viewerContext: ViewerContext,
+): boolean {
+  if ((post.status ?? 'published') !== 'published') return true;
+
+  const visibility = (post.visibility ?? PostVisibility.PUBLIC) as PostVisibility;
+  if (visibility === PostVisibility.PRIVATE) return true;
+
+  const viewerFollowsAuthor =
+    Boolean(viewerContext.viewerId) && viewerContext.follows.has(authorId);
+  if (visibility === PostVisibility.FOLLOWERS_ONLY && !viewerFollowsAuthor) return true;
+
+  if (viewerContext.restrictedIds.has(authorId)) return true;
+
+  // A private / followers-only PROFILE, which is a separate setting from the
+  // post's own visibility. A follower passes; everyone else needs ownership.
+  if (viewerContext.privateProfileIds.has(authorId) && !viewerFollowsAuthor) return true;
+
+  return false;
+}
+
+/**
+ * May this viewer read a post that one of the gates above holds shut?
+ *
+ * Pending collaborators may PREVIEW the post they were invited to (so the
+ * collab-invite UI can render the actual content before they accept), alongside
+ * the owner and accepted collaborators.
+ *
+ * The last clause is the CHANNEL case, and it exists because the id comparison
+ * answers "no" for every human on a channel's post: a channel AUTHORS its own
+ * posts, and no session can ever have a channel as its subject. Without it a
+ * withheld channel post is readable by nobody at all — not a narrow gap, a black
+ * hole, and measured as one.
+ *
+ * **`writtenByOxyUserId` is deliberately NOT read here, and that is the whole
+ * point of this function's shape.** The stored writer used to be admitted
+ * through `canManagePostWithoutLookup`, off a column already in hand and with no
+ * lookup. But that column records who wrote the post, is written once at
+ * creation and never again — not when somebody else rewrites the post, and not
+ * when its writer leaves the channel. Treating it as authority let a removed
+ * member keep reading the channel's embargoed queue, and keep reading the
+ * DESK'S LATER EDITS to it, for as long as they held the post id. Historical
+ * authorship is not current authority, so the proof has to be current:
+ * `operatedAccountIds`, resolved per request from Oxy's account graph.
+ *
+ * It is `resolveCurrentChannelAuthority` that makes that affordable, and this
+ * function is meaningless without it — the two have to move together.
+ *
+ * **The same clause still grants WRITE, and that is a live gap, not a decision
+ * made here.** `postManagementRefusal` takes a free path on
+ * `canManagePostWithoutLookup` unless the caller passes `requireAuthorAuthority`,
+ * and only `publishScheduledPostNow` does. Delete, edit, settings, lane moves
+ * and insights therefore still answer to the stored writer alone, so a removed
+ * member can still destroy or rewrite the queued post this gate now refuses to
+ * show them. Closing that means making `requireAuthorAuthority` unconditional —
+ * a change to six routes' latency and to what `viewerState.isOwner` may promise,
+ * which is why it is named here rather than smuggled in.
+ *
+ * It takes no post, and that absence is the change: every remaining answer comes
+ * from the viewer's identity, the authorship rows and the account graph. Nothing
+ * a post row can carry decides this any more.
+ */
+function viewerOwnsPost(
+  authorId: string,
+  authorship: PostAuthorshipEntry[],
+  viewerContext: ViewerContext,
+): boolean {
+  const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
+  return (
+    viewerContext.viewerId === authorId ||
+    (viewerEntry?.role === 'collaborator' &&
+      (viewerEntry.status === 'accepted' || viewerEntry.status === 'pending')) ||
+    (Boolean(viewerContext.viewerId) && viewerContext.operatedAccountIds.has(authorId))
+  );
+}
+
+/**
+ * Is this a post where proving CURRENT authority over the authoring account
+ * could change the verdict — the only case worth an Oxy round trip for?
+ *
+ * Three conditions, and each one removes a case that could never be decided by
+ * the answer:
+ *
+ *  - `writtenByOxyUserId` is set. That column is written exactly when an ACCOUNT
+ *    authored the post on a human's behalf, so an absent one means there is no
+ *    account whose membership anybody could be a member of.
+ *  - the viewer is not themselves the author. If they were, the id comparison in
+ *    {@link viewerOwnsPost} has already admitted them for free.
+ *  - {@link ownershipDecidesReadability}. A published, public post from an
+ *    unrestricted account is readable without any of this — which is every
+ *    channel post on every feed, and why no feed pays for this.
+ */
+function mayNeedCurrentChannelAuthority(
+  post: RawPost,
+  viewerContext: ViewerContext,
+): boolean {
+  if (!post?.writtenByOxyUserId) return false;
+  const authorId = post.oxyUserId ? String(post.oxyUserId) : '';
+  if (!authorId || authorId === viewerContext.viewerId) return false;
+  return ownershipDecidesReadability(post, authorId, viewerContext);
+}
+
 export class PostHydrationService {
   async hydratePosts(rawPosts: object[], options: HydrationOptions = {}): Promise<HydratedPost[]> {
     if (!Array.isArray(rawPosts) || rawPosts.length === 0) {
@@ -1309,7 +1457,71 @@ export class PostHydrationService {
       }
     }
 
+    // LAST, because it reads the follow graph and the restriction/private-profile
+    // sets built above: whether a post is withheld from this viewer at all is
+    // what decides if the round trip is worth making.
+    await this.resolveCurrentChannelAuthority(posts, context, options);
+
     return context;
+  }
+
+  /**
+   * Ask Oxy which channels this viewer currently operates — but only if a post
+   * in this batch is one where the answer could change the verdict.
+   *
+   * ## Why the answer cannot simply be read off the post
+   *
+   * A channel post carries the human who wrote it in `writtenByOxyUserId`, free
+   * and already in hand, and the ACL used to admit them on that alone. It is the
+   * wrong column for the question. It is written once, at creation
+   * (`PostCreationService`), and never again — not when a colleague rewrites the
+   * post, and not when its writer leaves the channel. So it answered "yes" for a
+   * removed member for as long as they held the post id, over an editorial queue
+   * whose entire value is being embargoed, and over edits made after they left.
+   *
+   * Current membership lives in Oxy's account graph and nowhere else, so proving
+   * it costs a round trip. `GET /accounts` is anchored on the AUTHENTICATED
+   * OPERATOR — a service credential cannot ask it on someone's behalf — which is
+   * why the caller hands over its own client rather than hydration holding one.
+   *
+   * ## What stops this landing on a feed
+   *
+   * {@link mayNeedCurrentChannelAuthority}, evaluated over columns already
+   * fetched. A published, public post asks Oxy nothing however it was authored,
+   * which is every channel post on every feed, in search, and on the profile.
+   * What is left is a post WITHHELD from this viewer that an account authored on
+   * somebody's behalf — the exact set the departed-writer clause used to decide,
+   * and rare enough on the id-based surfaces to be worth one `GET /accounts`.
+   *
+   * ONE call for the whole batch, not one per post, and only ever after the free
+   * checks have failed to admit the viewer on their own.
+   *
+   * ## Two ways this deliberately does nothing
+   *
+   * An explicit `operatedAccountIds` wins outright, empty array included: a
+   * caller that resolved the set itself (`getScheduledPosts`, which scopes its
+   * query with the same list) must not have a second, later resolution disagree
+   * with the one its query used.
+   *
+   * No reader means no answer, and no answer means refusal — `listOperatedChannelIds`
+   * fail-softs to `[]` on an Oxy outage for the same reason. Both directions are
+   * narrow-not-wide: the cost is a member briefly unable to read their own queued
+   * post, never a stranger able to.
+   */
+  private async resolveCurrentChannelAuthority(
+    posts: object[],
+    context: ExtendedViewerContext,
+    options: HydrationOptions | undefined,
+  ): Promise<void> {
+    if (!context.viewerId) return;
+    if (options?.operatedAccountIds !== undefined) return;
+    const reader = options?.operatedAccountReader;
+    if (!reader) return;
+    if (!posts.some((post) => mayNeedCurrentChannelAuthority(post as RawPost, context))) return;
+
+    for (const accountId of await listOperatedChannelIds(reader)) {
+      context.operatedAccountIds.add(accountId);
+    }
   }
 
   // A boost-of-boost chain (Announce of an Announce) is collected one extra hop
@@ -2029,7 +2241,7 @@ export class PostHydrationService {
   async canViewerReadPostId(
     postId: string,
     viewerId: string,
-    options?: Pick<HydrationOptions, 'oxyClient'>,
+    options?: Pick<HydrationOptions, 'oxyClient' | 'operatedAccountReader'>,
   ): Promise<boolean> {
     const [post] = await loadReplyParents([postId]);
     if (!post) return false;
@@ -2068,6 +2280,12 @@ export class PostHydrationService {
    * which must not reveal the author — or the existence — of a post this viewer
    * would be refused. Answering that with a second, hand-rolled visibility check
    * is exactly how the two would drift apart; there is one gate and both call it.
+   *
+   * Two halves, and the split is what lets the cost of the second one be decided
+   * before it is paid: {@link ownershipDecidesReadability} says whether the post
+   * is withheld from this viewer at all, {@link viewerOwnsPost} says whether they
+   * override it. `resolveCurrentChannelAuthority` asks the first of those, in
+   * `buildViewerContext`, to decide whether the second is worth an Oxy round trip.
    */
   private canViewerReadPost(
     post: RawPost,
@@ -2075,65 +2293,8 @@ export class PostHydrationService {
     authorship: PostAuthorshipEntry[],
     viewerContext: ViewerContext,
   ): boolean {
-    const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
-    // Pending collaborators may PREVIEW the post they were invited to (so the
-    // collab-invite UI can render the actual content before they accept),
-    // alongside the owner and accepted collaborators. All three bypass the
-    // unpublished/private/followers-only/restricted ACL checks below.
-    //
-    // The last two clauses are the CHANNEL cases, and they exist because the id
-    // comparison above answers "no" for every human on a channel's post: a
-    // channel AUTHORS its own posts, and no session can ever have a channel as
-    // its subject. Without them an unpublished channel post is readable by
-    // nobody at all — not a narrow gap, a black hole, and measured as one.
-    //
-    //  - `canManagePostWithoutLookup` covers the WRITER, off two columns already
-    //    in hand and with no lookup. It is the SAME predicate `buildViewerState`
-    //    uses for `isOwner`, which is what makes the two agree: the DTO used to
-    //    be able to say `isOwner: true` about a post this gate would refuse.
-    //  - `operatedAccountIds` covers the writer's CO-OPERATORS, and is empty
-    //    unless the caller opted in (see `HydrationOptions.operatedAccountIds`),
-    //    so no feed pays an Oxy round trip for it.
-    //
-    // Both are strictly narrower than what the write routes already permit:
-    // `postManagementRefusal` lets any active member DELETE and EDIT this exact
-    // post today. Granting them READ removes an inconsistency rather than
-    // creating one.
-    const viewerOwnsPost =
-      viewerContext.viewerId === authorId ||
-      (viewerEntry?.role === 'collaborator' &&
-        (viewerEntry.status === 'accepted' || viewerEntry.status === 'pending')) ||
-      canManagePostWithoutLookup(post, viewerContext.viewerId) ||
-      (Boolean(viewerContext.viewerId) && viewerContext.operatedAccountIds.has(authorId));
-
-    if ((post.status ?? 'published') !== 'published' && !viewerOwnsPost) {
-      return false;
-    }
-
-    const visibility = (post.visibility ?? PostVisibility.PUBLIC) as PostVisibility;
-    if (visibility === PostVisibility.PRIVATE && !viewerOwnsPost) {
-      return false;
-    }
-
-    if (visibility === PostVisibility.FOLLOWERS_ONLY && !viewerOwnsPost) {
-      if (!viewerContext.viewerId || !viewerContext.follows.has(authorId)) {
-        return false;
-      }
-    }
-
-    if (viewerContext.restrictedIds.has(authorId) && !viewerOwnsPost) {
-      return false;
-    }
-
-    // Filter posts from private/followers_only profiles. Own posts are always
-    // visible; public profiles pass through.
-    if (viewerContext.privateProfileIds.has(authorId) && !viewerOwnsPost) {
-      if (!viewerContext.viewerId || !viewerContext.follows.has(authorId)) {
-        return false;
-      }
-    }
-
-    return true;
+    if (!ownershipDecidesReadability(post, authorId, viewerContext)) return true;
+    return viewerOwnsPost(authorId, authorship, viewerContext);
   }
 
   /**

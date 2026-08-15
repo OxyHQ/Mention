@@ -919,6 +919,12 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
+      // A post scheduled or drafted AS A CHANNEL is withheld the instant it is
+      // written, and its author is the channel — so without current authority
+      // here the ACL refuses the response to the person who just created it, and
+      // the 500 below fires on a write that succeeded. Free for the ordinary
+      // case: a published post asks Oxy nothing.
+      operatedAccountReader: createUserScopedOxyServices(req),
     });
 
     if (!hydratedPost) {
@@ -1576,6 +1582,11 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
+      // Same reason as `createPost`: a SCHEDULED batch is withheld from the
+      // moment it is written, and a batch published as a channel is authored by
+      // the channel — so the response would otherwise come back empty to the
+      // person who just wrote the thread.
+      operatedAccountReader: createUserScopedOxyServices(req),
     });
 
     logger.info(`Created ${createdPosts.length} posts in ${mode} mode`);
@@ -1672,6 +1683,13 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
       includeLinkMetadata: true,
       // Single-post detail read — the surface that renders the quote count.
       includeQuoteCounts: true,
+      // The route loads by id with no status filter (above), so this is the
+      // surface where somebody asks for a post their feed would never have
+      // shown them — including a channel's queued story, asked for by one of
+      // the people who runs the channel. Hydration spends this only when the
+      // post is actually withheld AND an account authored it; an ordinary post
+      // detail read asks Oxy nothing extra.
+      operatedAccountReader: createUserScopedOxyServices(req),
     });
 
     const hydratedPost = hydrated[0];
@@ -1715,6 +1733,10 @@ export const getPostCorrections = async (req: AuthRequest, res: Response) => {
       viewerId: req.user?.id,
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
+      // The trail is exactly as readable as the post, so it has to be able to
+      // reach the same verdict — a channel's operators included, on a post
+      // moderation has since restricted.
+      operatedAccountReader: createUserScopedOxyServices(req),
     });
     if (hydrated.length === 0) {
       return res.status(404).json({ message: 'Post not available' });
@@ -2258,6 +2280,11 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
+      // `postManagementRefusal` above already let this caller edit the post, and
+      // a scheduled one is still withheld after the edit — so without the same
+      // authority answer here the write succeeds and the response is a 500 to
+      // the person who made it.
+      operatedAccountReader: createUserScopedOxyServices(req),
     });
     if (hydrated.length === 0) {
       logger.error('Failed to hydrate edited post', { postId: edited.id, userId });
@@ -3064,6 +3091,12 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
+      // Bookmarks are selected by id alone — deliberately, so saving something
+      // does not stop working when its visibility changes. That makes this one
+      // of the few list endpoints that can hold a withheld post, and dropping a
+      // channel operator's own saved entry out of their bookmarks would be a
+      // silent loss rather than a refusal they could act on.
+      operatedAccountReader: createUserScopedOxyServices(req),
     });
 
     res.json({
@@ -4015,6 +4048,10 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
       includeLinkMetadata: false,
       includeFullArticleBody: false,
       includeFullMetadata: false,
+      // Loaded by id with no status filter, so a channel's operators must be
+      // able to translate a story before it publishes — which is when a
+      // translation is worth anything.
+      operatedAccountReader: createUserScopedOxyServices(req),
     });
     if (visiblePosts.length === 0) {
       res.status(404).json({ message: 'Post not found' });

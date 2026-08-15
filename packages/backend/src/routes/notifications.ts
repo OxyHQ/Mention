@@ -308,6 +308,16 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         oxyClient: scopedOxyClient,
         maxDepth: 1,
         includeLinkMetadata: true,
+        // Already resolved above, for the recipient scope — so the ACL gets the
+        // SAME answer the inbox query was built from, and gets it for free. The
+        // rows come from `loadPostRecords`, which applies no status filter, so
+        // without this an operator's notification about their channel's own
+        // withheld post would arrive with the embed silently stripped: the one
+        // reader entitled to it, refused. `operatedAccountIds` rather than a
+        // reader precisely BECAUSE the answer is in hand — supplying it also
+        // suppresses hydration's own lazy lookup, which would be a second
+        // resolution free to disagree with the one that chose these rows.
+        operatedAccountIds: [...operatedChannelIds],
       });
 
       const compiledMuteWords = compileMuteWords(muteWords);
