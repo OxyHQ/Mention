@@ -240,3 +240,15 @@ From repo root: `bun run dev:mcp:http`
 - Bundle membership: explicit approve on `/oauth/mcp/link`; unique index on `(bundleId, oxyUserId)` when not revoked
 - Active account: persisted on primary `McpConnection.activeOxyUserId` + Redis; switch fails closed (`503`) if neither persists
 - No `as_user` on `create-post` — must `switch-account` first
+
+
+## MCP (Claude / remote connector) — the rules that were in `AGENTS.md`
+
+> Moved out of `AGENTS.md` unchanged, so the rule and its detail sit together.
+
+Production `https://mcp.mention.earth`, a SEPARATE ECS service and workflow from the main backend. Full doc: `packages/mcp/README.md`.
+
+- `resource` and JWT `aud` must equal `https://mcp.mention.earth` exactly. Claude requires 401 + `WWW-Authenticate` on unauthenticated `GET /`.
+- Multi-account goes through server-side bundles and the `link-account` flow — **do not add a second MCP URL per account, and do not add `as_user` to `create-post`.**
+- Media upload goes through `POST /posts/intent-media`, never Oxy `assetUpload` directly.
+- `MENTION_MCP_JWT_SECRET` must match in both SSM namespaces (`/oxy/mention/` and `/oxy/mention-mcp/`).

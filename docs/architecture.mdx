@@ -191,3 +191,29 @@ as a non-cacheable 404.
 Deploy workflows run only after successful CI on `main`. Images are addressed
 by commit SHA/digest. Production migrations run once before rollout, and the
 same artifact is used for migrations and the service.
+
+
+## Local Android release APK — the rules that were in `AGENTS.md`
+
+> Moved out of `AGENTS.md` unchanged, so the rule and its detail sit together.
+
+```bash
+cd packages/frontend/android
+NODE_ENV=production ./gradlew :app:assembleRelease -x lintVitalRelease \
+  -PreactNativeArchitectures=arm64-v8a -Dorg.gradle.jvmargs="-Xmx8g -XX:MaxMetaspaceSize=1g"
+```
+
+- **`NODE_ENV=production` is REQUIRED** or `export:embed` aborts and the APK ships with NO embedded bundle (verify: `unzip -l app-release.apk | grep index.android.bundle`).
+- Build arm64-only; the multi-ABI build fails at the x86 CMake task.
+- **Metro dev builds must run from `packages/frontend`**, not the repo root — from the root Expo resolves the legacy `expo/AppEntry` and returns HTTP 500.
+
+
+## MTN Protocol (Mention's signed-records layer) — the rules that were in `AGENTS.md`
+
+> Moved out of `AGENTS.md` unchanged.
+
+Structure and lifecycle: `docs/architecture.mdx` § MTN signed records. Posts are dual-written as signed records on a per-user hash chain riding on the shared `@oxyhq/protocol` engine; Postgres stays authoritative, the chain write is a best-effort side-effect (`Promise.allSettled`), gated on local authors.
+
+- **A record's `createdAt` is SELF-ASSERTED and must go through `clampFutureDate`** (`utils/ingestTimestamp.ts`, the one guard every ingest path shares). Windows: 1h for MTN/atproto (author-asserted directly), 24h for ActivityPub (a third-party clock we cannot audit). REJECT and fall back to `now` — never re-date to the clamp edge.
+- Custodial signing (web posts, `issuer = MENTION_DID`) vs. self-issued (native, `issuer === subject`) is gated by `MENTION_DID`/`MENTION_PRIVATE_KEY`/`MENTION_PUBLIC_KEY`. Inert without them. Write API: `services/mtn/MentionRecordService.ts`; storage: `db/schema/mtn.ts`.
+- **Lexicons live in `@mention/shared-types`** (`src/mtn/lexicons.ts`); `@oxyhq/contracts` owns only the transport around them. Importing a `mention*RecordSchema` from `@oxyhq/contracts` is a `TS2305` — it does not export one.

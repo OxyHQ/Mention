@@ -177,3 +177,19 @@ could only ever disagree with it, hence there is none.
   several ECS tasks; the SDK's in-process default would dedupe only the
   instance that received both copies of a redelivery. `moderation_events.id`
   IS the webhook event id.
+
+
+## Moderation (CrowdSource) — the rules that were in `AGENTS.md`
+
+> Moved out of `AGENTS.md` unchanged, so the rule and its detail sit together.
+
+CrowdSource owns cases and decisions; Oxy Trust owns reputation; Mention owns only its own enforcement. Code: `services/moderation/`, three models, `routes/crowdSourceWebhook.routes.ts`. Design rationale and the full enforcement-mode map: `docs/moderation-crowdsource.md`.
+
+- **A 201 from `POST /reports` means stored, never accepted by CrowdSource.** The report and its outbox row commit in ONE transaction; `enqueueModerationOutboxEvent` throws unless handed a real transaction handle (`requireTransaction()`), never just a session.
+- **The webhook route MUST stay mounted before `express.json()`** (guarded by a test in `appFactory.test.ts`) — the signature covers the raw bytes.
+- **Enforcement is idempotent on `decisionId + revision + action`**, claimed before acting and released if the effect throws. `revision` is in the key so an appeal's `restore` can supersede a removal.
+- **`no_violation` always plans a `restore`** whatever it recommended — do not "simplify" that away. The recommendation→action map lives in `services/moderation/enforcementPlan.ts` (pure, table-tested).
+- **A reported type with no subject provider is stored locally, NOT refused, and gets NO outbox row.** Never re-queue a `received` report — the sweep's `$in` is `['queued','delivery_failed']`.
+- **Nothing the envelope builder composes may vary between two deliveries of one report** — ingress fingerprints it, so an invented timestamp or unsorted list turns a retry into a permanent 409.
+- **There is no `CROWDSOURCE_APP_ID` and never add one** (`applicationId` is read off the credential). `CROWDSOURCE_ENABLED=true` requires both the service key and the webhook secret. The dispatcher gates the LOOP, never the durable record.
+- **Known gap:** media evidence is declared, not attached, and a restricted post has no author-facing surface — build one before enabling `automatic`.

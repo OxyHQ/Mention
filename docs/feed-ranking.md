@@ -165,3 +165,21 @@ horizontal snap carousel on mobile, vertical list on desktop
 - Instant post-detail: memory-mode feeds seed the shared post cache
   (`postsStore.cachePosts`) in `useFeedState`; `app/(app)/p/[id].tsx` paints
   from cache + background-revalidates (`revalidatePostById`).
+
+
+## Feed rules — the rules that were in `AGENTS.md`
+
+> Moved out of `AGENTS.md` unchanged, so the rule and its detail sit together.
+
+Ranking, classification, safety gating and interstitials detail: `docs/feed-ranking.md`.
+
+- **`ChronoCursor.applyToQuery` ASSIGNS `match.$or`.** Any filter written as a disjunction is deleted the moment a cursor arrives, so page one filters and every later page leaks. Use plain conjunctive terms or `$and`; a test that pins it needs a LIVE cursor.
+- **FOUR field projections feed hydration** (`mtn/feed/FeedAPI.ts`, `controllers/feed.controller.ts`, `services/ThreadSlicingService.ts`, `routes/search.ts`). A field missing from one hydrates `undefined` with no error.
+- **Any surface INCLUDING boosts must pass `maxDepth: 1`** or boosts render blank.
+- **Never sort an author query by `_id`** — a federated post's `_id` bears no relation to its remote `createdAt`, so it skips backfilled posts at the page boundary.
+- **`hasMore` comes from the overfetch flag**, never `slices.length >= limit`.
+- **Never put a non-post inside `slices[].items`** — `flattenSlicesToItems` pushes `item.post` unguarded. Interstitials (planned in `mtn/feed/interstitials/planInterstitials.ts`) are a top-level field, anchor by `_sliceKey`, and must never report impressions or go through `POST /feed/mtn/interactions`.
+- **Never block the feed response on remote link-preview or image fetching.**
+- **Ranking gates on `status === 'classified' OR version >= BASELINE_CLASSIFIER_VERSION`** (`services/BaselineContentClassifier.ts`) — never honor default-zero scores. Stage B enriches with DOTTED `$set`, never a whole-subdoc overwrite.
+- **Never point a text index's `language_override` at a field holding content-language codes** — moot now that search is Postgres full-text (`websearch_to_tsquery`), but the rule generalizes.
+- **Safety gating has three modules and no fourth copy of any predicate:** `mtn/feed/feedSafety.ts` (the single source of truth), `services/safety/muteWordMatcher.ts`, `services/safety/viewerSafety.ts`.

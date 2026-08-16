@@ -149,3 +149,10 @@ Opens the composer with the main post plus two queued follow-up posts.
 
 - POST-based Web Share Target (multi-file uploads)
 - Server-side intent shortlinks (e.g. `mention.earth/intent/{shortcode}`)
+
+
+## Compose Intent URL — the rules that were in `AGENTS.md`
+
+> Moved out of `AGENTS.md` unchanged, so the rule and its detail sit together.
+
+Canonical: `https://mention.earth/compose?text=...&url=...&hashtags=...`. Full reference: `packages/frontend/docs/INTENT_URL.md`. Parser: `packages/frontend/utils/composeIntent.ts`. OS share sheet: Web Share Target (PWA manifest) + native `expo-share-intent` (needs `expo prebuild` after install, entry point `lib/shareIntent.native.ts` / `lib/shareIntent.ts`). Quote flow: `hooks/useQuoteManager.ts` + `components/Compose/QuoteCard.tsx`; wire format is `quoted_post_id`, top-level snake_case (not nested under `content`).

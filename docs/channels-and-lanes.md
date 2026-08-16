@@ -231,3 +231,19 @@ workarounds.
   protective and the caller is usually the one needing protection. The
   block refusal itself lives in oxy-api, not Mention — `oxyServices.blockUser`
   calls oxy-api's `POST /privacy/blocked/:id` directly.
+
+
+## Lanes and Channels — the rules that were in `AGENTS.md`
+
+> Moved out of `AGENTS.md` unchanged, so the rule and its detail sit together.
+
+Deep detail: `docs/channels-and-lanes.md`.
+
+- A **lane** is a track owned by a publisher (an Oxy `oxyUserId`); a post carries at most one `laneId` and stays an ordinary post otherwise. `hidden` display mode is CURATION, not privacy — those posts still reach every feed. `assertLaneAssignable` (`utils/laneAssignment.ts`) is the single validator; skipping its `channelId` argument deanonymizes a channel writer.
+- A **channel** is an Oxy account (`kind: 'channel'`), not a Mention row — `post.oxyUserId`/`post.authorship` carry the channel, and `Post.writtenByOxyUserId` (never in `authorship[]`) holds the human who wrote it.
+- **`UserSettings.channel.signPosts` is the WHOLE disclosure decision**, made server-side, failing CLOSED at three points (author must resolve `kind: 'channel'`, `signPosts === true` exactly, undisclosed writer id never sent to the identity batch).
+- **A channel can never be acted as** (`isActAsEligibleKind` refuses it) — publishing as one goes through `CreatePostRequest.publishAsOxyUserId`, gated by `services/publishAsAccount.ts` (fails closed). `services/postManagementAccess.ts` gates all seven management routes on CURRENT membership, never on the stored writer. Mutation-tested against real rows: `__tests__/channelAccountSchema.test.ts`, `__tests__/services/postHydrationChannelWriter.test.ts`.
+- **No replies, ever** — gated on the author's account `kind` at five sites, including federated ingest where it drops silently (a throw retries forever; a 4xx ends delivery permanently).
+- **A channel post has no 30-minute edit window — it has a correction trail instead** (`post_corrections`), which never discloses its author (routing around `signPosts` otherwise).
+- A channel's page is `/c/<handle>`; there is no `channel|<id>` feed descriptor and no separate follow model.
+- **You cannot block, report, or mute an account you operate** — refused on the SERVER with 400 (not 403), failing toward ALLOWING on an unresolvable answer.

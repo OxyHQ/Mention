@@ -177,3 +177,40 @@ expo-video renders (`VideoView.nativeRef`), so play/pause/mute/timeUpdate
 keep coming from expo-video and hls.js only supplies bytes; the source is
 withheld from `useVideoPlayer` while hls.js is active. `hlsPlayback.native.ts`
 is inert — ExoPlayer/AVPlayer decode HLS natively.
+
+
+## Federation — the rules that were in `AGENTS.md`
+
+> Moved out of `AGENTS.md` unchanged, so the rule and its detail sit together.
+
+Protocol surface, consent flow and the connector contract: `docs/fediverse.mdx`. Edge cases (reposted-post shapes, bridge identity, handle qualification, thread federation, blocklist/purge, HLS): `docs/federation-behaviors.md`.
+
+- **Never redirect the apex ActivityPub ENDPOINT paths** (`/ap/*`, webfinger, host-meta, nodeinfo) — a 301/302 silently kills ALL inbound federation while GETs keep working. Signatures are verified against `X-Forwarded-Host`, so mount the federation routers BEFORE `apexFrontendProxy`. The profile-URL 302 (`/@user` with an AP `Accept`) is a GET-only content negotiation and is fine.
+- Apex is served entirely by the backend — do NOT reintroduce a Cloudflare Worker or Pages Functions in front of it; `mention.earth` is CF-proxied to the shared ALB and served by the Mention backend.
+- Actor `publicKey.id` host MUST equal the actor `id` host; `icon.url` must be absolute and reachable; `/.well-known/host-meta` must be mounted before auth.
+- **Outbound fan-out must resolve the author's username SERVER-SIDE from `oxyUserId`** (`resolveFederationUsername`), never from `req.user.username` — the auth middleware runs without `loadUser`, so gating on it federates ZERO posts while everything looks healthy.
+- **Pass the post DOCUMENT to `post.create`/`post.update`, never a hand-picked literal** — `LocalPostEventPayload` names fewer fields than the Note builder reads, so a literal silently drops `sensitive` and quote fields. Gate: `__tests__/connectors/outboundPostPayloadShape.test.ts`.
+- Outbox sync uses the actor's advertised `outbox` URL; `actorUri + '/outbox'` is fallback only — guessing breaks PeerTube/Lemmy/some Pleroma.
+- **A bare boost must never federate as an empty `Create(Note)`.**
+- **Structure comes from structured fields, never from the body.** See `docs/federation-behaviors.md` for the three reposted-post shapes and why a bridge-flattened retweet is dropped rather than reconstructed.
+- **Bridge identity comes from the actor's `type`** (`Service` = mirror, `Person` = operator), never from its bio; `Application` is refused (it is the server's own actor).
+- **A thread federates through `PostCreationService.federatePublishedPost`** — the one implementation both the immediate and scheduled paths call. A chain STOPS at the first entry that does not go out, consent included.
+- **Bridge relabelling policy is `connectors/activitypub/federationBridgePolicy.ts`; the blocklist is `connectors/activitypub/federationBlockPolicy.ts`** — enforcement and the public transparency page read the SAME array. oxy-api keeps a SEPARATE trust list and the two are deliberately NOT consolidated.
+- **Fediverse sharing consent:** Oxy owns the flag; Mention never stores it. `services/fediverseSharing.ts` is the ONLY read path and all SDK reads use `{cache:false}`. Undo handlers stay UNGATED so teardown converges. Fail-open everywhere except the cleanup job's guard and the inbox POST (a 4xx makes Mastodon drop deliveries forever).
+- **All federation UI lives under `settings/fediverse/`** — add a row inside the hub, never beside it. `/transparency` stays a public top-level route.
+- **Author hydration must NEVER emit a raw `oxyUserId` as a handle.** Unresolved authors get the degraded summary (empty username, `'Unknown user'`), never cached.
+- **OG cards are safety-gated (`/p/:id`)** — a post carrying any sensitivity signal, or a boost whose original carries one, gets NO `og:image`/body text; the verdict comes from `requiresContentWarning` and is a REQUIRED argument to `mapPostOg`.
+- **One-shot scripts in `src/scripts/` MUST close every resource they opened and `process.exit()`** (`closeAdminScriptResources()` in `scripts/lib/adminScriptLifecycle.ts`), or the Fargate one-shot task runs forever.
+- **Mastodon negative-caches failed resolutions for minutes/hours** — after a fix, cache-bust by searching the full profile URL (a different cache key than the acct handle).
+
+
+## Media — the rules that were in `AGENTS.md`
+
+> Moved out of `AGENTS.md` unchanged, so the rule and its detail sit together.
+
+Canonical avatars/media: `oxyServices.getFileDownloadUrl(id, variant)` everywhere — no per-app URL helpers or `avatarUrl` DTO fields.
+
+- **Federated media proxy** (`GET /media/proxy?url=…`, `utils/mediaResolver.ts`) is SSRF-guarded UPSTREAM (`assertSafePublicUrl`/`isBlockedIp` from `@oxyhq/core/server`), never a local copy. HLS playlists are rewritten, never relayed (`utils/hlsManifest.ts` + `utils/hlsSignature.ts`). **Never gate HLS on `canPlayType`** (Chromium answers `"maybe"` then fails) — probe `isTypeSupported`. **`import('hls.js')` must stay a SINGLE call site** — a second one promotes the demuxer into eager `__common.js` (see `~/Oxy/AGENTS.md` § Metro web chunking). Full narrative: `docs/federation-behaviors.md`.
+- Video poster (`GET /media/poster`) needs a `video/*` upstream — an HLS playlist URL 415s there.
+- S3 activity cache is gated on `FEDERATION_MEDIA_CACHE_WRITE_ENABLED`; unset means the proxy works but nothing writes to S3.
+- **Federation service credential:** a bad/missing credential fails signed fetch silently (0 posts), and the outbox-sync cooldown makes the empty first sync permanent until `lastOutboxSyncAt` is cleared. Invisible at `LOG_LEVEL=info` — service-token failures log at `error`/`warn`.
