@@ -43,6 +43,11 @@ jest.mock('@oxyhq/bloom/theme', () => ({
 jest.mock('@/components/AccountBadge', () => ({ AccountBadge: () => null }));
 jest.mock('@/assets/icons/boost-icon', () => ({ BoostIcon: () => null }));
 
+// A load-time necessity, not an assertion: the header imports the toast module for
+// the edited marker, which this suite does not exercise. Untransformed ESM, so the
+// real module fails the whole file at `require` time before a single test runs.
+jest.mock('@oxyhq/bloom/toast', () => ({ toast: jest.fn() }));
+
 /**
  * `t` resolves against the REAL `en.json` and deliberately IGNORES
  * `defaultValue`. The separator assertions are about which KEY the header

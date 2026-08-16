@@ -1636,6 +1636,8 @@
     }
   },
   "post": {
+    "editedIndicator": "Edited",
+    "editedToast": "This post was edited",
     "language": {
       "pickerTitle": "Read this post in",
       "translateTo": "Translate to",

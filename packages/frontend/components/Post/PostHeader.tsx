@@ -6,6 +6,7 @@ import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
 
 import UserName from '../UserName';
 import { ProfileHoverCard } from '../ProfileHoverCard';
+import { toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { AccountBadge } from '@/components/AccountBadge';
@@ -118,6 +119,16 @@ interface PostHeaderProps {
    */
   laneSlot?: React.ReactNode;
   /**
+   * Marks that this post was edited after it was published — a quiet fact about
+   * the post, so it joins the identity line's trailing run beside the time.
+   *
+   * It is deliberately the FLAG ALONE. The edit history is not public (a channel
+   * post's `post_corrections` trail is its own separate, deliberately public
+   * surface), so there is nothing for the marker to open: tapping it explains
+   * what the pencil means and does nothing else — no navigation, no sheet.
+   */
+  isEdited?: boolean;
+  /**
    * Oxy user id of the post author. When that author is currently live in a Syra
    * room, the avatar shows a live badge and tapping it joins the room instead of
    * opening the profile. Omit it for non-user avatars (e.g. the compose preview).
@@ -174,6 +185,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   avatarSize = 36,
   timeSlot,
   laneSlot,
+  isEdited,
   authorUserId,
   placeholderColor,
   onPressUser,
@@ -442,6 +454,22 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                 {'\u00B7'} {timeLabel}
               </Text>
             ))}
+            {isEdited ? (
+              // `flexShrink: 0` because a 12px glyph has no width to give up and
+              // the identity line's other children are already shrink-ranked
+              // against each other — the `@handle` is what yields.
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={t('post.editedIndicator', { defaultValue: 'Edited' })}
+                hitSlop={HIT_SLOP_MD}
+                style={{ flexShrink: 0 }}
+                onPress={() =>
+                  toast(t('post.editedToast', { defaultValue: 'This post was edited' }))
+                }
+              >
+                <Ionicons name="pencil" size={12} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            ) : null}
             {laneSlot}
             {showBoost && (
               <View accessibilityRole="image" accessibilityLabel="Reposted">

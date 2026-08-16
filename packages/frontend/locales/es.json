@@ -1636,6 +1636,8 @@
     }
   },
   "post": {
+    "editedIndicator": "Editado",
+    "editedToast": "Esta publicación fue editada",
     "language": {
       "pickerTitle": "Leer esta publicación en",
       "translateTo": "Traducir a",

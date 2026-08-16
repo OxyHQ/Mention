@@ -885,6 +885,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         // the clothes of a rule.
                         boostedBy={reposter}
                         date={metadata.createdAt}
+                        isEdited={metadata.isEdited}
                         showBoost={Boolean(viewPost.boost) && !isNested}
                         showReply={false}
                         laneSlot={laneSlot}

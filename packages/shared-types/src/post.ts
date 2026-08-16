@@ -1120,6 +1120,20 @@ export interface PostMetadataState {
   reviewReplies?: boolean;
   quotesDisabled?: boolean;
   isPinned?: boolean;
+  /**
+   * Set once the post's BODY has been replaced — by its author inside the
+   * 30-minute window, or by an inbound federated `Update`. A lane move, a pin or
+   * a settings write never sets it, so this is narrower than
+   * {@link PostMetadataState.updatedAt} moving.
+   *
+   * The flag is the whole disclosure. There is deliberately NO `editHistory`
+   * here: the superseded bodies are stored but not public, so no field exists
+   * for a renderer to paint one, and a reader learns only that the post is not
+   * what it first said. A publication owes more than that, and pays it through
+   * {@link PostMetadataState.corrections} — an openable trail, on posts that
+   * carry one.
+   */
+  isEdited?: boolean;
   isSensitive?: boolean;
   /**
    * Content-warning label from a federated source (ActivityPub `summary`). Set on
