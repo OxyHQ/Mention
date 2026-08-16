@@ -35,7 +35,10 @@ const AGENTS_MD = resolve(REPO_ROOT, 'AGENTS.md');
  * in the other direction, and the list must only ever shrink.
  */
 const UNRESOLVABLE_BY_DESIGN: ReadonlyMap<string, string> = new Map([
-  ['__common.js', "Metro's generated shared chunk — an output artifact, never a repo file"],
+  // Empty, and the third test below is what keeps it that way: `__common.js`
+  // was the last entry, and it left when the Media section moved to
+  // `docs/federation-behaviors.md`. An exemption for a reference the document
+  // no longer makes exempts nothing while reading as a live decision.
 ]);
 
 /**
@@ -75,7 +78,16 @@ describe('AGENTS.md file references', () => {
     // A vacuity floor. Without it a broken regex or a `git ls-files` that returned
     // nothing would make every assertion below pass by checking nothing at all —
     // the exact failure mode these tests exist to prevent elsewhere.
-    expect(references.length).toBeGreaterThan(60);
+    //
+    // It came down from 60 to 25 when AGENTS.md was cut from 29.5 KB to 12 KB and
+    // eight sections moved into the docs that already owned them: the document
+    // now makes 34 path references where it made ~70. The floor is calibrated
+    // against the INSTRUMENT — it exists to catch a regex that stopped matching
+    // and a listing that returned nothing — and never against the document's
+    // size, which has its own gate now (`scripts/check-agents-md-size.mjs`).
+    // Decrementing it again needs the same kind of reason: a structural change
+    // to the document, measured, not a number that stopped passing.
+    expect(references.length).toBeGreaterThan(25);
     expect(files.length).toBeGreaterThan(500);
   });
 
