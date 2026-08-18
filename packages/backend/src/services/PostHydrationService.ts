@@ -146,6 +146,13 @@ interface RawPost {
   replyPermission?: string[];
   reviewReplies?: boolean;
   quotesDisabled?: boolean;
+  /**
+   * The stored top-level column (`posts.is_edited`), true once the BODY was
+   * replaced. Declared here rather than reached through the index signature so
+   * hydration reads a `boolean`, not an `unknown`. The sibling `editHistory`
+   * column is deliberately NOT declared: hydration has no business reading it.
+   */
+  isEdited?: boolean;
   /** Corrections MADE to this post's body — see `post_corrections`. */
   correctionCount?: number;
   lastCorrectedAt?: unknown;
@@ -2619,6 +2626,11 @@ export class PostHydrationService {
       reviewReplies: Boolean(post.reviewReplies),
       quotesDisabled: Boolean(post.quotesDisabled),
       isPinned: Boolean(post.metadata?.isPinned),
+      // OUTSIDE the `includeFullMetadata` gate on purpose: that gate exists to
+      // keep large arrays (mentions, hashtags) off feed rows, and this is one
+      // boolean the feed is the main consumer of. The edit HISTORY is not
+      // exposed anywhere — only the fact.
+      isEdited: Boolean(post.isEdited),
       isSensitive: Boolean(post.metadata?.isSensitive),
       // Content-warning label from the federated source (Mastodon `summary`). The
       // frontend renders it as a spoiler/CW header; absent for native posts and
