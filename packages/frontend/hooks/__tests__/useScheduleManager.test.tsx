@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import type { TFunction } from 'i18next';
 
 import { useScheduleManager } from '../useScheduleManager';
-import type { ScheduleSheetProps } from '@/components/Compose/ScheduleSheet';
+import type { ScheduleOption, ScheduleSheetProps } from '@/components/Compose/ScheduleSheet';
 
 /**
  * Every composer state can be scheduled, including a THREAD.
@@ -120,5 +120,67 @@ describe('useScheduleManager', () => {
     expect(props?.scheduledAt).toBeNull();
 
     act(() => harness.tree.unmount());
+  });
+});
+
+/**
+ * The quick-pick options are built from the wall clock, and "Later today" turns
+ * over at 17:00: before it, the option is TODAY at 17:00; at or after it, the
+ * option rolls to TOMORROW at 17:00. Against a real clock only one side of that
+ * boundary ever runs, and which one depends on what time of day the suite is
+ * started — so the clock is frozen here and both sides are pinned.
+ *
+ * The frozen instants are built with the multi-argument `Date` constructor,
+ * which reads LOCAL time, exactly as the `setHours` calls in the hook do. A
+ * `'2026-01-15T18:30:00Z'` fixture would be a UTC instant compared against a
+ * local-time boundary, re-introducing the timezone dependency these cases exist
+ * to remove.
+ */
+describe('useScheduleManager quick-pick options', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  /** Open the sheet with the clock frozen at `now`, and read back the options. */
+  function optionsAt(now: Date) {
+    jest.useFakeTimers();
+    jest.setSystemTime(now);
+
+    const harness = setup();
+    act(() => harness.api.openScheduleSheet(ScheduleSheetStub));
+    const props = renderSheetContent(harness.setBottomSheetContent.mock.calls.at(-1)?.[0]);
+    act(() => harness.tree.unmount());
+
+    if (!props) throw new Error('the manager pushed no sheet content');
+    return props.options;
+  }
+
+  /** The one option under test, by key, so a reordering cannot silently pass. */
+  function dateOf(options: readonly ScheduleOption[], key: string) {
+    const option = options.find((candidate) => candidate.key === key);
+    if (!option) throw new Error(`no "${key}" option was offered`);
+    return option.date;
+  }
+
+  it('offers "Later today" at 17:00 today when the clock is before 17:00', () => {
+    const options = optionsAt(new Date(2026, 0, 15, 8, 0, 0));
+
+    expect(dateOf(options, 'later')).toEqual(new Date(2026, 0, 15, 17, 0, 0, 0));
+    expect(dateOf(options, 'tomorrow')).toEqual(new Date(2026, 0, 16, 9, 0, 0, 0));
+    expect(dateOf(options, '15m')).toEqual(new Date(2026, 0, 15, 8, 15, 0, 0));
+  });
+
+  it('rolls "Later today" to 17:00 tomorrow once 17:00 has passed', () => {
+    const options = optionsAt(new Date(2026, 0, 15, 18, 30, 0));
+
+    expect(dateOf(options, 'later')).toEqual(new Date(2026, 0, 16, 17, 0, 0, 0));
+    expect(dateOf(options, 'tomorrow')).toEqual(new Date(2026, 0, 16, 9, 0, 0, 0));
+    expect(dateOf(options, '3h')).toEqual(new Date(2026, 0, 15, 21, 30, 0, 0));
+  });
+
+  it('rolls over on the boundary itself — 17:00 exactly is already past', () => {
+    const options = optionsAt(new Date(2026, 0, 15, 17, 0, 0));
+
+    expect(dateOf(options, 'later')).toEqual(new Date(2026, 0, 16, 17, 0, 0, 0));
   });
 });
