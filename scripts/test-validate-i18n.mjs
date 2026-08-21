@@ -242,6 +242,16 @@ const cases = [
     expectOutput: "drops {{count}}",
   },
 
+  {
+    name: "a plural form beside an unsuffixed English base is checked against it",
+    files: tree(
+      { "notification.group.many_actors": "{{actors}} and {{count}} more" },
+      { "notification.group.many_actors_many": "{{actors}} et d'autres" },
+    ),
+    expectFailure: true,
+    expectOutput: "drops {{count}}",
+  },
+
   // ------------------------------------------- English wearing a language ---
   // The rule that every key must exist in every catalog is satisfied just as
   // well by copying en.json, and twelve catalogs shipped that way.

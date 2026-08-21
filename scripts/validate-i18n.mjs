@@ -472,9 +472,14 @@ if (sourceCatalog) {
       if (typeof value !== "string") continue;
       // A plural category English lacks (`_few`, `_many`) has no entry of its
       // own; its source is the English `_other` form.
+      // A form English does not spell: try its `_other` sibling, then the bare
+      // base key. French adds `notification.group.many_actors_one` beside an
+      // English base that carries no suffix at all, and without the second
+      // fallback that form would be checked against nothing.
       const englishValue =
         sourceCatalog.entries.get(key) ??
-        sourceCatalog.entries.get(key.replace(PLURAL_CATEGORY, "_other"));
+        sourceCatalog.entries.get(key.replace(PLURAL_CATEGORY, "_other")) ??
+        sourceCatalog.entries.get(key.replace(PLURAL_CATEGORY, ""));
       if (typeof englishValue !== "string") continue;
       const provided = inspectPlaceholders(englishValue).names;
       const used = inspectPlaceholders(value).names;
