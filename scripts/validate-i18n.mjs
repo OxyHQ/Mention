@@ -722,6 +722,18 @@ function spellOutKey(parts) {
 for (const [language, catalog] of catalogs) {
   for (const [key, value] of catalog.entries) {
     if (typeof value !== "string") continue;
+
+    // The blunt version of the same mistake: the value IS the dotted key. Four
+    // entries reached production this way and rendered `notification.delete_error`
+    // on screen. Safe to test bluntly because these catalogs also use English
+    // prose as keys ("Home": "Home"), and prose is not identifier-shaped.
+    if (value === key && isPathShaped(key)) {
+      failures.push(
+        `locales/${catalog.name}: key "${key}" is set to its own key path, which is what users read — write the real ${language === SOURCE_LANGUAGE ? "English text" : `${language} translation`}, or take the English from the call site's defaultValue`,
+      );
+      continue;
+    }
+
     const segment = key.split(".").at(-1).replace(PLURAL_SUFFIX, "");
     if (!/^[a-z][A-Za-z0-9_]*$/.test(segment)) continue;
     const parts = splitIdentifier(segment);

@@ -165,6 +165,18 @@ const cases = [
     expectOutput: "has no en source and no call site",
   },
 
+  {
+    name: "a value that is its own dotted key path is rejected",
+    files: tree({ "notification.delete_error": "notification.delete_error" }),
+    expectFailure: true,
+    expectOutput: "is set to its own key path",
+  },
+  {
+    name: "an English prose key equal to its value still passes",
+    files: tree({ "Trending now": "Trending now" }),
+    expectFailure: false,
+  },
+
   // ------------------------------------------- English wearing a language ---
   // The rule that every key must exist in every catalog is satisfied just as
   // well by copying en.json, and twelve catalogs shipped that way.
