@@ -228,7 +228,11 @@ const cases = [
     name: "a _one form may spell the number out instead of interpolating it",
     files: tree(
       { "post.corrections.marker_one": "Corrected {{count}} time", "post.corrections.marker_other": "Corrected {{count}} times" },
-      { "post.corrections.marker_one": "Corregido una vez", "post.corrections.marker_other": "Corregido {{count}} veces" },
+      {
+        "post.corrections.marker_one": "Corregido una vez",
+        "post.corrections.marker_many": "Corregido {{count}} millones de veces",
+        "post.corrections.marker_other": "Corregido {{count}} veces",
+      },
     ),
     expectFailure: false,
   },
@@ -261,28 +265,51 @@ const cases = [
   },
   {
     name: "the CLDR spelling of the same pair passes",
-    files: tree({ "compose.minutesAgo_one": "{{count}} minute ago", "compose.minutesAgo_other": "{{count}} minutes ago" }),
+    files: tree(
+      { "compose.minutesAgo_one": "{{count}} minute ago", "compose.minutesAgo_other": "{{count}} minutes ago" },
+      { "compose.minutesAgo_many": "hace {{count}} millones de minutos" },
+    ),
     expectFailure: false,
   },
   {
     name: "a _one form may interpolate a count its English _one spells lexically",
     files: tree(
       { "post.corrections.marker_one": "Corrected once", "post.corrections.marker_other": "Corrected {{count}} times" },
-      { "post.corrections.marker_one": "Исправлено {{count}} раз" },
+      {
+        "post.corrections.marker_one": "Исправлено {{count}} раз",
+        "post.corrections.marker_many": "Исправлено {{count}} миллионов раз",
+      },
     ),
     expectFailure: false,
   },
 
-  // -------------------------------------------------- i18next v3 leftovers ---
+  // ------------------------------------------------- CLDR plural coverage ---
+  // The category list is derived from Intl, so these cases also pin that the
+  // derivation is per-language rather than a copy of English's two.
   {
-    name: "the v3 _plural suffix is rejected",
-    files: tree({ "compose.minutesAgo": "{{count}} minute ago", "compose.minutesAgo_plural": "{{count}} minutes ago" }),
+    name: "a language is required to cover the categories it uses",
+    files: tree(
+      { "lanes.postCount_one": "{{count}} post", "lanes.postCount_other": "{{count}} posts" },
+      { "lanes.postCount_one": "{{count}} publicación", "lanes.postCount_other": "{{count}} publicaciones" },
+    ),
     expectFailure: true,
-    expectOutput: "v3's `_plural` suffix",
+    expectOutput: "missing the `_many` plural form",
   },
   {
-    name: "the CLDR spelling of the same pair passes",
-    files: tree({ "compose.minutesAgo_one": "{{count}} minute ago", "compose.minutesAgo_other": "{{count}} minutes ago" }),
+    name: "covering them passes",
+    files: tree(
+      { "lanes.postCount_one": "{{count}} post", "lanes.postCount_other": "{{count}} posts" },
+      {
+        "lanes.postCount_one": "{{count}} publicación",
+        "lanes.postCount_many": "{{count}} millón de publicaciones",
+        "lanes.postCount_other": "{{count}} publicaciones",
+      },
+    ),
+    expectFailure: false,
+  },
+  {
+    name: "a key English does not pluralise demands no forms",
+    files: tree({ "lanes.postCount": "{{count}} posts" }),
     expectFailure: false,
   },
 

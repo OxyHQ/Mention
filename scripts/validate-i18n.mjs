@@ -674,6 +674,17 @@ function isPluralFormOfEnglishKey(key) {
   );
 }
 
+/** Keys English pluralises, as bases — the set every language must cover. */
+const englishPluralBases = sourceCatalog
+  ? [
+      ...new Set(
+        [...sourceCatalog.entries.keys()]
+          .filter((key) => PLURAL_CATEGORY.test(key))
+          .map((key) => key.replace(PLURAL_CATEGORY, "")),
+      ),
+    ]
+  : [];
+
 if (sourceCatalog) {
   const allowedOrphans = baseline.orphanedTranslations ?? {};
 
@@ -740,6 +751,33 @@ if (sourceCatalog) {
     } else if (declared !== undefined && share < ENGLISH_COPY_LIMIT) {
       failures.push(
         `scripts/i18n-known-gaps.json: untranslatedByLanguage.${language} is no longer needed — only ${identical} of ${catalog.entries.size} entries are identical to ${SOURCE_LANGUAGE}; delete the line`,
+      );
+    }
+
+    // ----------------------------------------------------------------------
+    // Every CLDR plural category this language actually uses.
+    //
+    // i18next picks the category with Intl.PluralRules and falls back to the
+    // base key when the form is absent, so a missing `_few` is not an error —
+    // it is Russian quietly reading the singular for 3 posts. Nothing else here
+    // can see that.
+    //
+    // The category list is DERIVED from Intl, never written down: a hand-kept
+    // map is exactly the thing that omits Russian's `few` and then certifies
+    // the omission. English's own categories bound the requirement, since a
+    // base English does not pluralise at all is not one this app counts on.
+    // ----------------------------------------------------------------------
+    const categories = new Intl.PluralRules(language).resolvedOptions().pluralCategories;
+    for (const base of englishPluralBases) {
+      const present = new Set();
+      for (const key of catalog.entries.keys()) {
+        const match = PLURAL_CATEGORY.exec(key);
+        if (match && key.slice(0, match.index) === base) present.add(match[0].slice(1));
+      }
+      const absent = categories.filter((category) => !present.has(category));
+      if (absent.length === 0) continue;
+      failures.push(
+        `locales/${catalog.name}: "${base}" is missing the ${absent.map((c) => `\`_${c}\``).join(", ")} plural ${absent.length === 1 ? "form" : "forms"}, which ${language} uses — i18next falls back to the base key, so those counts read the wrong number silently`,
       );
     }
 
