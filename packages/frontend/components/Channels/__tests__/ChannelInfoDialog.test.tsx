@@ -295,12 +295,35 @@ describe('the explainer opens, steps and closes', () => {
  * dash or a spaced hyphen does not slip through.
  */
 describe('the copy carries no dashes, in any language', () => {
+  const fs = require('fs') as typeof import('fs');
+  const path = require('path') as typeof import('path');
   const DASHES = /[—–‒―−]|(?:^|\s)-(?:\s|$)/;
-  const CATALOGS = {
-    en: require('@/locales/en.json'),
-    es: require('@/locales/es.json'),
-    it: require('@/locales/it.json'),
-  } as Record<string, Record<string, unknown>>;
+  // Derived from the locales directory, not listed. A hand-written list is how
+  // this rule came to cover three languages while twelve others were added
+  // without it — and a gate that skips what its map omits is not a gate.
+  const CATALOGS = Object.fromEntries(
+    fs
+      .readdirSync(path.join(__dirname, '../../../locales'))
+      .filter((name) => name.endsWith('.json'))
+      .map((name) => [name.replace(/\.json$/, ''), require(`@/locales/${name}`)]),
+  ) as Record<string, Record<string, unknown>>;
+
+  /**
+   * The one place a dash is punctuation rather than style.
+   *
+   * Russian writes `Канал — это аккаунт`, where the dash stands in for the
+   * elided copula; without it the sentence is not the same sentence. Forbidding
+   * it would make the Russian worse to satisfy an English style rule, which is
+   * the wrong trade. Every other dash the twelve new locales introduced was
+   * stylistic, and their translators removed them when asked.
+   *
+   * An exemption has to name a string and a reason. The SCOPE is derived so a
+   * new locale cannot silently escape the rule; excusing a string is the part
+   * that stays deliberate.
+   */
+  const GRAMMATICAL_DASHES: Record<string, string[]> = {
+    ru: ['step1.body'],
+  };
 
   function strings(node: unknown, path: string): [string, string][] {
     if (typeof node === 'string') return [[path, node]];
@@ -320,15 +343,17 @@ describe('the copy carries no dashes, in any language', () => {
   const PREFIX = 'channels.explainer.';
 
   it.each(Object.keys(CATALOGS))('%s', (language) => {
+    const excused = new Set(GRAMMATICAL_DASHES[language] ?? []);
     const entries = strings(CATALOGS[language], '')
-      .filter(([path]) => path.startsWith(PREFIX))
-      .map(([path, value]): [string, string] => [path.slice(PREFIX.length), value]);
+      .filter(([keyPath]) => keyPath.startsWith(PREFIX))
+      .map(([keyPath, value]): [string, string] => [keyPath.slice(PREFIX.length), value])
+      .filter(([keyPath]) => !excused.has(keyPath));
 
     // Vacuity floor: an explainer that lost its copy would pass every assertion
     // below by having nothing to check.
-    expect(entries.length).toBeGreaterThanOrEqual(11);
+    expect(entries.length).toBeGreaterThanOrEqual(11 - excused.size);
 
-    expect(entries.filter(([, value]) => DASHES.test(value)).map(([path]) => path)).toEqual([]);
+    expect(entries.filter(([, value]) => DASHES.test(value)).map(([keyPath]) => keyPath)).toEqual([]);
   });
 
   it('still accepts a hyphen inside a word, so the rule is about punctuation', () => {

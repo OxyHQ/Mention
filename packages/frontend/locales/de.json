@@ -1624,7 +1624,7 @@
   "channels.explainer.step1.title": "Was ist ein Kanal?",
   "channels.explainer.step1.body": "Ein Kanal ist ein Konto, das eigenständig veröffentlicht. Wenn du ihm folgst, landen seine Beiträge in deinem Feed, ohne dass du den Personen folgst, die dafür schreiben. Genau für diese Trennung ist ein Kanal da.",
   "channels.explainer.step2.title": "Er veröffentlicht, er antwortet nicht",
-  "channels.explainer.step2.body": "Die Beiträge eines Kanals sind ganz normale Beiträge: Sie erreichen Feeds, die Suche und das Fediverse wie die aller anderen, und du kannst einen davon in dein eigenes Profil boosten. Was du nicht findest, ist ein Antwortfeld. Ein Kanal nimmt nie Antworten entgegen – so sind Kanäle gebaut, das ist keine Einstellung, die jemand abgeschaltet hat.",
+  "channels.explainer.step2.body": "Die Beiträge eines Kanals sind ganz normale Beiträge: Sie erreichen Feeds, die Suche und das Fediverse wie die aller anderen, und du kannst einen davon in dein eigenes Profil boosten. Was du nicht findest, ist ein Antwortfeld. Ein Kanal nimmt nie Antworten entgegen, und das liegt daran, wie Kanäle gebaut sind, nicht an einer Einstellung, die jemand abgeschaltet hat.",
   "channels.explainer.step3.title": "Wer hat das geschrieben?",
   "channels.explainer.step3.body": "Ein Kanal zeichnet seine Beiträge selbst. Ist „Verfasser nennen“ aktiviert, wird die schreibende Person neben dem Kanal angezeigt; ist es deaktiviert, gehört der Beitrag allein dem Kanal. Das ist die Entscheidung des Kanals und nichts, was fehlt.",
   "channels.explainer.next": "Weiter",
