@@ -356,6 +356,23 @@ describe('the copy carries no dashes, in any language', () => {
     expect(entries.filter(([, value]) => DASHES.test(value)).map(([keyPath]) => keyPath)).toEqual([]);
   });
 
+  // An exemption list is the same hand-maintained map the derived scope
+  // replaced, only smaller — and it fails the same quiet way. If someone
+  // rewrites the Russian sentence without its copula dash, the entry stops
+  // doing anything and silently keeps that one key exempt forever. So every
+  // exemption has to still be EXERCISED: the string it excuses must actually
+  // carry a dash, or the entry is stale and has to go.
+  it.each(Object.entries(GRAMMATICAL_DASHES).flatMap(([language, keys]) => keys.map((key) => [language, key])))(
+    'the %s exemption for %s is still needed',
+    (language, key) => {
+      const value = strings(CATALOGS[language], '').find(([keyPath]) => keyPath === `${PREFIX}${key}`)?.[1];
+
+      // A missing key is a stale exemption too, and a louder one.
+      expect(value).toBeDefined();
+      expect(DASHES.test(value as string)).toBe(true);
+    },
+  );
+
   it('still accepts a hyphen inside a word, so the rule is about punctuation', () => {
     // Without this the check reads as "no hyphen character at all", which would
     // be a different and wrong rule for a language that hyphenates.
