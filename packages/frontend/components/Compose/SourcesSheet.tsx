@@ -68,7 +68,7 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
 
       {hasInvalidSources && (
         <Text className="text-xs mb-3 px-4" style={{ color: theme.colors.error || '#ff4d4f' }}>
-          {t('compose.sources.invalidUrl', { defaultValue: 'Please fix the highlighted links before posting.' })}
+          {t('compose.sources.linksInvalid', { defaultValue: 'Please fix the highlighted links before posting.' })}
         </Text>
       )}
 

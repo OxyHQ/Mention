@@ -2547,14 +2547,14 @@ const ComposeScreenBody = () => {
                                           className="border-border bg-background" style={styles.pollAttachmentOption}
                                         >
                                           <Text className="text-muted-foreground" style={styles.pollAttachmentOptionText} numberOfLines={1}>
-                                            {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: `Option ${optionIndex + 1}` })}
+                                            {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: 'Option {{index}}', index: optionIndex + 1 })}
                                           </Text>
                                         </View>
                                       );
                                     })}
                                     {pollOptions.length > 2 ? (
                                       <Text style={[styles.pollAttachmentMore, { color: theme.colors.textTertiary }]}>
-                                        {t('compose.poll.moreOptions', { count: pollOptions.length - 2, defaultValue: `+${pollOptions.length - 2} more` })}
+                                        {t('compose.poll.moreOptions', { count: pollOptions.length - 2, defaultValue: '+{{count}} more' })}
                                       </Text>
                                     ) : null}
                                   </View>
