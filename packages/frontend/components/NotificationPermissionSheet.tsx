@@ -1,10 +1,10 @@
 import React from "react";
-import { View, Text, StyleSheet, Platform } from "react-native";
+import { View, Text } from "react-native";
 import { useTranslation } from "react-i18next";
-import { colors } from "@/styles/colors";
 import { ThemedView } from "@/components/ThemedView";
 import { NoUpdatesIllustration } from "@/assets/illustrations/NoUpdates";
-import { TouchableOpacity } from "react-native-gesture-handler";
+import { Button } from '@oxyhq/bloom/button';
+
 interface Props {
     onEnable: () => void;
     onLater: () => void;
@@ -14,78 +14,26 @@ export const NotificationPermissionSheet: React.FC<Props> = ({ onEnable, onLater
     const { t } = useTranslation();
 
     return (
-        <ThemedView style={styles.container}>
-            <View style={styles.illustrationWrap}>
+        <ThemedView className="px-5 pt-2 pb-4">
+            <View className="items-center justify-center mt-1.5 mb-2.5">
                 <NoUpdatesIllustration width={140} height={140} />
             </View>
-            <Text style={styles.title}>{t("permission.notifications.title")}</Text>
-            <Text style={styles.subtitle}>
+            <Text className="mb-1.5 text-center text-lg font-semibold text-foreground">
+                {t("permission.notifications.title")}
+            </Text>
+            <Text className="mx-2 text-center text-sm text-muted-foreground">
                 {t("permission.notifications.subtitle")}
             </Text>
-            <View style={styles.actions}>
-                <TouchableOpacity onPress={onLater} style={[styles.button, styles.secondary]}>
-                    <Text style={[styles.buttonText, styles.secondaryText]}>{t("permission.notifications.later")}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={onEnable} style={[styles.button, styles.primary]}>
-                    <Text style={[styles.buttonText, styles.primaryText]}>{t("permission.notifications.enable")}</Text>
-                </TouchableOpacity>
+            <View className="mt-3.5 gap-2.5">
+                <Button variant="secondary" size="large" onPress={onLater}>
+                    {t("permission.notifications.later")}
+                </Button>
+                <Button variant="primary" size="large" onPress={onEnable}>
+                    {t("permission.notifications.enable")}
+                </Button>
             </View>
         </ThemedView>
     );
 };
-
-const styles = StyleSheet.create({
-    container: {
-        paddingHorizontal: 20,
-        paddingTop: 8,
-        paddingBottom: 16,
-    },
-    illustrationWrap: {
-        alignItems: "center",
-        justifyContent: "center",
-        marginTop: 6,
-        marginBottom: 10,
-    },
-    title: {
-        fontSize: 18,
-        fontWeight: Platform.OS === 'web' ? 'bold' : '600',
-        textAlign: 'center',
-        color: colors.COLOR_BLACK_LIGHT_1,
-        marginBottom: 6,
-    },
-    subtitle: {
-        fontSize: 14,
-        textAlign: 'center',
-        color: colors.COLOR_BLACK_LIGHT_4,
-        marginHorizontal: 8,
-    },
-    actions: {
-        marginTop: 14,
-        gap: 10,
-    },
-    button: {
-        borderRadius: 10,
-        paddingVertical: 12,
-        alignItems: 'center',
-    },
-    primary: {
-        backgroundColor: colors.secondaryColor,
-    },
-    secondary: {
-        backgroundColor: 'transparent',
-        borderWidth: 1,
-        borderColor: colors.chatInputBorder,
-    },
-    buttonText: {
-        fontSize: 15,
-    },
-    primaryText: {
-        color: '#fff',
-        fontWeight: Platform.OS === 'web' ? 'bold' : '600',
-    },
-    secondaryText: {
-        color: colors.COLOR_BLACK_LIGHT_1,
-    },
-});
 
 export default NotificationPermissionSheet;

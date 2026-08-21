@@ -84,6 +84,13 @@ const ALLOWED_PACKAGE_NAME_ALIASES = [
   "wrap-ansi-cjs:wrap-ansi",
 ];
 
+// Bloom 1.x, Services 30 and Core 21 are one compatibility unit. Bun can
+// auto-install an older peer under Alia/Syra when their declared range trails
+// the Oxy release cadence, even though the root override is authoritative. That
+// leaves the bundle able to reach Services code importing removed Bloom APIs.
+// Keep this a lockfile property rather than trusting the hoisted package only.
+const OXY_RUNTIME_SINGLETONS = ["@oxyhq/bloom", "@oxyhq/core", "@oxyhq/services"];
+
 /**
  * Override-masked range violations that are deliberate, keyed
  * `"<dependent> -> <dependency>@<declared range>"`. The dependent is a package
@@ -217,6 +224,8 @@ if (packageCount < MINIMUM_PACKAGES) {
   );
 }
 
+const rootManifest = JSON.parse(await readFile(resolve(repositoryRoot, "package.json"), "utf8"));
+
 const allowedAliases = new Set(ALLOWED_PACKAGE_NAME_ALIASES);
 
 for (const [key, entry] of Object.entries(packages)) {
@@ -266,6 +275,39 @@ for (const [key, entry] of Object.entries(packages)) {
   const integrity = entry.at(-1);
   if (typeof integrity !== "string" || !/^sha(?:512|384|256|1)-[A-Za-z0-9+/]+={0,2}$/.test(integrity)) {
     failures.push(`${key}: has no integrity hash, so nothing verifies what gets installed`);
+  }
+}
+
+let auditedOxyRuntimeSingletons = 0;
+for (const packageName of OXY_RUNTIME_SINGLETONS) {
+  const resolutions = Object.entries(packages).filter(([key, entry]) => {
+    if (!Array.isArray(entry) || typeof entry[0] !== "string") return false;
+    return resolutionChain(key).at(-1) === packageName && splitDescriptor(entry[0]).name === packageName;
+  });
+  auditedOxyRuntimeSingletons += 1;
+  if (resolutions.length !== 1) {
+    failures.push(
+      `${packageName}: expected one Oxy runtime resolution, found ${resolutions.length} (${resolutions.map(([key]) => key).join(", ") || "none"}) — Bloom, Services and Core must move as one compatibility unit`,
+    );
+    continue;
+  }
+
+  const [, [descriptor]] = resolutions[0];
+  const installedVersion = splitDescriptor(descriptor).spec;
+  const catalogRange = rootManifest.workspaces?.catalog?.[packageName];
+  if (typeof catalogRange !== "string" || !semver.satisfies(installedVersion, catalogRange)) {
+    failures.push(
+      `${packageName}: resolved ${installedVersion}, which does not satisfy its catalog range ${String(catalogRange)}`,
+    );
+  }
+
+  if (["@oxyhq/core", "@oxyhq/services"].includes(packageName)) {
+    const overrideRange = rootManifest.overrides?.[packageName];
+    if (overrideRange !== catalogRange) {
+      failures.push(
+        `${packageName}: Bun peer-deduplication override ${String(overrideRange)} must exactly match catalog ${String(catalogRange)}`,
+      );
+    }
   }
 }
 
@@ -442,7 +484,6 @@ if (auditedInstalls === 0) {
 //    nowhere to surface but production.
 // ---------------------------------------------------------------------------
 
-const rootManifest = JSON.parse(await readFile(resolve(repositoryRoot, "package.json"), "utf8"));
 const overriddenPackages = new Set(Object.keys(rootManifest.overrides ?? {}));
 if (overriddenPackages.size === 0) {
   failures.push("root package.json declares no overrides — the override scan is probably broken");
@@ -524,5 +565,5 @@ console.log(
     `${workspacePaths.length} workspace records against their manifests, ` +
     `${auditedInstalls} frozen installs across ${dockerfileNames.length} Dockerfiles, and ` +
     `${auditedOverrideEdges} edges against the ${overriddenPackages.size} overridden packages ` +
-    `(${firedViolations.size} accepted range violations).`,
+    `(${firedViolations.size} accepted range violations); ${auditedOxyRuntimeSingletons} Oxy runtime singletons.`,
 );

@@ -2380,7 +2380,10 @@ const ComposeScreenBody = () => {
               <View className="bg-muted border-border" style={styles.modeToggleContainer}>
                 <View style={styles.modeToggleRow}>
                   <View style={styles.modeOption}>
-                    <Text className="text-foreground" style={[styles.modeLabel, postingMode === 'thread' && styles.activeModeLabel]}>
+                    <Text
+                      className={postingMode === 'thread' ? 'text-primary' : 'text-foreground'}
+                      style={styles.modeLabel}
+                    >
                       {t('Thread')}
                     </Text>
                     <Text className="text-muted-foreground" style={styles.modeDescription}>
@@ -2393,7 +2396,10 @@ const ComposeScreenBody = () => {
                     containerStyle={styles.modeToggle}
                   />
                   <View style={styles.modeOption}>
-                    <Text className="text-foreground" style={[styles.modeLabel, postingMode === 'beast' && styles.activeModeLabel]}>
+                    <Text
+                      className={postingMode === 'beast' ? 'text-primary' : 'text-foreground'}
+                      style={styles.modeLabel}
+                    >
                       {t('Beast')}
                     </Text>
                     <Text className="text-muted-foreground" style={styles.modeDescription}>
@@ -3888,15 +3894,10 @@ const styles = StyleSheet.create({
   modeLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#5e5e5e',
     marginBottom: 2,
-  },
-  activeModeLabel: {
-    color: '#005c67',
   },
   modeDescription: {
     fontSize: 12,
-    color: '#949494',
     textAlign: 'center',
   },
   modeToggle: {

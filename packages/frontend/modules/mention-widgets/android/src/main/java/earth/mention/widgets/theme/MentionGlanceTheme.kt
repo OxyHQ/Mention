@@ -44,7 +44,7 @@ fun MentionGlanceTheme(content: @GlanceComposable @Composable () -> Unit) {
  * frontend defaults to — into the full Material 3 role set for light and dark:
  *
  *     const { generateRoleColors } = require('@oxyhq/bloom/lib/commonjs/theme/color-engine')
- *     const { APP_COLOR_PRESETS } = require('@oxyhq/bloom/lib/commonjs/theme/color-presets')
+ *     const { APP_COLOR_PRESETS } = require('@oxyhq/bloom/color-presets')
  *     const p = APP_COLOR_PRESETS.blue
  *     generateRoleColors({ seed: p.hex, variant: p.variant, isDark: false })
  *
@@ -54,7 +54,9 @@ fun MentionGlanceTheme(content: @GlanceComposable @Composable () -> Unit) {
  * is above 50, by −10 otherwise (see `adjustColorToneForWidgetBackground` in
  * androidx.glance:glance-material3).
  *
- * Regenerate rather than hand-edit if the app's preset ever changes.
+ * Regenerate rather than hand-edit if the app's preset or Bloom's colour policy
+ * changes. `widgetThemeParity.test.ts` reads these Kotlin values back and compares
+ * every role against the installed Bloom engine in both modes.
  */
 internal val MentionWidgetColors: ColorProviders = colorProviders(
     primary = ColorProvider(day = Color(0xFF00629D), night = Color(0xFF99CBFF)),
