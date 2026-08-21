@@ -97,10 +97,10 @@ export default function TrendScreen() {
     return (
         <SafeAreaView className="flex-1" edges={['top']}>
             <SEO
-                title={t('seo.trend.title', { topic: heading, defaultValue: `${heading} - Mention` })}
+                title={t('seo.trend.title', { topic: heading, defaultValue: '{{topic}} - Mention' })}
                 description={t('seo.trend.description', {
                     topic: heading,
-                    defaultValue: `Posts about ${heading} on Mention`,
+                    defaultValue: 'Posts about {{topic}} on Mention',
                 })}
             />
             {/* PanelStickyHeader owns the web sticky position/inset + opaque

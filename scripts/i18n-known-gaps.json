@@ -1,5 +1,6 @@
 {
-  "description": "All supported catalogs are complete; no translation debt is accepted.",
+  "description": "Declared i18n debt. keysMissingFromSourceCatalog: call sites whose key has no English entry. orphanedTranslations: translated keys with no English source and no call site. untranslatedByLanguage: locales knowingly still holding English for some entries, as a count that must only shrink — declare debt here rather than pasting English into a catalog, because i18next falls back to en for a key a catalog omits.",
   "keysMissingFromSourceCatalog": [],
-  "orphanedTranslations": {}
+  "orphanedTranslations": {},
+  "untranslatedByLanguage": {}
 }

@@ -131,9 +131,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
     }
     const mediaCount = post.content?.media?.length ?? 0;
     if (mediaCount > 0) {
-      return mediaCount === 1
-        ? t('compose.draftWithMedia', { count: mediaCount })
-        : t('compose.draftWithMedia_plural', { count: mediaCount });
+      return t('compose.draftWithMedia', { count: mediaCount });
     }
     if (post.content?.poll ?? post.content?.pollId) {
       return t('compose.draftWithPoll');

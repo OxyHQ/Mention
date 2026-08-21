@@ -28,19 +28,28 @@ function catalog(entries) {
 }
 
 /**
- * A tree holding the given English entries, an `es` copy of them, and one
- * source file calling `t()` for each key so nothing is reported as orphaned.
- * `translations` overrides individual `es` values.
+ * A tree holding the given English entries, an `es` catalog covering the same
+ * keys, and one source file calling `t()` for each key so nothing is reported
+ * as orphaned. `translations` overrides individual `es` values and may add
+ * keys English does not have.
+ *
+ * The default `es` value is the English text with a marker prefix — not a copy
+ * of it — because a catalog byte-identical to English is itself a failure, and
+ * every case here would otherwise trip that rule instead of the one it tests.
  */
 function tree(english, translations = {}) {
   const keys = Object.keys(english);
+  const spanish = { ...translations };
+  for (const [key, value] of Object.entries(english)) {
+    if (!(key in spanish)) spanish[key] = `es ${value}`;
+  }
   return {
     "scripts/i18n-known-gaps.json": catalog({
       keysMissingFromSourceCatalog: [],
       orphanedTranslations: {},
     }),
     "packages/frontend/locales/en.json": catalog(english),
-    "packages/frontend/locales/es.json": catalog({ ...english, ...translations }),
+    "packages/frontend/locales/es.json": catalog(spanish),
     "packages/frontend/app/screen.tsx": `${keys
       .map((key) => `export const k${keys.indexOf(key)} = t(${JSON.stringify(key.replace(/_(?:zero|one|two|few|many|other)$/, ""))}, { count: 1 });`)
       .join("\n")}\n`,
@@ -131,6 +140,341 @@ const cases = [
     name: "sentence case under a slot-word key passes",
     files: tree({ "settings.account.signedOutTitle": "Signed out title" }),
     expectFailure: false,
+  },
+
+  // ------------------------------------------------------- CLDR plurals ---
+  // English has two plural categories; Russian has four and Arabic six. The
+  // extra forms appear in no English catalog and at no call site, so the orphan
+  // rule has to know them from an invented key or a correct translation is the
+  // expensive path to a red build.
+  {
+    name: "a plural category English lacks is accepted in a translation",
+    files: tree(
+      { "lanes.postCount_one": "{{count}} post", "lanes.postCount_other": "{{count}} posts" },
+      { "lanes.postCount_few": "{{count}} поста", "lanes.postCount_many": "{{count}} постов" },
+    ),
+    expectFailure: false,
+  },
+  {
+    name: "a plural suffix on a key English does not define is still an orphan",
+    files: tree(
+      { "lanes.postCount_one": "{{count}} post", "lanes.postCount_other": "{{count}} posts" },
+      { "lanes.inventedCount_few": "{{count}} поста" },
+    ),
+    expectFailure: true,
+    expectOutput: "has no en source and no call site",
+  },
+
+  {
+    name: "a value that is its own dotted key path is rejected",
+    files: tree({ "notification.delete_error": "notification.delete_error" }),
+    expectFailure: true,
+    expectOutput: "is set to its own key path",
+  },
+  {
+    name: "an English prose key equal to its value still passes",
+    files: tree({ "Trending now": "Trending now" }),
+    expectFailure: false,
+  },
+
+  {
+    name: "a JavaScript template literal in a value is rejected",
+    files: tree({ "profile.blockUser": "Block @${displayUsername}" }),
+    expectFailure: true,
+    expectOutput: "JavaScript template-literal syntax",
+  },
+  {
+    name: "the i18next interpolation form of the same string passes",
+    files: tree({ "profile.blockUser": "Block @{{username}}" }),
+    expectFailure: false,
+  },
+
+  {
+    name: "a literal JavaScript escape sequence in a value is rejected",
+    files: tree({ "labelers.searchPlaceholder": "Search labelers\\u2026" }),
+    expectFailure: true,
+    expectOutput: "JavaScript escape sequence",
+  },
+  {
+    name: "the character the escape stands for passes",
+    files: tree({ "labelers.searchPlaceholder": "Search labelers\u2026" }),
+    expectFailure: false,
+  },
+  {
+    name: "a real newline in a value passes",
+    files: tree({ "compose.hint": "First line\nsecond line" }),
+    expectFailure: false,
+  },
+
+  // ------------------------------------------------ placeholder direction ---
+  {
+    name: "a translation that drops an English placeholder is rejected",
+    files: tree(
+      { "compose.schedule.set": "Scheduled for {{time}}" },
+      { "compose.schedule.set": "Programado" },
+    ),
+    expectFailure: true,
+    expectOutput: "drops {{time}}",
+  },
+  {
+    name: "a translation that keeps it passes",
+    files: tree(
+      { "compose.schedule.set": "Scheduled for {{time}}" },
+      { "compose.schedule.set": "Programado para {{time}}" },
+    ),
+    expectFailure: false,
+  },
+  {
+    name: "a _one form may spell the number out instead of interpolating it",
+    files: tree(
+      { "post.corrections.marker_one": "Corrected {{count}} time", "post.corrections.marker_other": "Corrected {{count}} times" },
+      {
+        "post.corrections.marker_one": "Corregido una vez",
+        "post.corrections.marker_many": "Corregido {{count}} millones de veces",
+        "post.corrections.marker_other": "Corregido {{count}} veces",
+      },
+    ),
+    expectFailure: false,
+  },
+  {
+    name: "an extra plural form is checked against the English _other source",
+    files: tree(
+      { "lanes.postCount_one": "{{count}} post", "lanes.postCount_other": "{{count}} posts" },
+      { "lanes.postCount_few": "несколько постов" },
+    ),
+    expectFailure: true,
+    expectOutput: "drops {{count}}",
+  },
+
+  {
+    name: "a plural form beside an unsuffixed English base is checked against it",
+    files: tree(
+      { "notification.group.many_actors": "{{actors}} and {{count}} more" },
+      { "notification.group.many_actors_many": "{{actors}} et d'autres" },
+    ),
+    expectFailure: true,
+    expectOutput: "drops {{count}}",
+  },
+
+  // -------------------------------------------------- i18next v3 leftovers ---
+  {
+    name: "the v3 _plural suffix is rejected",
+    files: tree({ "compose.minutesAgo": "{{count}} minute ago", "compose.minutesAgo_plural": "{{count}} minutes ago" }),
+    expectFailure: true,
+    expectOutput: "v3's `_plural` suffix",
+  },
+  {
+    name: "the CLDR spelling of the same pair passes",
+    files: tree(
+      { "compose.minutesAgo_one": "{{count}} minute ago", "compose.minutesAgo_other": "{{count}} minutes ago" },
+      { "compose.minutesAgo_many": "hace {{count}} millones de minutos" },
+    ),
+    expectFailure: false,
+  },
+  {
+    name: "a _one form may interpolate a count its English _one spells lexically",
+    files: tree(
+      { "post.corrections.marker_one": "Corrected once", "post.corrections.marker_other": "Corrected {{count}} times" },
+      {
+        "post.corrections.marker_one": "Исправлено {{count}} раз",
+        "post.corrections.marker_many": "Исправлено {{count}} миллионов раз",
+      },
+    ),
+    expectFailure: false,
+  },
+
+  // ------------------------------------------- lexical counts, per language ---
+  // The exemption is derived from Intl: a category that describes exactly one
+  // number may spell it. Arabic's dual is such a category and Russian's `one`
+  // is not, so a hand-written `zero|one|two` would be right for one and wrong
+  // for the other. `tree()` builds an `es` catalog, whose `one` fires only at 1.
+  {
+    name: "a single-value category may spell its number lexically",
+    files: tree(
+      { "post.corrections.marker_one": "Corrected {{count}} time", "post.corrections.marker_other": "Corrected {{count}} times" },
+      {
+        "post.corrections.marker_one": "Corregido una vez",
+        "post.corrections.marker_many": "Corregido {{count}} millones de veces",
+        "post.corrections.marker_other": "Corregido {{count}} veces",
+      },
+    ),
+    expectFailure: false,
+  },
+  {
+    name: "a multi-value category may not",
+    files: tree(
+      { "post.corrections.marker_one": "Corrected {{count}} time", "post.corrections.marker_other": "Corrected {{count}} times" },
+      {
+        "post.corrections.marker_one": "Corregido una vez",
+        "post.corrections.marker_many": "Corregido muchas veces",
+        "post.corrections.marker_other": "Corregido {{count}} veces",
+      },
+    ),
+    expectFailure: true,
+    expectOutput: "drops {{count}}",
+  },
+
+  {
+    name: "an exempt category may drop the count but not another placeholder",
+    files: tree(
+      { "trendGraph.related_one": "Related: {{terms}} +{{count}} more", "trendGraph.related_other": "Related: {{terms}} +{{count}} more" },
+      {
+        "trendGraph.related_one": "Relacionado: {{terms}} y uno más",
+        "trendGraph.related_many": "Relacionado: {{terms}} +{{count}} más",
+        "trendGraph.related_other": "Relacionado: {{terms}} +{{count}} más",
+      },
+    ),
+    expectFailure: false,
+  },
+  {
+    name: "the same form dropping the non-count placeholder is rejected",
+    files: tree(
+      { "trendGraph.related_one": "Related: {{terms}} +{{count}} more", "trendGraph.related_other": "Related: {{terms}} +{{count}} more" },
+      {
+        "trendGraph.related_one": "Relacionado: y uno más",
+        "trendGraph.related_many": "Relacionado: {{terms}} +{{count}} más",
+        "trendGraph.related_other": "Relacionado: {{terms}} +{{count}} más",
+      },
+    ),
+    expectFailure: true,
+    expectOutput: "drops {{terms}}",
+  },
+
+  // ------------------------------------------------- CLDR plural coverage ---
+  // The category list is derived from Intl, so these cases also pin that the
+  // derivation is per-language rather than a copy of English's two.
+  {
+    name: "a language is required to cover the categories it uses",
+    files: tree(
+      { "lanes.postCount_one": "{{count}} post", "lanes.postCount_other": "{{count}} posts" },
+      { "lanes.postCount_one": "{{count}} publicación", "lanes.postCount_other": "{{count}} publicaciones" },
+    ),
+    expectFailure: true,
+    expectOutput: "missing the `_many` plural form",
+  },
+  {
+    name: "covering them passes",
+    files: tree(
+      { "lanes.postCount_one": "{{count}} post", "lanes.postCount_other": "{{count}} posts" },
+      {
+        "lanes.postCount_one": "{{count}} publicación",
+        "lanes.postCount_many": "{{count}} millón de publicaciones",
+        "lanes.postCount_other": "{{count}} publicaciones",
+      },
+    ),
+    expectFailure: false,
+  },
+  {
+    name: "a key English does not pluralise demands no forms",
+    files: tree({ "lanes.postCount": "{{count}} posts" }),
+    expectFailure: false,
+  },
+
+  // ------------------------------------------- one path, two definitions ---
+  // The defect that cost three strings this session: a key spelled both flat
+  // and nested. Both spellings are legal JSON in different objects, both look
+  // like ordinary entries in a diff, and only one is ever rendered — so the
+  // half a reviewer approves may be the half nobody sees. The rule was live for
+  // several commits with nothing pinning it.
+  {
+    name: "a key defined both flat and nested is rejected",
+    files: (() => {
+      const files = tree({ "common.back": "Back" });
+      const english = { "common.retry": "Retry", common: { retry: "Try again" } };
+      files["packages/frontend/locales/en.json"] = `${JSON.stringify(english, null, 2)}\n`;
+      files["packages/frontend/locales/es.json"] = `${JSON.stringify({ "common.retry": "Reintentar" }, null, 2)}\n`;
+      files["packages/frontend/app/screen.tsx"] = "export const k = t('common.retry');\n";
+      return files;
+    })(),
+    expectFailure: true,
+    expectOutput: "defined both as a flat key and inside a nested object",
+  },
+  {
+    name: "the same key defined once, nested only, passes",
+    files: (() => {
+      const files = tree({ "common.back": "Back" });
+      files["packages/frontend/locales/en.json"] = `${JSON.stringify({ common: { retry: "Try again" } }, null, 2)}\n`;
+      files["packages/frontend/locales/es.json"] = `${JSON.stringify({ common: { retry: "Reintentar" } }, null, 2)}\n`;
+      files["packages/frontend/app/screen.tsx"] = "export const k = t('common.retry');\n";
+      return files;
+    })(),
+    expectFailure: false,
+  },
+  {
+    name: "the same key defined once, flat only, passes",
+    files: (() => {
+      const files = tree({ "common.back": "Back" });
+      files["packages/frontend/locales/en.json"] = `${JSON.stringify({ "common.retry": "Try again" }, null, 2)}\n`;
+      files["packages/frontend/locales/es.json"] = `${JSON.stringify({ "common.retry": "Reintentar" }, null, 2)}\n`;
+      files["packages/frontend/app/screen.tsx"] = "export const k = t('common.retry');\n";
+      return files;
+    })(),
+    expectFailure: false,
+  },
+
+  // ------------------------------------------- English wearing a language ---
+  // The rule that every key must exist in every catalog is satisfied just as
+  // well by copying en.json, and twelve catalogs shipped that way.
+  {
+    name: "a catalog byte-identical to English is rejected",
+    files: (() => {
+      const english = Object.fromEntries(
+        Array.from({ length: 20 }, (_, index) => [`screen.label${index}`, `Label ${index} text`]),
+      );
+      return tree(english, english);
+    })(),
+    expectFailure: true,
+    expectOutput: "is a copy of the English catalog",
+  },
+  {
+    name: "declared translation debt lets an unfinished catalog through",
+    files: (() => {
+      const english = Object.fromEntries(
+        Array.from({ length: 20 }, (_, index) => [`screen.label${index}`, `Label ${index} text`]),
+      );
+      const files = tree(english, english);
+      files["scripts/i18n-known-gaps.json"] = `${JSON.stringify(
+        { keysMissingFromSourceCatalog: [], orphanedTranslations: {}, untranslatedByLanguage: { es: 20 } },
+        null,
+        2,
+      )}\n`;
+      return files;
+    })(),
+    expectFailure: false,
+  },
+  {
+    name: "declared debt smaller than the reality is rejected",
+    files: (() => {
+      const english = Object.fromEntries(
+        Array.from({ length: 20 }, (_, index) => [`screen.label${index}`, `Label ${index} text`]),
+      );
+      const files = tree(english, english);
+      files["scripts/i18n-known-gaps.json"] = `${JSON.stringify(
+        { keysMissingFromSourceCatalog: [], orphanedTranslations: {}, untranslatedByLanguage: { es: 5 } },
+        null,
+        2,
+      )}\n`;
+      return files;
+    })(),
+    expectFailure: true,
+    expectOutput: "more than the 5 declared",
+  },
+  {
+    name: "declared debt a finished translation no longer needs is rejected",
+    files: (() => {
+      const english = Object.fromEntries(
+        Array.from({ length: 20 }, (_, index) => [`screen.label${index}`, `Label ${index} text`]),
+      );
+      const files = tree(english);
+      files["scripts/i18n-known-gaps.json"] = `${JSON.stringify(
+        { keysMissingFromSourceCatalog: [], orphanedTranslations: {}, untranslatedByLanguage: { es: 20 } },
+        null,
+        2,
+      )}\n`;
+      return files;
+    })(),
+    expectFailure: true,
+    expectOutput: "is no longer needed",
   },
 
   // ------------------------------------------------------- vacuity floors ---

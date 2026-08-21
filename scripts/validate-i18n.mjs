@@ -57,6 +57,17 @@ const EXCLUDED_PATH =
  */
 const PLURAL_SUFFIXES = ["_one", "_other"];
 
+/** Any CLDR category, for mapping a translation's extra form back to its source. */
+const PLURAL_CATEGORY = /_(?:zero|one|two|few|many|other)$/;
+const ALL_PLURAL_SUFFIXES = ["_zero", "_one", "_two", "_few", "_many", "_other"];
+
+/**
+ * i18next v3 spelled the plural form `key_plural`. This app is on v26, which
+ * reads CLDR categories and ignores `_plural` entirely — five keys sat in every
+ * catalog in the dead spelling, so "5 minutes ago" rendered as "5 minute ago".
+ */
+const LEGACY_PLURAL_SUFFIX = /_plural$/;
+
 /**
  * Vacuity floors. A directory walk that quietly stops finding files, or an
  * extractor broken by a syntax change, would otherwise report a clean run, so
@@ -105,6 +116,41 @@ function resolveKey(catalog, key) {
     current = next;
   }
   return current;
+}
+
+/**
+ * A nested leaf whose full path is also spelled as a flat top-level key.
+ *
+ * These catalogs mix both spellings, and on a collision **the nested entry
+ * wins** — measured, in both declaration orders, against the i18next this app
+ * runs. The flat one is then text no user can reach. Nine pairs existed when
+ * this check was written, three of them with genuinely different wording, so
+ * approved copy was sitting dead in the file either way.
+ *
+ * The direction matters and is not guessable: reading `deepFind`, which checks
+ * `obj[path]` first, predicts the opposite of what the Translator actually
+ * does. An earlier version of this comment asserted that prediction and the
+ * fix built on it kept the wrong three strings. Verify precedence by rendering,
+ * not by reading the resolver.
+ *
+ * `findDuplicateKeys` cannot see any of this: both spellings are legal JSON in
+ * different objects.
+ */
+function findShadowedPaths(parsed) {
+  const flatKeys = new Set(
+    Object.entries(parsed)
+      .filter(([, value]) => value === null || typeof value !== "object" || Array.isArray(value))
+      .map(([key]) => key),
+  );
+  const shadowed = [];
+  (function walk(node, prefix) {
+    for (const [key, value] of Object.entries(node)) {
+      const path = prefix ? `${prefix}.${key}` : key;
+      if (value !== null && typeof value === "object" && !Array.isArray(value)) walk(value, path);
+      else if (prefix && flatKeys.has(path)) shadowed.push(path);
+    }
+  })(parsed, "");
+  return shadowed;
 }
 
 /** Every leaf entry of a catalog, as `dotted.path -> value`. */
@@ -180,6 +226,27 @@ function inspectPlaceholders(value) {
   const residue = value.replace(wellFormed, "");
   if (residue.includes("{{")) problems.push("an unclosed `{{`");
   if (residue.includes("}}")) problems.push("a `}}` with no opening `{{`");
+
+  // `${name}` is JavaScript template-literal syntax, which i18next does not
+  // interpolate — it prints the characters. Nine entries got here by having a
+  // call site's `defaultValue: `Block @${displayUsername}`` harvested as source
+  // text, and every user of every language read "Block @${displayUsername}".
+  // A source-code escape sequence that reached the catalog as characters. The
+  // call site wrote `'Search labelers\\u2026'`, which JavaScript evaluates to an
+  // ellipsis; harvesting the literal's SOURCE stored the six characters instead,
+  // and i18next has no reason to decode them. Same shape as the `${}` case
+  // below: source text mistaken for a string value.
+  for (const match of value.matchAll(/\\(?:u[0-9a-fA-F]{4}|u\{[0-9a-fA-F]+\}|x[0-9a-fA-F]{2}|[nrtbfv])/g)) {
+    problems.push(
+      `the literal characters \`${match[0]}\`, which is a JavaScript escape sequence and not the character it stands for — write the character itself`,
+    );
+  }
+
+  for (const match of value.matchAll(/\$\{([^{}]*)\}/g)) {
+    problems.push(
+      `\`${match[0]}\`, which is JavaScript template-literal syntax — i18next prints it verbatim; use {{${match[1].trim() || "name"}}} and pass the value at the call site`,
+    );
+  }
 
   return { names, problems };
 }
@@ -369,6 +436,19 @@ for (const name of catalogNames) {
     );
   }
 
+  for (const key of flattenCatalog(parsed, "", new Map()).keys()) {
+    if (!LEGACY_PLURAL_SUFFIX.test(key)) continue;
+    failures.push(
+      `locales/${name}: key "${key}" uses i18next v3's \`_plural\` suffix, which this app's i18next does not read — spell the CLDR categories instead (\`_one\`, \`_other\`, plus whatever the language needs) and let i18next pick`,
+    );
+  }
+
+  for (const path of findShadowedPaths(parsed)) {
+    failures.push(
+      `locales/${name}: "${path}" is defined both as a flat key and inside a nested object — i18next serves the NESTED one, so the flat entry is unreachable; delete whichever spelling is not the copy you want rendered, and check which that is by rendering it`,
+    );
+  }
+
   for (const duplicate of findDuplicateKeys(source)) {
     failures.push(
       `locales/${name}:${duplicate.lineNumber}: duplicate key "${duplicate.key}", first defined on line ${duplicate.firstLineNumber} — JSON.parse silently keeps only the last`,
@@ -411,15 +491,64 @@ if (!sourceCatalog) {
 if (sourceCatalog) {
   for (const [language, catalog] of catalogs) {
     if (language === SOURCE_LANGUAGE) continue;
+    const lexicalCategories = lexicalCountCategories(language);
     for (const [key, value] of catalog.entries) {
       if (typeof value !== "string") continue;
-      const englishValue = sourceCatalog.entries.get(key);
+      // A plural category English lacks (`_few`, `_many`) has no entry of its
+      // own; its source is the English `_other` form.
+      // A form English does not spell: try its `_other` sibling, then the bare
+      // base key. French adds `notification.group.many_actors_one` beside an
+      // English base that carries no suffix at all, and without the second
+      // fallback that form would be checked against nothing.
+      const englishValue =
+        sourceCatalog.entries.get(key) ??
+        sourceCatalog.entries.get(key.replace(PLURAL_CATEGORY, "_other")) ??
+        sourceCatalog.entries.get(key.replace(PLURAL_CATEGORY, ""));
       if (typeof englishValue !== "string") continue;
-      const provided = inspectPlaceholders(englishValue).names;
-      for (const name of inspectPlaceholders(value).names) {
+
+      // What the CALL SITE offers, which is the real test for an invented
+      // placeholder: one options object is passed whatever plural category
+      // fires, so every English form of this key contributes. English writes
+      // `post.corrections.marker_one` as "Corrected once" with no count —
+      // but Russian's `one` category also covers 21, 31, 41, so Russian needs
+      // "Исправлено {{count}} раз" there. Checking that form against the
+      // English `_one` alone rejected it as invented and left Russian saying
+      // "once" about 21 corrections, with no way to fix it from this side.
+      const base = key.replace(PLURAL_CATEGORY, "");
+      const provided = new Set();
+      for (const candidate of [base, ...ALL_PLURAL_SUFFIXES.map((suffix) => base + suffix)]) {
+        const form = sourceCatalog.entries.get(candidate);
+        if (typeof form === "string") {
+          for (const name of inspectPlaceholders(form).names) provided.add(name);
+        }
+      }
+      const used = inspectPlaceholders(value).names;
+      for (const name of used) {
         if (provided.has(name)) continue;
         failures.push(
           `locales/${catalog.name}: key "${key}" interpolates {{${name}}}, which its ${SOURCE_LANGUAGE} source does not — ${language} users see the placeholder verbatim`,
+        );
+      }
+      // The other direction, which nothing checked: a translation that DROPS a
+      // placeholder loses whatever it stood for — the name, the count, the time
+      // — with no error anywhere. Nine entries survived a merge in this state
+      // because the merge script only looked for invented placeholders.
+      //
+      // A form whose category only ever describes one number may spell THAT
+      // NUMBER out; see `lexicalCountCategories`. The exemption is per
+      // placeholder, not per key: `count` is the one the category pins down,
+      // and i18next's plural API names it exactly that. Everything else in the
+      // string still has to survive. Arabic's `trendGraph.related_two` is the
+      // case — it may drop `{{count}}`, because "two" is already in the dual,
+      // and may not drop `{{terms}}`, which is the list of related terms and
+      // would vanish with nothing to notice.
+      const category = PLURAL_CATEGORY.exec(key)?.[0].slice(1);
+      const countIsLexical = Boolean(category && lexicalCategories.has(category));
+      for (const name of inspectPlaceholders(englishValue).names) {
+        if (used.has(name)) continue;
+        if (countIsLexical && name === "count") continue;
+        failures.push(
+          `locales/${catalog.name}: key "${key}" drops {{${name}}}, which its ${SOURCE_LANGUAGE} source interpolates — ${language} users never see what it stood for`,
         );
       }
     }
@@ -474,6 +603,13 @@ if (usedKeys.size < MINIMUM_EXTRACTED_KEYS) {
 }
 
 const baseline = JSON.parse(await readFile(baselinePath, "utf8"));
+
+/**
+ * The share of byte-identical-to-English entries at which a catalog stops
+ * being a translation. Loose on purpose: see the check that uses it.
+ */
+const ENGLISH_COPY_LIMIT = 0.9;
+const declaredEnglishCopies = baseline.untranslatedByLanguage ?? {};
 const allowedMissing = new Set(baseline.keysMissingFromSourceCatalog ?? []);
 const stillMissing = new Set();
 
@@ -531,6 +667,62 @@ if (sourceCatalog) {
 //    translation), so reachability, not mere absence from `en`, is the test.
 // ---------------------------------------------------------------------------
 
+/**
+ * A CLDR plural form of a key English does define.
+ *
+ * English has two plural categories and most of this app's languages have a
+ * different number: Russian needs `few` and `many`, Arabic all six, Japanese
+ * only `other`. i18next picks the category from the count at runtime, so a
+ * correct Russian catalog carries `lanes.postCount_few`, which appears in no
+ * English catalog and at no call site — the call site writes the base key.
+ * Without this, the orphan rule below rejects every correctly pluralised
+ * translation and the cheapest way to a green build is a wrong one.
+ */
+function isPluralFormOfEnglishKey(key) {
+  const base = key.replace(/_(?:zero|one|two|few|many|other)$/, "");
+  if (base === key) return false;
+  return (
+    sourceCatalog.entries.has(base) ||
+    usedKeys.has(base) ||
+    PLURAL_SUFFIXES.some((suffix) => sourceCatalog.entries.has(base + suffix))
+  );
+}
+
+/**
+ * Categories that fire for exactly one number in this language.
+ *
+ * Those are the forms where the count can be spelled lexically instead of
+ * interpolated, because the form only ever describes one value: English "once",
+ * Arabic `منشوران` (the dual already means two — keeping `{{count}}` renders
+ * "2 two-posts"). Everywhere else the number must be interpolated, and Russian
+ * is the proof: its `one` category also covers 21, 31 and 41, so "Исправлено
+ * один раз" is wrong about 21 corrections.
+ *
+ * Derived from Intl, not listed. A hand-written `zero|one|two` would have been
+ * right for Arabic and wrong for Russian, which is the same mistake as writing
+ * the category lists down in the first place.
+ */
+function lexicalCountCategories(language) {
+  const rules = new Intl.PluralRules(language);
+  const seen = new Map();
+  for (let n = 0; n <= 1000; n += 1) {
+    const category = rules.select(n);
+    seen.set(category, (seen.get(category) ?? 0) + 1);
+  }
+  return new Set([...seen].filter(([, count]) => count === 1).map(([category]) => category));
+}
+
+/** Keys English pluralises, as bases — the set every language must cover. */
+const englishPluralBases = sourceCatalog
+  ? [
+      ...new Set(
+        [...sourceCatalog.entries.keys()]
+          .filter((key) => PLURAL_CATEGORY.test(key))
+          .map((key) => key.replace(PLURAL_CATEGORY, "")),
+      ),
+    ]
+  : [];
+
 if (sourceCatalog) {
   const allowedOrphans = baseline.orphanedTranslations ?? {};
 
@@ -542,6 +734,7 @@ if (sourceCatalog) {
       (key) =>
         !sourceCatalog.entries.has(key) &&
         !usedKeys.has(key) &&
+        !isPluralFormOfEnglishKey(key) &&
         ![...dynamicPrefixes].some((prefix) => key.startsWith(prefix)),
     );
     const orphanSet = new Set(orphans);
@@ -565,8 +758,69 @@ if (sourceCatalog) {
         `locales/${catalog.name}: key "${key}" is missing — every supported locale must cover the complete app`,
       );
     }
+    // ----------------------------------------------------------------------
+    // A catalog that is a copy of English, wearing a language's name.
+    //
+    // The rule above — every English key must exist in every catalog — is
+    // satisfied just as well by copying `en.json` to `ja.json`, and that is
+    // what happened: twelve catalogs shipped 2138/2138 English values while
+    // every check here reported "0 untranslated". The count was never wrong;
+    // nothing was measuring whether the entries were in the language.
+    //
+    // The threshold is loose on purpose. A finished translation leaves a few
+    // dozen entries identical (brand names, "OK", "SDK"), never nine in ten.
+    // And an honestly unfinished locale has somewhere to say so, so the
+    // cheapest way to a green build is never to paste English in.
+    // ----------------------------------------------------------------------
+    const identical = [...catalog.entries].filter(
+      ([key, value]) => sourceCatalog.entries.get(key) === value,
+    ).length;
+    const share = catalog.entries.size === 0 ? 0 : identical / catalog.entries.size;
+    const declared = declaredEnglishCopies[language];
+
+    if (declared === undefined && share >= ENGLISH_COPY_LIMIT) {
+      failures.push(
+        `locales/${catalog.name}: ${identical} of ${catalog.entries.size} entries (${Math.round(share * 100)}%) are byte-identical to ${SOURCE_LANGUAGE} — this is a copy of the English catalog, not a ${language} translation. If it is genuinely unfinished, declare it under untranslatedByLanguage in scripts/i18n-known-gaps.json rather than pasting English into it: i18next already falls back to ${SOURCE_LANGUAGE} for a key a catalog omits.`,
+      );
+    } else if (declared !== undefined && identical > declared) {
+      failures.push(
+        `locales/${catalog.name}: ${identical} entries are identical to ${SOURCE_LANGUAGE}, more than the ${declared} declared under untranslatedByLanguage in scripts/i18n-known-gaps.json — translate them, or raise the number deliberately`,
+      );
+    } else if (declared !== undefined && share < ENGLISH_COPY_LIMIT) {
+      failures.push(
+        `scripts/i18n-known-gaps.json: untranslatedByLanguage.${language} is no longer needed — only ${identical} of ${catalog.entries.size} entries are identical to ${SOURCE_LANGUAGE}; delete the line`,
+      );
+    }
+
+    // ----------------------------------------------------------------------
+    // Every CLDR plural category this language actually uses.
+    //
+    // i18next picks the category with Intl.PluralRules and falls back to the
+    // base key when the form is absent, so a missing `_few` is not an error —
+    // it is Russian quietly reading the singular for 3 posts. Nothing else here
+    // can see that.
+    //
+    // The category list is DERIVED from Intl, never written down: a hand-kept
+    // map is exactly the thing that omits Russian's `few` and then certifies
+    // the omission. English's own categories bound the requirement, since a
+    // base English does not pluralise at all is not one this app counts on.
+    // ----------------------------------------------------------------------
+    const categories = new Intl.PluralRules(language).resolvedOptions().pluralCategories;
+    for (const base of englishPluralBases) {
+      const present = new Set();
+      for (const key of catalog.entries.keys()) {
+        const match = PLURAL_CATEGORY.exec(key);
+        if (match && key.slice(0, match.index) === base) present.add(match[0].slice(1));
+      }
+      const absent = categories.filter((category) => !present.has(category));
+      if (absent.length === 0) continue;
+      failures.push(
+        `locales/${catalog.name}: "${base}" is missing the ${absent.map((c) => `\`_${c}\``).join(", ")} plural ${absent.length === 1 ? "form" : "forms"}, which ${language} uses — i18next falls back to the base key, so those counts read the wrong number silently`,
+      );
+    }
+
     notes.push(
-      `${catalog.name}: ${catalog.entries.size} entries, ${untranslated.length} untranslated (rendered in ${SOURCE_LANGUAGE}), ${orphans.length} orphaned`,
+      `${catalog.name}: ${catalog.entries.size} entries, ${untranslated.length} untranslated (rendered in ${SOURCE_LANGUAGE}), ${orphans.length} orphaned, ${identical} identical to ${SOURCE_LANGUAGE} (${Math.round(share * 100)}%)`,
     );
   }
 }
@@ -626,6 +880,18 @@ function spellOutKey(parts) {
 for (const [language, catalog] of catalogs) {
   for (const [key, value] of catalog.entries) {
     if (typeof value !== "string") continue;
+
+    // The blunt version of the same mistake: the value IS the dotted key. Four
+    // entries reached production this way and rendered `notification.delete_error`
+    // on screen. Safe to test bluntly because these catalogs also use English
+    // prose as keys ("Home": "Home"), and prose is not identifier-shaped.
+    if (value === key && isPathShaped(key)) {
+      failures.push(
+        `locales/${catalog.name}: key "${key}" is set to its own key path, which is what users read — write the real ${language === SOURCE_LANGUAGE ? "English text" : `${language} translation`}, or take the English from the call site's defaultValue`,
+      );
+      continue;
+    }
+
     const segment = key.split(".").at(-1).replace(PLURAL_SUFFIX, "");
     if (!/^[a-z][A-Za-z0-9_]*$/.test(segment)) continue;
     const parts = splitIdentifier(segment);
