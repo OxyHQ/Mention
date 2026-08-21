@@ -1333,7 +1333,7 @@
   "feeds.detail.tabs.profiles": "Profile",
   "feeds.detail.tabs.topics": "Themen",
   "feeds.detail.tabs.reviews": "Bewertungen",
-  "feeds.detail.reviewPlaceholder": "Teile deine Meinung zu diesem Feed … (optional)",
+  "feeds.detail.reviewPlaceholder": "Teile deine Meinung zu diesem Feed (optional)",
   "starterPacks.title": "Starter-Packs",
   "starterPacks.create": "Starter-Pack erstellen",
   "starterPacks.descriptionPlaceholder": "Worum geht es in diesem Pack?",

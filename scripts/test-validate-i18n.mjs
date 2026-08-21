@@ -314,6 +314,32 @@ const cases = [
     expectOutput: "drops {{count}}",
   },
 
+  {
+    name: "an exempt category may drop the count but not another placeholder",
+    files: tree(
+      { "trendGraph.related_one": "Related: {{terms}} +{{count}} more", "trendGraph.related_other": "Related: {{terms}} +{{count}} more" },
+      {
+        "trendGraph.related_one": "Relacionado: {{terms}} y uno más",
+        "trendGraph.related_many": "Relacionado: {{terms}} +{{count}} más",
+        "trendGraph.related_other": "Relacionado: {{terms}} +{{count}} más",
+      },
+    ),
+    expectFailure: false,
+  },
+  {
+    name: "the same form dropping the non-count placeholder is rejected",
+    files: tree(
+      { "trendGraph.related_one": "Related: {{terms}} +{{count}} more", "trendGraph.related_other": "Related: {{terms}} +{{count}} more" },
+      {
+        "trendGraph.related_one": "Relacionado: y uno más",
+        "trendGraph.related_many": "Relacionado: {{terms}} +{{count}} más",
+        "trendGraph.related_other": "Relacionado: {{terms}} +{{count}} más",
+      },
+    ),
+    expectFailure: true,
+    expectOutput: "drops {{terms}}",
+  },
+
   // ------------------------------------------------- CLDR plural coverage ---
   // The category list is derived from Intl, so these cases also pin that the
   // derivation is per-language rather than a copy of English's two.

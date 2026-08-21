@@ -534,16 +534,22 @@ if (sourceCatalog) {
       // — with no error anywhere. Nine entries survived a merge in this state
       // because the merge script only looked for invented placeholders.
       //
-      // A form whose category only ever describes one number may spell it out;
-      // see `lexicalCountCategories`.
+      // A form whose category only ever describes one number may spell THAT
+      // NUMBER out; see `lexicalCountCategories`. The exemption is per
+      // placeholder, not per key: `count` is the one the category pins down,
+      // and i18next's plural API names it exactly that. Everything else in the
+      // string still has to survive. Arabic's `trendGraph.related_two` is the
+      // case — it may drop `{{count}}`, because "two" is already in the dual,
+      // and may not drop `{{terms}}`, which is the list of related terms and
+      // would vanish with nothing to notice.
       const category = PLURAL_CATEGORY.exec(key)?.[0].slice(1);
-      if (!(category && lexicalCategories.has(category))) {
-        for (const name of inspectPlaceholders(englishValue).names) {
-          if (used.has(name)) continue;
-          failures.push(
-            `locales/${catalog.name}: key "${key}" drops {{${name}}}, which its ${SOURCE_LANGUAGE} source interpolates — ${language} users never see what it stood for`,
-          );
-        }
+      const countIsLexical = Boolean(category && lexicalCategories.has(category));
+      for (const name of inspectPlaceholders(englishValue).names) {
+        if (used.has(name)) continue;
+        if (countIsLexical && name === "count") continue;
+        failures.push(
+          `locales/${catalog.name}: key "${key}" drops {{${name}}}, which its ${SOURCE_LANGUAGE} source interpolates — ${language} users never see what it stood for`,
+        );
       }
     }
   }
