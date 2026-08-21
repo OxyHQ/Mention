@@ -57,6 +57,9 @@ const EXCLUDED_PATH =
  */
 const PLURAL_SUFFIXES = ["_one", "_other"];
 
+/** Any CLDR category, for mapping a translation's extra form back to its source. */
+const PLURAL_CATEGORY = /_(?:zero|one|two|few|many|other)$/;
+
 /**
  * Vacuity floors. A directory walk that quietly stops finding files, or an
  * extractor broken by a syntax change, would otherwise report a clean run, so
@@ -467,14 +470,36 @@ if (sourceCatalog) {
     if (language === SOURCE_LANGUAGE) continue;
     for (const [key, value] of catalog.entries) {
       if (typeof value !== "string") continue;
-      const englishValue = sourceCatalog.entries.get(key);
+      // A plural category English lacks (`_few`, `_many`) has no entry of its
+      // own; its source is the English `_other` form.
+      const englishValue =
+        sourceCatalog.entries.get(key) ??
+        sourceCatalog.entries.get(key.replace(PLURAL_CATEGORY, "_other"));
       if (typeof englishValue !== "string") continue;
       const provided = inspectPlaceholders(englishValue).names;
-      for (const name of inspectPlaceholders(value).names) {
+      const used = inspectPlaceholders(value).names;
+      for (const name of used) {
         if (provided.has(name)) continue;
         failures.push(
           `locales/${catalog.name}: key "${key}" interpolates {{${name}}}, which its ${SOURCE_LANGUAGE} source does not — ${language} users see the placeholder verbatim`,
         );
+      }
+      // The other direction, which nothing checked: a translation that DROPS a
+      // placeholder loses whatever it stood for — the name, the count, the time
+      // — with no error anywhere. Nine entries survived a merge in this state
+      // because the merge script only looked for invented placeholders.
+      //
+      // `zero` and `one` are exempt: a language may legitimately write "once"
+      // or "una vez" instead of interpolating a number it knows is 1, and a
+      // rule that forbade that would push translators to wedge {{count}} into
+      // a sentence that reads worse for it.
+      if (!/_(?:zero|one)$/.test(key)) {
+        for (const name of provided) {
+          if (used.has(name)) continue;
+          failures.push(
+            `locales/${catalog.name}: key "${key}" drops {{${name}}}, which its ${SOURCE_LANGUAGE} source interpolates — ${language} users never see what it stood for`,
+          );
+        }
       }
     }
   }

@@ -206,6 +206,42 @@ const cases = [
     expectFailure: false,
   },
 
+  // ------------------------------------------------ placeholder direction ---
+  {
+    name: "a translation that drops an English placeholder is rejected",
+    files: tree(
+      { "compose.schedule.set": "Scheduled for {{time}}" },
+      { "compose.schedule.set": "Programado" },
+    ),
+    expectFailure: true,
+    expectOutput: "drops {{time}}",
+  },
+  {
+    name: "a translation that keeps it passes",
+    files: tree(
+      { "compose.schedule.set": "Scheduled for {{time}}" },
+      { "compose.schedule.set": "Programado para {{time}}" },
+    ),
+    expectFailure: false,
+  },
+  {
+    name: "a _one form may spell the number out instead of interpolating it",
+    files: tree(
+      { "post.corrections.marker_one": "Corrected {{count}} time", "post.corrections.marker_other": "Corrected {{count}} times" },
+      { "post.corrections.marker_one": "Corregido una vez", "post.corrections.marker_other": "Corregido {{count}} veces" },
+    ),
+    expectFailure: false,
+  },
+  {
+    name: "an extra plural form is checked against the English _other source",
+    files: tree(
+      { "lanes.postCount_one": "{{count}} post", "lanes.postCount_other": "{{count}} posts" },
+      { "lanes.postCount_few": "несколько постов" },
+    ),
+    expectFailure: true,
+    expectOutput: "drops {{count}}",
+  },
+
   // ------------------------------------------- English wearing a language ---
   // The rule that every key must exist in every catalog is satisfied just as
   // well by copying en.json, and twelve catalogs shipped that way.
