@@ -212,6 +212,17 @@ function inspectPlaceholders(value) {
   // interpolate — it prints the characters. Nine entries got here by having a
   // call site's `defaultValue: `Block @${displayUsername}`` harvested as source
   // text, and every user of every language read "Block @${displayUsername}".
+  // A source-code escape sequence that reached the catalog as characters. The
+  // call site wrote `'Search labelers\\u2026'`, which JavaScript evaluates to an
+  // ellipsis; harvesting the literal's SOURCE stored the six characters instead,
+  // and i18next has no reason to decode them. Same shape as the `${}` case
+  // below: source text mistaken for a string value.
+  for (const match of value.matchAll(/\\(?:u[0-9a-fA-F]{4}|u\{[0-9a-fA-F]+\}|x[0-9a-fA-F]{2}|[nrtbfv])/g)) {
+    problems.push(
+      `the literal characters \`${match[0]}\`, which is a JavaScript escape sequence and not the character it stands for — write the character itself`,
+    );
+  }
+
   for (const match of value.matchAll(/\$\{([^{}]*)\}/g)) {
     problems.push(
       `\`${match[0]}\`, which is JavaScript template-literal syntax — i18next prints it verbatim; use {{${match[1].trim() || "name"}}} and pass the value at the call site`,

@@ -189,6 +189,23 @@ const cases = [
     expectFailure: false,
   },
 
+  {
+    name: "a literal JavaScript escape sequence in a value is rejected",
+    files: tree({ "labelers.searchPlaceholder": "Search labelers\\u2026" }),
+    expectFailure: true,
+    expectOutput: "JavaScript escape sequence",
+  },
+  {
+    name: "the character the escape stands for passes",
+    files: tree({ "labelers.searchPlaceholder": "Search labelers\u2026" }),
+    expectFailure: false,
+  },
+  {
+    name: "a real newline in a value passes",
+    files: tree({ "compose.hint": "First line\nsecond line" }),
+    expectFailure: false,
+  },
+
   // ------------------------------------------- English wearing a language ---
   // The rule that every key must exist in every catalog is satisfied just as
   // well by copying en.json, and twelve catalogs shipped that way.
