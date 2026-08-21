@@ -4,9 +4,6 @@ const path = require('path');
 
 const projectRoot = __dirname;
 const monorepoRoot = path.resolve(projectRoot, '../..');
-const exactModuleAliases = new Map([
-  ['@oxyhq/bloom', path.join(projectRoot, 'shims/oxy-bloom.ts')],
-]);
 
 const config = getDefaultConfig(projectRoot);
 
@@ -60,14 +57,6 @@ config.resolver = {
   unstable_enableSymlinks: true,
   // Enable package.json "exports" field resolution (required by @oxyhq/bloom subpath exports)
   unstable_enablePackageExports: true,
-  // `@oxyhq/services` still reaches for the `@oxyhq/bloom` root barrel in a
-  // handful of screens even though it only needs Dialog/toast, and that barrel
-  // re-exports every Bloom component plus the whole icon set. Metro does no
-  // tree-shaking, so the request is narrowed to the three symbols services
-  // actually consumes. Mention's own code imports Bloom subpaths directly;
-  // only the exact barrel request is rewritten.
-  resolveRequest: (context, moduleName, platform) =>
-    context.resolveRequest(context, exactModuleAliases.get(moduleName) ?? moduleName, platform),
   sourceExts: [...config.resolver.sourceExts, 'ts', 'tsx'],
   // Bloom imports its four `.woff2` web fonts straight from JS so the browser
   // downloads and caches them separately from the bundle (`fonts/font-urls.web.ts`).

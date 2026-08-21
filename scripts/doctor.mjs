@@ -12,9 +12,9 @@ const expectedNodeVersion = "22.17.0";
 const failures = [];
 
 // Shared dependency versions live in ONE place: the root `workspaces.catalog`.
-// Workspace manifests and the root `overrides` both reference it as "catalog:"
-// (verified: an override reading "catalog:" still rewrites transitive
-// resolutions), so taking a new release is a single edit here.
+// Workspace manifests reference it as "catalog:". Root overrides normally do
+// too; the narrow Core/Services peer-resolution exception is documented and
+// equality-gated below, so taking a new release still starts with this catalog.
 const catalog = (!Array.isArray(rootManifest.workspaces) && rootManifest.workspaces?.catalog) || {};
 const CATALOG_REFERENCE = "catalog:";
 const expectedBloomVersion = String(catalog["@oxyhq/bloom"] ?? "").replace(/^\^/, "");
@@ -110,6 +110,14 @@ if (installedBloom.version !== expectedBloomVersion) {
 // and the workspace is back to carrying the same number in several places. Every
 // declaration of a catalogued package — workspace manifests and the root
 // overrides alike — must therefore be the reference itself.
+//
+// Bun 1.3.14 does not apply a `catalog:` override to incompatible auto-installed
+// peers. Alia/Syra would therefore receive Services 28 (and Core 20) beside the
+// app's Services 30 even though both packages are overridden. These two literal
+// overrides are the narrow workaround; equality with the catalog keeps the
+// catalog authoritative, and validate-lockfile additionally proves one resolved
+// runtime copy.
+const literalCatalogPeerOverridePins = new Set(["@oxyhq/core", "@oxyhq/services"]);
 const workspaceManifestPaths = ["package.json"];
 for (const entry of await readdir(resolve(repositoryRoot, "packages"), { withFileTypes: true })) {
   if (!entry.isDirectory()) continue;
@@ -132,6 +140,7 @@ for (const manifestPath of workspaceManifestPaths) {
 
 for (const [name, range] of Object.entries(rootManifest.overrides || {})) {
   if (catalog[name] === undefined || range === CATALOG_REFERENCE) continue;
+  if (literalCatalogPeerOverridePins.has(name) && range === catalog[name]) continue;
   failures.push(
     `package.json overrides.${name} is pinned to "${range}" while workspaces.catalog owns that version; ` +
       `use "${CATALOG_REFERENCE}".`,
