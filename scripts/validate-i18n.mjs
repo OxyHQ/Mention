@@ -507,6 +507,13 @@ if (usedKeys.size < MINIMUM_EXTRACTED_KEYS) {
 }
 
 const baseline = JSON.parse(await readFile(baselinePath, "utf8"));
+
+/**
+ * The share of byte-identical-to-English entries at which a catalog stops
+ * being a translation. Loose on purpose: see the check that uses it.
+ */
+const ENGLISH_COPY_LIMIT = 0.9;
+const declaredEnglishCopies = baseline.untranslatedByLanguage ?? {};
 const allowedMissing = new Set(baseline.keysMissingFromSourceCatalog ?? []);
 const stillMissing = new Set();
 
@@ -620,8 +627,42 @@ if (sourceCatalog) {
         `locales/${catalog.name}: key "${key}" is missing — every supported locale must cover the complete app`,
       );
     }
+    // ----------------------------------------------------------------------
+    // A catalog that is a copy of English, wearing a language's name.
+    //
+    // The rule above — every English key must exist in every catalog — is
+    // satisfied just as well by copying `en.json` to `ja.json`, and that is
+    // what happened: twelve catalogs shipped 2138/2138 English values while
+    // every check here reported "0 untranslated". The count was never wrong;
+    // nothing was measuring whether the entries were in the language.
+    //
+    // The threshold is loose on purpose. A finished translation leaves a few
+    // dozen entries identical (brand names, "OK", "SDK"), never nine in ten.
+    // And an honestly unfinished locale has somewhere to say so, so the
+    // cheapest way to a green build is never to paste English in.
+    // ----------------------------------------------------------------------
+    const identical = [...catalog.entries].filter(
+      ([key, value]) => sourceCatalog.entries.get(key) === value,
+    ).length;
+    const share = catalog.entries.size === 0 ? 0 : identical / catalog.entries.size;
+    const declared = declaredEnglishCopies[language];
+
+    if (declared === undefined && share >= ENGLISH_COPY_LIMIT) {
+      failures.push(
+        `locales/${catalog.name}: ${identical} of ${catalog.entries.size} entries (${Math.round(share * 100)}%) are byte-identical to ${SOURCE_LANGUAGE} — this is a copy of the English catalog, not a ${language} translation. If it is genuinely unfinished, declare it under untranslatedByLanguage in scripts/i18n-known-gaps.json rather than pasting English into it: i18next already falls back to ${SOURCE_LANGUAGE} for a key a catalog omits.`,
+      );
+    } else if (declared !== undefined && identical > declared) {
+      failures.push(
+        `locales/${catalog.name}: ${identical} entries are identical to ${SOURCE_LANGUAGE}, more than the ${declared} declared under untranslatedByLanguage in scripts/i18n-known-gaps.json — translate them, or raise the number deliberately`,
+      );
+    } else if (declared !== undefined && share < ENGLISH_COPY_LIMIT) {
+      failures.push(
+        `scripts/i18n-known-gaps.json: untranslatedByLanguage.${language} is no longer needed — only ${identical} of ${catalog.entries.size} entries are identical to ${SOURCE_LANGUAGE}; delete the line`,
+      );
+    }
+
     notes.push(
-      `${catalog.name}: ${catalog.entries.size} entries, ${untranslated.length} untranslated (rendered in ${SOURCE_LANGUAGE}), ${orphans.length} orphaned`,
+      `${catalog.name}: ${catalog.entries.size} entries, ${untranslated.length} untranslated (rendered in ${SOURCE_LANGUAGE}), ${orphans.length} orphaned, ${identical} identical to ${SOURCE_LANGUAGE} (${Math.round(share * 100)}%)`,
     );
   }
 }

@@ -28,19 +28,28 @@ function catalog(entries) {
 }
 
 /**
- * A tree holding the given English entries, an `es` copy of them, and one
- * source file calling `t()` for each key so nothing is reported as orphaned.
- * `translations` overrides individual `es` values.
+ * A tree holding the given English entries, an `es` catalog covering the same
+ * keys, and one source file calling `t()` for each key so nothing is reported
+ * as orphaned. `translations` overrides individual `es` values and may add
+ * keys English does not have.
+ *
+ * The default `es` value is the English text with a marker prefix — not a copy
+ * of it — because a catalog byte-identical to English is itself a failure, and
+ * every case here would otherwise trip that rule instead of the one it tests.
  */
 function tree(english, translations = {}) {
   const keys = Object.keys(english);
+  const spanish = { ...translations };
+  for (const [key, value] of Object.entries(english)) {
+    if (!(key in spanish)) spanish[key] = `es ${value}`;
+  }
   return {
     "scripts/i18n-known-gaps.json": catalog({
       keysMissingFromSourceCatalog: [],
       orphanedTranslations: {},
     }),
     "packages/frontend/locales/en.json": catalog(english),
-    "packages/frontend/locales/es.json": catalog({ ...english, ...translations }),
+    "packages/frontend/locales/es.json": catalog(spanish),
     "packages/frontend/app/screen.tsx": `${keys
       .map((key) => `export const k${keys.indexOf(key)} = t(${JSON.stringify(key.replace(/_(?:zero|one|two|few|many|other)$/, ""))}, { count: 1 });`)
       .join("\n")}\n`,
@@ -154,6 +163,71 @@ const cases = [
     ),
     expectFailure: true,
     expectOutput: "has no en source and no call site",
+  },
+
+  // ------------------------------------------- English wearing a language ---
+  // The rule that every key must exist in every catalog is satisfied just as
+  // well by copying en.json, and twelve catalogs shipped that way.
+  {
+    name: "a catalog byte-identical to English is rejected",
+    files: (() => {
+      const english = Object.fromEntries(
+        Array.from({ length: 20 }, (_, index) => [`screen.label${index}`, `Label ${index} text`]),
+      );
+      return tree(english, english);
+    })(),
+    expectFailure: true,
+    expectOutput: "is a copy of the English catalog",
+  },
+  {
+    name: "declared translation debt lets an unfinished catalog through",
+    files: (() => {
+      const english = Object.fromEntries(
+        Array.from({ length: 20 }, (_, index) => [`screen.label${index}`, `Label ${index} text`]),
+      );
+      const files = tree(english, english);
+      files["scripts/i18n-known-gaps.json"] = `${JSON.stringify(
+        { keysMissingFromSourceCatalog: [], orphanedTranslations: {}, untranslatedByLanguage: { es: 20 } },
+        null,
+        2,
+      )}\n`;
+      return files;
+    })(),
+    expectFailure: false,
+  },
+  {
+    name: "declared debt smaller than the reality is rejected",
+    files: (() => {
+      const english = Object.fromEntries(
+        Array.from({ length: 20 }, (_, index) => [`screen.label${index}`, `Label ${index} text`]),
+      );
+      const files = tree(english, english);
+      files["scripts/i18n-known-gaps.json"] = `${JSON.stringify(
+        { keysMissingFromSourceCatalog: [], orphanedTranslations: {}, untranslatedByLanguage: { es: 5 } },
+        null,
+        2,
+      )}\n`;
+      return files;
+    })(),
+    expectFailure: true,
+    expectOutput: "more than the 5 declared",
+  },
+  {
+    name: "declared debt a finished translation no longer needs is rejected",
+    files: (() => {
+      const english = Object.fromEntries(
+        Array.from({ length: 20 }, (_, index) => [`screen.label${index}`, `Label ${index} text`]),
+      );
+      const files = tree(english);
+      files["scripts/i18n-known-gaps.json"] = `${JSON.stringify(
+        { keysMissingFromSourceCatalog: [], orphanedTranslations: {}, untranslatedByLanguage: { es: 20 } },
+        null,
+        2,
+      )}\n`;
+      return files;
+    })(),
+    expectFailure: true,
+    expectOutput: "is no longer needed",
   },
 
   // ------------------------------------------------------- vacuity floors ---
