@@ -121,12 +121,20 @@ function resolveKey(catalog, key) {
 /**
  * A nested leaf whose full path is also spelled as a flat top-level key.
  *
- * These catalogs mix both spellings, and i18next's `deepFind` returns
- * `catalog[path]` before it walks anything, so the flat entry always wins and
- * the nested one is text no user can reach. Nine pairs existed when this check
- * was written, three of them with genuinely different wording — a reviewer had
- * approved copy that was already dead on arrival. `findDuplicateKeys` cannot
- * see this: both spellings are legal JSON in different objects.
+ * These catalogs mix both spellings, and on a collision **the nested entry
+ * wins** — measured, in both declaration orders, against the i18next this app
+ * runs. The flat one is then text no user can reach. Nine pairs existed when
+ * this check was written, three of them with genuinely different wording, so
+ * approved copy was sitting dead in the file either way.
+ *
+ * The direction matters and is not guessable: reading `deepFind`, which checks
+ * `obj[path]` first, predicts the opposite of what the Translator actually
+ * does. An earlier version of this comment asserted that prediction and the
+ * fix built on it kept the wrong three strings. Verify precedence by rendering,
+ * not by reading the resolver.
+ *
+ * `findDuplicateKeys` cannot see any of this: both spellings are legal JSON in
+ * different objects.
  */
 function findShadowedPaths(parsed) {
   const flatKeys = new Set(
@@ -437,7 +445,7 @@ for (const name of catalogNames) {
 
   for (const path of findShadowedPaths(parsed)) {
     failures.push(
-      `locales/${name}: "${path}" is defined both as a flat key and inside a nested object — i18next serves the flat one, so the nested entry is unreachable; delete it`,
+      `locales/${name}: "${path}" is defined both as a flat key and inside a nested object — i18next serves the NESTED one, so the flat entry is unreachable; delete whichever spelling is not the copy you want rendered, and check which that is by rendering it`,
     );
   }
 

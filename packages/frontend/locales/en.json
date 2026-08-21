@@ -674,7 +674,7 @@
   "compose.scheduled.cancelled": "Scheduled post cancelled",
   "compose.scheduled.cancelError": "Failed to cancel the scheduled post",
   "compose.scheduled.loadError": "We couldn't load your scheduled posts",
-  "common.retry": "Retry",
+  "common.retry": "Try again",
   "compose.draftLoaded": "Draft loaded",
   "compose.deleteDraft": "Delete draft",
   "compose.deleteDraftConfirm": "Are you sure you want to delete this draft?",
@@ -1547,7 +1547,7 @@
   "feeds.detail.tabs.profiles": "Profiles",
   "feeds.detail.tabs.topics": "Topics",
   "feeds.detail.tabs.reviews": "Reviews",
-  "feeds.detail.reviewPlaceholder": "Share your thoughts about this feed... (optional)",
+  "feeds.detail.reviewPlaceholder": "Share what you think about this feed (optional)",
   "starterPacks.title": "Starter Packs",
   "starterPacks.create": "Create Starter Pack",
   "starterPacks.descriptionPlaceholder": "What's this pack about?",
@@ -1981,7 +1981,7 @@
   "channels.settings.saving": "Saving…",
   "channels.settings.profileSaved": "Channel updated",
   "channels.settings.profileSaveFailed": "Failed to update the channel profile",
-  "channels.settings.identityFooter": "The channel’s handle and the people who may publish as it belong to the account itself — change them where you manage your Oxy accounts.",
+  "channels.settings.identityFooter": "The channel’s name, handle, picture and the people who may publish as it belong to the account itself — change them where you manage your Oxy accounts.",
   "accounts": {
     "accountCategory": {
       "news": "News",
