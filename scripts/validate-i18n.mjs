@@ -107,6 +107,33 @@ function resolveKey(catalog, key) {
   return current;
 }
 
+/**
+ * A nested leaf whose full path is also spelled as a flat top-level key.
+ *
+ * These catalogs mix both spellings, and i18next's `deepFind` returns
+ * `catalog[path]` before it walks anything, so the flat entry always wins and
+ * the nested one is text no user can reach. Nine pairs existed when this check
+ * was written, three of them with genuinely different wording — a reviewer had
+ * approved copy that was already dead on arrival. `findDuplicateKeys` cannot
+ * see this: both spellings are legal JSON in different objects.
+ */
+function findShadowedPaths(parsed) {
+  const flatKeys = new Set(
+    Object.entries(parsed)
+      .filter(([, value]) => value === null || typeof value !== "object" || Array.isArray(value))
+      .map(([key]) => key),
+  );
+  const shadowed = [];
+  (function walk(node, prefix) {
+    for (const [key, value] of Object.entries(node)) {
+      const path = prefix ? `${prefix}.${key}` : key;
+      if (value !== null && typeof value === "object" && !Array.isArray(value)) walk(value, path);
+      else if (prefix && flatKeys.has(path)) shadowed.push(path);
+    }
+  })(parsed, "");
+  return shadowed;
+}
+
 /** Every leaf entry of a catalog, as `dotted.path -> value`. */
 function flattenCatalog(value, prefix, into) {
   for (const [key, entry] of Object.entries(value)) {
@@ -369,6 +396,12 @@ for (const name of catalogNames) {
     );
   }
 
+  for (const path of findShadowedPaths(parsed)) {
+    failures.push(
+      `locales/${name}: "${path}" is defined both as a flat key and inside a nested object — i18next serves the flat one, so the nested entry is unreachable; delete it`,
+    );
+  }
+
   for (const duplicate of findDuplicateKeys(source)) {
     failures.push(
       `locales/${name}:${duplicate.lineNumber}: duplicate key "${duplicate.key}", first defined on line ${duplicate.firstLineNumber} — JSON.parse silently keeps only the last`,
@@ -531,6 +564,27 @@ if (sourceCatalog) {
 //    translation), so reachability, not mere absence from `en`, is the test.
 // ---------------------------------------------------------------------------
 
+/**
+ * A CLDR plural form of a key English does define.
+ *
+ * English has two plural categories and most of this app's languages have a
+ * different number: Russian needs `few` and `many`, Arabic all six, Japanese
+ * only `other`. i18next picks the category from the count at runtime, so a
+ * correct Russian catalog carries `lanes.postCount_few`, which appears in no
+ * English catalog and at no call site — the call site writes the base key.
+ * Without this, the orphan rule below rejects every correctly pluralised
+ * translation and the cheapest way to a green build is a wrong one.
+ */
+function isPluralFormOfEnglishKey(key) {
+  const base = key.replace(/_(?:zero|one|two|few|many|other)$/, "");
+  if (base === key) return false;
+  return (
+    sourceCatalog.entries.has(base) ||
+    usedKeys.has(base) ||
+    PLURAL_SUFFIXES.some((suffix) => sourceCatalog.entries.has(base + suffix))
+  );
+}
+
 if (sourceCatalog) {
   const allowedOrphans = baseline.orphanedTranslations ?? {};
 
@@ -542,6 +596,7 @@ if (sourceCatalog) {
       (key) =>
         !sourceCatalog.entries.has(key) &&
         !usedKeys.has(key) &&
+        !isPluralFormOfEnglishKey(key) &&
         ![...dynamicPrefixes].some((prefix) => key.startsWith(prefix)),
     );
     const orphanSet = new Set(orphans);

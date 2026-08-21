@@ -768,8 +768,6 @@
   "common": {
     "unknown": "unknown",
     "someone": "Someone",
-    "back": "Back",
-    "retry": "Try again",
     "close": "Close"
   },
   "insights": {
@@ -1434,15 +1432,6 @@
     "loadError": "Failed to load feed",
     "subscriberCount_one": "{{count}} subscriber",
     "subscriberCount_other": "{{count}} subscribers",
-    "detail": {
-      "tabs": {
-        "recent": "Recent",
-        "profiles": "Profiles",
-        "topics": "Topics",
-        "reviews": "Reviews"
-      },
-      "reviewPlaceholder": "Share what you think about this feed (optional)"
-    },
     "trending": {
       "title": "Trending now",
       "subtitle": "A live conversation",
@@ -1605,7 +1594,6 @@
   "compose": {
     "languages": {
       "pickerTitle": "Post language",
-      "add": "Add a language",
       "alreadyAdded": "Already added",
       "current": "Current",
       "primaryTabA11y": "{{language}}, primary language",
@@ -1905,7 +1893,6 @@
       "byline": "Byline",
       "signPosts": "Name the writer",
       "signPostsFooter": "The channel signs its own posts. With this on, the person who wrote one is named alongside it — with it off, they never leave the server at all.",
-      "identityFooter": "The channel’s name, handle, picture and the people who may publish as it belong to the account itself — change them where you manage your Oxy accounts.",
       "categories": "Categories",
       "categoriesFooter": "The first category is the channel’s primary — the only one shown on its profile. The rest appear on its about page. Choose up to {{max}}.",
       "addCategory": "Add a category",

@@ -133,6 +133,29 @@ const cases = [
     expectFailure: false,
   },
 
+  // ------------------------------------------------------- CLDR plurals ---
+  // English has two plural categories; Russian has four and Arabic six. The
+  // extra forms appear in no English catalog and at no call site, so the orphan
+  // rule has to know them from an invented key or a correct translation is the
+  // expensive path to a red build.
+  {
+    name: "a plural category English lacks is accepted in a translation",
+    files: tree(
+      { "lanes.postCount_one": "{{count}} post", "lanes.postCount_other": "{{count}} posts" },
+      { "lanes.postCount_few": "{{count}} поста", "lanes.postCount_many": "{{count}} постов" },
+    ),
+    expectFailure: false,
+  },
+  {
+    name: "a plural suffix on a key English does not define is still an orphan",
+    files: tree(
+      { "lanes.postCount_one": "{{count}} post", "lanes.postCount_other": "{{count}} posts" },
+      { "lanes.inventedCount_few": "{{count}} поста" },
+    ),
+    expectFailure: true,
+    expectOutput: "has no en source and no call site",
+  },
+
   // ------------------------------------------------------- vacuity floors ---
   {
     name: "the real floors reject a tree this small",

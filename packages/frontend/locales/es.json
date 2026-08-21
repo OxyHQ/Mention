@@ -768,8 +768,6 @@
   "common": {
     "unknown": "desconocido",
     "someone": "Alguien",
-    "back": "Atrás",
-    "retry": "Reintentar",
     "close": "Cerrar"
   },
   "insights": {
@@ -1434,15 +1432,6 @@
     "loadError": "No se pudo cargar el feed",
     "subscriberCount_one": "{{count}} suscriptor",
     "subscriberCount_other": "{{count}} suscriptores",
-    "detail": {
-      "tabs": {
-        "recent": "Recientes",
-        "profiles": "Perfiles",
-        "topics": "Temas",
-        "reviews": "Reseñas"
-      },
-      "reviewPlaceholder": "Comparte tu opinión sobre este feed... (opcional)"
-    },
     "trending": {
       "title": "En tendencia ahora",
       "subtitle": "Una conversación en marcha",
@@ -1605,7 +1594,6 @@
   "compose": {
     "languages": {
       "pickerTitle": "Idioma de la publicación",
-      "add": "Añadir un idioma",
       "alreadyAdded": "Ya añadido",
       "current": "Actual",
       "primaryTabA11y": "{{language}}, idioma principal",
@@ -1905,7 +1893,6 @@
       "byline": "Firma",
       "signPosts": "Nombrar a quien escribe",
       "signPostsFooter": "El canal firma sus propias publicaciones. Con esto activado, también se nombra a quien la escribió; desactivado, esa persona no sale del servidor.",
-      "identityFooter": "El identificador del canal y las personas que pueden publicar como él pertenecen a la cuenta en sí: cámbialos donde gestionas tus cuentas de Oxy.",
       "categories": "Categorías",
       "categoriesFooter": "La primera categoría es la principal del canal: la única que aparece en su perfil. Las demás se muestran en su página de información. Elige un máximo de {{max}}.",
       "addCategory": "Añadir una categoría",
