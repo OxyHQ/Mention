@@ -370,6 +370,48 @@ const cases = [
     expectFailure: false,
   },
 
+  // ------------------------------------------- one path, two definitions ---
+  // The defect that cost three strings this session: a key spelled both flat
+  // and nested. Both spellings are legal JSON in different objects, both look
+  // like ordinary entries in a diff, and only one is ever rendered — so the
+  // half a reviewer approves may be the half nobody sees. The rule was live for
+  // several commits with nothing pinning it.
+  {
+    name: "a key defined both flat and nested is rejected",
+    files: (() => {
+      const files = tree({ "common.back": "Back" });
+      const english = { "common.retry": "Retry", common: { retry: "Try again" } };
+      files["packages/frontend/locales/en.json"] = `${JSON.stringify(english, null, 2)}\n`;
+      files["packages/frontend/locales/es.json"] = `${JSON.stringify({ "common.retry": "Reintentar" }, null, 2)}\n`;
+      files["packages/frontend/app/screen.tsx"] = "export const k = t('common.retry');\n";
+      return files;
+    })(),
+    expectFailure: true,
+    expectOutput: "defined both as a flat key and inside a nested object",
+  },
+  {
+    name: "the same key defined once, nested only, passes",
+    files: (() => {
+      const files = tree({ "common.back": "Back" });
+      files["packages/frontend/locales/en.json"] = `${JSON.stringify({ common: { retry: "Try again" } }, null, 2)}\n`;
+      files["packages/frontend/locales/es.json"] = `${JSON.stringify({ common: { retry: "Reintentar" } }, null, 2)}\n`;
+      files["packages/frontend/app/screen.tsx"] = "export const k = t('common.retry');\n";
+      return files;
+    })(),
+    expectFailure: false,
+  },
+  {
+    name: "the same key defined once, flat only, passes",
+    files: (() => {
+      const files = tree({ "common.back": "Back" });
+      files["packages/frontend/locales/en.json"] = `${JSON.stringify({ "common.retry": "Try again" }, null, 2)}\n`;
+      files["packages/frontend/locales/es.json"] = `${JSON.stringify({ "common.retry": "Reintentar" }, null, 2)}\n`;
+      files["packages/frontend/app/screen.tsx"] = "export const k = t('common.retry');\n";
+      return files;
+    })(),
+    expectFailure: false,
+  },
+
   // ------------------------------------------- English wearing a language ---
   // The rule that every key must exist in every catalog is satisfied just as
   // well by copying en.json, and twelve catalogs shipped that way.

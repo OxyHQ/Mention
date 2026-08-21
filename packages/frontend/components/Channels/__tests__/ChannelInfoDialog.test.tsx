@@ -300,7 +300,7 @@ describe('the copy carries no dashes, in any language', () => {
     en: require('@/locales/en.json'),
     es: require('@/locales/es.json'),
     it: require('@/locales/it.json'),
-  } as Record<string, { channels: { explainer: Record<string, unknown> } }>;
+  } as Record<string, Record<string, unknown>>;
 
   function strings(node: unknown, path: string): [string, string][] {
     if (typeof node === 'string') return [[path, node]];
@@ -312,8 +312,17 @@ describe('the copy carries no dashes, in any language', () => {
     return [];
   }
 
+  // These catalogs mix flat dotted keys with nested objects, and which spelling
+  // a given key uses is not stable — a merge can rewrite a whole file into the
+  // flat form. Selecting by path prefix after flattening reads the same either
+  // way; reaching for `catalog.channels.explainer` throws the moment the file
+  // is written flat, which is how this test first broke.
+  const PREFIX = 'channels.explainer.';
+
   it.each(Object.keys(CATALOGS))('%s', (language) => {
-    const entries = strings(CATALOGS[language].channels.explainer, '');
+    const entries = strings(CATALOGS[language], '')
+      .filter(([path]) => path.startsWith(PREFIX))
+      .map(([path, value]): [string, string] => [path.slice(PREFIX.length), value]);
 
     // Vacuity floor: an explainer that lost its copy would pass every assertion
     // below by having nothing to check.
