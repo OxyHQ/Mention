@@ -91,7 +91,7 @@ export default function PokesScreen() {
             toast(t('poke.undone', { defaultValue: 'Poke undone' }), { type: 'success' });
         },
         onError: () => {
-            toast(t('poke.error', { defaultValue: 'Failed to undo poke' }), { type: 'error' });
+            toast(t('poke.undoError', { defaultValue: 'Failed to undo poke' }), { type: 'error' });
         },
     });
 

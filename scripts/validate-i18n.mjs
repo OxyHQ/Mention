@@ -20,7 +20,9 @@ import { readdir, readFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const repositoryRoot =
+  process.env.I18N_VALIDATOR_ROOT ??
+  resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const frontendRoot = resolve(repositoryRoot, "packages/frontend");
 const localesDirectory = resolve(frontendRoot, "locales");
 const baselinePath = resolve(repositoryRoot, "scripts/i18n-known-gaps.json");
@@ -61,10 +63,15 @@ const PLURAL_SUFFIXES = ["_one", "_other"];
  * the check has to be able to tell "nothing is wrong" from "nothing was
  * inspected". Set well below the current counts (518 files, 1276 keys, 1394
  * source entries) so ordinary deletions never trip them.
+ *
+ * `I18N_VALIDATOR_FIXTURE_FLOORS=1` drops them for the mutation test, whose
+ * fixture trees hold a handful of files on purpose. The real floors still run
+ * in that test's own case for them.
  */
-const MINIMUM_SCANNED_FILES = 400;
-const MINIMUM_EXTRACTED_KEYS = 900;
-const MINIMUM_CATALOG_ENTRIES = 1000;
+const fixtureFloors = process.env.I18N_VALIDATOR_FIXTURE_FLOORS === "1";
+const MINIMUM_SCANNED_FILES = fixtureFloors ? 1 : 400;
+const MINIMUM_EXTRACTED_KEYS = fixtureFloors ? 1 : 900;
+const MINIMUM_CATALOG_ENTRIES = fixtureFloors ? 1 : 1000;
 
 const failures = [];
 const notes = [];
@@ -560,6 +567,73 @@ if (sourceCatalog) {
     }
     notes.push(
       `${catalog.name}: ${catalog.entries.size} entries, ${untranslated.length} untranslated (rendered in ${SOURCE_LANGUAGE}), ${orphans.length} orphaned`,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 5. A value that is only its own key, spelled out.
+//
+//    Checks 3 and 4 together say every key must exist in every catalog. The
+//    cheapest way to satisfy them is to machine-fill the gap from the key
+//    itself — `signedOutTitle` becomes "Signed Out Title" — which is green here
+//    and reads as broken copy on screen. That is not hypothetical: it is how
+//    337 entries entered all fifteen catalogs at once, and neither this check
+//    nor a reviewer scrolling a 5000-line diff caught it.
+//
+//    Title Case alone cannot be the test, because English UI labels really are
+//    Title Case ("Edit Profile", "Coming Soon"): 60 legitimate entries match it
+//    today, and a gate needing a 60-entry allowlist is a gate nobody maintains.
+//    The signal that separates the two is the last word. Copy for a key ending
+//    in `Title`, `Placeholder` or `Description` never IS the word "Title",
+//    "Placeholder" or "Description" — those name the slot, not what fills it.
+//
+//    Bound, stated because a partial check reads like a total one: this catches
+//    111 of those 337, the ones whose key ends in a slot word. It does not
+//    catch `keepEditing` -> "Keep Editing", which no rule can tell from a real
+//    label. It is precise, not complete — every entry it flags is wrong.
+// ---------------------------------------------------------------------------
+
+/**
+ * Words that name the slot a string goes into rather than the string. A key
+ * ending in one of these describes its own role, so copy equal to the spelled
+ * out key is the generator's output and not a translation.
+ */
+const SLOT_WORDS = new Set([
+  "a11y", "action", "body", "caption", "copy", "count", "cta", "desc",
+  "description", "error", "failed", "footer", "header", "heading", "hint",
+  "key", "label", "message", "name", "placeholder", "string", "subtitle",
+  "success", "summary", "text", "title", "tooltip", "value",
+]);
+
+/** i18next appends a CLDR category to the key when the call passes `count`. */
+const PLURAL_SUFFIX = /_(?:zero|one|two|few|many|other)$/;
+
+/** `signedOutTitle` -> ["signed", "Out", "Title"]; `hidden_words` -> ["hidden", "words"]. */
+function splitIdentifier(segment) {
+  return segment
+    .replace(/[_-]+/g, " ")
+    .replace(/(?<=[a-z0-9])(?=[A-Z])/g, " ")
+    .split(" ")
+    .filter(Boolean);
+}
+
+/** The spelling-out a key-to-English generator produces. */
+function spellOutKey(parts) {
+  return parts.map((word) => word[0].toUpperCase() + word.slice(1)).join(" ");
+}
+
+for (const [language, catalog] of catalogs) {
+  for (const [key, value] of catalog.entries) {
+    if (typeof value !== "string") continue;
+    const segment = key.split(".").at(-1).replace(PLURAL_SUFFIX, "");
+    if (!/^[a-z][A-Za-z0-9_]*$/.test(segment)) continue;
+    const parts = splitIdentifier(segment);
+    if (parts.length < 2) continue;
+    if (!SLOT_WORDS.has(parts.at(-1).toLowerCase())) continue;
+    if (value !== spellOutKey(parts)) continue;
+    failures.push(
+      `locales/${catalog.name}: key "${key}" is set to "${value}", which is the key spelled out rather than copy — write the real ${language === SOURCE_LANGUAGE ? "English text" : `${language} translation`}, or take the English from the call site's defaultValue`,
     );
   }
 }

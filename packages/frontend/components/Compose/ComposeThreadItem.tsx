@@ -386,14 +386,14 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                             className="border-border bg-background" style={styles.pollAttachmentOption}
                           >
                             <Text className="text-muted-foreground" style={styles.pollAttachmentOptionText} numberOfLines={1}>
-                              {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: `Option ${index + 1}` })}
+                              {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: 'Option {{index}}', index: index + 1 })}
                             </Text>
                           </View>
                         );
                       })}
                       {item.pollOptions.length > 2 ? (
                         <Text style={[styles.pollAttachmentMore, { color: theme.colors.textTertiary }]}>
-                          {t('compose.poll.moreOptions', { count: item.pollOptions.length - 2, defaultValue: `+${item.pollOptions.length - 2} more` })}
+                          {t('compose.poll.moreOptions', { count: item.pollOptions.length - 2, defaultValue: '+{{count}} more' })}
                         </Text>
                       ) : null}
                     </View>
