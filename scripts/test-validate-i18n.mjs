@@ -283,6 +283,37 @@ const cases = [
     expectFailure: false,
   },
 
+  // ------------------------------------------- lexical counts, per language ---
+  // The exemption is derived from Intl: a category that describes exactly one
+  // number may spell it. Arabic's dual is such a category and Russian's `one`
+  // is not, so a hand-written `zero|one|two` would be right for one and wrong
+  // for the other. `tree()` builds an `es` catalog, whose `one` fires only at 1.
+  {
+    name: "a single-value category may spell its number lexically",
+    files: tree(
+      { "post.corrections.marker_one": "Corrected {{count}} time", "post.corrections.marker_other": "Corrected {{count}} times" },
+      {
+        "post.corrections.marker_one": "Corregido una vez",
+        "post.corrections.marker_many": "Corregido {{count}} millones de veces",
+        "post.corrections.marker_other": "Corregido {{count}} veces",
+      },
+    ),
+    expectFailure: false,
+  },
+  {
+    name: "a multi-value category may not",
+    files: tree(
+      { "post.corrections.marker_one": "Corrected {{count}} time", "post.corrections.marker_other": "Corrected {{count}} times" },
+      {
+        "post.corrections.marker_one": "Corregido una vez",
+        "post.corrections.marker_many": "Corregido muchas veces",
+        "post.corrections.marker_other": "Corregido {{count}} veces",
+      },
+    ),
+    expectFailure: true,
+    expectOutput: "drops {{count}}",
+  },
+
   // ------------------------------------------------- CLDR plural coverage ---
   // The category list is derived from Intl, so these cases also pin that the
   // derivation is per-language rather than a copy of English's two.

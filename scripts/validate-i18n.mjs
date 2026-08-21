@@ -483,6 +483,7 @@ if (!sourceCatalog) {
 if (sourceCatalog) {
   for (const [language, catalog] of catalogs) {
     if (language === SOURCE_LANGUAGE) continue;
+    const lexicalCategories = lexicalCountCategories(language);
     for (const [key, value] of catalog.entries) {
       if (typeof value !== "string") continue;
       // A plural category English lacks (`_few`, `_many`) has no entry of its
@@ -525,11 +526,10 @@ if (sourceCatalog) {
       // — with no error anywhere. Nine entries survived a merge in this state
       // because the merge script only looked for invented placeholders.
       //
-      // `zero` and `one` are exempt: a language may legitimately write "once"
-      // or "una vez" instead of interpolating a number it knows is 1, and a
-      // rule that forbade that would push translators to wedge {{count}} into
-      // a sentence that reads worse for it.
-      if (!/_(?:zero|one)$/.test(key)) {
+      // A form whose category only ever describes one number may spell it out;
+      // see `lexicalCountCategories`.
+      const category = PLURAL_CATEGORY.exec(key)?.[0].slice(1);
+      if (!(category && lexicalCategories.has(category))) {
         for (const name of inspectPlaceholders(englishValue).names) {
           if (used.has(name)) continue;
           failures.push(
@@ -672,6 +672,30 @@ function isPluralFormOfEnglishKey(key) {
     usedKeys.has(base) ||
     PLURAL_SUFFIXES.some((suffix) => sourceCatalog.entries.has(base + suffix))
   );
+}
+
+/**
+ * Categories that fire for exactly one number in this language.
+ *
+ * Those are the forms where the count can be spelled lexically instead of
+ * interpolated, because the form only ever describes one value: English "once",
+ * Arabic `منشوران` (the dual already means two — keeping `{{count}}` renders
+ * "2 two-posts"). Everywhere else the number must be interpolated, and Russian
+ * is the proof: its `one` category also covers 21, 31 and 41, so "Исправлено
+ * один раз" is wrong about 21 corrections.
+ *
+ * Derived from Intl, not listed. A hand-written `zero|one|two` would have been
+ * right for Arabic and wrong for Russian, which is the same mistake as writing
+ * the category lists down in the first place.
+ */
+function lexicalCountCategories(language) {
+  const rules = new Intl.PluralRules(language);
+  const seen = new Map();
+  for (let n = 0; n <= 1000; n += 1) {
+    const category = rules.select(n);
+    seen.set(category, (seen.get(category) ?? 0) + 1);
+  }
+  return new Set([...seen].filter(([, count]) => count === 1).map(([category]) => category));
 }
 
 /** Keys English pluralises, as bases — the set every language must cover. */
