@@ -92,7 +92,7 @@ export function useProfileMoreMenu({
         toast(
           t('profile.muted', {
             username: displayUsername,
-            defaultValue: `@${displayUsername} has been muted`,
+            defaultValue: '@{{username}} has been muted',
           }),
           { type: 'success' },
         );
@@ -103,7 +103,7 @@ export function useProfileMoreMenu({
 
     const handleBlock = async () => {
       const confirmed = await confirmDialog({
-        title: t('profile.blockUser', { defaultValue: `Block @${displayUsername}` }),
+        title: t('profile.blockUser', { username: displayUsername, defaultValue: 'Block @{{username}}' }),
         message: t('profile.blockConfirm', {
           username: displayUsername,
           defaultValue: `They won't be able to find your profile, posts, or mentions. They won't be notified that you blocked them.`,
@@ -124,7 +124,7 @@ export function useProfileMoreMenu({
         toast(
           t('profile.blocked', {
             username: displayUsername,
-            defaultValue: `@${displayUsername} has been blocked`,
+            defaultValue: '@{{username}} has been blocked',
           }),
           { type: 'success' },
         );
@@ -201,7 +201,7 @@ export function useProfileMoreMenu({
             icon: <MuteIcon size={22} className="text-foreground" />,
             label: t('profile.muteUser', {
               username: displayUsername,
-              defaultValue: `Mute @${displayUsername}`,
+              defaultValue: 'Mute @{{username}}',
             }),
             onPress: handleMute,
           },
@@ -215,7 +215,7 @@ export function useProfileMoreMenu({
           icon: <BlockIcon size={22} color={theme.colors.error} />,
           label: t('profile.blockUser', {
             username: displayUsername,
-            defaultValue: `Block @${displayUsername}`,
+            defaultValue: 'Block @{{username}}',
           }),
           onPress: handleBlock,
           color: theme.colors.error,
@@ -234,7 +234,7 @@ export function useProfileMoreMenu({
       showActionMenu({
         label: t('profile.moreOptions', {
           username: displayUsername,
-          defaultValue: `Options for @${displayUsername}`,
+          defaultValue: 'Options for @{{username}}',
         }),
         groups: [actions, destructiveActions],
       });

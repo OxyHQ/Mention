@@ -208,6 +208,16 @@ function inspectPlaceholders(value) {
   if (residue.includes("{{")) problems.push("an unclosed `{{`");
   if (residue.includes("}}")) problems.push("a `}}` with no opening `{{`");
 
+  // `${name}` is JavaScript template-literal syntax, which i18next does not
+  // interpolate — it prints the characters. Nine entries got here by having a
+  // call site's `defaultValue: `Block @${displayUsername}`` harvested as source
+  // text, and every user of every language read "Block @${displayUsername}".
+  for (const match of value.matchAll(/\$\{([^{}]*)\}/g)) {
+    problems.push(
+      `\`${match[0]}\`, which is JavaScript template-literal syntax — i18next prints it verbatim; use {{${match[1].trim() || "name"}}} and pass the value at the call site`,
+    );
+  }
+
   return { names, problems };
 }
 

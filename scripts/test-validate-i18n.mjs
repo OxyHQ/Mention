@@ -177,6 +177,18 @@ const cases = [
     expectFailure: false,
   },
 
+  {
+    name: "a JavaScript template literal in a value is rejected",
+    files: tree({ "profile.blockUser": "Block @${displayUsername}" }),
+    expectFailure: true,
+    expectOutput: "JavaScript template-literal syntax",
+  },
+  {
+    name: "the i18next interpolation form of the same string passes",
+    files: tree({ "profile.blockUser": "Block @{{username}}" }),
+    expectFailure: false,
+  },
+
   // ------------------------------------------- English wearing a language ---
   // The rule that every key must exist in every catalog is satisfied just as
   // well by copying en.json, and twelve catalogs shipped that way.
