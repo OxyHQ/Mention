@@ -252,6 +252,40 @@ const cases = [
     expectOutput: "drops {{count}}",
   },
 
+  // -------------------------------------------------- i18next v3 leftovers ---
+  {
+    name: "the v3 _plural suffix is rejected",
+    files: tree({ "compose.minutesAgo": "{{count}} minute ago", "compose.minutesAgo_plural": "{{count}} minutes ago" }),
+    expectFailure: true,
+    expectOutput: "v3's `_plural` suffix",
+  },
+  {
+    name: "the CLDR spelling of the same pair passes",
+    files: tree({ "compose.minutesAgo_one": "{{count}} minute ago", "compose.minutesAgo_other": "{{count}} minutes ago" }),
+    expectFailure: false,
+  },
+  {
+    name: "a _one form may interpolate a count its English _one spells lexically",
+    files: tree(
+      { "post.corrections.marker_one": "Corrected once", "post.corrections.marker_other": "Corrected {{count}} times" },
+      { "post.corrections.marker_one": "Исправлено {{count}} раз" },
+    ),
+    expectFailure: false,
+  },
+
+  // -------------------------------------------------- i18next v3 leftovers ---
+  {
+    name: "the v3 _plural suffix is rejected",
+    files: tree({ "compose.minutesAgo": "{{count}} minute ago", "compose.minutesAgo_plural": "{{count}} minutes ago" }),
+    expectFailure: true,
+    expectOutput: "v3's `_plural` suffix",
+  },
+  {
+    name: "the CLDR spelling of the same pair passes",
+    files: tree({ "compose.minutesAgo_one": "{{count}} minute ago", "compose.minutesAgo_other": "{{count}} minutes ago" }),
+    expectFailure: false,
+  },
+
   // ------------------------------------------- English wearing a language ---
   // The rule that every key must exist in every catalog is satisfied just as
   // well by copying en.json, and twelve catalogs shipped that way.

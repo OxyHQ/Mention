@@ -59,6 +59,14 @@ const PLURAL_SUFFIXES = ["_one", "_other"];
 
 /** Any CLDR category, for mapping a translation's extra form back to its source. */
 const PLURAL_CATEGORY = /_(?:zero|one|two|few|many|other)$/;
+const ALL_PLURAL_SUFFIXES = ["_zero", "_one", "_two", "_few", "_many", "_other"];
+
+/**
+ * i18next v3 spelled the plural form `key_plural`. This app is on v26, which
+ * reads CLDR categories and ignores `_plural` entirely — five keys sat in every
+ * catalog in the dead spelling, so "5 minutes ago" rendered as "5 minute ago".
+ */
+const LEGACY_PLURAL_SUFFIX = /_plural$/;
 
 /**
  * Vacuity floors. A directory walk that quietly stops finding files, or an
@@ -420,6 +428,13 @@ for (const name of catalogNames) {
     );
   }
 
+  for (const key of flattenCatalog(parsed, "", new Map()).keys()) {
+    if (!LEGACY_PLURAL_SUFFIX.test(key)) continue;
+    failures.push(
+      `locales/${name}: key "${key}" uses i18next v3's \`_plural\` suffix, which this app's i18next does not read — spell the CLDR categories instead (\`_one\`, \`_other\`, plus whatever the language needs) and let i18next pick`,
+    );
+  }
+
   for (const path of findShadowedPaths(parsed)) {
     failures.push(
       `locales/${name}: "${path}" is defined both as a flat key and inside a nested object — i18next serves the flat one, so the nested entry is unreachable; delete it`,
@@ -481,7 +496,23 @@ if (sourceCatalog) {
         sourceCatalog.entries.get(key.replace(PLURAL_CATEGORY, "_other")) ??
         sourceCatalog.entries.get(key.replace(PLURAL_CATEGORY, ""));
       if (typeof englishValue !== "string") continue;
-      const provided = inspectPlaceholders(englishValue).names;
+
+      // What the CALL SITE offers, which is the real test for an invented
+      // placeholder: one options object is passed whatever plural category
+      // fires, so every English form of this key contributes. English writes
+      // `post.corrections.marker_one` as "Corrected once" with no count —
+      // but Russian's `one` category also covers 21, 31, 41, so Russian needs
+      // "Исправлено {{count}} раз" there. Checking that form against the
+      // English `_one` alone rejected it as invented and left Russian saying
+      // "once" about 21 corrections, with no way to fix it from this side.
+      const base = key.replace(PLURAL_CATEGORY, "");
+      const provided = new Set();
+      for (const candidate of [base, ...ALL_PLURAL_SUFFIXES.map((suffix) => base + suffix)]) {
+        const form = sourceCatalog.entries.get(candidate);
+        if (typeof form === "string") {
+          for (const name of inspectPlaceholders(form).names) provided.add(name);
+        }
+      }
       const used = inspectPlaceholders(value).names;
       for (const name of used) {
         if (provided.has(name)) continue;
@@ -499,7 +530,7 @@ if (sourceCatalog) {
       // rule that forbade that would push translators to wedge {{count}} into
       // a sentence that reads worse for it.
       if (!/_(?:zero|one)$/.test(key)) {
-        for (const name of provided) {
+        for (const name of inspectPlaceholders(englishValue).names) {
           if (used.has(name)) continue;
           failures.push(
             `locales/${catalog.name}: key "${key}" drops {{${name}}}, which its ${SOURCE_LANGUAGE} source interpolates — ${language} users never see what it stood for`,
