@@ -18,6 +18,46 @@
  *   CDP=http://127.0.0.1:39871  ORIGIN=https://mention.earth
  */
 import { chromium } from '@playwright/test';
+import { existsSync, readFileSync } from 'node:fs';
+import { extname, join, normalize } from 'node:path';
+
+/**
+ * Serve a LOCAL web export from the PRODUCTION origin.
+ *
+ * There is no other way to measure a change before it ships. The production API
+ * answers `access-control-allow-origin: https://mention.earth` whatever origin
+ * asks, so an app served from localhost gets no data at all; and the local API
+ * has no seeded post to open. Keeping the origin and swapping only the bundle
+ * leaves cookies, CORS and the real backend exactly as they are.
+ *
+ *   DIST=../../frontend/dist node reel-open.mjs playing 3
+ */
+const DIST = process.env.DIST ? normalize(process.env.DIST) : null;
+
+const CONTENT_TYPES = {
+    '.js': 'application/javascript', '.css': 'text/css', '.html': 'text/html',
+    '.json': 'application/json', '.ico': 'image/x-icon', '.png': 'image/png',
+    '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.woff2': 'font/woff2',
+};
+
+async function serveLocalBuild(page) {
+    if (!DIST) return;
+    if (!existsSync(join(DIST, 'index.html'))) {
+        throw new Error(`DIST=${DIST} has no index.html — build it first (bun run build in packages/frontend)`);
+    }
+    await page.route(`${ORIGIN}/**`, (route) => {
+        const path = new URL(route.request().url()).pathname;
+        // Anything with an extension is an asset of the export; everything else
+        // is a client route and gets the document, exactly as the server does.
+        const file = extname(path) ? join(DIST, path) : join(DIST, 'index.html');
+        if (!file.startsWith(DIST) || !existsSync(file)) return route.continue();
+        route.fulfill({
+            status: 200,
+            contentType: CONTENT_TYPES[extname(file)] ?? 'application/octet-stream',
+            body: readFileSync(file),
+        });
+    });
+}
 
 const CDP = process.env.CDP ?? 'http://127.0.0.1:39871';
 const ORIGIN = process.env.ORIGIN ?? 'https://mention.earth';
@@ -129,6 +169,7 @@ async function measure(mode, runs) {
 
     for (let i = 0; i < runs; i++) {
         const page = await context.newPage();
+        await serveLocalBuild(page);
         await page.setViewportSize(VIEWPORT);
         await openFeed(page);
         await openReel(page, target);
@@ -240,6 +281,7 @@ async function continuity(runs) {
 
   for (let i = 0; i < runs; i++) {
     const page = await context.newPage();
+    await serveLocalBuild(page);
     await page.setViewportSize(VIEWPORT);
     await seedReturningVisitor(page);
     await page.goto(`${ORIGIN}/p/${POST}`, { waitUntil: 'domcontentloaded', timeout: 300_000 });
@@ -457,6 +499,7 @@ async function geometry(runs) {
 
     for (let i = 0; i < runs; i++) {
         const page = await context.newPage();
+        await serveLocalBuild(page);
         await page.setViewportSize(VIEWPORT);
         await seedReturningVisitor(page);
         await page.goto(`${ORIGIN}/p/${POST}`, { waitUntil: 'domcontentloaded', timeout: 300_000 });
@@ -573,6 +616,7 @@ async function landing(runs) {
         console.log(`=== landing  ${w}x${h}  origin=${ORIGIN} ===`);
         for (let i = 0; i < runs; i++) {
             const page = await context.newPage();
+            await serveLocalBuild(page);
             await page.setViewportSize({ width: w, height: h });
             await seedReturningVisitor(page);
             await page.goto(`${ORIGIN}/p/${POST}`, { waitUntil: 'domcontentloaded', timeout: 300_000 });
@@ -715,6 +759,7 @@ function playingSelfTest() {
 const RECORD_PLAYING = () => {
     window.__p = [];
     const t0 = performance.now();
+    window.__t0p = t0;
     const tick = () => {
         const onScreen = [...document.querySelectorAll('video')]
             .map((v) => ({ v, r: v.getBoundingClientRect() }))
@@ -735,6 +780,7 @@ const RECORD_PLAYING = () => {
 
 async function playingRun(context, { injectPause }) {
     const page = await context.newPage();
+    await serveLocalBuild(page);
     await page.setViewportSize(VIEWPORT);
     await seedReturningVisitor(page);
     await page.goto(`${ORIGIN}/p/${POST}`, { waitUntil: 'domcontentloaded', timeout: 300_000 });
@@ -759,13 +805,15 @@ async function playingRun(context, { injectPause }) {
         await page.evaluate(() => {
             const onScreen = [...document.querySelectorAll('video')]
                 .sort((a, b) => b.getBoundingClientRect().height - a.getBoundingClientRect().height)[0];
+            window.__injectedAt = performance.now() - window.__t0p;
             onScreen?.pause();
         });
     }
     await page.waitForTimeout(6_000);
     const series = await page.evaluate(() => window.__p);
+    const injectedAt = await page.evaluate(() => window.__injectedAt ?? null);
     await page.close();
-    return series;
+    return { series, injectedAt };
 }
 
 async function playing(runs) {
@@ -774,19 +822,27 @@ async function playing(runs) {
     const context = browser.contexts()[0];
 
     // A LIVE positive control, not only a fabricated one: pause the on-screen
-    // video by hand just after the tap, in the real app, and require rejection.
-    // A synthetic series proves the arithmetic; this proves the sampler is
-    // pointed at the element the viewer is looking at.
+    // video by hand just after the tap, in the real app, and require the sampler
+    // to SEE it. The synthetic series proves the arithmetic; only this proves
+    // the sampler is pointed at the element the viewer is looking at.
+    //
+    // It asserts the observation and not the verdict, deliberately. Requiring
+    // the whole run to be rejected would make this control fail on a HEALTHY
+    // app, where the playback authority legitimately plays again within a frame
+    // or two — that measures recovery, not visibility, and would refuse to
+    // measure exactly the build that had been fixed.
     const injected = await playingRun(context, { injectPause: true });
-    const injectedVerdicts = injected ? evaluatePlaying(injected) : [];
-    const injectedRejected = injectedVerdicts.some((v) => !v.ok);
-    console.log(`LIVE CONTROL — paused by hand 250ms after the tap: ${injectedRejected ? 'REJECTED, as it must be' : 'PASSED — the sampler is not watching the video the viewer sees'}`);
-    if (!injectedRejected) { process.exit(1); }
+    const noticed = injected && injected.injectedAt !== null
+        && injected.series.some((sample) => sample.paused
+            && sample.t >= injected.injectedAt && sample.t <= injected.injectedAt + 400);
+    console.log(`LIVE CONTROL — paused by hand 250ms after the tap: ${noticed ? 'seen by the sampler, as it must be' : 'NOT SEEN — the sampler is not watching the video the viewer sees'}`);
+    if (!noticed) { process.exit(1); }
 
     console.log(`\n=== mode=playing  origin=${ORIGIN}  post=${POST}  n=${runs}  viewport=${VIEWPORT.width}x${VIEWPORT.height} ===`);
     for (let i = 0; i < runs; i++) {
-        const series = await playingRun(context, { injectPause: false });
-        if (!series) { console.log(`\nrun ${i + 1} — skipped, the feed video never started`); continue; }
+        const run = await playingRun(context, { injectPause: false });
+        if (!run) { console.log(`\nrun ${i + 1} — skipped, the feed video never started`); continue; }
+        const series = run.series;
         console.log(`\nrun ${i + 1} — ${series.length} samples`);
         for (const v of evaluatePlaying(series)) {
             console.log(`  ${v.ok ? 'ok   ' : 'FAIL '} ${v.rule} — ${v.detail}`);
