@@ -20,12 +20,14 @@ import { MEDIA_CARD_HEIGHT, MEDIA_CARD_RADIUS } from '@/utils/composeUtils';
 import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
 import {
-  ZoomableImageGallery,
-  type ZoomableImageGalleryHandle,
+  ZoomableMediaGallery,
+  type ZoomableMediaGalleryHandle,
   type GalleryImage,
   type MeasureThumb,
   type MeasuredRect,
 } from '@oxyhq/bloom/zoomable-image-gallery';
+import { useMediaFlight } from '@oxyhq/bloom/media-flight';
+import { peekVideoPlayer, videoPlayerKey } from '@/stores/videoPlayerRegistry';
 import type { RegisterThumbHost } from '@/components/Post/Attachments/PostAttachmentMedia';
 import {
   PostAttachmentArticle,
@@ -396,15 +398,56 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   const hasMultipleMedia = mediaItems.length > 1;
   const hasSingleMedia = mediaItems.length === 1 && !items.some(item => item.type === 'poll' || item.type === 'article' || item.type === 'nested' || item.type === 'link');
 
+  const { measureAnchor, flyTo } = useMediaFlight();
+
+  // The still the flying surface shows until the destination's first frame —
+  // the same poster the row is already displaying, so the hand-off cannot flash
+  // a different image.
+  const posterByMediaId = useMemo(() => {
+    const map = new Map<string, string | undefined>();
+    for (const item of mediaItems) {
+      if (item.type === 'video') map.set(item.mediaId, item.poster);
+    }
+    return map;
+  }, [mediaItems]);
+
   // Open the fullscreen reels viewer seeded at the tapped video. The reels route
   // selects the correct media item via the `mediaIndex` query param, so a post
   // containing several videos (or a video among images) opens at the right one.
-  const handleVideoPress = useCallback((mediaId: string) => {
+  const handleVideoPress = useCallback(async (mediaId: string) => {
     if (!postId) return;
     const mediaIndex = mediaArray.findIndex(m => String(m?.id) === String(mediaId));
     const query = mediaIndex >= 0 ? `?postId=${postId}&mediaIndex=${mediaIndex}` : `?postId=${postId}`;
+
+    // Hand the video to the shared surface BEFORE navigating, in that order and
+    // for two reasons. The surface has to be up while the origin is still
+    // mounted, because on web expo-video's `_synchronizeWithFirstVideo` copies
+    // the position from the first video element STILL MOUNTED — synchronising
+    // against an empty set silently starts the new view at zero. And the flight
+    // needs the origin's rect, which stops existing the moment the route does.
+    //
+    // Every step degrades to a plain push: no player (the row never took a
+    // lease), no anchor (virtualised away), or a media id we cannot key on all
+    // mean there is nothing to carry, not that navigation should fail.
+    const flightId = videoPlayerKey(postId, mediaId);
+    const player = peekVideoPlayer(flightId);
+    if (player) {
+      const from = await measureAnchor(flightId);
+      if (from) {
+        const window = Dimensions.get('window');
+        flyTo(
+          flightId,
+          { x: 0, y: 0, width: window.width, height: window.height },
+          { kind: 'video', player, poster: posterByMediaId.get(mediaId) },
+          // The reel letterboxes rather than crops, so the surface has to stop
+          // cropping on the way in or the picture would jump at the landing.
+          { from, contentFit: 'contain', cornerRadius: 0 },
+        );
+      }
+    }
+
     router.push(`/videos${query}`);
-  }, [postId, mediaArray, router]);
+  }, [postId, mediaArray, router, measureAnchor, flyTo, posterByMediaId]);
 
   // Images-only subset (in render order) powering the zoom gallery. Each entry's
   // position is the index the gallery opens at when its thumbnail is tapped;
@@ -430,7 +473,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     return map;
   }, [mediaItems]);
 
-  const galleryRef = useRef<ZoomableImageGalleryHandle>(null);
+  const galleryRef = useRef<ZoomableMediaGalleryHandle>(null);
 
   // Registry of thumbnail host nodes keyed by the images-only subset index — the
   // SAME index space the gallery opens/pages/indicator/close use. Populated via
@@ -747,7 +790,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         return null;
       })}
     </ScrollView>
-    {galleryImages.length > 0 && <ZoomableImageGallery ref={galleryRef} measureThumb={measureThumb} cornerRadius={MEDIA_CARD_RADIUS} indicatorVariant="dots" />}
+    {galleryImages.length > 0 && <ZoomableMediaGallery ref={galleryRef} measureThumb={measureThumb} cornerRadius={MEDIA_CARD_RADIUS} indicatorVariant="dots" />}
     </>
   );
 }, (prevProps, nextProps) => {

@@ -106,6 +106,24 @@ export default function AppLayout() {
         >
           <Stack.Screen name="compose" options={{ presentation: 'modal' }} />
           <Stack.Screen name="p/[id]/boost" options={{ presentation: 'modal' }} />
+          {/* The reels screen has to mount OVER the feed rather than replacing
+              it, and without a push of its own.
+
+              A flying video is one surface handed from the origin to the
+              destination, so the destination must exist while the origin is
+              still there — a screen swap would unmount the feed first and leave
+              the flight nothing to hand over from. `animation: 'none'` is the
+              other half: the flight IS the animation, and a push sliding
+              underneath it would show the same video moving twice, in two
+              directions.
+
+              Accepted cost: reaching Videos from the tab bar loses its push
+              animation, because a screen cannot be told to animate for one
+              caller and not another. */}
+          <Stack.Screen
+            name="videos"
+            options={{ presentation: 'transparentModal', animation: 'none' }}
+          />
         </Stack>
       )}
       {/* Show the anon CTA only once auth is resolved: during cold-boot restore

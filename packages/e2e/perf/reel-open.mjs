@@ -7,9 +7,10 @@
  * this directory before trusting a number out of it — the browser it runs in is
  * load-bearing.
  *
- *   node reel-open.mjs open      [n]   # the measurement
- *   node reel-open.mjs control   [n]   # must print all nulls; proves the rest measures something
+ *   node reel-open.mjs open       [n]  # the measurement
+ *   node reel-open.mjs control    [n]  # must print all nulls; proves the rest measures something
  *   node reel-open.mjs attribute       # one run, with the network inside the window
+ *   node reel-open.mjs continuity [n]  # does the video survive the route change (POST is the id)
  *
  *   CDP=http://127.0.0.1:39871  ORIGIN=https://mention.earth
  */
@@ -18,6 +19,8 @@ import { chromium } from '@playwright/test';
 const CDP = process.env.CDP ?? 'http://127.0.0.1:39871';
 const ORIGIN = process.env.ORIGIN ?? 'https://mention.earth';
 const VIEWPORT = { width: 430, height: 932 };
+/** A post carrying a video — the origin surface for `continuity`. */
+const POST = process.env.POST ?? '6a390d4ce0e49135be51eb1b';
 
 /**
  * Runs in the page, before the click.
@@ -170,11 +173,106 @@ async function attribute() {
     await browser.close();
 }
 
+
+/**
+ * Records every PRESENTED frame of every video on the page, tagged with the
+ * element's height so a feed card and a fullscreen reel can be told apart
+ * afterwards.
+ *
+ * Chained `requestVideoFrameCallback`, not a poll: the question is whether a
+ * frame was ever ABSENT, and a poll can only prove it did not look.
+ */
+const RECORD_FRAMES = () => {
+  const frames = [];
+  window.__frames = frames;
+  const wire = (v) => {
+    if (v.__rec) return;
+    v.__rec = true;
+    const tick = () => {
+      const r = v.getBoundingClientRect();
+      frames.push({ t: performance.now(), ct: v.currentTime, h: Math.round(r.height), src: (v.currentSrc || '').slice(-24) });
+      v.requestVideoFrameCallback(tick);
+    };
+    v.requestVideoFrameCallback?.(tick);
+  };
+  const sweep = () => { for (const v of document.querySelectorAll('video')) wire(v); };
+  new MutationObserver(sweep).observe(document.documentElement, { childList: true, subtree: true });
+  setInterval(sweep, 16);
+  sweep();
+};
+
+async function continuity(runs) {
+  const browser = await chromium.connectOverCDP(CDP);
+  const context = browser.contexts()[0];
+  console.log(`\n=== mode=continuity  origin=${ORIGIN}  post=${POST}  n=${runs} ===`);
+  console.log('run | feed ct before | reel ct after | monotonic | biggest frame gap | verdict');
+
+  for (let i = 0; i < runs; i++) {
+    const page = await context.newPage();
+    await page.setViewportSize(VIEWPORT);
+    await page.goto(`${ORIGIN}/p/${POST}`, { waitUntil: 'domcontentloaded', timeout: 300_000 });
+    await page.waitForFunction(() => document.body && document.body.innerText.length > 200, null, { timeout: 300_000 });
+    const interstitial = page.getByText('Explore the app', { exact: false }).first();
+    try { if (await interstitial.isVisible({ timeout: 3_000 })) await interstitial.click(); } catch { /* not shown */ }
+
+    // The origin surface has to exist before anything can be asked of it.
+    await page.waitForSelector('video', { timeout: 90_000 });
+    // …and it must actually be PLAYING, or "it did not restart" is vacuous.
+    await page.waitForFunction(() => {
+      const v = document.querySelector('video');
+      return v && !v.paused && v.currentTime > 1;
+    }, null, { timeout: 60_000 }).catch(() => {});
+    await page.evaluate(RECORD_FRAMES);
+    await page.waitForTimeout(1_500);
+
+    const before = await page.evaluate(() => {
+      const v = document.querySelector('video');
+      return v ? { ct: v.currentTime, playing: !v.paused } : null;
+    });
+
+    const box = await page.locator('video').first().boundingBox();
+    if (box) await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+
+    // The destination is a video filling the viewport.
+    const arrived = await page.waitForFunction(
+      () => [...document.querySelectorAll('video')].some((v) => v.getBoundingClientRect().height > innerHeight * 0.6 && v.currentTime > 0),
+      null, { timeout: 30_000 },
+    ).then(() => true).catch(() => false);
+    await page.waitForTimeout(1_200);
+
+    const after = await page.evaluate(() => {
+      const v = [...document.querySelectorAll('video')].find((x) => x.getBoundingClientRect().height > innerHeight * 0.6);
+      return v ? { ct: v.currentTime, playing: !v.paused } : null;
+    });
+    const frames = await page.evaluate(() => window.__frames);
+
+    // The gap that matters: last frame painted by ANY small (feed) surface
+    // before the first frame painted by a fullscreen one.
+    const small = frames.filter((f) => f.h > 0 && f.h < VIEWPORT.height * 0.6);
+    const big = frames.filter((f) => f.h >= VIEWPORT.height * 0.6);
+    const lastSmall = small.length ? small[small.length - 1] : null;
+    const firstBig = big.length ? big[0] : null;
+    const gap = lastSmall && firstBig ? Math.round(firstBig.t - lastSmall.t) : null;
+
+    const monotonic = before && after ? after.ct >= before.ct - 0.05 : null;
+    const verdict = !arrived ? 'NEVER ARRIVED'
+      : monotonic === null ? 'NO READING'
+      : monotonic ? 'carried' : 'RESTARTED';
+    const cell = (v, w) => String(v).padStart(w);
+    console.log(`${cell(i + 1, 3)} | ${cell(before?.ct?.toFixed(2) ?? '-', 14)} | ${cell(after?.ct?.toFixed(2) ?? '-', 13)} | ${cell(monotonic ?? '-', 9)} | ${cell(gap === null ? '-' : gap + 'ms', 17)} | ${verdict}`);
+    await page.close();
+  }
+  await browser.close();
+  console.log('\n"carried" means the reel continued from where the feed was. "RESTARTED" means it went back to zero,');
+  console.log('which is what this whole mechanism exists to prevent — and what the code without it does.');
+}
+
 const mode = process.argv[2] ?? 'open';
 const runs = Number(process.argv[3] ?? 10);
 if (mode === 'attribute') await attribute();
+else if (mode === 'continuity') await continuity(runs);
 else if (mode === 'open' || mode === 'control') await measure(mode, runs);
 else {
-    console.error(`unknown mode "${mode}" — expected open, control or attribute`);
+    console.error(`unknown mode "${mode}" — expected open, control, attribute or continuity`);
     process.exit(2);
 }

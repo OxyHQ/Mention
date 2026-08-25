@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { createVideoPlayer, type VideoPlayer } from 'expo-video';
 import { createLogger } from '@oxyhq/core/logger';
@@ -139,6 +140,57 @@ export const useVideoPlayerRegistry = create<VideoPlayerRegistryState>((set, get
         return { key, player, release };
     },
 }));
+
+/**
+ * Take a lease from outside React.
+ *
+ * The store is named `useVideoPlayerRegistry`, and the React Compiler refuses a
+ * `use`-prefixed identifier referenced as a VALUE inside a hook — "Hooks may not
+ * be referenced as normal values, they must be called". At module scope the same
+ * call carries no such ambiguity, which is why the imperative entry point lives
+ * here rather than inline.
+ */
+export function acquireVideoPlayer(key: VideoPlayerKey, source: string): VideoPlayerLease {
+    return useVideoPlayerRegistry.getState().acquire(key, source);
+}
+
+/**
+ * The live player for `key`, or `null` when nothing holds one.
+ *
+ * A READ, not a lease: the caller is looking at a player somebody else is
+ * keeping alive (a tap handler asking what the row under the finger is
+ * playing), so it must not touch the count. Module scope for the same reason as
+ * `acquireVideoPlayer` — inside a component the compiler refuses to see a
+ * `use`-prefixed identifier used as a value.
+ */
+export function peekVideoPlayer(key: VideoPlayerKey): VideoPlayer | null {
+    return useVideoPlayerRegistry.getState().entries[key]?.player ?? null;
+}
+
+/**
+ * Hold the registry's player for `key` for as long as the calling component is
+ * mounted, and let go on unmount.
+ *
+ * The player has to exist on the FIRST render: a surface that mounted with its
+ * own player and adopted the shared one a commit later would restart the video
+ * at exactly the moment this mechanism exists to make seamless. A lazy
+ * `useState` initialiser is the shape that gives that without reading a ref
+ * during render — which the React Compiler rejects outright here, not merely
+ * bails on (`Ref values (the current property) may not be accessed during
+ * render`). That was read off the app's own compiler rather than reasoned
+ * about, after a first attempt that mirrored expo-video's internal
+ * `useReleasingSharedObject` was refused.
+ *
+ * CALLER CONTRACT: give the component a React `key` carrying the same identity
+ * as `key` here, so a different video is a different component instance. The
+ * lease is taken once per mount and deliberately does not re-key — a recycled
+ * row pointed at another video would otherwise keep the previous player.
+ */
+export function useVideoPlayerLease(key: VideoPlayerKey, source: string): VideoPlayer {
+    const [lease] = useState(() => acquireVideoPlayer(key, source));
+    useEffect(() => () => lease.release(), [lease]);
+    return lease.player;
+}
 
 /**
  * A shared object that throws on `release` has already been released by someone

@@ -44,6 +44,8 @@ import {
     type ReelChromeParams,
     type RegisterTransportSeek,
 } from '@/hooks/useReelChrome';
+import { hasFlight, releaseFlight } from '@oxyhq/bloom/media-flight';
+import { useVideoPlayerLease, videoPlayerKey, type VideoPlayerKey } from '@/stores/videoPlayerRegistry';
 import { resolveFeedDescriptor } from '@/utils/feedTelemetry';
 
 // ── Tuning constants ─────────────────────────────────────────────
@@ -179,6 +181,12 @@ interface VideoPost extends HydratedPost {
      * `usePipAspectRatio`.
      */
     intrinsicSize?: MediaPixelSize;
+    /**
+     * The media item this slide plays. Half of the identity the feed and this
+     * screen agree on for one video — the other half is the post id — so a slide
+     * can tell whether it is the one a flight was aimed at.
+     */
+    mediaId?: string;
     createdAt: string;
 }
 
@@ -227,7 +235,7 @@ interface VideoItemProps {
 //
 // Every field the chrome needs is declared once, on `ReelChromeParams`; the two
 // below are this component's own, used only by what it renders.
-interface ActiveVideoSurfaceProps extends Omit<ReelChromeParams, 'player'> {
+interface ActiveVideoSurfaceProps extends Omit<ReelChromeParams, 'player' | 'restartOnActivate'> {
     // How much of the surface's bottom edge the floating BottomBar covers. The
     // scrubber is the overlay's SIBLING, so it does not inherit the overlay's
     // own bottom padding and has to lift itself clear of the bar.
@@ -235,7 +243,24 @@ interface ActiveVideoSurfaceProps extends Omit<ReelChromeParams, 'player'> {
     theme: ReturnType<typeof useTheme>;
 }
 
-const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
+/**
+ * The reel slide's body: chrome plus the view that paints it, for a player it is
+ * HANDED. It does not build one, so the same body serves the ordinary slide and
+ * the one that adopted a video mid-flight from the feed.
+ */
+const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
+    player: VideoPlayer;
+    /**
+     * Whether activating this slide rewinds it. True everywhere except the slide
+     * that adopted a playing video: rewinding that one would undo the entire
+     * point of carrying it across.
+     */
+    restartOnActivate: boolean;
+    onFirstFrameRender?: () => void;
+}> = ({
+    player,
+    restartOnActivate,
+    onFirstFrameRender,
     postId,
     videoUrl,
     fallbackVideoUrl,
@@ -260,19 +285,6 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     onSessionEnd,
     onRegisterTransportSeek,
 }) => {
-    // The player is built ONCE, from this row's own source, and is never rebuilt:
-    // `useVideoPlayer` releases and recreates its player whenever the source
-    // argument changes, which would tear the OS window's subject out from under
-    // it mid-session. Every later source change goes through `replaceAsync`.
-    const player = useVideoPlayer(videoUrl, (p: VideoPlayer) => {
-        p.loop = true;
-        // Drive the scrubber at a smooth-but-cheap cadence.
-        p.timeUpdateEventInterval = TIME_UPDATE_INTERVAL_S;
-        // Single source of truth for the initial mute: the global store value
-        // captured at mount. Subsequent changes flow through the sync effect below.
-        p.muted = muted;
-    });
-
     // Everything layered on top of that player — poster, heart, mute, PiP,
     // scrubber, playback gate, wake lock, transport. It takes the player as an
     // argument and never asks who made it, which is what will let a surface be
@@ -301,6 +313,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
         hasError,
     } = useReelChrome({
         player,
+        restartOnActivate,
         postId,
         videoUrl,
         fallbackVideoUrl,
@@ -337,6 +350,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
                 startsPictureInPictureAutomatically={isWatched}
                 onPictureInPictureStart={handlePictureInPictureStart}
                 onPictureInPictureStop={handlePictureInPictureStop}
+                onFirstFrameRender={onFirstFrameRender}
             />
 
             {showPoster && (
@@ -435,6 +449,61 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
             )}
         </>
     );
+};
+
+/** The ordinary slide: its own player, released with it, rewound on activation. */
+const OwnPlayerSurface: React.FC<ActiveVideoSurfaceProps> = (props) => {
+    // Built ONCE from this row's own source and never rebuilt: `useVideoPlayer`
+    // releases and recreates its player whenever the source argument changes,
+    // which would tear the OS window's subject out from under it mid-session.
+    // Every later source change goes through `replaceAsync`.
+    const player = useVideoPlayer(props.videoUrl, (p: VideoPlayer) => {
+        p.loop = true;
+        // Drive the scrubber at a smooth-but-cheap cadence.
+        p.timeUpdateEventInterval = TIME_UPDATE_INTERVAL_S;
+        // Single source of truth for the initial mute: the global store value
+        // captured at mount. Subsequent changes flow through the sync effect.
+        p.muted = props.muted;
+    });
+    return <ReelSurface {...props} player={player} restartOnActivate />;
+};
+
+/**
+ * The slide the feed flew a video into: it takes the SAME player from the
+ * registry rather than building one, so there is no second decoder and no seek
+ * back to zero.
+ *
+ * The flight is released on this view's FIRST PAINTED FRAME, not when the
+ * animation settles. Those are hundreds of milliseconds apart — the reel has no
+ * frame to show for about a second after the tap — and releasing on the
+ * animation would re-open the black gap the flight exists to close.
+ * `onFirstFrameRender` may fire again later (expo-video re-emits it when the
+ * video track changes), which costs nothing: releasing an id that is no longer
+ * in flight is a no-op.
+ */
+const AdoptedPlayerSurface: React.FC<ActiveVideoSurfaceProps & { flightId: VideoPlayerKey }> = ({ flightId, ...props }) => {
+    const player = useVideoPlayerLease(flightId, props.videoUrl);
+    const handleFirstFrame = useCallback(() => releaseFlight(flightId), [flightId]);
+    return (
+        <ReelSurface
+            {...props}
+            player={player}
+            restartOnActivate={false}
+            onFirstFrameRender={handleFirstFrame}
+        />
+    );
+};
+
+const ActiveVideoSurface = memo<ActiveVideoSurfaceProps & { flightId?: VideoPlayerKey }>((props) => {
+    const { flightId, ...rest } = props;
+    // Decided ONCE, at mount: "was a flight live for this media when this slide
+    // appeared". Read through a lazy initialiser rather than during every render
+    // — the answer stops being true the moment the flight is released, and a
+    // slide that swapped player identity mid-life would restart the video.
+    const [adopted] = useState(() => flightId !== undefined && hasFlight(flightId));
+    return adopted && flightId
+        ? <AdoptedPlayerSurface {...rest} flightId={flightId} />
+        : <OwnPlayerSurface {...rest} />;
 });
 
 ActiveVideoSurface.displayName = 'ActiveVideoSurface';
@@ -511,6 +580,7 @@ const VideoItem = memo<VideoItemProps>(({
         >
             {canRenderPlayer ? (
                 <ActiveVideoSurface
+                    flightId={item.mediaId ? videoPlayerKey(item.id, item.mediaId) : undefined}
                     postId={item.id}
                     videoUrl={item.videoUrl}
                     fallbackVideoUrl={item.fallbackVideoUrl}
@@ -900,6 +970,7 @@ export default function VideosScreen() {
             posterUrl: resolvePosterUrl(selected),
             durationSec: readMediaDurationSec(selected),
             intrinsicSize: readMediaPixelSize(selected),
+            mediaId: selected.id ? String(selected.id) : undefined,
         };
     }, [resolveVideoUrl, resolveFallbackVideoUrl, resolvePosterUrl]);
 

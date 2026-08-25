@@ -123,6 +123,14 @@ function useKeepAwakeWhile(active: boolean, tag: string): void {
 export interface ReelChromeParams {
     /** The player this chrome drives. Who built it, and who releases it, is not this hook's business. */
     player: VideoPlayer;
+    /**
+     * Whether becoming active rewinds the video to the start.
+     *
+     * True for a slide that begins its own playback. False for one handed a
+     * video already playing — rewinding there would undo the continuity the
+     * hand-off exists to preserve, at the exact moment the viewer is looking.
+     */
+    restartOnActivate: boolean;
     // Identity of the post this surface plays — the stable playback id handed to
     // the app-wide video authority.
     postId: string;
@@ -169,6 +177,7 @@ export interface ReelChromeParams {
 
 export function useReelChrome({
     player,
+    restartOnActivate,
     postId,
     videoUrl,
     fallbackVideoUrl,
@@ -504,12 +513,14 @@ export function useReelChrome({
 
     // Restart from the top whenever the surface (re)becomes active+focused, so each
     // activation begins at the start. Kept separate from the play/pause gate so a
-    // mid-playback tap-resume does not rewind.
+    // mid-playback tap-resume does not rewind — and skipped entirely for a slide
+    // that adopted a playing video, whose whole point is the position it arrived
+    // with.
     useEffect(() => {
-        if (isActive && screenFocused) {
+        if (restartOnActivate && isActive && screenFocused) {
             player.currentTime = 0;
         }
-    }, [player, isActive, screenFocused]);
+    }, [player, restartOnActivate, isActive, screenFocused]);
 
     // ── Double-tap-to-like ──────────────────────────────────────────
     // A single tap toggles pause but is DEFERRED by DOUBLE_TAP_WINDOW_MS; a second
