@@ -11,6 +11,7 @@
  *   node reel-open.mjs control    [n]  # must print all nulls; proves the rest measures something
  *   node reel-open.mjs attribute       # one run, with the network inside the window
  *   node reel-open.mjs continuity [n]  # does the video survive the route change (POST is the id)
+ *   node reel-open.mjs geometry   [n]  # does the flight LOOK like a flight, not a jump
  *
  *   CDP=http://127.0.0.1:39871  ORIGIN=https://mention.earth
  */
@@ -318,12 +319,190 @@ async function continuity(runs) {
   console.log('which is what this whole mechanism exists to prevent — and what the code without it does.');
 }
 
+/**
+ * THE PROPERTY THE CONTINUITY TABLE COULD NOT SEE.
+ *
+ * `continuity` asks whether a frame was present and whether the position
+ * carried. A surface that skipped the animation entirely and appeared at full
+ * screen passes both with full marks — measured: it did, and a viewer reported
+ * "the video went big and filled the screen" against a table that said the
+ * transition was perfect. Presence is not placement.
+ *
+ * So this judges the SHAPE of the flight from its rect timeline:
+ *   1. it starts near the origin thumbnail, not at the destination;
+ *   2. it grows without shrinking back;
+ *   3. it does not sit at full size for longer than `MAX_SETTLED_MS` before
+ *      the destination takes over.
+ *
+ * Pure on purpose — `evaluateFlightShape` takes a timeline and returns
+ * verdicts, so `geometry --selftest` can hand it a FABRICATED jump and prove
+ * the assertions fail. A shape check that has never rejected a bad shape is a
+ * shape check nobody has tested.
+ */
+const MAX_SETTLED_MS = 1500;
+/**
+ * A single frame may not carry more than this much of the whole size change.
+ *
+ * Derived from BOTH measured populations rather than picked, which is the only
+ * way a threshold means anything. With the defect present the surface held its
+ * intrinsic size and then snapped: the largest per-frame change measured
+ * 96-100%, essentially the whole journey in one frame. With it fixed, the
+ * animation's own ease-out puts its fastest frames at 14-48% — the curve is
+ * quickest at the start, so a large early frame is the shape working, not
+ * failing. 70% sits between the two with margin on both sides.
+ *
+ * An earlier 35% was set before the healthy population had been measured, and
+ * it failed 3 runs in 5 on a flight whose trace was frame-for-frame perfect.
+ * A threshold tuned only against the broken case rejects the fixed one.
+ */
+const MAX_STEP_FRACTION = 0.70;
+
+function evaluateFlightShape(timeline, origin, viewport) {
+    const seen = timeline.filter((s) => s.rect);
+    if (seen.length === 0) return [{ name: 'a surface was painted at all', ok: false, detail: 'no flight rect was ever recorded' }];
+
+    const first = seen[0].rect;
+    const near = (a, b, tol) => Math.abs(a - b) <= tol;
+    // Generous on size (contentFit letterboxes the media inside the box) and
+    // tight on position, which is what "flew from there" actually means.
+    const startsAtOrigin = near(first[0], origin[0], 24) && near(first[1], origin[1], 24)
+        && first[2] < viewport[0] * 0.75;
+
+    let shrank = 0;
+    // Biggest single-frame change in size, as a fraction of the whole journey.
+    // Growing monotonically is not enough: a surface can crawl and then LEAP,
+    // which is what a `<video>` does when it sits at its default intrinsic size
+    // until metadata arrives and then snaps to the real aspect ratio. Measured:
+    // 300x150 held for ~80ms, then 402x714 in one frame, at the exact frame
+    // `videoWidth` went 0 -> 720. Monotonic the whole way, and visibly a jump.
+    let biggestStep = 0, stepAt = null;
+    const span = Math.max(1, seen[seen.length - 1].rect[3] - seen[0].rect[3]);
+    // Normalised by the sample's OWN elapsed time, because the sampler drops
+    // frames. A snap is a large change in one frame; a dropped frame is the
+    // same change spread over two, and without this the rule fires on the
+    // instrument instead of the app — measured, it reported 38-49% "steps" on
+    // a trace whose real per-frame maximum was 27%.
+    const gaps = seen.slice(1).map((s2, i) => s2.t - seen[i].t).sort((a, b) => a - b);
+    const typicalGap = gaps.length ? Math.max(1, gaps[Math.floor(gaps.length / 2)]) : 16;
+    for (let i = 1; i < seen.length; i++) {
+        if (seen[i].rect[2] < seen[i - 1].rect[2] - 2) shrank++;
+        const elapsed = Math.max(1, seen[i].t - seen[i - 1].t);
+        const frames = Math.max(1, elapsed / typicalGap);
+        const jump = Math.abs(seen[i].rect[3] - seen[i - 1].rect[3]) / span / frames;
+        if (jump > biggestStep) { biggestStep = jump; stepAt = Math.round(seen[i].t - seen[0].t); }
+    }
+
+    // "Settled" is measured against the surface's OWN final size, never against
+    // the viewport. Twice now a threshold derived from the viewport was never
+    // reachable — a scrollbar puts innerWidth 15px above where a letterboxed
+    // media actually lands — and the rule passed every run without being able
+    // to fire. The final rect is a fact of the trace; the viewport is a guess
+    // about it.
+    const last = seen[seen.length - 1].rect;
+    const fullIdx = seen.findIndex((s) => Math.abs(s.rect[2] - last[2]) <= 2 && Math.abs(s.rect[3] - last[3]) <= 2);
+    const settledFor = fullIdx === -1 ? null : Math.round(seen[seen.length - 1].t - seen[fullIdx].t);
+
+    return [
+        { name: 'starts at the origin thumbnail, not the destination', ok: startsAtOrigin,
+          detail: `first rect ${first.join(',')} against anchor ${origin.join(',')}` },
+        { name: 'grows without shrinking back', ok: shrank === 0,
+          detail: `${shrank} frame(s) narrower than the one before` },
+        { name: `sits at full size for under ${MAX_SETTLED_MS}ms`, ok: settledFor === null || settledFor <= MAX_SETTLED_MS,
+          detail: settledFor === null ? 'never settled' : `${settledFor}ms at its final size before release` },
+        { name: `grows without a step over ${Math.round(MAX_STEP_FRACTION * 100)}% of the journey in one frame`,
+          ok: biggestStep <= MAX_STEP_FRACTION,
+          detail: `biggest per-frame height change ${Math.round(biggestStep * 100)}%${stepAt === null ? '' : ` at +${stepAt}ms`}` },
+    ];
+}
+
+/** The control: a timeline that never flew must be rejected by every shape rule that can see it. */
+function geometrySelfTest() {
+    const viewport = [430, 932];
+    const origin = [356, 723, 101, 180];
+    const jump = Array.from({ length: 60 }, (_, i) => ({ t: i * 16, rect: [0, 0, 430, 932] }));
+    // A SECOND fabricated shape: one that starts at the anchor and grows
+    // monotonically, but does the last two thirds of its growth in one frame —
+    // the real defect, which every other rule here passes.
+    const crawlThenLeap = [
+        ...Array.from({ length: 12 }, (_, i) => ({ t: i * 16, rect: [356 - i * 25, 723 - i * 55, 101 + i * 17, 150] })),
+        ...Array.from({ length: 12 }, (_, i) => ({ t: (12 + i) * 16, rect: [0, 0, 415, 738] })),
+    ];
+    const verdicts = evaluateFlightShape(jump, origin, viewport);
+    const stepVerdicts = evaluateFlightShape(crawlThenLeap, origin, viewport);
+    console.log('SELF-TEST A — a fabricated jump straight to full screen:');
+    for (const v of verdicts) console.log(`  ${v.ok ? 'passed' : 'REJECTED'}  ${v.name} — ${v.detail}`);
+    console.log('SELF-TEST B — a fabricated crawl that leaps at the end:');
+    for (const v of stepVerdicts) console.log(`  ${v.ok ? 'passed' : 'REJECTED'}  ${v.name} — ${v.detail}`);
+    const ok = verdicts.some((v) => !v.ok && v.name.startsWith('starts at the origin'))
+        && stepVerdicts.some((v) => !v.ok && v.name.startsWith('grows without a step'));
+    console.log(ok
+        ? '\nCONTROL OK — the jump is caught by the origin rule and the leap by the step rule.'
+        : '\nCONTROL FAILED — a fabricated defect satisfied every rule; this mode proves nothing.');
+    return ok;
+}
+
+async function geometry(runs) {
+    if (!geometrySelfTest()) process.exit(1);
+    const browser = await chromium.connectOverCDP(CDP);
+    const context = browser.contexts()[0];
+    console.log(`\n=== mode=geometry  origin=${ORIGIN}  post=${POST}  n=${runs} ===`);
+
+    for (let i = 0; i < runs; i++) {
+        const page = await context.newPage();
+        await page.setViewportSize(VIEWPORT);
+        await seedReturningVisitor(page);
+        await page.goto(`${ORIGIN}/p/${POST}`, { waitUntil: 'domcontentloaded', timeout: 300_000 });
+        await page.waitForSelector('video', { timeout: 150_000 });
+        await page.waitForFunction(() => {
+            const v = document.querySelector('video');
+            return v && !v.paused && v.currentTime > 1;
+        }, null, { timeout: 60_000 }).catch(() => {});
+        await page.waitForTimeout(1_200);
+
+        await page.evaluate(() => {
+            const samples = [];
+            window.__shape = samples;
+            const tick = () => {
+                const root = document.querySelector('#bloom-portal-root');
+                // The MEDIA, never its container: Bloom's OverlayRoot is
+                // `position: fixed; inset: 0` by design, so measuring the
+                // biggest box in the portal reports every flight as a jump.
+                const media = root && (root.querySelector('video') || root.querySelector('img'));
+                const r = media ? media.getBoundingClientRect() : null;
+                samples.push({ t: performance.now(), rect: r && r.width > 4 ? [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)] : null });
+                requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
+        });
+
+        const box = await page.locator('video').first().boundingBox();
+        const origin = [Math.round(box.x), Math.round(box.y), Math.round(box.width), Math.round(box.height)];
+        await page.evaluate(() => { window.__shape.length = 0; });
+        await page.mouse.click(Math.min(box.x + box.width / 2, VIEWPORT.width - 6), box.y + box.height / 2);
+        await page.waitForTimeout(6_000);
+        const timeline = await page.evaluate(() => window.__shape);
+
+        // The page's OWN width, not the configured viewport: a scrollbar makes
+        // them differ by ~15px, and a "reached full width" threshold derived
+        // from the wrong one is never met — the rule then passes every run
+        // without ever having been able to fail.
+        const inner = await page.evaluate(() => [innerWidth, innerHeight]);
+        const verdicts = evaluateFlightShape(timeline, origin, inner);
+        const failed = verdicts.filter((v) => !v.ok);
+        console.log(`\nrun ${i + 1} — anchor ${origin.join(',')} — ${failed.length === 0 ? 'FLIGHT' : 'NOT A FLIGHT'}`);
+        for (const v of verdicts) console.log(`  ${v.ok ? 'ok  ' : 'FAIL'}  ${v.name} — ${v.detail}`);
+        await page.close();
+    }
+    await browser.close();
+}
+
 const mode = process.argv[2] ?? 'open';
 const runs = Number(process.argv[3] ?? 10);
 if (mode === 'attribute') await attribute();
+else if (mode === 'geometry') await geometry(runs);
 else if (mode === 'continuity') await continuity(runs);
 else if (mode === 'open' || mode === 'control') await measure(mode, runs);
 else {
-    console.error(`unknown mode "${mode}" — expected open, control, attribute or continuity`);
+    console.error(`unknown mode "${mode}" — expected open, control, attribute, continuity or geometry`);
     process.exit(2);
 }
