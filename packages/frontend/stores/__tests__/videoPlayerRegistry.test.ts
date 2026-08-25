@@ -13,6 +13,9 @@
  * object actually frees its hardware is expo-video's contract, not this file's.
  */
 
+import React from 'react';
+import TestRenderer from 'react-test-renderer';
+
 const mockError = jest.fn();
 
 jest.mock('@oxyhq/core/logger', () => ({
@@ -51,6 +54,9 @@ jest.mock('expo-video', () => ({
 
 import {
     __resetVideoPlayerRegistry,
+    acquireVideoPlayer,
+    peekVideoPlayer,
+    useVideoPlayerLease,
     useVideoPlayerRegistry,
     videoPlayerKey,
     type VideoPlayerKey,
@@ -248,5 +254,88 @@ describe('store reactivity', () => {
         unsubscribe();
 
         expect(seen).toEqual([1, 0]);
+    });
+});
+
+describe('reaching the registry from outside a component', () => {
+    it('acquires the same player the store action does, and counts it', () => {
+        const first = acquireVideoPlayer(KEY, SOURCE);
+        const second = acquireVideoPlayer(KEY, SOURCE);
+
+        expect(second.player).toBe(first.player);
+        expect(entryFor(KEY).refCount).toBe(2);
+        expect(mockVideo.created).toHaveLength(1);
+    });
+
+    it('peeks without taking a reference', () => {
+        // The distinction the whole read exists for: a tap handler asking what
+        // the row under the finger is playing must not become a holder of it,
+        // or the player would outlive every surface by one.
+        const only = acquireVideoPlayer(KEY, SOURCE);
+
+        expect(peekVideoPlayer(KEY)).toBe(only.player);
+        expect(entryFor(KEY).refCount).toBe(1);
+
+        only.release();
+        expect(entryFor(KEY)).toBeUndefined();
+    });
+
+    it('peeks null for a key nobody holds', () => {
+        expect(peekVideoPlayer(KEY)).toBeNull();
+    });
+});
+
+describe('useVideoPlayerLease', () => {
+    /** Minimal host: the hook's whole contract is what it returns and when it lets go. */
+    function Surface({ id, source }: { id: VideoPlayerKey; source: string }) {
+        seen.push(useVideoPlayerLease(id, source));
+        return null;
+    }
+    let seen: FakePlayer[] = [];
+    beforeEach(() => { seen = []; });
+
+    it('hands the player back on the FIRST render, not a commit later', () => {
+        // A surface that mounted without a player and adopted one afterwards
+        // would restart the video at the moment this exists to make seamless.
+        TestRenderer.act(() => { TestRenderer.create(React.createElement(Surface, { id: KEY, source: SOURCE })); });
+
+        expect(seen).toHaveLength(1);
+        expect(seen[0]).toBe(entryFor(KEY).player);
+    });
+
+    it('keeps the same player across re-renders and releases on unmount', () => {
+        let tree: TestRenderer.ReactTestRenderer | null = null;
+        TestRenderer.act(() => { tree = TestRenderer.create(React.createElement(Surface, { id: KEY, source: SOURCE })); });
+        const player = seen[0];
+        TestRenderer.act(() => { tree!.update(React.createElement(Surface, { id: KEY, source: SOURCE })); });
+
+        expect(seen[1]).toBe(player);
+        expect(player.releaseCount).toBe(0);
+
+        TestRenderer.act(() => { tree!.unmount(); });
+        expect(player.releaseCount).toBe(1);
+        expect(entryFor(KEY)).toBeUndefined();
+    });
+
+    it('lets two surfaces share one player, and the first to go does not take it', () => {
+        // This is the hand-off in miniature: the feed row and the reel slide are
+        // both mounted for a moment, and the origin unmounting must not free the
+        // decoder the destination is rendering.
+        let feed: TestRenderer.ReactTestRenderer | null = null;
+        let reel: TestRenderer.ReactTestRenderer | null = null;
+        TestRenderer.act(() => { feed = TestRenderer.create(React.createElement(Surface, { id: KEY, source: SOURCE })); });
+        TestRenderer.act(() => { reel = TestRenderer.create(React.createElement(Surface, { id: KEY, source: SOURCE })); });
+
+        const player = seen[0];
+        expect(seen[1]).toBe(player);
+        expect(mockVideo.created).toHaveLength(1);
+        expect(entryFor(KEY).refCount).toBe(2);
+
+        TestRenderer.act(() => { feed!.unmount() });
+        expect(player.releaseCount).toBe(0);
+        expect(entryFor(KEY).refCount).toBe(1);
+
+        TestRenderer.act(() => { reel!.unmount() });
+        expect(player.releaseCount).toBe(1);
     });
 });
