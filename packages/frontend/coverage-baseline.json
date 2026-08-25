@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 28.34,
-      "covered": 6861,
-      "total": 24208
+      "pct": 28.45,
+      "covered": 6920,
+      "total": 24322
     },
     "branches": {
-      "pct": 23.75,
-      "covered": 4242,
-      "total": 17857
+      "pct": 23.84,
+      "covered": 4267,
+      "total": 17896
     },
     "functions": {
-      "pct": 24.72,
-      "covered": 1487,
-      "total": 6013
+      "pct": 24.92,
+      "covered": 1508,
+      "total": 6049
     },
     "lines": {
-      "pct": 28.94,
-      "covered": 6303,
-      "total": 21775
+      "pct": 29.03,
+      "covered": 6352,
+      "total": 21874
     }
   },
   "pins": {
@@ -497,6 +497,12 @@
       "functions": 0,
       "lines": 0
     },
+    "hooks/useReelChrome.ts": {
+      "statements": 0,
+      "branches": 0,
+      "functions": 0,
+      "lines": 0
+    },
     "hooks/useReelImpressions.ts": {
       "statements": 100,
       "branches": 100,
@@ -529,7 +535,7 @@
     },
     "hooks/useScheduleManager.ts": {
       "statements": 85,
-      "branches": 50,
+      "branches": 75,
       "functions": 75,
       "lines": 85
     },
@@ -1144,6 +1150,12 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
+    },
+    "stores/videoPlayerRegistry.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "utils/accountCategories.ts": {
       "statements": 100,

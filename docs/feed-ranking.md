@@ -32,12 +32,14 @@ pure/sync). Runs at all ingest chokepoints: `PostCreationService`,
   above this version. Bump it whenever a Stage-A signal changes meaning so
   older stamps stop being honored.
 
-**Stage B — async AI enrichment** (`PostClassificationService`, Alia). Uses
-DOTTED `$set` to enrich the existing subdoc — NEVER a whole-subdoc overwrite
-(would wipe Stage A fields). Topics via `postClassification.topicRefs`
-resolved through `TopicService.resolveTopicRefs`. Readers prefer
-`topicRefs`, fall back to the Stage-A slug-only `postClassification.topics`,
-then neutral (`[]`).
+**Stage B — async AI enrichment** (`PostClassificationService`, Alia).
+`updatePostRecord` takes a PARTIAL patch of only the AI-owned fields — the
+Stage-A deterministic fields (languages, region, hashtagsNorm, version,
+sensitive) survive by the patch TYPE, the guarantee a dotted Mongo `$set`
+used to give by convention. Never a whole-subdoc overwrite (would wipe Stage
+A fields). Topics via `postClassification.topicRefs` resolved through
+`TopicService.resolveTopicRefs`. Readers prefer `topicRefs`, fall back to
+the Stage-A slug-only `postClassification.topics`, then neutral (`[]`).
 
 **Search is Postgres full-text, not a MongoDB text index.**
 `postContentVariants.searchVector` is a generated `tsvector` column,
@@ -148,6 +150,15 @@ horizontal snap carousel on mobile, vertical list on desktop
   the BASE token (`author`, never `author|<id>`) validated against
   `isValidFeedDescriptor` precisely because it becomes a label. Anonymous
   viewers 200 no-op (never 401).
+
+## Feed API plumbing
+
+- **`ChronoCursor.applyToQuery` no longer exists** — pagination goes through the opaque, versioned token in `utils/chronoCursor.ts`, which has no query-object-mutation footgun to warn about. `posts.id` is `text` now, not `_id`; never sort or page a chronological query by id alone (see `docs/architecture.mdx` § PostgreSQL — the only store).
+- **FOUR field projections feed hydration** (`mtn/feed/FeedAPI.ts`, `controllers/feed.controller.ts`, `services/ThreadSlicingService.ts`, `routes/search.ts`). A field missing from one hydrates `undefined` with no error.
+- **Any surface INCLUDING boosts must pass `maxDepth: 1`** or boosts render blank.
+- **`hasMore` comes from the overfetch flag**, never `slices.length >= limit`.
+- **Never put a non-post inside `slices[].items`** — `flattenSlicesToItems` pushes `item.post` unguarded. Interstitials (planned in `mtn/feed/interstitials/planInterstitials.ts`) are a top-level field, anchor by `_sliceKey`, and must never report impressions or go through `POST /feed/mtn/interactions`.
+- **Never block the feed response on remote link-preview or image fetching.**
 
 ## Feed Performance
 

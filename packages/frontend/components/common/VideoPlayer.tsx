@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { View, Pressable, StyleSheet, Text, Platform, type StyleProp, type ViewStyle, type GestureResponderEvent } from 'react-native';
 import { Image } from 'expo-image';
-import { VideoView, useVideoPlayer } from 'expo-video';
+import { VideoView, useVideoPlayer, type VideoPlayer as ExpoVideoPlayer } from 'expo-video';
 import { useEvent, useEventListener } from 'expo';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
@@ -53,6 +53,18 @@ interface VideoPlayerProps {
    * expose video-track metadata there, and the HTML `<video>` auto-sizes instead.
    */
   onAspectRatio?: (ratio: number) => void;
+  /**
+   * A player somebody else owns, used INSTEAD of building one here.
+   *
+   * `useVideoPlayer` ties a player's life to this component, which is right for
+   * a surface that owns its video and wrong for one whose video has to survive
+   * the route change — the shared registry owns those. When this is set the
+   * internal player is built with a `null` source so it opens no decoder, and
+   * every presentation setting below is applied to the player passed in
+   * instead: the registry deliberately configures nothing, because two surfaces
+   * showing one video may legitimately disagree about `loop` or `muted`.
+   */
+  player?: ExpoVideoPlayer;
 }
 
 const CONTROLS_HIDE_DELAY = 3000;
@@ -69,6 +81,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   gif = false,
   viewabilityKey,
   onAspectRatio,
+  player: externalPlayer,
 }) => {
   const isPreviewMode = onPress !== undefined && !gif;
   const { isMuted, toggleMuted } = useVideoMuteStore();
@@ -139,11 +152,23 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // Inert on native: ExoPlayer/AVPlayer decode HLS themselves.
   const hls = useHlsPlayback(src, videoViewRef);
 
-  const player = useVideoPlayer(hls.active ? null : src, (p) => {
+  // Built unconditionally so the hook order never depends on a prop, but with a
+  // `null` source when a player was handed in — a null-sourced player opens no
+  // decoder, so the unused one costs nothing.
+  const ownPlayer = useVideoPlayer(externalPlayer || hls.active ? null : src, (p) => {
     p.loop = gif ? true : loop;
     p.muted = gif ? true : isMuted;
     p.timeUpdateEventInterval = TIME_UPDATE_INTERVAL;
   });
+  const player = externalPlayer ?? ownPlayer;
+
+  // The setup callback above only ever runs for the player built here, so a
+  // borrowed one is configured from this effect instead. Idempotent property
+  // writes, so running it for both is simpler than branching and cannot drift.
+  useEffect(() => {
+    player.loop = gif ? true : loop;
+    player.timeUpdateEventInterval = TIME_UPDATE_INTERVAL;
+  }, [player, gif, loop]);
 
   const scheduleHideControls = useCallback(() => {
     if (hideControlsTimer.current) {

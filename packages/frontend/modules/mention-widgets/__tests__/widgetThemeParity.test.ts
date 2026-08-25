@@ -124,7 +124,7 @@ function kotlinRoles(): Record<string, KotlinRole> {
 
 describe('Mention widget Bloom theme parity', () => {
   it('loads the expanded dynamic registry from the installed release', () => {
-    expect(COLOR_PRESET_REGISTRY).toHaveLength(34);
+    expect(COLOR_PRESET_REGISTRY).toHaveLength(64);
     expect(APP_COLOR_PRESETS.cobalt.tertiaryHex).toBe('#ffd000');
   });
 

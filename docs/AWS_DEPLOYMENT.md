@@ -6,11 +6,14 @@ mutation, and serialize releases per service.
 
 ## Surfaces
 
-| Surface | Runtime | Workflow |
-| --- | --- | --- |
-| `api.mention.earth` and the `mention.earth` apex | AWS ECS service `mention` | `.github/workflows/deploy-aws.yml` |
-| `mcp.mention.earth` | AWS ECS service `mention-mcp` | `.github/workflows/deploy-mcp-aws.yml` |
-| Static Expo web export | Cloudflare Pages project `mention-frontend` | `.github/workflows/deploy-frontends.yml` |
+| Surface | Runtime | ECR | Workflow |
+| --- | --- | --- | --- |
+| `api.mention.earth` and the `mention.earth` apex | AWS ECS service `mention`, port `3000` | `oxy/mention` | `.github/workflows/deploy-aws.yml` |
+| `mcp.mention.earth` | AWS ECS service `mention-mcp`, port `3100` | `oxy/mention-mcp` | `.github/workflows/deploy-mcp-aws.yml` |
+| Static Expo web export | Cloudflare Pages project `mention-frontend` | — | `.github/workflows/deploy-frontends.yml` |
+
+GitHub Actions assumes the OIDC role `oxy-github-deploy` to push images and
+deploy; secrets sync to SSM `/oxy/mention/*` and `/oxy/mention-mcp/*`.
 
 The backend serves API, ActivityPub, OG shells and the apex proxy. ActivityPub
 paths (`/.well-known/*`, `/ap/*`, nodeinfo and inboxes) are routed directly to
