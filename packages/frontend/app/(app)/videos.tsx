@@ -8,7 +8,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { useAuth, FollowButton } from '@oxyhq/services/ui/client';
-import { VideoView, useVideoPlayer, type VideoPlayer } from 'expo-video';
+import { useVideoPlayer, type VideoPlayer } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter, useLocalSearchParams, useIsFocused } from 'expo-router';
@@ -44,7 +44,7 @@ import {
     type ReelChromeParams,
     type RegisterTransportSeek,
 } from '@/hooks/useReelChrome';
-import { hasFlight, useMediaFlight } from '@oxyhq/bloom/media-flight';
+import { MediaFlightHost, hasFlight, useMediaFlight } from '@oxyhq/bloom/media-flight';
 import { useVideoPlayerLease, videoPlayerKey, type VideoPlayerKey } from '@/stores/videoPlayerRegistry';
 import { resolveFeedDescriptor } from '@/utils/feedTelemetry';
 
@@ -248,8 +248,21 @@ interface ActiveVideoSurfaceProps extends Omit<ReelChromeParams, 'player' | 'res
  * HANDED. It does not build one, so the same body serves the ordinary slide and
  * the one that adopted a video mid-flight from the feed.
  */
+/**
+ * The id a slide claims its media node under when it has no flight identity —
+ * no media id, so nothing the feed could have agreed on. It only has to be
+ * unique per slide, never matched to anything.
+ */
+const reelHostId = (postId: string): string => `reel:${postId}`;
+
 const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
     player: VideoPlayer;
+    /**
+     * The id this slide shares with the feed row it came from. Present whenever
+     * the media can be identified; a slide without one still paints through a
+     * host, under an id nothing else claims.
+     */
+    flightId?: VideoPlayerKey;
     /**
      * Whether activating this slide rewinds it. True everywhere except the slide
      * that adopted a playing video: rewinding that one would undo the entire
@@ -259,6 +272,7 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
     onFirstFrameRender?: () => void;
 }> = ({
     player,
+    flightId,
     restartOnActivate,
     onFirstFrameRender,
     postId,
@@ -290,10 +304,11 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
     // argument and never asks who made it, which is what will let a surface be
     // handed one from a shared registry instead of building its own.
     const {
-        videoViewRef,
-        isWatched,
-        handlePictureInPictureStart,
-        handlePictureInPictureStop,
+        // NOT destructured any more: `videoViewRef`, `isWatched` and the two
+        // Picture-in-Picture callbacks. `MediaFlightHost` exposes no ref and no
+        // PiP props, so the reel can no longer ASK for PiP — the chrome hook
+        // still provides them and every other caller is untouched, but this
+        // screen has nothing to attach them to. Flagged, not quietly deleted.
         showPoster,
         posterFailed,
         handlePosterError,
@@ -339,18 +354,16 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
 
     return (
         <>
-            <VideoView
-                ref={videoViewRef}
-                player={player}
-                style={styles.video}
+            {/* The same shared node the feed row was painting, claimed by id.
+                It is not a `VideoView` of this screen's own: one element that
+                MOVES is what keeps the decoder, the position and the playback
+                across the route change. */}
+            <MediaFlightHost
+                id={flightId ?? reelHostId(postId)}
+                content={{ kind: 'video', player }}
+                style={StyleSheet.absoluteFill}
                 contentFit="contain"
-                nativeControls={false}
-                fullscreenOptions={{ enable: false }}
-                allowsPictureInPicture={isWatched}
-                startsPictureInPictureAutomatically={isWatched}
-                onPictureInPictureStart={handlePictureInPictureStart}
-                onPictureInPictureStop={handlePictureInPictureStop}
-                onFirstFrameRender={onFirstFrameRender}
+                pointerEvents="none"
             />
 
             {showPoster && (
@@ -491,6 +504,7 @@ const AdoptedPlayerSurface: React.FC<ActiveVideoSurfaceProps & { flightId: Video
     return (
         <ReelSurface
             {...props}
+            flightId={flightId}
             player={player}
             restartOnActivate={false}
             onFirstFrameRender={handleFirstFrame}

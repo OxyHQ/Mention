@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { View, Pressable, StyleSheet, Text, Platform, type StyleProp, type ViewStyle, type GestureResponderEvent } from 'react-native';
 import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer, type VideoPlayer as ExpoVideoPlayer } from 'expo-video';
+import { MediaFlightHost } from '@oxyhq/bloom/media-flight';
 import { useEvent, useEventListener } from 'expo';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
@@ -65,6 +66,13 @@ interface VideoPlayerProps {
    * showing one video may legitimately disagree about `loop` or `muted`.
    */
   player?: ExpoVideoPlayer;
+  /**
+   * Paint through the shared media node under this id instead of mounting an
+   * element of this component's own. One node moves between hosts, so the
+   * picture survives this row unmounting mid-flight — and there is no element
+   * here to be detached, which is what used to pause the flying video.
+   */
+  flightHostId?: string;
 }
 
 const CONTROLS_HIDE_DELAY = 3000;
@@ -82,6 +90,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   viewabilityKey,
   onAspectRatio,
   player: externalPlayer,
+  flightHostId,
 }) => {
   const isPreviewMode = onPress !== undefined && !gif;
   const { isMuted, toggleMuted } = useVideoMuteStore();
@@ -364,15 +373,29 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   return (
     <View ref={containerRef} style={[styles.container, style]}>
-      <VideoView
-        ref={videoViewRef}
-        player={player}
-        style={styles.video}
-        contentFit={contentFit}
-        nativeControls={false}
-        fullscreenOptions={{ enable: !isPreviewMode && !gif }}
-        allowsPictureInPicture={false}
-      />
+      {flightHostId === undefined ? (
+        <VideoView
+          ref={videoViewRef}
+          player={player}
+          style={styles.video}
+          contentFit={contentFit}
+          nativeControls={false}
+          fullscreenOptions={{ enable: !isPreviewMode && !gif }}
+          allowsPictureInPicture={false}
+        />
+      ) : (
+        // The host registers itself as the flight's anchor, so it measures the
+        // box the MEDIA paints in rather than the card around it.
+        <MediaFlightHost
+          id={flightHostId}
+          content={{ kind: 'video', player }}
+          style={styles.video}
+          // The shared node fills its box or letterboxes inside it; `fill`, which
+          // stretches, has no equivalent there and is not what any flight uses.
+          contentFit={contentFit === 'fill' ? 'cover' : contentFit}
+          pointerEvents="none"
+        />
+      )}
 
       {poster && !hasRenderedFrame && !posterFailed && (
         <Image
