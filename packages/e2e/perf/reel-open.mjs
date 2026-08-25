@@ -227,7 +227,7 @@ async function continuity(runs) {
   const browser = await chromium.connectOverCDP(CDP);
   const context = browser.contexts()[0];
   console.log(`\n=== mode=continuity  origin=${ORIGIN}  post=${POST}  n=${runs} ===`);
-  console.log('run | feed ct | reel ct | mono | longest blank | the blank sits between        | verdict');
+  console.log('run | feed ct | reel ct | mono | no new frame | that interval sits between    | verdict');
 
   for (let i = 0; i < runs; i++) {
     const page = await context.newPage();
@@ -277,7 +277,15 @@ async function continuity(runs) {
     const firstBig = big.length ? big[0] : null;
     const gap = lastSmall && firstBig ? Math.round(firstBig.t - lastSmall.t) : null;
 
-    // The question the criterion actually asks: was a frame ever ABSENT?
+    // NOT "was the screen ever blank". This counts intervals in which no VIDEO
+    // frame was PRESENTED, and `requestVideoFrameCallback` fires for decoded
+    // video and nothing else — a poster is an `<img>` and never triggers it. A
+    // flying surface showing a still while its new `<video>` element loads
+    // therefore reads here as a gap while the user sees an unbroken picture.
+    // Measured on a CDP screencast of exactly such a "gap": no frame was black,
+    // luminance moved smoothly 218 -> 99, and the frame in its middle showed
+    // the video filling the viewport. Read a number here as "no new decoded
+    // frame", and answer "was anything missing" with a screencast.
     // `gap` above is the small→fullscreen crossing, which a flying surface
     // spends the whole animation inside — it measures the travel, not a hole.
     // This measures the hole: the longest interval in which NO element, of any

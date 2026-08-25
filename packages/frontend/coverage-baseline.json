@@ -3,23 +3,23 @@
   "total": {
     "statements": {
       "pct": 28.45,
-      "covered": 6900,
-      "total": 24248
+      "covered": 6920,
+      "total": 24322
     },
     "branches": {
-      "pct": 23.85,
-      "covered": 4261,
-      "total": 17859
+      "pct": 23.84,
+      "covered": 4267,
+      "total": 17896
     },
     "functions": {
-      "pct": 24.88,
-      "covered": 1500,
-      "total": 6027
+      "pct": 24.92,
+      "covered": 1508,
+      "total": 6049
     },
     "lines": {
-      "pct": 29.05,
-      "covered": 6336,
-      "total": 21809
+      "pct": 29.03,
+      "covered": 6352,
+      "total": 21874
     }
   },
   "pins": {
