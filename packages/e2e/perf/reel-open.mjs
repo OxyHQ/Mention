@@ -340,6 +340,8 @@ async function continuity(runs) {
  * shape check nobody has tested.
  */
 const MAX_SETTLED_MS = 1500;
+/** A single frame may not carry more than this much of the whole size change. */
+const MAX_STEP_FRACTION = 0.35;
 
 function evaluateFlightShape(timeline, origin, viewport) {
     const seen = timeline.filter((s) => s.rect);
@@ -353,11 +355,28 @@ function evaluateFlightShape(timeline, origin, viewport) {
         && first[2] < viewport[0] * 0.75;
 
     let shrank = 0;
+    // Biggest single-frame change in size, as a fraction of the whole journey.
+    // Growing monotonically is not enough: a surface can crawl and then LEAP,
+    // which is what a `<video>` does when it sits at its default intrinsic size
+    // until metadata arrives and then snaps to the real aspect ratio. Measured:
+    // 300x150 held for ~80ms, then 402x714 in one frame, at the exact frame
+    // `videoWidth` went 0 -> 720. Monotonic the whole way, and visibly a jump.
+    let biggestStep = 0, stepAt = null;
+    const span = Math.max(1, seen[seen.length - 1].rect[3] - seen[0].rect[3]);
     for (let i = 1; i < seen.length; i++) {
         if (seen[i].rect[2] < seen[i - 1].rect[2] - 2) shrank++;
+        const jump = Math.abs(seen[i].rect[3] - seen[i - 1].rect[3]) / span;
+        if (jump > biggestStep) { biggestStep = jump; stepAt = Math.round(seen[i].t - seen[0].t); }
     }
 
-    const fullIdx = seen.findIndex((s) => s.rect[2] >= viewport[0] - 8);
+    // "Settled" is measured against the surface's OWN final size, never against
+    // the viewport. Twice now a threshold derived from the viewport was never
+    // reachable — a scrollbar puts innerWidth 15px above where a letterboxed
+    // media actually lands — and the rule passed every run without being able
+    // to fire. The final rect is a fact of the trace; the viewport is a guess
+    // about it.
+    const last = seen[seen.length - 1].rect;
+    const fullIdx = seen.findIndex((s) => Math.abs(s.rect[2] - last[2]) <= 2 && Math.abs(s.rect[3] - last[3]) <= 2);
     const settledFor = fullIdx === -1 ? null : Math.round(seen[seen.length - 1].t - seen[fullIdx].t);
 
     return [
@@ -366,7 +385,10 @@ function evaluateFlightShape(timeline, origin, viewport) {
         { name: 'grows without shrinking back', ok: shrank === 0,
           detail: `${shrank} frame(s) narrower than the one before` },
         { name: `sits at full size for under ${MAX_SETTLED_MS}ms`, ok: settledFor === null || settledFor <= MAX_SETTLED_MS,
-          detail: settledFor === null ? 'never reached full width' : `${settledFor}ms at full width before release` },
+          detail: settledFor === null ? 'never settled' : `${settledFor}ms at its final size before release` },
+        { name: `grows without a step over ${Math.round(MAX_STEP_FRACTION * 100)}% of the journey in one frame`,
+          ok: biggestStep <= MAX_STEP_FRACTION,
+          detail: `biggest single-frame height change ${Math.round(biggestStep * 100)}%${stepAt === null ? '' : ` at +${stepAt}ms`}` },
     ];
 }
 
@@ -375,14 +397,24 @@ function geometrySelfTest() {
     const viewport = [430, 932];
     const origin = [356, 723, 101, 180];
     const jump = Array.from({ length: 60 }, (_, i) => ({ t: i * 16, rect: [0, 0, 430, 932] }));
+    // A SECOND fabricated shape: one that starts at the anchor and grows
+    // monotonically, but does the last two thirds of its growth in one frame —
+    // the real defect, which every other rule here passes.
+    const crawlThenLeap = [
+        ...Array.from({ length: 12 }, (_, i) => ({ t: i * 16, rect: [356 - i * 25, 723 - i * 55, 101 + i * 17, 150] })),
+        ...Array.from({ length: 12 }, (_, i) => ({ t: (12 + i) * 16, rect: [0, 0, 415, 738] })),
+    ];
     const verdicts = evaluateFlightShape(jump, origin, viewport);
-    const rejected = verdicts.filter((v) => !v.ok);
-    console.log('SELF-TEST — a fabricated jump straight to full screen:');
+    const stepVerdicts = evaluateFlightShape(crawlThenLeap, origin, viewport);
+    console.log('SELF-TEST A — a fabricated jump straight to full screen:');
     for (const v of verdicts) console.log(`  ${v.ok ? 'passed' : 'REJECTED'}  ${v.name} — ${v.detail}`);
-    const ok = rejected.some((v) => v.name.startsWith('starts at the origin'));
+    console.log('SELF-TEST B — a fabricated crawl that leaps at the end:');
+    for (const v of stepVerdicts) console.log(`  ${v.ok ? 'passed' : 'REJECTED'}  ${v.name} — ${v.detail}`);
+    const ok = verdicts.some((v) => !v.ok && v.name.startsWith('starts at the origin'))
+        && stepVerdicts.some((v) => !v.ok && v.name.startsWith('grows without a step'));
     console.log(ok
-        ? '\nCONTROL OK — the jump is caught by the origin rule, so `geometry` can fail.'
-        : '\nCONTROL FAILED — a pure jump satisfied every rule; this mode proves nothing.');
+        ? '\nCONTROL OK — the jump is caught by the origin rule and the leap by the step rule.'
+        : '\nCONTROL FAILED — a fabricated defect satisfied every rule; this mode proves nothing.');
     return ok;
 }
 
