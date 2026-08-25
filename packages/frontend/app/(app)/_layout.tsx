@@ -1,10 +1,11 @@
 import React from "react";
-import { Platform, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import { Slot, Stack, usePathname } from "expo-router";
 
 import { useAuth } from '@oxyhq/services/ui/client';
 import { ConnectionStatusToasts } from '@oxyhq/bloom/connection-status';
 import { ContentPanel } from '@oxyhq/bloom/content-panel';
+import { registerPanelSurface } from '@/components/shell/panelSurface';
 
 import { BottomBar, useBottomBarReservedSpace } from "@/components/BottomBar";
 import { DrawerOverlay } from "@/components/DrawerOverlay";
@@ -168,6 +169,11 @@ export default function AppLayout() {
                 maskColor={theme.colors.background}
                 contentStyle={{ paddingBottom: mobileWebBottomInset }}
               >
+                {/* Registers the panel's content box so anything aiming at a
+                    route that has not mounted yet has something real to
+                    measure — see `registerPanelSurface`. A plain wrapper: it
+                    adds no style, so it cannot change the layout it reports. */}
+                <View style={StyleSheet.absoluteFill} pointerEvents="box-none" ref={registerPanelSurface} />
                 {centerContent}
               </ContentPanel>
             </BloomColorScope>

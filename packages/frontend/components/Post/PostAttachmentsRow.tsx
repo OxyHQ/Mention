@@ -28,6 +28,7 @@ import {
 } from '@oxyhq/bloom/zoomable-image-gallery';
 import { useMediaFlight } from '@oxyhq/bloom/media-flight';
 import { holdAcrossTransition, peekVideoPlayer, videoPlayerKey } from '@/stores/videoPlayerRegistry';
+import { measurePanelSurface } from '@/components/shell/panelSurface';
 import { createLogger } from '@oxyhq/core/logger';
 import type { RegisterThumbHost } from '@/components/Post/Attachments/PostAttachmentMedia';
 import {
@@ -479,11 +480,25 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
           new Promise<null>((resolve) => setTimeout(() => resolve(null), FLIGHT_STEP_TIMEOUT_MS)),
         ]);
         if (from) {
+          // Aim at the COLUMN the reel paints in, not at the browser window.
+          // On desktop the shell puts every route in a ~592px centre panel
+          // while the window is 1100-1920 wide, so targeting the window flew
+          // the video to 2.4x the size it lands at and then snapped it back —
+          // measured at 385ms of full-window video before the hand-off. On
+          // mobile the panel IS the window, so this is the same rect as before.
+          //
+          // Width comes from the panel and height from the window on purpose:
+          // the reel draws the full window height while the panel keeps its
+          // gutter, so neither source describes the destination alone.
           const window = Dimensions.get('window');
+          const panel = await measurePanelSurface();
+          const destination = panel
+            ? { x: panel.x, y: 0, width: panel.width, height: window.height }
+            : { x: 0, y: 0, width: window.width, height: window.height };
           await Promise.race([
             flyTo(
               flightId,
-              { x: 0, y: 0, width: window.width, height: window.height },
+              destination,
               { kind: 'video', player, poster: posterByMediaId.get(mediaId) },
               // The reel letterboxes rather than crops, so the surface stops
               // cropping on the way in or the picture would jump at the landing.
