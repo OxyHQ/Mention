@@ -340,8 +340,22 @@ async function continuity(runs) {
  * shape check nobody has tested.
  */
 const MAX_SETTLED_MS = 1500;
-/** A single frame may not carry more than this much of the whole size change. */
-const MAX_STEP_FRACTION = 0.35;
+/**
+ * A single frame may not carry more than this much of the whole size change.
+ *
+ * Derived from BOTH measured populations rather than picked, which is the only
+ * way a threshold means anything. With the defect present the surface held its
+ * intrinsic size and then snapped: the largest per-frame change measured
+ * 96-100%, essentially the whole journey in one frame. With it fixed, the
+ * animation's own ease-out puts its fastest frames at 14-48% — the curve is
+ * quickest at the start, so a large early frame is the shape working, not
+ * failing. 70% sits between the two with margin on both sides.
+ *
+ * An earlier 35% was set before the healthy population had been measured, and
+ * it failed 3 runs in 5 on a flight whose trace was frame-for-frame perfect.
+ * A threshold tuned only against the broken case rejects the fixed one.
+ */
+const MAX_STEP_FRACTION = 0.70;
 
 function evaluateFlightShape(timeline, origin, viewport) {
     const seen = timeline.filter((s) => s.rect);
@@ -363,9 +377,18 @@ function evaluateFlightShape(timeline, origin, viewport) {
     // `videoWidth` went 0 -> 720. Monotonic the whole way, and visibly a jump.
     let biggestStep = 0, stepAt = null;
     const span = Math.max(1, seen[seen.length - 1].rect[3] - seen[0].rect[3]);
+    // Normalised by the sample's OWN elapsed time, because the sampler drops
+    // frames. A snap is a large change in one frame; a dropped frame is the
+    // same change spread over two, and without this the rule fires on the
+    // instrument instead of the app — measured, it reported 38-49% "steps" on
+    // a trace whose real per-frame maximum was 27%.
+    const gaps = seen.slice(1).map((s2, i) => s2.t - seen[i].t).sort((a, b) => a - b);
+    const typicalGap = gaps.length ? Math.max(1, gaps[Math.floor(gaps.length / 2)]) : 16;
     for (let i = 1; i < seen.length; i++) {
         if (seen[i].rect[2] < seen[i - 1].rect[2] - 2) shrank++;
-        const jump = Math.abs(seen[i].rect[3] - seen[i - 1].rect[3]) / span;
+        const elapsed = Math.max(1, seen[i].t - seen[i - 1].t);
+        const frames = Math.max(1, elapsed / typicalGap);
+        const jump = Math.abs(seen[i].rect[3] - seen[i - 1].rect[3]) / span / frames;
         if (jump > biggestStep) { biggestStep = jump; stepAt = Math.round(seen[i].t - seen[0].t); }
     }
 
@@ -388,7 +411,7 @@ function evaluateFlightShape(timeline, origin, viewport) {
           detail: settledFor === null ? 'never settled' : `${settledFor}ms at its final size before release` },
         { name: `grows without a step over ${Math.round(MAX_STEP_FRACTION * 100)}% of the journey in one frame`,
           ok: biggestStep <= MAX_STEP_FRACTION,
-          detail: `biggest single-frame height change ${Math.round(biggestStep * 100)}%${stepAt === null ? '' : ` at +${stepAt}ms`}` },
+          detail: `biggest per-frame height change ${Math.round(biggestStep * 100)}%${stepAt === null ? '' : ` at +${stepAt}ms`}` },
     ];
 }
 
