@@ -205,9 +205,14 @@ const RECORD_FRAMES = () => {
   const wire = (v) => {
     if (v.__rec) return;
     v.__rec = true;
+    // `where` is what makes the blank locatable: the flying surface lives in
+    // Bloom's portal, the feed row and the destination slide do not. Without it
+    // a fullscreen frame from the flight and one from the reel are the same
+    // reading, and the gap cannot be attributed to either end of the hand-off.
+    const where = v.closest('#bloom-portal-root') ? 'flight' : 'route';
     const tick = () => {
       const r = v.getBoundingClientRect();
-      frames.push({ t: performance.now(), ct: v.currentTime, h: Math.round(r.height), src: (v.currentSrc || '').slice(-24) });
+      frames.push({ t: performance.now(), ct: v.currentTime, h: Math.round(r.height), where, src: (v.currentSrc || '').slice(-24) });
       v.requestVideoFrameCallback(tick);
     };
     v.requestVideoFrameCallback?.(tick);
@@ -222,7 +227,7 @@ async function continuity(runs) {
   const browser = await chromium.connectOverCDP(CDP);
   const context = browser.contexts()[0];
   console.log(`\n=== mode=continuity  origin=${ORIGIN}  post=${POST}  n=${runs} ===`);
-  console.log('run | feed ct before | reel ct after | monotonic | small->full | longest blank | verdict');
+  console.log('run | feed ct | reel ct | mono | longest blank | the blank sits between        | verdict');
 
   for (let i = 0; i < runs; i++) {
     const page = await context.newPage();
@@ -279,17 +284,25 @@ async function continuity(runs) {
     // size, presented anything. A steady 30fps video paints every ~33ms, so
     // anything near that is continuous and anything near the crossing time is
     // a real blank.
-    const ordered = frames.map((f) => f.t).sort((a, b) => a - b);
-    let blank = 0;
-    for (let j = 1; j < ordered.length; j++) blank = Math.max(blank, ordered[j] - ordered[j - 1]);
+    const ordered = [...frames].sort((a, b) => a.t - b.t);
+    let blank = 0, blankFrom = null, blankTo = null;
+    for (let j = 1; j < ordered.length; j++) {
+      const d = ordered[j].t - ordered[j - 1].t;
+      if (d > blank) { blank = d; blankFrom = ordered[j - 1]; blankTo = ordered[j]; }
+    }
     const longestBlank = ordered.length > 1 ? Math.round(blank) : null;
+    // Which end of the hand-off the blank sits at, read off the two frames that
+    // bracket it rather than inferred from its size.
+    const edge = blankFrom && blankTo
+      ? `${blankFrom.where}(h${blankFrom.h}) -> ${blankTo.where}(h${blankTo.h})`
+      : '-';
 
     const monotonic = before && after ? after.ct >= before.ct - 0.05 : null;
     const verdict = !arrived ? 'NEVER ARRIVED'
       : monotonic === null ? 'NO READING'
       : monotonic ? 'carried' : 'RESTARTED';
     const cell = (v, w) => String(v).padStart(w);
-    console.log(`${cell(i + 1, 3)} | ${cell(before?.ct?.toFixed(2) ?? '-', 14)} | ${cell(after?.ct?.toFixed(2) ?? '-', 13)} | ${cell(monotonic ?? '-', 9)} | ${cell(gap === null ? '-' : gap + 'ms', 11)} | ${cell(longestBlank === null ? '-' : longestBlank + 'ms', 13)} | ${verdict}`);
+    console.log(`${cell(i + 1, 3)} | ${cell(before?.ct?.toFixed(2) ?? '-', 8)} | ${cell(after?.ct?.toFixed(2) ?? '-', 7)} | ${cell(monotonic ?? '-', 4)} | ${cell(longestBlank === null ? '-' : longestBlank + 'ms', 13)} | ${String(edge).padEnd(29)} | ${verdict}`);
     await page.close();
   }
   await browser.close();
