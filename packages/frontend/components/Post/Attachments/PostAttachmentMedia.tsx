@@ -62,16 +62,32 @@ function clampCardWidth(preferredWidth: number, availableWidth?: number): number
 }
 
 /**
- * Sizing for a single-media video/gif card. Learns the video's intrinsic aspect
- * ratio (reported by `<VideoPlayer onAspectRatio>` once metadata loads) and
- * returns the card style plus the `onAspectRatio` handler to feed back. The card
- * carries a DEFINITE height once a ratio is known — on native because the native
- * video view is otherwise unbounded and unclippable, on web so the player fills a
- * box of its own shape instead of being letterboxed inside whatever box the
- * layout hands it. Until the ratio is known web keeps the <video>'s intrinsic
- * auto-height and native falls back to the card ratio.
+ * Sizing for a video/gif card, in BOTH the forms it takes. Learns the video's
+ * intrinsic aspect ratio (reported by `<VideoPlayer onAspectRatio>` once
+ * metadata loads) and returns the card style plus the `onAspectRatio` handler to
+ * feed back.
+ *
+ * The card must carry a DEFINITE WIDTH in every form, which is the whole reason
+ * this covers the non-single case too: a native `VideoView` has no intrinsic
+ * size, so a card that sets only a height collapses to ZERO WIDTH and the video
+ * disappears — the row hugs a zero-wide child, and `overflow:hidden` cannot clip
+ * a native child into existence. Web hides it: there expo-video renders a real
+ * HTML `<video>`, a replaced element that carries an intrinsic size of its own,
+ * so a width-less box still resolves to something.
+ *
+ * - Single media: the standard card width, with the height derived from the
+ *   ratio and clamped so a very tall portrait video cannot run off-screen
+ *   (excess is letterboxed by contentFit "contain"). Until the ratio is known
+ *   web keeps the <video>'s intrinsic auto-height and native falls back to the
+ *   card ratio.
+ * - Beside anything else (another media item, a link preview, a poll, an
+ *   article, a quoted post): the standard card HEIGHT with a ratio-derived
+ *   width, which is how `PostAttachmentImage` sizes its own box and the height
+ *   the row already constrains a neighbouring link card to. Cells in the row
+ *   then line up.
  */
-function useSingleMediaCardStyle(
+function useMediaCardStyle(
+  hasSingleMedia: boolean,
   recordAspectRatio?: number,
   availableWidth?: number,
 ): {
@@ -92,6 +108,19 @@ function useSingleMediaCardStyle(
   }, [hasRecordAspectRatio]);
   const aspectRatio = recordAspectRatio ?? learnedAspectRatio;
   const cardStyle = useMemo<ViewStyle>(() => {
+    if (!hasSingleMedia) {
+      // Same box `PostAttachmentImage` computes for a row cell, so a video and
+      // an image sitting side by side match: fixed card height, width from the
+      // ratio, floored so a very tall portrait video is still tappable.
+      const preferredWidth = aspectRatio !== undefined
+        ? Math.max(MEDIA_CARD_HEIGHT * aspectRatio, MIN_WIDTH)
+        : MEDIA_CARD_WIDTH;
+      return {
+        width: clampCardWidth(preferredWidth, availableWidth),
+        height: MEDIA_CARD_HEIGHT,
+        alignSelf: 'flex-start',
+      };
+    }
     const width = clampCardWidth(MEDIA_CARD_WIDTH, availableWidth);
     if (aspectRatio === undefined) {
       return Platform.OS === 'web'
@@ -99,7 +128,7 @@ function useSingleMediaCardStyle(
         : { width, aspectRatio: SINGLE_MEDIA_FALLBACK_ASPECT_RATIO, maxHeight: SINGLE_MEDIA_MAX_HEIGHT };
     }
     return { width, aspectRatio, maxHeight: SINGLE_MEDIA_MAX_HEIGHT };
-  }, [aspectRatio, availableWidth]);
+  }, [hasSingleMedia, aspectRatio, availableWidth]);
   return { cardStyle, onAspectRatio };
 }
 
@@ -135,7 +164,6 @@ interface PostAttachmentMediaProps {
    */
   onPress?: (rect?: MeasuredRect) => void;
   hasSingleMedia?: boolean;
-  hasMultipleMedia?: boolean;
   /**
    * Content width the attachments row has to spend, so a cell can never be wider
    * than its parent. Absent means unconstrained (the cell keeps its natural size).
@@ -165,7 +193,6 @@ interface PostAttachmentVideoProps {
   mediaId?: string;
   onPress?: () => void;
   hasSingleMedia?: boolean;
-  hasMultipleMedia?: boolean;
   availableWidth?: number;
 }
 
@@ -185,29 +212,25 @@ interface PostAttachmentVideoProps {
 const PostAttachmentVideoShell: React.FC<PostAttachmentVideoProps & {
   player?: ExpoVideoPlayer;
   hostRef?: (node: View | null) => void;
-}> = ({ src, poster, aspectRatio, width, height, postId, onPress, hasSingleMedia, hasMultipleMedia, availableWidth, player, hostRef }) => {
+}> = ({ src, poster, aspectRatio, width, height, postId, onPress, hasSingleMedia, availableWidth, player, hostRef }) => {
   const recordRatio = readMediaAspectRatio({ aspectRatio, width, height });
-  const { cardStyle, onAspectRatio } = useSingleMediaCardStyle(recordRatio, availableWidth);
+  const { cardStyle, onAspectRatio } = useMediaCardStyle(Boolean(hasSingleMedia), recordRatio, availableWidth);
   return (
     <View
       ref={hostRef}
       className="bg-muted rounded-[15px] overflow-hidden"
-      style={[
-        webGrabCursorStyle,
-        hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' as const },
-        hasSingleMedia && cardStyle,
-      ]}
+      style={[webGrabCursorStyle, cardStyle]}
     >
       <VideoPlayer
         src={src}
         poster={poster}
-        style={hasSingleMedia ? styles.videoFill : styles.videoMultipleMedia}
+        style={styles.videoFill}
         contentFit="contain"
         autoPlay={true}
         loop={true}
         onPress={onPress}
         viewabilityKey={postId}
-        onAspectRatio={hasSingleMedia ? onAspectRatio : undefined}
+        onAspectRatio={onAspectRatio}
         player={player}
       />
       <MediaInsetBorder style={styles.mediaBorder} />
@@ -248,29 +271,24 @@ const PostAttachmentGif: React.FC<{
   height?: number;
   postId?: string;
   hasSingleMedia?: boolean;
-  hasMultipleMedia?: boolean;
   availableWidth?: number;
-}> = ({ src, aspectRatio, width, height, postId, hasSingleMedia, hasMultipleMedia, availableWidth }) => {
+}> = ({ src, aspectRatio, width, height, postId, hasSingleMedia, availableWidth }) => {
   const recordRatio = readMediaAspectRatio({ aspectRatio, width, height });
-  const { cardStyle, onAspectRatio } = useSingleMediaCardStyle(recordRatio, availableWidth);
+  const { cardStyle, onAspectRatio } = useMediaCardStyle(Boolean(hasSingleMedia), recordRatio, availableWidth);
   return (
     <View
       className="bg-muted rounded-[15px] overflow-hidden"
-      style={[
-        webGrabCursorStyle,
-        hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' as const },
-        hasSingleMedia && cardStyle,
-      ]}
+      style={[webGrabCursorStyle, cardStyle]}
     >
       <VideoPlayer
         src={src}
-        style={hasSingleMedia ? styles.videoFill : styles.videoMultipleMedia}
+        style={styles.videoFill}
         contentFit="contain"
         autoPlay={true}
         loop={true}
         gif={true}
         viewabilityKey={postId}
-        onAspectRatio={hasSingleMedia ? onAspectRatio : undefined}
+        onAspectRatio={onAspectRatio}
       />
       <MediaInsetBorder style={styles.mediaBorder} />
     </View>
@@ -485,7 +503,6 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
   aspectRatio,
   onPress,
   hasSingleMedia,
-  hasMultipleMedia,
   availableWidth,
   registerHost,
   sensitive,
@@ -507,7 +524,6 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
         postId={postId}
         onPress={onPress}
         hasSingleMedia={hasSingleMedia}
-        hasMultipleMedia={hasMultipleMedia}
         availableWidth={availableWidth}
       />
     );
@@ -520,7 +536,6 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
         aspectRatio={aspectRatio}
         postId={postId}
         hasSingleMedia={hasSingleMedia}
-        hasMultipleMedia={hasMultipleMedia}
         availableWidth={availableWidth}
       />
     );
@@ -573,10 +588,6 @@ const styles = StyleSheet.create({
   videoFill: {
     width: FULL_DIMENSION,
     height: FULL_DIMENSION,
-  },
-  videoMultipleMedia: {
-    height: MEDIA_CARD_HEIGHT,
-    alignSelf: 'flex-start',
   },
   // Hugs the media's intrinsic size in the horizontal row so the absolute cover
   // matches the cell exactly.

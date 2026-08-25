@@ -406,8 +406,13 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     [items, embedPrefs],
   );
 
-  const hasMultipleMedia = mediaItems.length > 1;
-  const hasSingleMedia = mediaItems.length === 1 && !items.some(item => item.type === 'poll' || item.type === 'article' || item.type === 'nested' || item.type === 'link');
+  // A media cell takes the hero form only when it is the ONLY thing in the row.
+  // Derived from what the row actually HOLDS, never from a list of item types
+  // that disqualify it: such a list is wrong the moment an attachment type is
+  // added and nothing says so. It already was — `event`, `room` and `podcast`
+  // were never on it, so a video beside one of those still claimed the hero form
+  // while its neighbour was constrained to the card height.
+  const hasSingleMedia = items.length === 1 && mediaItems.length === 1;
 
   const { measureAnchor, flyTo } = useMediaFlight();
 
@@ -800,7 +805,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               height={item.height}
               aspectRatio={item.aspectRatio}
               hasSingleMedia={hasSingleMedia}
-              hasMultipleMedia={hasMultipleMedia}
               availableWidth={availableWidth}
               sensitive={sensitive}
             />
@@ -827,7 +831,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               onPress={pressHandlerByMedia(mediaId, item.type)}
               registerHost={imageIndex !== undefined ? registerThumbHost(imageIndex) : undefined}
               hasSingleMedia={hasSingleMedia}
-              hasMultipleMedia={hasMultipleMedia}
               availableWidth={availableWidth}
               sensitive={sensitive}
             />
