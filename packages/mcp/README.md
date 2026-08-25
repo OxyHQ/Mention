@@ -167,7 +167,7 @@ Implemented in `packages/backend/src/mcp/`.
 - `src/mcp/routes/mcpConnections.routes.ts` — list/revoke
 - `src/mcp/middleware/mcpAuth.ts` — dual MCP/Oxy auth + active account resolution
 - `src/mcp/services/mcpBundleService.ts` — bundles, link tokens, Redis active account
-- `src/mcp/models/McpConnection.ts` — grants (`bundleId`, `isBundlePrimary`, `activeOxyUserId`)
+- `db/schema/mcp.ts` + `db/mcp/mcpConnectionRepository.ts` — connection grants (`bundleId`, `isBundlePrimary`, `activeOxyUserId`)
 
 ### Frontend UI
 
