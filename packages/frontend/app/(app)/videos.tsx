@@ -8,7 +8,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { useAuth, FollowButton } from '@oxyhq/services/ui/client';
-import { useVideoPlayer, type VideoPlayer } from 'expo-video';
+import { VideoView, useVideoPlayer, type VideoPlayer } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter, useLocalSearchParams, useIsFocused } from 'expo-router';
@@ -44,7 +44,7 @@ import {
     type ReelChromeParams,
     type RegisterTransportSeek,
 } from '@/hooks/useReelChrome';
-import { MediaFlightHost, hasFlight, useMediaFlight } from '@oxyhq/bloom/media-flight';
+import { MediaFlightHost, hasFlight, useMediaFlight, type MediaFlightHostProps } from '@oxyhq/bloom/media-flight';
 import { useVideoPlayerLease, videoPlayerKey, type VideoPlayerKey } from '@/stores/videoPlayerRegistry';
 import { resolveFeedDescriptor } from '@/utils/feedTelemetry';
 
@@ -253,6 +253,13 @@ interface ActiveVideoSurfaceProps extends Omit<ReelChromeParams, 'player' | 'res
  * no media id, so nothing the feed could have agreed on. It only has to be
  * unique per slide, never matched to anything.
  */
+/**
+ * The slot's own props. `MediaVideoSlotProps` is not exported from
+ * `@oxyhq/bloom/media-flight`, so it is derived from the prop that takes it —
+ * which is exported, and which stays right if the slot's shape ever changes.
+ */
+type FlightVideoSlotProps = Parameters<NonNullable<MediaFlightHostProps['renderVideo']>>[0];
+
 const reelHostId = (postId: string): string => `reel:${postId}`;
 
 const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
@@ -304,11 +311,10 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
     // argument and never asks who made it, which is what will let a surface be
     // handed one from a shared registry instead of building its own.
     const {
-        // NOT destructured any more: `videoViewRef`, `isWatched` and the two
-        // Picture-in-Picture callbacks. `MediaFlightHost` exposes no ref and no
-        // PiP props, so the reel can no longer ASK for PiP — the chrome hook
-        // still provides them and every other caller is untouched, but this
-        // screen has nothing to attach them to. Flagged, not quietly deleted.
+        videoViewRef,
+        isWatched,
+        handlePictureInPictureStart,
+        handlePictureInPictureStop,
         showPoster,
         posterFailed,
         handlePosterError,
@@ -352,17 +358,50 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
         onRegisterTransportSeek,
     });
 
+    // `style` is SPREAD: a `<video>` is a replaced element and paints at 300x150
+    // without a size. `player` passes through untouched including `null`, which
+    // is how expo-video empties a source silently.
+    const renderReelVideo = useCallback(
+        ({ player: slotPlayer, style: slotStyle, contentFit: slotFit }: FlightVideoSlotProps) => (
+            <VideoView
+                ref={videoViewRef}
+                        // `null` is forwarded verbatim — it is the instruction to unbind
+                // this element, and expo-video answers it by emptying the source
+                // without an event, which is what stops an outgoing surface
+                // pausing the one that just landed. Anything else is OUR player:
+                // Bloom never makes one, it hands back what it was given, and
+                // that is the object this component already holds, fully typed.
+                // Narrowed rather than cast, because `VideoPlayerLike` is
+                // deliberately smaller than expo-video's `VideoPlayer`.
+                player={slotPlayer === null ? null : player}
+                style={slotStyle}
+                contentFit={slotFit}
+                nativeControls={false}
+                fullscreenOptions={{ enable: false }}
+                allowsPictureInPicture={isWatched}
+                startsPictureInPictureAutomatically={isWatched}
+                onPictureInPictureStart={handlePictureInPictureStart}
+                onPictureInPictureStop={handlePictureInPictureStop}
+                onFirstFrameRender={onFirstFrameRender}
+            />
+        ),
+        [player, videoViewRef, isWatched, handlePictureInPictureStart, handlePictureInPictureStop, onFirstFrameRender],
+    );
+
     return (
         <>
-            {/* The same shared node the feed row was painting, claimed by id.
-                It is not a `VideoView` of this screen's own: one element that
-                MOVES is what keeps the decoder, the position and the playback
-                across the route change. */}
+            {/* The same shared node the feed row was painting, claimed by id:
+                one element that MOVES keeps the decoder, the position and the
+                playback across the route change. The element itself is still
+                this screen's, built in the slot below — Picture-in-Picture is
+                asked of a `VideoView` through its ref, so a host that built its
+                own would paint the button and answer nothing. */}
             <MediaFlightHost
                 id={flightId ?? reelHostId(postId)}
                 content={{ kind: 'video', player }}
                 style={StyleSheet.absoluteFill}
                 contentFit="contain"
+                renderVideo={renderReelVideo}
                 pointerEvents="none"
             />
 

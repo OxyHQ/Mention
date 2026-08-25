@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { View, Pressable, StyleSheet, Text, Platform, type StyleProp, type ViewStyle, type GestureResponderEvent } from 'react-native';
 import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer, type VideoPlayer as ExpoVideoPlayer } from 'expo-video';
-import { MediaFlightHost } from '@oxyhq/bloom/media-flight';
+import { MediaFlightHost, type MediaFlightHostProps } from '@oxyhq/bloom/media-flight';
 import { useEvent, useEventListener } from 'expo';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
@@ -74,6 +74,13 @@ interface VideoPlayerProps {
    */
   flightHostId?: string;
 }
+
+/**
+ * The slot's own props. `MediaVideoSlotProps` is not exported from
+ * `@oxyhq/bloom/media-flight`, so it is derived from the prop that takes it —
+ * which is exported, and which stays right if the slot's shape ever changes.
+ */
+type FlightVideoSlotProps = Parameters<NonNullable<MediaFlightHostProps['renderVideo']>>[0];
 
 const CONTROLS_HIDE_DELAY = 3000;
 const TIME_UPDATE_INTERVAL = 0.25;
@@ -369,6 +376,34 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     [player, duration, scheduleHideControls]
   );
 
+  // The slot Bloom paints the shared node through. `style` is SPREAD because a
+  // `<video>` is a replaced element: without a size it paints at 300x150 inside
+  // whatever box it was given. `player` goes through untouched INCLUDING `null`,
+  // which is how expo-video empties a source without an event — the silence that
+  // stops an outgoing surface pausing the one that just landed.
+  const renderFlightVideo = useCallback(
+    ({ player: slotPlayer, style: slotStyle, contentFit: slotFit }: FlightVideoSlotProps) => (
+      <VideoView
+        ref={videoViewRef}
+                // `null` is forwarded verbatim — it is the instruction to unbind
+                // this element, and expo-video answers it by emptying the source
+                // without an event, which is what stops an outgoing surface
+                // pausing the one that just landed. Anything else is OUR player:
+                // Bloom never makes one, it hands back what it was given, and
+                // that is the object this component already holds, fully typed.
+                // Narrowed rather than cast, because `VideoPlayerLike` is
+                // deliberately smaller than expo-video's `VideoPlayer`.
+                player={slotPlayer === null ? null : player}
+        style={slotStyle}
+        contentFit={slotFit}
+        nativeControls={false}
+        fullscreenOptions={{ enable: !isPreviewMode && !gif }}
+        allowsPictureInPicture={false}
+      />
+    ),
+    [player, isPreviewMode, gif],
+  );
+
   const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
 
   return (
@@ -385,7 +420,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         />
       ) : (
         // The host registers itself as the flight's anchor, so it measures the
-        // box the MEDIA paints in rather than the card around it.
+        // box the MEDIA paints in rather than the card around it. The element
+        // inside is still THIS component's: `useHlsPlayback` drives it through
+        // `videoViewRef`, and a host that built its own would leave that ref
+        // unattached — HLS and fullscreen broken on the flight path only.
         <MediaFlightHost
           id={flightHostId}
           content={{ kind: 'video', player }}
@@ -393,6 +431,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           // The shared node fills its box or letterboxes inside it; `fill`, which
           // stretches, has no equivalent there and is not what any flight uses.
           contentFit={contentFit === 'fill' ? 'cover' : contentFit}
+          renderVideo={renderFlightVideo}
           pointerEvents="none"
         />
       )}
