@@ -11,6 +11,7 @@
  *   node reel-open.mjs control    [n]  # must print all nulls; proves the rest measures something
  *   node reel-open.mjs attribute       # one run, with the network inside the window
  *   node reel-open.mjs continuity [n]  # does the video survive the route change (POST is the id)
+ *   node reel-open.mjs geometry   [n]  # does the flight LOOK like a flight, not a jump
  *
  *   CDP=http://127.0.0.1:39871  ORIGIN=https://mention.earth
  */
@@ -318,12 +319,135 @@ async function continuity(runs) {
   console.log('which is what this whole mechanism exists to prevent — and what the code without it does.');
 }
 
+/**
+ * THE PROPERTY THE CONTINUITY TABLE COULD NOT SEE.
+ *
+ * `continuity` asks whether a frame was present and whether the position
+ * carried. A surface that skipped the animation entirely and appeared at full
+ * screen passes both with full marks — measured: it did, and a viewer reported
+ * "the video went big and filled the screen" against a table that said the
+ * transition was perfect. Presence is not placement.
+ *
+ * So this judges the SHAPE of the flight from its rect timeline:
+ *   1. it starts near the origin thumbnail, not at the destination;
+ *   2. it grows without shrinking back;
+ *   3. it does not sit at full size for longer than `MAX_SETTLED_MS` before
+ *      the destination takes over.
+ *
+ * Pure on purpose — `evaluateFlightShape` takes a timeline and returns
+ * verdicts, so `geometry --selftest` can hand it a FABRICATED jump and prove
+ * the assertions fail. A shape check that has never rejected a bad shape is a
+ * shape check nobody has tested.
+ */
+const MAX_SETTLED_MS = 1500;
+
+function evaluateFlightShape(timeline, origin, viewport) {
+    const seen = timeline.filter((s) => s.rect);
+    if (seen.length === 0) return [{ name: 'a surface was painted at all', ok: false, detail: 'no flight rect was ever recorded' }];
+
+    const first = seen[0].rect;
+    const near = (a, b, tol) => Math.abs(a - b) <= tol;
+    // Generous on size (contentFit letterboxes the media inside the box) and
+    // tight on position, which is what "flew from there" actually means.
+    const startsAtOrigin = near(first[0], origin[0], 24) && near(first[1], origin[1], 24)
+        && first[2] < viewport[0] * 0.75;
+
+    let shrank = 0;
+    for (let i = 1; i < seen.length; i++) {
+        if (seen[i].rect[2] < seen[i - 1].rect[2] - 2) shrank++;
+    }
+
+    const fullIdx = seen.findIndex((s) => s.rect[2] >= viewport[0] - 8);
+    const settledFor = fullIdx === -1 ? null : Math.round(seen[seen.length - 1].t - seen[fullIdx].t);
+
+    return [
+        { name: 'starts at the origin thumbnail, not the destination', ok: startsAtOrigin,
+          detail: `first rect ${first.join(',')} against anchor ${origin.join(',')}` },
+        { name: 'grows without shrinking back', ok: shrank === 0,
+          detail: `${shrank} frame(s) narrower than the one before` },
+        { name: `sits at full size for under ${MAX_SETTLED_MS}ms`, ok: settledFor === null || settledFor <= MAX_SETTLED_MS,
+          detail: settledFor === null ? 'never reached full width' : `${settledFor}ms at full width before release` },
+    ];
+}
+
+/** The control: a timeline that never flew must be rejected by every shape rule that can see it. */
+function geometrySelfTest() {
+    const viewport = [430, 932];
+    const origin = [356, 723, 101, 180];
+    const jump = Array.from({ length: 60 }, (_, i) => ({ t: i * 16, rect: [0, 0, 430, 932] }));
+    const verdicts = evaluateFlightShape(jump, origin, viewport);
+    const rejected = verdicts.filter((v) => !v.ok);
+    console.log('SELF-TEST — a fabricated jump straight to full screen:');
+    for (const v of verdicts) console.log(`  ${v.ok ? 'passed' : 'REJECTED'}  ${v.name} — ${v.detail}`);
+    const ok = rejected.some((v) => v.name.startsWith('starts at the origin'));
+    console.log(ok
+        ? '\nCONTROL OK — the jump is caught by the origin rule, so `geometry` can fail.'
+        : '\nCONTROL FAILED — a pure jump satisfied every rule; this mode proves nothing.');
+    return ok;
+}
+
+async function geometry(runs) {
+    if (!geometrySelfTest()) process.exit(1);
+    const browser = await chromium.connectOverCDP(CDP);
+    const context = browser.contexts()[0];
+    console.log(`\n=== mode=geometry  origin=${ORIGIN}  post=${POST}  n=${runs} ===`);
+
+    for (let i = 0; i < runs; i++) {
+        const page = await context.newPage();
+        await page.setViewportSize(VIEWPORT);
+        await seedReturningVisitor(page);
+        await page.goto(`${ORIGIN}/p/${POST}`, { waitUntil: 'domcontentloaded', timeout: 300_000 });
+        await page.waitForSelector('video', { timeout: 150_000 });
+        await page.waitForFunction(() => {
+            const v = document.querySelector('video');
+            return v && !v.paused && v.currentTime > 1;
+        }, null, { timeout: 60_000 }).catch(() => {});
+        await page.waitForTimeout(1_200);
+
+        await page.evaluate(() => {
+            const samples = [];
+            window.__shape = samples;
+            const tick = () => {
+                const root = document.querySelector('#bloom-portal-root');
+                // The MEDIA, never its container: Bloom's OverlayRoot is
+                // `position: fixed; inset: 0` by design, so measuring the
+                // biggest box in the portal reports every flight as a jump.
+                const media = root && (root.querySelector('video') || root.querySelector('img'));
+                const r = media ? media.getBoundingClientRect() : null;
+                samples.push({ t: performance.now(), rect: r && r.width > 4 ? [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)] : null });
+                requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
+        });
+
+        const box = await page.locator('video').first().boundingBox();
+        const origin = [Math.round(box.x), Math.round(box.y), Math.round(box.width), Math.round(box.height)];
+        await page.evaluate(() => { window.__shape.length = 0; });
+        await page.mouse.click(Math.min(box.x + box.width / 2, VIEWPORT.width - 6), box.y + box.height / 2);
+        await page.waitForTimeout(6_000);
+        const timeline = await page.evaluate(() => window.__shape);
+
+        // The page's OWN width, not the configured viewport: a scrollbar makes
+        // them differ by ~15px, and a "reached full width" threshold derived
+        // from the wrong one is never met — the rule then passes every run
+        // without ever having been able to fail.
+        const inner = await page.evaluate(() => [innerWidth, innerHeight]);
+        const verdicts = evaluateFlightShape(timeline, origin, inner);
+        const failed = verdicts.filter((v) => !v.ok);
+        console.log(`\nrun ${i + 1} — anchor ${origin.join(',')} — ${failed.length === 0 ? 'FLIGHT' : 'NOT A FLIGHT'}`);
+        for (const v of verdicts) console.log(`  ${v.ok ? 'ok  ' : 'FAIL'}  ${v.name} — ${v.detail}`);
+        await page.close();
+    }
+    await browser.close();
+}
+
 const mode = process.argv[2] ?? 'open';
 const runs = Number(process.argv[3] ?? 10);
 if (mode === 'attribute') await attribute();
+else if (mode === 'geometry') await geometry(runs);
 else if (mode === 'continuity') await continuity(runs);
 else if (mode === 'open' || mode === 'control') await measure(mode, runs);
 else {
-    console.error(`unknown mode "${mode}" — expected open, control, attribute or continuity`);
+    console.error(`unknown mode "${mode}" — expected open, control, attribute, continuity or geometry`);
     process.exit(2);
 }
