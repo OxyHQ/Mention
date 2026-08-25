@@ -12,7 +12,7 @@
  *   node reel-open.mjs attribute       # one run, with the network inside the window
  *   node reel-open.mjs continuity [n]  # does the video survive the route change (POST is the id)
  *   node reel-open.mjs geometry   [n]  # does the flight LOOK like a flight, not a jump
- *   node reel-open.mjs landing    [n]  # does it land WHERE the destination paints (run at 2 widths)
+ *   node reel-open.mjs landing    [n]  # does the PICTURE land where the destination paints it (2 widths)
  *   node reel-open.mjs playing    [n]  # is it still PLAYING when it lands, not just in position
  *
  *   CDP=http://127.0.0.1:39871  ORIGIN=https://mention.earth
@@ -544,10 +544,23 @@ function landingSelfTest() {
     console.log('SELF-TEST — aiming at the whole window instead of the panel:');
     console.log(`  desktop 1440x900 : ${desktop.ok ? 'passed' : 'REJECTED'} — ${desktop.detail}`);
     console.log(`  mobile  430x932  : ${mobile.ok ? 'passed' : 'REJECTED'} — ${mobile.detail}`);
-    const ok = !desktop.ok && mobile.ok;
+    const responsive = !desktop.ok && mobile.ok;
+
+    // Second control, one layer in: aiming at the reel's BOX rather than at the
+    // picture inside it. A letterboxed video must be rejected and a video whose
+    // ratio fills the column must be accepted — one verdict for both would mean
+    // this compares rectangles without knowing which rectangle matters.
+    const letterboxed = evaluateLanding([358, 0, 592, 900], [401, 0, 506, 900]);
+    const filling = evaluateLanding([358, 0, 592, 900], [358, 0, 592, 900]);
+    console.log('\nSELF-TEST — aiming at the box instead of the picture inside it:');
+    console.log(`  a 9:16 video     : ${letterboxed.ok ? 'passed' : 'REJECTED'} — ${letterboxed.detail}`);
+    console.log(`  one that fills it: ${filling.ok ? 'passed' : 'REJECTED'} — ${filling.detail}`);
+    const letterbox = !letterboxed.ok && filling.ok;
+
+    const ok = responsive && letterbox;
     console.log(ok
-        ? '\nCONTROL OK — rejected on desktop and accepted on mobile, so this measures the layout and not a number.\n'
-        : '\nCONTROL FAILED — the same verdict at both widths means this cannot see a responsive mistake.\n');
+        ? '\nCONTROL OK — sees a wrong column AND a wrong rect inside the right column.\n'
+        : '\nCONTROL FAILED — one verdict for both cases means a whole class of miss is invisible.\n');
     return ok;
 }
 
@@ -568,14 +581,24 @@ async function landing(runs) {
             await page.waitForTimeout(2_500);
             await page.evaluate(() => {
                 const s = []; window.__l = s;
+                // The PICTURE, not the element. `contentFit: 'contain'` letterboxes,
+                // so a 9:16 video in the 592x900 reel column paints at 401,0,506,900
+                // while its box is at 358,0,592,900 — comparing boxes cannot see a
+                // 43px sideways slide, which is what the viewer actually watches.
+                const picture = (v) => {
+                    const r = v.getBoundingClientRect();
+                    if (r.width <= 4) return null;
+                    if (!v.videoWidth || !v.videoHeight) return null;
+                    const scale = Math.min(r.width / v.videoWidth, r.height / v.videoHeight);
+                    const w = v.videoWidth * scale, h = v.videoHeight * scale;
+                    return [Math.round(r.x + (r.width - w) / 2), Math.round(r.y + (r.height - h) / 2), Math.round(w), Math.round(h)];
+                };
                 const tick = () => {
                     const root = document.querySelector('#bloom-portal-root');
                     const m = root && root.querySelector('video');
-                    const f = m ? m.getBoundingClientRect() : null;
                     const d = [...document.querySelectorAll('video')].filter((v) => !v.closest('#bloom-portal-root'))
-                        .map((v) => v.getBoundingClientRect()).sort((a, z) => z.width * z.height - a.width * a.height)[0] || null;
-                    const box = (r) => [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)];
-                    s.push({ u: location.pathname, f: f && f.width > 4 ? box(f) : null, d: d ? box(d) : null });
+                        .sort((a, z) => z.getBoundingClientRect().width - a.getBoundingClientRect().width)[0] || null;
+                    s.push({ u: location.pathname, f: m ? picture(m) : null, d: d ? picture(d) : null });
                     requestAnimationFrame(tick);
                 };
                 requestAnimationFrame(tick);

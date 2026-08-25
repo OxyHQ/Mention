@@ -89,6 +89,20 @@ The assertion is neither "lands in the window" nor "lands in 592" — it is that
 the landing rect **matches the box the destination really paints in**, which is
 true at any width and depends on no constant.
 
+It compares the **picture**, not the element. `contentFit: 'contain'` letterboxes,
+so a 9:16 video in the 592x900 reel column paints at `401,0,506,900` while its
+box sits at `358,0,592,900`; on a phone the same video paints at `0,97,415,738`
+inside a `0,0,415,932` box. Comparing boxes is blind to a 43px sideways slide,
+and blind in the other axis on mobile.
+
+Measured 2026-08-25 against production, this passes at both widths: the flying
+surface letterboxes exactly as the destination does, so the two pictures already
+coincide. **Aiming the flight at the box is not, on its own, a visible defect** —
+the box/picture offset grows in proportion to the flight's progress, so the
+picture travels within 1.1px of the path it would take if it were animated
+directly. The rule is here because that is a property of these two ratios rather
+than a guarantee, and nothing else would notice if it stopped holding.
+
 Run it at both widths in one invocation; a single width cannot see a responsive
 mistake. Its self-test refuses to measure unless the same rule REJECTS a
 window-sized landing at 1440x900 and ACCEPTS one at 430x932.
