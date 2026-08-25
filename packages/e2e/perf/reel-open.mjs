@@ -12,7 +12,8 @@
  *   node reel-open.mjs attribute       # one run, with the network inside the window
  *   node reel-open.mjs continuity [n]  # does the video survive the route change (POST is the id)
  *   node reel-open.mjs geometry   [n]  # does the flight LOOK like a flight, not a jump
- *   node reel-open.mjs landing    [n]  # does it land WHERE the destination paints (run at 2 widths)
+ *   node reel-open.mjs landing    [n]  # does the PICTURE land where the destination paints it (2 widths)
+ *   node reel-open.mjs playing    [n]  # is it still PLAYING when it lands, not just in position
  *
  *   CDP=http://127.0.0.1:39871  ORIGIN=https://mention.earth
  */
@@ -20,7 +21,13 @@ import { chromium } from '@playwright/test';
 
 const CDP = process.env.CDP ?? 'http://127.0.0.1:39871';
 const ORIGIN = process.env.ORIGIN ?? 'https://mention.earth';
-const VIEWPORT = { width: 430, height: 932 };
+/**
+ * The viewport every mode except `landing` runs at — a phone by default, because
+ * that is what the latency baseline was taken on. Overridable, and worth
+ * overriding: a rule checked at one width says nothing about a responsive app,
+ * which is how a destination aimed at the whole window survived 27 clean runs.
+ */
+const VIEWPORT = { width: Number(process.env.VW ?? 430), height: Number(process.env.VH ?? 932) };
 /** A post carrying a video — the origin surface for `continuity`. */
 const POST = process.env.POST ?? '6a390d4ce0e49135be51eb1b';
 
@@ -537,10 +544,23 @@ function landingSelfTest() {
     console.log('SELF-TEST — aiming at the whole window instead of the panel:');
     console.log(`  desktop 1440x900 : ${desktop.ok ? 'passed' : 'REJECTED'} — ${desktop.detail}`);
     console.log(`  mobile  430x932  : ${mobile.ok ? 'passed' : 'REJECTED'} — ${mobile.detail}`);
-    const ok = !desktop.ok && mobile.ok;
+    const responsive = !desktop.ok && mobile.ok;
+
+    // Second control, one layer in: aiming at the reel's BOX rather than at the
+    // picture inside it. A letterboxed video must be rejected and a video whose
+    // ratio fills the column must be accepted — one verdict for both would mean
+    // this compares rectangles without knowing which rectangle matters.
+    const letterboxed = evaluateLanding([358, 0, 592, 900], [401, 0, 506, 900]);
+    const filling = evaluateLanding([358, 0, 592, 900], [358, 0, 592, 900]);
+    console.log('\nSELF-TEST — aiming at the box instead of the picture inside it:');
+    console.log(`  a 9:16 video     : ${letterboxed.ok ? 'passed' : 'REJECTED'} — ${letterboxed.detail}`);
+    console.log(`  one that fills it: ${filling.ok ? 'passed' : 'REJECTED'} — ${filling.detail}`);
+    const letterbox = !letterboxed.ok && filling.ok;
+
+    const ok = responsive && letterbox;
     console.log(ok
-        ? '\nCONTROL OK — rejected on desktop and accepted on mobile, so this measures the layout and not a number.\n'
-        : '\nCONTROL FAILED — the same verdict at both widths means this cannot see a responsive mistake.\n');
+        ? '\nCONTROL OK — sees a wrong column AND a wrong rect inside the right column.\n'
+        : '\nCONTROL FAILED — one verdict for both cases means a whole class of miss is invisible.\n');
     return ok;
 }
 
@@ -561,14 +581,24 @@ async function landing(runs) {
             await page.waitForTimeout(2_500);
             await page.evaluate(() => {
                 const s = []; window.__l = s;
+                // The PICTURE, not the element. `contentFit: 'contain'` letterboxes,
+                // so a 9:16 video in the 592x900 reel column paints at 401,0,506,900
+                // while its box is at 358,0,592,900 — comparing boxes cannot see a
+                // 43px sideways slide, which is what the viewer actually watches.
+                const picture = (v) => {
+                    const r = v.getBoundingClientRect();
+                    if (r.width <= 4) return null;
+                    if (!v.videoWidth || !v.videoHeight) return null;
+                    const scale = Math.min(r.width / v.videoWidth, r.height / v.videoHeight);
+                    const w = v.videoWidth * scale, h = v.videoHeight * scale;
+                    return [Math.round(r.x + (r.width - w) / 2), Math.round(r.y + (r.height - h) / 2), Math.round(w), Math.round(h)];
+                };
                 const tick = () => {
                     const root = document.querySelector('#bloom-portal-root');
                     const m = root && root.querySelector('video');
-                    const f = m ? m.getBoundingClientRect() : null;
                     const d = [...document.querySelectorAll('video')].filter((v) => !v.closest('#bloom-portal-root'))
-                        .map((v) => v.getBoundingClientRect()).sort((a, z) => z.width * z.height - a.width * a.height)[0] || null;
-                    const box = (r) => [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)];
-                    s.push({ u: location.pathname, f: f && f.width > 4 ? box(f) : null, d: d ? box(d) : null });
+                        .sort((a, z) => z.getBoundingClientRect().width - a.getBoundingClientRect().width)[0] || null;
+                    s.push({ u: location.pathname, f: m ? picture(m) : null, d: d ? picture(d) : null });
                     requestAnimationFrame(tick);
                 };
                 requestAnimationFrame(tick);
@@ -593,14 +623,187 @@ async function landing(runs) {
     await browser.close();
 }
 
+
+/**
+ * IS IT STILL PLAYING, or merely in the right place?
+ *
+ * `continuity` reads `currentTime` in the feed before the tap and in the reel
+ * after it, and calls the handover good when the second is larger. A player
+ * that arrives at the correct position and PAUSED satisfies that completely —
+ * the position is a property of where the video got to, not of whether it is
+ * still going. Measured in production: the video freezes mid-flight for ~310ms,
+ * plays for ~450ms, and then stops for good on landing, all while `currentTime`
+ * ends up higher than it started. The old rule passes every one of those runs.
+ *
+ * So this samples `paused` on whichever element is actually on screen, and
+ * judges the picture the viewer is looking at.
+ */
+
+/** The longest the picture may sit frozen at any point after the tap. */
+const FREEZE_LIMIT_MS = 150;
+/** How long after landing the video is given before it must be running. */
+const SETTLE_MS = 2_000;
+
+function evaluatePlaying(series) {
+    if (!series.length) return [{ ok: false, rule: 'anything was sampled at all', detail: 'no samples' }];
+
+    // Longest run of consecutive samples whose on-screen video is paused.
+    let worst = 0, at = 0, runStart = null;
+    for (const sample of series) {
+        if (sample.paused) {
+            runStart ??= sample.t;
+            if (sample.t - runStart > worst) { worst = sample.t - runStart; at = runStart; }
+        } else runStart = null;
+    }
+
+    const tail = series[series.length - 1];
+    const settled = series.filter((sample) => sample.t >= tail.t - SETTLE_MS);
+    const advanced = settled.length > 1 ? tail.ct - settled[0].ct : 0;
+
+    return [
+        {
+            ok: worst <= FREEZE_LIMIT_MS,
+            rule: `the picture is never frozen for more than ${FREEZE_LIMIT_MS}ms`,
+            detail: worst ? `longest freeze ${worst}ms starting at +${at}ms` : 'never frozen',
+        },
+        {
+            ok: !tail.paused,
+            rule: 'it is still playing once it has landed',
+            detail: tail.paused ? `PAUSED at +${tail.t}ms, ct=${tail.ct}` : `playing at +${tail.t}ms`,
+        },
+        {
+            ok: advanced > 0,
+            rule: 'and the position is still advancing',
+            detail: `ct moved ${advanced.toFixed(2)}s over the last ${SETTLE_MS}ms`,
+        },
+    ];
+}
+
+/**
+ * The control has to show two things, and the second is the reason this mode
+ * exists: that the new rules REJECT a paused landing, and that the rule
+ * `continuity` already had ACCEPTS it. A defect no existing check can see is
+ * the only kind worth adding a check for.
+ */
+function playingSelfTest() {
+    const healthy = [];
+    const frozenMidFlight = [];
+    const landedPaused = [];
+    for (let t = 0; t <= 3_000; t += 20) {
+        const ct = 4 + t / 1000;
+        healthy.push({ t, paused: false, ct });
+        frozenMidFlight.push({ t, paused: t > 200 && t < 600, ct: t > 200 && t < 600 ? 4.2 : ct });
+        landedPaused.push({ t, paused: t > 900, ct: t > 900 ? 4.9 : ct });
+    }
+    const verdict = (series) => evaluatePlaying(series).every((v) => v.ok);
+    // What `continuity` asks: did the position end up higher than it started?
+    const positionAdvanced = (series) => series[series.length - 1].ct > series[0].ct;
+
+    console.log('SELF-TEST:');
+    console.log(`  a healthy run                    : ${verdict(healthy) ? 'passed' : 'REJECTED'}`);
+    console.log(`  frozen 400ms mid-flight          : ${verdict(frozenMidFlight) ? 'passed' : 'REJECTED'}`);
+    console.log(`  lands in position and PAUSED     : ${verdict(landedPaused) ? 'passed' : 'REJECTED'}`);
+    console.log(`  ...and what continuity says of it: ${positionAdvanced(landedPaused) ? 'PASSED — the position advanced' : 'rejected'}`);
+    const ok = verdict(healthy) && !verdict(frozenMidFlight) && !verdict(landedPaused) && positionAdvanced(landedPaused);
+    console.log(ok
+        ? '\nCONTROL OK — rejects a paused landing that the position rule accepts.\n'
+        : '\nCONTROL FAILED — this measures nothing the older rule did not.\n');
+    return ok;
+}
+
+/** Records `paused` and `currentTime` of whatever element is on screen. */
+const RECORD_PLAYING = () => {
+    window.__p = [];
+    const t0 = performance.now();
+    const tick = () => {
+        const onScreen = [...document.querySelectorAll('video')]
+            .map((v) => ({ v, r: v.getBoundingClientRect() }))
+            .filter((x) => x.r.width > 4 && x.r.height > 4)
+            .sort((a, b) => b.r.width * b.r.height - a.r.width * a.r.height)[0];
+        if (onScreen) {
+            window.__p.push({
+                t: Math.round(performance.now() - t0),
+                paused: onScreen.v.paused,
+                ct: Number(onScreen.v.currentTime.toFixed(2)),
+                route: location.pathname,
+            });
+        }
+        requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+};
+
+async function playingRun(context, { injectPause }) {
+    const page = await context.newPage();
+    await page.setViewportSize(VIEWPORT);
+    await seedReturningVisitor(page);
+    await page.goto(`${ORIGIN}/p/${POST}`, { waitUntil: 'domcontentloaded', timeout: 300_000 });
+    await page.waitForSelector('video', { timeout: 200_000 });
+    await page.evaluate(() => document.querySelector('video')?.scrollIntoView({ block: 'center' }));
+    // A run that starts paused cannot show anything about staying played.
+    await page.waitForFunction(() => {
+        const v = document.querySelector('video');
+        return v && !v.paused && v.currentTime > 1;
+    }, null, { timeout: 90_000 }).catch(() => {});
+    const ready = await page.evaluate(() => {
+        const v = document.querySelector('video');
+        return v ? !v.paused : false;
+    });
+    if (!ready) { await page.close(); return null; }
+
+    await page.evaluate(RECORD_PLAYING);
+    const box = await page.locator('video').first().boundingBox();
+    await page.mouse.click(Math.min(box.x + box.width / 2, VIEWPORT.width - 6), box.y + box.height / 2);
+    if (injectPause) {
+        await page.waitForTimeout(250);
+        await page.evaluate(() => {
+            const onScreen = [...document.querySelectorAll('video')]
+                .sort((a, b) => b.getBoundingClientRect().height - a.getBoundingClientRect().height)[0];
+            onScreen?.pause();
+        });
+    }
+    await page.waitForTimeout(6_000);
+    const series = await page.evaluate(() => window.__p);
+    await page.close();
+    return series;
+}
+
+async function playing(runs) {
+    if (!playingSelfTest()) process.exit(1);
+    const browser = await chromium.connectOverCDP(CDP);
+    const context = browser.contexts()[0];
+
+    // A LIVE positive control, not only a fabricated one: pause the on-screen
+    // video by hand just after the tap, in the real app, and require rejection.
+    // A synthetic series proves the arithmetic; this proves the sampler is
+    // pointed at the element the viewer is looking at.
+    const injected = await playingRun(context, { injectPause: true });
+    const injectedVerdicts = injected ? evaluatePlaying(injected) : [];
+    const injectedRejected = injectedVerdicts.some((v) => !v.ok);
+    console.log(`LIVE CONTROL — paused by hand 250ms after the tap: ${injectedRejected ? 'REJECTED, as it must be' : 'PASSED — the sampler is not watching the video the viewer sees'}`);
+    if (!injectedRejected) { process.exit(1); }
+
+    console.log(`\n=== mode=playing  origin=${ORIGIN}  post=${POST}  n=${runs}  viewport=${VIEWPORT.width}x${VIEWPORT.height} ===`);
+    for (let i = 0; i < runs; i++) {
+        const series = await playingRun(context, { injectPause: false });
+        if (!series) { console.log(`\nrun ${i + 1} — skipped, the feed video never started`); continue; }
+        console.log(`\nrun ${i + 1} — ${series.length} samples`);
+        for (const v of evaluatePlaying(series)) {
+            console.log(`  ${v.ok ? 'ok   ' : 'FAIL '} ${v.rule} — ${v.detail}`);
+        }
+    }
+    process.exit(0);
+}
+
 const mode = process.argv[2] ?? 'open';
 const runs = Number(process.argv[3] ?? 10);
 if (mode === 'attribute') await attribute();
 else if (mode === 'geometry') await geometry(runs);
 else if (mode === 'landing') await landing(runs);
+else if (mode === 'playing') await playing(runs);
 else if (mode === 'continuity') await continuity(runs);
 else if (mode === 'open' || mode === 'control') await measure(mode, runs);
 else {
-    console.error(`unknown mode "${mode}" — expected open, control, attribute, continuity, geometry or landing`);
+    console.error(`unknown mode "${mode}" — expected open, control, attribute, continuity, geometry, landing or playing`);
     process.exit(2);
 }
