@@ -59,8 +59,13 @@ fi
 #
 # So: ahead is allowed, behind is not. Forgetting `bun install` leaves the
 # committed file BEHIND the reproduction or missing edges, and both still fail.
-git show HEAD:bun.lock >/tmp/committed-bun.lock
-if bun .github/scripts/compare-lockfile-resolutions.mjs /tmp/committed-bun.lock bun.lock; then
+# This run gets its own copy, not a fixed path: several agents and CI jobs can
+# run this on one machine at once, and a shared /tmp filename means one run
+# silently compares against a lockfile another run wrote from a different tree.
+committed_lockfile="$(mktemp)"
+trap 'rm -f "${committed_lockfile}"' EXIT
+git show HEAD:bun.lock >"${committed_lockfile}"
+if bun .github/scripts/compare-lockfile-resolutions.mjs "${committed_lockfile}" bun.lock; then
   echo "::notice::bun.lock differs from a clean resolve only by being ahead on some edges; accepted."
   exit 0
 fi
