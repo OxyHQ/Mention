@@ -24,7 +24,13 @@ cd packages/e2e/perf
 node reel-open.mjs control 2    # sanity first: must print all nulls
 node reel-open.mjs open 10      # the measurement
 node reel-open.mjs attribute    # one run, with the network inside the window
+node reel-open.mjs continuity 5 # does the video survive the route change
+node reel-open.mjs geometry 5   # does the flight look like a flight
+node reel-open.mjs landing 2    # does it land where the destination paints
 ```
+
+The `--window-size` above is for `open`; `landing` sets its own viewports and
+needs the window big enough to hold the largest of them.
 
 `CDP` (default `http://127.0.0.1:39871`) and `ORIGIN` (default
 `https://mention.earth`) are environment variables.
@@ -47,6 +53,41 @@ Real Chrome answers `probably`, and `MediaSource.isTypeSupported(...)` is
 `../package.json`'s `install-browser` script installs exactly the browser this
 harness must not use. It is there for the gate in `../tests`, which does not
 play video.
+
+## `landing` — does it land where the destination paints
+
+`geometry` judges the *shape* of a flight and never its endpoint, so a flight
+that grew perfectly smoothly to the wrong box passed every rule it has. That is
+what shipped: on desktop the surface flew to the whole window while `/videos`
+paints in a ~592px column.
+
+The assertion is neither "lands in the window" nor "lands in 592" — it is that
+the landing rect **matches the box the destination really paints in**, which is
+true at any width and depends on no constant.
+
+Run it at both widths in one invocation; a single width cannot see a responsive
+mistake. Its self-test refuses to measure unless the same rule REJECTS a
+window-sized landing at 1440x900 and ACCEPTS one at 430x932.
+
+### The formula the destination uses, measured
+
+Production, real Chrome, four viewports. Panel column read by walking up from
+the feed video; painted box read on `/videos` after the surface let go:
+
+| viewport  | `/videos` paints | panel x,width | window height |
+|-----------|------------------|---------------|---------------|
+| 430x932   | `0,0,415,932`    | `0`, `415`    | 932           |
+| 1100x900  | `98,0,592,900`   | `98`, `592`   | 900           |
+| 1440x900  | `358,0,592,900`  | `358`, `592`  | 900           |
+| 1920x1080 | `598,0,592,1080` | `598`, `592`  | 1080          |
+
+Two things worth keeping. The column is **592px at every desktop width** and
+only its offset moves, so a destination derived from the window is wrong by
+1.9x at 1100 and 3.2x at 1920 — and exactly right on a phone, where the panel
+IS the window, which is why phone-width measurements cannot see this class of
+bug at all. And the height is **never the panel's**: the panel measures
+1181-1401px tall in every run above because it scrolls, while the route draws
+the window height. Width and height come from different sources on purpose.
 
 ## What the numbers mean
 
