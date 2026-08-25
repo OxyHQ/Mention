@@ -15,7 +15,9 @@ import {
   DEFAULT_ASPECT_RATIO,
 } from '@oxyhq/bloom/image-aspect-ratio-cache';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
-import type { MeasuredRect } from '@oxyhq/bloom/zoomable-image-gallery';
+import { useMediaFlight, type MeasuredRect } from '@oxyhq/bloom/media-flight';
+import { useVideoPlayerLease, videoPlayerKey } from '@/stores/videoPlayerRegistry';
+import type { VideoPlayer as ExpoVideoPlayer } from 'expo-video';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 /**
@@ -153,22 +155,42 @@ interface PostAttachmentMediaProps {
   sensitive?: boolean;
 }
 
-const PostAttachmentVideo: React.FC<{
+interface PostAttachmentVideoProps {
   src: string;
   poster?: string;
   aspectRatio?: number;
   width?: number;
   height?: number;
   postId?: string;
+  mediaId?: string;
   onPress?: () => void;
   hasSingleMedia?: boolean;
   hasMultipleMedia?: boolean;
   availableWidth?: number;
-}> = ({ src, poster, aspectRatio, width, height, postId, onPress, hasSingleMedia, hasMultipleMedia, availableWidth }) => {
+}
+
+/**
+ * The card around a feed video, in the two forms it takes.
+ *
+ * A video that can be opened fullscreen borrows its player from the shared
+ * registry and registers itself as a flight anchor, so tapping it hands the
+ * SAME decoder to the reels screen instead of starting a second one. A video
+ * that cannot — no post id, no media id, so nothing to key an identity on —
+ * keeps building its own player exactly as before.
+ *
+ * They are two components rather than one with a branch because both the lease
+ * and the anchor are hooks, and a hook cannot be called conditionally. The
+ * shared body below is what they have in common.
+ */
+const PostAttachmentVideoShell: React.FC<PostAttachmentVideoProps & {
+  player?: ExpoVideoPlayer;
+  hostRef?: (node: View | null) => void;
+}> = ({ src, poster, aspectRatio, width, height, postId, onPress, hasSingleMedia, hasMultipleMedia, availableWidth, player, hostRef }) => {
   const recordRatio = readMediaAspectRatio({ aspectRatio, width, height });
   const { cardStyle, onAspectRatio } = useSingleMediaCardStyle(recordRatio, availableWidth);
   return (
     <View
+      ref={hostRef}
       className="bg-muted rounded-[15px] overflow-hidden"
       style={[
         webGrabCursorStyle,
@@ -186,11 +208,35 @@ const PostAttachmentVideo: React.FC<{
         onPress={onPress}
         viewabilityKey={postId}
         onAspectRatio={hasSingleMedia ? onAspectRatio : undefined}
+        player={player}
       />
       <MediaInsetBorder style={styles.mediaBorder} />
     </View>
   );
 };
+
+/**
+ * The flight-capable form. `postId` and `mediaId` are required here, not
+ * optional: they ARE the identity the registry and the flight layer agree on,
+ * and the caller has already checked for them.
+ */
+const FlyableVideo: React.FC<PostAttachmentVideoProps & { postId: string; mediaId: string }> = (props) => {
+  const flightId = videoPlayerKey(props.postId, props.mediaId);
+  const player = useVideoPlayerLease(flightId, props.src);
+  const { registerAnchor } = useMediaFlight();
+  // Callback ref rather than an effect: the anchor must be measurable the
+  // moment the row is on screen, and a tap can come one frame later.
+  const hostRef = useCallback(
+    (node: View | null) => registerAnchor(flightId, node),
+    [registerAnchor, flightId],
+  );
+  return <PostAttachmentVideoShell {...props} player={player} hostRef={hostRef} />;
+};
+
+const PostAttachmentVideo: React.FC<PostAttachmentVideoProps> = (props) =>
+  props.postId && props.mediaId
+    ? <FlyableVideo {...props} postId={props.postId} mediaId={props.mediaId} />
+    : <PostAttachmentVideoShell {...props} />;
 
 // Inline looping muted GIF rendered as an mp4 video (like X/Meta). Mirrors
 // PostAttachmentVideo's container/sizing, but with gif semantics: always muted,
@@ -433,6 +479,7 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
   alt,
   poster,
   postId,
+  mediaId,
   width,
   height,
   aspectRatio,
@@ -453,6 +500,7 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
       <PostAttachmentVideo
         src={src}
         poster={poster}
+        mediaId={mediaId}
         width={width}
         height={height}
         aspectRatio={aspectRatio}

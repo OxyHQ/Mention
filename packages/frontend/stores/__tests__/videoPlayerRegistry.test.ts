@@ -1,0 +1,407 @@
+/**
+ * The lifetime half of the shared video player registry: which key gets which
+ * player object, and when that player is released.
+ *
+ * Both failure directions are asserted in the SAME test wherever they share a
+ * setup, because a reference count is the kind of logic that passes a
+ * one-sided test with its comparison inverted. "Released at zero" alone is
+ * satisfied by releasing on every call; "not released while a holder remains"
+ * alone is satisfied by never releasing at all. Only the pair pins the count.
+ *
+ * Nothing here touches a real decoder — `createVideoPlayer` is faked. What is
+ * being measured is the bookkeeping, which is entirely ours; whether the native
+ * object actually frees its hardware is expo-video's contract, not this file's.
+ */
+
+import React from 'react';
+import TestRenderer from 'react-test-renderer';
+
+const mockError = jest.fn();
+
+jest.mock('@oxyhq/core/logger', () => ({
+    ...jest.requireActual('@oxyhq/core/logger'),
+    createLogger: () => ({ error: (...args: unknown[]) => mockError(...args) }),
+}));
+
+interface FakePlayer {
+    readonly id: number;
+    readonly source: string;
+    releaseCount: number;
+    release: () => void;
+}
+
+// Prefixed `mock` so the hoisted `jest.mock` factory below may reference it.
+const mockVideo = {
+    created: [] as FakePlayer[],
+    releaseThrows: false,
+};
+
+jest.mock('expo-video', () => ({
+    createVideoPlayer: (source: string): FakePlayer => {
+        const player: FakePlayer = {
+            id: mockVideo.created.length,
+            source,
+            releaseCount: 0,
+            release: () => {
+                player.releaseCount += 1;
+                if (mockVideo.releaseThrows) throw new Error('already released');
+            },
+        };
+        mockVideo.created.push(player);
+        return player;
+    },
+}));
+
+import {
+    __resetVideoPlayerRegistry,
+    acquireVideoPlayer,
+    holdAcrossTransition,
+    releaseTransitionHold,
+    peekVideoPlayer,
+    useVideoPlayerLease,
+    useVideoPlayerRegistry,
+    videoPlayerKey,
+    type VideoPlayerKey,
+} from '../videoPlayerRegistry';
+
+const acquire = (key: VideoPlayerKey, source: string) =>
+    useVideoPlayerRegistry.getState().acquire(key, source);
+
+const entryFor = (key: VideoPlayerKey) => useVideoPlayerRegistry.getState().entries[key];
+
+const KEY = videoPlayerKey('post-1', 'media-1');
+const OTHER_KEY = videoPlayerKey('post-1', 'media-2');
+const SOURCE = 'https://cdn.example/one.m3u8';
+
+beforeEach(() => {
+    // A hold outlives a test by design, so it has to be cleared between them.
+    releaseTransitionHold(videoPlayerKey('post-1', 'media-1'));
+    releaseTransitionHold(videoPlayerKey('post-1', 'media-2'));
+    __resetVideoPlayerRegistry();
+    mockVideo.created.length = 0;
+    mockVideo.releaseThrows = false;
+    mockError.mockClear();
+});
+
+describe('videoPlayerKey', () => {
+    it('identifies the media, so one post with two videos is two players', () => {
+        expect(videoPlayerKey('post-1', 'media-1')).not.toBe(videoPlayerKey('post-1', 'media-2'));
+        expect(videoPlayerKey('post-1', 'media-1')).toBe(videoPlayerKey('post-1', 'media-1'));
+    });
+});
+
+describe('acquiring', () => {
+    it('hands the second consumer the SAME player, built once', () => {
+        const first = acquire(KEY, SOURCE);
+        const second = acquire(KEY, SOURCE);
+
+        expect(second.player).toBe(first.player);
+        expect(mockVideo.created).toHaveLength(1);
+        expect(entryFor(KEY).refCount).toBe(2);
+    });
+
+    it('gives a different key its own player', () => {
+        const first = acquire(KEY, SOURCE);
+        const other = acquire(OTHER_KEY, 'https://cdn.example/two.m3u8');
+
+        expect(other.player).not.toBe(first.player);
+        expect(mockVideo.created).toHaveLength(2);
+    });
+
+    it('does NOT rebuild a live player when a later acquire names another source', () => {
+        // Rebuilding is the behaviour this registry exists to avoid: it is what
+        // `useVideoPlayer` does on a source change, and it drops the decoder and
+        // the position mid-playback. A different video goes through
+        // `player.replaceAsync`, which is the consumer's call to make.
+        const first = acquire(KEY, SOURCE);
+        const second = acquire(KEY, 'https://cdn.example/switched.m3u8');
+
+        expect(second.player).toBe(first.player);
+        expect(mockVideo.created).toHaveLength(1);
+        expect(entryFor(KEY).source).toBe(SOURCE);
+    });
+});
+
+describe('reference counting', () => {
+    it('releases only once the LAST lease lets go', () => {
+        const first = acquire(KEY, SOURCE);
+        const second = acquire(KEY, SOURCE);
+        const player = first.player as unknown as FakePlayer;
+
+        first.release();
+
+        // The control for the assertion below: a count that released eagerly
+        // would already be at 1 here, and a `VideoView` still pointing at this
+        // player would be holding a freed shared object.
+        expect(player.releaseCount).toBe(0);
+        expect(entryFor(KEY).refCount).toBe(1);
+
+        second.release();
+
+        expect(player.releaseCount).toBe(1);
+        expect(entryFor(KEY)).toBeUndefined();
+    });
+
+    it('releases a single-holder player as soon as that holder lets go', () => {
+        const only = acquire(KEY, SOURCE);
+        const player = only.player as unknown as FakePlayer;
+
+        expect(player.releaseCount).toBe(0);
+        only.release();
+
+        expect(player.releaseCount).toBe(1);
+        expect(entryFor(KEY)).toBeUndefined();
+    });
+
+    it('counts three holders down one at a time', () => {
+        const leases = [acquire(KEY, SOURCE), acquire(KEY, SOURCE), acquire(KEY, SOURCE)];
+        const player = leases[0].player as unknown as FakePlayer;
+
+        expect(entryFor(KEY).refCount).toBe(3);
+        leases[0].release();
+        expect(entryFor(KEY).refCount).toBe(2);
+        leases[1].release();
+        expect(entryFor(KEY).refCount).toBe(1);
+        expect(player.releaseCount).toBe(0);
+
+        leases[2].release();
+        expect(player.releaseCount).toBe(1);
+    });
+
+    it('lets a key be acquired again after it was fully released, with a fresh player', () => {
+        const first = acquire(KEY, SOURCE);
+        first.release();
+
+        const second = acquire(KEY, SOURCE);
+
+        // A stranded entry would be the leak's quiet form: the key survives with
+        // a dead player and every later video for that media is unplayable.
+        expect(second.player).not.toBe(first.player);
+        expect(mockVideo.created).toHaveLength(2);
+        expect(entryFor(KEY).refCount).toBe(1);
+    });
+});
+
+describe('over-release', () => {
+    it('spends a lease exactly once, however many times it is released', () => {
+        const first = acquire(KEY, SOURCE);
+        const second = acquire(KEY, SOURCE);
+        const player = first.player as unknown as FakePlayer;
+
+        first.release();
+        first.release();
+        first.release();
+
+        // The whole reason `release` lives on the lease rather than taking a
+        // key: three calls from one holder must not spend the OTHER holder's
+        // reference and free a player it is still rendering.
+        expect(player.releaseCount).toBe(0);
+        expect(entryFor(KEY).refCount).toBe(1);
+
+        second.release();
+        expect(player.releaseCount).toBe(1);
+    });
+
+    it('does not release the player twice when the last lease is released twice', () => {
+        const only = acquire(KEY, SOURCE);
+        const player = only.player as unknown as FakePlayer;
+
+        only.release();
+        only.release();
+
+        expect(player.releaseCount).toBe(1);
+    });
+
+    it('survives a lease released after the registry was reset', () => {
+        const only = acquire(KEY, SOURCE);
+        const player = only.player as unknown as FakePlayer;
+
+        __resetVideoPlayerRegistry();
+        expect(player.releaseCount).toBe(1);
+
+        expect(() => only.release()).not.toThrow();
+        expect(player.releaseCount).toBe(1);
+    });
+});
+
+describe('a player whose release throws', () => {
+    it('reports it and still drops the entry, so the key is not stranded', () => {
+        mockVideo.releaseThrows = true;
+        const only = acquire(KEY, SOURCE);
+
+        expect(() => only.release()).not.toThrow();
+        expect(entryFor(KEY)).toBeUndefined();
+        expect(mockError).toHaveBeenCalledWith(
+            'Releasing a video player threw',
+            expect.any(Error),
+            { key: KEY },
+        );
+
+        mockVideo.releaseThrows = false;
+        expect(acquire(KEY, SOURCE).player).toBeDefined();
+    });
+});
+
+describe('store reactivity', () => {
+    it('notifies subscribers when a key appears and when it goes', () => {
+        // Consumers read the registry through zustand (`useSyncExternalStore`)
+        // rather than a module-level map, because the React Compiler freezes
+        // external mutable state read from a memoized position. A subscription
+        // that never fires would mean a surface rendering against a released
+        // player.
+        const seen: number[] = [];
+        const unsubscribe = useVideoPlayerRegistry.subscribe((state) => {
+            seen.push(Object.keys(state.entries).length);
+        });
+
+        const only = acquire(KEY, SOURCE);
+        only.release();
+        unsubscribe();
+
+        expect(seen).toEqual([1, 0]);
+    });
+});
+
+describe('reaching the registry from outside a component', () => {
+    it('acquires the same player the store action does, and counts it', () => {
+        const first = acquireVideoPlayer(KEY, SOURCE);
+        const second = acquireVideoPlayer(KEY, SOURCE);
+
+        expect(second.player).toBe(first.player);
+        expect(entryFor(KEY).refCount).toBe(2);
+        expect(mockVideo.created).toHaveLength(1);
+    });
+
+    it('peeks without taking a reference', () => {
+        // The distinction the whole read exists for: a tap handler asking what
+        // the row under the finger is playing must not become a holder of it,
+        // or the player would outlive every surface by one.
+        const only = acquireVideoPlayer(KEY, SOURCE);
+
+        expect(peekVideoPlayer(KEY)).toBe(only.player);
+        expect(entryFor(KEY).refCount).toBe(1);
+
+        only.release();
+        expect(entryFor(KEY)).toBeUndefined();
+    });
+
+    it('peeks null for a key nobody holds', () => {
+        expect(peekVideoPlayer(KEY)).toBeNull();
+    });
+});
+
+describe('useVideoPlayerLease', () => {
+    /** Minimal host: the hook's whole contract is what it returns and when it lets go. */
+    function Surface({ id, source }: { id: VideoPlayerKey; source: string }) {
+        seen.push(useVideoPlayerLease(id, source) as unknown as FakePlayer);
+        return null;
+    }
+    let seen: FakePlayer[] = [];
+    beforeEach(() => { seen = []; });
+
+    it('hands the player back on the FIRST render, not a commit later', () => {
+        // A surface that mounted without a player and adopted one afterwards
+        // would restart the video at the moment this exists to make seamless.
+        TestRenderer.act(() => { TestRenderer.create(React.createElement(Surface, { id: KEY, source: SOURCE })); });
+
+        expect(seen).toHaveLength(1);
+        expect(seen[0]).toBe(entryFor(KEY).player);
+    });
+
+    it('keeps the same player across re-renders and releases on unmount', () => {
+        let tree: TestRenderer.ReactTestRenderer | null = null;
+        TestRenderer.act(() => { tree = TestRenderer.create(React.createElement(Surface, { id: KEY, source: SOURCE })); });
+        const player = seen[0];
+        TestRenderer.act(() => { tree!.update(React.createElement(Surface, { id: KEY, source: SOURCE })); });
+
+        expect(seen[1]).toBe(player);
+        expect(player.releaseCount).toBe(0);
+
+        TestRenderer.act(() => { tree!.unmount(); });
+        expect(player.releaseCount).toBe(1);
+        expect(entryFor(KEY)).toBeUndefined();
+    });
+
+    it('lets two surfaces share one player, and the first to go does not take it', () => {
+        // This is the hand-off in miniature: the feed row and the reel slide are
+        // both mounted for a moment, and the origin unmounting must not free the
+        // decoder the destination is rendering.
+        let feed: TestRenderer.ReactTestRenderer | null = null;
+        let reel: TestRenderer.ReactTestRenderer | null = null;
+        TestRenderer.act(() => { feed = TestRenderer.create(React.createElement(Surface, { id: KEY, source: SOURCE })); });
+        TestRenderer.act(() => { reel = TestRenderer.create(React.createElement(Surface, { id: KEY, source: SOURCE })); });
+
+        const player = seen[0];
+        expect(seen[1]).toBe(player);
+        expect(mockVideo.created).toHaveLength(1);
+        expect(entryFor(KEY).refCount).toBe(2);
+
+        TestRenderer.act(() => { feed!.unmount() });
+        expect(player.releaseCount).toBe(0);
+        expect(entryFor(KEY).refCount).toBe(1);
+
+        TestRenderer.act(() => { reel!.unmount() });
+        expect(player.releaseCount).toBe(1);
+    });
+});
+
+describe('holding a player across a route change', () => {
+    /** The gap this exists for, as the sequence that produced it. */
+    it('survives the origin unmounting before the destination mounts', () => {
+        const feed = acquireVideoPlayer(KEY, SOURCE);
+        const player = feed.player as unknown as FakePlayer;
+
+        holdAcrossTransition(KEY, SOURCE);   // the tap
+        feed.release();                      // the origin route unmounts
+
+        // Without the hold this is where the count reached zero and the player
+        // was destroyed, so the destination built a fresh one starting at 0.
+        expect(player.releaseCount).toBe(0);
+        expect(entryFor(KEY).refCount).toBe(1);
+
+        const reel = acquireVideoPlayer(KEY, SOURCE);
+        expect(reel.player).toBe(feed.player);
+        expect(mockVideo.created).toHaveLength(1);
+    });
+
+    it('is let go once a real owner has one, and never through zero', () => {
+        holdAcrossTransition(KEY, SOURCE);
+        const player = entryFor(KEY).player as unknown as FakePlayer;
+
+        const owner = acquireVideoPlayer(KEY, SOURCE);
+        releaseTransitionHold(KEY);
+
+        expect(entryFor(KEY).refCount).toBe(1);
+        expect(player.releaseCount).toBe(0);
+
+        owner.release();
+        expect(player.releaseCount).toBe(1);
+    });
+
+    it('holds at most one, so a hand-off that never lands strands one player', () => {
+        holdAcrossTransition(KEY, SOURCE);
+        const first = entryFor(KEY).player as unknown as FakePlayer;
+
+        holdAcrossTransition(OTHER_KEY, 'https://cdn.example/two.m3u8');
+
+        // The previous hold is spent by the new one: a transition is a single
+        // user action, so two live holds would mean a decoder nobody will free.
+        expect(first.releaseCount).toBe(1);
+        expect(entryFor(KEY)).toBeUndefined();
+        expect(entryFor(OTHER_KEY).refCount).toBe(1);
+    });
+
+    it('ignores a release for a key it is not holding', () => {
+        holdAcrossTransition(KEY, SOURCE);
+        releaseTransitionHold(OTHER_KEY);
+
+        expect(entryFor(KEY).refCount).toBe(1);
+    });
+
+    it('re-holding the same key does not stack references', () => {
+        holdAcrossTransition(KEY, SOURCE);
+        holdAcrossTransition(KEY, SOURCE);
+
+        expect(entryFor(KEY).refCount).toBe(1);
+    });
+});
