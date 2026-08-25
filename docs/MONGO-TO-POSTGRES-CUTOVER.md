@@ -19,7 +19,7 @@ what happened and where to look for the detail.
   when Postgres is empty (PR #650, floor corrected in PR #652,
   `packages/backend/src/scripts/assertPostgresPopulated.ts`), and a task refuses
   readiness unless the deploy's migration one-shot has brought the schema
-  current (`packages/backend/src/db/migrationLedger.ts`).
+  current (`packages/backend/src/db/migrationsFolder.ts`).
 - Mongo was then removed in stages: the web task stopped opening it and it left
   the readiness gate (PR #667), the unused models and scripts went (PR #678),
   the local Compose stack was repointed at Postgres (PR #689), and the backfill
@@ -34,7 +34,8 @@ what happened and where to look for the detail.
   Read that, not this file, before adding a table or a column.
 - The 24-hex ids in `text` id columns are ported Mongo ObjectIds. New rows get
   uuid v7. The two spaces interleave under text collation, which is why no
-  chronological query may order or page by id — see `db/ids.ts` and
+  chronological query may order or page by id — see the id helpers in the
+  external `@oxyhq/db` package (not a file in this repo) and
   `mtn/feed/CursorBuilder.ts`.
 - PostGIS is a privileged prerequisite on any NEW database: the application role
   cannot install it even on a database it owns, so a fresh target needs an
