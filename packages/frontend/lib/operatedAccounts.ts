@@ -33,10 +33,14 @@ const ACCOUNT_ACT_AS_PERMISSION = 'account:act_as';
  * would be a second copy of Oxy's role→permission map and free to drift the moment
  * a role is added.
  *
- * `isActAsEligibleKind` rather than `kind !== 'personal'`: it is the predicate Oxy
- * itself gates the session switch on, so a kind Oxy adds later is handled by it
- * instead of silently inheriting whichever branch a local list happened to put it
- * in.
+ * A named predicate rather than `kind !== 'personal'`: a kind Oxy adds later is
+ * handled by it instead of silently inheriting whichever branch a local list
+ * happened to put it in.
+ *
+ * It is NOT the predicate the session switch gates on. Oxy split that question in
+ * two — a person may switch into an `organization` or `project`, while an
+ * application may be delegated to act as a `bot` as well — and speaking with an
+ * account's voice is the delegation half.
  *
  * **An absent `callerMembership` reads as NOT operated**, even though the node
  * appearing in the caller's own account list implies some access. `AccountNode`
