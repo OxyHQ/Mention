@@ -14,6 +14,7 @@
  *   node reel-open.mjs geometry   [n]  # does the flight LOOK like a flight, not a jump
  *   node reel-open.mjs landing    [n]  # does the PICTURE land where the destination paints it (2 widths)
  *   node reel-open.mjs playing    [n]  # is it still PLAYING when it lands, not just in position
+ *   node reel-open.mjs pip           # does the Picture-in-Picture button actually do anything
  *
  *   CDP=http://127.0.0.1:39871  ORIGIN=https://mention.earth
  */
@@ -907,15 +908,112 @@ async function playing(runs) {
     process.exit(0);
 }
 
+
+/**
+ * DOES THE PICTURE-IN-PICTURE BUTTON DO ANYTHING?
+ *
+ * It is painted from `showPipButton` and acts through a ref, so a ref that is
+ * never attached makes the press a silent no-op — no error, no log, and every
+ * gate green. That regressed once already, when claiming the shared media node
+ * took this screen's `VideoView` away.
+ *
+ * This lives here and not in jest for a measured reason: `expo-video` cannot be
+ * imported under jest at all (it throws reading `prototype`, having no native
+ * module), so a unit test would have to mock the whole package — and would then
+ * be asserting that a jest double recorded a call, which reads like proof of
+ * behaviour and is not. `document.pictureInPictureElement` in a real browser is
+ * the authoritative answer and involves no doubles.
+ *
+ * The trade is honest and worth stating: this cannot run in CI, so the source
+ * gate in `app/(app)/__tests__/reelPictureInPictureWiring.test.ts` stays as the
+ * cheap always-on version and this is the one that actually proves it.
+ */
+async function pictureInPicture() {
+    const browser = await chromium.connectOverCDP(CDP);
+    const context = browser.contexts()[0];
+    const page = await context.newPage();
+    await serveLocalBuild(page);
+    await page.bringToFront();
+    await page.setViewportSize(VIEWPORT);
+    await seedReturningVisitor(page);
+    await page.goto(`${ORIGIN}/p/${POST}`, { waitUntil: 'domcontentloaded', timeout: 300_000 });
+    await page.waitForSelector('video', { timeout: 200_000 });
+    await page.evaluate(() => document.querySelector('video')?.scrollIntoView({ block: 'center' }));
+    await page.waitForTimeout(3_000);
+
+    const support = await page.evaluate(() => ({
+        api: typeof document.exitPictureInPicture === 'function',
+        enabled: document.pictureInPictureEnabled !== false,
+        already: document.pictureInPictureElement !== null,
+    }));
+    console.log(`\n=== mode=pip  origin=${ORIGIN}  viewport=${VIEWPORT.width}x${VIEWPORT.height} ===`);
+    console.log(`browser: API ${support.api ? 'present' : 'MISSING'}, ${support.enabled ? 'enabled' : 'DISABLED'}, already in PiP: ${support.already}`);
+    if (!support.api || !support.enabled || support.already) {
+        console.log('CANNOT MEASURE — a browser that cannot do PiP, or was already in it, answers nothing about the button.');
+        process.exit(1);
+    }
+
+    const box = await page.locator('video').first().boundingBox();
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForTimeout(4_000);
+    if (!(await page.evaluate(() => location.pathname.startsWith('/videos')))) {
+        console.log('CANNOT MEASURE — the tap did not open the reel.');
+        process.exit(1);
+    }
+
+    const inPip = () => page.evaluate(() => document.pictureInPictureElement !== null);
+
+    // NEGATIVE CONTROL FIRST, in the same run: press a DIFFERENT control and
+    // require that PiP does NOT open. Without it, "in PiP afterwards" could be
+    // true for any reason at all and this would report a pass for a button it
+    // never tested.
+    const other = page.getByLabel(/^(Pause|Play)$/).first();
+    if (!(await other.isVisible({ timeout: 8_000 }).catch(() => false))) {
+        // A control that did not run is not a control. Refuse rather than
+        // report a pass whose negative half never happened.
+        console.log('  CANNOT MEASURE — the control button was not found, so the negative control never ran.');
+        process.exit(1);
+    }
+    await other.click();
+    await page.waitForTimeout(1_500);
+    if (await inPip()) {
+        console.log('  control — pressing PLAY/PAUSE opened PiP: this measures the browser, not the button');
+        process.exit(1);
+    }
+    console.log('  control — pressing PLAY/PAUSE leaves PiP closed, as it must');
+    await other.click();
+    await page.waitForTimeout(1_000);
+
+    const button = page.getByLabel('Picture in Picture').first();
+    if (!(await button.isVisible({ timeout: 8_000 }).catch(() => false))) {
+        console.log('  FAIL  the button is not there at all');
+        process.exit(1);
+    }
+    const before = await inPip();
+    await button.click();
+    await page.waitForTimeout(2_500);
+    const after = await page.evaluate(() => ({
+        on: document.pictureInPictureElement !== null,
+        tag: document.pictureInPictureElement?.tagName ?? null,
+    }));
+    console.log(`  pictureInPictureElement: before=${before} after=${after.on}${after.tag ? ` (${after.tag})` : ''}`);
+    console.log(after.on && !before
+        ? '  ok    the button opens Picture-in-Picture'
+        : '  FAIL  the button paints and does nothing');
+    await page.close();
+    process.exit(after.on && !before ? 0 : 1);
+}
+
 const mode = process.argv[2] ?? 'open';
 const runs = Number(process.argv[3] ?? 10);
 if (mode === 'attribute') await attribute();
 else if (mode === 'geometry') await geometry(runs);
 else if (mode === 'landing') await landing(runs);
 else if (mode === 'playing') await playing(runs);
+else if (mode === 'pip') await pictureInPicture();
 else if (mode === 'continuity') await continuity(runs);
 else if (mode === 'open' || mode === 'control') await measure(mode, runs);
 else {
-    console.error(`unknown mode "${mode}" — expected open, control, attribute, continuity, geometry, landing or playing`);
+    console.error(`unknown mode "${mode}" — expected open, control, attribute, continuity, geometry, landing, playing or pip`);
     process.exit(2);
 }
