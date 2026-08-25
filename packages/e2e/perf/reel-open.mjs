@@ -688,8 +688,44 @@ const FREEZE_LIMIT_MS = 150;
 /** How long after landing the video is given before it must be running. */
 const SETTLE_MS = 2_000;
 
+/**
+ * The slowest sampling that can still SEE the thing being ruled on.
+ *
+ * To catch a 150ms freeze you need a sample inside every 150ms window, so the
+ * gap between samples has to be at most half the limit. Derived from the limit
+ * rather than written as a number, because the two must move together: raise
+ * the limit and this rises with it.
+ */
+const SAMPLE_GAP_LIMIT_MS = FREEZE_LIMIT_MS / 2;
+
+/** The median gap between consecutive samples — the run's real sampling rate. */
+function medianGap(series) {
+    if (series.length < 2) return Infinity;
+    const gaps = [];
+    for (let i = 1; i < series.length; i++) gaps.push(series[i].t - series[i - 1].t);
+    gaps.sort((a, b) => a - b);
+    const middle = gaps.length >> 1;
+    return gaps.length % 2 ? gaps[middle] : (gaps[middle - 1] + gaps[middle]) / 2;
+}
+
 function evaluatePlaying(series) {
     if (!series.length) return [{ ok: false, rule: 'anything was sampled at all', detail: 'no samples' }];
+
+    // A VACUITY FLOOR, and the reason it is here rather than in the reporting:
+    // three of six runs once passed on 17-21 samples over six seconds, which is
+    // ~3Hz. At that rate a 150ms freeze falls entirely between two samples, so
+    // `never frozen` meant "never looked". A run that cannot see the defect is
+    // not a pass — it is not a measurement, and it has to be impossible to read
+    // as a green one.
+    const gap = medianGap(series);
+    if (gap > SAMPLE_GAP_LIMIT_MS) {
+        return [{
+            ok: false,
+            notMeasured: true,
+            rule: `sampled often enough to see a ${FREEZE_LIMIT_MS}ms freeze`,
+            detail: `median gap ${gap}ms over ${series.length} samples — needs <= ${SAMPLE_GAP_LIMIT_MS}ms`,
+        }];
+    }
 
     // Longest run of consecutive samples whose on-screen video is paused.
     let worst = 0, at = 0, runStart = null;
@@ -740,6 +776,13 @@ function playingSelfTest() {
         landedPaused.push({ t, paused: t > 900, ct: t > 900 ? 4.9 : ct });
     }
     const verdict = (series) => evaluatePlaying(series).every((v) => v.ok);
+    const wasMeasured = (series) => !evaluatePlaying(series).some((v) => v.notMeasured);
+
+    // Sampled every 300ms — too slow to see the 150ms rule it would be judged
+    // against. Same picture as `healthy`, so the only thing separating them is
+    // the rate, which is the point.
+    const tooSlow = [];
+    for (let t = 0; t <= 3_000; t += 300) tooSlow.push({ t, paused: false, ct: 4 + t / 1000 });
     // What `continuity` asks: did the position end up higher than it started?
     const positionAdvanced = (series) => series[series.length - 1].ct > series[0].ct;
 
@@ -748,10 +791,13 @@ function playingSelfTest() {
     console.log(`  frozen 400ms mid-flight          : ${verdict(frozenMidFlight) ? 'passed' : 'REJECTED'}`);
     console.log(`  lands in position and PAUSED     : ${verdict(landedPaused) ? 'passed' : 'REJECTED'}`);
     console.log(`  ...and what continuity says of it: ${positionAdvanced(landedPaused) ? 'PASSED — the position advanced' : 'rejected'}`);
-    const ok = verdict(healthy) && !verdict(frozenMidFlight) && !verdict(landedPaused) && positionAdvanced(landedPaused);
+    console.log(`  a clean run sampled at 3Hz    : ${wasMeasured(tooSlow) ? 'counted as a PASS' : 'NOT MEASURED'}`);
+    console.log(`  the same picture at 60Hz      : ${wasMeasured(healthy) ? 'measured' : 'NOT MEASURED — the floor is too strict'}`);
+    const floorWorks = !wasMeasured(tooSlow) && wasMeasured(healthy);
+    const ok = verdict(healthy) && !verdict(frozenMidFlight) && !verdict(landedPaused) && positionAdvanced(landedPaused) && floorWorks;
     console.log(ok
-        ? '\nCONTROL OK — rejects a paused landing that the position rule accepts.\n'
-        : '\nCONTROL FAILED — this measures nothing the older rule did not.\n');
+        ? '\nCONTROL OK — rejects a paused landing the position rule accepts, and refuses to judge a run it sampled too slowly to see.\n'
+        : '\nCONTROL FAILED — either it measures nothing new, or the vacuity floor does not separate a rate from a result.\n');
     return ok;
 }
 
@@ -781,6 +827,10 @@ const RECORD_PLAYING = () => {
 async function playingRun(context, { injectPause }) {
     const page = await context.newPage();
     await serveLocalBuild(page);
+    // `requestAnimationFrame` is throttled to a few Hz in a tab the compositor
+    // is not drawing, which is what produced 17-sample runs: the sampler is a
+    // rAF loop, so an unfocused page silently measures at ~3Hz.
+    await page.bringToFront();
     await page.setViewportSize(VIEWPORT);
     await seedReturningVisitor(page);
     await page.goto(`${ORIGIN}/p/${POST}`, { waitUntil: 'domcontentloaded', timeout: 300_000 });
@@ -839,15 +889,21 @@ async function playing(runs) {
     if (!noticed) { process.exit(1); }
 
     console.log(`\n=== mode=playing  origin=${ORIGIN}  post=${POST}  n=${runs}  viewport=${VIEWPORT.width}x${VIEWPORT.height} ===`);
+    let measured = 0, notMeasured = 0;
     for (let i = 0; i < runs; i++) {
         const run = await playingRun(context, { injectPause: false });
         if (!run) { console.log(`\nrun ${i + 1} — skipped, the feed video never started`); continue; }
         const series = run.series;
-        console.log(`\nrun ${i + 1} — ${series.length} samples`);
-        for (const v of evaluatePlaying(series)) {
-            console.log(`  ${v.ok ? 'ok   ' : 'FAIL '} ${v.rule} — ${v.detail}`);
+        const verdicts = evaluatePlaying(series);
+        const unmeasured = verdicts.some((v) => v.notMeasured);
+        if (unmeasured) notMeasured += 1; else measured += 1;
+        console.log(`\nrun ${i + 1} — ${series.length} samples, median gap ${medianGap(series)}ms`);
+        for (const v of verdicts) {
+            console.log(`  ${v.notMeasured ? 'NOT MEASURED' : v.ok ? 'ok   ' : 'FAIL '} ${v.rule} — ${v.detail}`);
         }
     }
+    console.log(`\n${measured} run(s) actually measured, ${notMeasured} too slowly sampled to judge.`);
+    if (notMeasured) console.log('Read the verdicts above as covering only the measured runs.');
     process.exit(0);
 }
 

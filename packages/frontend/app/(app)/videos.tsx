@@ -44,7 +44,7 @@ import {
     type ReelChromeParams,
     type RegisterTransportSeek,
 } from '@/hooks/useReelChrome';
-import { hasFlight, useMediaFlight } from '@oxyhq/bloom/media-flight';
+import { MediaFlightHost, hasFlight, useMediaFlight, type MediaFlightHostProps } from '@oxyhq/bloom/media-flight';
 import { useVideoPlayerLease, videoPlayerKey, type VideoPlayerKey } from '@/stores/videoPlayerRegistry';
 import { resolveFeedDescriptor } from '@/utils/feedTelemetry';
 
@@ -248,8 +248,28 @@ interface ActiveVideoSurfaceProps extends Omit<ReelChromeParams, 'player' | 'res
  * HANDED. It does not build one, so the same body serves the ordinary slide and
  * the one that adopted a video mid-flight from the feed.
  */
+/**
+ * The id a slide claims its media node under when it has no flight identity —
+ * no media id, so nothing the feed could have agreed on. It only has to be
+ * unique per slide, never matched to anything.
+ */
+/**
+ * The slot's own props. `MediaVideoSlotProps` is not exported from
+ * `@oxyhq/bloom/media-flight`, so it is derived from the prop that takes it —
+ * which is exported, and which stays right if the slot's shape ever changes.
+ */
+type FlightVideoSlotProps = Parameters<NonNullable<MediaFlightHostProps['renderVideo']>>[0];
+
+const reelHostId = (postId: string): string => `reel:${postId}`;
+
 const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
     player: VideoPlayer;
+    /**
+     * The id this slide shares with the feed row it came from. Present whenever
+     * the media can be identified; a slide without one still paints through a
+     * host, under an id nothing else claims.
+     */
+    flightId?: VideoPlayerKey;
     /**
      * Whether activating this slide rewinds it. True everywhere except the slide
      * that adopted a playing video: rewinding that one would undo the entire
@@ -259,6 +279,7 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
     onFirstFrameRender?: () => void;
 }> = ({
     player,
+    flightId,
     restartOnActivate,
     onFirstFrameRender,
     postId,
@@ -337,13 +358,24 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
         onRegisterTransportSeek,
     });
 
-    return (
-        <>
+    // `style` is SPREAD: a `<video>` is a replaced element and paints at 300x150
+    // without a size. `player` passes through untouched including `null`, which
+    // is how expo-video empties a source silently.
+    const renderReelVideo = useCallback(
+        ({ player: slotPlayer, style: slotStyle, contentFit: slotFit }: FlightVideoSlotProps) => (
             <VideoView
                 ref={videoViewRef}
-                player={player}
-                style={styles.video}
-                contentFit="contain"
+                        // `null` is forwarded verbatim — it is the instruction to unbind
+                // this element, and expo-video answers it by emptying the source
+                // without an event, which is what stops an outgoing surface
+                // pausing the one that just landed. Anything else is OUR player:
+                // Bloom never makes one, it hands back what it was given, and
+                // that is the object this component already holds, fully typed.
+                // Narrowed rather than cast, because `VideoPlayerLike` is
+                // deliberately smaller than expo-video's `VideoPlayer`.
+                player={slotPlayer === null ? null : player}
+                style={slotStyle}
+                contentFit={slotFit}
                 nativeControls={false}
                 fullscreenOptions={{ enable: false }}
                 allowsPictureInPicture={isWatched}
@@ -351,6 +383,26 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
                 onPictureInPictureStart={handlePictureInPictureStart}
                 onPictureInPictureStop={handlePictureInPictureStop}
                 onFirstFrameRender={onFirstFrameRender}
+            />
+        ),
+        [player, videoViewRef, isWatched, handlePictureInPictureStart, handlePictureInPictureStop, onFirstFrameRender],
+    );
+
+    return (
+        <>
+            {/* The same shared node the feed row was painting, claimed by id:
+                one element that MOVES keeps the decoder, the position and the
+                playback across the route change. The element itself is still
+                this screen's, built in the slot below — Picture-in-Picture is
+                asked of a `VideoView` through its ref, so a host that built its
+                own would paint the button and answer nothing. */}
+            <MediaFlightHost
+                id={flightId ?? reelHostId(postId)}
+                content={{ kind: 'video', player }}
+                style={StyleSheet.absoluteFill}
+                contentFit="contain"
+                renderVideo={renderReelVideo}
+                pointerEvents="none"
             />
 
             {showPoster && (
@@ -491,6 +543,7 @@ const AdoptedPlayerSurface: React.FC<ActiveVideoSurfaceProps & { flightId: Video
     return (
         <ReelSurface
             {...props}
+            flightId={flightId}
             player={player}
             restartOnActivate={false}
             onFirstFrameRender={handleFirstFrame}

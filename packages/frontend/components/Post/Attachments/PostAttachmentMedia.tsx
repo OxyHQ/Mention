@@ -15,7 +15,7 @@ import {
   DEFAULT_ASPECT_RATIO,
 } from '@oxyhq/bloom/image-aspect-ratio-cache';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
-import { useMediaFlight, type MeasuredRect } from '@oxyhq/bloom/media-flight';
+import type { MeasuredRect } from '@oxyhq/bloom/media-flight';
 import { useVideoPlayerLease, videoPlayerKey } from '@/stores/videoPlayerRegistry';
 import type { VideoPlayer as ExpoVideoPlayer } from 'expo-video';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
@@ -211,13 +211,12 @@ interface PostAttachmentVideoProps {
  */
 const PostAttachmentVideoShell: React.FC<PostAttachmentVideoProps & {
   player?: ExpoVideoPlayer;
-  hostRef?: (node: View | null) => void;
-}> = ({ src, poster, aspectRatio, width, height, postId, onPress, hasSingleMedia, availableWidth, player, hostRef }) => {
+  flightHostId?: string;
+}> = ({ src, poster, aspectRatio, width, height, postId, onPress, hasSingleMedia, availableWidth, player, flightHostId }) => {
   const recordRatio = readMediaAspectRatio({ aspectRatio, width, height });
   const { cardStyle, onAspectRatio } = useMediaCardStyle(Boolean(hasSingleMedia), recordRatio, availableWidth);
   return (
     <View
-      ref={hostRef}
       className="bg-muted rounded-[15px] overflow-hidden"
       style={[webGrabCursorStyle, cardStyle]}
     >
@@ -232,6 +231,7 @@ const PostAttachmentVideoShell: React.FC<PostAttachmentVideoProps & {
         viewabilityKey={postId}
         onAspectRatio={onAspectRatio}
         player={player}
+        flightHostId={flightHostId}
       />
       <MediaInsetBorder style={styles.mediaBorder} />
     </View>
@@ -246,14 +246,10 @@ const PostAttachmentVideoShell: React.FC<PostAttachmentVideoProps & {
 const FlyableVideo: React.FC<PostAttachmentVideoProps & { postId: string; mediaId: string }> = (props) => {
   const flightId = videoPlayerKey(props.postId, props.mediaId);
   const player = useVideoPlayerLease(flightId, props.src);
-  const { registerAnchor } = useMediaFlight();
-  // Callback ref rather than an effect: the anchor must be measurable the
-  // moment the row is on screen, and a tap can come one frame later.
-  const hostRef = useCallback(
-    (node: View | null) => registerAnchor(flightId, node),
-    [registerAnchor, flightId],
-  );
-  return <PostAttachmentVideoShell {...props} player={player} hostRef={hostRef} />;
+  // No `registerAnchor` here: the host registers ITSELF, and registering the
+  // card as well would leave two anchors for one id, the outer one measuring a
+  // box the media does not fill.
+  return <PostAttachmentVideoShell {...props} player={player} flightHostId={flightId} />;
 };
 
 const PostAttachmentVideo: React.FC<PostAttachmentVideoProps> = (props) =>
