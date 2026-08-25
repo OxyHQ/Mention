@@ -168,6 +168,45 @@ export function peekVideoPlayer(key: VideoPlayerKey): VideoPlayer | null {
 }
 
 /**
+ * THE ONE MOMENT NO COMPONENT OWNS THE PLAYER.
+ *
+ * A hand-off between two screens has a gap in the middle: the origin's surface
+ * unmounts with the route that held its lease, and the destination has not
+ * mounted to take one yet. Measured, that gap is real and the count reaches
+ * ZERO inside it — the registry does exactly what it is asked, releases the
+ * player, and the destination then builds a fresh one that starts at zero. The
+ * flying surface keeps painting because the web element outlives the object,
+ * which is what made this look like it was working.
+ *
+ * So a transition takes a reference of its own, and holds it across the gap.
+ *
+ * At most ONE is held app-wide: a transition is a single user action, and
+ * bounding it to one means a hand-off that never completes strands one decoder
+ * rather than accumulating them. Taking a new hold releases the previous.
+ */
+let transitionHold: VideoPlayerLease | null = null;
+
+export function holdAcrossTransition(key: VideoPlayerKey, source: string): void {
+    if (transitionHold?.key === key) return;
+    const previous = transitionHold;
+    transitionHold = acquireVideoPlayer(key, source);
+    previous?.release();
+}
+
+/**
+ * Let go of the transition's reference, once a real owner has taken one.
+ *
+ * Called from `useVideoPlayerLease` AFTER it has acquired, never before: the
+ * count has to go 1 → 2 → 1, and releasing first would take it through zero and
+ * destroy the very player being handed over.
+ */
+export function releaseTransitionHold(key: VideoPlayerKey): void {
+    if (transitionHold?.key !== key) return;
+    transitionHold.release();
+    transitionHold = null;
+}
+
+/**
  * Hold the registry's player for `key` for as long as the calling component is
  * mounted, and let go on unmount.
  *
@@ -187,7 +226,13 @@ export function peekVideoPlayer(key: VideoPlayerKey): VideoPlayer | null {
  * row pointed at another video would otherwise keep the previous player.
  */
 export function useVideoPlayerLease(key: VideoPlayerKey, source: string): VideoPlayer {
-    const [lease] = useState(() => acquireVideoPlayer(key, source));
+    const [lease] = useState(() => {
+        const own = acquireVideoPlayer(key, source);
+        // A real owner has arrived, so the transition's bridge is done. After
+        // acquiring, never before — see `releaseTransitionHold`.
+        releaseTransitionHold(key);
+        return own;
+    });
     useEffect(() => () => lease.release(), [lease]);
     return lease.player;
 }

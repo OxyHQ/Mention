@@ -222,7 +222,7 @@ async function continuity(runs) {
   const browser = await chromium.connectOverCDP(CDP);
   const context = browser.contexts()[0];
   console.log(`\n=== mode=continuity  origin=${ORIGIN}  post=${POST}  n=${runs} ===`);
-  console.log('run | feed ct before | reel ct after | monotonic | biggest frame gap | verdict');
+  console.log('run | feed ct before | reel ct after | monotonic | small->full | longest blank | verdict');
 
   for (let i = 0; i < runs; i++) {
     const page = await context.newPage();
@@ -272,12 +272,24 @@ async function continuity(runs) {
     const firstBig = big.length ? big[0] : null;
     const gap = lastSmall && firstBig ? Math.round(firstBig.t - lastSmall.t) : null;
 
+    // The question the criterion actually asks: was a frame ever ABSENT?
+    // `gap` above is the small→fullscreen crossing, which a flying surface
+    // spends the whole animation inside — it measures the travel, not a hole.
+    // This measures the hole: the longest interval in which NO element, of any
+    // size, presented anything. A steady 30fps video paints every ~33ms, so
+    // anything near that is continuous and anything near the crossing time is
+    // a real blank.
+    const ordered = frames.map((f) => f.t).sort((a, b) => a - b);
+    let blank = 0;
+    for (let j = 1; j < ordered.length; j++) blank = Math.max(blank, ordered[j] - ordered[j - 1]);
+    const longestBlank = ordered.length > 1 ? Math.round(blank) : null;
+
     const monotonic = before && after ? after.ct >= before.ct - 0.05 : null;
     const verdict = !arrived ? 'NEVER ARRIVED'
       : monotonic === null ? 'NO READING'
       : monotonic ? 'carried' : 'RESTARTED';
     const cell = (v, w) => String(v).padStart(w);
-    console.log(`${cell(i + 1, 3)} | ${cell(before?.ct?.toFixed(2) ?? '-', 14)} | ${cell(after?.ct?.toFixed(2) ?? '-', 13)} | ${cell(monotonic ?? '-', 9)} | ${cell(gap === null ? '-' : gap + 'ms', 17)} | ${verdict}`);
+    console.log(`${cell(i + 1, 3)} | ${cell(before?.ct?.toFixed(2) ?? '-', 14)} | ${cell(after?.ct?.toFixed(2) ?? '-', 13)} | ${cell(monotonic ?? '-', 9)} | ${cell(gap === null ? '-' : gap + 'ms', 11)} | ${cell(longestBlank === null ? '-' : longestBlank + 'ms', 13)} | ${verdict}`);
     await page.close();
   }
   await browser.close();

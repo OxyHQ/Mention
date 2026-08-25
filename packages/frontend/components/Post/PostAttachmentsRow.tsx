@@ -27,7 +27,7 @@ import {
   type MeasuredRect,
 } from '@oxyhq/bloom/zoomable-image-gallery';
 import { useMediaFlight } from '@oxyhq/bloom/media-flight';
-import { peekVideoPlayer, videoPlayerKey } from '@/stores/videoPlayerRegistry';
+import { holdAcrossTransition, peekVideoPlayer, videoPlayerKey } from '@/stores/videoPlayerRegistry';
 import { createLogger } from '@oxyhq/core/logger';
 import type { RegisterThumbHost } from '@/components/Post/Attachments/PostAttachmentMedia';
 import {
@@ -414,6 +414,16 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   // The still the flying surface shows until the destination's first frame —
   // the same poster the row is already displaying, so the hand-off cannot flash
   // a different image.
+  // The playable source per media, so a transition can re-acquire the exact
+  // video the row is showing rather than guessing one.
+  const mediaSrcById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const item of mediaItems) {
+      if (item.type === 'video') map.set(item.mediaId, item.src);
+    }
+    return map;
+  }, [mediaItems]);
+
   const posterByMediaId = useMemo(() => {
     const map = new Map<string, string | undefined>();
     for (const item of mediaItems) {
@@ -445,6 +455,13 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     const player = peekVideoPlayer(flightId);
     if (player) {
       try {
+        // Take a reference for the transition itself. Between this row
+        // unmounting with its route and the reel slide mounting to take its
+        // own, NOBODY owns the player — measured, the count reaches zero in
+        // that gap and the registry does the correct thing with it, which is
+        // to destroy the video being handed over.
+        holdAcrossTransition(flightId, mediaSrcById.get(mediaId) ?? '');
+
         // Bounded, and on purpose. `measureAnchor` resolves ONLY from inside
         // `measureInWindow`'s callback, so a host node that never calls back —
         // or that has no such method to begin with — leaves this awaiting for
@@ -476,7 +493,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     }
 
     router.push(`/videos${query}`);
-  }, [postId, mediaArray, router, measureAnchor, flyTo, posterByMediaId]);
+  }, [postId, mediaArray, router, measureAnchor, flyTo, posterByMediaId, mediaSrcById]);
 
   // Images-only subset (in render order) powering the zoom gallery. Each entry's
   // position is the index the gallery opens at when its thumbnail is tapped;

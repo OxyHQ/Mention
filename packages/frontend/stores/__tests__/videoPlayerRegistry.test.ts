@@ -55,6 +55,8 @@ jest.mock('expo-video', () => ({
 import {
     __resetVideoPlayerRegistry,
     acquireVideoPlayer,
+    holdAcrossTransition,
+    releaseTransitionHold,
     peekVideoPlayer,
     useVideoPlayerLease,
     useVideoPlayerRegistry,
@@ -72,6 +74,9 @@ const OTHER_KEY = videoPlayerKey('post-1', 'media-2');
 const SOURCE = 'https://cdn.example/one.m3u8';
 
 beforeEach(() => {
+    // A hold outlives a test by design, so it has to be cleared between them.
+    releaseTransitionHold(videoPlayerKey('post-1', 'media-1'));
+    releaseTransitionHold(videoPlayerKey('post-1', 'media-2'));
     __resetVideoPlayerRegistry();
     mockVideo.created.length = 0;
     mockVideo.releaseThrows = false;
@@ -288,7 +293,7 @@ describe('reaching the registry from outside a component', () => {
 describe('useVideoPlayerLease', () => {
     /** Minimal host: the hook's whole contract is what it returns and when it lets go. */
     function Surface({ id, source }: { id: VideoPlayerKey; source: string }) {
-        seen.push(useVideoPlayerLease(id, source));
+        seen.push(useVideoPlayerLease(id, source) as unknown as FakePlayer);
         return null;
     }
     let seen: FakePlayer[] = [];
@@ -337,5 +342,66 @@ describe('useVideoPlayerLease', () => {
 
         TestRenderer.act(() => { reel!.unmount() });
         expect(player.releaseCount).toBe(1);
+    });
+});
+
+describe('holding a player across a route change', () => {
+    /** The gap this exists for, as the sequence that produced it. */
+    it('survives the origin unmounting before the destination mounts', () => {
+        const feed = acquireVideoPlayer(KEY, SOURCE);
+        const player = feed.player as unknown as FakePlayer;
+
+        holdAcrossTransition(KEY, SOURCE);   // the tap
+        feed.release();                      // the origin route unmounts
+
+        // Without the hold this is where the count reached zero and the player
+        // was destroyed, so the destination built a fresh one starting at 0.
+        expect(player.releaseCount).toBe(0);
+        expect(entryFor(KEY).refCount).toBe(1);
+
+        const reel = acquireVideoPlayer(KEY, SOURCE);
+        expect(reel.player).toBe(feed.player);
+        expect(mockVideo.created).toHaveLength(1);
+    });
+
+    it('is let go once a real owner has one, and never through zero', () => {
+        holdAcrossTransition(KEY, SOURCE);
+        const player = entryFor(KEY).player as unknown as FakePlayer;
+
+        const owner = acquireVideoPlayer(KEY, SOURCE);
+        releaseTransitionHold(KEY);
+
+        expect(entryFor(KEY).refCount).toBe(1);
+        expect(player.releaseCount).toBe(0);
+
+        owner.release();
+        expect(player.releaseCount).toBe(1);
+    });
+
+    it('holds at most one, so a hand-off that never lands strands one player', () => {
+        holdAcrossTransition(KEY, SOURCE);
+        const first = entryFor(KEY).player as unknown as FakePlayer;
+
+        holdAcrossTransition(OTHER_KEY, 'https://cdn.example/two.m3u8');
+
+        // The previous hold is spent by the new one: a transition is a single
+        // user action, so two live holds would mean a decoder nobody will free.
+        expect(first.releaseCount).toBe(1);
+        expect(entryFor(KEY)).toBeUndefined();
+        expect(entryFor(OTHER_KEY).refCount).toBe(1);
+    });
+
+    it('ignores a release for a key it is not holding', () => {
+        holdAcrossTransition(KEY, SOURCE);
+        releaseTransitionHold(OTHER_KEY);
+
+        expect(entryFor(KEY).refCount).toBe(1);
+    });
+
+    it('re-holding the same key does not stack references', () => {
+        holdAcrossTransition(KEY, SOURCE);
+        holdAcrossTransition(KEY, SOURCE);
+
+        expect(entryFor(KEY).refCount).toBe(1);
     });
 });
