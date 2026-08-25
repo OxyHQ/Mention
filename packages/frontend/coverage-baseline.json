@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 28.45,
-      "covered": 6920,
-      "total": 24322
+      "pct": 29.58,
+      "covered": 7197,
+      "total": 24323
     },
     "branches": {
-      "pct": 23.84,
-      "covered": 4267,
-      "total": 17896
+      "pct": 25.02,
+      "covered": 4475,
+      "total": 17880
     },
     "functions": {
-      "pct": 24.92,
-      "covered": 1508,
-      "total": 6049
+      "pct": 25.76,
+      "covered": 1558,
+      "total": 6048
     },
     "lines": {
-      "pct": 29.03,
-      "covered": 6352,
-      "total": 21874
+      "pct": 30.17,
+      "covered": 6600,
+      "total": 21876
     }
   },
   "pins": {
@@ -1236,10 +1236,10 @@
       "lines": 100
     },
     "utils/embedPlayer.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 17,
+      "branches": 18,
+      "functions": 66,
+      "lines": 17
     },
     "utils/emojiData.ts": {
       "statements": 0,
@@ -1326,10 +1326,10 @@
       "lines": 100
     },
     "utils/mediaTypes.ts": {
-      "statements": 30,
-      "branches": 20,
-      "functions": 37,
-      "lines": 29
+      "statements": 55,
+      "branches": 41,
+      "functions": 50,
+      "lines": 52
     },
     "utils/mentions.ts": {
       "statements": 92,
