@@ -15,6 +15,7 @@
  *   node reel-open.mjs landing    [n]  # does the PICTURE land where the destination paints it (2 widths)
  *   node reel-open.mjs playing    [n]  # is it still PLAYING when it lands, not just in position
  *   node reel-open.mjs pip           # does the Picture-in-Picture button actually do anything
+ *   node reel-open.mjs feed       [n]  # the same, but flying from a SCROLLED feed row
  *
  *   CDP=http://127.0.0.1:39871  ORIGIN=https://mention.earth
  */
@@ -1004,6 +1005,123 @@ async function pictureInPicture() {
     process.exit(after.on && !before ? 0 : 1);
 }
 
+
+/**
+ * THE FEED, which is the screen the reporter actually uses.
+ *
+ * Every other mode opens a post-detail page, where the row is mounted once and
+ * never touched again. A feed is the opposite: rows are destroyed and rebuilt as
+ * it scrolls — measured on the anonymous home feed, 169 row nodes were created
+ * to keep about 20 on screen, and NOT ONE was reused with a different post
+ * (1282 revisits of already-tagged nodes, 0 recycled). So the danger is not an
+ * anchor pointing at a row that became another post; it is an anchor left
+ * pointing at a node that no longer exists.
+ *
+ * Which is why this asserts where the flight STARTS. A stale anchor still
+ * produces a flight — it just begins somewhere the tapped video is not.
+ */
+const ORIGIN_TOLERANCE_PX = 8;
+
+async function feedRow(runs) {
+    if (!playingSelfTest()) process.exit(1);
+    const browser = await chromium.connectOverCDP(CDP);
+    const context = browser.contexts()[0];
+    console.log(`\n=== mode=feed  origin=${ORIGIN}  n=${runs}  viewport=${VIEWPORT.width}x${VIEWPORT.height} ===`);
+
+    for (let i = 0; i < runs; i++) {
+        const page = await context.newPage();
+        await serveLocalBuild(page);
+        await page.bringToFront();
+        await page.setViewportSize(VIEWPORT);
+        await seedReturningVisitor(page);
+        await page.goto(ORIGIN, { waitUntil: 'domcontentloaded', timeout: 300_000 });
+        await page.waitForSelector('[data-post-uri]', { timeout: 200_000 });
+        await page.waitForTimeout(3_000);
+
+        // The point of this mode is a row that arrived by SCROLLING. A video
+        // already on screen at load is the post-detail case wearing a feed.
+        const atLoad = await page.evaluate(() => document.querySelectorAll('video').length);
+        // Scroll a video row into view, then STOP and let it settle. The
+        // playback authority elects the audible player from an
+        // IntersectionObserver, so a row that is scrolled past never starts —
+        // requiring "playing" while still scrolling waits for something that
+        // cannot happen, which is how this first reported 60 scrolls and no row.
+        let scrolls = 0, settled = false;
+        while (scrolls < 60 && !settled) {
+            const inView = await page.evaluate(() => {
+                const v = [...document.querySelectorAll('video')].find((x) => {
+                    const r = x.getBoundingClientRect();
+                    return r.width > 40 && r.top > 40 && r.bottom < innerHeight - 40;
+                });
+                return Boolean(v);
+            });
+            if (inView) {
+                settled = await page.waitForFunction(() => {
+                    const v = [...document.querySelectorAll('video')].find((x) => {
+                        const r = x.getBoundingClientRect();
+                        return r.width > 40 && r.top > 40 && r.bottom < innerHeight - 40;
+                    });
+                    return Boolean(v) && !v.paused && v.currentTime > 1;
+                }, null, { timeout: 8_000 }).then(() => true).catch(() => false);
+                if (settled) break;
+            }
+            await page.mouse.wheel(0, 700);
+            await page.waitForTimeout(400);
+            scrolls += 1;
+        }
+        if (!settled) {
+            console.log(`\nrun ${i + 1} — NOT MEASURED: no video row started playing after ${scrolls} scrolls`);
+            await page.close();
+            continue;
+        }
+
+        const box = await page.evaluate(() => {
+            const v = [...document.querySelectorAll('video')].find((x) => {
+                const r = x.getBoundingClientRect();
+                return r.width > 40 && r.top > 40 && r.bottom < innerHeight - 40;
+            });
+            const r = v.getBoundingClientRect();
+            return [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)];
+        });
+
+        await page.evaluate(RECORD_PLAYING);
+        await page.evaluate(() => {
+            window.__first = null;
+            const tick = () => {
+                const m = document.querySelector('#bloom-portal-root video');
+                if (m && window.__first === null) {
+                    const r = m.getBoundingClientRect();
+                    if (r.width > 4) window.__first = [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)];
+                }
+                requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
+        });
+
+        await page.mouse.click(box[0] + box[2] / 2, box[1] + box[3] / 2);
+        await page.waitForTimeout(6_000);
+
+        const { series, first, route } = await page.evaluate(() => ({
+            series: window.__p, first: window.__first, route: location.pathname,
+        }));
+        console.log(`\nrun ${i + 1} — ${scrolls} scroll(s) to reach a playing row (${atLoad} video(s) at load), ${series.length} samples, median gap ${medianGap(series)}ms`);
+        if (!route.startsWith('/videos')) {
+            console.log('  NOT MEASURED — the tap did not open the reel');
+            await page.close();
+            continue;
+        }
+        const off = first ? Math.max(...[0, 1, 2, 3].map((k) => Math.abs(first[k] - box[k]))) : null;
+        console.log(first
+            ? `  ${off <= ORIGIN_TOLERANCE_PX ? 'ok   ' : 'FAIL '} the flight starts at the row that was tapped — ${first.join(',')} against ${box.join(',')}, worst axis ${off}px`
+            : '  FAIL  no flight surface appeared at all');
+        for (const v of evaluatePlaying(series)) {
+            console.log(`  ${v.notMeasured ? 'NOT MEASURED' : v.ok ? 'ok   ' : 'FAIL '} ${v.rule} — ${v.detail}`);
+        }
+        await page.close();
+    }
+    process.exit(0);
+}
+
 const mode = process.argv[2] ?? 'open';
 const runs = Number(process.argv[3] ?? 10);
 if (mode === 'attribute') await attribute();
@@ -1011,9 +1129,10 @@ else if (mode === 'geometry') await geometry(runs);
 else if (mode === 'landing') await landing(runs);
 else if (mode === 'playing') await playing(runs);
 else if (mode === 'pip') await pictureInPicture();
+else if (mode === 'feed') await feedRow(runs);
 else if (mode === 'continuity') await continuity(runs);
 else if (mode === 'open' || mode === 'control') await measure(mode, runs);
 else {
-    console.error(`unknown mode "${mode}" — expected open, control, attribute, continuity, geometry, landing, playing or pip`);
+    console.error(`unknown mode "${mode}" — expected open, control, attribute, continuity, geometry, landing, playing, pip or feed`);
     process.exit(2);
 }
