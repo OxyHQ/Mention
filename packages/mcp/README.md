@@ -72,6 +72,11 @@ Claude Web  →  mcp.mention.earth (ECS mention-mcp)  →  api.mention.earth (EC
 | `get-scheduled-posts` | `GET /posts/scheduled` |
 | `get-saved-posts` | `GET /posts/saved` |
 
+Media for a post goes through `POST /posts/intent-media` (SSRF-safe URL fetch
+or inline base64), never Oxy `assetUpload` directly — MCP JWT callers have no
+user bearer, so intent-media uploads through the service-token
+`POST /assets/service/user-media` path instead.
+
 ### Collaborative posts
 
 - Invite up to **5 local** co-authors on `create-post` or `update-post` via `collaboratorIds` or `collaboratorHandles` (@username). The **backend** resolves handles to user IDs (MCP passes them through unchanged).

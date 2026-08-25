@@ -32,8 +32,9 @@ Always URL-encode parameter values (`encodeURIComponent` in JS).
   sheet automatically via Web Share Target. Title, text, and URL forward to
   the composer.
 - **iOS / Android (native app installed)**: Mention appears in the OS share
-  sheet through `expo-share-intent`. Shared text and URLs route to the same
-  intent endpoint.
+  sheet through `expo-share-intent` (needs `expo prebuild` after install).
+  Entry point: `lib/shareIntent.native.ts` on native, `lib/shareIntent.ts`
+  on web. Shared text and URLs route to the same intent endpoint.
 - **Image / video share**: shared media files are uploaded and attached to the
   composer automatically (a media-only share opens the composer with the
   attachment ready).
@@ -42,6 +43,8 @@ Always URL-encode parameter values (`encodeURIComponent` in JS).
 
 All parameters are optional. Unknown keys are silently dropped (logged in dev
 builds). Invalid values are dropped without breaking the rest of the intent.
+
+Parsed by `packages/frontend/utils/composeIntent.ts`.
 
 | Param | Type | Notes |
 |---|---|---|
@@ -102,7 +105,9 @@ https://mention.earth/compose?quotePostId=abc123&text=My%20take
 ```
 
 Composer renders a quote card for `abc123` (or appends the share URL if the
-post is missing/private).
+post is missing/private). Implementation: `hooks/useQuoteManager.ts` +
+`components/Compose/QuoteCard.tsx`. Wire format is `quoted_post_id`,
+top-level snake_case (not nested under `content`).
 
 ### Event prefill
 

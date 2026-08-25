@@ -54,6 +54,13 @@ Not "relabel the whole host and exclude the admin": an exclusion list is
 unbounded, and one miss publishes a real person as an account on a network
 they may not use. Asking each actor what it is needs no list.
 
+The relabelling policy lives in
+`connectors/activitypub/federationBridgePolicy.ts`; the blocklist above is a
+separate, deliberately unconsolidated policy in
+`federationBlockPolicy.ts`. Enforcement and the public transparency page
+read the SAME relabelling array. oxy-api keeps its own trust list — the two
+are not merged.
+
 ## Handles in synced text are qualified only where the result resolves
 
 A handle written on another network means the account THERE, so ingest
@@ -66,6 +73,10 @@ already means alice there and already resolves, so qualifying it would
 lengthen the body of every federated post to say what the reader could
 already act on — measured before scoping it: 1,266 of 5,000 sampled posts,
 all ordinary Mastodon content.
+
+Mastodon negative-caches failed resolutions for minutes to hours. After
+fixing a resolution bug, cache-bust by searching the full profile URL — a
+different cache key than the plain `acct:` handle.
 
 ## A thread federates through `PostCreationService.federatePublishedPost`
 
@@ -177,3 +188,22 @@ expo-video renders (`VideoView.nativeRef`), so play/pause/mute/timeUpdate
 keep coming from expo-video and hls.js only supplies bytes; the source is
 withheld from `useVideoPlayer` while hls.js is active. `hlsPlayback.native.ts`
 is inert — ExoPlayer/AVPlayer decode HLS natively.
+
+**Never gate HLS support on `canPlayType`** — Chromium answers `"maybe"` for
+`application/vnd.apple.mpegurl` and then fails to actually play it; probe
+`MediaSource.isTypeSupported` instead. `import('hls.js')` must stay a
+SINGLE call site — a second dynamic import promotes the demuxer into the
+eager `__common.js` chunk (see `~/Oxy/AGENTS.md` § Metro web chunking).
+
+The SSRF guard for every media route above (`/media/proxy`, `/media/poster`,
+`/media/gif`) is upstream — `assertSafePublicUrl`/`isBlockedIp` from
+`@oxyhq/core/server` — never a local copy in `utils/mediaResolver.ts`.
+`GET /media/poster` needs a `video/*` upstream content type; pointing it at
+an HLS playlist URL 415s. The S3 activity cache is gated on
+`FEDERATION_MEDIA_CACHE_WRITE_ENABLED`; unset means the proxy still works,
+it just never writes to S3.
+
+**A bad or missing federation service credential fails signed fetch
+silently (0 posts imported)**, and the outbox-sync cooldown makes that
+empty first sync permanent until `lastOutboxSyncAt` is cleared. Invisible
+at `LOG_LEVEL=info` — service-token failures log at `error`/`warn` only.
