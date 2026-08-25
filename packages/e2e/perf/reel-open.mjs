@@ -12,6 +12,7 @@
  *   node reel-open.mjs attribute       # one run, with the network inside the window
  *   node reel-open.mjs continuity [n]  # does the video survive the route change (POST is the id)
  *   node reel-open.mjs geometry   [n]  # does the flight LOOK like a flight, not a jump
+ *   node reel-open.mjs landing    [n]  # does it land WHERE the destination paints (run at 2 widths)
  *
  *   CDP=http://127.0.0.1:39871  ORIGIN=https://mention.earth
  */
@@ -496,13 +497,110 @@ async function geometry(runs) {
     await browser.close();
 }
 
+/**
+ * WHERE THE FLIGHT LANDS versus WHERE THE DESTINATION PAINTS.
+ *
+ * `geometry` judges the shape of the journey and says nothing about its
+ * endpoint, so a flight that grew smoothly to the wrong box passed it. On
+ * desktop the shell puts every route in a ~592px centre column while the window
+ * is 1100-1920 wide; aiming at the window flew the video to as much as 3.2x the
+ * size it lands at, held it there, and snapped it back on hand-off. Every
+ * continuity and shape rule was green throughout, because none of them ever
+ * compared the two rects.
+ *
+ * The assertion is deliberately not "lands in the window" nor "lands in 592":
+ * it is that the landing rect MATCHES the box the destination really paints in.
+ * That is true at any width and depends on no constant, which is what makes it
+ * survive the next layout change.
+ */
+const LANDING_TOLERANCE_PX = 8;
+
+function evaluateLanding(landed, painted) {
+    if (!landed) return { ok: false, detail: 'no flight surface was ever recorded' };
+    if (!painted) return { ok: false, detail: 'the destination never painted, so there is nothing to compare' };
+    const off = [0, 1, 2, 3].map((i) => Math.abs(landed[i] - painted[i]));
+    const worst = Math.max(...off);
+    return {
+        ok: worst <= LANDING_TOLERANCE_PX,
+        detail: `landed ${landed.join(',')} against painted ${painted.join(',')} — worst axis off by ${worst}px`,
+    };
+}
+
+/**
+ * The control has to give BOTH answers, or it only proves the rule can say no.
+ * Aiming at the window is wrong on desktop and right on mobile, so a rule that
+ * measures responsiveness must reject the first and accept the second.
+ */
+function landingSelfTest() {
+    const desktop = evaluateLanding([0, 0, 1425, 900], [358, 0, 592, 900]);
+    const mobile = evaluateLanding([0, 0, 415, 932], [0, 0, 415, 932]);
+    console.log('SELF-TEST — aiming at the whole window instead of the panel:');
+    console.log(`  desktop 1440x900 : ${desktop.ok ? 'passed' : 'REJECTED'} — ${desktop.detail}`);
+    console.log(`  mobile  430x932  : ${mobile.ok ? 'passed' : 'REJECTED'} — ${mobile.detail}`);
+    const ok = !desktop.ok && mobile.ok;
+    console.log(ok
+        ? '\nCONTROL OK — rejected on desktop and accepted on mobile, so this measures the layout and not a number.\n'
+        : '\nCONTROL FAILED — the same verdict at both widths means this cannot see a responsive mistake.\n');
+    return ok;
+}
+
+async function landing(runs) {
+    if (!landingSelfTest()) process.exit(1);
+    const browser = await chromium.connectOverCDP(CDP);
+    const context = browser.contexts()[0];
+    const widths = [[430, 932], [1440, 900]];
+    for (const [w, h] of widths) {
+        console.log(`=== landing  ${w}x${h}  origin=${ORIGIN} ===`);
+        for (let i = 0; i < runs; i++) {
+            const page = await context.newPage();
+            await page.setViewportSize({ width: w, height: h });
+            await seedReturningVisitor(page);
+            await page.goto(`${ORIGIN}/p/${POST}`, { waitUntil: 'domcontentloaded', timeout: 300_000 });
+            await page.waitForSelector('video', { timeout: 200_000 });
+            await page.evaluate(() => { const v = document.querySelector('video'); if (v) v.scrollIntoView({ block: 'center' }); });
+            await page.waitForTimeout(2_500);
+            await page.evaluate(() => {
+                const s = []; window.__l = s;
+                const tick = () => {
+                    const root = document.querySelector('#bloom-portal-root');
+                    const m = root && root.querySelector('video');
+                    const f = m ? m.getBoundingClientRect() : null;
+                    const d = [...document.querySelectorAll('video')].filter((v) => !v.closest('#bloom-portal-root'))
+                        .map((v) => v.getBoundingClientRect()).sort((a, z) => z.width * z.height - a.width * a.height)[0] || null;
+                    const box = (r) => [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)];
+                    s.push({ u: location.pathname, f: f && f.width > 4 ? box(f) : null, d: d ? box(d) : null });
+                    requestAnimationFrame(tick);
+                };
+                requestAnimationFrame(tick);
+            });
+            const bx = await page.locator('video').first().boundingBox();
+            await page.evaluate(() => { window.__l.length = 0; });
+            await page.mouse.click(Math.min(bx.x + bx.width / 2, w - 6), bx.y + bx.height / 2);
+            await page.waitForTimeout(7_000);
+            const { landed, painted } = await page.evaluate(() => {
+                const s = window.__l, withF = s.filter((x) => x.f);
+                // The destination's box read AFTER the surface let go, on the
+                // reel route — before that, the origin's own video is still in
+                // the document and is a different box entirely.
+                const after = s.filter((x) => !x.f && x.d && x.u.startsWith('/videos'));
+                return { landed: withF.length ? withF[withF.length - 1].f : null, painted: after.length ? after[after.length - 1].d : null };
+            });
+            const v = evaluateLanding(landed, painted);
+            console.log(`  run ${i + 1}: ${v.ok ? 'ok  ' : 'FAIL'} ${v.detail}`);
+            await page.close();
+        }
+    }
+    await browser.close();
+}
+
 const mode = process.argv[2] ?? 'open';
 const runs = Number(process.argv[3] ?? 10);
 if (mode === 'attribute') await attribute();
 else if (mode === 'geometry') await geometry(runs);
+else if (mode === 'landing') await landing(runs);
 else if (mode === 'continuity') await continuity(runs);
 else if (mode === 'open' || mode === 'control') await measure(mode, runs);
 else {
-    console.error(`unknown mode "${mode}" — expected open, control, attribute, continuity or geometry`);
+    console.error(`unknown mode "${mode}" — expected open, control, attribute, continuity, geometry or landing`);
     process.exit(2);
 }
