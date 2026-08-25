@@ -72,7 +72,24 @@ const INSTRUMENT = () => {
     setInterval(sweep, 16);
 };
 
+/**
+ * The signed-out welcome modal is a full-viewport, pointer-accepting overlay
+ * (`components/WelcomeModal.tsx`, z-index 10000) that covers the app until it
+ * is dismissed. It is gated on `welcome_modal_seen` in `localStorage`, which is
+ * PER ORIGIN — so a profile that has seen it on production has NOT seen it on a
+ * local origin, and the same harness meets a different app depending on where
+ * it points. That asymmetry cost a day of diagnosis; seeding the flag makes
+ * every origin behave like a returning visitor, which is the state worth
+ * measuring.
+ */
+async function seedReturningVisitor(page) {
+    await page.addInitScript(() => {
+        try { localStorage.setItem('welcome_modal_seen', 'true'); } catch { /* origin without storage */ }
+    });
+}
+
 async function openFeed(page) {
+    await seedReturningVisitor(page);
     await page.goto(ORIGIN, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => document.body && document.body.innerText.length > 400, null, { timeout: 45_000 });
     // Shown to a signed-out viewer on the first visit of a profile, and not
@@ -210,6 +227,7 @@ async function continuity(runs) {
   for (let i = 0; i < runs; i++) {
     const page = await context.newPage();
     await page.setViewportSize(VIEWPORT);
+    await seedReturningVisitor(page);
     await page.goto(`${ORIGIN}/p/${POST}`, { waitUntil: 'domcontentloaded', timeout: 300_000 });
     await page.waitForFunction(() => document.body && document.body.innerText.length > 200, null, { timeout: 300_000 });
     const interstitial = page.getByText('Explore the app', { exact: false }).first();
