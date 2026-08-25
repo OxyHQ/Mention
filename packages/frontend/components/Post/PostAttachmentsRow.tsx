@@ -28,6 +28,7 @@ import {
 } from '@oxyhq/bloom/zoomable-image-gallery';
 import { useMediaFlight } from '@oxyhq/bloom/media-flight';
 import { peekVideoPlayer, videoPlayerKey } from '@/stores/videoPlayerRegistry';
+import { createLogger } from '@oxyhq/core/logger';
 import type { RegisterThumbHost } from '@/components/Post/Attachments/PostAttachmentMedia';
 import {
   PostAttachmentArticle,
@@ -126,6 +127,16 @@ const areLinkPreviewsEqual = (a?: PostLinkPreview[], b?: PostLinkPreview[]): boo
   if (prev.length !== next.length) return false;
   return prev.every((preview, index) => preview.url === next[index].url);
 };
+
+const logger = createLogger('PostAttachmentsRow');
+
+/**
+ * Ceiling on each leg of the hand-off before the tap goes through regardless.
+ * Short enough that a viewer whose transition failed feels a normal tap rather
+ * than a stall, long enough that a measurement and a surface commit on a slow
+ * device still make it.
+ */
+const FLIGHT_STEP_TIMEOUT_MS = 250;
 
 const PostAttachmentsRow: React.FC<Props> = React.memo(({
   media,
@@ -419,12 +430,13 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     const mediaIndex = mediaArray.findIndex(m => String(m?.id) === String(mediaId));
     const query = mediaIndex >= 0 ? `?postId=${postId}&mediaIndex=${mediaIndex}` : `?postId=${postId}`;
 
-    // Hand the video to the shared surface BEFORE navigating, in that order and
-    // for two reasons. The surface has to be up while the origin is still
-    // mounted, because on web expo-video's `_synchronizeWithFirstVideo` copies
-    // the position from the first video element STILL MOUNTED — synchronising
-    // against an empty set silently starts the new view at zero. And the flight
-    // needs the origin's rect, which stops existing the moment the route does.
+    // AWAIT the layer, then navigate — the order is the mechanism, not politeness.
+    // `flyTo` resolves once the flying surface has actually committed, which is
+    // what puts it in expo-video's mounted set while this row is still there;
+    // on web `_synchronizeWithFirstVideo` copies the position from the first
+    // element STILL MOUNTED, and against an empty set it silently starts at
+    // zero. Bloom resolves the promise on a short timeout too, so a video that
+    // never loads delays the push briefly instead of trapping the viewer here.
     //
     // Every step degrades to a plain push: no player (the row never took a
     // lease), no anchor (virtualised away), or a media id we cannot key on all
@@ -432,17 +444,34 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     const flightId = videoPlayerKey(postId, mediaId);
     const player = peekVideoPlayer(flightId);
     if (player) {
-      const from = await measureAnchor(flightId);
-      if (from) {
-        const window = Dimensions.get('window');
-        flyTo(
-          flightId,
-          { x: 0, y: 0, width: window.width, height: window.height },
-          { kind: 'video', player, poster: posterByMediaId.get(mediaId) },
-          // The reel letterboxes rather than crops, so the surface has to stop
-          // cropping on the way in or the picture would jump at the landing.
-          { from, contentFit: 'contain', cornerRadius: 0 },
-        );
+      try {
+        // Bounded, and on purpose. `measureAnchor` resolves ONLY from inside
+        // `measureInWindow`'s callback, so a host node that never calls back —
+        // or that has no such method to begin with — leaves this awaiting for
+        // ever, and the tap that was meant to open a video does nothing at all.
+        // A transition is decoration; it must never be able to swallow the
+        // navigation it decorates, so both legs are raced and a failure of
+        // either just means no flight.
+        const from = await Promise.race([
+          measureAnchor(flightId),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), FLIGHT_STEP_TIMEOUT_MS)),
+        ]);
+        if (from) {
+          const window = Dimensions.get('window');
+          await Promise.race([
+            flyTo(
+              flightId,
+              { x: 0, y: 0, width: window.width, height: window.height },
+              { kind: 'video', player, poster: posterByMediaId.get(mediaId) },
+              // The reel letterboxes rather than crops, so the surface stops
+              // cropping on the way in or the picture would jump at the landing.
+              { from, contentFit: 'contain', cornerRadius: 0 },
+            ),
+            new Promise<void>((resolve) => setTimeout(resolve, FLIGHT_STEP_TIMEOUT_MS)),
+          ]);
+        }
+      } catch (error) {
+        logger.warn('Video flight skipped; opening the reel without it', { postId, mediaId, error });
       }
     }
 

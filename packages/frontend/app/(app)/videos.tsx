@@ -44,7 +44,7 @@ import {
     type ReelChromeParams,
     type RegisterTransportSeek,
 } from '@/hooks/useReelChrome';
-import { hasFlight, releaseFlight } from '@oxyhq/bloom/media-flight';
+import { hasFlight, useMediaFlight } from '@oxyhq/bloom/media-flight';
 import { useVideoPlayerLease, videoPlayerKey, type VideoPlayerKey } from '@/stores/videoPlayerRegistry';
 import { resolveFeedDescriptor } from '@/utils/feedTelemetry';
 
@@ -473,17 +473,21 @@ const OwnPlayerSurface: React.FC<ActiveVideoSurfaceProps> = (props) => {
  * registry rather than building one, so there is no second decoder and no seek
  * back to zero.
  *
- * The flight is released on this view's FIRST PAINTED FRAME, not when the
- * animation settles. Those are hundreds of milliseconds apart — the reel has no
- * frame to show for about a second after the tap — and releasing on the
- * animation would re-open the black gap the flight exists to close.
- * `onFirstFrameRender` may fire again later (expo-video re-emits it when the
- * video track changes), which costs nothing: releasing an id that is no longer
- * in flight is a no-op.
+ * This slide reports its own first painted frame with `handOff`, which is the
+ * documented path for "a destination that renders something other than a Bloom
+ * surface" — the reel paints expo-video's `VideoView` directly, so the
+ * `flightId`-on-`MediaSurface` shortcut does not apply to it.
+ *
+ * `handOff` rather than `releaseFlight`: called mid-flight the layer REMEMBERS
+ * it and lets the surface finish travelling, where releasing outright would
+ * make it vanish somewhere between the two rects. `onFirstFrameRender` may fire
+ * again later (expo-video re-emits it when the video track changes), which
+ * costs nothing — handing off an id that is no longer in flight is a no-op.
  */
 const AdoptedPlayerSurface: React.FC<ActiveVideoSurfaceProps & { flightId: VideoPlayerKey }> = ({ flightId, ...props }) => {
     const player = useVideoPlayerLease(flightId, props.videoUrl);
-    const handleFirstFrame = useCallback(() => releaseFlight(flightId), [flightId]);
+    const { handOff } = useMediaFlight();
+    const handleFirstFrame = useCallback(() => handOff(flightId), [handOff, flightId]);
     return (
         <ReelSurface
             {...props}
