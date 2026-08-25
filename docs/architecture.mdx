@@ -160,6 +160,11 @@ Nothing in the repo can open Mongo — models, deps, config bindings and the
 mechanism, not a pattern to resurrect for a Postgres index. History:
 `docs/MONGO-TO-POSTGRES-CUTOVER.md`; per-table conventions:
 `packages/backend/src/db/schema/CONVENTIONS.md`.
+`packages/backend/src/db/MIGRATION-CONTRACT.md` is now a historical stub
+holding two RDS facts (PostGIS privilege, the ownership-probe trap);
+ecosystem-wide porting rules live in oxy-api's own migration contract in
+the OxyHQServices repo. Production's `mention` role OWNS the `mention`
+database.
 
 ## Process lifecycle
 
