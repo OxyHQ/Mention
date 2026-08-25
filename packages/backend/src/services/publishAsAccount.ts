@@ -402,9 +402,16 @@ export async function assertCanPublishAsAccount(params: {
   }
 
   // WHICH authority this account answers to, decided before anything is asked of
-  // Oxy's member list. `isActAsEligibleKind` rather than a `kind !== 'personal'`
-  // test on purpose: it is the predicate Oxy itself gates the session switch on,
-  // so the two can never disagree about what may be assumed.
+  // Oxy's member list. A named predicate rather than a `kind !== 'personal'`
+  // test on purpose: a kind Oxy adds later is handled by it instead of silently
+  // inheriting whichever branch a local list happened to put it in.
+  //
+  // It is NOT the predicate the session switch gates on, and that used to be the
+  // stated reason for choosing it. Oxy split the two questions: a person may
+  // switch into an `organization` or `project` only, while an application may be
+  // DELEGATED to act as a `bot` as well — which is a bot's whole purpose.
+  // Publishing as an account is the delegation question, so this is the right
+  // half of the split; it simply no longer matches the switch.
   const authorKind = await resolveAccountKind(target);
   const requiresActAs = isActAsEligibleKind(authorKind);
   if (authorKind !== 'channel' && !requiresActAs) {
