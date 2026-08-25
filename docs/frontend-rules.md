@@ -25,3 +25,12 @@ likes/boosts lists, so `invalidateQueries` there is a no-op. Client-wide
 - **Do NOT re-enable GET caching on any linked client** (`utils/api.ts`, the Syra client at `lib/syraApi.ts`). Syra live-rooms talk to Syra's own backend, never `api.mention.earth`.
 - **Mention keeps its own CORS middleware on purpose** (`app.ts` + `utils/allowedOrigins.ts`) — do NOT switch it to `createOxyCors`, which cannot express the dev LAN pattern and would broaden production CORS to the whole `*.oxy.so` family.
 
+## typedRoutes gate
+
+`typedRoutes` is ON and INERT — the general finding (why, and the fix) lives
+in `~/Oxy/docs/frontend-conventions.md`, not here. Mention's own gate is
+`app/(app)/settings/__tests__/settingsRouteTargets.test.ts`: it walks the
+real `app/` tree and asserts every route a settings screen navigates to
+exists. Scoped to settings on purpose (all-static routes there) — widen it
+before trusting it to catch a bad route anywhere else in the app.
+
