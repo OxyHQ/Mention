@@ -27,6 +27,7 @@ node reel-open.mjs attribute    # one run, with the network inside the window
 node reel-open.mjs continuity 5 # does the video survive the route change
 node reel-open.mjs geometry 5   # does the flight look like a flight
 node reel-open.mjs landing 2    # does it land where the destination paints
+node reel-open.mjs playing 3    # is it still PLAYING when it lands
 ```
 
 The `--window-size` above is for `open`; `landing` sets its own viewports and
@@ -53,6 +54,29 @@ Real Chrome answers `probably`, and `MediaSource.isTypeSupported(...)` is
 `../package.json`'s `install-browser` script installs exactly the browser this
 harness must not use. It is there for the gate in `../tests`, which does not
 play video.
+
+## `playing` — still running, or merely in the right place
+
+`continuity` reads `currentTime` in the feed before the tap and in the reel
+after it, and calls the handover good when the second is larger. **A player
+that arrives at the correct position and PAUSED passes that outright** — the
+position says where the video got to, not whether it is still going.
+
+Measured in production on 2026-08-25, at both 430x932 and 1440x900: the picture
+freezes for over five seconds after landing and `currentTime` never moves
+again, while the position rule is satisfied in every run.
+
+Two controls, and the second is the reason the mode exists:
+
+- A fabricated series that lands in position and paused must be REJECTED here
+  and must PASS the position rule. A defect an existing check already catches is
+  not worth a new check.
+- A LIVE control pauses the on-screen video by hand 250ms after the tap in the
+  real app and requires rejection. The fabricated series proves the arithmetic;
+  only this proves the sampler is pointed at the element the viewer sees.
+
+Set `VW`/`VH` to run any mode at another viewport. Worth doing: every mode but
+`landing` defaults to a phone.
 
 ## `landing` — does it land where the destination paints
 
