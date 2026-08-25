@@ -107,6 +107,23 @@ best-effort and isolated from the native write result. Protocol verification
 uses Oxy verification methods for self-issued records and configured Mention
 keys for custodial records.
 
+A record's `createdAt` is SELF-ASSERTED and must go through
+`clampFutureDate` (`utils/ingestTimestamp.ts`, the one guard every ingest
+path shares) — 1h for MTN/atproto (author-asserted directly), 24h for
+ActivityPub (a third-party clock we cannot audit). Reject and fall back to
+`now`, never re-date to the clamp edge.
+
+Custodial signing (web posts, `issuer = MENTION_DID`) vs. self-issued
+(native, `issuer === subject`) is gated by
+`MENTION_DID`/`MENTION_PRIVATE_KEY`/`MENTION_PUBLIC_KEY`; inert without
+them. Write API: `services/mtn/MentionRecordService.ts`; storage:
+`db/schema/mtn.ts`.
+
+Lexicons live in `@mention/shared-types` (`src/mtn/lexicons.ts`);
+`@oxyhq/contracts` owns only the transport around them. Importing a
+`mention*RecordSchema` from `@oxyhq/contracts` is a `TS2305` — it does not
+export one.
+
 ## External networks
 
 External behavior is behind `packages/backend/src/connectors`. The registry
@@ -135,6 +152,15 @@ Redis health is tracked locally with a shared connection attempt and circuit
 breaking. Normal operations do not issue a `PING`. A process never assumes
 singleton leadership when it cannot acquire the distributed lock.
 
+Nothing in the repo can open Mongo — models, deps, config bindings and the
+`MONGODB_URI` SSM param are all deleted; `scripts/validate-no-mongo.mjs`
+(`bun run check`) enforces it. Schema changes go through `drizzle/` and
+`src/db/migrate.ts`, and nothing else — a migrations-constants module, a
+`MIGRATIONS` array, or a hot-path-index manifest describes the deleted Mongo
+mechanism, not a pattern to resurrect for a Postgres index. History:
+`docs/MONGO-TO-POSTGRES-CUTOVER.md`; per-table conventions:
+`packages/backend/src/db/schema/CONVENTIONS.md`.
+
 ## Process lifecycle
 
 Startup runs in this order:
@@ -142,10 +168,10 @@ Startup runs in this order:
 1. Validate configuration.
 2. Connect PostgreSQL. This is the only data store the process opens, and
    `getDb()` throws until it resolves.
-3. In production, assert that the deploy's migration one-shot has already
-   brought the schema current; a task refuses readiness otherwise. Outside
-   production the migrator is a developer command (`bun run db:migrate`), so
-   startup asserts nothing.
+3. In production, `assertPostgresMigrationsCurrent` refuses readiness
+   unless the deploy's migration one-shot has already brought the schema
+   current. Outside production the migrator is a developer command
+   (`bun run db:migrate`), so startup asserts nothing.
 4. Initialize Redis-backed optional capabilities.
 5. Register sockets, workers, outbox dispatchers, and leader-gated jobs.
 6. Start HTTP and mark readiness true.
@@ -168,9 +194,10 @@ The Postgres image is PostGIS-pinned to the major RDS runs, because generated
 `geography` columns require the extension before the migration that names the
 type. The migration container and backend use the same locally built backend
 image. Postgres and Valkey expose loopback-only ports and persist to named
-volumes. `docker-compose.postgres.yml` binds a separate database on another
-loopback port for `bun run dev:backend` and the test suite, so both stacks can
-be up at once.
+volumes. `docker-compose.postgres.yml` binds a separate database on port
+`5433` for `bun run dev:backend` and the test suite, while the full stack
+above runs on `5434` — both can be up at once. `DATABASE_URL` is required
+at boot.
 
 ## Production topology
 

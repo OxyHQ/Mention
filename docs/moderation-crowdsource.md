@@ -76,6 +76,11 @@ correction's recommendation is frequently `no_action`, which means "take no
 NEW action". Mapping it straight through leaves the post its superseded
 revision removed down forever, with no error anywhere.
 
+Enforcement itself is idempotent on `decisionId + revision + action` —
+claimed before acting and released if the effect throws. `revision` is in
+the key so an appeal's `restore` can supersede an earlier removal rather
+than being treated as a duplicate of it.
+
 ## The subject-provider seam (what a second app writes)
 
 `subjects/types.ts` is the whole per-application surface: given one of your
@@ -177,3 +182,6 @@ could only ever disagree with it, hence there is none.
   several ECS tasks; the SDK's in-process default would dedupe only the
   instance that received both copies of a redelivery. `moderation_events.id`
   IS the webhook event id.
+- **The webhook route MUST stay mounted before `express.json()`** — its
+  signature covers the raw request bytes, so a body parser ahead of it
+  would consume them first. Guarded by a test in `appFactory.test.ts`.
