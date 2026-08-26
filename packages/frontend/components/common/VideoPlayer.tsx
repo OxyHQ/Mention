@@ -82,6 +82,20 @@ interface VideoPlayerProps {
  */
 type FlightVideoSlotProps = Parameters<NonNullable<MediaFlightHostProps['renderVideo']>>[0];
 
+/**
+ * The DOM node behind a react-native-web `View` ref.
+ *
+ * RNW exposes it as `_nativeNode` or `getNode()`, neither of which is on the
+ * typed ref, with the ref itself as a last resort — narrowed structurally so
+ * this needs no `as any`. Two callers need it: the visibility observer, and the
+ * position the authority reads when it elects.
+ */
+function resolveDomElement(ref: View | null): Element | null {
+  const candidate = ref as (View & { _nativeNode?: Element; getNode?: () => Element }) | null;
+  const node: Element | View | null = candidate?._nativeNode ?? candidate?.getNode?.() ?? candidate;
+  return node && (node as Partial<Element>).nodeType !== undefined ? (node as Element) : null;
+}
+
 const CONTROLS_HIDE_DELAY = 3000;
 const TIME_UPDATE_INTERVAL = 0.25;
 
@@ -107,10 +121,27 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // audible slot. GIF mode is `silent`: still visibility-gated, but it never
   // competes for that slot, so several visible GIFs may loop at once.
   const playerInstanceId = useId();
+  // Read at SELECTION time, not published from the observer: an
+  // `IntersectionObserver` only fires on a threshold crossing, so a player that
+  // stays visible while the page scrolls would otherwise be ranked by where it
+  // was when it last crossed. Returns `undefined` off-web and before the node
+  // resolves, and the authority falls back to the published value.
+  const measureOrder = useCallback((): number | undefined => {
+    const element = resolveDomElement(containerRef.current);
+    // `undefined`, never 0: with no node there is no position, and 0 is a real
+    // one — the top of the viewport. Returning it made a row whose node had gone
+    // (mid-flight, mid-unmount) rank as if it were up there, which took the slot
+    // away from the row that was actually playing.
+    if (!element) return undefined;
+    const rect = element.getBoundingClientRect();
+    return rect.y + rect.height / 2;
+  }, []);
+
   const { shouldPlay, claimActive, reportVisibility } = useVideoPlayback({
     id: playerInstanceId,
     viewabilityKey,
     silent: gif,
+    measureOrder,
   });
 
   const [showControls, setShowControls] = useState(true);
@@ -247,16 +278,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   useEffect(() => {
     if (Platform.OS !== 'web') return;
 
-    // Resolve the underlying DOM node from the react-native-web View ref. RNW
-    // exposes it via `_nativeNode`/`getNode()` (neither is on the typed ref),
-    // with the ref itself as a last resort — narrow structurally, no `as any`.
-    const ref = containerRef.current as
-      | (View & { _nativeNode?: Element; getNode?: () => Element })
-      | null;
-    const node: Element | View | null = ref?._nativeNode ?? ref?.getNode?.() ?? ref;
-    const element = node && (node as Partial<Element>).nodeType !== undefined
-      ? (node as Element)
-      : null;
+    const element = resolveDomElement(containerRef.current);
 
     if (!element || typeof window === 'undefined' || !('IntersectionObserver' in window)) {
       // No observer to report with (no DOM node resolved, or a runtime without
