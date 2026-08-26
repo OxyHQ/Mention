@@ -16,11 +16,12 @@
  *   node reel-open.mjs playing    [n]  # is it still PLAYING when it lands, not just in position
  *   node reel-open.mjs pip           # does the Picture-in-Picture button actually do anything
  *   node reel-open.mjs feed       [n]  # the same, but flying from a SCROLLED feed row
+ *   node reel-open.mjs slot       [n]  # flying from a row that does NOT hold the audible slot
  *
  *   CDP=http://127.0.0.1:39871  ORIGIN=https://mention.earth
  */
 import { chromium } from '@playwright/test';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 
 /**
@@ -47,14 +48,49 @@ async function serveLocalBuild(page) {
     if (!existsSync(join(DIST, 'index.html'))) {
         throw new Error(`DIST=${DIST} has no index.html — build it first (bun run build in packages/frontend)`);
     }
+    // The document must not come from the browser's own cache: a cached
+    // `index.html` names the PREVIOUS build's hashed chunks, and those are not
+    // in this `dist`, so they fall through to production. `route` cannot see a
+    // memory-cache hit, so the cache is turned off at the protocol level.
+    // And it must not come from the SERVICE WORKER either. `mention.earth` is a
+    // PWA, so a registered worker answers from Cache Storage before the network
+    // is consulted at all — invisible to `route` and unaffected by the HTTP
+    // cache. That is what served a document naming the previous build's chunks
+    // while every counter said the interception was working.
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Network.enable');
+    await cdp.send('Network.clearBrowserCache');
+    await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
+    await cdp.send('Network.setBypassServiceWorker', { bypass: true });
     await page.route(`${ORIGIN}/**`, (route) => {
         const path = new URL(route.request().url()).pathname;
-        // Anything with an extension is an asset of the export; everything else
-        // is a client route and gets the document, exactly as the server does.
-        const file = extname(path) ? join(DIST, path) : join(DIST, 'index.html');
-        if (!file.startsWith(DIST) || !existsSync(file)) return route.continue();
+        // An asset is a path that EXISTS as a file in the export; everything
+        // else is a client route and gets the document. Deciding by extension
+        // instead looked reasonable and silently sent `/@pantube@mas.to` to
+        // production, because a fediverse handle ends in what looks like one
+        // (`.to`) — and production's document then named production's chunks,
+        // so the whole run measured the deployed build while every counter said
+        // otherwise.
+        const asset = join(DIST, path);
+        const isAsset = asset.startsWith(DIST) && existsSync(asset) && statSync(asset).isFile();
+        const file = isAsset ? asset : join(DIST, 'index.html');
+        if (!isAsset && path.startsWith('/_expo/static/')) {
+            // A bundle chunk this build does not contain means the page is
+            // running SOMEBODY ELSE'S code. It happens when the browser serves
+            // `index.html` from its own cache: the document then names the
+            // previous build's hashed chunks, those fall through to production,
+            // and every number after that describes production while looking
+            // like a local measurement. Measured once — the page loaded
+            // `__common-e241fb82…` while this build was `__common-2c4338…`.
+            console.error(`\nSTALE BUNDLE — the page asked for ${path.split('/').pop()}, which is not in this build.`);
+            console.error('Something served a document naming another build. Nothing measured after this is your code.\n');
+            process.exit(1);
+        }
         route.fulfill({
             status: 200,
+            // Never let the document be cached: the next run would name this
+            // build's chunks while running against another one.
+            headers: { 'cache-control': 'no-store, no-cache, must-revalidate' },
             contentType: CONTENT_TYPES[extname(file)] ?? 'application/octet-stream',
             body: readFileSync(file),
         });
@@ -1122,6 +1158,139 @@ async function feedRow(runs) {
     process.exit(0);
 }
 
+
+/**
+ * FLYING FROM A ROW THAT DOES NOT HOLD THE AUDIBLE SLOT.
+ *
+ * The playback authority grants it to exactly one player, so with two video rows
+ * on screen the viewer can tap one that is mounted and PAUSED. Every other mode
+ * here flies from the only video on screen — which, by being the only one,
+ * always holds the slot. That is a property of the scenario, not of the app, and
+ * it hid this for the whole of the work above.
+ *
+ * The control is the other row, in the same page and the same run: fly from the
+ * one that DOES hold it. Both arms measured over a LONG window, because a six
+ * second one cannot tell "recovered" from "recovered for now".
+ */
+const SLOT_PROFILE = process.env.SLOT_PROFILE ?? '@pantube@mas.to';
+const SLOT_WINDOW_MS = 24_000;
+
+function summarise(series) {
+    if (!series.length) return { measured: false, why: 'no samples' };
+    const gaps = [];
+    for (let i = 1; i < series.length; i++) gaps.push(series[i].t - series[i - 1].t);
+    gaps.sort((a, b) => a - b);
+    const gap = gaps[gaps.length >> 1];
+    if (gap > SAMPLE_GAP_LIMIT_MS) return { measured: false, why: `median gap ${gap}ms over ${series.length} samples` };
+    const landed = series.find((x) => x.route.startsWith('/videos'));
+    if (!landed) return { measured: false, why: 'never reached the reel' };
+    const span = series[series.length - 1].t - landed.t;
+    if (span < 20_000) return { measured: false, why: `only ${Math.round(span / 1000)}s after landing` };
+
+    // A frozen picture is a position that does not move — which covers a paused
+    // element AND a stalled one. Counting runs of `paused` instead reported 0ms
+    // for a run whose `currentTime` sat still for ten seconds, because a stalled
+    // `<video>` reports `paused === false` the whole time.
+    // Scoped to the TRANSITION, deliberately: this rule is about the handover,
+    // and a profile of federated video stalls on the network seconds later for
+    // reasons that have nothing to do with it. Measured on the same page, both
+    // builds showed multi-second stalls at +7s and +17s — real, worth knowing,
+    // and not what is being judged here. They are reported separately rather
+    // than folded in or hidden.
+    const NEAR_FROM = -1000, NEAR_TO = 2000;
+    let worst = 0, at = 0, later = 0, run = null;
+    for (let i = 1; i < series.length; i++) {
+        if (series[i].ct === series[i - 1].ct) {
+            run ??= series[i - 1].t;
+            const length = series[i].t - run;
+            const offset = run - landed.t;
+            if (offset >= NEAR_FROM && offset <= NEAR_TO) {
+                if (length > worst) { worst = length; at = offset; }
+            } else if (length > later) later = length;
+        } else run = null;
+    }
+    const at_ = (sec) => {
+        const target = landed.t + sec * 1000;
+        return series.reduce((a, b) => Math.abs(b.t - target) < Math.abs(a.t - target) ? b : a);
+    };
+    // `paused === false` is not `playing`. A stalled element reports exactly
+    // that while `currentTime` never moves, and a run where nothing ever played
+    // measured the flight of nothing — reported as a pass once, before this.
+    const marks = [2, 5, 10, 20].map(at_);
+    const advanced = marks[marks.length - 1].ct - marks[0].ct;
+    if (advanced <= 0) {
+        return { measured: false, why: `nothing played — ct stayed at ${marks[0].ct} from 2s to 20s` };
+    }
+    return { measured: true, gap, samples: series.length, worst, at, later, marks, advanced };
+}
+
+async function slotCase(runs) {
+    const browser = await chromium.connectOverCDP(CDP);
+    const context = browser.contexts()[0];
+    console.log(`\n=== mode=slot  profile=${SLOT_PROFILE}  viewport=${VIEWPORT.width}x${VIEWPORT.height}  n=${runs} ===`);
+    console.log(`the rule: flying from a row WITHOUT the slot must not freeze longer than ${FREEZE_LIMIT_MS}ms,`);
+    console.log('and the row WITH it is the control in the same page.\n');
+
+    for (let i = 0; i < runs; i++) {
+        for (const which of ['paused', 'playing']) {
+            const page = await context.newPage();
+            await serveLocalBuild(page);
+            await page.bringToFront();
+            await page.setViewportSize(VIEWPORT);
+            await seedReturningVisitor(page);
+            await page.goto(`${ORIGIN}/${SLOT_PROFILE}`, { waitUntil: 'domcontentloaded', timeout: 300_000 });
+            await page.waitForTimeout(7_000);
+
+            let pair = null;
+            for (let step = 0; step < 45 && !pair; step++) {
+                pair = await page.evaluate(() => {
+                    // Half on screen — the same threshold the visibility source
+                    // uses, so "visible here" and "visible to the authority" mean
+                    // the same thing.
+                    const on = [...document.querySelectorAll('video')]
+                        .map((v) => ({ v, r: v.getBoundingClientRect() }))
+                        .filter((x) => {
+                            if (x.r.width <= 40) return false;
+                            const shown = Math.min(x.r.bottom, innerHeight) - Math.max(x.r.top, 0);
+                            return shown > x.r.height * 0.5;
+                        });
+                    const stopped = on.find((x) => x.v.paused);
+                    const going = on.find((x) => !x.v.paused);
+                    if (!stopped || !going) return null;
+                    const box = (x) => [Math.round(x.r.x), Math.round(x.r.y), Math.round(x.r.width), Math.round(x.r.height)];
+                    return { paused: { box: box(stopped) }, playing: { box: box(going) } };
+                });
+                if (!pair) { await page.mouse.wheel(0, 320); await page.waitForTimeout(600); }
+            }
+            const label = which === 'paused' ? 'WITHOUT the slot' : 'WITH the slot   ';
+            if (!pair) {
+                console.log(`run ${i + 1} ${label}: NOT MEASURED — no two rows with one playing and one paused`);
+                await page.close();
+                continue;
+            }
+
+            await page.evaluate(RECORD_PLAYING);
+            const b = pair[which].box;
+            await page.mouse.click(
+                Math.min(Math.max(b[0] + b[2] / 2, 8), VIEWPORT.width - 8),
+                Math.min(Math.max(b[1] + b[3] / 2, 60), VIEWPORT.height - 60),
+            );
+            await page.waitForTimeout(SLOT_WINDOW_MS);
+            const verdict = summarise(await page.evaluate(() => window.__p));
+            if (!verdict.measured) {
+                console.log(`run ${i + 1} ${label}: NOT MEASURED — ${verdict.why}`);
+            } else {
+                const marks = verdict.marks.map((m, k) => `${[2, 5, 10, 20][k]}s:${m.paused ? 'PAUSED' : 'runs'} ct=${m.ct}`).join(' | ');
+                const aside = verdict.later > FREEZE_LIMIT_MS ? `, plus a ${verdict.later}ms stall away from the handover` : '';
+                console.log(`run ${i + 1} ${label}: ${verdict.worst <= FREEZE_LIMIT_MS ? 'ok  ' : 'FAIL'} froze ${verdict.worst}ms at the handover (from ${verdict.at}ms)${aside}, ${verdict.samples} samples, gap ${verdict.gap}ms`);
+                console.log(`                       ${marks}`);
+            }
+            await page.close();
+        }
+    }
+    process.exit(0);
+}
+
 const mode = process.argv[2] ?? 'open';
 const runs = Number(process.argv[3] ?? 10);
 if (mode === 'attribute') await attribute();
@@ -1130,9 +1299,10 @@ else if (mode === 'landing') await landing(runs);
 else if (mode === 'playing') await playing(runs);
 else if (mode === 'pip') await pictureInPicture();
 else if (mode === 'feed') await feedRow(runs);
+else if (mode === 'slot') await slotCase(runs);
 else if (mode === 'continuity') await continuity(runs);
 else if (mode === 'open' || mode === 'control') await measure(mode, runs);
 else {
-    console.error(`unknown mode "${mode}" — expected open, control, attribute, continuity, geometry, landing, playing, pip or feed`);
+    console.error(`unknown mode "${mode}" — expected open, control, attribute, continuity, geometry, landing, playing, pip, feed or slot`);
     process.exit(2);
 }
