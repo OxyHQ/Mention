@@ -247,8 +247,19 @@ const environmentSchema = z
      * nothing. The switch exists so it can be taken out of the path entirely
      * (the client is then left completely unpatched) if it is ever implicated
      * in an incident, not because it is expected to be.
+     *
+     * DEFAULT OFF UNDER TEST, because the slow-query line goes through the same
+     * `logger.warn` the application uses. A suite that asserts "this path warns
+     * about nothing" would then pass or fail on how fast the machine running it
+     * happens to be: `listSubscriptionVisibility` asserted exactly that, and its
+     * own multi-row fixture insert took 350 ms on a CI runner and under the
+     * 200 ms threshold here, so the failure appeared only in CI. Instrumentation
+     * is observability, not behaviour, and must not decide whether a suite is
+     * green. The two suites that exercise it set `queryMetricsEnabled` before
+     * connecting, so nothing about it goes unmeasured; an explicit
+     * `DB_QUERY_METRICS_ENABLED` still wins in every environment.
      */
-    DB_QUERY_METRICS_ENABLED: booleanFromEnv(true),
+    DB_QUERY_METRICS_ENABLED: booleanFromEnv(process.env.NODE_ENV !== 'test'),
     /**
      * Statements at or above this take a `warn` line carrying the SQL text.
      *
