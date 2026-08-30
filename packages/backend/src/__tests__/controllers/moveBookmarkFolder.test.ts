@@ -16,9 +16,7 @@ vi.mock('../../services/BookmarkFolderService', () => {
   };
 });
 
-import {
-  moveBookmarkToFolderByPostId,
-} from '../../controllers/posts.controller';
+import { moveBookmarkToFolderByPostId } from '../../controllers/posts/bookmarks';
 import postsRouter from '../../routes/posts';
 
 const POST_ID = '507f1f77bcf86cd799439011';

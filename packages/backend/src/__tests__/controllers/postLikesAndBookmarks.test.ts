@@ -20,7 +20,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * ## Why the assertions are all about rows
  *
  * There is nothing else left to assert on. The Mongoose models are gone from
- * `posts.controller.ts`, so there is no filter object to inspect and no `find`
+ * `controllers/posts/`, so there is no filter object to inspect and no `find`
  * to count — and that is the point, because a filter assertion could not have
  * distinguished any of the three failures above from correct behaviour anyway.
  * Everything below seeds rows that must match next to rows that must not.
@@ -65,11 +65,8 @@ import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { bookmarks, likes } from '../../db/schema/engagement';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import {
-  getBookmarkFolders,
-  getPostLikes,
-  getSavedPosts,
-} from '../../controllers/posts.controller';
+import { getBookmarkFolders, getSavedPosts } from '../../controllers/posts/bookmarks';
+import { getPostLikes } from '../../controllers/posts/engagementLists';
 import type { PostRecord } from '../../db/posts/postRecord';
 
 const scope = serviceScope('post-likes-bookmarks');

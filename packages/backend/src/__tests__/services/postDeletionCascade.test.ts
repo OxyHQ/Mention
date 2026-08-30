@@ -129,7 +129,7 @@ import {
   deletePostSubtree,
 } from '../../services/PostDeletionCascade';
 import { POST_REFERENCE_PROBE_NAMES } from '../../scripts/lib/adminDeletionPreflight';
-import { deletePost } from '../../controllers/posts.controller';
+import { deletePost } from '../../controllers/posts/deletePost';
 import { metrics } from '../../utils/metrics';
 import { logger } from '../../utils/logger';
 

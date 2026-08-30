@@ -65,7 +65,7 @@ vi.mock('../../utils/linkPreviewWarm', () => ({
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearServiceScope, readScopePosts, serviceScope } from '../helpers/serviceFixtures';
-import { createThread } from '../../controllers/posts.controller';
+import { createThread } from '../../controllers/posts/createThread';
 import { posts } from '../../db/schema/posts';
 
 const scope = serviceScope('create-thread-chain');

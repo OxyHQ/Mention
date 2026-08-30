@@ -94,7 +94,7 @@ import { closePostgres, connectPostgres } from '../../db/postgres';
 import { claimScheduledPost } from '../../db/posts/postRepository';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import type { PostRecordInput } from '../../db/posts/postRecord';
-import { updatePost } from '../../controllers/posts.controller';
+import { updatePost } from '../../controllers/posts/updatePost';
 
 const scope = serviceScope('update-post-scheduled-window');
 const USER_ID = scope.user('author');

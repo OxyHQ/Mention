@@ -121,11 +121,8 @@ import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { userSettings } from '../../db/schema/userProfile';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { PostHydrationService } from '../../services/PostHydrationService';
-import {
-  getPostById,
-  getScheduledPosts,
-  publishScheduledPostNow,
-} from '../../controllers/posts.controller';
+import { getPostById } from '../../controllers/posts/readPosts';
+import { getScheduledPosts, publishScheduledPostNow } from '../../controllers/posts/scheduledPosts';
 import { loadPostRecord } from '../../db/posts/postRepository';
 
 const scope = serviceScope('channel-editorial-queue');

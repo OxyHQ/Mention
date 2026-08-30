@@ -80,7 +80,7 @@ vi.mock('../../services/PostCreationService', () => ({
 }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import { createThread } from '../../controllers/posts.controller';
+import { createThread } from '../../controllers/posts/createThread';
 
 function buildRequest(body: Record<string, unknown>) {
   return {

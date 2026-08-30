@@ -96,7 +96,8 @@ import { posts } from '../../db/schema/posts';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { listPostCorrections } from '../../db/posts/postCorrectionsRepository';
 import type { PostRecordInput } from '../../db/posts/postRecord';
-import { getPostCorrections, updatePost } from '../../controllers/posts.controller';
+import { getPostCorrections } from '../../controllers/posts/readPosts';
+import { updatePost } from '../../controllers/posts/updatePost';
 
 const scope = serviceScope('update-post-channel-corrections');
 /** The channel ACCOUNT — the author of a channel post, which nobody signs in as. */
