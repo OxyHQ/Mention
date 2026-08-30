@@ -10,6 +10,7 @@ import { loadPostRecord } from '../../db/posts/postRepository';
 import { attachPollToPost, createPollWithOptions } from '../../db/polls/pollRepository';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { PostVisibility, PostContent } from '@mention/shared-types';
+import type { ReplyPermission } from '@mention/shared-types';
 import { affinityEventService } from '../../services/AffinityEventService';
 import { postCreationService } from '../../services/PostCreationService';
 import { insertArticle, newArticleId } from '../../db/posts/articleRepository';
@@ -34,10 +35,13 @@ import {
   MAX_ARTICLE_EXCERPT_LENGTH,
   DEFAULT_POLL_DURATION_DAYS,
   MAX_POLL_DURATION_DAYS,
-  MAX_HASHTAG_LENGTH,
-  MAX_HASHTAGS_PER_POST,
   MAX_TEXT_LENGTH,
   buildOrderedAttachments,
+  hashtagsSchema,
+  parseFailureMessage,
+  pollInputSchema,
+  postVisibilitySchema,
+  replyPermissionSchema,
   buildPostMetadata,
   sanitizeArticle,
   sanitizeEventData,
@@ -97,21 +101,23 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: `Post text exceeds maximum length of ${MAX_TEXT_LENGTH} characters` });
     }
 
-    // Validate hashtags
-    if (Array.isArray(hashtags)) {
-      if (hashtags.length > MAX_HASHTAGS_PER_POST) {
-        return res.status(400).json({ message: `Too many hashtags: maximum is ${MAX_HASHTAGS_PER_POST}` });
+    // Validate hashtags. The bounds are the ones this route already answered a
+    // 400 for; the `Array.isArray` guard they sat behind was the defect, because
+    // it SKIPPED them for a non-array and then handed that value to
+    // `mergeHashtags` anyway — `(userProvided || []).map` on a string is a
+    // `TypeError`, and `hashtags: "cat"` was a 500 on the busiest write here.
+    // A falsy value still means "no tags", exactly as `(x || [])` did.
+    let parsedHashtags: string[] | undefined;
+    if (hashtags) {
+      const parsed = hashtagsSchema.safeParse(hashtags);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parseFailureMessage(parsed.error) });
       }
-      const invalidTag = hashtags.find((tag: unknown) =>
-        typeof tag !== 'string' || tag.length > MAX_HASHTAG_LENGTH
-      );
-      if (invalidTag !== undefined) {
-        return res.status(400).json({ message: `Invalid hashtag: each must be a string of at most ${MAX_HASHTAG_LENGTH} characters` });
-      }
+      parsedHashtags = parsed.data;
     }
 
     // Extract and merge hashtags from text with user-provided ones
-    const uniqueTags = mergeHashtags(text || '', hashtags);
+    const uniqueTags = mergeHashtags(text || '', parsedHashtags);
 
     // Process content location data (user's shared location)
     let processedContentLocation = null;
@@ -206,9 +212,22 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     // Create poll separately if provided and add pollId to content
     let pollId = null;
     if (poll) {
+      // The poll's SHAPE, before its deadline and before anything is inserted.
+      // `question` and `options` used to reach `createPollWithOptions` unread, so
+      // an object question was stored as the literal `'[object Object]'`, two
+      // hundred options became two hundred rows, and an empty `options` array
+      // published a post carrying a poll nobody can answer. The `catch` below
+      // still stands, but it is now the answer to a database failure rather than
+      // the only thing standing between the composer and the table.
+      const parsedPoll = pollInputSchema.safeParse(poll);
+      if (!parsedPoll.success) {
+        return res.status(400).json({ message: parseFailureMessage(parsedPoll.error) });
+      }
+      const pollInput = parsedPoll.data;
+
       // Validate poll endTime is in the future and within max duration
-      if (poll.endTime) {
-        const endTimeMs = new Date(poll.endTime).getTime();
+      if (pollInput.endTime) {
+        const endTimeMs = new Date(pollInput.endTime).getTime();
         if (isNaN(endTimeMs)) {
           return res.status(400).json({ message: 'Invalid poll end time' });
         }
@@ -231,12 +250,12 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         // `postId` stays NULL until the post exists; the `temp_` placeholder the
         // Mongo code used is not portable to a real foreign key.
         pollId = await createPollWithOptions({
-          question: poll.question,
-          options: poll.options,
+          question: pollInput.question,
+          options: pollInput.options,
           createdBy: userId,
-          endsAt: new Date(poll.endTime || Date.now() + DEFAULT_POLL_DURATION_DAYS * 24 * 60 * 60 * 1000),
-          isMultipleChoice: poll.isMultipleChoice || false,
-          isAnonymous: poll.isAnonymous || false,
+          endsAt: new Date(pollInput.endTime || Date.now() + DEFAULT_POLL_DURATION_DAYS * 24 * 60 * 60 * 1000),
+          isMultipleChoice: pollInput.isMultipleChoice || false,
+          isAnonymous: pollInput.isAnonymous || false,
         });
         postContent.pollId = pollId;
       } catch (pollError) {
@@ -371,14 +390,26 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       await assertParentAcceptsReplies(String(replyTargetId));
     }
 
-    const rawVisibility = typeof req.body.visibility === 'string' ? req.body.visibility : undefined;
-    let resolvedVisibility = PostVisibility.PUBLIC;
-    if (rawVisibility === 'followers' || rawVisibility === 'followers_only') {
-      resolvedVisibility = PostVisibility.FOLLOWERS_ONLY;
-    } else if (rawVisibility === 'private') {
-      resolvedVisibility = PostVisibility.PRIVATE;
-    } else if (rawVisibility === 'public') {
-      resolvedVisibility = PostVisibility.PUBLIC;
+    // The same reader `POST /posts/thread` uses, with the fallback this route has
+    // always had: a value it does not recognise becomes `public` rather than a
+    // refusal. That default is deliberately UNCHANGED — narrowing it would refuse
+    // bodies that publish today — and it is why the shared schema reports an
+    // unrecognised value instead of assuming one.
+    const parsedVisibility = postVisibilitySchema.safeParse(req.body.visibility);
+    const resolvedVisibility = parsedVisibility.success ? parsedVisibility.data : PostVisibility.PUBLIC;
+
+    // `replyPermission` reaches a `text[]` column guarded by
+    // `posts_reply_permission_check`, and used to reach it as `x || ['anyone']` —
+    // so `['banana']` was a check violation and a bare `'nobody'` was a
+    // `TypeError` inside the driver, both 500s. A falsy value still means
+    // "not supplied"; an EMPTY array is still stored as one.
+    let parsedReplyPermission: ReplyPermission[] | undefined;
+    if (replyPermission) {
+      const parsed = replyPermissionSchema.safeParse(replyPermission);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parseFailureMessage(parsed.error) });
+      }
+      parsedReplyPermission = parsed.data;
     }
 
     const invitedCollaboratorIds = await postCollaborationService.resolveCollaboratorRefs(
@@ -414,7 +445,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       parentPostId: parentPostId || in_reply_to_status_id || null,
       threadId: threadId || null,
       visibility: resolvedVisibility,
-      replyPermission: replyPermission || ['anyone'],
+      replyPermission: parsedReplyPermission ?? ['anyone'],
       reviewReplies: reviewReplies || false,
       quotesDisabled: quotesDisabled || false,
       status: postStatus,

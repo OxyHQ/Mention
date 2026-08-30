@@ -51,7 +51,14 @@ import { resolveMcpAutoAcceptIds } from '../../mcp/utils/resolveMcpAutoAcceptIds
 import { federateAsResolvedActor } from '../../connectors/outboundFederation';
 import { toFederationPostPayload } from '../../services/serviceRegistry';
 import { loadScheduledChain } from '../../services/scheduledChain';
-import { MAX_TEXT_LENGTH, buildOrderedAttachments, sanitizeArticle, sanitizeSources } from './composeInput';
+import {
+  MAX_TEXT_LENGTH,
+  buildOrderedAttachments,
+  hashtagsSchema,
+  parseFailureMessage,
+  sanitizeArticle,
+  sanitizeSources,
+} from './composeInput';
 
 /**
  * The renditions a post carries after an edit.
@@ -186,6 +193,22 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     const media = contentObj?.media ?? req.body.media;
     const { hashtags, mentions, contentLocation, postLocation, sources } = req.body;
 
+    // `hashtags` is read at TWO points below — once when the body changes and
+    // once as a field of its own — and both handed it straight to
+    // `mergeHashtags`, which calls `.map` on whatever it is given. A truthy
+    // non-array was a `TypeError` and a 500; an array of any size and any
+    // content was written to `posts.hashtags` unbounded, while `POST /posts`
+    // refused both. Parsed ONCE here so the two uses cannot disagree, and only
+    // when truthy, because a falsy value has always meant "keep what is stored".
+    let parsedHashtags: string[] | undefined;
+    if (hashtags) {
+      const parsed = hashtagsSchema.safeParse(hashtags);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parseFailureMessage(parsed.error) });
+      }
+      parsedHashtags = parsed.data;
+    }
+
     // The media set the variants localize: the incoming one when this edit
     // replaces it, otherwise the set already on the post.
     const normalizedMedia = media !== undefined ? normalizeMediaItems(media) : undefined;
@@ -223,7 +246,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         : [...post.editHistory];
       patch.isEdited = true;
       // Re-extract hashtags when the body changes
-      nextHashtags = mergeHashtags(text || '', hashtags || post.hashtags);
+      nextHashtags = mergeHashtags(text || '', parsedHashtags || post.hashtags);
       patch.hashtags = nextHashtags;
     }
 
@@ -416,7 +439,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
 
     content.attachments = updatedAttachments ?? undefined;
 
-    if (hashtags !== undefined) patch.hashtags = mergeHashtags('', hashtags || []);
+    if (hashtags !== undefined) patch.hashtags = mergeHashtags('', parsedHashtags || []);
 
     // An edit is a write boundary like any other: a profile link the author has
     // just pasted into the body becomes a mention here, on the same terms as on
