@@ -305,11 +305,23 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     }
 
     // Handle content location updates (user's shared location)
+    //
+    // The pair is tested for BEING A COORDINATE PAIR, which is the check
+    // `createThread` has always applied and this path had only half of: a
+    // `!== undefined` test admitted `latitude: 'x'` into a `double precision`
+    // column (a driver error) and `latitude: 999` into one guarded by
+    // `posts_content_location_range_check` (a check violation), and both were a
+    // 500 that failed the WHOLE edit. A pair that is not a pair leaves the
+    // stored location untouched, exactly as a half-written one already did.
     if (contentLocation !== undefined) {
       if (contentLocation === null) {
         // Remove content location
         content.location = undefined;
-      } else if (contentLocation.latitude !== undefined && contentLocation.longitude !== undefined) {
+      } else if (
+        typeof contentLocation.latitude === 'number' && typeof contentLocation.longitude === 'number' &&
+        contentLocation.latitude >= -90 && contentLocation.latitude <= 90 &&
+        contentLocation.longitude >= -180 && contentLocation.longitude <= 180
+      ) {
         // Update content location
         content.location = {
           type: 'Point',
@@ -327,7 +339,11 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         // `updatePostRecord` reads the two differently and would keep the old
         // coordinates for `undefined`.
         patch.location = null;
-      } else if (postLocation.latitude !== undefined && postLocation.longitude !== undefined) {
+      } else if (
+        typeof postLocation.latitude === 'number' && typeof postLocation.longitude === 'number' &&
+        postLocation.latitude >= -90 && postLocation.latitude <= 90 &&
+        postLocation.longitude >= -180 && postLocation.longitude <= 180
+      ) {
         // Update post location
         patch.location = {
           type: 'Point',
