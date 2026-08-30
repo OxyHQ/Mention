@@ -255,6 +255,7 @@ export class FeedEngine {
       oxyClient: ctx.oxyClient,
       maxDepth: exec.hydrateMaxDepth ?? 0,
       viewerGraph: this.viewerGraphOption(ctx),
+      viewerLanguages: ctx.viewerLanguages,
     });
     return hydrated;
   }
@@ -604,6 +605,14 @@ export class FeedEngine {
       maxDepth: exec.hydrateMaxDepth ?? 0,
       includeLinkMetadata: true,
       viewerGraph: this.viewerGraphOption(ctx),
+      // The viewer's Oxy account locales, resolved ONCE by `loadViewerFeedContext`
+      // and threaded here for the same reason `viewerGraph` is: without it
+      // hydration resolves the viewer's identity a SECOND time to read them —
+      // measured as a duplicate `starter_pack_members` CTE per feed request
+      // whenever the Redis identity cache does not answer. `undefined` on a
+      // context that never resolved them (the peek path) leaves hydration to its
+      // own lookup, exactly as before.
+      viewerLanguages: ctx.viewerLanguages,
     });
 
     if (exec.seenPosts && ctx.currentUserId) {
@@ -701,6 +710,7 @@ export class FeedEngine {
       maxDepth: exec.hydrateMaxDepth ?? 0,
       includeLinkMetadata: true,
       viewerGraph: this.viewerGraphOption(ctx),
+      viewerLanguages: ctx.viewerLanguages,
     });
 
     let nextCursor: string | undefined;
@@ -746,6 +756,7 @@ export class FeedEngine {
       maxDepth: exec.hydrateMaxDepth ?? 0,
       includeLinkMetadata: true,
       viewerGraph: this.viewerGraphOption(ctx),
+      viewerLanguages: ctx.viewerLanguages,
     });
 
     if (exec.markSaved) {
@@ -821,6 +832,7 @@ export class FeedEngine {
       oxyClient: ctx.oxyClient,
       maxDepth: exec.hydrateMaxDepth ?? 0,
       includeLinkMetadata: true,
+      viewerLanguages: ctx.viewerLanguages,
     });
 
     // A fallback page counts as seen exactly like a ranked one. Without this the
