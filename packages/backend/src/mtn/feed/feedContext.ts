@@ -72,10 +72,18 @@ export async function loadFeedTuning(userId: string | undefined): Promise<FeedTu
 /**
  * Assemble the base viewer feed context (no mutual ids — that is resolved per
  * descriptor by the controller). Anonymous viewers get empty following/behavior.
+ *
+ * `acceptedOutboundFollowUris` is an OPTIONAL in-flight read of the viewer's
+ * accepted outbound federated follows, threaded straight to
+ * {@link mergeFederatedFollowIds}. A caller that needs the same set anyway (the
+ * descriptor controller, which also intersects it for mutuals) passes it so the
+ * request issues that statement ONCE; a caller that does not omits it and the
+ * merge reads it itself.
  */
 export async function loadViewerFeedContext(
   currentUserId: string | undefined,
   oxyClient: OxyClient | undefined,
+  acceptedOutboundFollowUris?: Promise<string[]>,
 ): Promise<FeedEngineContext> {
   let followingIds: string[] = [];
   let followerIds: string[] = [];
@@ -103,8 +111,11 @@ export async function loadViewerFeedContext(
         }
       }
       // Chained (not independent): the federated merge appends onto the Oxy list.
+      // `acceptedOutboundFollowUris`, when the caller passes it, is the SAME
+      // in-flight read the caller already needed for its own reasons, so the
+      // merge costs one `federated_actors` lookup instead of two statements.
       try {
-        await mergeFederatedFollowIds(currentUserId, ids);
+        await mergeFederatedFollowIds(currentUserId, ids, acceptedOutboundFollowUris);
       } catch (error) {
         logger.warn('[feedContext] Failed to load federated following', error);
       }
