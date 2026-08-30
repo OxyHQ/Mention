@@ -47,7 +47,7 @@
     "validate:i18n": "bun ./scripts/validate-i18n.mjs && bun ./scripts/test-validate-i18n.mjs",
     "validate:logger": "bun ./scripts/validate-logger-error-args.mjs && bun ./scripts/test-validate-logger-error-args.mjs",
     "validate:no-mongo": "bun ./scripts/validate-no-mongo.mjs && bun ./scripts/test-validate-no-mongo.mjs",
-    "validate:architecture-boundaries": "bun ./scripts/validate-architecture-boundaries.mjs",
+    "validate:architecture-boundaries": "bun ./scripts/validate-architecture-boundaries.mjs && bun ./scripts/test-validate-architecture-boundaries.mjs",
     "validate:license": "bun ./scripts/validate-license.mjs",
     "validate:suite-collection": "bun ./scripts/test-validate-suite-collection.mjs",
     "check:suite-collection": "bun ./scripts/validate-suite-collection.mjs",
