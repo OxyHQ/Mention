@@ -167,7 +167,7 @@
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "4.3.2",
     "tailwindcss-animate": "^1.0.7",
-    "web-vitals": "^6.0.0",
+    "web-vitals": "^6.2.1",
     "zod": "catalog:",
     "zustand": "^5.0.14"
   },
