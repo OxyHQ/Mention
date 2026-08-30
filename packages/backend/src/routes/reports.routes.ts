@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { z } from 'zod';
 import type { ModerationReportReceipt } from '@mention/shared-types';
 import {
   REPORTED_TYPES,
@@ -26,6 +27,52 @@ const router = Router();
 /** Report list page size (`GET /reports`). */
 const DEFAULT_REPORTS_PAGE_SIZE = 20;
 const MAX_REPORTS_PAGE_SIZE = 100;
+
+/** How much free text a reporter may attach. Unchanged; it was already 500. */
+const MAX_REPORT_DETAILS_LENGTH = 500;
+
+/**
+ * `POST /reports`.
+ *
+ * The two enums restate what the hand-rolled checks already enforced, read off
+ * the SAME `REPORTED_TYPES` / `REPORT_CATEGORIES` arrays the column definitions
+ * use — the stored enum is the API contract (see the route below for why that is
+ * NOT the subject registry).
+ *
+ * `reportedId` is the field this schema exists for. It was tested for truthiness
+ * and nothing else, so an object or an array reached `viewerOperatesAccount` —
+ * an outbound Oxy call made with the caller's own bearer — and then
+ * `createReport`, whose `requireIdentifier` threw a `TypeError` that this route's
+ * catch turned into a 500. A malformed id is a 400, and it should never have
+ * cost an upstream round trip to find that out.
+ *
+ * `details` keeps its ASYMMETRIC rule exactly: an over-long STRING is refused,
+ * while a non-string is IGNORED rather than refused — which is what the
+ * `details && typeof details === 'string' && details.length > 500` it replaces
+ * did, and what the `typeof details === 'string' && details.length > 0` guard on
+ * the way into `createReport` did.
+ */
+const createReportSchema = z.object({
+  reportedType: z.enum(
+    REPORTED_TYPES,
+    `Invalid reportedType. Must be one of: ${REPORTED_TYPES.join(', ')}`,
+  ),
+  reportedId: z.string('reportedId must be a non-empty string').min(1, 'reportedId must be a non-empty string'),
+  categories: z
+    .array(z.enum(REPORT_CATEGORIES, `Must be one of: ${REPORT_CATEGORIES.join(', ')}`), 'categories must be a non-empty array')
+    .min(1, 'categories must be a non-empty array'),
+  details: z
+    .unknown()
+    .refine(
+      (value) => typeof value !== 'string' || value.length <= MAX_REPORT_DETAILS_LENGTH,
+      `details must be ${MAX_REPORT_DETAILS_LENGTH} characters or less`,
+    )
+    // `.optional()` LAST, and it is load-bearing: `z.unknown()` is a REQUIRED key
+    // in zod 4, and a `.transform()` that returns `undefined` fails the field
+    // rather than clearing it. Both were measured against the installed version.
+    .transform((value) => (typeof value === 'string' && value.length > 0 ? value : undefined))
+    .optional(),
+});
 
 /**
  * What a reporter is allowed to see about their own report.
@@ -71,20 +118,17 @@ function toReceipt(report: ReportRecord): ModerationReportReceipt {
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const reporter = req.user?.id;
-    const { reportedType, reportedId, categories, details } = req.body;
 
     if (!reporter) {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    // Validate required fields
-    if (!reportedType || !reportedId || !categories) {
-      return res.status(400).json({
-        message: 'reportedType, reportedId, and categories are required'
-      });
-    }
-
     /**
+     * Parsed AFTER the 401 and answered in this file's `{ message }` envelope, so
+     * neither the order of the two refusals nor their shape moves. `middleware/
+     * validate.ts`'s `validateBody` would do both: it runs in the route position,
+     * ahead of the handler, and answers `{ success, error: { code, message } }`.
+     *
      * The stored enum is the API contract — NOT the subject registry.
      *
      * A type the registry has no provider for is accepted and stored locally; only a
@@ -95,34 +139,13 @@ router.post('/', async (req: AuthRequest, res: Response) => {
      * at a time. Whether a report went for review is answered by `localStatus` on the
      * receipt below, not by a refusal.
      */
-    if (!(REPORTED_TYPES as readonly string[]).includes(reportedType)) {
+    const parsed = createReportSchema.safeParse(req.body);
+    if (!parsed.success) {
       return res.status(400).json({
-        message: `Invalid reportedType. Must be one of: ${REPORTED_TYPES.join(', ')}`
+        message: parsed.error.issues.map((issue) => issue.message).join('; '),
       });
     }
-
-    // Validate categories
-    if (!Array.isArray(categories) || categories.length === 0) {
-      return res.status(400).json({
-        message: 'categories must be a non-empty array'
-      });
-    }
-
-    const invalidCategories = categories.filter(
-      (cat: unknown) => !(REPORT_CATEGORIES as readonly unknown[]).includes(cat)
-    );
-    if (invalidCategories.length > 0) {
-      return res.status(400).json({
-        message: `Invalid categories: ${invalidCategories.join(', ')}. Must be one of: ${REPORT_CATEGORIES.join(', ')}`
-      });
-    }
-
-    // Validate details length if provided
-    if (details && typeof details === 'string' && details.length > 500) {
-      return res.status(400).json({
-        message: 'details must be 500 characters or less'
-      });
-    }
+    const { reportedType, reportedId, categories, details } = parsed.data;
 
     /**
      * You cannot report an account you OPERATE — yourself, or a channel /
@@ -170,7 +193,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       reportedType,
       reportedId,
       categories,
-      details: typeof details === 'string' && details.length > 0 ? details : undefined,
+      details,
     });
 
     logger.info('Report created', {
