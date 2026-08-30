@@ -31,7 +31,7 @@
     "@oxyhq/protocol": "^0.2.0",
     "@socket.io/redis-adapter": "^8.3.0",
     "@syra.fm/sdk": "catalog:",
-    "bullmq": "^5.80.4",
+    "bullmq": "^6.3.2",
     "compression": "^1.8.1",
     "drizzle-orm": "0.45.2",
     "express": "^5.2.1",
