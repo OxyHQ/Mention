@@ -60,7 +60,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import type { PostRecord } from '../../db/posts/postRecord';
-import { getScheduledPosts } from '../../controllers/posts.controller';
+import { getScheduledPosts } from '../../controllers/posts/scheduledPosts';
 
 const scope = serviceScope('get-scheduled-posts');
 const VIEWER_ID = scope.user('viewer');

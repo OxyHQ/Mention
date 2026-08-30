@@ -65,7 +65,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { likes } from '../../db/schema/engagement';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import { getKnownPostLikers } from '../../controllers/posts.controller';
+import { getKnownPostLikers } from '../../controllers/posts/engagementLists';
 
 const scope = serviceScope('known-post-likers');
 const VIEWER = scope.user('viewer');

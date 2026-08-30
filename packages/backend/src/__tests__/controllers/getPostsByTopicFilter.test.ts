@@ -31,7 +31,7 @@ import { closePostgres, connectPostgres } from '../../db/postgres';
 import { CHRONO_DESC, deletePostRecord, findPostRecords, insertPostRecord } from '../../db/posts/postRepository';
 import type { PostRecordInput } from '../../db/posts/postRecord';
 import { chronoCursorSql } from '../../mtn/feed/CursorBuilder';
-import { buildPostsByHashtagFilter, buildPostsByTopicFilter } from '../../controllers/posts.controller';
+import { buildPostsByHashtagFilter, buildPostsByTopicFilter } from '../../controllers/posts/readPosts';
 
 const AUTHOR = 'oxy-topic-author';
 const created: string[] = [];

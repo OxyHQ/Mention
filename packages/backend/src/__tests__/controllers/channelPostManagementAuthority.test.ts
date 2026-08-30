@@ -106,13 +106,10 @@ vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => und
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import {
-  deletePost,
-  publishScheduledPostNow,
-  updatePost,
-  updatePostLane,
-  updatePostSettings,
-} from '../../controllers/posts.controller';
+import { deletePost } from '../../controllers/posts/deletePost';
+import { updatePostLane, updatePostSettings } from '../../controllers/posts/postSettings';
+import { publishScheduledPostNow } from '../../controllers/posts/scheduledPosts';
+import { updatePost } from '../../controllers/posts/updatePost';
 import { getPostEditSource } from '../../controllers/postEditSource.controller';
 import { getPostInsights } from '../../controllers/statistics.controller';
 

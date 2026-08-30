@@ -17,7 +17,7 @@ const scope = federationScope('inbound-engagement-notifications');
  *
  * A like/boost/reply from the fediverse on a LOCAL Mention post must reach the
  * owner's notifications exactly like the native equivalent — the same
- * `createPostAuthorNotifications` util the local `posts.controller` (like) and
+ * `createPostAuthorNotifications` util the local `controllers/posts/likes` and
  * `PostCreationService` (reply/boost) paths call, mirroring
  * `handleIncomingFollow`'s already-present follow notification.
  *
