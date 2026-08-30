@@ -149,7 +149,7 @@
     "react-dom": "19.2.3",
     "react-i18next": "^17.0.9",
     "react-native": "0.86.0",
-    "react-native-compressor": "^2.0.2",
+    "react-native-compressor": "^2.0.3",
     "react-native-css": "^3.0.7",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-keyboard-controller": "1.21.9",
