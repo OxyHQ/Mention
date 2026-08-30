@@ -38,6 +38,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   createUserScopedOxyServices: () => ({ listAccountMembers }),
 }));
 
+import { REPORT_CATEGORIES } from '../../db/schema/moderation';
 import reportsRoutes from '../../routes/reports.routes';
 
 function buildApp(authenticated = true): express.Express {
@@ -164,6 +165,56 @@ describe('POST /reports body validation', () => {
     expect(response.status).toBe(400);
     expect(response.body.message).toContain('details');
     expect(createReport).not.toHaveBeenCalled();
+  });
+
+  it('bounds `categories` by the VOCABULARY, which had no upper bound at all', async () => {
+    storedReport();
+
+    // Ten thousand duplicates: measured as ACCEPTED before the bound, passed to
+    // intake and written to a `text[]`, with every entry travelling again in the
+    // CrowdSource envelope. The only ceiling was `express.json`'s 1 MB, which
+    // admits well over a hundred thousand of these — a body-size limit is not a
+    // vocabulary. (The size here is chosen to clear the default parser limit of
+    // the app built above, so what is being measured is the schema.)
+    const flood = await request(buildApp())
+      .post('/reports')
+      .send({
+        reportedType: 'post',
+        reportedId: 'post_123',
+        categories: Array.from({ length: 10_000 }, () => 'spam'),
+      });
+
+    expect(flood.status).toBe(400);
+    expect(flood.body.message).toContain('at most 6');
+    expect(createReport).not.toHaveBeenCalled();
+
+    // Seven entries is already one value named twice too many.
+    const seven = await request(buildApp())
+      .post('/reports')
+      .send({
+        reportedType: 'post',
+        reportedId: 'post_123',
+        categories: [...REPORT_CATEGORIES, 'spam'],
+      });
+    expect(seven.status).toBe(400);
+    expect(createReport).not.toHaveBeenCalled();
+  });
+
+  it('still accepts every category at once, which is what the bound is', async () => {
+    storedReport();
+
+    const response = await request(buildApp())
+      .post('/reports')
+      .send({
+        reportedType: 'post',
+        reportedId: 'post_123',
+        categories: [...REPORT_CATEGORIES],
+      });
+
+    expect(response.status).toBe(201);
+    expect(createReport).toHaveBeenCalledWith(
+      expect.objectContaining({ categories: [...REPORT_CATEGORIES] }),
+    );
   });
 
   it('still refuses an unknown reportedType and an empty categories array', async () => {
