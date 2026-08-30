@@ -1,7 +1,5 @@
 import { createHash } from 'node:crypto';
-import { getRedisClient } from '../../utils/redis';
-import { withRedisFallback } from '../../utils/redisHelpers';
-import { logger } from '../../utils/logger';
+import { createCache } from '../../utils/cache';
 
 /**
  * Negative cache for the `/media/proxy` endpoint.
@@ -15,10 +13,10 @@ import { logger } from '../../utils/logger';
  * network.
  *
  * Design constraints:
- *  - Uses the shared {@link getRedisClient} singleton — never opens a new socket.
- *  - When Redis is unavailable (no `REDIS_URL`, or the server is down) every
- *    operation degrades to a no-op via {@link withRedisFallback}: the proxy
- *    behaves exactly as it did before this module existed, just without memoing.
+ *  - Storage and the fail-open contract come from the shared {@link createCache}
+ *    primitive. When Redis is unavailable (no `REDIS_URL`, or the server is
+ *    down) every operation degrades to a no-op: the proxy behaves exactly as it
+ *    did before this module existed, just without memoing.
  *  - Only CLIENT-class failures (4xx) and hard CONNECTION failures are cached.
  *    Genuine upstream 5xx are NEVER cached — they may be transient.
  *  - Connection failures use a SHORTER TTL than 4xx because a remote host being
@@ -46,6 +44,16 @@ const CONNECTION_ERROR_TTL_SECONDS = 60;
 export type NegativeCacheKind = 'client-error' | 'connection-error';
 
 /**
+ * The KEY is the signal here, so reads are existence checks and the stored
+ * value is only a diagnostic marker naming the failure kind. The instance TTL
+ * is the 4xx one; a connection failure overrides it per write.
+ */
+const cache = createCache({
+  name: 'MediaProxyNegativeCache',
+  ttlSeconds: CLIENT_ERROR_TTL_SECONDS,
+});
+
+/**
  * Derive the Redis key for a remote media URL. We hash the URL (SHA-256) rather
  * than embedding it raw so the key length is bounded and the (potentially long,
  * signed) upstream URL is not stored verbatim in Redis.
@@ -61,38 +69,21 @@ function keyFor(remoteUrl: string): string {
  * miss) whenever Redis is unavailable, so the proxy still attempts the fetch.
  */
 export async function isNegativelyCached(remoteUrl: string): Promise<boolean> {
-  const redis = getRedisClient();
-  return withRedisFallback(
-    redis,
-    async () => {
-      const hit = await redis.exists(keyFor(remoteUrl));
-      return hit === 1;
-    },
-    false,
-    'mediaProxyNegativeCacheGet',
-  );
+  return cache.has(keyFor(remoteUrl));
 }
 
 /**
  * Record `remoteUrl` as known-bad with a TTL chosen by failure `kind`. A failure
  * to write must never break the proxy response, so any error degrades to a no-op
- * (logged at debug — not silently swallowed).
+ * (logged — not silently swallowed).
  */
-export async function markNegativelyCached(remoteUrl: string, kind: NegativeCacheKind): Promise<void> {
-  const redis = getRedisClient();
-  const ttlSeconds = kind === 'connection-error' ? CONNECTION_ERROR_TTL_SECONDS : CLIENT_ERROR_TTL_SECONDS;
-  await withRedisFallback(
-    redis,
-    async () => {
-      // Value is a marker only; the key's existence is the signal. setEx applies
-      // the TTL atomically so a crash can't leave a permanent negative entry.
-      await redis.setEx(keyFor(remoteUrl), ttlSeconds, kind);
-    },
-    undefined,
-    'mediaProxyNegativeCacheSet',
-  ).catch((error: unknown) => {
-    logger.debug('[MediaProxy] Negative-cache write failed', {
-      reason: error instanceof Error ? error.message : 'unknown',
-    });
+export async function markNegativelyCached(
+  remoteUrl: string,
+  kind: NegativeCacheKind,
+): Promise<void> {
+  // setEx applies the TTL atomically so a crash can't leave a permanent
+  // negative entry behind.
+  await cache.set(keyFor(remoteUrl), kind, {
+    ttlSeconds: kind === 'connection-error' ? CONNECTION_ERROR_TTL_SECONDS : CLIENT_ERROR_TTL_SECONDS,
   });
 }

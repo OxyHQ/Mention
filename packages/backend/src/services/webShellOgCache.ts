@@ -2,13 +2,19 @@
  * Redis-backed resolution cache for the public web shell (`/@handle`, `/c/handle`,
  * `/p/:id`).
  *
- * Deep-link resolution is EXPENSIVE — a profile fetch to Oxy or a full Mongo post
+ * Deep-link resolution is EXPENSIVE — a profile fetch to Oxy or a full post
  * hydration — and most of it is only needed for crawlers/unfurlers (real browsers
  * boot the SPA, which set their own meta on hydration). This cache lets a caller
  * pay that cost at most once per short window: entries are served fresh from
  * Redis, served STALE while a background refresh runs (stale-while-revalidate),
  * and resolved inline only on a genuine cold miss. Concurrent misses for the same
  * key share a single in-flight resolution.
+ *
+ * All of that — the SWR envelope, the single-flight, the TTL'd write and the
+ * fail-open contract — is the shared {@link createCache} primitive. What stays
+ * here is the policy: the key namespace, the three TTLs, and the decision that
+ * an unresolved entity is cached NEGATIVELY while a FAILED resolution is not
+ * cached at all.
  *
  * Generic in what it caches because the profile fetch now answers TWO questions
  * from one payload — the OG card, and whether the handle is a channel account
@@ -18,7 +24,7 @@
  * Everything here is FAIL-OPEN: any Redis hiccup degrades to a direct resolution
  * (and, ultimately, to nothing) — it must never break or slow the page.
  */
-import { getRedisClient } from '../utils/redis';
+import { createCache } from '../utils/cache';
 import { logger } from '../utils/logger';
 
 /**
@@ -32,79 +38,17 @@ const OG_FRESH_TTL_MS = 5 * 60 * 1000;
 /** Redis lifetime of a RESOLVED entry — past OG_FRESH it is served stale + refreshed. */
 const OG_TTL_SECONDS = 60 * 60;
 /**
- * Shorter lifetime for a resolved-null entry (unknown entity / transient failure)
- * so a real entity self-heals quickly once it exists AND a crawler storm on a bad
- * URL cannot repeatedly hammer Mongo/Oxy.
+ * Shorter lifetime for a resolved-null entry (unknown entity) so a real entity
+ * self-heals quickly once it exists AND a crawler storm on a bad URL cannot
+ * repeatedly hammer the database/Oxy.
  */
 const OG_NEGATIVE_TTL_SECONDS = 60;
 
-interface CachedEntry<T> {
-  /** The resolved payload, or `null` for a known-absent entity (negative cache). */
-  value: T | null;
-  /** Epoch ms the entry was resolved — drives the fresh/stale decision. */
-  cachedAt: number;
-}
-
-/**
- * Coalesces concurrent cold-miss / refresh resolutions for the same key into one.
- *
- * Keyed by the FULL cache key, which is namespaced per resolution kind
- * (`profile:` / `post:`), so the untyped promise here can never be handed to a
- * caller expecting the other shape.
- */
-const inFlight = new Map<string, Promise<unknown>>();
-
-/** Read a cached entry. Returns null on a miss OR any Redis/parse failure (fail-open). */
-async function readCache<T>(key: string): Promise<CachedEntry<T> | null> {
-  try {
-    const redis = getRedisClient();
-    if (!redis.isReady) return null;
-    const raw = await redis.get(key);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as CachedEntry<T>;
-    return parsed && typeof parsed.cachedAt === 'number' ? parsed : null;
-  } catch (error) {
-    logger.debug('[webShellOgCache] cache read failed', error);
-    return null;
-  }
-}
-
-/** Persist a resolved entry. Best-effort — a write failure is swallowed (fail-open). */
-async function writeCache<T>(key: string, value: CachedEntry<T>, ttlSeconds: number): Promise<void> {
-  try {
-    const redis = getRedisClient();
-    if (!redis.isReady) return;
-    await redis.setEx(key, ttlSeconds, JSON.stringify(value));
-  } catch (error) {
-    logger.debug('[webShellOgCache] cache write failed', error);
-  }
-}
-
-/** Resolve via `fetchFn`, populate the cache, and return it. Deduped per key. */
-function refresh<T>(key: string, fetchFn: () => Promise<T | null>): Promise<T | null> {
-  const existing = inFlight.get(key) as Promise<T | null> | undefined;
-  if (existing) return existing;
-
-  const pending = (async () => {
-    try {
-      const value = await fetchFn();
-      await writeCache(
-        key,
-        { value, cachedAt: Date.now() },
-        value ? OG_TTL_SECONDS : OG_NEGATIVE_TTL_SECONDS,
-      );
-      return value;
-    } catch (error) {
-      logger.debug('[webShellOgCache] resolution failed', error);
-      return null;
-    } finally {
-      inFlight.delete(key);
-    }
-  })();
-
-  inFlight.set(key, pending);
-  return pending;
-}
+const cache = createCache({
+  name: 'webShellOgCache',
+  ttlSeconds: OG_TTL_SECONDS,
+  staleAfterMs: OG_FRESH_TTL_MS,
+});
 
 /**
  * Return a resolved deep-link payload, backed by the Redis SWR cache. A fresh
@@ -112,21 +56,21 @@ function refresh<T>(key: string, fetchFn: () => Promise<T | null>): Promise<T | 
  * refreshes in the background; a cold miss resolves inline via `fetchFn` (so a
  * crawler always gets tags) and populates the cache. `cacheKey` should be a stable
  * per-entity key (e.g. `profile:<handle>` / `post:<id>`).
+ *
+ * A resolution that FAILS is never cached: the error propagates out of the
+ * primitive (which writes nothing) and is absorbed here as "no tags", so the
+ * next request retries instead of serving a minute of manufactured absence.
  */
 export async function getShellCached<T>(
   cacheKey: string,
   fetchFn: () => Promise<T | null>,
 ): Promise<T | null> {
-  const key = OG_CACHE_PREFIX + cacheKey;
-
-  const cached = await readCache<T>(key);
-  if (cached) {
-    if (Date.now() - cached.cachedAt < OG_FRESH_TTL_MS) {
-      return cached.value;
-    }
-    void refresh(key, fetchFn);
-    return cached.value;
+  try {
+    return await cache.getOrCompute<T | null>(OG_CACHE_PREFIX + cacheKey, fetchFn, {
+      ttlSecondsFor: (value) => (value ? OG_TTL_SECONDS : OG_NEGATIVE_TTL_SECONDS),
+    });
+  } catch (error) {
+    logger.debug('[webShellOgCache] resolution failed', error);
+    return null;
   }
-
-  return refresh(key, fetchFn);
 }

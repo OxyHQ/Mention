@@ -1,7 +1,6 @@
 import { createHash } from 'crypto';
 import type { FeedResponse, SlicedFeedResponse } from '@mention/shared-types';
-import { getRedisClient } from '../utils/redis';
-import { logger } from '../utils/logger';
+import { createCache } from '../utils/cache';
 
 /**
  * Redis cache for the ANONYMOUS main-feed page.
@@ -13,9 +12,13 @@ import { logger } from '../utils/logger';
  * anon feed into a single shared cache read while staying fresh enough that new
  * posts surface within the TTL.
  *
- * Everything here is FAIL-SOFT (mirrors {@link TrendingService.getTrending}): a
- * missing/unready Redis, or any read/write error, degrades to a live recompute —
- * it never throws into the request path. Only anonymous requests are ever cached;
+ * Everything here is FAIL-SOFT: a missing/unready Redis, or any read/write
+ * error, degrades to a live recompute — it never throws into the request path.
+ * That contract, the TTL and the JSON handling come from the shared
+ * {@link createCache} primitive; this module owns the KEY (a feed page is
+ * identified by its whole request shape) and the read/write split the controller
+ * needs — the feed is computed by the controller, so this cache is deliberately
+ * NOT a get-or-compute one. Only anonymous requests are ever cached;
  * authenticated feeds are personalized and must never be shared.
  */
 
@@ -63,10 +66,15 @@ function stableStringify(value: unknown): string {
   });
 }
 
+/**
+ * Short TTL: the anon feed is shared, so this collapses a burst of anonymous
+ * requests into one recompute, while new posts still appear within ~1 minute.
+ */
+const TTL_SECONDS = 45;
+
+const cache = createCache({ name: 'AnonFeedCache', ttlSeconds: TTL_SECONDS });
+
 class AnonFeedCache {
-  // Short TTL: the anon feed is shared, so this collapses a burst of anonymous
-  // requests into one recompute, while new posts still appear within ~1 minute.
-  private readonly TTL_SECONDS = 45;
   private readonly KEY_PREFIX = 'anonfeed:v1:';
 
   /**
@@ -92,27 +100,12 @@ class AnonFeedCache {
 
   /** Read a cached anon page, or `null` on miss / any Redis failure. */
   async read(key: string): Promise<CacheableFeedResponse | null> {
-    const redis = getRedisClient();
-    if (!redis) return null;
-    try {
-      const cached = await redis.get(key);
-      if (!cached) return null;
-      return JSON.parse(cached) as CacheableFeedResponse;
-    } catch (error) {
-      logger.warn('[AnonFeedCache] Redis read failed:', error);
-      return null;
-    }
+    return (await cache.get<CacheableFeedResponse>(key)) ?? null;
   }
 
   /** Persist an anon page. Fail-soft: a write error is logged and swallowed. */
   async write(key: string, response: CacheableFeedResponse): Promise<void> {
-    const redis = getRedisClient();
-    if (!redis) return;
-    try {
-      await redis.setEx(key, this.TTL_SECONDS, JSON.stringify(response));
-    } catch (error) {
-      logger.warn('[AnonFeedCache] Redis write failed:', error);
-    }
+    await cache.set(key, response);
   }
 }
 
