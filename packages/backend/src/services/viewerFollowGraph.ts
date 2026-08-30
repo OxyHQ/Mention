@@ -17,13 +17,26 @@ import { logger } from '../utils/logger';
 /**
  * Merge oxyUserIds from accepted federated (ActivityPub) outbound follows into
  * `followingIds`, deduplicating in-place.
+ *
+ * `acceptedOutboundUris` lets a caller that ALREADY has the viewer's accepted
+ * outbound follow uris in flight hand that same pending read in rather than
+ * paying for a byte-identical second one. The feed controller does: it needs the
+ * set for the Mutuals/social-proof intersection as well, and the two reads were
+ * measured as an exact duplicate on every authenticated For You request. A
+ * PROMISE rather than a resolved array on purpose — awaiting it before the call
+ * would serialise a hop that runs in parallel today. Omitted by every other
+ * caller, which reads it here.
  */
-export async function mergeFederatedFollowIds(localUserId: string, followingIds: string[]): Promise<void> {
-  const fedFollowUris = await distinctRemoteActorUris({
+export async function mergeFederatedFollowIds(
+  localUserId: string,
+  followingIds: string[],
+  acceptedOutboundUris?: Promise<string[]>,
+): Promise<void> {
+  const fedFollowUris = await (acceptedOutboundUris ?? distinctRemoteActorUris({
     localUserId,
     direction: 'outbound',
     statuses: ['accepted'],
-  });
+  }));
   if (fedFollowUris.length === 0) return;
 
   // The Mongo filter also carried `{ oxyUserId: { $ne: null } }`. It is dropped
