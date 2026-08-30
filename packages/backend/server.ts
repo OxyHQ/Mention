@@ -3,7 +3,7 @@ import http from "http";
 import { hostname } from 'os';
 import { Server as SocketIOServer, Namespace } from "socket.io";
 import { PUBLIC_REALTIME_NAMESPACE } from "@mention/shared-types";
-import { logger, sanitizeLogValue } from "./src/utils/logger";
+import { logger } from "./src/utils/logger";
 import { config, validateEnvironment } from './src/config';
 import { isAllowedOrigin } from "./src/utils/allowedOrigins";
 import { closePostgres, connectPostgres, getPostgresClient } from "./src/db/postgres";
@@ -26,6 +26,9 @@ import {
   type UserInvalidationSubscriber,
 } from './src/services/userInvalidationSubscriber';
 import { DistributedPresenceService } from './src/services/DistributedPresenceService';
+import { registerGlobalErrorHandlers } from './src/runtime/globalErrorHandlers';
+import { PresenceRegistry } from './src/runtime/presenceRegistry';
+import { startSchedulers, stopSchedulers } from './src/runtime/schedulers';
 import {
   registerSocketPresence,
   type AuthenticatedPresenceSocket as AuthenticatedSocket,
@@ -51,88 +54,28 @@ import {
 import { registerAllModules } from './src/mtn/feed/engine';
 import { createRuntimeApp } from './src/runtimeApp';
 
-// --- Global Error Handlers ---
-// Register before bootstrap starts any asynchronous work. Imports must finish
-// first so the sanitizer and validated configuration bindings are initialized
-// when a handler runs.
-process.on('unhandledRejection', (reason: unknown, _promise: Promise<unknown>) => {
-  // Keep this fallback independent from the logger transport, but sanitize the
-  // payload with the same central policy before writing it.
-  console.error('Unhandled promise rejection', sanitizeLogValue(reason));
-  // In production, exit to let the process manager restart cleanly
-  if (config.runtime.isProduction) {
-    process.exit(1);
-  }
-});
-
-process.on('uncaughtException', (error: Error) => {
-  console.error('Uncaught exception', sanitizeLogValue(error));
-  // Always exit on uncaught exceptions — the process state is unreliable
-  process.exit(1);
-});
+// Registered before bootstrap starts any asynchronous work; the imports above
+// have finished, so the sanitizer and validated config are live in a handler.
+registerGlobalErrorHandlers();
 
 export const { app, oxy } = createRuntimeApp();
 
 // --- Sockets ---
 const server = http.createServer(app);
 
-// Presence tracking - Map of userId to Set of socket IDs (user can have multiple connections)
-const onlineUsers = new Map<string, Set<string>>();
-const distributedPresence = new DistributedPresenceService(
-  getRedisClient,
-  `${hostname()}:${process.pid}`,
-);
-
-// Helper to check if user is online
-const isUserOnline = (userId: string): boolean => {
-  const sockets = onlineUsers.get(userId);
-  return sockets !== undefined && sockets.size > 0;
-};
-
-// Helper to broadcast user online status
-const broadcastPresence = (io: SocketIOServer, userId: string, online: boolean) => {
-  const presenceData = { userId, online, timestamp: new Date().toISOString() };
-  // Emit to users subscribed to this user's presence
-  io.to(`presence:${userId}`).emit('user:presence', presenceData);
-  // Targeted emit only — no global broadcast
-};
-
-// Periodic cleanup of stale online user entries (every 5 minutes)
-// Validates that tracked socket IDs are still actually connected to the server
-const presenceCleanupInterval = setInterval(() => {
-  let cleanedUsers = 0;
-  let cleanedSockets = 0;
-  for (const [userId, sockets] of onlineUsers.entries()) {
-    // Remove socket IDs that are no longer connected
-    for (const socketId of sockets) {
-      const activeSocket = io.sockets.sockets.get(socketId);
-      if (!activeSocket || !activeSocket.connected) {
-        sockets.delete(socketId);
-        cleanedSockets++;
-      }
-    }
-    // Remove user entry if no valid sockets remain
-    if (sockets.size === 0) {
-      onlineUsers.delete(userId);
-      void distributedPresence.markOffline(userId).then(async () => {
-        if (!await distributedPresence.isOnline(userId, false)) {
-          broadcastPresence(io, userId, false);
-        }
-      });
-      cleanedUsers++;
-    }
-  }
-  if (cleanedUsers > 0 || cleanedSockets > 0) {
-    logger.debug(`Presence cleanup: removed ${cleanedSockets} stale sockets, ${cleanedUsers} users now offline`);
-  }
-}, 5 * 60 * 1000);
-// Never keep the event loop (or a test run) alive solely for this housekeeping timer.
-presenceCleanupInterval.unref?.();
-
-const presenceHeartbeatInterval = setInterval(() => {
-  void distributedPresence.heartbeat(onlineUsers.keys());
-}, 30_000);
-presenceHeartbeatInterval.unref?.();
+const presence = new PresenceRegistry({
+  distributedPresence: new DistributedPresenceService(
+    getRedisClient,
+    `${hostname()}:${process.pid}`,
+  ),
+  isSocketConnected: (socketId) => io.sockets.sockets.get(socketId)?.connected === true,
+  // Emit to users subscribed to this user's presence. Targeted emit only — no
+  // global broadcast.
+  emitPresence: (userId, payload) => {
+    io.to(`presence:${userId}`).emit('user:presence', payload);
+  },
+});
+presence.startHousekeeping();
 
 type DisconnectReason =
   | "server disconnect" | "client disconnect" | "transport close" | "transport error" | "ping timeout" | "parse error" | "forced close" | "forced server close" | "server shutting down" | "client namespace disconnect" | "server namespace disconnect" | "unknown transport";
@@ -434,10 +377,10 @@ io.on("connection", (socket: AuthenticatedSocket) => {
   // first Redis await. Do not await it here: every other socket listener must
   // also be attached in the same connection turn.
   void registerSocketPresence(socket, {
-    onlineUsers,
-    distributedPresence,
+    onlineUsers: presence.onlineUsers,
+    distributedPresence: presence.distributedPresence,
     broadcastPresence: (presenceUserId, online) => {
-      broadcastPresence(io, presenceUserId, online);
+      presence.broadcastPresence(presenceUserId, online);
       logger.debug('User presence changed', { online });
     },
   }).catch((error) => {
@@ -489,10 +432,7 @@ io.on("connection", (socket: AuthenticatedSocket) => {
   // Get online status of a single user
   socket.on("getPresence", socketRateLimiter.wrap(socket, 'getPresence', async (targetUserId: string, callback?: (data: { online: boolean }) => void) => {
     if (!targetUserId || typeof targetUserId !== 'string') return;
-    const online = await distributedPresence.isOnline(
-      targetUserId,
-      isUserOnline(targetUserId),
-    );
+    const online = await presence.isOnline(targetUserId);
     if (typeof callback === 'function') {
       callback({ online });
     } else {
@@ -503,7 +443,7 @@ io.on("connection", (socket: AuthenticatedSocket) => {
   // Get online status of multiple users
   socket.on("getPresenceBulk", socketRateLimiter.wrap(socket, 'getPresenceBulk', async (userIds: string[], callback?: (data: Record<string, boolean>) => void) => {
     const result = Array.isArray(userIds)
-      ? await distributedPresence.getBulk(userIds, isUserOnline)
+      ? await presence.getBulk(userIds)
       : {};
     if (typeof callback === 'function') {
       callback(result);
@@ -516,10 +456,7 @@ io.on("connection", (socket: AuthenticatedSocket) => {
   socket.on("subscribePresence", socketRateLimiter.wrap(socket, 'subscribePresence', async (targetUserId: string) => {
     if (!targetUserId || typeof targetUserId !== 'string') return;
     socket.join(`presence:${targetUserId}`);
-    const online = await distributedPresence.isOnline(
-      targetUserId,
-      isUserOnline(targetUserId),
-    );
+    const online = await presence.isOnline(targetUserId);
     socket.emit('user:presence', { userId: targetUserId, online });
   }));
 
@@ -534,172 +471,6 @@ io.on("connection", (socket: AuthenticatedSocket) => {
 app.set("io", io);
 app.set("notificationsNamespace", notificationsNamespace);
 app.set("postsNamespace", postsNamespace);
-
-/**
- * Start all in-process schedulers. Invoked by LeaderElection ONLY on the task
- * that holds the scheduler leadership lock. Redis failure pauses all singleton
- * schedulers; the HTTP API may degrade, but no task self-elects without a
- * lease. Each service logs its own startup status.
- */
-function startSchedulers(): void {
-  // Feed job scheduler
-  try {
-    const { feedJobScheduler } = require("./src/services/FeedJobScheduler");
-    feedJobScheduler.start();
-  } catch (error) {
-    logger.warn("Failed to start feed job scheduler", error);
-  }
-
-  // Trending Service (30-min calculation interval)
-  try {
-    const { trendingService } = require("./src/services/TrendingService");
-    trendingService.initialize();
-  } catch (error) {
-    logger.warn("Failed to initialize trending service", error);
-  }
-
-  // Post Classification Service (5-min interval; no-ops unless enabled + Alia configured)
-  try {
-    const { postClassificationService } = require("./src/services/PostClassificationService");
-    postClassificationService.start();
-  } catch (error) {
-    logger.warn("Failed to start post classification service", error);
-  }
-
-  // Topic Service (daily AI enrichment of topic metadata)
-  try {
-    const { topicService } = require("./src/services/TopicService");
-    topicService.start();
-  } catch (error) {
-    logger.warn("Failed to initialize topic service", error);
-  }
-
-  // Federation Job Scheduler (also owns the media-cache worker + eviction jobs)
-  try {
-    const { federationJobScheduler } = require("./src/services/FederationJobScheduler");
-    federationJobScheduler.start();
-  } catch (error) {
-    logger.warn("Failed to start federation job scheduler", error);
-  }
-
-  // MTN Node Scheduler (B3 bidirectional node sync: leader-gated liveness probes
-  // + ingest of pull nodes / export to push nodes). Background only — NEVER on a
-  // request path; the feed/hydration hot path never queries a node.
-  try {
-    const { mentionNodeScheduler } = require("./src/services/mtn/MentionNodeScheduler");
-    mentionNodeScheduler.start();
-  } catch (error) {
-    logger.warn("Failed to start MTN node scheduler", error);
-  }
-
-  // Follower Snapshot Job (leader-gated + env-gated on REDIS_URL): samples
-  // follower counts for active authors, powering the `risingCreators` feed
-  // source's follower-growth delta. Timers are unref'd; inline no-op without Redis.
-  try {
-    const { followerSnapshotJob } = require("./src/services/followerSnapshotJob");
-    followerSnapshotJob.start();
-  } catch (error) {
-    logger.warn("Failed to start follower snapshot job", error);
-  }
-
-  // CrowdSource reconciliation (leader-gated, env-gated on CROWDSOURCE_ENABLED):
-  // finds reports whose durable delivery event is missing or dead-lettered. The
-  // outbox DISPATCHER runs on every task (lease-claimed in Postgres); this sweep
-  // scans the whole table, so one task is enough.
-  try {
-    const { moderationReconciliationJob } = require("./src/services/moderation/ModerationReconciliationJob");
-    moderationReconciliationJob.start();
-  } catch (error) {
-    logger.warn("Failed to start moderation reconciliation job", error);
-  }
-
-  // Blocklist proposal sweep (leader-gated): reads the blocklists other
-  // instances publish and leaves newly corroborated domains in a review queue.
-  // It PROPOSES only — it cannot block anything, by construction (see
-  // services/federation/BlocklistProposalService). Due-ness lives in the run
-  // history, not in this timer, so a weekly sweep still happens on a service
-  // that redeploys daily.
-  try {
-    const { blocklistProposalScheduler } = require("./src/services/federation/BlocklistProposalScheduler");
-    blocklistProposalScheduler.start();
-  } catch (error) {
-    logger.warn("Failed to start blocklist proposal scheduler", error);
-  }
-}
-
-/**
- * Stop all in-process schedulers. Invoked by LeaderElection when this task
- * loses leadership (another task took over) or during graceful shutdown.
- * Each stop is isolated so one failure does not prevent stopping the rest.
- *
- * NOTE: FeedSeenPostsService's in-memory cleanup interval is intentionally NOT
- * stopped here — it is per-process memory hygiene for a request-time fallback
- * cache, not a shared cron job, so every task (leader or not) must keep it.
- */
-function stopSchedulers(): void {
-  try {
-    const { feedJobScheduler } = require("./src/services/FeedJobScheduler");
-    feedJobScheduler.stop();
-  } catch (error) {
-    logger.warn("Failed to stop feed job scheduler", error);
-  }
-
-  try {
-    const { trendingService } = require("./src/services/TrendingService");
-    trendingService.cleanup();
-  } catch (error) {
-    logger.warn("Failed to stop trending service", error);
-  }
-
-  try {
-    const { postClassificationService } = require("./src/services/PostClassificationService");
-    postClassificationService.stop();
-  } catch (error) {
-    logger.warn("Failed to stop post classification service", error);
-  }
-
-  try {
-    const { topicService } = require("./src/services/TopicService");
-    topicService.stop();
-  } catch (error) {
-    logger.warn("Failed to stop topic service", error);
-  }
-
-  try {
-    const { federationJobScheduler } = require("./src/services/FederationJobScheduler");
-    federationJobScheduler.stop();
-  } catch (error) {
-    logger.warn("Failed to stop federation job scheduler", error);
-  }
-
-  try {
-    const { mentionNodeScheduler } = require("./src/services/mtn/MentionNodeScheduler");
-    mentionNodeScheduler.stop();
-  } catch (error) {
-    logger.warn("Failed to stop MTN node scheduler", error);
-  }
-
-  try {
-    const { followerSnapshotJob } = require("./src/services/followerSnapshotJob");
-    followerSnapshotJob.stop();
-  } catch (error) {
-    logger.warn("Failed to stop follower snapshot job", error);
-  }
-
-  try {
-    const { moderationReconciliationJob } = require("./src/services/moderation/ModerationReconciliationJob");
-    moderationReconciliationJob.stop();
-  } catch (error) {
-    logger.warn("Failed to stop moderation reconciliation job", error);
-  }
-
-  try {
-    const { blocklistProposalScheduler } = require("./src/services/federation/BlocklistProposalScheduler");
-    blocklistProposalScheduler.stop();
-  } catch (error) {
-    logger.warn("Failed to stop blocklist proposal scheduler", error);
-  }
-}
 
 // --- Server Listen ---
 const PORT = config.runtime.port;
@@ -812,15 +583,7 @@ const gracefulShutdown = (signal: string): void => {
   hardTimeout.unref();
 
   void (async () => {
-    clearInterval(presenceCleanupInterval);
-    clearInterval(presenceHeartbeatInterval);
-
-    const presenceShutdown = async (): Promise<void> => {
-      await Promise.allSettled(
-        [...onlineUsers.keys()].map((userId) => distributedPresence.markOffline(userId)),
-      );
-      onlineUsers.clear();
-    };
+    presence.stopHousekeeping();
 
     const queueShutdown = async (): Promise<void> => {
       try {
@@ -855,7 +618,7 @@ const gracefulShutdown = (signal: string): void => {
       ]);
     };
 
-    await presenceShutdown();
+    await presence.drainOffline();
     // Stop every producer/worker while Redis and Postgres are still available.
     // LeaderElection releases its owner-checked lock only after onLose has
     // stopped singleton schedulers.
