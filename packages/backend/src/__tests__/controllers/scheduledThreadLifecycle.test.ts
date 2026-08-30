@@ -69,7 +69,8 @@ import { closePostgres, connectPostgres } from '../../db/postgres';
 import { findArticleById, insertArticle, newArticleId } from '../../db/posts/articleRepository';
 import { claimScheduledPost } from '../../db/posts/postRepository';
 import { clearServiceScope, readScopePosts, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import { deletePost, publishScheduledPostNow } from '../../controllers/posts.controller';
+import { deletePost } from '../../controllers/posts/deletePost';
+import { publishScheduledPostNow } from '../../controllers/posts/scheduledPosts';
 
 const scope = serviceScope('scheduled-thread-lifecycle');
 const AUTHOR = scope.user('author');

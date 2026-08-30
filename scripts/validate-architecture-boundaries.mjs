@@ -11,7 +11,7 @@
  * ## Why a baseline, not a hard ban
  *
  * A repo-wide grep for this today finds real, live imports of ActivityPub
- * internals from `PostHydrationService`, `ChannelDeletionService`,
+ * internals from `PostHydrationService`, `channelDeletionFederation`,
  * `profileLinkMentions`, and several others (issue #701). None of that is
  * fabricated for this guard, and fixing all of it is a real refactor this
  * change does not perform — issue #701 is explicit that landing the boundary
@@ -120,7 +120,7 @@ const BASELINE = [
       + "a protocol-neutral identity lookup.",
   },
   {
-    file: "src/services/channelDeletion/ChannelDeletionService.ts",
+    file: "src/services/channelDeletion/channelDeletionFederation.ts",
     protocol: "activitypub",
     reason:
       "TRACKED DEBT: performs channel-teardown federation side effects (follow/delivery services) directly "

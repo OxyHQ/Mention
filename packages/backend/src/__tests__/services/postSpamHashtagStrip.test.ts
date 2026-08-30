@@ -81,7 +81,7 @@ vi.mock('../../runtime/socketServer', () => ({
   getRuntimeSocketServer: () => undefined,
 }));
 
-// Spread the real module: `PostCreationService` and `posts.controller` need
+// Spread the real module: `PostCreationService` and `controllers/posts` need
 // three different helpers out of it, and other modules in this graph import
 // others still.
 vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
@@ -101,7 +101,7 @@ import {
   withDeadlockRetry,
 } from '../helpers/serviceFixtures';
 import { postCreationService } from '../../services/PostCreationService';
-import { updatePost } from '../../controllers/posts.controller';
+import { updatePost } from '../../controllers/posts/updatePost';
 import { stripSpamHashtagBlocks } from '../../services/postVariants';
 import type { PostRecord } from '../../db/posts/postRecord';
 

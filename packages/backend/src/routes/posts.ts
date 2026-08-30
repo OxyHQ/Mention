@@ -1,40 +1,39 @@
 import { Router, Response } from 'express';
+import { createPost } from '../controllers/posts/createPost';
+import { createThread } from '../controllers/posts/createThread';
 import {
-  createPost,
-  createThread,
-  getPosts,
   getPostById,
-  updatePost,
-  updatePostSettings,
-  updatePostLane,
-  deletePost,
-  publishScheduledPostNow,
-  likePost,
-  unlikePost,
-  savePost,
-  unsavePost,
+  getPostCorrections,
+  getPosts,
   getPostsByHashtag,
   getPostsByTopic,
-  getSavedPosts,
+} from '../controllers/posts/readPosts';
+import { updatePost } from '../controllers/posts/updatePost';
+import { updatePostLane, updatePostSettings } from '../controllers/posts/postSettings';
+import { deletePost } from '../controllers/posts/deletePost';
+import { likePost, unlikePost } from '../controllers/posts/likes';
+import {
   getBookmarkFolders,
+  getSavedPosts,
   moveBookmarkToFolder,
   moveBookmarkToFolderByPostId,
-  getDrafts,
-  getScheduledPosts,
-  getNearbyPosts,
-  getPostsInArea,
-  getNearbyPostsBothLocations,
+  savePost,
+  unsavePost,
+} from '../controllers/posts/bookmarks';
+import { getDrafts, getScheduledPosts, publishScheduledPostNow } from '../controllers/posts/scheduledPosts';
+import {
   getLocationStats,
-  getPostLikes,
-  getKnownPostLikers,
-  getPostCorrections,
-  getPostBoosts,
-  translatePost,
-  translateDraft,
+  getNearbyPosts,
+  getNearbyPostsBothLocations,
+  getPostsInArea,
+} from '../controllers/posts/geo';
+import { getKnownPostLikers, getPostBoosts, getPostLikes } from '../controllers/posts/engagementLists';
+import { translateDraft, translatePost } from '../controllers/posts/translation';
+import {
   acceptCollabInvite,
   declineCollabInvite,
   stopCollabSharing,
-} from '../controllers/posts.controller';
+} from '../controllers/posts/collaboration';
 import { getPostEditSource } from '../controllers/postEditSource.controller';
 import {
   deletePostgate,

@@ -74,7 +74,7 @@ vi.mock('../../services/publishAsAccount', () => ({
 }));
 
 import { feedController } from '../../controllers/feed.controller';
-import { createPost } from '../../controllers/posts.controller';
+import { createPost } from '../../controllers/posts/createPost';
 import type { OxyAuthRequest } from '@oxyhq/core/server';
 import type { ReplyPermission } from '@mention/shared-types';
 

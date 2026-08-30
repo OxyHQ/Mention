@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -40,15 +40,16 @@ const ENRICHMENT_DIR = join(BACKEND_SRC, 'services', 'postEnrichment');
 const NON_STEP_MODULES = new Set(['index.ts', 'types.ts']);
 
 /**
- * Every route that stores a post, plus the controller that owns the native
- * create. These are the files that must converge rather than enrich by hand.
+ * Every route that stores a post, plus the controller directory that owns the
+ * native create. These are the sources that must converge rather than enrich by
+ * hand.
  */
 const INGEST_ROUTES = [
   'services/PostCreationService.ts',
   'connectors/activitypub/outbox.service.ts',
   'connectors/activitypub/inbox.service.ts',
   'connectors/atproto/post.mapper.ts',
-  'controllers/posts.controller.ts',
+  'controllers/posts',
 ];
 
 /** The enrichment step modules, derived from the directory. */
@@ -60,7 +61,16 @@ function stepModules(): string[] {
 }
 
 function readSource(relativePath: string): string {
-  return readFileSync(join(BACKEND_SRC, relativePath), 'utf8');
+  const target = join(BACKEND_SRC, relativePath);
+  // The native create is a DIRECTORY of handlers rather than a single file, and
+  // every assertion below asks "does this route's source do X anywhere", so a
+  // directory reads as the concatenation of its modules. Reading only one of
+  // them would leave the others free to enrich by hand.
+  if (!statSync(target).isDirectory()) return readFileSync(target, 'utf8');
+  return readdirSync(target)
+    .filter((name) => name.endsWith('.ts'))
+    .map((name) => readFileSync(join(target, name), 'utf8'))
+    .join('\n');
 }
 
 /** The body of the `POST_ENRICHMENT_STEPS` array literal in the fan-out. */

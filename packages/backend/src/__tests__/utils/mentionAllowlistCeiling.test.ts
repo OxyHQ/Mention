@@ -8,7 +8,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * too, so it cannot log — it reports the pre-cap `total` instead, and
  * `reconcileMentionIdsForPost` is the wrapper every backend write boundary
  * (`PostCreationService.create`, the reply and boost paths in `feed.controller`,
- * `posts.controller`'s edit, `postEditSource.controller`) uses to turn that into a
+ * `controllers/posts/updatePost`, `postEditSource.controller`) uses to turn that into
+ * a
  * warning. Its own truncation behaviour is pinned in the shared-types suite; what
  * is pinned here is that a truncation is never invisible.
  */

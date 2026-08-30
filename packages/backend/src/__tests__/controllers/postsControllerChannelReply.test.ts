@@ -74,7 +74,7 @@ vi.mock('../../services/publishAsAccount', async (importOriginal) => ({
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import { createPost } from '../../controllers/posts.controller';
+import { createPost } from '../../controllers/posts/createPost';
 
 const scope = serviceScope('posts-controller-channel-reply');
 const OPERATOR = scope.user('operator');

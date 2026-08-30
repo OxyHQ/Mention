@@ -237,6 +237,39 @@ const environmentSchema = z
     PG_IDLE_TIMEOUT_SECONDS: integerFromEnv(30, { minimum: 1 }),
     PG_CONNECT_TIMEOUT_SECONDS: integerFromEnv(10, { minimum: 1 }),
     PG_MAX_LIFETIME_SECONDS: integerFromEnv(1_800, { minimum: 1 }),
+    /**
+     * Per-statement timing, the per-request roundtrip tally, and the slow-query
+     * log (`db/queryMetrics.ts`).
+     *
+     * DEFAULT ON, because the cost is one `hrtime` pair and one histogram
+     * observation per statement — immeasurable beside the round trip it
+     * measures — and a database metric that is off in production measures
+     * nothing. The switch exists so it can be taken out of the path entirely
+     * (the client is then left completely unpatched) if it is ever implicated
+     * in an incident, not because it is expected to be.
+     *
+     * DEFAULT OFF UNDER TEST, because the slow-query line goes through the same
+     * `logger.warn` the application uses. A suite that asserts "this path warns
+     * about nothing" would then pass or fail on how fast the machine running it
+     * happens to be: `listSubscriptionVisibility` asserted exactly that, and its
+     * own multi-row fixture insert took 350 ms on a CI runner and under the
+     * 200 ms threshold here, so the failure appeared only in CI. Instrumentation
+     * is observability, not behaviour, and must not decide whether a suite is
+     * green. The two suites that exercise it set `queryMetricsEnabled` before
+     * connecting, so nothing about it goes unmeasured; an explicit
+     * `DB_QUERY_METRICS_ENABLED` still wins in every environment.
+     */
+    DB_QUERY_METRICS_ENABLED: booleanFromEnv(process.env.NODE_ENV !== 'test'),
+    /**
+     * Statements at or above this take a `warn` line carrying the SQL text.
+     *
+     * 200 ms is roughly two orders of magnitude above an indexed point lookup
+     * against this schema, so an ordinary request logs nothing and a statement
+     * that trips it is genuinely worth reading. Lower it to profile; raising it
+     * past a second makes the line redundant with the shared slow-operation
+     * warning `recordLatency` already emits.
+     */
+    DB_SLOW_QUERY_MS: integerFromEnv(200, { minimum: 1, maximum: 600_000 }),
 
     REDIS_URL: optionalRedisUrl,
     REDIS_URI: optionalRedisUrl,
@@ -694,6 +727,8 @@ export const config = {
     idleTimeoutSeconds: environment.PG_IDLE_TIMEOUT_SECONDS,
     connectTimeoutSeconds: environment.PG_CONNECT_TIMEOUT_SECONDS,
     maxLifetimeSeconds: environment.PG_MAX_LIFETIME_SECONDS,
+    queryMetricsEnabled: environment.DB_QUERY_METRICS_ENABLED,
+    slowQueryMs: environment.DB_SLOW_QUERY_MS,
   },
   frontendUrl: environment.FRONTEND_URL,
   oxyApiUrl: environment.OXY_API_URL,

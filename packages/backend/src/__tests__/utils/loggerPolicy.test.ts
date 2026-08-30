@@ -214,8 +214,11 @@ describe('backend logging policy', () => {
     // performance budget.
   }, 60_000);
 
-  it('sanitizes the early console error fallback in server.ts', () => {
-    const serverFile = path.join(BACKEND_ROOT, 'server.ts');
+  it('sanitizes the early console error fallback in the global error handlers', () => {
+    // The two `console.error` calls are deliberate: the last-resort handlers must
+    // not depend on the logger transport. They live in the runtime module that
+    // registers them — `server.ts` only calls `registerGlobalErrorHandlers()`.
+    const serverFile = path.join(BACKEND_ROOT, 'src/runtime/globalErrorHandlers.ts');
     const source = readFileSync(serverFile, 'utf8');
     const sourceFile = ts.createSourceFile(
       serverFile,
