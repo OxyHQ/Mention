@@ -24,6 +24,7 @@ import type postgres from 'postgres';
 import { createDatabase } from '@oxyhq/db';
 import { config } from '../config';
 import { logger } from '../utils/logger';
+import { instrumentPostgresClient } from './queryMetrics';
 import * as schema from './schema';
 
 /** Seconds `closePostgres` waits for in-flight queries before forcing the socket shut. */
@@ -92,6 +93,12 @@ export async function connectPostgres(): Promise<Database> {
       onnotice: (notice) => logger.debug('Postgres notice', { notice: notice.message }),
     },
   });
+
+  // Patch the client BEFORE the boot probe, and before anything can query
+  // through the drizzle handle. `createDatabase` already handed that handle the
+  // client by reference, so this mutates the very object drizzle will use —
+  // see `queryMetrics.ts` for why a wrapper returned here would measure nothing.
+  instrumentPostgresClient(created.client);
 
   // postgres.js connects lazily, so constructing the pool proves nothing. Issue
   // a real round trip here so an unreachable/misconfigured database fails during
