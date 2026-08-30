@@ -153,7 +153,7 @@
     "react-native-css": "^3.0.7",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-keyboard-controller": "1.21.9",
-    "react-native-nitro-modules": "^0.36.5",
+    "react-native-nitro-modules": "^0.37.1",
     "react-native-popup-menu": "^0.19.0",
     "react-native-qrcode-svg": "^6.3.21",
     "react-native-reanimated": "4.5.0",
@@ -167,7 +167,7 @@
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "4.3.2",
     "tailwindcss-animate": "^1.0.7",
-    "web-vitals": "^6.0.0",
+    "web-vitals": "^6.2.1",
     "zod": "catalog:",
     "zustand": "^5.0.14"
   },
@@ -186,7 +186,7 @@
     "jest": "~29.7.0",
     "jest-expo": "~57.0.2",
     "react-test-renderer": "19.2.3",
-    "sharp": "^0.35.3",
+    "sharp": "^0.35.4",
     "socket.io": "^4.8.3",
     "typescript": "catalog:"
   },
