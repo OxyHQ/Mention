@@ -7,6 +7,7 @@ import { cachePublicMedium } from '../middleware/cacheControl';
 import { feedIPRateLimiter } from '../middleware/security';
 import { parseTrendEvent, recordTrendEvent } from '../services/trending/trendTelemetry';
 import { loadTrendGraph } from '../services/trending/trendGraphQuery';
+import { getTrendingHistory } from '../services/trending/trendHistory';
 import { getBaseLanguage } from '@oxyhq/core';
 import { queryInt, queryString } from '../utils/queryParams';
 
@@ -78,7 +79,7 @@ router.get('/history', cachePublicMedium, async (req: Request, res: Response) =>
       MAX_TRENDING_HISTORY_LIMIT,
     );
 
-    const result = await trendingService.getTrendingHistory(pageNum, limitNum);
+    const result = await getTrendingHistory(pageNum, limitNum);
 
     res.json(result);
   } catch (error) {

@@ -32,7 +32,7 @@ export const TRENDING_TYPES = ['hashtag', 'topic', 'entity'] as const;
 /**
  * The same three strings as a string ENUM — the PUBLIC vocabulary.
  *
- * Both spellings exist on purpose, and `TrendingService.ts` explains why:
+ * Both spellings exist on purpose, and `services/trending/trendRow.ts` explains why:
  * TypeScript treats enums nominally, so an enum member is not assignable to
  * `'hashtag'` and vice versa. The enum is what `routes/trending.routes.ts`
  * validates `?type=` against; everything that touches a row uses the column's

@@ -36,23 +36,14 @@ vi.mock('../../utils/alia', () => ({ aliaChat: vi.fn(), isAliaEnabled: () => fal
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { insertPostRecord } from '../../db/posts/postRepository';
-import { trendingService } from '../../services/TrendingService';
-
 /**
- * The two private members under test, reached through a typed structural view
- * rather than `as any` so the tests stay type-checked.
- *
  * `termExcerptBranch` is the per-term query — the thing that used to be run N
  * times. Executing it directly IS the reference implementation for property 1;
  * it is not a re-implementation of the code under test, it is the shared
  * building block the batch is assembled from, which is what isolates the
  * assertion to the BATCHING (the union, the grouping, the ordering).
  */
-type PrivateTrending = {
-  loadExcerptsByTerm(terms: readonly string[]): Promise<Map<string, string[]>>;
-  termExcerptBranch(term: string): PromiseLike<Array<{ body: string; createdAt: Date }>>;
-};
-const svc = trendingService as unknown as PrivateTrending;
+import { loadExcerptsByTerm, termExcerptBranch } from '../../services/trending/trendExcerpts';
 
 let db: Database;
 const createdPostIds: string[] = [];
@@ -100,7 +91,7 @@ async function seedPost(termName: string, body: string, seed: Seed = {}): Promis
 
 /** The per-term query, run one term at a time — property 1's reference. */
 async function perTerm(termName: string): Promise<string[]> {
-  const rows = await svc.termExcerptBranch(termName);
+  const rows = await termExcerptBranch(termName);
   return rows.map((row) => row.body);
 }
 
@@ -136,7 +127,7 @@ describe('loadExcerptsByTerm — the batch must be the per-term queries, exactly
     await seedPost(gamma, 'gamma older', { column: 'topics', minutesAgo: 25 });
     await seedPost(gamma, 'gamma newer', { column: 'topics', minutesAgo: 5 });
 
-    const batched = await svc.loadExcerptsByTerm([alpha, beta, gamma]);
+    const batched = await loadExcerptsByTerm([alpha, beta, gamma]);
 
     // Newest first, per term.
     expect(batched.get(alpha)).toEqual(['alpha newest', 'alpha middle', 'alpha oldest']);
@@ -165,7 +156,7 @@ describe('loadExcerptsByTerm — the batch must be the per-term queries, exactly
     // one of the twelve slots and must not appear as an empty excerpt.
     await seedPost(scoped, '', { withoutBody: true, minutesAgo: 1 });
 
-    const batched = await svc.loadExcerptsByTerm([scoped]);
+    const batched = await loadExcerptsByTerm([scoped]);
 
     expect(batched.get(scoped)).toEqual(['visible']);
     expect(batched.get(scoped)).toEqual(await perTerm(scoped));
@@ -176,7 +167,7 @@ describe('loadExcerptsByTerm — the batch must be the per-term queries, exactly
     const absent = term('absent');
     await seedPost(present, 'something');
 
-    const batched = await svc.loadExcerptsByTerm([present, absent]);
+    const batched = await loadExcerptsByTerm([present, absent]);
 
     // `has`, not `get`, is the assertion that matters: a `union all` emits no
     // rows for an empty branch, so an implementation that built the map FROM the
@@ -192,7 +183,7 @@ describe('loadExcerptsByTerm — the batch must be the per-term queries, exactly
 
     const execute = vi.spyOn(db, 'execute');
 
-    const batched = await svc.loadExcerptsByTerm(terms);
+    const batched = await loadExcerptsByTerm(terms);
 
     // Exactly one, not "at most" one: 0 would mean the batch stopped going
     // through `execute` at all (a revert to per-term builders reads as 0, not as
@@ -216,7 +207,7 @@ describe('loadExcerptsByTerm — the batch must be the per-term queries, exactly
     // have. A throw here would take down the whole labelling run.
     vi.spyOn(db, 'execute').mockRejectedValueOnce(new Error('connection reset'));
 
-    const batched = await svc.loadExcerptsByTerm([first, second]);
+    const batched = await loadExcerptsByTerm([first, second]);
 
     expect(batched.get(first)).toEqual([]);
     expect(batched.get(second)).toEqual([]);

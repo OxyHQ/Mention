@@ -27,39 +27,13 @@ vi.mock('../../utils/alia', () => ({ aliaChat: vi.fn(), isAliaEnabled: () => fal
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import { trendingService } from '../../services/TrendingService';
 import { trendTermMatchSql, TREND_CANDIDATE_COLUMNS, TREND_TERM_COLUMNS } from '../../services/trending/termSpace';
-
 /**
- * `aggregateTermCandidates` is private; reach it through a typed structural view
- * rather than `as any`, so the tests stay type-checked.
+ * The aggregation returns the candidates AND the co-occurrence graph behind
+ * them. The graph is `null` when clustering is off — the only thing these cases
+ * read is `candidates`, but destructuring it keeps the shape honest.
  */
-interface TermCandidateView {
-  measurement: {
-    term: string;
-    volume: number;
-    recentVolume: number;
-    authorCount: number;
-    documentFrequency?: number;
-  };
-  actorIds: string[];
-  hashtagVolume: number;
-  topicVolume: number;
-  languages: string[];
-  regions: string[];
-  members: string[];
-}
-type PrivateTrending = {
-  /**
-   * Returns the candidates AND the co-occurrence graph behind them. The graph is
-   * `null` when clustering is off — the only thing these cases read is
-   * `candidates`, but destructuring it here keeps the shape honest.
-   */
-  aggregateTermCandidates(
-    now: Date,
-  ): Promise<{ candidates: TermCandidateView[]; graph: unknown }>;
-};
-const svc = trendingService as unknown as PrivateTrending;
+import { aggregateTermCandidates } from '../../services/trending/trendDetection';
 
 /** The floor the aggregation applies before a candidate is returned at all. */
 const MIN_VOLUME = MtnConfig.trending.detection.minVolume;
@@ -134,7 +108,7 @@ function mine(candidates: TermCandidateView[], terms: string[]): TermCandidateVi
 }
 
 async function candidatesFor(terms: string[]): Promise<TermCandidateView[]> {
-  const { candidates } = await svc.aggregateTermCandidates(new Date());
+  const { candidates } = await aggregateTermCandidates(new Date());
   return mine(candidates, terms);
 }
 
@@ -210,7 +184,7 @@ describe('aggregateTermCandidates — what is allowed to count', () => {
     // the blocklist matches the bare term, so it must be seeded bare.
     await seedMany(MIN_VOLUME, { trendTerms: [ordinary, 'porn'] });
 
-    const { candidates } = await svc.aggregateTermCandidates(new Date());
+    const { candidates } = await aggregateTermCandidates(new Date());
 
     expect(candidates.map((c) => c.measurement.term)).toContain(ordinary);
     expect(candidates.map((c) => c.measurement.term)).not.toContain('porn');
