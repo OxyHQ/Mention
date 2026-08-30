@@ -21,6 +21,18 @@ interface MetricDefinition {
   help: string;
   labelNames: readonly string[];
   buckets?: readonly number[];
+  /**
+   * Series ceiling for this metric alone, when {@link MAX_SERIES_PER_METRIC} is
+   * the wrong bound.
+   *
+   * The default cap protects against label values derived from TRAFFIC, where
+   * the ceiling is whatever a caller can invent. It is the wrong instrument for
+   * a metric whose label values come from a set fixed at COMPILE time — there
+   * the real bound is countable, and collapsing to `other` on crossing it
+   * destroys the metric instead of protecting the registry. Raise this only
+   * with that argument, and state the arithmetic where it is raised.
+   */
+  maxSeries?: number;
 }
 
 const DEFINITIONS = {
@@ -153,6 +165,41 @@ const DEFINITIONS = {
     help: 'Enforcement actions planned or applied from a CrowdSource decision',
     labelNames: ['action', 'mode', 'result'],
   },
+  /**
+   * Database instrumentation (`db/queryMetrics.ts`).
+   *
+   * `table` is validated against the drizzle schema's own table names before it
+   * arrives here, and `operation` is a closed set of eight — so the ceiling is
+   * 8 x (88 tables + `other`) = 712 series, a number fixed by the schema rather
+   * than by traffic. That is above the default cap and below `maxSeries`.
+   */
+  db_query_duration_ms: {
+    kind: 'histogram',
+    help: 'Database statement latency in milliseconds, by operation and primary table',
+    labelNames: ['operation', 'table'],
+    // A statement is an order of magnitude faster than an HTTP request, so the
+    // shared millisecond buckets start too coarse to separate a 0.4 ms index
+    // lookup from a 4 ms one — which is the whole distinction this metric is for.
+    buckets: [0.25, 0.5, 1, 2.5, 5, 10, 25, 50, 100, 250, 500, 1_000, 2_500],
+    maxSeries: 1_024,
+  },
+  db_query_errors_total: {
+    kind: 'counter',
+    help: 'Database statements that rejected, by operation and primary table',
+    labelNames: ['operation', 'table'],
+    maxSeries: 1_024,
+  },
+  db_request_queries: {
+    kind: 'histogram',
+    help: 'Database statements issued while serving one HTTP request',
+    labelNames: ['method', 'route'],
+    buckets: [1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233],
+  },
+  db_request_duration_ms: {
+    kind: 'histogram',
+    help: 'Milliseconds one HTTP request spent inside database statements',
+    labelNames: ['method', 'route'],
+  },
 } as const satisfies Record<string, MetricDefinition>;
 
 type MetricName = keyof typeof DEFINITIONS;
@@ -267,6 +314,22 @@ class MetricsCollector {
     }
   }
 
+  /**
+   * Observe a histogram sample that is NOT a duration.
+   *
+   * Separate from {@link recordLatency} because that method reads its argument
+   * as milliseconds and warns above a one-second threshold. Feeding it a COUNT
+   * would make "a request issued 1 001 queries" arrive in the logs as "slow
+   * operation, 1001 ms" — a wrong statement about a real problem.
+   */
+  observeValue(metricName: MetricName, value: number, labels?: MetricLabels): void {
+    if (!Number.isFinite(value) || value < 0) return;
+    const definition = this.definitionFor(metricName, 'histogram');
+    const normalized = this.normalizeLabels(metricName, definition, labels);
+    const histogram = this.collectorFor(metricName, definition) as Histogram<string>;
+    histogram.observe(normalized, value);
+  }
+
   incrementCounter(metricName: MetricName, value = 1, labels?: MetricLabels): void {
     if (!Number.isFinite(value) || value < 0) return;
     const definition = this.definitionFor(metricName, 'counter');
@@ -343,11 +406,12 @@ class MetricsCollector {
 
     const key = seriesKey(normalized);
     const knownSeries = this.series.get(metricName) ?? new Set<string>();
+    const ceiling = definition.maxSeries ?? MAX_SERIES_PER_METRIC;
     // Reserve the final slot for the collapsed `other` series. Otherwise the
     // first overflow could create a 257th series before later values converge.
     if (
       !knownSeries.has(key) &&
-      knownSeries.size >= MAX_SERIES_PER_METRIC - 1
+      knownSeries.size >= ceiling - 1
     ) {
       for (const label of definition.labelNames) normalized[label] = 'other';
     }
