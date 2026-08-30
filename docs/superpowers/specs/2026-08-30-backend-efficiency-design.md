@@ -127,3 +127,97 @@ vitest reports "No test files found", which reads like a path mistake.
 W2 and W3 are behaviour-preserving refactors: an unchanged test count is the
 point, and any test that needs editing to keep passing is a signal the move
 changed behaviour.
+
+---
+
+# Measured results
+
+Filled in after execution. Every number here was measured, not estimated.
+
+## What the instrumentation settled
+
+W1's first job was to make the hot path measurable; its first finding was that the
+programme's starting assumption was wrong.
+
+**The read path is not N+1.** 18 statements for a 5-post page and 18 for a 20-post
+page; `hydratePosts` is flat at 8 statements from 1 post to 20. `PostHydrationService`
+being the largest service by line count said nothing about its cost — attacking it
+blind, as the original "biggest first" ordering implied, would have optimised a path
+that was already batched.
+
+What it did surface was specific, and became W5 and W9.
+
+## Query counts, before and after
+
+| Path | Table | Before | After | Workstream |
+|---|---|---|---|---|
+| `hydratePosts` (any page size) | `user_settings` | 2 | **1** | W5 |
+| `hydratePosts` total | — | 8 | **7** | W5 |
+| For You viewer context | `federated_follows` | 3 | **2** | W9 |
+| Feed hydration, cold cache | `starter_pack_members` | 3 | **2** | W9 |
+
+Each is pinned by a statement-budget test with a positive control: re-introducing the
+redundancy reds the gate.
+
+## The `user_settings` duplicate was worse than a duplicate
+
+The second read filled `ViewerContext.privacyPreferences`, which is **read nowhere** —
+three occurrences in the whole tree (declaration, initialiser, assignment) and zero
+reads across backend, frontend, shared-types and mcp. It could not have been correct
+if it were read: `services/engagementCountPrivacy.ts` states those four flags belong to
+a post's **author** and hide a counter from everyone, so a viewer-side copy described
+what the *reader* discloses on their own posts. A query per hydration for a dead and
+semantically inverted field.
+
+## Redundancies deliberately left
+
+- **`starter_pack_members` twice in `hydratePosts`** — not one query run twice but two
+  disjoint cache-fill cohorts. Merging them means resolving the viewer *after* the post
+  graph, which serialises link-preview resolution behind the Oxy author batch and its
+  1500 ms deadline: one statement traded for latency on the hot path.
+- **`federated_actors` twice on the For You path** — a different redundancy with
+  different arguments, left rather than widening W9's change.
+- **`user_settings` twice in the For You context** — two different column sets read by
+  two modules in `feedContext.ts`.
+
+## Corrections to this document's own baseline
+
+Three figures in the "Measured baseline" table above overstated their problem, and the
+work narrowed them:
+
+- **Caching.** "No shared helper; 26 files call Redis directly" counted seven sites that
+  are not caches at all — `LeaderElection`, `rateLimitStore`, `FeedJobScheduler`,
+  `dwellAggregate`, `feedViewCounter`, `FeedSeenPostsService`, `notificationInbox`.
+  Migrating a distributed lock into a cache abstraction would have been a bug. W4
+  migrated the four modules that genuinely are caches.
+- **Validation.** "zod in 5 of 46 files" ignored the typed query-param helpers already
+  used in 19 files. The real gap was request *bodies*: W8 audited every raw `req.query`
+  site and found none unsafe. It also found that
+  `middleware/validate.ts`'s zod schemas are referenced by nothing except their own
+  test — a set of schemas gating zero traffic.
+- **Layer bleed.** "78 value imports" was stale. Re-measured: **110 crossings across 88
+  (file, area) pairs over 63 route/controller files**.
+
+## What the boundary gate does and does not do
+
+W6 extended `scripts/validate-architecture-boundaries.mjs` rather than adding a second
+mechanism, so the route/controller → `db/` rule inherits the existing default-deny,
+per-file baseline and shrink-only properties. Type-only imports are allowed outright:
+they are erased at compile time, and baselining them would make shrink-only adversarial
+— the only way to "fix" `import type { PostRecord }` is to duplicate the row type.
+
+Known gaps, recorded so they are not mistaken for coverage: `@oxyhq/db` is a bare
+specifier the rule cannot see, and there is no reverse-direction rule stopping `db/`
+from importing a service.
+
+## Open work
+
+- **The posts write path is unvalidated.** W8 left it deliberately — it carries the
+  densest invariants in the repo — and reported five defects, the worst being
+  `mergeHashtags` throwing on any truthy non-array, so `hashtags: "cat"` answers **500
+  where 400 belongs** on the busiest write in the app. Its own workstream.
+- **No end-to-end For You statement total.** The real For You definition gathers no
+  candidates in the test harness (its sources soft-fail to `[]`), so W9's two savings
+  are measured at their own boundaries rather than as one number.
+- `curatorFollowerCounts` and `viewerRecentTopics` are further genuine caches that
+  would fit W4's primitive.
