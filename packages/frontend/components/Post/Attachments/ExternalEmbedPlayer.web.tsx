@@ -37,6 +37,14 @@ export function ExternalEmbedPlayer({ params, thumb, width, active, onPressPlay 
       {active ? (
         <iframe
           src={params.playerUri}
+          // The document is served with `Referrer-Policy: no-referrer`, so this
+          // request would carry no `Referer` and YouTube would answer error 153
+          // (`ERROR_CODE_EMBEDDER_IDENTITY_MISSING_REFERRER`) instead of the
+          // player. An element-level policy overrides the document's, and this
+          // one sends the ORIGIN only — never the path of the page the reader is
+          // on — and only to the embed hosts `frame-src` already allows. The
+          // site-wide policy is deliberately left alone.
+          referrerPolicy="strict-origin-when-cross-origin"
           allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
           allowFullScreen
           onLoad={() => setLoading(false)}
