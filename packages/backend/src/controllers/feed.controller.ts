@@ -35,6 +35,7 @@ import { validateAndNormalizeLimit, FEED_CONSTANTS } from '../utils/feedUtils';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy, ScoreCursor } from '../mtn/feed/CursorBuilder';
 import { rankingWeight } from '../utils/feedQueryBuilder';
 import { mergeHashtags, reconcileMentionIdsForPost } from '../utils/textProcessing';
+import { hashtagsSchema, parseFailureMessage } from './posts/composeInput';
 import { foldProfileLinkMentions } from '../services/profileLinkMentions';
 import { toFederationPostPayload } from '../services/serviceRegistry';
 import { normalizeMediaItems } from '../utils/mediaInput';
@@ -311,6 +312,21 @@ class FeedController {
         return res.status(400).json({ error: 'Invalid post ID' });
       }
 
+      // `hashtags` is typed `string[]` by `CreateReplyRequest` and is whatever
+      // JSON arrived. It went straight to `mergeHashtags`, which calls `.map` on
+      // it, so `hashtags: "cat"` answered 500 with the internal
+      // `(userProvided || []).map is not a function` in the response body — and
+      // an array of any size was written to `posts.hashtags` unbounded. Same
+      // schema, same bounds, as `POST /posts`. A falsy value still means "none".
+      let parsedHashtags: string[] | undefined;
+      if (hashtags) {
+        const parsed = hashtagsSchema.safeParse(hashtags);
+        if (!parsed.success) {
+          return res.status(400).json({ error: parseFailureMessage(parsed.error) });
+        }
+        parsedHashtags = parsed.data;
+      }
+
       // Fetch parent post to check reply permissions
       const parentPost = await loadPostRecord(postId);
       if (!parentPost) {
@@ -398,7 +414,7 @@ class FeedController {
       }
 
       // Create reply post
-      const mergedTags = mergeHashtags(replyContent?.text || '', hashtags);
+      const mergedTags = mergeHashtags(replyContent?.text || '', parsedHashtags);
       // A profile link the author pasted becomes a real mention here, exactly as
       // it does on `POST /posts` and on the federated ingest — see
       // `foldProfileLinkMentions`. Run AFTER the hashtag merge so what counts as
@@ -595,6 +611,18 @@ class FeedController {
         return res.status(400).json({ error: 'Invalid post ID' });
       }
 
+      // As on the reply path above: `hashtags` reached `mergeHashtags` unread,
+      // so a truthy non-array was a `TypeError` and a 500, and an array of any
+      // size was stored unbounded.
+      let parsedHashtags: string[] | undefined;
+      if (hashtags) {
+        const parsedHashtagsResult = hashtagsSchema.safeParse(hashtags);
+        if (!parsedHashtagsResult.success) {
+          return res.status(400).json({ error: parseFailureMessage(parsedHashtagsResult.error) });
+        }
+        parsedHashtags = parsedHashtagsResult.data;
+      }
+
       const originalPost = await loadPostRecord(originalPostId);
       const shareValidation = validatePublicShareTarget(originalPost, { action: 'boost' });
       if (!shareValidation.ok) {
@@ -618,7 +646,7 @@ class FeedController {
       }
 
       // Create boost
-      const mergedTags = mergeHashtags(content?.text || '', hashtags);
+      const mergedTags = mergeHashtags(content?.text || '', parsedHashtags);
       // `CreateBoostRequest.content` is the client's INPUT shape, whose `podcast`
       // carries only an id. A boost never denormalizes a show (the boosted
       // original owns its own attachments), so the field is dropped rather than

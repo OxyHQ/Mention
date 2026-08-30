@@ -51,7 +51,14 @@ import { resolveMcpAutoAcceptIds } from '../../mcp/utils/resolveMcpAutoAcceptIds
 import { federateAsResolvedActor } from '../../connectors/outboundFederation';
 import { toFederationPostPayload } from '../../services/serviceRegistry';
 import { loadScheduledChain } from '../../services/scheduledChain';
-import { MAX_TEXT_LENGTH, buildOrderedAttachments, sanitizeArticle, sanitizeSources } from './composeInput';
+import {
+  MAX_TEXT_LENGTH,
+  buildOrderedAttachments,
+  hashtagsSchema,
+  parseFailureMessage,
+  sanitizeArticle,
+  sanitizeSources,
+} from './composeInput';
 
 /**
  * The renditions a post carries after an edit.
@@ -186,6 +193,22 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     const media = contentObj?.media ?? req.body.media;
     const { hashtags, mentions, contentLocation, postLocation, sources } = req.body;
 
+    // `hashtags` is read at TWO points below — once when the body changes and
+    // once as a field of its own — and both handed it straight to
+    // `mergeHashtags`, which calls `.map` on whatever it is given. A truthy
+    // non-array was a `TypeError` and a 500; an array of any size and any
+    // content was written to `posts.hashtags` unbounded, while `POST /posts`
+    // refused both. Parsed ONCE here so the two uses cannot disagree, and only
+    // when truthy, because a falsy value has always meant "keep what is stored".
+    let parsedHashtags: string[] | undefined;
+    if (hashtags) {
+      const parsed = hashtagsSchema.safeParse(hashtags);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parseFailureMessage(parsed.error) });
+      }
+      parsedHashtags = parsed.data;
+    }
+
     // The media set the variants localize: the incoming one when this edit
     // replaces it, otherwise the set already on the post.
     const normalizedMedia = media !== undefined ? normalizeMediaItems(media) : undefined;
@@ -223,7 +246,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         : [...post.editHistory];
       patch.isEdited = true;
       // Re-extract hashtags when the body changes
-      nextHashtags = mergeHashtags(text || '', hashtags || post.hashtags);
+      nextHashtags = mergeHashtags(text || '', parsedHashtags || post.hashtags);
       patch.hashtags = nextHashtags;
     }
 
@@ -305,11 +328,23 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     }
 
     // Handle content location updates (user's shared location)
+    //
+    // The pair is tested for BEING A COORDINATE PAIR, which is the check
+    // `createThread` has always applied and this path had only half of: a
+    // `!== undefined` test admitted `latitude: 'x'` into a `double precision`
+    // column (a driver error) and `latitude: 999` into one guarded by
+    // `posts_content_location_range_check` (a check violation), and both were a
+    // 500 that failed the WHOLE edit. A pair that is not a pair leaves the
+    // stored location untouched, exactly as a half-written one already did.
     if (contentLocation !== undefined) {
       if (contentLocation === null) {
         // Remove content location
         content.location = undefined;
-      } else if (contentLocation.latitude !== undefined && contentLocation.longitude !== undefined) {
+      } else if (
+        typeof contentLocation.latitude === 'number' && typeof contentLocation.longitude === 'number' &&
+        contentLocation.latitude >= -90 && contentLocation.latitude <= 90 &&
+        contentLocation.longitude >= -180 && contentLocation.longitude <= 180
+      ) {
         // Update content location
         content.location = {
           type: 'Point',
@@ -327,7 +362,11 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         // `updatePostRecord` reads the two differently and would keep the old
         // coordinates for `undefined`.
         patch.location = null;
-      } else if (postLocation.latitude !== undefined && postLocation.longitude !== undefined) {
+      } else if (
+        typeof postLocation.latitude === 'number' && typeof postLocation.longitude === 'number' &&
+        postLocation.latitude >= -90 && postLocation.latitude <= 90 &&
+        postLocation.longitude >= -180 && postLocation.longitude <= 180
+      ) {
         // Update post location
         patch.location = {
           type: 'Point',
@@ -400,7 +439,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
 
     content.attachments = updatedAttachments ?? undefined;
 
-    if (hashtags !== undefined) patch.hashtags = mergeHashtags('', hashtags || []);
+    if (hashtags !== undefined) patch.hashtags = mergeHashtags('', parsedHashtags || []);
 
     // An edit is a write boundary like any other: a profile link the author has
     // just pasted into the body becomes a mention here, on the same terms as on
