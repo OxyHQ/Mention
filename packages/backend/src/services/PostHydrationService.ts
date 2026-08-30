@@ -280,12 +280,6 @@ interface ViewerContext {
    * resolves every post to its primary language.
    */
   languageCandidates: string[];
-  privacyPreferences: {
-    hideLikeCounts: boolean;
-    hideShareCounts: boolean;
-    hideReplyCounts: boolean;
-    hideSaveCounts: boolean;
-  };
   blockedIds: Set<string>;
   restrictedIds: Set<string>;
   follows: Set<string>;
@@ -1351,7 +1345,6 @@ export class PostHydrationService {
     const context: ExtendedViewerContext = {
       viewerId,
       languageCandidates: await this.buildLanguageCandidates(viewerId, options),
-      privacyPreferences: { ...DEFAULT_PRIVACY },
       blockedIds: new Set<string>(),
       restrictedIds: new Set<string>(),
       follows: new Set<string>(),
@@ -1372,7 +1365,18 @@ export class PostHydrationService {
     );
 
     // Load ALL author settings in one query (profile visibility + engagement privacy)
-    // This avoids a separate query in buildAuthorPrivacyMap
+    // This avoids a separate query in buildAuthorPrivacyMap.
+    //
+    // It is also the ONLY `user_settings` read a hydration makes. There used to
+    // be a second one, a few hundred lines below, that loaded the VIEWER's own
+    // four counter flags into the context — per-statement instrumentation put
+    // `user_settings` at two of the eight round trips one hydration costs. It
+    // went, rather than being folded into this batch, because the value it
+    // loaded was never read by anything and could not have been correct if it
+    // were: the four flags belong to a post's AUTHOR and hide a counter from
+    // everyone (see `engagementCountPrivacy.ts`), so the viewer's own copy of
+    // them says what the viewer discloses on THEIR posts — not what they may be
+    // shown on someone else's.
     if (authorIds.length > 0) {
       try {
         const allAuthorSettings = await this.loadPrivacySettings(authorIds);
@@ -1421,15 +1425,6 @@ export class PostHydrationService {
 
     blockedIds.forEach((id) => context.blockedIds.add(String(id)));
     restrictedIds.forEach((id) => context.restrictedIds.add(String(id)));
-
-    try {
-      const [settings] = await this.loadPrivacySettings([viewerId]);
-      if (settings) {
-        context.privacyPreferences = readEngagementCountPrivacy(settings);
-      }
-    } catch (error) {
-      logger.warn('[PostHydration] Failed to load viewer privacy settings:', error);
-    }
 
     const threadedGraph = options?.viewerGraph;
     if (threadedGraph) {
