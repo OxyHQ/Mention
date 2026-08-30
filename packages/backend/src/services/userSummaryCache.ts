@@ -1,8 +1,6 @@
 import type { PostUser } from '@mention/shared-types';
 import { config } from '../config';
-import { getRedisClient } from '../utils/redis';
-import { withRedisFallback } from '../utils/redisHelpers';
-import { logger } from '../utils/logger';
+import { createCache } from '../utils/cache';
 
 /**
  * Redis-backed cache for resolved post-author identities (the canonical Oxy
@@ -19,11 +17,13 @@ import { logger } from '../utils/logger';
  * This cache does NOT reshape identity — Oxy owns the user shape. It only stores
  * the Oxy user verbatim (so the feed doesn't re-fetch it) and the follower count.
  *
- * Design constraints (mirror {@link ./mediaCache/negativeCache}):
- *  - Uses the shared {@link getRedisClient} singleton — never opens a new socket.
+ * Design constraints:
+ *  - Storage, TTL and the fail-open contract come from the shared
+ *    {@link createCache} primitive — this module owns only the key, the value
+ *    shape and the BATCH access pattern hydration needs.
  *  - When Redis is unavailable (no `REDIS_URL`, or the server is down) every
- *    operation degrades to a no-op via {@link withRedisFallback}: hydration still
- *    works, it just resolves every author from Oxy each time.
+ *    operation degrades to a no-op: hydration still works, it just resolves
+ *    every author from Oxy each time.
  *  - Only public identity is cached — never auth-scoped or viewer-scoped data.
  *    The Oxy user is identical for every viewer, so a single shared entry per
  *    author id is correct. It is invalidated ({@link invalidate}) when the
@@ -92,52 +92,7 @@ function keyFor(userId: string): string {
   return `${USER_SUMMARY_PREFIX}${userId}`;
 }
 
-/**
- * One-time latch so the non-array-reply diagnostic escalates to `warn` exactly
- * once per process, not once per request. The non-array path can fire on EVERY
- * feed hydration, so an unbounded `warn` would flood the logs.
- */
-let nonArrayReplyWarned = false;
-
-/**
- * BOUNDED diagnostic for the "MGET returned a non-array reply" degradation.
- *
- * Every occurrence logs at `debug` (cheap, per-request). The FIRST occurrence
- * additionally logs at `warn` with the reply's runtime shape — `typeof`, the
- * constructor name, and a truncated JSON sample — so production can root-cause
- * WHY node-redis hands back a non-array against ElastiCache Valkey (the perf
- * follow-up) without changing the RESP protocol or spamming `warn`.
- */
-function reportNonArrayMgetReply(reply: unknown, keyCount: number): void {
-  logger.debug('[UserSummaryCache] mGet returned a non-array reply; treating as cache miss', {
-    replyType: typeof reply,
-    keyCount,
-  });
-
-  if (nonArrayReplyWarned) return;
-  nonArrayReplyWarned = true;
-
-  let sample: string;
-  try {
-    sample = JSON.stringify(reply)?.slice(0, 200) ?? String(reply);
-  } catch {
-    // A value that can't be serialized (e.g. a circular structure) still yields
-    // a useful hint via its string coercion — never let diagnostics throw.
-    sample = String(reply).slice(0, 200);
-  }
-  const constructorName =
-    reply === null || reply === undefined ? undefined : reply.constructor?.name;
-
-  logger.warn(
-    '[UserSummaryCache] mGet returned a non-array reply (one-time diagnostic); treating as cache miss',
-    {
-      replyType: typeof reply,
-      constructorName,
-      sample,
-      keyCount,
-    },
-  );
-}
+const cache = createCache({ name: 'UserSummaryCache', ttlSeconds: SUMMARY_TTL_SECONDS });
 
 /**
  * Batch-read cached summaries for many user ids in a single Redis round-trip.
@@ -152,69 +107,29 @@ export async function mget(userIds: string[]): Promise<Map<string, CachedUserSum
     return result;
   }
 
-  const redis = getRedisClient();
-  return withRedisFallback(
-    redis,
-    async () => {
-      const keys = userIds.map(keyFor);
-      const values = await redis.mGet(keys);
-
-      // Defensive: a Redis client/server can return a non-array reply for MGET
-      // (observed against ElastiCache Valkey). A non-array here throws a
-      // TypeError that `withRedisFallback` does NOT swallow (it only degrades
-      // connection errors), which 500s the whole feed. Treat any non-array reply
-      // as a full cache miss so hydration degrades gracefully to a cold fetch,
-      // and emit a bounded one-time diagnostic to root-cause the reply shape.
-      if (!Array.isArray(values)) {
-        reportNonArrayMgetReply(values, keys.length);
-        return result;
-      }
-
-      values.forEach((raw, index) => {
-        if (!raw) return;
-        try {
-          result.set(userIds[index], JSON.parse(raw) as CachedUserSummary);
-        } catch {
-          // Corrupt entry — treat as a miss so it gets re-resolved and re-written.
-        }
-      });
-
-      return result;
-    },
-    result,
-    'userSummaryCacheMget',
-  );
+  const values = await cache.getMany<CachedUserSummary>(userIds.map(keyFor));
+  values.forEach((value, index) => {
+    if (value) result.set(userIds[index], value);
+  });
+  return result;
 }
 
 /**
  * Write resolved summaries back to the cache with a TTL. A write failure must
- * never affect hydration, so any error degrades to a no-op (logged at debug).
+ * never affect hydration, so any error degrades to a no-op.
  *
- * Each entry is written with its own `setEx` so the TTL is applied atomically
- * per key (a pipeline of `setEx` keeps it to a single round trip).
+ * Callers decide what is CACHEABLE: {@link PostHydrationService} passes only
+ * genuinely resolved authors here, never the degraded `'Unknown user'` summary
+ * it hands the renderer for an author Oxy could not resolve.
  */
 export async function mset(entries: Map<string, CachedUserSummary>): Promise<void> {
   if (entries.size === 0) {
     return;
   }
 
-  const redis = getRedisClient();
-  await withRedisFallback(
-    redis,
-    async () => {
-      const pipeline = redis.multi();
-      for (const [userId, value] of entries) {
-        pipeline.setEx(keyFor(userId), SUMMARY_TTL_SECONDS, JSON.stringify(value));
-      }
-      await pipeline.exec();
-    },
-    undefined,
-    'userSummaryCacheMset',
-  ).catch((error: unknown) => {
-    logger.debug('[UserSummaryCache] Store failed', {
-      reason: error instanceof Error ? error.message : 'unknown',
-    });
-  });
+  await cache.setMany(
+    [...entries].map(([userId, value]) => [keyFor(userId), value] as const),
+  );
 }
 
 /**
@@ -225,21 +140,5 @@ export async function mset(entries: Map<string, CachedUserSummary>): Promise<voi
  * cache entry. A failure degrades to a no-op (the entry simply ages out via TTL).
  */
 export async function invalidate(userIds: string[]): Promise<void> {
-  if (userIds.length === 0) {
-    return;
-  }
-
-  const redis = getRedisClient();
-  await withRedisFallback(
-    redis,
-    async () => {
-      await redis.del(userIds.map(keyFor));
-    },
-    undefined,
-    'userSummaryCacheInvalidate',
-  ).catch((error: unknown) => {
-    logger.debug('[UserSummaryCache] Invalidate failed', {
-      reason: error instanceof Error ? error.message : 'unknown',
-    });
-  });
+  await cache.delete(userIds.map(keyFor));
 }

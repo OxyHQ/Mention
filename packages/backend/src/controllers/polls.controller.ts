@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { eq } from 'drizzle-orm';
+import { z } from 'zod';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { isCheckViolation, isForeignKeyViolation, isLiveEntityId } from '@oxyhq/db';
 import { getDb } from '../db/postgres';
@@ -16,6 +17,74 @@ import { postHydrationService } from '../services/PostHydrationService';
 
 /** Default poll lifetime when the client does not supply `endsAt`. */
 const DEFAULT_POLL_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * What a poll may contain.
+ *
+ * These are the numbers the composer's own poll shape declares
+ * (`middleware/validate.ts`), restated here because THIS route had no upper
+ * bound of any kind: `options` was checked for a MINIMUM of two and nothing
+ * else, so one request could insert an unbounded number of `poll_options` rows
+ * each holding an unbounded amount of text. A poll created here is rendered by
+ * the same surfaces as one created through `POST /posts`, so it has to fit in
+ * the same envelope.
+ */
+const MAX_POLL_QUESTION_LENGTH = 280;
+const MAX_POLL_OPTIONS = 4;
+const MAX_POLL_OPTION_LENGTH = 100;
+
+/**
+ * `POST /polls`.
+ *
+ * The messages are the ones the hand-rolled checks already answered, so a client
+ * reading them sees no change; what changes is the ACCEPTED set. `question` used
+ * to be tested for truthiness alone and then written straight into
+ * `polls.question`, so any JSON value — an object, an array, a number — became a
+ * row. The booleans were `x || false`, which put a truthy non-boolean into a
+ * `boolean NOT NULL` column and let Postgres decide (`'yes'` casts, `'banana'`
+ * is a 500).
+ *
+ * `endsAt` stays a STRING OR A NUMBER rather than a strict ISO datetime: the
+ * route has always accepted anything `new Date()` could read, including a bare
+ * `'2027-01-01'`, and that check is still the one that runs below. What it no
+ * longer accepts is a value that only LOOKS like a date to `new Date` — `true`
+ * and `[]` both parsed to the epoch and were stored as a real deadline.
+ */
+const createPollSchema = z.object({
+  question: z
+    .string('Question and at least 2 options are required')
+    .min(1, 'Question and at least 2 options are required')
+    .max(MAX_POLL_QUESTION_LENGTH, `Question must be ${MAX_POLL_QUESTION_LENGTH} characters or less`),
+  options: z
+    .array(
+      z
+        .string('Every poll option must be a non-empty string')
+        .min(1, 'Every poll option must be a non-empty string')
+        .max(MAX_POLL_OPTION_LENGTH, `Every poll option must be ${MAX_POLL_OPTION_LENGTH} characters or less`),
+      'Question and at least 2 options are required',
+    )
+    .min(2, 'Question and at least 2 options are required')
+    .max(MAX_POLL_OPTIONS, `A poll may have at most ${MAX_POLL_OPTIONS} options`),
+  // REQUIRED, as the Mongoose schema had it: the composer always sends one (a
+  // `temp_…` placeholder before the post exists), and dropping the requirement
+  // would let a poll be created that nothing can ever reach.
+  postId: z.string('postId is required').min(1, 'postId is required'),
+  endsAt: z.union([z.string(), z.number()], 'endsAt is not a valid date').nullish(),
+  isMultipleChoice: z.boolean().optional(),
+  isAnonymous: z.boolean().optional(),
+});
+
+/**
+ * `POST /polls/:id/vote`.
+ *
+ * The id reached `recordVoteByOptionId` through `String(optionId)`, which is the
+ * coercion `utils/queryParams.ts` documents as the hazard it exists to avoid:
+ * `String(['<some option id>'])` is that id, so a tampered array became a
+ * plausible-looking predicate instead of a refusal.
+ */
+const voteSchema = z.object({
+  optionId: z.string().min(1),
+});
 
 /**
  * The poll as it goes on the wire.
@@ -121,7 +190,6 @@ function pollNotFound(res: Response) {
 class PollsController {
   async createPoll(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { question, options, postId, endsAt, isMultipleChoice, isAnonymous } = req.body;
       const userId = req.user?.id;
 
       // Debug logging for authentication
@@ -139,38 +207,25 @@ class PollsController {
         });
       }
 
-      // Validate required fields
-      if (!question || !options || !Array.isArray(options) || options.length < 2) {
-        return res.status(400).json({
-          error: 'Invalid request',
-          message: 'Question and at least 2 options are required'
-        });
+      // Parsed AFTER the 401, which is the order the hand-rolled checks ran in
+      // and the reason this is not `validateBody` in the route position: that
+      // middleware runs before the handler, so an unauthenticated caller with a
+      // malformed body would stop getting the 401 it gets today. `middleware/
+      // validate.ts` also answers in a different envelope from this file's
+      // `validationError`, whose docstring explains why it looks the way it does.
+      const parsed = createPollSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return validationError(res, parsed.error.issues.map((issue) => issue.message).join('; '));
       }
+      const { question, options, postId, endsAt, isMultipleChoice, isAnonymous } = parsed.data;
 
-      // Mongoose refused an empty option text (`required` treats `''` as
-      // missing) and a `text` column does not. Re-applied here, or a poll can be
-      // created with a blank choice nobody can label.
-      const optionTexts: string[] = [];
-      for (const option of options) {
-        if (typeof option !== 'string' || option.length === 0) {
-          return validationError(res, 'Every poll option must be a non-empty string');
-        }
-        optionTexts.push(option);
-      }
-
-      // `postId` stays REQUIRED, as the Mongoose schema had it: the composer
-      // always sends one (a `temp_…` placeholder before the post exists), and
-      // dropping the requirement would let a poll be created that nothing can
-      // ever reach.
-      if (typeof postId !== 'string' || postId.length === 0) {
-        return validationError(res, 'postId is required');
-      }
-
-      // Mongoose cast `endsAt`; an uncastable value was a `ValidationError`.
+      // Mongoose cast `endsAt`; an uncastable value was a `ValidationError`. The
+      // schema narrows the TYPE to something `new Date` can read at all; whether
+      // that reading produced a real instant is still decided here.
       const resolvedEndsAt =
         endsAt === undefined || endsAt === null
           ? new Date(Date.now() + DEFAULT_POLL_DURATION_MS)
-          : new Date(endsAt as string | number | Date);
+          : new Date(endsAt);
       if (Number.isNaN(resolvedEndsAt.getTime())) {
         return validationError(res, 'endsAt is not a valid date');
       }
@@ -217,13 +272,13 @@ class PollsController {
               postId: attachedPostId,
               createdBy: userId,
               endsAt: resolvedEndsAt,
-              isMultipleChoice: isMultipleChoice || false,
-              isAnonymous: isAnonymous || false,
+              isMultipleChoice: isMultipleChoice ?? false,
+              isAnonymous: isAnonymous ?? false,
             })
             .returning();
 
           await tx.insert(pollOptions).values(
-            optionTexts.map((text, position) => ({
+            options.map((text, position) => ({
               pollId: row.id,
               // The author's order IS the render order; Mongo got it from the
               // array and Postgres has to store it.
@@ -303,7 +358,6 @@ class PollsController {
   async vote(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
-      const { optionId } = req.body;
       const userId = req.user?.id;
 
       if (!userId) {
@@ -313,7 +367,8 @@ class PollsController {
         });
       }
 
-      if (!id || !isLiveEntityId(id) || !optionId) {
+      const parsedVote = voteSchema.safeParse(req.body);
+      if (!id || !isLiveEntityId(id) || !parsedVote.success) {
         return res.status(400).json({
           error: 'Invalid request',
           message: 'Valid poll ID and option ID are required'
@@ -325,7 +380,7 @@ class PollsController {
 
       // Record the vote through the shared service (the SAME atomic dedup path the
       // inbound ActivityPub poll-vote handler uses), then map its result to HTTP.
-      const result = await pollVoteService.recordVoteByOptionId(id, String(optionId), userId);
+      const result = await pollVoteService.recordVoteByOptionId(id, parsedVote.data.optionId, userId);
       if (result.ok) {
         return res.json({ success: true, data: serializePoll(result.poll) });
       }

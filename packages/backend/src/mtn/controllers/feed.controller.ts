@@ -50,9 +50,16 @@ const MAX_MUTUAL_IDS = 5000;
  * Federated mutuals: remote actors the viewer both follows (accepted outbound)
  * AND is followed by (accepted inbound), mapped to their linked Oxy user ids.
  */
-async function getFederatedMutualIds(localUserId: string): Promise<string[]> {
+async function getFederatedMutualIds(
+  localUserId: string,
+  acceptedOutboundUris?: Promise<string[]>,
+): Promise<string[]> {
   const [outbound, inbound] = await Promise.all([
-    distinctRemoteActorUris({ localUserId, direction: 'outbound', statuses: ['accepted'] }),
+    // Shared with the feed context's follow-graph merge when the caller has that
+    // read in flight already — the outbound half of this pair was byte-identical
+    // to it on every authenticated request.
+    acceptedOutboundUris
+      ?? distinctRemoteActorUris({ localUserId, direction: 'outbound', statuses: ['accepted'] }),
     distinctRemoteActorUris({ localUserId, direction: 'inbound', statuses: ['accepted'] }),
   ]);
   const outboundSet = new Set(outbound);
@@ -74,8 +81,16 @@ async function getFederatedMutualIds(localUserId: string): Promise<string[]> {
  * (via `@oxyhq/core` `getMutualUserIds`) ∪ federated mutuals. Both branches
  * soft-fail to `[]`, so a failure in either source degrades the Mutuals feed to
  * the other rather than erroring. Deduped and capped.
+ *
+ * `acceptedOutboundFollowUris` is the caller's already-in-flight read of the
+ * viewer's accepted outbound federated follows, forwarded to
+ * {@link getFederatedMutualIds} so the intersection reuses it instead of
+ * re-issuing it.
  */
-async function computeMutualIds(currentUserId: string): Promise<string[]> {
+async function computeMutualIds(
+  currentUserId: string,
+  acceptedOutboundFollowUris?: Promise<string[]>,
+): Promise<string[]> {
   let oxyMutualIds: string[] = [];
   try {
     const ids = await getRuntimeOxyClient().getMutualUserIds({ limit: MAX_MUTUAL_IDS });
@@ -86,7 +101,7 @@ async function computeMutualIds(currentUserId: string): Promise<string[]> {
 
   let federatedMutualIds: string[] = [];
   try {
-    federatedMutualIds = await getFederatedMutualIds(currentUserId);
+    federatedMutualIds = await getFederatedMutualIds(currentUserId, acceptedOutboundFollowUris);
   } catch (error) {
     logger.warn('[MtnFeedController] Failed to load federated mutual ids', error);
   }
@@ -300,17 +315,40 @@ class MtnFeedController {
       // cannot surface an unhandled rejection.
       const muteWordsPromise = loadMuteWords(currentUserId);
 
+      // The viewer's accepted OUTBOUND federated follows, read ONCE and handed to
+      // both consumers as the same pending read: the feed context merges it into
+      // `followingIds`, and the mutual-id intersection needs the identical set.
+      // Measured, this statement ran three times per authenticated For You request
+      // and two of the three were byte-identical.
+      //
+      // Started here (not awaited) so both consumers still run in parallel — an
+      // await at this point would trade a statement for a serial round trip. It
+      // soft-fails to `[]` HERE rather than in each consumer, which is what makes
+      // sharing safe: a shared promise must never reject, or whichever consumer
+      // has not reached its `await` yet has no handler attached. Both consumers
+      // already treat an empty set as "no federated follows".
+      const acceptedOutboundFollowUris = currentUserId
+        ? distinctRemoteActorUris({
+            localUserId: currentUserId,
+            direction: 'outbound',
+            statuses: ['accepted'],
+          }).catch((error): string[] => {
+            logger.warn('[MtnFeedController] Failed to load federated following', error);
+            return [];
+          })
+        : undefined;
+
       const [privacyState, context, mutualIds, fofIds] = await Promise.all([
         currentUserId
           ? UserPrivacyManager.loadPrivacyState(currentUserId, {
               oxyClient: requestOxyClient,
             })
           : Promise.resolve(null),
-        loadViewerFeedContext(currentUserId, feedOxyClient),
+        loadViewerFeedContext(currentUserId, feedOxyClient, acceptedOutboundFollowUris),
         // `computeMutualIds` soft-fails each branch to `[]`, so a lookup failure
         // never breaks the feed.
         needsMutuals && currentUserId
-          ? computeMutualIds(currentUserId)
+          ? computeMutualIds(currentUserId, acceptedOutboundFollowUris)
           : Promise.resolve<string[] | null>(null),
         needsFof
           ? computeFriendsOfFriendsIds()

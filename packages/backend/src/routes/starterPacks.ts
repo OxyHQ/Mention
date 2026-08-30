@@ -1,4 +1,5 @@
 import express, { Response } from 'express';
+import { z } from 'zod';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { and, asc, desc, eq, ilike, inArray, ne, notExists, or, sql, type SQL } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../db/postgres';
@@ -14,6 +15,35 @@ import type { PostUser } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
 import { endorsementSignalService } from '../services/EndorsementSignalService';
+
+/**
+ * What a starter pack's own two text fields may be.
+ *
+ * `name` was tested for TRUTHINESS and then written through `String(name)`, so
+ * `{}` became the literal `"[object Object]"` — a 201 and a persisted row, with
+ * nothing to tell anyone it had happened. The PUT branched on
+ * `name === undefined`, so `name: null` wrote the four-character string
+ * `"null"` over a real name.
+ *
+ * NO length cap is imposed: the columns are unbounded `text` and always have
+ * been, and capping here would refuse rows that already exist.
+ *
+ * `memberOxyUserIds` stays `unknown` because `normalizeMemberIds` is already
+ * total over any JSON value; it is named only because zod strips a key it was
+ * not told about.
+ */
+const createStarterPackSchema = z.object({
+  name: z.string('Name is required').min(1, 'Name is required'),
+  description: z.string('description must be a string').nullish(),
+  memberOxyUserIds: z.unknown().optional(),
+});
+
+/** The same fields, all optional: an absent one leaves the stored value alone. */
+const updateStarterPackSchema = z.object({
+  name: z.string('name must be a non-empty string').min(1, 'name must be a non-empty string').optional(),
+  description: z.string('description must be a string').nullish(),
+  memberOxyUserIds: z.unknown().optional(),
+});
 
 /**
  * Fire-and-forget endorsement re-sync for a starter pack whose membership
@@ -394,8 +424,11 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const { name, description, memberOxyUserIds } = req.body || {};
-    if (!name) return res.status(400).json({ error: 'Name is required' });
+    const parsed = createStarterPackSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.issues.map((issue) => issue.message).join('; ') });
+    }
+    const { name, description, memberOxyUserIds } = parsed.data;
 
     const members = normalizeMemberIds(memberOxyUserIds);
     if (members.length > STARTER_PACK_MAX_MEMBERS) {
@@ -407,10 +440,10 @@ router.post('/', async (req: AuthRequest, res: Response) => {
         .insert(starterPacks)
         .values({
           ownerOxyUserId: userId,
-          name: String(name),
+          name,
           // NULL, never `''` — an empty string is a VALUE, and the client's
           // `if (pack.description)` would render an empty field instead of none.
-          description: description ? String(description) : null,
+          description: description ? description : null,
           // The three `source_*` columns are deliberately NOT written here and
           // stay NULL. `starter_packs_source_uri_key` is a PARTIAL unique index
           // over non-null `source_uri`, so writing `''` would make every locally
@@ -552,7 +585,11 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
-    const { name, description, memberOxyUserIds } = req.body || {};
+    const parsed = updateStarterPackSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.issues.map((issue) => issue.message).join('; ') });
+    }
+    const { name, description, memberOxyUserIds } = parsed.data;
     const replacesMembers = Array.isArray(memberOxyUserIds);
 
     const outcome = await getDb().transaction<PackWriteOutcome>(async (tx) => {
@@ -577,8 +614,8 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
       await tx
         .update(starterPacks)
         .set({
-          ...(name === undefined ? {} : { name: String(name) }),
-          ...(description === undefined ? {} : { description: description ? String(description) : null }),
+          ...(name === undefined ? {} : { name }),
+          ...(description === undefined ? {} : { description: description ? description : null }),
           // Always stamped, matching Mongoose's `save()`: the previous route
           // bumped `updatedAt` on every PUT whether or not a field changed, and
           // `updated_at` is the sort key the owner-scoped listing pages on.

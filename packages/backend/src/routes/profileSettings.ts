@@ -426,11 +426,22 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       if (privacy.profileVisibility && ['public', 'private', 'followers_only'].includes(privacy.profileVisibility)) {
         update['privacy.profileVisibility'] = privacy.profileVisibility;
       }
+      // ELEMENTS filtered, not just the container — the same thing
+      // `interests.tags` does a dozen lines below, and the reason it does it.
+      // Both of these land in a `text[]` column, and `privacy.hiddenWords` is
+      // then read by `services/safety/muteWordMatcher.ts` on EVERY feed page
+      // this viewer loads: one non-string element accepted here is not a single
+      // bad request, it is a stored value that breaks that viewer's feed until
+      // somebody notices and rewrites the row.
       if (Array.isArray(privacy.hiddenWords)) {
-        update['privacy.hiddenWords'] = privacy.hiddenWords;
+        update['privacy.hiddenWords'] = privacy.hiddenWords.filter(
+          (word: unknown): word is string => typeof word === 'string',
+        );
       }
       if (Array.isArray(privacy.restrictedUsers)) {
-        update['privacy.restrictedUsers'] = privacy.restrictedUsers;
+        update['privacy.restrictedUsers'] = privacy.restrictedUsers.filter(
+          (id: unknown): id is string => typeof id === 'string',
+        );
       }
     }
 
