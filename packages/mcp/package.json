@@ -8,7 +8,7 @@
   "main": "dist/server-http.js",
   "dependencies": {
     "@mention/shared-types": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@oxyhq/core": "catalog:",
     "jsonwebtoken": "catalog:",
     "zod": "catalog:"
