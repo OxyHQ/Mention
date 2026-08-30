@@ -17,6 +17,7 @@
  *   node reel-open.mjs pip           # does the Picture-in-Picture button actually do anything
  *   node reel-open.mjs feed       [n]  # the same, but flying from a SCROLLED feed row
  *   node reel-open.mjs slot       [n]  # flying from a row that does NOT hold the audible slot
+ *   node reel-open.mjs source     [n]  # entering the reel WITHOUT a flight, so the slide picks its own source
  *
  *   CDP=http://127.0.0.1:39871  ORIGIN=https://mention.earth
  */
@@ -43,25 +44,36 @@ const CONTENT_TYPES = {
     '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.woff2': 'font/woff2',
 };
 
-async function serveLocalBuild(page) {
-    if (!DIST) return;
-    if (!existsSync(join(DIST, 'index.html'))) {
-        throw new Error(`DIST=${DIST} has no index.html — build it first (bun run build in packages/frontend)`);
-    }
-    // The document must not come from the browser's own cache: a cached
-    // `index.html` names the PREVIOUS build's hashed chunks, and those are not
-    // in this `dist`, so they fall through to production. `route` cannot see a
-    // memory-cache hit, so the cache is turned off at the protocol level.
-    // And it must not come from the SERVICE WORKER either. `mention.earth` is a
-    // PWA, so a registered worker answers from Cache Storage before the network
-    // is consulted at all — invisible to `route` and unaffected by the HTTP
-    // cache. That is what served a document naming the previous build's chunks
-    // while every counter said the interception was working.
+/**
+ * Nothing on this page may come from a previous run.
+ *
+ * The document must not come from the browser's own cache: a cached
+ * `index.html` names the PREVIOUS build's hashed chunks, and those are not in
+ * the `dist` being served, so they fall through to production. `route` cannot
+ * see a memory-cache hit, so the cache is turned off at the protocol level.
+ * And it must not come from the SERVICE WORKER either. `mention.earth` is a
+ * PWA, so a registered worker answers from Cache Storage before the network is
+ * consulted at all — invisible to `route` and unaffected by the HTTP cache.
+ * That is what served a document naming the previous build's chunks while every
+ * counter said the interception was working.
+ *
+ * It is also what "cold" means for a measurement: a first visit fetches its
+ * media over the network, and a warm one can hide a source that never loads.
+ */
+async function coldCache(page) {
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('Network.enable');
     await cdp.send('Network.clearBrowserCache');
     await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
     await cdp.send('Network.setBypassServiceWorker', { bypass: true });
+}
+
+async function serveLocalBuild(page) {
+    if (!DIST) return;
+    if (!existsSync(join(DIST, 'index.html'))) {
+        throw new Error(`DIST=${DIST} has no index.html — build it first (bun run build in packages/frontend)`);
+    }
+    await coldCache(page);
     await page.route(`${ORIGIN}/**`, (route) => {
         const path = new URL(route.request().url()).pathname;
         // An asset is a path that EXISTS as a file in the export; everything
@@ -839,22 +851,38 @@ function playingSelfTest() {
     return ok;
 }
 
-/** Records `paused` and `currentTime` of whatever element is on screen. */
+/**
+ * Records `paused` and `currentTime` of whatever element is on screen.
+ *
+ * "On screen" is the area actually INSIDE the viewport, not the element's box.
+ * The reel mounts its neighbours at full size one screen above and below, so
+ * ranking by box area puts three identical rectangles in a tie and hands the
+ * verdict to DOM order — which is how a run watched a paused neighbour and
+ * reported that nothing ever played while the slide in front of the viewer was
+ * running. Clipping to the viewport gives the off-screen ones an area of zero.
+ */
 const RECORD_PLAYING = () => {
     window.__p = [];
     const t0 = performance.now();
     window.__t0p = t0;
+    const visibleArea = (r) => Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0))
+        * Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0));
     const tick = () => {
         const onScreen = [...document.querySelectorAll('video')]
             .map((v) => ({ v, r: v.getBoundingClientRect() }))
-            .filter((x) => x.r.width > 4 && x.r.height > 4)
-            .sort((a, b) => b.r.width * b.r.height - a.r.width * a.r.height)[0];
+            .filter((x) => visibleArea(x.r) > 16)
+            .sort((a, b) => visibleArea(b.r) - visibleArea(a.r))[0];
         if (onScreen) {
             window.__p.push({
                 t: Math.round(performance.now() - t0),
                 paused: onScreen.v.paused,
                 ct: Number(onScreen.v.currentTime.toFixed(2)),
                 route: location.pathname,
+                // The tail of the URL, because that is where the two candidate
+                // sources differ: `…?variant=hls_master` against a plain object
+                // id. Reported, never asserted on — the rule is what the picture
+                // does, and the source is how you find out why.
+                src: (onScreen.v.currentSrc || '').slice(-30),
             });
         }
         requestAnimationFrame(tick);
@@ -1291,6 +1319,258 @@ async function slotCase(runs) {
     process.exit(0);
 }
 
+/**
+ * DOES THE REEL PLAY WHEN NOBODY HANDS IT A PLAYER?
+ *
+ * Every other mode here enters the reel by TAPPING a feed video, and a tap
+ * flies the feed's own player into the reel — so the slide the viewer lands on
+ * inherits a `<video>` that is already loaded and already playing. That path is
+ * immune to anything wrong with the reel's own source resolution, and it is the
+ * only path twenty measurements ever took.
+ *
+ * The other way in is the one this measures: arrive at `/videos` directly, with
+ * no flight, so the slide MOUNTS ITS OWN PLAYER and has to choose a source. It
+ * is what opening the reel from the bar does, what swiping to the next slide
+ * does, and what a flight whose lease never arrived falls back to.
+ *
+ * Both arms open the SAME post, so the media, the network and the page are held
+ * fixed and the only difference is where the player came from.
+ *
+ * And the verdict is taken from the POSITION, never from `paused`. A `<video>`
+ * whose source never loads reports `paused === false` for as long as you care to
+ * watch it while `currentTime` sits at zero: the element has not failed, it has
+ * not finished, and the app believes it is playing. That is precisely the state
+ * being hunted here, and every `paused`-based rule we own calls it healthy.
+ */
+const SOURCE_WINDOW_MS = 25_000;
+/**
+ * A shorter window cannot tell a slow start from a dead one: the stall being
+ * measured has been seen to release at 6.8s and to still be going past 25s, so
+ * a run that watched for six seconds would have called both of them the same.
+ */
+const SOURCE_MIN_WINDOW_MS = 24_000;
+/**
+ * WHY THE RULE IS "AT ALL" AND NOT "WITHIN N MILLISECONDS".
+ *
+ * The first version of this asked for a moving picture within three seconds,
+ * which is what a working reel looks like — and it was the wrong question,
+ * because the two populations do not separate on time. Measured on this post at
+ * 430x932, four runs each, cold:
+ *
+ *   before  DIRECT  never, never, never, never          (26s of ct == 0)
+ *   after   DIRECT  2.4s, 3.8s, 8.5s, 11.0s
+ *   either  FLIGHT  10-21ms
+ *
+ * The defect being fixed is categorical: the source cannot be decoded, so the
+ * picture never moves at all, whatever you wait. What the fixed build then
+ * shows — seconds before the first frame on a direct, cold open — is a REAL and
+ * separate cost, and it is not what this rule is about. Judging it here would
+ * gate on a defect this change does not touch, and would have failed on the
+ * fixed build three times out of four.
+ *
+ * So the time is measured and printed, split into the two halves it is made of,
+ * and judged by nobody.
+ */
+/** The picture must still be moving at the end of the window, not only at the start. */
+const SOURCE_TAIL_MS = 5_000;
+
+function evaluateSource(series) {
+    if (!series.length) return { measured: false, why: 'no samples — no video was ever on screen' };
+    const gap = medianGap(series);
+    if (gap > SAMPLE_GAP_LIMIT_MS) {
+        return { measured: false, why: `median gap ${gap}ms over ${series.length} samples — needs <= ${SAMPLE_GAP_LIMIT_MS}ms` };
+    }
+    const reel = series.filter((sample) => sample.route.startsWith('/videos'));
+    if (!reel.length) return { measured: false, why: 'never reached the reel' };
+    const landed = reel[0];
+    const last = reel[reel.length - 1];
+    const span = last.t - landed.t;
+    if (span < SOURCE_MIN_WINDOW_MS) {
+        return { measured: false, why: `only ${(span / 1000).toFixed(1)}s of reel — needs ${SOURCE_MIN_WINDOW_MS / 1000}s` };
+    }
+
+    // The first sample whose position is higher than the one before it: the
+    // first moment the viewer is looking at a moving picture rather than a
+    // still frame that claims to be playing.
+    let started = null, startedSrc = null;
+    for (let i = 1; i < reel.length; i++) {
+        if (reel[i].ct > reel[i - 1].ct) { started = reel[i].t - landed.t; startedSrc = reel[i].src; break; }
+    }
+    // Where that time went: waiting for the app to decide on a source, or
+    // waiting for the browser to make the source play. Two different faults
+    // wear the same still picture, and only this tells them apart.
+    const firstSourced = reel.find((sample) => sample.src);
+    const sourcedAt = firstSourced ? firstSourced.t - landed.t : null;
+    // The longest stretch of unchanging position AFTER it started. Reported and
+    // not judged: a real network stall mid-video is a different fault from a
+    // source that never plays, and folding them together would make this rule
+    // fail for reasons it cannot distinguish.
+    let stall = 0, run = null;
+    for (let i = 1; i < reel.length; i++) {
+        if (started === null || reel[i].t - landed.t <= started) continue;
+        if (reel[i].ct === reel[i - 1].ct) {
+            run ??= reel[i - 1].t;
+            if (reel[i].t - run > stall) stall = reel[i].t - run;
+        } else run = null;
+    }
+    const tailFrom = reel.find((sample) => sample.t >= last.t - SOURCE_TAIL_MS) ?? landed;
+    const tailAdvance = last.ct - tailFrom.ct;
+    // Every source this slide was ever given. More than one means the app
+    // changed its mind — which on this screen only happens through
+    // `useReelChrome`'s fallback, and that fallback fires on an error the
+    // browser is under no obligation to ever report.
+    const sources = [...new Set(reel.map((sample) => sample.src).filter(Boolean))];
+
+    return {
+        measured: true, gap, samples: reel.length, span, started, sourcedAt, stall, tailAdvance, sources,
+        firstSrc: landed.src, startedSrc, lastSrc: last.src,
+        // What the rule we already had would have said about the state the run
+        // ENDED in — which is the state the viewer is left looking at.
+        endPaused: last.paused, endCt: last.ct,
+        verdicts: [
+            {
+                ok: started !== null,
+                rule: `the picture moves at all inside the ${(span / 1000).toFixed(0)}s window`,
+                detail: started === null
+                    ? `NEVER moved — ct sat at ${landed.ct} for the whole ${(span / 1000).toFixed(1)}s`
+                    : `first moved at +${started}ms (source assigned at +${sourcedAt}ms, then ${started - sourcedAt}ms to a frame)`,
+            },
+            {
+                ok: tailAdvance > 0,
+                rule: 'and it is still moving at the end of the window',
+                detail: `ct moved ${tailAdvance.toFixed(2)}s over the last ${SOURCE_TAIL_MS / 1000}s`,
+            },
+            {
+                ok: sources.length <= 1,
+                rule: 'playing the source it was handed, not a second one',
+                detail: sources.length <= 1
+                    ? `one source: …${sources[0] ?? '(none)'}`
+                    : `${sources.length} sources: ${sources.map((x) => `…${x}`).join(' then ')}`,
+            },
+        ],
+    };
+}
+
+function sourceSelfTest() {
+    const build = (ct, { step = 16, until = 27_000, paused = false } = {}) => {
+        const out = [];
+        for (let t = 0; t <= until; t += step) out.push({ t, paused, ct: ct(t), route: '/videos', src: 'x' });
+        return out;
+    };
+    const healthy = build((t) => (t < 400 ? 0 : Number(((t - 400) / 1000).toFixed(2))));
+    // The defect: a source that never loads. Not paused, no error, ct at zero.
+    const neverStarts = build(() => 0);
+    // The same defect, releasing late through the fallback: the source it ends
+    // up playing is not the source it was given, which is what marks it.
+    const startsAt12s = build((t) => (t < 12_000 ? 0 : Number(((t - 12_000) / 1000).toFixed(2))));
+    for (const sample of startsAt12s) sample.src = sample.t < 12_000 ? 'variant=hls_master' : 'the.mp4';
+    // Starts and then dies, which the first rule alone would accept.
+    const diesAt3s = build((t) => (t < 400 ? 0 : Math.min(2.6, Number(((t - 400) / 1000).toFixed(2)))));
+    // Plays, but only after being handed a second source — the shape the
+    // fallback produces when the browser eventually errors on the first one.
+    const swappedSource = build((t) => (t < 400 ? 0 : Number(((t - 400) / 1000).toFixed(2))));
+    for (const sample of swappedSource) sample.src = sample.t < 200 ? 'variant=hls_master' : 'the.mp4';
+    const tooSlow = build((t) => (t < 400 ? 0 : Number(((t - 400) / 1000).toFixed(2))), { step: 300 });
+    const shortWindow = build((t) => (t < 400 ? 0 : Number(((t - 400) / 1000).toFixed(2))), { until: 8_000 });
+
+    const verdict = (series) => { const r = evaluateSource(series); return r.measured && r.verdicts.every((v) => v.ok); };
+    const measured = (series) => evaluateSource(series).measured;
+    // The rule this replaces, applied to the same series.
+    const byPaused = (series) => !series.some((sample) => sample.paused);
+
+    console.log('SELF-TEST:');
+    console.log(`  a reel that plays                 : ${verdict(healthy) ? 'passed' : 'REJECTED'}`);
+    console.log(`  a source that never loads         : ${verdict(neverStarts) ? 'passed' : 'REJECTED'}`);
+    console.log(`  ...and what a paused-based rule says: ${byPaused(neverStarts) ? 'PASSED — it was never paused' : 'rejected'}`);
+    console.log(`  the same, released by the fallback: ${verdict(startsAt12s) ? 'passed' : 'REJECTED'}`);
+    console.log(`  plays and then dies at 3s         : ${verdict(diesAt3s) ? 'passed' : 'REJECTED'}`);
+    console.log(`  plays, after a swap to a 2nd source: ${verdict(swappedSource) ? 'passed' : 'REJECTED'}`);
+    console.log(`  a clean run sampled at 3Hz        : ${measured(tooSlow) ? 'counted as a PASS' : 'NOT MEASURED'}`);
+    console.log(`  a clean run watched for 8s        : ${measured(shortWindow) ? 'counted as a PASS' : 'NOT MEASURED'}`);
+    console.log(`  the same picture at 60Hz for 27s  : ${measured(healthy) ? 'measured' : 'NOT MEASURED — the floors are too strict'}`);
+
+    const ok = verdict(healthy) && !verdict(neverStarts) && byPaused(neverStarts) && !verdict(startsAt12s)
+        && !verdict(diesAt3s) && !verdict(swappedSource) && !measured(tooSlow) && !measured(shortWindow) && measured(healthy);
+    console.log(ok
+        ? '\nCONTROL OK — rejects a source that never plays while a paused-based rule accepts it, and refuses to judge a run it could not see.\n'
+        : '\nCONTROL FAILED — it does not separate a dead source from a healthy one, or the floors do not hold.\n');
+    return ok;
+}
+
+async function sourceRun(context, arm) {
+    const page = await context.newPage();
+    await serveLocalBuild(page);
+    // `serveLocalBuild` already does this when it is serving; this covers the
+    // other case, measuring the deployed build.
+    if (!DIST) await coldCache(page);
+    // rAF is throttled to a few Hz in a tab the compositor is not drawing, and
+    // the sampler is a rAF loop.
+    await page.bringToFront();
+    await page.setViewportSize(VIEWPORT);
+    await seedReturningVisitor(page);
+
+    if (arm === 'direct') {
+        // The sampler must exist before the app does: this arm is about the
+        // FIRST video the reel ever mounts, and injecting after navigation
+        // would start watching after the moment in question.
+        await page.addInitScript(RECORD_PLAYING);
+        await page.goto(`${ORIGIN}/videos?postId=${POST}`, { waitUntil: 'domcontentloaded', timeout: 300_000 });
+    } else {
+        await page.goto(`${ORIGIN}/p/${POST}`, { waitUntil: 'domcontentloaded', timeout: 300_000 });
+        await page.waitForSelector('video', { timeout: 200_000 });
+        await page.evaluate(() => document.querySelector('video')?.scrollIntoView({ block: 'center' }));
+        // A control arm that starts from a stopped feed video proves nothing:
+        // the whole point of it is that the flight carries a LOADED player.
+        await page.waitForFunction(() => {
+            const v = document.querySelector('video');
+            return v && !v.paused && v.currentTime > 1;
+        }, null, { timeout: 90_000 }).catch(() => {});
+        if (!await page.evaluate(() => !document.querySelector('video')?.paused)) { await page.close(); return null; }
+        await page.evaluate(RECORD_PLAYING);
+        const box = await page.locator('video').first().boundingBox();
+        await page.mouse.click(Math.min(box.x + box.width / 2, VIEWPORT.width - 6), box.y + box.height / 2);
+    }
+
+    // The window is counted from the reel, not from navigation: this arm boots
+    // a whole app first, and a fixed wait would spend the window on the splash.
+    await page.waitForFunction(() => (window.__p ?? []).some((s) => s.route.startsWith('/videos')), null, { timeout: 120_000 })
+        .catch(() => { /* recorded as never reaching the reel */ });
+    await page.waitForTimeout(SOURCE_WINDOW_MS + 1_000);
+    const series = await page.evaluate(() => window.__p ?? []);
+    await page.close();
+    return series;
+}
+
+async function sourceCase(runs) {
+    if (!sourceSelfTest()) process.exit(1);
+    const browser = await chromium.connectOverCDP(CDP);
+    const context = browser.contexts()[0];
+    console.log(`=== mode=source  post=${POST}  viewport=${VIEWPORT.width}x${VIEWPORT.height}  n=${runs}  build=${DIST ?? 'deployed'} ===`);
+    console.log('DIRECT  — /videos with no flight: the slide mounts its own player and picks its own source.');
+    console.log('FLIGHT  — the same post, tapped from its page: the slide inherits the feed\'s loaded player.\n');
+
+    const tally = { direct: { pass: 0, fail: 0, unmeasured: 0 }, flight: { pass: 0, fail: 0, unmeasured: 0 } };
+    for (let i = 0; i < runs; i++) {
+        for (const arm of ['direct', 'flight']) {
+            const series = await sourceRun(context, arm);
+            const label = arm === 'direct' ? 'DIRECT' : 'FLIGHT';
+            if (!series) { console.log(`run ${i + 1} ${label}: NOT MEASURED — the feed video never started`); tally[arm].unmeasured += 1; continue; }
+            const out = evaluateSource(series);
+            if (!out.measured) { console.log(`run ${i + 1} ${label}: NOT MEASURED — ${out.why}`); tally[arm].unmeasured += 1; continue; }
+            const ok = out.verdicts.every((v) => v.ok);
+            tally[arm][ok ? 'pass' : 'fail'] += 1;
+            console.log(`run ${i + 1} ${label}: ${ok ? 'ok  ' : 'FAIL'} ${out.samples} samples over ${(out.span / 1000).toFixed(1)}s, gap ${out.gap}ms`);
+            for (const v of out.verdicts) console.log(`         ${v.ok ? 'ok  ' : 'FAIL'} ${v.rule} — ${v.detail}`);
+            console.log(`         not judged: time to the first frame ${out.started === null ? 'never' : `${out.started}ms`}`);
+            console.log(`         src on arrival …${out.firstSrc || '(none yet)'}, at the end …${out.lastSrc || '(none)'}`);
+            console.log(`         at the end: paused=${out.endPaused} ct=${out.endCt}${out.endPaused === false && out.endCt === 0 ? '  <- not paused, not moving, no error: what every paused-based rule calls healthy' : ''}${out.stall > FREEZE_LIMIT_MS ? `; longest stall after it started ${out.stall}ms` : ''}`);
+        }
+    }
+    console.log(`\nDIRECT ${tally.direct.pass} pass / ${tally.direct.fail} FAIL / ${tally.direct.unmeasured} not measured`);
+    console.log(`FLIGHT ${tally.flight.pass} pass / ${tally.flight.fail} FAIL / ${tally.flight.unmeasured} not measured`);
+    process.exit(0);
+}
+
 const mode = process.argv[2] ?? 'open';
 const runs = Number(process.argv[3] ?? 10);
 if (mode === 'attribute') await attribute();
@@ -1300,9 +1580,10 @@ else if (mode === 'playing') await playing(runs);
 else if (mode === 'pip') await pictureInPicture();
 else if (mode === 'feed') await feedRow(runs);
 else if (mode === 'slot') await slotCase(runs);
+else if (mode === 'source') await sourceCase(runs);
 else if (mode === 'continuity') await continuity(runs);
 else if (mode === 'open' || mode === 'control') await measure(mode, runs);
 else {
-    console.error(`unknown mode "${mode}" — expected open, control, attribute, continuity, geometry, landing, playing, pip, feed or slot`);
+    console.error(`unknown mode "${mode}" — expected open, control, attribute, continuity, geometry, landing, playing, pip, feed, slot or source`);
     process.exit(2);
 }
