@@ -86,6 +86,23 @@ updates:
       # `react-test-renderer` ahead of `react` renders against a reconciler the
       # app does not ship (offered 19.2.8 against react 19.2.3).
       - dependency-name: "react-test-renderer"
+      # Third-party native modules that the Expo SDK itself version-pins. These
+      # are named individually rather than as `react-native-*` on purpose: the
+      # list below is exactly `packages/frontend`'s dependencies intersected
+      # with `expo/bundledNativeModules.json`, and a `react-native-*` wildcard
+      # would also freeze react-native-compressor, react-native-css,
+      # react-native-nitro-modules, react-native-popup-menu and
+      # react-native-qrcode-svg, none of which Expo pins. Bump these with
+      # `bunx expo install` at SDK-upgrade time, never one at a time.
+      - dependency-name: "@react-native-async-storage/async-storage"
+      - dependency-name: "@react-native-community/netinfo"
+      - dependency-name: "@shopify/flash-list"
+      - dependency-name: "react-native-gesture-handler"
+      - dependency-name: "react-native-keyboard-controller"
+      - dependency-name: "react-native-safe-area-context"
+      - dependency-name: "react-native-screens"
+      - dependency-name: "react-native-svg"
+      - dependency-name: "react-native-webview"
       # Metro / RN build + animation stack — must move in lockstep with Expo.
       - dependency-name: "react-native-reanimated"
       - dependency-name: "react-native-worklets"
