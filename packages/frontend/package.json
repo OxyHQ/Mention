@@ -179,7 +179,7 @@
     "@types/jest": "~29.5.14",
     "@types/react": "~19.2.17",
     "@types/react-dom": "~19.2.3",
-    "@typescript-eslint/eslint-plugin": "^8.62.1",
+    "@typescript-eslint/eslint-plugin": "^8.68.0",
     "@typescript-eslint/parser": "^8.62.1",
     "eslint": "^9.39.5",
     "eslint-config-expo": "~55.0.1",
