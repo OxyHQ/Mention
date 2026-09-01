@@ -15,7 +15,7 @@ import { trendBatches, trending, TrendingType } from '../db/schema/discovery';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
 import { emitTrendsUpdated } from '../utils/socket';
-import { aliaChat, isAliaEnabled } from '../utils/alia';
+import { inferenceChat, isInferenceEnabled } from '../utils/oxyInference';
 import { metrics } from '../utils/metrics';
 import { topicService } from './TopicService';
 import { saveTrendGraph } from './trending/trendGraph';
@@ -205,12 +205,12 @@ class TrendingService {
    * Generate a lightweight AI summary from trend names.
    */
   private async generateSummary(trendNames: string[]): Promise<string> {
-    if (!isAliaEnabled() || trendNames.length === 0) {
+    if (!isInferenceEnabled() || trendNames.length === 0) {
       return '';
     }
 
     try {
-      const summary = await aliaChat(
+      const summary = await inferenceChat(
         [
           {
             role: 'system',
@@ -221,7 +221,7 @@ class TrendingService {
             content: `Trending: ${trendNames.join(', ')}`,
           },
         ],
-        { temperature: 0.5 },
+        { feature: 'trending-overview', temperature: 0.5 },
       );
 
       return summary.trim();

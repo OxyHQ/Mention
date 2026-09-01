@@ -55,7 +55,7 @@ const router = Router();
 /**
  * The AI-translation routes carry their own limiter on top of the app-wide one in
  * `app.ts`. They are the only routes here where a cheap request buys expensive
- * work — an Alia inference — and translation is free to every user, so nothing
+ * work — an Oxy inference — and translation is free to every user, so nothing
  * else bounds the spend.
  *
  * Production-gated, mirroring `feed.routes.ts`: the limiter is Redis-backed and a
@@ -143,7 +143,7 @@ router.patch('/bookmarks/:id/folder', moveBookmarkToFolder);
 //
 // Rate-limited on its own, unlike everything else here: this is the one route
 // where a cheap request buys an EXPENSIVE one. It takes arbitrary text, so
-// unlike `/:id/translate` it cannot be cached — every call is an Alia inference,
+// unlike `/:id/translate` it cannot be cached — every call is an Oxy inference,
 // and translation is free to every user, so nothing else bounds the spend.
 router.post('/translate-draft', ...translationRateLimiters, translateDraft);
 

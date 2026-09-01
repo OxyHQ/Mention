@@ -10,7 +10,7 @@ import { posts } from '../db/schema/posts';
 import { postAuthorships, postContentVariants } from '../db/schema/postContent';
 import { userSettings } from '../db/schema/userProfile';
 import { logger } from '../utils/logger';
-import { aliaChat, isAliaEnabled } from '../utils/alia';
+import { inferenceChat, isInferenceEnabled } from '../utils/oxyInference';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { userPreferenceService } from '../services/UserPreferenceService';
 import { recordDedupedView } from '../services/feedViewCounter';
@@ -817,7 +817,7 @@ export const getEngagementRatios = async (req: AuthRequest, res: Response) => {
 
 /**
  * Get AI-generated weekly summary
- * Computes current vs previous week stats and generates a personalized insight via Alia
+ * Computes current vs previous week stats and generates a personalized insight through Oxy.
  *
  * VIEWER-ONLY, deliberately — it takes no `?accountId` while the two routes above
  * do. What it returns is not a number an account owns but a second-person
@@ -842,7 +842,7 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    if (!isAliaEnabled()) {
+    if (!isInferenceEnabled()) {
       return res.json({ summary: null });
     }
 
@@ -1013,7 +1013,7 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
     const userMessage = lines.join('\n');
 
     try {
-      const summary = await aliaChat(
+      const summary = await inferenceChat(
         [
           {
             role: 'system',
@@ -1042,12 +1042,17 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
           },
           { role: 'user', content: userMessage },
         ],
-        { model: 'alia-lite', temperature: 0.7, maxTokens: 200 },
+        {
+          feature: 'weekly-statistics-summary',
+          delegatedUserId: userId,
+          temperature: 0.7,
+          maxTokens: 200,
+        },
       );
 
       return res.json({ summary });
     } catch (aiError) {
-      logger.warn('Alia AI summary generation failed:', aiError);
+      logger.warn('Oxy inference summary generation failed:', aiError);
       return res.json({ summary: null });
     }
   } catch (error) {

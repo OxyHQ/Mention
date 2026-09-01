@@ -32,7 +32,7 @@ pure/sync). Runs at all ingest chokepoints: `PostCreationService`,
   above this version. Bump it whenever a Stage-A signal changes meaning so
   older stamps stop being honored.
 
-**Stage B — async AI enrichment** (`PostClassificationService`, Alia).
+**Stage B — async AI enrichment** (`PostClassificationService`, Oxy inference backed by Kaana).
 `updatePostRecord` takes a PARTIAL patch of only the AI-owned fields — the
 Stage-A deterministic fields (languages, region, hashtagsNorm, version,
 sensitive) survive by the patch TYPE, the guarantee a dotted Mongo `$set`

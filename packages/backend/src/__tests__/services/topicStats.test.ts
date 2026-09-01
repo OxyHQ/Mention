@@ -23,7 +23,7 @@ import { randomUUID } from 'node:crypto';
 import { inArray } from 'drizzle-orm';
 
 vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({}) }));
-vi.mock('../../utils/alia', () => ({ aliaJSON: vi.fn(), isAliaEnabled: () => false }));
+vi.mock('../../utils/oxyInference', () => ({ inferenceJSON: vi.fn(), isInferenceEnabled: () => false }));
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { topicStats } from '../../db/schema/discovery';

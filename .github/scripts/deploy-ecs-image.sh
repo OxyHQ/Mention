@@ -17,6 +17,10 @@ POLL_INTERVAL="${POLL_INTERVAL:-15}"
 RUN_MIGRATIONS="${RUN_MIGRATIONS:-false}"
 INTERNAL_METRICS_PARAMETER="${INTERNAL_METRICS_PARAMETER:-}"
 TASK_SECRET_OVERRIDES_JSON="${TASK_SECRET_OVERRIDES_JSON:-}"
+# Plain, non-secret variables that this release must re-assert on every task
+# revision. This is how a new setting survives both normal deploys and a
+# circuit-breaker rollback to a definition that predates it.
+TASK_ENV_OVERRIDES_JSON="${TASK_ENV_OVERRIDES_JSON:-}"
 # Secret NAMES to REMOVE from the rendered task definition, space-separated.
 #
 # The script derives each release's definition from the LIVE one and rewrites
@@ -229,6 +233,21 @@ if ! jq -e '
   )
 ' <<<"$TASK_SECRET_OVERRIDES_JSON" >/dev/null; then
   echo "::error::TASK_SECRET_OVERRIDES_JSON must map environment variable names to complete SSM parameter ARNs."
+  exit 1
+fi
+if [[ -z "$TASK_ENV_OVERRIDES_JSON" ]]; then
+  TASK_ENV_OVERRIDES_JSON='{}'
+fi
+if ! jq -e '
+  type == "object" and
+  length <= 20 and
+  all(
+    to_entries[];
+    (.key | type == "string" and test("^[A-Z][A-Z0-9_]{0,127}$")) and
+    (.value | type == "string" and length > 0 and length <= 2048)
+  )
+' <<<"$TASK_ENV_OVERRIDES_JSON" >/dev/null; then
+  echo "::error::TASK_ENV_OVERRIDES_JSON must map environment variable names to non-empty string values."
   exit 1
 fi
 
@@ -549,6 +568,13 @@ task_secret_overrides="$(jq -c '
   ]
 ' <<<"$TASK_SECRET_OVERRIDES_JSON")"
 
+task_env_overrides="$(jq -c '
+  [
+    to_entries[]
+    | {name: .key, value: .value}
+  ]
+' <<<"$TASK_ENV_OVERRIDES_JSON")"
+
 # The removals ride the SAME filter as the overrides — both are "drop any secret
 # with this name" — and only the overrides are concatenated back afterwards.
 task_secret_removals="$(jq -cRn '[inputs | select(length > 0)]' <<<"$(printf '%s\n' $TASK_SECRET_REMOVALS)")"
@@ -571,6 +597,7 @@ jq \
   --arg internalMetricsSecretArn "$internal_metrics_secret_arn" \
   --argjson taskSecretOverrides "$task_secret_overrides" \
   --argjson taskSecretRemovals "$task_secret_removals" \
+  --argjson taskEnvOverrides "$task_env_overrides" \
   '
     del(
       .taskDefinitionArn,
@@ -582,6 +609,7 @@ jq \
       .registeredBy
     )
     | (($taskSecretOverrides | map(.name)) + $taskSecretRemovals) as $taskSecretNames
+    | ($taskEnvOverrides | map(.name)) as $taskEnvNames
     | .containerDefinitions |= map(
         if .name == $name then
           .image = $image
@@ -610,6 +638,16 @@ jq \
                     )
                   ))
               + $taskSecretOverrides
+            )
+          | .environment = (
+              ((.environment // [])
+                | map(
+                    select(
+                      .name as $existingName
+                      | ($taskEnvNames | index($existingName)) == null
+                    )
+                  ))
+              + $taskEnvOverrides
             )
         else . end
       )

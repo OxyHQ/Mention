@@ -20,10 +20,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ resolveTopicNames: mocks.resolveTopicNames }),
 }));
-// Alia is imported by the module; stub so it loads purely. `topic_stats` needs
+// Oxy inference is imported by the module; stub so it loads purely. `topic_stats` needs
 // no stub — `resolveTopicRefs` issues no query, and the tests that DO write rows
 // live in `topicStats.test.ts` against a real database.
-vi.mock('../../utils/alia', () => ({ aliaJSON: vi.fn(), isAliaEnabled: () => false }));
+vi.mock('../../utils/oxyInference', () => ({ inferenceJSON: vi.fn(), isInferenceEnabled: () => false }));
 
 import { topicService } from '../../services/TopicService';
 

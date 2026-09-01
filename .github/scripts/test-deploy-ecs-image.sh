@@ -25,6 +25,7 @@ export DEPLOY_TEST_EXPECT_METRICS_ARN=false
 export DEPLOY_TEST_METRICS_PARAMETER=/oxy/sampleapp/INTERNAL_METRICS_TOKEN
 export DEPLOY_TEST_TASK_EXIT_CODE=0
 export DEPLOY_TEST_EXPECT_TASK_SECRET_ARN=false
+export DEPLOY_TEST_EXPECT_TASK_ENV=false
 export DEPLOY_TEST_EXPECT_SECRET_REMOVED=
 export DEPLOY_TEST_SERVICE_DESIRED_COUNT=1
 export DEPLOY_TEST_ROLLOUT_SCENARIO=healthy
@@ -238,6 +239,31 @@ aws() {
           printf 'task-secret:arn:MISMATCH\n' >>"$DEPLOY_TEST_LOG"
         fi
       fi
+      if [[ "$DEPLOY_TEST_EXPECT_TASK_ENV" == "true" ]]; then
+        local previous_argument=""
+        local input_json=""
+        local argument
+        for argument in "$@"; do
+          if [[ "$previous_argument" == "--cli-input-json" ]]; then
+            input_json="${argument#file://}"
+            break
+          fi
+          previous_argument="$argument"
+        done
+        if jq -e '
+          .containerDefinitions[]
+          | select(.name == "deploy-test")
+          | .environment[]
+          | select(
+              .name == "OXY_INFERENCE_ROUTING_PROFILE" and
+              .value == "mention-default"
+            )
+        ' "$input_json" >/dev/null; then
+          printf 'task-env:value\n' >>"$DEPLOY_TEST_LOG"
+        else
+          printf 'task-env:value:MISMATCH\n' >>"$DEPLOY_TEST_LOG"
+        fi
+      fi
       printf '%s\n' "arn:aws:ecs:test:task-definition/deploy-test:2"
       ;;
     "ecs update-service")
@@ -331,6 +357,7 @@ run_release() {
   local service_desired_count="${7:-1}"
   local rollout_scenario="${8:-healthy}"
   local smoke_exit_code="${9:-0}"
+  local inject_task_env="${10:-false}"
   local case_directory="$test_directory/$case_name"
   local output_file="$case_directory/output.log"
   local smoke_script="$case_directory/smoke.sh"
@@ -340,11 +367,13 @@ run_release() {
   DEPLOY_TEST_EXPECT_METRICS_ARN="$inject_internal_metrics"
   DEPLOY_TEST_TASK_EXIT_CODE="$task_exit_code"
   DEPLOY_TEST_EXPECT_TASK_SECRET_ARN="$inject_task_secret"
+  DEPLOY_TEST_EXPECT_TASK_ENV="$inject_task_env"
   DEPLOY_TEST_SERVICE_DESIRED_COUNT="$service_desired_count"
   DEPLOY_TEST_ROLLOUT_SCENARIO="$rollout_scenario"
   export DEPLOY_TEST_LOG DEPLOY_TEST_EXPECT_METRICS_ARN
   export DEPLOY_TEST_TASK_EXIT_CODE
   export DEPLOY_TEST_EXPECT_TASK_SECRET_ARN
+  export DEPLOY_TEST_EXPECT_TASK_ENV
   export DEPLOY_TEST_SERVICE_DESIRED_COUNT
   export DEPLOY_TEST_ROLLOUT_SCENARIO
 
@@ -380,6 +409,11 @@ run_release() {
   if [[ "$inject_task_secret" == "true" ]]; then
     release_environment+=(
       TASK_SECRET_OVERRIDES_JSON='{"EXTRA_TASK_SECRET":"arn:aws:ssm:test:123456789012:parameter/oxy/sample-app/EXTRA_TASK_SECRET"}'
+    )
+  fi
+  if [[ "$inject_task_env" == "true" ]]; then
+    release_environment+=(
+      TASK_ENV_OVERRIDES_JSON='{"OXY_INFERENCE_ROUTING_PROFILE":"mention-default"}'
     )
   fi
 
@@ -441,6 +475,17 @@ printf '%s\n' \
 diff -u \
   "$test_directory/explicit-task-secret/expected.log" \
   "$test_directory/explicit-task-secret/aws.log"
+
+run_release explicit-task-env true false false 0 false 1 healthy 0 true
+printf '%s\n' \
+  task-env:value \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  smoke \
+  task:reconcile \
+  >"$test_directory/explicit-task-env/expected.log"
+diff -u \
+  "$test_directory/explicit-task-env/expected.log" \
+  "$test_directory/explicit-task-env/aws.log"
 
 run_release reconciliation-failure false false false 1
 printf '%s\n' \

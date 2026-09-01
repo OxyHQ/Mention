@@ -9,7 +9,7 @@ import { getDb } from '../db/postgres';
 import { postContentVariants } from '../db/schema/postContent';
 import { config } from '../config';
 import { logger } from '../utils/logger';
-import { aliaChat } from '../utils/alia';
+import { inferenceChat } from '../utils/oxyInference';
 import { resolveVariant } from './postVariants';
 
 /**
@@ -31,7 +31,7 @@ import { resolveVariant } from './postVariants';
 const MAX_TEXT_LENGTH = config.posts.maxTextLength;
 
 /**
- * Alia's output budget for a translation, derived from the source length. The
+ * The output budget for a translation, derived from the source length. The
  * ratio is generous (a translation can be longer than its source, and a token is
  * several characters), and the ceiling keeps a long article from asking the model
  * for an out-of-range completion.
@@ -40,8 +40,6 @@ const TRANSLATION_TOKENS_PER_CHAR = 3;
 const MIN_TRANSLATION_TOKENS = 256;
 const MAX_TRANSLATION_TOKENS = 8192;
 
-/** Alia model used for translation: the small, fast one. */
-const TRANSLATION_MODEL = 'alia-lite';
 const TRANSLATION_TEMPERATURE = 0.1;
 
 /** Key prefix for a media item's localized alt text in a keyed translation batch. */
@@ -103,7 +101,11 @@ class PostTranslationService {
    * no post to attach to. Nothing is persisted: what the author approves in the
    * composer is what gets saved, as an AUTHOR variant.
    */
-  async translateDraft(rawText: string, rawTag: string): Promise<{ text: string; tag: string }> {
+  async translateDraft(
+    rawText: string,
+    rawTag: string,
+    options: { delegatedUserId?: string } = {},
+  ): Promise<{ text: string; tag: string }> {
     const { tag, languageName } = this.resolveTarget(rawTag);
 
     const text = rawText.trim();
@@ -111,7 +113,7 @@ class PostTranslationService {
       throw new TranslationRequestError('Nothing to translate', 400);
     }
 
-    const translated = await this.translateBody(text, languageName);
+    const translated = await this.translateBody(text, languageName, options.delegatedUserId);
     return { text: translated, tag };
   }
 
@@ -134,7 +136,7 @@ class PostTranslationService {
     postId: string,
     content: StoredPostContent,
     rawTag: string,
-    options: { force?: boolean } = {},
+    options: { force?: boolean; delegatedUserId?: string } = {},
   ): Promise<TranslatedPost> {
     const { tag, languageName } = this.resolveTarget(rawTag);
 
@@ -164,8 +166,13 @@ class PostTranslationService {
       throw new TranslationRequestError('Post has no text content to translate', 404);
     }
 
-    const body = await this.translateBody(sourceText, languageName);
-    const localized = await this.translateLocalizableFields(primary.media, primary.article, languageName);
+    const body = await this.translateBody(sourceText, languageName, options.delegatedUserId);
+    const localized = await this.translateLocalizableFields(
+      primary.media,
+      primary.article,
+      languageName,
+      options.delegatedUserId,
+    );
 
     const variant: PostContentVariant = {
       tag,
@@ -200,15 +207,20 @@ class PostTranslationService {
   }
 
   /** Translate the post body — the hot path, one plain-text completion. */
-  private async translateBody(text: string, languageName: string): Promise<string> {
+  private async translateBody(
+    text: string,
+    languageName: string,
+    delegatedUserId?: string,
+  ): Promise<string> {
     const source = text.slice(0, MAX_TEXT_LENGTH);
-    const translated = await aliaChat(
+    const translated = await inferenceChat(
       [
         { role: 'system', content: TRANSLATION_SYSTEM_PROMPT },
         { role: 'user', content: `Translate the following to ${languageName}:\n<text>\n${source}\n</text>` },
       ],
       {
-        model: TRANSLATION_MODEL,
+        feature: 'post-translation',
+        ...(delegatedUserId === undefined ? {} : { delegatedUserId }),
         temperature: TRANSLATION_TEMPERATURE,
         maxTokens: translationTokenBudget(source.length),
       },
@@ -232,6 +244,7 @@ class PostTranslationService {
     media: MediaItem[] | undefined,
     article: StoredPostContent['article'],
     languageName: string,
+    delegatedUserId?: string,
   ): Promise<{ alt?: Record<string, string>; article?: PostContentVariant['article'] }> {
     const fields: Record<string, string> = {};
 
@@ -248,7 +261,7 @@ class PostTranslationService {
       return {};
     }
 
-    const translated = await this.translateFields(fields, languageName);
+    const translated = await this.translateFields(fields, languageName, delegatedUserId);
     if (!translated) {
       return {};
     }
@@ -282,17 +295,19 @@ class PostTranslationService {
   private async translateFields(
     fields: Record<string, string>,
     languageName: string,
+    delegatedUserId?: string,
   ): Promise<Record<string, string> | null> {
     const payload = JSON.stringify(fields);
     let answer: string;
     try {
-      answer = await aliaChat(
+      answer = await inferenceChat(
         [
           { role: 'system', content: KEYED_TRANSLATION_SYSTEM_PROMPT },
           { role: 'user', content: `Translate every value to ${languageName}:\n${payload}` },
         ],
         {
-          model: TRANSLATION_MODEL,
+          feature: 'post-translation-fields',
+          ...(delegatedUserId === undefined ? {} : { delegatedUserId }),
           temperature: TRANSLATION_TEMPERATURE,
           maxTokens: translationTokenBudget(payload.length),
         },

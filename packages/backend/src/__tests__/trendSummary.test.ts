@@ -12,17 +12,17 @@ import { randomUUID } from 'node:crypto';
  */
 
 const mocks = vi.hoisted(() => ({
-  aliaChat: vi.fn(),
-  isAliaEnabled: vi.fn(() => true),
+  inferenceChat: vi.fn(),
+  isInferenceEnabled: vi.fn(() => true),
   incr: vi.fn(),
   expire: vi.fn(),
   set: vi.fn(),
   getRedisClient: vi.fn(),
 }));
 
-vi.mock('../utils/alia', () => ({
-  aliaChat: (...args: unknown[]) => mocks.aliaChat(...args),
-  isAliaEnabled: () => mocks.isAliaEnabled(),
+vi.mock('../utils/oxyInference', () => ({
+  inferenceChat: (...args: unknown[]) => mocks.inferenceChat(...args),
+  isInferenceEnabled: () => mocks.isInferenceEnabled(),
 }));
 vi.mock('../utils/redis', () => ({ getRedisClient: () => mocks.getRedisClient() }));
 
@@ -74,8 +74,8 @@ afterAll(async () => {
 beforeEach(async () => {
   vi.clearAllMocks();
   await getDb().delete(trendSummaries).where(eq(trendSummaries.term, TERM));
-  mocks.isAliaEnabled.mockReturnValue(true);
-  mocks.aliaChat.mockResolvedValue('The Orioles traded Dean Kremer to the Twins.');
+  mocks.isInferenceEnabled.mockReturnValue(true);
+  mocks.inferenceChat.mockResolvedValue('The Orioles traded Dean Kremer to the Twins.');
   mocks.incr.mockResolvedValue(MtnConfig.trending.summary.minViews);
   mocks.expire.mockResolvedValue(1);
   mocks.set.mockResolvedValue('OK');
@@ -92,7 +92,7 @@ describe('resolveTrendSummary — the stored answer wins', () => {
 
     expect(await call()).toEqual({ description: 'already written' });
     expect(mocks.incr).not.toHaveBeenCalled();
-    expect(mocks.aliaChat).not.toHaveBeenCalled();
+    expect(mocks.inferenceChat).not.toHaveBeenCalled();
   });
 });
 
@@ -101,14 +101,14 @@ describe('resolveTrendSummary — demand pays for it', () => {
     mocks.incr.mockResolvedValue(MtnConfig.trending.summary.minViews - 1);
 
     expect(await call()).toEqual({});
-    expect(mocks.aliaChat).not.toHaveBeenCalled();
+    expect(mocks.inferenceChat).not.toHaveBeenCalled();
   });
 
   it('generates exactly when the threshold is reached', async () => {
     mocks.incr.mockResolvedValue(MtnConfig.trending.summary.minViews);
 
     expect((await call()).description).toBe('The Orioles traded Dean Kremer to the Twins.');
-    expect(mocks.aliaChat).toHaveBeenCalledOnce();
+    expect(mocks.inferenceChat).toHaveBeenCalledOnce();
     // Stored, not merely returned: the next reader must get it without paying
     // for a second generation.
     expect(await storedSummary()).toBe('The Orioles traded Dean Kremer to the Twins.');
@@ -123,7 +123,7 @@ describe('resolveTrendSummary — demand pays for it', () => {
     await getDb().delete(trendSummaries).where(eq(trendSummaries.term, TERM));
     mocks.incr.mockResolvedValue(2);
     mocks.getRedisClient.mockResolvedValue({ incr: mocks.incr, expire: mocks.expire, set: mocks.set });
-    mocks.isAliaEnabled.mockReturnValue(true);
+    mocks.isInferenceEnabled.mockReturnValue(true);
     await call();
     expect(mocks.expire).not.toHaveBeenCalled();
   });
@@ -131,11 +131,11 @@ describe('resolveTrendSummary — demand pays for it', () => {
 
 describe('resolveTrendSummary — refuses to spend when it cannot justify it', () => {
   it('never calls the model when no key is configured', async () => {
-    mocks.isAliaEnabled.mockReturnValue(false);
+    mocks.isInferenceEnabled.mockReturnValue(false);
 
     expect(await call()).toEqual({});
     expect(mocks.incr).not.toHaveBeenCalled();
-    expect(mocks.aliaChat).not.toHaveBeenCalled();
+    expect(mocks.inferenceChat).not.toHaveBeenCalled();
   });
 
   it('never generates when demand cannot be counted at all', async () => {
@@ -145,31 +145,31 @@ describe('resolveTrendSummary — refuses to spend when it cannot justify it', (
     mocks.getRedisClient.mockResolvedValue(null);
 
     expect(await call()).toEqual({});
-    expect(mocks.aliaChat).not.toHaveBeenCalled();
+    expect(mocks.inferenceChat).not.toHaveBeenCalled();
   });
 
   it('never generates when another task holds the lock', async () => {
     mocks.set.mockResolvedValue(null);
 
     expect(await call()).toEqual({});
-    expect(mocks.aliaChat).not.toHaveBeenCalled();
+    expect(mocks.inferenceChat).not.toHaveBeenCalled();
   });
 
   it('never generates with nothing to read', async () => {
     // Explaining a trend from its term alone is how a summary becomes fiction.
     expect(await call(() => Promise.resolve([]))).toEqual({});
-    expect(mocks.aliaChat).not.toHaveBeenCalled();
+    expect(mocks.inferenceChat).not.toHaveBeenCalled();
   });
 });
 
 describe('resolveTrendSummary — failure is invisible to the reader', () => {
   it('answers empty when the model throws', async () => {
-    mocks.aliaChat.mockRejectedValue(new Error('upstream down'));
+    mocks.inferenceChat.mockRejectedValue(new Error('upstream down'));
     expect(await call()).toEqual({});
   });
 
   it('answers empty when the model returns nothing usable', async () => {
-    mocks.aliaChat.mockResolvedValue('   ');
+    mocks.inferenceChat.mockResolvedValue('   ');
     expect(await call()).toEqual({});
     expect(await storedSummary()).toBeUndefined();
   });
@@ -220,14 +220,14 @@ describe('resolveTrendSummary — what gets stored', () => {
   });
 
   it('truncates a runaway answer to the configured length', async () => {
-    mocks.aliaChat.mockResolvedValue('x'.repeat(MtnConfig.trending.summary.maxLength + 500));
+    mocks.inferenceChat.mockResolvedValue('x'.repeat(MtnConfig.trending.summary.maxLength + 500));
 
     const { description } = await call();
     expect(description).toHaveLength(MtnConfig.trending.summary.maxLength);
   });
 
   it('normalizes whitespace so a stored summary is one clean paragraph', async () => {
-    mocks.aliaChat.mockResolvedValue('  The Orioles\n\n traded   Kremer.  ');
+    mocks.inferenceChat.mockResolvedValue('  The Orioles\n\n traded   Kremer.  ');
     expect((await call()).description).toBe('The Orioles traded Kremer.');
   });
 

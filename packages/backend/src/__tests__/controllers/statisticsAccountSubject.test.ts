@@ -56,7 +56,7 @@ vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({ getUserById: vi.fn(async () => ({})) }),
 }));
 
-vi.mock('../../utils/alia', () => ({ aliaChat: vi.fn(), isAliaEnabled: () => false }));
+vi.mock('../../utils/oxyInference', () => ({ inferenceChat: vi.fn(), isInferenceEnabled: () => false }));
 
 vi.mock('../../services/UserPreferenceService', () => ({
   userPreferenceService: { recordInteraction: vi.fn(async () => undefined) },

@@ -355,6 +355,7 @@ const environmentSchema = z
     OXY_SERVICE_API_KEY: trimmedOptionalString,
     OXY_SERVICE_API_SECRET: optionalString(),
     OXY_SERVICE_TOKEN: optionalString(),
+    OXY_INFERENCE_ROUTING_PROFILE: trimmedOptionalString,
     MENTION_OXY_CLIENT_ID: trimmedOptionalString,
     IP_HASH_SALT: optionalString(16),
     DEVICE_ID_SALT: optionalString(16),
@@ -367,8 +368,6 @@ const environmentSchema = z
     MENTION_NODE_PUBLIC_KEY: optionalString(),
     MENTION_NODE_BASE_URL: optionalHttpOrigin,
 
-    ALIA_API_URL: z.preprocess(emptyAsUndefined, httpOrigin.default('https://api.alia.onl')),
-    ALIA_API_KEY: optionalString(),
     SYRA_API_URL: z.preprocess(emptyAsUndefined, httpOrigin.default('https://api.syra.fm')),
     POST_CLASSIFICATION_ENABLED: booleanFromEnv(false),
 
@@ -606,10 +605,6 @@ export function getGifMediaProxySecret(): string | undefined {
 
 export function getKlipyAppKey(): string {
   return environment.KLIPY_APP_KEY ?? '';
-}
-
-export function getAliaApiKey(): string | undefined {
-  return environment.ALIA_API_KEY;
 }
 
 export function getIpHashSalt(
@@ -854,9 +849,8 @@ export const config = {
     maxDateRangeDays: 365,
     maxTimeMS: 3_000,
   },
-  alia: {
-    apiUrl: environment.ALIA_API_URL,
-    model: 'alia-v1',
+  inference: {
+    routingProfile: environment.OXY_INFERENCE_ROUTING_PROFILE,
     timeoutMs: 30_000,
   },
   syra: {
@@ -896,8 +890,15 @@ export function validateEnvironment(): void {
   if (config.runtime.isProduction && !environment.MENTION_MCP_JWT_SECRET) {
     missing.push('MENTION_MCP_JWT_SECRET');
   }
-  if (config.classification.enabled && !getAliaApiKey()) {
-    missing.push('ALIA_API_KEY');
+  if (config.classification.enabled && !config.inference.routingProfile) {
+    missing.push('OXY_INFERENCE_ROUTING_PROFILE');
+  }
+  if (
+    config.classification.enabled &&
+    !environment.OXY_SERVICE_TOKEN &&
+    !(environment.OXY_SERVICE_API_KEY && environment.OXY_SERVICE_API_SECRET)
+  ) {
+    missing.push('OXY_SERVICE_API_KEY/OXY_SERVICE_API_SECRET');
   }
   if (
     config.gif.libraryWriteEnabled &&
