@@ -38,6 +38,7 @@ import { feedService } from '@/services/feedService';
 import type { CreatePostRequest, HydratedPost } from '@mention/shared-types';
 import { MAX_POST_COLLABORATORS, MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useTheme } from '@oxyhq/bloom/theme';
+import { useHaptics } from '@oxyhq/bloom/hooks';
 import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTextInput';
 import ComposeMentionSummary from '@/components/Compose/ComposeMentionSummary';
 import { SEO } from '@/components/SEO';
@@ -175,6 +176,7 @@ const avatarMarginStyle = { marginRight: 12 };
 
 const ComposeScreenBody = () => {
   const theme = useTheme();
+  const haptic = useHaptics();
   const safeBack = useSafeBack();
   const bottomSheet = React.useContext(BottomSheetContext);
   const { drafts, saveDraft, deleteDraft } = useDrafts();
@@ -1300,6 +1302,7 @@ const ComposeScreenBody = () => {
           : wasScheduled && scheduledAtValue
             ? t('compose.schedule.success', { defaultValue: 'Post scheduled for {{time}}', time: formatScheduledLabel(scheduledAtValue) })
             : t('Post published successfully');
+      haptic('light');
       toast(successMessage, { type: 'success' });
 
       clearSchedule({ silent: true });

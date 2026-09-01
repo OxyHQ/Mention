@@ -150,7 +150,7 @@ const PostActions: React.FC<Props> = ({
       <PressableScale
         style={styles.iconButton}
         onPress={() => {
-          haptic('medium');
+          haptic('light');
           onBoost();
         }}
         hitSlop={HIT_SLOP_MD}
