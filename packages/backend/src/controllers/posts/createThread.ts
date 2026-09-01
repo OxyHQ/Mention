@@ -13,6 +13,7 @@ import { attachPollToPost, createPollWithOptions } from '../../db/polls/pollRepo
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { createMentionNotifications } from '../../utils/notificationUtils';
 import { PostVisibility, PostContent, PostContentVariant } from '@mention/shared-types';
+import type { ReplyPermission } from '@mention/shared-types';
 import { postCreationService } from '../../services/PostCreationService';
 import { insertArticle, newArticleId } from '../../db/posts/articleRepository';
 import { logger } from '../../utils/logger';
@@ -34,10 +35,16 @@ import {
 import { sanitizePodcast, resolvePodcastContent } from '../../utils/syraPodcast';
 import { federatePostBatchDetached } from '../../connectors/threadFederation';
 import {
+  type ParsedPollInput,
   type PendingArticle,
   MAX_ARTICLE_EXCERPT_LENGTH,
   DEFAULT_POLL_DURATION_DAYS,
   buildOrderedAttachments,
+  hashtagsSchema,
+  parseFailureMessage,
+  pollInputSchema,
+  postVisibilitySchema,
+  replyPermissionSchema,
   buildPostMetadata,
   sanitizeArticle,
   sanitizeEventData,
@@ -294,6 +301,83 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     }
 
     /**
+     * Every other client-supplied field of an entry, validated for the WHOLE
+     * batch before a single row is written — the same reason the variants,
+     * lanes, collaborators and accounts above are.
+     *
+     * These four reached the write unread. `hashtags` went to `mergeHashtags`,
+     * which calls `.map` on whatever it is given, so a string was a `TypeError`;
+     * `visibility` was `(visibility as PostVisibility) || PUBLIC`, a cast of
+     * request input into a column guarded by `posts_visibility_check`;
+     * `replyPermission` reached a `text[]` guarded by
+     * `posts_reply_permission_check` with no cast at all; and the poll's question
+     * and options were inserted verbatim, unbounded, by a call this loop does not
+     * even wrap in a `try`. Every one of them was a 500 raised INSIDE the
+     * creation loop — on entry three, with entries one and two already published
+     * and no single action able to undo them.
+     *
+     * Only a TRUTHY value is parsed, because each of these was written as
+     * `value || <default>`: a falsy one has always selected the default.
+     */
+    const entryHashtags: Array<string[] | undefined> = [];
+    const entryVisibility: Array<PostVisibility | undefined> = [];
+    const entryReplyPermission: Array<ReplyPermission[] | undefined> = [];
+    const entryPolls: Array<ParsedPollInput | undefined> = [];
+    for (const entry of posts) {
+      if (entry?.hashtags) {
+        const parsed = hashtagsSchema.safeParse(entry.hashtags);
+        if (!parsed.success) {
+          return res.status(400).json({ message: parseFailureMessage(parsed.error) });
+        }
+        entryHashtags.push(parsed.data);
+      } else {
+        entryHashtags.push(undefined);
+      }
+
+      if (entry?.visibility) {
+        // REFUSED rather than defaulted, unlike `POST /posts`. A batch cannot
+        // fall back: publishing n posts to `public` because one word was not
+        // recognised is not a default anybody asked for, and the alternative —
+        // letting it reach the column — is the half-thread this loop prevents.
+        const parsed = postVisibilitySchema.safeParse(entry.visibility);
+        if (!parsed.success) {
+          return res.status(400).json({ message: parseFailureMessage(parsed.error) });
+        }
+        entryVisibility.push(parsed.data);
+      } else {
+        entryVisibility.push(undefined);
+      }
+
+      if (entry?.replyPermission) {
+        const parsed = replyPermissionSchema.safeParse(entry.replyPermission);
+        if (!parsed.success) {
+          return res.status(400).json({ message: parseFailureMessage(parsed.error) });
+        }
+        entryReplyPermission.push(parsed.data);
+      } else {
+        entryReplyPermission.push(undefined);
+      }
+
+      if (entry?.content?.poll) {
+        const parsed = pollInputSchema.safeParse(entry.content.poll);
+        if (!parsed.success) {
+          return res.status(400).json({ message: parseFailureMessage(parsed.error) });
+        }
+        // The deadline is only checked for being READABLE. `POST /posts` also
+        // requires it to be in the future and within `MAX_POLL_DURATION_DAYS`;
+        // this path never has, and applying those here would refuse threads that
+        // publish today. What it could not survive is an UNREADABLE one, which
+        // is `ends_at`'s NOT NULL constraint raised mid-batch.
+        if (parsed.data.endTime && Number.isNaN(new Date(parsed.data.endTime).getTime())) {
+          return res.status(400).json({ message: 'Invalid poll end time' });
+        }
+        entryPolls.push(parsed.data);
+      } else {
+        entryPolls.push(undefined);
+      }
+    }
+
+    /**
      * The created posts, in publication order — read by hydration AND by outbound
      * federation. ONE array, not two: a `PostRecord` is the row as a value, so
      * there is no live document beside it for federation to stamp — it re-reads
@@ -305,7 +389,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
     for (let i = 0; i < posts.length; i++) {
       const postData = posts[i];
-      const { content, hashtags, mentions, visibility, replyPermission, reviewReplies, quotesDisabled, metadata } = postData;
+      const { content, mentions, reviewReplies, quotesDisabled, metadata } = postData;
 
       // Process content location data
       let processedContentLocation = null;
@@ -400,16 +484,15 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
       // Handle poll creation
       let pollId = null;
-      if (content?.poll) {
-        const poll = content.poll;
-        // Same shared writer as the single-post path above. The previous call
-        // here also passed fields the poll schema never had (`endTime`, `votes`,
-        // `userVotes`) and bare option strings where the single-post path passed
-        // `{ text }` — two spellings of one write, which is what having no
-        // shared writer buys.
+      const poll = entryPolls[i];
+      if (poll) {
+        // Same shared writer as the single-post path above, from the SAME
+        // validated shape — pre-flighted with the rest of the batch, because this
+        // call is not wrapped in a `try` and a poll that fails to insert on entry
+        // three would 500 with entries one and two already published.
         pollId = await createPollWithOptions({
-          question: poll.question || 'Poll',
-          options: poll.options ?? [],
+          question: poll.question,
+          options: poll.options,
           createdBy: userId,
           endsAt: new Date(poll.endTime || Date.now() + DEFAULT_POLL_DURATION_DAYS * 24 * 60 * 60 * 1000),
           isMultipleChoice: poll.isMultipleChoice || false,
@@ -422,7 +505,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       // body that is actually stored (the primary rendition when the entry has
       // renditions), or a multilingual entry's tags would come from a string
       // nobody will ever see.
-      const uniqueTags = mergeHashtags(postContent.text ?? '', hashtags);
+      const uniqueTags = mergeHashtags(postContent.text ?? '', entryHashtags[i]);
 
       // Create post
       const attachmentsInput = content?.attachments || content?.attachmentOrder || postData.attachments || postData.attachmentOrder;
@@ -457,8 +540,8 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         content: postContent,
         hashtags: uniqueTags,
         mentions: mentions || [],
-        visibility: (visibility as PostVisibility) || PostVisibility.PUBLIC,
-        replyPermission: replyPermission || ['anyone'],
+        visibility: entryVisibility[i] ?? PostVisibility.PUBLIC,
+        replyPermission: entryReplyPermission[i] ?? ['anyone'],
         reviewReplies: reviewReplies || false,
         quotesDisabled: quotesDisabled || false,
         metadata: buildPostMetadata(metadata),

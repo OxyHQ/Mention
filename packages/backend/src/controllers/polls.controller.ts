@@ -6,6 +6,7 @@ import { isCheckViolation, isForeignKeyViolation, isLiveEntityId } from '@oxyhq/
 import { getDb } from '../db/postgres';
 import { pollOptions, polls } from '../db/schema/polls';
 import { posts } from '../db/schema/posts';
+import { config } from '../config';
 import { createError } from '../utils/error';
 import { logger } from '../utils/logger';
 import {
@@ -21,17 +22,21 @@ const DEFAULT_POLL_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 /**
  * What a poll may contain.
  *
- * These are the numbers the composer's own poll shape declares
- * (`middleware/validate.ts`), restated here because THIS route had no upper
- * bound of any kind: `options` was checked for a MINIMUM of two and nothing
- * else, so one request could insert an unbounded number of `poll_options` rows
- * each holding an unbounded amount of text. A poll created here is rendered by
- * the same surfaces as one created through `POST /posts`, so it has to fit in
- * the same envelope.
+ * THIS route had no upper bound of any kind: `options` was checked for a
+ * MINIMUM of two and nothing else, so one request could insert an unbounded
+ * number of `poll_options` rows each holding an unbounded amount of text. A poll
+ * created here is rendered by the same surfaces as one created through
+ * `POST /posts`, so it has to fit in the same envelope — which is why the
+ * numbers live in `config.posts` and the composer path
+ * (`controllers/posts/composeInput.ts`) reads the same ones.
+ *
+ * `MAX_POLL_QUESTION_LENGTH` is the one bound the composer path does NOT share:
+ * it sends the post body as the question when the author types none, so it is
+ * bounded by `maxTextLength` there. See `pollInputSchema`.
  */
-const MAX_POLL_QUESTION_LENGTH = 280;
-const MAX_POLL_OPTIONS = 4;
-const MAX_POLL_OPTION_LENGTH = 100;
+const MAX_POLL_QUESTION_LENGTH = config.posts.maxPollQuestionLength;
+const MAX_POLL_OPTIONS = config.posts.maxPollOptions;
+const MAX_POLL_OPTION_LENGTH = config.posts.maxPollOptionLength;
 
 /**
  * `POST /polls`.

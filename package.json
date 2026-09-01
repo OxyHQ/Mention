@@ -78,9 +78,9 @@
   },
   "overrides": {
     "@react-native-async-storage/async-storage": "2.2.0",
-    "expo-secure-store": "57.0.2",
+    "expo-secure-store": "57.0.3",
     "expo-file-system": "57.0.6",
-    "expo-modules-core": "57.0.14",
+    "expo-modules-core": "57.0.15",
     "react-native-svg": "15.15.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -101,13 +101,18 @@
     "ip-address": "10.3.1",
     "socket.io-parser": "4.2.7",
     "nanoid": "3.3.18",
-    "expo-constants": "57.0.16",
+    "expo-constants": "57.0.17",
     "zustand": "5.0.15",
     "@tanstack/react-virtual": "3.14.10",
     "@types/react": "19.2.18",
     "@typescript-eslint/eslint-plugin": "8.68.0",
     "@typescript-eslint/parser": "8.68.0",
-    "express-rate-limit": "8.7.0"
+    "express-rate-limit": "8.7.0",
+    "@tanstack/react-query": "5.102.8",
+    "@tanstack/query-core": "5.102.8",
+    "@tanstack/query-persist-client-core": "5.102.8",
+    "@tanstack/query-async-storage-persister": "5.102.8",
+    "@tanstack/react-query-persist-client": "5.102.8"
   },
   "dependencies": {}
 }

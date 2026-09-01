@@ -60,7 +60,18 @@ const createReportSchema = z.object({
   reportedId: z.string('reportedId must be a non-empty string').min(1, 'reportedId must be a non-empty string'),
   categories: z
     .array(z.enum(REPORT_CATEGORIES, `Must be one of: ${REPORT_CATEGORIES.join(', ')}`), 'categories must be a non-empty array')
-    .min(1, 'categories must be a non-empty array'),
+    .min(1, 'categories must be a non-empty array')
+    // Bounded by the VOCABULARY, which is the only bound that means anything
+    // here: six values are valid, so a report naming more than six is naming one
+    // of them twice. Without it a single request wrote a `text[]` as long as
+    // `express.json`'s 1 MB body limit allowed — well over a hundred thousand
+    // duplicate entries, measured accepted and passed to intake — and every one
+    // of them travels again in the CrowdSource envelope. The report UI toggles a
+    // fixed list, so no client can reach this.
+    .max(
+      REPORT_CATEGORIES.length,
+      `categories must name at most ${REPORT_CATEGORIES.length} of: ${REPORT_CATEGORIES.join(', ')}`,
+    ),
   details: z
     .unknown()
     .refine(

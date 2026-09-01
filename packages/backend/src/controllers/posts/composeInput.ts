@@ -7,7 +7,9 @@
  * readers live here so a bound tightened on create cannot be missed on update.
  */
 
-import { PostAttachmentDescriptor, PostAttachmentType } from '@mention/shared-types';
+import { z } from 'zod';
+import { PostAttachmentDescriptor, PostAttachmentType, PostVisibility } from '@mention/shared-types';
+import type { ReplyPermission } from '@mention/shared-types';
 import { config } from '../../config';
 import type { NormalizedMediaItem } from '../../utils/mediaInput';
 
@@ -38,6 +40,167 @@ const MAX_EVENT_NAME_LENGTH = config.posts.maxEventNameLength;
 const MAX_EVENT_LOCATION_LENGTH = config.posts.maxEventLocationLength;
 const MAX_EVENT_DESCRIPTION_LENGTH = config.posts.maxEventDescriptionLength;
 export const MAX_TEXT_LENGTH = config.posts.maxTextLength;
+const MAX_POLL_OPTIONS = config.posts.maxPollOptions;
+const MAX_POLL_OPTION_LENGTH = config.posts.maxPollOptionLength;
+
+/**
+ * ## The four client fields that reach a CONSTRAINED column unread
+ *
+ * `hashtags`, `visibility`, `replyPermission` and `content.poll` were all
+ * carried from `req.body` to the write with a truthiness test or a bare cast,
+ * which is a 500 for anything but the shape the composer happens to send:
+ * `mergeHashtags` calls `.map` on whatever it is handed (a truthy non-array is a
+ * `TypeError`), `visibility` and `replyPermission` land in columns guarded by
+ * `posts_visibility_check` / `posts_reply_permission_check`, and a poll's
+ * question and options are inserted as text with no bound at all.
+ *
+ * They are read HERE, once, for the same reason the sanitizers below are: a
+ * bound tightened on create must not be missable on update, and the thread
+ * composer must not be able to accept a poll the single-post composer refuses.
+ *
+ * ## Falsy means "not supplied", everywhere
+ *
+ * Every one of these fields was written as `value || <default>`, so `undefined`,
+ * `null`, `''` and `0` have always selected the default rather than being
+ * refused. The handlers therefore parse only a TRUTHY value: the refusals below
+ * are additions to what a request could already fail on, never to what it could
+ * already succeed with.
+ */
+
+/** Message shared by every way `hashtags` can fail to be a list of tags. */
+const INVALID_HASHTAG_MESSAGE =
+  `Invalid hashtag: each must be a string of at most ${MAX_HASHTAG_LENGTH} characters`;
+
+/**
+ * The `hashtags` array as a client submits it.
+ *
+ * The count and per-tag bounds are the ones `POST /posts` already answered a 400
+ * for; what is new is that they now apply on the thread and update paths too,
+ * which had no bound of any kind, and that a NON-array is a 400 rather than the
+ * `TypeError` → 500 `mergeHashtags` produced for one.
+ */
+export const hashtagsSchema = z
+  .array(
+    z.string(INVALID_HASHTAG_MESSAGE).max(MAX_HASHTAG_LENGTH, INVALID_HASHTAG_MESSAGE),
+    INVALID_HASHTAG_MESSAGE,
+  )
+  .max(MAX_HASHTAGS_PER_POST, `Too many hashtags: maximum is ${MAX_HASHTAGS_PER_POST}`);
+
+/**
+ * The `visibility` a client asks for, mapped to the stored enum.
+ *
+ * `followers` is an ACCEPTED SPELLING of `followers_only`, not a typo tolerated
+ * by accident — `POST /posts` has always mapped it, and dropping it here would
+ * change what that route accepts.
+ *
+ * The two callers dispose of a value this REFUSES differently, and neither
+ * choice is free to change. `POST /posts` has always fallen back to `public` for
+ * anything it did not recognise, and narrowing that would refuse bodies that
+ * publish today. `POST /posts/thread` cannot fall back: its entries are written
+ * one at a time, so a value the column refuses on entry three leaves entries one
+ * and two published — the half-thread every other pre-flight in that handler
+ * exists to prevent — and defaulting a batch to `public` would publish n posts
+ * to an audience nobody asked for.
+ */
+export const postVisibilitySchema = z
+  .enum(['public', 'followers', 'followers_only', 'private'], 'Invalid visibility')
+  .transform((value) => {
+    if (value === 'private') return PostVisibility.PRIVATE;
+    if (value === 'public') return PostVisibility.PUBLIC;
+    return PostVisibility.FOLLOWERS_ONLY;
+  });
+
+/**
+ * `replyPermission`, whose vocabulary is `ReplyPermission`.
+ *
+ * Spelled as a map rather than a tuple so `satisfies` makes it EXHAUSTIVE: a
+ * permission added to `ReplyPermission` and not to this object fails to compile,
+ * where a hand-written tuple would simply start refusing the new value. The
+ * array is declared here rather than imported from `db/schema/posts.ts` because
+ * a controller may not reach into `db/` (`validate:architecture-boundaries`).
+ *
+ * An EMPTY array is accepted, as it always has been: `posts_reply_permission_check`
+ * admits it, and the application — not the schema — decides what it means.
+ */
+const REPLY_PERMISSION_VALUES = {
+  anyone: 'anyone',
+  followers: 'followers',
+  following: 'following',
+  mentioned: 'mentioned',
+  nobody: 'nobody',
+} as const satisfies Record<ReplyPermission, ReplyPermission>;
+
+export const replyPermissionSchema = z.array(
+  z.enum(REPLY_PERMISSION_VALUES, `replyPermission must be one of: ${Object.keys(REPLY_PERMISSION_VALUES).join(', ')}`),
+  'replyPermission must be an array',
+);
+
+/**
+ * A poll as the composer submits it inside `content`.
+ *
+ * `question` and `options` were inserted verbatim: an object question became the
+ * row `'[object Object]'`, an object option became an option labelled
+ * `'[object Object]'`, and two hundred options became two hundred rows. The
+ * booleans were `x || false`, which drove a truthy NON-boolean into a
+ * `boolean NOT NULL` column and stored the OPPOSITE of what was asked (measured:
+ * `isMultipleChoice: 'yes'` stores `false`).
+ *
+ * ### Why `question` is bounded by the POST BODY's length and not by
+ * `maxPollQuestionLength`
+ *
+ * The composer does not require a poll question. When none is typed it sends
+ * `pollTitle.trim() || postContent.trim() || 'Poll'` (`frontend/utils/postBuilder.ts`,
+ * on both the single-post and the thread path), so the question a real request
+ * carries can be the entire post body — up to `MAX_TEXT_LENGTH`. Bounding it at
+ * the 280 `POST /polls` uses would 400 a body the app sends today. Tightening it
+ * is a frontend change first.
+ *
+ * ### `options` may hold ONE
+ *
+ * Also the composer: it attaches a poll as soon as a single option is non-empty
+ * and then filters the empties out, so a one-option poll is a request the app
+ * really makes and really publishes. `POST /polls` and the MCP tool both require
+ * two; matching them here would refuse it. What the minimum of one DOES refuse is
+ * the empty array — a poll nobody can answer, attached to a post that publishes.
+ *
+ * `endTime` stays a string or a number, the values `new Date()` reads. Anything
+ * else already produced a 400 on `POST /posts` (an unparseable or past date), so
+ * naming the type here changes the message and not the answer.
+ */
+export const pollInputSchema = z.object({
+  question: z
+    .string('Poll question is required')
+    .min(1, 'Poll question is required')
+    .max(MAX_TEXT_LENGTH, `Poll question exceeds maximum length of ${MAX_TEXT_LENGTH} characters`),
+  options: z
+    .array(
+      z
+        .string('Every poll option must be a non-empty string')
+        .min(1, 'Every poll option must be a non-empty string')
+        .max(MAX_POLL_OPTION_LENGTH, `Every poll option must be ${MAX_POLL_OPTION_LENGTH} characters or less`),
+      'A poll needs at least one option',
+    )
+    .min(1, 'A poll needs at least one option')
+    .max(MAX_POLL_OPTIONS, `A poll may have at most ${MAX_POLL_OPTIONS} options`),
+  endTime: z.union([z.string(), z.number()], 'Invalid poll end time').nullish(),
+  isMultipleChoice: z.boolean('isMultipleChoice must be a boolean').nullish(),
+  isAnonymous: z.boolean('isAnonymous must be a boolean').nullish(),
+}, 'A poll must be an object with a question and options');
+
+/** A poll that has passed {@link pollInputSchema}. */
+export type ParsedPollInput = z.infer<typeof pollInputSchema>;
+
+/**
+ * The 400 body these handlers already answer with, from a failed `safeParse`.
+ *
+ * `{ message }` is the envelope `POST /posts`, `POST /posts/thread` and
+ * `PUT /posts/:id` use for every other refusal, and the parse runs INSIDE the
+ * handler rather than as `validateBody` in the route position for the reason
+ * `controllers/polls.controller.ts` documents: the middleware answers a
+ * different envelope and would move the 400 ahead of the handler's 401.
+ */
+export const parseFailureMessage = (error: z.ZodError): string =>
+  error.issues.map((issue) => issue.message).join('; ');
 
 export const buildPostMetadata = (metadata: unknown): Record<string, unknown> => {
   if (!metadata || typeof metadata !== 'object') {

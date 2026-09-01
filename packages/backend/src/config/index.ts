@@ -828,6 +828,14 @@ export const config = {
     maxArticleExcerptLength: 280,
     defaultPollDurationDays: 7,
     maxPollDurationDays: 30,
+    // What a poll may CONTAIN, shared by the two writers of one. `POST /polls`
+    // stated these locally while the composer path (`POST /posts`,
+    // `POST /posts/thread`) stated none at all, so one poll surface bounded a
+    // poll and the other inserted whatever arrived. `db/polls/pollRepository.ts`
+    // is the single writer; these are the single envelope.
+    maxPollQuestionLength: 280,
+    maxPollOptions: 4,
+    maxPollOptionLength: 100,
     maxEventNameLength: 200,
     maxEventLocationLength: 200,
     maxEventDescriptionLength: 500,
