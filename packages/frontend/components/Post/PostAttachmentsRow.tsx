@@ -20,12 +20,12 @@ import { MEDIA_CARD_HEIGHT, MEDIA_CARD_RADIUS } from '@/utils/composeUtils';
 import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
 import {
-  ZoomableImageGallery,
-  type ZoomableImageGalleryHandle,
+  ZoomableMediaGallery,
+  type ZoomableMediaGalleryHandle,
   type GalleryImage,
   type MeasureThumb,
   type MeasuredRect,
-} from '@oxyhq/bloom/zoomable-image-gallery';
+} from '@oxyhq/bloom/zoomable-media-gallery';
 import type { RegisterThumbHost } from '@/components/Post/Attachments/PostAttachmentMedia';
 import {
   PostAttachmentArticle,
@@ -430,7 +430,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     return map;
   }, [mediaItems]);
 
-  const galleryRef = useRef<ZoomableImageGalleryHandle>(null);
+  const galleryRef = useRef<ZoomableMediaGalleryHandle>(null);
 
   // Registry of thumbnail host nodes keyed by the images-only subset index — the
   // SAME index space the gallery opens/pages/indicator/close use. Populated via
@@ -747,7 +747,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         return null;
       })}
     </ScrollView>
-    {galleryImages.length > 0 && <ZoomableImageGallery ref={galleryRef} measureThumb={measureThumb} cornerRadius={MEDIA_CARD_RADIUS} indicatorVariant="dots" />}
+    {galleryImages.length > 0 && <ZoomableMediaGallery ref={galleryRef} measureThumb={measureThumb} cornerRadius={MEDIA_CARD_RADIUS} indicatorVariant="dots" />}
     </>
   );
 }, (prevProps, nextProps) => {

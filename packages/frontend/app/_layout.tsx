@@ -16,7 +16,7 @@ import { NotificationPermissionGate } from '@/components/NotificationPermissionG
 import { PwaHead } from '@/components/PwaHead';
 import { AppProviders } from '@/components/providers/AppProviders';
 import { AuthRouter } from '@/components/providers/AuthRouter';
-import { Provider as PortalProvider, Outlet as PortalOutlet } from '@oxyhq/bloom/portal';
+import { PortalProvider, PortalOutlet } from '@oxyhq/bloom/portal';
 
 // Hooks
 import { useHapticsStore } from '@/stores/hapticsStore';

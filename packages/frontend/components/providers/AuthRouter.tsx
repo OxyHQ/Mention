@@ -1,6 +1,5 @@
-import { Redirect, Slot, Stack, usePathname, useRouter, useSegments } from 'expo-router';
+import { Redirect, Slot, usePathname, useRouter, useSegments } from 'expo-router';
 import React, { useEffect } from 'react';
-import { Platform } from 'react-native';
 import { useAuth } from '@oxyhq/services/ui/client';
 
 import AppSplashScreen from '@/components/AppSplashScreen';
@@ -53,29 +52,23 @@ export function AuthRouter() {
     return <AppSplashScreen />;
   }
 
-  // WEB: render <Slot/> so the matched route flows in normal document flow (the
-  // BODY is the scroller). A native-stack <Stack> clamps each scene in a
-  // viewport-height `position: absolute; inset: 0` container, leaving
-  // `position: sticky` no taller scroll container to pin within — the rails scroll
-  // away. <Slot/> avoids that.
+  // Render <Slot/> at the root so there is only one native stack: the predictive-
+  // back-aware stack inside `(app)`. The experimental react-native-screens stack
+  // cannot be nested safely yet (its header config mounts in the wrong order),
+  // while mixing it with the standard Stack is unsupported on Android.
+  //
+  // On web this also keeps the matched route in normal document flow (the BODY is
+  // the scroller). A native-stack-style scene would clamp it to the viewport and
+  // break document scroll + sticky rails.
   //
   // <Slot> is the SOLE authority for the (auth)↔(app) swap: reproduce the old root
   // `redirect={isAuthenticated}` declaratively with <Redirect> — authenticated AND
   // inside the (auth) group → bounce to "/". Anonymous users are never redirected
   // away, so public browse keeps working; no competing child redirect on the same
   // signal, so no cold-load race.
-  if (Platform.OS === 'web') {
-    const inAuthGroup = segments[0] === '(auth)';
-    if (isAuthenticated && inAuthGroup) {
-      return <Redirect href="/" />;
-    }
-    return <Slot />;
+  const inAuthGroup = segments[0] === '(auth)';
+  if (isAuthenticated && inAuthGroup) {
+    return <Redirect href="/" />;
   }
-
-  return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(auth)" redirect={isAuthenticated} />
-      <Stack.Screen name="(app)" />
-    </Stack>
-  );
+  return <Slot />;
 }

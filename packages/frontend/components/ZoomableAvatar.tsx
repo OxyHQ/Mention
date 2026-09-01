@@ -17,10 +17,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useImageResolver } from '@oxyhq/bloom/image-resolver';
 import {
-  ZoomableImageGallery,
+  ZoomableMediaGallery,
   type MeasuredRect,
-  type ZoomableImageGalleryHandle,
-} from '@oxyhq/bloom/zoomable-image-gallery';
+  type ZoomableMediaGalleryHandle,
+} from '@oxyhq/bloom/zoomable-media-gallery';
 import { useAuth } from '@oxyhq/services/ui/client';
 
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
@@ -47,7 +47,7 @@ interface ZoomableAvatarProps {
 }
 
 /**
- * Circular avatar that opens Bloom's `ZoomableImageGallery` when tapped.
+ * Circular avatar that opens Bloom's `ZoomableMediaGallery` when tapped.
  *
  * The zoom itself — fly-from-thumbnail, pinch, drag-to-dismiss, the blurred
  * backdrop, the fly-back — belongs to the gallery, which is the same viewer
@@ -78,7 +78,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
     setErrored(false);
   }
   const wrapperRef = useRef<View>(null);
-  const galleryRef = useRef<ZoomableImageGalleryHandle>(null);
+  const galleryRef = useRef<ZoomableMediaGalleryHandle>(null);
 
   // An absolute http(s) `source` is a FINAL, server-resolved URL. A non-http
   // string is a raw Oxy file id (legacy profile-design data) resolved through
@@ -171,7 +171,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
         </View>
       </Pressable>
 
-      <ZoomableImageGallery ref={galleryRef} measureThumb={measureThumb} cornerRadius="circle" />
+      <ZoomableMediaGallery ref={galleryRef} measureThumb={measureThumb} cornerRadius="circle" />
     </>
   );
 };

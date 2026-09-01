@@ -1,6 +1,6 @@
 import React from "react";
 import { Platform, View } from "react-native";
-import { Slot, Stack, usePathname } from "expo-router";
+import { ExperimentalStack, Slot, usePathname } from "expo-router";
 
 import { useAuth } from '@oxyhq/services/ui/client';
 import { ConnectionStatusToasts } from '@oxyhq/bloom/connection-status';
@@ -89,24 +89,18 @@ export default function AppLayout() {
   // Same center content on both platforms; only the host differs. WEB uses <Slot/>
   // so the route flows in document scroll (the BODY is the scroller) and sticky
   // works — a <Stack>'s viewport-clamped scene would break document scroll + sticky.
-  // NATIVE keeps <Stack> for real push/pop + freezeOnBlur (pushed screens stay
-  // mounted so `back` restores scroll).
+  // NATIVE uses Expo Router's predictive-back-aware stack. The standard Stack
+  // cannot consume Android's predictive callback and lets the Activity close;
+  // all native stacks must use ExperimentalStack together on Android.
   const centerContent = (
     <>
       {IS_WEB ? (
         <Slot />
       ) : (
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            animation: 'default',
-            freezeOnBlur: true,
-            contentStyle: { flex: 1, backgroundColor: 'transparent' },
-          }}
-        >
-          <Stack.Screen name="compose" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="p/[id]/boost" options={{ presentation: 'modal' }} />
-        </Stack>
+        <ExperimentalStack screenOptions={{ headerShown: false }}>
+          <ExperimentalStack.Screen name="compose" />
+          <ExperimentalStack.Screen name="p/[id]/boost" />
+        </ExperimentalStack>
       )}
       {/* Show the anon CTA only once auth is resolved: during cold-boot restore
           `isAuthenticated` is undetermined and would flash the banner to a user

@@ -15,7 +15,7 @@ import {
   DEFAULT_ASPECT_RATIO,
 } from '@oxyhq/bloom/image-aspect-ratio-cache';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
-import type { MeasuredRect } from '@oxyhq/bloom/zoomable-image-gallery';
+import type { MeasuredRect } from '@oxyhq/bloom/zoomable-media-gallery';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 /**

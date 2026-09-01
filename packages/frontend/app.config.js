@@ -97,6 +97,7 @@ return {
             versionCode: 2,
             // Must match a client package_name in google-services.json.
             package: APP_ID,
+            predictiveBackGestureEnabled: true,
             // google-services.json carries both earth.mention.app and its .dev
             // variant so either build passes; real FCM needs those registered
             // in Firebase and the file swapped (see the app-variant note above).
