@@ -15,7 +15,6 @@ const LIVE_ROOMS_STATUS = 'live';
 
 interface LiveRoomsState {
   rooms: Room[];
-  isLoading: boolean;
   hasFetched: boolean;
   error: string | null;
   hiddenRoomIds: string[];
@@ -56,7 +55,6 @@ let nextPollSubscriptionId = 1;
 export const useLiveRoomsStore = create<LiveRoomsStore>()(
     (set, get) => ({
       rooms: [],
-      isLoading: true,
       hasFetched: false,
       error: null,
       hiddenRoomIds: [],
@@ -64,21 +62,21 @@ export const useLiveRoomsStore = create<LiveRoomsStore>()(
       fetchLiveRooms: async (opts?: { silent?: boolean }) => {
         const operationEpoch = viewerEpoch;
         const silent = !!opts?.silent;
-        if (!silent) set({ isLoading: true, error: null });
+        if (!silent) set({ error: null });
         try {
           const next = await getLiveRooms(LIVE_ROOMS_STATUS);
           if (operationEpoch !== viewerEpoch) return;
           const { rooms: prev } = get();
           if (roomsEqual(prev, next)) {
-            set({ isLoading: false, hasFetched: true });
+            set({ hasFetched: true });
           } else {
-            set({ rooms: next, isLoading: false, hasFetched: true });
+            set({ rooms: next, hasFetched: true });
           }
         } catch (error: unknown) {
           if (operationEpoch !== viewerEpoch) return;
           const message = error instanceof Error ? error.message : 'Failed to load live rooms';
           logger.warn('Failed to fetch live rooms', { error });
-          if (!silent) set({ error: message, isLoading: false, hasFetched: true });
+          if (!silent) set({ error: message, hasFetched: true });
         }
       },
 
@@ -120,7 +118,6 @@ export const useLiveRoomsStore = create<LiveRoomsStore>()(
         }
         set({
           rooms: [],
-          isLoading: true,
           hasFetched: false,
           error: null,
           hiddenRoomIds: [],
