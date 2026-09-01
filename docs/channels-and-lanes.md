@@ -83,7 +83,7 @@ workarounds.
   `services/ThreadSlicingService.ts`, `routes/search.ts`). Missing from one,
   the writer hydrates `undefined` with no error and the same post names its
   writer on a feed row but not as a thread parent.
-- **A channel can never be acted as.** `isActAsEligibleKind`
+- **A channel can never be acted as.** `isDelegatedActAsEligibleKind`
   (`@oxyhq/contracts`) refuses `channel`, so no session can be minted whose
   subject is a channel — which is why channel accounts cannot appear in the
   account switcher structurally, not by a UI filter. Publishing as one
@@ -114,7 +114,7 @@ workarounds.
   becoming it and additionally requires `account:act_as`, read off
   `AccountMember.permissions` and never inferred from `membership.role` — a
   role list here is a second copy of Oxy's role→permission map, and the
-  copy is what goes stale. Eligibility asks `isActAsEligibleKind`, not
+  copy is what goes stale. Eligibility asks `isDelegatedActAsEligibleKind`, not
   `kind !== 'personal'`, so a kind Oxy adds later is refused rather than
   inherited.
 - **`replyPermission: ['nobody']` is forced by the author's KIND, never by
@@ -205,7 +205,7 @@ workarounds.
   ActivityPub-Accept branch — never redirect an AP endpoint path.
 - **A notification addressed to a channel needs READ-TIME recipient
   expansion, because no session can ever BE the channel.**
-  `isActAsEligibleKind('channel') === false` refuses a channel as a session
+  `isDelegatedActAsEligibleKind('channel') === false` refuses a channel as a session
   subject, yet a channel post's `post.authorship` owner IS the channel, so
   engagement notifications (`createPostAuthorNotifications`) are naturally
   addressed to the channel's own id. `GET /notifications`
